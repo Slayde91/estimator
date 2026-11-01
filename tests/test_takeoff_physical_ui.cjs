@@ -157,7 +157,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
       const value=graph();value.defects[0].fields.label='Home';value.barriers[0].fields.substrate='Board';value.services[0].fields.service_type='Primer';
       h=component(value);await flush();const all=h.all();
       for(const source of ['Defect ID','Barrier ID','Service ID'])assert.ok(all.some(el=>el.tagName==='TH'&&el.textContent===global.CeasefireI18n.translate(source)));
-      assert.ok(all.some(el=>el.className.startsWith('takeoff-state')&&el.textContent==='未确认'));
+      assert.ok(all.some(el=>el.className.startsWith('takeoff-state')&&el.textContent==='草稿'));
       assert.ok(all.some(el=>el.textContent==='Home'));assert.ok(all.some(el=>el.value==='Board'));assert.ok(all.some(el=>el.value==='Primer'));
       assert.deepEqual(h.current.physical,value);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);
     }finally{h?.controller.destroy();global.CeasefireI18n=previous;}
@@ -335,8 +335,8 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
       const value=scope==='service_plans'?servicePlanGraph():graph(),ownerId=scope==='service_plans'?uuid(1):uuid(2);
       value.services[0].confirmation='confirmed';value.services[0].uncertainty={state:'conflicting',note:'Retain exact evidence conflict.'};
       const h=component(value,{scope:()=>scope});await flush();await h.controller.select(uuid(5));const child=copy(h.current.physical.services[0]);
-      assert.ok(!h.all().some(node=>node.attributes['aria-label']==='Confirmation'));assert.ok(h.all().some(node=>node.textContent.includes('Confirmation: Unconfirmed')&&node.textContent.includes('inherited from')));assert.ok(!h.all().some(node=>node.className==='helper takeoff-retained-uncertainty'||node.textContent.includes('This does not approve technical compliance or add schedule quantity.')));
-      await h.controller.select(ownerId);const control=h.input('Confirmation');assert.deepEqual(control.children.map(option=>option.value),['unconfirmed','confirmed']);const ownerFields=control.parentElement.parentElement.children;assert.equal(ownerFields[ownerFields.indexOf(control.parentElement)+1].className,'takeoff-physical-inspector-actions');assert.ok(!h.all().some(node=>node.attributes['aria-label']==='Notes'));control.value='confirmed';control.emit('change');await flush();
+      assert.ok(!h.all().some(node=>node.attributes['aria-label']==='Status'));assert.ok(h.all().some(node=>node.textContent.includes('Status: Draft')&&node.textContent.includes('inherited from')));assert.ok(!h.all().some(node=>node.className==='helper takeoff-retained-uncertainty'||node.textContent.includes('This does not approve technical compliance or add schedule quantity.')));
+      await h.controller.select(ownerId);const control=h.input('Status');assert.deepEqual(control.children.map(option=>option.value),['unconfirmed','confirmed']);const ownerFields=control.parentElement.parentElement.children;assert.equal(ownerFields[ownerFields.indexOf(control.parentElement)+1].className,'takeoff-physical-inspector-actions');assert.ok(!h.all().some(node=>node.attributes['aria-label']==='Notes'));control.value='confirmed';control.emit('change');await flush();
       assert.ok(!h.all().some(node=>node.textContent.includes("Confirmation records your manual review of this draft's fields.")));
       assert.equal(physical.effectiveConfirmation(physical.indexGraph(h.current.physical).get(uuid(5)),physical.indexGraph(h.current.physical)),'confirmed');assert.deepEqual(h.current.physical.services[0],child);assert.equal(h.current.physical.state,'draft');assert.equal(h.current.library_assignments,undefined);
       await h.controller.select(uuid(5));await h.controller.select(uuid(6),true);const before=h.calls.previews.length;await h.click('Confirm');assert.equal(h.calls.previews.length,before);await h.click('Unconfirm');assert.deepEqual(h.calls.previews.at(-1).map(command=>command.entity_id),[ownerId]);assert.deepEqual(h.current.physical.services[0],child);h.controller.destroy();
@@ -539,7 +539,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     const h=component();await flush();const text=h.dom.container.textContent;
     for(const phrase of ['Defect ID','Barrier ID','Service ID','0 services','Unapproved draft'])assert.ok(text.includes(phrase),phrase);
     assert.ok(!text.includes('UNAPPROVED DRAFT. These are recorded physical assertions'));
-    assert.deepEqual(h.all().filter(element=>element.tagName==='TH').slice(0,7).map(element=>element.textContent),['Select','Hide','View/Edit','Defect ID','Barrier ID','Service ID','Confirmation']);
+    assert.deepEqual(h.all().filter(element=>element.tagName==='TH').slice(0,7).map(element=>element.textContent),['Select','Hide','View/Edit','Defect ID','Barrier ID','Service ID','Status']);
     assert.ok(!text.includes('Opening'));assert.ok(!h.all().some(element=>element.tagName==='BUTTON'&&['Add barrier','Add service','Add opening'].includes(element.textContent)));
     assert.equal(h.button('Add barrier to D-0001').textContent,'+');assert.equal(h.button('Add service to B-0001').textContent,'+');
     assert.ok(!text.includes(uuid(1)));assert.ok(text.includes('B-0001'));
@@ -829,12 +829,12 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
       assert.deepEqual(rows.map(row=>row.entity.id),value.version===3?[uuid(1),uuid(5)]:[uuid(2),uuid(1),uuid(5)]);assert.deepEqual(rows.filter(row=>!row.context).map(row=>row.entity.id),[uuid(5)]);
       assert.deepEqual(physical.hierarchyRows(value,{columnFilters:filters,filter:'L01'}).map(row=>row.entity.id),rows.map(row=>row.entity.id));assert.equal(physical.hierarchyRows(value,{columnFilters:filters,filter:'Cable bundle'}).length,0);
       const blank=physical.hierarchyRows(value,{columnFilters:new Map([['service',new Set([''])],['substrate',new Set([''])]])});assert.ok(blank.some(row=>row.entity.id===uuid(4)));assert.ok(!blank.some(row=>row.kind==='service'));
-      const state=physical.hierarchyRows(value,{columnFilters:new Map([['state',new Set(['Confirmed'])]])});assert.deepEqual(state.filter(row=>!row.context).map(row=>row.entity.id),value.version===3?[uuid(1),uuid(5),uuid(6)]:[uuid(2),uuid(1),uuid(5),uuid(6),uuid(4)]);
+      const state=physical.hierarchyRows(value,{columnFilters:new Map([['state',new Set(['Approved'])]])});assert.deepEqual(state.filter(row=>!row.context).map(row=>row.entity.id),value.version===3?[uuid(1),uuid(5),uuid(6)]:[uuid(2),uuid(1),uuid(5),uuid(6),uuid(4)]);
     }
   });
   await check('Column filter dialogs search values, keep choices from other filters, support cancel/reset and select matching rows only',async()=>{
     const value=servicePlanGraph();value.barriers[0].fields.location='L01';value.barriers[1].fields.location='L02';value.services[0].fields.service='Mechanical';value.services[1].fields.service='Electrical & Communications';const h=component(value,{scope:()=> 'service_plans'});await flush();
-    for(const label of ['Confirmation','Location','FRL','Substrate','Orientation','Category','Service type'])assert.equal(h.button(`Filter ${label}`).attributes['aria-haspopup'],'dialog');
+    for(const label of ['Status','Location','FRL','Substrate','Orientation','Category','Service type'])assert.equal(h.button(`Filter ${label}`).attributes['aria-haspopup'],'dialog');
     await h.click('Filter Category');const all=h.input('Select all values');all.checked=false;all.emit('change');const mechanical=h.input('Mechanical');mechanical.checked=true;mechanical.emit('change');await h.click('Apply filter');
     assert.deepEqual(h.all().filter(node=>node.dataset.physicalId).map(node=>node.dataset.physicalId),[uuid(1),uuid(5)]);assert.equal(h.button('Filter Category').attributes['aria-pressed'],'true');const header=h.input('Select all matching physical records');header.checked=true;header.emit('change');await flush();assert.deepEqual(h.controller.selection(),[uuid(5)]);
     await h.click('Filter Location');assert.ok(h.input('L02'));const search=h.input('Search Location values');search.value='L02';search.emit('input');assert.ok(!h.all().some(node=>node.attributes['aria-label']==='L01'));assert.equal(h.input('Select all values').checked,true);await h.click('Cancel');assert.equal(h.button('Filter Location').attributes['aria-pressed'],'false');

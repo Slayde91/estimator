@@ -47,14 +47,14 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     h.state.session.snapshot.items[0].fields.mark = 'Home'; h.state.session.snapshot.items[1].fields.level = 'Unconfirmed';
     const before = copy(h.state.session.snapshot); h.audit.renderRegister();
     const nodes = h.all(h.ui.tableWrap), status = id => h.all(nodes.find(el => el.dataset.itemId === id)).find(el => el.className.startsWith('takeoff-state')).textContent;
-    assert.equal(status('D1'), '已确认'); assert.equal(status('D2'), '未确认');
+    assert.equal(status('D1'), '已批准'); assert.equal(status('D2'), '草稿');
     assert.ok(nodes.some(el => el.value === 'Home')); assert.ok(nodes.some(el => el.value === 'Unconfirmed'));
     h.audit.stubRenderers(); const anchor = h.element('button'); let pending = h.audit.openRegisterColumnFilter('confirmation', anchor);
     const menu = h.document.body.children[0], search = h.all(menu).find(el => el.tagName === 'INPUT' && el.type === 'search');
-    assert.equal(menu.children[0].textContent, h.context.window.CeasefireI18n.translate('Filter {0}', [h.context.window.CeasefireI18n.term('Confirmation')]));
-    search.value = '已确认'; search.events.input();
+    assert.equal(menu.children[0].textContent, h.context.window.CeasefireI18n.translate('Filter {0}', [h.context.window.CeasefireI18n.term('Status')]));
+    search.value = '已批准'; search.events.input();
     const choices = h.all(menu).filter(el => el.className === 'takeoff-column-filter-choice');
-    assert.equal(choices.at(-1).textContent, '已确认');
+    assert.equal(choices.at(-1).textContent, '已批准');
     menu.close('cancel'); await pending;
     pending = h.audit.openRegisterColumnFilter('level', anchor); const sourceMenu = h.document.body.children[0];
     assert.ok(h.all(sourceMenu).some(el => el.textContent === 'Unconfirmed'), 'A user level named Unconfirmed is not translated');
@@ -64,19 +64,19 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
   await check('The requested Steel and Duct columns have accessible filters, including linked Steel thickness', () => {
     const h = harness(); h.audit.renderRegister();
     const buttons = h.all(h.ui.tableWrap).filter(el => el.className.includes('takeoff-column-filter-button'));
-    assert.deepEqual(buttons.map(el => el.attributes['aria-label']), ['Filter Confirmation', 'Filter Item', 'Filter Level', 'Filter WxH (mm)', 'Filter FRL', 'Filter Orientation', 'Filter Product', 'Filter Duct surface (m²)', 'Filter Thickness (mm)']);
+    assert.deepEqual(buttons.map(el => el.attributes['aria-label']), ['Filter Status', 'Filter Item', 'Filter Level', 'Filter WxH (mm)', 'Filter FRL', 'Filter Orientation', 'Filter Product', 'Filter Duct surface (m²)', 'Filter Thickness (mm)']);
     assert.ok(buttons.every(el => el.attributes['aria-pressed'] === 'false' && el.attributes['aria-haspopup'] === 'dialog'));
     h.audit.registerFilters().set('level', new Set(['L1']));
     const active = h.audit.registerColumnFilterButton('level'); assert.equal(active.attributes['aria-pressed'], 'true'); assert.match(active.className, /active/); assert.match(active.title, /filter applied/);
-    h.state.mode = 'steel'; h.audit.renderRegister(); assert.deepEqual(h.all(h.ui.tableWrap).filter(el => el.className.includes('takeoff-column-filter-button')).map(el => el.attributes['aria-label']), ['Filter Confirmation', 'Filter Member mark', 'Filter Level', 'Filter Member type', 'Filter Steel section', 'Filter Product', 'Filter Fire period (min)', 'Filter Crit. Temp (°C)', 'Filter Exposure', 'Filter Thickness (mm)']);
+    h.state.mode = 'steel'; h.audit.renderRegister(); assert.deepEqual(h.all(h.ui.tableWrap).filter(el => el.className.includes('takeoff-column-filter-button')).map(el => el.attributes['aria-label']), ['Filter Status', 'Filter Member mark', 'Filter Level', 'Filter Member type', 'Filter Steel section', 'Filter Product', 'Filter Fire period (min)', 'Filter Crit. Temp (°C)', 'Filter Exposure', 'Filter Thickness (mm)']);
   });
   await check('Values use OR within a column and AND across all six columns, with authoritative confirmation', () => {
     const h = harness(), filters = h.audit.registerFilters();
     filters.set('mark', new Set(['D1', 'D2', 'D3', 'D5'])); filters.set('level', new Set(['L1', 'L2'])); filters.set('duct_size', new Set(['100 x 200']));
     filters.set('frl', new Set(['120/120/120', '60/60/60'])); filters.set('orientation', new Set(['Horizontal', 'Vertical']));
     assert.deepEqual(h.ids(), ['D1', 'D2']);
-    filters.set('confirmation', new Set(['Confirmed'])); assert.deepEqual(h.ids(), ['D1']);
-    filters.clear(); filters.set('confirmation', new Set(['Unconfirmed'])); assert.deepEqual(h.ids(), ['D2', 'D3', 'D4', 'D5']);
+    filters.set('confirmation', new Set(['Approved'])); assert.deepEqual(h.ids(), ['D1']);
+    filters.clear(); filters.set('confirmation', new Set(['Draft'])); assert.deepEqual(h.ids(), ['D2', 'D3', 'D4', 'D5']);
   });
   await check('Missing, null and whitespace-only values are blanks; dimensions retain complete pairs', () => {
     const h = harness(); assert.deepEqual(Array.from(h.audit.registerColumnValues('level')), ['', 'L1', 'L2']);
@@ -135,9 +135,9 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     const before = copy(h.state.session.snapshot), fingerprint = h.audit.projectFingerprint();
     assert.deepEqual(Array.from(h.audit.registerColumnValues('fire_period_min')), ['', '60', '120']);
     const filters = h.audit.registerFilters();
-    for (const [key, values] of Object.entries({ confirmation: ['Confirmed'], mark: ['B2', 'B4'], level: ['L1'], member_type: ['Beam'], section: ['100UC15'], fire_period_min: ['120'] })) filters.set(key, new Set(values));
+    for (const [key, values] of Object.entries({ confirmation: ['Approved'], mark: ['B2', 'B4'], level: ['L1'], member_type: ['Beam'], section: ['100UC15'], fire_period_min: ['120'] })) filters.set(key, new Set(values));
     assert.deepEqual(h.ids(), ['S2']);
-    filters.set('confirmation', new Set(['Unconfirmed'])); assert.deepEqual(h.ids(), ['S4']);
+    filters.set('confirmation', new Set(['Draft'])); assert.deepEqual(h.ids(), ['S4']);
     filters.clear(); filters.set('member_type', new Set([''])); assert.deepEqual(h.ids(), ['C1', 'S1']);
     assert.deepEqual(Array.from(h.audit.groupedItems(), item => item.id), ['S1', 'C1']);
     assert.deepEqual(copy(h.state.session.snapshot), before); assert.equal(h.audit.projectFingerprint(), fingerprint);

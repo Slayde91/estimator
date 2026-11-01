@@ -16,9 +16,9 @@
     ["conflicting", "Conflicting evidence"], ["insufficient_evidence", "Insufficient evidence"],
     ["human_review_required", "Needs review"], ["none_reported", "No uncertainty reported (unapproved draft)"],
   ];
-  const confirmationOptions = [["unconfirmed", "Unconfirmed"], ["confirmed", "Confirmed"]];
+  const confirmationOptions = [["unconfirmed", "Draft"], ["confirmed", "Approved"]];
   const recordConfirmation = entity => entity?.confirmation === "confirmed" ? "confirmed" : "unconfirmed";
-  const confirmationLabel = entity => recordConfirmation(entity) === "confirmed" ? "Confirmed" : "Unconfirmed";
+  const confirmationLabel = entity => recordConfirmation(entity) === "confirmed" ? "Approved" : "Draft";
   function confirmationOwner(entry, index) {
     if (!entry) return null;
     if (entry.legacy) return entry;
@@ -82,7 +82,7 @@
     }
     return result;
   }
-  const filterColumns = { state: "Confirmation", location: "Location", frl: "FRL", substrate: "Substrate", orientation: "Orientation", service: "Category", service_type: "Service type", size: "Service Size (mm)" };
+  const filterColumns = { state: "Status", location: "Location", frl: "FRL", substrate: "Substrate", orientation: "Orientation", service: "Category", service_type: "Service type", size: "Service Size (mm)" };
   function columnValue(entry, key, index) {
     const lineage = [...ancestors(entry, index), entry], find = kind => lineage.find(value => value.kind === kind), barrier = find("barrier"), defect = find("defect");
     const fields = entry.entity.fields;
@@ -410,7 +410,7 @@
       const fields = fieldsFor(kind, scope()).filter(([key]) => key !== "notes").flatMap(([key, label]) => [[key, label, fieldType(kind, key), fieldDisplay(entity?.fields, key) ?? ""], ...(kind === "service" && key === "service_type" ? [["quantity", "Explicit service quantity", "number", entity?.quantity ?? "", !entity?.library_quantity]] : [])]);
       if (kind === (servicePlans() ? "barrier" : "defect")) {
         const notes = fields.findIndex(([key]) => key === "notes");
-        fields.splice(notes < 0 ? fields.length : notes, 0, ["confirmation", "Confirmation", confirmationOptions, recordConfirmation(entity), true]);
+        fields.splice(notes < 0 ? fields.length : notes, 0, ["confirmation", "Status", confirmationOptions, recordConfirmation(entity), true]);
       }
       return fields;
     }
@@ -808,7 +808,7 @@
       if (resolved.some(entry => !entry)) throw new Error("Select records with an active current confirmation parent to review.");
       const owners = [...new Map(resolved.map(entry => [entry.entity.id, entry])).values()]; owners.forEach(requireCurrent);
       const commands = owners.filter(entry => recordConfirmation(entry.entity) !== confirmation).map(entry => ({ op: "update", entity_id: entry.entity.id, changes: { confirmation } }));
-      if (!commands.length) { bridge.notify(`All ${owners.length} owning ${servicePlans() ? "Barriers" : "Defects"} are already ${confirmation === "confirmed" ? "Confirmed" : "Unconfirmed"}. No changes were applied.`, false); return; }
+      if (!commands.length) { bridge.notify(`All ${owners.length} owning ${servicePlans() ? "Barriers" : "Defects"} are already ${confirmation === "confirmed" ? "Approved" : "Draft"}. No changes were applied.`, false); return; }
       await perform(commands, `${confirmation === "confirmed" ? "Confirm" : "Unconfirm"} ${commands.length} owning ${servicePlans() ? "Barriers" : "Defects"} and their descendants?`);
     }
     async function reparent(entry) {
@@ -1040,7 +1040,7 @@
       const page = hierarchyPage(rows, state.index, state.offset), table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); root.CeasefireI18n.attr(table, "aria-label", "Draft penetration hierarchy register");
       const legacy = legacyReadOnly(), rowKinds = legacy ? legacyKinds : servicePlans() ? ["barrier", "service"] : kinds;
       const referenceTargets = new Map();
-      const headings = ["Select", "Hide", "View/Edit", ...(legacy ? ["Legacy hierarchy / label"] : []), ...rowKinds.map(kind => `${titles[kind]} ID`), "Confirmation", "Location", "FRL", ...(legacy ? ["Opening type", "Opening size"] : []), "Substrate", "Orientation", "Category", "Service type", "Service quantity", "Service Size (mm)", "Report", "System", "Delete"];
+      const headings = ["Select", "Hide", "View/Edit", ...(legacy ? ["Legacy hierarchy / label"] : []), ...rowKinds.map(kind => `${titles[kind]} ID`), "Status", "Location", "FRL", ...(legacy ? ["Opening type", "Opening size"] : []), "Substrate", "Orientation", "Category", "Service type", "Service quantity", "Service Size (mm)", "Report", "System", "Delete"];
       for (const label of headings) {
         const cell = uiNode("th", "", label), filterKey = Object.keys(filterColumns).find(key => filterColumns[key] === label);
         if (filterKey) cell.append(columnFilterButton(filterKey));
@@ -1234,7 +1234,7 @@
       editor.submit = async () => { ensureAvailable(true); await ensureFieldOptions(editor.entry.kind, true); ensureAvailable(true); if (editor.key !== graphKey()) throw new Error("The physical draft changed before the unfinished edits could be validated. Inspect the current record and try again."); requireCurrent(editor.entry); const entity = editor.entry.entity, values = Object.fromEntries(controls.map(control => [control.name, control.value])); const changes = { fields: fieldsFromValues(editor.entry.kind, values, entity.fields, scope()), ...(Object.hasOwn(values, "confirmation") && recordConfirmation(entity) !== values.confirmation ? { confirmation: values.confirmation } : {}), ...(editor.entry.kind === "service" ? { quantity: recordedQuantity(entity, values.quantity) } : {}) }; if (Object.entries(changes).every(([key, value]) => sameValue(entity[key], value))) { resetPending(); renderData(); return true; } return perform([{ op: "update", entity_id: entity.id, changes }], "Apply physical field changes", true, false); };
       state.inspectorEdit = editor;
       const reviewOwner = confirmationOwner(entry, state.index);
-      if (reviewOwner && reviewOwner.entity.id !== entity.id) ui.inspector.append(uiNode("p", "helper", "Confirmation: {0} — inherited from {1} {2}.", [root.CeasefireI18n.term(confirmationLabel(reviewOwner.entity)), root.CeasefireI18n.term(titles[reviewOwner.kind]), displayId(reviewOwner)]));
+      if (reviewOwner && reviewOwner.entity.id !== entity.id) ui.inspector.append(uiNode("p", "helper", "Status: {0} — inherited from {1} {2}.", [root.CeasefireI18n.term(confirmationLabel(reviewOwner.entity)), root.CeasefireI18n.term(titles[reviewOwner.kind]), displayId(reviewOwner)]));
       renderLibraryAssignments(selected);
     }
     function visibilityOwner(entry) {

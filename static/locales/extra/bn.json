@@ -2782,5 +2782,16 @@
   "Steel Schedule | Spray": "স্টিল তালিকা | স্প্রে",
   "Steel Schedule | Paint": "স্টিল তালিকা | রং",
   "Steel Schedule | Board": "স্টিল তালিকা | বোর্ড",
-  "Duct Schedule": "ডাক্ট তালিকা"
+  "Duct Schedule": "ডাক্ট তালিকা",
+  "Approved": "অনুমোদিত",
+  "Draft": "খসড়া",
+  "Approved items": "অনুমোদিত আইটেম",
+  "Draft items": "খসড়া আইটেম",
+  "All statuses": "সব অবস্থা",
+  "Filter status": "অবস্থা ছাঁকুন",
+  "Sort: Status": "সাজান: অবস্থা",
+  "Status: {0} — inherited from {1} {2}.": "অবস্থা: {0} — {1} {2} থেকে প্রাপ্ত।",
+  "Steel | Spray | Schedule": "ইস্পাত | স্প্রে | তালিকা",
+  "Steel | Paint | Schedule": "ইস্পাত | রং | তালিকা",
+  "Steel | Board | Schedule": "ইস্পাত | বোর্ড | তালিকা"
 }

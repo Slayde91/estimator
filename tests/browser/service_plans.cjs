@@ -214,11 +214,11 @@ async function controls() {
   evidence.servicePlanRowDelete={lastColumn:true,exactQuestionYesCancel:true,cancelNoApply:true,leafAndBarrierCascade:true,undoOriginalIdentityAndEvidence:true,independentReportUntouched:true};
   await page.screenshot({path:path.join(output,'service-plan-row-delete-restored.png')});
   evidence.hierarchy = { defect, reportBarrier, reportService, barrier, service, independentSequences: true, barrierFrl: true };
-  await expect(details().getByLabel('Confirmation',{exact:true})).toHaveCount(0);await expect(details()).toContainText('inherited from Barrier B-0001');
+  await expect(details().getByLabel('Status',{exact:true})).toHaveCount(0);await expect(details()).toContainText('inherited from Barrier B-0001');
   evidence.compactOriginalIconControls=await assertParentControls(page,details());
-  await select(barrier);await response(()=>details().getByLabel('Confirmation',{exact:true}).selectOption('confirmed'),'/physical/apply');await idle();await snapshot();assert.equal(entity(barrier).confirmation,'confirmed');
-  for(const id of [barrier,service])await expect(row(id).locator('.takeoff-state')).toHaveText('Confirmed');
-  await select(service);await expect(details().getByLabel('Confirmation',{exact:true})).toHaveCount(0);await expect(details()).toContainText('Confirmation: Confirmed — inherited from Barrier B-0001');
+  await select(barrier);await response(()=>details().getByLabel('Status',{exact:true}).selectOption('confirmed'),'/physical/apply');await idle();await snapshot();assert.equal(entity(barrier).confirmation,'confirmed');
+  for(const id of [barrier,service])await expect(row(id).locator('.takeoff-state')).toHaveText('Approved');
+  await select(service);await expect(details().getByLabel('Status',{exact:true})).toHaveCount(0);await expect(details()).toContainText('Confirmation: Confirmed — inherited from Barrier B-0001');
   const priorQuantity=entity(service).quantity,priorFacts=structuredClone(entity(service).fields),priorUncertainty=structuredClone(entity(service).uncertainty);
   const reviewedSize=priorFacts.size==='125 x 80'?'130 x 80':'125 x 80';
   await response(async()=>{const size=details().getByLabel('Service Size (mm)',{exact:true});await size.fill(reviewedSize);await size.press('Tab');},'/physical/apply');await idle();await snapshot();assert.equal(entity(barrier).confirmation,'unconfirmed');assert.equal(entity(service).quantity,priorQuantity);assert.deepEqual(entity(service).uncertainty,priorUncertainty);assert.deepEqual(entity(service).fields,{...priorFacts,size:reviewedSize});assert.equal(entity(service).fields.notes,priorFacts.notes);
@@ -241,7 +241,7 @@ async function controls() {
   await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool', 'select');
   let originalMarker = structuredClone(entity(barrier).marker); assert.equal(originalMarker.page, 3); assert.equal(originalMarker.document_sha256, sourceBefore);
   assert.equal(entity(barrier).confirmation,'unconfirmed','Adding source marker evidence requires fresh owning Barrier review');
-  await response(()=>details().getByLabel('Confirmation',{exact:true}).selectOption('confirmed'),'/physical/apply');await idle();await snapshot();assert.equal(entity(barrier).confirmation,'confirmed');evidence.sourceMarkerPlacementInvalidatesReview=true;
+  await response(()=>details().getByLabel('Status',{exact:true}).selectOption('confirmed'),'/physical/apply');await idle();await snapshot();assert.equal(entity(barrier).confirmation,'confirmed');evidence.sourceMarkerPlacementInvalidatesReview=true;
   evidence.placedMarker = originalMarker;
   const placedClick = await page.evaluate(() => window.qaDrawingEvents.filter(event => event.type === 'click').at(-1)), exactPlacedPoint = sourcePoint(placedClick);
   for (let axis = 0; axis < 2; axis++) assert.ok(Math.abs(originalMarker.point[axis] - exactPlacedPoint[axis]) < 1e-7, `Placed source coordinates ${originalMarker.point} from ${JSON.stringify(placedClick)}`);
@@ -354,7 +354,7 @@ async function controls() {
   const matrixDownload=await matrixWait,matrix=path.join(output,matrixDownload.suggestedFilename());await matrixDownload.saveAs(matrix);
   const csvText = fs.readFileSync(csv, 'utf8'); assert.ok(csvText.includes(barrier)); assert.ok(csvText.includes(service)); assert.ok(!csvText.includes(defect)); assert.ok(!csvText.includes(reportBarrier)); assert.ok(!csvText.split('\n')[0].includes('defect'));
   const workbook = pythonJson("import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1],data_only=False)\ns=w.active;v=list(s.values)\nprint(json.dumps({'sheets':w.sheetnames,'headers':v[0],'rows':v[1:],'string_cells':[{'coordinate':c.coordinate,'value':c.value,'type':c.data_type} for sh in w for r in sh for c in r if isinstance(c.value,str)],'formulas':[c.coordinate for sh in w for r in sh for c in r if c.data_type=='f']}))\nw.close()", xlsx);
-  const registerHeaders = ['Barrier ID', 'Service ID', 'Confirmation', 'Location', 'FRL', 'Substrate', 'Orientation', 'Category', 'Service type', 'Service quantity', 'Service Size (mm)', 'Report', 'System', 'Source evidence'];
+  const registerHeaders = ['Barrier ID', 'Service ID', 'Status', 'Location', 'FRL', 'Substrate', 'Orientation', 'Category', 'Service type', 'Service quantity', 'Service Size (mm)', 'Report', 'System', 'Source evidence'];
   const exportHeaders = registerHeaders.filter(header => header !== 'System');
   const visibleHeaders = await page.locator('.takeoff-physical-register thead th').evaluateAll(cells => cells.map(cell => [...cell.childNodes].filter(child => child.nodeType === Node.TEXT_NODE).map(child => child.textContent).join('').trim()));
   assert.deepEqual(visibleHeaders, ['Select', 'Hide', 'View/Edit', ...registerHeaders.filter(header => header !== 'Source evidence'), 'Delete']);
@@ -363,11 +363,11 @@ async function controls() {
   assert.equal(workbook.headers.includes('System'), false);
   const first = entity(barrier), child = entity(service), second = entity(secondBarrier), blank = value => value == null || value === '' ? null : value;
   assert.equal(first.confirmation, 'unconfirmed'); assert.equal(child.barrier_id, first.id);
-  for (const id of [barrier, service, secondBarrier]) await expect(row(id).locator('.takeoff-state')).toHaveText('Unconfirmed');
+  for (const id of [barrier, service, secondBarrier]) await expect(row(id).locator('.takeoff-state')).toHaveText('Draft');
   assert.deepEqual(workbook.rows, [
-    [first.display_id, null, 'Unconfirmed', first.fields.location, first.fields.frl, blank(first.fields.substrate), blank(first.fields.orientation), null, null, null, null, null, `${first.evidence.length} source associations`],
-    [first.display_id, child.display_id, 'Unconfirmed', first.fields.location, first.fields.frl, blank(first.fields.substrate), blank(first.fields.orientation), blank(child.fields.service), blank(child.fields.service_type), child.quantity, blank(child.fields.size), null, `${child.evidence.length} source associations`],
-    [second.display_id, null, 'Unconfirmed', second.fields.location, second.fields.frl, blank(second.fields.substrate), blank(second.fields.orientation), null, null, null, null, null, `${second.evidence.length} source associations`],
+    [first.display_id, null, 'Draft', first.fields.location, first.fields.frl, blank(first.fields.substrate), blank(first.fields.orientation), null, null, null, null, null, `${first.evidence.length} source associations`],
+    [first.display_id, child.display_id, 'Draft', first.fields.location, first.fields.frl, blank(first.fields.substrate), blank(first.fields.orientation), blank(child.fields.service), blank(child.fields.service_type), child.quantity, blank(child.fields.size), null, `${child.evidence.length} source associations`],
+    [second.display_id, null, 'Draft', second.fields.location, second.fields.frl, blank(second.fields.substrate), blank(second.fields.orientation), null, null, null, null, null, `${second.evidence.length} source associations`],
   ], 'Public register keeps parent-before-child order, inherited barrier facts and exact service quantity/size without Defect Reports rows.');
   assert.ok(workbook.string_cells.length > 0); assert.ok(workbook.string_cells.every(cell => cell.type === 's'));
   assert.deepEqual(workbook.string_cells.find(cell => cell.value === '=PLAN-B'), { coordinate: 'D4', value: '=PLAN-B', type: 's' });

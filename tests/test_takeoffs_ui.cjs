@@ -911,12 +911,12 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
   });
   await check('Confirmation labels collapse historic states without hiding evidence issues or trusting stale confirmations',()=>{
     const h=harness(),value=blank();h.audit.accept(response(value));const item={id:'item',state:'confirmed'};
-    h.audit.state.resultMap.set('item',{issues:[{code:'PAGE_REVIEW_BLOCKED'}]});assert.equal(h.audit.reviewStatus(item).label,'Unconfirmed');assert.equal(h.audit.state.resultMap.get('item').issues[0].code,'PAGE_REVIEW_BLOCKED');
-    h.audit.state.resultMap.set('item',{issues:[{code:'MISSING_MEASUREMENT'}]});assert.equal(h.audit.reviewStatus(item).label,'Unconfirmed');
-    h.audit.state.resultMap.set('item',{issues:[]});assert.equal(h.audit.reviewStatus(item).label,'Confirmed');
-    assert.equal(h.audit.reviewStatus({...item,state:'draft',version:1}).label,'Unconfirmed');
-    assert.equal(h.audit.reviewStatus({...item,state:'draft',version:2}).label,'Unconfirmed');
-    assert.equal(h.audit.reviewStatus({...item,state:'reviewed'}).label,'Unconfirmed');
+    h.audit.state.resultMap.set('item',{issues:[{code:'PAGE_REVIEW_BLOCKED'}]});assert.equal(h.audit.reviewStatus(item).label,'Draft');assert.equal(h.audit.state.resultMap.get('item').issues[0].code,'PAGE_REVIEW_BLOCKED');
+    h.audit.state.resultMap.set('item',{issues:[{code:'MISSING_MEASUREMENT'}]});assert.equal(h.audit.reviewStatus(item).label,'Draft');
+    h.audit.state.resultMap.set('item',{issues:[]});assert.equal(h.audit.reviewStatus(item).label,'Approved');
+    assert.equal(h.audit.reviewStatus({...item,state:'draft',version:1}).label,'Draft');
+    assert.equal(h.audit.reviewStatus({...item,state:'draft',version:2}).label,'Draft');
+    assert.equal(h.audit.reviewStatus({...item,state:'reviewed'}).label,'Draft');
     assert.equal(item.state,'confirmed');
   });
   await check('Icon actions retain accessible names with the original supplied transfer image and compact undo glyph',async()=>{
@@ -1026,7 +1026,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
   await check('Direct Confirm sends one authoritative confirmation command and filters historical review states as Unconfirmed',async()=>{
     const h=harness(),value=blank();value.items=[{id:'old',mode:'steel',state:'reviewed',fields:{mark:'A'}},{id:'new',mode:'steel',state:'draft',fields:{mark:'B'}},{id:'confirmed',mode:'steel',state:'confirmed',fields:{mark:'C'}}];h.audit.accept(response(value));h.audit.state.selected.add('new');
     let action;h.audit.setAsk(async(title,definitions,detail,submit)=>{assert.equal(title,'Confirm 1 items?');assert.equal(submit,'Confirm items');assert.match(detail,/every riser\/drop/);return {};});h.audit.setCommand(async(op,payload)=>{action={op,...copy(payload)};});await h.audit.confirmSelected();assert.equal(action.op,'confirm_items');assert.deepEqual(action.item_ids,['new']);
-    h.audit.state.ui={statusFilter:{value:'unconfirmed'}};h.audit.registerFilters().set('confirmation',new Set(['Unconfirmed']));assert.deepEqual(copy(h.audit.visibleItems()).map(item=>item.id),['old','new']);h.audit.state.group='state';assert.equal(h.audit.itemGroup(value.items[0]),null);assert.equal(value.items[0].state,'reviewed');
+    h.audit.state.ui={statusFilter:{value:'unconfirmed'}};h.audit.registerFilters().set('confirmation',new Set(['Draft']));assert.deepEqual(copy(h.audit.visibleItems()).map(item=>item.id),['old','new']);h.audit.state.group='state';assert.equal(h.audit.itemGroup(value.items[0]),null);assert.equal(value.items[0].state,'reviewed');
   });
   await check('Rise/drop dialogs ask only Type and length, retain the exact anchor and legacy citation, and reject stale edits',async()=>{
     const h=harness(),value=blank(),item={id:'steel',mode:'steel',version:1,quantity:3,fields:{mark:'B1'},geometry:{document_id:'doc',page:1,points:[[1.123456789,2.987654321],[4,6]]},measurement:{method:'calibrated',calibration_id:'scale'},length_additions:[]};value.documents=[{id:'doc',name:'Elevations.pdf',pages:[{page:1},{page:2}]}];value.items=[item];h.audit.accept(response(value));h.audit.state.document='doc';h.audit.state.page=1;h.audit.state.selected.add(item.id);

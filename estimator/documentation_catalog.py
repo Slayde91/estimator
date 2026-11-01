@@ -29,6 +29,8 @@ def document_catalog(edition='full'):
             if format == 'pdf':
                 scope = 'Duct | Spray / Wrap' if calculator_id == 'ductwork' and action == 'product_summary' else PDF_SCOPES[calculator_id]
                 label = scope + (' | Full Schedule' if action == 'schedule' else ' | Product Summary')
+            elif action == 'register':
+                label = 'Duct Schedule' if calculator_id == 'ductwork' else PDF_SCOPES[calculator_id] + ' | Schedule'
             add(f'calculator.{calculator_id}.{action}.{format}',label,format,'calculator',
                 calculatorId=calculator_id,action=action)
     for scope, title in [('schedule','Firestopping Schedule'),('current_item','Firestopping Item Details')]:
@@ -44,7 +46,7 @@ def document_catalog(edition='full'):
             add(f'takeoff.{mode}.register.xlsx',f'{title} Takeoff register','xlsx','takeoff',action='register',mode=mode)
         for scope, title in [('defect_reports','Passive fire matrix'),('service_plans','Service plans matrix')]:
             add(f'takeoff.{scope}.matrix.pdf',title,'pdf','takeoff',action='matrix',scope=scope)
-        add('takeoff.markups.pdf','Takeoff markups','pdf','takeoff',action='markups')
+        add('takeoff.markups.pdf','Markups','pdf','takeoff',action='markups')
         add('takeoff.pdf_tools.pdf','PDF tools','pdf','takeoff',action='pdf_tools')
     return rows
 

@@ -389,7 +389,7 @@
     const [key, title, kind] = definition, wrapper = node("label", "field"); wrapper.append(uiNode("span", "", title));
     const numeric = kind === "number" || Array.isArray(kind) && numericOptionFields.has(key);
     if (kind === "checkbox") wrapper.classList.add("takeoff-checkbox-field");
-    const reviewChoice = key === "confirmation" && title === "Confirmation" && Array.isArray(kind) && JSON.stringify(kind.map(value => Array.isArray(value) ? value[0] : value)) === '["unconfirmed","confirmed"]';
+    const reviewChoice = key === "confirmation" && title === "Status" && Array.isArray(kind) && JSON.stringify(kind.map(value => Array.isArray(value) ? value[0] : value)) === '["unconfirmed","confirmed"]';
     const control = Array.isArray(kind) ? select([...(reviewChoice ? [] : [["", "Choose…"]]), ...kind.map(value => Array.isArray(value) ? value : [value, value])]) : node(kind === "textarea" ? "textarea" : "input");
     if (Array.isArray(kind)) {
       const choices = control.options || control.children, offset = reviewChoice ? 0 : 1;
@@ -673,8 +673,8 @@
     layout.append(toolbar, ui.viewportPanel, ui.settingsPanel, ui.physicalDetails, drawingPane, markupRail);
     const register = node("section", "takeoff-register"); ui.register = register; const heading = node("div", "section-heading"); ui.registerTitle = uiNode("h2", "", "Steel register"); ui.status = uiNode("span", "status-label", "Ready"); ui.registerLayout = uiSelect([["below", "Register below drawing"], ["beside", "Register beside drawing"]], value => { workspace.classList.toggle("beside", value === "beside"); }); window.CeasefireI18n.attr(ui.registerLayout, "aria-label", "Register position"); heading.append(ui.registerTitle, ui.status, ui.registerLayout); register.append(heading);
     const controls = node("div", "takeoff-register-controls"); ui.filter = node("input"); ui.filter.type = "search"; window.CeasefireI18n.attr(ui.filter, "placeholder", "Filter register…"); window.CeasefireI18n.attr(ui.filter, "aria-label", "Filter register"); ui.filter.addEventListener("input", () => { state.filter = ui.filter.value.toLowerCase(); state.offset = 0; renderRegister(); renderOverlay(); });
-    ui.statusFilter = uiSelect([["", "All confirmation states"], ["unconfirmed", "Unconfirmed"], ["confirmed", "Confirmed"]], () => { renderRegister(); renderOverlay(); }); window.CeasefireI18n.attr(ui.statusFilter, "aria-label", "Filter confirmation state");
-    ui.sort = uiSelect([["mark", "Sort: Mark"], ["level", "Sort: Level"], ["length", "Sort: Length"], ["state", "Sort: Confirmation"]], value => { state.sort = value; renderRegister(); }); window.CeasefireI18n.attr(ui.sort, "aria-label", "Sort register");
+    ui.statusFilter = uiSelect([["", "All statuses"], ["unconfirmed", "Draft"], ["confirmed", "Approved"]], () => { renderRegister(); renderOverlay(); }); window.CeasefireI18n.attr(ui.statusFilter, "aria-label", "Filter status");
+    ui.sort = uiSelect([["mark", "Sort: Mark"], ["level", "Sort: Level"], ["length", "Sort: Length"], ["state", "Sort: Status"]], value => { state.sort = value; renderRegister(); }); window.CeasefireI18n.attr(ui.sort, "aria-label", "Sort register");
     ui.group = uiSelect([["", "No grouping"], ["level", "Group by level"], ["group", "Group by label"], ["state", "Group by confirmation"]], value => { state.group = value; renderRegister(); }); window.CeasefireI18n.attr(ui.group, "aria-label", "Group register");
     ui.selectFiltered = uiButton("Select filtered items", async () => {
       if (!await discardEditor()) return;
@@ -899,7 +899,7 @@
     state.ui.tools.count.hidden = state.mode !== "duct"; state.ui.countAnchor.hidden = state.mode !== "duct"; state.ui.tools.countLength.hidden = state.mode !== "steel"; state.ui.tools.measure.hidden = true;
     (area ? state.ui.tools.pdfCount : state.mode === "steel" ? state.ui.tools.countLength : state.ui.countAnchor).after(state.ui.tools.callout);
     for (const tool of ["polygon", "exclusion"]) state.ui.tools[tool].hidden = !area;
-    const sortChoices = [["mark", "Sort: Mark"], ["level", "Sort: Level"], [area ? "area" : "length", area ? "Sort: Total area" : "Sort: Length"], ["state", "Sort: Confirmation"]];
+    const sortChoices = [["mark", "Sort: Mark"], ["level", "Sort: Level"], [area ? "area" : "length", area ? "Sort: Total area" : "Sort: Length"], ["state", "Sort: Status"]];
     if (!sortChoices.some(([key]) => key === state.sort)) state.sort = "mark";
     state.ui.sort.replaceChildren(...sortChoices.map(([key, label]) => uiOption(key, label))); state.ui.sort.value = state.sort;
     const targets = area ? [] : state.mode === "steel" ? steelTargets : [["ductwork", "Ductwork Schedule"]];
@@ -2463,7 +2463,7 @@
   }
   function renderStandaloneRegister(list, container) {
     const table = node("table", "takeoff-standalone-register"), head = node("thead"), heading = node("tr"), body = node("tbody");
-    for (const label of ["Select", "Hide", "View/Edit", "Confirmation", ...standaloneFields.map(def => def[1]), isArea() ? "Length (m)" : "Total Count/QTY", "Delete"]) heading.append(uiNode("th", "", label));
+    for (const label of ["Select", "Hide", "View/Edit", "Status", ...standaloneFields.map(def => def[1]), isArea() ? "Length (m)" : "Total Count/QTY", "Delete"]) heading.append(uiNode("th", "", label));
     head.append(heading); table.append(head, body);
     for (const item of list) {
       const row = node("tr", state.selected.has(item.id) ? "selected" : ""); row.dataset.itemId = item.id; row.dataset.purpose = item.purpose;
@@ -3874,14 +3874,14 @@
   }
   function reviewStatus(item) {
     const issues = itemResult(item).issues || [];
-    return item.state === "confirmed" && !issues.length ? { key: "confirmed", label: "Confirmed" } : { key: "unconfirmed", label: "Unconfirmed" };
+    return item.state === "confirmed" && !issues.length ? { key: "confirmed", label: "Approved" } : { key: "unconfirmed", label: "Draft" };
   }
   function issueText(value) { return typeof value === "string" ? value : value?.message || value?.detail || value?.code || JSON.stringify(value); }
   const registerFilterColumns = {
-    steel: { confirmation: "Confirmation", mark: "Member mark", level: "Level", member_type: "Member type", section: "Steel section", product: "Product", fire_period_min: "Fire period (min)", critical_temperature: "Crit. Temp (°C)", exposure: "Exposure", thickness: "Thickness (mm)" },
-    duct: { confirmation: "Confirmation", mark: "Item", level: "Level", duct_size: "WxH (mm)", frl: "FRL", orientation: "Orientation", product: "Product", duct_surface: "Duct surface (m²)", thickness: "Thickness (mm)" },
-    wall: { confirmation: "Confirmation", mark: "Surface ID", surface_type: "Surface type", level: "Level", surface_basis: "Surface basis", substrate: "Substrate", treatment: "Treatment", system: "Protection system", product: "Protection product", frl: "FRL / fire rating" },
-    slab: { confirmation: "Confirmation", mark: "Surface ID", surface_type: "Surface type", level: "Level", surface_basis: "Surface basis", substrate: "Substrate", treatment: "Treatment", system: "Protection system", product: "Protection product", frl: "FRL / fire rating" },
+    steel: { confirmation: "Status", mark: "Member mark", level: "Level", member_type: "Member type", section: "Steel section", product: "Product", fire_period_min: "Fire period (min)", critical_temperature: "Crit. Temp (°C)", exposure: "Exposure", thickness: "Thickness (mm)" },
+    duct: { confirmation: "Status", mark: "Item", level: "Level", duct_size: "WxH (mm)", frl: "FRL", orientation: "Orientation", product: "Product", duct_surface: "Duct surface (m²)", thickness: "Thickness (mm)" },
+    wall: { confirmation: "Status", mark: "Surface ID", surface_type: "Surface type", level: "Level", surface_basis: "Surface basis", substrate: "Substrate", treatment: "Treatment", system: "Protection system", product: "Protection product", frl: "FRL / fire rating" },
+    slab: { confirmation: "Status", mark: "Surface ID", surface_type: "Surface type", level: "Level", surface_basis: "Surface basis", substrate: "Substrate", treatment: "Treatment", system: "Protection system", product: "Protection product", frl: "FRL / fire rating" },
   };
   const usesColumnFilters = () => Object.hasOwn(registerFilterColumns, state.mode);
   function registerFilters() {
@@ -4121,7 +4121,7 @@
     state.ui.bulk.hidden = !selected.length; window.CeasefireI18n.text(state.ui.selectionCount, "{0} selected", [selected.length]);
     const table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); window.CeasefireI18n.attr(table, "aria-label", "{0} editable takeoff register", [window.CeasefireI18n.term(labels[state.mode])]);
     const area = isArea(), columns = area ? ["mark", "surface_type", "level", "surface_basis", "substrate", "treatment", "system", "product", "frl", "layers"] : state.mode === "steel" ? ["mark", "level", "member_type", "section", "product", "fire_period_min", "critical_temperature", "exposure", ...(state.ui.target?.value === "steel_board" ? ["sides"] : [])] : ["mark", "level", "duct_size", "frl", "exposure", "wall_penetrations", "floor_penetrations", "orientation", "product"];
-    const headings = ["Select", "Hide", "View/Edit", "Confirmation", ...columns.map(key => area && key === "mark" ? "Surface ID" : key === "surface_type" ? "Surface type" : fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)", "Total (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), ...(state.mode === "duct" ? ["Duct surface (m²)"] : []), ...(["steel", "duct"].includes(state.mode) ? ["Thickness (mm)", "Report"] : []), "Evidence / issues", "Delete"];
+    const headings = ["Select", "Hide", "View/Edit", "Status", ...columns.map(key => area && key === "mark" ? "Surface ID" : key === "surface_type" ? "Surface type" : fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)", "Total (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), ...(state.mode === "duct" ? ["Duct surface (m²)"] : []), ...(["steel", "duct"].includes(state.mode) ? ["Thickness (mm)", "Report"] : []), "Evidence / issues", "Delete"];
     for (const title of headings) {
       const cell = uiNode("th", "", title);
       if (usesColumnFilters()) { const filterColumns = registerFilterColumns[state.mode], key = Object.keys(filterColumns).find(key => filterColumns[key] === title); if (key) cell.append(registerColumnFilterButton(key)); }
@@ -5038,7 +5038,7 @@
     const current = state.mode === "physical" ? state.physicalScope : workspaceMode();
     const choices = requested ? workspaces.filter(([key]) => key === requested) : workspaces;
     const fields = [["workspace", "Takeoff workspace", choices, requested || current, true]];
-    if (action === "register") fields.push(["confirmation", "Items to include", [["confirmed", "Confirmed items"], ["unconfirmed", "Unconfirmed items"], ["all", "All items"]], confirmation || "all", true]);
+    if (action === "register") fields.push(["confirmation", "Items to include", [["confirmed", "Approved items"], ["unconfirmed", "Draft items"], ["all", "All items"]], confirmation || "all", true]);
     if (action === "markups") fields.push(["kind", "Markup document", [["current-all", "Full current drawing"], ["current-marked", "Marked pages from current drawing"], ["all-all", "All drawings and markups"], ["all-marked", "Marked pages from all drawings"]], markupKind || "current-all", true]);
     const selection = await ask("Choose Takeoff document", fields, "Confirm the workspace and document selection. The selected workspace will open before the existing exporter prepares the file.", "Continue");
     if (!selection) return { selectionRequired: true };

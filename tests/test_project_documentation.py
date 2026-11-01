@@ -103,7 +103,12 @@ class ProjectDocumentationTests(unittest.TestCase):
             self.assertEqual({key: rows[key]['label'] for key in names}, names)
             for key in names:
                 self.assertEqual(rows[key]['format'], 'pdf')
-            self.assertEqual(rows['calculator.steel_vermiculite.register.xlsx']['label'], 'Steel (spray) schedule')
+            self.assertEqual(rows['calculator.steel_vermiculite.register.xlsx']['label'], 'Steel | Spray | Schedule')
+            self.assertEqual(rows['calculator.steel_intumescent.register.xlsx']['label'], 'Steel | Paint | Schedule')
+            self.assertEqual(rows['calculator.steel_board.register.xlsx']['label'], 'Steel | Board | Schedule')
+            self.assertEqual(rows['calculator.ductwork.register.xlsx']['label'], 'Duct Schedule')
+            if edition == 'full':
+                self.assertEqual(rows['takeoff.markups.pdf']['label'], 'Markups')
             self.assertEqual(rows['calculator.steel_intumescent.product_summary.pdf']['spec'],
                              {'calculatorId': 'steel_intumescent', 'action': 'product_summary'})
 

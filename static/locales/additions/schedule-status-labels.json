@@ -1,0 +1,57 @@
+{
+  "Approved": [
+    "승인됨",
+    "Naaprubahan",
+    "Đã duyệt"
+  ],
+  "Draft": [
+    "초안",
+    "Burador",
+    "Bản nháp"
+  ],
+  "Approved items": [
+    "승인된 항목",
+    "Mga naaprubahang item",
+    "Các mục đã duyệt"
+  ],
+  "Draft items": [
+    "초안 항목",
+    "Mga burador na item",
+    "Các mục bản nháp"
+  ],
+  "All statuses": [
+    "모든 상태",
+    "Lahat ng katayuan",
+    "Tất cả trạng thái"
+  ],
+  "Filter status": [
+    "상태 필터",
+    "I-filter ang katayuan",
+    "Lọc trạng thái"
+  ],
+  "Sort: Status": [
+    "정렬: 상태",
+    "Ayusin: Katayuan",
+    "Sắp xếp: Trạng thái"
+  ],
+  "Status: {0} — inherited from {1} {2}.": [
+    "상태: {0} — {1} {2}에서 상속됨.",
+    "Katayuan: {0} — minana mula sa {1} {2}.",
+    "Trạng thái: {0} — kế thừa từ {1} {2}."
+  ],
+  "Steel | Spray | Schedule": [
+    "강재 | 스프레이 | 일정표",
+    "Bakal | Spray | Iskedyul",
+    "Thép | Phun | Bảng kê"
+  ],
+  "Steel | Paint | Schedule": [
+    "강재 | 도료 | 일정표",
+    "Bakal | Pintura | Iskedyul",
+    "Thép | Sơn | Bảng kê"
+  ],
+  "Steel | Board | Schedule": [
+    "강재 | 보드 | 일정표",
+    "Bakal | Board | Iskedyul",
+    "Thép | Tấm | Bảng kê"
+  ]
+}

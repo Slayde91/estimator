@@ -9,15 +9,15 @@ from .catalog import ValidationError
 from .pricing_workbook import _serialize_exact
 
 MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-STEEL = ('Confirmation', 'Member mark', 'Level', 'Member type', 'Steel section', 'Product',
+STEEL = ('Status', 'Member mark', 'Level', 'Member type', 'Steel section', 'Product',
          'Fire period (min)', 'Crit. Temp (°C)', 'Exposure')
-DUCT = ('Confirmation', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation', 'Product')
-SURFACE = ('Confirmation', 'Surface ID', 'Surface type', 'Level', 'Surface basis', 'Substrate',
+DUCT = ('Status', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation', 'Product')
+SURFACE = ('Status', 'Surface ID', 'Surface type', 'Level', 'Surface basis', 'Substrate',
            'Treatment', 'Protection system', 'Protection product', 'FRL / fire rating', 'Number of layers')
 LENGTH = ('Qty', 'Length each (m)', 'Total (m)', 'Thickness (mm)', 'Report', 'Evidence / issues')
 DUCT_LENGTH = LENGTH[:3] + ('Duct surface (m²)',) + LENGTH[3:]
 AREA = ('Gross (m²)', 'Excluded (m²)', 'Net (m²)', 'Total (m²)', 'Evidence / issues')
-STANDALONE = ('Confirmation', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation')
+STANDALONE = ('Status', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation')
 
 
 def _width(header):
@@ -116,7 +116,7 @@ def export_current_register(snapshot, selected, results, confirmations, linked, 
     rows = []
     for item in main:
         fields, result = item['fields'], results[item['id']]
-        review = 'Confirmed' if confirmations[item['id']] else 'Unconfirmed'
+        review = 'Approved' if confirmations[item['id']] else 'Draft'
         if area:
             row = [review, fields.get('mark'), 'Wall' if item['mode'] == 'wall' else 'Floor',
                    *[fields.get(key) for key in ('level', 'surface_basis', 'substrate', 'treatment', 'system', 'product', 'frl')],
@@ -144,7 +144,7 @@ def export_current_register(snapshot, selected, results, confirmations, linked, 
     tables = [(headers, rows)]
     if lengths:
         tables.append((STANDALONE + (('Length (m)',) if area else ('Total Count/QTY',)), [
-            ['Confirmed' if confirmations[item['id']] else 'Unconfirmed', item['fields'].get('mark'), item['fields'].get('level'),
+            ['Approved' if confirmations[item['id']] else 'Draft', item['fields'].get('mark'), item['fields'].get('level'),
              _size(item['fields']), item['fields'].get('frl'), item['fields'].get('orientation'),
              item['quantity'] if item['purpose'] == 'count-only' else results[item['id']].get('length_m')]
             for item in lengths]))
@@ -167,7 +167,7 @@ def export_physical_register(graph, *, confirmation='all', references=None):
     legacy, plans = graph['version'] == 1, graph['version'] == 3
     kinds = ['barrier', 'defect', 'opening', 'service'] if legacy else ['barrier', 'service'] if plans else ['defect', 'barrier', 'service']
     headers = (*(['Legacy hierarchy / label'] if legacy else []), *[f'{kind.title()} ID' for kind in kinds],
-               'Confirmation', 'Location', 'FRL', *(['Opening type', 'Opening size'] if legacy else []),
+               'Status', 'Location', 'FRL', *(['Opening type', 'Opening size'] if legacy else []),
                'Substrate', 'Orientation', 'Category', 'Service type', 'Service quantity', 'Service Size (mm)', 'Report', 'Source evidence')
     children = {}
     for kind, entry in index.values():
@@ -188,7 +188,7 @@ def export_physical_register(graph, *, confirmation='all', references=None):
             service = fields if kind == 'service' else {}
             size = service.get('size')
             row = ([f'{kind.title()}: {fields.get("label") or entity["id"]}'] if legacy else []) + ids
-            row += [state.title(), owner.get('fields', {}).get('location'), owner.get('fields', {}).get('frl')]
+            row += ['Approved' if state == 'confirmed' else 'Draft', owner.get('fields', {}).get('location'), owner.get('fields', {}).get('frl')]
             if legacy:
                 opening = relation.get('opening', {}).get('fields', {})
                 row += [opening.get('opening_type'), opening.get('size')]

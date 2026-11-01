@@ -2782,5 +2782,16 @@
   "Steel Schedule | Spray": "اسٹیل جدول | اسپرے",
   "Steel Schedule | Paint": "اسٹیل جدول | پینٹ",
   "Steel Schedule | Board": "اسٹیل جدول | بورڈ",
-  "Duct Schedule": "ڈکٹ جدول"
+  "Duct Schedule": "ڈکٹ جدول",
+  "Approved": "منظور شدہ",
+  "Draft": "مسودہ",
+  "Approved items": "منظور شدہ آئٹمز",
+  "Draft items": "مسودہ آئٹمز",
+  "All statuses": "تمام حالتیں",
+  "Filter status": "حالت فلٹر کریں",
+  "Sort: Status": "ترتیب: حالت",
+  "Status: {0} — inherited from {1} {2}.": "حالت: {0} — {1} {2} سے وراثت میں۔",
+  "Steel | Spray | Schedule": "اسٹیل | اسپرے | جدول",
+  "Steel | Paint | Schedule": "اسٹیل | پینٹ | جدول",
+  "Steel | Board | Schedule": "اسٹیل | بورڈ | جدول"
 }

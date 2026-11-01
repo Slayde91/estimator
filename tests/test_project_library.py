@@ -10,7 +10,7 @@ import tempfile
 import threading
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from estimator.catalog import ValidationError, baseline
 from estimator.native_dialogs import NativeDialogs, SaveSelection
@@ -805,22 +805,55 @@ class ProjectLibraryTests(unittest.TestCase):
 
     def test_dialog_lock_and_native_adapter_do_not_invoke_shell_or_accept_bad_results(self):
         with _DIALOG_LOCK:
-            with self.assertRaisesRegex(ValidationError, "open file dialog"):
+            with self.assertRaisesRegex(ValidationError, "file chooser is still starting"):
                 self.library.link_folder()
         self.assertEqual(self.dialogs.calls, [])
         native = NativeDialogs()
-        with patch("estimator.native_dialogs.subprocess.run", return_value=SimpleNamespace(stdout='null')) as run:
+        process = MagicMock()
+        process.__enter__.return_value = process
+        process.returncode = 0
+        process.poll.return_value = 0
+        process.communicate.return_value = ('null', '')
+        with patch("estimator.native_dialogs.subprocess.Popen", return_value=process) as run:
             self.assertIsNone(native.choose_save(str(self.folder), '$(bad); title.cf.json'))
             self.assertNotIn("shell", run.call_args.kwargs)
-            self.assertEqual(json.loads(run.call_args.kwargs["input"])["filename"], '$(bad); title.cf.json')
+            self.assertEqual(json.loads(process.communicate.call_args.args[0])["filename"], '$(bad); title.cf.json')
             self.assertNotIn('$(bad)', ' '.join(run.call_args.args[0]))
-        with patch("estimator.native_dialogs.subprocess.run", side_effect=subprocess.TimeoutExpired("dialog", 600)):
-            with self.assertRaisesRegex(ValidationError, "native file dialog"):
-                native.choose_folder()
-        with patch("estimator.native_dialogs.subprocess.run", return_value=SimpleNamespace(stdout=json.dumps({"path": str(self.folder / "Selected.cf.json")}))) as run:
+            self.assertEqual(process.communicate.call_args.kwargs['timeout'], 20)
+        process.communicate.return_value = (json.dumps({"path": str(self.folder / "Selected.cf.json")}), '')
+        with patch("estimator.native_dialogs.subprocess.Popen", return_value=process):
             self.assertEqual(native.choose_open(str(self.folder)), str(self.folder / "Selected.cf.json"))
-            self.assertEqual(json.loads(run.call_args.kwargs["input"]), {"kind": "open", "directory": str(self.folder)})
-            self.assertNotIn("shell", run.call_args.kwargs)
+
+    def test_invisible_dialog_helper_is_killed_and_lock_released_before_retry(self):
+        process = MagicMock()
+        process.__enter__.return_value = process
+        process.returncode = 0
+        process.poll.return_value = None
+        process.communicate.side_effect = [subprocess.TimeoutExpired('dialog', 20, output=b''), ('', '')]
+        self.library.dialogs = NativeDialogs()
+        with patch('estimator.native_dialogs.subprocess.Popen', return_value=process):
+            with self.assertRaisesRegex(ValidationError, 'file chooser did not open'):
+                self.library.link_folder()
+        process.kill.assert_called_once()
+        self.assertFalse(_DIALOG_LOCK.locked())
+        self.library.dialogs = self.dialogs
+        self.assertTrue(self.library.link_folder()['cancelled'])
+
+    def test_activated_dialog_can_wait_for_user_and_timeout_cleanup_is_safe(self):
+        for final in [('null', ''), subprocess.TimeoutExpired('dialog', 600)]:
+            process = MagicMock()
+            process.__enter__.return_value = process
+            process.returncode = 0
+            process.poll.return_value = None
+            process.communicate.side_effect = [subprocess.TimeoutExpired('dialog', 20, output=b'CEASEFIRE_DIALOG_READY\r\n'), final, ('', '')]
+            with patch('estimator.native_dialogs.subprocess.Popen', return_value=process), patch('estimator.native_dialogs.Path.is_file', return_value=True):
+                if isinstance(final, Exception):
+                    with self.assertRaisesRegex(ValidationError, 'native file dialog'):
+                        NativeDialogs().choose_folder()
+                else:
+                    self.assertIsNone(NativeDialogs().choose_folder())
+            self.assertEqual(process.communicate.call_args_list[1].kwargs['timeout'], 600)
+            process.kill.assert_called_once()
 
     def test_filename_sanitization_retains_names_without_paths_or_header_injection(self):
         self.assertEqual(project_filename("CON"), "_CON.cf.json")

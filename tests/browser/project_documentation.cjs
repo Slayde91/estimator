@@ -93,7 +93,7 @@ function checkCompanions(project,folder){
   // Certification is an existing validated preparation workflow, not a second
   // renderer or an unreviewed auto-filled compliance statement.
   await page.locator('button[data-document-kind="certification"]').click();await expect(page.locator('#view-certification')).toBeVisible();await idle();
-  const required=['client','project','address','location_area','statement_of_compliance','australian_standards','ncc_clauses','approved_design','additional_standards','other_references','exclusions','materials_manufacturers','fire_resistance_level'];
+  const required=['client','project','address','location_area','statement_of_compliance','australian_standards','ncc_clauses','approved_design','additional_standards','other_references','exclusions','materials_manufacturers','fire_resistance_level','name','position','qualification','accreditation'];
   for(const field of required)await page.locator('#certification-'+field).fill(field==='client'?'SYNTHETIC DOCUMENTATION QA':'N/A - synthetic browser fixture');
   await page.locator('#certification-generate').click();await expect(page.locator('#certification-status')).toContainText('Revision 1 saved',{timeout:60000});await idle();
   const certificateId=await page.locator('#certification-document').inputValue();assert.ok(certificateId);

@@ -7,13 +7,13 @@
     'other_references', 'exclusions', 'materials_manufacturers', 'fire_resistance_level',
     'name', 'position', 'qualification', 'accreditation'];
   const signerNames = ['name', 'position', 'qualification', 'accreditation'];
-  const requiredNames = fieldNames.filter(name => !signerNames.includes(name));
+  const requiredNames = fieldNames;
   const controls = Object.fromEntries(fieldNames.map(name => [name, $('certification-' + name)]));
   const selector = $('certification-document'), saveButton = $('certification-save'), generateButton = $('certification-generate');
   const signatureCanvas = $('certification-signature-canvas'), signatureDelete = $('certification-signature-delete');
   const signatureSave = $('certification-signature-save'), signatureClear = $('certification-signature-clear');
   const drawing = {strokes:[], active:null, revision:0};
-  const statement = "This is to certify that the fire rated materials have been installed according to the manufacturer's specifications to provide the nominated fire resistance level for the items listed in the relevant schedule. All materials have been installed at the above location and comply with:";
+  const statement = "This is to certify that the fire rated materials have been installed according to the manufacturer's specifications to provide the nominated fire resistance level for the items listed in the relevant schedule.\n\nAll materials have been installed at the above location and comply with:";
   // These are the user's exact editable presets, not a determination of compliance.
   const as1530 = 'AS 1530.4: 2014 Methods for fire tests on building materials, components & structures';
   const c2d9 = 'BCA 2022: C2D9 Lightweight Construction';

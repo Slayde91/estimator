@@ -42,4 +42,12 @@ const progress = new Element(); progress.className = 'document-download-progress
 assert.equal(progress.children.length, 0, 'Measured download progress remains outside notice dismissal');
 api.show(first); document.hidden = true; events.visibilitychange(); assert.equal(first.hidden, true, 'Leaving the browser tab clears old transient notices');
 first.textContent = 'Translated notification'; first.hidden = false; observer(); assert.equal(first.children.length, 1, 'Translation refresh restores the close button without changing message content');
+const helper = new Element('p'); helper.className = 'helper certification-save-status'; helper.textContent = 'Revision saved';
+elements.push(helper); api.show(helper); assert.equal(helper.children.length, 1);
+helper.textContent = 'Revision saved to the selected folder'; observer();
+assert.equal(helper.children.length, 1, 'A tracked helper-status refresh restores its dismiss control without requiring the message class');
+helper.children[0].listeners.click(); assert.equal(helper.hidden, true);
+helper.textContent = 'Translated revision saved'; observer();
+assert.equal(helper.hidden, true, 'Refreshing a dismissed helper-status does not show it again');
+assert.equal(helper.children.length, 0, 'A dismissed helper receives no hidden interactive control');
 console.log('Notification persistence, navigation, dismissal, recovery and progress checks passed.');

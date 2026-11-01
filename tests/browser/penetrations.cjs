@@ -67,7 +67,7 @@ async function create(kind, values, trigger = `Add ${kind}`) {
   if (kind === 'defect') await chooseNewDefect(page);
   const modal=page.getByRole('dialog');await expect(modal.getByRole('heading', { name:kind === 'defect' ? 'Add Defect' : `Create draft ${kind}`,exact:true })).toBeVisible();await physicalForm(kind,modal);
   if(kind==='barrier'||kind==='service')await modal.screenshot({path:path.join(output,`create-${kind}-form.png`)});
-  const preview = await response(() => dialog(kind === 'defect' ? 'Add Defect' : `Create draft ${kind}`, { ...values, ...(kind === 'defect' ? { 'Confirmation': 'unconfirmed' } : {}) }, 'Preview new draft'), '/physical/preview');
+  const preview = await response(() => dialog(kind === 'defect' ? 'Add Defect' : `Create draft ${kind}`, { ...values, ...(kind === 'defect' ? { 'Status': 'unconfirmed' } : {}) }, 'Preview new draft'), '/physical/preview');
   assert.equal(preview.changed_ids.length, 1); await apply(`Create one draft ${kind}?`);await physicalForm(kind,page.getByRole('complementary',{name:'Item Details'}));return preview.changed_ids[0];
 }
 async function select(id) { await idle(); await page.locator(`tr[data-physical-id="${id}"] .takeoff-row-link`).click(); await idle(); }
@@ -132,7 +132,7 @@ async function associateImage(id, image) {
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical');
   await expect(page.getByRole('button', { name: 'Confirm', exact: true })).toBeHidden(); await expect(page.getByRole('button', { name: 'Preview transfer', exact: true })).toBeHidden();
   await expect(page.getByRole('button', { name: 'Add defect', exact: true })).toHaveCount(0);
-  assert.deepEqual((await page.getByRole('table', { name: 'Draft penetration hierarchy register' }).getByRole('columnheader').allTextContents()).slice(0, 7), ['Select', 'Hide', 'View/Edit', 'Defect ID', 'Barrier ID', 'Service ID', 'Confirmation']);
+  assert.deepEqual((await page.getByRole('table', { name: 'Draft penetration hierarchy register' }).getByRole('columnheader').allTextContents()).slice(0, 7), ['Select', 'Hide', 'View/Edit', 'Defect ID', 'Barrier ID', 'Service ID', 'Status']);
   for (const kind of ['barrier', 'opening', 'service']) await expect(page.getByRole('button', { name: `Add ${kind}`, exact: true })).toHaveCount(0);
   await page.locator('#takeoff-upload').setInputFiles(info.physical_v2_fixture); await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 }); await expect(page.locator('.takeoff-viewport canvas')).toBeVisible(); await idle();
   for (const label of ['Extract images from selected PDF page', 'Refresh retained images']) await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(0);

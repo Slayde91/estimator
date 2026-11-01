@@ -82,8 +82,8 @@ async function registerCase(page,physical) {
   await select.click();await expect(select).toHaveAttribute('aria-pressed','false');
   const search=register.getByRole('searchbox',{name:physical?'Filter physical hierarchy':'Filter register',exact:true});
   result.search=await states(page,search);await search.fill('REGISTER-PARITY-A');await expect(rows).toHaveCount(1);await search.fill('');await expect(rows).toHaveCount(2);
-  const filter=()=>button('Filter Confirmation');result.filter=await states(page,filter());
-  const open=async()=>{await filter().click();const dialog=page.getByRole('dialog');await expect(dialog.getByRole('heading',{name:'Filter Confirmation',exact:true})).toBeVisible();await expect(filter()).toHaveAttribute('aria-expanded','true');return dialog;};
+  const filter=()=>button('Filter Status');result.filter=await states(page,filter());
+  const open=async()=>{await filter().click();const dialog=page.getByRole('dialog');await expect(dialog.getByRole('heading',{name:'Filter Status',exact:true})).toBeVisible();await expect(filter()).toHaveAttribute('aria-expanded','true');return dialog;};
   let dialog=await open();result.openFilter=await appearance(filter());result.dialog=await appearance(dialog);
   result.dialogSearch=await states(page,dialog.getByRole('searchbox',{name:'Search Confirmation values',exact:true}));result.dialogButtons={};
   for(const name of ['Apply filter','Reset filter','Cancel'])result.dialogButtons[name]=await states(page,dialog.getByRole('button',{name,exact:true}));

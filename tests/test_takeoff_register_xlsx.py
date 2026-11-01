@@ -44,10 +44,10 @@ def presentation_fixture(mode, target=None, *, recorded_fields=None):
 
 class RegisterCopyTests(unittest.TestCase):
     def test_each_register_has_exact_data_headers_and_one_sheet(self):
-        steel = ('Confirmation', 'Member mark', 'Level', 'Member type', 'Steel section', 'Product',
+        steel = ('Status', 'Member mark', 'Level', 'Member type', 'Steel section', 'Product',
                  'Fire period (min)', 'Crit. Temp (°C)', 'Exposure')
         length = ('Qty', 'Length each (m)', 'Total (m)', 'Thickness (mm)', 'Report', 'Evidence / issues')
-        duct = ('Confirmation', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation', 'Product',
+        duct = ('Status', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation', 'Product',
                 'Qty', 'Length each (m)', 'Total (m)', 'Duct surface (m²)', 'Thickness (mm)', 'Report', 'Evidence / issues')
         cases = [('steel', 'steel_vermiculite', steel + length),
                  ('steel', 'steel_board', steel + ('Exposed sides',) + length),
@@ -185,11 +185,11 @@ class RegisterCopyTests(unittest.TestCase):
         workbook, sheet, rows = read(export_physical_register(case.graph, confirmation='confirmed')[0])
         try:
             self.assertEqual(workbook.sheetnames, ['Defect Reports'])
-            self.assertEqual(rows[0], ('Defect ID', 'Barrier ID', 'Service ID', 'Confirmation', 'Location', 'FRL',
+            self.assertEqual(rows[0], ('Defect ID', 'Barrier ID', 'Service ID', 'Status', 'Location', 'FRL',
                 'Substrate', 'Orientation', 'Category', 'Service type', 'Service quantity', 'Service Size (mm)', 'Report', 'Source evidence'))
             self.assertEqual([row[:3] for row in rows[1:]], [('D-0001', None, None), ('D-0001', 'B-0001', None),
                 ('D-0001', 'B-0001', 'S-0001'), ('D-0001', 'B-0002', None)])
-            self.assertTrue(all(row[3] == 'Confirmed' for row in rows[1:]))
+            self.assertTrue(all(row[3] == 'Approved' for row in rows[1:]))
             self.assertEqual(rows[3][10], 2)
             self.assertTrue(all(row[5] == '120/120/120' for row in rows[1:]))
         finally: workbook.close()

@@ -456,7 +456,7 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
     await chooseTakeoff(page, mode);
     if (mode === 'steel') await viewWithHeldRender(id, { document_id: doc.id, page: 3 });
     else await viewRegisterItem(page, id, { document_id: doc.id, page: 3 });
-    await expect(page.locator(`tr[data-item-id="${id}"] .takeoff-state`)).toHaveText('Confirmed');
+    await expect(page.locator(`tr[data-item-id="${id}"] .takeoff-state`)).toHaveText('Approved');
     for (const format of ['CSV', 'XLSX']) {
       const pending = waitForTakeoffDownload(page); await page.evaluate(format => window.CeasefireTakeoffs.exportRegister(format.toLowerCase()), format);
       const download = await pending, target = path.join(output, `${mode}-${download.suggestedFilename()}`); await download.saveAs(target);

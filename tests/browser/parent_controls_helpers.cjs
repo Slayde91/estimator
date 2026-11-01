@@ -109,7 +109,7 @@ async function assertParentControls(page, pane, { hasBarrier = false, keyboard =
   let visibilityAlignment;
   if (await visibility.count()) { const box = await visibility.boundingBox(), row = await actions.boundingBox(), currentToggleBox = await toggle.boundingBox(); assert.equal(box.width,38); assert.equal(box.height,38); assert.ok(Math.abs(box.y-currentToggleBox.y)<1); assert.ok(Math.abs(box.x+box.width-row.x-row.width)<1, 'Visibility is at the far right of Add'); visibilityAlignment = { beforeDismissalToggleY: toggleBox.y, currentToggleY: currentToggleBox.y, visibilityY: box.y }; }
   const fields = await pane.locator(':scope > label.field > span').allTextContents();
-  if (fields.includes('Confirmation')) assert.equal(fields.at(-1),'Confirmation','Owning Confirmation is the final editable field');
+  if (fields.includes('Status')) assert.equal(fields.at(-1),'Status','Owning Confirmation is the final editable field');
   const appearance = pane.locator('.takeoff-settings-fields');
   if (await appearance.count()) { assert.deepEqual((await appearance.locator('.field > span').allTextContents()).slice(0,4),['Line Colour','Line Width','Fill Colour','Opacity']); await require('./appearance_layout_helpers.cjs').assertAppearanceLayout(pane); }
   return { addDisclosure: true, exactOriginalAssetBytes: true, gradientLibraryBook: true, keyboardFocus: keyboard, labels, names, order, mouseOpen, visibilityAlignment };

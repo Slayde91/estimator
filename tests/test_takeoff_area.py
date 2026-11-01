@@ -252,7 +252,7 @@ class TakeoffAreaTests(unittest.TestCase):
         self.assertEqual(name, 'CEASEFIRE-Walls-Floors-Takeoffs.xlsx')
         self.assertEqual([row['Item ID'] for row in rows], [wall, floor])
         self.assertEqual([row['Mode'] for row in rows], ['wall', 'slab'])
-        self.assertEqual([row['Confirmation'] for row in rows], ['Confirmed', 'Unconfirmed'])
+        self.assertEqual([row['Status'] for row in rows], ['Approved', 'Draft'])
         for row in rows:
             item = self.current(row['Item ID']); result = item_result(item, before)
             for column, key in [('Gross area m2', 'gross_area_m2'), ('Excluded area m2', 'excluded_area_m2'), ('Net area m2', 'net_area_m2')]:

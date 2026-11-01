@@ -139,7 +139,7 @@ class TakeoffSurfaceLayersTests(unittest.TestCase):
         request = {'expected_revision': forged['revision'], 'mode': 'walls_floors', 'confirmation': 'unconfirmed'}
         rows, _ = self.rows(export_workspace(forged, request, 'schedule-xlsx', documents=self.case.documents, store=self.case.store)[0])
         self.assertEqual([row['Item ID'] for row in rows], [identifier])
-        self.assertEqual(rows[0]['Confirmation'], 'Unconfirmed')
+        self.assertEqual(rows[0]['Status'], 'Draft')
         self.assertEqual(self.case.service.open(forged, source_path='verified.json')['snapshot']['items'][0]['state'], 'reviewed')
 
     def test_layer_total_overflow_blocks_confirmation_and_transfer_remains_unsupported(self):

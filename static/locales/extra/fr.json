@@ -2782,5 +2782,16 @@
   "Steel Schedule | Spray": "Tableau acier | Projection",
   "Steel Schedule | Paint": "Tableau acier | Peinture",
   "Steel Schedule | Board": "Tableau acier | Plaques",
-  "Duct Schedule": "Tableau des conduits"
+  "Duct Schedule": "Tableau des conduits",
+  "Approved": "Approuvé",
+  "Draft": "Brouillon",
+  "Approved items": "Éléments approuvés",
+  "Draft items": "Éléments en brouillon",
+  "All statuses": "Tous les états",
+  "Filter status": "Filtrer par état",
+  "Sort: Status": "Trier : État",
+  "Status: {0} — inherited from {1} {2}.": "État : {0} — hérité de {1} {2}.",
+  "Steel | Spray | Schedule": "Acier | Projection | Tableau",
+  "Steel | Paint | Schedule": "Acier | Peinture | Tableau",
+  "Steel | Board | Schedule": "Acier | Plaques | Tableau"
 }

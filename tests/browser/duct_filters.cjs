@@ -7,8 +7,8 @@ const fs = require('node:fs'), path = require('node:path'), assert = require('no
 const mode = process.argv[2] === 'steel' ? 'steel' : 'duct', steel = mode === 'steel', title = steel ? 'Steel' : 'Duct', prefix = steel ? 'S' : 'D';
 const markLabel = steel ? 'Member mark' : 'Item', sizeLabel = steel ? 'Steel section' : 'WxH (mm)', ratingLabel = steel ? 'Fire period (min)' : 'FRL', typeLabel = steel ? 'Member type' : 'Orientation';
 const expectedFilterColumns = {
-  duct: ['Confirmation', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation', 'Product', 'Duct surface (m²)', 'Thickness (mm)'],
-  steel: ['Confirmation', 'Member mark', 'Level', 'Member type', 'Steel section', 'Product', 'Fire period (min)', 'Crit. Temp (°C)', 'Exposure', 'Thickness (mm)'],
+  duct: ['Status', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation', 'Product', 'Duct surface (m²)', 'Thickness (mm)'],
+  steel: ['Status', 'Member mark', 'Level', 'Member type', 'Steel section', 'Product', 'Fire period (min)', 'Crit. Temp (°C)', 'Exposure', 'Thickness (mm)'],
 };
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `${mode}-filters-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
@@ -112,7 +112,7 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
   await page.getByLabel('Filter register', { exact: true }).fill(`${prefix}001`); await expect(rows()).toHaveCount(0);
   await page.getByLabel('Filter register', { exact: true }).fill(steel ? 'column' : 'vertical'); assert.deepEqual(await rowMarks(), [`${prefix}002`]);
   await page.getByLabel('Filter register', { exact: true }).fill(''); await reset(typeLabel);
-  await filter('Confirmation', ['Confirmed']); assert.deepEqual(await rowMarks(), [`${prefix}001`]); await reset('Confirmation');
+  await filter('Status', ['Approved']); assert.deepEqual(await rowMarks(), [`${prefix}001`]); await reset('Status');
   await filter(ratingLabel, [steel ? '120' : '120/120/120']); assert.deepEqual(await rowMarks(), [`${prefix}001`]); await reset(ratingLabel);
   await filter(sizeLabel, [steel ? '150UC23' : '300 x 400']); await expect(rows()).toHaveCount(0); await reset('Level'); assert.equal((await rowMarks()).length, 99);
   await filter(markLabel, [`${prefix}003`, `${prefix}005`]); assert.deepEqual(await rowMarks(), [`${prefix}003`, `${prefix}005`]);

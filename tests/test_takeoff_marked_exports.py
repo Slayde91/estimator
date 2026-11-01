@@ -50,14 +50,14 @@ class TakeoffCurrentExportTests(unittest.TestCase):
             request = {'expected_revision': state['revision'], 'mode': 'steel', 'confirmation': 'unconfirmed'}
             rows = self.rows(export_workspace(state, request, 'schedule-xlsx', documents=self.case.documents, store=self.case.store)[0])
             self.assertEqual([row['Item ID'] for row in rows], [confirmed, draft])
-            self.assertTrue(all(row['Confirmation'] == 'Unconfirmed' and row['Confirmation ID'] is None for row in rows))
+            self.assertTrue(all(row['Status'] == 'Draft' and row['Confirmation ID'] is None for row in rows))
             with self.assertRaisesRegex(ValidationError, 'no confirmed items'):
                 export_workspace(state, {**request, 'confirmation': 'confirmed'}, 'schedule-xlsx', documents=self.case.documents, store=self.case.store)
         self.assertEqual(self.case.service.get(self.case.sid)['snapshot'], before)
 
     def test_confirmation_selector_and_register_membership_fail_closed(self):
         identifier = self.case.create()
-        for value in (None, True, False, 0, [], {}, 'Confirmed', '', 'deleted'):
+        for value in (None, True, False, 0, [], {}, 'Approved', '', 'deleted'):
             with self.subTest(value=value), self.assertRaisesRegex(ValidationError, 'Choose confirmed'):
                 self.export(confirmation=value)
         with self.assertRaisesRegex(ValidationError, 'every item'):
@@ -76,7 +76,7 @@ class TakeoffCurrentExportTests(unittest.TestCase):
         rows = self.rows(payload)
         self.assertIn('spreadsheetml', kind); self.assertEqual(filename, 'CEASEFIRE-Steel-Takeoffs.xlsx')
         self.assertEqual(len(rows), 2); self.assertEqual(rows[0]['Mark / Run ID'], '=2+2')
-        self.assertEqual(rows[0]['Confirmation'], 'Confirmed'); self.assertEqual(rows[1]['Confirmation'], 'Unconfirmed')
+        self.assertEqual(rows[0]['Status'], 'Approved'); self.assertEqual(rows[1]['Status'], 'Draft')
         self.assertEqual(rows[0]['Exposed sides'], 3); self.assertEqual(rows[0]['Critical temperature C'], 550)
         self.assertEqual(rows[0]['Notes'], 'Retained notes'); self.assertEqual(rows[0]['Zone'], 'Z9')
         self.assertIsNone(rows[1]['Quantity']); self.assertIsNone(rows[1]['Total length m'])
@@ -132,7 +132,7 @@ class TakeoffCurrentExportTests(unittest.TestCase):
                 self.assertEqual(record[name], engine.value('CALCULATOR', column+'9'))
         self.case.command('update_item', item_id=identifier, changes={'quantity': 3})
         row = self.rows(self.export(calculator_drafts=supplied)[0])[0]
-        self.assertEqual(row['Confirmation'], 'Unconfirmed'); self.assertIn('Unavailable', row['Linked calculator result'])
+        self.assertEqual(row['Status'], 'Draft'); self.assertIn('Unavailable', row['Linked calculator result'])
 
     def test_revision_ids_modes_and_calculator_output_injection_are_rejected(self):
         self.case.create()
@@ -306,7 +306,7 @@ class TakeoffMarkedPDFTests(unittest.TestCase):
             text = page.extract_text()
             self.assertIn(f'ORIGINAL DRAWING ROTATION {index*90}', text)
             self.assertIn(f'B-ROT-{index*90}', text); self.assertIn('100UC15', text)
-            self.assertIn('16.00 m total', text); self.assertIn('Unconfirmed', text); self.assertIn('Unavailable', text)
+            self.assertIn('16.00 m total', text); self.assertIn('Draft', text); self.assertIn('Unavailable', text)
             self.assertIn('TAKEOFF LEGEND', text); self.assertIn(ids[index], text)
             self.assertNotIn('/Annots', page); self.assertEqual(page.get('/Rotate', 0), 0); self.assertEqual(page.get('/UserUnit', 1), 1)
             self.assertEqual(float(page.mediabox.width), 595)

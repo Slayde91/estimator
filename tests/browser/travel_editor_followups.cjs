@@ -98,8 +98,8 @@ async function mapsSettingsHidden(){await expect(page.locator('#view-settings [a
  await expect(page.locator('.takeoff-workspace-heading .calculator-document-toggle').first()).toHaveCSS('cursor',/cursors\/link\.png/);
  await expect(page.locator('#view-takeoffs input[type="checkbox"]').first()).toHaveCSS('cursor',/cursors\/link\.png/);
  await expect(page.locator('#view-takeoffs input[type="search"]').first()).toHaveCSS('cursor',/cursors\/text\.png/);
- await page.getByRole('button',{name:'Filter Confirmation',exact:true}).click();
- const filterDialog=page.getByRole('dialog',{name:'Filter Confirmation',exact:true});
+ await page.getByRole('button',{name:'Filter Status',exact:true}).click();
+ const filterDialog=page.getByRole('dialog',{name:'Filter Status',exact:true});
  await expect(filterDialog).toHaveCSS('cursor',/cursors\/pointer\.png/);
  await expect(filterDialog.getByRole('button',{name:'Apply filter',exact:true})).toHaveCSS('cursor',/cursors\/link\.png/);
  await expect(filterDialog.getByRole('searchbox')).toHaveCSS('cursor',/cursors\/text\.png/);

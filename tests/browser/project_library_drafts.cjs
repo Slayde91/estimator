@@ -121,7 +121,14 @@ async function editorExport(kind,scope,configuration,diagram) {
   await page.waitForFunction(()=>{const status=window.CeasefireDesktop.status();return status.ready&&!status.busy;});
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const after=await editorSnapshot(),stored=JSON.parse(fs.readFileSync(info.project,'utf8'));
-  for(const key of ['calculators','penetration','pricing','details'])assert.deepEqual(after[key],before[key],`Automatic Save preserves ${key}`);
+  for(const key of ['calculators','penetration','details'])assert.deepEqual(after[key],before[key],`Automatic Save preserves ${key}`);
+  // The fixture has pending Pricing Library edits. Ordinary project Save
+  // adopts those edits for this project only, so the old quote configuration
+  // is not the post-save baseline. Check the saved project pricing and the
+  // deliberately edited amount while retaining the shared-database assertion.
+  assert.deepEqual(after.pricing,stored.estimate.configuration);
+  const priceIdentity=evidence.pendingProjectPrice;
+  assert.equal(stored.estimate.configuration[priceIdentity.kind][priceIdentity.id].supplier_price,789.12);
   const retained=stored.library_drafts.records.find(record=>record.id===info.item_id);
   assert.deepEqual(retained.draft.rows[0].inputs,capture.item.inputs,'Automatic Save retains the actual exported library inputs');
   assert.equal(stored.estimate.client,before.details.client);
@@ -181,6 +188,7 @@ async function openProjectCopy() {
   await page.locator('#pricing-scope').selectOption('library');
   const price = page.locator('#pricing-body [data-price-field="supplier_price"]').first();
   const priceIdentity = await price.evaluate(control => ({ id: control.closest('tr').dataset.priceId, kind: control.closest('tr').dataset.priceKind }));
+  evidence.pendingProjectPrice=priceIdentity;
   await price.fill('789.12'); await price.press('Tab');
   await chooseLibrary(page, 'penetration');
   await page.getByRole('dialog').getByRole('button', { name: 'Continue', exact: true }).click();

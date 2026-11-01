@@ -206,11 +206,13 @@ let passed=0;
   assert.match(byId('app-message').textContent,/Later edits are not included/);passed++;
 
   // Only a selected project capability determines the download destination.
-  setup();assert.throws(()=>context.window.CeasefireProject.downloadTarget(),/Save the current project/);
+  setup();assert.equal(context.window.CeasefireProject.downloadTarget().project_token,null);
+  await assert.rejects(context.window.CeasefireDownloads.save('/api/quote-report'),/Save the current project/);
   audit.state.projectFile={path:'C:/Projects/One.json',save_token:'original-target'};
   const originalTarget=context.window.CeasefireProject.downloadTarget();audit.state.projectFile={save_token:'new-target',path:'C:/Projects/One.json'};
   assert.equal(originalTarget.project_token,'original-target');assert.equal(context.window.CeasefireProject.downloadTarget().project_token,'new-target');
-  audit.state.projectFile={name:'browser-import.json'};assert.throws(()=>context.window.CeasefireProject.downloadTarget(),/Save the current project/);passed++;
+  audit.state.projectFile={name:'browser-import.json'};assert.equal(context.window.CeasefireProject.downloadTarget().project_token,null);
+  await assert.rejects(context.window.CeasefireDownloads.save('/api/quote-report'),/Save the current project/);passed++;
 
   // Both draft and saved downloads retain snapshots and later edits with the common filename.
   for(const saved of [false,true]) {

@@ -1,3 +1,4 @@
+const { captureReferenceExport, observeReferenceExports } = require('./reference_export_capture.cjs');
 const { cycleTheme } = require('./theme_navigation.cjs');
 // Document controls exercise real handlers against fixture-owned project/storage.
 const { chromium, expect } = require('@playwright/test');
@@ -22,6 +23,7 @@ async function snapshot() { await idle(); return page.evaluate(() => ({ calculat
 (async () => {
   const info = await ready; assert.notEqual(info.port, 8765);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1146, height: 900 } });
+  await observeReferenceExports(page);
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(`http://127.0.0.1:${info.port}/`); await idle();
   const saved = page.waitForResponse(r => new URL(r.url()).pathname === '/api/project/save-as');
@@ -62,11 +64,11 @@ async function snapshot() { await idle(); return page.evaluate(() => ({ calculat
   await toggle.click();
   const exported = page.waitForResponse(r => new URL(r.url()).pathname === '/api/pricing/export');
   await page.locator('#export-pricing').click(); const response=await exported; assert.equal(response.status(),200);
-  const file=await response.json(); assert.equal(file.saved,true);
+  const file={path:await captureReferenceExport(response,path.join(output,'pricing.xlsx'))};
   const relative=path.relative(output,file.path); assert.ok(relative&&!relative.startsWith('..')&&!path.isAbsolute(relative));
   assert.equal(fs.readFileSync(file.path).subarray(0,2).toString(),'PK'); await expect(menu).toBeHidden(); await idle();
   await toggle.click(); const chooser=page.waitForEvent('filechooser'); await page.locator('#import-pricing').click();
-  const selected=await chooser; assert.equal(selected.isMultiple(),false); await expect(menu).toBeHidden();
+  const selected=await chooser; assert.equal(selected.isMultiple(),false); await selected.setFiles([]); await expect(menu).toBeHidden();
   assert.deepEqual(await snapshot(),before,'Menu actions and export preserve pricing, calculator and composer drafts');
   await page.locator('#estimate-navigation-toggle').click(); await expect(page.locator('#view-estimate')).toBeVisible();
   const scheduleMenu=page.locator('#firestopping-document-actions'), scheduleToggle=page.locator('[aria-controls="firestopping-document-actions"]');

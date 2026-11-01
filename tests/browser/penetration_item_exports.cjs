@@ -1,3 +1,4 @@
+const { captureReferenceExport, observeReferenceExports } = require('./reference_export_capture.cjs');
 // Real current-unsaved-item downloads never read the independently retained Schedule.
 const { chromium, expect } = require('@playwright/test');
 const { chooseCalculator } = require('./calculator_actions.cjs');
@@ -27,6 +28,7 @@ async function fill(column, value) { const field = page.locator(`[data-penetrati
 (async () => {
   const info = await ready; assert.notEqual(info.port, 8765);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1146, height: 900 } });
+  await observeReferenceExports(page);
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => { if(new URL(request.url()).pathname==='/api/penetration/calculate')calculationRequests.push(request.postDataJSON()); });
   await page.goto(`http://127.0.0.1:${info.port}/`); await idle();
@@ -90,12 +92,10 @@ async function fill(column, value) { const field = page.locator(`[data-penetrati
     await toggle.click(); await expect(menu).toBeVisible(); await expect(page.locator(`#${id}`)).toHaveAccessibleName('Item Details');
     const pending = page.waitForResponse(r => new URL(r.url()).pathname === `/api/penetration/item.${extension}` && r.request().method() === 'POST');
     await page.locator(`#${id}`).click(); const reply = await pending; assert.equal(reply.status(), 200, await reply.text());
-    const capture = reply.request().postDataJSON(), saved = await reply.json(); assert.deepEqual(capture.item, before.penetration.composer.rows[0]);
-    assert.equal(capture.rows, undefined); assert.equal(capture.draft, undefined); assert.equal(saved.saved, true);
-    const relative = path.relative(output, saved.path); assert.ok(relative && !relative.startsWith('..') && !path.isAbsolute(relative));
-    fs.copyFileSync(saved.path, path.join(output, `CEASEFIRE-Firestopping-Item.${extension}`));
+    const capture = reply.request().postDataJSON(), capturedPath = await captureReferenceExport(reply,path.join(output, `CEASEFIRE-Firestopping-Item.${extension}`)); assert.deepEqual(capture.item, before.penetration.composer.rows[0]);
+    assert.equal(capture.rows, undefined); assert.equal(capture.draft, undefined);
     if (extension === 'pdf') fs.writeFileSync(path.join(output, 'captured-item.json'), JSON.stringify(capture, null, 2));
-    itemExports.push({ extension, path: saved.path, sha256: hash(fs.readFileSync(saved.path)), capture });
+    itemExports.push({ extension, path: capturedPath, sha256: hash(fs.readFileSync(capturedPath)), capture });
     await expect(menu).toBeHidden(); await expect(page.locator(`#${id}`)).toHaveAttribute('aria-busy', 'false');
     assert.deepEqual(await snapshot(), before, 'Downloading preserves unsaved Item, Schedule, pricing, settings and calculator drafts');
   }

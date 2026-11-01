@@ -12,6 +12,14 @@ sharing an output. Similar appearance alone is insufficient. Keep the grouping,
 prompt, generated candidate, visual review and rejected variants in the private
 batch record. Do not commit supplier images or private library records to Git.
 
+New generations must use OpenArt. Record the model, history ID, completed output
+URL, generation time, original source hash, downloaded output hash and approval.
+Provider names or file modification dates alone do not establish provenance.
+Preserve explicit user approvals; do not regenerate or reject those exact versions
+again. When retiring older or unverified derivatives, remove their registry entries
+and restore fingerprinted originals for display; quarantine derivatives outside
+the active `replicas` folder. Keep the source index and project data unchanged.
+
 Generated replicas contain construction imagery only: no branding, logos, text,
 dimensions, labels, watermarks or printed wrapper graphics. Omit every bottom
 reference code or caption, including codes such as `BMH-120-V38 a`. Record names,

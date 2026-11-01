@@ -43,7 +43,8 @@ def synchronize_images(directory, keys=None):
             replica_asset(directory, entry)
             checked_outputs.add(entry['file'])
         previous = None
-        if archive.exists() and target.exists() and target.read_bytes() != output.read_bytes():
+        if (archive.exists() and target.exists() and target.read_bytes() != output.read_bytes()
+                and hashlib.sha256(target.read_bytes()).hexdigest() != entry['source_sha256']):
             digest = hashlib.sha256(target.read_bytes()).hexdigest()
             previous = directory / 'replicas/previous' / (digest + target.suffix)
             if not previous.resolve().is_relative_to(directory):

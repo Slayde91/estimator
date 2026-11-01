@@ -184,3 +184,13 @@ class ReplicaTests(unittest.TestCase):
         self.assertEqual((self.root / 'images/diagram-a.png').read_bytes(), self.replica)
         self.assertEqual((self.root / 'replicas/previous' / (hashlib.sha256(old).hexdigest() + '.png')).read_bytes(), old)
         self.assertEqual(self.library.asset('diagram-a', False)[0], self.source)
+
+    def test_publishing_after_original_restore_does_not_archive_source_as_replica(self):
+        from scripts.install_library_replicas import synchronize_images
+        synchronize_images(self.root)
+        (self.root / 'images/diagram-a.png').write_bytes(self.source)
+        result = synchronize_images(self.root)
+        self.assertEqual(result['previous_preserved'], 0)
+        self.assertFalse((self.root / 'replicas/previous').exists())
+        self.assertEqual((self.root / 'images/diagram-a.png').read_bytes(), self.replica)
+        self.assertEqual((self.root / 'images_old/diagram-a.png').read_bytes(), self.source)

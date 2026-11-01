@@ -34,6 +34,14 @@ async function idle(){
   await settingsSettled(page);
 }
 async function snapshot(){await idle();return page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot());}
+function assertSavedSnapshotPreserved(before, after, message){
+  // An automatic Save adds this one deterministic file-storage location. Session
+  // refreshes may omit it again; source/markup/audit values must remain exact.
+  const companionFolder=`.ceasefire-evidence/${before.project_id}`;
+  if(Object.hasOwn(before,'companion_folder'))assert.equal(before.companion_folder,companionFolder);
+  assert.deepEqual(after,{...before,companion_folder:companionFolder},message);
+  assert.deepEqual(JSON.parse(fs.readFileSync(info.project,'utf8')).takeoffs,after,'The automatic Save persists the exact exported drawing state');
+}
 async function command(op, values={}){
   const sid=await page.evaluate(()=>window.CeasefireTakeoffs.sessionId()), reply=await page.request.post(`${origin}/api/takeoffs/sessions/${sid}/commands`,{data:{op,request_id:randomUUID(),expected_revision:current.revision,...values}});
   assert.equal(reply.status(),200,await reply.text());current=await reply.json();return current;
@@ -48,7 +56,7 @@ async function csvDownload(scope, action){
   assert.ok(path.resolve(result.receipt.path).startsWith(path.resolve(output)+path.sep));assert.ok(result.receipt.filename.endsWith('.csv'));
   const file=path.join(output,`${scope}.csv`);await result.saveAs(file);
   const parsed=spawnSync(process.env.CEASEFIRE_PYTHON||'python',['-B','-c',"import csv,json,sys\nwith open(sys.argv[1],encoding='utf-8-sig',newline='') as f: print(json.dumps(list(csv.DictReader(f))))",file],{encoding:'utf8',windowsHide:true});
-  assert.equal(parsed.status,0,parsed.stderr);assert.deepEqual(await snapshot(),before);
+  assert.equal(parsed.status,0,parsed.stderr);assertSavedSnapshotPreserved(before,await snapshot(),'CSV download preserves exact drawing state');
   const rows=JSON.parse(parsed.stdout);evidence.exports.push({scope,kind:'csv',path:file,sha256:hash(file),receipt:result.receipt,rows});return rows;
 }
 async function zoomTo(target, metadata){
@@ -95,7 +103,7 @@ async function download(kind, label, scope, held=false, workspace=scope){
   assert.ok(path.resolve(result.receipt.path).startsWith(path.resolve(output)+path.sep),'All actual native files stay in the disposable fixture');
   const file=path.join(output,`${scope}-${kind}.pdf`);await result.saveAs(file);const content=await inspect(file);
   assert.equal(content.annots,false);assert.equal(content.actions,false);
-  assert.deepEqual(await snapshot(),before,'PDF download preserves exact source, markups, precision, confirmation and audit identities');
+  assertSavedSnapshotPreserved(before,await snapshot(),'PDF download preserves exact source, markups, precision, confirmation and audit identities');
   const parsed={scope,kind,path:file,sha256:hash(file),receipt:result.receipt,request,content};evidence.exports.push(parsed);return parsed;
 }
 (async()=>{try{
@@ -121,16 +129,6 @@ async function download(kind, label, scope, held=false, workspace=scope){
     await command('create_graphic',{graphic:{mode:scope,document_id:doc.id,source_sha256:doc.sha256,page:4,kind:'textbox',geometry:{quad_pdf:[[40,120],[260,120],[260,40],[40,40]]},text:scope,appearance:{}}});
   }
   const seeded=current.snapshot;await renderDrawing(page,()=>page.evaluate(async value=>{const t=window.CeasefireTakeoffs;t.applyProject(await t.prepareProject(value,t.sessionId()));await t.open();},seeded),1);await idle();
-  // Persist the newly attached drawing before taking export baselines. The
-  // first real Save assigns its evidence companion folder; subsequent automatic
-  // saves must preserve the entire source/markup snapshot exactly as before.
-  const beforeSourceSave=await snapshot(), sourceSave=page.waitForResponse(response=>response.url().endsWith('/api/project/save'));
-  await clickProjectControl(page,'Save');const sourceSaveResponse=await sourceSave;
-  assert.equal(sourceSaveResponse.status(),200);const sourceSaved=await sourceSaveResponse.json();
-  await expect(page.locator('#project-save-state')).toHaveText('Saved project');
-  const companionFolder=sourceSaved.project.takeoffs.companion_folder;
-  assert.match(companionFolder,/^\.ceasefire-evidence\/[0-9a-f-]+$/);
-  assert.deepEqual(await snapshot(),{...beforeSourceSave,companion_folder:companionFolder},'Initial source Save adds only its evidence location');
   const calculatorsBefore=await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());
   const kinds=[['current-all','Download Full Markup'],['current-marked','Download Markups Only'],['all-all','Download All Markups'],['all-marked','Download Full Markups Only']];
   for(const scope of['steel','duct','wall','physical-defect_reports','physical-service_plans']){

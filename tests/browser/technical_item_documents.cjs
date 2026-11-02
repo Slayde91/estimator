@@ -17,7 +17,7 @@ const ready = new Promise((resolve,reject)=>{
   server.stdout.on('data',value=>{data+=value;if(data.includes('\n')){clearTimeout(timer);resolve(JSON.parse(data.split('\n')[0]));}});
   server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(new Error(`Fixture exited ${code}: ${logs}`));});
 });
-const errors=[], csp=[], layouts=[], scheduleContrast=[], checks=[];
+const errors=[], csp=[], layouts=[], scheduleContrast=[], checks=[], frozenDownloads=[];
 const hash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 function inventory(folder){const result={};for(const entry of fs.readdirSync(folder,{withFileTypes:true})){const file=path.join(folder,entry.name);if(entry.isDirectory())for(const [name,value] of Object.entries(inventory(file)))result[`${entry.name}/${name}`]=value;else result[entry.name]=hash(file);}return result;}
 function database(file){const child=spawnSync(python,['-B',fixture,'--snapshot-database',file],{cwd:root,encoding:'utf8',windowsHide:true});assert.equal(child.status,0,child.stderr);return JSON.parse(child.stdout);}
@@ -30,14 +30,31 @@ async function contrast(selector){return page.locator(selector).first().evaluate
   const luminance=value=>rgb(value).map(c=>{c/=255;return c<=.04045?c/12.92:((c+.055)/1.055)**2.4;}).reduce((sum,c,i)=>sum+c*[.2126,.7152,.0722][i],0);
   const a=luminance(style.color),b=luminance(background);return {color:style.color,background,ratio:(Math.max(a,b)+.05)/(Math.min(a,b)+.05)};
 });}
+async function savedExport(reply,extension){
+  assert.equal(reply.status(),200);const body=await reply.json();assert.equal(body.saved,true);assert.equal(body.destination,'project');
+  const relative=path.relative(output,body.path);assert.ok(relative&&!relative.startsWith('..')&&!path.isAbsolute(relative));
+  const bytes=fs.readFileSync(body.path);assert.equal(bytes.subarray(0,extension==='pdf'?5:2).toString(),extension==='pdf'?'%PDF-':'PK');
+  const id=reply.request().postDataJSON().id;assert.equal(id,'report-a-v1','Export keeps the selected original item, including during a held request');
+  frozenDownloads.push({filename:path.basename(body.path),kind:`library.technical.item.${extension}`,logical_key:id,
+    revision:frozenDownloads.filter(row=>row.kind===`library.technical.item.${extension}`&&row.logical_key===id).length+1,
+    sequence:frozenDownloads.length+1,sha256:crypto.createHash('sha256').update(bytes).digest('hex'),size:bytes.length,
+    media_type:extension==='pdf'?'application/pdf':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  return body.path;
+}
+async function settledExport(save){
+  assert.equal((await save).status(),200);
+  await expect.poll(()=>page.evaluate(()=>Boolean(window.CeasefireDownloads.hasPendingOperation()||window.CeasefireDocumentation.hasPendingOperation()||window.CeasefireProject.hasPendingOperation())),{timeout:60000}).toBe(false);
+  await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+}
+function automaticSave(){
+  const pending=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/save'&&r.request().method()==='POST');pending.catch(()=>{});return pending;
+}
 async function exported(extension){
   const response=page.waitForResponse(r=>new URL(r.url()).pathname===`/api/technical/item.${extension}`);
+  response.catch(()=>{});const save=automaticSave();
   await page.locator('.library-document-menu').getByRole('button',{name:'Document',exact:true}).click();
   await page.locator(`#technical-item-document-actions .${extension==='pdf'?'pdf':'excel'}-button`).click();
-  const reply=await response;assert.equal(reply.status(),200);const body=await reply.json();assert.equal(body.saved,true);
-  const relative=path.relative(output,body.path);assert.ok(relative&&!relative.startsWith('..')&&!path.isAbsolute(relative));
-  assert.equal(fs.readFileSync(body.path).subarray(0,extension==='pdf'?5:2).toString(),extension==='pdf'?'%PDF-':'PK');
-  return body.path;
+  const result=await savedExport(await response,extension);await settledExport(save);return result;
 }
 (async()=>{
   const info=await ready;assert.notEqual(info.port,8765);
@@ -48,7 +65,8 @@ async function exported(extension){
   await page.evaluate(()=>window.CeasefirePenetrations.completeProjectSnapshot());
   const saved=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/save-as');
   await clickProjectControl(page,'Save');assert.equal((await saved).status(),200);await idle();
-  const projectHash=hash(info.project), libraryBefore=inventory(info.library), databaseBefore=database(info.database), before=await snapshot();
+  const projectHash=hash(info.project), projectBefore=JSON.parse(fs.readFileSync(info.project,'utf8')), libraryBefore=inventory(info.library), databaseBefore=database(info.database), before=await snapshot();
+  fs.writeFileSync(path.join(output,'before-downloads.cf.json'),JSON.stringify(projectBefore));
   await chooseLibrary(page,'technical');await page.locator('[data-library-record="report-a-v1"]').click();
   const detail=page.locator('[data-library-detail="technical"]');await expect(detail).toBeVisible();
   const toggle=detail.getByRole('button',{name:'Document',exact:true}), menu=detail.locator('#technical-item-document-actions');
@@ -82,10 +100,10 @@ async function exported(extension){
   const inspection=spawnSync(python,['-B',fixture,'--inspect',pdf,xlsx],{cwd:root,encoding:'utf8',windowsHide:true});assert.equal(inspection.status,0,inspection.stderr);const artifacts=JSON.parse(inspection.stdout);checks.push('actual PDF/XLSX contents and hyperlinks');
   let started;const observed=new Promise(resolve=>{started=resolve;});
   await page.route('**/api/technical/item.pdf',async route=>{started(JSON.parse(route.request().postData()));await new Promise(resolve=>{releaseHeld=resolve;});await route.continue();});
-  await toggle.click();await menu.getByRole('button').first().click();const captured=await observed;assert.equal(captured.id,'report-a-v1');await expect(toggle).toBeDisabled();
+  const heldSave=automaticSave();await toggle.click();await menu.getByRole('button').first().click();const captured=await observed;assert.equal(captured.id,'report-a-v1');await expect(toggle).toBeDisabled();
   await detail.getByRole('button',{name:'Back to results',exact:true}).click();await page.locator('[data-library-record="report-a-v2"]').click();
   await expect(detail.locator('h3')).not.toContainText('report-a-v2');await expect(detail.locator('dd').first()).toHaveText('Separate second item');await expect(toggle).toBeDisabled();
-  const completed=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/technical/item.pdf');releaseHeld();releaseHeld=null;assert.equal((await completed).status(),200);
+  const completed=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/technical/item.pdf');releaseHeld();releaseHeld=null;await savedExport(await completed,'pdf');await settledExport(heldSave);
   await expect(toggle).toBeEnabled();await expect(page.locator('#technical-library-workspace>.message')).toBeHidden();await page.unroute('**/api/technical/item.pdf');checks.push('held export retains captured id and does not clobber newer item');
   await chooseLibrary(page,'penetration');await page.locator('[data-library-record="pkb-001"]').click();
   const fireDetail=page.locator('[data-library-detail="penetration"]');await expect(fireDetail).toBeVisible();
@@ -115,9 +133,18 @@ async function exported(extension){
   }
   checks.push('five-theme library and composer schedule/source contrast');
   assert.deepEqual(await snapshot(),before,'Exports and menu access preserve calculator/composer/pricing/project drafts');
-  assert.equal(hash(info.project),projectHash,'Exports do not rewrite saved project');assert.deepEqual(inventory(info.library),libraryBefore,'Canonical library bytes preserved');assert.deepEqual(database(info.database),databaseBefore,'Read-only documents preserve logical database including preferences');
+  const stored=JSON.parse(fs.readFileSync(info.project,'utf8'));assert.equal(projectBefore.documentation.revision_count,0);assert.equal(frozenDownloads.length,3);
+  const folder=path.join(output,projectBefore.documentation.companion_folder),manifestBytes=fs.readFileSync(path.join(folder,`${stored.documentation.manifest_sha256}.json`)),manifest=JSON.parse(manifestBytes);
+  assert.deepEqual(Object.keys(manifest).sort(),['project_id','revisions','version','workspace_revision']);
+  assert.equal(manifest.project_id,projectBefore.documentation.project_id);assert.equal(manifest.version,1);assert.equal(manifest.workspace_revision,3);
+  assert.deepEqual(manifest.revisions.map(row=>Object.fromEntries(Object.keys(frozenDownloads[0]).map(key=>[key,row[key]]))),frozenDownloads,'All three revisions retain the captured source identity and exact native output bytes');
+  const unique=new Map(frozenDownloads.map(row=>[row.sha256,row]));
+  for(const [sha256,row] of unique){const ext=row.media_type==='application/pdf'?'.pdf':'.xlsx',blob=fs.readFileSync(path.join(folder,'blobs',sha256+ext));assert.equal(blob.length,row.size);assert.equal(crypto.createHash('sha256').update(blob).digest('hex'),sha256);}
+  const expected={...projectBefore,documentation:{...projectBefore.documentation,manifest_sha256:crypto.createHash('sha256').update(manifestBytes).digest('hex'),manifest_size:manifestBytes.length,revision_count:3,unique_bytes:[...unique.values()].reduce((sum,row)=>sum+row.size,0)}};
+  assert.deepEqual(stored,expected,'Automatic Save changes only independently verified document-history metadata; every other project field stays exact');
+  assert.deepEqual(inventory(info.library),libraryBefore,'Canonical library bytes preserved');assert.deepEqual(database(info.database),databaseBefore,'Document exports preserve logical database including preferences');
   csp.push(...await page.evaluate(()=>window.__technicalCsp||[]));assert.deepEqual(errors,[]);assert.deepEqual(csp,[]);checks.push('drafts saved project library and database preserved');
-  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,layouts,scheduleContrast,artifacts,projectHash,libraryBefore,databasePreserved:true,errors,csp},null,2));
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,layouts,scheduleContrast,artifacts,projectHash,libraryBefore,databasePreserved:true,verifiedFrozenRevisions:3,savedProjectMatchesAutomaticSave:true,errors,csp},null,2));
   console.log(`PASS Technical Item Details PDF/XLSX, report links/source pixels, guarded native menu and ten responsive layouts; five-theme library/composer contrast and protected fixture state. Evidence: ${output}`);
 })().catch(async error=>{console.error(error);console.error(logs.slice(-4000));if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});fs.writeFileSync(path.join(output,'failure.json'),JSON.stringify({checks,layouts,errors,csp,error:String(error)},null,2));process.exitCode=1;})
 .finally(async()=>{releaseHeld?.();fs.writeFileSync(path.join(output,'server.log'),logs);if(browser)await browser.close();server.kill();});

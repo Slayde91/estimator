@@ -82,7 +82,7 @@ function checkCompanions(project,folder){
   await page.locator('#client').fill('SYNTHETIC DOCUMENTATION QA');await page.locator('#project-no').fill('DOC-PROJECT-A');await page.locator('#site-address').fill('Synthetic test address - no installation claim');
   choose('project-a.cf.json');await save();console.log('Project A saved on disposable storage.');const baseline=await snapshots();
   await documentation();const catalog=(await api('/api/documentation/catalog')).documents;
-  await expect(page.locator('#view-documentation .documentation-table thead tr').first().locator('th')).toHaveText(['Document','Download','Previous revisions']);
+  await expect(page.locator('#view-documentation .documentation-table thead tr').first().locator('th')).toHaveText(['Document','Previous revisions','Download']);
   const breakdown=page.locator('tr[data-document-kind="estimate.summary.pdf"]');await expect(breakdown.locator('td').first()).toHaveText('Breakdown');
   await expect(breakdown.locator('button')).toHaveAccessibleName('Download Breakdown');await expect(breakdown.locator('button')).toHaveText('⇩');
   const omittedPdfRows=new Set(['firestopping.current_item.pdf','library.technical.item.pdf','takeoff.pdf_tools.pdf','takeoff.defect_reports.matrix.pdf','takeoff.service_plans.matrix.pdf']);

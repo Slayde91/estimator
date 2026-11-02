@@ -58,6 +58,15 @@ retaining band, tab, screw or flange. Wrap ties remain smooth, unperforated,
 self-locking stainless steel zip ties on the wrap only. Never replace a zip tie
 with a hose clamp or add a worm-drive housing or perforated band.
 
+Wrap zip ties always form circumferential loops perpendicular to the service's
+longitudinal axis. Never run them lengthwise, parallel to the service. On a
+vertical service the loops run horizontally around the wrap; on a horizontal
+service they encircle its cross-section. Judge orientation in 3D: perspective may
+make a correct loop appear curved or slanted. Apply this in every generation
+prompt and visual review; reject axial ties before publication. Preserve the
+source tie count and positions, and the rules for flat stainless self-locking
+ties and no collar zip ties.
+
 For images without collars, start with GPT Image 2 at low quality and 1K.
 Record any user-authorised alternate-model retry and its reason, including
 provider failures and rejected visual details, without replacing source evidence.

@@ -43,7 +43,8 @@ function install(context) {
   return {audit,api:context.window.CeasefirePenetrations,calls};
 }
 function harness() {
-  const elements=new Map(),timers=new Map();let timerId=0;
+  const elements=new Map(),timers=new Map(),intervals=new Map();let timerId=0;
+  const temporary={viewers:[],downloads:[],urls:[],revoked:[]};
   const matches=(node,selector)=>selector.includes(',')?selector.split(',').some(part=>matches(node,part)):selector.startsWith('[data-penetration-scope=')?node.dataset.penetrationScope===selector.match(/scope="([^"]+)"/)[1]&&node.dataset.penetrationField===selector.match(/field="([^"]+)"/)[1]:selector==='[data-penetration-field]'?node.dataset.penetrationField!==undefined:selector==='[data-penetration-service-route]'?node.dataset.penetrationServiceRoute!==undefined:selector==='[data-penetration-band]'?node.dataset.penetrationBand!==undefined:selector==='[data-library-editor-field]'?node.dataset.libraryEditorField!==undefined:selector==='[data-penetration-remove]'?node.dataset.penetrationRemove!==undefined:false;
   const document={activeElement:null};
   function element(tagName='div') {
@@ -54,6 +55,7 @@ function harness() {
       closest(){return null;},remove(){if(this.parentNode)this.parentNode.children=this.parentNode.children.filter(child=>child!==this);this.parentNode=null;this.parentElement=null;},
       querySelectorAll(selector){return this.children.flatMap(child=>[...(matches(child,selector)?[child]:[]),...child.querySelectorAll(selector)]);},
       addEventListener(name,fn){(this.listeners[name]||=[]).push(fn);},async emit(name,detail={}){for(const fn of this.listeners[name]||[])await fn({target:this,currentTarget:this,...detail});},
+      click(){if(this.tagName==='a')temporary.downloads.push({filename:this.download,url:this.href});},
       focus(){document.activeElement=this;return this.emit('focus');},blur(){document.activeElement=null;return this.emit('blur');},select(){this.selectionStart=0;this.selectionEnd=this.value.length;},
     };
   }
@@ -61,12 +63,15 @@ function harness() {
   Object.assign(document,{body:element('body'),getElementById:byId,createElement:element,querySelectorAll(selector){return [...elements.values()].flatMap(root=>[...(matches(root,selector)?[root]:[]),...root.querySelectorAll(selector)]);}});
   const pricing={inventory:{},rates:{original:{price:1}}},details={client:'Original client'},target={project_token:'original-token'};
   const context={document,window:{CeasefireProject:{configuration:()=>copy(pricing),details:()=>copy(details),downloadTarget:()=>copy(target),changed(){}},CeasefirePenetrationNavigation:{confirm:async()=>true,confirmDelete:async()=>true,notify:async()=>{},show(){},showSchedule(){}}},Intl,Number,String,JSON,Object,Set,Map,Array,Promise,Error,console,
+    URL:{createObjectURL(blob){temporary.urls.push(blob);return 'blob:current-item';},revokeObjectURL(url){temporary.revoked.push(url);}},
+    setInterval(fn){intervals.set(++timerId,fn);return timerId;},clearInterval(id){intervals.delete(id);},
     setTimeout(fn){timers.set(++timerId,fn);return timerId;},clearTimeout(id){timers.delete(id);}};
+  context.window.open=()=>{const viewer={closed:false,opener:{},location:{replace(url){viewer.url=url;}},close(){this.closed=true;}};temporary.viewers.push(viewer);return viewer;};
   let operationFetch;
   Object.defineProperty(context,'fetch',{set(fn){operationFetch=fn;},get(){return(path,options)=>String(path).startsWith('/api/download-progress')?Promise.resolve({ok:true,json:async()=>String(path)==='/api/download-progress'?{token:'fixture-progress-token'}:{state:'preparing',percent:20}}):operationFetch(path,options);}});
   vm.createContext(context);vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
   const pen=install(context);
   const control=(column,row='line-1')=>[byId('penetration-item-quantity'),byId('penetration-row-fields')].flatMap(root=>root.querySelectorAll('[data-penetration-field]')).find(el=>el.dataset.penetrationField===column&&el.dataset.penetrationRow===(row||''));
-  return {context,byId,element,control,pricing,details,target,timers,...pen};
+  return {context,byId,element,control,pricing,details,target,timers,temporary,...pen};
 }
 module.exports={copy,definition,result,allowanceDefinition,allowanceResult,install,harness};

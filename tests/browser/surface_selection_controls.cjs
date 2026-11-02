@@ -58,7 +58,7 @@ async function doublePoint(point) {
   await page.waitForTimeout(550); await page.mouse.dblclick(...await screen(point), { delay: 100 }); await idle();
 }
 async function selected(id, value) { await expect(hit(id)).toHaveAttribute('aria-pressed', String(value)); await expect(page.locator(`tr[data-item-id="${id}"]`).getByRole('checkbox', { name: /^Select / })).toBeChecked({ checked: value }); }
-async function noticeExpiryKeepsDrawing(id, point, globalNotice = false) {
+async function persistentNoticeKeepsDrawing(id, point, globalNotice = false) {
   const noticeId = globalNotice ? 'app-message' : 'takeoff-message';
   await clickPoint(point); await selected(id, true); await expect(panel()).toBeHidden();
   const before = await snapshot(), calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), count = commands.length;
@@ -66,18 +66,17 @@ async function noticeExpiryKeepsDrawing(id, point, globalNotice = false) {
     const notice = document.getElementById(noticeId), slot = notice.parentElement;
     const geometry = () => ({ scrollY, overlayY: document.querySelector('.takeoff-overlay').getBoundingClientRect().y,
       viewportY: document.querySelector('.takeoff-viewport').getBoundingClientRect().y, slotHeight: slot.getBoundingClientRect().height });
-    const probe = window.__surfaceNoticeExpiry = { events: [], geometry };
+    const probe = window.__surfaceNoticePersistence = { events: [], geometry };
     probe.pointer = event => probe.events.push({ at: Date.now(), type: event.type, x: event.clientX, y: event.clientY,
       item: event.target.closest?.('[data-item-id]')?.dataset.itemId || null, ...geometry() });
     document.addEventListener('pointerdown', probe.pointer, true);
     probe.observer = new MutationObserver(() => {
-      if (!notice.hidden && /^(Copied|Project saved)/.test(notice.textContent)) probe.started = Date.now();
       if (notice.hidden && probe.started) probe.retired = { at: Date.now(), text: notice.textContent, hidden: notice.hidden, ...geometry() };
     });
     probe.observer.observe(notice, { attributes: true, childList: true, characterData: true, subtree: true });
   }, noticeId);
-  // A real ordinary status and native pointer input cross its actual five-second
-  // expiry. At page top the browser cannot hide drawing movement by anchoring.
+  // A real ordinary status stays visible beyond the former five-second timer.
+  // At page top the browser cannot hide drawing movement by anchoring.
   if (globalNotice) {
     const saving = page.waitForResponse(response => response.url().endsWith('/api/project/save'));
     await clickProjectControl(page, 'Save'); assert.equal((await saving).status(), 200);
@@ -88,35 +87,37 @@ async function noticeExpiryKeepsDrawing(id, point, globalNotice = false) {
     await expect(page.locator('#takeoff-message')).toContainText('Copied');
   }
   const noticeText = await page.locator(`#${noticeId}`).textContent();
+  await page.evaluate(() => { window.__surfaceNoticePersistence.started = Date.now(); });
   await page.mouse.move(10, 200); await page.mouse.wheel(0, -2000);
   await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
-  const beforeExpiry = await page.evaluate(() => window.__surfaceNoticeExpiry.geometry());
+  const beforeWait = await page.evaluate(() => window.__surfaceNoticePersistence.geometry());
   const box = await page.locator('.takeoff-overlay').boundingBox();
   const position = [box.x + point[0] / 842 * box.width, box.y + (1 - point[1] / 595) * box.height];
-  const remaining = await page.evaluate(() => Math.max(0, window.__surfaceNoticeExpiry.started + 4950 - Date.now()));
+  const remaining = await page.evaluate(() => Math.max(0, window.__surfaceNoticePersistence.started + 5100 - Date.now()));
   await page.waitForTimeout(remaining);
+  await expect(page.locator(`#${noticeId}`)).toBeVisible();await expect(page.locator(`#${noticeId}`)).toHaveText(noticeText);
+  const afterWait = await page.evaluate(() => window.__surfaceNoticePersistence.geometry());
+  for (const key of ['overlayY', 'viewportY', 'slotHeight', 'scrollY']) assert.equal(afterWait[key], beforeWait[key], `Persistent notice keeps ${key} exact`);
   await page.mouse.dblclick(...position, { delay: 100 }); await idle();
-  await expect(page.locator(`#${noticeId}`)).toBeHidden(); await expect(page.locator(`#${noticeId}`)).toHaveText(globalNotice ? noticeText : '');
+  await expect(page.locator(`#${noticeId}`)).toBeVisible();await expect(page.locator(`#${noticeId}`)).toHaveText(noticeText);
   await selected(id, true); await expect(panel()).toBeVisible();
   const probe = await page.evaluate(noticeId => {
-    const value = window.__surfaceNoticeExpiry;
+    const value = window.__surfaceNoticePersistence;
     value.observer.disconnect(); document.removeEventListener('pointerdown', value.pointer, true);
-    return { started: value.started, retired: value.retired, events: value.events, after: value.geometry(),
-      reservedHeight: document.getElementById(noticeId).parentElement.style.minHeight };
+    return { started: value.started, retired: value.retired, events: value.events, after: value.geometry(), observedAt: Date.now() };
   }, noticeId);
-  assert.ok(probe.retired && probe.retired.at - probe.started >= 4900, 'Ordinary retirement is observed near the actual five-second boundary');
-  assert.equal(probe.retired.hidden, true, 'Retired notices stay outside the rendered and accessibility trees');
-  assert.equal(probe.retired.text, globalNotice ? noticeText : '', 'Global retirement preserves the existing hidden-text contract; Takeoff retirement clears its text');
-  for (const key of ['overlayY', 'viewportY', 'slotHeight', 'scrollY']) assert.equal(probe.retired[key], beforeExpiry[key], `Notice expiry keeps ${key} exact`);
-  // CSSOM serializes70.59375px as70.5938px; rendered geometry above stays exact.
-  assert.ok(Math.abs(Number.parseFloat(probe.reservedHeight) - beforeExpiry.slotHeight) < .001, 'The serialized reserve retains the complete fractional flow height');
+  assert.ok(probe.observedAt - probe.started >= 5100, 'The real native selection crosses the former five-second boundary');
+  assert.equal(probe.retired, undefined, 'Ordinary notices never retire during the timer or native selection');
   const nativeDowns = probe.events.filter(event => Math.hypot(event.x-position[0], event.y-position[1]) < 2);
   assert.equal(nativeDowns.length, 2); assert.ok(nativeDowns.every(event => event.item === id), 'Both native clicks still hit the intended markup');
-  assert.deepEqual(await snapshot(), before, 'Notice expiry and selection preserve all source evidence, quantities and geometry');
+  assert.deepEqual(await snapshot(), before, 'Persistent notice and selection preserve all source evidence, quantities and geometry');
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators);
-  assert.equal(commands.length, count, 'The expiry/selection case sends no mutation command');
-  evidence[globalNotice ? 'globalNoticeRetirement' : 'noticeExpiry'] = { noticeId, beforeExpiry, position, ...probe, sourceAndCalculatorsExact: true, noMutationCommand: true };
-  await page.screenshot({ path: path.join(output, globalNotice ? 'global-notice-selection.png' : 'notice-expiry-selection.png') });
+  assert.equal(commands.length, count, 'The persistence/selection case sends no mutation command');
+  evidence[globalNotice ? 'globalNoticePersistence' : 'noticePersistence'] = { noticeId, beforeWait, afterWait, position, ...probe, sourceAndCalculatorsExact: true, noMutationCommand: true };
+  await page.screenshot({ path: path.join(output, globalNotice ? 'global-notice-selection.png' : 'persistent-notice-selection.png') });
+  await page.locator(`#${noticeId}`).getByRole('button', { name: 'Close', exact: true }).click();await expect(page.locator(`#${noticeId}`)).toBeHidden();
+  assert.deepEqual(await snapshot(), before, 'Manual dismissal preserves all source evidence, quantities and geometry');
+  assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators);assert.equal(commands.length, count);
   await clickPoint([700,450]); await selected(id, false); await expect(panel()).toBeHidden();
 }
 async function drawSurface(mode, mark, startX) {
@@ -211,7 +212,7 @@ async function drawSurface(mode, mark, startX) {
     await clickPoint([700,450]); await expect(panel()).toBeHidden();
     evidence[mode] = { firstId: first.id, secondId: second.id, singleSelectsDoubleOpens: true, blankClickCloses: true, keyboardEnterAndSpace: true, modifierSelectionRetained: true, pendingEditSavedBeforeClose: true, moveDelta: delta, sourceEvidenceUnchanged: true, quantityUnchanged: true };
   }
-  await noticeExpiryKeepsDrawing(evidence.slab.firstId, [175,182]);
+  await persistentNoticeKeepsDrawing(evidence.slab.firstId, [175,182]);
   await surfaceFilter();
   const beforeMixed = await snapshot(), beforeMixedCommands = commands.length;
   for (const id of [evidence.wall.firstId, evidence.slab.firstId]) await page.locator(`tr[data-item-id="${id}"]`).getByRole('checkbox', { name: /^Select / }).check();
@@ -228,7 +229,7 @@ async function drawSurface(mode, mark, startX) {
   const opening = page.waitForResponse(response => response.url().endsWith('/api/project/open')); await clickProjectControl(page, 'Load'); assert.equal((await opening).status(), 200); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await renderDrawing(page, () => page.getByRole('button', { name: 'Takeoffs', exact: true }).click(), 1); assert.deepEqual((await snapshot()).items, beforeSave.items); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), originalCalculators);
   await surfaceFilter('Floor');
-  await noticeExpiryKeepsDrawing(evidence.slab.firstId, [175,182], true);
+  await persistentNoticeKeepsDrawing(evidence.slab.firstId, [175,182], true);
   assert.deepEqual(errors, []); assert.deepEqual(cspViolations, []); await Promise.all(assetTasks);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, evidence, errors, cspViolations, assets, commands, savedItems: beforeSave.items, calculatorInputsUnchanged: true }, null, 2));
   console.log(`PASS: Wall/Slab drawing, keyboard and modifier selection; details open/close; pending edits saved; movement preserves evidence/quantity; save/reopen; unchanged calculators. Evidence: ${output}`);

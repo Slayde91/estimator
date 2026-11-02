@@ -52,7 +52,13 @@ async function reply(action, suffix){const pending=page.waitForResponse(r=>r.req
   await page.getByRole('button',{name:'Estimates',exact:true}).hover();await page.getByRole('group',{name:'Choose an estimate',exact:true}).getByRole('button',{name:'Estimate',exact:true}).click();await idle();
   await reply(()=>clickProjectControl(page,'Save'),'/api/project/save-as');await expect(page.locator('#app-message')).toBeVisible();
   const notice=await page.locator('#app-message').textContent();assert.match(notice,/Project saved/);
-  await page.locator('#app-message').getByRole('button',{name:'Close',exact:true}).click();await expect(page.locator('#app-message')).toBeHidden();await expect(page.locator('#project-save-state')).toHaveText('Saved project');evidence.appStatusDismissesWithoutLosingSavedState=true;
+  await page.waitForTimeout(5500);await expect(page.locator('#app-message')).toBeVisible();await expect(page.locator('#app-message')).toHaveText(notice);
+  await page.locator('#app-message').getByRole('button',{name:'Close',exact:true}).click();await expect(page.locator('#app-message')).toBeHidden();
+  await reply(()=>clickProjectControl(page,'Save'),'/api/project/save');await expect(page.locator('#app-message')).toBeVisible();
+  await page.getByRole('button',{name:'Settings',exact:true}).click();
+  await page.getByRole('button',{name:'Estimates',exact:true}).hover();await page.getByRole('group',{name:'Choose an estimate',exact:true}).getByRole('button',{name:'Estimate',exact:true}).click();await idle();
+  await expect(page.locator('#app-message')).toBeHidden();await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  evidence.appStatusPersistsUntilDismissalOrNavigationWithoutLosingSavedState=true;
   await chooseCalculator(page,'Steel (board)');await idle();
   let release;const held=new Promise(resolve=>release=resolve);
   await page.route('**/api/calculators/steel_board/template',async route=>{await held;await route.continue();});

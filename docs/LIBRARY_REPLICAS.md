@@ -88,6 +88,13 @@ exactly once. Reject separately plausible upper and lower halves that do not
 connect. Preserve source-visible end staggering without inventing concealed
 cable or fixing counts.
 
+Material descriptions must not become invented visible geometry. Compare the
+original silhouettes and openings directly: do not expose a hidden pipe bore or
+insulation cross-section, invent bare end lengths, exaggerate a thin sleeve into
+a thick shoulder, or enlarge a narrow support tongue into a floor slab. Source
+context identifies depicted components; it does not authorise new cutaways or
+parts. Reject a plausible reconstruction when it changes the original drawing.
+
 Publish each visually accepted image through the installer, then verify that
 the live replica route returns its reviewed bytes and the original route returns
 the fingerprinted source. Keep failed or rejected candidates outside the registry;

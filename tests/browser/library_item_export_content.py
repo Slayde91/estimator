@@ -20,11 +20,15 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--capture', required=True, type=Path)
     parser.add_argument('--file', required=True, type=Path)
+    parser.add_argument('--expected-diagram', type=Path)
     args = parser.parse_args()
     captured = json.loads(args.capture.read_text(encoding='utf-8'))
     expected = calculate({'globals': captured['globals'], 'rows': [captured['item']]}, captured['configuration'])
     row = expected['rows'][0]
     diagram = captured.get('diagram')
+    if args.expected_diagram:
+        assert diagram is None, 'Use captured diagram bytes when supplied by the request'
+        diagram = {'filename': args.expected_diagram.name, 'content_base64': base64.b64encode(args.expected_diagram.read_bytes()).decode('ascii')}
     diagram_hash = sha256(base64.b64decode(diagram['content_base64'])).hexdigest() if diagram else None
     if args.file.suffix == '.pdf':
         reader = PdfReader(args.file)
@@ -62,7 +66,8 @@ def main():
             assert record[:2] == (field['group'], field['label']), field['column']
             assert record[2] == (None if value == '' else value), field['column']
         assert workbook['Item']['B5'].value == captured['item']['id']
-        assert workbook['Item']['B8'].value == expected['summary']['grand_total']
+        expected_total = expected['summary']['grand_total']
+        assert workbook['Item']['B8'].value == (None if expected_total == '' else expected_total)
         values = '\n'.join(str(cell.value) for sheet in workbook for record in sheet for cell in record)
         assert 'Unscheduled composer retained' not in values
         assert all(cell.data_type != 'f' for sheet in workbook for record in sheet for cell in record)

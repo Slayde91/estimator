@@ -27,7 +27,7 @@
     if(value!==undefined)text(element,value,args); return element;
   }
   function status(value,error=false,args=[]) { const host=$("documentation-status"); if(!host)return;
-    text(host,value,args);host.classList.toggle("error",error); }
+    text(host,value,args);host.classList.toggle("error",error);window.CeasefireNotifications?.show(host); }
   async function request(path) {
     const response=await fetch(path), value=await response.json();
     if(!response.ok)throw new Error(value?.error||"Project documents could not be loaded.");return value;
@@ -154,7 +154,7 @@
           }
           history.append(list);
         }
-        tr.append(name,action,history);return tr;
+        tr.append(name,history,action);return tr;
       }));
     }
   }

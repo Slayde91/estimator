@@ -248,7 +248,7 @@ def _metadata(path, info, project, folder):
 @contextmanager
 def _dialog():
     if not _DIALOG_LOCK.acquire(blocking=False):
-        raise ValidationError("Finish the open file dialog before starting another one.")
+        raise ValidationError("A file chooser is still starting or waiting on this computer. Check behind the browser. If no window appears, wait 20 seconds and try again.")
     try:
         yield
     finally:

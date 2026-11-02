@@ -338,7 +338,7 @@ function pythonJson(script, ...args) {
   reply = await command(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo'); state = reply.snapshot;
   assert.deepEqual(stable(state), stable(multiBaseline));
   await selectMarkers([firstMember, otherMember]);
-  // An ordinary saved receipt retires when this native drag makes the project dirty.
+  // A saved receipt remains visible while native editing makes the project dirty.
   const saveBeforeCrossRowDrag = page.waitForResponse(response => response.url().endsWith('/api/project/save'));
   await clickProjectControl(page, 'Save'); assert.equal((await saveBeforeCrossRowDrag).status(), 200);
   await expect(page.locator('#app-message')).toContainText(/^Project saved /);
@@ -346,9 +346,10 @@ function pythonJson(script, ...args) {
   await expect(page.locator('#app-message')).toHaveAttribute('role', 'status');
   const beforeCrossRowRequests = requests.length;
   reply = await command(async () => { movement = await dragMarker(firstMember, [14, 12]); }, 'move_count_markers');
+  await expect(page.locator('#app-message')).toBeVisible();await expect(page.locator('#app-message')).toContainText(/^Project saved /);
   assert.equal(requests.length, beforeCrossRowRequests + 1, 'Moving members across Count rows remains one atomic command after Save');
   assertSubsetMove(multiBaseline, reply.snapshot, [firstMember, otherMember], movement);
-  evidence.savedNoticeGroupDrag = { nativeSaveHTTP200: true, freshSavedReceiptTextAsserted: true, ordinaryNoticeVisibleBeforePointer: true, requestedDelta: [14, 12], deltaPdf: requests.at(-1).delta_pdf, strictSourceDeltaAssertionPassed: true };
+  evidence.savedNoticeGroupDrag = { nativeSaveHTTP200: true, freshSavedReceiptTextAsserted: true, ordinaryNoticeVisibleBeforeAndAfterPointer: true, requestedDelta: [14, 12], deltaPdf: requests.at(-1).delta_pdf, strictSourceDeltaAssertionPassed: true };
   reply = await command(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo'); state = reply.snapshot;
   assert.deepEqual(stable(state), stable(multiBaseline));
   // Marquee includes one point of the two-member group, never its entire row.
@@ -474,7 +475,7 @@ function pythonJson(script, ...args) {
   const xlsx = await download('Download XLSX', 'counts.xlsx'), pdf = await download('Download PDF', 'counts.pdf');
   const workbook = pythonJson("import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1],data_only=False)\ns=w['Current Takeoffs'];r=list(s.values)\nprint(json.dumps({'rows':[dict(zip(r[0],v)) for v in r[1:]],'formulas':[c.coordinate for sh in w for row in sh for c in row if c.data_type=='f']}))", xlsx);
   assert.equal(workbook.rows.length, 3); assert.deepEqual(workbook.formulas, []);
-  for (const item of countItems(state)) { const row = workbook.rows.find(value => value['Member mark'] === item.fields.mark && value['Length each (m)'] === item.measurement.length_m); assert.ok(row); assert.equal(row.Qty, item.quantity); assert.equal(row['Total (m)'], item.quantity * item.measurement.length_m); assert.equal(row['Confirmation'], await page.locator(`tr[data-item-id="${item.id}"] .takeoff-state`).innerText(), 'Excel must match the current native confirmation after continuation and Undo'); assert.ok(!Object.hasOwn(row, 'Geometry')); }
+  for (const item of countItems(state)) { const row = workbook.rows.find(value => value['Member mark'] === item.fields.mark && value['Length each (m)'] === item.measurement.length_m); assert.ok(row); assert.equal(row.Qty, item.quantity); assert.equal(row['Total (m)'], item.quantity * item.measurement.length_m); assert.equal(row['Status'], await page.locator(`tr[data-item-id="${item.id}"] .takeoff-state`).innerText(), 'Excel must match the current native confirmation after continuation and Undo'); assert.ok(!Object.hasOwn(row, 'Geometry')); }
   const pdfInfo = pythonJson("import json,sys\nfrom pypdf import PdfReader\nr=PdfReader(sys.argv[1]);markers=[]\nfor p in r.pages:\n stroke=None;stack=[];path=[]\n for args,op in p.get_contents().operations:\n  if op==b'q':stack.append(stroke)\n  elif op==b'Q':stroke=stack.pop() if stack else None\n  elif op==b'RG':stroke=[float(v) for v in args]\n  elif op in (b'm',b'l',b'c',b're',b'h'):path.append(op.decode())\n  elif op in (b'B',b'B*',b'S',b's',b'f',b'f*',b'n'):\n   if stroke and all(abs(a-b)<1e-5 for a,b in zip(stroke,[26/255,43/255,60/255])) and op in (b'B',b'B*'):markers.append(path)\n   path=[]\nprint(json.dumps({'text':'\\n'.join(p.extract_text() or '' for p in r.pages),'pages':len(r.pages),'markers':markers}))", pdf);
   assert.ok(pdfInfo.text.includes('COUNT-A')); assert.ok(pdfInfo.text.includes('COUNT-B')); assert.ok(pdfInfo.text.includes('manual length each')); assert.ok(pdfInfo.text.includes('Rotated crop with UserUnit 2')); assert.ok(pdfInfo.pages >= 4);
   assert.equal(pdfInfo.markers.length, 3, 'Each of the three custom-colour members produces its own exported marker');

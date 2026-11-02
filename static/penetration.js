@@ -80,7 +80,7 @@
       return;
     }
     const ids = scope === state ? ["penetration-message"] : ["penetration-schedule-message", "penetration-estimator-schedule-message"];
-    for (const id of ids) { const el = $(id); uiText(el, text, args); el.hidden = !text; el.className = `message${error ? " error" : ""}`; }
+    for (const id of ids) { const el = $(id); uiText(el, text, args); el.hidden = !text; el.className = `message${error ? " error" : ""}`; window.CeasefireNotifications?.show(el); }
   }
   function buttonBusy(id, value) { $(id).setAttribute("aria-busy", String(value)); }
   const requiredItemFields = () => state.definition?.required_item_fields || [
@@ -1392,7 +1392,8 @@
       const currentSession = window.CeasefireTakeoffs?.sessionId?.();
       const current = { item: selected(), globals: state.draft?.globals, configuration: configuration(), ...(currentSession ? { takeoff_session_id: currentSession } : {}),
         ...(state.diagramChange === undefined ? {} : { diagram: state.diagramChange }) };
-      message("File saved to {0}.{1}", false, state, true, [saved.path, captured !== stable(current) ? " It uses the item, image/diagram and prices captured when you clicked Download; later changes are not included." : ""]);
+      message(saved.preview ? "Item Details {0} opened for viewing. Use the viewer's Save button to keep a copy.{1}" : "Item Details {0} download prepared.{1}", false, state, true,
+        [kind.toUpperCase(), captured !== stable(current) ? " It uses the item, image/diagram and prices captured when you clicked Download; later changes are not included." : ""]);
       return saved;
     } catch (error) { message("The current item file was not saved. {0}", true, state, true, [() => window.CeasefireI18n?.translate(error.message) || error.message]); if (strict) throw error; }
     finally { state.downloading = false; state.downloadKind = null; status(); }

@@ -157,6 +157,8 @@ class CurrentItemExportTests(unittest.TestCase):
         before = deepcopy(snapshot)
         reader = PdfReader(BytesIO(render_item_pdf(snapshot)))
         text = '\n'.join(page.extract_text() for page in reader.pages)
+        self.assertNotIn('Ceasefire ESTIMATOR | Current captured item', text)
+        self.assertIn('Page 1', text)
         self.assertIn('Current Firestopping item', text)
         self.assertIn('Current item only', text)
         self.assertIn('Unsaved system details', text)

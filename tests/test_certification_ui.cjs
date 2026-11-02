@@ -78,7 +78,7 @@ function harness() {
   const context={setTimeout:fn=>{const id=++serial;timers.set(id,fn);return id;},clearTimeout:id=>timers.delete(id),window,document:{getElementById:byId,createElement:element},fetch,console,Date,JSON,Object,Array,Number,Error,encodeURIComponent,CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}}};
   vm.createContext(context);vm.runInContext(fs.readFileSync('static/certification.js','utf8'),context);
   const api=window.CeasefireCertification;
-  const fillRequired=()=>fieldNames.slice(0,13).forEach(key=>{const field=byId('certification-'+key);if(!field.value.trim()){field.value='Required fixture '+key;void field.emit('input');}});
+  const fillRequired=()=>fieldNames.forEach(key=>{const field=byId('certification-'+key);if(!field.value.trim()){field.value='Required fixture '+key;void field.emit('input');}});
   const draw=async()=>{const canvas=byId('certification-signature-canvas');await canvas.emit('pointerdown',{pointerId:7,clientX:30,clientY:50,button:0});await canvas.emit('pointermove',{pointerId:7,clientX:90,clientY:80});await canvas.emit('pointerup',{pointerId:7,clientX:150,clientY:30});};
   return {api,byId,calls,elements,get documents(){return workspaces.get(api.sessionId())?.documents||documents;},legacyDocuments:documents,workspaces,events,fillRequired,draw,canvasData:value=>{canvasData=value;},field:(key,value)=>{byId('certification-'+key).value=value;void byId('certification-'+key).emit('input');},
     project:value=>{project=copy(value);},defaults:()=>copy(defaults),setDefaults:value=>{defaults=copy(value);},window,
@@ -104,7 +104,10 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
     assert.deepEqual(Object.keys(doc.fields),fieldNames);assert.equal(h.api.hasUnsavedChanges(),false);
     assert.match(h.byId('certification-status').textContent,/Revision 1 saved/);
     const links=h.byId('certification-revisions').children[0].children[1].children[0].children[2].children;
-    assert.equal(links[0].href,'/api/certifications/'+doc.id+'/revisions/1.pdf?workspace='+h.api.sessionId());assert.equal(links[0].listeners.click.length,1);
+    assert.equal(links[0].href,'/api/certifications/'+doc.id+'/revisions/1.pdf?workspace='+h.api.sessionId());
+    assert.equal(links[0].target,'_blank');assert.equal(links[0].rel,'noopener');
+    assert.equal(links[0].textContent,'Open revision 1');
+    assert.equal(links[0].listeners.click,undefined,'Opening an immutable revision must not require saving the project or intercept navigation');assert.equal(links[0].target,'_blank');
   });
   await check('Saving a draft does not create a certificate revision',async h=>{
     h.field('project','Draft project');await h.save();assert.equal(h.documents.size,1);
@@ -209,7 +212,7 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
     assert.equal(h.api.hasUnsavedChanges(),true);assert.match(h.byId('certification-status').textContent,/Reload/);
     h.approve(false);await h.select('');assert.equal(h.byId('certification-project').value,'Original creation');
   });
-  const exactStatement="This is to certify that the fire rated materials have been installed according to the manufacturer's specifications to provide the nominated fire resistance level for the items listed in the relevant schedule. All materials have been installed at the above location and comply with:";
+  const exactStatement="This is to certify that the fire rated materials have been installed according to the manufacturer's specifications to provide the nominated fire resistance level for the items listed in the relevant schedule.\n\nAll materials have been installed at the above location and comply with:";
   const as1530='AS 1530.4: 2014 Methods for fire tests on building materials, components & structures';
   await check('Fresh form uses Estimates and global signer defaults without auto-loading a recent certificate',async h=>{
     h.project({client:'Current estimate client',site_address:'Current estimate address',project_no:'CF-2042'});
@@ -386,15 +389,25 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
     assert.equal(h.byId('certification-scopes-summary').textContent,'Structural steel, Service penetrations');
     await h.scope([]);assert.equal(h.byId('certification-scopes-summary').textContent,'Choose…');
   });
-  await check('All thirteen main fields are required and whitespace cannot Save or Generate',async h=>{
-    for(const key of fieldNames.slice(0,13))assert.equal(h.byId('certification-'+key).required,true,key);
+  await check('All seventeen fields are required and whitespace cannot Save or Generate',async h=>{
+    for(const key of fieldNames)assert.equal(h.byId('certification-'+key).required,true,key);
     await h.byId('certification-save').emit('click');assert.equal(h.documents.size,0);
     h.fillRequired();h.field('materials_manufacturers',' \n\t');
     await h.byId('certification-generate').emit('click');assert.equal(h.documents.size,0);
     assert.match(h.byId('certification-materials_manufacturers').validationMessage,/Complete all required/);
     h.field('materials_manufacturers','Explicit manufacturer');await h.byId('certification-save').emit('click');
     assert.equal(h.documents.size,1);assert.equal([...h.documents.values()][0].revisions.length,0);
-    assert.ok(fieldNames.slice(13).every(key=>h.byId('certification-'+key).value===''));
+    assert.ok(fieldNames.slice(13).every(key=>h.byId('certification-'+key).value.trim()));
+  });
+  await check('Every certificate and signer field blocks both actions when whitespace-only',async h=>{
+    for(const key of fieldNames){
+      for(const action of ['save','generate']){
+        h.fillRequired();h.field(key,' \n\t');
+        await h.byId('certification-'+action).emit('click');
+        assert.equal(h.documents.size,0,key+' '+action);
+        assert.match(h.byId('certification-'+key).validationMessage,/Complete all required/,key);
+      }
+    }
   });
   await check('Project capture preserves an incomplete draft without creating a certificate and marks only unchanged captures saved',async h=>{
     h.field('location_area','Partial area');const capture=await h.api.completeProjectSnapshot();
@@ -498,7 +511,7 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
   assert.ok(html.includes('<details id="certification-scopes"'));assert.ok(!html.includes('id="certification-cover-pdf"'));
   assert.ok(!html.includes('id="certification-signature-image"'));assert.ok(html.includes('id="certification-signature-canvas"'));assert.ok(html.includes('id="cover-sheets-settings"'));
   for(const key of ['approved_design','additional_standards','other_references','exclusions','materials_manufacturers','fire_resistance_level','name','position','qualification','accreditation'])assert.match(html,new RegExp('id="certification-'+key+'" name="'+key+'" rows="1"'));
-  for(const key of fieldNames.slice(0,13))assert.match(html,new RegExp('<textarea id="certification-'+key+'"[^>]* required>'));
+  for(const key of fieldNames)assert.match(html,new RegExp('<textarea id="certification-'+key+'"[^>]* required>'));
   const form=html.slice(html.indexOf('<form id="certification-form">'),html.indexOf('</form>',html.indexOf('<form id="certification-form">')));
   assert.ok(form.lastIndexOf('<button')===form.indexOf('<button id="certification-generate"'));
   console.log(passed+' Certification UI regression checks passed.');

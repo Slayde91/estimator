@@ -346,7 +346,7 @@ def _schedule_xlsx(snapshot, selected, results, confirmations, linked, *, mode, 
     """Current register category, with locally verified status and literal provenance."""
     documents = {doc['id']: doc for doc in snapshot['documents']}
     include_layers = any(has_explicit_area_layers(item) for item in selected)
-    headers = ['Item ID', 'Item version', 'Mode', 'Confirmation', 'Mark / Run ID', 'Member type', 'Section',
+    headers = ['Item ID', 'Item version', 'Mode', 'Status', 'Mark / Run ID', 'Member type', 'Section',
                'Shape', 'Width mm', 'Height mm', 'Diameter mm', 'Quantity', 'Length per item m', 'Total length m',
                *(['Gross area m2', 'Excluded area m2'] if mode == 'walls_floors' else []), 'Net area m2', 'Product', 'FRL', 'Fire period min', 'Exposed sides', 'Critical temperature C',
                'Exposure', 'Orientation', 'Level', 'Zone', 'Group', 'Notes', 'Source document', 'Source page',
@@ -373,7 +373,7 @@ def _schedule_xlsx(snapshot, selected, results, confirmations, linked, *, mode, 
             basis['calibration'] = bound_reference(calibration)
         evidence = [bound_reference(reference) for reference in item['evidence']]
         additions = [bound_reference(reference) for reference in item.get('length_additions', [])]
-        row = [item['id'], item['version'], item['mode'], 'Confirmed' if confirmation else 'Unconfirmed',
+        row = [item['id'], item['version'], item['mode'], 'Approved' if confirmation else 'Draft',
                *(field.get(key) for key in ('mark', 'member_type', 'section', 'shape', 'width_mm', 'height_mm', 'diameter_mm')),
                item['quantity'], result.get('length_m'), result.get('total_length_m'),
                *([result.get('gross_area_m2'), result.get('excluded_area_m2')] if mode == 'walls_floors' else []), result.get('net_area_m2'),

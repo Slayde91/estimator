@@ -85,3 +85,7 @@ Visibility updates preserve mounted controls, input selection and scroll
 position. The dropdown supports keyboard focus, Escape, outside dismissal,
 translated labels and right-to-left layouts. Report cells and basis/detail
 buttons use the same red background and white text on hover or keyboard focus.
+
+November 1 PDF annotation review: schedule and summary PDFs omit the caption beneath the logo. Standalone footers use the full uppercase discipline and report name; combined report footers use CALCULATORS | FULL SCHEDULE or FULL PRODUCT SUMMARY. Product summary titles use the requested uppercase scopes. Long titles fit the existing page width. Saved historical revisions retain their original bytes. Certificate revision links open the existing scoped PDF in a new tab without a project-save prerequisite. This is presentation and navigation only; quantities, workbook cells and immutable revision storage are unchanged.
+
+November 2 review: centered uppercase certificate title and regular final declaration; Documentation uses requested PDF names with Download last. Library Item Details PDFs open temporary viewer tabs and reference/pricing XLSX exports use browser downloads without project Save or project revision writes. Notices persist until dismissed or navigation; cursor coordinates removed. Existing French/Bengali/Urdu availability is verified against both served editions. Calculations and saved historical PDF bytes are unchanged.

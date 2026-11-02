@@ -145,7 +145,7 @@ class PenetrationIntegrationTests(unittest.TestCase):
             if route.endswith('.pdf'):
                 text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(content)).pages)
                 self.assertIn('TEST-PEN', text)
-                self.assertIn('Firestopping schedule', text)
+                self.assertIn('FIRESTOPPING SCHEDULE', text)
                 self.assertIn('Schedule', text)
                 for removed in ('Literal text', 'Description', 'System/Install Details', 'Settings', 'Calculated detail'):
                     self.assertNotIn(removed, text)

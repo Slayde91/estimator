@@ -4,6 +4,7 @@ const {spawn,spawnSync}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),crypto=require('node:crypto');
 const {chooseLibrary}=require('./section_navigation.cjs');
 const {clickProjectControl}=require('./project_actions.cjs');
+const {referenceExport}=require('./reference_export.cjs');
 const root=path.resolve(__dirname,'../..'),python=process.env.CEASEFIRE_PYTHON||'python';
 const output=path.join(root,'.runtime/browser-qa',`pricing-manufacturers-${Date.now()}`);fs.mkdirSync(output,{recursive:true});
 const hash=value=>crypto.createHash('sha256').update(value).digest('hex');
@@ -100,19 +101,14 @@ async function importWorkbook(file,accept){
   await editManufacturer('');const cleared=await saveLibrary();assert.equal(cleared.inventory[owner.id].manufacturer,'');await checkpoint('explicit-blank-saved','');
   await reloadFrozenProject();await expect(field()).toHaveValue('');await checkpoint('explicit-blank-reloaded','');
   await page.setViewportSize({width:1146,height:900});
-  await page.locator('[aria-controls="pricing-document-actions"]').click();const exporting=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/pricing/export');await page.locator('#export-pricing').click();const exportReply=await exporting;assert.equal(exportReply.status(),200,await exportReply.text());
-  const saved=await exportReply.json();assert.equal(saved.saved,true);const relative=path.relative(output,saved.path);assert.ok(relative&&!relative.startsWith('..')&&!path.isAbsolute(relative));assert.equal(fs.readFileSync(saved.path).subarray(0,2).toString(),'PK');
-  // Export now saves its project history automatically. Wait for that receipt,
-  // verify the frozen inputs/prices remain exact, then use the saved file as the
-  // baseline for later global-only manufacturer edits and import previews.
-  await page.waitForFunction(()=>!window.CeasefireDownloads.hasPendingOperation());
+  const exported=path.join(output,'manufacturer-export.xlsx');
+  await referenceExport(page,{extension:'xlsx',endpoint:'/api/pricing/export',target:exported,action:async()=>{
+    await page.locator('[aria-controls="pricing-document-actions"]').click();await page.locator('#export-pricing').click();
+  }});
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   assert.deepEqual(await projectState(),frozen);
-  const beforeExportProject=JSON.parse(projectBytes),afterExportProject=JSON.parse(fs.readFileSync(info.project));
-  for(const module of ['estimate','calculators','penetration','library_drafts','takeoffs','certifications'])
-    assert.deepEqual(afterExportProject[module],beforeExportProject[module],`Pricing export retains frozen project ${module}`);
-  projectBytes=fs.readFileSync(info.project);
-  evidence.exportAutomaticSave={saved:true,destination:saved.destination,frozenProjectModulesUnchanged:true};
+  assert.deepEqual(fs.readFileSync(info.project),projectBytes,'Temporary pricing export never rewrites the saved project');
+  evidence.exportTemporaryDownload={frozenProjectModulesUnchanged:true,savedProjectBytesUnchanged:true};
   const changed=path.join(output,'manufacturer-roundtrip.xlsx');
   const editedBook=spawnSync(python,['-c',`import csv,json,sys
 from openpyxl import load_workbook
@@ -124,7 +120,7 @@ n=rows[0];assert s.cell(n,h['Manufacturer']).value is None
 linked=next(csv.reader([str(s.cell(n,h['Rate ID']).value)],delimiter=';'))
 assert linked and all(value for value in linked)
 s.cell(n,h['Manufacturer'],'QA Excel manufacturer');b.save(sys.argv[2]);b.close()
-print(json.dumps(dict(manufacturer_column=h['Manufacturer'],owner_id=sys.argv[3],linked_rate_ids=linked,exported_explicit_blank=True)))`,saved.path,changed,owner.id],{cwd:root,windowsHide:true,encoding:'utf8'});
+print(json.dumps(dict(manufacturer_column=h['Manufacturer'],owner_id=sys.argv[3],linked_rate_ids=linked,exported_explicit_blank=True)))`,exported,changed,owner.id],{cwd:root,windowsHide:true,encoding:'utf8'});
   assert.equal(editedBook.status,0,`${editedBook.stdout}\n${editedBook.stderr}`);evidence.workbook=JSON.parse(editedBook.stdout);
   // Import adds this exact audit record. Preserve and verify it explicitly;
   // no source fields or numeric values are omitted from the comparison.
@@ -135,7 +131,7 @@ print(json.dumps(dict(manufacturer_column=h['Manufacturer'],owner_id=sys.argv[3]
   assert.equal(preview.summary.inventory.added,0);assert.equal(preview.summary.inventory.removed,0);assert.equal(preview.summary.rates.added,0);assert.equal(preview.summary.rates.removed,0);
   await saveLibrary();await checkpoint('excel-roundtrip-saved','QA Excel manufacturer',undefined,canonicalImported);await reloadFrozenProject();await expect(field()).toHaveValue('QA Excel manufacturer');await checkpoint('excel-roundtrip-reloaded','QA Excel manufacturer',undefined,canonicalImported);
   assert.deepEqual(errors,[]);assert.deepEqual(consoleErrors,[]);for(const[name,expected]of Object.entries(sourceHashes))assert.equal(hash(fs.readFileSync(path.join(root,name))),expected,'Production source remained fixed: '+name);
-  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,port:info.port,sourceHashes,...evidence,exportedWorkbook:saved.path,importedWorkbook:changed,frozenProjectAndSavedBytesUnchanged:true,errors,consoleErrors},null,2));
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,port:info.port,sourceHashes,...evidence,exportedWorkbook:exported,importedWorkbook:changed,frozenProjectAndSavedBytesUnchanged:true,errors,consoleErrors},null,2));
   console.log('PASS: Manufacturer desktop/mobile edits, explicit clear, brand search, native Save/reload, Excel import preview and linked ownership; every numeric value and frozen project unchanged. '+output);
 })().catch(async error=>{console.error(error);console.error(logs.slice(-5000));fs.writeFileSync(path.join(output,'failure.json'),JSON.stringify({message:error.message,stack:error.stack,...evidence,errors,consoleErrors},null,2));if(page){console.error(await page.locator('#app-message').textContent().catch(()=>''));await page.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});}process.exitCode=1;})
   .finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);await browser?.close();server.kill();});

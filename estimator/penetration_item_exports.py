@@ -178,7 +178,6 @@ def render_item_pdf(snapshot, *, company=None):
         canvas.line(margin, 32, width - margin, 32)
         canvas.setFont('CeasefireVera', 7)
         canvas.setFillColor(_MUTED)
-        canvas.drawString(margin, 20, 'Ceasefire ESTIMATOR | Current captured item')
         canvas.drawRightString(width - margin, 20, f'Page {doc.page}')
         canvas.restoreState()
 

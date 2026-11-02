@@ -45,15 +45,15 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     for (const mode of ['wall', 'slab']) {
       h.state.mode = mode; h.audit.renderRegister();
       const controls = h.all(h.ui.tableWrap).filter(el => el.className.includes('takeoff-column-filter-button'));
-      assert.deepEqual(controls.map(el => el.attributes['aria-label']), ['Confirmation', 'Surface ID', 'Surface type', 'Level', 'Surface basis', 'Substrate', 'Treatment', 'Protection system', 'Protection product', 'FRL / fire rating'].map(label => `Filter ${label}`));
+      assert.deepEqual(controls.map(el => el.attributes['aria-label']), ['Status', 'Surface ID', 'Surface type', 'Level', 'Surface basis', 'Substrate', 'Treatment', 'Protection system', 'Protection product', 'FRL / fire rating'].map(label => `Filter ${label}`));
       assert.ok(controls.every(el => el.attributes['aria-haspopup'] === 'dialog' && el.attributes['aria-pressed'] === 'false'));
       assert.equal(h.all(h.ui.tableWrap).filter(el => el.className.includes('takeoff-group-row')).length, 0);
     }
   });
   await check('All nine surface filters intersect and confirmation includes current review issues', () => {
     const h = harness(), filters = h.audit.registerFilters();
-    for (const [key, values] of Object.entries({ confirmation: ['Confirmed'], mark: ['W1', 'W2', 'W5'], level: ['L1'], surface_basis: ['Wall face (true elevation)'], substrate: ['Concrete'], treatment: ['Board', 'Spray'], system: ['System A'], product: ['Product A'], frl: ['120/120/120'] })) filters.set(key, new Set(values));
-    assert.deepEqual(h.ids(), ['W1']); filters.set('confirmation', new Set(['Unconfirmed'])); assert.deepEqual(h.ids(), ['W5']);
+    for (const [key, values] of Object.entries({ confirmation: ['Approved'], mark: ['W1', 'W2', 'W5'], level: ['L1'], surface_basis: ['Wall face (true elevation)'], substrate: ['Concrete'], treatment: ['Board', 'Spray'], system: ['System A'], product: ['Product A'], frl: ['120/120/120'] })) filters.set(key, new Set(values));
+    assert.deepEqual(h.ids(), ['W1']); filters.set('confirmation', new Set(['Draft'])); assert.deepEqual(h.ids(), ['W5']);
     filters.delete('confirmation'); filters.set('frl', new Set(['120/120/120', '60/60/60'])); assert.deepEqual(h.ids(), ['W1', 'W2', 'W5']);
   });
   await check('Surface basis labels match the register and unknown values remain exact; blanks are selectable', () => {

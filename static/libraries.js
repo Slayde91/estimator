@@ -64,6 +64,7 @@
   function message(pane, text = "", error = false, args = []) {
     uiText(pane.message, text, args); pane.message.hidden = !text;
     pane.message.className = `message${error ? " error" : " info"}`;
+    window.CeasefireNotifications?.show(pane.message);
   }
   function paneFor(kind) {
     if (state.panes.has(kind)) return state.panes.get(kind);
@@ -761,7 +762,7 @@
             ...(record.diagram?.available ? {} : { diagram: null }) };
         }
         const result = await window.CeasefireDownloads.save(path, payload, { button });
-        if (current()) message(pane, "Item Details saved: {0}", false, [result.filename]);
+        if (current()) message(pane, result.preview ? "Item Details opened for viewing. Use the viewer's Save button to keep a copy." : "Item Details download prepared: {0}", false, [result.filename]);
         return result;
       } catch (error) {
         if (current()) message(pane, "Item Details were not downloaded. {0}", true, [() => window.CeasefireI18n?.translate(error.message) || error.message]);

@@ -4,10 +4,15 @@ import base64
 from dataclasses import dataclass
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
+import tempfile
 
 from .catalog import ValidationError
+
+DIALOG_STARTUP_SECONDS = 20
+DIALOG_RESPONSE_SECONDS = 600
 
 
 @dataclass(frozen=True)
@@ -36,6 +41,8 @@ public sealed class CeasefireDialogOwner : IWin32Window, IDisposable {
     private HookProc callback;
     private IntPtr hook;
     private bool raising;
+    private bool ready;
+    private string readyPath;
     public IntPtr Handle { get; private set; }
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] private static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
@@ -48,7 +55,8 @@ public sealed class CeasefireDialogOwner : IWin32Window, IDisposable {
     [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)] private static extern SafeFileHandle CreateFile(string path, uint access, uint share, IntPtr security, uint disposition, uint flags, IntPtr template);
     [StructLayout(LayoutKind.Sequential)] private struct AttributeTag { public uint Attributes; public uint Tag; }
     [DllImport("kernel32.dll", SetLastError=true)] private static extern bool GetFileInformationByHandleEx(SafeFileHandle handle, int kind, out AttributeTag result, uint size);
-    public CeasefireDialogOwner() {
+    public CeasefireDialogOwner(string path) {
+        readyPath = path;
         Handle = GetAncestor(GetForegroundWindow(), 2); // GA_ROOT
         callback = RaiseDialog;
         hook = SetWindowsHookEx(5, callback, IntPtr.Zero, GetCurrentThreadId()); // WH_CBT
@@ -60,6 +68,10 @@ public sealed class CeasefireDialogOwner : IWin32Window, IDisposable {
             try {
                 SetWindowPos(window, new IntPtr(-1), 0, 0, 0, 0, 0x0013); // TOPMOST, NOMOVE, NOSIZE, NOACTIVATE
                 SetForegroundWindow(window);
+                if (!ready) {
+                    ready = true;
+                    System.IO.File.WriteAllText(readyPath, "ready");
+                }
             } finally { raising = false; }
         }
         return CallNextHookEx(hook, code, window, data);
@@ -77,7 +89,7 @@ public sealed class CeasefireDialogOwner : IWin32Window, IDisposable {
     }
 }
 '@
-$owner = New-Object CeasefireDialogOwner
+$owner = New-Object CeasefireDialogOwner -ArgumentList $request.ready_path
 try {
     if ($request.kind -eq 'folder') {
         $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
@@ -139,6 +151,7 @@ request = json.load(sys.stdin)
 root = tk.Tk()
 root.withdraw()
 root.attributes('-topmost', True)
+root.after(0, lambda: Path(request['ready_path']).write_text('ready'))
 try:
     if request['kind'] == 'folder':
         path = filedialog.askdirectory(parent=root, title='Choose your estimates folder', initialdir=request.get('directory') or None)
@@ -185,14 +198,37 @@ class NativeDialogs:
             command = [sys.executable, "-c", _TK_DIALOG]
             options = {}
         try:
-            completed = subprocess.run(command, input=json.dumps(request), capture_output=True,
-                                       encoding="utf-8", timeout=600, check=True, **options)
-            response = json.loads(completed.stdout.lstrip("\ufeff"))
+            with tempfile.TemporaryDirectory(prefix='ceasefire-dialog-') as temporary:
+                ready_path = Path(temporary) / 'ready'
+                response = self._communicate(command, {**request, 'ready_path': str(ready_path)}, ready_path, options)
+        except ValidationError:
+            raise
         except (OSError, subprocess.SubprocessError, ValueError) as error:
             raise ValidationError("The native file dialog could not finish. Close any open dialog and try again on this computer.") from error
         if response is not None and (not isinstance(response, dict) or not isinstance(response.get("path"), str)):
             raise ValidationError("The native file dialog returned an invalid selection.")
         return response
+
+    @staticmethod
+    def _communicate(command, request, ready_path, options):
+        with subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, encoding="utf-8", **options) as process:
+            try:
+                try:
+                    output, _ = process.communicate(json.dumps(request), timeout=DIALOG_STARTUP_SECONDS)
+                except subprocess.TimeoutExpired as error:
+                    # Windows communicate() buffers stdout until EOF. Use
+                    # a private marker written by the activation callback.
+                    if not ready_path.is_file():
+                        raise ValidationError('The file chooser did not open. Nothing was saved. Try again on this computer.') from error
+                    output, _ = process.communicate(timeout=DIALOG_RESPONSE_SECONDS)
+                if process.returncode:
+                    raise subprocess.CalledProcessError(process.returncode, command)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.communicate()
+        return json.loads(output.lstrip("\ufeff"))
 
     def choose_folder(self, initial_directory=None):
         response = self._run({"kind": "folder", "directory": initial_directory})

@@ -24,6 +24,29 @@ class ViewerMarkupExportTests(unittest.TestCase):
     command = fixtures.TakeoffMarkedPDFTests.command
     create_marks = fixtures.TakeoffMarkedPDFTests.create_marks
 
+    def test_progress_publication_retries_only_temporary_windows_file_locks(self):
+        from estimator.takeoff_markup_pdf_worker import _publish_progress
+        from unittest.mock import Mock
+        locked = PermissionError('reader still holds progress file')
+        locked.winerror = 32
+        temporary = Mock()
+        temporary.replace.side_effect = [locked, locked, None]
+        with patch('estimator.takeoff_markup_pdf_worker.time.sleep') as sleep:
+            _publish_progress(temporary, 'progress.json')
+        self.assertEqual(temporary.replace.call_count, 3)
+        self.assertEqual(sleep.call_count, 2)
+        temporary.replace.reset_mock()
+        temporary.replace.side_effect = locked
+        with patch('estimator.takeoff_markup_pdf_worker.time.sleep'), self.assertRaises(PermissionError):
+            _publish_progress(temporary, 'progress.json')
+        self.assertEqual(temporary.replace.call_count, 25)
+        temporary.replace.reset_mock()
+        temporary.replace.side_effect = PermissionError('permanent permission failure')
+        with patch('estimator.takeoff_markup_pdf_worker.time.sleep') as sleep, self.assertRaises(PermissionError):
+            _publish_progress(temporary, 'progress.json')
+        temporary.replace.assert_called_once()
+        sleep.assert_not_called()
+
     def request(self, kind='current-all', **changes):
         return {'expected_revision': self.case.session['revision'], 'kind': kind, 'mode': 'steel',
                 **({'document_id': self.document['id']} if kind.startswith('current-') else {}), **changes}

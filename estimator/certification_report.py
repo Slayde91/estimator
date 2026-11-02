@@ -5,6 +5,7 @@ from xml.sax.saxutils import escape
 from zoneinfo import ZoneInfo
 
 from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import Flowable, HRFlowable, KeepTogether, LongTable, Paragraph, SimpleDocTemplate, Spacer, TableStyle
@@ -43,12 +44,14 @@ def render_certificate_pdf(fields, *, company, certificate_id, revision, created
     company_name = company.get('name', '')
     styles = {
         'title': ParagraphStyle('CertificateTitle', fontName='CeasefireVeraBold', fontSize=15,
-                                leading=19, textColor=_RED, spaceAfter=9, keepWithNext=True),
+                                leading=19, alignment=TA_CENTER, textColor=_RED, spaceAfter=9, keepWithNext=True),
         'heading': ParagraphStyle('CertificateHeading', fontName='CeasefireVeraBold', fontSize=10.5,
                                   leading=14, textColor=_RED, spaceBefore=8, spaceAfter=5, keepWithNext=True),
         'body': ParagraphStyle('CertificateBody', fontName='CeasefireVera', fontSize=8.5,
                                leading=11.5, spaceAfter=5, splitLongWords=True),
-        'declaration': ParagraphStyle('CertificateDeclaration', fontName='CeasefireVeraBold', fontSize=8.5,
+        'statement': ParagraphStyle('CertificateStatement', fontName='CeasefireVeraBold', fontSize=8.5,
+                                    leading=11.5, spaceAfter=5, splitLongWords=True),
+        'attestation': ParagraphStyle('CertificateAttestation', fontName='CeasefireVera', fontSize=8.5,
                                       leading=11.5, spaceAfter=5, splitLongWords=True),
         'label': ParagraphStyle('CertificateLabel', fontName='CeasefireVera', fontSize=8.5,
                                 leading=11.5, textColor=_RED, spaceBefore=6, spaceAfter=2,
@@ -75,7 +78,7 @@ def render_certificate_pdf(fields, *, company, certificate_id, revision, created
         return blocks
     output = BytesIO()
     document = SimpleDocTemplate(output, pagesize=A4, leftMargin=_MARGIN, rightMargin=_MARGIN,
-                                 topMargin=92, bottomMargin=44, title='Installation Certificate',
+                                 topMargin=92, bottomMargin=44, title='INSTALLATION CERTIFICATE',
                                  author=company_name, creator='CLASSIFIRE',
                                  subject=f'Certificate {certificate_id} - Revision {revision}')
     issued = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
@@ -108,8 +111,8 @@ def render_certificate_pdf(fields, *, company, certificate_id, revision, created
         ('LEFTPADDING', (0, 0), (-1, -1), 6), ('RIGHTPADDING', (0, 0), (-1, -1), 6),
         ('TOPPADDING', (0, 0), (-1, -1), 7), ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
     ]))
-    story = [Paragraph('<u>Installation Certificate</u>', styles['title']), identity,
-        p('Statement of Compliance', 'heading'), p(fields['statement_of_compliance'], 'declaration'), *details([
+    story = [Paragraph('<u>INSTALLATION CERTIFICATE</u>', styles['title']), identity,
+        p('Statement of Compliance', 'heading'), p(fields['statement_of_compliance'], 'statement'), *details([
         ('The relevant Australian Standards listed in the NCC as follows:', fields['australian_standards']),
         ('The relevant clauses of the NCC, as follows:', fields['ncc_clauses']),
         ('The design detail submitted at the construction approval stage:', fields['approved_design']),
@@ -119,7 +122,7 @@ def render_certificate_pdf(fields, *, company, certificate_id, revision, created
         ('Exclusions - ' + EXCLUSIONS_INTRO.format(company=company_name), fields['exclusions']),
         ('Materials/Manufacturers:', fields['materials_manufacturers']),
         ('Fire Resistance Level:', fields['fire_resistance_level']),
-    ]), Spacer(1, 12), p(ATTESTATION.format(company=company_name), 'declaration'), Spacer(1, 5)]
+    ]), Spacer(1, 12), p(ATTESTATION.format(company=company_name), 'attestation'), Spacer(1, 5)]
     signer_values = [p(fields[key], 'cell') for key in ('name', 'position', 'qualification', 'accreditation')]
     artwork = ''
     if signature:

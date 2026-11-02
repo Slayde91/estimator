@@ -7,6 +7,7 @@ import math
 from pathlib import Path
 import sys
 import tempfile
+import time
 from xml.sax.saxutils import escape
 
 if __package__:
@@ -19,6 +20,19 @@ else:
 MAX_OUTPUT_BYTES = 256 * 1024 * 1024
 MAX_CONTENT_BYTES = 32 * 1024 * 1024
 MAX_PAGE_SIDE = 14400
+
+
+def _publish_progress(temporary, destination):
+    # Windows can deny replacement while the parent briefly reads progress.
+    # Keep atomic publication and bound retries; other failures remain fatal.
+    for attempt in range(25):
+        try:
+            temporary.replace(destination)
+            return
+        except PermissionError as error:
+            if getattr(error, 'winerror', None) not in (5, 32, 33) or attempt == 24:
+                raise
+            time.sleep(.02)
 
 
 def page_transform(metadata, bottom=0, left=0):
@@ -90,7 +104,7 @@ def _legend_rows(items, width, style):
                 total = item.get('total_area_m2')
                 quantity += f" x {item['layers']} layers; " + (f'{total:.2f} m2 total' if isinstance(total, (int, float)) and math.isfinite(total) else 'Total area unavailable')
         text = (f"<b>{item['legend_number']}. {_text(item['mark'])}</b> | {_text(detail)} | {quantity} | "
-                + ('Confirmed' if item['confirmed'] else '<b>Unconfirmed</b>')
+                + ('Approved' if item['confirmed'] else '<b>Draft</b>')
                 + f"<br/>{_text(item['linked_result'])}<br/><font size='6'>{item['id']}</font>")
         paragraph = Paragraph(text, style); _, height = paragraph.wrap(width-48, 1000)
         rows.append((item, paragraph, height+12))
@@ -991,14 +1005,7 @@ def render_batch(manifest, output, progress_path):
         completed += 1
         temporary = Path(progress_path).with_suffix('.next')
         temporary.write_text(json.dumps({'completed': completed, 'total': total}), encoding='utf-8')
-        try:
-            temporary.replace(progress_path)
-        except PermissionError:
-            # Windows can hold the previous progress file open while the parent
-            # reads it. Keep that complete update and try again on the next page.
-            # Progress is advisory; the final PDF receipt still verifies every
-            # page and its exact bytes before the parent reports completion.
-            pass
+        _publish_progress(temporary, progress_path)
     for value in copies:
         with _verified_source(value['source'], value['spec']) as source:
             render_document(source, value['spec'], None, writer=writer, progress=progress)

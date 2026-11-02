@@ -11,6 +11,7 @@ from pathlib import Path
 import re
 import sqlite3
 import shutil
+import subprocess
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -380,6 +381,8 @@ class DesktopPackagingTests(unittest.TestCase):
         self.assertIn('calculators/steel_vermiculite.json.gz',DATA_FILES)
         self.assertIn('penetration.json.gz',DATA_FILES)
         self.assertIn('fonts/Montserrat-Variable.ttf',STATIC_FILES)
+        self.assertIn('notifications.js', STATIC_FILES)
+        self.assertIn('notifications.css', STATIC_FILES)
         self.assertIn('ceasefire-app.ico',STATIC_FILES)
         for asset in ('classifire-logo.png', 'downloads.css', 'main-layout.js'):
             self.assertIn(asset, STATIC_FILES)
@@ -507,6 +510,25 @@ class DesktopPackagingTests(unittest.TestCase):
             self.assertIn('/' + asset, TAKEOFF_ASSETS)
             self.assertNotIn(asset, STATIC_FILES)
             self.assertTrue((ROOT / 'static' / asset).is_file())
+
+    @unittest.skipUnless(shutil.which('node'), 'Node is needed to evaluate the native DOM predicate')
+    def test_native_smoke_notification_copy_ignores_only_the_dismiss_control(self):
+        from estimator.desktop_selftest import notification_text
+        expression = notification_text('#company-settings-status')
+        script = '''const vm=require('node:vm'), assert=require('node:assert/strict');
+const expression=JSON.parse(process.argv[1]);
+const notice=(text,close=false)=>({textContent:text,classList:{contains:name=>close&&name==='notification-dismiss'}});
+const run=children=>vm.runInNewContext(expression,{document:{querySelector:selector=>{
+  assert.equal(selector,'#company-settings-status');return {childNodes:children};
+}}});
+assert.equal(run([notice('Saved')]),'Saved');
+assert.equal(run([notice('Saved'),notice('×',true)]),'Saved');
+assert.equal(run([notice('Unsaved changes'),notice('×',true)]),'Unsaved changes');
+assert.equal(run([notice('Saved '),notice('details'),notice('×',true)]),'Saved details');
+'''
+        result = subprocess.run([shutil.which('node'), '-e', script, json.dumps(expression)],
+                                capture_output=True, text=True, check=False, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_native_smoke_destinations_resolve_in_the_actual_header_menu(self):
         from estimator.desktop_selftest import self_test

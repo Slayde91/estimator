@@ -95,7 +95,7 @@ def _excel_format(field):
     return {'percent': '0.00%', 'currency': '$#,##0.00'}.get(field.get('format'), '#,##0.00')
 
 
-def render_penetration_pdf(result, definition, project_details, *, library=None, company=None, include_project_details=True, project_report_title=None, report_origin=None):
+def render_penetration_pdf(result, definition, project_details, *, library=None, company=None, include_project_details=True, project_report_title=None, report_origin=None, report_footer=None):
     """Show the technical schedule without prices, using captured inputs."""
     _register_fonts()
     report = _Report({})
@@ -107,7 +107,7 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
     margin = 32
     content = width - 2 * margin
     logo = company_logo(company)
-    report.story.append(report.p(project_report_title or 'Firestopping schedule', 'title'))
+    report.story.append(report.p(project_report_title or 'FIRESTOPPING SCHEDULE', 'title'))
     details = [('Project No.', project_details.get('project_no', '')),
                ('Client', project_details.get('client', '')),
                ('Site Address', project_details.get('site_address', ''))]
@@ -177,12 +177,12 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
 
     def decorate(canvas, doc):
         canvas.saveState()
-        _company_header(canvas, logo, width, height, margin, 'FIRESTOPPING SCHEDULE', label_below_logo=True, company=company)
+        _company_header(canvas, logo, width, height, margin, '', label_below_logo=True, company=company)
         canvas.setStrokeColor(_LINE)
         canvas.line(margin, 32, width - margin, 32)
         canvas.setFont('CeasefireVera', 7)
         canvas.setFillColor(_MUTED)
-        canvas.drawString(margin, 20, 'CLASSIFIRE ESTIMATOR | Firestopping Estimator')
+        canvas.drawString(margin, 20, report_footer or 'FIRESTOPPING SCHEDULE')
         canvas.drawRightString(width - margin, 20, f'Page {doc.page}')
         canvas.restoreState()
 
@@ -190,14 +190,14 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
     return output.getvalue()
 
 
-def render_penetration_summary_pdf(result, definition, project_details, *, library=None, company=None, include_project_details=True, project_report_title=None, include_prices=True):
+def render_penetration_summary_pdf(result, definition, project_details, *, library=None, company=None, include_project_details=True, project_report_title=None, include_prices=True, report_footer=None):
     """Use the canonical product totals, preserving captured rates and units."""
     _register_fonts()
     report = _Report({})
     width, height = landscape(A4)
     margin, content = 32, width - 64
     logo = company_logo(company)
-    report.story.append(report.p(project_report_title or 'Firestopping product summary', 'title'))
+    report.story.append(report.p(project_report_title or 'FIRESTOPPING PRODUCT SUMMARY', 'title'))
     if include_project_details:
         report.story.append(report.table(['Project details', 'Value'], [
             [report.p(label, 'cell'), report.p(project_details.get(key, ''), 'cell')]
@@ -205,7 +205,7 @@ def render_penetration_summary_pdf(result, definition, project_details, *, libra
         ], [content * .25, content * .75]))
         report.story.append(Spacer(1, 12))
     if project_report_title:
-        report.story.append(report.p('Firestopping product summary', 'section'))
+        report.story.append(report.p('FIRESTOPPING PRODUCT SUMMARY', 'section'))
     rows = []
     for item in result['material_breakdown']:
         def show(value, currency=False):
@@ -230,12 +230,12 @@ def render_penetration_summary_pdf(result, definition, project_details, *, libra
 
     def decorate(canvas, doc):
         canvas.saveState()
-        _company_header(canvas, logo, width, height, margin, 'FIRESTOPPING | PRODUCT SUMMARY', label_below_logo=True, company=company)
+        _company_header(canvas, logo, width, height, margin, '', label_below_logo=True, company=company)
         canvas.setStrokeColor(_LINE)
         canvas.line(margin, 32, width - margin, 32)
         canvas.setFont('CeasefireVera', 7)
         canvas.setFillColor(_MUTED)
-        canvas.drawString(margin, 20, 'CLASSIFIRE ESTIMATOR | Firestopping')
+        canvas.drawString(margin, 20, report_footer or 'FIRESTOPPING PRODUCT SUMMARY')
         canvas.drawRightString(width - margin, 20, f'Page {doc.page}')
         canvas.restoreState()
 

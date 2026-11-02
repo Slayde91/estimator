@@ -24,7 +24,9 @@ class MarkupProgressTests(unittest.TestCase):
                     nonlocal attempts
                     attempts += 1
                     if attempts <= denied_updates:
-                        raise PermissionError('Windows reader holds the previous progress file')
+                        error = PermissionError('Windows reader holds the previous progress file')
+                        error.winerror = 32
+                        raise error
                     return replace(source, target)
 
                 def render(source, spec, destination, *, writer, progress):
@@ -37,9 +39,9 @@ class MarkupProgressTests(unittest.TestCase):
                         patch('estimator.takeoff_markup_pdf_worker.render_document', side_effect=render), \
                         patch.object(Path, 'replace', locked_replace):
                     render_batch({'copies': [{'source': 'original.pdf', 'spec': {'selected_pages': [1, 2]}}]}, output, progress)
-                self.assertEqual(attempts, 2)
-                self.assertEqual(updates[0], {'completed': 0, 'total': 2})
-                self.assertEqual(updates[1], {'completed': 2 if denied_updates == 1 else 0, 'total': 2})
+                self.assertEqual(attempts, denied_updates + 2)
+                self.assertEqual(updates[0], {'completed': 1, 'total': 2})
+                self.assertEqual(updates[1], {'completed': 2, 'total': 2})
                 self.assertEqual(len(PdfReader(output, strict=True).pages), 2)
 
     def test_other_progress_io_errors_still_fail_the_export(self):

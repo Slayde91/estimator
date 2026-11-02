@@ -19,7 +19,7 @@ async function projects(){await openProjectSection(page,'quotes');}
 async function continueDiscard(){await page.locator('#discard-dialog [value="confirm"]').click();}
 (async()=>{
   const info=await ready;assert.notEqual(info.port,8765);const base=`http://127.0.0.1:${info.port}`;
-  const names=['client','project','address','location_area','statement_of_compliance','australian_standards','ncc_clauses','approved_design','additional_standards','other_references','exclusions','materials_manufacturers','fire_resistance_level'];
+  const names=['client','project','address','location_area','statement_of_compliance','australian_standards','ncc_clauses','approved_design','additional_standards','other_references','exclusions','materials_manufacturers','fire_resistance_level','name','position','qualification','accreditation'];
   const fields={...Object.fromEntries(names.map(key=>[key,'N/A'])),client:'Older explicit client',project:'Older explicit project',address:'Example older address'};
   const created=await fetch(base+'/api/certifications',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields,request_id:randomUUID()})});
   assert.equal(created.status,201);const original=await created.json(),sourceStamp=JSON.stringify(original);
@@ -44,11 +44,11 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
   await expect(page.locator('#certification-signature-preview')).toBeHidden();await expect(page.locator('#certification-signature-save')).toBeEnabled();
   await page.locator('#certification-signature-save').click();await expect(page.locator('#certification-signature-preview')).toBeVisible();
-  await expect(page.locator('#certification-signer-status')).toHaveText('Signer details saved for future certificates.');
+  await expect(page.locator('#certification-signer-status')).toContainText('Signer details saved for future certificates.');
   const preferences=await (await fetch(base+'/api/certifications/defaults')).json();assert.ok(preferences.signature_image.startsWith('data:image/png;base64,'));const signatureHash=digest(preferences.signature_image);
-  await page.locator('#certification-save').click();await expect(page.locator('#certification-status')).toHaveText('Certification details saved.');
+  await page.locator('#certification-save').click();await expect(page.locator('#certification-status')).toContainText('Certification details saved.');
   const documentId=await page.locator('#certification-document').inputValue();assert.ok(documentId&&documentId!==original.id);
-  await page.locator('#certification-save').click();await expect(page.locator('#certification-status')).toHaveText('Certification details saved.');
+  await page.locator('#certification-save').click();await expect(page.locator('#certification-status')).toContainText('Certification details saved.');
   const listA=await (await fetch(base+'/api/certifications?workspace='+tokenA)).json();assert.equal(listA.items.length,1);
   const scoped=await (await fetch(base+'/api/certifications/'+documentId+'?workspace='+tokenA)).json();assert.deepEqual(scoped.revisions,[]);assert.equal(digest(scoped.options.signature_image),signatureHash);
   assert.equal(JSON.stringify(await (await fetch(base+'/api/certifications/'+original.id)).json()),sourceStamp);
@@ -61,7 +61,7 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   await expect(page.locator('#client')).toHaveValue('',{timeout:120000});await idle();await certification();
   assert.notEqual(await page.evaluate(()=>window.CeasefireCertification.sessionId()),tokenA);await expect(page.locator(`#certification-document option[value="${documentId}"]`)).toHaveCount(0);await expect(page.locator(`#certification-document option[value="${original.id}"]`)).toHaveCount(0);
   await expect(page.locator('#certification-signature-preview')).toBeVisible();
-  await page.locator('#certification-signature-delete').click();await expect(page.locator('#certification-signer-status')).toHaveText('Signer details saved for future certificates.');
+  await page.locator('#certification-signature-delete').click();await expect(page.locator('#certification-signer-status')).toContainText('Signer details saved for future certificates.');
   assert.equal((await (await fetch(base+'/api/certifications/defaults')).json()).signature_image,null);
   await projects();await page.locator('#load-project').click();await expect(page.locator('#discard-dialog')).toBeVisible({timeout:120000});await continueDiscard();
   await expect(page.locator('#client')).toHaveValue('PROJECT A CLIENT',{timeout:120000});await idle();await certification();

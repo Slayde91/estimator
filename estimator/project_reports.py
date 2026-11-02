@@ -23,7 +23,7 @@ def build_project_report(calculators, penetration, configuration, project_detail
     if not isinstance(calculators, dict) or set(calculators) - set(CALCULATORS):
         raise ValidationError('Choose the available project calculators.')
     parts = []
-    report_title = 'Full Product Summary' if materials else 'Fire Protection Schedule'
+    report_title = 'FULL PRODUCT SUMMARY' if materials else 'Fire Protection Schedule'
     builder = build_calculator_summary_report if materials else build_calculator_report
     for key in CALCULATORS:
         supplied = calculators.get(key, {})
@@ -31,7 +31,8 @@ def build_project_report(calculators, penetration, configuration, project_detail
             raise ValidationError('Include only the calculator input snapshots.')
         inputs = validate_calculator_edits(key, blank_schedule_defaults(key, supplied.get('inputs', {})), (saved_calculators or {}).get(key, {}))
         if populated_schedule_rows(key, inputs):
-            options = {'include_project_details': not parts, 'project_report_title': report_title if not parts else None}
+            options = {'include_project_details': not parts, 'project_report_title': report_title if not parts else None,
+                       'report_footer': 'FULL PRODUCT SUMMARY' if materials else 'CALCULATORS | FULL SCHEDULE'}
             if materials:
                 options['include_references'] = False
             parts.append((TITLES[key], builder(key, inputs, project_details=project_details, company=company, **options)))
@@ -39,7 +40,8 @@ def build_project_report(calculators, penetration, configuration, project_detail
         result = calculate_penetration(penetration, configuration)
         if result['rows']:
             fire_builder = render_penetration_summary_pdf if materials else render_penetration_pdf
-            options = {'include_project_details': not parts, 'project_report_title': report_title if not parts else None}
+            options = {'include_project_details': not parts, 'project_report_title': report_title if not parts else None,
+                       'report_footer': 'FULL PRODUCT SUMMARY' if materials else 'CALCULATORS | FULL SCHEDULE'}
             if materials:
                 options['include_prices'] = False
             else:

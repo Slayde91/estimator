@@ -11,7 +11,7 @@ const graph = {
 let index = physical.indexGraph(graph);
 for (const id of ['d', 'b', 's']) {
   assert.equal(physical.effectiveConfirmation(index.get(id), index), 'confirmed');
-  assert.equal(physical.columnValue(index.get(id), 'state', index), 'Confirmed');
+  assert.equal(physical.columnValue(index.get(id), 'state', index), 'Approved');
   assert.equal(physical.columnValue(index.get(id), 'location', index), 'Defect floor');
 }
 graph.defects[0].confirmation = 'unconfirmed';

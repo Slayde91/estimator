@@ -40,7 +40,9 @@ function harness(){
   assert.deepEqual(h.calls[0].body.download,{project_token:'initial'});checks++;
  }
  {
-  const h=harness();h.setBusy(true);await Promise.all([h.api.save('/api/quote-report'),h.api.save('/api/pricing/export')]);
+  // Pricing is now a temporary reference download; coalescing applies to two
+  // project-bound reports, whose confirmed writes both record document history.
+  const h=harness();h.setBusy(true);await Promise.all([h.api.save('/api/quote-report'),h.api.save('/api/project/full-schedule.pdf')]);
   await h.tick();assert.equal(h.saves.length,0);h.setBusy(false);await h.tick();assert.equal(h.saves.length,1);assert.equal(h.saves[0].history,2);
   await h.api.save('/api/quote-report');await h.tick();assert.equal(h.saves.length,2);assert.equal(h.calls[2].body.download.project_token,'rotated');checks++;
  }

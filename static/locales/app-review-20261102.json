@@ -1,0 +1,149 @@
+{
+  "Allow a new PDF tab, then try opening Item Details again.": [
+    "请允许打开新的 PDF 标签页，然后重试打开项目详情。",
+    "नए PDF टैब की अनुमति दें, फिर आइटम विवरण दोबारा खोलें।",
+    "Permita una nueva pestaña PDF y vuelva a abrir los detalles del elemento.",
+    "اسمح بفتح علامة تبويب PDF جديدة، ثم حاول فتح تفاصيل العنصر مجددًا.",
+    "อนุญาตให้เปิดแท็บ PDF ใหม่ แล้วลองเปิดรายละเอียดรายการอีกครั้ง"
+  ],
+  "Duct | Full Schedule": [
+    "风管 | 完整明细表",
+    "डक्ट | पूरी अनुसूची",
+    "Conductos | Cuadro completo",
+    "مجاري الهواء | الجدول الكامل",
+    "ท่อลม | ตารางรายการทั้งหมด"
+  ],
+  "Duct | Spray / Wrap | Product Summary": [
+    "风管 | 喷涂 / 包裹 | 产品汇总",
+    "डक्ट | स्प्रे / रैप | उत्पाद सारांश",
+    "Conductos | Proyectado / Envoltura | Resumen de productos",
+    "مجاري الهواء | الرش / التغليف | ملخص المنتجات",
+    "ท่อลม | พ่น / หุ้ม | สรุปผลิตภัณฑ์"
+  ],
+  "Firestopping | Full Schedule": [
+    "防火封堵 | 完整明细表",
+    "अग्निरोधी सीलिंग | पूरी अनुसूची",
+    "Sellado cortafuegos | Cuadro completo",
+    "الإغلاق المقاوم للحريق | الجدول الكامل",
+    "อุดช่องเปิดกันไฟ | ตารางรายการทั้งหมด"
+  ],
+  "Item Details download prepared: {0}": [
+    "项目详情下载已准备好：{0}",
+    "आइटम विवरण डाउनलोड तैयार है: {0}",
+    "Descarga de detalles del elemento preparada: {0}",
+    "تم إعداد تنزيل تفاصيل العنصر: {0}",
+    "เตรียมการดาวน์โหลดรายละเอียดรายการแล้ว: {0}"
+  ],
+  "Item Details opened for viewing. Use the viewer's Save button to keep a copy.": [
+    "项目详情已打开供查看。使用查看器的“保存”按钮保留副本。",
+    "आइटम विवरण देखने के लिए खुल गया है। कॉपी रखने के लिए व्यूअर का सहेजें बटन उपयोग करें।",
+    "Se han abierto los detalles del elemento. Use el botón Guardar del visor para conservar una copia.",
+    "فُتحت تفاصيل العنصر للعرض. استخدم زر الحفظ في العارض للاحتفاظ بنسخة.",
+    "เปิดรายละเอียดรายการให้ดูแล้ว ใช้ปุ่มบันทึกของตัวแสดงเพื่อเก็บสำเนา"
+  ],
+  "Item Details {0} download prepared.{1}": [
+    "项目详情 {0} 下载已准备好。{1}",
+    "आइटम विवरण {0} डाउनलोड तैयार है।{1}",
+    "La descarga de detalles del elemento {0} está preparada.{1}",
+    "تم إعداد تنزيل تفاصيل العنصر {0}.{1}",
+    "เตรียมการดาวน์โหลดรายละเอียดรายการ {0} แล้ว{1}"
+  ],
+  "Item Details {0} opened for viewing. Use the viewer's Save button to keep a copy.{1}": [
+    "项目详情 {0} 已打开供查看。使用查看器的“保存”按钮保留副本。{1}",
+    "आइटम विवरण {0} देखने के लिए खुल गया है। कॉपी रखने के लिए व्यूअर का सहेजें बटन उपयोग करें।{1}",
+    "Se han abierto los detalles del elemento {0}. Use el botón Guardar del visor para conservar una copia.{1}",
+    "فُتحت تفاصيل العنصر {0} للعرض. استخدم زر الحفظ في العارض للاحتفاظ بنسخة.{1}",
+    "เปิดรายละเอียดรายการ {0} ให้ดูแล้ว ใช้ปุ่มบันทึกของตัวแสดงเพื่อเก็บสำเนา{1}"
+  ],
+  "Pricing Library download prepared: {0}": [
+    "定价库下载已准备好：{0}",
+    "मूल्य लाइब्रेरी डाउनलोड तैयार है: {0}",
+    "Descarga de la biblioteca de precios preparada: {0}",
+    "تم إعداد تنزيل مكتبة الأسعار: {0}",
+    "เตรียมการดาวน์โหลดคลังราคาแล้ว: {0}"
+  ],
+  "Steel | Board | Full Schedule": [
+    "钢结构 | 板材 | 完整明细表",
+    "स्टील | बोर्ड | पूरी अनुसूची",
+    "Acero | Placas | Cuadro completo",
+    "الفولاذ | الألواح | الجدول الكامل",
+    "เหล็ก | แผ่นบอร์ด | ตารางรายการทั้งหมด"
+  ],
+  "Steel | Board | Product Summary": [
+    "钢结构 | 板材 | 产品汇总",
+    "स्टील | बोर्ड | उत्पाद सारांश",
+    "Acero | Placas | Resumen de productos",
+    "الفولاذ | الألواح | ملخص المنتجات",
+    "เหล็ก | แผ่นบอร์ด | สรุปผลิตภัณฑ์"
+  ],
+  "Steel | Paint | Full Schedule": [
+    "钢结构 | 涂料 | 完整明细表",
+    "स्टील | पेंट | पूरी अनुसूची",
+    "Acero | Pintura | Cuadro completo",
+    "الفولاذ | الطلاء | الجدول الكامل",
+    "เหล็ก | สี | ตารางรายการทั้งหมด"
+  ],
+  "Steel | Paint | Product Summary": [
+    "钢结构 | 涂料 | 产品汇总",
+    "स्टील | पेंट | उत्पाद सारांश",
+    "Acero | Pintura | Resumen de productos",
+    "الفولاذ | الطلاء | ملخص المنتجات",
+    "เหล็ก | สี | สรุปผลิตภัณฑ์"
+  ],
+  "Steel | Spray | Full Schedule": [
+    "钢结构 | 喷涂 | 完整明细表",
+    "स्टील | स्प्रे | पूरी अनुसूची",
+    "Acero | Proyectado | Cuadro completo",
+    "الفولاذ | الرش | الجدول الكامل",
+    "เหล็ก | พ่น | ตารางรายการทั้งหมด"
+  ],
+  "Steel | Spray | Product Summary": [
+    "钢结构 | 喷涂 | 产品汇总",
+    "स्टील | स्प्रे | उत्पाद सारांश",
+    "Acero | Proyectado | Resumen de productos",
+    "الفولاذ | الرش | ملخص المنتجات",
+    "เหล็ก | พ่น | สรุปผลิตภัณฑ์"
+  ],
+  "The PDF tab was closed before the file was ready. Open Item Details again.": [
+    "文件准备完成前 PDF 标签页已关闭。请重新打开项目详情。",
+    "फ़ाइल तैयार होने से पहले PDF टैब बंद हो गया। आइटम विवरण फिर खोलें।",
+    "La pestaña PDF se cerró antes de que el archivo estuviera listo. Abra de nuevo los detalles del elemento.",
+    "أُغلقت علامة تبويب PDF قبل أن يصبح الملف جاهزًا. افتح تفاصيل العنصر مجددًا.",
+    "แท็บ PDF ถูกปิดก่อนที่ไฟล์จะพร้อม เปิดรายละเอียดรายการอีกครั้ง"
+  ],
+  "The file could not be prepared ({0}).": [
+    "无法准备文件（{0}）。",
+    "फ़ाइल तैयार नहीं की जा सकी ({0})।",
+    "No se pudo preparar el archivo ({0}).",
+    "تعذر إعداد الملف ({0}).",
+    "ไม่สามารถเตรียมไฟล์ได้ ({0})"
+  ],
+  "The prepared file is empty.": [
+    "准备好的文件为空。",
+    "तैयार की गई फ़ाइल खाली है।",
+    "El archivo preparado está vacío.",
+    "الملف المُعدّ فارغ.",
+    "ไฟล์ที่เตรียมไว้ว่างเปล่า"
+  ],
+  "The server returned an unexpected file type.": [
+    "服务器返回了意外的文件类型。",
+    "सर्वर ने अनपेक्षित फ़ाइल प्रकार लौटाया।",
+    "El servidor devolvió un tipo de archivo inesperado.",
+    "أعاد الخادم نوع ملف غير متوقع.",
+    "เซิร์ฟเวอร์ส่งคืนประเภทไฟล์ที่ไม่คาดคิด"
+  ],
+  "Pricing Library download prepared: {0}. Later edits are not included.": [
+    "定价库下载已准备好：{0}。不包含之后的编辑。",
+    "मूल्य लाइब्रेरी डाउनलोड तैयार है: {0}। बाद के बदलाव शामिल नहीं हैं।",
+    "Descarga de la biblioteca de precios preparada: {0}. No se incluyen los cambios posteriores.",
+    "تم إعداد تنزيل مكتبة الأسعار: {0}. لا تتضمن التعديلات اللاحقة.",
+    "เตรียมการดาวน์โหลดคลังราคาแล้ว: {0} ไม่รวมการแก้ไขภายหลัง"
+  ],
+  "Pricing Library download prepared: {0}. It includes all inventory and rate groups, including your unsaved pricing edits.": [
+    "定价库下载已准备好：{0}。包含所有库存和费率组，包括未保存的定价编辑。",
+    "मूल्य लाइब्रेरी डाउनलोड तैयार है: {0}। इसमें सभी इन्वेंट्री और दर समूह तथा आपके बिना सहेजे मूल्य बदलाव शामिल हैं।",
+    "Descarga de la biblioteca de precios preparada: {0}. Incluye todos los grupos de inventario y tarifas, incluidos los cambios de precios sin guardar.",
+    "تم إعداد تنزيل مكتبة الأسعار: {0}. يتضمن جميع مجموعات المخزون والأسعار، بما فيها تعديلات التسعير غير المحفوظة.",
+    "เตรียมการดาวน์โหลดคลังราคาแล้ว: {0} รวมกลุ่มสินค้าคงคลังและอัตราทั้งหมด รวมถึงการแก้ไขราคาที่ยังไม่ได้บันทึก"
+  ]
+}

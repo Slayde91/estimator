@@ -323,7 +323,7 @@ async function surface(mode, rotated = false) {
     const mode = record === wall ? 'wall' : 'slab';
     await chooseTakeoff(page, mode);
     await viewRegisterItem(page, record.id, record.geometry);
-    await expect(page.locator(`tr[data-item-id="${record.id}"] .takeoff-state`)).toHaveText('Confirmed');
+    await expect(page.locator(`tr[data-item-id="${record.id}"] .takeoff-state`)).toHaveText('Approved');
     for (const format of ['CSV', 'XLSX']) {
       const target = await exportArea(record, format);
       if (format === 'CSV') { const text = fs.readFileSync(target, 'utf8'); assert.ok(text.includes(record.id)); assert.ok(text.includes('net_area_m2'));assert.ok(text.includes('total_area_m2'));assert.ok(text.includes('layers')); }

@@ -25,7 +25,7 @@ MAX_FIELD_CHARS = 8_000
 MAX_TOTAL_CHARS = 40_000
 MAX_REVISION_BYTES = 40 * 1024 * 1024
 SIGNER_FIELDS = ('name', 'position', 'qualification', 'accreditation')
-REQUIRED_GENERATION_FIELDS = FIELDS[:13]
+REQUIRED_GENERATION_FIELDS = FIELDS
 SCOPE_IDS = frozenset(('structural_steel', 'structural_steel_columns', 'ductwork', 'service_penetrations'))
 DEFAULT_OPTIONS = {'cover_pdf': None, 'cover_pdf_name': '', 'scopes': []}
 _MISSING = object()
@@ -76,6 +76,15 @@ def validate_options(value):
         from .certification_signature import validate_signature
         result['signature_image'], result['signature_name'] = validate_signature(value['signature_image'], value['signature_name'])
     return result
+
+
+def validate_complete_fields(value):
+    """Certificate Save/Generate require every detail; project recovery may be partial."""
+    fields = validate_fields(value, partial=True)
+    missing = [key.replace('_', ' ') for key in FIELDS if not fields[key].strip()]
+    if missing:
+        raise ValidationError('Complete all required certification fields before saving or generating: ' + ', '.join(missing) + '.')
+    return fields
 
 
 def validate_signer_fields(value):

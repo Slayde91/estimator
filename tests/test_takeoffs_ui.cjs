@@ -128,18 +128,13 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     fonts.reject(new Error('Fixture drawing fonts cancelled'));await assert.rejects(operation,/fonts cancelled/);
     assert.equal(feedback.audioAttempts,0);assert.equal(requests,0);assert.equal(h.audit.state.busy,false);
   });
-  await check('Takeoff notices and ordinary alerts expire after five seconds; protected recovery notices remain visible',()=>{
+  await check('Takeoff notices and alerts do not expire; recovery and render state remain protected',()=>{
     const h=harness(),dom=attachMinimalDom(h),timers=[];h.context.setTimeout=(callback,delay)=>{timers.push({callback,delay});return timers.length;};h.context.clearTimeout=()=>{};
-    dom.ui.messageSlot=dom.element();dom.ui.messageSlot.style={};let height=70.59375;dom.ui.messageSlot.getBoundingClientRect=()=>({height});
-    h.audit.message('Saved fixture');assert.equal(timers[0].delay,5000);assert.equal(dom.ui.message.hidden,false);
-    h.audit.message('Source unavailable',true);timers[0].callback();assert.equal(dom.ui.message.hidden,false);assert.equal(dom.ui.message.textContent,'Source unavailable');assert.equal(dom.ui.message.getAttribute('role'),'alert');
-    assert.equal(timers.at(-1).delay,5000);timers.at(-1).callback();assert.equal(dom.ui.message.hidden,true);
-    h.audit.message('Current status');const current=timers.at(-1);current.callback();assert.equal(dom.ui.message.hidden,true);assert.equal(dom.ui.message.textContent,'');
-    assert.equal(dom.ui.messageSlot.style.minHeight,'70.59375px','Retirement preserves the exact rendered flow height, including the margin');
-    h.audit.message('New wrapped status');assert.equal(dom.ui.messageSlot.style.minHeight,'','A new notice uses its current width instead of a stale reserve');height=121.25;timers.at(-1).callback();assert.equal(dom.ui.messageSlot.style.minHeight,'121.25px');
-    h.audit.state.linkedRecovery={operation:'retained'};const count=timers.length;h.audit.message('Recover linked change');assert.equal(dom.ui.message.hidden,false);assert.equal(timers.length,count);
-    assert.equal(dom.ui.messageSlot.style.minHeight,'');
-    h.audit.state.linkedRecovery=null;h.audit.state.pageError={notice:'Render blocked'};const renderCount=timers.length;h.audit.message('Render blocked',true);assert.equal(timers.length,renderCount);assert.equal(dom.ui.message.hidden,false);
+    dom.ui.messageSlot=dom.element();dom.ui.messageSlot.style={};
+    h.audit.message('Saved fixture');assert.equal(timers.length,0);assert.equal(dom.ui.message.hidden,false);
+    h.audit.message('Source unavailable',true);assert.equal(timers.length,0);assert.equal(dom.ui.message.hidden,false);assert.equal(dom.ui.message.textContent,'Source unavailable');assert.equal(dom.ui.message.getAttribute('role'),'alert');
+    h.audit.state.linkedRecovery={operation:'retained'};h.audit.message('Recover linked change');assert.equal(dom.ui.message.hidden,false);assert.equal(timers.length,0);
+    h.audit.state.linkedRecovery=null;h.audit.state.pageError={notice:'Render blocked'};h.audit.message('Render blocked',true);assert.equal(timers.length,0);assert.equal(dom.ui.message.hidden,false);
   });
   await check('Project replacement retires only its exact old render alert without recording render success',()=>{
     for(const transition of ['replacement','defaults','unrelated alert','same-text status','linked recovery']){
@@ -917,12 +912,12 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
   });
   await check('Confirmation labels collapse historic states without hiding evidence issues or trusting stale confirmations',()=>{
     const h=harness(),value=blank();h.audit.accept(response(value));const item={id:'item',state:'confirmed'};
-    h.audit.state.resultMap.set('item',{issues:[{code:'PAGE_REVIEW_BLOCKED'}]});assert.equal(h.audit.reviewStatus(item).label,'Unconfirmed');assert.equal(h.audit.state.resultMap.get('item').issues[0].code,'PAGE_REVIEW_BLOCKED');
-    h.audit.state.resultMap.set('item',{issues:[{code:'MISSING_MEASUREMENT'}]});assert.equal(h.audit.reviewStatus(item).label,'Unconfirmed');
-    h.audit.state.resultMap.set('item',{issues:[]});assert.equal(h.audit.reviewStatus(item).label,'Confirmed');
-    assert.equal(h.audit.reviewStatus({...item,state:'draft',version:1}).label,'Unconfirmed');
-    assert.equal(h.audit.reviewStatus({...item,state:'draft',version:2}).label,'Unconfirmed');
-    assert.equal(h.audit.reviewStatus({...item,state:'reviewed'}).label,'Unconfirmed');
+    h.audit.state.resultMap.set('item',{issues:[{code:'PAGE_REVIEW_BLOCKED'}]});assert.equal(h.audit.reviewStatus(item).label,'Draft');assert.equal(h.audit.state.resultMap.get('item').issues[0].code,'PAGE_REVIEW_BLOCKED');
+    h.audit.state.resultMap.set('item',{issues:[{code:'MISSING_MEASUREMENT'}]});assert.equal(h.audit.reviewStatus(item).label,'Draft');
+    h.audit.state.resultMap.set('item',{issues:[]});assert.equal(h.audit.reviewStatus(item).label,'Approved');
+    assert.equal(h.audit.reviewStatus({...item,state:'draft',version:1}).label,'Draft');
+    assert.equal(h.audit.reviewStatus({...item,state:'draft',version:2}).label,'Draft');
+    assert.equal(h.audit.reviewStatus({...item,state:'reviewed'}).label,'Draft');
     assert.equal(item.state,'confirmed');
   });
   await check('Icon actions retain accessible names with the original supplied transfer image and compact undo glyph',async()=>{
@@ -1032,7 +1027,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
   await check('Direct Confirm sends one authoritative confirmation command and filters historical review states as Unconfirmed',async()=>{
     const h=harness(),value=blank();value.items=[{id:'old',mode:'steel',state:'reviewed',fields:{mark:'A'}},{id:'new',mode:'steel',state:'draft',fields:{mark:'B'}},{id:'confirmed',mode:'steel',state:'confirmed',fields:{mark:'C'}}];h.audit.accept(response(value));h.audit.state.selected.add('new');
     let action;h.audit.setAsk(async(title,definitions,detail,submit)=>{assert.equal(title,'Confirm 1 items?');assert.equal(submit,'Confirm items');assert.match(detail,/every riser\/drop/);return {};});h.audit.setCommand(async(op,payload)=>{action={op,...copy(payload)};});await h.audit.confirmSelected();assert.equal(action.op,'confirm_items');assert.deepEqual(action.item_ids,['new']);
-    h.audit.state.ui={statusFilter:{value:'unconfirmed'}};h.audit.registerFilters().set('confirmation',new Set(['Unconfirmed']));assert.deepEqual(copy(h.audit.visibleItems()).map(item=>item.id),['old','new']);h.audit.state.group='state';assert.equal(h.audit.itemGroup(value.items[0]),null);assert.equal(value.items[0].state,'reviewed');
+    h.audit.state.ui={statusFilter:{value:'unconfirmed'}};h.audit.registerFilters().set('confirmation',new Set(['Draft']));assert.deepEqual(copy(h.audit.visibleItems()).map(item=>item.id),['old','new']);h.audit.state.group='state';assert.equal(h.audit.itemGroup(value.items[0]),null);assert.equal(value.items[0].state,'reviewed');
   });
   await check('Rise/drop dialogs ask only Type and length, retain the exact anchor and legacy citation, and reject stale edits',async()=>{
     const h=harness(),value=blank(),item={id:'steel',mode:'steel',version:1,quantity:3,fields:{mark:'B1'},geometry:{document_id:'doc',page:1,points:[[1.123456789,2.987654321],[4,6]]},measurement:{method:'calibrated',calibration_id:'scale'},length_additions:[]};value.documents=[{id:'doc',name:'Elevations.pdf',pages:[{page:1},{page:2}]}];value.items=[item];h.audit.accept(response(value));h.audit.state.document='doc';h.audit.state.page=1;h.audit.state.selected.add(item.id);

@@ -1,29 +1,5 @@
 "use strict";
 
-// Cursor coordinates are transient window pixels, never project data.
-(() => {
-  const output = document.getElementById("cursor-position");
-  if (!output || !document.addEventListener) return;
-  let pending = null, frame = null;
-  function clear() {
-    if (frame !== null) cancelAnimationFrame(frame);
-    pending = frame = null;
-    output.textContent = "—";
-  }
-  document.addEventListener("pointermove", event => {
-    if (event.pointerType === "touch") { clear(); return; }
-    pending = [Math.round(event.clientX), Math.round(event.clientY)];
-    if (frame !== null) return;
-    frame = requestAnimationFrame(() => {
-      frame = null;
-      output.textContent = `X${pending[0]}Y${pending[1]}`;
-    });
-  }, { passive: true, capture: true });
-  document.addEventListener("pointerout", event => { if (!event.relatedTarget) clear(); }, { passive: true });
-  window.addEventListener("blur", clear);
-  document.addEventListener("visibilitychange", () => { if (document.hidden) clear(); });
-})();
-
 // HEADER_TAGLINE:START
 // Presentation only: selecting and typing a phrase never changes a project.
 (() => {
@@ -370,7 +346,6 @@
     return window.CeasefireI18n.text(element, copy == null ? "" : String(copy));
   }
 
-  let messageExpiry = null, messageVersion = 0;
   function releaseMessageSpace() {
     const slot = $("app-message-slot");
     if (slot?.style) slot.style.minHeight = "";
@@ -383,20 +358,14 @@
     box.hidden = true;
   }
   function message(text, error = false, kind = null) {
-    clearTimeout(messageExpiry);
     releaseMessageSpace();
-    const version = ++messageVersion;
     const box = $("app-message");
     uiText(box, text);
     box.className = `message${error ? " error" : ""}`;
     box.hidden = !text;
     box.setAttribute("role", error ? "alert" : "status");
     state.projectSavedNotice = kind === "project-saved" ? window.CeasefireI18n.source(box) : null;
-    if (text && !error) messageExpiry = setTimeout(() => {
-      if (messageVersion !== version || box.getAttribute("role") !== "status") return;
-      retireMessage();
-      state.projectSavedNotice = null;
-    }, 5000);
+    window.CeasefireNotifications?.show(box);
   }
 
   async function request(path, options = {}) {
@@ -428,10 +397,8 @@
 
   function updateProjectStatus() {
     const file = state.projectFile, changed = !!projectHasChanges();
-    // Retire only the save receipt; fresh input must not erase another error.
+    // A fresh draft updates the save badge; notices remain until dismissal/navigation.
     if (changed && state.projectSavedNotice) {
-      const box = $("app-message");
-      if (window.CeasefireI18n.source(box) === state.projectSavedNotice && box.getAttribute("role") !== "alert") retireMessage();
       state.projectSavedNotice = null;
     }
     const status = $("project-save-state");
@@ -1049,6 +1016,7 @@
     state.libraryKind = kind;
     for (const child of ["pricing", "penetration", "technical"]) $("library-" + child).hidden = child !== kind;
     for (const button of document.querySelectorAll("[data-library-kind]")) button.setAttribute("aria-pressed", String(button.dataset.libraryKind === kind));
+    window.CeasefireNotifications?.navigate(`pricing:${kind}`);
     if (kind === "pricing") { if (!pricingViewCurrent()) renderPricing(); }
     else window.CeasefireLibraries?.open(kind, selection);
   }
@@ -1058,6 +1026,7 @@
     if (view !== state.currentView && window.CeasefireCertification?.hasPendingOperation?.()) { message(uiCopy("Finish or retry the current certification operation before changing views."), true); return; }
     if (window.CeasefirePenetrations?.hasTakeoffReservation?.() || window.CeasefireTakeoffs?.hasLinkedRecovery?.()) { message(uiCopy("Finish or recover the confirmed Takeoff library link before changing views."), true); return; }
     if (view === "takeoffs" && !state.takeoffsEnabled) { message(uiCopy("TAKEOFFS is not included in this edition."), true); return; }
+    window.CeasefireNotifications?.navigate(view === "pricing" ? `pricing:${state.libraryKind}` : view === "calculators" ? `calculators:${calculatorId || state.calculatorKind}` : view === "estimate" ? `estimate:${state.estimateKind || "estimate"}` : view);
     if (view !== state.currentView && $("app-message").hidden) releaseMessageSpace();
     state.currentView = view;
     if (["quotes", "certification", "documentation"].includes(view)) state.lastProjectSection = view;
@@ -1907,7 +1876,7 @@
     button.disabled = true; button.setAttribute("aria-busy", "true"); window.CeasefireI18n.attr(button, "aria-label", "Exporting Excel…");
     try {
       const saved = await window.CeasefireDownloads.save("/api/pricing/export", { configuration: JSON.parse(draft) }, { button });
-      message(draft === JSON.stringify(state.draft) ? uiCopy("Excel saved to {0}. It includes all inventory and rate groups, including your unsaved pricing edits.", [saved.path]) : uiCopy("Excel saved to {0} using the pricing captured when you clicked Export Excel. Later edits are not included.", [saved.path]));
+      message(saved.destination === "browser" ? uiCopy(draft === JSON.stringify(state.draft) ? "Pricing Library download prepared: {0}. It includes all inventory and rate groups, including your unsaved pricing edits." : "Pricing Library download prepared: {0}. Later edits are not included.", [saved.filename]) : draft === JSON.stringify(state.draft) ? uiCopy("Excel saved to {0}. It includes all inventory and rate groups, including your unsaved pricing edits.", [saved.path]) : uiCopy("Excel saved to {0} using the pricing captured when you clicked Export Excel. Later edits are not included.", [saved.path]));
       return saved;
     } catch (error) { message(uiCopy("Pricing was not exported. {0}", [error.message]), true); }
     finally { button.disabled = false; button.removeAttribute("aria-busy"); window.CeasefireI18n.attr(button, "aria-label", "Export Excel"); }

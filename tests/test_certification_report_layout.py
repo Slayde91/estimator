@@ -43,16 +43,16 @@ class CertificateLayoutTests(unittest.TestCase):
                 self.assertGreaterEqual(by_text[label]['top'], red[-1]['top'])
                 self.assertLessEqual(by_text[label]['bottom'], red[-1]['bottom'])
 
-    def test_requested_titles_are_bold_red_and_small_duplicate_header_is_removed(self):
-        payload = self.render(client='BODYCLIENT', australian_standards='BODYSTANDARD', name='BODYSIGNER')
+    def test_title_is_centered_uppercase_and_bottom_attestation_stays_regular(self):
+        payload = self.render(client='BODYCLIENT', australian_standards='BODYSTANDARD', name='BODYSIGNER',
+                              statement_of_compliance='INTRODUCTIONTOKEN remains bold.')
         with pdfplumber.open(BytesIO(payload)) as document:
             words = [word for page in document.pages
                      for word in page.extract_words(extra_attrs=['fontname', 'non_stroking_color'])]
             by_text = {word['text']: word for word in words}
-            for label in ('Installation', 'Statement',
-                          'Exclusions', 'Materials/Manufacturers:', 'Date:'):
+            for label in ('Statement', 'Exclusions', 'Materials/Manufacturers:', 'Date:'):
                 word = by_text[label]
-                if label in ('Installation', 'Statement', 'Client', 'Project', 'Address', 'Location/Area'):
+                if label == 'Statement':
                     self.assertIn('Bold', word['fontname'])
                 else:
                     self.assertNotIn('Bold', word['fontname'])
@@ -66,10 +66,15 @@ class CertificateLayoutTests(unittest.TestCase):
                 self.assertNotIn('Bold', by_text[value]['fontname'])
             text = '\n'.join(page.extract_text() for page in document.pages)
             self.assertIn('INSTALLATION CERTIFICATE | Revision 2', text)
-            self.assertIn('Installation Certificate', text)
+            self.assertNotIn('Installation Certificate', text)
+            title = [word for word in words if word['text'] in ('INSTALLATION', 'CERTIFICATE') and word['top'] < 150]
+            self.assertEqual(len(title), 2)
+            self.assertAlmostEqual((min(w['x0'] for w in title)+max(w['x1'] for w in title))/2, document.pages[0].width/2, delta=.1)
+            self.assertTrue(all('Bold' in word['fontname'] for word in title))
+            self.assertIn('Bold', by_text['INTRODUCTIONTOKEN']['fontname'])
             self.assertIn('Exclusions - Certification is strictly limited to works completed by Layout Company, as per:', text)
 
-    def test_compliance_and_attestation_are_entirely_bold_black(self):
+    def test_compliance_stays_bold_and_attestation_is_regular_black(self):
         statement = 'COMPLIANCESTART Manufacturer requirements remain explicit. COMPLIANCEEND'
         payload = self.render(statement_of_compliance=statement)
         with pdfplumber.open(BytesIO(payload)) as document:
@@ -79,7 +84,10 @@ class CertificateLayoutTests(unittest.TestCase):
             end = next(index for index in range(start, len(lines)) if 'best of my knowledge.' in lines[index]['text'])
             for line in [compliance, *lines[start:end+1]]:
                 for char in line['chars']:
-                    self.assertIn('Bold', char['fontname'])
+                    if line is compliance:
+                        self.assertIn('Bold', char['fontname'])
+                    else:
+                        self.assertNotIn('Bold', char['fontname'])
                     self.assertEqual(tuple(char['non_stroking_color']), (0, 0, 0))
 
     def test_signer_date_is_frozen_in_sydney_and_footer_remains_utc(self):

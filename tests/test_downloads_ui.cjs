@@ -157,7 +157,7 @@ let passed = 0;
   assert.equal(calls.length,count);passed++;
 
   delete context.window.CeasefireProject;next=response({...receipt,destination:'downloads'});
-  await assert.rejects(context.window.CeasefireDownloads.save('/api/pricing/export',{}),/Save the current project/);assert.equal(calls.length,count);passed++;
+  await assert.rejects(context.window.CeasefireDownloads.save('/api/quote-report',{}),/Save the current project/);assert.equal(calls.length,count);passed++;
   projectToken='saved-project';context.window.CeasefireProject={downloadTarget:()=>({project_token:projectToken}),isCurrentDownloadTarget:()=>true,saveAfterDownload:async()=>({saved:true})};
 
   for(const [value,extra,pattern] of [

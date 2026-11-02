@@ -104,7 +104,7 @@ class PhysicalConfirmationModelTests(unittest.TestCase):
                     preview_change(graph, command)
 
     def test_only_exact_lowercase_string_states_are_accepted_at_all_boundaries(self):
-        invalid = (None, True, False, 1, 0, [], {}, 'Confirmed', 'Unconfirmed',
+        invalid = (None, True, False, 1, 0, [], {}, 'Confirmed', 'Unconfirmed', 'Approved', 'Draft',
                    'approved', 'none_reported', '', ' confirmed', 'confirmed ')
         for version in (2, 3):
             graph, ids = graph_fixture(version)

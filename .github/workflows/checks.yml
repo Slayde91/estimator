@@ -75,6 +75,8 @@ jobs:
       - run: node tests/test_cover_sheets_ui.cjs
       - run: node tests/test_downloads_ui.cjs
       - run: node tests/test_download_project_save_ui.cjs
+      - run: node tests/test_reference_downloads_ui.cjs
+      - run: node tests/test_notifications_ui.cjs
       - run: node tests/test_penetration_ui.cjs
       - run: node tests/test_libraries_ui.cjs
       - run: node tests/test_library_detail_text.cjs
@@ -124,6 +126,7 @@ jobs:
       - run: node tests/browser/project_documentation.cjs
       - run: node tests/browser/pricing_manufacturers.cjs
       - run: node tests/browser/certification_defaults.cjs
+      - run: node tests/browser/settings_polish.cjs
       - run: node tests/browser/certification_project_lifecycle.cjs
       - run: node tests/browser/pdf_render_gate.cjs
       - run: node tests/browser/header_artwork.cjs

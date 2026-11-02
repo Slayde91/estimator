@@ -26,7 +26,7 @@ async function confirmPhysical(ids){
   const preview=await previewWait;assert.equal(preview.status(),200,await preview.text());const commands=preview.request().postDataJSON().commands;assert.deepEqual(commands.map(command=>command.entity_id).sort(),needs.map(record=>record.id).sort());
   const applied=page.waitForResponse(reply=>reply.url().endsWith('/physical/apply'));applied.catch(()=>{});await modal(`Confirm ${needs.length} owning Defects and their descendants?`,{},'Apply draft change');assert.equal((await applied).status(),200);await snapshot();
   for(const owner of owners)assert.equal(current.physical.defects.find(record=>record.id===owner.id).confirmation,'confirmed');
-  for(const id of ids)await expect(page.locator(`tr[data-physical-id="${id}"] .takeoff-state`)).toHaveText('Confirmed');evidence.ownerConfirmationDeduplicated=true;
+  for(const id of ids)await expect(page.locator(`tr[data-physical-id="${id}"] .takeoff-state`)).toHaveText('Approved');evidence.ownerConfirmationDeduplicated=true;
 }
 
 async function update(quantity){await page.getByRole('button',{name:'Update linked rows',exact:true}).click();const quantityField=page.getByRole('dialog').getByLabel('Explicit installation quantity',{exact:true});await expect(quantityField).toHaveValue(String(current.physical.services[0].quantity));await modal('Confirm link and quantity',{'Explicit installation quantity':quantity},'Review schedule change');const response=page.waitForResponse(reply=>reply.url().endsWith('/library/apply'));response.catch(()=>{});await modal('Confirm link and quantity',{},'Confirm link and quantity');const reply=await response;assert.equal(reply.status(),200,await reply.text());}

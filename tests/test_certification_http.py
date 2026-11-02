@@ -42,7 +42,7 @@ class CertificationHTTPTests(unittest.TestCase):
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         self.fields = {name: '' for name in FIELDS}
-        self.fields.update(dict.fromkeys(FIELDS[:13], 'N/A'))
+        self.fields.update(dict.fromkeys(FIELDS, 'N/A'))
         self.fields.update(client='Example client', project='Example project', address='Example address',
                            name='Example preparer', statement_of_compliance='Entered by the user.')
 
@@ -67,6 +67,22 @@ class CertificationHTTPTests(unittest.TestCase):
         status, _, payload = self.request(method, path, value)
         self.assertEqual(status, expected, payload)
         return json.loads(payload)
+
+    def test_each_required_field_blocks_save_and_generation_without_mutation(self):
+        import uuid
+        for suffix in ('', '?workspace=' + self.json('POST', '/api/certifications/workspaces', {}, expected=201)['workspace_id']):
+            document = self.json('POST', '/api/certifications' + suffix, {'fields': self.fields}, expected=201)
+            path = '/api/certifications/' + document['id']
+            for name in FIELDS:
+                with self.subTest(field=name, scope=suffix):
+                    invalid = {**self.fields, name: ' \n\t'}
+                    self.json('POST', '/api/certifications' + suffix, {'fields': invalid}, expected=400)
+                    self.json('POST', path + suffix, {'fields': invalid, 'expected_version': 1}, expected=400)
+                    self.json('POST', path + '/revisions' + suffix, {'fields': invalid, 'expected_version': 1,
+                              'request_id': str(uuid.uuid4())}, expected=400)
+                    self.assertEqual(self.json('GET', path + suffix), document)
+            saved = self.json('POST', path + suffix, {'fields': {**self.fields, 'project': 'Updated'}, 'expected_version': 1})
+            self.assertEqual(saved['version'], 2)
 
     def test_settings_cover_applies_to_browser_pdf_download_and_native_destination_once(self):
         settings = {**DEFAULTS, 'name':'Cover Company', 'cover_pdf':cover('FIRST COVER'), 'cover_pdf_name':'Cover.pdf'}

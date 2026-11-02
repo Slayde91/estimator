@@ -1,0 +1,107 @@
+{
+  "Allow a new PDF tab, then try opening Item Details again.": [
+    "새 PDF 탭을 허용한 다음 항목 세부정보를 다시 여세요.",
+    "Payagan ang bagong PDF tab, pagkatapos ay buksan muli ang mga detalye ng item.",
+    "Cho phép mở thẻ PDF mới, rồi thử mở lại chi tiết hạng mục."
+  ],
+  "Duct | Full Schedule": [
+    "덕트 | 전체 명세표",
+    "Duct | Buong talaan",
+    "Ống gió | Bảng kê đầy đủ"
+  ],
+  "Duct | Spray / Wrap | Product Summary": [
+    "덕트 | 분사 / 랩 | 제품 요약",
+    "Duct | Spray / Wrap | Buod ng produkto",
+    "Ống gió | Phun / Bọc | Tổng hợp sản phẩm"
+  ],
+  "Firestopping | Full Schedule": [
+    "방화 충전 | 전체 명세표",
+    "Firestopping | Buong talaan",
+    "Bịt kín chống cháy | Bảng kê đầy đủ"
+  ],
+  "Item Details download prepared: {0}": [
+    "항목 세부정보 다운로드 준비 완료: {0}",
+    "Handa na ang download ng mga detalye ng item: {0}",
+    "Đã chuẩn bị tệp tải chi tiết hạng mục: {0}"
+  ],
+  "Item Details opened for viewing. Use the viewer's Save button to keep a copy.": [
+    "항목 세부정보를 열었습니다. 사본을 보관하려면 뷰어의 저장 버튼을 사용하세요.",
+    "Nabuksan na ang mga detalye ng item. Gamitin ang Save ng viewer para magtago ng kopya.",
+    "Đã mở chi tiết hạng mục để xem. Dùng nút Lưu của trình xem để giữ một bản sao."
+  ],
+  "Item Details {0} download prepared.{1}": [
+    "항목 세부정보 {0} 다운로드가 준비되었습니다.{1}",
+    "Handa na ang download ng mga detalye ng item {0}.{1}",
+    "Đã chuẩn bị tệp tải chi tiết hạng mục {0}.{1}"
+  ],
+  "Item Details {0} opened for viewing. Use the viewer's Save button to keep a copy.{1}": [
+    "항목 세부정보 {0}을 열었습니다. 사본을 보관하려면 뷰어의 저장 버튼을 사용하세요.{1}",
+    "Nabuksan na ang mga detalye ng item {0}. Gamitin ang Save ng viewer para magtago ng kopya.{1}",
+    "Đã mở chi tiết hạng mục {0} để xem. Dùng nút Lưu của trình xem để giữ một bản sao.{1}"
+  ],
+  "Pricing Library download prepared: {0}": [
+    "단가 라이브러리 다운로드 준비 완료: {0}",
+    "Handa na ang download ng Pricing Library: {0}",
+    "Đã chuẩn bị tệp tải thư viện đơn giá: {0}"
+  ],
+  "Steel | Board | Full Schedule": [
+    "강재 | 보드 | 전체 명세표",
+    "Bakal | Board | Buong talaan",
+    "Thép | Tấm | Bảng kê đầy đủ"
+  ],
+  "Steel | Board | Product Summary": [
+    "강재 | 보드 | 제품 요약",
+    "Bakal | Board | Buod ng produkto",
+    "Thép | Tấm | Tổng hợp sản phẩm"
+  ],
+  "Steel | Paint | Full Schedule": [
+    "강재 | 도료 | 전체 명세표",
+    "Bakal | Pintura | Buong talaan",
+    "Thép | Sơn | Bảng kê đầy đủ"
+  ],
+  "Steel | Paint | Product Summary": [
+    "강재 | 도료 | 제품 요약",
+    "Bakal | Pintura | Buod ng produkto",
+    "Thép | Sơn | Tổng hợp sản phẩm"
+  ],
+  "Steel | Spray | Full Schedule": [
+    "강재 | 분사 | 전체 명세표",
+    "Bakal | Spray | Buong talaan",
+    "Thép | Phun | Bảng kê đầy đủ"
+  ],
+  "Steel | Spray | Product Summary": [
+    "강재 | 분사 | 제품 요약",
+    "Bakal | Spray | Buod ng produkto",
+    "Thép | Phun | Tổng hợp sản phẩm"
+  ],
+  "The PDF tab was closed before the file was ready. Open Item Details again.": [
+    "파일이 준비되기 전에 PDF 탭이 닫혔습니다. 항목 세부정보를 다시 여세요.",
+    "Naisara ang PDF tab bago naging handa ang file. Buksan muli ang mga detalye ng item.",
+    "Thẻ PDF đã đóng trước khi tệp sẵn sàng. Mở lại chi tiết hạng mục."
+  ],
+  "The file could not be prepared ({0}).": [
+    "파일을 준비하지 못했습니다({0}).",
+    "Hindi maihanda ang file ({0}).",
+    "Không thể chuẩn bị tệp ({0})."
+  ],
+  "The prepared file is empty.": [
+    "준비된 파일이 비어 있습니다.",
+    "Walang laman ang inihandang file.",
+    "Tệp đã chuẩn bị bị trống."
+  ],
+  "The server returned an unexpected file type.": [
+    "서버가 예상하지 못한 파일 형식을 반환했습니다.",
+    "Nagbalik ang server ng hindi inaasahang uri ng file.",
+    "Máy chủ trả về loại tệp không mong đợi."
+  ],
+  "Pricing Library download prepared: {0}. Later edits are not included.": [
+    "단가 라이브러리 다운로드 준비 완료: {0}. 이후 편집 내용은 포함되지 않았습니다.",
+    "Handa na ang download ng Pricing Library: {0}. Hindi kasama ang mga sumunod na pag-edit.",
+    "Đã chuẩn bị tệp tải thư viện đơn giá: {0}. Các chỉnh sửa sau đó không được bao gồm."
+  ],
+  "Pricing Library download prepared: {0}. It includes all inventory and rate groups, including your unsaved pricing edits.": [
+    "단가 라이브러리 다운로드 준비 완료: {0}. 저장하지 않은 단가 편집을 포함해 모든 재고 및 요율 그룹이 들어 있습니다.",
+    "Handa na ang download ng Pricing Library: {0}. Kasama ang lahat ng pangkat ng imbentaryo at rate, pati ang hindi pa naka-save na pag-edit ng presyo.",
+    "Đã chuẩn bị tệp tải thư viện đơn giá: {0}. Tệp bao gồm tất cả nhóm hàng và đơn giá, kể cả các chỉnh sửa đơn giá chưa lưu."
+  ]
+}

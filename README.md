@@ -271,6 +271,29 @@ certificates only when the exact verified archive is already cached locally;
 otherwise use **Load Project** with the companion folder. Certificate drafts,
 signatures and revision history are never silently omitted.
 
+Certificate **Save** and **Generate** require all 17 detail fields, including Name,
+Position, Qualification and Accreditation. Whitespace-only entries are rejected in
+both the browser and API. Saving the whole project still retains incomplete work
+for recovery. New forms use the two-paragraph compliance statement; existing saved
+statements remain unchanged. The Project files button is white with a dark icon.
+
+Settings shows ten cover-sheet rows for certificates, Breakdown, full schedules and
+summaries, specialist schedules and Markups. Hidden reference/product-summary cover
+settings remain stored and available to existing exports. Company uploads share a
+first-column layout with adjacent trash controls; the logo preview sits to the right
+on wider screens. Play is the last Settings section, and its lobby/session omit the
+badge, player caption and site-radio feed. The certificate signature pad is compact.
+
+The project Save button is red, and Midnight renders the dark logo squares white
+while retaining the red square and lettering. Fresh red errors reveal themselves
+below the sticky header, including after Tab validation, without moving keyboard
+focus. Success notices retain the current scroll position.
+
+A native file chooser must activate within 20 seconds. If its helper never opens a
+window, it is stopped and the dialog lock is released so Save can be retried.
+An activated chooser retains its normal ten-minute response limit; cancellation
+and startup failures do not authorize a write or bypass overwrite checks.
+
 **Save As** opens the operating system's file dialog with the quote name, adding `.cf.json` automatically. **Save** overwrites the current project file with the same complete estimate, pricing and all-calculator snapshot. The separate **Save quote** and **Save calculator** buttons remain removed. Projects accepts only `.cf.json` filenames. Older project contents remain supported: rename a copy of an existing `.json` project to `.cf.json` before loading it. The app does not rename existing files. You can choose the folder and rename the file. The filename replaces characters that a filesystem cannot accept. Cancelling the dialog leaves existing files unchanged and keeps the current project open.
 
 The persistent **Current project** area shows the known location and last-saved time. Save state appears directly under the main logo, including when any estimate, project-pricing or calculator input has unsaved changes. Files opened through **Load Project** or **Projects** retain their save target for this app session. Imported browser-upload content has no authorized local path and requires **Save As**. If the app server restarts, reopen the file or use **Save As** before saving again. On Windows, native Save As, Load Project and folder dialogs are owned by the foreground application and the actual dialog, including overwrite prompts, is raised above it. Automated checks cover save/load behavior and native helper structure; native dialog foreground placement remains a manual visual check.

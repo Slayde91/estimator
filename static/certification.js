@@ -7,13 +7,13 @@
     'other_references', 'exclusions', 'materials_manufacturers', 'fire_resistance_level',
     'name', 'position', 'qualification', 'accreditation'];
   const signerNames = ['name', 'position', 'qualification', 'accreditation'];
-  const requiredNames = fieldNames.filter(name => !signerNames.includes(name));
+  const requiredNames = fieldNames;
   const controls = Object.fromEntries(fieldNames.map(name => [name, $('certification-' + name)]));
   const selector = $('certification-document'), saveButton = $('certification-save'), generateButton = $('certification-generate');
   const signatureCanvas = $('certification-signature-canvas'), signatureDelete = $('certification-signature-delete');
   const signatureSave = $('certification-signature-save'), signatureClear = $('certification-signature-clear');
   const drawing = {strokes:[], active:null, revision:0};
-  const statement = "This is to certify that the fire rated materials have been installed according to the manufacturer's specifications to provide the nominated fire resistance level for the items listed in the relevant schedule. All materials have been installed at the above location and comply with:";
+  const statement = "This is to certify that the fire rated materials have been installed according to the manufacturer's specifications to provide the nominated fire resistance level for the items listed in the relevant schedule.\n\nAll materials have been installed at the above location and comply with:";
   // These are the user's exact editable presets, not a determination of compliance.
   const as1530 = 'AS 1530.4: 2014 Methods for fire tests on building materials, components & structures';
   const c2d9 = 'BCA 2022: C2D9 Lightweight Construction';
@@ -50,10 +50,12 @@
   function message(source, error = false) {
     text($('certification-status'), source);
     $('certification-status').className = error ? 'message error certification-save-status' : 'helper certification-save-status';
+    window.CeasefireNotifications?.show($('certification-status'));
   }
   function signerMessage(source, error=false) {
     text($('certification-signer-status'), source);
     $('certification-signer-status').className = error ? 'message error' : 'helper';
+    window.CeasefireNotifications?.show($('certification-signer-status'));
   }
   function dirty() {
     return !!drawing.strokes.length || !!drawing.active || state.conflicted || !!state.defaultsDesired || !equal(fields(),state.baseline.fields) ||
@@ -249,12 +251,8 @@
       const when=node('td',Number.isNaN(date.getTime())?revision.created_at:date.toLocaleString('en-AU')),cell=node('td'),link=node('a');
       const expected=scoped('/api/certifications/'+encodeURIComponent(state.id)+'/revisions/'+revision.revision+'.pdf');
       if(!Number.isInteger(revision.revision)||revision.revision<1||revision.pdf_url!==expected)throw new Error('The saved certificate link is invalid.');
-      link.href=expected;text(link,'Download revision {0}',[revision.revision]);
-      link.addEventListener('click',async event=>{
-        event.preventDefault();if(state.busy||state.pending)return;state.busy=true;updateControls();
-        try{const saved=await window.CeasefireDownloads.save(expected,{}, {button:link});text($('certification-status'),'Certificate saved to {0}.',[saved.path]);}
-        catch(error){message(error.message,true);}finally{state.busy=false;updateControls();}
-      });cell.append(link);row.append(number,when,cell);body.append(row);
+      // Revisions already exist: open their scoped immutable PDF without a save prerequisite.
+      link.href=expected;link.target='_blank';link.rel='noopener';text(link,'Open revision {0}',[revision.revision]);cell.append(link);row.append(number,when,cell);body.append(row);
     }
     table.append(head,body);host.replaceChildren(table);
   }
@@ -462,6 +460,7 @@
         const saved=await post(scoped('/api/certifications/'+encodeURIComponent(action.id)+'/revisions',action.workspaceId),{fields:action.fields,options:action.options,expected_version:action.version,request_id:action.generationRequestId});
         state.pending=null;applyDocument(saved.document,{preserveManaged:acknowledgesAction(saved.document,action,action.version+1)});text($('certification-status'),'Revision {0} saved. Open it in Certificate revisions.',[saved.revision.revision]);
         $('certification-status').className='helper certification-save-status';
+        window.CeasefireNotifications?.show($('certification-status'));
         if(state.workspaceId===action.workspaceId)window.dispatchEvent(new CustomEvent('ceasefire:certification-revision-saved',
           {detail:{workspace_id:action.workspaceId,project_id:state.projectId}}));
         const file=await window.CeasefireDownloads.save(saved.revision.pdf_url,{}, {button:generateButton});

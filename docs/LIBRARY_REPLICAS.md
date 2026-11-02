@@ -78,6 +78,16 @@ ends, wrap extent, floor packing and seals. Cable-tray insulation also remains
 flexible wrap, with the source side fixing angles visible; do not substitute rigid
 board. These illustration corrections do not alter the assessed construction.
 
+Treat every service and its tray as one continuous assembly through insulation,
+walls and floors. Trace visible service paths and tray edges above and below the
+penetration before approval: cross-section, facing, projected alignment, depth
+order, diameter and camera projection must stay consistent. Wrap may enlarge the
+outside envelope; it must not rotate, shift, reverse or substitute the hidden
+service. Apply the final horizontal reflection uniformly to the whole scene
+exactly once. Reject separately plausible upper and lower halves that do not
+connect. Preserve source-visible end staggering without inventing concealed
+cable or fixing counts.
+
 Publish each visually accepted image through the installer, then verify that
 the live replica route returns its reviewed bytes and the original route returns
 the fingerprinted source. Keep failed or rejected candidates outside the registry;

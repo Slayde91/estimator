@@ -109,7 +109,15 @@ async function physicalThemeLabels(kind) {
   await hide.check(); await expect(callout()).toHaveCount(0); await expect(marker()).toHaveCount(0);
   const exportRequest=page.waitForRequest(request=>request.url().endsWith('/export/marked-pdf')),hiddenDownload=waitForTakeoffDownload(page);
   await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()); assert.deepEqual((await exportRequest).postDataJSON().item_ids,[]); await(await hiddenDownload).saveAs(path.join(output,'hidden-defect.pdf'));
-  assert.deepEqual(await snapshot(),beforeHide); await hide.uncheck(); await expect(callout()).toBeVisible(); evidence.hidePresentationAndPdfOnly=true;
+  const afterHiddenExport=await snapshot();
+  const {companion_folder:companionFolder,...afterHiddenDraft}=afterHiddenExport;
+  const {companion_folder:beforeCompanion,...beforeHiddenDraft}=beforeHide;
+  assert.deepEqual(afterHiddenDraft,beforeHiddenDraft,'Hiding and exporting preserves every takeoff draft field');
+  assert.match(companionFolder,/^\.ceasefire-evidence\/[0-9a-f-]+$/);
+  if(beforeCompanion)assert.equal(companionFolder,beforeCompanion);
+  assert.ok(fs.statSync(path.resolve(path.dirname(info.project),companionFolder)).isDirectory(),'First export creates its project-owned evidence directory');
+  assert.equal(JSON.parse(fs.readFileSync(info.project,'utf8')).takeoffs.companion_folder,companionFolder,'Automatic Save persists the exact evidence directory');
+  await hide.uncheck(); await expect(callout()).toBeVisible(); evidence.hidePresentationAndPdfOnly=true;
   await page.getByRole('button', { name: 'Close Item Details', exact: true }).click(); await expect(details()).not.toBeVisible(); await fit();
   await callout().press('Enter'); await expect(details()).not.toBeVisible(); await expect(page.locator('.takeoff-physical-callout-handle')).toHaveCount(4);
   await marker().press('Enter'); await expect(details()).toBeVisible(); await callout().press(' '); await expect(details()).toBeVisible(); await marker().press('Control+Enter'); await expect(details()).not.toBeVisible(); await fit();

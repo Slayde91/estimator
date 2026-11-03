@@ -255,12 +255,14 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
     }
     assert.match(await page.evaluate(() => {try {window.CeasefireTakeoffs.projectSnapshot(); return '';} catch(error) {return error.message;}}), /unfinished/);
     const saveRequests=[]; const watchSave=request=>{if(request.url().endsWith('/api/project/save'))saveRequests.push(request.url());};page.on('request',watchSave);
+    const projectBeforeFailedSave = fs.readFileSync(info.project);
     await clickProjectControl(page, 'Save');
     // Save first prepares the calculator snapshots before flushing the failed
     // Takeoff edit. Keep the rejection and no-save checks, allowing that work
     // the same bounded deadline as the other project actions in this journey.
     await expect(page.locator('#app-message')).toContainText('Synthetic revision race', {timeout:30000});
-    page.off('request',watchSave);assert.deepEqual(saveRequests,[]);assert.equal(fs.existsSync(info.project),false);
+    page.off('request',watchSave);assert.deepEqual(saveRequests,[]);
+    assert.deepEqual(fs.readFileSync(info.project),projectBeforeFailedSave,'Rejected Save must preserve the existing project bytes');
     await page.screenshot({path:path.join(output,'failed-settings-save-guard.png'),fullPage:true});
   } finally { await page.unroute('**/commands'); }
   // Re-entering a retained value retries the failed automatic patch.

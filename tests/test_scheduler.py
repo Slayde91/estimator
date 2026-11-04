@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import uuid
 
 from estimator.scheduler import SchedulerStore, SchedulerError, DEFAULT_SETTINGS, calculate_payroll, _timestamp
 
@@ -78,6 +79,30 @@ class SchedulerTests(unittest.TestCase):
         self.assert_error(409, lambda: self.write('shifts/delete', {'id': shift['id'], 'version': shift['version']}))
         self.write('shifts/delete', {'id': changed['id'], 'version': changed['version']})
         self.assertEqual(self.state()['shifts'], [])
+
+    def test_shift_create_retry_replays_durable_response_without_duplicate(self):
+        payload = {'request_id': str(uuid.uuid4()), 'title': 'Lost response',
+                   'start': '2026-11-02T07:00', 'end': '2026-11-02T15:30',
+                   'member_ids': [], 'published': True}
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            responses = list(executor.map(lambda _: self.write('shifts/save', payload), range(2)))
+        self.assertEqual(responses[0], responses[1])
+        reopened = SchedulerStore(self.path, now=lambda: self.now)
+        replay = reopened.write('shifts/save', dict(reversed(list(payload.items()))), self.token)
+        self.assertEqual(replay, responses[0])
+        self.assertEqual(len(self.state()['shifts']), 1)
+        with self.store.connect() as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM scheduler_audit WHERE action='shift.create'").fetchone()[0], 1)
+        self.assert_error(409, lambda: self.write('shifts/save', {**payload, 'title': 'Changed after retry'}))
+        self.assertEqual(self.state()['shifts'][0]['title'], 'Lost response')
+        self.assert_error(400, lambda: self.write('shifts/save', {**responses[0], 'request_id': payload['request_id']}))
+
+    def test_failed_shift_create_does_not_reserve_retry_receipt(self):
+        payload = {'request_id': str(uuid.uuid4()), 'title': '', 'start': '2026-11-02T07:00', 'end': '2026-11-02T15:30'}
+        self.assert_error(400, lambda: self.write('shifts/save', payload))
+        saved = self.write('shifts/save', {**payload, 'title': 'Corrected invalid request'})
+        self.assertEqual(saved['title'], 'Corrected invalid request')
+        self.assert_error(400, lambda: self.write('shifts/save', {**payload, 'request_id': 'not-a-uuid'}))
 
     def test_worker_cannot_admin_or_read_other_entries(self):
         worker = self.member()

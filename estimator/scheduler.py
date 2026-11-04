@@ -35,7 +35,7 @@ WRITE_FIELDS = {
     'login': {'email', 'password'},
     'logout': set(),
     'members/save': {'id', 'version', 'name', 'email', 'password', 'role', 'active', 'base_rate'},
-    'shifts/save': {'id', 'version', 'updated_at', 'title', 'start', 'end', 'member_ids', 'project_id', 'project_name', 'location', 'notes', 'color', 'published'},
+    'shifts/save': {'id', 'version', 'updated_at', 'title', 'start', 'end', 'member_ids', 'project_id', 'project_name', 'location', 'notes', 'color', 'published', 'request_id'},
     'entries/save': {'id', 'version', 'updated_at', 'member_id', 'start', 'end', 'breaks', 'project_id', 'project_name', 'notes', 'base_rate', 'source', 'location_consent'},
     'shifts/delete': {'id', 'version'},
     'entries/delete': {'id', 'version'},
@@ -159,6 +159,11 @@ class SchedulerStore:
                 CREATE TABLE IF NOT EXISTS scheduler_audit (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, actor TEXT NOT NULL,
                     action TEXT NOT NULL, target TEXT NOT NULL, before_data TEXT, after_data TEXT
+                );
+                CREATE TABLE IF NOT EXISTS scheduler_requests (
+                    actor TEXT NOT NULL, action TEXT NOT NULL, request_id TEXT NOT NULL,
+                    fingerprint TEXT NOT NULL, response TEXT NOT NULL,
+                    PRIMARY KEY(actor,action,request_id)
                 );
             ''')
             db.execute('INSERT OR IGNORE INTO scheduler_settings VALUES(1,?)', (_json(DEFAULT_SETTINGS),))
@@ -294,8 +299,10 @@ class SchedulerStore:
                 return {'signed_out': True}
             if action == 'members/save':
                 return self._member_save(db, user, payload)
-            if action in ('shifts/save', 'entries/save'):
-                return self._record_save(db, user, payload, 'shift' if action.startswith('shifts') else 'entry')
+            if action == 'shifts/save':
+                return self._shift_save(db, user, payload)
+            if action == 'entries/save':
+                return self._record_save(db, user, payload, 'entry')
             if action in ('shifts/delete', 'entries/delete'):
                 return self._delete(db, user, payload, 'shift' if action.startswith('shifts') else 'entry')
             if action == 'settings':
@@ -305,6 +312,36 @@ class SchedulerStore:
             if action == 'locations':
                 return self._location(db, user, payload)
             raise SchedulerError('Scheduler endpoint not found.', 404)
+
+    def _shift_save(self, db, user, payload):
+        """Commit a new shift and its retry receipt in the same transaction."""
+        self._admin(user)
+        if 'request_id' not in payload:
+            return self._record_save(db, user, payload, 'shift')
+        request_id = _text(payload['request_id'], 'Request ID', 36, True)
+        try:
+            if str(uuid.UUID(request_id)) != request_id:
+                raise ValueError()
+        except ValueError:
+            raise SchedulerError('Use a canonical UUID for the shift request ID.') from None
+        if payload.get('id'):
+            raise SchedulerError('Request IDs apply only when creating a new shift.')
+        semantic = {key: value for key, value in payload.items() if key != 'request_id'}
+        try:
+            canonical = json.dumps(semantic, sort_keys=True, ensure_ascii=True, allow_nan=False, separators=(',', ':'))
+        except (TypeError, ValueError):
+            raise SchedulerError('The shift request must contain valid JSON values.') from None
+        fingerprint = hashlib.sha256(canonical.encode()).hexdigest()
+        receipt = db.execute("SELECT fingerprint,response FROM scheduler_requests WHERE actor=? AND action='shifts/save' AND request_id=?",
+                             (user['id'], request_id)).fetchone()
+        if receipt:
+            if receipt['fingerprint'] != fingerprint:
+                raise SchedulerError('This shift request was already saved with different details. Refresh the schedule before trying again.', 409)
+            return json.loads(receipt['response'])
+        result = self._record_save(db, user, semantic, 'shift')
+        db.execute("INSERT INTO scheduler_requests(actor,action,request_id,fingerprint,response) VALUES(?,'shifts/save',?,?,?)",
+                   (user['id'], request_id, fingerprint, _json(result)))
+        return result
 
     def _session(self, db, user):
         token = secrets.token_urlsafe(32)

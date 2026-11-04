@@ -558,7 +558,7 @@ class SchedulerStore:
         longitude = float(_number(payload.get('longitude'), 'Longitude', -180, 180))
         accuracy = float(_number(payload.get('accuracy'), 'Accuracy', 0, 100000))
         captured = _timestamp(payload['captured_at']) if payload.get('captured_at') else self.now()
-        if not _timestamp(entry['start']) <= captured <= self.now() + timedelta(seconds=30) or captured < self.now()-timedelta(minutes=5):
+        if not _timestamp(entry['start']) <= captured <= self.now() or captured < self.now()-timedelta(minutes=5):
             raise SchedulerError('Location timestamps must be current and inside this clock session.')
         latest = db.execute('SELECT captured_at FROM scheduler_locations WHERE entry_id=? ORDER BY captured_at DESC LIMIT 1', (entry['id'],)).fetchone()
         if latest and captured < _timestamp(latest['captured_at']) + timedelta(seconds=10):

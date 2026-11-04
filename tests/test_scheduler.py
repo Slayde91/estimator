@@ -138,14 +138,16 @@ class SchedulerTests(unittest.TestCase):
         entry = self.write('clock/in', {'location_consent': True})
         self.assertTrue(self.write('locations', location)['recorded'])
         self.assertFalse(self.write('locations', location)['recorded'])
+        self.assert_error(400, lambda: self.write('locations', {**location, 'captured_at': (self.now + timedelta(seconds=20)).isoformat()}))
         self.assert_error(400, lambda: self.write('locations', {**location, 'captured_at': '2026-10-01T00:00:00Z'}))
         worker = self.member()
         token = self.store.write('login', {'email': worker['email'], 'password': 'worker password 123'})['token']
         self.assert_error(403, lambda: self.store.read('locations', {'entry_id': entry['id']}, token))
         self.assertEqual(len(self.store.read('locations', {'entry_id': entry['id']}, self.token)['locations']), 1)
         self.now += timedelta(seconds=10)
-        self.write('clock/out')
+        closed = self.write('clock/out')
         self.assert_error(403, lambda: self.write('locations', location))
+        self.assert_error(400, lambda: self.write('entries/save', {**closed, 'start': (self.now - timedelta(seconds=1)).isoformat()}))
 
     def test_manual_entries_overlap_break_validation_and_audit(self):
         entry = self.write('entries/save', {'member_id': self.auth['user']['id'], 'start': '2026-11-02T08:00', 'end': '2026-11-02T16:00'})

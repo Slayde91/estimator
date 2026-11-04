@@ -188,7 +188,7 @@
     result: null, revision: 0, timer: null, pricingExpanded: new Set(), mainSection: "access-travel", mainOutputSection: "material-breakdown", legacyTitle: "",
     workflow: "", defaultWorkflow: "Intumescent spray to ductwork", inputErrors: new Map(), inputDrafts: new Map(), inputRevision: 0, projectBusy: false,
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
-    projectFile: null, projectsRevision: 0, initialized: false, currentView: "home", lastProjectSection: null, projectsOffset: 0, projectsTimer: null, desktopRequests: 0,
+    projectFile: null, projectStatus: "Draft", projectCards: [], projectColumns: new Set(["Draft", "Review", "Presented", "Accepted", "Lost"]), projectsRevision: 0, initialized: false, currentView: "home", lastProjectSection: null, projectsOffset: 0, projectsTimer: null, desktopRequests: 0,
     projectBrowserProject: null, projectBrowserPath: "", projectBrowserRevision: 0,
     pricingRender: null, estimatorKind: "estimate", calculatorKind: "steel", libraryKind: "pricing",
     workItems: [], workItemErrors: new Map(), workItemDrafts: new Map(), nextWorkItem: 1,
@@ -395,7 +395,11 @@
     updateProjectStatus();
   }
 
+  const projectStatuses = ["Draft", "Review", "Presented", "Accepted", "Lost"];
+
   function updateProjectStatus() {
+    $("project-status").value = state.projectStatus;
+    $("project-status").disabled = state.projectBusy;
     const file = state.projectFile, changed = !!projectHasChanges();
     // A fresh draft updates the save badge; notices remain until dismissal/navigation.
     if (changed && state.projectSavedNotice) {
@@ -873,7 +877,7 @@
     state.quoteContext++;
     state.quoteLoadRevision++;
     state.inputErrors.clear(); state.inputDrafts.clear(); state.workItemErrors.clear(); state.workItemDrafts.clear();
-    state.quote = null; state.quoteConfiguration = null; state.projectFile = null;
+    state.quote = null; state.quoteConfiguration = null; state.projectFile = null; state.projectStatus = "Draft";
     resetProjectPricing();
     state.fields = clone(state.currentFields);
     // Start notes blank without changing workbook defaults or saved-quote inputs.
@@ -967,7 +971,7 @@
       state.quoteContext++;
       state.inputErrors.clear(); state.inputDrafts.clear(); state.workItemErrors.clear(); state.workItemDrafts.clear();
       state.quote = quote;
-      state.projectFile = null;
+      state.projectFile = null; state.projectStatus = "Draft";
       window.CeasefireCalculators.applyProject(prepared);
       if (penetration) window.CeasefirePenetrations.applyProject(penetration);
       if (takeoffs) window.CeasefireTakeoffs.applyProject(takeoffs);
@@ -1259,7 +1263,7 @@
     switchPricingScope(scope); return true;
   }
   function projectPricingChanged() { return draftChanged(state.pricingScope === "project" ? state.draft : state.projectPricingDraft, state.quoteConfiguration || state.configuration); }
-  function projectHasChanges() { return state.dirty || projectPricingChanged() || window.CeasefireCalculators?.hasUnsavedChanges() || window.CeasefirePenetrations?.hasUnsavedChanges() || window.CeasefireTakeoffs?.hasUnsavedChanges() || window.CeasefireLibraryEditor?.hasProjectChanges?.() || window.CeasefireCertification?.hasProjectChanges?.() || window.CeasefireDocumentation?.hasProjectChanges?.(); }
+  function projectHasChanges() { return state.projectStatus !== (state.projectFile?.project_status || "Draft") || state.dirty || projectPricingChanged() || window.CeasefireCalculators?.hasUnsavedChanges() || window.CeasefirePenetrations?.hasUnsavedChanges() || window.CeasefireTakeoffs?.hasUnsavedChanges() || window.CeasefireLibraryEditor?.hasProjectChanges?.() || window.CeasefireCertification?.hasProjectChanges?.() || window.CeasefireDocumentation?.hasProjectChanges?.(); }
   function pricingScopeUi() {
     $("pricing-scope").value = state.pricingScope;
     const save = $("save-pricing"), project = state.pricingScope === "project";
@@ -1974,7 +1978,7 @@
   }
 
   function projectStamp() {
-    return JSON.stringify({ estimate: projectEstimate(), quoteContext: state.quoteContext,
+    return JSON.stringify({ project_status: state.projectStatus, estimate: projectEstimate(), quoteContext: state.quoteContext,
       quoteLoadRevision: state.quoteLoadRevision, inputRevision: state.inputRevision,
       errors: [...state.inputErrors], inputDrafts: [...state.inputDrafts],
       pricing: state.pricingScope === "project" ? state.draft : state.projectPricingDraft,
@@ -2047,7 +2051,7 @@
       if (libraryStamp !== window.CeasefireLibraryEditor?.projectFingerprint?.()) throw new Error("Project library drafts changed while preparing the file. Save again when ready.");
       if (certificationStamp !== window.CeasefireCertification?.projectFingerprint?.()) throw new Error("Project certificates changed while preparing the file. Save again when ready.");
       if (documentationStamp !== window.CeasefireDocumentation?.projectFingerprint?.()) throw new Error("Project documents changed while preparing the file. Save again when ready.");
-      const payload = { estimate: projectEstimate(), calculators, ...(penetration ? { penetration } : {}), ...(libraryDrafts ? { library_drafts: libraryDrafts } : {}), ...(certifications ? { certifications } : {}), ...(documentation ? {documentation} : {}), ...(takeoffs ? { takeoffs, takeoffs_session_id: window.CeasefireTakeoffs.sessionId() } : {}) };
+      const payload = { project_status: state.projectStatus, estimate: projectEstimate(), calculators, ...(penetration ? { penetration } : {}), ...(libraryDrafts ? { library_drafts: libraryDrafts } : {}), ...(certifications ? { certifications } : {}), ...(documentation ? {documentation} : {}), ...(takeoffs ? { takeoffs, takeoffs_session_id: window.CeasefireTakeoffs.sessionId() } : {}) };
       if (pricing) payload.estimate.configuration = clone(pricing.configuration);
       if (!saveAs) payload.save_token = target.save_token;
       const captured = projectStamp();
@@ -2176,7 +2180,8 @@
       state.inputErrors.clear(); state.inputDrafts.clear(); state.workItemErrors.clear(); state.workItemDrafts.clear();
       state.quote = null; state.quoteConfiguration = configuration; state.fields = fields; state.inputs = inputs;
       state.workItems = clone(estimate.work_items || []); state.nextWorkItem = state.workItems.length + 1;
-      state.projectFile = { ...file, title: estimate.title }; resetProjectPricing("project");
+      state.projectStatus = project.project_status || "Draft";
+      state.projectFile = { ...file, title: estimate.title, project_status: state.projectStatus }; resetProjectPricing("project");
       state.legacyTitle = [estimate.project_no, estimate.client, estimate.site_address].some(Boolean) ? "" : estimate.title || "";
       $("project-no").value = estimate.project_no || ""; $("client").value = estimate.client || ""; $("site-address").value = estimate.site_address || "";
       if (certification) { window.CeasefireCertification.applyProject(certification); certificationAdopted = true; }
@@ -2193,6 +2198,117 @@
     }
   }
 
+  function renderProjectBoard() {
+    const columns = projectStatuses.filter(status => state.projectColumns.has(status)).map(status => {
+      const column = node("section", "project-kanban-column");
+      column.dataset.status = status;
+      column.setAttribute("aria-label", `${status} projects`);
+      const files = state.projectCards.filter(file => (file.project_status || "Draft") === status);
+      const heading = node("div", "project-column-heading");
+      heading.append(uiNode("h2", "", status), node("span", "status-label", files.length));
+      column.append(heading);
+      column.addEventListener("dragover", event => {
+        if (!state.draggedProject || state.projectBusy) return;
+        event.preventDefault(); event.dataTransfer.dropEffect = "move";
+      });
+      column.addEventListener("drop", event => {
+        event.preventDefault();
+        const file = state.projectCards.find(item => item.id === state.draggedProject);
+        state.draggedProject = null;
+        if (file) changeProjectStage(file, status);
+      });
+      for (const file of files) {
+        const card = node("article", "project-kanban-card");
+        card.draggable = true; card.dataset.projectId = file.id;
+        card.addEventListener("dragstart", event => {
+          if (state.projectBusy) { event.preventDefault(); return; }
+          state.draggedProject = file.id;
+          event.dataTransfer.setData("text/plain", file.id); event.dataTransfer.effectAllowed = "move";
+        });
+        card.addEventListener("dragend", () => { state.draggedProject = null; });
+        const title = node("button", "project-title-button", file.title || file.name);
+        title.type = "button";
+        window.CeasefireI18n.attr(title, "aria-label", "Browse files for {0}", [file.title || file.name]);
+        title.addEventListener("click", () => openProjectBrowser(file));
+        const menu = node("details", "project-card-menu"), toggle = node("summary", "", "▾");
+        toggle.setAttribute("aria-label", `Actions for ${file.title || file.name}`);
+        const actions = node("div", "project-menu-options");
+        for (const [label, action] of [["Open", () => openProjectFile(file, title)], ["Edit", () => openProjectFile(file, title)], ["Delete", () => deleteProjectCard(file)]]) {
+          const button = uiNode("button", "text-button", label); button.type = "button";
+          button.addEventListener("click", () => { menu.open = false; action(); }); actions.append(button);
+        }
+        const browse = uiNode("button", "text-button", "Browse files"); browse.type = "button";
+        browse.addEventListener("click", () => { menu.open = false; openProjectBrowser(file); }); actions.append(browse);
+        const moveLabel = uiNode("label", "field", "Move to"), move = node("select");
+        move.setAttribute("aria-label", `Status for ${file.title || file.name}`);
+        for (const name of projectStatuses) { const option = uiNode("option", "", name); option.value = name; move.append(option); }
+        move.value = status;
+        move.addEventListener("change", () => { menu.open = false; changeProjectStage(file, move.value); });
+        moveLabel.append(move); actions.append(moveLabel); menu.append(toggle, actions);
+        const cardHeading = node("div", "project-card-heading"); cardHeading.append(title, menu);
+        card.append(cardHeading, node("p", "helper", [file.project_no, file.client, file.site_address].filter(Boolean).join(" · ")),
+          uiNode("p", "helper", "Last updated {0}", [new Date(file.modified_at).toLocaleString("en-AU")]),
+          node("p", "helper project-relative-path", file.relative_path || file.name));
+        column.append(card);
+      }
+      if (!files.length) column.append(uiNode("p", "project-column-empty", "No projects"));
+      return column;
+    });
+    $("project-list").replaceChildren(...(columns.length ? columns : [uiNode("p", "empty-state", "Choose a column from Columns to show projects.")]));
+  }
+
+  async function changeProjectStage(file, status) {
+    if (state.projectBusy || status === (file.project_status || "Draft")) return;
+    projectBusy(true);
+    try {
+      const selection = file.save_token ? {save_token: file.save_token} : {id: file.id};
+      const result = await request("/api/projects/status", { method: "POST", body: JSON.stringify({...selection, revision: file.revision, project_status: status}) });
+      if (state.projectFile?.path === file.path && state.projectFile.revision === file.revision) {
+        state.projectFile = result.file; state.projectStatus = status;
+      }
+      await loadProjects();
+      message(uiCopy("Project moved to {0}.", [status]));
+    } catch (error) { message(error.message, true); }
+    finally { projectBusy(false); }
+  }
+
+  async function changeCurrentProjectStage() {
+    const status = $("project-status").value;
+    if (state.projectBusy || !projectStatuses.includes(status)) return;
+    if (state.projectFile?.save_token) await changeProjectStage(state.projectFile, status);
+    else { state.projectStatus = status; updateProjectStatus(); }
+  }
+
+  async function deleteProjectCard(file) {
+    if (state.projectBusy) return;
+    const accepted = await confirmReplace(uiCopy("Delete project?"), uiCopy("Remove {0} from Projects? Its project file will be retained under a recovery filename in the same folder. Companion documents stay in place.", [file.title || file.name]), uiCopy("Delete"));
+    if (!accepted || state.projectBusy) return;
+    projectBusy(true);
+    try {
+      await request("/api/projects/delete", {method: "POST", body: JSON.stringify({id: file.id, revision: file.revision})});
+      if (state.projectFile?.path === file.path) { state.projectFile = null; updateDirty(true); }
+      await loadProjects(); message(uiCopy("Project deleted from Projects."));
+    } catch (error) { message(error.message, true); }
+    finally { projectBusy(false); }
+  }
+
+  function initializeProjectColumns() {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem("classifire.projectColumns"));
+      if (Array.isArray(saved)) state.projectColumns = new Set(saved.filter(name => projectStatuses.includes(name)));
+    } catch { /* Use all columns if browser preferences are unavailable. */ }
+    for (const status of projectStatuses) {
+      const label = node("label"), checkbox = node("input"); checkbox.type = "checkbox";
+      checkbox.checked = state.projectColumns.has(status);
+      checkbox.addEventListener("change", () => {
+        if (checkbox.checked) state.projectColumns.add(status); else state.projectColumns.delete(status);
+        try { window.localStorage.setItem("classifire.projectColumns", JSON.stringify([...state.projectColumns])); } catch { /* This view still updates. */ }
+        renderProjectBoard();
+      });
+      label.append(checkbox, uiNode("span", "", status)); $("project-column-options").append(label);
+    }
+  }
+
   async function loadProjects({ refresh = false, offset = state.projectsOffset } = {}) {
     clearTimeout(state.projectsTimer);
     const revision = ++state.projectsRevision;
@@ -2201,30 +2317,29 @@
     const query = [];
     if (search) query.push(`search=${encodeURIComponent(search)}`);
     if (sort !== "modified_desc") query.push(`sort=${encodeURIComponent(sort)}`);
-    if (offset) query.push(`offset=${offset}`);
     if (refresh) query.push("refresh=1");
     try {
       const data = await request(`/api/projects${query.length ? `?${query.join("&")}` : ""}`);
-      if (revision !== state.projectsRevision) return;
-      if (!data.scan_pending && offset > 0 && data.matched !== undefined && offset >= data.matched) {
-        return loadProjects({ offset: data.matched ? Math.floor((data.matched - 1) / 100) * 100 : 0 });
+      if (!data.scan_pending) {
+        const pageQuery = query.filter(part => part !== "refresh=1");
+        while (data.files?.length < data.matched) {
+          const page = await request(`/api/projects?${[...pageQuery, `offset=${data.files.length}`].join("&")}`);
+          if (revision !== state.projectsRevision) return;
+          if (!page.files.length) break;
+          data.files.push(...page.files);
+        }
       }
+      if (revision !== state.projectsRevision) return;
       if (data.folder) $("project-folder").textContent = data.folder;
       else window.CeasefireI18n.text($("project-folder"), "Link your estimates folder to list its project files and use it as the default save location.");
-      state.projectsOffset = data.offset ?? offset;
-      const items = (data.files || []).map(file => {
-        const item = node("article", "quote-item"), description = node("div");
-        const heading = node("h3"), title = node("button", "project-title-button", file.title || file.name); title.type = "button";
-        window.CeasefireI18n.attr(title, "aria-label", "Browse files for {0}", [file.title || file.name]); title.addEventListener("click", () => openProjectBrowser(file)); heading.append(title);
-        description.append(heading, node("p", "", [file.project_no, file.client, file.site_address].filter(Boolean).join(" · ")), node("p", "helper project-relative-path", file.relative_path || file.name), uiNode("p", "helper", "Saved {0}", [new Date(file.modified_at).toLocaleString("en-AU")]));
-        const button = uiNode("button", "button secondary", "Open project"); button.type = "button";
-        button.addEventListener("click", () => openProjectFile(file, button)); item.append(description, button); return item;
-      });
-      list.replaceChildren(...(items.length ? items : [uiNode("p", "empty-state", data.scan_pending ? "Scanning the linked folder and subfolders…" : search ? "No projects match this search." : "No project files in the linked folder or its subfolders yet.")]));
-      const matched = data.matched ?? items.length, total = data.total ?? matched, first = items.length ? state.projectsOffset + 1 : 0;
-      window.CeasefireI18n.text($("project-list-status"), "{0}–{1} of {2} matching projects · {3} found{4}", [first, items.length ? state.projectsOffset + items.length : 0, matched, total, data.scan_pending ? ` · Scanning subfolders (${data.scanned_entries || 0} entries checked)…` : ""]);
-      $("project-previous").disabled = !state.projectsOffset;
-      $("project-next").disabled = state.projectsOffset + items.length >= matched;
+      state.projectsOffset = 0;
+      state.projectCards = data.files || [];
+      renderProjectBoard();
+      const matched = data.matched ?? state.projectCards.length, total = data.total ?? matched;
+      window.CeasefireI18n.text($("project-list-status"), "{0} matching projects · {1} found{2}", [matched, total, data.scan_pending ? ` · Scanning subfolders (${data.scanned_entries || 0} entries checked)…` : ""]);
+      $("project-previous").disabled = true;
+      $("project-next").disabled = true;
+      if ($("project-previous").parentElement) $("project-previous").parentElement.hidden = true;
       $("project-continue").hidden = !data.scan_pending;
       const problems = (data.errors || []).map(item => `${item.name}: ${item.error}`);
       if (data.error_count > problems.length) problems.push(`${data.error_count - problems.length} additional entries could not be listed.`);
@@ -2445,6 +2560,8 @@
     state.projectsTimer = setTimeout(() => loadProjects({ offset: 0 }), 250);
   });
   $("project-sort").addEventListener("change", () => loadProjects({ offset: 0 }));
+  $("project-status").addEventListener("change", changeCurrentProjectStage);
+  initializeProjectColumns();
   $("project-previous").addEventListener("click", () => loadProjects({ offset: Math.max(0, state.projectsOffset - 100) }));
   $("project-next").addEventListener("click", () => loadProjects({ offset: state.projectsOffset + 100 }));
   $("project-continue").addEventListener("click", () => loadProjects());

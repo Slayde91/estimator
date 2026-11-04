@@ -444,3 +444,33 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 #main-panel-additions>#main-panel-global-adjustments{margin-top:20px;padding-top:20px;border-top:1px solid var(--line)}
 @media(max-width:580px){.penetration-fields.penetration-additional-fields{grid-template-columns:1fr;grid-template-areas:"materials" "material-adjust" "labour" "labour-adjust"}}
 @media print{.message-slot{display:none!important}}
+
+/* Project pipeline uses the same cards and field colours as the workspace. */
+.project-list-controls{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.project-list-controls .project-search-field{flex:1;min-width:220px}
+.project-columns-menu,.project-card-menu{position:relative}
+.project-columns-menu summary,.project-card-menu summary{cursor:pointer;list-style:none}
+.project-columns-menu summary::-webkit-details-marker,.project-card-menu summary::-webkit-details-marker{display:none}
+.project-menu-options{position:absolute;right:0;top:calc(100% + 6px);z-index:20;min-width:185px;display:grid;gap:10px;padding:14px;background:var(--theme-surface,var(--paper));border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px #0004}
+.project-menu-options>label{display:flex;align-items:center;gap:10px;white-space:nowrap}
+.project-menu-options>label.field{display:grid}
+.project-menu-options input[type="checkbox"]{width:17px;height:17px;margin:0}
+.project-menu-options .text-button{text-align:left}
+.project-kanban{display:flex;gap:14px;overflow-x:auto;align-items:stretch;padding:4px 0 20px;min-height:290px}
+.project-kanban-column{flex:1 0 215px;min-width:0;max-width:420px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--theme-input,var(--canvas))}
+.project-column-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:16px;border-top:3px solid var(--muted);padding-top:10px}
+.project-column-heading h2{font-size:14px;margin:0}
+.project-kanban-column[data-status="Review"] .project-column-heading{border-color:#e9b541}
+.project-kanban-column[data-status="Presented"] .project-column-heading{border-color:#5a9ce8}
+.project-kanban-column[data-status="Accepted"] .project-column-heading{border-color:#36ad7d}
+.project-kanban-column[data-status="Lost"] .project-column-heading{border-color:#d96373}
+.project-kanban-card{padding:13px;margin:0 0 12px;border:1px solid var(--line);border-radius:9px;background:var(--theme-surface,var(--paper));cursor:grab}
+.project-kanban-card:active{cursor:grabbing}
+.project-card-heading{display:flex;align-items:flex-start;gap:10px;justify-content:space-between}
+.project-card-heading .project-title-button{font-size:13px;line-height:1.5;text-align:left;overflow-wrap:anywhere}
+.project-card-menu{flex-shrink:0}
+.project-card-menu summary{padding:0 5px;font-size:20px}
+.project-kanban-card p{margin:8px 0 0;overflow-wrap:anywhere;font-size:11px;line-height:1.5}
+.project-column-empty{color:var(--muted);font-size:12px;padding:18px 0;text-align:center}
+.project-status-field{min-width:135px;font-size:12px;gap:5px}
+.project-status-field select{min-height:40px}

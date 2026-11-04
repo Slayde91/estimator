@@ -30,8 +30,15 @@ MAX_PROJECT_FILE = 16 * 1_048_576
 LEGACY_CALCULATOR_IDS = ("steel_vermiculite", "steel_board", "ductwork")
 CALCULATOR_IDS = (*LEGACY_CALCULATOR_IDS, "steel_intumescent")
 OPTIONAL_CALCULATOR_IDS = ("steel_intumescent",)
+PROJECT_STATUSES = ("Draft", "Review", "Presented", "Accepted", "Lost")
 ESTIMATE_REQUIRED_FIELDS = {"title", "workflow", "measurements", "inputs", "configuration", *QUOTE_DETAIL_LIMITS}
 ESTIMATE_FIELDS = {*ESTIMATE_REQUIRED_FIELDS, "work_items"}
+
+
+def validate_project_status(value):
+    if not isinstance(value, str) or value not in PROJECT_STATUSES:
+        raise ValidationError("Choose Draft, Review, Presented, Accepted or Lost for the project status.")
+    return value
 
 
 def project_filename(title):
@@ -122,7 +129,8 @@ def project_summary(payload, *, edition='full'):
     title = estimate.get("title")
     if not isinstance(title, str) or len(title) > 1000:
         raise ValidationError("The project quote name is invalid.")
-    return {"estimate": {"title": title, **details}}
+    return {"estimate": {"title": title, **details},
+            "project_status": validate_project_status(snapshot.get("project_status", "Draft"))}
 
 
 def project_download_header(filename):
@@ -198,7 +206,7 @@ def _portable_penetration(value, *, saved=False):
 def export_project(store, request, *, edition='full'):
     """Return a portable project snapshot with verified evidence manifests."""
     require_project_edition(request, edition)
-    if not isinstance(request, dict) or set(request) - {"estimate", "calculators", "penetration", "takeoffs", "library_drafts", "certifications", "documentation"} or "estimate" not in request:
+    if not isinstance(request, dict) or set(request) - {"estimate", "calculators", "penetration", "takeoffs", "library_drafts", "certifications", "documentation", "project_status"} or "estimate" not in request:
         raise ValidationError("Include the current estimate and optional calculator drafts to save a project.")
     _check_tree(request)
     estimate = request["estimate"]
@@ -236,6 +244,7 @@ def export_project(store, request, *, edition='full'):
     snapshot = {
         "format": PROJECT_FORMAT,
         "version": PROJECT_VERSION,
+        "project_status": validate_project_status(request.get("project_status", "Draft")),
         "estimate": {key: prepared[key] for key in sorted(ESTIMATE_FIELDS)},
         "calculators": calculators,
     }
@@ -290,7 +299,7 @@ def load_project_bytes(store, payload, *, edition='full'):
     require_project_edition(snapshot, edition)
     _check_tree(snapshot)
     required = {"format", "version", "estimate", "calculators"}
-    if not isinstance(snapshot, dict) or not required <= set(snapshot) or set(snapshot) - required - {"penetration", "takeoffs", "library_drafts", "certifications", "documentation"}:
+    if not isinstance(snapshot, dict) or not required <= set(snapshot) or set(snapshot) - required - {"penetration", "takeoffs", "library_drafts", "certifications", "documentation", "project_status"}:
         raise ValidationError("The project file contains missing or unsupported fields.")
     if snapshot["format"] != PROJECT_FORMAT or type(snapshot["version"]) is not int or snapshot["version"] not in {PROJECT_VERSION, TAKEOFF_PROJECT_VERSION}:
         raise ValidationError("This project file format or version is not supported.")
@@ -335,6 +344,7 @@ def load_project_bytes(store, payload, *, edition='full'):
     prepared["id"] = None
     metadata = fields(effective_catalog(prepared["configuration"]))
     result = {"estimate": prepared, "fields": metadata, "calculators": normalized,
+              "project_status": validate_project_status(snapshot.get("project_status", "Draft")),
               "project_details": project_details({key: prepared[key] for key in QUOTE_DETAIL_LIMITS})}
     if penetration is not None:
         result["penetration"] = penetration

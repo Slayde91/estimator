@@ -21,7 +21,7 @@ import time
 from .catalog import ValidationError
 from .edition import require_project_edition, validate_edition
 from .native_dialogs import NativeDialogs, SaveSelection
-from .project_file import CALCULATOR_IDS, LEGACY_CALCULATOR_IDS, OPTIONAL_CALCULATOR_IDS, ESTIMATE_FIELDS, ESTIMATE_REQUIRED_FIELDS, MAX_PROJECT_FILE, PROJECT_EXTENSION, assert_project_overwrite, export_project, has_project_identity, is_project_filename, load_project_bytes, project_filename, project_summary
+from .project_file import CALCULATOR_IDS, LEGACY_CALCULATOR_IDS, OPTIONAL_CALCULATOR_IDS, ESTIMATE_FIELDS, ESTIMATE_REQUIRED_FIELDS, MAX_PROJECT_FILE, PROJECT_EXTENSION, assert_project_overwrite, export_project, has_project_identity, is_project_filename, load_project_bytes, project_filename, project_summary, validate_project_status
 
 
 MAX_PROJECT_FILES = 200
@@ -233,7 +233,7 @@ def _open_default_file(path):
         subprocess.Popen(["xdg-open", str(path)], close_fds=True)
 
 
-def _metadata(path, info, project, folder):
+def _metadata(path, info, project, folder, payload):
     estimate = project["estimate"]
     inside = folder is not None and path.is_relative_to(folder)
     relative = path.relative_to(folder).as_posix() if inside else path.name
@@ -242,6 +242,8 @@ def _metadata(path, info, project, folder):
             "relative_folder": str(Path(relative).parent).replace("\\", "/") if inside else "",
             "title": estimate["title"], "project_no": estimate.get("project_no", ""),
             "client": estimate.get("client", ""), "site_address": estimate.get("site_address", ""),
+            "project_status": project.get("project_status", "Draft"),
+            "revision": hashlib.sha256(payload).hexdigest(),
             "modified_at": datetime.fromtimestamp(info.st_mtime, timezone.utc).isoformat(), "size": info.st_size}
 
 
@@ -499,7 +501,7 @@ class ProjectLibrary:
                         if recognized:
                             if info.st_size > MAX_PROJECT_FILE:
                                 raise ValidationError("The project file must be at most 16 MB.")
-                            value = _metadata(path, info, project_summary(payload, edition=self.edition), scan["folder"])
+                            value = _metadata(path, info, project_summary(payload, edition=self.edition), scan["folder"], payload)
                         else:
                             value = {"ignored": True}
                     except (OSError, ValidationError) as error:
@@ -589,7 +591,73 @@ class ProjectLibrary:
         payload, info = _read_file(path)
         project = load_project_bytes(self.store, payload, edition=self.edition)
         project = self._restore_takeoffs(project, path)
-        return {**project, "file": self._authorize_save(path, info, payload, _metadata(path, info, project, folder))}
+        return {**project, "file": self._authorize_save(path, info, payload, _metadata(path, info, project, folder, payload))}
+
+    def update_status(self, request):
+        """Change only the portable status, with a required last-read revision."""
+        if not isinstance(request, dict) or set(request) not in ({"id", "revision", "project_status"}, {"save_token", "revision", "project_status"}):
+            raise ValidationError("Include the selected project, revision and status only.")
+        status = validate_project_status(request["project_status"])
+        with self._lock:
+            token = request.get("save_token")
+            if "save_token" in request:
+                selection = self._save_targets.get(token) if isinstance(token, str) else None
+                if selection is None:
+                    raise ValidationError("The project selection is no longer available. Reload the project.")
+                path = _project_save_path(selection)
+                if file_fingerprint(path) != selection.fingerprint:
+                    raise ValidationError("The project changed. Reload it before changing its status.")
+            else:
+                _, path = self._project_path(request["id"])
+            payload, info = _read_file(path)
+            revision = hashlib.sha256(payload).hexdigest()
+            if not isinstance(request["revision"], str) or request["revision"] != revision:
+                raise ValidationError("The project changed. Refresh the project list before changing its status.")
+            project = load_project_bytes(self.store, payload, edition=self.edition)
+            snapshot = json.loads(payload.decode("utf-8-sig"))
+            snapshot["project_status"] = status
+            updated = json.dumps(snapshot, ensure_ascii=False, allow_nan=False, indent=2).encode("utf-8")
+            if len(updated) > MAX_PROJECT_FILE:
+                raise ValidationError("The updated project exceeds the 16 MB file limit.")
+            selection = SaveSelection(str(path), {"size": info.st_size, "mtime_ns": info.st_mtime_ns, "sha256": revision})
+            path, info = _atomic_write(selection, updated)
+            project["project_status"] = status
+            selected_folder = self.store.project_folder()
+            try:
+                folder = _directory(selected_folder) if selected_folder else None
+            except ValidationError:
+                folder = None
+            metadata = _metadata(path, info, project, folder, updated)
+            if self._scan is not None and self._scan["folder"] == folder and metadata["id"]:
+                self._scan["files"][metadata["id"]] = metadata
+                self._cache.pop((str(folder), str(path)), None)
+            if token is not None:
+                del self._save_targets[token]
+            return {"file": self._authorize_save(path, info, updated, metadata)}
+
+    def delete_project(self, request):
+        """Remove a project from the board while retaining recoverable file bytes."""
+        if not isinstance(request, dict) or set(request) != {"id", "revision"}:
+            raise ValidationError("Include the selected project and revision only.")
+        with self._lock:
+            _, path = self._project_path(request["id"])
+            payload, info = _read_file(path)
+            revision = hashlib.sha256(payload).hexdigest()
+            if not isinstance(request["revision"], str) or request["revision"] != revision:
+                raise ValidationError("The project changed. Refresh the project list before deleting it.")
+            load_project_bytes(self.store, payload, edition=self.edition)
+            expected = {"size": info.st_size, "mtime_ns": info.st_mtime_ns, "sha256": revision}
+            folder = _directory(path.parent)
+            if file_fingerprint(path) != expected:
+                raise ValidationError("The project changed. Refresh the project list before deleting it.")
+            retained = folder / (".ceasefire-deleted-" + secrets.token_hex(16) + ".json")
+            try:
+                path.rename(retained)
+            except OSError as error:
+                raise ValidationError("The project could not be deleted. Check folder permissions and retry.") from error
+            self._scan["files"].pop(request["id"], None)
+            self._cache.pop((str(self._scan["folder"]), str(path)), None)
+            return {"deleted": True, "retained_file": str(retained)}
 
     def _project_path(self, identifier):
         if not isinstance(identifier, str) or not re.fullmatch(r"[0-9a-f]{64}", identifier):
@@ -794,13 +862,13 @@ class ProjectLibrary:
                 folder = _directory(selected_folder) if selected_folder else None
             except ValidationError:
                 folder = None
-            metadata = self._authorize_save(path, info, payload, _metadata(path, info, project, folder))
+            metadata = self._authorize_save(path, info, payload, _metadata(path, info, project, folder, payload))
             return {"cancelled": False, **project, "file": metadata}
 
     def save(self, request):
         require_project_edition(request, self.edition)
         required = {"save_token", "estimate", "calculators"}
-        if not isinstance(request, dict) or not required <= set(request) or set(request) - required - {"penetration", "takeoffs", "takeoffs_session_id", "library_drafts", "certifications", "documentation"}:
+        if not isinstance(request, dict) or not required <= set(request) or set(request) - required - {"penetration", "takeoffs", "takeoffs_session_id", "library_drafts", "certifications", "documentation", "project_status"}:
             raise ValidationError("Save requires the current project selection and its complete estimate and calculators.")
         if (not isinstance(request["calculators"], dict)
                 or not set(LEGACY_CALCULATOR_IDS) <= set(request["calculators"])
@@ -817,7 +885,12 @@ class ProjectLibrary:
             if selection is None:
                 raise ValidationError('This project selection is no longer available. Use Load Project or "Save As".')
             selected_path = _project_save_path(selection)
-        captured = self._capture_takeoffs({key: request[key] for key in ("estimate", "calculators", "penetration", "takeoffs", "takeoffs_session_id", "library_drafts", "certifications", "documentation") if key in request})
+        captured = self._capture_takeoffs({key: request[key] for key in ("estimate", "calculators", "penetration", "takeoffs", "takeoffs_session_id", "library_drafts", "certifications", "documentation", "project_status") if key in request})
+        if "project_status" not in captured:
+            if file_fingerprint(selected_path) != selection.fingerprint:
+                raise ValidationError('The project file changed or was removed outside this window. Reload it or use "Save As".')
+            existing, _ = _read_file(selected_path)
+            captured["project_status"] = project_summary(existing, edition=self.edition)["project_status"]
         payload = export_project(self.store, captured, edition=self.edition)
         project = load_project_bytes(self.store, payload, edition=self.edition)
         # Serialize writes and recheck the capability after preparation so two
@@ -844,7 +917,7 @@ class ProjectLibrary:
                 folder = _directory(selected_folder) if selected_folder else None
             except ValidationError:
                 folder = None
-            metadata = _metadata(path, info, project, folder)
+            metadata = _metadata(path, info, project, folder, payload)
             metadata["in_linked_folder"] = folder is not None and path.is_relative_to(folder)
             self.close()
             if folder is not None:
@@ -874,6 +947,13 @@ class ProjectLibrary:
             selected_path = _project_save_path(selection)
             with self._lock:
                 if isinstance(selection, SaveSelection) and selection.fingerprint is not None:
+                    if "project_status" not in request:
+                        if file_fingerprint(selected_path) != selection.fingerprint:
+                            raise ValidationError("The selected file changed. Reload the project or use Save As to confirm its current contents.")
+                        existing, _ = _read_file(selected_path)
+                        captured["project_status"] = project_summary(existing, edition=self.edition)["project_status"]
+                        payload = export_project(self.store, captured, edition=self.edition)
+                        project = load_project_bytes(self.store, payload, edition=self.edition)
                     _preserve_penetration_inputs(selected_path, request)
                     _preserve_library_drafts(selected_path, request)
                     _preserve_optional_calculators(selected_path, request)
@@ -895,7 +975,7 @@ class ProjectLibrary:
                 folder = _directory(selected_folder) if selected_folder else None
             except ValidationError:
                 folder = None
-            metadata = _metadata(path, saved_info, project, folder)
+            metadata = _metadata(path, saved_info, project, folder, payload)
             metadata.update({"path": str(path), "in_linked_folder": folder is not None and path.is_relative_to(folder)})
             with self._lock:
                 self.close()

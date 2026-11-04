@@ -648,6 +648,10 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if set(body) != {'id'}:
                         raise ValidationError('Choose a project file from the linked folder.')
                     self.send_payload(200, projects.load(body['id']))
+                elif route == '/api/projects/status' and self.command == 'POST':
+                    self.send_payload(200, projects.update_status(body))
+                elif route == '/api/projects/delete' and self.command == 'POST':
+                    self.send_payload(200, projects.delete_project(body))
                 elif route == '/api/projects/files' and self.command == 'POST':
                     self.send_payload(200, projects.browse_files(body))
                 elif route == '/api/projects/open-file' and self.command == 'POST':

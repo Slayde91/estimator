@@ -160,6 +160,8 @@ class SchedulerTests(unittest.TestCase):
         self.write('clock/out')
         self.now += timedelta(seconds=5)
         entry = self.write('clock/in', {'location_consent': True})
+        self.assert_error(400, lambda: self.write('locations', location))
+        location['entry_id'] = entry['id']
         self.assertTrue(self.write('locations', location)['recorded'])
         self.assertFalse(self.write('locations', location)['recorded'])
         self.assert_error(400, lambda: self.write('locations', {**location, 'captured_at': (self.now + timedelta(seconds=20)).isoformat()}))
@@ -172,6 +174,23 @@ class SchedulerTests(unittest.TestCase):
         closed = self.write('clock/out')
         self.assert_error(403, lambda: self.write('locations', location))
         self.assert_error(400, lambda: self.write('entries/save', {**closed, 'start': (self.now - timedelta(seconds=1)).isoformat()}))
+
+    def test_stale_location_watcher_cannot_follow_another_user_or_clock_session(self):
+        first = self.write('clock/in', {'location_consent': True})
+        location = {'entry_id': first['id'], 'latitude': -33.86, 'longitude': 151.2, 'accuracy': 10}
+        worker = self.member()
+        worker_token = self.store.write('login', {'email': worker['email'], 'password': 'worker password 123'})['token']
+        second = self.write('clock/in', {'location_consent': True}, worker_token)
+        self.assert_error(409, lambda: self.write('locations', location, worker_token))
+        self.assertEqual(self.store.read('locations', {'entry_id': second['id']}, worker_token)['locations'], [])
+        second_location = {**location, 'entry_id': second['id']}
+        self.assertTrue(self.write('locations', second_location, worker_token)['recorded'])
+        self.now += timedelta(seconds=20)
+        self.write('clock/out', {}, worker_token)
+        self.now += timedelta(seconds=20)
+        third = self.write('clock/in', {'location_consent': True}, worker_token)
+        self.assert_error(409, lambda: self.write('locations', second_location, worker_token))
+        self.assertEqual(self.store.read('locations', {'entry_id': third['id']}, worker_token)['locations'], [])
 
     def test_manual_entries_overlap_break_validation_and_audit(self):
         entry = self.write('entries/save', {'member_id': self.auth['user']['id'], 'start': '2026-11-02T08:00', 'end': '2026-11-02T16:00'})

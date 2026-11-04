@@ -43,7 +43,7 @@ WRITE_FIELDS = {
     'clock/in': {'project_id', 'project_name', 'notes', 'location_consent'},
     'clock/out': {'entry_id', 'version'},
     'clock/break': {'entry_id', 'version', 'action', 'paid'},
-    'locations': {'latitude', 'longitude', 'accuracy', 'captured_at'},
+    'locations': {'entry_id', 'latitude', 'longitude', 'accuracy', 'captured_at'},
 }
 READ_FIELDS = {'bootstrap': set(), 'state': {'start', 'end'}, 'locations': {'entry_id'}}
 
@@ -595,6 +595,9 @@ class SchedulerStore:
         entry = self._current(db, user['id'])
         if not entry or not entry['location_consent']:
             raise SchedulerError('Location recording needs consent and an active clock session.', 403)
+        entry_id = _text(payload.get('entry_id', ''), 'Entry ID', 100, True)
+        if entry_id != entry['id']:
+            raise SchedulerError('The location belongs to a different clock session. Refresh before recording locations.', 409)
         latitude = float(_number(payload.get('latitude'), 'Latitude', -90, 90))
         longitude = float(_number(payload.get('longitude'), 'Longitude', -180, 180))
         accuracy = float(_number(payload.get('accuracy'), 'Accuracy', 0, 100000))

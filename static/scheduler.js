@@ -220,6 +220,9 @@
       state.data.active_entry = entry;
       if (location.control.checked) startLocation();
     }),"button"));
+    bar.addEventListener("click",event => {
+      if(state.settingsDirty) {event.stopImmediatePropagation(); notice("Save or discard your settings changes before using the time clock.",true);}
+    },true);
     state.root.append(bar);
   }
   function weekControls() {
@@ -448,7 +451,7 @@
   }
   async function activate() {
     state.root ||= document.getElementById("scheduler-root"); if(!state.root)return;
-    if (state.data?.user) return refresh();
+    if (state.data?.user) {try {await loadProjects();} catch(error) {notice(error.message,true);} return refresh();}
     shell(); notice("Loading Scheduler…");
     try { await loadProjects(); } catch(error) {notice(error.message,true);}
     try { const bootstrap = await request("/bootstrap"); if (bootstrap.user) await refresh(); else auth(bootstrap.setup_required); }

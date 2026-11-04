@@ -30,7 +30,7 @@ const byId = id => { if (!elements.has(id)) elements.set(id, element()); return 
 byId('calculator-workspace').append(Object.assign(element('p'), {className: 'eyebrow'}));
 const context = {
   document: { getElementById: byId, createElement: element, body: element(), activeElement: null },
-  window: { addEventListener() {}, location: { origin: 'http://127.0.0.1:8765' } },
+  window: { CeasefireProject:{downloadTarget:()=>({project_token:'saved-project'}),details:()=>({})}, addEventListener() {}, location: { origin: 'http://127.0.0.1:8765' } },
   Intl, Number, String, JSON, Object, Set, Map, Array, Promise, Error, URL, console,
   setTimeout: () => 0, clearTimeout() {},
   FileReader: class { readAsDataURL() { this.result = 'data:application/octet-stream;base64,AAAA'; queueMicrotask(() => this.onload()); } },
@@ -50,7 +50,7 @@ source = source.replace('  window.CeasefireCalculators = { open, projectSnapshot
 vm.runInContext(source, context);
 const { audit } = context;
 const copy = value => JSON.parse(JSON.stringify(value));
-const fileSaved = (filename='APPENDIX A.pdf', destination='downloads', savedPath) => ({ok:true,headers:{get:()=> 'application/json; charset=utf-8'},json:async()=>({saved:true,path:savedPath||`C:/${destination==='project'?'Projects':'Downloads'}/${filename}`,filename,destination})});
+const fileSaved = (filename='APPENDIX A.pdf', destination='project', savedPath) => ({ok:true,headers:{get:()=> 'application/json; charset=utf-8'},json:async()=>({saved:true,path:savedPath||`C:/${destination==='project'?'Projects':'Downloads'}/${filename}`,filename,destination})});
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { resolve, reject, promise }; };
 const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
 const realRender = audit.renderGrid;
@@ -70,8 +70,8 @@ function setup(inputs = {}) {
   audit.state.entries.set('steel_board', entry);
   context.document.activeElement = null;
   byId('calculator-confirm-dialog').open = false;
-  byId('calculator-pdf').setAttribute('aria-label','Steel Schedule PDF');byId('calculator-excel').setAttribute('aria-label','Steel Schedule XLSX');
-  byId('calculator-summary-pdf').setAttribute('aria-label','Product Summary PDF');
+  byId('calculator-pdf').setAttribute('aria-label','Steel Schedule');byId('calculator-excel').setAttribute('aria-label','Steel Schedule');
+  byId('calculator-summary-pdf').setAttribute('aria-label','Product Summary');
   audit.setRender(() => {});
   return entry;
 }
@@ -1769,7 +1769,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   await audit.save();assert.deepEqual(virtualRequests.at(-1).body,{inputs:fullVirtualDraft});assert.equal(entry.saved,JSON.stringify(fullVirtualDraft));
   for(const [download,action,mime] of [[audit.downloadSchedulePdf,'report.pdf','application/pdf'],[audit.downloadExcelRegister,'register.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']]) {
     let capturedVirtualDownload;audit.setFetch(async(path,options)=>{assert.ok(path.endsWith('/'+action));capturedVirtualDownload=JSON.parse(options.body);return fileSaved(action);});
-    await download();assert.deepEqual(capturedVirtualDownload,{inputs:fullVirtualDraft,...(mime==='application/pdf'?{project_details:{}}:{}),download:{project_token:null}});assert.equal(entry.page,'FACTOR CALCS');assert.equal(entry.sheet,'SETTINGS');
+    await download();assert.deepEqual(capturedVirtualDownload,{inputs:fullVirtualDraft,...(mime==='application/pdf'?{project_details:{}}:{}),download:{project_token:'saved-project'}});assert.equal(entry.page,'FACTOR CALCS');assert.equal(entry.sheet,'SETTINGS');
   }
   entry.definition.defaults={SETTINGS:{D10:9.123456789,D342:8.987654321},SCHEDULE:{A1009:'Reset schedule'}};
   const savedBeforeVirtualReset=entry.saved,virtualReset=audit.reset();await byId('calculator-confirm-dialog').close('confirm');await virtualReset;
@@ -1977,7 +1977,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   pdfResponse.resolve(fileSaved());await downloading;
   assert.equal(pdfPath,`/api/calculators/${id}/report.pdf`);assert.equal(pdfBody.inputs.CALCULATOR.B9,2.3456789);
   assert.equal(entry.inputs.CALCULATOR.B9,9);assert.equal(JSON.parse(entry.saved).CALCULATOR.B9,2.3456789);
-  assert.deepEqual(pdfBody.download,{project_token:null});assert.match(byId('calculator-message').textContent,/saved to C:\/Downloads\/APPENDIX A.pdf/);assert.match(byId('calculator-message').textContent,/later edits are not included/);
+  assert.deepEqual(pdfBody.download,{project_token:'saved-project'});assert.match(byId('calculator-message').textContent,/saved to C:\/Projects\/APPENDIX A.pdf/);assert.match(byId('calculator-message').textContent,/later edits are not included/);
   }passed++;
 
   // Materials/summary PDFs use their separate endpoint for all calculators and capture every exact draft input.
@@ -1989,15 +1989,15 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
     assert.equal(audit.state.action,true);assert.equal(byId('calculator-summary-pdf').disabled,true);
     assert.equal(byId('calculator-pdf').disabled,true);assert.equal(byId('calculator-excel').disabled,true);
     assert.equal(byId('calculator-summary-pdf').getAttribute('aria-busy'),'true');
-    assert.equal(byId('calculator-summary-pdf').getAttribute('aria-label'),'Preparing Product Summary PDF…');
+    assert.equal(byId('calculator-summary-pdf').getAttribute('aria-label'),'Preparing Product Summary…');
     audit.setInput(entry,'CALCULATOR','B9',9.87654321);
     pending.resolve(fileSaved(`ceasefire-${id}-materials-summary.pdf`));await run;
     assert.equal(path,`/api/calculators/${id}/summary.pdf`);assert.equal(headers.Accept,'application/json');
-    assert.deepEqual(body,{inputs:{CALCULATOR:{B9:2.3456789},SETTINGS:{D37:0.123456789},'EXTRA BOARDS':{D6:7.654321987}},project_details:{},download:{project_token:null}});
-    assert.ok(byId('calculator-message').textContent.includes(`saved to C:/Downloads/ceasefire-${id}-materials-summary.pdf`));
+    assert.deepEqual(body,{inputs:{CALCULATOR:{B9:2.3456789},SETTINGS:{D37:0.123456789},'EXTRA BOARDS':{D6:7.654321987}},project_details:{},download:{project_token:'saved-project'}});
+    assert.ok(byId('calculator-message').textContent.includes(`saved to C:/Projects/ceasefire-${id}-materials-summary.pdf`));
     assert.equal(entry.inputs.CALCULATOR.B9,9.87654321);assert.equal(JSON.parse(entry.saved).CALCULATOR.B9,2.3456789);
     assert.equal(audit.state.action,false);assert.equal(byId('calculator-summary-pdf').disabled,false);
-    assert.equal(byId('calculator-summary-pdf').getAttribute('aria-label'),'Product Summary PDF');
+    assert.equal(byId('calculator-summary-pdf').getAttribute('aria-label'),'Product Summary');
     assert.equal(byId('calculator-summary-pdf').getAttribute('aria-busy'),undefined);
     assert.match(byId('calculator-message').textContent,/later edits are not included/);
   }passed++;
@@ -2010,15 +2010,15 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
     audit.setFetch((path,options)=>{registerPath=path;registerBody=JSON.parse(options.body);registerHeaders=options.headers;return pendingRegister.promise;});
     const registerRun=audit.downloadExcelRegister();
     assert.equal(audit.state.action,true);assert.equal(byId('calculator-excel').disabled,true);assert.equal(byId('calculator-pdf').disabled,true);assert.equal(byId('calculator-template').disabled,true);
-    assert.equal(byId('calculator-excel').getAttribute('aria-busy'),'true');assert.equal(byId('calculator-excel').getAttribute('aria-label'),`Preparing ${id==='ductwork'?'Duct':'Steel'} Schedule XLSX…`);
+    assert.equal(byId('calculator-excel').getAttribute('aria-busy'),'true');assert.equal(byId('calculator-excel').getAttribute('aria-label'),`Preparing ${id==='ductwork'?'Duct':'Steel'} Schedule…`);
     audit.setInput(entry,'CALCULATOR','B9',9.87654321);
     pendingRegister.resolve(fileSaved('APPENDIX A.xlsx'));await registerRun;
     assert.equal(registerPath,`/api/calculators/${id}/register.xlsx`);assert.equal(registerHeaders.Accept,'application/json');
-    assert.deepEqual(registerBody,{inputs:{CALCULATOR:{B9:2.3456789},SETTINGS:{D37:0.123456789}},download:{project_token:null}});
-    assert.match(byId('calculator-message').textContent,/saved to C:\/Downloads\/APPENDIX A.xlsx/);
+    assert.deepEqual(registerBody,{inputs:{CALCULATOR:{B9:2.3456789},SETTINGS:{D37:0.123456789}},download:{project_token:'saved-project'}});
+    assert.match(byId('calculator-message').textContent,/saved to C:\/Projects\/APPENDIX A.xlsx/);
     assert.equal(entry.inputs.CALCULATOR.B9,9.87654321);assert.equal(JSON.parse(entry.saved).CALCULATOR.B9,2.3456789);
     assert.equal(audit.state.action,false);assert.equal(byId('calculator-excel').disabled,false);assert.equal(byId('calculator-pdf').disabled,false);
-    assert.equal(byId('calculator-excel').getAttribute('aria-busy'),undefined);assert.equal(byId('calculator-excel').getAttribute('aria-label'),`${id==='ductwork'?'Duct':'Steel'} Schedule XLSX`);
+    assert.equal(byId('calculator-excel').getAttribute('aria-busy'),undefined);assert.equal(byId('calculator-excel').getAttribute('aria-label'),`${id==='ductwork'?'Duct':'Steel'} Schedule`);
   }passed++;
 
   // Focused numeric edits are validated before either export and retain exact draft precision.
@@ -2046,7 +2046,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   audit.state.entries.set('ductwork',switchedEntry);audit.state.current='ductwork';
   switchedRegister.resolve(fileSaved(filename));await switchedRun;
   assert.equal(audit.current(),switchedEntry);assert.equal(switchedEntry.inputs.CALCULATOR.B9,99);assert.equal(entry.inputs.CALCULATOR.B9,4.1234567);assert.equal(switchedBody.inputs.CALCULATOR.B9,4.1234567);
-  assert.ok(byId('calculator-message').textContent.includes(`saved to C:/Downloads/${filename}`));assert.match(byId('calculator-message').textContent,/current draft was kept/);
+  assert.ok(byId('calculator-message').textContent.includes(`saved to C:/Projects/${filename}`));assert.match(byId('calculator-message').textContent,/current draft was kept/);
   }passed++;
 
   // Every calculator export captures its destination at click time. A later
@@ -2078,8 +2078,8 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
       pending=deferred();const secondRun=download();await flush();assert.deepEqual(sent.body.download,{project_token:'project-after-save-as'});
       projectToken=null;projectNo='';pending.resolve(fileSaved(filename,'project',`C:/After/${filename}`));await secondRun;
       assert.ok(byId('calculator-message').textContent.includes(`saved to C:/After/${filename}`));
-      audit.setFetch(async(path,options)=>{sent={path,body:JSON.parse(options.body)};return fileSaved(filename);});await download();
-      assert.deepEqual(sent.body.download,{project_token:null});assert.ok(byId('calculator-message').textContent.includes(`saved to C:/Downloads/${filename}`));
+      let unsavedRequests=0;audit.setFetch(async()=>{unsavedRequests++;return fileSaved(filename);});await download();
+      assert.equal(unsavedRequests,0);assert.match(byId('calculator-message').textContent,/Save the current project/);
       assert.equal(entry.inputs.CALCULATOR.B9,7.123456789012345);assert.equal(entry.inputs.SETTINGS.B6,.123456789012345);
     }
   }finally{if(priorProjectBridge===undefined)delete context.window.CeasefireProject;else context.window.CeasefireProject=priorProjectBridge;}
@@ -2087,13 +2087,13 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
 
   // Generation/network failures, wrong MIME and invalid save receipts never
   // claim a saved file or leave either button busy.
-  for(const [download,mime,buttonId,label] of [[audit.downloadExcelRegister,registerMime,'calculator-excel','Steel Schedule XLSX'],[audit.downloadSchedulePdf,'application/pdf','calculator-pdf','Steel Schedule PDF'],[audit.downloadMaterialsSummaryPdf,'application/pdf','calculator-summary-pdf','Product Summary PDF']]) {
+  for(const [download,mime,buttonId,label] of [[audit.downloadExcelRegister,registerMime,'calculator-excel','Steel Schedule'],[audit.downloadSchedulePdf,'application/pdf','calculator-pdf','Steel Schedule'],[audit.downloadMaterialsSummaryPdf,'application/pdf','calculator-summary-pdf','Product Summary']]) {
     const failures=[
       {response:{ok:false,status:400,headers:{get:()=> 'application/json'},json:async()=>({error:'Source validation detail'})},message:/Source validation detail/},
       {response:{ok:false,status:500,headers:{get:()=> 'text/html'},json:async()=>{throw new Error('Must not parse HTML');}},message:/\(500\)/},
       {response:{ok:true,headers:{get:()=> 'text/html'}},message:/did not return/},
       {response:{ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:true,path:'',filename:'report.pdf',destination:'downloads'})},message:/did not confirm/},
-      {response:{ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:false,path:'C:/Downloads/report.pdf',filename:'report.pdf',destination:'downloads'})},message:/did not confirm/},
+      {response:{ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:false,path:'C:/Projects/report.pdf',filename:'report.pdf',destination:'downloads'})},message:/did not confirm/},
       {response:{ok:true,headers:{get:()=> 'application/json'},json:async()=>{throw new Error('Invalid JSON');}},message:/did not confirm/},
       {error:new Error('Connection unavailable'),message:/Connection unavailable/},
     ];
@@ -2109,17 +2109,17 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   // Template failures use the same validated receipt contract and restore the
   // controls without altering or saving the current calculator draft.
   entry=setup({CALCULATOR:{B9:8.123456789012345}});const templateBefore=JSON.stringify(entry.inputs);
-  audit.setFetch(async()=>({ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:true,path:'C:/Downloads/template.xlsx',filename:'template.xlsx',destination:'unrecognized'})}));
+  audit.setFetch(async()=>({ok:true,headers:{get:()=> 'application/json'},json:async()=>({saved:true,path:'C:/Projects/template.xlsx',filename:'template.xlsx',destination:'unrecognized'})}));
   await audit.exportTemplate();assert.match(byId('calculator-message').textContent,/did not confirm/);assert.equal(audit.state.action,false);
   assert.equal(byId('calculator-template').disabled,false);assert.equal(JSON.stringify(entry.inputs),templateBefore);passed++;
 
   // Import and the four distinct exports retain their actions and requested order.
   const registerMarkup=englishMarkup(fs.readFileSync('static/index.html','utf8'));
-  for(const [id,label] of [['calculator-import','Import Schedule'],['calculator-template','Export Template'],['calculator-excel','Steel Schedule XLSX'],['calculator-pdf','Steel Schedule PDF'],['calculator-summary-pdf','Product Summary PDF']]){
+  for(const [id,label] of [['calculator-import','Import Schedule'],['calculator-template','Export Template'],['calculator-excel','Steel Schedule'],['calculator-pdf','Steel Schedule'],['calculator-summary-pdf','Product Summary']]){
     assert.match(registerMarkup,new RegExp(`id="${id}"[^>]*class="[^"]*calculator-document-action[^"]*"[^>]*aria-label="${label}"[^>]*title="${label}"`));
   }
   assert.match(registerMarkup,/id="calculator-template"[^>]*class="[^"]*excel-button[^"]*calculator-document-action[^"]*"/);
-  const xlsxIcon=id=>registerMarkup.match(new RegExp(`id="${id}"[^>]*>([\\s\\S]*?)<span>(?:Steel Schedule XLSX|Export Template)<\\/span>`))[1];
+  const xlsxIcon=id=>registerMarkup.match(new RegExp(`id="${id}"[^>]*>([\\s\\S]*?)<span>(?:Steel Schedule|Export Template)<\\/span>`))[1];
   assert.equal(xlsxIcon("calculator-template"),xlsxIcon("calculator-excel"));
   assert.match(registerMarkup,/id="calculator-reset"[^>]*class="[^"]*secondary[^"]*"[^>]*aria-label="Reset Calc"[^>]*title="Reset Calc"[\s\S]*?pricing-reset-symbol/);
   assert.match(registerMarkup,/id="calculator-recalculate"[^>]*class="[^"]*icon-only[^"]*calculator-symbol-button[^"]*"[^>]*aria-label="Recalculate"[^>]*title="Recalculate"/);

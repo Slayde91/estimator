@@ -62,7 +62,7 @@ async function noDownloadAudio() {
     if (url.origin === origin && url.pathname === "/api/project/save-as" && request.method() === "POST") {
       saveRequests++; savedCertificateWorkspaces.push(request.postDataJSON().certifications?.workspace_id);
     }
-    if (url.origin === origin && !["GET", "HEAD"].includes(request.method()) && !certificateWorkspaceCreation && !/^\/api\/(?:calculate|download-progress|project\/save-as|penetration\/(?:definition|calculate|references)|calculators\/[^/]+\/(?:worksheet|calculate))$/.test(url.pathname)) {
+    if (url.origin === origin && !["GET", "HEAD"].includes(request.method()) && !certificateWorkspaceCreation && !/^\/api\/(?:calculate|download-progress|project\/save(?:-as)?|penetration\/(?:definition|calculate|references)|calculators\/[^/]+\/(?:worksheet|calculate))$/.test(url.pathname)) {
       evidence.blocked_requests.push({ method: request.method(), path: url.pathname }); await route.abort(); return;
     }
     await route.continue();
@@ -166,6 +166,12 @@ async function noDownloadAudio() {
   assert.deepEqual(await page.evaluate(start => window.qaMenuAudio.calls.slice(start).filter(row => row.event === "click").map(row => row.source), beforeSaveCalls), ["/sounds/checkpoint.ogg"]);
   evidence.checks.globalSaveCheckpointWithoutGenericOverlap = true;
   evidence.checks.cancelledSaveUsesProjectCertificateWorkspace = { creationRequests: certificateWorkspaceRequests.length, matchedCurrentWorkspace: true };
+  assert.deepEqual(await snapshot(), before, 'Menu audio and cancelled Save preserve the original draft');
+  await require('./native_download_helpers.cjs').ensureSavedProject(page);
+  const downloadBaseline=await snapshot();
+  for(const key of ['calculators','penetration','details'])assert.deepEqual(downloadBaseline[key],before[key], 'The explicit fixture Save retains '+key);
+  const savedProject=JSON.parse(fs.readFileSync(path.join(output,'audio-project.cf.json'),'utf8'));
+  assert.deepEqual(downloadBaseline.pricing,savedProject.estimate.configuration, 'Save resolves the project pricing snapshot through the existing normalization');
   // These owned lightweight controls isolate delegated routing from Takeoff
   // document/session operations, which have their own browser acceptance gates.
   await page.evaluate(() => {
@@ -222,6 +228,7 @@ async function noDownloadAudio() {
   await expect(page.locator(".document-download-progress")).toHaveCount(0);
   await noDownloadAudio();
   evidence.checks.realDocumentDownloadSilentUntilNativeSave = { filename: templateReceipt.filename, destination: templateReceipt.destination, ordinaryClickPreserved: true, visualProgressPreserved: true };
+  await idle(); // The successful export also completes its project Save.
   // Independent Document consumers share the same downloader. Native owned
   // controls trigger two real requests; successful and cancelled preparations
   // stay silent and retain their independent progress and receipt handling.
@@ -311,7 +318,15 @@ async function noDownloadAudio() {
   evidence.checks.logoClickTrimmedFlameWhoosh = { ...logoOnset, sameClickEvent: true, leadingSecondsRemoved: 38118 / 44100 };
   // A trusted navigation starts the supplied printing loop only for its active phrase.
   prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith('type.mp3')).length);
-  await home.click(); await played('/sounds/type.mp3', prior); await idle();
+  const phraseLabel=page.locator('#header-tagline-label'),previousPhrase=await phraseLabel.innerText();
+  await home.click();await expect(phraseLabel).not.toHaveText(previousPhrase);
+  if(await phraseLabel.innerText()==='CLASSIFIRE: Passive Fire Intelligence'){
+    // This intentional special phrase uses gameover.mp3, not the typing loop.
+    // The next navigation cannot repeat it, so test the ordinary typing branch.
+    await home.click();await expect(phraseLabel).not.toHaveText('CLASSIFIRE: Passive Fire Intelligence');
+    evidence.checks.typingBranchAfterSpecialPhrase=true;
+  }
+  await played('/sounds/type.mp3', prior); await idle();
   const printingObservation = await page.waitForFunction(() => {
     const typed = document.getElementById("header-tagline-typed").textContent;
     const label = document.getElementById("header-tagline-label").textContent;
@@ -338,7 +353,7 @@ async function noDownloadAudio() {
     .every(row => ["pointerenter", "pointerover", "click"].includes(row.event)), "Button playback attempts occur in their input event");
   await page.mouse.move(0, 0);
   await page.screenshot({ path: path.join(output, "header-menu-audio.png") });
-  assert.deepEqual(await snapshot(), before, "Menu audio preserves the entire initialized calculator, pricing and project draft");
+  assert.deepEqual(await snapshot(), downloadBaseline, "Menu audio and download saves preserve the initialized calculator, saved pricing and project draft");
   evidence.checks.draftsPreserved = true;
   evidence.audio_events = await page.evaluate(() => ({ calls: window.qaMenuAudio.calls, playing: window.qaMenuAudio.playing, csp: window.qaMenuAudio.csp }));
   await noDownloadAudio();

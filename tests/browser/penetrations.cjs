@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { chooseNewDefect, startDefect } = require('./physical_dialogs.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
@@ -123,7 +123,7 @@ async function associateImage(id, image) {
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => { const url = new URL(request.url()); if (url.pathname.endsWith('/images') && request.method() === 'GET') inventoryRequests.push({ extraction: url.searchParams.get('extraction_id'), limit: url.searchParams.get('limit') }); if (/\/physical\/(preview|apply)$/.test(url.pathname)) physicalRequests.push({ path: url.pathname, body: request.postDataJSON() }); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
-  const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
+  const initial = await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready); await expect.poll(() => page.evaluate(() => window.CeasefireDesktop?.status().ready)).toBe(true); const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   const definitionReply=await page.request.post(`http://127.0.0.1:${info.port}/api/penetration/definition`,{data:{configuration:await page.evaluate(()=>window.CeasefireProject.configuration())}});assert.equal(definitionReply.status(),200);
   const definition=await definitionReply.json();physicalChoices=Object.fromEntries(Object.entries({orientation:'M',frl:'N'}).map(([key,column])=>[key,definition.row_fields.find(field=>field.column===column).options]));
@@ -202,7 +202,7 @@ async function associateImage(id, image) {
   await select(cable); for(const label of ['Physical / takeoff audit history','Undo physical / takeoff edit'])await expect(page.getByRole('button',{name:label,exact:true})).toHaveCount(0); const historyReply=await page.request.post(await page.evaluate(()=>`${location.origin}/api/takeoffs/sessions/${window.CeasefireTakeoffs.sessionId()}/history`),{data:{offset:0,limit:100}});assert.equal(historyReply.status(),200);assert.ok(JSON.stringify(await historyReply.json()).includes(occupied),'Audit identity remains available after toolbar removal'); await page.screenshot({ path: path.join(output, 'physical-hierarchy.png'), fullPage: true });
   state = await response(() => page.getByRole('button', { name: 'Page ›', exact: true }).click(), '/commands'); await idle(); const emptyExtraction = await extract(2); assert.notEqual(emptyExtraction, firstExtraction); assert.equal((await imageInventory(emptyExtraction)).total, 0);
   assert.deepEqual((await imageInventory(firstExtraction)).items, firstInventory.items); await retainedBitmap(firstInventory.items[0]);
-  const save = await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as'); assert.ok(save); await expect(page.locator('#project-save-state')).toHaveText('Saved project'); const saved = JSON.parse(fs.readFileSync(info.project)); assert.equal(saved.version, 2); assert.equal(saved.takeoffs.version, 2); assert.equal(saved.takeoffs.items.length, 0); assert.equal(saved.takeoffs.image_extractions.length, 2); assert.deepEqual(saved.takeoffs.physical, activeGraph());
+  const save = await response(() => clickProjectControl(page, 'Save'), '/api/project/save'); assert.ok(save); await expect(page.locator('#project-save-state')).toHaveText('Saved project'); const saved = JSON.parse(fs.readFileSync(info.project)); assert.equal(saved.version, 2); assert.equal(saved.takeoffs.version, 2); assert.equal(saved.takeoffs.items.length, 0); assert.equal(saved.takeoffs.image_extractions.length, 2); assert.deepEqual(saved.takeoffs.physical, activeGraph());
   // A later keystroke in an already-dirty form must defeat a delayed native load.
   await select(cable); let releaseRead, readReady;
   const holdRead = new Promise(resolve => { releaseRead = resolve; }), reachedRead = new Promise(resolve => { readReady = resolve; });

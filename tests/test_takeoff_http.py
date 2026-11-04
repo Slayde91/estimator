@@ -84,6 +84,13 @@ class TakeoffHTTPTests(unittest.TestCase):
 
     def test_pdf_tools_downloads_captured_pages_without_changing_session(self):
         from pypdf import PdfReader
+        from unittest.mock import patch
+        from estimator.native_dialogs import NativeDialogs, SaveSelection
+        target = Path(self.tmp.name) / 'PDF tools project.cf.json'
+        with patch.object(NativeDialogs, 'choose_save', return_value=SaveSelection(str(target), None)):
+            status, _, raw = self.request('POST', '/api/project/save-as', {'estimate': {}})
+        self.assertEqual(status, 200, raw)
+        project_token = json.loads(raw)['file']['save_token']
         _, _, payload = self.request('POST', '/api/takeoffs/sessions', {})
         session = json.loads(payload); base = '/api/takeoffs/sessions/' + session['session_id']
         for name in ('first.pdf', 'second.pdf'):
@@ -109,6 +116,14 @@ class TakeoffHTTPTests(unittest.TestCase):
             self.assertEqual(status, 200, payload); self.assertEqual(headers['Content-Type'], 'application/pdf')
             self.assertEqual([page.extract_text().strip() for page in PdfReader(BytesIO(payload)).pages], text)
             self.assertEqual(self.request('GET', base)[2], before)
+            status, headers, raw = self.request('POST', base+'/pdf-tools', {**request, 'download': {'project_token': project_token}})
+            self.assertEqual(status, 200, raw)
+            saved = json.loads(raw)
+            self.assertEqual(saved['destination'], 'project')
+            self.assertEqual(Path(saved['path']).parent, target.parent)
+            self.assertEqual([page.extract_text().strip() for page in PdfReader(saved['path']).pages], text)
+            self.assertEqual(self.request('GET', base)[2], before)
+            self.assertEqual(self.request('POST', base+'/pdf-tools', {**request, 'download': {'project_token': None}})[0], 400)
         request = {'expected_revision': session['revision'], 'operation': 'extract', 'document_ids': [ids[0]], 'page_order': [1]}
         for invalid in ({**request, 'expected_revision': 0}, {**request, 'document_ids': [str(uuid4())]}, {**request, 'page_order': [4]}, {**request, 'path': 'C:/private.pdf'}):
             self.assertEqual(self.request('POST', base+'/pdf-tools', invalid)[0], 400)

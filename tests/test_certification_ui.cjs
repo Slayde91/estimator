@@ -71,7 +71,8 @@ function harness() {
     return response(doc);
   };
   const window = {crypto:{randomUUID:()=> '00000000-0000-4000-8000-'+String(++serial).padStart(12,'0')},
-    addEventListener(k,fn){(events[k]||=[]).push(fn);},CeasefireProject:{details:()=>copy(project)},
+    addEventListener(k,fn){(events[k]||=[]).push(fn);},CeasefireProject:{details:()=>copy(project),downloadTarget:()=>({project_token:'saved-project'})},
+    CeasefireDownloads:{save:async path=>({saved:true,path:'C:/Projects/INSTALLATION_CERTIFICATE-R1.pdf'})},
     dispatchEvent(event){for(const fn of events[event.type]||[])fn(event);return true;},
     CeasefireDialogs:{confirm:async()=>approve},CeasefireActivity:{begin:()=>()=>{}}};
   const context={setTimeout:fn=>{const id=++serial;timers.set(id,fn);return id;},clearTimeout:id=>timers.delete(id),window,document:{getElementById:byId,createElement:element},fetch,console,Date,JSON,Object,Array,Number,Error,encodeURIComponent,CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}}};

@@ -726,30 +726,42 @@
     return nav;
   }
   function technicalDocumentMenu(pane, data) {
+    const technical = pane.kind === "technical";
     const wrapper = node("div", "calculator-document-menu library-document-menu");
     const toggle = button("", () => { if (!toggle.disabled) setOpen(list.hidden); }, "button secondary calculator-document-toggle");
-    const icon = node("img", "calculator-document-icon"); icon.src = "/icons/document.png"; icon.alt = ""; icon.width = icon.height = 24;
+    const icon = node("img", "calculator-document-icon"); icon.src = "/icons/document.png"; icon.alt = ""; icon.width = icon.height = 24; icon.setAttribute("aria-hidden", "true");
     const chevron = node("span", "calculator-document-chevron"); chevron.setAttribute("aria-hidden", "true");
     chevron.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="m6 9 6 6 6-6"></path></svg>';
     toggle.append(icon, uiNode("span", "", "Document"), chevron);
-    const list = node("div", "calculator-document-actions"); list.id = "technical-item-document-actions"; list.hidden = true;
-    list.setAttribute("role", "group"); uiAttr(list, "aria-label", "Technical item downloads");
+    const list = node("div", "calculator-document-actions"); list.id = technical ? "technical-item-document-actions" : "firestopping-item-document-actions"; list.hidden = true;
+    list.setAttribute("role", "group"); uiAttr(list, "aria-label", technical ? "Technical item downloads" : "Firestopping item downloads");
     toggle.setAttribute("aria-controls", list.id); toggle.setAttribute("aria-expanded", "false");
     const revision = pane.detailRevision, id = data.id, actions = [];
     const selected = () => pane.selected === id && pane.detailRevision === revision && !pane.detailPanel.hidden;
-    const current = () => state.current === "technical" && selected();
+    const current = () => state.current === pane.kind && selected();
     function setOpen(open, focus = false) {
       list.hidden = !open; toggle.setAttribute("aria-expanded", String(open));
       if (focus) toggle.focus();
     }
     async function download(format, button, strict = false) {
-      if (!(strict ? selected() : current()) || pane.documentPending) { if (strict) throw new Error("Choose the current Technical Library item again or finish its pending download."); return; }
+      if (!(strict ? selected() : current()) || pane.documentPending) { if (strict) throw new Error("Choose the current Library item again or finish its pending download."); return; }
       setOpen(false);
       const token = { id, revision }; pane.documentPending = token;
       for (const control of pane.documentControls) control.disabled = true;
       try {
         if (!window.CeasefireDownloads?.save) throw new Error("Document downloads are unavailable. Reopen the application and try again.");
-        const result = await window.CeasefireDownloads.save(`/api/technical/item.${format}`, { id }, { button });
+        let path = `/api/technical/item.${format}`, payload = { id };
+        if (!technical) {
+          // Refetch the selected saved record's own inputs and captured pricing.
+          // Do not open or overwrite a calculator/editor draft to download it.
+          const record = await request(`/api/libraries/penetration/${encodeURIComponent(id)}/edit`);
+          if (!(strict ? selected() : current())) throw new Error("The selected Library item changed. Choose it again before downloading.");
+          if (record.id !== id || record.draft?.rows?.length !== 1 || !record.configuration) throw new Error("This library item has no captured inputs and pricing to export.");
+          path = `/api/penetration/item.${format}`;
+          payload = { item: { ...clone(record.draft.rows[0]), library_item_id: id }, globals: clone(record.draft.globals), configuration: clone(record.configuration),
+            ...(record.diagram?.available ? {} : { diagram: null }) };
+        }
+        const result = await window.CeasefireDownloads.save(path, payload, { button });
         if (current()) message(pane, result.preview ? "Item Details opened for viewing. Use the viewer's Save button to keep a copy." : "Item Details download prepared: {0}", false, [result.filename]);
         return result;
       } catch (error) {
@@ -765,7 +777,8 @@
     pane.documentationDownload = download;
     for (const format of ["pdf", "xlsx"]) {
       const action = button("", () => download(format, action), `button ${format === "pdf" ? "pdf" : "excel"}-button calculator-document-action`);
-      uiAttr(action, "aria-label", "Download Item Details {0}", [format.toUpperCase()]);
+      uiAttr(action, "aria-label", "Item Details");
+      action.setAttribute('aria-description',format.toUpperCase());
       const mark = node("span", "download-format-icon"); mark.setAttribute("aria-hidden", "true");
       mark.append(node("span", "download-arrow", "⇩"), node("span", "download-format", format.toUpperCase()));
       action.append(mark, uiNode("span", "", "Item Details")); actions.push(action); list.append(action);
@@ -835,7 +848,9 @@
     heading.id = `${pane.kind}-library-detail-heading`; heading.tabIndex = -1; pane.detailPanel.setAttribute("aria-labelledby", heading.id);
     for (const key of pane.quantityBadges.keys()) if (key.startsWith("detail:")) pane.quantityBadges.delete(key);
     const title = node("div", `library-record-heading${pane.kind === "technical" ? " library-technical-heading" : ""}`);
-    title.append(heading, pane.kind === "penetration" ? quantityBadge(pane, data.id, "detail") : technicalDocumentMenu(pane, data));
+    title.append(heading);
+    if (pane.kind === "penetration") title.append(quantityBadge(pane, data.id, "detail"));
+    title.append(technicalDocumentMenu(pane, data));
     const content = [detailNavigation(pane), title];
     const subtitle = window.LibraryDetailText.displaySubtitle(data);
     if (subtitle) content.push(node("p", "library-subtitle library-frl-value", display(subtitle)));
@@ -887,7 +902,7 @@
       const validReports = reportLinks.length > 0 && reportLinks.length <= 20 && new Set(reportLabels).size === reportLabels.length && reportLinks.every((link, i) => {
         if (reportPositions[i] < 0 || i > 0 && reportPositions[i] <= reportPositions[i - 1] || typeof link.url !== "string" || /[\s<>"\\\x00-\x1f\x7f]/.test(link.url)) return false;
         if (data.user_authored === true) { try { const url = new URL(link.url); return ["http:", "https:"].includes(url.protocol) && !!url.hostname && !url.username && !url.password; } catch { return false; } }
-        if (link.url === "https://systems.tbafirefly.com.au/reports") return true;
+        if (["https://systems.tbafirefly.com.au/", "https://systems.tbafirefly.com.au/reports"].includes(link.url)) return true;
         try { const u = new URL(link.url); return u.protocol === "https:" && !u.username && !u.password && (
           ["media.promat.com", "etex.azureedge.net"].includes(u.host) && /\.pdf$/i.test(u.pathname) ||
           u.host === "tfire.com.au" && /^https:\/\/tfire\.com\.au\/documents\/[A-Za-z0-9][A-Za-z0-9_.()=-]*$/.test(link.url) ||

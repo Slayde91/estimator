@@ -63,16 +63,12 @@ class DownloadDestinationTests(unittest.TestCase):
         self.dialogs.selection = SaveSelection(str((folder or self.folder) / 'Project.cf.json'), None)
         return self.library.save_as(self.project_request)
 
-    def test_null_project_uses_standard_downloads_even_when_a_different_folder_is_linked(self):
+    def test_unsaved_project_cannot_download_even_when_a_different_folder_is_linked(self):
         self.store.set_project_folder(self.folder)
         before = stored_rows(self.store)
-        with patch('estimator.download_files.standard_downloads_directory', return_value=self.downloads):
-            selected = self.library.capture_download({'project_token': None})
+        with patch('estimator.download_files.standard_downloads_directory', side_effect=AssertionError('No fallback')), self.assertRaisesRegex(ValidationError, 'Save the current project'):
+            self.library.capture_download({'project_token': None})
         self.assertFalse(self.downloads.exists(), 'Capturing a destination must not create it.')
-        result = self.library.write_download(selected, 'Exact report.pdf', b'%PDF exact bytes\x00\xff')
-        self.assertEqual(result['destination'], 'downloads')
-        self.assertEqual(Path(result['path']).parent, self.downloads)
-        self.assertEqual(Path(result['path']).read_bytes(), b'%PDF exact bytes\x00\xff')
         self.assertEqual(list(self.folder.iterdir()), [])
         self.assertEqual(stored_rows(self.store), before)
 
@@ -247,6 +243,10 @@ class DownloadApiTests(unittest.TestCase):
                                     ('register.xlsx', 'calculator_register.build_calculator_register'),
                                     ('template', 'schedule_workbook.export_schedule_template')):
                 routes.append((f'/api/calculators/{identity}/{action}', {}, f'estimator.{builder}'))
+        self.dialogs.selection = SaveSelection(str(self.folder / 'All routes.cf.json'), None)
+        status, _, raw = self.request('/api/project/save-as', {'estimate': {}})
+        self.assertEqual(status, 200, raw)
+        token = json.loads(raw)['file']['save_token']
         before = stored_rows(store)
         with patch('estimator.download_files.standard_downloads_directory', return_value=self.downloads) as downloads:
             for index, (route, body, builder) in enumerate(routes):
@@ -258,13 +258,13 @@ class DownloadApiTests(unittest.TestCase):
                     self.assertNotIn('application/json', headers['Content-Type'])
                     self.assertEqual(binary, payload)
                     self.assertEqual(downloads.call_count, called)
-                    status, headers, receipt = self.request(route, {**body, 'download': {'project_token': None}})
+                    status, headers, receipt = self.request(route, {**body, 'download': {'project_token': token}})
                     self.assertEqual(status, 200, receipt[:500])
                     self.assertIn('application/json', headers['Content-Type'])
                     receipt = json.loads(receipt)
                     self.assertTrue(receipt['saved'])
-                    self.assertEqual(receipt['destination'], 'downloads')
-                    self.assertEqual(Path(receipt['path']).parent, self.downloads)
+                    self.assertEqual(receipt['destination'], 'project')
+                    self.assertEqual(Path(receipt['path']).parent, self.folder)
                     self.assertEqual(Path(receipt['path']).read_bytes(), payload)
             with patch('estimator.report.render_quote_pdf', return_value=b'saved GET bytes'):
                 status, headers, payload = self.request(f"/api/quotes/{quote['id']}/report.pdf", method='GET')
@@ -295,7 +295,7 @@ class DownloadApiTests(unittest.TestCase):
 
     def test_invalid_download_options_are_rejected_before_rendering_or_writing(self):
         with patch('estimator.report.render_quote_pdf') as render, patch('estimator.download_files.standard_downloads_directory') as downloads:
-            for option in (None, {}, [], {'project_token': '../path'}, {'project_token': None, 'path': str(self.root)}):
+            for option in (None, {}, [], {'project_token': None}, {'project_token': '../path'}, {'project_token': None, 'path': str(self.root)}):
                 status, _, raw = self.request('/api/quote-report', {'download': option})
                 self.assertEqual(status, 400, raw[:500])
             render.assert_not_called()

@@ -1257,7 +1257,7 @@
     switchPricingScope(scope); return true;
   }
   function projectPricingChanged() { return draftChanged(state.pricingScope === "project" ? state.draft : state.projectPricingDraft, state.quoteConfiguration || state.configuration); }
-  function projectHasChanges() { return state.dirty || projectPricingChanged() || window.CeasefireCalculators?.hasUnsavedChanges() || window.CeasefirePenetrations?.hasUnsavedChanges() || window.CeasefireTakeoffs?.hasUnsavedChanges() || window.CeasefireLibraryEditor?.hasProjectChanges?.() || window.CeasefireCertification?.hasProjectChanges?.() || window.CeasefireDocumentation?.hasProjectChanges?.(); }
+  function projectHasChanges() { return window.CeasefireDownloads?.hasUnsavedProjectSave?.() || state.dirty || projectPricingChanged() || window.CeasefireCalculators?.hasUnsavedChanges() || window.CeasefirePenetrations?.hasUnsavedChanges() || window.CeasefireTakeoffs?.hasUnsavedChanges() || window.CeasefireLibraryEditor?.hasProjectChanges?.() || window.CeasefireCertification?.hasProjectChanges?.() || window.CeasefireDocumentation?.hasProjectChanges?.(); }
   function pricingScopeUi() {
     $("pricing-scope").value = state.pricingScope;
     const save = $("save-pricing"), project = state.pricingScope === "project";
@@ -1987,6 +1987,10 @@
     return JSON.stringify({project:projectStamp(),coverSheets:window.CeasefireCoverSheets?.fingerprint?.()});
   }
   function coverReplacementPending() {
+    if (window.CeasefireDownloads?.hasPendingOperation?.()) {
+      message(uiCopy("Finish the download and its project save before replacing a project."), true);
+      return true;
+    }
     if (window.CeasefireDocumentation?.hasPendingOperation?.()) {
       message(uiCopy("Finish the current document download before replacing a project."), true);
       return true;
@@ -2012,9 +2016,17 @@
     updateProjectStatus();
   }
 
-  async function saveProject() {
-    if (state.projectBusy) return;
-    if (window.CeasefireDocumentation?.hasPendingOperation?.()) { message(uiCopy("Finish the current document download before saving the project."),true); return; }
+  async function saveProject({ automatic = false, downloadTarget = null } = {}) {
+    if (state.projectBusy || window.CeasefireDownloads?.hasInFlight?.()) {
+      if (automatic) throw new Error("Finish the current file operation before saving the project.");
+      message(uiCopy("Finish the current file operation before saving the project."),true);
+      return;
+    }
+    if (window.CeasefireDocumentation?.hasPendingOperation?.()) {
+      if (automatic) throw new Error("Finish the current document download before saving the project.");
+      message(uiCopy("Finish the current document download before saving the project."),true); return;
+    }
+    if (automatic && !isCurrentDownloadTarget(downloadTarget)) throw new Error("The project changed after the download. Its file was not overwritten.");
     const target = state.projectFile, context = state.quoteContext;
     const saveAs = !target?.save_token;
     projectBusy(true, "save-current-project");
@@ -2050,10 +2062,14 @@
       if (!saveAs) payload.save_token = target.save_token;
       const captured = projectStamp();
       const saved = await request(saveAs ? "/api/project/save-as" : "/api/project/save", { method: "POST", body: JSON.stringify(payload) });
-      if (saved.cancelled) { message(uiCopy("Save cancelled. Your current project remains open.")); return; }
+      if (saved.cancelled) {
+        if (automatic) throw new Error("The project save was cancelled.");
+        message(uiCopy("Save cancelled. Your current project remains open.")); return;
+      }
       const changed = captured !== projectStamp() || preparedPricing !== pricingStamp();
       if (context === state.quoteContext) {
         state.projectFile = saved.file;
+        window.CeasefireDownloads?.projectSaved?.({ project_context: context, project_path: saved.file.path });
         window.CeasefireCalculators.markProjectSaved(saved.project.calculators, calculators);
         if (penetration) window.CeasefirePenetrations.markProjectSaved(saved.project.penetration, penetration);
         if (takeoffs) window.CeasefireTakeoffs.markProjectSaved(saved.project.takeoffs, takeoffs);
@@ -2076,7 +2092,12 @@
         } else updateDirty();
       }
       if (!changed || $("app-message").getAttribute("role") !== "alert") message(uiCopy("Project saved to {0}. It includes the Quote, Firestopping items, {1}project pricing{2} and all three specialist calculators.{3}{4}{5}{6}", [saved.file.path, window.CeasefireI18n.term(takeoffContents()), window.CeasefireI18n.term(libraryDrafts ? ", project library drafts" : ""), window.CeasefireI18n.term(pricing?.scope === "library" ? " Pricing Library edits were saved for this project only." : ""), window.CeasefireI18n.term(pricing?.conflict ? " The other pricing draft is still available and was not included." : ""), window.CeasefireI18n.term(changed ? " Later edits are not included and still need saving." : ""), saved.warning ? ` ${saved.warning}` : ""]), false, "project-saved");
-    } catch (error) { message(uiCopy("Project was not saved. {0}", [error.message]), true); }
+      return { saved: true, file: saved.file, changed };
+    } catch (error) {
+      if (automatic) throw error;
+      message(uiCopy("Project was not saved. {0}", [error.message]), true);
+      return { saved: false, error: error.message };
+    }
     finally { projectBusy(false); }
   }
 
@@ -2416,7 +2437,7 @@
   $("measurements").addEventListener("input", () => updateDirty());
   $("new-quote").addEventListener("click", async () => { if (await confirmLeavePricingLibrary()) newQuote(); });
   $("download-quote-pdf").addEventListener("click", () => downloadQuotePdf());
-  for (const [id, label, materials] of [["download-full-schedule", "Download Full Schedule", false], ["download-full-product-summary", "Download Full Product Summary", true]]) {
+  for (const [id, label, materials] of [["download-full-schedule", "Full Schedule", false], ["download-full-product-summary", "Full Product Summary", true]]) {
     const button = node("button", "button pdf-button calculator-document-action"); button.id = id; button.type = "button";
     const icon = node("span", "download-format-icon"); icon.setAttribute("aria-hidden", "true");
     icon.append(node("span", "download-arrow", "⇩"), node("span", "download-format", "PDF"));
@@ -2482,7 +2503,7 @@
   window.addEventListener("input", () => { desktopInputRevision++; }, true);
   window.addEventListener("change", () => { desktopInputRevision++; }, true);
   function desktopCloseStamp() { return JSON.stringify({ project: projectStamp(), input: desktopInputRevision, pricing: sharedPricingDraft(), pricingRevision: state.pricingRevision, libraryDirty: !!window.CeasefireLibraryEditor?.hasUnsavedChanges(), certification: window.CeasefireCertification?.fingerprint?.(), coverSheets:window.CeasefireCoverSheets?.fingerprint?.() }); }
-  function desktopBusy() { return state.projectBusy || state.desktopRequests > 0 || !!document.querySelector('dialog[open], [aria-busy="true"]') || !state.initialized || !!window.CeasefireCalculators?.hasPendingOperation?.() || !!window.CeasefirePenetrations?.hasPendingOperation?.() || !!window.CeasefireTakeoffs?.hasPendingOperation?.() || !!window.CeasefireLibraryEditor?.hasPendingOperation?.() || !!window.CeasefireCertification?.hasPendingOperation?.() || !!window.CeasefireCoverSheets?.hasPendingOperation?.() || !!window.CeasefireDocumentation?.hasPendingOperation?.(); }
+  function desktopBusy() { return state.projectBusy || state.desktopRequests > 0 || !!window.CeasefireDownloads?.hasPendingOperation?.() || !!document.querySelector('dialog[open], [aria-busy="true"]') || !state.initialized || !!window.CeasefireCalculators?.hasPendingOperation?.() || !!window.CeasefirePenetrations?.hasPendingOperation?.() || !!window.CeasefireTakeoffs?.hasPendingOperation?.() || !!window.CeasefireLibraryEditor?.hasPendingOperation?.() || !!window.CeasefireCertification?.hasPendingOperation?.() || !!window.CeasefireCoverSheets?.hasPendingOperation?.() || !!window.CeasefireDocumentation?.hasPendingOperation?.(); }
   async function reviewDesktopClose() {
     if (desktopBusy()) { message(uiCopy("Finish the current operation or dialog before closing ESTIMATOR."), true); return false; }
     const captured = desktopCloseStamp();
@@ -2513,10 +2534,24 @@
     state.firestoppingStamp = stamp;
     if (state.initialized) { if (hadSchedule) updateDirty(); scheduleCalculation(); }
   }
+  function isCurrentDownloadTarget(target) {
+    return !!target && target.project_context === state.quoteContext &&
+      typeof target.project_path === "string" && target.project_path === state.projectFile?.path;
+  }
   window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus, scheduleChanged,
     configuration: () => clone(state.quoteConfiguration || state.configuration),
     runtimeContext: () => state.quoteContext,
-    downloadTarget: () => ({ project_token: state.projectFile?.save_token || null }) };
+    hasPendingOperation: () => state.projectBusy,
+    isCurrentDownloadTarget,
+    downloadTarget() {
+      // Schedules also read this identity to guard deletion reviews. Reading
+      // an unsaved project's identity must not prevent worksheet rendering.
+      return { project_token: state.projectFile?.save_token || null, project_context: state.quoteContext, project_path: state.projectFile?.path || null };
+    },
+    saveAfterDownload: target => saveProject({ automatic: true, downloadTarget: target }),
+    downloadSaveFailed(target, result, error) {
+      if (isCurrentDownloadTarget(target)) message(uiCopy("File saved to {0}, but the project was not saved. {1}", [result.path, error.message]), true);
+    } };
   window.CeasefireDocumentationApp = { async run(adapter, spec, button) {
     if (adapter === "pricing") return exportPricing(button);
     if (adapter === "estimate") {

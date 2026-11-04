@@ -251,12 +251,13 @@
     });
     root.addEventListener("focusout", event => { if (!root.contains(event.relatedTarget)) close(false); });
     document.body.addEventListener("pointerdown", event => { if (!root.contains(event.target)) close(false); });
-    for (const [confirmation, label] of [["confirmed", "Download confirmed items"], ["unconfirmed", "Download unconfirmed items"], ["all", "Download all items"]]) {
+    for (const [confirmation, label] of [["confirmed", "Confirmed items"], ["unconfirmed", "Unconfirmed items"], ["all", "All items"]]) {
       const action = button(label, () => { close(false); return downloadTakeoff("schedule-xlsx", confirmation, action); }, "button secondary calculator-document-action"), symbol = node("span", "download-format-icon"); symbol.setAttribute("aria-hidden", "true"); symbol.append(node("span", "download-arrow", "⇩"), node("span", "download-format", "XLSX")); action.replaceChildren(symbol, uiNode("span", "", label)); list.append(action);
     }
-    for (const [kind, label] of [["current-all", "Download Full Markup"], ["current-marked", "Download Markups Only"], ["all-all", "Download All Markups"], ["all-marked", "Download Full Markups Only"]]) {
-      const action = button(label, () => { close(false); return downloadMarkup(kind, action); }, "button secondary calculator-document-action"), symbol = node("span", "download-format-icon"); symbol.setAttribute("aria-hidden", "true"); symbol.append(node("span", "download-arrow", "⇩"), node("span", "download-format", "PDF")); action.replaceChildren(symbol, uiNode("span", "", label)); list.append(action);
-    }
+    const markups = button("Markups", () => { close(false); return documentationExport({ action: "markups" }, markups); }, "button secondary calculator-document-action");
+    const icon = node("span", "download-format-icon"); icon.setAttribute("aria-hidden", "true");
+    icon.append(node("span", "download-arrow", "⇩"), node("span", "download-format", "PDF"));
+    markups.replaceChildren(icon, uiNode("span", "", "Markups")); list.append(markups);
     return { root, toggle, list, close };
   }
   function currentVisibilityControl(kind, id) {
@@ -791,6 +792,10 @@
     setModal(true);
     try {
       await window.CeasefireTakeoffPDFTools.open({ operation, documents: clone(documents()), expectedRevision: revision, defaultAction: "download",
+        savePDF: async (payload, button) => {
+          if (sessionId !== state.session?.session_id || revision !== state.session.revision) throw new Error("The project changed. Open Tools again.");
+          return window.CeasefireDownloads.save(`/api/takeoffs/sessions/${sessionId}/pdf-tools`, payload, { button });
+        },
         requestPDF: async payload => {
           if (sessionId !== state.session?.session_id || revision !== state.session.revision) throw new Error("The project changed. Open Tools again.");
           const path = `/api/takeoffs/sessions/${sessionId}/pdf-tools`, documentationHeaders = await window.CeasefireDocumentation?.downloadHeaders?.(path, payload) || {};
@@ -807,7 +812,8 @@
     if (!result) return;
     if (sessionId !== state.session?.session_id || revision !== state.session.revision) throw new Error("The project changed. Open Tools again.");
     if (result.action === "add-source") { await upload([new File([result.blob], result.filename, { type: "application/pdf" })]); }
-    else { const url = URL.createObjectURL(result.blob), link = node("a"); link.href = url; link.download = result.filename; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000); message("PDF copy downloaded."); }
+    else if (result.saved) message(`PDF copy saved to ${result.path}.`);
+    else throw new Error("The PDF file save could not be confirmed.");
   }
   async function open() { build(); state.active = true; await ensureSession(); renderData(); scheduleLinkedThickness(true); if (state.document) await renderPage(); }
   function refreshNavigation() {
@@ -1062,7 +1068,7 @@
         return { ...reply, snapshot: physicalSnapshot(reply.snapshot) };
       },
       drawingPdf: () => uiButton("Download PDF", () => downloadTakeoff("marked-pdf")),
-      export: exportPhysical, downloadMarkup, undo: async () => { const reply = await command("undo"); return { ...reply, snapshot: physicalSnapshot(reply.snapshot) }; }, history: showAudit,
+      export: exportPhysical, downloadMarkup, documentationExport, undo: async () => { const reply = await command("undo"); return { ...reply, snapshot: physicalSnapshot(reply.snapshot) }; }, history: showAudit,
       selection: async (ids, reference, focus, openDetails = true) => { state.physicalSelected = new Set(ids); if (ids.length) { state.signatureSelected = null; state.graphicSelected = null; state.settingsOpen = false; state.settingsEditor = null; renderSettingsPanel(); } if (openDetails && ids.length && state.mode === "physical") { setPhysicalDetailsOpen(true); state.ui.physicalDetails.scrollTop = 0; } if (reference && focus) await physicalSource(reference); else renderOverlay(); },
       hover: hoverPhysical,
       placeMarker: id => armPhysicalMarker(id),

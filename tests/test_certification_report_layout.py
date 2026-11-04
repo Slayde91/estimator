@@ -38,10 +38,10 @@ class CertificateLayoutTests(unittest.TestCase):
                    and rect['non_stroking_color'][0] > .7
                    and rect['non_stroking_color'][1] < .05
                    and rect['non_stroking_color'][2] < .15]
-            self.assertEqual(len(red), 1)
+            self.assertEqual(len(red), 2)
             for label in ('Name', 'Position', 'Qualification', 'Accreditation'):
-                self.assertGreaterEqual(by_text[label]['top'], red[0]['top'])
-                self.assertLessEqual(by_text[label]['bottom'], red[0]['bottom'])
+                self.assertGreaterEqual(by_text[label]['top'], red[-1]['top'])
+                self.assertLessEqual(by_text[label]['bottom'], red[-1]['bottom'])
 
     def test_title_is_centered_uppercase_and_bottom_attestation_stays_regular(self):
         payload = self.render(client='BODYCLIENT', australian_standards='BODYSTANDARD', name='BODYSIGNER',
@@ -50,28 +50,45 @@ class CertificateLayoutTests(unittest.TestCase):
             words = [word for page in document.pages
                      for word in page.extract_words(extra_attrs=['fontname', 'non_stroking_color'])]
             by_text = {word['text']: word for word in words}
-            for label in ('Statement', 'Client', 'Project', 'Address', 'Location/Area',
-                          'Exclusions', 'Materials/Manufacturers:', 'Date:'):
+            for label in ('Statement', 'Exclusions', 'Materials/Manufacturers:', 'Date:'):
                 word = by_text[label]
-                self.assertNotIn('Bold', word['fontname'])
+                if label == 'Statement':
+                    self.assertIn('Bold', word['fontname'])
+                else:
+                    self.assertNotIn('Bold', word['fontname'])
                 self.assertAlmostEqual(word['non_stroking_color'][0], 189/255, delta=.001)
                 self.assertEqual(word['non_stroking_color'][1], 0)
-            for label in ('Name', 'Position', 'Qualification', 'Accreditation'):
+            for label in ('Client', 'Project', 'Address', 'Location/Area', 'Name', 'Signature', 'Position', 'Qualification', 'Accreditation'):
                 self.assertEqual(tuple(by_text[label]['non_stroking_color']), (1, 1, 1))
                 self.assertNotIn('Bold', by_text[label]['fontname'])
             for value in ('BODYCLIENT', 'BODYSTANDARD', 'BODYSIGNER'):
                 self.assertEqual(tuple(by_text[value]['non_stroking_color']), (0, 0, 0))
+                self.assertNotIn('Bold', by_text[value]['fontname'])
             text = '\n'.join(page.extract_text() for page in document.pages)
-            self.assertIn('INSTALLATION CERTIFICATE', text)
+            self.assertIn('INSTALLATION CERTIFICATE | Revision 2', text)
             self.assertNotIn('Installation Certificate', text)
-            title = [by_text[word] for word in ('INSTALLATION', 'CERTIFICATE')]
+            title = [word for word in words if word['text'] in ('INSTALLATION', 'CERTIFICATE') and word['top'] < 150]
+            self.assertEqual(len(title), 2)
             self.assertAlmostEqual((min(w['x0'] for w in title)+max(w['x1'] for w in title))/2, document.pages[0].width/2, delta=.1)
             self.assertTrue(all('Bold' in word['fontname'] for word in title))
             self.assertIn('Bold', by_text['INTRODUCTIONTOKEN']['fontname'])
-            for word in words:
-                if word['text'] in ('approved', 'properly', 'knowledge.'):
-                    self.assertNotIn('Bold', word['fontname'])
             self.assertIn('Exclusions - Certification is strictly limited to works completed by Layout Company, as per:', text)
+
+    def test_compliance_stays_bold_and_attestation_is_regular_black(self):
+        statement = 'COMPLIANCESTART Manufacturer requirements remain explicit. COMPLIANCEEND'
+        payload = self.render(statement_of_compliance=statement)
+        with pdfplumber.open(BytesIO(payload)) as document:
+            lines = [line for page in document.pages for line in page.extract_text_lines()]
+            compliance = next(line for line in lines if 'COMPLIANCESTART' in line['text'])
+            start = next(index for index, line in enumerate(lines) if 'are approved by the manufacturers' in line['text'])
+            end = next(index for index in range(start, len(lines)) if 'best of my knowledge.' in lines[index]['text'])
+            for line in [compliance, *lines[start:end+1]]:
+                for char in line['chars']:
+                    if line is compliance:
+                        self.assertIn('Bold', char['fontname'])
+                    else:
+                        self.assertNotIn('Bold', char['fontname'])
+                    self.assertEqual(tuple(char['non_stroking_color']), (0, 0, 0))
 
     def test_signer_date_is_frozen_in_sydney_and_footer_remains_utc(self):
         cases = [('2026-10-29T13:30:00Z', '30 October 2026', '29 Oct 2026, 13:30 UTC'),
@@ -105,8 +122,8 @@ class CertificateLayoutTests(unittest.TestCase):
             page, artwork = signatures[0]
             signer = next(word for word in page.extract_words() if word['text']=='SIGNERART')
             position = next(word for word in page.extract_words() if word['text']=='POSITIONART')
-            self.assertGreater(artwork['top'], signer['bottom'])
-            self.assertGreaterEqual(artwork['x0'], signer['x0']-.1)
+            self.assertAlmostEqual(artwork['top'], signer['top'], delta=3)
+            self.assertGreater(artwork['x0'], signer['x1'])
             self.assertLess(artwork['x1'], position['x0'])
 
     def test_complete_multiline_signed_certificate_keeps_name_signature_and_date_on_one_page(self):
@@ -129,7 +146,7 @@ class CertificateLayoutTests(unittest.TestCase):
             page = document.pages[0]
             words = {word['text']: word for word in page.extract_words()}
             image = next(image for image in page.images if image['srcsize'] == (480, 140))
-            self.assertGreater(image['top'], words['EXAMPLESIGNER']['bottom'])
+            self.assertGreater(image['x0'], words['EXAMPLESIGNER']['x1'])
             self.assertGreater(words['Date:']['top'], image['bottom'])
             self.assertLess(words['Date:']['bottom'], page.height - 44)
 
@@ -157,7 +174,7 @@ class CertificateLayoutTests(unittest.TestCase):
                 self.assertLess(by_text[label]['bottom'], by_text[value]['top'])
                 self.assertAlmostEqual(by_text[label]['x0'], by_text[value]['x0'], delta=1)
             first = by_text['STANDARDVALUE']
-            self.assertLess(first['x0'], 50)
+            self.assertAlmostEqual(first['x0'], 54, delta=1)
             line = [word for word in words if abs(word['top']-first['top'])<1]
             self.assertGreater(max(word['x1'] for word in line), 500)
             for page in document.pages:

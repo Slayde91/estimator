@@ -12,6 +12,16 @@ sharing an output. Similar appearance alone is insufficient. Keep the grouping,
 prompt, generated candidate, visual review and rejected variants in the private
 batch record. Do not commit supplier images or private library records to Git.
 
+New generations must use OpenArt. Record the model, history ID, completed output
+URL, generation time, original source hash, downloaded output hash and approval.
+Provider names or file modification dates alone do not establish provenance.
+Preserve explicit user approvals; do not regenerate or reject those exact versions
+again. A later explicit user revocation overrides the earlier approval; keep the
+revoked version out of publication and retain its audit history. When retiring
+older or unverified derivatives, remove their registry entries
+and restore fingerprinted originals for display; quarantine derivatives outside
+the active `replicas` folder. Keep the source index and project data unchanged.
+
 Generated replicas contain construction imagery only: no branding, logos, text,
 dimensions, labels, watermarks or printed wrapper graphics. Omit every bottom
 reference code or caption, including codes such as `BMH-120-V38 a`. Record names,
@@ -30,6 +40,87 @@ atomically. Requests validate both the current original and reviewed replica
 bytes. Missing or invalid optional metadata leaves original retrieval available.
 An image load failure falls back to the original. Reopening a library detail
 reads the latest registered batch without restarting the application.
+
+Installation also archives the exact original in `images_old` and synchronizes
+the approved presentation into `images`. A generated PNG keeps its `.png`
+extension even when its source was JPEG. Previous presentation bytes are retained
+in `replicas/previous` if a replacement differs. The source index and fingerprinted
+original bytes do not change. To repair older registry-only publications, run
+`python scripts/install_library_replicas.py --sync-published --library-directory PATH`.
+This validates the complete selected batch before moving originals, publishes
+only already reviewed registry entries, and can be safely repeated.
+
+Use the OpenArt plugin for new illustrations. Choose the best image model for
+each prompt using OpenArt's current model guidance, as authorised by the user.
+This supersedes the former Nano Banana Pro collar default and GPT Image 2 default.
+Record the actual model and selection basis. The plugin requires a named model;
+do not describe an assistant's catalogue-based choice as OpenArt Auto-select.
+Do not switch to the browser for generation.
+
+Include three to five sparse, thin red contour accents on existing depth edges,
+overlaps or reveal boundaries. These are linework only, never red surface fills,
+shading, floating marks or invented physical details. Check their presence during
+visual review; an otherwise acceptable image without them needs correction.
+
+Plastic-pipe
+collars must not acquire zip ties. Their mounting backs and existing tabs sit
+flush outside the opposing substrate faces, with the collar bodies projecting
+outward. Collars fixed to batt use pigtail screws only: show their coarse helical
+coil entering the batt at the collar's mounting points. Do not substitute ordinary
+screws, anchors or clamps. Preserve the source collar construction, mounting
+locations and visible count without inventing hidden fixings, tabs or flanges.
+Wrap ties remain smooth, unperforated,
+self-locking stainless steel zip ties on the wrap only. Never replace a zip tie
+with a hose clamp or add a worm-drive housing or perforated band.
+
+The user's no-collar-zip-ties rule applies even when a source figure or report
+mentions a circumferential retaining tie. Keep that source evidence unchanged,
+but do not draw the tie, its buckle, or a substitute strap on the collar.
+Preserve the actual collar casing and mounting fixings. A correction requested
+from the original must start from the archived original reference, not from the
+rejected generated drawing.
+
+Wrap zip ties always form circumferential loops perpendicular to the service's
+longitudinal axis. Never run them lengthwise, parallel to the service. On a
+vertical service the loops run horizontally around the wrap; on a horizontal
+service they encircle its cross-section. Judge orientation in 3D: perspective may
+make a correct loop appear curved or slanted. Apply this in every generation
+prompt and visual review; reject axial ties before publication. Preserve the
+source tie count and positions, and the rules for flat stainless self-locking
+ties and no collar zip ties.
+
+Record any user-authorised alternate-model retry and its reason, including
+provider failures and rejected visual details, without replacing source evidence.
+
+Flexible insulation on structural steel follows the actual flanges, recessed
+webs, return lips and inside corners. Do not bridge an open I/H/C/Z profile with
+a rectangular enclosure or change the steel section. Preserve the original bare
+ends, wrap extent, floor packing and seals. Cable-tray insulation also remains
+flexible wrap, with the source side fixing angles visible; do not substitute rigid
+board. These illustration corrections do not alter the assessed construction.
+
+Treat every service and its tray as one continuous assembly through insulation,
+walls and floors. Trace visible service paths and tray edges above and below the
+penetration before approval: cross-section, facing, projected alignment, depth
+order, diameter and camera projection must stay consistent. Wrap may enlarge the
+outside envelope; it must not rotate, shift, reverse or substitute the hidden
+service. Apply the final horizontal reflection uniformly to the whole scene
+exactly once. Reject separately plausible upper and lower halves that do not
+connect. Preserve source-visible end staggering without inventing concealed
+cable or fixing counts.
+
+Material descriptions must not become invented visible geometry. Compare the
+original silhouettes and openings directly: do not expose a hidden pipe bore or
+insulation cross-section, invent bare end lengths, exaggerate a thin sleeve into
+a thick shoulder, or enlarge a narrow support tongue into a floor slab. Source
+context identifies depicted components; it does not authorise new cutaways or
+parts. Reject a plausible reconstruction when it changes the original drawing.
+
+Publish each visually accepted image through the installer, then verify that
+the live replica route returns its reviewed bytes and the original route returns
+the fingerprinted source. Keep failed or rejected candidates outside the registry;
+generation completion alone is not approval. Preserve the source viewing geometry,
+visible quantities and uniform final horizontal flip during review.
 
 Manual Takeoff Services transfer as separate editable Firestopping rows only
 after their owning physical record is confirmed and quantity is explicit.

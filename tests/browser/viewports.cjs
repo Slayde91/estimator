@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 const { chooseTakeoff, takeoffChoice } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing, viewRegisterItem } = require('./viewer_helpers.cjs');
@@ -165,6 +165,8 @@ async function load() {
   await clickProjectControl(page, 'Load');
   const response = await pending; assert.equal(response.status(), 200, await response.text());
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.waitForFunction(() => { const state = window.CeasefireDesktop?.status(); return state?.ready && !state.busy; });
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await idle();
 }
@@ -184,7 +186,7 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => { if (request.url().endsWith('/commands')) operations.push(request.postDataJSON()?.op); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', e => window.qaCsp.push({ directive: e.effectiveDirective, blocked: e.blockedURI })); });
-  const response = await page.goto(`http://127.0.0.1:${info.port}/`);
+  const response = await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page);
   assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
@@ -254,13 +256,15 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
       await expect(editor.getByLabel('Product', {exact:true})).toHaveValue('CAFCO 300');
     }
     assert.match(await page.evaluate(() => {try {window.CeasefireTakeoffs.projectSnapshot(); return '';} catch(error) {return error.message;}}), /unfinished/);
-    const saveRequests=[]; const watchSave=request=>{if(request.url().endsWith('/api/project/save-as'))saveRequests.push(request.url());};page.on('request',watchSave);
+    const saveRequests=[]; const watchSave=request=>{if(request.url().endsWith('/api/project/save'))saveRequests.push(request.url());};page.on('request',watchSave);
+    const projectBeforeFailedSave = fs.readFileSync(info.project);
     await clickProjectControl(page, 'Save');
     // Save first prepares the calculator snapshots before flushing the failed
     // Takeoff edit. Keep the rejection and no-save checks, allowing that work
     // the same bounded deadline as the other project actions in this journey.
     await expect(page.locator('#app-message')).toContainText('Synthetic revision race', {timeout:30000});
-    page.off('request',watchSave);assert.deepEqual(saveRequests,[]);assert.equal(fs.existsSync(info.project),false);
+    page.off('request',watchSave);assert.deepEqual(saveRequests,[]);
+    assert.deepEqual(fs.readFileSync(info.project),projectBeforeFailedSave,'Rejected Save must preserve the existing project bytes');
     await page.screenshot({path:path.join(output,'failed-settings-save-guard.png'),fullPage:true});
   } finally { await page.unroute('**/commands'); }
   // Re-entering a retained value retries the failed automatic patch.
@@ -434,7 +438,7 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   await page.locator('#takeoff-markup-settings').evaluate(el => { el.scrollTop = el.scrollHeight; });
   await page.locator('#takeoff-markup-settings').screenshot({ path: path.join(output, 'riser-settings.png') });
   await page.getByRole('button',{name:'Viewport',exact:true}).click();
-  const save = page.waitForResponse(r => r.url().endsWith('/api/project/save-as')); await clickProjectControl(page, 'Save');
+  const save = page.waitForResponse(r => r.url().endsWith('/api/project/save')); await clickProjectControl(page, 'Save');
   assert.equal((await save).status(), 200); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project)); assert.equal(saved.version, 2);
   const openPanel = page.getByRole('complementary', {name:'Viewports',exact:true}); await expect(openPanel.locator('[data-calibration-id]')).toHaveCount(2);

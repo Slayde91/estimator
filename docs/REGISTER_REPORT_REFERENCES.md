@@ -27,6 +27,13 @@ requests. It does not write assignments, inputs, pricing or Takeoff state.
 
 ## Steel and duct reports
 
+PERLIFOC HP ECO+ rows identify FC21278-01-1 even if an unavailable or unsupported
+lookup leaves the assessment-source cell blank. This is a report caption only;
+it does not enable a thickness or material quantity. On 1 November 2026, BRANZ's
+public listing identified that report but offered no download, and Tremco's
+public product page linked an older edition. Keep FC21278-01-1 as plain text;
+do not substitute an older edition or link the private retained copy.
+
 The worksheet, PDF/XLSX projection and linked Takeoff result share
 `schedule_report_references`. It reads the evaluated row under the existing
 evaluation lock. Known public links are selected only from reviewed assessment

@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 const { cycleTheme } = require('./theme_navigation.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
@@ -226,7 +226,7 @@ async function surface(mode, rotated = false) {
   page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', e => window.qaCsp.push({ directive: e.effectiveDirective, blocked: e.blockedURI })); });
-  const response = await page.goto(`http://127.0.0.1:${info.port}/`);
+  const response = await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page);
   assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   const calculatorsBefore = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
@@ -308,7 +308,7 @@ async function surface(mode, rotated = false) {
   await viewRegisterItem(page, slab.id, slab.geometry);
   await expect(page.getByLabel('Page number', { exact: true })).toHaveValue('2');
   await page.screenshot({ path: path.join(output, 'slab-rotated-confirmed.png'), fullPage: true });
-  const save = page.waitForResponse(r => r.url().endsWith('/api/project/save-as'));
+  const save = page.waitForResponse(r => r.url().endsWith('/api/project/save'));
   await clickProjectControl(page, 'Save');
   assert.equal((await save).status(), 200);
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');

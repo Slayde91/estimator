@@ -165,7 +165,7 @@ class PenetrationIntegrationTests(unittest.TestCase):
         fresh = json.loads(self.request('GET', '/api/penetration')[2])
         self.assertEqual(fresh['defaults'], definition({})['defaults'])
 
-    def test_penetration_downloads_use_project_folder_or_standard_downloads(self):
+    def test_penetration_downloads_require_saved_project_folder(self):
         folder = self.root / 'export-project'
         folder.mkdir(exist_ok=True)
         project_path = folder / 'estimate.cf.json'
@@ -182,7 +182,7 @@ class PenetrationIntegrationTests(unittest.TestCase):
             token = json.loads(saved[2])['file']['save_token']
             downloads = self.root / 'Downloads'
             with patch('estimator.download_files.standard_downloads_directory', return_value=downloads):
-                for project_token, expected_folder in ((token, folder), (None, downloads)):
+                for project_token, expected_folder in ((token, folder),):
                     for route in ('report.pdf', 'register.xlsx'):
                         status, _, raw = self.request('POST', '/api/penetration/' + route,
                             {'draft': self.draft(), 'configuration': {}, 'download': {'project_token': project_token}})
@@ -192,6 +192,11 @@ class PenetrationIntegrationTests(unittest.TestCase):
                         path = Path(receipt['path'])
                         self.assertEqual(path.parent, expected_folder)
                         self.assertTrue(path.read_bytes().startswith(b'%PDF' if route.endswith('.pdf') else b'PK'))
+                for route in ('report.pdf', 'register.xlsx'):
+                    status, _, raw = self.request('POST', '/api/penetration/' + route,
+                        {'draft': self.draft(), 'configuration': {}, 'download': {'project_token': None}})
+                    self.assertEqual(status, 400, raw)
+                self.assertFalse(downloads.exists())
         finally:
             self.server = previous
             server.shutdown()

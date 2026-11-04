@@ -40,6 +40,7 @@ class AssessmentReferenceTests(unittest.TestCase):
         self.assertEqual(self.refs('steel_intumescent', B11='FIRETEX FX5090', X11='FC20571/01/C1 p10 Table 2'),
                          [{'label': 'FC20571/01/C1', 'url': None}])
         self.assertEqual(self.refs('steel_intumescent', B11='FIRETEX FX5090', X11=''), [])
+
         self.assertEqual(self.refs('ductwork', C11='', AQ11='FAS230196 RIR3.2'), [])
         result = self.refs('steel_board', C11='PROMATECT 100', AT11='FC15555-01-03 Table 1')
         self.assertEqual(result[0]['label'], 'FC15555-01-03')
@@ -48,6 +49,12 @@ class AssessmentReferenceTests(unittest.TestCase):
         self.assertEqual(corex[0]['label'], 'FAS200445 R2.0')
         unknown = self.refs('steel_board', C11='PROMATECT-XS', AT11='XS p16 section schedule')
         self.assertEqual(unknown, [{'label': 'Assessment not identified in source', 'url': None}])
+
+    def test_perlifoc_retains_current_report_when_lookup_is_unavailable(self):
+        for source in ('', 'FC21278-01-1 p15 Table 9', 'Inherited Perlifoc route'):
+            self.assertEqual(self.refs('steel_vermiculite', B11='PERLIFOC HP ECO+', X11=source),
+                             [{'label': 'FC21278-01-1', 'url': None}])
+        self.assertEqual(self.refs('steel_intumescent', B11='PERLIFOC HP ECO+', X11=''), [])
 
     def test_xs_uses_the_assessment_explicitly_cited_by_its_actual_tables(self):
         cells = {'C11': 'PROMATECT-XS', 'AT11': 'XS p.16 | section schedule',

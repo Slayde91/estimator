@@ -34,9 +34,12 @@ async function holdFinalHistory(trigger){
     if(first)heldRequest=handling;return handling;
   });
   try{await trigger();await Promise.race([arrival,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('The source export did not refresh its captured history.')),60000);})]);
+    const busy=page.locator('.documentation-download-button[aria-busy="true"]');await expect(busy).toHaveCount(1);
+    assert.equal(await busy.evaluate(button=>getComputedStyle(button,'::after').content),'none');
+    checks.push('The busy download button retains its download icon without a circular spinner');
     assert.equal(await page.evaluate(()=>window.CeasefireDocumentation.hasPendingOperation()),true);const mutations=projectMutations.length,scope=await page.evaluate(()=>window.CeasefireCertification.sessionId());
-    await page.locator('#save-current-project').click();await expect(page.locator('#app-message')).toContainText('Finish the current document download before saving the project.');
-    await openProjectSection(page,'quotes');await page.locator('#new-quote').click();await expect(page.locator('#app-message')).toContainText('Finish the current document download before replacing a project.');
+    await page.locator('#save-current-project').click();await expect(page.locator('#app-message')).toHaveText('Finish the current file operation before saving the project.');
+    await openProjectSection(page,'quotes');await page.locator('#new-quote').click();await expect(page.locator('#app-message')).toHaveText('Finish the download and its project save before replacing a project.');
     assert.equal(await page.evaluate(()=>window.CeasefireCertification.sessionId()),scope);assert.equal(projectMutations.length,mutations);await expect(page.locator('#client')).toHaveValue('SYNTHETIC DOCUMENTATION QA');
     checks.push('Save and New are blocked while the final captured history response is still pending, without replacing the project');
   }finally{clearTimeout(timer);release();await heldRequest;await page.unroute(matcher);}
@@ -51,7 +54,9 @@ async function download(kind,endpoint,{reviewPending=false}={}){await documentat
   assert.equal(bytes.subarray(0,kind.endsWith('.xlsx')?2:5).toString(),kind.endsWith('.xlsx')?'PK':'%PDF-');
   await expect(page.locator(`tr[data-document-kind="${kind}"] a`)).toHaveCount(item.revision,{timeout:30000});await idle();
   assert.deepEqual(await snapshots(),before,'An export retains all calculator inputs, price snapshots, schedule data and project details');
-  assert.equal(digest(fs.readFileSync(info.project)),digest(savedBefore),'Generating a document does not silently overwrite the saved project');
+  assert.equal(saved.destination,'project');assert.equal(path.dirname(saved.path),path.dirname(info.project));
+  assert.notEqual(digest(fs.readFileSync(info.project)),digest(savedBefore),'A successful download saves its updated project history afterwards');
+  const persisted=JSON.parse(fs.readFileSync(info.project));assert.equal(persisted.documentation.revision_count,(await api('/api/documentation?workspace='+saved.documentation.workspace_id)).workspace_revision);
   assert.deepEqual(await oldFile(item,saved.documentation.workspace_id),bytes);exportReceipts.push({kind,revision:item.revision,path:saved.path,sha256:item.sha256});return item;}
 async function confirmIfNeeded(){const dialog=page.locator('#discard-dialog');if(await dialog.isVisible())await dialog.locator('[value="confirm"]').click();}
 async function load(file){choose(file);await openProjectSection(page,'quotes');const waiting=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/project/open',{timeout:180000});waiting.catch(()=>{});
@@ -77,17 +82,24 @@ function checkCompanions(project,folder){
   await page.locator('#client').fill('SYNTHETIC DOCUMENTATION QA');await page.locator('#project-no').fill('DOC-PROJECT-A');await page.locator('#site-address').fill('Synthetic test address - no installation claim');
   choose('project-a.cf.json');await save();console.log('Project A saved on disposable storage.');const baseline=await snapshots();
   await documentation();const catalog=(await api('/api/documentation/catalog')).documents;
-  const omittedPdfRows=new Set(['firestopping.current_item.pdf','library.technical.item.pdf','takeoff.pdf_tools.pdf']);
+  await expect(page.locator('#view-documentation .documentation-table thead tr').first().locator('th')).toHaveText(['Document','Previous revisions','Download']);
+  const breakdown=page.locator('tr[data-document-kind="estimate.summary.pdf"]');await expect(breakdown.locator('td').first()).toHaveText('Breakdown');
+  await expect(breakdown.locator('button')).toHaveAccessibleName('Download Breakdown');await expect(breakdown.locator('button')).toHaveText('⇩');
+  const omittedPdfRows=new Set(['firestopping.current_item.pdf','library.technical.item.pdf','takeoff.pdf_tools.pdf','takeoff.defect_reports.matrix.pdf','takeoff.service_plans.matrix.pdf']);
+  const omittedXlsxRows=new Set(['firestopping.current_item.xlsx','library.technical.item.xlsx','pricing.library.xlsx',
+    ...['steel_vermiculite','steel_intumescent','steel_board','ductwork'].map(id=>`calculator.${id}.template.xlsx`),
+    ...['steel','duct','walls_floors','defect_reports','service_plans'].map(id=>`takeoff.${id}.register.xlsx`)]);
   await expect(page.locator('#documentation-pdf-rows tr[data-document-kind]')).toHaveCount(catalog.filter(row=>row.format==='pdf'&&!omittedPdfRows.has(row.id)).length);
   await expect(page.locator('#documentation-pdf-rows .documentation-group-heading')).toHaveText(['Schedules','Product summaries','Other documents']);
   for(const kind of omittedPdfRows)await expect(page.locator(`tr[data-document-kind="${kind}"]`)).toHaveCount(0);
-  await expect(page.locator('#documentation-xlsx-rows tr')).toHaveCount(catalog.filter(row=>row.format==='xlsx').length);
+  await expect(page.locator('#documentation-xlsx-rows tr')).toHaveCount(catalog.filter(row=>row.format==='xlsx'&&!omittedXlsxRows.has(row.id)).length);
+  for(const kind of omittedXlsxRows){assert.ok(catalog.some(row=>row.id===kind),'Source export identity remains in the catalog');await expect(page.locator(`tr[data-document-kind="${kind}"]`)).toHaveCount(0);}
   assert.ok(catalog.some(row=>row.id==='firestopping.current_item.pdf'));assert.ok(!catalog.some(row=>row.id==='library.firestopping.item.pdf'));
-  await expect(page.locator('#documentation-pdf-rows a,#documentation-xlsx-rows a')).toHaveCount(0);checks.push('PDF rows omit the three removed downloads while XLSX rows and server export identities remain available');
+  await expect(page.locator('#documentation-pdf-rows a,#documentation-xlsx-rows a')).toHaveCount(0);checks.push('Requested PDF/XLSX rows are omitted while their server export identities and history remain available');
   const a=await page.evaluate(()=>window.CeasefireCertification.sessionId());
   const estimateOne=await download('estimate.summary.pdf','/api/quote-report',{reviewPending:true});const firstBytes=await oldFile(estimateOne,a);
   const estimateTwo=await download('estimate.summary.pdf','/api/quote-report');assert.equal(estimateOne.revision,1);assert.equal(estimateTwo.revision,2);assert.notEqual(estimateOne.id,estimateTwo.id);
-  const template=await download('calculator.steel_board.template.xlsx','/api/calculators/steel_board/template');assert.equal(template.revision,1);
+  const register=await download('calculator.steel_board.register.xlsx','/api/calculators/steel_board/register.xlsx');assert.equal(register.revision,1);assert.equal(register.filename,'STEEL_SCHEDULE_BOARD-R1.xlsx');
   assert.deepEqual(await snapshots(),baseline);checks.push('Two real PDF revisions and one real XLSX use original validated exporters with all calculation data unchanged');
 
   // Certification is an existing validated preparation workflow, not a second
@@ -100,6 +112,22 @@ function checkCompanions(project,folder){
   await documentation();await expect(page.locator('tr[data-document-kind="certification"] a')).toHaveCount(1);const historyA=await api('/api/documentation?workspace='+a);
   assert.equal(historyA.workspace_revision,3);assert.equal(historyA.items.length,4);assert.equal(historyA.items.filter(item=>item.kind==='certification').length,1);
   const readBefore=publicHistory(historyA);for(const item of historyA.items)await oldFile(item,a);
+  const revisionLink=page.locator(`tr[data-document-kind="estimate.summary.pdf"] a[href="${estimateOne.url}"]`);
+  await expect(revisionLink).toHaveAttribute('target','_blank');await expect(revisionLink).toHaveAttribute('rel','noopener noreferrer');
+  const mutationsBeforePreview=projectMutations.length;
+  const popupPromise=page.waitForEvent('popup');
+  const previewRequest=page.context().waitForEvent('request',request=>request.url()===base+estimateOne.url);
+  await revisionLink.click();const preview=await popupPromise;
+  // Headless Chromium may hand the PDF to a download and leave its new tab at
+  // about:blank. Verify the real navigation response rather than its PDF UI.
+  const navigation=await previewRequest;assert.equal(navigation.isNavigationRequest(),true);
+  const previewResponse=await navigation.response();assert.ok(previewResponse);
+  assert.equal(previewResponse.status(),200);
+  assert.match(previewResponse.headers()['content-type'],/^application\/pdf/);
+  assert.match(previewResponse.headers()['content-disposition'],/^inline;/);
+  await preview.close();
+  assert.equal(projectMutations.length,mutationsBeforePreview);
+  checks.push('Clicking a frozen PDF revision opens its exact scoped URL in a new tab without writing the project or appending history');
   assert.deepEqual(publicHistory(await api('/api/documentation?workspace='+a)),readBefore);assert.deepEqual(await oldFile(estimateOne,a),firstBytes);
   checks.push('Current-project certificate appears without copying it into a second store; opening old PDFs/XLSX adds no revision');
 
@@ -124,7 +152,7 @@ function checkCompanions(project,folder){
   await load('moved/project-copy.cf.json');await expect(page.locator('#client')).toHaveValue('SYNTHETIC DOCUMENTATION QA');await documentation();
   const restored=await page.evaluate(()=>window.CeasefireCertification.sessionId());assert.notEqual(restored,a);assert.notEqual(restored,b);
   const after=await api('/api/documentation?workspace='+restored);assert.equal(after.project_id,historyA.project_id);assert.deepEqual(publicHistory(after),readBefore);
-  await expect(page.locator('tr[data-document-kind="estimate.summary.pdf"] a')).toHaveCount(2);await expect(page.locator('tr[data-document-kind="calculator.steel_board.template.xlsx"] a')).toHaveCount(1);
+  await expect(page.locator('tr[data-document-kind="estimate.summary.pdf"] a')).toHaveCount(2);await expect(page.locator('tr[data-document-kind="calculator.steel_board.register.xlsx"] a')).toHaveCount(1);
   for(const item of after.items)await oldFile(item,restored);assert.deepEqual(await oldFile(estimateOne,restored),firstBytes);
   await openProjectSection(page,'certification');await expect(page.locator('#certification-document')).toHaveValue(certificateId);await expect(page.locator('#certification-revisions a')).toHaveCount(1);
   await documentation();assert.equal((await api('/api/documentation?workspace='+restored)).workspace_revision,3);assert.equal(digest(fs.readFileSync(path.join(moved,'project-copy.cf.json'))),copiedHash);
@@ -134,7 +162,7 @@ function checkCompanions(project,folder){
   // Cold calculator loads are allowed; each authored document invokes exactly
   // its existing source export once, and old-history reads invoke none.
   assert.equal(sourceRequests.filter(request=>request.path==='/api/quote-report').length,2);
-  assert.equal(sourceRequests.filter(request=>request.path==='/api/calculators/steel_board/template').length,1);
+  assert.equal(sourceRequests.filter(request=>request.path==='/api/calculators/steel_board/register.xlsx').length,1);
   assert.equal(sourceRequests.filter(request=>/^\/api\/certifications\/.+\/revisions$/.test(request.path)).length,1);
   assert.deepEqual(Object.fromEntries(sourceFiles.map(file=>[file,digest(fs.readFileSync(path.join(root,file)))])),sourceHashes,'Production sources stayed fixed for this browser receipt');
   assert.deepEqual(errors,[]);assert.deepEqual(consoleErrors,[]);

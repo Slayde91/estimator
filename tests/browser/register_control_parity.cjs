@@ -85,7 +85,7 @@ async function registerCase(page,physical) {
   const filter=()=>button('Filter Status');result.filter=await states(page,filter());
   const open=async()=>{await filter().click();const dialog=page.getByRole('dialog');await expect(dialog.getByRole('heading',{name:'Filter Status',exact:true})).toBeVisible();await expect(filter()).toHaveAttribute('aria-expanded','true');return dialog;};
   let dialog=await open();result.openFilter=await appearance(filter());result.dialog=await appearance(dialog);
-  result.dialogSearch=await states(page,dialog.getByRole('searchbox',{name:'Search Confirmation values',exact:true}));result.dialogButtons={};
+  result.dialogSearch=await states(page,dialog.getByRole('searchbox',{name:'Search Status values',exact:true}));result.dialogButtons={};
   for(const name of ['Apply filter','Reset filter','Cancel'])result.dialogButtons[name]=await states(page,dialog.getByRole('button',{name,exact:true}));
   const bounds=await dialog.boundingBox(),view=page.viewportSize();assert.ok(bounds.x>=0&&bounds.y>=0&&bounds.x+bounds.width<=view.width+1&&bounds.y+bounds.height<=view.height+1,JSON.stringify({bounds,view}));
   await dialog.getByRole('checkbox',{name:'Select all values',exact:true}).uncheck();await dialog.getByRole('button',{name:'Apply filter',exact:true}).click();await dialog.waitFor({state:'detached'});await expect(rows).toHaveCount(0);await expect(filter()).toHaveAttribute('aria-pressed','true');await page.mouse.move(0,0);result.activeFilter=await appearance(filter());assertReadableControlFor(result.activeFilter);

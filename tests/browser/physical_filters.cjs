@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 const { assertParentControls, clickInspectorAdd } = require('./parent_controls_helpers.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 // Column filters and automatic editing use an isolated fixture and owned records.
@@ -61,16 +61,17 @@ async function checkDocuments(scope, ids) {
   const exportHeaders = dataHeaders.filter(header => header !== 'System');
   const active = [...(graph.defects || []), ...graph.barriers, ...graph.services].filter(entry => !entry.deleted).map(entry => entry.id);
   const root = page.locator('.takeoff-physical-register'), documentMenu = page.locator('.takeoff-workspace-heading .takeoff-physical-document-host'), toggle = documentMenu.getByRole('button', { name: 'Document', exact: true }), list = documentMenu.locator('.calculator-document-actions');
-  await toggle.press('ArrowDown'); await expect(list).toBeVisible(); await expect(list.getByRole('button', { name: 'Download confirmed items', exact: true })).toBeFocused();
-  await page.keyboard.press('End'); await expect(list.getByRole('button', { name: 'Download Full Markups Only', exact: true })).toBeFocused();
+  await toggle.press('ArrowDown'); await expect(list).toBeVisible(); await expect(list.getByRole('button', { name: 'Confirmed items', exact: true })).toBeFocused();
+  await page.keyboard.press('End'); await expect(list.getByRole('button', { name: 'Markups', exact: true })).toBeFocused();
   await page.keyboard.press('Escape'); await expect(list).toBeHidden(); await expect(toggle).toBeFocused();
   await setFilter('Category', ['Mechanical']); // Export selection is independent of the visible register filter.
   const confirmed=scope==='service_plans'?[ids.b1,ids.s1,ids.s2]:[ids.d1,ids.b1,ids.b3,ids.s1,ids.s2];
   for (const [selection, expected] of [['confirmed', confirmed], ['unconfirmed', active.filter(id => !confirmed.includes(id))], ['all', active]]) {
-    await toggle.click(); const action = list.getByRole('button', { name: `Download ${selection} items`, exact: true });
+    await toggle.click(); const action = list.getByRole('button', { name: `${selection[0].toUpperCase()}${selection.slice(1)} items`, exact: true });
     const position = await action.evaluate(el => ({ icon: el.firstElementChild.getBoundingClientRect().x, label: el.lastElementChild.getBoundingClientRect().x })); assert.ok(position.icon < position.label);
     const downloadWait = waitForTakeoffDownload(page), responseWait = page.waitForResponse(reply => reply.url().endsWith('/physical/export/register-xlsx'));
-    await action.click(); const reply = await responseWait; assert.equal(reply.status(), 200, await reply.text()); assert.deepEqual(reply.request().postDataJSON(), { scope, expected_revision: before.revision, confirmation: selection, download: { project_token: null } });
+    const capturedToken=await page.evaluate(()=>window.CeasefireProject.downloadTarget().project_token);
+    await action.click(); const reply = await responseWait; assert.equal(reply.status(), 200, await reply.text()); assert.deepEqual(reply.request().postDataJSON(), { scope, expected_revision: before.revision, confirmation: selection, download: { project_token: capturedToken } });
     const download = await downloadWait, filename = path.join(output, `${scope}-${download.suggestedFilename()}`); await download.saveAs(filename);
     const parsed = spawnSync(process.env.CEASEFIRE_PYTHON || 'python', ['-c', "import json,sys\nfrom openpyxl import load_workbook\nw=load_workbook(sys.argv[1],data_only=False)\ns=w.active;v=list(s.values);rows=[dict(zip(v[0],r)) for r in v[1:]]\nprint(json.dumps({'sheets':w.sheetnames,'headers':v[0],'ids':sorted(r.get('Service ID') or r.get('Barrier ID') or r.get('Defect ID') for r in rows),'confirmation':sorted(set(r['Status'] for r in rows)),'records':[{'id':r.get('Service ID') or r.get('Barrier ID') or r.get('Defect ID'),'quantity':r['Service quantity'],'sources':r['Source evidence']} for r in rows],'formulas':[c.coordinate for s in w for r in s for c in r if c.data_type=='f']}))\nw.close()", filename], { encoding: 'utf8', windowsHide: true });
     assert.equal(parsed.status, 0, parsed.stderr); const result = JSON.parse(parsed.stdout);
@@ -176,7 +177,7 @@ async function checkAutomaticMenuIntent(scope, ids) {
 }
 (async () => {
   const info = await ready; assert.notEqual(info.port, 8765); origin = `http://127.0.0.1:${info.port}`; browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1600, height: 1100 } }); page.setDefaultTimeout(30000);
-  page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (request.url().endsWith('/physical/preview')) requests.push(request.postDataJSON()); }); await page.goto(origin); await expect.poll(() => page.evaluate(() => window.CeasefireDesktop?.status().ready)).toBe(true);
+  page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (request.url().endsWith('/physical/preview')) requests.push(request.postDataJSON()); }); await page.goto(origin);await ensureSavedProject(page); await expect.poll(() => page.evaluate(() => window.CeasefireDesktop?.status().ready)).toBe(true);
   const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical'); await idle();
   for (const scope of ['defect_reports', 'service_plans']) {
     await chooseTakeoff(page, scope === 'service_plans' ? 'Service Plans' : 'Defect Reports'); await idle(); const ids = await seed(scope);

@@ -73,11 +73,12 @@ async function snapshot() { await idle(); return page.evaluate(() => ({ calculat
   assert.equal(await scheduleToggle.evaluate(e=>e.closest('.page-heading')?.querySelector('#download-quote-pdf')!==null),true);
   assert.equal(await scheduleToggle.evaluate(e=>document.querySelector('#download-quote-pdf').parentElement===document.getElementById(e.getAttribute('aria-controls'))),true,'Estimate Summary belongs to the existing Document list');
   await scheduleToggle.click();
-  await expect(scheduleMenu.getByRole('button',{name:'Download Firestopping Schedule',exact:true})).toHaveCount(0);
+  await expect(scheduleMenu.getByRole('button',{name:'Firestopping Schedule',exact:true})).toHaveCount(0);
   await expect(scheduleMenu.locator('.download-format')).toHaveText(['PDF','PDF','PDF']);
   await page.keyboard.press('Escape'); await expect(scheduleMenu).toBeHidden();
   assert.equal(await page.locator('.penetration-schedule-recalculate-tools .calculator-document-menu').count(),0);
-  assert.deepEqual(fs.readFileSync(info.project),projectBytes,'Document access never rewrites the saved project'); assert.deepEqual(errors,[]);
+  // Live reference downloads use temporary output and must retain exact project bytes.
+  assert.equal(fs.readFileSync(info.project).equals(projectBytes),true,'Temporary reference export preserves the exact saved project bytes'); assert.deepEqual(errors,[]);
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,layouts:evidence,exported:path.basename(target),keyboard:true,importChooser:true,draftsPreserved:true,savedProjectPreserved:true,errors},null,2));
   console.log(`PASS pricing Document keyboard, native export/import chooser, adjacent scope and 15 theme/viewport layouts; Firestopping heading menu and saved drafts preserved. Evidence: ${output}`);
 })().catch(async error=>{console.error(error);console.error(logs.slice(-4000));if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;})

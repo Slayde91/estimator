@@ -26,9 +26,10 @@ function setup() {
 (async () => {
   let checks = 0;
   const check = async (name, fn) => { await fn(); checks++; console.log(`ok - ${name}`); };
-  await check('Report links accept exact registered-document routes and reject malformed same-origin destinations', async () => {
+  await check('Report links reject internal copies and use the directed public Firefly website', async () => {
     const h = setup(), api = h.context.window.CeasefireRegisterReferences;
-    assert.equal(api.publicURL('/api/libraries/documents/fas190235.pdf'), '/api/libraries/documents/fas190235.pdf');
+    assert.equal(api.publicURL('/api/libraries/documents/fas190235.pdf'), null);
+    assert.equal(api.publicURL(null, 'FAS190235 RIR1.29G'), 'https://systems.tbafirefly.com.au/');
     for (const bad of ['/api/libraries/documents/../secrets.pdf', '/api/libraries/documents/abc.pdf?token=x', '//evil.example/a.pdf', 'javascript:alert(1)', '/api/libraries/documents/a.pdf#x', '/api/libraries/documents/a\\b.pdf']) assert.equal(api.publicURL(bad), null);
   });
   await check('Systems use stable plain 1 | 2 links and literal source titles', async () => {

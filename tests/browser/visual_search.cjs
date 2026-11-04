@@ -3,7 +3,7 @@ const { chromium, expect } = require('@playwright/test');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { settingsSettled } = require('./settings_helpers.cjs');
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 const { spawn, spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
@@ -27,7 +27,7 @@ function contrast(a,b){const luminance=rgb=>{const c=rgb.match(/[\d.]+/g).slice(
   const info=await ready;assert.notEqual(info.port,8765);evidence.fixturePort=info.port;
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1500,height:1050}});page.setDefaultTimeout(30000);
   page.on('pageerror',error=>errors.push(error.message));await page.addInitScript(()=>{window.visualCsp=[];document.addEventListener('securitypolicyviolation',event=>window.visualCsp.push(event.effectiveDirective));});
-  await page.goto(`http://127.0.0.1:${info.port}/`);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
+  await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await chooseTakeoff(page,'Steel');await expect(page.getByRole('button',{name:'Visual Search',exact:true})).toBeHidden();
   await chooseTakeoff(page,'Defect Reports');await expect(page.getByRole('button',{name:'Visual Search',exact:true})).toBeHidden();
   await chooseTakeoff(page,'Service Plans');await expect(page.getByRole('button',{name:'Visual Search',exact:true})).toBeDisabled();
@@ -81,7 +81,7 @@ function contrast(a,b){const luminance=rgb=>{const c=rgb.match(/[\d.]+/g).slice(
   await page.screenshot({path:path.join(output,'visible-service-callout.png'),fullPage:true});
   const download=waitForTakeoffDownload(page);await page.evaluate(()=>window.CeasefireTakeoffs.downloadDrawing());const saved=await download;const marked=path.join(output,saved.suggestedFilename());await saved.saveAs(marked);
   const parsed=spawnSync(python,['-c',"import json,sys; from pypdf import PdfReader; print(json.dumps(' '.join(page.extract_text() for page in PdfReader(sys.argv[1]).pages)))",marked],{cwd:root,encoding:'utf8',windowsHide:true});assert.equal(parsed.status,0,parsed.stderr);assert.match(JSON.parse(parsed.stdout),/S-0001/);assert.equal(sha(info.fixture),info.source_sha256);evidence.markedPdfSourceExact=true;
-  await response(()=>clickProjectControl(page,'Save'),'/api/project/save-as');const savedProject=JSON.parse(fs.readFileSync(info.project,'utf8'));assert.deepEqual(savedProject.takeoffs.service_plans,after.service_plans);
+  await response(()=>clickProjectControl(page,'Save'),'/api/project/save');const savedProject=JSON.parse(fs.readFileSync(info.project,'utf8'));assert.deepEqual(savedProject.takeoffs.service_plans,after.service_plans);
   await response(()=>clickProjectControl(page,'Load'),'/api/project/open');await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click();await chooseTakeoff(page,'Service Plans');await page.waitForFunction(()=>window.CeasefireActivity?.active===false);await settingsSettled(page);const reopened=await snapshot();assert.deepEqual(reopened.service_plans,after.service_plans);evidence.nativeSaveReopenExact=true;
   for(const key of ['items','documents','calibrations','transfers'])assert.deepEqual(after[key],before[key],`Visual callouts preserve ${key}`);
   if(before.physical===undefined){assert.equal(before.version,1);assert.equal(after.version,2);assert.equal(after.physical,null);evidence.nativeOptionalGraphUpgrade='absent v1 physical becomes explicit v2 null; no physical records created';}else assert.deepEqual(after.physical,before.physical);

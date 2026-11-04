@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real selection, appearance, movement and draft drawing/report exports on disposable sources.
@@ -28,7 +28,7 @@ async function download(label){
   // failure capture, rather than terminate Node through an unhandled waiter.
   const pending=waitForTakeoffDownload(page);pending.catch(()=>{});
   const responseWait=page.waitForResponse(r=>r.url().endsWith(label==='Download PDF'?'/export/marked-pdf':'/export/register-xlsx'));responseWait.catch(()=>{});
-  const [response]=await Promise.all([responseWait,label === 'Download PDF' ? page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()) : (async()=>{await page.getByRole('button',{name:'Takeoff register document actions',exact:true}).click();await page.getByRole('button',{name:'Download all items',exact:true}).click();})()]);
+  const [response]=await Promise.all([responseWait,label === 'Download PDF' ? page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()) : (async()=>{await page.getByRole('button',{name:'Takeoff register document actions',exact:true}).click();await page.getByRole('button',{name:'All items',exact:true}).click();})()]);
   if(!response.ok()){const current=await page.evaluate(async()=>{const id=window.CeasefireTakeoffs.sessionId();return(await fetch('/api/takeoffs/sessions/'+id)).json();});throw new Error(JSON.stringify({export:response.request().postDataJSON(),error:await response.json(),currentRevision:current.revision,localRevision:await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot().revision)}));}
   const result=await pending,target=path.join(output,result.suggestedFilename());await result.saveAs(target);return {path:target,request:response.request().postDataJSON()};
 }
@@ -39,7 +39,7 @@ async function focusRow(item,document){
   await idle();await expect(page.locator('.takeoff-page')).toBeVisible();
 }
 
-async function save(){const pending=page.waitForResponse(r=>r.url().endsWith('/api/project/save-as'));await clickProjectControl(page, 'Save');assert.equal((await pending).status(),200);await expect(page.locator('#project-save-state')).toHaveText('Saved project');}
+async function save(){const pending=page.waitForResponse(r=>r.url().endsWith('/api/project/save'));await clickProjectControl(page, 'Save');assert.equal((await pending).status(),200);await expect(page.locator('#project-save-state')).toHaveText('Saved project');}
 async function load(){const pending=page.waitForResponse(r=>r.url().endsWith('/api/project/open'));await clickProjectControl(page, 'Load');assert.equal((await pending).status(),200);await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click();await expect(page.locator('#project-save-state')).toHaveText('Saved project');await command(()=>page.getByRole('button',{name:'Takeoffs',exact:true}).click(),'record_render');}
 (async()=>{
   const info=await ready;browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1600,height:1100},deviceScaleFactor:2});page.setDefaultTimeout(30000);
@@ -47,7 +47,7 @@ async function load(){const pending=page.waitForResponse(r=>r.url().endsWith('/a
   await page.addInitScript(()=>{window.qaCsp=[];document.addEventListener('securitypolicyviolation',event=>window.qaCsp.push({directive:event.effectiveDirective,blocked:event.blockedURI}));
     window.qaDrawingFontLoads=[];const load=document.fonts.load.bind(document.fonts);document.fonts.load=(...args)=>{const promise=load(...args);if(String(args[0]).includes('CeasefireDrawing')){const entry={font:args[0],resolved:false};window.qaDrawingFontLoads.push(entry);promise.then(faces=>{entry.resolved=true;entry.faces=faces.map(face=>({family:face.family,weight:face.weight,status:face.status}));},error=>{entry.error=error.message;});}return promise;};
   });
-  const response=await page.goto(`http://127.0.0.1:${info.port}/`);assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
+  const response=await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page);assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
   await renderDrawing(page, () => page.locator('#takeoff-upload').setInputFiles(info.fixture), 1);

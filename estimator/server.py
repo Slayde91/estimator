@@ -20,6 +20,7 @@ from .quote_details import compile_work_summary
 from .storage import Store, WORKFLOWS
 from .edition import excluded_route, features, render_index, require_project_edition, validate_edition
 from .travel import TravelService, TravelError
+from .download_filenames import download_filename, download_header, document_filename
 from .certification import validate_complete_fields
 
 MAX_BODY = 24 * 1_048_576
@@ -141,7 +142,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
             for name, value in (headers or {}).items():
-                self.send_header(name, value)
+                self.send_header(name, download_header(value) if name.lower() == 'content-disposition' else value)
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Referrer-Policy", "no-referrer")
@@ -151,11 +152,15 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 self.wfile.write(body)
 
         def send_download(self, payload, content_type, filename, destination=None, *, frozen_pdf=False, pdf_kind=None):
+            identity = self._documentation_identity or export_identity(urlsplit(self.path).path, {})
+            filename = document_filename(identity[0] if identity else None, filename)
             if content_type.split(';', 1)[0].strip() == 'application/pdf' and not frozen_pdf:
                 from .pdf_cover import prepend_cover_pdf
                 company = self.pdf_company_details(pdf_kind)
                 payload = prepend_cover_pdf(payload, company, self._pdf_cover_settings_snapshot[pdf_kind])
             retained = self._documentation_receipt
+            if retained is not None:
+                filename = retained['item']['filename']
             if self._documentation_context is not None and retained is None:
                 workspace, request_id = self._documentation_context
                 kind, logical_key = self._documentation_identity
@@ -164,9 +169,10 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 retained = documentation.record(workspace, kind, logical_key, filename, content_type,
                                                 payload, request_id, self._documentation_fingerprint)
                 self._documentation_receipt = retained
+                filename = retained['item']['filename']
                 if retained['replayed']:
                     existing = documentation.read(workspace, retained['item']['id'])
-                    payload, content_type, filename = existing['payload'], existing['item']['media_type'], existing['item']['filename']
+                    payload, content_type, filename = existing['payload'], existing['item']['media_type'], download_filename(existing['item']['filename'])
             token = getattr(self, '_download_progress_token', None)
             download_progress.update(token, 90, 'saving')
             if destination is not None:
@@ -326,7 +332,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     payload = service.revision_pdf(certificate_id, revision)
                     # Immutable revisions already contain their original cover.
                     self.send_payload(200, payload, 'application/pdf',
-                                      {'Content-Disposition': f'inline; filename="Installation-Certificate-Revision-{revision}.pdf"'})
+                                      {'Content-Disposition': f'inline; filename="{document_filename("certification", "", revision)}"'})
                 elif re.fullmatch(r'/api/certifications/[a-z0-9-]{1,64}', route):
                     service, token = certificate_context(self.path)
                     self.send_payload(200, certificate_response(token, service.get(route.rsplit('/', 1)[1])))
@@ -420,6 +426,20 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if body:
                         raise ValidationError('Document progress does not accept extra options.')
                     self.send_payload(200, download_progress.begin())
+                elif re.fullmatch(r'/api/documentation/[a-z0-9-]{36}', route) and self.command == 'POST':
+                    if not isinstance(body, dict) or set(body) != {'download'}:
+                        raise ValidationError('Include the current saved project destination only.')
+                    destination = self.capture_download(body['download'])
+                    result = documentation.read(documentation_workspace(self.path), route.rsplit('/', 1)[1])
+                    self.send_download(result['payload'], result['item']['media_type'], result['item']['filename'], destination, frozen_pdf=True)
+                elif re.fullmatch(r'/api/certifications/[a-z0-9-]{1,64}/revisions/[1-9][0-9]{0,9}\.pdf', route) and self.command == 'POST':
+                    if not isinstance(body, dict) or set(body) != {'download'}:
+                        raise ValidationError('Include the current saved project destination only.')
+                    destination = self.capture_download(body['download'])
+                    certificate_id, revision = route.split('/')[3], int(route.rsplit('/', 1)[1][:-4])
+                    service, _ = certificate_context(self.path)
+                    self.send_download(service.revision_pdf(certificate_id, revision), 'application/pdf',
+                                       document_filename('certification', '', revision), destination, frozen_pdf=True)
                 elif route in {'/api/project/full-schedule.pdf', '/api/project/full-product-summary.pdf'} and self.command == 'POST':
                     from .project_file import CALCULATOR_IDS, project_details
                     from .project_reports import build_project_report
@@ -431,7 +451,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     report = build_project_report(body.get('calculators', {}), body.get('penetration'),
                         validate_configuration(body.get('configuration', store.configuration())), project_details(body.get('project_details')),
                         materials=materials, library=libraries, company=self.pdf_company_details('full_product_summary' if materials else 'full_schedule'),
-                        saved_calculators={key: store.calculator_state(key)['inputs'] for key in CALCULATOR_IDS})
+                        saved_calculators={key: store.calculator_state(key)['inputs'] for key in CALCULATOR_IDS},
+                        report_origin=f'http://127.0.0.1:{self.server.server_port}')
                     self.send_download(report, 'application/pdf', 'CEASEFIRE-Full-Product-Summary.pdf' if materials else 'CEASEFIRE-Full-Schedule.pdf', destination,
                                        pdf_kind='full_product_summary' if materials else 'full_schedule')
                 elif route == '/api/travel/route':
@@ -612,7 +633,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         details = project_details(body.get('project_details'))
                         result = calculate_penetration(body['draft'], config)
                         if action == 'report.pdf':
-                            report = render_penetration_pdf(result, result['definition'], details, library=libraries, company=self.pdf_company_details('firestopping_schedule'))
+                            report = render_penetration_pdf(result, result['definition'], details, library=libraries, company=self.pdf_company_details('firestopping_schedule'), report_origin=f'http://127.0.0.1:{self.server.server_port}')
                             self.send_download(report, 'application/pdf', 'CEASEFIRE-Firestopping-Estimate.pdf', destination, pdf_kind='firestopping_schedule')
                         else:
                             report = build_penetration_register(result, result['definition'], details, library=libraries)

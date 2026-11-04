@@ -16,7 +16,12 @@ const catalog=[{id:'estimate.summary.pdf',label:'Breakdown',format:'pdf',adapter
   {id:'firestopping.current_item.xlsx',label:'Firestopping Item Details',format:'xlsx',adapter:'firestopping',spec:{scope:'current_item',format:'xlsx'}},
   {id:'library.technical.item.pdf',label:'Technical Library item',format:'pdf',adapter:'library',spec:{source:'technical',format:'pdf'}},
   {id:'library.technical.item.xlsx',label:'Technical Library item',format:'xlsx',adapter:'library',spec:{source:'technical',format:'xlsx'}},
-  {id:'takeoff.pdf_tools.pdf',label:'PDF tools',format:'pdf',adapter:'takeoff',spec:{action:'pdf_tools'}}];
+  {id:'takeoff.pdf_tools.pdf',label:'PDF tools',format:'pdf',adapter:'takeoff',spec:{action:'pdf_tools'}},
+  {id:'takeoff.defect_reports.matrix.pdf',label:'Passive fire matrix',format:'pdf',adapter:'takeoff',spec:{action:'matrix',scope:'defect_reports'}},
+  {id:'takeoff.service_plans.matrix.pdf',label:'Service plans matrix',format:'pdf',adapter:'takeoff',spec:{action:'matrix',scope:'service_plans'}},
+  {id:'pricing.library.xlsx',label:'Pricing Library',format:'xlsx',adapter:'pricing',spec:{}},
+  ...['steel_vermiculite','steel_intumescent','steel_board','ductwork'].map(calculatorId=>({id:`calculator.${calculatorId}.template.xlsx`,label:'Schedule template',format:'xlsx',adapter:'calculator',spec:{calculatorId,action:'template'}})),
+  ...['steel','duct','walls_floors','defect_reports','service_plans'].map(mode=>({id:`takeoff.${mode}.register.xlsx`,label:'Takeoff register',format:'xlsx',adapter:'takeoff',spec:{action:'register',mode}}))];
 function harness(){
   const elements=new Map(),calls=[],events={},adapters=[];let selected=1,serial=20,changed=0,override=null,adapterOverride=null;
   const models=new Map([[token(1),model(1)],[token(2),model(2)]]);
@@ -79,7 +84,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const first=rendered[0];assert.equal(first.children.length,3);assert.equal(first.children[0].textContent,'Breakdown');
     assert.equal(first.children[1].children[0].textContent,'No revisions generated in this project.');
     assert.equal(first.children[2].className,'documentation-action');
-    assert.equal(h.buttons()[0].children[0].textContent,'⇩');
+    assert.equal(h.buttons()[0].children[0].textContent,'⇩');assert.equal(h.buttons()[0].children[0].attributes['aria-hidden'],'true');
     assert.ok(rendered.filter(row=>row.children[0].tagName==='TH').every(row=>row.children[0].colSpan===3));
     assert.equal(h.buttons().find(button=>button.dataset.documentKind===legacy.kind).disabled,true);
     await h.buttons().find(button=>button.dataset.documentKind==='project.full_product_summary.pdf').emit('click');
@@ -87,21 +92,28 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   });
   await check('Catalog separates PDF and XLSX and displays exact project-scoped immutable revision links',async h=>{
     h.models.set(token(1),model(1,[item(1),item(2,1,{kind:'calculator.ductwork.register.xlsx',media_type:XLSX,filename:'Ductwork.xlsx'})]));
-    await h.api.open();assert.equal(h.byId('documentation-pdf-rows').children.length,1);assert.equal(h.byId('documentation-xlsx-rows').children.length,3);
-    assert.deepEqual(h.links().map(link=>link.href),[item(1).url,item(2).url]);assert.ok(h.links().every(link=>link.target==='_blank'&&link.rel==='noopener'));
+    await h.api.open();assert.equal(h.byId('documentation-pdf-rows').children.length,1);assert.equal(h.byId('documentation-xlsx-rows').children.length,1);
+    assert.deepEqual(h.links().map(link=>link.href),[item(1).url,item(2).url]);
+    assert.equal(h.links()[0].target,'_blank');assert.equal(h.links()[0].listeners.click,undefined);
+    assert.equal(h.links()[1].listeners.click.length,1);
     assert.equal(h.api.hasProjectChanges(),false);assert.equal(h.api.hasPendingOperation(),false);
   });
   await check('Removed PDF rows stay absent with saved revisions while XLSX choices and project history survive',async h=>{
-    const kinds=['firestopping.current_item.pdf','library.technical.item.pdf','takeoff.pdf_tools.pdf'];
-    const history=kinds.map((kind,index)=>item(index+1,1,{kind}));
+    const kinds=catalog.map(row=>row.id).filter(kind=>!['estimate.summary.pdf','calculator.ductwork.register.xlsx'].includes(kind));
+    const history=kinds.map((kind,index)=>item(index+1,1,{kind,media_type:kind.endsWith('.xlsx')?XLSX:PDF}));
     h.models.set(token(1),model(1,history));await h.api.open();
     const rows=h.byId('documentation-pdf-rows').children.map(row=>row.dataset.documentKind);
     assert.deepEqual(rows,['estimate.summary.pdf']);assert.deepEqual(h.links(),[]);
-    assert.ok(h.buttons().some(button=>button.dataset.documentKind==='firestopping.current_item.xlsx'));
-    assert.ok(h.buttons().some(button=>button.dataset.documentKind==='library.technical.item.xlsx'));
+    assert.ok(!h.buttons().some(button=>button.dataset.documentKind==='firestopping.current_item.xlsx'));
+    assert.ok(!h.buttons().some(button=>button.dataset.documentKind==='library.technical.item.xlsx'));
     const prepared=await h.api.prepareProject(null,token(1));
     assert.deepEqual(copy(prepared.model.items),history);
-    const snapshot=await h.api.completeProjectSnapshot();assert.equal(snapshot.expected_revision,3);
+    const snapshot=await h.api.completeProjectSnapshot();assert.equal(snapshot.expected_revision,history.length);
+  });
+  await check('Legacy filenames omit brand text in the display but retained revision metadata stays exact',async h=>{
+    h.models.set(token(1),model(1,[item(1,1,{filename:'CEASEFIRE-Estimate.pdf'})]));await h.api.open();
+    assert.equal(h.links()[0].title,'Estimate.pdf');
+    const prepared=await h.api.prepareProject(null,token(1));assert.equal(prepared.model.items[0].filename,'CEASEFIRE-Estimate.pdf');
   });
   await check('Malformed revision identities and URLs cannot become links or replace a prepared project',async h=>{
     await h.api.open();const before=h.api.projectFingerprint();
@@ -184,13 +196,30 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   });
   await check('Reviewing old revisions only renders frozen links and performs no generation or mutation requests',async h=>{
     h.models.set(token(1),model(1,[item(1)]));await h.api.open();const before=h.api.projectFingerprint();await h.api.open();
-    const link=h.links()[0];assert.equal(link.href,item(1).url);assert.equal(Object.keys(link.listeners).length,0);
+    const link=h.links()[0];assert.equal(link.href,item(1).url);assert.equal(link.target,'_blank');assert.equal(link.rel,'noopener noreferrer');
+    assert.equal(link.listeners.click,undefined);
     assert.equal(h.adapters.length,0);assert.ok(h.calls.every(call=>!call.options.method||call.options.method==='GET'));assert.equal(h.api.projectFingerprint(),before);
   });
-  await check('Documentation uses the selected existing adapter and retains explicit source preparation',async h=>{
-    await h.api.open();h.adapterOverride(()=>({selectionRequired:true}));const select=h.select();select.value='library';await select.emit('change');
-    await h.buttons().find(button=>button.dataset.documentKind==='firestopping.current_item.xlsx').emit('click');await flush();
-    assert.equal(h.adapters[0].owner,'library-editor');assert.deepEqual(h.adapters[0].spec,{format:'xlsx'});
+  await check('Retained revision links open frozen documents in a new tab without invoking a download or generating a revision',async h=>{
+    h.models.set(token(1),model(1,[item(1)]));await h.api.open();const saved=[];
+    h.window.CeasefireDownloads={save:async(path,body)=>{saved.push({path,body});return {saved:true};}};
+    const link=h.links()[0];let prevented=false;await link.emit('click',{preventDefault(){prevented=true;}});await flush();
+    assert.equal(link.href,item(1).url);assert.equal(link.target,'_blank');assert.equal(link.rel,'noopener noreferrer');
+    assert.equal(prevented,false);assert.deepEqual(saved,[]);assert.equal(h.adapters.length,0);
+    assert.equal(h.api.hasPendingOperation(),false);assert.equal(h.api.hasProjectChanges(),false);
+  });
+  await check('Spreadsheet revision copies retain the selected project destination without creating another revision',async h=>{
+    const revision=item(1,1,{kind:'calculator.ductwork.register.xlsx',media_type:XLSX,filename:'Ductwork.xlsx'});
+    h.models.set(token(1),model(1,[revision]));await h.api.open();const saved=[];
+    h.window.CeasefireDownloads={save:async(path,body)=>{saved.push({path,body});return {saved:true};}};
+    let prevented=false;await h.links()[0].emit('click',{preventDefault(){prevented=true;}});await flush();
+    assert.equal(prevented,true);assert.deepEqual(copy(saved),[{path:revision.url,body:{}}]);
+    assert.equal(h.api.hasPendingOperation(),false);assert.equal(h.api.hasProjectChanges(),false);
+  });
+  await check('Documentation uses a retained source adapter and retains explicit source preparation',async h=>{
+    await h.api.open();h.adapterOverride(()=>({selectionRequired:true}));
+    await h.buttons().find(button=>button.dataset.documentKind==='calculator.ductwork.register.xlsx').emit('click');await flush();
+    assert.equal(h.adapters[0].owner,'calculator');assert.deepEqual(h.adapters[0].spec,{calculatorId:'ductwork',action:'register'});
     assert.match(h.byId('documentation-status').textContent,/Complete the document options/);assert.equal(h.api.hasPendingOperation(),false);
   });
   await check('Failed source export is visible without claiming a saved revision or leaving a pending action',async h=>{

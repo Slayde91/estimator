@@ -1,3 +1,4 @@
+const { referenceExport } = require('./reference_export.cjs');
 const { chooseLibrary } = require('./section_navigation.cjs');
 // Native navigation acceptance against disposable synthetic data only. Hover,
 // keyboard and touch must select the existing workspaces without replacing drafts.
@@ -41,6 +42,7 @@ async function workbook(title) {
   await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await idle();
   const saveReply = page.waitForResponse(reply => new URL(reply.url()).pathname === '/api/project/save-as' && reply.request().method() === 'POST');
   await clickProjectControl(page, 'Save'); assert.equal((await saveReply).status(), 200); await idle();
+  const initialSavedProject = JSON.parse(fs.readFileSync(info.project, 'utf8'));
   await page.getByRole('button', { name: 'Calculators', exact: true }).click(); await expect(page.locator('#calculator-steel-hub')).toBeVisible(); await expect(page.locator('#calculator-workspace')).toBeHidden(); await expect(page.locator('#calculator-steel-hub [data-steel-calculator]')).toHaveCount(4);
   await page.getByRole('button', { name: 'Home', exact: true }).click();
   evidence.initialCalculator = 'Steel landing page';
@@ -134,8 +136,14 @@ async function workbook(title) {
   // Menu navigation uses the established library confirmation, including its
   // cancellation behavior. An explicit Continue retains the unsaved prices.
   await page.getByRole('button', { name: 'Libraries', exact: true }).click(); await chooseLibrary(page, 'pricing'); await page.locator('#pricing-scope').selectOption('library');
-  const price = page.locator('#pricing-body [data-price-field="supplier_price"]').first(); await price.fill('789.12345'); await price.press('Tab');
+  const sharedPricingReply = await page.request.get(`http://127.0.0.1:${info.port}/api/bootstrap`); assert.equal(sharedPricingReply.status(), 200);
+  const sharedPricing = await sharedPricingReply.json();
+  const price = page.locator('#pricing-body [data-price-field="supplier_price"]').first();
+  const priceIdentity = await price.evaluate(control => ({ id: control.closest('tr').dataset.priceId, kind: control.closest('tr').dataset.priceKind }));
+  assert.equal(priceIdentity.kind, 'inventory', 'The synthetic price edit targets an inventory product');
+  await price.fill('789.12345'); await price.press('Tab');
   const priceDisplay = await price.inputValue(); assert.equal(priceDisplay, '789.12');
+  assert.equal(await price.evaluate(control => Number(control.closest('tr').querySelector('[data-sell-preview]').textContent.replace(/[^0-9.-]/g, ''))), 789.12);
   const guarded = await snapshots(); await chooseCalculator(page, 'Steel (board)');
   const dialog = page.getByRole('dialog'); await expect(dialog).toBeVisible(); await expect(dialog.getByRole('heading')).toHaveText('Unsaved Pricing Library');
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click(); await expect(page.locator('#view-pricing')).toBeVisible(); await expect(price).toHaveValue(priceDisplay); assert.deepEqual(await snapshots(), guarded);
@@ -194,7 +202,8 @@ async function workbook(title) {
   await expect(dialog.getByRole('heading')).toHaveText('Are you sure you want to add this item to the Firestopping Library?');await dialog.getByRole('button',{name:'Yes',exact:true}).click();const capture=await capturedReply;assert.equal(capture.status(),200,await capture.text());const libraryItem=await capture.json();await expect(page.locator('#penetration-add-to-library')).toHaveAttribute('aria-busy','false');
   assert.equal(capture.request().postDataJSON().diagram.content_base64,generated.stdout.toString('base64'));
   const managedImage=await page.request.get(`http://127.0.0.1:${info.port}/api/libraries/penetration/${libraryItem.id}/image`);assert.equal(managedImage.status(),200);assert.match(managedImage.headers()['content-type'],/^image\/jpeg/);
-  evidence.retainedSourceDiagram={libraryItemId:libraryItem.id,uploadSha256:crypto.createHash('sha256').update(generated.stdout).digest('hex'),managedImageSha256:crypto.createHash('sha256').update(await managedImage.body()).digest('hex')};
+  const managedImageBytes=await managedImage.body(),expectedDiagram=path.join(output,'managed-source.jpg');fs.writeFileSync(expectedDiagram,managedImageBytes);
+  evidence.retainedSourceDiagram={libraryItemId:libraryItem.id,uploadSha256:crypto.createHash('sha256').update(generated.stdout).digest('hex'),managedImageSha256:crypto.createHash('sha256').update(managedImageBytes).digest('hex')};
   assert.equal((await snapshots()).penetration.composer.rows[0].library_item_id,libraryItem.id);await page.locator('#penetration-add-to-schedule').click();await expect(page.locator('#penetration-add-to-schedule')).toHaveAttribute('aria-busy','false');
   const linkedBefore=await snapshots(),linkedRow=linkedBefore.penetration.draft.rows.at(-1);assert.equal(linkedRow.library_item_id,libraryItem.id);
   const scheduleDetails=page.locator('details[aria-labelledby="penetration-estimator-schedule-heading"]');if(!await scheduleDetails.evaluate(element=>element.open))await scheduleDetails.locator(':scope > summary').click();await page.locator(`#penetration-estimator-schedule-body [data-penetration-id="${linkedRow.id}"]`).getByRole('button',{name:`Edit firestopping item ${linkedBefore.penetration.draft.rows.length}`,exact:true}).click();
@@ -206,19 +215,30 @@ async function workbook(title) {
   assert.deepEqual(linkedCleared.penetration.draft,linkedBefore.penetration.draft);assert.deepEqual(linkedCleared.penetration.composer.rows,[{id:linkedRow.id,inputs:{},library_item_id:libraryItem.id}]);assert.deepEqual(linkedCleared.pricing,linkedBefore.pricing);assert.deepEqual(linkedCleared.calculators,linkedBefore.calculators);await expect(page.locator('#penetration-update-schedule')).toBeEnabled();
   await description.fill('REFILLED LINKED SOURCE');await description.press('Tab');await quantity.fill('4.987654321');await quantity.press('Tab');await page.locator('#penetration-update-schedule').click();await expect(page.locator('#penetration-update-schedule')).toBeHidden();await expect(page.locator('#penetration-update-schedule')).toHaveAttribute('aria-busy','false');
   const linkedUpdated=await snapshots();assert.deepEqual(linkedUpdated.penetration.draft.rows.at(-1),{id:linkedRow.id,inputs:{T:'REFILLED LINKED SOURCE',O:4.987654321},library_item_id:libraryItem.id});assert.deepEqual(linkedUpdated.penetration.draft.rows.slice(0,-1),linkedBefore.penetration.draft.rows.slice(0,-1));assert.deepEqual(linkedUpdated.penetration.draft.globals,linkedBefore.penetration.draft.globals);assert.deepEqual(linkedUpdated.pricing,linkedBefore.pricing);assert.deepEqual(linkedUpdated.calculators,linkedBefore.calculators);evidence.clearLinkedEditRetainsLibraryAndRowIdentity=true;
+  // Item exports use the temporary viewer/native download contract. They
+  // preserve the unsaved pricing draft; a separate explicit Save adopts it.
+  const expectedLibraryDraft = structuredClone(sharedPricing.configuration);
+  expectedLibraryDraft.inventory[priceIdentity.id] = { ...expectedLibraryDraft.inventory[priceIdentity.id], supplier_price: 789.12 };
+  const expectedSavedPricing = structuredClone(linkedUpdated.pricing);
+  expectedSavedPricing.inventory[priceIdentity.id] = { ...expectedSavedPricing.inventory[priceIdentity.id], supplier_price: 789.12 };
+  const linkedPriceIds = Object.values(sharedPricing.catalog.rate_groups).flat()
+    .filter(rate => rate.inventory_id === priceIdentity.id && (rate.price_mode || 'inventory') === 'inventory').map(rate => rate.id);
+  assert.ok(linkedPriceIds.length > 0, 'The fixture product has linked rates to verify');
+  for (const id of linkedPriceIds) {
+    assert.ok(Object.hasOwn(expectedSavedPricing.rates, id));
+    expectedSavedPricing.rates[id] = { ...expectedSavedPricing.rates[id], price: 789.12 };
+  }
   evidence.firestoppingDocuments = [];
-  for (const prefix of ['penetration-item', 'penetration']) {
-    if(prefix==='penetration'){await expect(page.locator('#main-tab-firestopping-schedule')).toHaveCount(0);await expect(page.locator('#main-panel-firestopping-schedule')).toBeHidden();}
+  for (const prefix of ['penetration-item']) {
     const schedule = page.locator('details[aria-labelledby="penetration-estimator-schedule-heading"]');
-    if (prefix!=='penetration'&&!await schedule.evaluate(element => element.open)) await schedule.locator(':scope > summary').click();
-    const itemOnly=prefix==='penetration-item',actionsId='firestopping-item-document-actions';
+    if (!await schedule.evaluate(element => element.open)) await schedule.locator(':scope > summary').click();
+    const actionsId='firestopping-item-document-actions';
     const documentToggle=page.locator(`[aria-controls="${actionsId}"]`),documentActions=page.locator(`#${actionsId}`);
-    if(!itemOnly){await expect(page.locator('#firestopping-document-actions #penetration-pdf,#firestopping-document-actions #penetration-excel')).toHaveCount(0);assert.equal(await schedule.locator('.calculator-document-menu').count(),0);assert.equal(await page.locator('.penetration-schedule-recalculate-tools .calculator-document-menu').count(),0);}
     await expect(documentToggle.locator('.calculator-document-icon')).toBeVisible();
     await expect(documentActions).toBeHidden(); await documentToggle.click(); await expect(documentActions).toBeVisible();
-    await expect(documentActions.getByRole('button',{name:itemOnly?'Item Details':'Download Firestopping Schedule',exact:true})).toHaveCount(2);
-    await expect(documentActions.locator('.download-format')).toHaveText(['XLSX','PDF','XLSX','PDF']);
-    assert.equal(await documentActions.getByRole('button').count(), 4);
+    await expect(documentActions.getByRole('button',{name:'Item Details',exact:true})).toHaveCount(2);
+    await expect(documentActions.locator('.download-format')).toHaveText(['XLSX','PDF']);
+    assert.equal(await documentActions.getByRole('button').count(), 2);
     for (const width of [390, 570, 825, 1146]) {
       await page.setViewportSize({ width, height: 1000 }); const bounds = await documentActions.boundingBox();
       assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width + 1, `Firestopping Document menu stays within ${width}px viewport`);
@@ -226,22 +246,53 @@ async function workbook(title) {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await documentToggle.press('ArrowDown'); await expect(documentActions.getByRole('button').first()).toBeFocused();
     await page.keyboard.press('Escape'); await expect(documentToggle).toBeFocused(); await expect(documentActions).toBeHidden();
-    for (const [suffix, magic] of [['excel', 'PK'], ['pdf', '%PDF']]) {
-      await documentToggle.click(); const action = page.locator(`#${prefix}-${suffix}`); await expect(action).toBeVisible();
-      const endpoint = `/api/penetration/${itemOnly?(suffix==='pdf'?'item.pdf':'item.xlsx'):(suffix==='pdf'?'report.pdf':'register.xlsx')}`;
-      const download = page.waitForResponse(reply => new URL(reply.url()).pathname === endpoint && reply.request().method() === 'POST');
-      await action.click(); const reply = await download; assert.equal(reply.status(), 200); const file = await reply.json();
-      const downloaded=reply.request().postDataJSON();
-      if(itemOnly){assert.deepEqual(downloaded.item,linkedUpdated.penetration.composer.rows[0]);assert.deepEqual(downloaded.globals,linkedUpdated.penetration.composer.globals);assert.equal(downloaded.draft,undefined);assert.equal(downloaded.rows,undefined);assert.equal(downloaded.diagram,undefined);assert.equal(file.filename,`CEASEFIRE-Firestopping-Item.${suffix==='pdf'?'pdf':'xlsx'}`);}
-      else{assert.deepEqual(downloaded.draft,linkedUpdated.penetration.draft);assert.equal(downloaded.item,undefined);assert.equal(file.filename,suffix==='pdf'?'CEASEFIRE-Firestopping-Estimate.pdf':'CEASEFIRE-Firestopping-Schedule.xlsx');}
-      assert.deepEqual(downloaded.configuration,linkedUpdated.pricing);
-      assert.equal(file.saved, true); assert.equal(file.destination, 'project');
-      const relative = path.relative(output, file.path); assert.ok(relative && !relative.startsWith('..') && !path.isAbsolute(relative));
-      assert.equal(fs.readFileSync(file.path).subarray(0, magic.length).toString(), magic);
-      await expect(documentActions).toBeHidden(); await idle(); assert.deepEqual(await snapshots(), linkedUpdated);
-      evidence.firestoppingDocuments.push(`${prefix}-${suffix}`);
+    for (const suffix of ['excel', 'pdf']) {
+      const extension=suffix==='pdf'?'pdf':'xlsx',endpoint=`/api/penetration/item.${extension}`;
+      const beforeExport=await snapshots(),savedBytes=fs.readFileSync(info.project),requestIndex=requests.length;
+      const saveLabel=await page.locator('#project-save-state').textContent();
+      await documentToggle.click(); const action=page.locator(`#${prefix}-${suffix}`);await expect(action).toBeVisible();
+      const target=path.join(output,`current-item.${extension}`),capturePath=path.join(output,`current-item-${extension}-capture.json`);
+      const {capture:downloaded}=await referenceExport(page,{extension,endpoint,target,action:()=>action.click()});
+      assert.deepEqual(downloaded.item,linkedUpdated.penetration.composer.rows[0]);
+      assert.deepEqual(downloaded.globals,linkedUpdated.penetration.composer.globals);
+      assert.equal(downloaded.draft,undefined);assert.equal(downloaded.rows,undefined);assert.equal(downloaded.diagram,undefined);
+      assert.deepEqual(downloaded.configuration,linkedUpdated.pricing,'Each temporary file uses exact prices captured at its click');
+      fs.writeFileSync(capturePath,JSON.stringify(downloaded,null,2));
+      const content=spawnSync(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'library_item_export_content.py'),'--capture',capturePath,'--file',target,'--expected-diagram',expectedDiagram],{cwd:root,windowsHide:true,encoding:'utf8'});
+      assert.equal(content.status,0,`${content.stdout}\n${content.stderr}`);
+      await expect.poll(()=>page.evaluate(()=>Boolean(window.CeasefireDownloads.hasPendingOperation()||window.CeasefireDocumentation.hasPendingOperation()||window.CeasefireProject.hasPendingOperation())),{timeout:60000}).toBe(false);
+      await expect(documentActions).toBeHidden();await idle();
+      await expect(page.locator('#project-save-state')).toHaveText(saveLabel);
+      assert.deepEqual(await snapshots(),beforeExport,'Temporary item exports preserve all current drafts and frozen prices');
+      assert.equal(fs.readFileSync(info.project).equals(savedBytes),true,'Temporary exports leave exact saved-project bytes unchanged');
+      assert.equal(requests.slice(requestIndex).some(request=>request.method==='POST'&&request.path==='/api/project/save'),false,'Temporary item exports never request automatic project Save');
+      const sharedAfterReply=await page.request.get(`http://127.0.0.1:${info.port}/api/configuration`);assert.equal(sharedAfterReply.status(),200);
+      assert.deepEqual(await sharedAfterReply.json(),sharedPricing.configuration,'Temporary item exports never change shared pricing');
+      evidence.firestoppingDocuments.push({control:`${prefix}-${suffix}`,temporary:true,content:JSON.parse(content.stdout),draftsAndSavedBytesUnchanged:true});
     }
   }
+  // Preserve coverage for explicit Save adopting only the deliberate price edit.
+  const projectSave=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/project/save'&&reply.request().method()==='POST');
+  await clickProjectControl(page,'Save');const savedReply=await projectSave;assert.equal(savedReply.status(),200);
+  assert.deepEqual(savedReply.request().postDataJSON().estimate.configuration,expectedLibraryDraft);
+  await idle();await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  const expectedAfterSave={...linkedUpdated,pricing:expectedSavedPricing},after=await snapshots();
+  assert.deepEqual(after,expectedAfterSave,'Explicit Save adopts only the deliberately edited price and its linked rates');
+  const stored=JSON.parse(fs.readFileSync(info.project,'utf8'));
+  assert.deepEqual(stored.estimate.configuration,expectedSavedPricing,'Exact expected frozen prices reach disk');
+  const {source_sha256:penetrationSource,...storedPenetration}=stored.penetration;
+  const {library_tracking_version:trackingVersion,...uiPenetration}=after.penetration;
+  assert.equal(penetrationSource,initialSavedProject.penetration.source_sha256);assert.equal(trackingVersion,1);
+  assert.deepEqual(storedPenetration,uiPenetration,'Retained composer and schedule reach disk unchanged');
+  assert.deepEqual(Object.keys(stored.calculators).sort(),Object.keys(after.calculators).sort());
+  for(const [id,value] of Object.entries(stored.calculators)){
+    const {source_sha256,...draft}=value;
+    assert.equal(source_sha256,initialSavedProject.calculators[id].source_sha256,'Every saved calculator retains its original source hash');
+    assert.deepEqual(draft,after.calculators[id],'Every calculator input and row stays exact');
+  }
+  const sharedAfterSave=await page.request.get(`http://127.0.0.1:${info.port}/api/configuration`);assert.equal(sharedAfterSave.status(),200);
+  assert.deepEqual(await sharedAfterSave.json(),sharedPricing.configuration,'Explicit project Save never writes shared pricing');
+  evidence.pricingSavedExplicitlyAfterTemporaryExports={priceIdentity,amount:789.12,linkedPriceIds,allOtherDraftsExact:true,sharedLibraryUnchanged:true};
   const touchContext = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   const touch = await touchContext.newPage(); await monitor(touch); await touch.goto(`http://127.0.0.1:${info.port}/`); await idle(touch);
   await touch.getByRole('button', { name: 'Calculators', exact: true }).tap();

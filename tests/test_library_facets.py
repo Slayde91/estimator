@@ -3,7 +3,7 @@ import unittest
 
 from estimator.library_facets import (CATEGORIES, SERVICES, FRLS, classify_facets,
                                       facet_options, frl_values, service_values)
-from estimator.library_report_links import valid_report_url, FIREFLY_REPORTS_URL
+from estimator.library_report_links import valid_report_url, FIREFLY_REPORTS_URL, FIREFLY_PUBLIC_URL
 from estimator.technical_frl_presentation import normalize_frl_presentation
 from estimator.technical_service_options import TECHNICAL_SERVICES
 from tests import test_reference_library as fixtures
@@ -326,4 +326,4 @@ class FacetIntegrationTests(unittest.TestCase):
         self.assertEqual(self.library.listing('technical', frl='-/60/60')['total'], 0)
         detail = self.library.detail('technical', item['id'])
         field = next(f for f in detail['fields'] if f['label'] == 'Report Number')
-        self.assertEqual(field['report_links'], [{'label': 'EXAMPLE', 'url': FIREFLY_REPORTS_URL}])
+        self.assertEqual(field['report_links'], [{'label': 'EXAMPLE', 'url': FIREFLY_PUBLIC_URL}])

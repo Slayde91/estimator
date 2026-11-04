@@ -27,7 +27,7 @@ function progressHarness({ reducedMotion = false } = {}) {
   }
   const host=new Element('div'), button={closest:()=>host}, pending=deferred();
   const context={
-    window:{matchMedia:()=>({matches:reducedMotion}),CeasefireActivity:{begin:()=>{beginCount++;return()=>{endCount++;};}},CeasefireDownloadSound:feedback.sound},
+    window:{CeasefireProject:{downloadTarget:()=>({project_token:'saved-project'}),isCurrentDownloadTarget:()=>true,saveAfterDownload:async()=>({saved:true})},matchMedia:()=>({matches:reducedMotion}),CeasefireActivity:{begin:()=>{beginCount++;return()=>{endCount++;};}},CeasefireDownloadSound:feedback.sound},
     document:{activeElement:button,createElement:tag=>new Element(tag)},
     setTimeout:(callback,delay)=>{const id=++nextId;timers.set(id,{callback,at:now+delay});return id;},
     clearTimeout:id=>timers.delete(id),requestAnimationFrame:callback=>{const id=++nextId;frames.set(id,callback);return id;},
@@ -130,7 +130,7 @@ async function checkVisualProgress() {
 }
 let projectToken = 'selected-project', calls = [], next = response(receipt);
 const context = {
-  window:{CeasefireProject:{downloadTarget:()=>({project_token:projectToken})}},
+  window:{CeasefireProject:{downloadTarget:()=>({project_token:projectToken}),isCurrentDownloadTarget:()=>true,saveAfterDownload:async()=>({saved:true})}},
   document:{activeElement:null},setTimeout,clearTimeout,requestAnimationFrame:callback=>callback(),
   fetch:(path,options)=>{
     if(path==='/api/download-progress') return Promise.resolve(response({token:'progress-token'}));
@@ -152,11 +152,13 @@ let passed = 0;
   assert.equal(calls[0].headers['X-Estimator-Download-Progress'],'progress-token');passed++;
 
   projectToken=null;next=response({...receipt,destination:'downloads',path:'D:/Redirected Downloads/APPENDIX A.pdf'});
-  const fallback=await context.window.CeasefireDownloads.save('/api/quote-report',{title:'Unsaved'});
-  assert.equal(calls.at(-1).body.download.project_token,null);assert.equal(fallback.destination,'downloads');assert.match(fallback.path,/Redirected Downloads/);passed++;
+  const count=calls.length;
+  await assert.rejects(context.window.CeasefireDownloads.save('/api/quote-report',{title:'Unsaved'}),/Save the current project/);
+  assert.equal(calls.length,count);passed++;
 
   delete context.window.CeasefireProject;next=response({...receipt,destination:'downloads'});
-  await context.window.CeasefireDownloads.save('/api/quote-report',{});assert.equal(calls.at(-1).body.download.project_token,null);passed++;
+  await assert.rejects(context.window.CeasefireDownloads.save('/api/quote-report',{}),/Save the current project/);assert.equal(calls.length,count);passed++;
+  projectToken='saved-project';context.window.CeasefireProject={downloadTarget:()=>({project_token:projectToken}),isCurrentDownloadTarget:()=>true,saveAfterDownload:async()=>({saved:true})};
 
   for(const [value,extra,pattern] of [
     [{error:'Project access expired. Reopen it.'},{ok:false,status:400},/Project access expired/],
@@ -167,6 +169,7 @@ let passed = 0;
     [{...receipt,path:''},{},/did not confirm/],
     [{...receipt,filename:null},{},/did not confirm/],
     [{...receipt,destination:'unknown'},{},/did not confirm/],
+    [{...receipt,destination:'downloads'},{},/did not confirm/],
   ]) {
     next=response(value,extra);await assert.rejects(context.window.CeasefireDownloads.save('/api/quote-report'),pattern);passed++;
   }

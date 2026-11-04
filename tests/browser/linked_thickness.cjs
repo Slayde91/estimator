@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 // Native filtered register results from receipt-bound spray and board schedules.
 // Validated API commands seed synthetic source rows; transfers, filtering,
 // calculator edits and Save/Load use the rendered controls.
@@ -90,7 +90,7 @@ async function editSprayLength(binding, value) {
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => { if (/\/(commands|transfer-apply|linked-results)$/.test(request.url())) requests.push({ endpoint: request.url().split('/').pop(), body: request.postDataJSON() }); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
-  const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
+  const initial = await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('#takeoff-upload').setInputFiles(info.fixture);
   await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 }); await idle();
@@ -246,7 +246,7 @@ async function editSprayLength(binding, value) {
   await page.screenshot({path:path.join(output,'duct-refreshed-from-calculator.png')});await page.getByRole('button',{name:'Confirm',exact:true}).click();await response(()=>page.getByRole('dialog').getByRole('button',{name:'Confirm items',exact:true}).click(),'/commands');await expect(thickness(ductId)).toHaveText('38');evidence.calculatorRefreshPreservesEvidenceAndQuantities=true;
   await chooseTakeoff(page, 'steel'); await idle(); await page.getByLabel('Destination schedule', { exact: true }).selectOption('steel_vermiculite'); await expect(thickness(sprayId)).toHaveText(String(sprayValue));
   const savedBefore = await snapshot(), calculatorsBeforeSave = await calculators();
-  await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as');
+  await response(() => clickProjectControl(page, 'Save'), '/api/project/save');
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open'); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project'); await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await expect(thickness(sprayId)).toHaveText(String(sprayValue)); assert.deepEqual((await snapshot()).transfers, savedBefore.transfers); assert.deepEqual(await calculators(), calculatorsBeforeSave); evidence.saveReopenRetainsProvenance = true;

@@ -281,6 +281,9 @@ def self_test(data_directory, output_report):
                 probe.wait('document.querySelector("#app-message").textContent.startsWith("PDF saved to ")')
                 pdfs = list(directory.glob('*.pdf'))
                 assert pdfs and all(file.read_bytes().startswith(b'%PDF') for file in pdfs)
+                probe.wait('window.CeasefireDesktop.status().busy === false && document.querySelector("#project-save-state").textContent === "Saved project"')
+                assert json.loads(project.read_text(encoding='utf-8'))['documentation']['revision_count'] == 1
+                report['checks'].append('PDF download completed its automatic project save with the new revision history')
                 for calculator_id, label in (('steel_vermiculite', 'Steel spray'), ('steel_intumescent', 'Steel intumescent'), ('steel_board', 'Steel board'), ('ductwork', 'Duct')):
                     before = set(directory.glob('*.xlsx'))
                     # Use the public disclosure for every destination; a prior
@@ -307,6 +310,7 @@ def self_test(data_directory, output_report):
                     with zipfile.ZipFile(outputs.pop()) as archive:
                         assert 'xl/workbook.xml' in archive.namelist()
                     report['checks'].append(label + ' native XLSX export wrote a verified workbook')
+                    probe.wait('window.CeasefireDesktop.status().busy === false && document.querySelector("#project-save-state").textContent === "Saved project"')
                 # Factor Calcs is a view of the existing spray calculator, not
                 # another persisted calculator or a separate input draft.
                 shared_inputs = probe.script('window.CeasefireCalculators.projectSnapshot()')

@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { checkSteelDialog } = require('./steel_dialog_layout.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
@@ -92,7 +92,7 @@ async function technicalDetails(mark, rows) {
 }
 let savedOnce = false;
 async function saveAndLoad(info) {
-  const save = page.waitForResponse(response => response.url().endsWith(savedOnce ? '/api/project/save' : '/api/project/save-as'));
+  const save = page.waitForResponse(response => response.url().endsWith(savedOnce ? '/api/project/save' : '/api/project/save'));
   await clickProjectControl(page, 'Save'); assert.equal((await save).status(), 200);
   savedOnce = true;
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
@@ -190,7 +190,7 @@ function assertSubsetMove(before, after, memberIds, drag) {
 async function download(label, name) {
   const pending = waitForTakeoffDownload(page); pending.catch(() => {});
   const response = page.waitForResponse(value => value.url().endsWith(label === 'Download PDF' ? '/export/marked-pdf' : '/export/register-xlsx'), {timeout:180000}); response.catch(() => {});
-  if (label === 'Download PDF') await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()); else { await page.getByRole('button', { name: 'Takeoff register document actions', exact: true }).click(); await page.getByRole('button', { name: 'Download all items', exact: true }).click(); }
+  if (label === 'Download PDF') await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()); else { await page.getByRole('button', { name: 'Takeoff register document actions', exact: true }).click(); await page.getByRole('button', { name: 'All items', exact: true }).click(); }
   const accepted = await response; assert.equal(accepted.status(), 200, await accepted.text());
   const result = await pending, target = path.join(output, name); await result.saveAs(target); assert.ok(fs.statSync(target).size > 100); return target;
 }
@@ -202,7 +202,7 @@ function pythonJson(script, ...args) {
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1600, height: 1100 }, deviceScaleFactor: 2 }); page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (request.url().endsWith('/commands')) requests.push(request.postDataJSON()); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
-  const response = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
+  const response = await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page); assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
   // A document tile precedes upload's asynchronous page-one fit. Wait for its

@@ -432,6 +432,9 @@
   }
   async function perform(kind) {
     if(!state.loaded||state.opening||state.busy||state.readingSignature||(state.pending&&state.pending.kind!==kind))return;
+    if(kind==='generate') {
+      try{window.CeasefireProject.downloadTarget();}catch(error){message(error.message,true);return;}
+    }
     if(drawing.strokes.length||drawing.active){message('Save or clear the signature drawing before saving certification details.',true);return;}
     if(!state.pending){
       for(const name of requiredNames)controls[name].setCustomValidity(controls[name].value.trim()?'':window.CeasefireI18n?.translate?.('Complete all required certificate fields.')||'Complete all required certificate fields.');
@@ -460,6 +463,8 @@
         window.CeasefireNotifications?.show($('certification-status'));
         if(state.workspaceId===action.workspaceId)window.dispatchEvent(new CustomEvent('ceasefire:certification-revision-saved',
           {detail:{workspace_id:action.workspaceId,project_id:state.projectId}}));
+        const file=await window.CeasefireDownloads.save(saved.revision.pdf_url,{}, {button:generateButton});
+        text($('certification-status'),'Revision {0} saved to {1}.',[saved.revision.revision,file.path]);
       }
     }catch(error){
       if(error.status&&!error.uncertain)state.pending=null;

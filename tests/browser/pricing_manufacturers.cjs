@@ -105,6 +105,10 @@ async function importWorkbook(file,accept){
   await referenceExport(page,{extension:'xlsx',endpoint:'/api/pricing/export',target:exported,action:async()=>{
     await page.locator('[aria-controls="pricing-document-actions"]').click();await page.locator('#export-pricing').click();
   }});
+  await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  assert.deepEqual(await projectState(),frozen);
+  assert.deepEqual(fs.readFileSync(info.project),projectBytes,'Temporary pricing export never rewrites the saved project');
+  evidence.exportTemporaryDownload={frozenProjectModulesUnchanged:true,savedProjectBytesUnchanged:true};
   const changed=path.join(output,'manufacturer-roundtrip.xlsx');
   const editedBook=spawnSync(python,['-c',`import csv,json,sys
 from openpyxl import load_workbook

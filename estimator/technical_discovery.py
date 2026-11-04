@@ -10,6 +10,7 @@ import re
 from .library_facets import (MOVED_SERVICE_CATEGORIES, SERVICE_DISCOVERY_GENERALIZATIONS,
                              canonical_services, category_values, frl_values, service_values)
 from .library_substrates import canonical_substrate
+from .library_field_presentation import compact_repeated_fields
 
 
 FRL_ALIASES = {
@@ -137,6 +138,9 @@ def project_smoke_sampling_services(records, discovery, *, explicit_ids=(), line
 def present_technical(item, *, source_ratings=None):
     """Return a display copy; retained technical_basis and sources stay verbatim."""
     result = deepcopy(item)
+    # Compare literal source values before FRL display aliases can make two
+    # distinct source ratings look equal.
+    compact_repeated_fields(result.get('fields', []))
     if 'substrate' in result.get('filter_values', {}):
         result['filter_values']['substrate'] = list(dict.fromkeys(canonical_substrate(value)
             for value in result['filter_values']['substrate']))

@@ -4,11 +4,20 @@
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
   const PDF = "application/pdf", XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   // These exports remain available in their source workspaces and keep their
-  // saved history, but do not have rows in the Documentation PDF list.
-  const omittedRows = new Set(['firestopping.current_item.pdf','library.technical.item.pdf','takeoff.pdf_tools.pdf']);
+  // saved history, but do not have rows in the Documentation list.
+  const omittedRows = new Set(['firestopping.current_item.pdf','library.technical.item.pdf','takeoff.pdf_tools.pdf',
+    'takeoff.defect_reports.matrix.pdf','takeoff.service_plans.matrix.pdf',
+    'firestopping.current_item.xlsx','library.technical.item.xlsx','pricing.library.xlsx',
+    ...['steel_vermiculite','steel_intumescent','steel_board','ductwork'].map(id=>`calculator.${id}.template.xlsx`),
+    ...['steel','duct','walls_floors','defect_reports','service_plans'].map(id=>`takeoff.${id}.register.xlsx`)]);
   const state = { epoch:0, scope:null, model:null, baseline:0, opening:null, catalog:null, catalogLoading:null,
     refreshRevision:0, action:null, uncertain:false, pending:new Map(), sources:new Map() };
   const captures = new WeakMap();
+  function publicFilename(value) {
+    if(!/ceasefire/i.test(value))return value;
+    const dot=value.lastIndexOf('.'),stem=dot<0?value:value.slice(0,dot),suffix=dot<0?'':value.slice(dot);
+    return (stem.replace(/ceasefire/ig,'').replace(/([ _-])[ _-]+/g,'$1').replace(/^[ ._-]+|[ ._-]+$/g,'')||'Download')+suffix;
+  }
   function text(element, value, args = []) {
     if (window.CeasefireI18n) return window.CeasefireI18n.text(element,value,args);
     element.textContent=String(value).replace(/\{(\d+)\}/g,(match,index)=>args[index] ?? match); return element;
@@ -133,8 +142,12 @@
           const list=node('ul','documentation-revisions');
           for(const item of items) {
             const line=node('li','documentation-revision'), link=node('a','',"Revision {0}",[item.revision]);
-            link.href=item.url;link.target='_blank';link.rel='noopener';link.title=item.filename;
-            const name=node('small');name.textContent=item.filename;line.append(link,name);
+            link.href=item.url;link.title=item.filename;
+            if(item.media_type===PDF){link.target='_blank';link.rel='noopener noreferrer';}
+            else link.addEventListener('click',event=>{event.preventDefault();void downloadRevision(item,link);});
+            const filename=publicFilename(item.filename);
+            link.title=filename;
+            const name=node('small');name.textContent=filename;line.append(link,name);
             const date=new Date(item.created_at);
             if(!Number.isNaN(date.getTime())) { const time=node('time');time.dateTime=date.toISOString();time.textContent=date.toLocaleString('en-AU');line.append(time); }
             list.append(line);
@@ -166,6 +179,17 @@
       else status("");
     } catch(error) {if(current(scope,epoch))status(error.message,true);}
     finally {if(epoch===state.epoch){state.action=null;button.removeAttribute('aria-busy');render();}}
+  }
+  async function downloadRevision(item,link) {
+    if(state.action||hasPendingOperation()||item.media_type===PDF)return;
+    const scope=await ensureWorkspace(),epoch=state.epoch;
+    if(!current(scope,epoch))return;
+    state.action=item.id;link.setAttribute('aria-busy','true');status('Preparing document…');
+    try {
+      const saved=await window.CeasefireDownloads.save(item.url,{}, {button:link});
+      if(current(scope,epoch)&&saved?.saved)status('Document saved. Its revision is available in this project.');
+    } catch(error) {if(current(scope,epoch))status(error.message,true);}
+    finally {if(epoch===state.epoch){state.action=null;link.removeAttribute('aria-busy');render();}}
   }
   async function open() {await catalog();await ensureWorkspace();await refresh();render();}
   async function prepareProject(manifest,workspaceId) {

@@ -19,6 +19,7 @@ from threading import RLock
 import uuid
 
 from .catalog import ValidationError
+from .download_filenames import document_filename
 from .evidence_files import _directory, _open_regular, _hash_stream
 
 MAX_ARTIFACT_BYTES = 256 * 1024 * 1024
@@ -267,6 +268,7 @@ class ProjectDocumentation:
     @staticmethod
     def _public(workspace, row, source='export'):
         return {key: row[key] for key in FIELDS if key not in {'request_id', 'input_fingerprint'}} | {
+            'filename': document_filename(row['kind'], row['filename'], row['revision']),
             'source': source, 'url': '/api/documentation/' + row['id'] + '?workspace=' + workspace}
 
     def _certificate_items(self, workspace, project):
@@ -399,6 +401,7 @@ class ProjectDocumentation:
                        'sequence': len(rows) + 1, 'created_at': datetime.now(timezone.utc).isoformat(),
                        'filename': filename, 'media_type': media_type, 'size': size, 'sha256': digest,
                        'request_id': request_id, 'input_fingerprint': input_fingerprint}
+                row['filename'] = document_filename(kind, filename, row['revision'])
                 self._validate_rows(current['project_id'], rows + [row])
                 destination = self.root / 'blobs' / (digest + EXTENSIONS[media_type])
                 _publish_file(staged, destination, digest, size, MAX_ARTIFACT_BYTES)

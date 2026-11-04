@@ -377,8 +377,9 @@ class CalculatorPresentationApiTests(unittest.TestCase):
                 before = self.stored_rows()
                 marker = "333x222" if identity == "ductwork" else f"CURRENT DRAFT {identity}"
                 project_details = {"project_no": "CF-908", "client": "Draft client", "site_address": "8 Current Street"}
-                for route, filename in (("report.pdf", "APPENDIX A.pdf"),
-                                        ("summary.pdf", f"ceasefire-{identity}-materials-summary.pdf")):
+                prefix={'steel_vermiculite':'SPRAY','steel_intumescent':'PAINT','steel_board':'BOARD','ductwork':'DUCT'}[identity]
+                for route, filename in (("report.pdf", prefix+"_SCHEDULE.pdf"),
+                                        ("summary.pdf", prefix+"_PRODUCT_SUMMARY.pdf")):
                     with self.subTest(route=route):
                         status, headers, payload = self.request("POST", f"/api/calculators/{identity}/{route}",
                                                                 {"inputs": draft, "project_details": project_details})
@@ -457,7 +458,7 @@ class CalculatorPresentationApiTests(unittest.TestCase):
             with self.subTest(route=route):
                 status, headers, payload = self.request('POST', f'/api/calculators/ductwork/{route}', {})
                 self.assertEqual(status, 200, payload[:300])
-                filename = 'APPENDIX A.pdf' if route == 'report.pdf' else 'ceasefire-ductwork-materials-summary.pdf'
+                filename = 'DUCT_SCHEDULE.pdf' if route == 'report.pdf' else 'DUCT_PRODUCT_SUMMARY.pdf'
                 self.assertEqual(headers['Content-Disposition'], f'attachment; filename="{filename}"')
                 saved_text = ' '.join(page.extract_text() for page in PdfReader(BytesIO(payload)).pages)
                 # The schedule shows length; its summary shows surface area.
@@ -491,6 +492,9 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         self.assertEqual(self.stored_rows(), before)
 
     def test_all_excel_registers_use_the_current_draft_without_saving(self):
+        filenames = {'steel_vermiculite': 'STEEL_SCHEDULE_SPRAY.xlsx',
+                     'ductwork': 'DUCT_SCHEDULE.xlsx',
+                     'steel_board': 'STEEL_SCHEDULE_BOARD.xlsx'}
         for identity in EXTENTS:
             with self.subTest(identity=identity):
                 draft = self.single_row_draft(identity, f'CURRENT REGISTER {identity}')
@@ -502,7 +506,7 @@ class CalculatorPresentationApiTests(unittest.TestCase):
                 status, headers, payload = self.request('POST', f'/api/calculators/{identity}/register.xlsx', {'inputs': draft})
                 self.assertEqual(status, 200, payload[:300])
                 self.assertEqual(headers['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-                self.assertEqual(headers['Content-Disposition'], 'attachment; filename="APPENDIX A.xlsx"')
+                self.assertEqual(headers['Content-Disposition'], f'attachment; filename="{filenames[identity]}"')
                 self.assertEqual(headers['Cache-Control'], 'no-store')
                 self.assertEqual(int(headers['Content-Length']), len(payload))
                 workbook = load_workbook(BytesIO(payload))
@@ -521,7 +525,7 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         before = self.stored_rows()
         status, headers, payload = self.request('POST', '/api/calculators/ductwork/register.xlsx', {})
         self.assertEqual(status, 200, payload[:300])
-        self.assertEqual(headers['Content-Disposition'], 'attachment; filename="APPENDIX A.xlsx"')
+        self.assertEqual(headers['Content-Disposition'], 'attachment; filename="DUCT_SCHEDULE.xlsx"')
         workbook = load_workbook(BytesIO(payload))
         self.assertEqual(workbook['Schedule']['C6'].value, '700x500')
         self.assertEqual(workbook['Schedule']['D6'].value, 5)

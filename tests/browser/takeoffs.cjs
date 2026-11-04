@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { checkSteelDialog } = require('./steel_dialog_layout.cjs');
 const { chooseCalculator } = require('./calculator_actions.cjs');
@@ -286,7 +286,7 @@ async function boardJourney(info) {
   page.on('requestfinished', request => pendingTakeoffRequests.delete(request));
   page.on('requestfailed', request => pendingTakeoffRequests.delete(request));
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', e => window.qaCsp.push({ directive: e.effectiveDirective, blocked: e.blockedURI })); });
-  const response = await page.goto(`http://127.0.0.1:${info.port}/`);
+  const response = await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page);
   assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
@@ -397,7 +397,7 @@ async function boardJourney(info) {
   await chooseTakeoff(page, 'duct');
   await viewRegisterItem(page, ductId);
   // Project Save As commits the companion bundle before the complete JSON.
-  const savedResponse = page.waitForResponse(r => r.url().endsWith('/api/project/save-as'));
+  const savedResponse = page.waitForResponse(r => r.url().endsWith('/api/project/save'));
   await clickProjectControl(page, 'Save');
   const saved = await savedResponse; assert.equal(saved.status(), 200, await saved.text());
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');

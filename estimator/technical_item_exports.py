@@ -23,7 +23,7 @@ from reportlab.platypus import Image, KeepTogether, SimpleDocTemplate, Spacer
 from .calculator_register import _sheet, _table
 from .catalog import ValidationError
 from .firestopping_library import MAX_DIAGRAM_BYTES, _render_diagram
-from .library_report_links import validate_report_links
+from .library_report_links import validate_report_links, report_href
 from .pricing_workbook import _serialize_exact
 from .reference_library import identifier
 from .report import _Report, _company_header, _escaped, _register_fonts, _LINE, _MUTED
@@ -140,7 +140,8 @@ def _field_rows(snapshot):
     for field in snapshot['fields']:
         if _hidden_field(snapshot['record'], field):
             continue
-        links = {link['label']: link['url'] for link in field['report_links']}
+        links = {link['label']: report_href(link['label'], link['url'], user_authored=True)
+                 for link in field['report_links']}
         if links:
             for label in field['value'].splitlines():
                 if label.strip():

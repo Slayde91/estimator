@@ -8,10 +8,14 @@
   function node(document, tag, value) { const element = document.createElement(tag); if (value !== undefined) element.textContent = text(value); return element; }
   function ui(element, source, args = []) { return root.CeasefireI18n?.nodeText ? root.CeasefireI18n.nodeText(element, source, args) : (element.textContent = source.replace(/\{(\d+)\}/g, (_, index) => args[index] ?? ""), element); }
   const caption = value => ["Manufacturer not recorded", "Assessment not identified in source"].includes(value) && root.CeasefireI18n?.translate ? root.CeasefireI18n.translate(value) : value;
-  function publicURL(value) {
+  function publicURL(value, label = "") {
+    if (/^FAS\s*19023[456](?=\b|[_/])/i.test(text(label).trim()) || value === "https://systems.tbafirefly.com.au/reports") return "https://systems.tbafirefly.com.au/";
     if (typeof value !== "string" || !value || /[\s<>"\\\x00-\x1f\x7f]/.test(value)) return null;
-    if (/^\/api\/libraries\/documents\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}\.pdf$/.test(value)) return value;
-    try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password ? value : null; } catch (_) { return null; }
+    try {
+      const url = new URL(value), host = url.hostname.toLowerCase();
+      if (url.pathname.startsWith('/api/libraries/documents/') || url.origin === root.location?.origin || /^(?:localhost|\[::1\]|(?:127|10|0)(?:\.\d+){3}|192\.168(?:\.\d+){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d+){2})$/.test(host) || /\.(local|localhost|internal)$/.test(host)) return null;
+      return ["https:", "http:"].includes(url.protocol) && !url.username && !url.password ? value : null;
+    } catch (_) { return null; }
   }
   function renderReports(references, options = {}) {
     const document = doc(options), result = node(document, "span"); result.className = "register-report-references";
@@ -21,7 +25,7 @@
       for (const reference of values) {
         if (!reference || !text(reference.label).trim()) continue;
         if (result.children.length) result.append(node(document, "span", " | "));
-        const url = publicURL(reference.url), item = node(document, url ? "a" : "span", caption(reference.label));
+        const url = publicURL(reference.url, reference.label), item = node(document, url ? "a" : "span", caption(reference.label));
         if (url) { item.href = url; item.target = "_blank"; item.rel = "noopener noreferrer"; }
         result.append(item);
       }

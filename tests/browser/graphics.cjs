@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 "use strict";
 // All ink, source PDFs, saved projects and browser storage belong to this
 // disposable fixture. This journey never opens the live application on 8765.
@@ -15,7 +15,7 @@ const hashes = () => Object.fromEntries(assets.map(name => [name, hash(path.join
 const sourceBefore = hashes(), checks = [], errors = [], requests = [], projectWrites = [], pdfExports = [];
 const check = name => { checks.push(name); console.log(`ok - ${name}`); };
 const server = spawn(python, [path.join(__dirname, "fixtures.py"), "--directory", output], { cwd: root, windowsHide: true });
-let browser, page, logs = ""; server.stderr.on("data", value => { logs += value; });
+let browser, page, projectFile, logs = ""; server.stderr.on("data", value => { logs += value; });
 const ready = new Promise((resolve, reject) => {
   let stdout = ""; const timer = setTimeout(() => reject(new Error(`Fixture startup timeout: ${logs}`)), 120000);
   server.stdout.on("data", value => { stdout += value; if (stdout.includes("\n")) { clearTimeout(timer); try { resolve(JSON.parse(stdout.split("\n")[0])); } catch (error) { reject(error); } } });
@@ -84,13 +84,19 @@ async function download(name, expectedIds, mode, scope = null) {
   await page.evaluate(()=>window.CeasefireTakeoffs.downloadDrawing()); const file = await pending, target = path.join(output,name);
   assert.equal(await file.failure(),null); await file.saveAs(target); const body=(await request).postDataJSON(); await idle();
   assert.deepEqual(body.graphic_ids,expectedIds); assert.equal(body.mode,mode); if(scope) assert.equal(body.physical_scope,scope);
-  assert.deepEqual(await snapshot(),before,"PDF export is read-only");
+  await expect.poll(() => page.evaluate(() => window.CeasefireActivity.active || window.CeasefireDocumentation.hasPendingOperation()),
+    { timeout: 60000, message: "Export and its automatic project Save finish before comparison" }).toBe(false);
+  await expect(page.locator("#project-save-state")).toHaveText("Saved project");
+  const after = await snapshot(), companionFolder = `.ceasefire-evidence/${before.project_id}`;
+  if (Object.hasOwn(before, "companion_folder")) assert.equal(before.companion_folder, companionFolder);
+  assert.deepEqual(after, { ...before, companion_folder: companionFolder }, "PDF export preserves every source, graphic, numeric and audit value exactly");
+  assert.deepEqual(JSON.parse(fs.readFileSync(projectFile, "utf8")).takeoffs, after, "Automatic Save persists the exact graphic/source snapshot");
   const spec=path.join(output,`${name}.json`);fs.writeFileSync(spec,JSON.stringify({records:before.graphics.records.filter(v=>expectedIds.includes(v.id)),document:before.documents.find(v=>v.id===body.document_id),physical:!!scope,rotations:body.rendering?.rotations||{}}));
   const inspected=spawnSync(python,["-X","utf8","-B",path.join(__dirname,"graphics_export_content.py"),target,spec],{cwd:root,windowsHide:true,encoding:"utf8"});
   assert.equal(inspected.status,0,inspected.stderr);const proof=JSON.parse(inspected.stdout);pdfExports.push({file:target,body,proof});return proof;
 }
 async function saveLoad(info) {
-  const before=await snapshot(),saving=page.waitForResponse(v=>v.url().endsWith("/api/project/save-as"));saving.catch(()=>{});
+  const before=await snapshot(),saving=page.waitForResponse(v=>v.url().endsWith("/api/project/save"));saving.catch(()=>{});
   await clickProjectControl(page,"Save");assert.equal((await saving).status(),200);await expect(page.locator("#project-save-state")).toHaveText("Saved project");
   assert.deepEqual(JSON.parse(fs.readFileSync(info.project,"utf8")).takeoffs.graphics,before.graphics);
   const opening=page.waitForResponse(v=>v.url().endsWith("/api/project/open"));opening.catch(()=>{});await clickProjectControl(page,"Load");assert.equal((await opening).status(),200);
@@ -115,11 +121,11 @@ async function unfinishedGuards() {
   check("unfinished graphic trace blocks Save; Cancel navigation retains it and explicit discard creates no visual record");
 }
 (async()=>{
-  const info=await ready;assert.notEqual(info.port,8765);const originalHash=hash(info.area_fixture);
+  const info=await ready;assert.notEqual(info.port,8765);projectFile=info.project;const originalHash=hash(info.area_fixture);
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1600,height:1100},deviceScaleFactor:2});page.setDefaultTimeout(30000);
   page.on("pageerror",e=>errors.push(e.message));page.on("request",r=>{if(r.url().endsWith("/commands"))requests.push(r.postDataJSON());if(r.method()==="POST"&&/\/api\/project\/save(?:-as)?$/.test(new URL(r.url()).pathname))projectWrites.push(r.url());});
   await page.addInitScript(()=>{window.qaCsp=[];document.addEventListener("securitypolicyviolation",e=>window.qaCsp.push(e.effectiveDirective));});
-  await page.goto(`http://127.0.0.1:${info.port}/`);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);await page.getByRole("button",{name:"Takeoffs",exact:true}).click();await chooseTakeoff(page,"wall");
+  await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);await page.getByRole("button",{name:"Takeoffs",exact:true}).click();await chooseTakeoff(page,"wall");
   await renderDrawing(page,()=>page.locator("#takeoff-upload").setInputFiles(info.area_fixture),1);await idle();assert.equal((await snapshot()).graphics,undefined);
   const scale=page.getByLabel("Drawing calibration",{exact:true});if(!await scale.isVisible())await page.getByRole("button",{name:"Scale",exact:true}).click();await scale.selectOption("scale:100");
   await command(()=>dialog("Apply drawing scale 1:100?",{},"Apply scale"),"add_calibration");await fit();await page.getByRole("button",{name:"Trace surface",exact:true}).click();
@@ -169,7 +175,8 @@ async function unfinishedGuards() {
   check("native Bold, Italic, Underline, Bullet list and Numbered list controls retain bounded literal textbox runs and render saved marks without quantity authority");
   const beforeHidden=await snapshot();await panel().getByRole("button",{name:"Visibility",exact:true}).click();await expect(graphic(records.textbox.id)).toHaveCount(0);assert.deepEqual(await snapshot(),beforeHidden);
   const remaining=(await snapshot()).graphics.records.filter(v=>v.id!==records.textbox.id).map(v=>v.id);await download("visible-graphics.pdf",remaining,"walls_floors");
-  await page.locator(".takeoff-tool-rail").getByRole("button",{name:"Visibility",exact:true}).dblclick();await expect(graphic(records.textbox.id)).toBeVisible();assert.deepEqual(await snapshot(),beforeHidden);
+  const afterHiddenExport = await snapshot();
+  await page.locator(".takeoff-tool-rail").getByRole("button",{name:"Visibility",exact:true}).dblclick();await expect(graphic(records.textbox.id)).toBeVisible();assert.deepEqual(await snapshot(),afterHiddenExport,"Restoring visibility preserves the exact post-export saved snapshot");
   check("literal text and font edits autosave; individual visibility is visual only and actual PDF requests omit hidden IDs until main-eye restore");
   await select(records.rectangle.id);const beforeDelete=(await snapshot()).graphics.records.find(v=>v.id===records.rectangle.id);reply=await command(()=>graphic(records.rectangle.id).press("Delete"),"delete_graphic");assert.ok(!reply.snapshot.graphics.records.some(v=>v.id===records.rectangle.id));
   reply=await command(()=>page.getByRole("button",{name:"Undo last edit",exact:true}).click(),"undo");const restored=reply.snapshot.graphics.records.find(v=>v.id===records.rectangle.id);for(const key of Object.keys(beforeDelete).filter(k=>k!=="version"))assert.deepEqual(restored[key],beforeDelete[key]);assert.ok(restored.version>beforeDelete.version);invariant(reply.snapshot,baseline);

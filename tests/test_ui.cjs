@@ -53,6 +53,7 @@ const newFields=[{cell:'D15',label:'Spray material',type:'select',default:'New s
 const oldConfig={inventory:{},rates:{},version:'old'};
 const newConfig={inventory:{},rates:{},version:'new'};
 function setup(){
+  if(audit.state.projectFile?.path)context.window.CeasefireDownloads.projectSaved(context.window.CeasefireProject.downloadTarget());
   Object.assign(audit.state,{configuration:copy(oldConfig),draft:copy(newConfig),fields:copy(oldFields),currentFields:copy(oldFields),baseline:{inventory:[],rate_groups:{}},quote:null,quoteConfiguration:null,inputs:{D15:'Old spray'},workItems:[],workItemErrors:new Map(),workItemDrafts:new Map(),nextWorkItem:1,dirty:false,quoteLoadRevision:0,legacyTitle:'',workflow:'workflow',defaultWorkflow:'Intumescent spray to ductwork',inputErrors:new Map(),inputDrafts:new Map(),inputRevision:0,projectPricingDraft:null,libraryDraft:null,pricingScope:'library',pricingRevision:0,projectFile:null,projectBusy:false,initialized:false});
   for(const id of ['project-no','client','site-address','measurements'])byId(id).value='';
 }
@@ -189,7 +190,7 @@ let passed=0;
   assert.equal(audit.state.currentFields[0].options[0],'Old spray');passed++;
 
   // Export downloads the captured draft, preserving concurrent edits locally.
-  setup();const exported=deferred();let exportBody;
+  setup();audit.state.projectFile={save_token:'original-target',path:'C:/Projects/Original/current.cf.json'};const exported=deferred();let exportBody;
   context.URL={createObjectURL:()=> 'blob:audit',revokeObjectURL(){}};
   audit.setFetch((path,options)=>{exportBody=JSON.parse(options.body);return exported.promise;});
   const exportRun=audit.exportPricing();
@@ -201,16 +202,18 @@ let passed=0;
   assert.match(byId('app-message').textContent,/Later edits are not included/);passed++;
 
   // Only a selected project capability determines the download destination.
-  setup();assert.deepEqual(copy(context.window.CeasefireProject.downloadTarget()),{project_token:null});
+  setup();assert.equal(context.window.CeasefireProject.downloadTarget().project_token,null);
+  await assert.rejects(context.window.CeasefireDownloads.save('/api/quote-report'),/Save the current project/);
   audit.state.projectFile={path:'C:/Projects/One.json',save_token:'original-target'};
-  const originalTarget=context.window.CeasefireProject.downloadTarget();audit.state.projectFile={save_token:'new-target'};
+  const originalTarget=context.window.CeasefireProject.downloadTarget();audit.state.projectFile={save_token:'new-target',path:'C:/Projects/One.json'};
   assert.equal(originalTarget.project_token,'original-target');assert.equal(context.window.CeasefireProject.downloadTarget().project_token,'new-target');
-  audit.state.projectFile={name:'browser-import.json'};assert.equal(context.window.CeasefireProject.downloadTarget().project_token,null);passed++;
+  audit.state.projectFile={name:'browser-import.json'};assert.equal(context.window.CeasefireProject.downloadTarget().project_token,null);
+  await assert.rejects(context.window.CeasefireDownloads.save('/api/quote-report'),/Save the current project/);passed++;
 
   // Both draft and saved downloads retain snapshots and later edits with the common filename.
   for(const saved of [false,true]) {
     setup();audit.state.quote=saved?{id:'saved-report'}:null;audit.state.quoteConfiguration=saved?copy(oldConfig):null;
-    audit.state.projectFile={save_token:'original-target'};
+    audit.state.projectFile={save_token:'original-target',path:'C:/Projects/Original/current.cf.json'};
     audit.state.inputs.B12='Preserved workbook note';byId('measurements').value='Captured general note';
     const beforeInputs=copy(audit.state.inputs),beforeConfig=copy(audit.state.quoteConfiguration||audit.state.configuration);
     const pending=deferred();let reportPath,reportOptions;
@@ -219,7 +222,7 @@ let passed=0;
     assert.equal(byId('download-quote-pdf').disabled,true);assert.equal(byId('download-quote-pdf').getAttribute('aria-busy'),'true');
     assert.equal(byId('download-quote-pdf').getAttribute('aria-label'),'Preparing document…');
     audit.state.inputs.B12='Later workbook note';byId('measurements').value='Later general note';audit.state.dirty=true;
-    audit.state.projectFile={save_token:'new-target'};
+    audit.state.projectFile={save_token:'new-target',path:'C:/Projects/Original/current.cf.json'};
     pending.resolve(savedResponse());
     await download;
     assert.equal(reportPath,saved?'/api/quotes/saved-report/report.pdf':'/api/quote-report');
@@ -241,7 +244,7 @@ let passed=0;
 
   // Failed writes never claim success or mutate the current draft, and release
   // the download control so users can retry after resolving folder access.
-  setup();const failedInputs=copy(audit.state.inputs);
+  setup();audit.state.projectFile={save_token:'original-target',path:'C:/Projects/Original/current.cf.json'};const failedInputs=copy(audit.state.inputs);
   audit.setFetch(async()=>({ok:false,status:400,headers:{get:()=> 'application/json'},json:async()=>({error:'Folder is not writable.'})}));
   await audit.downloadQuotePdf();assert.match(byId('app-message').textContent,/not downloaded.*Folder is not writable/);
   assert.deepEqual(copy(audit.state.inputs),failedInputs);assert.equal(byId('download-quote-pdf').disabled,false);assert.equal(byId('download-quote-pdf').getAttribute('aria-busy'),undefined);passed++;
@@ -926,14 +929,18 @@ let passed=0;
   assert.ok(markup.indexOf('id="pricing-document-actions"')<markup.indexOf('id="add-pricing-item"'));
   assert.ok(markup.indexOf('id="add-pricing-item"')<markup.indexOf('id="pricing-import-file"'));
   assert.match(markup,/id="penetration-undo"[^>]*class="button secondary icon-only"[^>]*aria-label="Undo remove"[^>]*title="Undo remove"/);
-  for(const [id,format,label] of [['penetration-excel','excel','Download Firestopping Schedule'],['penetration-pdf','pdf','Download Firestopping Schedule'],['penetration-item-excel','excel','Item Details'],['penetration-item-pdf','pdf','Item Details']])assert.match(markup,new RegExp(`id="${id}"[^>]*class="button ${format}-button calculator-document-action"[^>]*aria-label="${label}"[^>]*title="${label}"[\\s\\S]*?<span class="download-arrow">⇩<\\/span>`));
+  for(const [id,format,label] of [['penetration-excel','excel','Firestopping Schedule'],['penetration-pdf','pdf','Firestopping Schedule'],['penetration-item-excel','excel','Item Details'],['penetration-item-pdf','pdf','Item Details']])assert.match(markup,new RegExp(`id="${id}"[^>]*class="button ${format}-button calculator-document-action"[^>]*aria-label="${label}"[^>]*title="${label}"[\\s\\S]*?<span class="download-arrow">⇩<\\/span>`));
   const estimateHeading=markup.match(/<div class="page-heading workspace-banner-heading estimate-banner-heading">[^\n]*id="download-quote-pdf"[^\n]*<\/div>/)?.[0];
   assert.ok(estimateHeading,'Main heading contains the estimate PDF control');
   assert.match(estimateHeading,/aria-controls="firestopping-document-actions"[\s\S]*id="firestopping-document-actions"[\s\S]*id="download-quote-pdf"/);
   assert.doesNotMatch(estimateHeading,/id="penetration-(excel|pdf)"/);
   const calculatorHeading=markup.match(/<section id="penetration-current-item-card"[^\n]*id="firestopping-item-document-actions"[^\n]*<\/section>/)?.[0];
   assert.ok(calculatorHeading,'Calculator heading contains the Firestopping document control');
-  assert.match(calculatorHeading,/id="firestopping-item-document-actions"[\s\S]*id="penetration-item-excel"[\s\S]*id="penetration-item-pdf"[\s\S]*id="penetration-excel"[\s\S]*id="penetration-pdf"/);
+  const itemMenu=calculatorHeading.match(/id="firestopping-item-document-actions"[\s\S]*?<\/div>/)?.[0];
+  assert.match(itemMenu,/id="penetration-item-excel"[\s\S]*id="penetration-item-pdf"/);
+  assert.doesNotMatch(itemMenu,/id="penetration-(excel|pdf)"/);
+  assert.equal((itemMenu.match(/<button\b/g)||[]).length,2);
+  assert.match(calculatorHeading,/<div\b(?=[^>]*\bhidden)(?=[^>]*id="penetration-schedule-export-sources")[^>]*>[\s\S]*id="penetration-excel"[\s\S]*id="penetration-pdf"/);
   assert.doesNotMatch(markup,/penetration-item-schedule-pdf/);
   const recalculateRows=markup.match(/<div class="penetration-row-tools penetration-schedule-recalculate-tools">[^\n]*<\/div>/g)||[];
   assert.equal(recalculateRows.length,2);

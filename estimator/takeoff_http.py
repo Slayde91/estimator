@@ -268,9 +268,10 @@ class TakeoffHTTP:
         elif action == 'pdf-tools':
             if query:
                 raise ValidationError('PDF Tools accept a structured request only.')
+            destination = handler.capture_download(body.pop('download')) if 'download' in body else None
             handler.pdf_company_details('pdf_tools')
             payload, kind, filename = self.service.export_pdf_tools(session_id, body)
-            handler.send_download(payload, kind, filename, pdf_kind='pdf_tools')
+            handler.send_download(payload, kind, filename, destination, pdf_kind='pdf_tools') if destination is not None else handler.send_download(payload, kind, filename, pdf_kind='pdf_tools')
             return True
         else:
             handler.send_payload(404, {'error': 'Unknown takeoff operation.'})

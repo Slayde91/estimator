@@ -65,7 +65,7 @@
   }
   async function open(options) {
     if (!root?.document || active) throw new Error("Finish the open PDF Tools dialog first.");
-    const { operation, documents, expectedRevision, requestPDF, onResult } = options || {};
+    const { operation, documents, expectedRevision, requestPDF, savePDF, onResult } = options || {};
     if (!Object.hasOwn(names, operation) || !Array.isArray(documents) || typeof requestPDF !== "function") throw new Error("PDF Tools require the current retained Source Documents.");
     if (!documents.length) throw new Error("Upload a Source Document before using PDF Tools.");
     if (operation === "merge" && documents.length < 2) throw new Error("Upload at least two Source Documents to merge PDFs.");
@@ -152,10 +152,16 @@
         if (operation !== "merge") { order = parsePages(orderText.value, source().pages.length); renderPages(); }
         const body = payload(), fingerprint = JSON.stringify(body), action = operation === "organise" ? "download" : outputSelect.value;
         pending = true; for (const control of dialog.querySelectorAll("button,input,select")) { disabled.set(control,control.disabled); control.disabled = true; } dialog.setAttribute("aria-busy", "true"); window.CeasefireI18n.text(status, "Preparing the new PDF…");
-        if (!prepared || prepared.fingerprint !== fingerprint) prepared = { ...await checkedResult(await requestPDF(body), operation), fingerprint };
-        result = { blob:prepared.blob, filename:prepared.filename, action };
+        if (action === "download" && typeof savePDF === "function") {
+          const saved = await savePDF(body, create);
+          if (saved?.saved !== true || typeof saved.path !== "string" || !saved.path.trim()) throw new Error("The PDF file save could not be confirmed.");
+          result = { ...saved, action };
+        } else {
+          if (!prepared || prepared.fingerprint !== fingerprint) prepared = { ...await checkedResult(await requestPDF(body), operation), fingerprint };
+          result = { blob:prepared.blob, filename:prepared.filename, action };
+        }
         if (typeof onResult === "function") await onResult(result);
-        else {
+        else if (result.blob) {
           const url = root.URL.createObjectURL(result.blob), link = doc.createElement("a"); link.href = url; link.download = result.filename; doc.body.append(link); link.click(); link.remove(); root.setTimeout(() => root.URL.revokeObjectURL(url), 1000);
         }
         dialog.close("created");

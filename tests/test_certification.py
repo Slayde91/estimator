@@ -191,7 +191,11 @@ class CertificationTests(unittest.TestCase):
         self.assertGreater(len(pages),2)
         self.assertIn('<b>Client & Co</b>',text)
         self.assertIn('Entered <tag> statement & conditions',text)
-        self.assertEqual(text.count('Long user entry.'),500)
+        # The indented detail column wraps some sentences between words.
+        # Every word/end token must still survive, including page boundaries.
+        self.assertEqual(text.count('Long'),500)
+        self.assertEqual(text.count('user'),500)
+        self.assertEqual(text.count('entry.'),500)
         # A long cell can span pages, with the repeating table/page header
         # between two words. Count its intact terminal token across all pages.
         self.assertEqual(text.count('qualification.'),100)

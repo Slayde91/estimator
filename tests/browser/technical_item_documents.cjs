@@ -35,7 +35,7 @@ async function exported(extension){
   const target=path.join(output,`technical-item.${extension}`);
   await page.locator('.library-document-menu').getByRole('button',{name:'Document',exact:true}).click();
   await referenceExport(page,{extension,endpoint:`/api/technical/item.${extension}`,target,
-    action:()=>page.getByRole('button',{name:`Download Item Details ${extension.toUpperCase()}`,exact:true}).click()});
+    action:()=>page.locator(`#technical-item-document-actions .${extension==='pdf'?'pdf':'excel'}-button`).click()});
   return target;
 }
 (async()=>{

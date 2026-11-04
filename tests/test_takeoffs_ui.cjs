@@ -105,6 +105,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     value.documents=[{id:'doc',name:'Fixture drawing',pages:[{page:1,view:[0,0,200,200]}]}];h.audit.accept(response(value));
     Object.assign(h.audit.state,{mode:'steel',document:'doc',page:1,ui:null});
     h.context.window.CeasefireDownloadSound=feedback.sound;h.context.document.fonts.load=()=>fonts.promise;
+    h.context.window.CeasefireProject.downloadTarget=()=>({project_token:'saved-project'});
     let captures=0,requests=0;
     h.context.window.CeasefireCalculators={captureTakeoffTarget(){captures++;return captures===1?capture.promise:Promise.resolve({inputs:{},schedule_rows:[],fingerprint:'stable'});},projectFingerprint:()=> 'stable'};
     vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),h.context);
@@ -115,7 +116,7 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     fonts.resolve([]);await flush();assert.equal(captures,1);assert.equal(requests,0);assert.equal(feedback.audioAttempts,0);
     capture.resolve({inputs:{},schedule_rows:[],fingerprint:'stable'});for(let step=0;step<20&&!requests;step++)await flush();
     assert.ok(captures>1);assert.equal(requests,1);assert.equal(feedback.audioAttempts,0);
-    artifact.resolve(json({saved:true,path:'fixture/drawing.pdf',filename:'drawing.pdf',destination:'downloads'}));
+    artifact.resolve(json({saved:true,path:'fixture/drawing.pdf',filename:'drawing.pdf',destination:'project'}));
     assert.equal((await operation).saved,true);assert.equal(feedback.audioAttempts,0);assert.equal(h.audit.state.busy,false);
   });
   await check('Takeoff preparation failure remains silent and clears its busy state before a document request exists',async()=>{
@@ -933,11 +934,11 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     const ordinary=h.audit.button('Confirm',()=>{});assert.equal(ordinary.textContent,'Confirm');assert.ok(!ordinary.classList.contains('icon-only'));
     const undo=h.audit.button('Undo last edit',()=>{});assert.equal(undo.attributes['aria-label'],'Undo last edit');assert.ok(undo.classList.contains('takeoff-undo-button'));assert.equal(undo.children[0].textContent,'↶');assert.ok(undo.children[0].classList.contains('button-symbol'));assert.equal(dom.all(undo).filter(node=>node.tagName==='SVG').length,0);
   });
-  await check('Register Document provides ordered XLSX and four PDF actions and keyboard/focus dismissal without changing records',()=>{
+  await check('Register Document provides only ordered XLSX actions and keyboard/focus dismissal without changing records',()=>{
     const h=harness(),dom=attachMinimalDom(h),before=copy(h.audit.state.session),menu=h.audit.registerDocumentMenu(),names=menu.list.children.map(control=>control.children[1].textContent);
-    assert.deepEqual(names,['Download confirmed items','Download unconfirmed items','Download all items','Download Full Markup','Download Markups Only','Download All Markups','Download Full Markups Only']);assert.equal(menu.toggle.children[0].src,'/icons/document.png');assert.ok(menu.toggle.children[0].classList.contains('calculator-document-icon'));const chevron=menu.toggle.children.at(-1);assert.ok(chevron.classList.contains('calculator-document-chevron'));assert.equal(chevron.children[0].tagName,'SVG');assert.equal(chevron.children[0].children[0].attributes.d,'m6 9 6 6 6-6');
-    assert.ok(menu.list.hidden);for(const [index,control] of menu.list.children.entries()){assert.equal(control.children[0].children[1].textContent,index<3?'XLSX':'PDF');assert.equal(control.children[0].attributes['aria-hidden'],'true');}
-    const key=value=>menu.root.events.keydown({key:value,preventDefault(){}});menu.toggle.focus();key('ArrowUp');assert.equal(h.context.document.activeElement,menu.list.children[6]);assert.equal(menu.toggle.attributes['aria-expanded'],'true');key('Home');assert.equal(h.context.document.activeElement,menu.list.children[0]);key('End');assert.equal(h.context.document.activeElement,menu.list.children[6]);key('Escape');assert.equal(h.context.document.activeElement,menu.toggle);assert.ok(menu.list.hidden);
+    assert.deepEqual(names,['Confirmed items','Unconfirmed items','All items','Markups']);assert.equal(menu.toggle.children[0].src,'/icons/document.png');assert.ok(menu.toggle.children[0].classList.contains('calculator-document-icon'));const chevron=menu.toggle.children.at(-1);assert.ok(chevron.classList.contains('calculator-document-chevron'));assert.equal(chevron.children[0].tagName,'SVG');assert.equal(chevron.children[0].children[0].attributes.d,'m6 9 6 6 6-6');
+    assert.ok(menu.list.hidden);for(const [index,control] of menu.list.children.entries()){assert.equal(control.children[0].children[1].textContent,index===3?'PDF':'XLSX');assert.equal(control.children[0].attributes['aria-hidden'],'true');}
+    const key=value=>menu.root.events.keydown({key:value,preventDefault(){}});menu.toggle.focus();key('ArrowUp');assert.equal(h.context.document.activeElement,menu.list.children[3]);assert.equal(menu.toggle.attributes['aria-expanded'],'true');key('Home');assert.equal(h.context.document.activeElement,menu.list.children[0]);key('End');assert.equal(h.context.document.activeElement,menu.list.children[3]);key('Escape');assert.equal(h.context.document.activeElement,menu.toggle);assert.ok(menu.list.hidden);
     menu.toggle.events.click();menu.root.events.focusout({relatedTarget:dom.element()});assert.ok(menu.list.hidden);menu.toggle.events.click();h.context.document.body.events.pointerdown({target:dom.element()});assert.ok(menu.list.hidden);assert.deepEqual(copy(h.audit.state.session),before);
   });
   await check('Combined surfaces retain IDs and native row bases, share selection/filter state and omit incompatible mixed basis edits',()=>{

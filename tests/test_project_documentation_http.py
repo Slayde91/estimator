@@ -19,7 +19,14 @@ from estimator.pricing_workbook import COMBINED_SHEET
 
 
 class DocumentationHTTPTests(unittest.TestCase):
-    setUp = helpers.CertificationHTTPTests.setUp
+    def setUp(self):
+        helpers.CertificationHTTPTests.setUp(self)
+        from estimator.native_dialogs import SaveSelection
+        from estimator.native_dialogs import NativeDialogs
+        project_path = Path(self.temp.name) / 'Saved project.cf.json'
+        with patch.object(NativeDialogs, 'choose_save', return_value=SaveSelection(str(project_path), None)):
+            saved = self.json('POST', '/api/project/save-as', {'estimate': {}})
+        self.download = {'project_token': saved['file']['save_token']}
     tearDown = helpers.CertificationHTTPTests.tearDown
     request = helpers.CertificationHTTPTests.request
     json = helpers.CertificationHTTPTests.json
@@ -53,7 +60,7 @@ class DocumentationHTTPTests(unittest.TestCase):
         a,b=self.workspace(),self.workspace()
         destination=Path(self.temp.name)/'Downloads'
         with patch('estimator.download_files.standard_downloads_directory',return_value=destination):
-            status,_,payload=self.request('POST','/api/pricing/export',{'download':{'project_token':None}},self.headers(a))
+            status,_,payload=self.request('POST','/api/pricing/export',{'download':self.download},self.headers(a))
             self.assertEqual(status,200,payload)
             receipt=json.loads(payload)
             self.assertTrue(receipt['saved'])
@@ -64,10 +71,18 @@ class DocumentationHTTPTests(unittest.TestCase):
             self.assertIn('Manufacturer',list(next(workbook[COMBINED_SHEET].values)))
             workbook.close()
             self.assertEqual(self.request('GET',item['url'])[2],saved)
+            copied = self.json('POST', item['url'], {'download': self.download})
+            self.assertEqual(copied['destination'], 'project')
+            self.assertEqual(Path(copied['path']).parent, Path(self.temp.name))
+            self.assertEqual(Path(copied['path']).read_bytes(), saved)
+            self.assertEqual(self.retained(a)['workspace_revision'], 1)
+            self.assertNotIn('documentation', copied, 'Copying a frozen revision cannot append another revision.')
+            for body in ([], {'download': {'project_token': None}}, {'download': self.download, 'other': True}):
+                self.assertEqual(self.request('POST', item['url'], body)[0], 400)
             self.assertEqual(self.request('GET',item['url'].replace(a,b))[0],404)
             self.assertEqual(self.retained(b)['items'],[])
             self.assertEqual(self.retained(a)['workspace_revision'],1)
-            status,_,payload=self.request('POST','/api/pricing/export',{'download':{'project_token':None}},self.headers(a))
+            status,_,payload=self.request('POST','/api/pricing/export',{'download':self.download},self.headers(a))
             self.assertEqual(status,200,payload)
             self.assertEqual(json.loads(payload)['documentation']['item']['revision'],2)
             self.assertEqual(self.request('GET',item['url'])[2],saved)
@@ -79,14 +94,16 @@ class DocumentationHTTPTests(unittest.TestCase):
         self.json('POST','/api/pdf-covers/estimate',{'cover_pdf':cover('ORIGINAL SPECIFIC'),'cover_pdf_name':'Specific.pdf','expected_version':1})
         body={'inputs':{}}
         with patch('estimator.report.render_quote_pdf',return_value=pdf('ORIGINAL BODY')):
-            status,_,payload=self.request('POST','/api/quote-report',body,self.headers(workspace,operation))
+            status,headers,payload=self.request('POST','/api/quote-report',body,self.headers(workspace,operation))
         self.assertEqual(status,200,payload)
+        self.assertIn('BREAKDOWN-R1.pdf',headers['Content-Disposition'])
         self.assertEqual([value.strip() for value in texts(payload)],['ORIGINAL MAIN','ORIGINAL SPECIFIC','ORIGINAL BODY'])
         first=self.retained(workspace)['items'][0]
         self.json('POST','/api/company-settings',{**DEFAULTS,'cover_pdf':cover('CHANGED MAIN'),'cover_pdf_name':'New.pdf'})
         with patch('estimator.report.render_quote_pdf',side_effect=AssertionError('An exact replay must not render again.')):
-            status,_,replayed=self.request('POST','/api/quote-report',body,self.headers(workspace,operation))
+            status,replay_headers,replayed=self.request('POST','/api/quote-report',body,self.headers(workspace,operation))
         self.assertEqual(status,200,replayed)
+        self.assertEqual(replay_headers['Content-Disposition'],headers['Content-Disposition'])
         self.assertEqual(replayed,payload)
         self.assertEqual(self.retained(workspace)['workspace_revision'],1)
         self.assertEqual(self.request('GET',first['url'])[2],payload)
@@ -103,6 +120,15 @@ class DocumentationHTTPTests(unittest.TestCase):
         item=view['items'][0]
         self.assertEqual(item['kind'],'certification')
         self.assertEqual(self.request('GET',item['url'])[2],self.request('GET',generated['revision']['pdf_url'])[2])
+        original = self.request('GET', generated['revision']['pdf_url'])[2]
+        self.json('POST','/api/company-settings',{**DEFAULTS,'cover_pdf':cover('LATER COVER'),'cover_pdf_name':'Later.pdf'})
+        for path in (generated['revision']['pdf_url'], item['url']):
+            copied = self.json('POST', path, {'download': self.download})
+            self.assertEqual(copied['destination'], 'project')
+            self.assertEqual(Path(copied['path']).read_bytes(), original, 'A retained PDF cannot acquire a later cover.')
+            self.assertEqual(Path(copied['path']).parent, Path(self.temp.name))
+            self.assertEqual(self.request('POST', path.replace(a,b), {'download': self.download})[0], 404)
+        self.assertEqual(len(self.retained(a)['items']), 1)
         self.assertEqual(self.request('GET',item['url'].replace(a,b))[0],404)
         self.assertEqual(self.retained(b)['items'],[])
 
@@ -113,7 +139,7 @@ class DocumentationHTTPTests(unittest.TestCase):
                 number=len(calls);calls.append(number)
             barrier.wait(timeout=20)
             return pdf('Concurrent generated output '+str(number))
-        body={'inputs':{},'download':{'project_token':None}}
+        body={'inputs':{},'download':self.download}
         with patch('estimator.report.render_quote_pdf',side_effect=render),patch(
                 'estimator.download_files.standard_downloads_directory',return_value=Path(self.temp.name)/'Concurrent downloads'):
             with ThreadPoolExecutor(max_workers=2) as pool:

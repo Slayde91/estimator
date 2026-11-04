@@ -71,7 +71,8 @@ async function editorLayout(width, height) {
 async function independentDrafts() { return page.evaluate(() => ({ calculators: window.CeasefireCalculators.projectSnapshot(), penetration: window.CeasefirePenetrations.projectSnapshot() })); }
 async function editorSnapshot() { await libraryIdle(); return page.evaluate(()=>({library:window.CeasefireLibraryEditor.projectFingerprint(),dirty:window.CeasefireLibraryEditor.hasUnsavedChanges(),calculators:window.CeasefireCalculators.projectSnapshot(),penetration:window.CeasefirePenetrations.projectSnapshot(),pricing:window.CeasefireProject.configuration(),details:window.CeasefireProject.details()})); }
 async function editorExport(kind,scope,configuration,diagram) {
-  const before=await editorSnapshot(),savedProject=fs.readFileSync(info.project),database=sharedDatabase(),requestIndex=requests.length;
+  const before=await editorSnapshot(),database=sharedDatabase(),requestIndex=requests.length;
+  const savedProjectBefore=fs.readFileSync(info.project),saveLabelBefore=await page.locator('#project-save-state').textContent();
   await captureExportReadiness('before-menu',kind,scope);
   const toggle=page.locator('[aria-controls="library-editor-document-actions"]'),menu=page.locator('#library-editor-document-actions');
   await toggle.click();await expect(menu.getByRole('button',{name:'Item Details',exact:true})).toHaveCount(2);
@@ -117,10 +118,15 @@ async function editorExport(kind,scope,configuration,diagram) {
   fs.writeFileSync(capturePath,JSON.stringify(capture,null,2));
   const content=spawnSync(python,[path.join(__dirname,'library_item_export_content.py'),'--capture',capturePath,'--file',target],{cwd:root,windowsHide:true,encoding:'utf8'});assert.equal(content.status,0,`${content.stdout}\n${content.stderr}`);
   await expect(menu).toBeHidden();await expect(page.locator(`#${id}`)).toHaveAttribute('aria-busy','false');
-  assert.deepEqual(await editorSnapshot(),before,'Exports preserve unsaved library/editor, composer, calculator and pricing drafts');
-  assert.deepEqual(fs.readFileSync(info.project),savedProject);assert.deepEqual(sharedDatabase(),database);
-  assert.equal(requests.slice(requestIndex).some(request=>request.method==='POST'&&/\/(save|refresh-pricing|project-draft)$/.test(request.path)),false);
-  (evidence.itemExports ||= []).push({scope,kind,capture,content:JSON.parse(content.stdout),draftsUnchanged:true,sharedDatabaseUnchanged:true,savedProjectUnchanged:true});
+  await page.waitForFunction(()=>{const status=window.CeasefireDesktop.status();return status.ready&&!status.busy;});
+  await expect(page.locator('#project-save-state')).toHaveText(saveLabelBefore);
+  const after=await editorSnapshot();
+  assert.deepEqual(after,before,'Temporary library exports preserve every editor draft, calculator, Firestopping input, project detail and captured price');
+  assert.equal(fs.readFileSync(info.project).equals(savedProjectBefore),true,'Temporary exports preserve the exact saved project bytes');
+  assert.deepEqual(sharedDatabase(),database);
+  assert.equal(requests.slice(requestIndex).some(request=>request.method==='POST'&&request.path==='/api/project/save'),false);
+  assert.equal(requests.slice(requestIndex).some(request=>request.method==='POST'&&/\/refresh-pricing$/.test(request.path)),false);
+  (evidence.itemExports ||= []).push({scope,kind,capture,content:JSON.parse(content.stdout),draftValuesPreserved:true,sharedDatabaseUnchanged:true,savedProjectBytesPreserved:true,projectAutomaticallySaved:false});
 }
 async function enterLibraries() { await page.getByRole('button', { name: 'Libraries', exact: true }).click(); }
 async function openProjectCopy() {
@@ -172,6 +178,7 @@ async function openProjectCopy() {
   await page.locator('#pricing-scope').selectOption('library');
   const price = page.locator('#pricing-body [data-price-field="supplier_price"]').first();
   const priceIdentity = await price.evaluate(control => ({ id: control.closest('tr').dataset.priceId, kind: control.closest('tr').dataset.priceKind }));
+  evidence.pendingProjectPrice=priceIdentity;
   await price.fill('789.12'); await price.press('Tab');
   await chooseLibrary(page, 'penetration');
   await page.getByRole('dialog').getByRole('button', { name: 'Continue', exact: true }).click();
@@ -188,7 +195,10 @@ async function openProjectCopy() {
   await page.locator('#library-editor-heading').scrollIntoViewIfNeeded();
   await page.screenshot({ path: path.join(output, 'library-edits-before-project-save.png') });
   const pendingDiagram={filename:'project-diagram.png',content_base64:fs.readFileSync(uploadPath).toString('base64')};
-  for(const kind of ['pdf','xlsx'])await editorExport(kind,'shared-unsaved',sharedBefore.configuration,pendingDiagram);
+  await editorExport('pdf','shared-unsaved',sharedBefore.configuration,pendingDiagram);
+  // Reference exports retain the pending PNG without creating a project copy.
+  // The later explicit Top Save validates it into the portable JPEG.
+  await editorExport('xlsx','shared-unsaved-repeat',sharedBefore.configuration,pendingDiagram);
   const editorToggle=page.locator('[aria-controls="library-editor-document-actions"]'),editorMenu=page.locator('#library-editor-document-actions');
   for(const theme of ['ceasefire','midnight','ocean','forest','slate']) {
     await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
@@ -238,7 +248,18 @@ async function openProjectCopy() {
   for(const kind of ['pdf','xlsx'])await editorExport(kind,'portable-unsaved',second.library_drafts.records[0].configuration,second.library_drafts.records[0].diagram);
   await page.locator('#library-editor-diagram-remove').click();await libraryIdle();
   await editorExport('pdf','portable-removed-diagram',second.library_drafts.records[0].configuration,null);
-  await page.locator('#library-editor-diagram-remove').click();await libraryIdle();
+  assert.deepEqual(JSON.parse(fs.readFileSync(info.project,'utf8')).library_drafts.records[0].diagram,second.library_drafts.records[0].diagram,'Exporting a pending diagram removal does not save it implicitly');
+  // Restore the fixture image through its actual upload control so orphan
+  // reopening still checks portable image preservation after explicit Save.
+  await page.locator('#library-editor-diagram-file').setInputFiles(uploadPath);await libraryIdle();await picture();
+  await reply(()=>clickProjectControl(page,'Save'),'/api/project/save');
+  await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  const restoredDiagram=JSON.parse(fs.readFileSync(info.project,'utf8')).library_drafts.records[0].diagram;
+  // A portable project record validates but preserves its uploaded image bytes.
+  // Unlike capturing a shared record, restoring its PNG does not convert to JPEG.
+  assert.deepEqual(restoredDiagram,pendingDiagram);
+  const restoredSource=await picture();
+  assert.equal(restoredSource,`data:image/png;base64,${restoredDiagram.content_base64}`);
   await page.screenshot({ path: path.join(output, 'project-library-copy-saved.png') });
   await page.locator('#library-editor-cancel').click();
 
@@ -252,9 +273,9 @@ async function openProjectCopy() {
   await page.evaluate(() => window.CeasefireLibraries.invalidate());
   const sharedReads = requests.filter(request => request.path === `/api/libraries/penetration/${info.item_id}/edit`).length;
   await openProjectCopy();
-  await expect(description).toHaveValue('Project-only edited library item saved immediately');
-  await quantity.focus(); await expect(quantity).toHaveValue('4.875');
-  assert.match(await picture(), /^data:image\/jpeg;base64,/);
+  await expect(description).toHaveValue('Project-only edited library item');
+  await quantity.focus(); await expect(quantity).toHaveValue('2.125');
+  assert.equal(await picture(),restoredSource,'Reopening retains the exact restored portable diagram');
   assert.equal(requests.filter(request => request.path === `/api/libraries/penetration/${info.item_id}/edit`).length, sharedReads);
   assert.deepEqual(await independentDrafts(), retained);
   assert.deepEqual(sharedDatabase(), afterDelete);

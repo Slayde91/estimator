@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 const { cycleTheme } = require('./theme_navigation.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickInspectorAdd } = require('./parent_controls_helpers.cjs');
@@ -84,7 +84,7 @@ async function physicalThemeLabels(kind) {
   const info = await ready; assert.notEqual(info.port, 8765); const sourceHash = hash(info.fixture);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1146, height: 900 } }); page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (/\/physical\/(preview|apply)$/.test(request.url())) requests.push({ endpoint: new URL(request.url()).pathname, body: request.postDataJSON() }); });
-  await page.goto(`http://127.0.0.1:${info.port}/`); await page.waitForFunction(() => { const value = window.CeasefireDesktop?.status(); return value?.ready && !value.busy; });
+  await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page); await page.waitForFunction(() => { const value = window.CeasefireDesktop?.status(); return value?.ready && !value.busy; });
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await renderDrawing(page, () => page.locator('#takeoff-upload').setInputFiles(info.fixture), 1);
   await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);
   const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
@@ -109,7 +109,15 @@ async function physicalThemeLabels(kind) {
   await hide.check(); await expect(callout()).toHaveCount(0); await expect(marker()).toHaveCount(0);
   const exportRequest=page.waitForRequest(request=>request.url().endsWith('/export/marked-pdf')),hiddenDownload=waitForTakeoffDownload(page);
   await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()); assert.deepEqual((await exportRequest).postDataJSON().item_ids,[]); await(await hiddenDownload).saveAs(path.join(output,'hidden-defect.pdf'));
-  assert.deepEqual(await snapshot(),beforeHide); await hide.uncheck(); await expect(callout()).toBeVisible(); evidence.hidePresentationAndPdfOnly=true;
+  const afterHiddenExport=await snapshot();
+  const {companion_folder:companionFolder,...afterHiddenDraft}=afterHiddenExport;
+  const {companion_folder:beforeCompanion,...beforeHiddenDraft}=beforeHide;
+  assert.deepEqual(afterHiddenDraft,beforeHiddenDraft,'Hiding and exporting preserves every takeoff draft field');
+  assert.match(companionFolder,/^\.ceasefire-evidence\/[0-9a-f-]+$/);
+  if(beforeCompanion)assert.equal(companionFolder,beforeCompanion);
+  assert.ok(fs.statSync(path.resolve(path.dirname(info.project),companionFolder)).isDirectory(),'First export creates its project-owned evidence directory');
+  assert.equal(JSON.parse(fs.readFileSync(info.project,'utf8')).takeoffs.companion_folder,companionFolder,'Automatic Save persists the exact evidence directory');
+  await hide.uncheck(); await expect(callout()).toBeVisible(); evidence.hidePresentationAndPdfOnly=true;
   await page.getByRole('button', { name: 'Close Item Details', exact: true }).click(); await expect(details()).not.toBeVisible(); await fit();
   await callout().press('Enter'); await expect(details()).not.toBeVisible(); await expect(page.locator('.takeoff-physical-callout-handle')).toHaveCount(4);
   await marker().press('Enter'); await expect(details()).toBeVisible(); await callout().press(' '); await expect(details()).toBeVisible(); await marker().press('Control+Enter'); await expect(details()).not.toBeVisible(); await fit();
@@ -124,7 +132,7 @@ async function physicalThemeLabels(kind) {
   await details().getByLabel('Defect Ref.', { exact: true }).fill('UPDATED-FRAMED-DEFECT'); await details().getByLabel('Defect Ref.', { exact: true }).press('Tab'); await expect(callout()).toContainText('UPDATED-FRAMED-DEFECT'); await snapshot(); await textFits();
   await page.getByRole('button', { name: 'Close Item Details', exact: true }).click(); await fit(); const savedGraph = structuredClone((await snapshot()).physical);
   const download = waitForTakeoffDownload(page); await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()); const pdf = await download; await pdf.saveAs(path.join(output, 'defect-callout.pdf')); assert.ok(fs.statSync(path.join(output, 'defect-callout.pdf')).size > 1000); assert.deepEqual((await snapshot()).physical, savedGraph);
-  await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as'); const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')); assert.deepEqual(saved.takeoffs.physical, savedGraph);
+  await response(() => clickProjectControl(page, 'Save'), '/api/project/save'); const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')); assert.deepEqual(saved.takeoffs.physical, savedGraph);
   // Reopen retains the old canvas while its new worker reads the PDF. Delay
   // that read and its render-proof reply independently so navigation must wait
   // for both, rather than editing a page field an older render can replace.

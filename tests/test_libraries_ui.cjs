@@ -930,5 +930,28 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     await h.api.open('penetration');const button=h.byId('documentation-export');assert.equal(await h.api.documentationExport({format:'pdf'},button),receipt);assert.deepEqual(captured,{path:'/api/technical/item.pdf',payload:{id:'technical-1'},button});assert.deepEqual(copy(pane.detail),before);
     h.context.window.CeasefireDownloads.save=async()=>{throw Error('Actual source error');};await assert.rejects(h.api.documentationExport({format:'xlsx'},button),/Actual source error/);assert.equal(pane.documentPending,null);
   });
+  await check('Firestopping detail downloads refetch that saved item and leave composer/editor drafts untouched',async h=>{
+    const source=detail('penetration','penetration-1');const draft={globals:{captured:'saved'},rows:[{id:'row-1',inputs:{K:'Saved service'}}]};
+    h.setRoute(path=>path==='/api/libraries'?meta():path.endsWith('/edit')?{id:source.id,draft,configuration:{savedPrice:17},diagram:{available:false}}:source);
+    const saved=[];h.context.window.CeasefireDownloads={save:async(...args)=>{saved.push(copy(args.slice(0,2)));return{filename:'FIRESTOPPING_ITEM-R1.pdf'};}};
+    await h.api.open('penetration',source.id);const pane=h.pane('penetration');
+    const menu=walk(pane.detailPanel).find(node=>String(node.className).includes('library-document-menu'));
+    assert.ok(menu);assert.equal(menu.children[1].id,'firestopping-item-document-actions');
+    await menu.children[0].emit('click');assert.equal(menu.children[1].hidden,false);
+    await menu.children[1].children[0].emit('click');await flush();
+    assert.equal(saved.length,1);assert.equal(saved[0][0],'/api/penetration/item.pdf');
+    assert.deepEqual(saved[0][1],{item:{...draft.rows[0],library_item_id:source.id},globals:draft.globals,configuration:{savedPrice:17},diagram:null});
+    assert.equal(pane.documentPending,null);assert.equal(menu.children[1].hidden,true);assert.match(pane.message.textContent,/FIRESTOPPING_ITEM/);
+  });
+  await check('A late saved Firestopping capture cannot download a newly selected item',async h=>{
+    const pending=deferred();let downloads=0;
+    h.setRoute(path=>path==='/api/libraries'?meta():path.endsWith('/edit')?pending.promise:detail('penetration',path.split('/').at(-1)));
+    h.context.window.CeasefireDownloads={save:async()=>{downloads++;}};
+    await h.api.open('penetration','penetration-1');const pane=h.pane('penetration');
+    const menu=walk(pane.detailPanel).find(node=>String(node.className).includes('library-document-menu'));
+    const download=menu.children[1].children[0].emit('click');await flush();
+    await h.api.open('penetration','penetration-2');pending.resolve({id:'penetration-1',draft:{globals:{},rows:[{id:'row-1'}]},configuration:{}});
+    await download;assert.equal(downloads,0);assert.equal(pane.selected,'penetration-2');assert.equal(pane.documentPending,null);
+  });
   console.log(`${passed} library UI regression checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

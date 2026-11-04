@@ -1,4 +1,4 @@
-const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
+const { waitForTakeoffDownload, ensureSavedProject } = require('./native_download_helpers.cjs');
 "use strict";
 // Explicit manual commercial linking against a disposable library/database.
 const {chromium,expect}=require('@playwright/test');
@@ -34,7 +34,7 @@ async function schedule(){return page.evaluate(()=>window.CeasefirePenetrations.
 (async()=>{
   info=await ready;assert.notEqual(info.port,8765);const source=path.join(output,'reference-library/library.json'),beforeSource=hash(source),beforePDF=hash(info.fixture);
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1220,height:900}});page.setDefaultTimeout(30000);page.on('pageerror',error=>errors.push(error.message));
-  await page.goto(`http://127.0.0.1:${info.port}/`);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready&&!window.CeasefireDesktop.status().busy);
+  await page.goto(`http://127.0.0.1:${info.port}/`);await ensureSavedProject(page);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready&&!window.CeasefireDesktop.status().busy);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click();await renderDrawing(page,()=>page.locator('#takeoff-upload').setInputFiles(info.fixture),1);await chooseTakeoff(page,'PENETRATIONS');await idle();
   const originalPen=await page.evaluate(async()=>{await window.CeasefirePenetrations.completeProjectSnapshot();return window.CeasefirePenetrations.projectSnapshot();});
   const calculators=await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());
@@ -80,7 +80,7 @@ async function schedule(){return page.evaluate(()=>window.CeasefirePenetrations.
   await page.screenshot({path:path.join(output,'confirmed-library-link.png')});
   assert.deepEqual((await schedule()).composer,originalPen.composer);evidence.compactSummaryHasNoCommercialButtons=true;
   if(await page.getByRole('button',{name:'Close Item Details',exact:true}).isVisible())await page.getByRole('button',{name:'Close Item Details',exact:true}).click();
-  const savedSnapshot=structuredClone(current),savedPen=await schedule(),savedResponse=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/project/save-as');savedResponse.catch(()=>{});await clickProjectControl(page,'Save');const savedReply=await savedResponse;assert.equal(savedReply.status(),200,await savedReply.text());await expect(page.locator('#project-save-state')).toHaveText('Saved project',{timeout:30000});
+  const savedSnapshot=structuredClone(current),savedPen=await schedule(),savedResponse=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/project/save');savedResponse.catch(()=>{});await clickProjectControl(page,'Save');const savedReply=await savedResponse;assert.equal(savedReply.status(),200,await savedReply.text());await expect(page.locator('#project-save-state')).toHaveText('Saved project',{timeout:30000});
   const project=JSON.parse(fs.readFileSync(info.project,'utf8'));assert.deepEqual(project.takeoffs.library_assignments,savedSnapshot.library_assignments);assert.deepEqual(project.penetration.draft,savedPen.draft);
   await clickProjectControl(page,'Load');await modal('Load this project?',{},'Load Project');await expect(page.locator('#project-save-state')).toHaveText('Saved project');await page.getByRole('button',{name:'Takeoffs',exact:true}).click();await chooseTakeoff(page,'PENETRATIONS');await snapshot();assert.deepEqual(current.library_assignments,savedSnapshot.library_assignments);assert.equal(current.physical.defects[0].id,defectId);assert.deepEqual((await schedule()).draft,savedPen.draft);
   evidence.projectRoundtrip=true;assert.deepEqual(current.physical.defects[0].annotation,annotation);assert.equal(current.physical.services[0].fields.notes,originalServiceNotes);evidence.originalNotesPreservedThroughQuantityEditsAndReopen=true;

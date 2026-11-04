@@ -11,7 +11,7 @@ const titles = ['Steel (spray)', 'Steel (board)', 'Ductwork (spray/wrap)'];
 const listing = ids.map((id, index) => ({ id, title: titles[index] }));
 const projectFilename = 'CEASEFIRE-Project.cf.json';
 const penetrationHelper = require('./helpers/penetration_ui.cjs');
-const fileResponse = type => ({ ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({saved:true,path:`C:/Downloads/report.${type.includes('spreadsheet')?'xlsx':'pdf'}`,filename:`report.${type.includes('spreadsheet')?'xlsx':'pdf'}`,destination:'downloads'}) });
+const fileResponse = type => ({ ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({saved:true,path:`C:/Projects/report.${type.includes('spreadsheet')?'xlsx':'pdf'}`,filename:`report.${type.includes('spreadsheet')?'xlsx':'pdf'}`,destination:'project'}) });
 function definition(id) {
   const pages = id === 'steel_vermiculite' ? ['CALCULATOR', 'SCHEDULE'] : ['CALCULATOR'];
   return { id, title: titles[ids.indexOf(id)], pages, inputs: { CALCULATOR: { A9: 'Local saved value' } },
@@ -120,6 +120,14 @@ async function penetrationCheck(name, fn) {
   await deadline(name,()=>fn(h));passed++;console.log(`ok - ${name}`);
 }
 (async () => {
+  await check('Unsaved project identity remains readable for schedule rendering and deletion guards',async h=>{
+    h.app.state.projectFile=null;
+    const target=h.context.window.CeasefireProject.downloadTarget();
+    assert.equal(target.project_token,null);assert.equal(target.project_path,null);
+    assert.equal(target.project_context,h.app.state.quoteContext);
+    h.app.state.projectBusy=true;
+    assert.deepEqual(h.context.window.CeasefireProject.downloadTarget(),target);
+  });
   await check('Project Save captures document history with the exact certificate workspace and acknowledges its original capture',async h=>{
     projectCertificates(h);const captured={workspace_id:'project-A',expected_revision:2},acknowledged=[];let sent;
     h.context.window.CeasefireDocumentation={hasPendingOperation:()=>false,projectFingerprint:()=> 'documents:2',
@@ -183,6 +191,7 @@ async function penetrationCheck(name, fn) {
     assert.equal(calls,0);assert.equal(cert.state.workspace,'project-A');assert.match(h.byId('app-message').textContent,/certification operation/);
   });
   await check('Full-report preparation and shared save remain silent without changing their busy lifecycle', async h => {
+    h.app.state.projectFile={save_token:'authorized',path:'C:/Projects/current.cf.json'};
     const prepare = deferred(), artifact = deferred(), feedback = require('./helpers/download_sound_vm.cjs').downloadSoundHarness();
     h.context.window.CeasefireDownloadSound = feedback.sound;
     h.bridgeApi.completeProjectSnapshot = () => prepare.promise;
@@ -199,6 +208,7 @@ async function penetrationCheck(name, fn) {
     assert.equal(feedback.audioAttempts, 0); assert.equal(button.disabled, false);
   });
   for (const phase of ['snapshot', 'file']) await check(`Full-report ${phase} failure stays silent and retires its busy control`, async h => {
+    h.app.state.projectFile={save_token:'authorized',path:'C:/Projects/current.cf.json'};
     const prepare = deferred(), artifact = deferred(), feedback = require('./helpers/download_sound_vm.cjs').downloadSoundHarness();
     h.context.window.CeasefireDownloadSound = feedback.sound;
     h.bridgeApi.completeProjectSnapshot = () => prepare.promise;
@@ -435,6 +445,7 @@ async function penetrationCheck(name, fn) {
   });
 
   for (const id of ids) for (const action of ['schedule', 'summary', 'xlsx']) await check(`${id} ${action} download captures project identity only for PDFs`, async h => {
+    h.app.state.projectFile={save_token:'authorized',path:'C:/Projects/current.cf.json'};
     const entry = h.calc.state.entries.get(id) || h.addEntry(id); h.calc.state.current = id;
     const pending = deferred(); let sent;
     h.context.fetch = (path, options) => { sent = { path, body: JSON.parse(options.body) }; return pending.promise; };
@@ -444,7 +455,7 @@ async function penetrationCheck(name, fn) {
     assert.deepEqual(sent.body.inputs, inputs);
     if (action === 'xlsx') assert.deepEqual(Object.keys(sent.body), ['inputs','download']);
     else assert.deepEqual(sent.body.project_details, details);
-    assert.deepEqual(sent.body.download,{project_token:null});
+    assert.deepEqual(sent.body.download,{project_token:'authorized'});
     h.byId('client').value = 'Client changed after click';
     pending.resolve(fileResponse(action === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/pdf')); await download;
     if (action !== 'xlsx') assert.match(h.byId('calculator-message').textContent, /later edits are not included/);

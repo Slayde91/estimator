@@ -103,7 +103,7 @@ async function theme(id) { for (let index = 0; index < 5 && await page.locator('
       const menuRequestCount = requests.length;
       await toggle.focus(); await toggle.press('ArrowDown'); await expect(summary).toBeFocused(); await expect(summary).toHaveAccessibleName('Breakdown');
       await expect(menu.getByRole('button')).toHaveCount(3); await expect(summary.locator('span').last()).toHaveText('Breakdown');
-      for (const label of ['Download Full Schedule', 'Download Full Product Summary']) await expect(menu.getByRole('button', { name: label, exact: true })).toBeVisible();
+      for (const label of ['Full Schedule', 'Full Product Summary']) await expect(menu.getByRole('button', { name: label, exact: true })).toBeVisible();
       const styles = await menu.locator('.calculator-document-action').evaluateAll(actions => actions.map(el => { const s = getComputedStyle(el); return { color: s.color, background: s.backgroundColor }; }));
       assert.deepEqual(styles[0], styles[1], 'Breakdown shares the existing menu-entry presentation');
       assert.equal(styles[0].background, themeId === 'ceasefire' ? 'rgb(21, 26, 33)' : 'rgb(255, 255, 255)', `${themeId}/${width}: Document uses the selected palette`);
@@ -128,13 +128,20 @@ async function theme(id) { for (let index = 0; index < 5 && await page.locator('
   assert.equal(file.saved, true); assert.equal(file.destination, 'project');
   const relative = path.relative(output, file.path); assert.ok(relative && !relative.startsWith('..') && !path.isAbsolute(relative));
   assert.equal(fs.readFileSync(file.path).subarray(0, 5).toString(), '%PDF-'); await idle(); await expect(menu).toBeHidden(); await expect(summary).toHaveAttribute('aria-label', 'Breakdown');
-  // A newly retained document revision belongs to the unsaved project workspace.
-  // Its dirty marker changes; calculators, pricing and saved project bytes do not.
-  assert.equal(await page.evaluate(() => window.CeasefireDocumentation.hasProjectChanges()), true);
-  assert.deepEqual(await snapshot(), { ...before, dirty: true }, 'Summary export adds an unsaved document revision while preserving drafts and pricing'); assert.deepEqual(fs.readFileSync(projectFile), savedBytes, 'Download leaves the saved project untouched');
+  // A confirmed document write now runs the real project Save. Only its retained
+  // document revision changes; drafts, pricing and all other saved inputs stay exact.
+  await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  assert.equal(await page.evaluate(() => window.CeasefireDocumentation.hasProjectChanges()), false);
+  assert.deepEqual(await snapshot(), before, 'Summary export automatically saves its revision while preserving drafts and pricing');
+  const savedBefore=JSON.parse(savedBytes), savedAfter=JSON.parse(fs.readFileSync(projectFile));
+  assert.deepEqual({...savedAfter,documentation:savedBefore.documentation},savedBefore,'Automatic Save preserves every other saved project input');
+  assert.equal(savedAfter.documentation.project_id,savedBefore.documentation.project_id);
+  assert.equal(savedAfter.documentation.companion_folder,savedBefore.documentation.companion_folder);
+  assert.equal(savedAfter.documentation.revision_count,savedBefore.documentation.revision_count+1);
+  assert.notEqual(savedAfter.documentation.manifest_sha256,savedBefore.documentation.manifest_sha256);
   evidence.summaryExport = { endpoint: new URL(response.url()).pathname, filename: file.filename, pdf: true };
   csp.push(...await page.evaluate(() => window.qaCsp)); assert.deepEqual(errors, []); assert.deepEqual(failed, []); assert.deepEqual(csp, []);
-  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, ...evidence, errors, failed, csp, draftsUnchanged: true, savedProjectUnchanged: true }, null, 2));
-  console.log(`PASS ${standard ? 'Standard' : 'Full'} Help glossary: ${total} entries, search/keyboard, 15 theme layouts and real Main Breakdown export; drafts and saved project unchanged. Evidence: ${output}`);
+  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ completed: true, ...evidence, errors, failed, csp, draftsUnchanged: true, savedInputsUnchanged: true, documentRevisionAutomaticallySaved: true }, null, 2));
+  console.log(`PASS ${standard ? 'Standard' : 'Full'} Help glossary: ${total} entries, search/keyboard, 15 theme layouts and real Main Breakdown export; drafts and saved inputs unchanged, document revision automatically saved. Evidence: ${output}`);
 })().catch(async error => { console.error(error); console.error(logs.slice(-4000)); if (page) await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {}); process.exitCode = 1;
 }).finally(async () => { fs.writeFileSync(path.join(output, 'server.log'), logs); if (browser) await browser.close(); server.kill(); });

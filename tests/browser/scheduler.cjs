@@ -157,4 +157,3 @@ async function api(route) {return page.evaluate(async route => {const response =
   console.log(`PASS Scheduler UI, pay, clock, location privacy and responsive layout. ${output}`);
 })().catch(async error => {console.error(error); console.error(errors); console.error(logs); if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{}); process.exitCode=1;})
 .finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs); await browser?.close();server.kill();});
-

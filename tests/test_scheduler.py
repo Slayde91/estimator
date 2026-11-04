@@ -86,8 +86,7 @@ class SchedulerTests(unittest.TestCase):
         self.assert_error(403, lambda: self.write('entries/save', {}, token))
         self.write('clock/in')
         self.assertEqual(self.state(token)['entries'], [])
-        admin = next(item for item in self.state(token)['members'] if item['role'] == 'admin')
-        self.assertNotIn('base_rate', admin)
+        self.assertEqual([member['id'] for member in self.state(token)['members']], [worker['id']])
 
     def test_clock_uses_server_time_and_unique_active_entry(self):
         def clock():
@@ -175,6 +174,31 @@ class SchedulerTests(unittest.TestCase):
         retained = self.write('entries/save', {**moved, 'notes': 'Corrected note'})
         self.assertEqual(retained['base_rate'], '40.00')
         self.assert_error(400, lambda: self.write('entries/delete', {'id': {}, 'version': 1}))
+
+    def test_read_filters_boolean_fields_and_dates_validate_strictly(self):
+        self.assert_error(400, lambda: self.store.read('state', {'star': '2026-11-02'}, self.token))
+        self.assert_error(400, lambda: self.store.read('bootstrap', []))
+        self.assert_error(400, lambda: self.write('logout', []))
+        self.assert_error(400, lambda: self.write('clock/in', {'location_consent': 1}))
+        self.assert_error(400, lambda: self.write('members/save', {'name': 'Invalid', 'email': 'invalid@example.test', 'password': 'long-password-123', 'active': 'false'}))
+        for stamp in ('2026-02-30T07:00', '2099-garbage', '9999-12-31T00:00Z', None, [], True):
+            self.assert_error(400, lambda: self.write('entries/save', {'member_id': self.auth['user']['id'], 'start': stamp, 'end': '2026-11-02T17:00'}))
+
+    def test_manual_entry_cannot_overlap_active_clock_or_future_record(self):
+        self.write('clock/in')
+        self.assert_error(409, lambda: self.write('entries/save', {'member_id': self.auth['user']['id'], 'start': '2026-11-02T08:00', 'end': '2026-11-02T16:00'}))
+        self.now += timedelta(minutes=1)
+        self.write('clock/out')
+        self.write('entries/save', {'member_id': self.auth['user']['id'], 'start': '2026-11-03T08:00', 'end': '2026-11-03T16:00'})
+        self.assert_error(409, lambda: self.write('clock/in'))
+
+    def test_overdue_clock_can_be_closed_after_seven_days(self):
+        self.write('clock/in')
+        self.now += timedelta(days=8)
+        self.token = self.store.write('login', {'email': 'admin@example.test', 'password': 'correct horse battery'})['token']
+        closed = self.write('clock/out')
+        self.assertEqual((_timestamp(closed['end']) - _timestamp(closed['start'])).days, 8)
+        self.assertIsNone(self.state()['active_entry'])
 
 
 class PayrollTests(unittest.TestCase):

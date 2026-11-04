@@ -45,6 +45,7 @@ WRITE_FIELDS = {
     'clock/break': {'entry_id', 'version', 'action', 'paid'},
     'locations': {'latitude', 'longitude', 'accuracy', 'captured_at'},
 }
+READ_FIELDS = {'bootstrap': set(), 'state': {'start', 'end'}, 'locations': {'entry_id'}}
 
 
 class SchedulerError(ValueError):
@@ -116,11 +117,10 @@ def _password(value, salt=None):
     return salt, digest
 
 
-def _public_member(row, include_rate=True):
+def _public_member(row):
     member = {key: row[key] for key in ('id', 'name', 'email', 'role', 'version')}
     member['active'] = bool(row['active'])
-    if include_rate:
-        member['base_rate'] = row['base_rate']
+    member['base_rate'] = row['base_rate']
     return member
 
 
@@ -222,7 +222,11 @@ class SchedulerStore:
             raise SchedulerError('This record changed in another session. Refresh before saving.', 409)
 
     def read(self, action, query=None, token=None):
-        query = query or {}
+        query = {} if query is None else query
+        if action not in READ_FIELDS:
+            raise SchedulerError('Scheduler endpoint not found.', 404)
+        if not isinstance(query, dict) or set(query) - READ_FIELDS[action]:
+            raise SchedulerError('The Scheduler request contains unknown filters.')
         with self.connect() as db:
             user = self._user(db, token, required=action != 'bootstrap')
             if action == 'bootstrap':
@@ -244,8 +248,8 @@ class SchedulerStore:
         end_date = _timestamp(query.get('end', str(today + timedelta(days=7-today.weekday()))))
         if not timedelta(0) < end_date - start_date <= timedelta(days=93):
             raise SchedulerError('Select a date range of at most 93 days.')
-        members = [_public_member(row, user['role'] == 'admin' or row['id'] == user['id'])
-                   for row in db.execute('SELECT * FROM scheduler_members ORDER BY name,id')]
+        members = [_public_member(row) for row in db.execute('SELECT * FROM scheduler_members ORDER BY name,id')
+                   if user['role'] == 'admin' or row['id'] == user['id']]
         records = [json.loads(row['data']) | {'_kind': row['kind']} for row in db.execute(
             'SELECT kind,data FROM scheduler_records WHERE start<? AND (end IS NULL OR end>?) ORDER BY start,id',
             (_iso(end_date), _iso(start_date)))]
@@ -271,7 +275,7 @@ class SchedulerStore:
                 'payroll': calculate_payroll(payroll_entries, settings, start_date, end_date)}
 
     def write(self, action, payload=None, token=None):
-        payload = payload or {}
+        payload = {} if payload is None else payload
         if not isinstance(payload, dict):
             raise SchedulerError('Scheduler requests must be JSON objects.')
         if action not in WRITE_FIELDS:

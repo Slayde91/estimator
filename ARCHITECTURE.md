@@ -1,5 +1,42 @@
 # Architecture
 
+## Projects Scheduler — 5 November 2026
+
+Projects includes a weekly Scheduler, team management, time entries and settings.
+`scheduler.py` owns transactional SQLite records in a sibling
+`<application-database-stem>-scheduler.sqlite3` database. The HTTP adapter reuses
+the local application's Host, Origin and JSON checks. Local Scheduler accounts
+use salted scrypt passwords and expiring server-side sessions delivered through
+HttpOnly, SameSite cookies. Administrators manage members, shifts, settings and
+time corrections. Workers see their own entries and published assignments.
+The first Scheduler visit creates its administrator. Account recovery and remote
+multi-user hosting require a separate deployment design.
+
+Clock events use server time, enforce one active entry per member, and preserve
+raw timestamps. Manual entries reject overlaps. Versions prevent stale edits.
+An audit trail retains record mutations, and entries retain their captured base
+rate when a member's rate changes. Sydney local times are converted to UTC for
+duration calculations. Ambiguous and nonexistent daylight-saving times require
+an explicit valid offset.
+
+The user-supplied and confirmed company rules apply the highest matching
+multiplier once. Daily overtime is 1.5× after eight paid hours and 2× after ten.
+Saturday is 1.5× for the first two hours and 2× thereafter. Sunday is 2×.
+Weekly overtime is 1.5× after forty paid hours, with a Monday week start.
+Shifts beginning from 13:00 to before 15:00 receive the afternoon 1.5× rate;
+those beginning from 15:00 to before 23:00 receive the night 1.5× rate. These
+shift rates continue for the whole shift as confirmed by the user. Paid breaks
+count toward thresholds, and unpaid breaks are excluded. Rounding settings
+affect calculated endpoints while preserving raw records. Gross pay is a
+calculation from these company rules and the captured hourly rate.
+
+Location recording requires an explicit per-session choice and browser
+permission. Submissions belong to the signed-in member's active clock entry,
+and only that member may read their location history. Pins include timestamps
+and accuracy, with a coordinate trail and individual street-map links. Browser
+suspension, a closed tab or denied location permission can leave gaps. The
+server does not infer locations from scheduled job addresses.
+
 ## Current architecture map — 5 October 2026
 
 The calculation and pricing sections below retain their original decisions. The

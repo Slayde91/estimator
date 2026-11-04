@@ -388,7 +388,8 @@ class SchedulerStore:
 
     def _record_save(self, db, user, payload, kind):
         self._admin(user)
-        previous = self._record(db, payload['id'], kind) if payload.get('id') else None
+        record_id = _text(payload.get('id', ''), 'Record ID', 100)
+        previous = self._record(db, record_id, kind) if record_id else None
         self._version(payload, previous)
         if previous and previous.get('end') is None:
             raise SchedulerError('Clock out before editing this time entry.')
@@ -425,7 +426,8 @@ class SchedulerStore:
                 if pins[0] and (start > _timestamp(pins[0]) or end < _timestamp(pins[1])):
                     raise SchedulerError('Keep all recorded locations inside the edited time entry.')
             breaks = self._validate_breaks(payload.get('breaks', []), start, end)
-            value.update(member_id=member['id'], breaks=breaks, base_rate=previous['base_rate'] if previous else member['base_rate'],
+            retained_rate = previous['base_rate'] if previous and previous['member_id'] == member['id'] else member['base_rate']
+            value.update(member_id=member['id'], breaks=breaks, base_rate=retained_rate,
                          location_consent=previous.get('location_consent', False) if previous else False,
                          source=previous.get('source', 'manual') if previous else 'manual')
         return self._save_record(db, user, kind, value, previous)
@@ -463,7 +465,7 @@ class SchedulerStore:
 
     def _delete(self, db, user, payload, kind):
         self._admin(user)
-        previous = self._record(db, payload.get('id'), kind)
+        previous = self._record(db, _text(payload.get('id', ''), 'Record ID', 100, True), kind)
         self._version(payload, previous)
         if previous.get('end') is None:
             raise SchedulerError('Clock out before deleting this entry.')

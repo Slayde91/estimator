@@ -164,6 +164,16 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(saved['version'], settings['version'] + 1)
         self.assert_error(409, lambda: self.write('settings', settings))
 
+    def test_manual_reassignment_captures_new_members_rate(self):
+        worker = self.member()
+        entry = self.write('entries/save', {'member_id': self.auth['user']['id'], 'start': '2026-11-02T08:00', 'end': '2026-11-02T16:00'})
+        moved = self.write('entries/save', {**entry, 'member_id': worker['id']})
+        self.assertEqual(moved['base_rate'], '40.00')
+        self.write('members/save', {**worker, 'base_rate': '45.00'})
+        retained = self.write('entries/save', {**moved, 'notes': 'Corrected note'})
+        self.assertEqual(retained['base_rate'], '40.00')
+        self.assert_error(400, lambda: self.write('entries/delete', {'id': {}, 'version': 1}))
+
 
 class PayrollTests(unittest.TestCase):
     def entry(self, start, end, **extra):

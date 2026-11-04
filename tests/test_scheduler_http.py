@@ -81,6 +81,8 @@ class SchedulerHTTPTests(unittest.TestCase):
             'email': member['email'], 'password': member['password']}, cookie='')
         self.assertNotIn('token', login)
         worker_cookie = login_headers['Set-Cookie'].split(';')[0]
+        self.assertEqual(self.request('clock/in', {}, cookie=worker_cookie,
+                         headers={'X-Scheduler-Member': 'previous-browser-account'})[0], 409)
         self.assertEqual(self.request('members/save', member, cookie=worker_cookie)[0], 403)
         self.assertEqual(self.request('shifts/save', shift, cookie=worker_cookie)[0], 403)
         status, _, state = self.request('state?start=2026-11-02&end=2026-11-09', cookie=worker_cookie)

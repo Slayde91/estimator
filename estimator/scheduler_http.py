@@ -37,6 +37,12 @@ class SchedulerHTTP:
                 if handler.headers.get('Sec-Fetch-Site') == 'cross-site':
                     handler.send_payload(403, {'error': 'Open Scheduler in the CLASSIFIRE web app.'})
                     return True
+                expected_member = handler.headers.get('X-Scheduler-Member')
+                if expected_member:
+                    current = self.store.read('bootstrap', {}, token)['user']
+                    if current is None or current['id'] != expected_member:
+                        handler.send_payload(409, {'error': 'The signed-in account changed. Reload Scheduler before continuing.'})
+                        return True
                 result = self.store.write(action, handler.read_json(), token)
                 if action in {'setup', 'login'}:
                     result = dict(result)

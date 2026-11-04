@@ -2,7 +2,7 @@
   "use strict";
   const ZONE = "Australia/Sydney";
   const state = {root:null, data:null, page:"schedule", week:weekStart(today()), member:"", mine:false,
-    loading:0, busy:false, dialog:null, watch:null, lastLocation:0, locationEnabled:false, timer:null, projects:[]};
+    loading:0, busy:false, dialog:null, watch:null, lastLocation:0, locationEnabled:false, timer:null, projects:[], settingsDirty:false};
   const colours = [["#2196f3","Blue"],["#b12030","Red"],["#177349","Green"],["#7544a8","Purple"],["#505966","Grey"]];
   const dayFormatter = new Intl.DateTimeFormat("en-AU", {timeZone:ZONE, weekday:"short", day:"numeric", month:"short"});
   const dateFormatter = new Intl.DateTimeFormat("en-AU", {timeZone:ZONE, day:"numeric", month:"short", hour:"numeric", minute:"2-digit"});
@@ -24,7 +24,8 @@
   }
   function field(label, control, hint) {
     const result = el("label", "field"); result.append(el("span", "", label), control);
-    if (hint) result.append(el("small", "helper", hint)); return result;
+    control.setAttribute("aria-label",label);
+    if (hint) {result.append(el("small", "helper", hint)); control.setAttribute("aria-description",hint);} return result;
   }
   function select(options, value) {
     const result = el("select");
@@ -47,6 +48,7 @@
     return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}:${values.second}`;
   }
   function duration(start,end) { return Math.max(0, (new Date(end || Date.now()) - new Date(start)) / 60000); }
+  function editedTime(control, original) { return original && control.value === localParts(original) ? original : control.value; }
   function hours(minutes) { const rounded = Math.round(minutes); return `${Math.floor(rounded / 60)}h ${String(rounded % 60).padStart(2,"0") }m`; }
   function memberName(id) { return state.data.members.find(member => member.id === id)?.name || "Unassigned"; }
   function admin() { return state.data?.user?.role === "admin"; }
@@ -74,8 +76,10 @@
     host.textContent = message; host.classList.toggle("error",error); host.hidden = !message;
   }
   async function request(path, payload) {
+    const headers = {"Content-Type":"application/json"};
+    if (state.data?.user?.id && !["/login","/setup"].includes(path)) headers["X-Scheduler-Member"] = state.data.user.id;
     const response = await fetch(`/api/scheduler${path}`, {credentials:"same-origin", cache:"no-store",
-      ...(payload === undefined ? {} : {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})});
+      ...(payload === undefined ? {} : {method:"POST",headers,body:JSON.stringify(payload)})});
     const data = await response.json();
     if (!response.ok) {
       if (response.status === 401) stopLocation();
@@ -88,6 +92,8 @@
     try {
       const data = await request(`/state?start=${state.week}&end=${addDays(state.week,7)}`);
       if (revision !== state.loading) return;
+      if (state.locationEnabled && state.data?.active_entry?.id !== data.active_entry?.id) stopLocation();
+      if (state.data?.user && state.data.user.id !== data.user?.id) {state.page = "schedule"; state.member = ""; state.mine = false;}
       state.data = data;
       if (!data.active_entry?.location_consent) stopLocation();
       else if (!state.locationEnabled) {
@@ -108,10 +114,11 @@
   }
   function shell() {
     state.root.replaceChildren();
+    const heading = el("div","page-heading"); heading.append(el("h1","","Scheduler")); state.root.append(heading);
     const status = el("p", "scheduler-notice message"); status.setAttribute("role","status"); status.hidden = true;
     state.root.append(status);
   }
-  function closeDialog() { state.dialog?.close(); state.dialog?.remove(); state.dialog = null; }
+  function closeDialog(force = false) { if(state.busy && force !== true)return; state.dialog?.close(); state.dialog?.remove(); state.dialog = null; }
   function dialog(title, build, saveLabel, save) {
     closeDialog();
     const modal = el("dialog", "scheduler-dialog"), form = el("form", "scheduler-form");
@@ -124,14 +131,24 @@
     const submit = el("button", "button", saveLabel); submit.type = "submit";
     actions.append(button("Cancel",closeDialog),submit); form.append(heading,content,error,actions); modal.append(form);
     modal.addEventListener("close", () => { modal.remove(); if (state.dialog === modal) state.dialog = null; });
+    modal.addEventListener("cancel", event => {if(state.busy)event.preventDefault();});
     form.addEventListener("submit",async event => {
-      event.preventDefault(); if (submit.disabled) return; submit.disabled = true; error.hidden = true;
-      try { await save(controls); closeDialog(); await refresh(); }
+      event.preventDefault(); if (state.busy || submit.disabled) return; state.busy = true; error.hidden = true;
+      form.querySelectorAll("button").forEach(button => button.disabled = true);
+      try { await save(controls); closeDialog(true); await refresh(); }
       catch (failure) { error.textContent = failure.message; error.hidden = false; }
-      finally { submit.disabled = false; }
+      finally { state.busy = false; form.querySelectorAll("button").forEach(button => button.disabled = false); }
     });
     state.root.append(modal); state.dialog = modal; modal.showModal();
     return modal;
+  }
+  async function deleteRecord(path,payload,prompt) {
+    if(state.busy || !window.confirm(prompt))return;
+    const modal = state.dialog; state.busy = true;
+    modal?.querySelectorAll("button").forEach(button => button.disabled = true);
+    try {await request(path,payload); closeDialog(true); await refresh();}
+    catch(error) {const feedback = modal?.querySelector('[role="alert"]'); if(feedback) {feedback.textContent = error.message; feedback.hidden = false;} else notice(error.message,true);}
+    finally {state.busy = false; modal?.querySelectorAll("button").forEach(button => button.disabled = false);}
   }
   function auth(setup) {
     shell();
@@ -156,9 +173,13 @@
     const top = el("div", "scheduler-top"), tabs = el("nav", "scheduler-tabs"); tabs.setAttribute("aria-label","Scheduler pages");
     const pages = [["schedule","Schedule"],["entries","Time entries"],...(admin() ? [["team","Team members"],["settings","Settings"]] : [])];
     pages.forEach(([id,label]) => {
-      const tab = button(label,() => { state.page = id; render(); }); tab.setAttribute("aria-current",state.page === id ? "page" : "false"); tabs.append(tab);
+      const tab = button(label,() => {
+        if (state.busy || state.settingsDirty) {notice("Finish saving or discard your settings changes before changing pages.",true); return;}
+        state.page = id; render();
+      }); tab.setAttribute("aria-current",state.page === id ? "page" : "false"); tabs.append(tab);
     });
     const account = el("div", "scheduler-account"); account.append(el("span","",state.data.user.name),button("Sign out",async () => {
+      if (state.busy || state.settingsDirty) {notice("Finish saving or discard your settings changes before signing out.",true); return;}
       try { await request("/logout",{}); stopLocation(); state.data = null; auth(false); }
       catch (error) { notice(error.message,true); }
     })); top.append(tabs,account); state.root.append(top);
@@ -187,7 +208,7 @@
         bar.append(button(state.locationEnabled ? "Stop location recording" : "Record my locations",() => {
           if (state.locationEnabled) stopLocation(); else startLocation();
           render();
-        }));
+        },"button secondary scheduler-location-toggle"));
       }
       bar.append(button("Clock out",async () => { await mutate("/clock/out",{entry_id:active.id,version:active.version}); if (!state.data?.active_entry) stopLocation(); },"button"));
       bar.append(el("p","helper scheduler-clock-note",openBreak ? "You are on a break." : state.locationEnabled ? "Location recording is on while this browser can access your location." : "Location recording is off."));
@@ -248,10 +269,11 @@
     if (state.data.members.length === 0) state.root.append(el("p","helper","Add your team in Team members, then select a day to schedule a shift."));
   }
   function editShift(shift = null,date = today(),memberId = "") {
+    const requestId = shift ? null : crypto.randomUUID();
     if (!admin()) {
       const modal = el("dialog","scheduler-dialog"); modal.append(el("h2","",shift.title),el("p","",`${dateFormatter.format(new Date(shift.start))} – ${dateFormatter.format(new Date(shift.end))}`),el("p","",shift.location || ""),el("p","",shift.notes || ""),button("Close",() => modal.close())); state.root.append(modal); modal.addEventListener("close",() => modal.remove()); modal.showModal(); return;
     }
-    dialog(shift ? "Edit shift" : "Add shift",host => {
+    const editor = dialog(shift ? "Edit shift" : "Add shift",host => {
       const title = input("text",shift?.title || "",{required:true,maxlength:200});
       const start = input("datetime-local",shift ? localParts(shift.start) : `${date}T07:00`,{required:true});
       const end = input("datetime-local",shift ? localParts(shift.end) : `${date}T15:30`,{required:true});
@@ -266,15 +288,16 @@
       const publish = check("Published",shift?.published ?? true);
       host.append(field("Title",title),field("Colour",color),field("Start",start,"Australia/Sydney"),field("End",end,"Australia/Sydney"),members,field("Job / project reference",project),field("Location",location),field("Notes",notes),publish.label);
       if (shift) host.append(button("Delete shift",() => {
-        if (window.confirm(`Delete “${shift.title}” from the schedule?`)) request("/shifts/delete",{id:shift.id,version:shift.version}).then(() => {closeDialog(); refresh();}).catch(error => notice(error.message,true));
+        deleteRecord("/shifts/delete",{id:shift.id,version:shift.version},`Delete “${shift.title}” from the schedule?`);
       },"button secondary scheduler-danger"));
       return {title,start,end,color,project,location,notes,publish,memberChecks};
     },"Save shift",async controls => {
-      await request("/shifts/save",{...(shift ? {id:shift.id,version:shift.version} : {}),title:controls.title.value,
-        start:controls.start.value,end:controls.end.value,color:controls.color.value,
+      await request("/shifts/save",{...(shift ? {id:shift.id,version:shift.version} : {request_id:requestId}),title:controls.title.value,
+        start:editedTime(controls.start,shift?.start),end:editedTime(controls.end,shift?.end),color:controls.color.value,
         project_id:controls.project.value,project_name:projectName(controls.project),location:controls.location.value,notes:controls.notes.value,published:controls.publish.control.checked,
         member_ids:controls.memberChecks.filter(item => item.control.checked).map(item => item.id)});
     });
+    editor.classList.add("scheduler-shift-editor");
   }
   function renderTeam() {
     const heading = el("div","section-heading"); heading.append(el("h2","","Team members"),button("Add team member",() => editMember(),"button")); state.root.append(heading);
@@ -334,17 +357,17 @@
       const breakList = el("div","scheduler-break-editor"), breakRows = [];
       function addBreak(item = {}) {
         const row = el("div","scheduler-break-row"), from = input("datetime-local",item.start ? localParts(item.start) : "",{required:true}), to = input("datetime-local",item.end ? localParts(item.end) : "",{required:true}), paid = check("Paid",!!item.paid);
-        const record = {row,from,to,paid}; breakRows.push(record);
+        const record = {row,from,to,paid,original:item}; breakRows.push(record);
         row.append(field("Break start",from),field("Break end",to),paid.label,button("Remove",() => {breakRows.splice(breakRows.indexOf(record),1); row.remove();})); breakList.append(row);
       }
       (entry?.breaks || []).forEach(addBreak); host.append(el("h3","","Breaks"),breakList,button("Add break",() => addBreak()));
       if (entry) host.append(button("Delete time entry",() => {
-        if (window.confirm("Delete this time entry? The audit history is retained.")) request("/entries/delete",{id:entry.id,version:entry.version}).then(() => {closeDialog(); refresh();}).catch(error => notice(error.message,true));
+        deleteRecord("/entries/delete",{id:entry.id,version:entry.version},"Delete this time entry? The audit history is retained.");
       },"button secondary scheduler-danger"));
       return {member,start,end,project,notes,breakRows};
     },"Save time entry",async controls => request("/entries/save",{...(entry ? {id:entry.id,version:entry.version} : {}),member_id:controls.member.value,
-      start:controls.start.value,end:controls.end.value,project_id:controls.project.value,project_name:projectName(controls.project),notes:controls.notes.value,
-      breaks:controls.breakRows.map(item => ({start:item.from.value,end:item.to.value,paid:item.paid.control.checked}))}));
+      start:editedTime(controls.start,entry?.start),end:editedTime(controls.end,entry?.end),project_id:controls.project.value,project_name:projectName(controls.project),notes:controls.notes.value,
+      breaks:controls.breakRows.map(item => ({start:editedTime(item.from,item.original.start),end:editedTime(item.to,item.original.end),paid:item.paid.control.checked}))}));
   }
   function renderSettings() {
     const saved = state.data.settings, form = el("form","card scheduler-settings");
@@ -356,23 +379,29 @@
     function addBreak(item = {name:"",minutes:30,paid:false}) {
       const row = el("div","scheduler-break-row"), name = input("text",item.name,{required:true,maxlength:80}), minutes = input("number",item.minutes,{min:1,max:240,step:1,required:true}), paid = check("Paid",item.paid);
       const record = {row,name,minutes,paid}; breakRows.push(record);
-      row.append(field("Break name",name),field("Suggested minutes",minutes),paid.label,button("Remove",() => {breakRows.splice(breakRows.indexOf(record),1); row.remove();})); breakList.append(row);
+      row.append(field("Break name",name),field("Suggested minutes",minutes),paid.label,button("Remove",() => {breakRows.splice(breakRows.indexOf(record),1); row.remove(); state.settingsDirty = true;})); breakList.append(row);
     }
-    saved.breaks.forEach(addBreak); form.append(el("h3","","Break options"),el("p","helper","Breaks are started and ended by the team member. These options do not automatically deduct time."),breakList,button("Add break option",() => addBreak()));
+    saved.breaks.forEach(addBreak); form.append(el("h3","","Break options"),el("p","helper","Breaks are started and ended by the team member. These options do not automatically deduct time."),breakList,button("Add break option",() => {addBreak(); state.settingsDirty = true;}));
     form.append(el("h3","","Overtime and penalty rules"));
     const rules = el("ul","scheduler-rule-list");
     ["Daily overtime · after 8 hours, 1.5× · after 10 hours, 2×","Saturday · first 2 hours, 1.5× · subsequent hours, 2×","Sunday · all hours, 2×","Afternoon shift · starts 1 pm–3 pm, 1.5× for the whole shift","Night shift · starts 3 pm–11 pm, 1.5× for the whole shift","Weekly overtime · after 40 hours, 1.5×"].forEach(rule => rules.append(el("li","",rule)));
     form.append(rules,el("p","helper","The highest applicable multiplier is used. All worked hours count toward the weekly threshold. Paid breaks remain paid and unpaid breaks are excluded."));
     const submit = el("button","button","Save settings"); submit.type = "submit"; form.append(submit);
-    form.addEventListener("submit",async event => {event.preventDefault(); submit.disabled = true; try {
-      await request("/settings",{...saved,rounding_minutes:Number(rounding.value),rounding_mode:mode.value,breaks:breakRows.map(item => ({name:item.name.value,minutes:Number(item.minutes.value),paid:item.paid.control.checked}))}); await refresh(); notice("Scheduler settings saved.");
-    } catch (error) {notice(error.message,true);} finally {submit.disabled = false;}});
+    form.append(button("Discard settings changes",() => {state.settingsDirty = false; render();}));
+    form.addEventListener("input",() => {state.settingsDirty = true;});
+    form.addEventListener("change",() => {state.settingsDirty = true;});
+    form.addEventListener("click",event => {if(event.target.closest(".scheduler-break-editor button"))state.settingsDirty = true;});
+    form.addEventListener("submit",async event => {event.preventDefault(); if(state.busy)return; state.busy = true;
+      form.querySelectorAll("input,select,button").forEach(control => control.disabled = true); try {
+      await request("/settings",{...saved,rounding_minutes:Number(rounding.value),rounding_mode:mode.value,breaks:breakRows.map(item => ({name:item.name.value,minutes:Number(item.minutes.value),paid:item.paid.control.checked}))}); state.settingsDirty = false; await refresh(); notice("Scheduler settings saved.");
+    } catch (error) {notice(error.message,true);} finally {state.busy = false; form.querySelectorAll("input,select,button").forEach(control => control.disabled = false);}});
     state.root.append(form);
   }
   function stopLocation() {
     if (state.watch !== null) navigator.geolocation?.clearWatch(state.watch);
     state.watch = null; state.locationEnabled = false;
     try {sessionStorage.removeItem("classifire-scheduler-location-entry");} catch (_) { /* Storage may be unavailable. */ }
+    const toggle = state.root?.querySelector(".scheduler-location-toggle"); if(toggle)toggle.textContent = "Record my locations";
   }
   function startLocation() {
     if (!state.data?.active_entry?.location_consent) {state.locationEnabled = false; return;}
@@ -381,12 +410,15 @@
     const entryId = state.data.active_entry.id;
     try {sessionStorage.setItem("classifire-scheduler-location-entry",entryId);} catch (_) { /* Storage may be unavailable. */ }
     state.watch = navigator.geolocation.watchPosition(async position => {
-      if (!state.locationEnabled || state.data?.active_entry?.id !== entryId || Date.now() - state.lastLocation < 60000) return;
+      if (!state.locationEnabled || state.data?.active_entry?.id !== entryId || position.timestamp < Date.parse(state.data.active_entry.start) || Date.now() - state.lastLocation < 60000) return;
       state.lastLocation = Date.now();
-      try {await request("/locations",{latitude:position.coords.latitude,longitude:position.coords.longitude,accuracy:position.coords.accuracy,captured_at:new Date(position.timestamp).toISOString()});}
+      try {await request("/locations",{entry_id:entryId,latitude:position.coords.latitude,longitude:position.coords.longitude,accuracy:position.coords.accuracy,captured_at:new Date(position.timestamp).toISOString()});}
       catch (error) {notice(error.message,true); stopLocation();}
-    },error => {stopLocation(); notice(error.code === 1 ? "Location permission was declined. Your time clock continues to run." : "Your location is temporarily unavailable. You can retry location recording.",true);},
-    {enableHighAccuracy:true,maximumAge:30000,timeout:20000});
+    },error => {
+      if(error.code === 1) {stopLocation(); notice("Location permission was declined. Your time clock continues to run.",true);}
+      else notice("Your location is temporarily unavailable. Waiting for the next location update.",true);
+    },
+    {enableHighAccuracy:true,maximumAge:0,timeout:20000});
   }
   async function showLocations(entry) {
     try {
@@ -425,5 +457,5 @@
       if (state.data?.user && !state.root.closest("[hidden]") && !state.dialog && !state.busy && state.page !== "settings") refresh();
     },60000);
   }
-  window.CeasefireScheduler = {activate,init(options = {}) {state.root = options.root || document.getElementById("scheduler-root");},hasPendingOperation() {return state.busy || !!state.dialog;}};
+  window.CeasefireScheduler = {activate,init(options = {}) {state.root = options.root || document.getElementById("scheduler-root");},hasPendingOperation() {return state.busy || !!state.dialog || state.settingsDirty;}};
 })();

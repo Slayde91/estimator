@@ -40,6 +40,8 @@
 .scheduler-add:hover { color:var(--accent); border-color:var(--accent); }
 .scheduler-dialog { width:min(680px,calc(100vw - 32px)); max-width:680px; max-height:90vh; overflow:auto; background:var(--paper); color:var(--ink); }
 .scheduler-dialog::backdrop { background:#070b13a6; }
+.scheduler-shift-editor { margin:0 0 0 auto; width:min(460px,100vw); max-width:100vw; height:100dvh; max-height:100dvh; border-radius:12px 0 0 12px; }
+.scheduler-shift-editor .scheduler-form-fields { grid-template-columns:1fr; }
 .scheduler-form { display:grid; gap:16px; }
 .scheduler-form-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
 .scheduler-form-fields>.scheduler-members,.scheduler-form-fields>.scheduler-break-editor,.scheduler-form-fields>h3,.scheduler-form-fields>.helper { grid-column:1/-1; }

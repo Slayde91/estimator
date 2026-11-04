@@ -50,11 +50,26 @@ original bytes do not change. To repair older registry-only publications, run
 This validates the complete selected batch before moving originals, publishes
 only already reviewed registry entries, and can be safely repeated.
 
-Use Nano Banana Pro for every new illustration containing a collar. Plastic-pipe
+Use the OpenArt plugin for new illustrations. Choose the best image model for
+each prompt using OpenArt's current model guidance, as authorised by the user.
+This supersedes the former Nano Banana Pro collar default and GPT Image 2 default.
+Record the actual model and selection basis. The plugin requires a named model;
+do not describe an assistant's catalogue-based choice as OpenArt Auto-select.
+Do not switch to the browser for generation.
+
+Include three to five sparse, thin red contour accents on existing depth edges,
+overlaps or reveal boundaries. These are linework only, never red surface fills,
+shading, floating marks or invented physical details. Check their presence during
+visual review; an otherwise acceptable image without them needs correction.
+
+Plastic-pipe
 collars must not acquire zip ties. Their mounting backs and existing tabs sit
 flush outside the opposing substrate faces, with the collar bodies projecting
-outward. Preserve the source collar construction and visible fixings; add no
-retaining band, tab, screw or flange. Wrap ties remain smooth, unperforated,
+outward. Collars fixed to batt use pigtail screws only: show their coarse helical
+coil entering the batt at the collar's mounting points. Do not substitute ordinary
+screws, anchors or clamps. Preserve the source collar construction, mounting
+locations and visible count without inventing hidden fixings, tabs or flanges.
+Wrap ties remain smooth, unperforated,
 self-locking stainless steel zip ties on the wrap only. Never replace a zip tie
 with a hose clamp or add a worm-drive housing or perforated band.
 
@@ -74,7 +89,6 @@ prompt and visual review; reject axial ties before publication. Preserve the
 source tie count and positions, and the rules for flat stainless self-locking
 ties and no collar zip ties.
 
-For images without collars, start with GPT Image 2 at low quality and 1K.
 Record any user-authorised alternate-model retry and its reason, including
 provider failures and rejected visual details, without replacing source evidence.
 

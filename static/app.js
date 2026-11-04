@@ -1029,7 +1029,7 @@
     window.CeasefireNotifications?.navigate(view === "pricing" ? `pricing:${state.libraryKind}` : view === "calculators" ? `calculators:${calculatorId || state.calculatorKind}` : view === "estimate" ? `estimate:${state.estimateKind || "estimate"}` : view);
     if (view !== state.currentView && $("app-message").hidden) releaseMessageSpace();
     state.currentView = view;
-    if (["quotes", "certification", "documentation"].includes(view)) state.lastProjectSection = view;
+    if (["quotes", "certification", "documentation", "scheduler"].includes(view)) state.lastProjectSection = view;
     $("project-tools").hidden = view !== "quotes";
     closeNavigationMenus({ estimate: "estimate-navigation", calculators: "calculator-navigation", pricing: "library-navigation", takeoffs: "takeoff-navigation" }[view]);
     document.body.classList.toggle("takeoffs-active", view === "takeoffs");
@@ -1037,12 +1037,13 @@
     for (const section of document.querySelectorAll(".view")) section.hidden = section.id !== `view-${view}`;
     window.CeasefirePlay?.setVisible(view === "play");
     for (const button of document.querySelectorAll("[data-view]")) {
-      const active = button.dataset.view === view || (view === "play" && button.dataset.view === "settings") || (["quotes", "certification", "documentation"].includes(view) && button.dataset.view === "projects");
+      const active = button.dataset.view === view || (view === "play" && button.dataset.view === "settings") || (["quotes", "certification", "documentation", "scheduler"].includes(view) && button.dataset.view === "projects");
       button.classList.toggle("active", active);
       if (active) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
     }
     for (const choice of document.querySelectorAll("#projects-navigation-menu [data-project-section]")) choice.setAttribute("aria-pressed", String(choice.dataset.projectSection === view));
     if (view === "quotes") loadProjects();
+    if (view === "scheduler") window.CeasefireScheduler?.activate().catch(error => message(error.message, true));
     if (view === "pricing") selectLibrary(state.libraryKind, librarySelection);
     let estimatorReady;
     if (view === "settings") estimatorReady = window.CeasefireCoverSheets?.open?.()?.catch(error => message(error.message, true));

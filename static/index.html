@@ -46,6 +46,8 @@
   <script src="/penetration-presentation.js" defer></script>
   <script src="/travel.js" defer></script>
   <script src="/brand-boot.js" defer></script>
+  <link rel="stylesheet" href="/scheduler.css">
+  <script src="/scheduler.js" defer></script>
   <script src="/app.js" defer></script>
   <script src="/certification.js" defer></script>
   <link rel="stylesheet" href="/games/play.css">
@@ -190,6 +192,7 @@ SOFTWARE. -->
         <button id="projects-navigation-toggle" type="button" class="nav-button nav-icon" data-view="projects" aria-expanded="false" aria-controls="projects-navigation-menu" aria-label="Projects" title="Projects" data-i18n-title="Projects" data-i18n-aria-label="Projects"><svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="folders" class="lucide lucide-folders"><path d="M20 5a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h2.5a1.5 1.5 0 0 1 1.2.6l.6.8a1.5 1.5 0 0 0 1.2.6z"></path><path d="M3 8.268a2 2 0 0 0-1 1.738V19a2 2 0 0 0 2 2h11a2 2 0 0 0 1.732-1"></path></svg><span class="nav-page-label" data-i18n="Projects">Projects</span></button>
         <div id="projects-navigation-menu" class="section-navigation-menu" role="group" aria-label="Projects" data-i18n-aria-label="Projects" hidden>
           <button type="button" class="section-navigation-choice" data-project-section="quotes" aria-pressed="false" data-i18n="Projects">Projects</button>
+          <button type="button" class="section-navigation-choice" data-project-section="scheduler" aria-pressed="false">Scheduler</button>
           <button type="button" class="section-navigation-choice" data-project-section="certification" aria-pressed="false" data-i18n="Certification">Certification</button>
           <button type="button" class="section-navigation-choice" data-project-section="documentation" aria-pressed="false" data-i18n="Documentation">Documentation</button>
         </div>
@@ -379,9 +382,11 @@ SOFTWARE. -->
       <div id="takeoffs-workspace"></div>
     </section>
     <!-- TAKEOFFS:END -->
+    <section id="view-scheduler" class="view" aria-label="Scheduler" hidden><div id="scheduler-root"></div></section>
     <section id="view-projects" class="view" aria-labelledby="projects-workspace-heading" hidden>
       <div class="page-heading"><div><p class="eyebrow" data-i18n="WORKSPACE">WORKSPACE</p><h1 id="projects-workspace-heading" data-i18n="Projects">Projects</h1></div></div>
       <div class="projects-section-cards">
+        <button type="button" class="projects-section-card" data-project-section="scheduler"><strong>Scheduler</strong><span>Plan shifts, manage your team and review time entries.</span></button>
         <button type="button" class="projects-section-card" data-project-section="quotes"><strong data-i18n="Projects">Projects</strong><span data-i18n="Find, open and manage saved project files.">Find, open and manage saved project files.</span></button>
         <button type="button" class="projects-section-card" data-project-section="certification"><strong data-i18n="Certification">Certification</strong><span data-i18n="Prepare installation certificates and view their saved revisions.">Prepare installation certificates and view their saved revisions.</span></button>
         <button type="button" class="projects-section-card" data-project-section="documentation"><strong data-i18n="Documentation">Documentation</strong><span data-i18n="Download project documents and open their saved revisions.">Download project documents and open their saved revisions.</span></button>

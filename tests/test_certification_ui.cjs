@@ -494,7 +494,7 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
   const html=fs.readFileSync('static/index.html','utf8'),app=fs.readFileSync('static/app.js','utf8');
   for(const choiceClass of ['section-navigation-choice','projects-section-card']) {
     const choices=[...html.matchAll(/<button\b[^>]*data-project-section="([^"]+)"[^>]*>/g)].filter(match=>match[0].includes('class="'+choiceClass+'"')).map(match=>match[1]);
-    assert.deepEqual(choices,['quotes','certification','documentation']);
+    assert.deepEqual(choices,['quotes','scheduler','certification','documentation']);
   }
   assert.ok(html.includes('data-project-section="quotes"'));assert.ok(html.includes('data-project-section="certification"'));
   const projectsHub=html.match(/<section id="view-projects"[^>]*>[\s\S]*?<\/section>/)?.[0];
@@ -502,7 +502,7 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
   for(const [name,markup] of [['Projects hub',projectsHub],['Projects navigation menu',projectsMenu]]){
     assert.ok(markup, name+' is present');
     assert.deepEqual([...markup.matchAll(/data-project-section="([^"]+)"/g)].map(match=>match[1]),
-      ['quotes','certification','documentation'], name+' has exactly its Projects, Certification and Documentation choices');
+      ['quotes','scheduler','certification','documentation'], name+' has exactly its Projects, Scheduler, Certification and Documentation choices');
   }
   for(const key of fieldNames)assert.ok(html.includes('id="certification-'+key+'"'));
   assert.ok(!html.includes('id="certification-new"'));assert.ok(!html.includes('id="certification-reload"'));

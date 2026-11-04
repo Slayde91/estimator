@@ -165,6 +165,8 @@ async function load() {
   await clickProjectControl(page, 'Load');
   const response = await pending; assert.equal(response.status(), 200, await response.text());
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.waitForFunction(() => { const state = window.CeasefireDesktop?.status(); return state?.ready && !state.busy; });
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await idle();
 }

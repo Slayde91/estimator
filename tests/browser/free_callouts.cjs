@@ -194,9 +194,16 @@ async function saveLoad(info) {
   for (const mode of ["wall", "slab"]) { assert.ok(combinedText.includes(`NOTE-${mode}`)); assert.ok(combinedText.includes(`Entry-${mode}`)); }
   assert.ok(!combinedText.includes("NOTE-steel") && !combinedText.includes("NOTE-duct"));
   assert.ok(combinedText.includes("2 free Call-outs (drawing notes only); no measurement markups."));
-  assert.deepEqual(await snapshot(), combinedBefore, "Combined PDF export preserves every saved note identity, native mode, rich text and source geometry"); invariant(await snapshot(), baseline);
+  const combinedAfter = await snapshot();
+  const { companion_folder: beforeCompanion, ...combinedBeforeDraft } = combinedBefore;
+  const { companion_folder: companionFolder, ...combinedAfterDraft } = combinedAfter;
+  assert.deepEqual(combinedAfterDraft, combinedBeforeDraft, "Combined PDF export preserves every saved note identity, native mode, rich text and source geometry"); invariant(combinedAfter, baseline);
+  assert.match(companionFolder, /^\.ceasefire-evidence\/[0-9a-f-]+$/);
+  if (beforeCompanion) assert.equal(companionFolder, beforeCompanion);
+  assert.ok(fs.statSync(path.resolve(path.dirname(info.project), companionFolder)).isDirectory(), "Export creates the project-owned evidence directory");
+  assert.equal(JSON.parse(fs.readFileSync(info.project, "utf8")).takeoffs.companion_folder, companionFolder, "Automatic Save persists the exact evidence directory");
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators); assert.equal(hash(info.fixture), sourceHash);
-  evidence.combinedSurfaceFreeCallouts = { nativeNavigation: true, selectedOriginalWallAndSlab: true, annotationIds: combined.request.annotation_ids, nativeModesUnchanged: true, fullSnapshotUnchanged: true, noMeasurementOrQuantity: true, originalSourceHash: sourceHash, pdf: combined.file, bothTextsExported: true, otherModesExcluded: true, geometry: combinedPdf.geometry };
+  evidence.combinedSurfaceFreeCallouts = { nativeNavigation: true, selectedOriginalWallAndSlab: true, annotationIds: combined.request.annotation_ids, nativeModesUnchanged: true, fullDraftUnchanged: true, companionFolderPersisted: companionFolder, noMeasurementOrQuantity: true, originalSourceHash: sourceHash, pdf: combined.file, bothTextsExported: true, otherModesExcluded: true, geometry: combinedPdf.geometry };
   await page.screenshot({ path: path.join(output, "combined-walls-floors-notes.png"), fullPage: true });
   await chooseTakeoff(page, "steel"); await fit(); await select(created.steel);
   const savedBeforeInvalid=await snapshot(), requestsBeforeInvalid=requests.length, invalidText='X'.repeat(8001);
@@ -233,10 +240,31 @@ async function saveLoad(info) {
     assert.deepEqual((await snapshot()).annotations.callouts.find(value => value.id === created.steel), viewStable); invariant(await snapshot(), baseline);
     if (rotation === 0) {
       await select(created.steel); const display = await assertAnnotationView(viewStable, rotation), dx = 13, dy = 11;
+      await page.evaluate(() => {
+        window.qaNativeDrag = [];
+        window.qaNativeDragListener = event => {
+          const r = document.querySelector('.takeoff-overlay').getBoundingClientRect();
+          window.qaNativeDrag.push({type:event.type, buttons:event.buttons, x:event.clientX, y:event.clientY, left:r.left, top:r.top, width:r.width, height:r.height});
+        };
+        for (const name of ['pointerdown','pointermove','pointerup']) document.addEventListener(name, window.qaNativeDragListener, true);
+      });
       const pointMoved = await command(() => drag(note(created.steel).locator('[data-annotation-part="point"]'), dx, dy), "update_annotation"), changed = pointMoved.snapshot.annotations.callouts.find(value => value.id === created.steel);
-      // Native pointer coordinates use the browser's CSS dimensions, which may
-      // quantize the mathematically exact SVG dimensions by a small fraction.
-      assert.ok(Math.abs(changed.point[0] - (viewStable.point[0] + dx / display.cssSize[0] * 780)) < 1e-8); assert.ok(Math.abs(changed.point[1] - (viewStable.point[1] - dy / display.cssSize[1] * 540)) < 1e-8);
+      const nativeEvents = await page.evaluate(() => {
+        for (const name of ['pointerdown','pointermove','pointerup']) document.removeEventListener(name, window.qaNativeDragListener, true);
+        return window.qaNativeDrag;
+      });
+      const startEvent = nativeEvents.find(event => event.type === 'pointerdown');
+      const endEvent = nativeEvents.filter(event => event.type === 'pointermove' && event.buttons === 1).at(-1);
+      assert.ok(startEvent && endEvent, 'A real pressed-pointer drag was observed');
+      assert.ok(Math.abs(endEvent.x-startEvent.x-dx)<.001 && Math.abs(endEvent.y-startEvent.y-dy)<.001, 'Native input performs the requested CSS-pixel movement');
+      // Native event coordinates can quantize fractional CSS positions. Use
+      // the observed pointer movement and layout, keeping exact source checks.
+      const fraction = event => [(event.x-event.left)/event.width,(event.y-event.top)/event.height];
+      const startFraction = fraction(startEvent), endFraction = fraction(endEvent);
+      const expectedPoint = [viewStable.point[0]+(endFraction[0]-startFraction[0])*780,viewStable.point[1]-(endFraction[1]-startFraction[1])*540];
+      const dragProof = {actual: changed.point, expected: expectedPoint, before: viewStable.point, dx, dy, display, startEvent, endEvent};
+      fs.writeFileSync(path.join(output, 'native-drag-proof.json'), JSON.stringify(dragProof, null, 2));
+      assert.ok(Math.abs(changed.point[0] - expectedPoint[0]) < 1e-8, JSON.stringify(dragProof)); assert.ok(Math.abs(changed.point[1] - expectedPoint[1]) < 1e-8, JSON.stringify(dragProof));
       assert.deepEqual([changed.width, changed.height], [viewStable.width, viewStable.height]); assert.equal(changed.id, viewStable.id); invariant(pointMoved.snapshot, baseline);
       const undone = await command(() => page.getByRole("button", { name: "Undo last edit", exact: true }).click(), "undo"), restoredView = undone.snapshot.annotations.callouts.find(value => value.id === created.steel);
       for (const key of Object.keys(viewStable).filter(value => value !== "version")) assert.deepEqual(restoredView[key], viewStable[key], `Rotated source drag undo restores ${key}`);

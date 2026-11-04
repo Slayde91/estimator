@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from estimator.catalog import ValidationError
 from estimator.native_dialogs import SaveSelection
@@ -121,6 +122,45 @@ class ProjectStatusTests(unittest.TestCase):
         self.assertEqual(Path(result["retained_file"]).read_bytes(), self.payload)
         self.assertEqual(companion.read_bytes(), b"Retained companion")
         self.assertEqual(self.library.listing(refresh=True)["files"], [])
+
+    def test_folder_scan_does_not_enter_reserved_evidence_stores(self):
+        nested = self.root / "Client"
+        nested.mkdir()
+        (nested / "Nested.cf.json").write_bytes(self.payload)
+        for parent in (self.root, nested):
+            evidence = parent / ".ceasefire-evidence"
+            evidence.mkdir()
+            (evidence / "Archived.cf.json").write_bytes(self.payload)
+        import os
+        original = os.scandir
+
+        def guarded_scandir(path):
+            self.assertNotIn(".ceasefire-evidence", Path(path).parts)
+            return original(path)
+
+        with patch("estimator.project_library.os.scandir", side_effect=guarded_scandir):
+            result = self.library.listing(refresh=True)
+        self.assertFalse(result["scan_pending"])
+        self.assertEqual(len(result["files"]), 2)
+        self.assertEqual(result["errors"], [])
+
+    def test_slow_scan_yields_with_progress_and_continues_without_omitting_projects(self):
+        for index in range(4):
+            (self.root / f"Other-{index}.cf.json").write_bytes(self.payload)
+        clock = iter(range(100))
+        with patch("estimator.project_library.time.monotonic", side_effect=lambda: next(clock)):
+            first = self.library.listing(refresh=True)
+        self.assertTrue(first["scan_pending"])
+        self.assertGreater(first["scanned_entries"], 0)
+        self.assertLess(first["scanned_entries"], 5)
+        result = first
+        for _ in range(10):
+            result = self.library.listing()
+            if not result["scan_pending"]:
+                break
+        self.assertFalse(result["scan_pending"])
+        self.assertEqual(len(result["files"]), 5)
+        self.assertEqual(result["errors"], [])
 
 
 if __name__ == "__main__":

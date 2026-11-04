@@ -26,6 +26,7 @@ from .project_file import CALCULATOR_IDS, LEGACY_CALCULATOR_IDS, OPTIONAL_CALCUL
 
 MAX_PROJECT_FILES = 200
 MAX_SCAN_ENTRIES = 2000
+MAX_SCAN_SECONDS = 0.2
 MAX_LIST_BYTES = 64 * 1_048_576
 MAX_PROJECT_ATTACHMENT = 16 * 1_048_576
 SCAN_CACHE_SECONDS = 5
@@ -428,7 +429,11 @@ class ProjectLibrary:
         """Bound each request, retaining traversal state so no total cap hides files."""
         scan = self._scan
         consumed = processed = inspected = 0
-        while inspected < MAX_SCAN_ENTRIES and processed < MAX_PROJECT_FILES:
+        deadline = time.monotonic() + MAX_SCAN_SECONDS
+        # Yield between filesystem operations so a cold/cloud-backed directory
+        # can show partial results. A single OS call can still block independently.
+        while (inspected < MAX_SCAN_ENTRIES and processed < MAX_PROJECT_FILES
+               and (inspected == 0 or time.monotonic() < deadline)):
             path = scan["deferred"]
             if path is not None:
                 # Consume before inspecting: a file can become a directory,
@@ -465,6 +470,10 @@ class ProjectLibrary:
                 path = Path(entry.path)
                 inspected += 1
                 scan["entries"] += 1
+                # Reserved companion stores contain immutable evidence, never
+                # project library entries. Do not enumerate or hydrate them.
+                if entry.name.casefold() == ".ceasefire-evidence":
+                    continue
                 # Ignore every other file type before stat, reading or project
                 # validation. Real directories are retained for traversal;
                 # unrelated files and links cannot flood the project errors.

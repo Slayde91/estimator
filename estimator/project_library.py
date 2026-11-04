@@ -951,9 +951,10 @@ class ProjectLibrary:
                         if file_fingerprint(selected_path) != selection.fingerprint:
                             raise ValidationError("The selected file changed. Reload the project or use Save As to confirm its current contents.")
                         existing, _ = _read_file(selected_path)
-                        captured["project_status"] = project_summary(existing, edition=self.edition)["project_status"]
-                        payload = export_project(self.store, captured, edition=self.edition)
-                        project = load_project_bytes(self.store, payload, edition=self.edition)
+                        if has_project_identity(existing):
+                            captured["project_status"] = project_summary(existing, edition=self.edition)["project_status"]
+                            payload = export_project(self.store, captured, edition=self.edition)
+                            project = load_project_bytes(self.store, payload, edition=self.edition)
                     _preserve_penetration_inputs(selected_path, request)
                     _preserve_library_drafts(selected_path, request)
                     _preserve_optional_calculators(selected_path, request)

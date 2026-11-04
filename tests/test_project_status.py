@@ -5,8 +5,9 @@ import tempfile
 import unittest
 
 from estimator.catalog import ValidationError
+from estimator.native_dialogs import SaveSelection
 from estimator.project_file import export_project, load_project_bytes, project_summary
-from estimator.project_library import ProjectLibrary
+from estimator.project_library import ProjectLibrary, file_fingerprint
 from estimator.storage import Store
 
 
@@ -87,6 +88,21 @@ class ProjectStatusTests(unittest.TestCase):
         self.assertEqual(result["file"]["project_status"], "Accepted")
         with self.assertRaises(ValidationError):
             unscanned.update_status(request)
+
+    def test_older_save_as_clients_preserve_an_existing_project_status(self):
+        self.change("Lost")
+        snapshot = json.loads(self.payload)
+
+        class Dialogs:
+            def choose_save(dialogs, directory, filename):
+                return SaveSelection(str(self.path), file_fingerprint(self.path))
+
+        self.library.dialogs = Dialogs()
+        request = {"estimate": snapshot["estimate"],
+                   "calculators": {key: {"inputs": value["inputs"]}
+                                   for key, value in snapshot["calculators"].items()}}
+        result = self.library.save_as(request)
+        self.assertEqual(result["project"]["project_status"], "Lost")
 
     def test_status_rejects_forged_selections_and_never_writes_a_path_argument(self):
         for request in [

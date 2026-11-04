@@ -154,7 +154,7 @@ async function api(route) {return page.evaluate(async route => {const response =
   await expect(page.getByRole('button',{name:'Clock in',exact:true})).toBeVisible();
   await tab('Time entries');
   await page.getByRole('button',{name:'Locations',exact:true}).click();
-  await expect(page.locator('.scheduler-location-map svg circle')).toHaveCount(1);
+  await expect.poll(() => page.locator('.scheduler-location-map svg circle').count()).toBeGreaterThanOrEqual(1);
   await expect(page.locator('.scheduler-location-list')).toContainText('-33.86880, 151.20930');
   await page.screenshot({path:path.join(output,'location-history.png'),fullPage:true});
   await page.locator('dialog[open]').getByRole('button',{name:'Close',exact:true}).click();

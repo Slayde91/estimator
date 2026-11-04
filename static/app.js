@@ -1022,6 +1022,7 @@
   }
 
   function showView(view, librarySelection, calculatorId) {
+    if (view !== state.currentView && window.CeasefireScheduler?.hasPendingOperation?.()) { message("Finish or cancel the current Scheduler edit before changing views.", true); return; }
     if (view !== state.currentView && window.CeasefireCoverSheets?.hasPendingOperation?.()) { message(uiCopy("Finish or retry the current cover-sheet operation before changing views."), true); return; }
     if (view !== state.currentView && window.CeasefireCertification?.hasPendingOperation?.()) { message(uiCopy("Finish or retry the current certification operation before changing views."), true); return; }
     if (window.CeasefirePenetrations?.hasTakeoffReservation?.() || window.CeasefireTakeoffs?.hasLinkedRecovery?.()) { message(uiCopy("Finish or recover the confirmed Takeoff library link before changing views."), true); return; }
@@ -2473,7 +2474,7 @@
   });
   window.addEventListener("beforeunload", (event) => {
     const pricingChanged = sharedPricingChanged();
-    if (projectHasChanges() || pricingChanged || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.() || window.CeasefireCoverSheets?.hasUnsavedChanges?.()) {
+    if (projectHasChanges() || pricingChanged || window.CeasefireScheduler?.hasPendingOperation?.() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.() || window.CeasefireCoverSheets?.hasUnsavedChanges?.()) {
       event.preventDefault(); event.returnValue = pricingChanged ? pricingUnsavedPrompt : "";
     }
   });

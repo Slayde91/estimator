@@ -5,6 +5,7 @@
 .scheduler-tabs .button[aria-current="page"] { background:var(--accent); color:#fff; border-color:var(--accent); }
 .scheduler-account { color:var(--muted); font-size:12px; }
 .scheduler-notice { margin-bottom:16px; }
+.scheduler-projects-info { display:flex; align-items:center; flex-wrap:wrap; gap:6px 12px; margin:0 0 16px; }
 .scheduler-clock { padding:16px 20px; }
 .scheduler-clock>div:first-child { margin-right:auto; }
 .scheduler-clock .helper { margin-top:5px; }

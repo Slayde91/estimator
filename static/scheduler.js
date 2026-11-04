@@ -2,7 +2,8 @@
   "use strict";
   const ZONE = "Australia/Sydney";
   const state = {root:null, data:null, page:"schedule", week:weekStart(today()), member:"", mine:false,
-    loading:0, busy:false, dialog:null, watch:null, lastLocation:0, locationEnabled:false, timer:null, projects:[], settingsDirty:false};
+    loading:0, busy:false, dialog:null, watch:null, lastLocation:0, locationEnabled:false, timer:null, projects:[], settingsDirty:false,
+    projectsLoading:false, projectsScan:null, projectsMessage:""};
   const colours = [["#2196f3","Blue"],["#b12030","Red"],["#177349","Green"],["#7544a8","Purple"],["#505966","Grey"]];
   const dayFormatter = new Intl.DateTimeFormat("en-AU", {timeZone:ZONE, weekday:"short", day:"numeric", month:"short"});
   const dateFormatter = new Intl.DateTimeFormat("en-AU", {timeZone:ZONE, day:"numeric", month:"short", hour:"numeric", minute:"2-digit"});
@@ -58,18 +59,52 @@
     return select(options,record.project_id || "");
   }
   function projectName(control) { return control.value ? control.selectedOptions[0]?.textContent || "" : ""; }
-  async function loadProjects() {
-    const records = new Map(); let offset = 0;
-    for (let page = 0; page < 100; page++) {
-      const response = await fetch(`/api/projects?offset=${offset}`,{credentials:"same-origin",cache:"no-store"});
-      if (!response.ok) throw new Error("Saved projects could not be loaded. Existing project assignments are retained.");
-      const data = await response.json();
-      for (const project of data.files || []) records.set(project.id,project);
-      if (data.scan_pending) continue;
-      offset += (data.files || []).length;
-      if (!data.files?.length || offset >= (data.matched ?? offset)) break;
+  function projectStatus() {
+    const label = state.root?.querySelector(".scheduler-projects-status");
+    if (label) label.textContent = state.projectsMessage;
+    const action = state.root?.querySelector(".scheduler-projects-refresh");
+    if (action) {
+      action.disabled = state.projectsLoading;
+      action.textContent = state.projectsScan?.complete ? "Refresh project choices" : "Continue loading project choices";
     }
-    state.projects = [...records.values()];
+  }
+  async function loadProjects() {
+    if (state.projectsLoading) return;
+    state.projectsLoading = true;
+    if (!state.projectsScan || state.projectsScan.complete) state.projectsScan = {offset:0,records:new Map(),complete:false};
+    const scan = state.projectsScan, deadline = Date.now() + 30000;
+    state.projectsMessage = "Loading saved-project choices in the background…";
+    projectStatus();
+    try {
+      for (let page = 0; page < 20 && Date.now() < deadline; page++) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(),Math.min(5000,deadline-Date.now()));
+        let data;
+        try {
+          const response = await fetch(`/api/projects?offset=${scan.offset}`,{credentials:"same-origin",cache:"no-store",signal:controller.signal});
+          if (!response.ok) throw new Error("Project list unavailable");
+          data = await response.json();
+        } finally {clearTimeout(timeout);}
+        for (const project of data.files || []) scan.records.set(project.id,project);
+        if (!data.scan_pending) {
+          scan.offset += (data.files || []).length;
+          scan.complete = !data.files?.length || scan.offset >= (data.matched ?? scan.offset);
+        }
+        const choices = scan.complete ? new Map() : new Map(state.projects.map(project => [project.id,project]));
+        for (const [id,project] of scan.records) choices.set(id,project);
+        state.projects = [...choices.values()];
+        state.projectsMessage = `${state.projects.length} saved-project choices available${scan.complete ? "." : " · loading more…"}`;
+        projectStatus();
+        if (scan.complete) break;
+        await new Promise(resolve => setTimeout(resolve,500));
+      }
+      if (!scan.complete) state.projectsMessage = `${state.projects.length} saved-project choices available. Continue loading to scan more files.`;
+    } catch (_) {
+      state.projectsMessage = "Saved-project choices are taking longer to load. Continue loading to retry. You can still use Scheduler.";
+    } finally {
+      state.projectsLoading = false;
+      projectStatus();
+    }
   }
   function notice(message, error = false) {
     const host = state.root?.querySelector(".scheduler-notice"); if (!host) return;
@@ -91,7 +126,7 @@
     const revision = ++state.loading;
     try {
       const data = await request(`/state?start=${state.week}&end=${addDays(state.week,7)}`);
-      if (revision !== state.loading) return;
+      if (revision !== state.loading || state.dialog || state.settingsDirty) return;
       if (state.locationEnabled && state.data?.active_entry?.id !== data.active_entry?.id) stopLocation();
       if (state.data?.user && state.data.user.id !== data.user?.id) {state.page = "schedule"; state.member = ""; state.mine = false;}
       state.data = data;
@@ -117,6 +152,10 @@
     const heading = el("div","page-heading"); heading.append(el("h1","","Scheduler")); state.root.append(heading);
     const status = el("p", "scheduler-notice message"); status.setAttribute("role","status"); status.hidden = true;
     state.root.append(status);
+    const projects = el("div","scheduler-projects-info helper"), label = el("span","scheduler-projects-status",state.projectsMessage);
+    label.setAttribute("role","status");
+    projects.append(label,button("Refresh project choices",() => {void loadProjects();},"text-button scheduler-projects-refresh"));
+    state.root.append(projects); projectStatus();
   }
   function closeDialog(force = false) { if(state.busy && force !== true)return; state.dialog?.close(); state.dialog?.remove(); state.dialog = null; }
   function dialog(title, build, saveLabel, save) {
@@ -451,11 +490,13 @@
   }
   async function activate() {
     state.root ||= document.getElementById("scheduler-root"); if(!state.root)return;
-    if (state.data?.user) {try {await loadProjects();} catch(error) {notice(error.message,true);} return refresh();}
-    shell(); notice("Loading Scheduler…");
-    try { await loadProjects(); } catch(error) {notice(error.message,true);}
-    try { const bootstrap = await request("/bootstrap"); if (bootstrap.user) await refresh(); else auth(bootstrap.setup_required); }
-    catch(error) {notice(error.message,true);}
+    if (state.data?.user) await refresh();
+    else {
+      shell(); notice("Loading Scheduler…");
+      try { const bootstrap = await request("/bootstrap"); if (bootstrap.user) await refresh(); else auth(bootstrap.setup_required); }
+      catch(error) {notice(error.message,true);}
+    }
+    void loadProjects();
     if (!state.timer) state.timer = setInterval(() => {
       if (state.data?.user && !state.root.closest("[hidden]") && !state.dialog && !state.busy && state.page !== "settings") refresh();
     },60000);

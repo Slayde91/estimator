@@ -20,7 +20,7 @@ const ready = new Promise((resolve,reject) => {
 const errors = [], csp = [], checks = [];
 const password = 'Disposable-QA-password-2026';
 async function scheduler() {
-  await page.evaluate(() => window.CeasefireScheduler.activate());
+  await page.evaluate(() => {void window.CeasefireScheduler.activate();});
   await page.locator('#projects-navigation-toggle').hover();
   await page.locator('#projects-navigation-menu [data-project-section="scheduler"]').click();
   await expect(page.locator('#scheduler-root')).toBeVisible();
@@ -39,7 +39,17 @@ async function api(route) {return page.evaluate(async route => {const response =
   await page.addInitScript(() => document.addEventListener('securitypolicyviolation',event => window.captureSchedulerCsp(event.effectiveDirective)));
   await page.goto(`http://127.0.0.1:${info.port}/`);
   await page.waitForFunction(() => window.CeasefireDesktop?.status()?.ready);
+  let releaseProjects, projectRequests = 0, projectsDelivered = false;
+  const projectGate = new Promise(resolve => {releaseProjects = resolve;});
+  await page.route('**/api/projects?offset=*',async route => {
+    projectRequests++;
+    const response = await route.fetch();
+    await projectGate;
+    await route.fulfill({response});
+    projectsDelivered = true;
+  });
   await scheduler();
+  await expect(page.getByLabel('Your name',{exact:true})).toBeVisible({timeout:2500});
   await page.getByLabel('Your name',{exact:true}).fill('Scheduler Admin');
   await page.locator('#scheduler-root').getByLabel('Email',{exact:true}).fill('scheduler-admin@example.test');
   await page.getByLabel('Password',{exact:true}).fill(password);
@@ -51,6 +61,12 @@ async function api(route) {return page.evaluate(async route => {const response =
   await page.getByRole('button',{name:'Add team member',exact:true}).click();
   let modal = page.locator('dialog[open]');
   await modal.getByLabel('Name',{exact:true}).fill('Jordan QA');
+  assert.equal(projectRequests,1,'Overlapping Scheduler activation shares one background project request');
+  releaseProjects();
+  await expect.poll(() => projectsDelivered).toBe(true);
+  await expect(modal.getByLabel('Name',{exact:true})).toHaveValue('Jordan QA');
+  await page.unroute('**/api/projects?offset=*');
+  checks.push('blocked project listing does not delay setup or calendar and late choices preserve the open form');
   await modal.getByLabel('Email / sign-in').fill('jordan@example.test');
   await modal.getByLabel('Password',{exact:true}).fill(password);
   await modal.getByLabel('Base hourly rate (AUD)').fill('40');

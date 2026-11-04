@@ -58,6 +58,13 @@ retaining band, tab, screw or flange. Wrap ties remain smooth, unperforated,
 self-locking stainless steel zip ties on the wrap only. Never replace a zip tie
 with a hose clamp or add a worm-drive housing or perforated band.
 
+The user's no-collar-zip-ties rule applies even when a source figure or report
+mentions a circumferential retaining tie. Keep that source evidence unchanged,
+but do not draw the tie, its buckle, or a substitute strap on the collar.
+Preserve the actual collar casing and mounting fixings. A correction requested
+from the original must start from the archived original reference, not from the
+rejected generated drawing.
+
 Wrap zip ties always form circumferential loops perpendicular to the service's
 longitudinal axis. Never run them lengthwise, parallel to the service. On a
 vertical service the loops run horizontally around the wrap; on a horizontal

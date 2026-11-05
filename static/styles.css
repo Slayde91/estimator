@@ -472,5 +472,7 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .project-card-menu summary{padding:0 5px;font-size:20px}
 .project-kanban-card p{margin:8px 0 0;overflow-wrap:anywhere;font-size:11px;line-height:1.5}
 .project-column-empty{color:var(--muted);font-size:12px;padding:18px 0;text-align:center}
-.project-status-field{min-width:135px;font-size:12px;gap:5px}
-.project-status-field select{min-height:40px}
+.estimate-banner-heading>.actions{justify-content:flex-end;align-items:center;flex-wrap:wrap}
+.project-status-field{min-width:150px;max-width:100%;font-size:12px;margin:0}
+.project-status-field select{height:48px;min-height:48px;font-weight:700}
+@media(max-width:880px){.estimate-banner-heading>.actions{width:100%}.estimate-banner-heading .calculator-document-actions{right:0;left:auto}}

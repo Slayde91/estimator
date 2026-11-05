@@ -44,6 +44,7 @@ class CommercialEstimateTests(unittest.TestCase):
         self.assertTrue(any('Captured member' in str(table) for table in result['scope_tables']))
         self.assertEqual(len(result['scope_documents']), 1)
         reader = PdfReader(BytesIO(result['scope_documents'][0]['pdf']))
+        self.assertTrue(all(float(page.mediabox.width) < float(page.mediabox.height) for page in reader.pages))
         text = '\n'.join(page.extract_text() for page in reader.pages)
         self.assertIn('Captured member', text)
         self.assertIn('1 Test Street', text)

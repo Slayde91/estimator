@@ -227,7 +227,9 @@
         if (documentationHeaders) await window.CeasefireDocumentation?.downloadCompleted?.(documentationHeaders, savedResult);
       } finally {
         if (tracked) active--;
-        if (savedResult?.destination === 'project' && download?.project_token) queueProjectSave(download, savedResult);
+        if (path === '/api/commercial/issue' && savedResult?.destination === 'project' && download?.project_token) {
+          queueProjectSave(download, savedResult);
+        }
       }
     }
   }

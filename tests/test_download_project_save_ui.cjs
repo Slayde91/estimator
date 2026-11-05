@@ -24,45 +24,45 @@ function harness(){
 (async()=>{
  let checks=0;
  {
-  const h=harness();h.setTarget(null);await h.api.save('/api/quote-report');await h.tick();
+  const h=harness();h.setTarget(null);await h.api.save('/api/commercial/issue');await h.tick();
   assert.equal(h.calls.length,1);assert.equal(h.saves.length,0);assert.equal(h.api.hasPendingOperation(),false);checks++;
  }
  {
   const h=harness();h.project.hasPendingOperation=()=>true;
-  await assert.rejects(h.api.save('/api/quote-report'),/Finish the current project save/);await h.tick();
+  await assert.rejects(h.api.save('/api/commercial/issue'),/Finish the current project save/);await h.tick();
   assert.equal(h.calls.length,0);assert.equal(h.saves.length,0);checks++;
  }
  {
-  const h=harness(),done=deferred();h.setComplete(done);h.setBusy(true);const operation=h.api.save('/api/quote-report');await flush();
+  const h=harness(),done=deferred();h.setComplete(done);h.setBusy(true);const operation=h.api.save('/api/commercial/issue');await flush();
   assert.equal(h.api.hasInFlight(),true);await h.tick(100);assert.equal(h.saves.length,0);
   done.resolve();await operation;assert.equal(h.api.hasUnsavedProjectSave(),true);await h.tick(100);assert.equal(h.saves.length,0);
   h.setBusy(false);await h.tick();assert.deepEqual(h.saves.map(v=>v.history),[1]);assert.equal(h.api.hasUnsavedProjectSave(),false);
   assert.deepEqual(h.calls[0].body.download,{project_token:'initial'});checks++;
  }
  {
-  const h=harness();h.setBusy(true);await Promise.all([h.api.save('/api/quote-report'),h.api.save('/api/project/full-schedule.pdf')]);
+  const h=harness();h.setBusy(true);await Promise.all([h.api.save('/api/commercial/issue'),h.api.save('/api/project/full-schedule.pdf')]);
   await h.tick();assert.equal(h.saves.length,0);h.setBusy(false);await h.tick();assert.equal(h.saves.length,1);assert.equal(h.saves[0].history,2);
-  await h.api.save('/api/quote-report');await h.tick();assert.equal(h.saves.length,2);assert.equal(h.calls[2].body.download.project_token,'rotated');checks++;
+  await h.api.save('/api/commercial/issue');await h.tick();assert.equal(h.saves.length,2);assert.equal(h.calls[2].body.download.project_token,'rotated');checks++;
  }
  {
   const h=harness();let commercialBusy=true;
   h.c.window.CeasefireCommercial={hasPendingOperation:()=>commercialBusy};
-  await h.api.save('/api/quote-report');await h.tick();assert.equal(h.saves.length,0);
+  await h.api.save('/api/commercial/issue');await h.tick();assert.equal(h.saves.length,0);
   commercialBusy=false;await h.tick();assert.equal(h.saves.length,1);checks++;
  }
  {
-  const h=harness();await h.api.save('/api/quote-report');h.setTarget({project_token:'other',project_context:2,project_path:'C:/Other/new.cf.json'});await h.tick();
+  const h=harness();await h.api.save('/api/commercial/issue');h.setTarget({project_token:'other',project_context:2,project_path:'C:/Other/new.cf.json'});await h.tick();
   assert.equal(h.saves.length,0);assert.equal(h.api.hasPendingOperation(),false);checks++;
  }
  {
-  const h=harness();h.setSaveError(new Error('Folder is read only'));await h.api.save('/api/quote-report');await h.tick();
+  const h=harness();h.setSaveError(new Error('Folder is read only'));await h.api.save('/api/commercial/issue');await h.tick();
   assert.equal(h.saves.length,1);assert.equal(h.failures.length,1);assert.match(h.failures[0][2].message,/read only/);
   assert.equal(h.api.hasUnsavedProjectSave(),true);assert.equal(h.api.hasPendingOperation(),false);await h.tick(500);assert.equal(h.saves.length,1);
   h.api.projectSaved({project_context:1,project_path:'C:/Projects/project.cf.json'});assert.equal(h.api.hasUnsavedProjectSave(),false);checks++;
  }
  {
   const h=harness();h.c.fetch=async path=>path==='/api/download-progress'?{ok:true,json:async()=>({token:'progress'})}:path.startsWith('/api/download-progress/')?{ok:true,json:async()=>({})}:{ok:false,status:400,headers:{get:()=> 'application/json'},json:async()=>({error:'Disk full'})};
-  await assert.rejects(h.api.save('/api/quote-report'),/Disk full/);await h.tick();assert.equal(h.saves.length,0);assert.equal(h.api.hasUnsavedProjectSave(),false);checks++;
+  await assert.rejects(h.api.save('/api/commercial/issue'),/Disk full/);await h.tick();assert.equal(h.saves.length,0);assert.equal(h.api.hasUnsavedProjectSave(),false);checks++;
  }
  console.log(`${checks} post-download project-save checks passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

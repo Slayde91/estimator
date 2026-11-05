@@ -14,6 +14,7 @@
 .commercial-check { display:flex; align-items:center; gap:9px; font-size:12px; line-height:1.5; }
 .commercial-check input { width:17px; height:17px; flex:0 0 17px; }
 .commercial-editor { display:grid; gap:20px; }
+.commercial-editor,.commercial-editor>* { min-width:0; }
 .commercial-editor-actions { position:sticky; top:10px; z-index:2; background:var(--paper); padding:12px; border:1px solid var(--line); border-radius:10px; }
 .commercial-editor>.field { max-width:900px; }
 .commercial-details,.commercial-order-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; margin:0; }
@@ -33,7 +34,8 @@
 .commercial-scope td { font-size:11px; white-space:pre-wrap; overflow-wrap:anywhere; }
 .commercial-rich { border:1px solid var(--line); border-radius:12px; background:var(--paper); padding:18px; }
 .commercial-rich-toolbar { margin:12px 0; gap:6px; }
-.commercial-rich-toolbar .button { padding:7px 10px; font-size:11px; }
+.commercial-rich-toolbar .commercial-format-button { display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; padding:9px; }
+.commercial-format-button svg { display:block; width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
 .commercial-rich-input { border:1px solid var(--line); border-radius:8px; padding:14px; min-height:120px; max-height:480px; overflow:auto; font-size:13px; line-height:1.65; overflow-wrap:anywhere; }
 .commercial-rich-input p { margin:0 0 10px; }
 .commercial-rich-input ul,.commercial-rich-input ol { padding-left:24px; }

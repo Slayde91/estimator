@@ -1,5 +1,9 @@
 /* Scheduler follows the application's active colour theme. */
 #scheduler-root { min-width:0; }
+#scheduler-root .button.scheduler-add-action { background:#1767b2; border-color:#1767b2; color:#fff; }
+#scheduler-root .button.scheduler-add-action:hover:not(:disabled) { background:#12558f; border-color:#12558f; }
+#scheduler-root .button.scheduler-primary-action { background:#d0001b; border-color:#a80016; color:#fff; }
+#scheduler-root .button.scheduler-primary-action:hover:not(:disabled) { background:#a80016; border-color:#8d0012; }
 .scheduler-top,.scheduler-tabs,.scheduler-account,.scheduler-toolbar,.scheduler-clock,.scheduler-dialog-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
 .scheduler-top { justify-content:space-between; margin-bottom:18px; }
 .scheduler-tabs .button[aria-current="page"] { background:var(--accent); color:#fff; border-color:var(--accent); }

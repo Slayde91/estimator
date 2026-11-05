@@ -162,7 +162,7 @@
     state.root.append(projects); projectStatus();
   }
   function closeDialog(force = false) { if(state.busy && force !== true)return; state.dialog?.close(); state.dialog?.remove(); state.dialog = null; }
-  function dialog(title, build, saveLabel, save) {
+  function dialog(title, build, saveLabel, save, submitClass = "button") {
     closeDialog();
     const modal = el("dialog", "scheduler-dialog"), form = el("form", "scheduler-form");
     const heading = el("div", "section-heading");
@@ -171,7 +171,7 @@
     heading.append(titleNode,button("Close",closeDialog));
     const content = el("div", "scheduler-form-fields"), error = el("p", "message error"); error.hidden = true; error.setAttribute("role","alert");
     const controls = build(content), actions = el("div", "actions scheduler-dialog-actions");
-    const submit = el("button", "button", saveLabel); submit.type = "submit";
+    const submit = el("button", submitClass, saveLabel); submit.type = "submit";
     actions.append(button("Cancel",closeDialog),submit); form.append(heading,content,error,actions); modal.append(form);
     modal.addEventListener("close", () => { modal.remove(); if (state.dialog === modal) state.dialog = null; });
     modal.addEventListener("cancel", event => {if(state.busy)event.preventDefault();});
@@ -266,7 +266,7 @@
       const entry = await request("/clock/in",{project_id:project.value,project_name:projectName(project),notes:notes.value,location_consent:location.control.checked});
       state.data.active_entry = entry;
       if (location.control.checked) startLocation();
-    }),"button"));
+    },"button scheduler-primary-action"),"button scheduler-primary-action"));
     bar.addEventListener("click",event => {
       if(state.settingsDirty) {event.stopImmediatePropagation(); notice("Save or discard your settings changes before using the time clock.",true);}
     },true);
@@ -296,7 +296,7 @@
     const filter = select([["","All team members"],...state.data.members.filter(item => item.active).map(item => [item.id,item.name])],state.member);
     filter.setAttribute("aria-label","Filter team members"); filter.addEventListener("change",() => {state.member = filter.value; render();}); controls.append(filter);
     const mine = check("My schedule",state.mine); mine.control.addEventListener("change",() => {state.mine = mine.control.checked; render();}); controls.append(mine.label);
-    if (admin()) controls.append(button("Add shift",() => editShift(),"button"));
+    if (admin()) controls.append(button("Add shift",() => editShift(),"button scheduler-add-action"));
     state.root.append(controls,el("p","helper","Week view · Australia/Sydney · Select a shift for details."));
     const scroll = el("div", "scheduler-grid-scroll"), table = el("table", "scheduler-grid"); table.append(el("caption", "sr-only","Weekly schedule by team member"));
     const head = el("thead"), row = el("tr"); row.append(el("th","scheduler-person","Team member"));
@@ -362,7 +362,7 @@
     editor.classList.add("scheduler-shift-editor");
   }
   function renderTeam() {
-    const heading = el("div","section-heading"); heading.append(el("h2","","Team members"),button("Add team member",() => editMember(),"button")); state.root.append(heading);
+    const heading = el("div","section-heading"); heading.append(el("h2","","Team members"),button("Add team member",() => editMember(),"button scheduler-add-action")); state.root.append(heading);
     const list = el("div","scheduler-team");
     state.data.members.forEach(member => {const card = el("section","card"); card.append(el("h3","",member.name),el("p","helper",member.email),el("p","helper",`${member.role === "admin" ? "Administrator" : "Team member"} · ${member.active ? "Active" : "Inactive"}`),button("Edit member",() => editMember(member))); list.append(card);});
     state.root.append(list);
@@ -379,7 +379,7 @@
       ...(controls.password.value ? {password:controls.password.value} : {}),base_rate:controls.rate.value,role:controls.role.value,active:controls.active.control.checked}));
   }
   function renderEntries() {
-    const controls = weekControls(); if (admin()) controls.append(button("Add time entry",() => editEntry(),"button")); state.root.append(controls);
+    const controls = weekControls(); if (admin()) controls.append(button("Add time entry",() => editEntry(),"button scheduler-add-action")); state.root.append(controls);
     const scroll = el("div","table-scroll"), table = el("table","scheduler-entries"), head = el("thead"), row = el("tr");
     ["Team member","Start / finish","Job","Worked","Breaks","Actions"].forEach(label => row.append(el("th","",label))); head.append(row); table.append(head);
     const body = el("tbody");
@@ -495,7 +495,7 @@
     }
     saved.breaks.forEach(addBreakRule);
     form.append(el("h3","","Break rules"),el("p","helper","Automatic breaks are calculated when a time entry is complete. Thresholds use elapsed shift time. Repeated middle breaks are spaced evenly. A matching manual break satisfies one automatic break, and breaks never overlap."),breakList,button("Add break rule",() => {addBreakRule(); state.settingsDirty = true;}));
-    const submit = el("button","button","Save settings"); submit.type = "submit"; form.append(submit,button("Discard settings changes",() => {state.settingsDirty = false; render();}));
+    const submit = el("button","button scheduler-primary-action","Save settings"); submit.type = "submit"; form.append(submit,button("Discard settings changes",() => {state.settingsDirty = false; render();}));
     form.addEventListener("input",() => {state.settingsDirty = true;}); form.addEventListener("change",() => {state.settingsDirty = true;});
     form.addEventListener("submit",async event => {
       event.preventDefault(); if (state.busy) return; state.busy = true;

@@ -345,14 +345,34 @@
     editor.setAttribute("aria-multiline", "true");
     editor.setAttribute("aria-label", label);
     editor.innerHTML = value;
-    for (const [text, command] of [["Bold", "bold"], ["Italic", "italic"], ["Underline", "underline"], ["Bullets", "insertUnorderedList"], ["Numbered list", "insertOrderedList"]]) {
-      const control = button(text, () => {
+    toolbar.setAttribute("role", "group");
+    toolbar.setAttribute("aria-label", `${label} formatting`);
+    const formats = [
+      ["Bold", "bold", "M6 4h8a4 4 0 0 1 0 8H6z M6 12h9a4 4 0 0 1 0 8H6z"],
+      ["Italic", "italic", "M19 4h-9 M14 20H5 M15 4 9 20"],
+      ["Underline", "underline", "M6 3v7a6 6 0 0 0 12 0V3 M4 21h16"],
+      ["Bullets", "insertUnorderedList", "M9 6h12 M9 12h12 M9 18h12 M3 6h.01 M3 12h.01 M3 18h.01"],
+      ["Numbered list", "insertOrderedList", "M10 6h11 M10 12h11 M10 18h11 M3 4h1v5 M3 9h2 M2 14a2 2 0 0 1 4 0c0 1-1 2-4 5h4"]
+    ];
+    for (const [text, command, path] of formats) {
+      const control = button("", () => {
         editor.focus();
         document.execCommand("styleWithCSS", false, false);
         document.execCommand(command, false);
         changedValue(editor.innerHTML);
         markDirty();
       });
+      control.classList.add("commercial-format-button");
+      control.setAttribute("aria-label", text);
+      control.title = text;
+      const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      icon.setAttribute("viewBox", "0 0 24 24");
+      icon.setAttribute("aria-hidden", "true");
+      icon.setAttribute("focusable", "false");
+      const glyph = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      glyph.setAttribute("d", path);
+      icon.append(glyph);
+      control.append(icon);
       control.addEventListener("mousedown", event => event.preventDefault());
       toolbar.append(control);
     }

@@ -474,7 +474,10 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
     }
   }
   // Untrusted project text cannot turn a changed source dimension into a valid confirmation.
-  const tampered = JSON.parse(fs.readFileSync(info.project)); tampered.takeoffs.items.find(item => item.id === ductId).length_additions[0].length_mm = 1750;
+  const tampered = JSON.parse(fs.readFileSync(info.project));
+  const activeEstimate = tampered.estimates.find(estimate => estimate.id === tampered.active_estimate_id);
+  tampered.takeoffs.items.find(item => item.id === ductId).length_additions[0].length_mm = 1750;
+  activeEstimate.workspace.takeoffs.items.find(item => item.id === ductId).length_additions[0].length_mm = 1750;
   fs.writeFileSync(info.project, JSON.stringify(tampered)); await load(); await chooseTakeoff(page, 'duct');
   await viewRegisterItem(page, ductId, { document_id: doc.id, page: 3 });
   const reopened = await snapshot(), stale = reopened.items.find(item => item.id === ductId);

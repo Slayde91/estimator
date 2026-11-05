@@ -208,7 +208,7 @@ async function workbook(title) {
   const linkedUpdated=await snapshots();assert.deepEqual(linkedUpdated.penetration.draft.rows.at(-1),{id:linkedRow.id,inputs:{T:'REFILLED LINKED SOURCE',O:4.987654321},library_item_id:libraryItem.id});assert.deepEqual(linkedUpdated.penetration.draft.rows.slice(0,-1),linkedBefore.penetration.draft.rows.slice(0,-1));assert.deepEqual(linkedUpdated.penetration.draft.globals,linkedBefore.penetration.draft.globals);assert.deepEqual(linkedUpdated.pricing,linkedBefore.pricing);assert.deepEqual(linkedUpdated.calculators,linkedBefore.calculators);evidence.clearLinkedEditRetainsLibraryAndRowIdentity=true;
   evidence.firestoppingDocuments = [];
   for (const prefix of ['penetration-item', 'penetration']) {
-    if(prefix==='penetration'){await expect(page.locator('#main-tab-firestopping-schedule')).toHaveCount(0);await expect(page.locator('#main-panel-firestopping-schedule')).toBeHidden();}
+    if(prefix==='penetration'){await expect(page.locator('#main-tab-firestopping-schedule')).toHaveCount(1);await expect(page.locator('#main-panel-firestopping-schedule')).toBeHidden();}
     const schedule = page.locator('details[aria-labelledby="penetration-estimator-schedule-heading"]');
     if (prefix!=='penetration'&&!await schedule.evaluate(element => element.open)) await schedule.locator(':scope > summary').click();
     const itemOnly=prefix==='penetration-item',actionsId='firestopping-item-document-actions';

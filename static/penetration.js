@@ -79,7 +79,7 @@
       }
       return;
     }
-    const ids = scope === state ? ["penetration-message"] : ["penetration-schedule-message", "penetration-estimator-schedule-message"];
+    const ids = scope === state ? ["penetration-message"] : ["penetration-schedule-message", "penetration-estimator-schedule-message", "penetration-main-schedule-message"];
     for (const id of ids) { const el = $(id); uiText(el, text, args); el.hidden = !text; el.className = `message${error ? " error" : ""}`; window.CeasefireNotifications?.show(el); }
   }
   function buttonBusy(id, value) { $(id).setAttribute("aria-busy", String(value)); }
@@ -1254,7 +1254,7 @@
     for (const table of tables) api.applyTable(table, api.hidden("penetration:SCHEDULE"));
   }
   function renderSummary(scope = state) {
-    const prefix = scope === state ? "penetration" : "penetration-schedule";
+    const prefixes = scope === state ? ["penetration"] : ["penetration-schedule", "penetration-main-schedule"];
     const labels = { materials: "Materials", labour: "Labour", grand_total: "Grand total", total_days: "Total days", labour_hours: "Task Hours" };
     const errors = scope.result?.errors || [], issues = [];
     const addIssue = text => { if (!issues.includes(text)) issues.push(text); };
@@ -1277,15 +1277,21 @@
       const names = columns.map(column => state.definition.output_fields.find(field => field.column === column)?.label).filter(Boolean);
       addIssue(`Review ${names.length ? names.join(", ") : "the item inputs and selected pricing options"}; the entered values do not produce a valid calculation.`);
     }
-    $(`${prefix}-summary`).replaceChildren(...Object.entries(labels).map(([key, label]) => {
-      const value = scope.result?.summary?.[key], invalid = typeof value === "string" && value.startsWith("#");
-      const line = node("div", key === "grand_total" ? "subtotal" : ""); line.append(uiNode("dt", "", label), invalid ? uiNode("dd", "", "Review required inputs below") : node("dd", "", display(value, ["total_days", "labour_hours"].includes(key) ? "number" : "currency"))); return line;
-    }));
-    if (errors.length) $(`${prefix}-summary-notes`).textContent = issues.join("\n");
-    else uiText($(`${prefix}-summary-notes`), scope === state ? "Current item only. Add it to the schedule to include it in the quote." : "Totals include every schedule item and are included once in the quote.");
+    for (const prefix of prefixes) {
+      $(`${prefix}-summary`).replaceChildren(...Object.entries(labels).map(([key, label]) => {
+        const value = scope.result?.summary?.[key], invalid = typeof value === "string" && value.startsWith("#");
+        const line = node("div", key === "grand_total" ? "subtotal" : ""); line.append(uiNode("dt", "", label), invalid ? uiNode("dd", "", "Review required inputs below") : node("dd", "", display(value, ["total_days", "labour_hours"].includes(key) ? "number" : "currency"))); return line;
+      }));
+      if (errors.length) $(`${prefix}-summary-notes`).textContent = issues.join("\n");
+      else uiText($(`${prefix}-summary-notes`), scope === state ? "Current item only. Add it to the schedule to include it in the quote." : "Totals include every schedule item and are included once in the quote.");
+    }
   }
   function renderBreakdown(scope = state) {
-    if (scope === state.schedule) $("penetration-schedule-breakdown").replaceChildren(window.CeasefirePenetrationBreakdown.renderSchedule(state.definition, scope.result));
+    if (scope === state.schedule) {
+      for (const id of ["penetration-schedule-breakdown", "penetration-main-schedule-breakdown"]) {
+        $(id).replaceChildren(window.CeasefirePenetrationBreakdown.renderSchedule(state.definition, scope.result));
+      }
+    }
     else $("penetration-breakdown").replaceChildren(window.CeasefirePenetrationBreakdown.render(state.definition, state.result?.rows.find(row => row.id === state.selected)));
   }
   function selectScheduleView(view, { focus = false } = {}) {

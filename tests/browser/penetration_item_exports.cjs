@@ -58,7 +58,9 @@ async function fill(column, value) { const field = page.locator(`[data-penetrati
   await page.locator('#penetration-diagram-file').setInputFiles({ name: 'Current source.png', mimeType: 'image/png', buffer: generated.stdout });
   await expect(page.locator('#penetration-diagram-image')).toBeVisible(); await expect(page.locator('#penetration-diagram-remove')).toBeVisible();
   const before = await snapshot(); assert.deepEqual(before.penetration.draft.rows, scheduled); assert.equal(before.dirty, true);
-  await expect(page.locator('#view-estimate #penetration-schedule-breakdown-card,#main-tab-firestopping-breakdown,#main-panel-firestopping-breakdown')).toHaveCount(0);
+  await expect(page.locator('#view-estimate #penetration-schedule-breakdown-card')).toHaveCount(0);
+  await expect(page.locator('#main-tab-firestopping-breakdown')).toHaveCount(1);
+  await expect(page.locator('#main-panel-firestopping-breakdown')).toBeHidden();
   await expect(page.locator('#firestopping-document-actions #penetration-excel,#firestopping-document-actions #penetration-pdf')).toHaveCount(0);
   const scheduleDetails=page.locator('details[aria-labelledby="penetration-estimator-schedule-heading"]'),schedulePanel=page.locator('#penetration-schedule-panel-schedule'),breakdownPanel=page.locator('#penetration-schedule-panel-breakdown');
   const scheduleTab=page.locator('#penetration-schedule-tab-schedule'),breakdownTab=page.locator('#penetration-schedule-tab-breakdown');

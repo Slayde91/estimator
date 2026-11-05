@@ -117,7 +117,7 @@ async function itemColumn(body, theme, width, entry='calculator') {
     for (let n = 0; n < 5 && await page.locator('html').getAttribute('data-theme') !== theme; n++) await page.locator('#theme-toggle').click(); await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
     await chooseCalculator(page, 'Firestopping'); await settled(); for (const width of [1084, 390]) await itemColumn('penetration-estimator-schedule-body', theme, width);
     await page.evaluate(() => window.CeasefirePenetrationNavigation.showSchedule()); await settled();
-    await expect(page.locator('#view-calculators')).toBeVisible();await expect(page.locator('#main-tab-firestopping-schedule')).toHaveCount(0);await expect(page.locator('#main-panel-firestopping-schedule')).toBeHidden();
+    await expect(page.locator('#view-calculators')).toBeVisible();await expect(page.locator('#main-tab-firestopping-schedule')).toHaveCount(1);await expect(page.locator('#main-panel-firestopping-schedule')).toBeHidden();
     for (const width of [1084, 390]) await itemColumn('penetration-estimator-schedule-body', theme, width,'schedule-navigation');
   }
   assert.deepEqual(await snapshot(), beforeLayout); await page.setViewportSize({ width: 1450, height: 960 }); await chooseCalculator(page, 'Firestopping'); await settled();

@@ -726,7 +726,7 @@ async function penetrationCheck(name, fn) {
   });
   await check('Main input and output tabs retain independent selection, keyboard bounds and original controls', async h => {
     const inputContainers=['input-sections','post-material-input-sections','adjustment-sections'].map(h.byId);
-    const outputKeys=['material-breakdown','labour-breakdown'];
+    const outputKeys=['material-breakdown','labour-breakdown','firestopping-schedule','firestopping-breakdown'];
     const outputs=outputKeys.map(key=>{const panel=h.byId(`main-panel-${key}`);panel.id=`main-panel-${key}`;panel.dataset.mainSection=key;panel.dataset.mainSectionTitle=key;return panel;});
     const materials=h.byId('main-panel-materials');materials.id='main-panel-materials';materials.dataset.mainSection='materials';
     h.app.state.fields=[['B2','Access'],['D2','Teams'],['D7','Masking teams'],['B9','Masking'],['B26','Global'],['E26','Addition'],['A50','Other']].map(([cell,label])=>({cell,label,type:cell==='D7'?'select':'number',options:cell==='D7'?['N/A','1']:undefined}));
@@ -742,13 +742,13 @@ async function penetrationCheck(name, fn) {
     h.app.selectMainSection('additions');const additions=inputCards().find(card=>card.dataset.mainSection==='additions');
     const fields=additions.children[1],controls=[...fields.children];
     for(const key of outputKeys){h.app.selectMainSection(key);assert.deepEqual(visibleInputs(),['additions']);assert.deepEqual(visibleOutputs(),[key]);assert.equal(h.app.state.mainSection,'additions');assert.equal(h.app.state.mainOutputSection,key);assert.deepEqual(fields.children,controls);}
-    h.app.selectMainSection('teams-crews');assert.deepEqual(visibleOutputs(),['labour-breakdown']);
+    h.app.selectMainSection('teams-crews');assert.deepEqual(visibleOutputs(),['firestopping-breakdown']);
     const press=async(tab,key)=>{let prevented=false;await tab.emit('keydown',{key,preventDefault(){prevented=true;}});assert.equal(prevented,true);};
-    await press(tabs('main-section-tabs')[0],'End');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'other-inputs');assert.deepEqual(visibleOutputs(),['labour-breakdown']);
+    await press(tabs('main-section-tabs')[0],'End');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'other-inputs');assert.deepEqual(visibleOutputs(),['firestopping-breakdown']);
     await press(tabs('main-section-tabs').at(-1),'ArrowRight');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'access-travel');
-    await press(tabs('main-output-tabs')[0],'End');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'labour-breakdown');assert.deepEqual(visibleInputs(),['access-travel']);
+    await press(tabs('main-output-tabs')[0],'End');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'firestopping-breakdown');assert.deepEqual(visibleInputs(),['access-travel']);
     await press(tabs('main-output-tabs').at(-1),'ArrowRight');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'material-breakdown');
-    await press(tabs('main-output-tabs')[0],'ArrowLeft');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'labour-breakdown');
+    await press(tabs('main-output-tabs')[0],'ArrowLeft');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'firestopping-breakdown');
     await press(tabs('main-output-tabs').at(-1),'Home');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'material-breakdown');
     for(const id of ['main-section-tabs','main-output-tabs'])assert.equal(tabs(id).filter(tab=>tab.tabIndex===0&&tab.getAttribute('aria-selected')==='true').length,1);
     for(const panel of [...inputCards(),...outputs])assert.equal(panel.getAttribute('aria-labelledby'),`main-tab-${panel.dataset.mainSection}`);

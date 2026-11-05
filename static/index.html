@@ -286,7 +286,7 @@ SOFTWARE. -->
           <section id="main-output-workspace" class="main-output-workspace" aria-labelledby="main-output-heading">
           <div class="section-heading"><h2 id="main-output-heading" data-i18n="Estimate Outputs">Estimate Outputs</h2></div>
           <div id="main-output-tabs" class="main-section-tabs main-output-tabs" role="tablist" aria-label="Main estimate schedules and breakdowns" data-i18n-aria-label="Main estimate schedules and breakdowns"></div>
-          <section id="main-panel-firestopping-schedule" hidden>
+          <section id="main-panel-firestopping-schedule" class="main-section-panel" data-main-section="firestopping-schedule" data-main-section-title="Firestopping Schedule" hidden>
           <div id="penetration-schedule-workspace" class="penetration-schedule-workspace" hidden>
             <section class="card penetration-schedule" aria-labelledby="penetration-schedule-heading">
               <div class="section-heading"><h2 id="penetration-schedule-heading" data-i18n="Firestopping Schedule">Firestopping Schedule</h2><span id="penetration-status" class="status-label calculator-status" role="status" data-i18n="Ready">Ready</span></div>
@@ -297,6 +297,16 @@ SOFTWARE. -->
               <div class="penetration-row-tools"><button id="penetration-add" type="button" class="button primary icon-only penetration-new-item-action" aria-label="Add new item" title="Add new item" data-i18n-title="Add new item" data-i18n-aria-label="Add new item"><span class="button-symbol" aria-hidden="true">+</span></button><button id="penetration-undo" type="button" class="button secondary icon-only" disabled aria-label="Undo remove" title="Undo remove" data-i18n-title="Undo remove" data-i18n-aria-label="Undo remove"><span class="button-symbol" aria-hidden="true">↶</span><span class="sr-only" data-i18n="Undo remove">Undo remove</span></button><span id="penetration-row-count" class="helper"></span></div>
             </section>
           </div>
+          </section>
+          <section id="main-panel-firestopping-breakdown" class="card main-section-panel firestopping-breakdown" data-main-section="firestopping-breakdown" data-main-section-title="Firestopping Breakdown" hidden>
+            <div class="section-heading"><h2 data-i18n="Firestopping Breakdown">Firestopping Breakdown</h2></div>
+            <div id="penetration-main-schedule-message" class="message" role="status" hidden></div>
+            <div id="penetration-main-schedule-breakdown" aria-label="Firestopping schedule breakdown" data-i18n-aria-label="Firestopping schedule breakdown"></div>
+            <section class="penetration-schedule-summary-section" aria-labelledby="penetration-main-schedule-summary-heading">
+              <h3 id="penetration-main-schedule-summary-heading" data-i18n="Summary">Summary</h3>
+              <dl id="penetration-main-schedule-summary" class="cost-list" aria-labelledby="penetration-main-schedule-summary-heading"></dl>
+              <p id="penetration-main-schedule-summary-notes" class="helper"></p>
+            </section>
           </section>
           <section id="main-panel-material-breakdown" class="card main-section-panel material-breakdown-section" data-main-section="material-breakdown" aria-labelledby="breakdown-heading"><div class="section-heading"><h2 id="breakdown-heading" data-i18n="Material Breakdown">Material Breakdown</h2></div><div class="table-scroll"><table><thead><tr><th scope="col" data-i18n="Material">Material</th><th scope="col" class="numeric" data-i18n="Quantity">Quantity</th><th scope="col" class="numeric" data-i18n="Unit sell rate">Unit sell rate</th><th scope="col" class="numeric" data-i18n="Total">Total</th><th scope="col" class="numeric" data-i18n="Labour days">Labour days</th></tr></thead><tbody id="material-results"><tr><td colspan="5" data-i18n="Calculating…">Calculating…</td></tr></tbody></table></div></section>
           <section id="main-panel-labour-breakdown" class="main-section-panel" data-main-section="labour-breakdown" data-main-section-title="Labour Breakdown">

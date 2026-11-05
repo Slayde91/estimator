@@ -621,7 +621,8 @@
 
   function mainSectionPanels(group = "input") {
     if (group === "output") return [$("main-panel-material-breakdown"),
-      $("main-panel-labour-breakdown")].filter(section => section?.dataset.mainSection);
+      $("main-panel-labour-breakdown"), $("main-panel-firestopping-schedule"),
+      $("main-panel-firestopping-breakdown")].filter(section => section?.dataset.mainSection);
     const cards = id => [...$(id).children].filter(section => section.dataset.mainSection);
     return [...cards("input-sections"), $("main-panel-materials"), ...cards("post-material-input-sections"),
       ...cards("adjustment-sections")].filter(section => section?.dataset.mainSection);

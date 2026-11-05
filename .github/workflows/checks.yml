@@ -128,6 +128,7 @@ jobs:
       - run: node tests/browser/project_status.cjs
       - run: node tests/browser/project_estimates.cjs
       - run: node tests/browser/commercial_documents.cjs
+      - run: node tests/browser/commercial_scope_preview.cjs
       - run: node tests/browser/project_documentation.cjs
       - run: node tests/browser/pricing_manufacturers.cjs
       - run: node tests/browser/certification_defaults.cjs

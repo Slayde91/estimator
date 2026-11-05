@@ -24,8 +24,17 @@ displayed Grand Total, rounded to two decimal places. Quantity times unit price
 produces each line total. GST defaults to 10 percent, matching the supplied
 quotation. Source fingerprints include the estimate name and canonical input
 snapshot. Issuance rejects changed sources until the quote is saved again.
-The generated quote contains the original Full Schedule PDFs between its summary
-and allowances, followed by totals and editable Terms and Conditions.
+Quote scope tables reuse the Full Schedule column and cell projections. Quote
+PDFs use A4 portrait schedules with wide tables divided into column groups and
+repeated item identities. Schedule diagrams and report links remain attached to
+their items. The existing standalone report builders retain their default page
+formats. Schedules appear between the quote summary and allowances, followed by
+totals and editable Terms and Conditions. Clause labels and definition names are
+emphasised during PDF rendering, including for previously saved terms.
+
+Estimate Outputs includes the Firestopping Schedule and Firestopping Breakdown
+tabs. They use the current estimate's shared Firestopping state and existing
+renderers, with independent tab selection in each workspace.
 
 Rich text uses a restricted formatting vocabulary. Company details and ABN come
 from Settings. Default terms are copied from the supplied quotation. Commercial

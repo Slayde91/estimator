@@ -372,7 +372,8 @@
     if (state.dirty && !window.confirm("Discard the unsaved document changes?")) return;
     state.editor = {
       document: copy(document),
-      pendingIssue: null
+      pendingIssue: null,
+      generatedScope: null
     };
     state.dirty = false;
     const host = shell(names[state.kind]),
@@ -480,7 +481,10 @@
       }));
       fields.scope_tables = derived.scope_tables;
       fields.sources = derived.sources;
-      if (!fields.scope) fields.scope = derived.scope;
+      if (!fields.scope || fields.scope === editor.generatedScope) fields.scope = derived.scope;
+      editor.generatedScope = derived.scope;
+      const preamble = root()?.querySelector('.commercial-rich-input[aria-label="Scope preamble"]');
+      if (preamble && fields.scope === derived.scope) preamble.innerHTML = derived.scope;
       markDirty();
       renderEstimateOptions();
       renderLines();

@@ -86,6 +86,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await quote.getByRole('checkbox',{name:'Additional scope',exact:true}).check();
   await expect(quote.locator('.commercial-lines tbody tr')).toHaveCount(2);
   await expect(quote.locator('.commercial-message')).toBeHidden();
+  await expect(quote.getByRole('textbox',{name:'Scope preamble',exact:true})).toContainText('Additional scope');
   const prices=await quote.locator('.commercial-lines input[readonly]').evaluateAll(inputs=>inputs.map(input=>Number(input.value)));
   assert.deepEqual(prices,seeded.prices);
   await quote.getByLabel('Document title',{exact:true}).fill('QA quotation');

@@ -919,7 +919,9 @@ class ProjectLibrary:
                 snapshot = json.loads(payload.decode('utf-8-sig'))
                 from .certification_projects import validate_manifest
                 manifest = snapshot.get('certifications')
-                if not isinstance(manifest, dict) or validate_manifest(manifest)['project_id'] != project_id:
+                if not isinstance(manifest, dict):
+                    raise ValidationError('Save the current project before downloading its commercial documents.')
+                if validate_manifest(manifest)['project_id'] != project_id:
                     raise ValidationError('The document workspace belongs to a different project. Save or reload this project before downloading.')
             return DownloadDestination(_directory(Path(selection.path).parent), 'project')
 

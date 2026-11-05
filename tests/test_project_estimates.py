@@ -108,6 +108,11 @@ class ProjectEstimatesTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, 'different project'):
             self.library.capture_download(request, project_id='22222222-2222-4222-8222-222222222222')
         self.library.capture_download(request)
+        del snapshot['certifications']
+        self.path.write_text(json.dumps(snapshot), encoding='utf-8')
+        legacy = self.library.load(listed['id'])['file']
+        with self.assertRaisesRegex(ValidationError, 'Save the current project before downloading'):
+            self.library.capture_download({'project_token':legacy['save_token']}, project_id=project_id)
 
     def test_inactive_estimate_cannot_lose_its_firestopping_composer(self):
         from estimator.penetration_calculator import definition

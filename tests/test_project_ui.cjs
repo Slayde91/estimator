@@ -1099,6 +1099,48 @@ async function penetrationCheck(name, fn) {
     await h.app.saveProject(saveAs);assert.deepEqual(paths,['/api/configuration/preview',saveAs?'/api/project/save-as':'/api/project/save']);assert.equal(saved.estimate.configuration.rates.local.price,67.123456789);
     assert.deepEqual(copy(h.app.state.configuration),shared);assert.deepEqual(copy(h.app.state.libraryDraft),shared);assert.equal(h.app.state.quoteConfiguration.rates.local.price,67.123456789);assert.equal(h.app.state.pricingScope,'project');assert.equal(h.app.projectPricingChanged(),false);assert.match(h.byId('app-message').textContent,/saved for this project only/);
   });
+  await check('Read-only estimate capture uses applied prices without choosing or mutating conflicting pricing drafts', async h => {
+    await h.bridgeApi.completeProjectSnapshot();
+    h.app.state.draft.rates.local.price = 55;
+    h.app.switchPricingScope('project');
+    h.app.state.draft.rates.frozen.price = 99;
+    const before = h.snapshot(), drafts = copy([h.app.state.libraryDraft, h.app.state.projectPricingDraft]);
+    const estimates = copy(h.app.state.projectEstimates), paths = [];
+    h.app.setRequest(async (path, options) => {
+      paths.push(path);
+      const body = JSON.parse(options.body);
+      if (path === '/api/configuration/preview') return {configuration:body.configuration, fields:copy(h.app.state.fields)};
+      assert.equal(path, '/api/project/estimate/prepare');
+      return {...body, fields:copy(h.app.state.fields)};
+    });
+    const preview = await h.context.window.CeasefireEstimates.capture({readOnly:true});
+    assert.equal(!!h.byId('discard-dialog').open, false);
+    assert.deepEqual(paths, ['/api/project/estimate/prepare']);
+    assert.deepEqual(copy(preview.estimates[0].workspace.estimate.configuration), before.estimate.configuration);
+    assert.deepEqual(h.snapshot(), before);
+    assert.deepEqual(copy([h.app.state.libraryDraft, h.app.state.projectPricingDraft]), drafts);
+    assert.deepEqual(copy(h.app.state.projectEstimates), estimates);
+    const normal = h.context.window.CeasefireEstimates.capture();
+    await flush();
+    assert.equal(h.byId('discard-dialog').open, true);
+    assert.equal(paths.length, 1);
+    await h.byId('discard-dialog').close('confirm');
+    const selected = await normal;
+    assert.equal(selected.estimates[0].workspace.estimate.configuration.rates.frozen.price, 99);
+    assert.deepEqual(paths, ['/api/project/estimate/prepare', '/api/configuration/preview', '/api/project/estimate/prepare']);
+    assert.deepEqual(h.snapshot(), before);
+    assert.deepEqual(copy([h.app.state.libraryDraft, h.app.state.projectPricingDraft]), drafts);
+  });
+  await check('Read-only estimate capture rejects edits made during server validation', async h => {
+    const pending = deferred();
+    h.app.setRequest(async path => {assert.equal(path, '/api/project/estimate/prepare'); return pending.promise;});
+    const captured = h.context.window.CeasefireEstimates.capture({readOnly:true});
+    await flush();
+    h.app.state.inputs.B15 = 456;
+    pending.resolve({});
+    await assert.rejects(captured, /estimate changed during validation/);
+    assert.equal(h.app.state.inputs.B15, 456);
+  });
   for(const choice of ['confirm','library','cancel']) await check(`Conflicting pricing drafts require an explicit project save choice: ${choice}`, async h=>{
     h.app.state.draft.rates.local.price=55;h.app.switchPricingScope('project');h.app.state.draft.rates.frozen.price=99;const before=h.snapshot(),paths=[];let saved;
     h.app.setRequest(async(path,options)=>{paths.push(path);const body=JSON.parse(options.body);if(path==='/api/configuration/preview')return{configuration:body.configuration,fields:copy(h.app.state.fields)};saved=body;return{file:{path:'C:/estimates/prices.cf.json'},project:{...project(),estimate:body.estimate,calculators:body.calculators}};});

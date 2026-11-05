@@ -2020,11 +2020,11 @@
     for (const id of ["project-estimate-select", "project-estimate-new", "project-estimate-rename"]) $(id).disabled = state.projectBusy;
   }
 
-  async function captureCurrentEstimate() {
+  async function captureCurrentEstimate({ readOnly = false } = {}) {
     document.activeElement?.blur?.();
     if (inputProblem()) throw new Error(inputProblem());
     const context = state.quoteContext, target = state.projectFile;
-    const pricing = await previewSavePricing(), pricingRevision = savePricingStamp();
+    const pricing = readOnly ? undefined : await previewSavePricing(), pricingRevision = savePricingStamp();
     const [calculators, penetration] = await Promise.all([window.CeasefireCalculators.completeProjectSnapshot(), window.CeasefirePenetrations?.completeProjectSnapshot()]);
     const libraryDrafts = await window.CeasefireLibraryEditor?.completeProjectSnapshot?.();
     const takeoffs = await window.CeasefireTakeoffs?.completeProjectSnapshot();
@@ -2121,7 +2121,7 @@
   }
 
   window.CeasefireEstimates = {list:() => state.projectEstimates.map(({id,name}) => ({id,name})), activeId:() => state.activeEstimateId, select:selectEstimate,
-    async capture() {if (state.projectBusy) throw new Error("Finish the current project operation first."); return estimateCollectionWith(await captureCurrentEstimate());}};
+    async capture(options) {if (state.projectBusy) throw new Error("Finish the current project operation first."); return estimateCollectionWith(await captureCurrentEstimate(options));}};
 
   function projectEstimate() {
     const payload = reportPayload(); delete payload.source_quote_id; delete payload.penetration; return payload;

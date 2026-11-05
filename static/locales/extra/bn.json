@@ -1654,6 +1654,7 @@
   "Quantity unavailable": "পরিমাণ পাওয়া যাচ্ছে না",
   "Quantity: enter a positive whole number.": "পরিমাণ: একটি ধনাত্মক পূর্ণসংখ্যা দিন।",
   "Quantity: {0}": "পরিমাণ: {0}",
+  "Quote": "কোটেশন",
   "Quote combines materials, labour, access, travel and adjustments. The summary updates after valid changes. Choose a section tab to edit or audit its values.": "কোটেশনে উপকরণ, শ্রম, প্রবেশসুবিধা, যাতায়াত ও সমন্বয় একত্র হয়। বৈধ পরিবর্তনের পরে সারাংশ হালনাগাদ হয়। মান সম্পাদনা বা নিরীক্ষার জন্য বিভাগের ট্যাব বেছে নিন।",
   "Quote name Generated automatically": "কোটেশনের নাম স্বয়ংক্রিয়ভাবে তৈরি",
   "Quote was not saved. {0}": "কোটেশন সংরক্ষিত হয়নি। {0}",

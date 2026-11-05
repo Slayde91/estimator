@@ -1654,6 +1654,7 @@
   "Quantity unavailable": "Quantité indisponible",
   "Quantity: enter a positive whole number.": "Quantité : saisissez un entier positif.",
   "Quantity: {0}": "Quantité : {0}",
+  "Quote": "Devis",
   "Quote combines materials, labour, access, travel and adjustments. The summary updates after valid changes. Choose a section tab to edit or audit its values.": "Le devis combine matériaux, main-d’œuvre, accès, déplacements et ajustements. Le récapitulatif se met à jour après les modifications valides. Choisissez un onglet pour modifier ou vérifier ses valeurs.",
   "Quote name Generated automatically": "Nom du devis Généré automatiquement",
   "Quote was not saved. {0}": "Le devis n’a pas été enregistré. {0}",

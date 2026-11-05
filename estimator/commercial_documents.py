@@ -112,6 +112,74 @@ def validate_rich_text(value, label='Rich text'):
     return ''.join(parser.output)
 
 
+class _TermsFormatting(HTMLParser):
+    """Emphasise clause labels and definition names without changing the wording."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.output = []
+        self.block = []
+        self.bold_depth = 0
+        self.definitions = False
+
+    def flush(self):
+        text = ''.join(value for kind, value, _ in self.block if kind == 'text')
+        heading = re.match(r'^\s*\d+\.\s+(\w+)', text)
+        if heading:
+            self.definitions = heading[1] == 'Definitions'
+        ranges = []
+        label = re.match(r'^\s*(\d+(?:\.\d+)*\.?)(?=\s)', text)
+        if label:
+            ranges.append(label.span(1))
+        ranges.extend(match.span() for match in re.finditer(r'(?<!\S)\((?:[a-z]|\d+)\)(?=\s)', text))
+        if self.definitions:
+            ranges.extend(match.span(1) for match in re.finditer(
+                r'(?:^|(?<=\. ))([A-Z][A-Za-z ]+?) (?=means\b|has the meaning\b|refers to\b)', text))
+        ranges.sort()
+        offset = 0
+        for kind, value, bold in self.block:
+            if kind == 'markup':
+                self.output.append(value)
+                continue
+            end = offset + len(value)
+            position = 0
+            for start, stop in ranges:
+                if bold or stop <= offset or start >= end:
+                    continue
+                left, right = max(start - offset, 0), min(stop - offset, len(value))
+                self.output.append(escape(value[position:left], quote=False))
+                self.output.append('<b>' + escape(value[left:right], quote=False) + '</b>')
+                position = right
+            self.output.append(escape(value[position:], quote=False))
+            offset = end
+        self.block = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag in {'p', 'div', 'li', 'br', 'ul', 'ol'}:
+            self.flush()
+        self.block.append(('markup', '<' + tag + '>', False))
+        if tag in {'b', 'strong'}:
+            self.bold_depth += 1
+
+    def handle_endtag(self, tag):
+        self.block.append(('markup', '</' + tag + '>', False))
+        if tag in {'b', 'strong'}:
+            self.bold_depth -= 1
+        if tag in {'p', 'div', 'li', 'ul', 'ol'}:
+            self.flush()
+
+    def handle_data(self, data):
+        self.block.append(('text', data, self.bold_depth > 0))
+
+
+def format_terms(value):
+    parser = _TermsFormatting()
+    parser.feed(validate_rich_text(value, 'Terms and Conditions'))
+    parser.close()
+    parser.flush()
+    return ''.join(parser.output)
+
+
 def default_terms(company=None):
     company = company or COMPANY_DEFAULTS
     source = (Path(__file__).resolve().parent.parent / 'data' / 'commercial-quote-terms.txt').read_text(encoding='utf-8-sig')
@@ -124,7 +192,8 @@ def default_terms(company=None):
         if not line:
             continue
         if (not paragraphs or paragraphs[-1] in {'TERMS OF TRADE', 'Our Disclosures:'}
-                or re.match(r'^(?:\d+\.|\([a-z]\)|TERMS OF TRADE|Our Disclosures:|subject to your|additional charges|[A-Z][A-Za-z ]+ (?:means|has the meaning))', line)):
+                or re.fullmatch(r'\d+\. [A-Za-z /&]+', paragraphs[-1])
+                or re.match(r'^(?:\d+\.|\([a-z]\)|TERMS OF TRADE|Our Disclosures:|subject to your|additional charges|[A-Z][A-Za-z ]+ (?:means|has the meaning|refers to))', line)):
             paragraphs.append(line)
         else:
             paragraphs[-1] += ' ' + line
@@ -134,7 +203,7 @@ def default_terms(company=None):
         if paragraph in {'TERMS OF TRADE', 'Our Disclosures:'} or re.fullmatch(r'\d+\. [A-Za-z /&]+', paragraph):
             text = '<b>' + text + '</b>'
         result.append('<p>' + text + '</p>')
-    return ''.join(result)
+    return format_terms(''.join(result))
 
 
 def default_fields(kind, details=None, company=None):

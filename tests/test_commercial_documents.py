@@ -1,7 +1,9 @@
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+from html import unescape
 from io import BytesIO
 from pathlib import Path
+import re
 import tempfile
 import unittest
 import uuid
@@ -11,7 +13,7 @@ from reportlab.pdfgen import canvas
 
 from estimator.catalog import ValidationError
 from estimator.commercial_documents import (CommercialConflict, CommercialDocuments,
-    default_fields, default_terms, totals, validate_commercial_documents, validate_rich_text)
+    default_fields, default_terms, format_terms, totals, validate_commercial_documents, validate_rich_text)
 from estimator.commercial_pdf import render_commercial_pdf
 from estimator.company_settings import DEFAULTS
 
@@ -141,6 +143,33 @@ class CommercialTests(unittest.TestCase):
         self.assertNotIn('Ceasefire', terms)
         self.assertNotIn('ceasefire.com.au', terms)
         self.assertIn('Example Fire Pty Ltd (ABN 12 345 678 901)', terms)
+        self.assertIn('<b>1.1</b>', terms)
+        self.assertIn('<b>(a)</b>', terms)
+        self.assertIn('<b>ACL or Australian Consumer Law</b>', terms)
+        self.assertIn('<b>NACE</b> refers to', terms)
+
+    def test_terms_emphasis_preserves_existing_text_and_formats_older_quotes(self):
+        original = ('<p><strong>19.</strong> Definitions</p>'
+                    '<p><i>ACL</i> or Australian Consumer Law means A &amp; B.</p>'
+                    '<p>Moral Rights has the meaning stated. NACE refers to an institute.</p>'
+                    '<p>20. Interpretation</p><p>(a) First item (1) nested item.</p>'
+                    '<p>1.1 Keep <u>entered wording</u> and clause 7.2 references.</p>')
+        formatted = format_terms(original)
+        self.assertEqual(unescape(re.sub(r'<[^>]+>', '', formatted)),
+                         unescape(re.sub(r'<[^>]+>', '', original)))
+        self.assertEqual(format_terms(formatted), formatted)
+        self.assertIn('<b>(1)</b>', formatted)
+        self.assertIn('<b>NACE</b>', formatted)
+        self.assertIn('clause 7.2 references', formatted)
+        fields = self.payload('quote')['fields']
+        fields['terms'] = original
+        pdf = render_commercial_pdf({'kind': 'quote', 'fields': fields}, 'Q-000001', company=DEFAULTS)
+        spans = []
+        for page in PdfReader(BytesIO(pdf)).pages:
+            page.extract_text(visitor_text=lambda text, cm, tm, font, size:
+                              spans.append((text, str((font or {}).get('/BaseFont', '')))))
+        for label in ('1.1', '(a)', '(1)', 'NACE', 'Moral Rights'):
+            self.assertTrue(any(label in text and 'Bold' in font for text, font in spans), label)
 
     def test_decimal_totals_and_invalid_numbers(self):
         fields = self.payload()['fields']

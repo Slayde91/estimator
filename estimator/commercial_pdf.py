@@ -3,6 +3,7 @@ from html import escape
 from html.parser import HTMLParser
 from io import BytesIO
 from decimal import Decimal
+import re
 
 from pypdf import PdfReader, PdfWriter
 from reportlab.lib import colors
@@ -11,7 +12,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfgen import canvas
 from reportlab.platypus import LongTable, Paragraph, SimpleDocTemplate, Spacer, TableStyle
 
-from .commercial_documents import KINDS, totals, validate_fields
+from .commercial_documents import KINDS, format_terms, totals, validate_fields
 from .company_settings import company_logo
 from .report import _company_header, _register_fonts
 
@@ -82,11 +83,17 @@ def _paragraph(text, style):
     return Paragraph(escape(str(text or ''), quote=False).replace('\n', '<br/>'), style)
 
 
-def _rich(text, style):
+def _rich(text, style, *, keep_headings=False):
     parser = _Paragraphs()
     parser.feed(text)
     parser.flush()
-    return [Paragraph(item, style) for item in parser.paragraphs if item.strip()]
+    paragraphs = [Paragraph(item, style) for item in parser.paragraphs if item.strip()]
+    if keep_headings:
+        for paragraph in paragraphs:
+            plain = paragraph.getPlainText()
+            if plain in {'TERMS OF TRADE', 'Our Disclosures:'} or re.fullmatch(r'\d+\. [A-Za-z /&]+', plain):
+                paragraph.keepWithNext = True
+    return paragraphs
 
 
 def _table(headers, rows, styles, widths=None):
@@ -173,7 +180,7 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None):
         reference = fields['company_reference']
         previous_company = escape(f"{reference['name']} (ABN {reference['abn']})", quote=False)
         current_company = escape(f"{company.get('name', '')} (ABN {company.get('abn', '')})", quote=False)
-        story.extend(_rich(fields['terms'].replace(previous_company, current_company), styles['terms']))
+        story.extend(_rich(format_terms(fields['terms'].replace(previous_company, current_company)), styles['terms'], keep_headings=True))
     elif kind == 'work_order':
         _section(story, 'WORK ORDER DETAILS', styles)
         _fields(story, [('Proposed start date', order['start_date']), ('Proposed end date', order['end_date']),

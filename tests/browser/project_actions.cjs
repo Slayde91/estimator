@@ -4,7 +4,7 @@ const { expect } = require('@playwright/test');
 // Choose an explicit menu destination: the main Projects button now remembers
 // whichever subsection was last opened during this app session.
 async function openProjectSection(page, section) {
-  if (!['quotes', 'scheduler', 'certification', 'documentation'].includes(section)) throw new Error('Unknown Projects section: ' + section);
+  if (!['quotes', 'quote', 'work-orders', 'purchase-orders', 'scheduler', 'certification', 'documentation'].includes(section)) throw new Error('Unknown Projects section: ' + section);
   const destination = page.locator('#view-' + section);
   if (await destination.isVisible()) return;
   await page.locator('#projects-navigation-toggle').hover();

@@ -472,9 +472,9 @@
       container.append(label);
     }
   }
-  async function capturedEstimates() {
+  async function capturedEstimates(options) {
     if (!window.CeasefireEstimates?.capture) throw new Error("The project estimate workspace is unavailable.");
-    return window.CeasefireEstimates.capture();
+    return window.CeasefireEstimates.capture(options);
   }
   async function refreshScopePreview() {
     const editor = state.editor;
@@ -485,7 +485,7 @@
       && workspace === state.workspace && workspace === currentWorkspace()
       && context === window.CeasefireProject?.runtimeContext?.();
     try {
-      const captured = await capturedEstimates();
+      const captured = await capturedEstimates({readOnly:true});
       if (!current()) return;
       const derived = await request("derive", {
         workspace_id: workspace,

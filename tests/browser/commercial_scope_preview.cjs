@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const {clickProjectControl} = require('./project_actions.cjs');
+const {chooseLibrary} = require('./section_navigation.cjs');
 const expect = baseExpect.configure({timeout:30000});
 const root = path.resolve(__dirname, '../..');
 const output = path.join(root, '.runtime/browser-qa', `commercial-scope-preview-${Date.now()}`);
@@ -108,6 +109,60 @@ path.write_bytes(export_project(store, {'estimate': {'title': 'Scope preview fix
   assert.equal(refreshed.lines[0].description, historical.fields.lines[0].description);
   assert.equal(refreshed.scope, historical.fields.scope);
   checks.push('explicit Quote Save adopts current prices and canonical scope');
+
+  const appliedPricing = await page.evaluate(() => window.CeasefireProject.configuration());
+  await quote.getByRole('button', {name:'Back to Quotes', exact:true}).click();
+  await chooseLibrary(page, 'pricing');
+  const price = page.locator('#pricing-body [data-price-field="supplier_price"]').first();
+  await page.locator('#pricing-scope').selectOption('project');
+  await expect(page.locator('#pricing-scope')).toHaveValue('project');
+  const originalProjectPrice = await price.inputValue();
+  await price.fill('123.45');
+  await price.press('Tab');
+  await page.locator('#pricing-scope').selectOption('library');
+  await expect(page.locator('#pricing-scope')).toHaveValue('library');
+  const originalLibraryPrice = await price.inputValue();
+  await price.fill('987.65');
+  await price.press('Tab');
+  await page.locator('#projects-navigation-toggle').hover();
+  await page.locator('#projects-navigation-menu [data-project-section="quote"]').click();
+  await page.getByRole('dialog', {name:'Unsaved Pricing Library', exact:true}).getByRole('button', {name:'Continue', exact:true}).click();
+  await expect(quote.locator('.commercial-board')).toBeVisible();
+  const preview = page.waitForResponse(response => response.url().endsWith('/api/commercial/derive'));
+  const pricingChoice = page.getByRole('dialog', {name:'Which prices should this project save?', exact:true});
+  await quote.locator('.commercial-card-menu summary').click();
+  await quote.getByRole('button', {name:'Open / Edit', exact:true}).click();
+  const previewOutcome = await Promise.race([
+    preview.then(() => 'preview'),
+    pricingChoice.waitFor({state:'visible'}).then(() => 'pricing-choice')
+  ]);
+  assert.equal(previewOutcome, 'preview', 'Opening a scope preview must not ask which pricing draft to save');
+  await expect(quote.locator('.commercial-scope th')).toHaveText(headers);
+  await expect(pricingChoice).toBeHidden();
+  assert.deepEqual(await editorFields(), refreshed);
+  assert.deepEqual(await page.evaluate(() => window.CeasefireProject.configuration()), appliedPricing);
+  await quote.locator('.commercial-editor-actions').getByRole('button', {name:'Save', exact:true}).click();
+  await expect(pricingChoice).toBeVisible();
+  await pricingChoice.getByRole('button', {name:'Cancel save', exact:true}).click();
+  await expect(quote.locator('.commercial-message')).toContainText('Save cancelled');
+  await quote.getByRole('button', {name:'Back to Quotes', exact:true}).click();
+  await chooseLibrary(page, 'pricing');
+  await page.locator('#pricing-scope').selectOption('project');
+  await page.getByRole('dialog', {name:'Unsaved Pricing Library', exact:true}).getByRole('button', {name:'Continue', exact:true}).click();
+  await expect(page.locator('#pricing-scope')).toHaveValue('project');
+  assert.equal(Number(await price.inputValue()), 123.45);
+  await price.fill(originalProjectPrice);
+  await price.press('Tab');
+  await page.locator('#pricing-scope').selectOption('library');
+  await expect(page.locator('#pricing-scope')).toHaveValue('library');
+  assert.equal(Number(await price.inputValue()), 987.65);
+  await price.fill(originalLibraryPrice);
+  await price.press('Tab');
+  await openQuotes();
+  await quote.locator('.commercial-card-menu summary').click();
+  await quote.getByRole('button', {name:'Open / Edit', exact:true}).click();
+  await expect(quote.locator('.commercial-scope th')).toHaveText(headers);
+  checks.push('scope preview skips pricing choices and preserves both conflicting drafts; explicit Save retains its pricing-choice guard');
 
   await quote.getByRole('button', {name:'Back to Quotes', exact:true}).click();
   let release, notifyHeld, notifyDelivered;

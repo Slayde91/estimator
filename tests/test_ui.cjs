@@ -200,11 +200,13 @@ let passed=0;
   assert.equal(audit.state.draft.rates.concurrent.price,45);
   assert.match(byId('app-message').textContent,/Later edits are not included/);passed++;
 
-  // Only a selected project capability determines the download destination.
-  setup();assert.deepEqual(copy(context.window.CeasefireProject.downloadTarget()),{project_token:null});
+  // Capture browser identity for safe completion while the capability selects the destination.
+  setup();const projectContext=audit.state.quoteContext;
+  assert.deepEqual(copy(context.window.CeasefireProject.downloadTarget()),{project_token:null,project_context:projectContext,project_path:null});
   audit.state.projectFile={path:'C:/Projects/One.json',save_token:'original-target'};
   const originalTarget=context.window.CeasefireProject.downloadTarget();audit.state.projectFile={save_token:'new-target'};
-  assert.equal(originalTarget.project_token,'original-target');assert.equal(context.window.CeasefireProject.downloadTarget().project_token,'new-target');
+  assert.deepEqual(copy(originalTarget),{project_token:'original-target',project_context:projectContext,project_path:'C:/Projects/One.json'});
+  assert.equal(context.window.CeasefireProject.downloadTarget().project_token,'new-target');
   audit.state.projectFile={name:'browser-import.json'};assert.equal(context.window.CeasefireProject.downloadTarget().project_token,null);passed++;
 
   // Both draft and saved downloads retain snapshots and later edits with the common filename.

@@ -359,6 +359,7 @@ class ProjectLibrary:
     def _preserve_estimates(self, path, request):
         """Apply existing overwrite guards to the same estimate across a switch."""
         payload, _ = _read_file(path)
+        assert_project_overwrite(payload, edition=self.edition)
         if not has_project_identity(payload):
             return request
         try:

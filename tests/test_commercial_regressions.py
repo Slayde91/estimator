@@ -6,12 +6,16 @@ import tempfile
 import unittest
 import uuid
 
+from estimator.catalog import ValidationError
 from estimator.commercial_documents import CommercialDocuments, default_fields
 from estimator.commercial_http import CommercialHTTP
 from estimator.project_file import export_project
 from estimator.project_library import ProjectLibrary
 from estimator.storage import Store
-from test_commercial_documents import Projects
+if __package__:
+    from .test_commercial_documents import Projects
+else:
+    from test_commercial_documents import Projects
 
 
 class Handler:

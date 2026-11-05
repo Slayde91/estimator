@@ -71,7 +71,7 @@ vm.createContext(context);
   appSource = appSource.replace(appEnd, `
     globalThis.appAudit = {state, saveProject, loadProject, openNativeProject, newQuote, projectStamp, saveQuote, openQuote, calculate, reportPayload, projectEstimate, downloadFullReport,
       applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,openProjectBrowser,loadProjectFiles,openProjectFolderFile,closeProjectBrowser,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,requestViewNavigation,requestProjectsNavigation,requestCalculatorNavigation,uploadProjectFiles,reviewDesktopClose,
-      renderInputs, selectMainSection, changeProjectStage, changeCurrentProjectStage, renderProjectBoard, setRequest(fn) { request = fn; }};
+      renderInputs, selectMainSection, changeProjectStage, changeCurrentProjectStage, renderProjectBoard, renameProjectEstimate, addProjectEstimate, selectEstimate, setRequest(fn) { request = fn; }};
   })();`);
   vm.runInContext(appSource, context);
   const app = context.appAudit, calc = context.calcAudit, bridgeApi = context.window.CeasefireCalculators;
@@ -864,6 +864,29 @@ async function penetrationCheck(name, fn) {
     h.app.state.projectFile={...file,revision:'older'};h.app.state.projectStatus='Draft';
     await h.app.changeProjectStage(file,'Review');
     assert.equal(h.app.state.projectFile.revision,'older');assert.equal(h.app.state.projectStatus,'Draft');
+  });
+  await check('Estimate rename stays busy through the deferred native dialog close event', async h => {
+    const secondId='estimate-'+'2'.repeat(32);
+    h.app.state.projectEstimates.push({id:secondId,name:'Second',workspace:project()});
+    const original=h.app.projectStamp();
+    const renaming=h.app.renameProjectEstimate();await flush();
+    const dialog=h.byId('project-estimate-dialog');assert.equal(dialog.open,true);
+    h.byId('project-estimate-name').value='Renamed estimate';
+    dialog.open=false;dialog.returnValue='save';
+    assert.equal(h.app.state.projectBusy,true,'Native dialog closure must not expose an idle app before its name is committed');
+    assert.equal(h.app.projectStamp(),original);
+    const requests=h.calls.length;await h.app.selectEstimate(secondId);
+    assert.equal(h.calls.length,requests);assert.equal(h.app.state.activeEstimateId,'estimate-1');
+    await dialog.emit('close');await renaming;
+    assert.equal(h.app.state.projectEstimates[0].name,'Renamed estimate');
+    assert.equal(h.app.state.projectBusy,false);
+  });
+  await check('Cancelled new-estimate naming keeps all drafts and clears its busy guard', async h => {
+    const original=h.app.projectStamp();
+    const naming=h.app.addProjectEstimate();await flush();
+    assert.equal(h.app.state.projectBusy,true);
+    await h.byId('project-estimate-dialog').close('cancel');await naming;
+    assert.equal(h.app.projectStamp(),original);assert.equal(h.app.state.projectBusy,false);
   });
   await check('Unsaved project status participates in save and replacement fingerprints', async h => {
     const before=h.app.projectStamp();h.byId('project-status').value='Accepted';

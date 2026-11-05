@@ -2086,10 +2086,10 @@
   async function addProjectEstimate() {
     if (state.projectBusy || coverReplacementPending()) return;
     if (state.projectEstimates.length >= 50) {message("A project supports up to 50 estimates.", true); return;}
-    const stamp = projectStamp(), name = await estimateName("New estimate", `Estimate ${state.projectEstimates.length + 1}`);
-    if (!name || stamp !== projectStamp()) return;
     projectBusy(true);
     try {
+      const stamp = projectStamp(), name = await estimateName("New estimate", `Estimate ${state.projectEstimates.length + 1}`);
+      if (!name || stamp !== projectStamp()) return;
       const current = await captureCurrentEstimate();
       const captured = projectStamp();
       const defaults = await window.CeasefireCalculators.prepareDefaults();
@@ -2109,10 +2109,14 @@
 
   async function renameProjectEstimate() {
     if (state.projectBusy || coverReplacementPending()) return;
-    const selected = state.projectEstimates.find(entry => entry.id === state.activeEstimateId);
-    const stamp = projectStamp(), name = await estimateName("Rename estimate", selected.name);
-    if (!name || stamp !== projectStamp()) return;
-    selected.name = name; state.estimatesDirty = true; updateProjectStatus();
+    projectBusy(true);
+    try {
+      const selected = state.projectEstimates.find(entry => entry.id === state.activeEstimateId);
+      const stamp = projectStamp(), name = await estimateName("Rename estimate", selected.name);
+      if (!name || stamp !== projectStamp()) return;
+      selected.name = name; state.estimatesDirty = true; updateProjectStatus();
+    } catch (error) { message(error.message, true); }
+    finally { projectBusy(false); }
   }
 
   window.CeasefireEstimates = {list:() => state.projectEstimates.map(({id,name}) => ({id,name})), activeId:() => state.activeEstimateId, select:selectEstimate,

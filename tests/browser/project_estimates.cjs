@@ -41,6 +41,7 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   assert.equal(await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot().documents[0].id),firstDrawing);
   await page.locator('#project-estimate-rename').click();await page.locator('#project-estimate-name').fill('Original');
   await page.locator('#project-estimate-dialog').getByRole('button',{name:'Save',exact:true}).click();await idle();
+  await expect(page.locator('#project-estimate-select option[value="estimate-1"]')).toHaveText('Original');
   await page.locator('#project-estimate-select').selectOption(second);await idle();
   await expect(page.locator('#measurements')).toHaveValue('Second estimate notes');await save();
   let saved=JSON.parse(fs.readFileSync(info.project));assert.equal(saved.estimates.length,2);assert.equal(saved.active_estimate_id,second);

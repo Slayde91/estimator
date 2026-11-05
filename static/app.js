@@ -1042,6 +1042,7 @@
     closeNavigationMenus({ estimate: "estimate-navigation", calculators: "calculator-navigation", pricing: "library-navigation", takeoffs: "takeoff-navigation" }[view]);
     document.body.classList.toggle("takeoffs-active", view === "takeoffs");
     clearTimeout(state.projectsTimer); ++state.projectsRevision;
+    $("project-list").setAttribute("aria-busy", "false");
     for (const section of document.querySelectorAll(".view")) section.hidden = section.id !== `view-${view}`;
     window.CeasefirePlay?.setVisible(view === "play");
     for (const button of document.querySelectorAll("[data-view]")) {

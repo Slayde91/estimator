@@ -836,6 +836,13 @@ async function penetrationCheck(name, fn) {
     assert.deepEqual(calls,['/api/projects']);const html=fs.readFileSync('static/index.html','utf8');
     assert.ok(!html.includes('Older estimate-only saves'));assert.ok(!html.includes('id="quote-list"'));
   });
+  await check('Leaving Projects clears a superseded scan busy indicator', async h => {
+    const pending=deferred();h.app.setRequest(()=>pending.promise);
+    const loading=h.app.loadProjects();assert.equal(h.byId('project-list').getAttribute('aria-busy'),'true');
+    h.app.showView('home');assert.equal(h.byId('project-list').getAttribute('aria-busy'),'false');
+    pending.resolve({files:[],errors:[]});await loading;
+    assert.equal(h.byId('project-list').getAttribute('aria-busy'),'false');
+  });
   await check('Kanban fetches all project pages and ignores obsolete page offsets', async h => {
     const paths=[];h.app.setRequest(async path=>{paths.push(path);return {folder:'C:/estimates',files:[{id:paths.length===1?'first':'second',name:'Quote.cf.json',project_status:paths.length===1?'Draft':'Review',modified_at:'2026-09-17T00:00:00Z'}],total:2,matched:2,scan_pending:false,errors:[]};});
     await h.app.loadProjects({offset:200});assert.deepEqual(paths,['/api/projects','/api/projects?offset=1']);

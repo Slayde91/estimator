@@ -24,7 +24,7 @@ server.stderr.on('data',value=>{ logs+=value; });
 const ready = new Promise((resolve,reject)=>{ let text='';const timer=setTimeout(()=>reject(new Error(`Fixture startup timeout: ${logs}`)),120000);
   server.stdout.on('data',value=>{text+=value;if(text.includes('\n')){clearTimeout(timer);try{resolve(JSON.parse(text.split('\n')[0]));}catch(error){reject(error);}}});
   server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(new Error(`Fixture exited ${code}: ${logs}`));}); });
-const errors=[], evidence={exports:[],menus:[],checks:[]};
+const errors=[], pendingRequests=new Map(), evidence={exports:[],menus:[],checks:[]};
 async function idle(){await expect.poll(()=>page.evaluate(()=>window.CeasefireActivity.active),{timeout:60000}).toBe(false);await settingsSettled(page);}
 async function snapshot(){await idle();return page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot());}
 async function command(op, values={}){
@@ -55,6 +55,7 @@ async function zoomTo(target, metadata){
   assert.ok(Math.abs(await actual()-target)<1e-8,'Native Ctrl+wheel installs the requested displayed zoom');
 }
 async function download(kind, label, scope, held=false){
+  evidence.currentExport={kind,scope,stage:'starting'};
   const before=await snapshot(), pending=waitForTakeoffDownload(page);
   const menu=page.locator('.takeoff-workspace-heading').getByRole('button',{name:scope.startsWith('physical-')?'Document':'Takeoff register document actions',exact:true});
   await menu.click();const control=page.getByRole('button',{name:label,exact:true});
@@ -72,20 +73,31 @@ async function download(kind, label, scope, held=false){
       const progress=page.locator('.takeoff-workspace-heading .document-download-progress progress');await expect(progress).toBeVisible();
       assert.ok(await progress.evaluate(el=>el.value)<100,'UI100 requires receipt delivery, even after server file save');
       release();await Promise.all(tasks);
+      // Keep interception installed through receipt processing and its
+      // Documentation refresh, then tear it down after the browser is idle.
+      evidence.currentExport.stage='waiting for held export finalizers';
+      await idle();
     }finally{
       release();await Promise.allSettled(tasks);await page.unroute('**/export/markup-pdf',holdRoute);
     }
   }else await control.click();
   const result=await pending, request=result.response.request().postDataJSON();assert.equal(request.kind,kind);
+  evidence.currentExport.stage='receipt received';
   assert.ok(path.resolve(result.receipt.path).startsWith(path.resolve(output)+path.sep),'All actual native files stay in the disposable fixture');
   const file=path.join(output,`${scope}-${kind}.pdf`);await result.saveAs(file);const content=await inspect(file);
   assert.equal(content.annots,false);assert.equal(content.actions,false);
+  evidence.currentExport.stage='waiting for export finalizers';
   assert.deepEqual(await snapshot(),before,'PDF download preserves exact source, markups, precision, confirmation and audit identities');
+  evidence.currentExport.stage='finished';
   const parsed={scope,kind,path:file,sha256:hash(file),receipt:result.receipt,request,content};evidence.exports.push(parsed);return parsed;
 }
 (async()=>{try{
   info=await ready;origin=`http://127.0.0.1:${info.port}`;evidence.port=info.port;
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1384,height:1000}});page.setDefaultTimeout(30000);
+  page.on('request',request=>pendingRequests.set(request,{method:request.method(),url:request.url(),started:Date.now()}));
+  page.on('response',response=>{const value=pendingRequests.get(response.request());if(value)value.status=response.status();});
+  page.on('requestfinished',request=>pendingRequests.delete(request));
+  page.on('requestfailed',request=>pendingRequests.delete(request));
   page.on('pageerror',error=>errors.push(error.message));
   await page.addInitScript(()=>{window.__markupDownloadCsp=[];document.addEventListener('securitypolicyviolation',event=>window.__markupDownloadCsp.push({directive:event.effectiveDirective,blocked:event.blockedURI}));});await page.goto(origin);
   await chooseTakeoff(page,'Steel');await renderDrawing(page,()=>page.locator('#takeoff-upload').setInputFiles(info.fixture),1);await idle();
@@ -188,5 +200,13 @@ async function download(kind, label, scope, held=false){
   assert.equal(hash(info.project),projectHash);assert.equal(hash(info.fixture),originalHash);
   assert.deepEqual(errors,[]);const afterHashes=Object.fromEntries(sourceFiles.map(file=>[file,hash(path.join(root,file))]));assert.deepEqual(afterHashes,beforeHashes);
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,errors,evidence,source_before:beforeHashes,source_after:afterHashes,test_sha:hash(__filename)},null,2));console.log(`Markup downloads browser acceptance passed: ${output}`);
-}catch(error){if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});const afterHashes=Object.fromEntries(sourceFiles.map(file=>[file,hash(path.join(root,file))]));fs.writeFileSync(path.join(output,'failure.json'),JSON.stringify({error:String(error.stack||error),errors,evidence,source_before:beforeHashes,source_after:afterHashes,test_sha:hash(__filename)},null,2));console.error(error);process.exitCode=1;
+}catch(error){
+  if(page){
+    evidence.activity=await page.evaluate(()=>({active:window.CeasefireActivity?.active,
+      modules:Object.fromEntries(['CeasefireProject','CeasefireDownloads','CeasefireDocumentation','CeasefireCalculators','CeasefirePenetrations','CeasefireTakeoffs','CeasefireCertification','CeasefireCommercial'].map(name=>[name,window[name]?.hasPendingOperation?.()])),
+      takeoffBusy:document.querySelector('#takeoffs-workspace')?.getAttribute('aria-busy')})).catch(()=>null);
+    evidence.pendingRequests=[...pendingRequests.values()].map(request=>({...request,elapsed:Date.now()-request.started}));
+    await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});
+  }
+  const afterHashes=Object.fromEntries(sourceFiles.map(file=>[file,hash(path.join(root,file))]));fs.writeFileSync(path.join(output,'failure.json'),JSON.stringify({error:String(error.stack||error),errors,evidence,source_before:beforeHashes,source_after:afterHashes,test_sha:hash(__filename)},null,2));console.error(error);process.exitCode=1;
 }finally{fs.writeFileSync(path.join(output,'server.log'),logs);await browser?.close();server.kill();}})();

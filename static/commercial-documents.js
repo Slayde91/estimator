@@ -392,7 +392,9 @@
     state.editor = {
       document: copy(document),
       pendingIssue: null,
-      generatedScope: null
+      generatedScope: null,
+      scopeTables: copy(document.fields.scope_tables || []),
+      scopeRevision: 0
     };
     state.dirty = false;
     const host = shell(names[state.kind]),
@@ -437,6 +439,7 @@
       renderScope();
     }
     renderLines();
+    if (state.kind === "quote" && document.version > 0) void refreshScopePreview();
   }
   function renderOrderFields(form, fields) {
     const commonReview = [["approval", "Approval"], ["reviewed_by", "Reviewed by"], ["review_date", "Review date"]];
@@ -473,20 +476,47 @@
     if (!window.CeasefireEstimates?.capture) throw new Error("The project estimate workspace is unavailable.");
     return window.CeasefireEstimates.capture();
   }
+  async function refreshScopePreview() {
+    const editor = state.editor;
+    const workspace = state.workspace;
+    const context = window.CeasefireProject?.runtimeContext?.();
+    const revision = ++editor.scopeRevision;
+    const current = () => editor === state.editor && revision === editor.scopeRevision
+      && workspace === state.workspace && workspace === currentWorkspace()
+      && context === window.CeasefireProject?.runtimeContext?.();
+    try {
+      const captured = await capturedEstimates();
+      if (!current()) return;
+      const derived = await request("derive", {
+        workspace_id: workspace,
+        ...captured,
+        selected_ids: editor.document.fields.lines.map(line => line.estimate_id)
+      });
+      if (!current()) return;
+      editor.scopeTables = derived.scope_tables;
+      renderScope();
+    } catch (error) {
+      if (current()) message("The scope preview could not be refreshed. " + error.message, true);
+    }
+  }
   async function refreshEstimates(selectedIds) {
     const editor = state.editor;
     if (!editor) return;
+    const workspace = state.workspace;
+    const context = window.CeasefireProject?.runtimeContext?.();
+    ++editor.scopeRevision;
     state.busy = true;
     setDisabled(true);
     message("Updating linked estimates…");
     try {
       const captured = await capturedEstimates();
+      if (editor !== state.editor || workspace !== state.workspace || context !== window.CeasefireProject?.runtimeContext?.()) return;
       const derived = await request("derive", {
-        workspace_id: state.workspace,
+        workspace_id: workspace,
         ...captured,
         selected_ids: selectedIds
       });
-      if (editor !== state.editor) return;
+      if (editor !== state.editor || workspace !== state.workspace || workspace !== currentWorkspace() || context !== window.CeasefireProject?.runtimeContext?.()) return;
       const fields = editor.document.fields,
         previous = new Map(fields.lines.map(line => [line.estimate_id, line]));
       fields.lines = derived.lines.map(line => ({
@@ -499,6 +529,7 @@
         } : {})
       }));
       fields.scope_tables = derived.scope_tables;
+      editor.scopeTables = derived.scope_tables;
       fields.sources = derived.sources;
       if (!fields.scope || fields.scope === editor.generatedScope) fields.scope = derived.scope;
       editor.generatedScope = derived.scope;
@@ -591,7 +622,7 @@
     if (!host) return;
     host.replaceChildren(node("h2", "", "Scope of Works"));
     host.append(node("p", "helper", "The PDF includes the complete Full Schedule for every selected estimate."));
-    for (const scope of state.editor.document.fields.scope_tables) {
+    for (const scope of state.editor.scopeTables) {
       const details = node("details"),
         table = node("table"),
         head = node("thead"),
@@ -636,7 +667,9 @@
   }
   function adoptSaved(saved) {
     const fields = state.editor.document.fields;
+    ++state.editor.scopeRevision;
     Object.assign(fields, saved.fields);
+    state.editor.scopeTables = copy(fields.scope_tables || []);
     Object.assign(state.editor.document, saved, {
       fields
     });

@@ -1,0 +1,59 @@
+const {chromium, expect} = require('@playwright/test');
+const {spawn} = require('node:child_process');
+const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
+const {chooseTakeoff} = require('./section_navigation.cjs');
+const {renderDrawing} = require('./viewer_helpers.cjs');
+const {clickProjectControl} = require('./project_actions.cjs');
+const root = path.resolve(__dirname,'../..');
+const output = path.join(root,'.runtime/browser-qa',`project-estimates-${Date.now()}`);
+fs.mkdirSync(output,{recursive:true});
+const server = spawn(process.env.CEASEFIRE_PYTHON || 'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
+let logs='',browser,page;
+server.stderr.on('data',chunk=>logs+=chunk);
+const ready = new Promise((resolve,reject)=>{
+  let data='';const timer=setTimeout(()=>reject(Error(logs || 'Fixture timeout')),120000);
+  server.stdout.on('data',chunk=>{data+=chunk;if(data.includes('\n')){clearTimeout(timer);resolve(JSON.parse(data.split('\n')[0]));}});
+  server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(Error(`Fixture exited ${code}: ${logs}`));});
+});
+const errors=[];
+async function idle(){await page.waitForFunction(()=>{const state=window.CeasefireDesktop?.status();return state?.ready&&!state.busy;});}
+async function estimate(){await page.locator('#estimate-navigation-toggle').click();await page.locator('#estimate-navigation-toggle').press('Escape');await idle();}
+async function save(){const response=page.waitForResponse(r=>/\/api\/project\/save(?:-as)?$/.test(new URL(r.url()).pathname));await clickProjectControl(page,'Save');const reply=await response;assert.equal(reply.status(),200,await reply.text());await idle();return reply.json();}
+(async()=>{
+  const info=await ready;assert.notEqual(info.port,8765);
+  browser=await chromium.launch({headless:true,...(process.env.CEASEFIRE_BROWSER_PATH?{executablePath:process.env.CEASEFIRE_BROWSER_PATH}:{})});
+  page=await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(60000);page.on('pageerror',error=>errors.push(error.message));
+  await page.goto(`http://127.0.0.1:${info.port}/`);await idle();await estimate();
+  await page.locator('#project-no').fill('MULTI');await page.locator('#measurements').fill('First estimate notes');await page.locator('#measurements').blur();await idle();
+  await chooseTakeoff(page,'Steel');await renderDrawing(page,()=>page.locator('#takeoff-upload').setInputFiles(info.fixture),1);await idle();
+  const firstSession=await page.evaluate(()=>window.CeasefireTakeoffs.sessionId());
+  const firstDrawing=await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot().documents[0].id);
+  await estimate();await save();
+  await page.locator('#project-estimate-new').click();await page.locator('#project-estimate-name').fill('Alternative');
+  await page.locator('#project-estimate-dialog').getByRole('button',{name:'Save',exact:true}).click();await idle();
+  await expect(page.locator('#project-estimate-select option')).toHaveCount(2);
+  const second=await page.locator('#project-estimate-select').inputValue();assert.notEqual(second,'estimate-1');
+  await expect(page.locator('#measurements')).toHaveValue('');
+  await page.locator('#measurements').fill('Second estimate notes');await page.locator('#measurements').blur();await idle();
+  await page.locator('#project-estimate-select').selectOption('estimate-1');await idle();
+  await expect(page.locator('#measurements')).toHaveValue('First estimate notes');
+  assert.equal(await page.evaluate(()=>window.CeasefireTakeoffs.sessionId()),firstSession);
+  assert.equal(await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot().documents[0].id),firstDrawing);
+  await page.locator('#project-estimate-rename').click();await page.locator('#project-estimate-name').fill('Original');
+  await page.locator('#project-estimate-dialog').getByRole('button',{name:'Save',exact:true}).click();await idle();
+  await page.locator('#project-estimate-select').selectOption(second);await idle();
+  await expect(page.locator('#measurements')).toHaveValue('Second estimate notes');await save();
+  let saved=JSON.parse(fs.readFileSync(info.project));assert.equal(saved.estimates.length,2);assert.equal(saved.active_estimate_id,second);
+  assert.equal(saved.estimates[0].name,'Original');assert.equal(saved.estimates[0].workspace.takeoffs.documents[0].id,firstDrawing);
+  await page.reload();await idle();await clickProjectControl(page,'Load');
+  await page.locator('#discard-dialog').getByRole('button',{name:'Load Project',exact:true}).click();await idle();
+  await expect(page.locator('#measurements')).toHaveValue('Second estimate notes');
+  await page.locator('#project-estimate-select').selectOption('estimate-1');await idle();
+  await expect(page.locator('#measurements')).toHaveValue('First estimate notes');
+  await chooseTakeoff(page,'Steel');await idle();
+  assert.equal(await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot().documents[0].id),firstDrawing);
+  await estimate();await save();
+  saved=JSON.parse(fs.readFileSync(info.project));assert.equal(saved.estimates[1].workspace.estimate.measurements,'Second estimate notes');
+  await page.screenshot({path:path.join(output,'multiple-estimates.png'),fullPage:true});assert.deepEqual(errors,[]);
+  console.log(JSON.stringify({passed:true,output,checks:['create','rename','switch keeps notes','inactive takeoff session retained','save all estimates','reload restores inactive drawings']}));
+})().catch(async error=>{console.error(error);fs.writeFileSync(path.join(output,'failure.txt'),`${error.stack}\n${logs}`);if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();server.kill();});

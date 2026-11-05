@@ -71,6 +71,11 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   await card.locator('.project-card-estimate select').selectOption(second);await idle();
   await expect(page.locator('#measurements')).toHaveValue('Second estimate notes');
   assert.equal(await page.locator('#discard-dialog').isVisible(),false);
+  await documentToggle.click();await page.locator('#estimate-open-quote').click();
+  await expect(page.locator('#view-quote')).toBeVisible();
+  await expect(page.locator('#commercial-quote-root').getByLabel('Document title',{exact:true})).toBeVisible();
+  await expect(page.locator('#commercial-quote-root').getByLabel('Project number',{exact:true})).toHaveValue('MULTI');
+  await expect(page.locator('#measurements')).toHaveValue('Second estimate notes');
   await page.screenshot({path:path.join(output,'multiple-estimates.png'),fullPage:true});assert.deepEqual(errors,[]);
   console.log(JSON.stringify({passed:true,output,checks:['create','rename','switch keeps notes','inactive takeoff session retained','save all estimates','reload restores inactive drawings']}));
 })().catch(async error=>{console.error(error);fs.writeFileSync(path.join(output,'failure.txt'),`${error.stack}\n${logs}`);if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();server.kill();});

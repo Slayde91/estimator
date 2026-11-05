@@ -1053,9 +1053,9 @@
     for (const choice of document.querySelectorAll("#projects-navigation-menu [data-project-section]")) choice.setAttribute("aria-pressed", String(choice.dataset.projectSection === view));
     if (view === "quotes") loadProjects();
     if (view === "scheduler") window.CeasefireScheduler?.activate().catch(error => message(error.message, true));
-    if (["quote", "work-orders", "purchase-orders"].includes(view)) window.CeasefireCommercial?.activate({quote:"quote", "work-orders":"work_order", "purchase-orders":"purchase_order"}[view]).catch(error => message(error.message, true));
-    if (view === "pricing") selectLibrary(state.libraryKind, librarySelection);
     let estimatorReady;
+    if (["quote", "work-orders", "purchase-orders"].includes(view)) estimatorReady = window.CeasefireCommercial?.activate({quote:"quote", "work-orders":"work_order", "purchase-orders":"purchase_order"}[view]).catch(error => message(error.message, true));
+    if (view === "pricing") selectLibrary(state.libraryKind, librarySelection);
     if (view === "settings") estimatorReady = window.CeasefireCoverSheets?.open?.()?.catch(error => message(error.message, true));
     if (view === "certification") estimatorReady = window.CeasefireCertification?.open().catch(error => message(error.message, true));
     if (view === "documentation") estimatorReady = window.CeasefireDocumentation?.open().catch(error => message(error.message, true));
@@ -2737,6 +2737,10 @@
   $("measurements").addEventListener("input", () => updateDirty());
   $("new-quote").addEventListener("click", async () => { if (await confirmLeavePricingLibrary()) newQuote(); });
   $("download-quote-pdf").addEventListener("click", () => downloadQuotePdf());
+  $("estimate-open-quote").addEventListener("click", async () => {
+    const context = state.quoteContext;
+    if (await requestViewNavigation("quote") && state.currentView === "quote" && context === state.quoteContext) await window.CeasefireCommercial?.openFromEstimate?.();
+  });
   for (const [id, label, materials] of [["download-full-schedule", "Full Schedule", false], ["download-full-product-summary", "Full Product Summary", true]]) {
     const button = node("button", "button pdf-button calculator-document-action"); button.id = id; button.type = "button";
     const icon = node("span", "download-format-icon"); icon.setAttribute("aria-hidden", "true");

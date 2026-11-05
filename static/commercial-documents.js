@@ -689,6 +689,12 @@
   }
   window.CeasefireCommercial = {
     activate,
+    async openFromEstimate() {
+      if (state.busy || state.dirty) return;
+      const workspace = currentWorkspace();
+      if (state.kind !== "quote" || state.model?.workspace_id !== workspace) await activate("quote");
+      if (workspace && workspace === currentWorkspace() && state.workspace === workspace && state.kind === "quote" && state.model?.workspace_id === workspace && !state.busy && !state.dirty) await openNew();
+    },
     completeProjectSnapshot,
     async prepareProject(value, workspace_id) {
       return {

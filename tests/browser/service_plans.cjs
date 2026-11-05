@@ -218,7 +218,7 @@ async function controls() {
   evidence.compactOriginalIconControls=await assertParentControls(page,details());
   await select(barrier);await response(()=>details().getByLabel('Status',{exact:true}).selectOption('confirmed'),'/physical/apply');await idle();await snapshot();assert.equal(entity(barrier).confirmation,'confirmed');
   for(const id of [barrier,service])await expect(row(id).locator('.takeoff-state')).toHaveText('Approved');
-  await select(service);await expect(details().getByLabel('Status',{exact:true})).toHaveCount(0);await expect(details()).toContainText('Confirmation: Confirmed — inherited from Barrier B-0001');
+  await select(service);await expect(details().getByLabel('Status',{exact:true})).toHaveCount(0);await expect(details()).toContainText('Status: Approved — inherited from Barrier B-0001');
   const priorQuantity=entity(service).quantity,priorFacts=structuredClone(entity(service).fields),priorUncertainty=structuredClone(entity(service).uncertainty);
   const reviewedSize=priorFacts.size==='125 x 80'?'130 x 80':'125 x 80';
   await response(async()=>{const size=details().getByLabel('Service Size (mm)',{exact:true});await size.fill(reviewedSize);await size.press('Tab');},'/physical/apply');await idle();await snapshot();assert.equal(entity(barrier).confirmation,'unconfirmed');assert.equal(entity(service).quantity,priorQuantity);assert.deepEqual(entity(service).uncertainty,priorUncertainty);assert.deepEqual(entity(service).fields,{...priorFacts,size:reviewedSize});assert.equal(entity(service).fields.notes,priorFacts.notes);

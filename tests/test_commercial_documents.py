@@ -57,6 +57,14 @@ class CommercialTests(unittest.TestCase):
         with self.assertRaises(CommercialConflict):
             self.store.status(self.workspace, saved['id'], saved['version'], 'Completed')
 
+    def test_delayed_create_retry_cannot_restore_a_deleted_document(self):
+        payload = self.payload()
+        saved = self.store.save(self.workspace, payload)
+        self.store.delete(self.workspace, saved['id'], saved['version'])
+        with self.assertRaises(CommercialConflict):
+            self.store.save(self.workspace, payload)
+        self.assertEqual(self.store.capture(self.workspace)['documents'], [])
+
     def test_portable_restore_ownership_and_exact_capture(self):
         saved = self.store.save(self.workspace, self.payload())
         snapshot = self.store.capture(self.workspace)

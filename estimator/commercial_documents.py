@@ -365,6 +365,8 @@ class CommercialDocuments:
                     raise CommercialConflict('This new document was already saved with different content. Reopen it before editing.')
                 if previous is None and payload.get('version') != 0:
                     raise CommercialConflict('This document is unavailable. Reopen the project.')
+                if previous is None and db.execute('SELECT 1 FROM commercial_audit WHERE workspace=? AND document_id=? LIMIT 1', (workspace, payload['id'])).fetchone():
+                    raise CommercialConflict('This document was deleted. Create a new document instead of retrying its original save.')
             if previous:
                 self._version(previous, payload.get('version'))
                 if previous['kind'] != kind:

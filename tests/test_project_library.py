@@ -1123,8 +1123,19 @@ class ProjectLibraryApiTests(unittest.TestCase):
         (parent / "Quote.cf.json").write_bytes(payload)
         (nested / "Quote.cf.json").write_bytes(payload)
         self.store.set_project_folder(parent)
-        status, response = self.request("GET", "/api/projects?search=Client%20work&sort=name_asc&offset=0&limit=1&refresh=1")
-        self.assertEqual(status, 200, response)
+        query = "/api/projects?search=Client%20work&sort=name_asc&offset=0&limit=1"
+        # Exercise partial responses deterministically. Both the entry budget
+        # and the elapsed-time budget require callers to continue the scan.
+        with patch("estimator.project_library.MAX_SCAN_ENTRIES", 1):
+            status, response = self.request("GET", query + "&refresh=1")
+            self.assertEqual(status, 200, response)
+            self.assertTrue(response["scan_pending"])
+            for _ in range(10):
+                status, response = self.request("GET", query)
+                self.assertEqual(status, 200, response)
+                if not response["scan_pending"]:
+                    break
+        self.assertFalse(response["scan_pending"], "The recursive folder scan must finish.")
         self.assertEqual((response["total"], response["matched"], len(response["files"])), (2, 1, 1))
         self.assertEqual(response["files"][0]["relative_path"], "Client work/Quote.cf.json")
         for suffix in ("?path=x", "?limit=1&limit=2", "?limit=201", "?offset=-1", "?sort=wrong", "?refresh=yes"):

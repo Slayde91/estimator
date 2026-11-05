@@ -162,11 +162,11 @@
     host.append(notice);
     return host;
   }
-  async function load() {
-    const workspace = state.workspace,
-      revision = ++state.revision;
+  async function load(revision = ++state.revision) {
+    const workspace = state.workspace;
+    const context = window.CeasefireProject?.runtimeContext?.();
     const result = await request(`state?workspace=${encodeURIComponent(workspace)}`);
-    if (revision !== state.revision || workspace !== state.workspace) return false;
+    if (revision !== state.revision || workspace !== state.workspace || workspace !== currentWorkspace() || context !== window.CeasefireProject?.runtimeContext?.()) return false;
     state.model = result;
     return true;
   }
@@ -176,24 +176,23 @@
       message("Save or discard the current document before changing pages.", true);
       return;
     }
-    const workspace = currentWorkspace();
-    if (workspace !== state.workspace) {
-      state.workspace = workspace;
-      state.model = null;
-      state.editor = null;
-      state.changed = false;
-    }
+    const revision = ++state.revision;
+    const context = window.CeasefireProject?.runtimeContext?.();
     state.kind = kind;
     if (!root()) return;
     shell(names[kind] + (kind === "quote" ? "" : "s"));
-    if (!workspace) {
-      message("Open a project to prepare its commercial documents.");
-      return;
-    }
     try {
-      if (await load()) renderBoard();
+      const workspace = currentWorkspace() || (await window.CeasefireCertification.projectWorkspace()).workspace_id;
+      if (revision !== state.revision || context !== window.CeasefireProject?.runtimeContext?.() || workspace !== currentWorkspace()) return;
+      if (workspace !== state.workspace) {
+        state.workspace = workspace;
+        state.model = null;
+        state.editor = null;
+        state.changed = false;
+      }
+      if (await load(revision)) renderBoard();
     } catch (error) {
-      message(error.message, true);
+      if (revision === state.revision && context === window.CeasefireProject?.runtimeContext?.()) message(error.message, true);
     }
   }
   function renderBoard() {
@@ -691,9 +690,10 @@
     activate,
     async openFromEstimate() {
       if (state.busy || state.dirty) return;
+      const context = window.CeasefireProject?.runtimeContext?.();
+      if (state.kind !== "quote" || state.model?.workspace_id !== currentWorkspace()) await activate("quote");
       const workspace = currentWorkspace();
-      if (state.kind !== "quote" || state.model?.workspace_id !== workspace) await activate("quote");
-      if (workspace && workspace === currentWorkspace() && state.workspace === workspace && state.kind === "quote" && state.model?.workspace_id === workspace && !state.busy && !state.dirty) await openNew();
+      if (context === window.CeasefireProject?.runtimeContext?.() && workspace && state.workspace === workspace && state.kind === "quote" && state.model?.workspace_id === workspace && !state.busy && !state.dirty) await openNew();
     },
     completeProjectSnapshot,
     async prepareProject(value, workspace_id) {

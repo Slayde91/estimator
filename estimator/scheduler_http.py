@@ -7,8 +7,8 @@ from .scheduler import SchedulerError, SchedulerStore
 
 
 class SchedulerHTTP:
-    def __init__(self, path):
-        self.store = SchedulerStore(path)
+    def __init__(self, path, projects=None):
+        self.store = SchedulerStore(path, project_lookup=projects.scheduler_project if projects is not None else None)
 
     def dispatch(self, handler, route):
         prefix = '/api/scheduler/'

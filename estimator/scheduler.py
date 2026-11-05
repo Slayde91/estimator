@@ -13,6 +13,7 @@ import hashlib
 import hmac
 import json
 import math
+import re
 from pathlib import Path
 import secrets
 import sqlite3
@@ -22,6 +23,16 @@ from zoneinfo import ZoneInfo
 
 UTC = timezone.utc
 SYDNEY = ZoneInfo('Australia/Sydney')
+DEFAULT_OVERTIME_RULES = [
+    {'id': 'daily-eight', 'name': 'Daily overtime after 8 hours', 'type': 'daily', 'days': list(range(7)), 'threshold_hours': '8', 'multiplier': '1.5', 'pay_item': 'Overtime 1.5x'},
+    {'id': 'daily-ten', 'name': 'Daily overtime after 10 hours', 'type': 'daily', 'days': list(range(7)), 'threshold_hours': '10', 'multiplier': '2', 'pay_item': 'Overtime 2x'},
+    {'id': 'saturday-first', 'name': 'Saturday first 2 hours', 'type': 'daily', 'days': [5], 'threshold_hours': '0', 'multiplier': '1.5', 'pay_item': 'Weekend 1.5x'},
+    {'id': 'saturday-later', 'name': 'Saturday after 2 hours', 'type': 'daily', 'days': [5], 'threshold_hours': '2', 'multiplier': '2', 'pay_item': 'Weekend 2x'},
+    {'id': 'sunday', 'name': 'Sunday', 'type': 'daily', 'days': [6], 'threshold_hours': '0', 'multiplier': '2', 'pay_item': 'Weekend 2x'},
+    {'id': 'afternoon', 'name': 'Afternoon shift', 'type': 'time', 'days': list(range(7)), 'start_time': '13:00', 'end_time': '15:00', 'run_late': True, 'multiplier': '1.5', 'pay_item': 'Afternoon Shift 1.5x'},
+    {'id': 'night', 'name': 'Night shift', 'type': 'time', 'days': list(range(7)), 'start_time': '15:00', 'end_time': '23:00', 'run_late': True, 'multiplier': '1.5', 'pay_item': 'Night Shift 1.5x'},
+    {'id': 'weekly-forty', 'name': 'Weekly overtime after 40 hours', 'type': 'weekly', 'days': list(range(7)), 'threshold_hours': '40', 'multiplier': '1.5', 'pay_item': 'Overtime Hours'},
+]
 DEFAULT_SETTINGS = {
     'version': 1, 'timezone': 'Australia/Sydney', 'rounding_minutes': 0,
     'rounding_mode': 'nearest',
@@ -29,6 +40,7 @@ DEFAULT_SETTINGS = {
                {'name': 'Rest', 'minutes': 10, 'paid': True}],
     'pay_rules_confirmed': True, 'overlap_rule': 'highest',
     'weekly_hours': 'all', 'shift_rule': 'start_window',
+    'rules_schema_version': 2, 'overtime_rules': DEFAULT_OVERTIME_RULES,
 }
 WRITE_FIELDS = {
     'setup': {'name', 'email', 'password'},
@@ -42,7 +54,7 @@ WRITE_FIELDS = {
     'settings': set(DEFAULT_SETTINGS),
     'clock/in': {'project_id', 'project_name', 'notes', 'location_consent'},
     'clock/out': {'entry_id', 'version'},
-    'clock/break': {'entry_id', 'version', 'action', 'paid'},
+    'clock/break': {'entry_id', 'version', 'action', 'paid', 'rule_id'},
     'locations': {'entry_id', 'latitude', 'longitude', 'accuracy', 'captured_at'},
 }
 READ_FIELDS = {'bootstrap': set(), 'state': {'start', 'end'}, 'locations': {'entry_id'}}
@@ -109,6 +121,109 @@ def _json(value):
     return json.dumps(value, ensure_ascii=True, allow_nan=False, separators=(',', ':'))
 
 
+def _days(value):
+    if not isinstance(value, list) or not value or any(type(day) is not int or day not in range(7) for day in value):
+        raise SchedulerError('Select at least one valid day of the week.')
+    return sorted(set(value))
+
+
+def _hours(value, label, minimum=0, maximum=168):
+    number = _number(value, label, minimum, maximum)
+    if number * 3600 != (number * 3600).to_integral_value():
+        raise SchedulerError(f'{label} must resolve to whole seconds.')
+    return str(number)
+
+
+def normalize_settings(settings):
+    """Upgrade older saved choices without enabling new automatic deductions."""
+    value = json.loads(_json({**DEFAULT_SETTINGS, **settings}))
+    value['rules_schema_version'] = 2
+    for field in ('breaks', 'overtime_rules'):
+        if not isinstance(value[field], list) or any(not isinstance(rule, dict) for rule in value[field]):
+            raise SchedulerError('Break and overtime rules must be lists of rule objects.')
+    for index, rule in enumerate(value['breaks']):
+        defaults = {'id': f'legacy-break-{index}', 'code': '', 'member_ids': [], 'automatic': False,
+                    'after_hours': '4', 'repeat_hours': None, 'days': list(range(7)), 'placement': 'middle',
+                    'manual': True, 'auto_end': False, 'minimum': False, 'notify_minutes': 0}
+        value['breaks'][index] = {**defaults, **rule}
+    for rule in value['overtime_rules']:
+        rule.setdefault('enabled', True)
+        rule.setdefault('threshold_hours', '0')
+        rule.setdefault('start_time', '13:00')
+        rule.setdefault('end_time', '15:00')
+        rule.setdefault('run_late', False)
+    return value
+
+
+def validate_rules(settings, member_ids):
+    value = normalize_settings(settings)
+    if not isinstance(value['overtime_rules'], list) or len(value['overtime_rules']) > 50:
+        raise SchedulerError('Include at most 50 overtime rules.')
+    seen = set()
+    for rule in value['overtime_rules']:
+        if not isinstance(rule, dict) or set(rule) - {'id', 'name', 'type', 'days', 'threshold_hours', 'multiplier', 'pay_item', 'start_time', 'end_time', 'run_late', 'enabled'}:
+            raise SchedulerError('An overtime rule contains unsupported fields.')
+        rule['id'] = _text(rule.get('id'), 'Rule ID', 100, True)
+        if rule['id'] in seen:
+            raise SchedulerError('Overtime rule IDs must be unique.')
+        seen.add(rule['id'])
+        rule['name'] = _text(rule.get('name'), 'Rule name', 120, True)
+        rule['pay_item'] = _text(rule.get('pay_item', ''), 'Pay item', 120)
+        if rule.get('type') not in ('daily', 'weekly', 'time'):
+            raise SchedulerError('Choose daily, weekly or time-of-day overtime.')
+        rule['days'] = _days(rule.get('days'))
+        rule['threshold_hours'] = _hours(rule.get('threshold_hours'), 'Overtime threshold')
+        rule['multiplier'] = str(_number(rule.get('multiplier'), 'Rate multiplier', 1, 10))
+        for field in ('start_time', 'end_time'):
+            if not isinstance(rule.get(field), str) or not re.fullmatch(r'(?:[01]\d|2[0-3]):[0-5]\d', rule[field]):
+                raise SchedulerError('Time-of-day rules use HH:MM times.')
+        if rule['type'] == 'time' and rule['start_time'] == rule['end_time']:
+            raise SchedulerError('Time-of-day start and end must differ.')
+        _boolean(rule['run_late'], 'Allow shift to run late')
+        _boolean(rule['enabled'], 'Rule enabled')
+    if not isinstance(value['breaks'], list) or len(value['breaks']) > 20:
+        raise SchedulerError('Include at most 20 break rules.')
+    seen = set()
+    fields = {'id', 'name', 'code', 'minutes', 'paid', 'member_ids', 'automatic', 'after_hours', 'repeat_hours', 'days', 'placement', 'manual', 'auto_end', 'minimum', 'notify_minutes'}
+    for rule in value['breaks']:
+        if set(rule) - fields:
+            raise SchedulerError('A break rule contains unsupported fields.')
+        for field, limit, required in [('id', 100, True), ('name', 80, True), ('code', 20, False)]:
+            rule[field] = _text(rule.get(field), 'Break ' + field, limit, required)
+        if rule['id'] in seen:
+            raise SchedulerError('Break rule IDs must be unique.')
+        seen.add(rule['id'])
+        for field in ('paid', 'automatic', 'manual', 'auto_end', 'minimum'):
+            _boolean(rule.get(field), 'Break ' + field)
+        minutes = rule.get('minutes')
+        if minutes is not None:
+            number = _number(minutes, 'Break minutes', 1, 180)
+            if number != number.to_integral_value():
+                raise SchedulerError('Break durations must be whole minutes.')
+            rule['minutes'] = int(number)
+        rule['days'] = _days(rule.get('days'))
+        selected = rule.get('member_ids')
+        if not isinstance(selected, list) or len(selected) > 500 or any(not isinstance(item, str) or item not in member_ids for item in selected):
+            raise SchedulerError('Choose existing team members for a break rule.')
+        rule['member_ids'] = list(dict.fromkeys(selected))
+        rule['after_hours'] = _hours(rule.get('after_hours'), 'Automatic break threshold', minimum=Decimal('0.01'))
+        if rule.get('repeat_hours') is not None:
+            rule['repeat_hours'] = _hours(rule['repeat_hours'], 'Break repeat interval', minimum=Decimal('0.01'))
+        if rule['placement'] not in ('middle', 'after_threshold'):
+            raise SchedulerError('Choose middle of shift or after threshold for automatic breaks.')
+        notify = rule.get('notify_minutes')
+        if type(notify) is not int or not 0 <= notify <= 180:
+            raise SchedulerError('Break notification minutes must be between 0 and 180.')
+        if minutes is None and (rule['automatic'] or rule['auto_end'] or rule['minimum'] or notify):
+            raise SchedulerError('Automatic breaks, auto-end, minimum duration and notifications need a set length.')
+        if minutes is not None:
+            if notify >= minutes:
+                raise SchedulerError('Notify before break end must be shorter than the break.')
+            if rule['automatic'] and (Decimal(rule['after_hours']) * 60 < minutes or rule['repeat_hours'] is not None and Decimal(rule['repeat_hours']) * 60 < minutes):
+                raise SchedulerError('Automatic break thresholds must allow the full break length.')
+    return value
+
+
 def _password(value, salt=None):
     if not isinstance(value, str) or not 12 <= len(value) <= 256:
         raise SchedulerError('Use a password between 12 and 256 characters.')
@@ -125,10 +240,11 @@ def _public_member(row):
 
 
 class SchedulerStore:
-    def __init__(self, path, *, now=None):
+    def __init__(self, path, *, now=None, project_lookup=None):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.now = now or (lambda: datetime.now(UTC))
+        self.project_lookup = project_lookup
         with self.connect() as db:
             db.executescript('''
                 CREATE TABLE IF NOT EXISTS scheduler_members (
@@ -238,6 +354,8 @@ class SchedulerStore:
                 return {'setup_required': not bool(db.execute('SELECT 1 FROM scheduler_members LIMIT 1').fetchone()),
                         'user': _public_member(user) if user else None}
             if action == 'state':
+                db.execute('BEGIN IMMEDIATE')
+                self._settle_breaks(db)
                 return self._state(db, user, query)
             if action == 'locations':
                 entry = self._record(db, _text(query.get('entry_id', ''), 'Entry', required=True), 'entry')
@@ -266,7 +384,8 @@ class SchedulerStore:
                 shifts.append(record)
             if kind == 'entry' and (user['role'] == 'admin' or record['member_id'] == user['id']):
                 entries.append(record)
-        settings = json.loads(db.execute('SELECT data FROM scheduler_settings WHERE id=1').fetchone()[0])
+        settings = self._read_settings(db)
+        entries = [self._entry_view(entry, settings) for entry in entries]
         # Whole weeks supply context for overtime even when the visible range starts midweek.
         local_start = start_date.astimezone(SYDNEY)
         week_start = (local_start - timedelta(days=local_start.weekday())).replace(hour=0, minute=0, second=0)
@@ -278,6 +397,51 @@ class SchedulerStore:
         return {'user': _public_member(user), 'members': members, 'shifts': shifts, 'entries': entries,
                 'settings': settings, 'active_entry': self._current(db, user['id']),
                 'payroll': calculate_payroll(payroll_entries, settings, start_date, end_date)}
+
+    @staticmethod
+    def _read_settings(db):
+        return normalize_settings(json.loads(db.execute('SELECT data FROM scheduler_settings WHERE id=1').fetchone()[0]))
+
+    @staticmethod
+    def _entry_view(entry, settings):
+        if not entry.get('end'):
+            return entry
+        effective, warnings = effective_breaks(entry, settings)
+        return {**entry, 'effective_breaks': effective, 'break_warnings': warnings,
+                'paid_seconds': sum(int((end-start).total_seconds()) for start, end in _paid_intervals(entry, settings)),
+                'rules_version': settings['version']}
+
+    def _settle_breaks(self, db):
+        for row in db.execute("SELECT data FROM scheduler_records WHERE kind='entry' AND end IS NULL").fetchall():
+            previous = json.loads(row['data'])
+            value = json.loads(row['data'])
+            if self._end_due_break(value, self.now()):
+                self._save_record(db, {'id': 'system'}, 'entry', value, previous)
+
+    @staticmethod
+    def _end_due_break(entry, now):
+        if not entry['breaks']:
+            return False
+        item = entry['breaks'][-1]
+        if item.get('end') is None and item.get('auto_end_at') and _timestamp(item['auto_end_at']) <= now:
+            item['end'] = item['auto_end_at']
+            return True
+        return False
+
+    def _project_reference(self, value, previous=None):
+        project_id = value['project_id']
+        if not project_id or previous and project_id == previous.get('project_id'):
+            return None
+        if self.project_lookup is None:
+            raise SchedulerError('Project choices are unavailable. Refresh Scheduler before assigning a project.')
+        try:
+            project = self.project_lookup(project_id)
+        except (ValueError, OSError, KeyError) as error:
+            raise SchedulerError('The selected project is unavailable. Refresh the project choices.') from error
+        if project.get('project_status') != 'Accepted':
+            raise SchedulerError('Only Accepted projects can be assigned to Scheduler.')
+        value['project_name'] = project['title']
+        return project
 
     def write(self, action, payload=None, token=None):
         payload = {} if payload is None else payload
@@ -441,6 +605,7 @@ class SchedulerStore:
                  'project_id': _text(payload.get('project_id', ''), 'Project', 1000),
                  'project_name': _text(payload.get('project_name', ''), 'Project name', 1000),
                  'notes': _text(payload.get('notes', ''), 'Notes', 4000)}
+        selected_project = self._project_reference(value, previous)
         if kind == 'shift':
             member_ids = payload.get('member_ids', [])
             if not isinstance(member_ids, list) or len(member_ids) > 500 or any(not isinstance(x, str) for x in member_ids):
@@ -454,6 +619,8 @@ class SchedulerStore:
             value.update(title=_text(payload.get('title', ''), 'Title', 250, True), member_ids=member_ids,
                          location=_text(payload.get('location', ''), 'Location', 500), color=color,
                          published=_boolean(payload.get('published', False), 'Published'))
+            if selected_project and not value['location']:
+                value['location'] = _text(selected_project.get('site_address', ''), 'Site address', 500)
         else:
             member = self._active_member(db, _text(payload.get('member_id', ''), 'Member', 100, True))
             self._no_overlap(db, member['id'], start, end, value['id'])
@@ -467,6 +634,11 @@ class SchedulerStore:
                 if pins[0] and (start > _timestamp(pins[0]) or end < _timestamp(pins[1])):
                     raise SchedulerError('Keep all recorded locations inside the edited time entry.')
             breaks = self._validate_breaks(payload.get('breaks', []), start, end)
+            if previous:
+                for item in breaks:
+                    original = next((old for old in previous['breaks'] if old['start'] == item['start'] and old['end'] == item['end'] and old['paid'] == item['paid']), None)
+                    if original:
+                        item.update({key: original[key] for key in ('rule_id', 'name', 'code', 'expected_end_at', 'auto_end_at', 'min_end_at', 'notify_at') if key in original})
             retained_rate = previous['base_rate'] if previous and previous['member_id'] == member['id'] else member['base_rate']
             value.update(member_id=member['id'], breaks=breaks, base_rate=retained_rate,
                          location_consent=previous.get('location_consent', False) if previous else False,
@@ -516,7 +688,7 @@ class SchedulerStore:
 
     def _settings(self, db, user, payload):
         self._admin(user)
-        previous = json.loads(db.execute('SELECT data FROM scheduler_settings WHERE id=1').fetchone()[0])
+        previous = self._read_settings(db)
         self._version(payload, previous)
         value = {**previous, **payload}
         if set(value) - set(DEFAULT_SETTINGS):
@@ -530,15 +702,18 @@ class SchedulerStore:
         if value['overlap_rule'] != 'highest' or value['weekly_hours'] != 'all' or value['shift_rule'] != 'start_window':
             raise SchedulerError('The supported pay policy uses highest rate, all worked hours and shift start windows.')
         _boolean(value['pay_rules_confirmed'], 'Pay rules confirmed')
-        if not isinstance(value['breaks'], list) or len(value['breaks']) > 20:
-            raise SchedulerError('Include at most 20 break choices.')
-        value['breaks'] = [{'name': _text(item.get('name', ''), 'Break name', 80, True),
-                            'minutes': int(_number(item.get('minutes'), 'Break minutes', 1, 180)),
-                            'paid': _boolean(item.get('paid'), 'Paid break')} for item in value['breaks'] if isinstance(item, dict)]
-        if len(value['breaks']) != len(payload.get('breaks', previous['breaks'])):
-            raise SchedulerError('Break choices must contain name, minutes and paid.')
-        if any(Decimal(str(item['minutes'])) != normalized['minutes'] for item, normalized in zip(payload.get('breaks', previous['breaks']), value['breaks'])):
-            raise SchedulerError('Break durations must be whole minutes.')
+        if value['rules_schema_version'] != 2:
+            raise SchedulerError('This Scheduler supports rule schema version 2.')
+        if isinstance(value['breaks'], list):
+            retained = []
+            for rule in value['breaks']:
+                if isinstance(rule, dict) and 'id' not in rule:
+                    matches = [old for old in previous['breaks'] if old['name'] == rule.get('name')]
+                    if len(matches) == 1:
+                        rule = {**matches[0], **rule}
+                retained.append(rule)
+            value['breaks'] = retained
+        value = validate_rules(value, {row['id'] for row in db.execute('SELECT id FROM scheduler_members')})
         value['version'] += 1
         db.execute('UPDATE scheduler_settings SET data=? WHERE id=1', (_json(value),))
         self._audit(db, user['id'], 'settings.save', 'settings', previous, value)
@@ -557,6 +732,7 @@ class SchedulerStore:
                      'project_name': _text(payload.get('project_name', ''), 'Project name', 1000),
                      'notes': _text(payload.get('notes', ''), 'Notes', 4000),
                      'location_consent': _boolean(payload.get('location_consent', False), 'Location consent')}
+            self._project_reference(value)
             return self._save_record(db, user, 'entry', value)
         if previous is None:
             raise SchedulerError('Clock in first.', 409)
@@ -565,10 +741,13 @@ class SchedulerStore:
         if 'version' in payload:
             self._version(payload, previous)
         value = json.loads(_json(previous))
+        auto_ended = self._end_due_break(value, now)
         open_break = value['breaks'][-1] if value['breaks'] and value['breaks'][-1]['end'] is None else None
         if now <= _timestamp(value['start']):
             raise SchedulerError('Clock time must follow the entry start.', 409)
         if action == 'clock/out':
+            if open_break and open_break.get('min_end_at') and now < _timestamp(open_break['min_end_at']):
+                raise SchedulerError('Complete the required break duration before clocking out.', 409)
             value['end'] = _iso(now)
             if open_break:
                 open_break['end'] = _iso(now)
@@ -578,12 +757,38 @@ class SchedulerStore:
                     raise SchedulerError('A break is already running.', 409)
                 if len(value['breaks']) >= 50:
                     raise SchedulerError('A time entry supports at most 50 breaks.')
-                value['breaks'].append({'start': _iso(now), 'end': None, 'paid': _boolean(payload.get('paid', False), 'Paid break')})
+                rule_id = payload.get('rule_id')
+                if rule_id is not None:
+                    rule = next((item for item in self._read_settings(db)['breaks'] if item['id'] == rule_id), None)
+                    if rule is None or not rule['manual'] or rule['member_ids'] and user['id'] not in rule['member_ids']:
+                        raise SchedulerError('Choose a manual break available to this team member today.')
+                    item = {'start': _iso(now), 'end': None, 'paid': rule['paid'], 'rule_id': rule['id'], 'name': rule['name'], 'code': rule['code']}
+                    if rule['minutes'] is not None:
+                        end_at = now + timedelta(minutes=rule['minutes'])
+                        item['expected_end_at'] = _iso(end_at)
+                        if rule['auto_end']:
+                            item['auto_end_at'] = _iso(end_at)
+                        if rule['minimum']:
+                            item['min_end_at'] = _iso(end_at)
+                        if rule['notify_minutes']:
+                            item['notify_at'] = _iso(end_at - timedelta(minutes=rule['notify_minutes']))
+                else:
+                    # Older clients have only a paid/unpaid choice. They retain
+                    # compatibility without gaining a way around minimum rules.
+                    choices = [item for item in self._read_settings(db)['breaks'] if item['manual'] and (not item['member_ids'] or user['id'] in item['member_ids']) and item['paid'] == payload.get('paid', False)]
+                    if not choices or any(item['minimum'] or item['auto_end'] for item in choices):
+                        raise SchedulerError('Select a named break rule before starting a break.')
+                    item = {'start': _iso(now), 'end': None, 'paid': _boolean(payload.get('paid', False), 'Paid break')}
+                value['breaks'].append(item)
             elif payload.get('action') == 'end':
+                if auto_ended:
+                    return self._save_record(db, user, 'entry', value, previous)
                 if not open_break:
                     raise SchedulerError('No break is running.', 409)
                 if now <= _timestamp(open_break['start']):
                     raise SchedulerError('Break end must follow its start.', 409)
+                if open_break.get('min_end_at') and now < _timestamp(open_break['min_end_at']):
+                    raise SchedulerError('The required break duration has not finished.', 409)
                 open_break['end'] = _iso(now)
             else:
                 raise SchedulerError('Choose start or end for the break.')
@@ -623,10 +828,74 @@ def _rounded(value, settings):
     return datetime.fromtimestamp(rounded * seconds, UTC)
 
 
+def break_applies(rule, member_id, start):
+    return (not rule['member_ids'] or member_id in rule['member_ids']) and start.astimezone(SYDNEY).weekday() in rule['days']
+
+
+def _available_break_start(start, end, duration, desired, occupied):
+    """Choose the nearest free interval, with an earlier start breaking ties."""
+    cursor, choices = start, []
+    for begin, finish in sorted(occupied) + [(end, end)]:
+        if begin - cursor >= duration:
+            candidate = min(max(desired, cursor), begin-duration)
+            choices.append(candidate)
+        cursor = max(cursor, finish)
+    return min(choices, key=lambda candidate: (abs(candidate-desired), candidate)) if choices else None
+
+
+def effective_breaks(entry, settings):
+    """Retain manual evidence and derive any still-unmet automatic entitlements.
+
+    Elapsed shift time determines entitlement. Repeated middle breaks are centred
+    in equal portions of the completed shift. Each manual matching break satisfies
+    one entitlement, and all placed breaks avoid existing intervals.
+    """
+    result = [dict(item) for item in entry.get('breaks', [])]
+    if not entry.get('end'):
+        return result, []
+    start, end = _timestamp(entry['start']), _timestamp(entry['end'])
+    elapsed = int((end-start).total_seconds())
+    occupied = [(_timestamp(item['start']), _timestamp(item['end'])) for item in result]
+    used, warnings = set(), []
+    for rule in settings['breaks']:
+        if not rule['automatic'] or not break_applies(rule, entry['member_id'], start):
+            continue
+        threshold = int(Decimal(rule['after_hours']) * 3600)
+        if elapsed < threshold:
+            continue
+        repeat = int(Decimal(rule['repeat_hours']) * 3600) if rule['repeat_hours'] else None
+        count = 1 + (elapsed-threshold)//repeat if repeat else 1
+        if count > 50:
+            warnings.append(f"{rule['name']}: more than 50 automatic breaks are due; review this long time entry.")
+            count = 50
+        duration = timedelta(minutes=rule['minutes'])
+        satisfied = []
+        for index, item in enumerate(entry.get('breaks', [])):
+            same_rule = item.get('rule_id') == rule['id']
+            legacy_match = not item.get('rule_id') and item['paid'] == rule['paid'] and _timestamp(item['end'])-_timestamp(item['start']) >= duration
+            if index not in used and (same_rule or legacy_match):
+                satisfied.append(index)
+        for index in satisfied[:count]:
+            used.add(index)
+        for number in range(len(satisfied[:count]), count):
+            centre = start + timedelta(seconds=int(elapsed*(number+0.5)/count))
+            desired = centre-duration/2 if rule['placement'] == 'middle' else start+timedelta(seconds=threshold+number*(repeat or 0))-duration
+            begin = _available_break_start(start, end, duration, desired, occupied)
+            if begin is None:
+                warnings.append(f"{rule['name']}: the full automatic break cannot fit without overlapping another break.")
+                continue
+            finish = begin+duration
+            occupied.append((begin, finish))
+            result.append({'start': _iso(begin), 'end': _iso(finish), 'paid': rule['paid'], 'rule_id': rule['id'],
+                           'name': rule['name'], 'code': rule['code'], 'automatic': True})
+    return sorted(result, key=lambda item: _timestamp(item['start'])), warnings
+
+
 def _paid_intervals(entry, settings):
     start, end = _rounded(_timestamp(entry['start']), settings), _rounded(_timestamp(entry['end']), settings)
     cursor = start
-    for item in entry['breaks']:
+    breaks, _ = effective_breaks(entry, settings)
+    for item in breaks:
         if item['paid']:
             continue
         begin, finish = max(start, _timestamp(item['start'])), min(end, _timestamp(item['end']))
@@ -639,70 +908,107 @@ def _paid_intervals(entry, settings):
         yield cursor, end
 
 
-def calculate_payroll(entries, settings, visible_start=None, visible_end=None):
-    """Apply confirmed screenshot rules once per paid second, preserving raw entries.
+def _time_rule_matches(rule, moment):
+    local = moment.astimezone(SYDNEY)
+    minutes = local.hour*60+local.minute
+    begin = int(rule['start_time'][:2])*60+int(rule['start_time'][3:])
+    end = int(rule['end_time'][:2])*60+int(rule['end_time'][3:])
+    if begin < end:
+        return local.weekday() in rule['days'] and begin <= minutes < end
+    day = (local.weekday()-1)%7 if minutes < end else local.weekday()
+    return day in rule['days'] and (minutes >= begin or minutes < end)
 
-    Daily and weekly totals accumulate per member across entries. Calendar boundaries
-    use Sydney time while durations use UTC, including daylight saving transitions.
-    Highest matching multiplier wins. All matching rule names remain on each segment
-    so equal-rate classifications are visible instead of guessing an export pay item.
-    """
+
+def _time_boundaries(rule, cursor):
+    date = cursor.astimezone(SYDNEY).date()
+    for day in (date, date+timedelta(days=1)):
+        for text in (rule['start_time'], rule['end_time']):
+            local = datetime.combine(day, datetime.min.time()).replace(hour=int(text[:2]), minute=int(text[3:]))
+            for fold in (0, 1):
+                point = local.replace(tzinfo=SYDNEY, fold=fold).astimezone(UTC)
+                if point > cursor:
+                    yield point
+
+
+def _day_transition(date):
+    """Locate Sydney's offset change so repeated clock minutes get their rate."""
+    start = datetime.combine(date, datetime.min.time(), SYDNEY).astimezone(UTC)
+    end = datetime.combine(date+timedelta(days=1), datetime.min.time(), SYDNEY).astimezone(UTC)
+    offset = start.astimezone(SYDNEY).utcoffset()
+    if offset == (end-timedelta(seconds=1)).astimezone(SYDNEY).utcoffset():
+        return None
+    low, high = int(start.timestamp()), int(end.timestamp())
+    while high-low > 1:
+        middle = (low+high)//2
+        if datetime.fromtimestamp(middle, UTC).astimezone(SYDNEY).utcoffset() == offset:
+            low = middle
+        else:
+            high = middle
+    return datetime.fromtimestamp(high, UTC)
+
+
+def calculate_payroll(entries, settings, visible_start=None, visible_end=None):
+    """Calculate one highest rate per paid second using the current rule version."""
+    settings = normalize_settings(settings)
     if not settings['pay_rules_confirmed']:
-        return {'status': 'confirmation_required', 'rows': [], 'message':
-                'Confirm overlapping rates, weekly counting and shift windows in Scheduler settings before calculating pay.'}
-    daily, weekly = defaultdict(int), defaultdict(int)
-    rows = {}
-    for entry in sorted(entries, key=lambda item: (item['start'], item['id'])):
+        return {'status': 'confirmation_required', 'rules_version': settings['version'], 'rows': [], 'message': 'Confirm pay rules before calculating pay.'}
+    rules = [rule for rule in settings['overtime_rules'] if rule['enabled']]
+    daily, weekly, rows, warnings, transitions = defaultdict(int), defaultdict(int), {}, [], {}
+    for entry in sorted(entries, key=lambda item: (_timestamp(item['start']), item['id'])):
         if not entry.get('end'):
             continue
         member_id = entry['member_id']
-        local_start = _timestamp(entry['start']).astimezone(SYDNEY)
-        shift = 'Afternoon shift' if 13 <= local_start.hour < 15 else ('Night shift' if 15 <= local_start.hour < 23 else None)
+        _, break_warnings = effective_breaks(entry, settings)
+        warnings.extend({'entry_id': entry['id'], 'message': warning} for warning in break_warnings)
+        shift_start = _timestamp(entry['start'])
         for begin, finish in _paid_intervals(entry, settings):
             cursor = begin
             while cursor < finish:
                 local = cursor.astimezone(SYDNEY)
                 day_key = member_id, local.date()
-                week_key = member_id, local.date() - timedelta(days=local.weekday())
-                midnight = datetime.combine(local.date() + timedelta(days=1), datetime.min.time(), SYDNEY).astimezone(UTC)
+                week_key = member_id, local.date()-timedelta(days=local.weekday())
+                midnight = datetime.combine(local.date()+timedelta(days=1), datetime.min.time(), SYDNEY).astimezone(UTC)
                 boundary = min(finish, midnight)
-                for threshold in (2 * 3600, 8 * 3600, 10 * 3600):
-                    if daily[day_key] < threshold:
-                        boundary = min(boundary, cursor + timedelta(seconds=threshold-daily[day_key]))
-                if weekly[week_key] < 40 * 3600:
-                    boundary = min(boundary, cursor + timedelta(seconds=40*3600-weekly[week_key]))
+                if local.date() not in transitions:
+                    transitions[local.date()] = _day_transition(local.date())
+                transition = transitions[local.date()]
+                if transition and transition > cursor:
+                    boundary = min(boundary, transition)
+                matches = [(Decimal('1'), 'Ordinary', '')]
+                for rule in rules:
+                    if rule['type'] == 'time':
+                        applies = _time_rule_matches(rule, shift_start if rule['run_late'] else cursor)
+                        if not rule['run_late']:
+                            boundary = min(boundary, *_time_boundaries(rule, cursor))
+                    else:
+                        count = daily[day_key] if rule['type'] == 'daily' else weekly[week_key]
+                        threshold = int(Decimal(rule['threshold_hours'])*3600)
+                        if count < threshold:
+                            boundary = min(boundary, cursor+timedelta(seconds=threshold-count))
+                        applies = local.weekday() in rule['days'] and count >= threshold
+                    if applies:
+                        matches.append((Decimal(rule['multiplier']), rule['name'], rule['pay_item']))
                 if visible_start and cursor < visible_start < boundary:
                     boundary = visible_start
                 if visible_end and cursor < visible_end < boundary:
                     boundary = visible_end
-                rules = [(Decimal('1'), 'Ordinary')]
-                if daily[day_key] >= 8*3600:
-                    rules.append((Decimal('1.5'), 'Daily overtime after 8 hours'))
-                if daily[day_key] >= 10*3600:
-                    rules.append((Decimal('2'), 'Daily overtime after 10 hours'))
-                if local.weekday() == 5:
-                    rules.append((Decimal('1.5') if daily[day_key] < 2*3600 else Decimal('2'), 'Saturday'))
-                if local.weekday() == 6:
-                    rules.append((Decimal('2'), 'Sunday'))
-                if weekly[week_key] >= 40*3600:
-                    rules.append((Decimal('1.5'), 'Weekly overtime after 40 hours'))
-                if shift:
-                    rules.append((Decimal('1.5'), shift))
-                multiplier = max(rate for rate, name in rules)
+                multiplier = max(rate for rate, _, _ in matches)
                 seconds = int((boundary-cursor).total_seconds())
                 daily[day_key] += seconds
                 weekly[week_key] += seconds
                 if (visible_start is None or cursor >= visible_start) and (visible_end is None or cursor < visible_end):
                     row = rows.setdefault(member_id, {'member_id': member_id, 'seconds': 0, 'gross': Decimal(0), 'segments': []})
-                    amount = Decimal(seconds) / Decimal(3600) * Decimal(entry['base_rate']) * multiplier
+                    amount = Decimal(seconds)/Decimal(3600)*Decimal(entry['base_rate'])*multiplier
                     row['seconds'] += seconds
                     row['gross'] += amount
                     row['segments'].append({'entry_id': entry['id'], 'start': _iso(cursor), 'end': _iso(boundary),
                                             'seconds': seconds, 'multiplier': str(multiplier), 'base_rate': entry['base_rate'],
-                                            'rules': [name for rate, name in rules if rate == multiplier],
+                                            'rules': [name for rate, name, _ in matches if rate == multiplier],
+                                            'pay_items': list(dict.fromkeys(item for rate, _, item in matches if rate == multiplier and item)),
                                             'amount': str(amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))})
                 cursor = boundary
     for row in rows.values():
-        row['hours'] = str((Decimal(row['seconds']) / Decimal(3600)).quantize(Decimal('0.0001')))
+        row['hours'] = str((Decimal(row['seconds'])/Decimal(3600)).quantize(Decimal('0.0001')))
         row['gross'] = str(row['gross'].quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
-    return {'status': 'calculated', 'rows': list(rows.values()), 'message': 'Sydney calendar days; highest matching rate; all paid hours count toward weekly overtime. Gross pay excludes tax and superannuation.'}
+    return {'status': 'calculated', 'rules_version': settings['version'], 'rows': list(rows.values()), 'break_warnings': warnings,
+            'message': 'Sydney calendar days; highest matching rate; all paid hours count toward weekly overtime. Current rule version applies to this calculation.'}

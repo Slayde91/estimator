@@ -68,7 +68,8 @@ def export_identity(route, body):
              '/api/penetration/register.xlsx':'firestopping.schedule.xlsx'}
     if route in fixed:
         return fixed[route], ''
-    if route == '/api/commercial/issue' and body.get('kind') in {'quote', 'work_order', 'purchase_order'}:
+    if (route == '/api/commercial/issue' and isinstance(body.get('kind'), str)
+            and body['kind'] in {'quote', 'work_order', 'purchase_order'}):
         return 'commercial.' + body['kind'], str(body.get('id', ''))
     if re.fullmatch(r'/api/quotes/[^/]+/report\.pdf',route):
         return 'estimate.summary.pdf',''

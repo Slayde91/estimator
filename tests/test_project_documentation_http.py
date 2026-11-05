@@ -150,6 +150,7 @@ class DocumentCatalogTests(unittest.TestCase):
                 self.assertEqual(export_identity('/api/commercial/issue', {'kind': kind, 'id': 'document'}),
                                  (key, 'document'))
         self.assertIsNone(export_identity('/api/commercial/issue', {'kind': 'unsupported'}))
+        self.assertIsNone(export_identity('/api/commercial/issue', {'kind': []}))
 
     def test_server_source_classification_is_independent_of_filename_and_caller_labels(self):
         self.assertEqual(export_identity('/api/quote-report',{'kind':'forged','filename':'other.xlsx'}),('estimate.summary.pdf',''))

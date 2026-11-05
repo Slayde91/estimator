@@ -4,6 +4,7 @@ const { chooseLibrary } = require('./section_navigation.cjs');
 const { chromium, expect } = require('@playwright/test');
 const { chooseCalculator } = require('./calculator_actions.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
+const { referenceExport } = require('./reference_export.cjs');
 const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');
 const assert = require('node:assert/strict');
@@ -229,15 +230,26 @@ async function workbook(title) {
     for (const [suffix, magic] of [['excel', 'PK'], ['pdf', '%PDF']]) {
       await documentToggle.click(); const action = page.locator(`#${prefix}-${suffix}`); await expect(action).toBeVisible();
       const endpoint = `/api/penetration/${itemOnly?(suffix==='pdf'?'item.pdf':'item.xlsx'):(suffix==='pdf'?'report.pdf':'register.xlsx')}`;
-      const download = page.waitForResponse(reply => new URL(reply.url()).pathname === endpoint && reply.request().method() === 'POST');
-      await action.click(); const reply = await download; assert.equal(reply.status(), 200); const file = await reply.json();
-      const downloaded=reply.request().postDataJSON();
-      if(itemOnly){assert.deepEqual(downloaded.item,linkedUpdated.penetration.composer.rows[0]);assert.deepEqual(downloaded.globals,linkedUpdated.penetration.composer.globals);assert.equal(downloaded.draft,undefined);assert.equal(downloaded.rows,undefined);assert.equal(downloaded.diagram,undefined);assert.equal(file.filename,`CEASEFIRE-Firestopping-Item.${suffix==='pdf'?'pdf':'xlsx'}`);}
-      else{assert.deepEqual(downloaded.draft,linkedUpdated.penetration.draft);assert.equal(downloaded.item,undefined);assert.equal(file.filename,suffix==='pdf'?'CEASEFIRE-Firestopping-Estimate.pdf':'CEASEFIRE-Firestopping-Schedule.xlsx');}
+      let downloaded;
+      if(itemOnly){
+        const extension=suffix==='pdf'?'pdf':'xlsx';
+        const exported=await referenceExport(page,{extension,endpoint,action:()=>action.click(),
+          target:path.join(output,`CLASSIFIRE-Firestopping-Item.${extension}`)});
+        downloaded=exported.capture;
+        assert.deepEqual(downloaded.item,linkedUpdated.penetration.composer.rows[0]);
+        assert.deepEqual(downloaded.globals,linkedUpdated.penetration.composer.globals);
+        assert.equal(downloaded.draft,undefined);assert.equal(downloaded.rows,undefined);assert.equal(downloaded.diagram,undefined);
+      }else{
+        const download=page.waitForResponse(reply=>new URL(reply.url()).pathname===endpoint&&reply.request().method()==='POST');
+        await action.click();const reply=await download;assert.equal(reply.status(),200);const file=await reply.json();
+        downloaded=reply.request().postDataJSON();
+        assert.deepEqual(downloaded.draft,linkedUpdated.penetration.draft);assert.equal(downloaded.item,undefined);
+        assert.equal(file.filename,suffix==='pdf'?'CEASEFIRE-Firestopping-Estimate.pdf':'CEASEFIRE-Firestopping-Schedule.xlsx');
+        assert.equal(file.saved,true);assert.equal(file.destination,'project');
+        const relative=path.relative(output,file.path);assert.ok(relative&&!relative.startsWith('..')&&!path.isAbsolute(relative));
+        assert.equal(fs.readFileSync(file.path).subarray(0,magic.length).toString(),magic);
+      }
       assert.deepEqual(downloaded.configuration,linkedUpdated.pricing);
-      assert.equal(file.saved, true); assert.equal(file.destination, 'project');
-      const relative = path.relative(output, file.path); assert.ok(relative && !relative.startsWith('..') && !path.isAbsolute(relative));
-      assert.equal(fs.readFileSync(file.path).subarray(0, magic.length).toString(), magic);
       await expect(documentActions).toBeHidden(); await idle(); assert.deepEqual(await snapshots(), linkedUpdated);
       evidence.firestoppingDocuments.push(`${prefix}-${suffix}`);
     }

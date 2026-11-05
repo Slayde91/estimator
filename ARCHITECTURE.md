@@ -1,5 +1,37 @@
 # Architecture
 
+## Project estimates and commercial documents - 6 November 2026
+
+A project can hold up to 50 named estimates. Each estimate owns its estimating
+inputs, frozen pricing configuration, calculator inputs, Firestopping draft,
+Takeoffs and project library drafts. The optional `estimates` collection and
+`active_estimate_id` extend the portable project format. Top-level workspace
+fields mirror the active estimate. Legacy projects open as one estimate.
+Certificate history, document history and commercial documents belong to the
+project. Save validates every estimate and preserves inactive evidence sessions.
+Older save requests that omit a stored estimate or owned workspace are rejected.
+
+`commercial_documents.py` maintains capability-bound Quote, Work Order and
+Purchase Order drafts. Portable project snapshots retain these drafts. Existing
+Documentation archives retain the issued PDFs. Optimistic versions guard edits,
+and transactions allocate document numbers separately for each document type.
+Repeated requests with the same request identity return the original PDF.
+Portable number counters preserve the sequence after a project is restored.
+
+`commercial_estimates.py` validates linked workspaces through the existing
+project and calculation code. Quote unit prices use each selected estimate's
+displayed Grand Total, rounded to two decimal places. Quantity times unit price
+produces each line total. GST defaults to 10 percent, matching the supplied
+quotation. Source fingerprints include the estimate name and canonical input
+snapshot. Issuance rejects changed sources until the quote is saved again.
+The generated quote contains the original Full Schedule PDFs between its summary
+and allowances, followed by totals and editable Terms and Conditions.
+
+Rich text uses a restricted formatting vocabulary. Company details and ABN come
+from Settings. Default terms are copied from the supplied quotation. Commercial
+downloads bind both the workspace capability and saved-file capability to the
+same project identity before writing a file.
+
 ## Projects Scheduler — 5 November 2026
 
 Projects includes a weekly Scheduler, team management, time entries and settings.
@@ -19,7 +51,7 @@ rate when a member's rate changes. Sydney local times are converted to UTC for
 duration calculations. Ambiguous and nonexistent daylight-saving times require
 an explicit valid offset.
 
-The user-supplied and confirmed company rules apply the highest matching
+The initial user-supplied and confirmed company rules apply the highest matching
 multiplier once. Daily overtime is 1.5× after eight paid hours and 2× after ten.
 Saturday is 1.5× for the first two hours and 2× thereafter. Sunday is 2×.
 Weekly overtime is 1.5× after forty paid hours, with a Monday week start.
@@ -29,6 +61,21 @@ shift rates continue for the whole shift as confirmed by the user. Paid breaks
 count toward thresholds, and unpaid breaks are excluded. Rounding settings
 affect calculated endpoints while preserving raw records. Gross pay is a
 calculation from these company rules and the captured hourly rate.
+
+Administrators can edit or add daily, weekly and time-window rules, including
+days, thresholds, multipliers and pay-item labels. Calculations identify the
+current settings version. Changing rules recalculates entries using the current
+rule set while retaining original timestamps, captured base rates and the
+settings audit history.
+
+Break rules support member assignments, paid or unpaid time, automatic shift
+thresholds, weekdays and repetition, plus manual minimum lengths and automatic
+ending. Automatic thresholds use elapsed shift duration. Repeated middle-of-shift
+breaks are spaced evenly across the completed shift. Each matching manual break
+satisfies one automatic entitlement. Derived breaks remain separate from raw
+clock evidence. Existing break choices start with automatic deductions disabled.
+New or changed project assignments require Accepted status and default the
+location to the project's Site Address. A custom location remains editable.
 
 Location recording requires an explicit per-session choice and browser
 permission. Submissions belong to the signed-in member's active clock entry,

@@ -140,6 +140,17 @@ class DocumentationHTTPTests(unittest.TestCase):
 
 
 class DocumentCatalogTests(unittest.TestCase):
+    def test_commercial_document_kinds_are_available_in_each_edition(self):
+        for edition in ('full', 'standard'):
+            catalog = {item['id']: item for item in document_catalog(edition)}
+            for kind in ('quote', 'work_order', 'purchase_order'):
+                key = 'commercial.' + kind
+                self.assertEqual(catalog[key]['adapter'], 'commercial')
+                self.assertEqual(catalog[key]['spec'], {'kind': kind})
+                self.assertEqual(export_identity('/api/commercial/issue', {'kind': kind, 'id': 'document'}),
+                                 (key, 'document'))
+        self.assertIsNone(export_identity('/api/commercial/issue', {'kind': 'unsupported'}))
+
     def test_server_source_classification_is_independent_of_filename_and_caller_labels(self):
         self.assertEqual(export_identity('/api/quote-report',{'kind':'forged','filename':'other.xlsx'}),('estimate.summary.pdf',''))
         self.assertEqual(export_identity('/api/technical/item.pdf',{'id':'promat-example'}),('library.technical.item.pdf','promat-example'))

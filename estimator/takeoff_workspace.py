@@ -222,7 +222,9 @@ class TakeoffService:
 
     def open(self, snapshot=None, source_path=None, evidence_issues=None):
         with self._lock:
-            if len(self._sessions) >= 64:
+            # Retain both 50-estimate collections until a project reload has
+            # been validated and adopted, with bounded room for other tabs.
+            if len(self._sessions) >= 128:
                 raise ValidationError('Too many open takeoff sessions. Close an unused session before opening another.')
             value = new_snapshot() if snapshot is None else validate_snapshot(snapshot)
             session_id = str(uuid4())

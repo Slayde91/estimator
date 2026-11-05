@@ -17,8 +17,8 @@ SCOPES = {'steel':'Steel', 'duct':'Duct', 'walls_floors':'Walls and floors',
 def document_catalog(edition='full'):
     validate_edition(edition)
     rows = []
-    def add(kind, label, file_format, adapter, **spec):
-        rows.append({'id':kind, 'label':label, 'format':file_format, 'adapter':adapter, 'spec':spec})
+    def add(kind_id, label, file_format, adapter, **spec):
+        rows.append({'id':kind_id, 'label':label, 'format':file_format, 'adapter':adapter, 'spec':spec})
     add('estimate.summary.pdf','Breakdown','pdf','estimate',action='summary')
     add('project.full_schedule.pdf','Full Schedule','pdf','estimate',action='full_schedule')
     add('project.full_product_summary.pdf','Full Product Summary','pdf','estimate',action='full_product_summary')
@@ -39,6 +39,8 @@ def document_catalog(edition='full'):
             add(f'firestopping.{scope}.{format}',label,format,'firestopping',scope=scope,format=format)
     add('pricing.library.xlsx','Pricing Library','xlsx','pricing')
     add('certification','Installation Certificate','pdf','certification')
+    for kind, label in [('quote', 'Quote'), ('work_order', 'Work Order'), ('purchase_order', 'Purchase Order')]:
+        add(f'commercial.{kind}', label, 'pdf', 'commercial', kind=kind)
     for format in ['pdf','xlsx']:
         add(f'library.technical.item.{format}','Technical Library item',format,'library',source='technical',format=format)
     if edition == 'full':
@@ -66,6 +68,8 @@ def export_identity(route, body):
              '/api/penetration/register.xlsx':'firestopping.schedule.xlsx'}
     if route in fixed:
         return fixed[route], ''
+    if route == '/api/commercial/issue' and body.get('kind') in {'quote', 'work_order', 'purchase_order'}:
+        return 'commercial.' + body['kind'], str(body.get('id', ''))
     if re.fullmatch(r'/api/quotes/[^/]+/report\.pdf',route):
         return 'estimate.summary.pdf',''
     match = re.fullmatch(r'/api/calculators/(steel_vermiculite|steel_intumescent|steel_board|ductwork)/(report\.pdf|summary\.pdf|register\.xlsx|template)',route)

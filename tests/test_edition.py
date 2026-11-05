@@ -69,6 +69,17 @@ class Dialogs:
 
 
 class EditionPolicyTests(unittest.TestCase):
+    def test_inactive_estimate_takeoffs_require_full_edition(self):
+        for field in ({'takeoffs': {}}, {'takeoffs_session_id': 'untrusted'}, {'version': 2}):
+            project = {'active_estimate_id': 'estimate-1', 'estimates': [
+                {'id': 'estimate-1', 'workspace': {'estimate': {}}},
+                {'id': 'estimate-2', 'workspace': field},
+            ]}
+            with self.subTest(field=field), no_takeoff_imports():
+                with self.assertRaisesRegex(ValidationError, 'TAKEOFFS'):
+                    require_project_edition(project, 'standard')
+                require_project_edition(project, 'full')
+
     def test_explicit_capabilities_and_routes_fail_closed(self):
         self.assertEqual(features('full'), {'takeoffs': True})
         self.assertEqual(features('standard'), {'takeoffs': False})

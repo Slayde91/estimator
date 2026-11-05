@@ -175,9 +175,7 @@
     const endActivity = window.CeasefireActivity?.begin();
     let endSound, view, poll = null, finished = false, token = null, documentationHeaders = null, savedResult = null, download = null, tracked = false;
     try {
-    download = window.CeasefireProject?.downloadTarget?.();
-    if (typeof download?.project_token !== 'string' || !download.project_token)
-      throw new Error('Save the current project before downloading. Files save beside its project file.');
+    download = window.CeasefireProject?.downloadTarget?.() || { project_token: null };
     if (window.CeasefireProject?.hasPendingOperation?.())
       throw new Error('Finish the current project save before downloading.');
     active++; tracked = true;
@@ -212,7 +210,7 @@
     if (!response.ok) throw new Error(result?.error || `The file could not be saved (${response.status}).`);
     if (!json) throw new Error("The server did not return a file-save confirmation.");
     if (result?.saved !== true || typeof result.path !== "string" || !result.path.trim() ||
-        typeof result.filename !== "string" || !result.filename.trim() || result.destination !== "project") {
+        typeof result.filename !== "string" || !result.filename.trim() || !["project", "downloads"].includes(result.destination)) {
       throw new Error("The server did not confirm that the file was saved.");
     }
     finished = true; clearTimeout(poll);
@@ -229,7 +227,7 @@
         if (documentationHeaders) await window.CeasefireDocumentation?.downloadCompleted?.(documentationHeaders, savedResult);
       } finally {
         if (tracked) active--;
-        if (savedResult) queueProjectSave(download, savedResult);
+        if (savedResult?.destination === 'project' && download?.project_token) queueProjectSave(download, savedResult);
       }
     }
   }

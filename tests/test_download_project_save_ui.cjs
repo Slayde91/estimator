@@ -24,8 +24,8 @@ function harness(){
 (async()=>{
  let checks=0;
  {
-  const h=harness();h.setTarget(null);await assert.rejects(h.api.save('/api/quote-report'),/Save the current project/);await h.tick();
-  assert.equal(h.calls.length,0);assert.equal(h.saves.length,0);assert.equal(h.api.hasPendingOperation(),false);checks++;
+  const h=harness();h.setTarget(null);await h.api.save('/api/quote-report');await h.tick();
+  assert.equal(h.calls.length,1);assert.equal(h.saves.length,0);assert.equal(h.api.hasPendingOperation(),false);checks++;
  }
  {
   const h=harness();h.project.hasPendingOperation=()=>true;

@@ -901,6 +901,8 @@ class ProjectLibrary:
             raise ValidationError('Download options must contain the current project token only.')
         token = request['project_token']
         if token is None:
+            if project_id is not None:
+                raise ValidationError('Save this project before downloading its commercial documents.')
             return DownloadDestination(standard_downloads_directory(), 'downloads')
         if not isinstance(token, str) or not 1 <= len(token) <= 200:
             raise ValidationError('The download project selection is invalid. Reload the project or use Save As.')

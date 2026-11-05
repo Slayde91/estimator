@@ -115,6 +115,8 @@ class CommercialRegressionTests(unittest.TestCase):
         self.assertEqual(handler.result[0], 400)
         self.assertIn('different project', handler.result[1]['error'])
         self.assertEqual(self.service.capture(self.workspace)['number_counters']['work_order'], 0)
+        with self.assertRaises(ValidationError):
+            library.capture_download({'project_token': None}, project_id=self.projects.project_id(self.workspace))
         body['download']['project_token'] = files['own.cf.json']['save_token']
         accepted = Handler(body, capture)
         adapter.dispatch(accepted, accepted.path)

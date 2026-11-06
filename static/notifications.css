@@ -4,3 +4,6 @@
 [data-notification="true"]>.notification-dismiss:hover{background:color-mix(in srgb,currentColor 12%,transparent)}
 [data-notification="true"]>.notification-dismiss:focus-visible{outline:2px solid currentColor;outline-offset:-2px}
 [data-notification="true"] .notification-dismiss-glyph::before{content:"×"}
+/* Compact status badges need a centred dismiss control, unlike multiline notices. */
+span[data-notification="true"]{display:inline-flex;align-items:center;min-height:28px;padding-inline-end:30px!important}
+span[data-notification="true"]>.notification-dismiss{inset-block-start:50%;transform:translateY(-50%);width:24px;height:24px;min-width:24px;min-height:24px;inset-inline-end:3px}

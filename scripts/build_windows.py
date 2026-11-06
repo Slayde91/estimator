@@ -21,14 +21,14 @@ sys.path.insert(0, str(ROOT))
 from prepare_desktop_seed import prepare
 
 DATA_FILES = (
-    'commercial-quote-terms.txt',
+    'commercial-quote-terms.txt', 'swms-template.json', 'swms-work-types.json',
     'baseline.json', 'pricing_manufacturers.json', 'calculator.json', 'calculator_documents.json', 'penetration.json.gz',
     'promat_board_fc15555_01_03.json',
     'vermiculite_yield_defaults.json', 'calculators/index.json', 'calculators/ductwork.json.gz',
     'calculators/steel_board.json.gz', 'calculators/steel_vermiculite.json.gz',
 )
 STATIC_FILES = (
-    'notifications.js', 'notifications.css',
+    'notifications.js', 'notifications.css', 'swms.js', 'swms.css', 'default-company-logo.png',
     'travel.js', 'travel.css', 'maps-setup.html',
     'pointer-effects.js', 'pointer-effects.css', 'pdf-cursors.css', 'laser-reticle.svg',
     'cursors/busy.png', 'cursors/handwriting.png', 'cursors/link.png', 'cursors/move.png',

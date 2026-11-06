@@ -8,8 +8,9 @@ from reportlab.lib.utils import ImageReader
 
 from .catalog import ROOT, ValidationError
 
-DEFAULTS = {'name': 'CEASEFIRE', 'abn': '50 612 231 562',
-            'phone': '1300 92 62 88', 'email': 'sales@ceasefire.com.au', 'logo': None,
+DEFAULTS = {'name': 'SUPA HOT FIRE', 'abn': '00 000 000 000',
+            'phone': '000 000 000', 'email': 'sales@supahot.com.au',
+            'logo': 'data:image/png;base64,' + base64.b64encode((ROOT / 'static/default-company-logo.png').read_bytes()).decode('ascii'),
             'cover_pdf': None, 'cover_pdf_name': ''}
 MAX_LOGO_BYTES = 2 * 1024 * 1024
 

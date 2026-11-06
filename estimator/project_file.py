@@ -239,7 +239,7 @@ def _portable_penetration(value, *, saved=False):
 def export_project(store, request, *, edition='full'):
     """Return a portable project snapshot with verified evidence manifests."""
     require_project_edition(request, edition)
-    if not isinstance(request, dict) or set(request) - {"estimate", "calculators", "penetration", "takeoffs", "library_drafts", "certifications", "documentation", "project_status", "estimates", "active_estimate_id", "commercial_documents"} or "estimate" not in request:
+    if not isinstance(request, dict) or set(request) - {"estimate", "calculators", "penetration", "takeoffs", "library_drafts", "certifications", "documentation", "project_status", "estimates", "active_estimate_id", "commercial_documents", "swms"} or "estimate" not in request:
         raise ValidationError("Include the current estimate and optional calculator drafts to save a project.")
     _check_tree(request)
     estimate = request["estimate"]
@@ -298,6 +298,11 @@ def export_project(store, request, *, edition='full'):
         from .takeoff_model import validate_snapshot
         snapshot["takeoffs"] = validate_snapshot(request["takeoffs"])
         snapshot["version"] = TAKEOFF_PROJECT_VERSION
+    if "swms" in request:
+        from .swms import validate_swms_snapshot
+        snapshot["swms"] = validate_swms_snapshot(request["swms"])
+        if snapshot["swms"] is not None and snapshot.get("certifications", {}).get("project_id") != snapshot["swms"]["project_id"]:
+            raise ValidationError("SWMS must belong to the saved project workspace.")
     if "commercial_documents" in request:
         from .commercial_documents import validate_commercial_documents
         snapshot["commercial_documents"] = validate_commercial_documents(request["commercial_documents"])
@@ -349,7 +354,7 @@ def load_project_bytes(store, payload, *, edition='full'):
     require_project_edition(snapshot, edition)
     _check_tree(snapshot)
     required = {"format", "version", "estimate", "calculators"}
-    if not isinstance(snapshot, dict) or not required <= set(snapshot) or set(snapshot) - required - {"penetration", "takeoffs", "library_drafts", "certifications", "documentation", "project_status", "estimates", "active_estimate_id", "commercial_documents"}:
+    if not isinstance(snapshot, dict) or not required <= set(snapshot) or set(snapshot) - required - {"penetration", "takeoffs", "library_drafts", "certifications", "documentation", "project_status", "estimates", "active_estimate_id", "commercial_documents", "swms"}:
         raise ValidationError("The project file contains missing or unsupported fields.")
     if snapshot["format"] != PROJECT_FORMAT or type(snapshot["version"]) is not int or snapshot["version"] not in {PROJECT_VERSION, TAKEOFF_PROJECT_VERSION}:
         raise ValidationError("This project file format or version is not supported.")
@@ -412,6 +417,11 @@ def load_project_bytes(store, payload, *, edition='full'):
     if "takeoffs" in snapshot:
         from .takeoff_model import validate_snapshot
         result["takeoffs"] = validate_snapshot(snapshot["takeoffs"])
+    if "swms" in snapshot:
+        from .swms import validate_swms_snapshot
+        result["swms"] = validate_swms_snapshot(snapshot["swms"])
+        if result["swms"] is not None and result.get("certifications", {}).get("project_id") != result["swms"]["project_id"]:
+            raise ValidationError("SWMS do not match this project workspace identity.")
     if "commercial_documents" in snapshot:
         from .commercial_documents import validate_commercial_documents
         result["commercial_documents"] = validate_commercial_documents(snapshot["commercial_documents"])

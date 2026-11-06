@@ -18,6 +18,7 @@ from openpyxl import load_workbook
 from pypdf import PdfReader
 
 from estimator.catalog import ValidationError
+from estimator.company_settings import DEFAULTS
 from estimator.reference_library import ReferenceLibrary
 from estimator.server import create_server
 from estimator.technical_item_exports import prepare_technical_item, build_technical_item_xlsx, render_technical_item_pdf
@@ -78,7 +79,7 @@ class TechnicalItemExportsTests(unittest.TestCase):
         self.assertFalse(any(cell.data_type == 'f' for cell in cells))
         reader = PdfReader(BytesIO(render_technical_item_pdf(snapshot)))
         for page in reader.pages:
-            self.assertIn('ABN: 50 612 231 562', page.extract_text())
+            self.assertIn(f"ABN: {DEFAULTS['abn']}", page.extract_text())
             self.assertIn('TECHNICAL ITEM', page.extract_text())
         text = '\n'.join(page.extract_text() for page in reader.pages)
         for value in ('SYN-123', 'Unlinked source report', '=Literal source text', 'Copper pipe 25 mm'):

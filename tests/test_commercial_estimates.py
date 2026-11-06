@@ -45,9 +45,11 @@ class CommercialEstimateTests(unittest.TestCase):
         self.assertEqual(len(result['scope_documents']), 1)
         reader = PdfReader(BytesIO(result['scope_documents'][0]['pdf']))
         self.assertTrue(all(float(page.mediabox.width) < float(page.mediabox.height) for page in reader.pages))
-        text = '\n'.join(page.extract_text() for page in reader.pages)
+        text = ' '.join('\n'.join(page.extract_text() for page in reader.pages).split())
         self.assertIn('Captured member', text)
-        self.assertIn('1 Test Street', text)
+        self.assertNotIn('1 Test Street', text)
+        self.assertNotIn('Fire Protection Schedule', text)
+        self.assertNotIn('Page 1', text)
         self.assertEqual(request, before)
 
     def test_supplied_line_prices_are_ignored_and_hashes_are_stable(self):

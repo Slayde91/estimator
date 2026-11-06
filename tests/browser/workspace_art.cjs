@@ -102,7 +102,13 @@ async function followupBanners(themes=['ceasefire','midnight','ocean','forest','
  for(const themeId of themes){
   await theme(themeId,'estimate');await chooseEstimate();
   for(const workspace of ['estimate','projects','technical','penetration','pricing']){
-   if(workspace==='projects'){await page.locator('nav [data-view="projects"]').click();if(await page.locator('#view-projects').isVisible())await page.locator('#view-projects [data-project-section="quotes"]').click();await idle();}
+   if(workspace==='projects'){
+    const toggle=page.locator('nav [data-view="projects"]');await toggle.click();await idle();
+    // The Projects hover menu overlays the first hub card on phone widths.
+    // Dismiss it through its keyboard action before exercising the real card.
+    await page.mouse.move(0,0);await toggle.press('Escape');await expect(page.locator('#projects-navigation-menu')).toBeHidden();
+    if(await page.locator('#view-projects').isVisible())await page.locator('#view-projects [data-project-section="quotes"]').click();await idle();
+   }
    else if(['technical','penetration','pricing'].includes(workspace)){await chooseLibrary(page,workspace);await idle();}
    const heading=page.locator(workspace==='estimate'?'.estimate-banner-heading':workspace==='projects'?'.project-banner-heading':`#library-${workspace} > .page-heading`);
    for(const width of widths){

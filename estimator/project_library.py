@@ -318,6 +318,7 @@ class ProjectLibrary:
         self.certifications = certifications
         self.documentation = documentation
         self.commercial = None
+        self.swms = None
         self.dialogs = dialogs if dialogs is not None else NativeDialogs()
         self._lock = threading.RLock()
         self._cache = {}
@@ -406,6 +407,11 @@ class ProjectLibrary:
                     or incoming.get('workspace_id') != certificate.get('workspace_id')):
                 raise ValidationError('Capture document history with the same explicit project workspace as the current project.')
             prepared['documentation'] = self.documentation.capture(incoming)
+        if 'swms' in prepared:
+            workspace_id = request.get('certifications', {}).get('workspace_id')
+            if self.swms is None or not workspace_id:
+                raise ValidationError('SWMS require their current project workspace.')
+            prepared['swms'] = self.swms.capture(workspace_id, request['swms'])
         if 'commercial_documents' in prepared:
             workspace_id = request.get('certifications', {}).get('workspace_id')
             if self.commercial is None or not workspace_id:
@@ -456,6 +462,10 @@ class ProjectLibrary:
                 raise ValidationError('Open this saved document history in the current application with its project workspace.')
             if self.documentation is not None and workspace is not None:
                 self.documentation.restore(project.get('documentation'), workspace['workspace_id'], path)
+            if self.swms is not None and workspace is not None:
+                self.swms.restore(workspace['workspace_id'], project.get('swms'))
+            elif 'swms' in project:
+                raise ValidationError('Open this project with its SWMS workspace available.')
             if self.commercial is not None and workspace is not None:
                 self.commercial.restore(workspace['workspace_id'], project.get('commercial_documents'))
             elif 'commercial_documents' in project:
@@ -505,6 +515,8 @@ class ProjectLibrary:
                 incoming = {entry['id'] for entry in request.get('estimates', [])}
                 if not previous <= incoming:
                     raise ValidationError('Reload this project before saving so every named estimate is retained.')
+            if 'swms' in snapshot and 'swms' not in request:
+                raise ValidationError('Reload this project before saving so its SWMS are retained.')
             if 'commercial_documents' in snapshot and 'commercial_documents' not in request:
                 raise ValidationError('Reload this project before saving so its commercial documents are retained.')
         if isinstance(snapshot, dict) and snapshot.get('format') == 'ceasefire-project' and 'takeoffs' in snapshot and 'takeoffs' not in request:
@@ -1011,7 +1023,7 @@ class ProjectLibrary:
     def save(self, request):
         require_project_edition(request, self.edition)
         required = {"save_token", "estimate", "calculators"}
-        if not isinstance(request, dict) or not required <= set(request) or set(request) - required - {"penetration", "takeoffs", "takeoffs_session_id", "library_drafts", "certifications", "documentation", "project_status", "estimates", "active_estimate_id", "commercial_documents"}:
+        if not isinstance(request, dict) or not required <= set(request) or set(request) - required - {"penetration", "takeoffs", "takeoffs_session_id", "library_drafts", "certifications", "documentation", "project_status", "estimates", "active_estimate_id", "commercial_documents", "swms"}:
             raise ValidationError("Save requires the current project selection and its complete estimate and calculators.")
         if (not isinstance(request["calculators"], dict)
                 or not set(LEGACY_CALCULATOR_IDS) <= set(request["calculators"])
@@ -1028,7 +1040,7 @@ class ProjectLibrary:
             if selection is None:
                 raise ValidationError('This project selection is no longer available. Use Load Project or "Save As".')
             selected_path = _project_save_path(selection)
-        captured = self._capture_takeoffs({key: request[key] for key in ("estimate", "calculators", "penetration", "takeoffs", "takeoffs_session_id", "library_drafts", "certifications", "documentation", "project_status", "estimates", "active_estimate_id", "commercial_documents") if key in request})
+        captured = self._capture_takeoffs({key: request[key] for key in ("estimate", "calculators", "penetration", "takeoffs", "takeoffs_session_id", "library_drafts", "certifications", "documentation", "project_status", "estimates", "active_estimate_id", "commercial_documents", "swms") if key in request})
         if "project_status" not in captured:
             if file_fingerprint(selected_path) != selection.fingerprint:
                 raise ValidationError('The project file changed or was removed outside this window. Reload it or use "Save As".')

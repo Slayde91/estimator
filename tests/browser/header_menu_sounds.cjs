@@ -309,9 +309,29 @@ async function noDownloadAudio() {
   const logoAttempt = await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source.endsWith('flame-whoosh.wav')).at(-1));
   assert.equal(logoAttempt.event, 'click', 'The preloaded logo clip starts in the original click handler');
   evidence.checks.logoClickTrimmedFlameWhoosh = { ...logoOnset, sameClickEvent: true, leadingSecondsRemoved: 38118 / 44100 };
-  // A trusted navigation starts the supplied printing loop only for its active phrase.
+  // The brand phrase legitimately uses gameover audio instead of the typing
+  // loop. Exercise that branch deterministically, then navigate to an ordinary
+  // phrase (consecutive phrases never repeat) before checking native typing.
+  const brandPhrase = 'CLASSIFIRE: Passive Fire Intelligence', tagline = page.locator('#header-tagline-label');
+  if (await tagline.textContent() === brandPhrase) { await home.click(); await expect(tagline).not.toHaveText(brandPhrase); }
+  const brandPrior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith('gameover.mp3')).length);
+  const typingAttempts = await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source.endsWith('type.mp3')).length);
+  // The existing tagline fixture selects phrases through Math.random. Keep the
+  // override only through this trusted click/label check so concurrent visual
+  // callbacks cannot consume it before selection; restore it in finally.
+  await page.evaluate(() => {
+    const original = Math.random;
+    window.qaRestoreTaglineRandom = () => { Math.random = original; delete window.qaRestoreTaglineRandom; };
+    Math.random = () => .999999;
+  });
+  try { await home.click(); await expect(tagline).toHaveText(brandPhrase); }
+  finally { await page.evaluate(() => window.qaRestoreTaglineRandom?.()); }
+  await played('/sounds/gameover.mp3', brandPrior);
+  assert.equal(await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source.endsWith('type.mp3')).length), typingAttempts, 'The special brand phrase does not start the ordinary typing loop');
+  evidence.checks.specialPhraseUsesOwnSound = { phrase: brandPhrase, nativePlaying: true, typingAttemptsUnchanged: true };
+  // A trusted navigation starts the supplied printing loop only for its active ordinary phrase.
   prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith('type.mp3')).length);
-  await home.click(); await played('/sounds/type.mp3', prior); await idle();
+  await home.click(); await expect(tagline).not.toHaveText(brandPhrase); await played('/sounds/type.mp3', prior); await idle();
   const printingObservation = await page.waitForFunction(() => {
     const typed = document.getElementById("header-tagline-typed").textContent;
     const label = document.getElementById("header-tagline-label").textContent;

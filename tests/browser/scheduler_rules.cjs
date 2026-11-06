@@ -86,8 +86,8 @@ async function submit(name) {await page.locator('dialog[open]').getByRole('butto
   await expect(page.locator('.scheduler-payroll')).toContainText('$360.00');
   await page.locator('.scheduler-payroll summary').click();
   await expect(page.locator('.scheduler-payroll')).toContainText('Custom double time');
-  await page.getByText('Break details',{exact:true}).click();
-  await expect(page.locator('.scheduler-break-summary')).toContainText('automatic');
+  await page.getByText('Break details',{exact:true}).first().click();
+  await expect(page.locator('.scheduler-break-summary').first()).toContainText('automatic');
   const saved = (await api('scheduler/state?start=2026-11-02&end=2026-11-09')).body;
   assert.equal(saved.entries[0].effective_breaks.length,2);
   assert.equal(saved.entries[0].breaks.length,0);

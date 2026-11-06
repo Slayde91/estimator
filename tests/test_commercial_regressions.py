@@ -52,6 +52,11 @@ class CommercialRegressionTests(unittest.TestCase):
 
     def create(self, kind='work_order'):
         fields = default_fields(kind)
+        fields['details']['project_no'] = 'CF-TEST'
+        if kind == 'work_order':
+            quote = self.create('quote')
+            quote = self.service.issue(self.workspace, quote['id'], quote['version'], str(uuid.uuid4()))['document']
+            fields['order']['quote_id'] = quote['id']
         fields['sources'] = [{'estimate_id': 'estimate-1', 'sha256': 'a'*64}] if kind == 'quote' else []
         return self.service.save(self.workspace, {'id': str(uuid.uuid4()), 'version': 0, 'kind': kind, 'status': 'Draft', 'fields': fields})
 
@@ -60,12 +65,15 @@ class CommercialRegressionTests(unittest.TestCase):
         issued = self.service.issue(self.workspace, saved['id'], saved['version'], str(uuid.uuid4()))
         self.service.delete(self.workspace, saved['id'], issued['document']['version'])
         snapshot = self.service.capture(self.workspace)
-        self.assertEqual(snapshot['documents'], [])
+        self.assertFalse(any(row['kind'] == 'work_order' for row in snapshot['documents']))
         other_projects = Projects(self.root/'another-computer')
         other_workspace = other_projects.add(snapshot['project_id'])
         restored = CommercialDocuments(other_projects, renderer=self.service.renderer)
         restored.restore(other_workspace, snapshot)
-        next_document = restored.save(other_workspace, {'kind': 'work_order', 'status': 'Draft', 'fields': default_fields('work_order')})
+        fields = default_fields('work_order')
+        fields['details']['project_no'] = 'CF-TEST'
+        fields['order']['quote_id'] = next(row['id'] for row in snapshot['documents'] if row['kind'] == 'quote')
+        next_document = restored.save(other_workspace, {'kind': 'work_order', 'status': 'Draft', 'fields': fields})
         next_issue = restored.issue(other_workspace, next_document['id'], next_document['version'], str(uuid.uuid4()))
         self.assertEqual(issued['number'], 'WO-000001')
         self.assertEqual(next_issue['number'], 'WO-000002')

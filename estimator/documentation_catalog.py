@@ -39,6 +39,7 @@ def document_catalog(edition='full'):
             add(f'firestopping.{scope}.{format}',label,format,'firestopping',scope=scope,format=format)
     add('pricing.library.xlsx','Pricing Library','xlsx','pricing')
     add('certification','Installation Certificate','pdf','certification')
+    add('swms', 'Safe Work Method Statement', 'pdf', 'swms')
     for kind, label in [('quote', 'Quote'), ('work_order', 'Work Order'), ('purchase_order', 'Purchase Order')]:
         add(f'commercial.{kind}', label, 'pdf', 'commercial', kind=kind)
     for format in ['pdf','xlsx']:
@@ -68,6 +69,8 @@ def export_identity(route, body):
              '/api/penetration/register.xlsx':'firestopping.schedule.xlsx'}
     if route in fixed:
         return fixed[route], ''
+    if route == '/api/swms/issue':
+        return 'swms', str(body.get('id', ''))
     if (route == '/api/commercial/issue' and isinstance(body.get('kind'), str)
             and body['kind'] in {'quote', 'work_order', 'purchase_order'}):
         return 'commercial.' + body['kind'], str(body.get('id', ''))

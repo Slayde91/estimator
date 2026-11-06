@@ -14,6 +14,7 @@ from pypdf import PdfReader
 from openpyxl import load_workbook
 
 from estimator.catalog import ROOT
+from estimator.company_settings import DEFAULTS
 from estimator.schedule_rows import blank_schedule_defaults
 from estimator.server import create_server
 from estimator.storage import Store
@@ -401,7 +402,7 @@ class CalculatorPresentationApiTests(unittest.TestCase):
                             self.assertIn(value, text)
                         for page in reader.pages:
                             page_text = page.extract_text()
-                            for contact in ('ABN: 50 612 231 562', 'Phone: 1300 92 62 88', 'sales@ceasefire.com.au'):
+                            for contact in (f"ABN: {DEFAULTS['abn']}", f"Phone: {DEFAULTS['phone']}", DEFAULTS['email']):
                                 self.assertIn(contact, page_text)
                         for heading in ("Schedule inputs, calculations and complete notes",
                                         "Single-member calculator - separate from the schedule",

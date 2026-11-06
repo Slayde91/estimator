@@ -26,7 +26,7 @@ INTRODUCTION = ('We have the pleasure in providing you with the following quotat
                 'which will be supplied, installed and certified to comply with the National Construction Code and the relevant Australian '
                 'Standards AS1530.4 and AS4072.1.')
 DETAIL_FIELDS = ('project_no', 'client', 'site_address', 'contact', 'phone', 'email', 'date')
-ORDER_FIELDS = ('start_date', 'end_date', 'urgency', 'quote_reference', 'work_order_reference',
+ORDER_FIELDS = ('start_date', 'end_date', 'urgency', 'quote_id', 'work_order_id', 'quote_reference', 'work_order_reference',
                 'description', 'estimated_cost', 'attachments', 'review_date', 'approval', 'justification',
                 'reviewed_by', 'swms', 'sds', 'sop', 'other_documents', 'prepared_by', 'client_approval',
                 'client_approved_by', 'client_approval_date', 'progress', 'claim', 'certification', 'completion',
@@ -231,6 +231,9 @@ def validate_fields(value):
         if not isinstance(fields, dict) or set(fields) - set(keys):
             raise ValidationError('Commercial document details contain unsupported fields.')
         result[key] = {name: _text(fields.get(name, ''), name, 6000 if key == 'order' else 1000) for name in keys}
+    for name in ('quote_id', 'work_order_id'):
+        if result['order'][name]:
+            _identity(result['order'][name])
     result['introduction'] = _text(value['introduction'], 'Introduction', 20000)
     for key in ('scope', 'allowances', 'terms'):
         result[key] = validate_rich_text(value[key], key)
@@ -286,12 +289,19 @@ def _json(value):
 def validate_commercial_documents(value):
     if value is None:
         return None
-    if not isinstance(value, dict) or set(value) != {'version', 'project_id', 'documents', 'number_counters'} or type(value['version']) is not int or value['version'] != 1:
+    required = {'version', 'project_id', 'documents', 'number_counters'}
+    if not isinstance(value, dict) or not required <= set(value) or set(value) - required - {'work_order_counters'} or type(value['version']) is not int or value['version'] != 1:
         raise ValidationError('Commercial documents use an unsupported project format.')
     _identity(value['project_id'])
     counters = value['number_counters']
     if not isinstance(counters, dict) or set(counters) != set(KINDS) or any(type(number) is not int or not 0 <= number <= 9999999999 for number in counters.values()):
         raise ValidationError('Commercial document number counters are invalid.')
+    work_order_counters = deepcopy(value.get('work_order_counters', {}))
+    if (not isinstance(work_order_counters, dict) or len(work_order_counters) > 10000
+            or any(not isinstance(label, str) or not re.fullmatch(r'Q-\d{6,10}', label)
+                   or type(number) is not int or not 0 <= number <= 9999999999
+                   for label, number in work_order_counters.items())):
+        raise ValidationError('Work order number counters are invalid.')
     if not isinstance(value['documents'], list) or len(value['documents']) > 100:
         raise ValidationError('A project supports at most 100 commercial documents.')
     try:
@@ -318,8 +328,35 @@ def validate_commercial_documents(value):
         prefix = {'quote': 'Q', 'work_order': 'WO', 'purchase_order': 'PO'}[row['kind']]
         if row['last_number'] and not re.fullmatch(re.escape(prefix) + r'-\d{6,10}', row['last_number']):
             raise ValidationError('The last commercial document number is invalid.')
+        if row['kind'] == 'work_order' and row['fields']['order']['quote_id']:
+            quote_number, sequence = _work_order_sequence(row['fields'])
+            work_order_counters[quote_number] = max(work_order_counters.get(quote_number, 0), sequence)
         documents.append(row)
-    return {'version': 1, 'project_id': value['project_id'], 'documents': documents, 'number_counters': deepcopy(counters)}
+    return {'version': 1, 'project_id': value['project_id'], 'documents': documents,
+            'number_counters': deepcopy(counters), 'work_order_counters': work_order_counters}
+
+
+def _work_order_sequence(fields):
+    """Validate the saved reference without requiring a still-existing source Quote."""
+    project_no = fields['details']['project_no']
+    order = fields['order']
+    quote_number = order['quote_reference']
+    if not project_no.strip() or any(char in project_no for char in '\r\n\t') or not re.fullmatch(r'Q-\d{6,10}', quote_number):
+        raise ValidationError('A work order requires a project number and an issued Quote number.')
+    prefix = project_no + '-' + quote_number + '-'
+    reference = order['work_order_reference']
+    suffix = reference[len(prefix):] if reference.startswith(prefix) else ''
+    if not re.fullmatch(r'\d{2,10}', suffix) or not 1 <= int(suffix) <= 9999999999 or suffix != f'{int(suffix):02d}':
+        raise ValidationError('The work order reference does not match its project and Quote.')
+    return quote_number, int(suffix)
+
+
+def _stored_document(value):
+    document = json.loads(value)
+    # Older drafts did not contain relationship identities. Normalise them on read
+    # so opening an existing project does not require rewriting its saved data.
+    document['fields'] = validate_fields(document['fields'])
+    return document
 
 
 class CommercialDocuments:
@@ -333,6 +370,7 @@ class CommercialDocuments:
                 CREATE TABLE IF NOT EXISTS commercial_workspaces (workspace TEXT PRIMARY KEY, project_id TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS commercial_drafts (workspace TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(workspace,id));
                 CREATE TABLE IF NOT EXISTS commercial_sequences (kind TEXT PRIMARY KEY, number INTEGER NOT NULL);
+                CREATE TABLE IF NOT EXISTS commercial_work_order_sequences (project_id TEXT NOT NULL, quote_number TEXT NOT NULL, number INTEGER NOT NULL, PRIMARY KEY(project_id,quote_number));
                 CREATE TABLE IF NOT EXISTS commercial_issued (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, document_id TEXT NOT NULL, request_id TEXT UNIQUE NOT NULL, fingerprint TEXT NOT NULL, number TEXT NOT NULL, filename TEXT NOT NULL, pdf BLOB NOT NULL, document TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS commercial_audit (sequence INTEGER PRIMARY KEY, workspace TEXT NOT NULL, document_id TEXT NOT NULL, action TEXT NOT NULL, before_data TEXT, after_data TEXT, created_at TEXT NOT NULL);
             ''')
@@ -359,7 +397,9 @@ class CommercialDocuments:
         rows = db.execute('SELECT data FROM commercial_drafts WHERE workspace=? ORDER BY id', (workspace,)).fetchall()
         counters = dict.fromkeys(KINDS, 0)
         counters.update(dict(db.execute('SELECT kind,number FROM commercial_sequences').fetchall()))
-        return {'version': 1, 'project_id': project, 'documents': [json.loads(row[0]) for row in rows], 'number_counters': counters}
+        work_order_counters = dict(db.execute('SELECT quote_number,number FROM commercial_work_order_sequences WHERE project_id=?', (project,)).fetchall())
+        return {'version': 1, 'project_id': project, 'documents': [_stored_document(row[0]) for row in rows],
+                'number_counters': counters, 'work_order_counters': work_order_counters}
 
     def capture(self, workspace, expected_snapshot=None):
         with self._connect() as db:
@@ -393,6 +433,8 @@ class CommercialDocuments:
             if snapshot:
                 for kind, number in snapshot['number_counters'].items():
                     db.execute('INSERT INTO commercial_sequences VALUES(?,?) ON CONFLICT(kind) DO UPDATE SET number=max(number,excluded.number)', (kind, number))
+                for quote_number, number in snapshot['work_order_counters'].items():
+                    db.execute('INSERT INTO commercial_work_order_sequences VALUES(?,?,?) ON CONFLICT(project_id,quote_number) DO UPDATE SET number=max(number,excluded.number)', (project, quote_number, number))
         return self.view(workspace)
 
     @staticmethod
@@ -401,7 +443,7 @@ class CommercialDocuments:
         row = db.execute('SELECT data FROM commercial_drafts WHERE workspace=? AND id=?', (workspace, identity)).fetchone()
         if row is None:
             raise ValidationError('This commercial document is unavailable in the current project.')
-        return json.loads(row[0])
+        return _stored_document(row[0])
 
     @staticmethod
     def _version(previous, version):
@@ -412,6 +454,71 @@ class CommercialDocuments:
     def _audit(db, workspace, identity, action, before=None, after=None):
         db.execute('INSERT INTO commercial_audit(workspace,document_id,action,before_data,after_data,created_at) VALUES(?,?,?,?,?,?)',
                    (workspace, identity, action, _json(before) if before else None, _json(after) if after else None, datetime.now(timezone.utc).isoformat()))
+
+    def _relationships(self, db, workspace, project, kind, fields, previous, *, create_retry=False):
+        order = fields['order']
+        prior = previous['fields']['order'] if previous else None
+        if kind == 'work_order':
+            if order['work_order_id']:
+                raise ValidationError('A work order cannot link to another work order.')
+            if not previous or prior['quote_id']:
+                fields['details']['project_no'] = fields['details']['project_no'].strip()
+            if previous:
+                if order['quote_id'] != prior['quote_id']:
+                    raise ValidationError('The linked Quote cannot change after a work order is created.')
+                if prior['quote_id']:
+                    if fields['details']['project_no'] != previous['fields']['details']['project_no']:
+                        raise ValidationError('The project number cannot change after a work order reference is assigned.')
+                    for key in ('quote_reference', 'work_order_reference'):
+                        if order[key] != prior[key] and not (create_retry and not order[key]):
+                            raise ValidationError('Work order and Quote references are assigned automatically and cannot be edited.')
+                        order[key] = prior[key]
+                    _work_order_sequence(fields)
+                return
+            if not order['quote_id']:
+                raise ValidationError('Select an issued Quote before creating a work order.')
+            quote = self._record(db, workspace, order['quote_id'])
+            if quote['kind'] != 'quote' or not quote['last_number']:
+                raise ValidationError('Download the linked Quote PDF before creating a work order.')
+            project_no = fields['details']['project_no'].strip()
+            if not project_no or any(char in project_no for char in '\r\n\t'):
+                raise ValidationError('Enter a project number before creating a work order.')
+            fields['details']['project_no'] = project_no
+            quote_number = quote['last_number']
+            if order['quote_reference'] not in ('', quote_number) or order['work_order_reference']:
+                raise ValidationError('Work order references are assigned automatically when first saved.')
+            row = db.execute('SELECT number FROM commercial_work_order_sequences WHERE project_id=? AND quote_number=?', (project, quote_number)).fetchone()
+            number = (row[0] if row else 0) + 1
+            if number > 9999999999:
+                raise ValidationError('The work order reference sequence is exhausted.')
+            order['quote_reference'] = quote_number
+            order['work_order_reference'] = f'{project_no}-{quote_number}-{number:02d}'
+            db.execute('INSERT INTO commercial_work_order_sequences VALUES(?,?,?) ON CONFLICT(project_id,quote_number) DO UPDATE SET number=excluded.number', (project, quote_number, number))
+        elif kind == 'purchase_order':
+            work_order_id = order['work_order_id']
+            if not work_order_id:
+                # Preserve historical unlinked references, but never allow a new
+                # manually entered reference to impersonate a linked work order.
+                allowed = prior['work_order_reference'] if prior and not prior['work_order_id'] else ''
+                if order['work_order_reference'] not in ('', allowed):
+                    raise ValidationError('Select a work order to set its reference automatically.')
+                return
+            try:
+                work_order = self._record(db, workspace, work_order_id)
+            except ValidationError:
+                if not prior or work_order_id != prior['work_order_id']:
+                    raise
+                # Deleting a source draft does not erase the historical PO link.
+                reference = prior['work_order_reference']
+            else:
+                if work_order['kind'] != 'work_order':
+                    raise ValidationError('Select a work order from this project.')
+                reference = work_order['fields']['order']['work_order_reference'] or work_order['last_number']
+                if not reference:
+                    raise ValidationError('The selected work order does not yet have a reference.')
+            if order['work_order_reference'] not in ('', reference):
+                raise ValidationError('The linked work order reference is automatic and cannot be edited.')
+            order['work_order_reference'] = reference
 
     def save(self, workspace, payload):
         if not isinstance(payload, dict) or set(payload) - {'id', 'version', 'kind', 'status', 'fields'}:
@@ -427,19 +534,21 @@ class CommercialDocuments:
             if payload.get('id'):
                 _identity(payload['id'])
                 row = db.execute('SELECT data FROM commercial_drafts WHERE workspace=? AND id=?', (workspace, payload['id'])).fetchone()
-                previous = json.loads(row[0]) if row else None
-                if payload.get('version') == 0 and previous:
-                    if previous['fields'] == fields and previous['kind'] == kind and previous['status'] == payload['status']:
-                        return previous
-                    raise CommercialConflict('This new document was already saved with different content. Reopen it before editing.')
+                previous = _stored_document(row[0]) if row else None
                 if previous is None and payload.get('version') != 0:
                     raise CommercialConflict('This document is unavailable. Reopen the project.')
                 if previous is None and db.execute('SELECT 1 FROM commercial_audit WHERE workspace=? AND document_id=? LIMIT 1', (workspace, payload['id'])).fetchone():
                     raise CommercialConflict('This document was deleted. Create a new document instead of retrying its original save.')
             if previous:
-                self._version(previous, payload.get('version'))
                 if previous['kind'] != kind:
                     raise ValidationError('A commercial document cannot change its kind.')
+                if payload.get('version') != 0:
+                    self._version(previous, payload.get('version'))
+            self._relationships(db, workspace, project, kind, fields, previous, create_retry=payload.get('version') == 0)
+            if payload.get('version') == 0 and previous:
+                if previous['fields'] == fields and previous['status'] == payload['status']:
+                    return previous
+                raise CommercialConflict('This new document was already saved with different content. Reopen it before editing.')
             now = datetime.now(timezone.utc).isoformat()
             document = {'id': previous['id'] if previous else payload.get('id') or str(uuid.uuid4()), 'kind': kind,
                         'version': previous['version'] + 1 if previous else 1, 'status': payload['status'], 'fields': fields,
@@ -522,7 +631,9 @@ class CommercialDocuments:
                 renderer = render_commercial_pdf
             else:
                 renderer = self.renderer
-            pdf = renderer(document, label, company=company, scope_documents=scopes)
+            displayed_number = (document['fields']['order']['work_order_reference']
+                                if kind == 'work_order' and document['fields']['order']['quote_id'] else label)
+            pdf = renderer(document, displayed_number, company=company, scope_documents=scopes)
             if not isinstance(pdf, bytes) or not pdf.startswith(b'%PDF-') or len(pdf) > MAX_PDF_BYTES:
                 raise ValidationError('Generated commercial PDF is invalid or exceeds 64 MiB.')
             previous = deepcopy(document)

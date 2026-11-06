@@ -23,7 +23,12 @@ class SchedulerTests(unittest.TestCase):
         self.token = self.auth['token']
 
     def write(self, action, value=None, token=None):
+        if action == 'clock/in':
+            value = {'location_consent': True, 'location': self.location(), **(value or {})}
         return self.store.write(action, value, token or self.token)
+
+    def location(self):
+        return {'latitude': -33.8688, 'longitude': 151.2093, 'accuracy': 10, 'captured_at': self.now.isoformat()}
 
     def member(self, name='Worker'):
         return self.write('members/save', {'name': name, 'email': name.lower() + '@example.test',
@@ -152,15 +157,12 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(state['entries'][0]['breaks'][0]['start'], '2026-11-01T23:00:00Z')
 
     def test_location_requires_own_active_consent_and_current_timestamp(self):
-        location = {'latitude': -33.86, 'longitude': 151.2, 'accuracy': 10}
+        location = self.location()
         self.assert_error(403, lambda: self.write('locations', location))
-        self.write('clock/in')
-        self.assert_error(403, lambda: self.write('locations', location))
-        self.now += timedelta(seconds=5)
-        self.write('clock/out')
-        self.now += timedelta(seconds=5)
         entry = self.write('clock/in', {'location_consent': True})
         self.assert_error(400, lambda: self.write('locations', location))
+        self.now += timedelta(seconds=10)
+        location = self.location()
         location['entry_id'] = entry['id']
         self.assertTrue(self.write('locations', location)['recorded'])
         self.assertFalse(self.write('locations', location)['recorded'])
@@ -169,7 +171,7 @@ class SchedulerTests(unittest.TestCase):
         worker = self.member()
         token = self.store.write('login', {'email': worker['email'], 'password': 'worker password 123'})['token']
         self.assert_error(403, lambda: self.store.read('locations', {'entry_id': entry['id']}, token))
-        self.assertEqual(len(self.store.read('locations', {'entry_id': entry['id']}, self.token)['locations']), 1)
+        self.assertEqual(len(self.store.read('locations', {'entry_id': entry['id']}, self.token)['locations']), 2)
         self.now += timedelta(seconds=10)
         closed = self.write('clock/out')
         self.assert_error(403, lambda: self.write('locations', location))
@@ -177,20 +179,75 @@ class SchedulerTests(unittest.TestCase):
 
     def test_stale_location_watcher_cannot_follow_another_user_or_clock_session(self):
         first = self.write('clock/in', {'location_consent': True})
-        location = {'entry_id': first['id'], 'latitude': -33.86, 'longitude': 151.2, 'accuracy': 10}
+        location = {'entry_id': first['id'], **self.location()}
         worker = self.member()
         worker_token = self.store.write('login', {'email': worker['email'], 'password': 'worker password 123'})['token']
         second = self.write('clock/in', {'location_consent': True}, worker_token)
         self.assert_error(409, lambda: self.write('locations', location, worker_token))
-        self.assertEqual(self.store.read('locations', {'entry_id': second['id']}, worker_token)['locations'], [])
-        second_location = {**location, 'entry_id': second['id']}
+        self.assertEqual(len(self.store.read('locations', {'entry_id': second['id']}, worker_token)['locations']), 1)
+        self.now += timedelta(seconds=10)
+        second_location = {**self.location(), 'entry_id': second['id']}
         self.assertTrue(self.write('locations', second_location, worker_token)['recorded'])
         self.now += timedelta(seconds=20)
         self.write('clock/out', {}, worker_token)
         self.now += timedelta(seconds=20)
         third = self.write('clock/in', {'location_consent': True}, worker_token)
         self.assert_error(409, lambda: self.write('locations', second_location, worker_token))
-        self.assertEqual(self.store.read('locations', {'entry_id': third['id']}, worker_token)['locations'], [])
+        self.assertEqual(len(self.store.read('locations', {'entry_id': third['id']}, worker_token)['locations']), 1)
+
+    def test_clock_in_requires_a_fresh_valid_location_and_saves_it_atomically(self):
+        for payload in ({}, {'location_consent': False, 'location': self.location()},
+                        {'location_consent': True}, {'location_consent': True, 'location': {**self.location(), 'accuracy': -1}},
+                        {'location_consent': True, 'location': {**self.location(), 'captured_at': (self.now-timedelta(minutes=3)).isoformat()}},
+                        {'location_consent': True, 'location': {**self.location(), 'captured_at': (self.now+timedelta(seconds=1)).isoformat()}}):
+            with self.subTest(payload=payload):
+                self.assert_error(400, lambda: self.store.write('clock/in', payload, self.token))
+                self.assertIsNone(self.state()['active_entry'])
+        fix = {**self.location(), 'captured_at': (self.now-timedelta(seconds=2)).isoformat()}
+        entry = self.write('clock/in', {'location': fix})
+        history = self.store.read('locations', {'entry_id': entry['id']}, self.token)
+        self.assertEqual(history['locations'][0]['captured_at'], '2026-11-01T19:59:58Z')
+        self.assertEqual(history['coverage']['gaps'], [])
+        self.assertEqual(self.state()['active_entry']['location_summary']['count'], 1)
+        self.now += timedelta(hours=1)
+        closed = self.write('clock/out')
+        edited = self.write('entries/save', {**closed, 'notes': 'Keep original verified clock-in'})
+        self.assertEqual(edited['start'], entry['start'])
+
+    def test_administrator_history_gaps_and_heartbeat_session_renewal(self):
+        worker = self.member()
+        token = self.store.write('login', {'email': worker['email'], 'password': 'worker password 123'})['token']
+        entry = self.write('clock/in', token=token)
+        self.now += timedelta(minutes=30)
+        self.write('locations', {'entry_id': entry['id'], **self.location()}, token)
+        self.now += timedelta(minutes=70)
+        self.write('locations', {'entry_id': entry['id'], **self.location()}, token)
+        history = self.store.read('locations', {'entry_id': entry['id']}, self.token)
+        self.assertEqual(len(history['locations']), 3)
+        self.assertEqual([gap['minutes'] for gap in history['coverage']['gaps']], [70])
+        # Successful fresh heartbeats keep this existing local session alive for long shifts.
+        self.now += timedelta(hours=10)
+        self.write('locations', {'entry_id': entry['id'], **self.location()}, token)
+        self.now += timedelta(hours=10)
+        self.assertEqual(self.store.read('bootstrap', {}, token)['user']['id'], worker['id'])
+        self.write('clock/out', token=token)
+        self.assert_error(403, lambda: self.write('locations', {'entry_id': entry['id'], **self.location()}, token))
+        self.now += timedelta(hours=3)
+        self.assertIsNone(self.store.read('bootstrap', {}, token)['user'])
+
+    def test_legacy_active_shift_can_resume_mandatory_tracking_without_new_entry(self):
+        entry = self.write('clock/in')
+        with self.store.connect() as db:
+            row = db.execute('SELECT data FROM scheduler_records WHERE id=?', (entry['id'],)).fetchone()
+            legacy = json.loads(row[0]); legacy['location_consent'] = False
+            db.execute('UPDATE scheduler_records SET data=? WHERE id=?', (json.dumps(legacy), entry['id']))
+            db.execute('DELETE FROM scheduler_locations WHERE entry_id=?', (entry['id'],))
+        self.now += timedelta(hours=1)
+        self.assert_error(403, lambda: self.write('locations', {'entry_id': entry['id'], **self.location()}))
+        self.assertTrue(self.write('locations/enable', {'entry_id': entry['id'], **self.location()})['recorded'])
+        self.assertEqual(self.state()['active_entry']['id'], entry['id'])
+        self.assertTrue(self.state()['active_entry']['location_consent'])
+        self.assertEqual(self.store.read('locations', {'entry_id': entry['id']}, self.token)['coverage']['gaps'][0]['minutes'], 60)
 
     def test_manual_entries_overlap_break_validation_and_audit(self):
         entry = self.write('entries/save', {'member_id': self.auth['user']['id'], 'start': '2026-11-02T08:00', 'end': '2026-11-02T16:00'})

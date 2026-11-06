@@ -232,8 +232,12 @@ class CertificationProjectTests(unittest.TestCase):
         frozen = buffer.getvalue()
         self.legacy.renderer = lambda *args, **kwargs: frozen
         source = self.legacy.create(fields())
-        first = self.legacy.generate(source['id'], source['fields'], 1, str(uuid.uuid4()), DEFAULTS)
-        second = self.legacy.generate(source['id'], source['fields'], 2, str(uuid.uuid4()), DEFAULTS)
+        # This deliberately tight limit measures PDF deduplication, independent
+        # of the application's real default logo and optional cover artwork.
+        company = {'name': 'Archive fixture', 'abn': '', 'phone': '', 'email': '',
+                   'logo': None, 'cover_pdf': None, 'cover_pdf_name': ''}
+        first = self.legacy.generate(source['id'], source['fields'], 1, str(uuid.uuid4()), company)
+        second = self.legacy.generate(source['id'], source['fields'], 2, str(uuid.uuid4()), company)
         self.assertEqual(first['revision']['sha256'], second['revision']['sha256'])
         workspace, service = self.prepared()
         limit = len(frozen) + 100000

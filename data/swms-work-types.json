@@ -1,0 +1,396 @@
+{
+  "activities": [
+    "Supply and installation of Vermiculite Spray Fire Protection",
+    "Supply and installation of Passive Fire Protection works"
+  ],
+  "high_risk": [
+    "NA",
+    "Risk of falls from greater than 2 metres",
+    "Work in an area with movement of powered mobile plant",
+    "Work on or near energised electrical installations or services",
+    "Temporary load-bearing support structures",
+    "Work in confined spaces",
+    "Work on, in or adjacent to road, rail shipping or other major traffic corridor",
+    "Use of Explosives",
+    "Work on or near pressurised gas pipes or mains",
+    "Work on or near chemical, fuel or refrigerant lines",
+    "Work in an area with contaminated or flammable atmosphere",
+    "Work with tilt up or pre-cast concrete",
+    "Work in or near shaft or trench with an excavated depth greater than 1.5m or a in tunnel",
+    "Likely to involve disturbing asbestos",
+    "Work in or areas with artificial extremes of temperature",
+    "Work in or near a drowning risk",
+    "Diving work",
+    "Demolition of load-bearing structure",
+    "Work on a telecommunications tower",
+    "Work that involves the cutting of crystalline silica material using a power tool or another mechanical process."
+  ],
+  "works": {
+    "Protective Coatings": [
+      {
+        "job_step": "Access Site",
+        "hazards": "Hazard: Movement of mobile plant\nRisk: Personal injury",
+        "initial_risk": "2",
+        "controls": "Site Inductions\nUse designated access routes\nObey all signage and policies\nEnsure all mandatory PPE is worn, including hard hat, safety glasses, safety boots, hi-vis clothing and gloves.\nDo not walk near mobile plant without making eye contact\nApproach if safe to do so\nPlace a restricted access zone and use a spotter as required",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Move material onto site",
+        "hazards": "Hazard: Movement of mobile plant/manual handling\nRisk: Personal injury/muscle strain",
+        "initial_risk": "2",
+        "controls": "Obey all signage and directions\nUse correct lifting techniques and mechanical aids where possible\nDo not lift over 20kg alone, use two men or mechanical aid",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Position/set-up machinery",
+        "hazards": "Hazard: Trip/electrical hazards \nRisk: Electric shock, injury",
+        "initial_risk": "1",
+        "controls": "Ensure all electrical equipment is tagged monthly\nEnsure all leads/lines are above head height\nUse electrical lead hooks to hand leads",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Daily inspection and maintenance of machinery",
+        "hazards": "Hazard: Damage to surrounds \nRisk: Injury, damages",
+        "initial_risk": "2",
+        "controls": "Prestart checks and inspect all equipment/hoses/tags\nRemedy defects where necessary\nSign logbooks daily before use",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Exclude other trades from work area",
+        "hazards": "Hazard: Working near others\nRisk: Minor irritation, service clash",
+        "initial_risk": "3",
+        "controls": "Ensure other trades are aware of operations \nPlace a restricted access zone if necessary \nAttend safety and subcontractor meetings",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Use of power tools",
+        "hazards": "Hazard: Hot surfaces\nRisk: Burns, Cuts, Eye Damage, Fire, other trade/public interaction resulting in injury/death",
+        "initial_risk": "2",
+        "controls": "Allow work area to cool off to eliminate burns.\nErect welding screens to protect other workers in the area.\nSet up restricted access zones with barriers and erect restricted access zone signage. \nPower tool protection guards to be in place. \nFirefighting equipment to be readily available in case of fire from hot work. For example, fire blanket, fire extinguisher, water. \n Double face protection required for cutting and grinding works. Gloves to prevent burns. Project specific PPE \nHot works permit to be completed prior to hot works",
+        "residual_risk": "3",
+        "responsible": "All operators"
+      },
+      {
+        "job_step": "Cutting sheets and angles",
+        "hazards": "Hazard: Cutting of lightweight construction materials \nRisk: Manual handling Injuries, amputation, respiratory irritation",
+        "initial_risk": "2",
+        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing.\nKeep work area clean and remove offcuts from ground\nUse correct manual handling while moving and cutting materials, do not lift large pieces with one person only\nEnsure all electrical equipment is tagged and is used by competent persons\nObtain hot works permit if using angle grinders\nPlace an exclusion zone and use a spotter as required\nCut in an appropriate ventilated area and follow correct operating procedures\n◦ SOP100- Utility and Retractable Knives\n◦ SOP098- Operating a Circular Saw\n◦ SOP096- Operating of an angle grinder",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Fixing sheets and angles",
+        "hazards": "Hazard: Lifting and fixing lightweight construction material\nRisk: Manual handling injuries, striking personnel/objects, drilling near services",
+        "initial_risk": "2",
+        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing.\nKeep work area clean and remove offcuts from ground\nUse correct manual handling while moving and fixing materials, do not lift large pieces with one person only\nEnsure all electrical equipment is tagged and is used by competent persons\nObtain required permits\nPlace a restricted access zone and use a spotter as required\nFollow correct operating procedures \n◦ SOP097- Operating an Impact Driver or Drill\n◦ SOP099- Operating a Hammer Drill",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Fixing mesh and pins",
+        "hazards": "Hazard: Cutting and fixing mesh \nRisk: Ignition of flammable sources, cuts, abrasions",
+        "initial_risk": "2",
+        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing. \nEnsure all electrical equipment is tagged monthly and used by competent persons \nObtain hot works permit for use of grinder or pinning machine. Do not use near flammable material. \nPlace a restricted access zone and use a spotter where deemed necessary \nKeep work area clean and remove all pins and offcuts from the ground",
+        "residual_risk": "3",
+        "responsible": "All installers"
+      },
+      {
+        "job_step": "Mixing material",
+        "hazards": "Hazard: Mixing lightweight construction materials\nRisk: manual handling injury, respiratory irritation, entaglement",
+        "initial_risk": "1",
+        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing, and dust masks\nUse correct manual handling techniques \nTake care to prevent spillage \nNever insert hands or solid objects into mixer. Ensure grate covers mixing zone while machine is operational",
+        "residual_risk": "3",
+        "responsible": "Offsider"
+      },
+      {
+        "job_step": "Application of spray",
+        "hazards": "Hazard: Spraying lightweight construction materials \nRisk: slips, trips, falls, respiratory irritation",
+        "initial_risk": "2",
+        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing, and dust masks\nEnsure other workers are excluded from the area, place a restricted access zone and use a spotter where required\nArea must be well ventilated and protected from the elements\nMinimise overspray and maintain housekeeping practices \nUse multiple coats to ensure product adhesion and minimise wet mix falling to ground \nArea must be well ventilated",
+        "residual_risk": "3",
+        "responsible": "Applicator"
+      },
+      {
+        "job_step": "Shut down machines",
+        "hazards": "Hazard: Deactivating machines \nRisk: Slips, trips, spills, contamination",
+        "initial_risk": "2",
+        "controls": "Ensure all waste is contained and disposed in provided receptacles. \nContain spills to local area and prevent contamination. Use available spill kits\nClean work area and machines",
+        "residual_risk": "3",
+        "responsible": "Offsider"
+      },
+      {
+        "job_step": "Waste Disposal",
+        "hazards": "Hazard: Disposing of waste \nRisk: Manual handling injuries, contamination",
+        "initial_risk": "2",
+        "controls": "Ensure all wastewater disposed in suitable discharge points \nUse correct manual handling techniques\nAll solid waste in bins provided \nSeparate and recycle materials wherever possible",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Clean up of work area",
+        "hazards": "Hazard: Housekeeping \nRisk: Manual handling injuries, spills, trips, contamination",
+        "initial_risk": "2",
+        "controls": "Clean work area each day and place all solid waste in bins provided \nFlush machine with water at the end of each shift \nPack/clean/secure tools and equipment",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Incident/Injury",
+        "hazards": "Hazard: Site incident/injury \nRisk: Injury or death",
+        "initial_risk": "1",
+        "controls": "Follow Emergency Response Plan attached and site-specific emergency procedures \nStop work immediately \nImmediately alert the supervisor/first aider\nCall 000",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Site emergency",
+        "hazards": "Hazard: Site emergency\nRisk: Injury or death",
+        "initial_risk": "1",
+        "controls": "Work stops immediately \nFollow site-specific Emergency Response Plan and Procedures\nEvacuate the site to the nearest emergency assembly point and await further instruction",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      }
+    ],
+    "Installation of Passive Fire Protection Works": [
+      {
+        "job_step": "Access Site",
+        "hazards": "Hazard: Movement of mobile plant\nRisk: Personal injury",
+        "initial_risk": "2",
+        "controls": "Site Inductions\nUse designated access routes\nObey all signage and policies\nEnsure all mandatory PPE is worn, including hard hat, safety glasses, safety boots, hi-vis clothing and gloves.\nDo not walk near mobile plant without making eye contact\nApproach if safe to do so\nPlace a restricted access zone and use a spotter as required",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Move material onto site",
+        "hazards": "Hazard: Movement of mobile plant/manual handling\nRisk: Personal injury/muscle strain",
+        "initial_risk": "2",
+        "controls": "Obey all signage and directions\nUse correct lifting techniques and mechanical aids where possible\nDo not lift over 20kg alone, use two men or mechanical aid",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Position/set-up machinery",
+        "hazards": "Hazard: Trip/electrical hazards \nRisk: Electric shock, injury",
+        "initial_risk": "1",
+        "controls": "Ensure all electrical equipment is tagged monthly\nEnsure all leads/lines are above head height\nUse electrical lead hooks to hand leads",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Daily inspection and maintenance of machinery",
+        "hazards": "Hazard: Damage to surrounds \nRisk: Injury, damages",
+        "initial_risk": "2",
+        "controls": "Prestart checks and inspect all equipment/hoses/tags\nRemedy defects where necessary\nSign logbooks daily before use",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Exclude other trades from work area",
+        "hazards": "Hazard: Working near others\nRisk: Minor irritation, service clash",
+        "initial_risk": "3",
+        "controls": "Ensure other trades are aware of operations \nPlace a restricted access zone if necessary \nAttend safety and subcontractor meetings",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Use of power tools",
+        "hazards": "Hazard: Hot surfaces\nRisk: Burns, Cuts, Eye Damage, Fire, other trade/public interaction resulting in injury/death",
+        "initial_risk": "2",
+        "controls": "Allow work area to cool off to eliminate burns.\nErect welding screens to protect other workers in the area.\nSet up restricted access zones with barriers and erect restricted access zone signage. \nPower tool protection guards to be in place. \nFirefighting equipment to be readily available in case of fire from hot work. For example, fire blanket, fire extinguisher, water. \n Double face protection required for cutting and grinding works. Gloves to prevent burns. Project specific PPE \nHot works permit to be completed prior to hot works",
+        "residual_risk": "3",
+        "responsible": "All operators"
+      },
+      {
+        "job_step": "Cutting sheets and angles",
+        "hazards": "Hazard: Cutting of lightweight construction materials \nRisk: Manual handling Injuries, amputation, respiratory irritation",
+        "initial_risk": "2",
+        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing.\nKeep work area clean and remove offcuts from ground\nUse correct manual handling while moving and cutting materials, do not lift large pieces with one person only\nEnsure all electrical equipment is tagged and is used by competent persons\nObtain hot works permit if using angle grinders\nPlace an exclusion zone and use a spotter as required\nCut in an appropriate ventilated area and follow correct operating procedures\n◦ SOP100- Utility and Retractable Knives\n◦ SOP098- Operating a Circular Saw\n◦ SOP096- Operating of an angle grinder",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Fixing sheets and angles",
+        "hazards": "Hazard: Lifting and fixing lightweight construction material\nRisk: Manual handling injuries, striking personnel/objects, drilling near services",
+        "initial_risk": "2",
+        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing.\nKeep work area clean and remove offcuts from ground\nUse correct manual handling while moving and fixing materials, do not lift large pieces with one person only\nEnsure all electrical equipment is tagged and is used by competent persons\nObtain required permits\nPlace a restricted access zone and use a spotter as required\nFollow correct operating procedures \n◦ SOP097- Operating an Impact Driver or Drill\n◦ SOP099- Operating a Hammer Drill",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Fixing mesh and pins",
+        "hazards": "Hazard: Cutting and fixing mesh \nRisk: Ignition of flammable sources, cuts, abrasions",
+        "initial_risk": "2",
+        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing. \nEnsure all electrical equipment is tagged monthly and used by competent persons \nObtain hot works permit for use of grinder or pinning machine. Do not use near flammable material. \nPlace a restricted access zone and use a spotter where deemed necessary \nKeep work area clean and remove all pins and offcuts from the ground",
+        "residual_risk": "3",
+        "responsible": "All installers"
+      },
+      {
+        "job_step": "Mixing material",
+        "hazards": "Hazard: Mixing lightweight construction materials\nRisk: manual handling injury, respiratory irritation, entaglement",
+        "initial_risk": "1",
+        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing, and dust masks\nUse correct manual handling techniques\nTake care to prevent spillage\nNever insert hands or solid objects into mixer. Ensure grate covers mixing zone while machine is operational\nEnsure workers have conducted annual fit testing & health checks",
+        "residual_risk": "3",
+        "responsible": "Offsider"
+      },
+      {
+        "job_step": "Application of spray",
+        "hazards": "Hazard: Spraying lightweight construction materials \nRisk: slips, trips, falls, respiratory irritation",
+        "initial_risk": "2",
+        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing, and dust masks\nEnsure other workers are excluded from the area, place a restricted access zone and use a spotter where required\nArea must be well ventilated and protected from the elements\nMinimise overspray and maintain housekeeping practices \nUse multiple coats to ensure product adhesion and minimise wet mix falling to ground \nArea must be well ventilated\nEnsure workers have conducted annual fit testing & health checks",
+        "residual_risk": "3",
+        "responsible": "Applicator"
+      },
+      {
+        "job_step": "Shut down machines",
+        "hazards": "Hazard: Deactivating machines \nRisk: Slips, trips, spills, contamination",
+        "initial_risk": "2",
+        "controls": "Ensure all waste is contained and disposed in provided receptacles. \nContain spills to local area and prevent contamination. Use available spill kits\nClean work area and machines",
+        "residual_risk": "3",
+        "responsible": "Offsider"
+      },
+      {
+        "job_step": "Waste Disposal",
+        "hazards": "Hazard: Disposing of waste \nRisk: Manual handling injuries, contamination",
+        "initial_risk": "2",
+        "controls": "Ensure all wastewater disposed in suitable discharge points \nUse correct manual handling techniques\nAll solid waste in bins provided \nSeparate and recycle materials wherever possible",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Clean up of work area",
+        "hazards": "Hazard: Housekeeping \nRisk: Manual handling injuries, spills, trips, contamination",
+        "initial_risk": "2",
+        "controls": "Clean work area each day and place all solid waste in bins provided\nFlush machine with water at the end of each shift\nPack/clean/secure tools and equipment\nWorkers to wash hands & face before eating & drinking or leaving the work area",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Incident/Injury",
+        "hazards": "Hazard: Site incident/injury \nRisk: Injury or death",
+        "initial_risk": "1",
+        "controls": "Follow Emergency Response Plan attached and site-specific emergency procedures \nStop work immediately \nImmediately alert the supervisor/first aider\nCall 000",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Site emergency",
+        "hazards": "Hazard: Site emergency\nRisk: Injury or death",
+        "initial_risk": "1",
+        "controls": "Work stops immediately \nFollow site-specific Emergency Response Plan and Procedures\nEvacuate the site to the nearest emergency assembly point and await further instruction",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      }
+    ],
+    "Passive Firestopping": [
+      {
+        "job_step": "Access Site",
+        "hazards": "Hazard: Movement of mobile plant\nRisk: Personal injury",
+        "initial_risk": "2",
+        "controls": "Site Inductions\nUse designated access routes\nObey all signage and policies\nEnsure all mandatory PPE is worn, including hard hat, safety glasses, safety boots, hi-vis clothing and gloves.\nDo not walk near mobile plant without making eye contact\nApproach if safe to do so\nPlace a restricted access zone and use a spotter as required",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Move material onto site",
+        "hazards": "Hazard: Movement of mobile plant/manual handling\nRisk: Personal injury/muscle strain",
+        "initial_risk": "2",
+        "controls": "Obey all signage and directions\nUse correct lifting techniques and mechanical aids where possible\nDo not lift over 20kg alone, use two men or mechanical aid",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Setup work area",
+        "hazards": "Hazard: Trip/electrical hazards \nRisk: Electric shock, injury",
+        "initial_risk": "1",
+        "controls": "Ensure all electrical equipment is tagged monthly\nEnsure all leads/lines are above head height\nUse electrical lead hooks to hand leads",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Daily inspection and maintenance of equipment",
+        "hazards": "Hazard: Damage to surrounds \nRisk: Injury, damages",
+        "initial_risk": "2",
+        "controls": "Conduct prestart checks \nInspect all equipment/tags\nRemedy defects where necessary\nSign logbooks daily before use",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Exclude other trades from work area",
+        "hazards": "Hazard: Working near others\nRisk: Minor irritation, service clash",
+        "initial_risk": "3",
+        "controls": "Ensure other trades are aware of operations \nPlace a restricted access zone if necessary \nAttend safety and subcontractor meetings",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Use of power tools",
+        "hazards": "Hazard: Hot surfaces\nRisk: Burns, Cuts, Eye Damage, Fire, other trade/public interaction resulting in injury/death",
+        "initial_risk": "2",
+        "controls": "Allow work area to cool off to eliminate burns.\nErect welding screens to protect other workers in the area.\nSet up restricted access zones with barriers and erect restricted access zone signage. \nPower tool protection guards to be in place. \nFirefighting equipment to be readily available in case of fire from hot work. For example, fire blanket, fire extinguisher, water. \n Double face protection required for cutting and grinding works. Gloves to prevent burns. Project specific PPE \nHot works permit to be completed prior to hot works",
+        "residual_risk": "3",
+        "responsible": "All operators"
+      },
+      {
+        "job_step": "Cutting sheets and angles",
+        "hazards": "Hazard: Cutting of lightweight construction materials \nRisk: Manual handling Injuries, amputation, respiratory irritation",
+        "initial_risk": "2",
+        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing.\nKeep work area clean and remove offcuts from ground\nUse correct manual handling while moving and cutting materials, do not lift large pieces with one person only\nEnsure all electrical equipment is tagged and is used by competent persons\nObtain hot works permit if using angle grinders\nPlace an exclusion zone and use a spotter as required\nCut in an appropriate ventilated area and follow correct operating procedures\n◦ SOP100- Utility and Retractable Knives\n◦ SOP098- Operating a Circular Saw\n◦ SOP096- Operating of an angle grinder",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Fixing sheets and angles",
+        "hazards": "Hazard: Lifting and fixing lightweight construction material\nRisk: Manual handling injuries, striking personnel/objects, drilling near services",
+        "initial_risk": "2",
+        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing.\nKeep work area clean and remove offcuts from ground\nUse correct manual handling while moving and fixing materials, do not lift large pieces with one person only\nEnsure all electrical equipment is tagged and is used by competent persons\nObtain required permits\nPlace a restricted access zone and use a spotter as required\nFollow correct operating procedures \n◦ SOP097- Operating an Impact Driver or Drill\n◦ SOP099- Operating a Hammer Drill",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Fixing mesh and pins",
+        "hazards": "Hazard: Cutting and fixing mesh \nRisk: Ignition of flammable sources, cuts, abrasions",
+        "initial_risk": "2",
+        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing. \nEnsure all electrical equipment is tagged monthly and used by competent persons \nObtain hot works permit for use of grinder or pinning machine. Do not use near flammable material. \nPlace a restricted access zone and use a spotter where deemed necessary \nKeep work area clean and remove all pins and offcuts from the ground",
+        "residual_risk": "3",
+        "responsible": "All installers"
+      },
+      {
+        "job_step": "Clean up of work area",
+        "hazards": "Hazard: Housekeeping \nRisk: Manual handling injuries, spills, trips, contamination",
+        "initial_risk": "2",
+        "controls": "Clean work area each day and place all solid waste in bins provided \nFlush machine with water at the end of each shift \nPack/clean/secure tools and equipment",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Waste disposal",
+        "hazards": "Hazard: Disposing of waste\nRisk: Manual handling injuries, contamination",
+        "initial_risk": "2",
+        "controls": "Ensure all wastewater disposed in suitable discharge points\nUse correct manual handling techniques\nAll solid waste in bins provided\nSeparate and recycle materials wherever possible",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Incident/Injury",
+        "hazards": "Hazard: Site incident/injury \nRisk: Injury or death",
+        "initial_risk": "1",
+        "controls": "Follow Emergency Response Plan attached and site-specific emergency procedures \nStop work immediately \nImmediately alert the supervisor/first aider\nCall 000",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Site emergency",
+        "hazards": "Hazard: Site emergency\nRisk: Injury or death",
+        "initial_risk": "1",
+        "controls": "Work stops immediately \nFollow site-specific Emergency Response Plan and Procedures\nEvacuate the site to the nearest emergency assembly point and await further instruction",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      }
+    ]
+  }
+}

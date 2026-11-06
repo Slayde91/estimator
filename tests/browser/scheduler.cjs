@@ -33,6 +33,8 @@ async function api(route) {return page.evaluate(async route => {const response =
   browser = await chromium.launch({headless:true});
   const context = await browser.newContext({viewport:{width:1575,height:884},permissions:['geolocation'],geolocation:{latitude:-33.8688,longitude:151.2093,accuracy:10}});
   page = await context.newPage();
+  // Street imagery is mocked: these tests never send even synthetic coordinates to OSM.
+  await page.route('**/api/scheduler/map-tile?*',route => route.fulfill({status:503,contentType:'application/json',body:'{"error":"Offline map fixture"}'}));
   page.setDefaultTimeout(15000);
   page.on('pageerror',error => errors.push(error.message));
   await page.exposeFunction('captureSchedulerCsp',directive => csp.push(directive));
@@ -134,7 +136,7 @@ async function api(route) {return page.evaluate(async route => {const response =
   await expect(page.locator('.scheduler-notice')).toHaveText('Scheduler settings saved.');
   await tab('Schedule');
   await page.getByRole('button',{name:'Clock in',exact:true}).click();
-  await page.locator('dialog[open]').getByLabel('Record my location while clocked in').check();
+  await expect(page.locator('dialog[open]')).toContainText('Location is required');
   await submit('Clock in');
   await expect(page.locator('.scheduler-clock')).toContainText('You are clocked in');
   let model = await api('/state');
@@ -153,9 +155,9 @@ async function api(route) {return page.evaluate(async route => {const response =
   await page.getByRole('button',{name:'Clock out',exact:true}).click();
   await expect(page.getByRole('button',{name:'Clock in',exact:true})).toBeVisible();
   await tab('Time entries');
-  await page.getByRole('button',{name:'Locations',exact:true}).click();
+  await page.getByRole('button',{name:/Locations for Scheduler Admin/}).first().click();
   await expect.poll(() => page.locator('.scheduler-location-map svg circle').count()).toBeGreaterThanOrEqual(1);
-  await expect(page.locator('.scheduler-location-list')).toContainText('-33.86880, 151.20930');
+  await expect(page.locator('.scheduler-selected-location')).toContainText('-33.86880, 151.20930');
   await page.screenshot({path:path.join(output,'location-history.png'),fullPage:true});
   await page.locator('dialog[open]').getByRole('button',{name:'Close',exact:true}).click();
   checks.push('clock in, consented GPS pin, reload recovery, unpaid break, clock out and personal location history');

@@ -20,7 +20,10 @@ const errors = [], evidence = {widths: [], checks: []};
 async function idle() { await page.waitForFunction(() => { const status = window.CeasefireDesktop?.status(); return status?.ready && !status.busy; }); }
 async function expectHub() {
   await expect(page.locator('#view-projects')).toBeVisible();
-  await expect(page.locator('#view-projects .projects-section-card')).toHaveCount(7);
+  const expectedSections = ['quotes', 'quote', 'work-orders', 'purchase-orders', 'swms', 'scheduler', 'certification', 'documentation'];
+  const cards = page.locator('#view-projects .projects-section-card');
+  await expect(cards).toHaveCount(expectedSections.length);
+  assert.deepEqual(await cards.evaluateAll(nodes => nodes.map(node => node.dataset.projectSection)), expectedSections);
 }
 async function home() { await page.locator('nav .nav-button[data-view="home"]').click();await expect(page.locator('#view-home')).toBeVisible(); }
 async function headerDestination(section) {
@@ -52,7 +55,7 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   await page.locator('#projects-navigation-toggle').hover();
   const menu = page.locator('#projects-navigation-menu');
   await expect(menu).toBeVisible();
-  assert.deepEqual(await menu.locator('button').allTextContents(), ['Projects', 'Quotes', 'Work Orders', 'Purchase Orders', 'Scheduler', 'Certification', 'Documentation']);
+  assert.deepEqual(await menu.locator('button').allTextContents(), ['Projects', 'Quotes', 'Work Orders', 'Purchase Orders', 'Safe Work Method Statements', 'Scheduler', 'Certification', 'Documentation']);
   await menu.locator('[data-project-section="quotes"]').click();
   await expect(page.locator('#view-quotes')).toBeVisible();
   await page.mouse.move(0, 0); await expect(menu).toBeHidden();

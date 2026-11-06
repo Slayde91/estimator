@@ -9,17 +9,18 @@ const { settingsSettled } = require("./settings_helpers.cjs");
 const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs"), path = require("node:path"), crypto = require("node:crypto"), assert = require("node:assert/strict");
 const { sources, feedbackSources, printingSource } = require("../../static/header-menu-sounds.js");
-const { verifiedPreloadCancellation } = require("../helpers/media_preload_guard.cjs");
-const preloadPaths = [...Object.values(sources), ...Object.values(feedbackSources), printingSource];
-// Chromium may cancel any decoded startup media preload. Every allowed asset
-// still requires exact identity, delivered bytes and trusted native decoding.
-const cancellablePreloadPaths = preloadPaths;
+const { verifiedNativeMediaCancellation } = require("../helpers/media_preload_guard.cjs");
+// app.js also creates the native intelligence-phrase player at startup.
+const preloadPaths = [...Object.values(sources), ...Object.values(feedbackSources), printingSource, "/sounds/gameover.mp3"];
+// Native media can be cancelled during preload or later playback/seek. Every
+// allowed asset still requires exact delivery and fresh trusted decoding proof.
+const cancellableMediaPaths = preloadPaths;
 
 const root = path.resolve(__dirname, "../.."), output = path.join(root, ".runtime/browser-qa", `pdf-markup-ui-${Date.now()}`);
 const python = process.env.CEASEFIRE_PYTHON || "python";
 const assets = ["static/app.js", "static/takeoffs.js", "static/takeoffs.css", "static/takeoff-pane-resize.js", "static/takeoff-graphics.js", "static/takeoff-graphics-ui.js", "static/takeoff-physical.js", "static/takeoff-annotations.js", "static/penetration.js", "static/penetration.css", "static/libraries.css", "static/index.html", "static/styles.css", "static/theme.css", "static/laser.css", "static/icons/takeoff-bullet-list.png", "static/icons/takeoff-numbered-list.png", "static/icons/takeoff-transfer.png", "static/icons/schedule-add.png", "estimator/takeoff_pdf_measure.py", "estimator/takeoff_textbox_layout.py", "estimator/takeoff_deleted_items.py", "estimator/takeoff_graphics.py", "estimator/takeoff_workspace.py", "estimator/takeoff_http.py", "estimator/takeoff_markup_pdf.py", "estimator/takeoff_markup_pdf_worker.py", "tests/browser/pdf_markup_ui.cjs"];
 const hash = file => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
-assets.push("static/header-menu-sounds.js", "tests/helpers/media_preload_guard.cjs", ...cancellablePreloadPaths.map(url => `static${url}`));
+assets.push("static/header-menu-sounds.js", "tests/helpers/media_preload_guard.cjs", ...cancellableMediaPaths.map(url => `static${url}`));
 const hashes = () => Object.fromEntries(assets.map(file => [file, hash(path.join(root, file))]));
 const sourceBefore = hashes(), evidence = { layouts: [], menus: [], heights: [], textSettings: [], library: [], pointerTargets: [] }, errors = [], csp = [], requests = [], networkFailures = [];
 function contrast(foreground, background) {
@@ -302,7 +303,9 @@ async function standardCalculatorButton() {
   assert.equal(generated.status, 0, generated.stderr); const pdfBefore = hash(pdf);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1384, height: 764 } }); page.setDefaultTimeout(30000);
   page.on("pageerror", error => errors.push(error.message)); page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
-  page.on("requestfailed", request => networkFailures.push({ stage, url: request.url(), method: request.method(), resourceType: request.resourceType(), observedAt: new Date().toISOString(), failure: request.failure() }));
+  const requestStages = new WeakMap();
+  page.on("request", request => requestStages.set(request, stage));
+  page.on("requestfailed", request => networkFailures.push({ stage: requestStages.get(request) || stage, failedAtStage: stage, url: request.url(), method: request.method(), resourceType: request.resourceType(), observedAt: new Date().toISOString(), failure: request.failure() }));
   page.on("request", request => { if (request.method() === "POST") requests.push(new URL(request.url()).pathname); });
   await page.addInitScript(paths => {
     window.uiCsp = []; document.addEventListener("securitypolicyviolation", event => window.uiCsp.push(event.effectiveDirective));
@@ -324,7 +327,7 @@ async function standardCalculatorButton() {
   await page.waitForFunction(count => window.uiMediaPreloads.length === count && window.uiMediaPreloads.every(({ media, events }) => !media.error && media.readyState >= 2 && Number.isFinite(media.duration) && media.duration > 0 && events.some(event => event.type === "loadeddata" && event.trusted)), preloadPaths.length);
   evidence.mediaPreloads = await page.evaluate(() => window.uiMediaPreloads.map(({ media, events }) => ({ url: media.src, readyState: media.readyState, duration: media.duration, error: media.error?.code || null, events })));
   evidence.mediaAssets = [];
-  for (const source of cancellablePreloadPaths) {
+  for (const source of cancellableMediaPaths) {
     const response = await page.request.get(`http://127.0.0.1:${info.port}${source}`), bytes = await response.body();
     const mime = source.endsWith(".wav") ? "audio/wav" : source.endsWith(".ogg") ? "audio/ogg" : "audio/mpeg";
     assert.equal(response.status(), 200); assert.equal(response.headers()["content-type"], mime);
@@ -386,10 +389,20 @@ async function standardCalculatorButton() {
   // Both requests own explicit AbortControllers: the debounced estimate replaces
   // old calculation requests; switching PDF workspaces releases its source load.
   const cancellable = new Set([`http://127.0.0.1:${info.port}/api/calculate`, evidence.navigation.originalPDFURL]);
-  const mediaErrors = await page.evaluate(() => window.uiMediaPreloads.flatMap(({ media, events }) => events.filter(event => event.type === "error" || event.error).map(event => ({ url: media.src, ...event }))));
+  // Keep the initial preload proof above, and read the same real players again
+  // after all navigation. Earlier decoded data cannot excuse a later failure.
+  evidence.mediaFinal = await page.evaluate(() => ({
+    capturedAt: new Date().toISOString(),
+    players: window.uiMediaPreloads.map(({ media, events }) => ({ url: media.src, readyState: media.readyState, duration: media.duration, error: media.error?.code || null, events })),
+  }));
+  assert.equal(evidence.mediaFinal.players.length, preloadPaths.length, "Every retained native player is checked after navigation");
+  const mediaErrors = evidence.mediaFinal.players.flatMap(player => [
+    ...(player.error ? [{ url: player.url, error: player.error }] : []),
+    ...player.events.filter(event => event.type === "error" || event.error).map(event => ({ url: player.url, ...event })),
+  ]);
   assert.deepEqual(mediaErrors, [], "Native sound decoding/delivery failures are never ignored");
-  const benignPreload = request => verifiedPreloadCancellation(request, { origin: `http://127.0.0.1:${info.port}`, paths: cancellablePreloadPaths, preloads: evidence.mediaPreloads, assets: evidence.mediaAssets, hashes: sourceBefore });
-  assert.ok(networkFailures.every(request => request.failure?.errorText === "net::ERR_ABORTED" && (cancellable.has(request.url) || benignPreload(request))), `Only explicit calculation/source-PDF cancellation or verified decoded startup media preloads are permitted. Recorded failures: ${JSON.stringify(networkFailures)}`);
+  const verifiedMedia = request => verifiedNativeMediaCancellation(request, { origin: `http://127.0.0.1:${info.port}`, paths: cancellableMediaPaths, media: evidence.mediaFinal.players, capturedAt: evidence.mediaFinal.capturedAt, assets: evidence.mediaAssets, hashes: sourceBefore });
+  assert.ok(networkFailures.every(request => request.failure?.errorText === "net::ERR_ABORTED" && (cancellable.has(request.url) || verifiedMedia(request))), `Only explicit calculation/source-PDF cancellation or exact known native media cancellations with verified delivery and fresh decoding proof are permitted. Recorded failures: ${JSON.stringify(networkFailures)}`);
   csp.push(...await page.evaluate(() => window.uiCsp)); assert.deepEqual(csp, []);
   assert.deepEqual(hashes(), sourceBefore, "The UI fixture never edits source files");
   fs.writeFileSync(path.join(output, "result.json"), JSON.stringify({ completed: true, fixture_port: info.port, evidence, requests, errors, csp, networkFailures, pdf_sha256: pdfBefore, source_before_sha256: sourceBefore, source_after_sha256: hashes() }, null, 2));

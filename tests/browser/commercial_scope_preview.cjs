@@ -92,7 +92,7 @@ path.write_bytes(export_project(store, {'estimate': {'title': 'Scope preview fix
   await loadProject();
   await openQuotes();
   await quote.locator('.commercial-card-menu summary').click();
-  await quote.getByRole('button', {name:'Open / Edit', exact:true}).click();
+  await quote.getByRole('button', {name:'Open', exact:true}).click();
   await expect(quote.locator('.commercial-scope th')).toHaveText(headers);
   assert.deepEqual(await editorFields(), historical.fields);
   assert.deepEqual(await page.evaluate(() => ({changed:window.CeasefireCommercial.hasProjectChanges(), pending:window.CeasefireCommercial.hasPendingOperation()})), {changed:false, pending:false});
@@ -131,7 +131,7 @@ path.write_bytes(export_project(store, {'estimate': {'title': 'Scope preview fix
   const preview = page.waitForResponse(response => response.url().endsWith('/api/commercial/derive'));
   const pricingChoice = page.getByRole('dialog', {name:'Which prices should this project save?', exact:true});
   await quote.locator('.commercial-card-menu summary').click();
-  await quote.getByRole('button', {name:'Open / Edit', exact:true}).click();
+  await quote.getByRole('button', {name:'Open', exact:true}).click();
   const previewOutcome = await Promise.race([
     preview.then(() => 'preview'),
     pricingChoice.waitFor({state:'visible'}).then(() => 'pricing-choice')
@@ -160,7 +160,7 @@ path.write_bytes(export_project(store, {'estimate': {'title': 'Scope preview fix
   await price.press('Tab');
   await openQuotes();
   await quote.locator('.commercial-card-menu summary').click();
-  await quote.getByRole('button', {name:'Open / Edit', exact:true}).click();
+  await quote.getByRole('button', {name:'Open', exact:true}).click();
   await expect(quote.locator('.commercial-scope th')).toHaveText(headers);
   checks.push('scope preview skips pricing choices and preserves both conflicting drafts; explicit Save retains its pricing-choice guard');
 
@@ -182,7 +182,7 @@ path.write_bytes(export_project(store, {'estimate': {'title': 'Scope preview fix
     notifyDelivered();
   });
   await quote.locator('.commercial-card-menu summary').click();
-  await quote.getByRole('button', {name:'Open / Edit', exact:true}).click();
+  await quote.getByRole('button', {name:'Open', exact:true}).click();
   await held;
   await quote.getByRole('button', {name:'Back to Quotes', exact:true}).click();
   await quote.getByRole('button', {name:'New Quote', exact:true}).click();

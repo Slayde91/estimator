@@ -1,10 +1,14 @@
 "use strict";
 
-// A native media-loader cancellation is benign only when the same packaged
-// asset has independently passed delivery and trusted decoding checks.
-function verifiedPreloadCancellation(request, { origin, paths, preloads, assets, hashes }) {
-  if (request?.stage !== "initial load" || request.method !== "GET" || request.resourceType !== "media"
+// Chromium can cancel a native media request during preload or later playback
+// and seeking. Stage is diagnostic; exact delivery and fresh retained-player
+// decoding evidence determine whether that cancellation is benign.
+function verifiedNativeMediaCancellation(request, { origin, paths, media, assets, hashes, capturedAt } = {}) {
+  if (request?.method !== "GET" || request.resourceType !== "media"
       || request.failure?.errorText !== "net::ERR_ABORTED") return false;
+  if (!Array.isArray(paths) || !Array.isArray(media) || !Array.isArray(assets) || !hashes) return false;
+  const failedAt = Date.parse(request.observedAt), proofAt = Date.parse(capturedAt);
+  if (!Number.isFinite(failedAt) || !Number.isFinite(proofAt) || proofAt < failedAt) return false;
   const source = paths.find(path => `${origin}${path}` === request.url);
   if (!source) return false;
   const mime = source.endsWith(".mp3") ? "audio/mpeg" : source.endsWith(".wav") ? "audio/wav" : source.endsWith(".ogg") ? "audio/ogg" : null;
@@ -14,10 +18,10 @@ function verifiedPreloadCancellation(request, { origin, paths, preloads, assets,
   const asset = assets.find(asset => asset.url === request.url);
   if (!asset || asset.status !== 200 || asset.contentType !== mime || asset.sha256 !== expected
       || !Number.isSafeInteger(asset.bytes) || asset.bytes <= 0) return false;
-  const media = preloads.find(media => media.url === request.url);
-  return !!media && media.error === null && media.readyState >= 2 && Number.isFinite(media.duration) && media.duration > 0
-    && Array.isArray(media.events) && media.events.some(event => event.type === "loadeddata" && event.trusted === true)
-    && !media.events.some(event => event.type === "error" || event.error);
+  const player = media.find(player => player.url === request.url);
+  return !!player && player.error === null && player.readyState >= 2 && Number.isFinite(player.duration) && player.duration > 0
+    && Array.isArray(player.events) && player.events.some(event => event.type === "loadeddata" && event.trusted === true)
+    && !player.events.some(event => event.type === "error" || event.error);
 }
 
-module.exports = { verifiedPreloadCancellation };
+module.exports = { verifiedNativeMediaCancellation };

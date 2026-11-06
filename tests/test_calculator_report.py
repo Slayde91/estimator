@@ -10,6 +10,7 @@ from pypdf import PdfReader
 
 from estimator.calculator_report import build_calculator_report, build_calculator_summary_report, project_calculator_report, report_label, _material_rows, _source_text
 from estimator.catalog import ValidationError
+from estimator.company_settings import DEFAULTS
 from estimator.excel_engine import WorkbookEngine, column_number
 from estimator.perlifoc_assessment import Assessment as PerlifocAssessment
 from estimator.promat_spray_assessment import Assessment as PromatAssessment
@@ -319,7 +320,8 @@ class CalculatorReportTests(unittest.TestCase):
                     self.assertTrue(all(footer in content for content in texts))
                     self.assertNotIn('CLASSIFIRE ESTIMATOR |', text)
                     self.assertNotIn('CALCULATORS |', text)
-                    for contact in ('ABN: 50 612 231 562', 'Phone: 1300 92 62 88', 'Email: sales@ceasefire.com.au'):
+                    abn_label = f"ABN: {DEFAULTS['abn']}"
+                    for contact in (abn_label, f"Phone: {DEFAULTS['phone']}", f"Email: {DEFAULTS['email']}"):
                         self.assertTrue(all(contact in content for content in texts))
                     for field in ('Project No.', 'Client', 'Site Address', 'Not recorded'):
                         self.assertIn(field, text)
@@ -338,12 +340,12 @@ class CalculatorReportTests(unittest.TestCase):
                     for page in reader.pages:
                         positions = {}
                         def located(value, cm, tm, font, size):
-                            for token in (footer, 'ABN: 50 612 231 562'):
+                            for token in (footer, abn_label):
                                 if token in value and (token != footer or size == 7):
                                     positions[token] = (tm[4], tm[5])
                         page.extract_text(visitor_text=located)
                         label = positions[footer]
-                        contact = positions['ABN: 50 612 231 562']
+                        contact = positions[abn_label]
                         self.assertAlmostEqual(label[0], 32)
                         self.assertAlmostEqual(label[1], 20)
                         self.assertLess(label[1], contact[1])

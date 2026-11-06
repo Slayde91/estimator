@@ -20,7 +20,10 @@ const errors = [], evidence = {widths: [], checks: []};
 async function idle() { await page.waitForFunction(() => { const status = window.CeasefireDesktop?.status(); return status?.ready && !status.busy; }); }
 async function expectHub() {
   await expect(page.locator('#view-projects')).toBeVisible();
-  await expect(page.locator('#view-projects .projects-section-card')).toHaveCount(7);
+  const expectedSections = ['quotes', 'quote', 'work-orders', 'purchase-orders', 'swms', 'scheduler', 'certification', 'documentation'];
+  const cards = page.locator('#view-projects .projects-section-card');
+  await expect(cards).toHaveCount(expectedSections.length);
+  assert.deepEqual(await cards.evaluateAll(nodes => nodes.map(node => node.dataset.projectSection)), expectedSections);
 }
 async function home() { await page.locator('nav .nav-button[data-view="home"]').click();await expect(page.locator('#view-home')).toBeVisible(); }
 async function headerDestination(section) {

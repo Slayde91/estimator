@@ -1,5 +1,40 @@
 # Architecture
 
+## Navigation, project identity and document refinements — 7 November 2026
+
+Projects follows Home in the header and owns saved projects, Quotes, Work Orders
+and Purchase Orders. Documents owns Documentation, SWMS and Certification. Its
+first click opens a three-card hub; later clicks restore the last document page
+visited in the current session. Projects and Documents keep independent memory.
+Scheduler is a separate clock-icon destination. Cover-sheet settings retain their
+existing IDs and persistence but now appear in Documentation.
+
+`project_details.py` owns numbering preferences and the first-save journal in a
+sibling `<application-database-stem>-project-details.sqlite3` database. New
+projects receive a server-assigned reference (initially PN-00001) shared by all
+their estimates. Prefix/start settings affect future projects. Existing and
+imported references remain unchanged and read-only; an opened project's Save As
+is a copy of the same project identity. Client suggestions come from the bounded
+saved-project scan, including inactive estimates, while still allowing free text.
+Allocation and file-writing acknowledgements are distinct so cancellation,
+concurrent saves and lost replies cannot accidentally reuse an issued number.
+
+Quote selection caches derivation only within its current editor, keyed by each
+complete captured estimate. Changed estimates invalidate their own result; Save
+and PDF generation still validate all selected inputs through the server.
+Collapsed scope tables populate their cells when opened. Editable Schedule of
+Rates and acceptance fields are separate from Scheduler payroll settings and do
+not affect the estimate or Quote totals. Terms use the supplied quotation's
+two-column Montserrat layout and hanging clause labels without changing saved
+wording or the company identity from Settings.
+
+SWMS high-risk conditional tables are transcribed from the verified Dashpivot
+template into `data/swms-high-risk.json`. Hidden branch edits remain saved.
+Employee sign-off sections and template identifiers remain readable as legacy
+data but are omitted from the editor and new PDFs. Site sign-off is retained.
+Emergency response formatting follows the reference, with an overflow appendix
+when user-entered text outgrows the flowchart boxes.
+
 ## Project estimates and commercial documents - 6 November 2026
 
 A project can hold up to 50 named estimates. Each estimate owns its estimating
@@ -41,9 +76,9 @@ from Settings. Default terms are copied from the supplied quotation. Commercial
 downloads bind both the workspace capability and saved-file capability to the
 same project identity before writing a file.
 
-## Projects Scheduler — 5 November 2026
+## Scheduler — 5 November 2026
 
-Projects includes a weekly Scheduler, team management, time entries and settings.
+Scheduler includes a weekly schedule, team management, time entries and settings.
 `scheduler.py` owns transactional SQLite records in a sibling
 `<application-database-stem>-scheduler.sqlite3` database. The HTTP adapter reuses
 the local application's Host, Origin and JSON checks. Local Scheduler accounts

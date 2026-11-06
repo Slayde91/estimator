@@ -53,13 +53,16 @@ class QuotePdfRefinementTests(unittest.TestCase):
             self.assertNotIn('\nQUOTE\n', text)
             self.assertNotIn('Field Details', text)
             self.assertLess(text.index('Total Price'), text.index('Subtotal'))
-            self.assertLess(text.index('Grand total'), text.index('SCOPE OF WORKS'))
+            all_text = '\n'.join(item.extract_text() for item in pdf.pages)
+            self.assertLess(all_text.index('Grand total'), all_text.index('SCHEDULE OF RATES'))
+            self.assertLess(all_text.index('SCHEDULE OF RATES'), all_text.index('SCOPE OF WORKS'))
             for label in ('Document', 'Date', 'Customer', 'Contact', 'Site', 'Project'):
                 word = next(word for word in words if word['text'] == label)
                 chars = page.crop((word['x0'] - .1, word['top'] - .1, word['x1'] + .1, word['bottom'] + .1)).chars
                 self.assertTrue(chars and all('Bold' in char['fontname'] for char in chars), label)
             # Authored table strokes are black; header fills are the brand red.
-            table_lines = [line for line in page.lines if line['top'] > 85]
+            rates_heading = next(word for word in words if word['text'] == 'RATES')
+            table_lines = [line for line in page.lines if 85 < line['top'] < rates_heading['top']]
             self.assertTrue(table_lines)
             self.assertTrue(all(line['stroking_color'] == (0, 0, 0) for line in table_lines))
             red_rects = [rect for rect in page.rects if isinstance(rect['non_stroking_color'], tuple)

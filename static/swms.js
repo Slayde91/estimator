@@ -54,7 +54,8 @@
   }
   function shell(title) {
     const host = root(); host.replaceChildren();
-    const heading = element("div", "page-heading"); heading.append(element("h1", "", title));
+    const heading = element("div", "page-heading"), titleNode = element("h1", "", title);
+    window.CeasefireI18n?.text(titleNode, title); heading.append(titleNode);
     const message = element("p", "swms-message message"); message.setAttribute("role", "status"); message.hidden = true;
     host.append(heading, message); return host;
   }
@@ -234,6 +235,11 @@
     render(); host.append(box);
   }
   const emptyStep = () => ({ job_step: "", hazards: "", initial_risk: "", controls: "", residual_risk: "", responsible: "" });
+  function growStepInput(input) {
+    if (!input.getClientRects().length) return;
+    input.style.height = "auto";
+    input.style.height = `${input.scrollHeight + 2}px`;
+  }
   function steps(host, title, rows, minimum = 1) {
     const box = section(title, true), scroll = element("div", "table-scroll"), table = element("table", "swms-step-table");
     const head = element("thead"), tr = element("tr"); ["Item", "Job Steps", "Hazards", "Risk Rating", "Controls to Eliminate / Reduce Hazard", "Retained Risk", "Responsible Person", "Actions"].forEach(text => tr.append(element("th", "", text))); head.append(tr);
@@ -244,12 +250,15 @@
         ["job_step", "hazards", "initial_risk", "controls", "residual_risk", "responsible"].forEach(key => {
           const cell = element("td"), label = `${title} item ${index + 1} ${key.replaceAll("_", " ")}`;
           const input = key.endsWith("risk") ? select(["", "1", "2", "3"], row[key], value => { row[key] = value; }) : control(row[key], value => { row[key] = value; }, "textarea");
+          if (input.tagName === "TEXTAREA") { input.rows = 1; input.addEventListener("input", () => growStepInput(input)); }
           input.setAttribute("aria-label", label); input.maxLength = 12000; cell.append(input); line.append(cell);
         });
         const actions = element("td"), remove = button("Remove", () => { if (rows.length > minimum) { rows.splice(index, 1); dirty(); render(); } }); remove.disabled = rows.length <= minimum;
         actions.append(remove); line.append(actions); body.append(line);
       });
+      requestAnimationFrame(() => body.querySelectorAll("textarea").forEach(growStepInput));
     }
+    box.addEventListener("toggle", () => { if (box.open) body.querySelectorAll("textarea").forEach(growStepInput); });
     box.append(scroll, button("Add job step", () => { if (rows.length >= 200) throw new Error("A work type supports up to 200 steps."); rows.push(emptyStep()); dirty(); render(); })); render(); host.append(box);
   }
   function attachments(host, fields) {
@@ -284,8 +293,12 @@
   function renderEditor() {
     const editor = state.editor, fields = editor.fields, host = shell("Safe Work Method Statement"), actions = element("div", "swms-toolbar");
     const downloadButton = button("Download PDF", download, true); downloadButton.classList.add("swms-download");
-    actions.append(button("Back to statements", () => { if (!state.busy && (!state.dirty || window.confirm("Discard unsaved SWMS edits?"))) renderList(); }), button("Save", save, true), downloadButton, element("span", "muted", editor.version ? `Revision ${editor.version}` : "New statement")); host.append(actions);
-    const identity = element("div", "swms-grid"); identity.append(field("Document title", control(fields.title, value => { fields.title = value; })), field("Status", select(state.model?.statuses || ["Draft", "Review", "Approved", "Archived"], editor.status, value => { editor.status = value; })), field("Template ID", control(fields.template_id, value => { fields.template_id = value; })), field("Template Version", control(fields.template_version, value => { fields.template_version = value; }))); host.append(identity);
+    const back = button("", () => { if (!state.busy && (!state.dirty || window.confirm("Discard unsaved SWMS edits?"))) renderList(); });
+    back.classList.add("icon-only"); back.title = "Back to statements"; back.setAttribute("aria-label", "Back to statements");
+    window.CeasefireI18n?.attr(back, "title", "Back to statements"); window.CeasefireI18n?.attr(back, "aria-label", "Back to statements");
+    const arrow = element("span", "button-symbol", "←"); arrow.setAttribute("aria-hidden", "true"); back.append(arrow);
+    actions.append(back, button("Save", save, true), downloadButton, element("span", "muted", editor.version ? `Revision ${editor.version}` : "New statement")); host.append(actions);
+    const identity = element("div", "swms-grid"); identity.append(field("Document title", control(fields.title, value => { fields.title = value; })), field("Status", select(state.model?.statuses || ["Draft", "Review", "Approved", "Archived"], editor.status, value => { editor.status = value; }))); host.append(identity);
     const details = section("Project Details", true), grid = element("div", "swms-grid");
     Object.entries(detailLabels).forEach(([key, label]) => grid.append(field(label, control(fields.details[key], value => { fields.details[key] = value; }, key === "date" ? "date" : "text")))); details.append(grid, element("h3", "", "Project Manager Signature"), signature(fields.manager_signature, value => { fields.manager_signature = value; }, "Project manager")); host.append(details);
     const communication = section("Communication and responsibilities"); textFields(communication, fields, ["communication", "toolbox", "compliance"]); host.append(communication);
@@ -296,9 +309,19 @@
     const riskRows = [["Consequence / Probability", "Likely", "Moderate", "Unlikely"], ["High — death / permanent disability", "1", "1", "2"], ["Medium — temporary disability / minor structural failure", "1", "2", "3"], ["Low — first aid / minor environmental harm", "2", "3", "3"]];
     riskRows.forEach((row, index) => { const tr = element("tr"); row.forEach(value => { const cell = element(index ? "td" : "th", /^[123]$/.test(value) ? `swms-risk-${value}` : "", value); tr.append(cell); }); matrix.append(tr); });
     risks.append(matrix, element("p", "muted", "1 — High risk: action immediately. 2 — Medium risk: action as soon as practicable. 3 — Low risk: action as required."));
-    const riskChecks = element("div", "swms-check-grid");
-    function renderRisks() { riskChecks.replaceChildren(); const selected = fields.high_risk_work.split("\n"); (state.options?.high_risk || []).forEach(value => riskChecks.append(check(value, selected.includes(value), enabled => { const next = new Set(fields.high_risk_work.split("\n").filter(Boolean)); if (enabled) { if (value === "NA") next.clear(); else next.delete("NA"); next.add(value); } else next.delete(value); fields.high_risk_work = [...next].join("\n"); renderRisks(); }))); }
-    renderRisks(); risks.append(riskChecks); host.append(risks);
+    const riskChecks = element("div", "swms-check-grid"), riskTables = element("div", "swms-high-risk-tables");
+    fields.high_risk_steps ||= copy(state.options?.high_risk_tables || {});
+    function renderRisks() {
+      riskChecks.replaceChildren(); riskTables.replaceChildren();
+      const selected = fields.high_risk_work.split("\n");
+      (state.options?.high_risk || []).forEach(value => riskChecks.append(check(value, selected.includes(value), enabled => {
+        const next = new Set(fields.high_risk_work.split("\n").filter(Boolean));
+        if (enabled) { if (value === "NA") next.clear(); else next.delete("NA"); next.add(value); } else next.delete(value);
+        fields.high_risk_work = [...next].join("\n"); renderRisks();
+      })));
+      selected.forEach(value => { if (fields.high_risk_steps[value]?.length) steps(riskTables, value, fields.high_risk_steps[value]); });
+    }
+    renderRisks(); risks.append(riskChecks, riskTables); risks.addEventListener("toggle", () => { if (risks.open) riskTables.querySelectorAll("textarea").forEach(growStepInput); }); host.append(risks);
     const work = section("Type of Works", true), checks = element("div", "swms-check-grid"), tables = element("div");
     function renderWorks() { tables.replaceChildren(); fields.work_types.forEach(kind => steps(tables, kind, fields.steps[kind])); }
     Object.keys(fields.steps).forEach(kind => checks.append(check(kind, fields.work_types.includes(kind), enabled => { if (!enabled && fields.work_types.length === 1) { notice("Choose at least one type of works.", true); checks.querySelectorAll("input").forEach((item, index) => { item.checked = fields.work_types.includes(Object.keys(fields.steps)[index]); }); return; } fields.work_types = enabled ? [...fields.work_types, kind] : fields.work_types.filter(value => value !== kind); renderWorks(); })));
@@ -306,8 +329,7 @@
     const additional = section("Additional Job Steps"), extra = element("div");
     function renderExtra() { extra.replaceChildren(); if (fields.additional_steps) steps(extra, "Additional Job Steps", fields.additional_rows, 0); }
     additional.append(field("Are there additional job steps to consider?", select(["No", "Yes"], fields.additional_steps ? "Yes" : "No", value => { fields.additional_steps = value === "Yes"; renderExtra(); })), extra); renderExtra(); host.append(additional);
-    const acknowledgment = section("Employee acknowledgement"); textFields(acknowledgment, fields, ["acknowledgement"]); host.append(acknowledgment); people(host, "signoffs", "Employees Sign-Off");
-    const manual = section("Employees Sign-Off (Manual Signature)"); manual.append(signature(fields.manual_signature, value => { fields.manual_signature = value; }, "Manual employee")); host.append(manual);
+    const acknowledgment = section("Employee acknowledgement"); textFields(acknowledgment, fields, ["acknowledgement"]); host.append(acknowledgment);
     const reviews = section("Reviews"), reviewGrid = element("div", "swms-review-grid"); fields.reviews.forEach((value, index) => reviewGrid.append(field(`Review ${index + 1} initials`, control(value, text => { fields.reviews[index] = text; })))); reviews.append(reviewGrid); host.append(reviews);
     people(host, "site_signoffs", "Site Sign-Off"); const emergency = section("Emergency Response"); textFields(emergency, fields, ["emergency_requirements", "emergency_access", "emergency_notify", "emergency_contacts", "emergency_supervisor", "emergency_call", "emergency_stop", "emergency_follow"]); host.append(emergency); attachments(host, fields);
   }

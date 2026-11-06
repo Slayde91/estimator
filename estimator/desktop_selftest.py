@@ -11,6 +11,18 @@ import zipfile
 from .catalog import ROOT
 from .desktop_seed import safe_directory
 
+STANDARD_NAVIGATION = (
+    ('home', 'Home', 'house'), ('projects', 'Projects', 'folders'),
+    ('documents', 'Documents', None), ('estimate', 'Estimates', 'sigma'),
+    ('calculators', 'Calculators', 'calculator'), ('pricing', 'Libraries', 'book-open'),
+    ('scheduler', 'Scheduler', None), ('help', 'Help', 'circle-help'), ('settings', 'Settings', 'settings'),
+)
+
+STANDARD_NAVIGATION_ARTWORK = {
+    'documents': {'paths': ['M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z', 'M14 2v6h6M8 13h8M8 17h8'], 'circles': []},
+    'scheduler': {'paths': ['M12 6v6l4 2'], 'circles': [['12', '12', '10']]},
+}
+
 
 def synthetic_seed(directory):
     """Source-checkout diagnostics use empty public content, never live data."""
@@ -207,12 +219,13 @@ def self_test(data_directory, output_report):
                 report['checks'].append('Native standard UI rendered without TAKEOFFS')
                 navigation_icons = probe.wait('''(() => {
                     const icons=[...document.querySelectorAll(".app-header nav .nav-icon svg, .app-header nav .nav-icon img")];
-                    return icons.length === 7 && icons.map(icon=>{
+                    return icons.length === EXPECTED_ICON_COUNT && icons.map(icon=>{
                         const a=icon.getBoundingClientRect(),button=icon.closest("button"),b=button.getBoundingClientRect();
                         const label=button.querySelector(".nav-page-label"),c=label?.getBoundingClientRect();
                         return {width:a.width,height:a.height,cssWidth:getComputedStyle(icon).width,cssHeight:getComputedStyle(icon).height,
                             artSize:getComputedStyle(button).getPropertyValue("--nav-art-size").trim(),zoom:getComputedStyle(button.closest(".header-navigation")).zoom,stroke:icon.getAttribute("stroke-width"),src:icon.getAttribute("src"),
-                            name:icon.getAttribute("data-lucide"),viewBox:icon.getAttribute("viewBox"),fill:icon.getAttribute("fill"),
+                            name:icon.getAttribute("data-lucide"),destination:button.dataset.view,viewBox:icon.getAttribute("viewBox"),fill:icon.getAttribute("fill"),
+                            artwork:{paths:[...icon.querySelectorAll('path')].map(path=>path.getAttribute('d')),circles:[...icon.querySelectorAll('circle')].map(circle=>['cx','cy','r'].map(name=>circle.getAttribute(name)))},
                             hidden:icon.getAttribute("aria-hidden"),focusable:icon.getAttribute("focusable"),
                             centreX:a.x+a.width/2-b.x-b.width/2,centreY:a.y+a.height/2-b.y-b.height/2,
                             label:label?.textContent.trim(),labelVisible:!!c&&c.width>0&&c.height>0&&getComputedStyle(label).visibility==="visible",
@@ -220,19 +233,21 @@ def self_test(data_directory, output_report):
                             contained:!!c&&a.left>=b.left&&a.top>=b.top&&a.right<=b.right&&c.left>=b.left&&c.right<=b.right&&c.bottom<=b.bottom,
                             stackCentreY:c?(Math.min(a.top,c.top)+Math.max(a.bottom,c.bottom))/2-b.y-b.height/2:null};
                     });
-                })()''')
+                })()'''.replace('EXPECTED_ICON_COUNT', str(len(STANDARD_NAVIGATION))))
                 report['navigation_icons'] = navigation_icons
                 vectors = [icon for icon in navigation_icons if icon['src'] is None]
                 images = [icon for icon in navigation_icons if icon['src'] is not None]
-                assert len(vectors) == 7 and not images
-                assert [icon['name'] for icon in vectors] == ['house', 'sigma', 'calculator', 'book-open', 'folders', 'circle-help', 'settings']
+                assert len(vectors) == len(STANDARD_NAVIGATION) and not images
+                assert [(icon['destination'], icon['label'], icon['name']) for icon in vectors] == list(STANDARD_NAVIGATION)
+                for icon in vectors:
+                    if icon['destination'] in STANDARD_NAVIGATION_ARTWORK:
+                        assert icon['artwork'] == STANDARD_NAVIGATION_ARTWORK[icon['destination']]
                 assert all(icon['stroke'] == '2' and icon['viewBox'] == '0 0 24 24' and icon['fill'] == 'none' for icon in vectors)
                 assert all(icon['hidden'] == 'true' and icon['focusable'] == 'false' for icon in vectors)
                 assert all(abs(icon['width'] - 26 * (.65 * 1.2)) < .02 and abs(icon['height'] - 26 * (.65 * 1.2)) < .02 for icon in vectors)
                 assert all(icon['artSize'] == '26px' and icon['zoom'] == '0.78' for icon in vectors)
                 # Page names now sit beneath the artwork. Centre the complete
                 # icon/label stack rather than the icon alone within its button.
-                assert [icon['label'] for icon in vectors] == ['Home', 'Estimates', 'Calculators', 'Libraries', 'Projects', 'Help', 'Settings']
                 assert all(icon['labelVisible'] and icon['labelBelow'] and icon['contained'] for icon in vectors)
                 assert all(abs(icon['centreX']) < .5 and abs(icon['labelCentreX']) < .5 and abs(icon['stackCentreY']) < .5 for icon in vectors)
                 help_icon = next(icon for icon in vectors if icon['name'] == 'circle-help')
@@ -259,7 +274,8 @@ def self_test(data_directory, output_report):
                 report['cold_readiness_seconds'] = round(time.monotonic() - cold_started, 3)
                 checkpoint('native first-launch ready')
                 arm_deadline('acceptance journey')
-                probe.fill('#project-no', 'NATIVE-WEBVIEW2')
+                assert probe.script('document.querySelector("#project-no").readOnly') is True
+                assert probe.script('document.querySelector("#project-no").value') == ''
                 probe.fill('#client', 'Disposable desktop acceptance')
                 probe.wait('document.querySelector("#calculation-status").textContent === "Calculated" && window.CeasefireDesktop.status().busy === false && document.querySelector("#sum-total").textContent !== "—"')
                 baseline = probe.script('document.querySelector("#sum-total").textContent')
@@ -267,13 +283,16 @@ def self_test(data_directory, output_report):
                 probe.wait('document.querySelector("#project-save-state").textContent === "Saved project"')
                 saved = json.loads(project.read_text(encoding='utf-8'))
                 assert saved['version'] == 1 and 'takeoffs' not in saved
-                assert saved['estimate']['project_no'] == 'NATIVE-WEBVIEW2'
-                report['checks'].append('Save As used the native project API and wrote version 1')
-                probe.fill('#project-no', 'UNSAVED LATER EDIT')
+                assert saved['estimate']['project_no'] == 'PN-00001'
+                assert probe.script('document.querySelector("#project-no").value') == 'PN-00001'
+                assert all(entry['workspace']['estimate']['project_no'] == 'PN-00001' for entry in saved['estimates'])
+                report['checks'].append('Save As assigned readonly PN-00001 through the native project API and wrote version 1')
+                probe.fill('#client', 'UNSAVED LATER EDIT')
+                probe.wait('document.querySelector("#project-save-state").textContent === "Unsaved changes"')
                 probe.click('#load-project')
                 probe.wait('document.querySelector("#discard-dialog").open')
                 probe.click('#discard-dialog [value="confirm"]')
-                probe.wait('document.querySelector("#project-no").value === "NATIVE-WEBVIEW2" && document.querySelector("#project-save-state").textContent === "Saved project"')
+                probe.wait('document.querySelector("#project-no").value === "PN-00001" && document.querySelector("#client").value === "Disposable desktop acceptance" && document.querySelector("#project-save-state").textContent === "Saved project"')
                 probe.wait('document.querySelector("#calculation-status").textContent === "Calculated" && window.CeasefireDesktop.status().busy === false && document.querySelector("#sum-total").textContent !== "—"')
                 assert probe.script('document.querySelector("#sum-total").textContent') == baseline
                 report['checks'].append('Reopen preserved saved details, prices and calculated quote output')

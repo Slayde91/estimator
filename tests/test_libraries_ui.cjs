@@ -258,15 +258,28 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   await check('Reviewed AI replicas show the exact caption without original links or source-image fallback',async h=>{
     const assignedSources=[],create=h.context.document.createElement;
     h.context.document.createElement=tag=>{const el=create(tag);if(tag==='img'){let src;Object.defineProperty(el,'src',{get(){return src;},set(value){src=value;assignedSources.push(value);}});}return el;};
-    const source={...detail('technical','technical-1'),image_replicas:{'synthetic_image-1':'/api/libraries/replicas/synthetic_image-1','field-image':'/api/libraries/replicas/field-image'},fields:[{label:'Installation Concept',value:'',images:[{id:'field-image',caption:'Field detail'}]}]};
+    const source={...detail('technical','technical-1'),image_replicas:{'synthetic_image-1':'/api/libraries/replicas/synthetic_image-1','field-image':'/api/libraries/replicas/field-image'},fields:[{label:'Manufacturer',value:'Promat'},{label:'Diagrams & Figures',value:'',images:[{id:'field-image',caption:'Field detail'}]}]};
     const before=copy(source);h.setRoute(path=>path==='/api/libraries'?meta():source);await h.api.open('technical','technical-1');const nodes=walk(h.pane('technical').detailPanel);
     assert.equal(nodes.filter(node=>node.tagName==='img'&&node.src?.startsWith('/api/libraries/replicas/')).length,2);
     assert.deepEqual(assignedSources.filter(src=>src.startsWith('/api/libraries/')),['/api/libraries/replicas/field-image','/api/libraries/replicas/synthetic_image-1'],'No original image URL is assigned even transiently');
     assert.equal(nodes.filter(node=>node.tagName==='a'&&node.href.startsWith('/api/libraries/images/')).length,0);
-    assert.deepEqual(nodes.filter(node=>node.tagName==='figcaption').map(node=>node.textContent),Array(2).fill('Illustrative AI generated asset only. Confirm installation details with the manufacturer.'));
+    assert.deepEqual(nodes.filter(node=>node.tagName==='figcaption').map(node=>text(node).trim()),Array(2).fill('Contact the manufacturer before installation.'));
+    assert.equal(nodes.filter(node=>node.tagName==='a'&&node.href==='https://www.promat.com/en-au/').length,2);
+    assert.ok(nodes.some(node=>node.tagName==='dt'&&node.textContent==='Artistic Illustration'));
     const replicaImages=nodes.filter(node=>node.tagName==='img'&&node.src?.startsWith('/api/libraries/replicas/'));
     for(const image of replicaImages){const url=image.src;await image.emit('error');assert.equal(image.src,url);}
     assert.doesNotMatch(text(h.pane('technical').detailPanel),/Open original source image|check original/);assert.deepEqual(source,before);
+  });
+  await check('Artistic illustration contact links resolve known manufacturers and never trust source URLs',async h=>{
+    const cases=[['Promat','https://www.promat.com/en-au/'],['BOSS','https://bossfire.com/'],['TBA FIREFLY','https://tbafirefly.com.au/'],['Trafalgar','https://tfire.com.au/'],['Hilti','https://www.hilti.com.au/'],['Snap','https://snapcollars.com.au/'],['Fendix','https://fendix.com.au/'],['javascript:alert(1)',null]];
+    for(const [manufacturer,url] of cases){
+      const source={...detail('technical','technical-1'),fields:[{label:'Manufacturer',value:manufacturer}],image_replicas:{'synthetic_image-1':'/api/libraries/replicas/synthetic_image-1'}};
+      h.setRoute(path=>path==='/api/libraries'?meta():source);await h.api.open('technical','technical-1');
+      const caption=walk(h.pane('technical').detailPanel).find(node=>node.tagName==='figcaption');
+      assert.equal(text(caption).trim(),'Contact the manufacturer before installation.');
+      const links=walk(caption).filter(node=>node.tagName==='a');assert.equal(links.length,url?1:0);
+      if(url){assert.equal(links[0].href,url);assert.equal(links[0].rel,'noopener noreferrer');assert.equal(links[0].target,'_blank');}
+    }
   });
   await check('Technical general notices stay absent while record errors and retry controls remain visible',async h=>{
     h.setRoute(path=>path==='/api/libraries'?meta():path.includes('?')?records('technical'):{error:'This linked library record was removed.'});await h.api.open('technical');const pane=h.pane('technical');assert.equal(h.byId('technical-library-workspace').contains(pane.notice),false);

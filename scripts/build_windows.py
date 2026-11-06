@@ -21,7 +21,7 @@ sys.path.insert(0, str(ROOT))
 from prepare_desktop_seed import prepare
 
 DATA_FILES = (
-    'commercial-quote-terms.txt', 'swms-template.json', 'swms-work-types.json',
+    'commercial-quote-terms.txt', 'swms-template.json', 'swms-work-types.json', 'swms-high-risk.json',
     'baseline.json', 'pricing_manufacturers.json', 'calculator.json', 'calculator_documents.json', 'penetration.json.gz',
     'promat_board_fc15555_01_03.json',
     'vermiculite_yield_defaults.json', 'calculators/index.json', 'calculators/ductwork.json.gz',
@@ -36,7 +36,7 @@ STATIC_FILES = (
     'cursors/resize-nesw.png', 'cursors/resize-nwse.png', 'cursors/resize-vertical.png',
     'cursors/text.png', 'cursors/unavailable.png',
     'cursors/README.txt', 'cursors/LICENSE.txt', 'cursors/COPYRIGHT.txt',
-    'app.js', 'activity.js', 'calculation-queue.js', 'searchable-choice.js', 'penetration-presentation.js',
+    'app.js', 'project-details.js', 'activity.js', 'calculation-queue.js', 'searchable-choice.js', 'penetration-presentation.js',
     'calculators.css', 'calculators.js', 'ceasefire-logo.png', 'classifire-logo.png',
     'brand-boot.css', 'brand-boot.js', 'classifire-app.ico', 'classifire-app-icon.png', 'register-references.js',
     'downloads.js', 'downloads.css', 'main-layout.js',

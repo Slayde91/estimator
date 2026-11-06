@@ -168,13 +168,15 @@ async function readableMidnightIcon(control) {
   await settings(); await expect(page.locator('#theme-toggle')).toHaveAccessibleName('Theme: CLASSIFIRE. Next theme: Midnight.');
   await page.getByRole('button',{name:'Estimates',exact:true}).click(); await idle();
   await expect(page.locator('#project-no')).toBeVisible();
-  await page.locator('#project-no').fill('THEME-DRAFT-UNCHANGED'); await page.locator('#measurements').fill('Pending notes are preserved across every theme.');
+  await expect(page.locator('#project-no')).toHaveAttribute('readonly',''); await page.locator('#measurements').fill('Pending notes are preserved across every theme.');
   await page.locator('#measurements').press('Tab'); await idle(); await page.waitForLoadState('networkidle');
   const before=await snapshot(), requestCount=mutationRequests.length, buttonColors=new Set(), footerText=await page.locator('footer').innerText();
   for(const id of ['ceasefire','midnight','ocean','forest','slate']) {
-    await theme(id); const button=await colors('#theme-toggle'), card=await colors('#view-estimate .card'), input=await colors('#project-no'), text=await colors('#view-estimate .card .helper');
+    await theme(id); const button=await colors('#theme-toggle'), card=await colors('#view-estimate .card'), input=await colors('#client'), readonlyInput=await colors('#project-no'), text=await colors('#view-estimate .card .helper');
     assert.ok(contrast(button.color,button.background)>=4.5,id+' button contrast'); assert.ok(contrast(card.color,card.background)>=4.5,id+' card contrast'); assert.ok(contrast(input.color,input.background)>=4.5,id+' input contrast'); assert.ok(contrast(text.color,card.background)>=4.5,id+' helper contrast'); buttonColors.add(button.background);
     if(id!=='ceasefire') assert.ok(contrast(input.border,input.background)>=3,id+' input boundary');
+    await expect(page.locator('#project-no')).toHaveAttribute('readonly','');
+    assert.ok(contrast(readonlyInput.color,readonlyInput.background)>=4.5,id+' readonly project number contrast');
     for(const width of [1146,752,720]) {
       await page.setViewportSize({width,height:1000});
       const geometry=await page.evaluate(() => { const box=s => { const r=document.querySelector(s).getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom}; }; return {header:box('.app-header'),nav:box('.app-header nav'),actions:box('#header-project-actions'),actionsPosition:getComputedStyle(document.querySelector('#header-project-actions')).position,viewportHeight:innerHeight,theme:box('#theme-toggle'),overflow:document.documentElement.scrollWidth-innerWidth}; });
@@ -187,7 +189,7 @@ async function readableMidnightIcon(control) {
       return {color:getComputedStyle(el).color,noticeColor:getComputedStyle(el.querySelector('.estimating-notice')).color,background};
     });
     assert.ok(contrast(footer.color,footer.background)>=4.5,id+' footer contrast');assert.ok(contrast(footer.noticeColor,footer.background)>=4.5,id+' estimating notice contrast');assert.equal(await page.locator('footer').innerText(),footerText,'Themes preserve the disclaimer wording');
-    evidence.themes.push({id,button,card,input,helper:text,footer});
+    evidence.themes.push({id,button,card,input,readonlyInput,helper:text,footer});
     assert.deepEqual(await snapshot(),before,id+' must preserve draft/project/calculator snapshots');
   }
   assert.equal(buttonColors.size,5);

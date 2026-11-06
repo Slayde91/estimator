@@ -45,6 +45,18 @@
     wrapper.append(node("span", "", label), control);
     return wrapper;
   }
+  function backButton(label, action) {
+    const control = button("", action);
+    control.classList.add("icon-only");
+    control.title = label;
+    control.setAttribute("aria-label", label);
+    window.CeasefireI18n?.attr(control, "title", label);
+    window.CeasefireI18n?.attr(control, "aria-label", label);
+    const icon = node("span", "button-symbol", "←");
+    icon.setAttribute("aria-hidden", "true");
+    control.append(icon);
+    return control;
+  }
   function input(value, changed, type = "text") {
     const element = node("input");
     element.type = type;
@@ -462,14 +474,15 @@
       pendingIssue: null,
       generatedScope: null,
       scopeTables: copy(document.fields.scope_tables || []),
-      scopeRevision: 0
+      scopeRevision: 0,
+      derivedEstimates: new Map()
     };
     state.dirty = false;
     const host = shell(names[state.kind]),
       form = node("div", "commercial-editor"),
       fields = state.editor.document.fields;
     const actions = node("div", "commercial-editor-actions");
-    actions.append(button("Back to " + names[state.kind] + "s", () => {
+    actions.append(backButton("Back to " + names[state.kind] + "s", () => {
       if (!state.dirty || window.confirm("Discard unsaved changes?")) {
         state.dirty = false;
         renderBoard();
@@ -492,7 +505,7 @@
       const chooser = node("details", "commercial-estimate-picker");
       chooser.append(node("summary", "button secondary", "Select estimates"), node("div", "commercial-estimate-options"));
       form.append(chooser);
-      form.append(node("section", "commercial-lines"), node("div", "commercial-totals"), node("section", "commercial-scope"), richEditor("Scope preamble", fields.scope, value => fields.scope = value), richEditor("Allowances", fields.allowances, value => fields.allowances = value), richEditor("Terms & Conditions", fields.terms, value => fields.terms = value));
+      form.append(node("section", "commercial-lines"), node("div", "commercial-totals"), rateSchedule(fields), node("section", "commercial-scope"), richEditor("Scope preamble", fields.scope, value => fields.scope = value), richEditor("Allowances", fields.allowances, value => fields.allowances = value), richEditor("Terms & Conditions", fields.terms, value => fields.terms = value));
     } else {
       renderOrderFields(form, fields);
       if (state.kind === "purchase_order") form.append(node("section", "commercial-lines"), button("Add line item", () => {
@@ -515,6 +528,35 @@
     }
     renderLines();
     if (state.kind === "quote" && document.version > 0) void refreshScopePreview();
+  }
+  function rateSchedule(fields) {
+    const section = node("section", "card commercial-rate-schedule"), schedule = fields.rate_schedule;
+    section.append(node("h2", "", "Schedule of Rates"), field("Schedule of Rates introduction", textarea(schedule.introduction, value => fields.rate_schedule.introduction = value)));
+    const rates = node("div", "commercial-rate-grid");
+    for (const [key, label, unit] of [
+      ["ordinary_time", "Ordinary time", "per hour · 7:00am to 3:30pm"],
+      ["time_and_half", "Time and a half", "per hour · 3:30pm to 5:30pm and night shifts"],
+      ["double_time", "Double time", "per hour · after 5:30pm and weekends"],
+      ["site_remobilisation", "Site Remobilisation", "per occasion"],
+      ["access_equipment_transport", "Access Equipment Transport", "per occasion"],
+      ["equipment", "Equipment", "% added to Hire Rate"],
+      ["materials", "Materials", "% added to Cost Rate"]
+    ]) {
+      const control = input(schedule.rates[key], value => fields.rate_schedule.rates[key] = value, "number");
+      control.min = "0";
+      control.step = "any";
+      const row = field(label, control);
+      row.append(node("span", "helper", (key === "equipment" || key === "materials" ? "" : "AUD ") + unit));
+      rates.append(row);
+    }
+    const acceptance = node("div", "commercial-acceptance");
+    for (const [key, label] of [["accepted_by", "Accepted by"], ["title", "Title"], ["signature", "Signature"], ["date", "Date"]]) {
+      acceptance.append(field(label, input(schedule.acceptance[key], value => fields.rate_schedule.acceptance[key] = value, key === "date" ? "date" : "text")));
+    }
+    section.append(rates, acceptance);
+    section.querySelectorAll("h2,.field>span").forEach(element => window.CeasefireI18n?.text(element, element.textContent));
+    section.querySelectorAll("input,textarea").forEach(element => window.CeasefireI18n?.attr(element, "aria-label", element.getAttribute("aria-label")));
+    return section;
   }
   function renderOrderFields(form, fields) {
     const references = node("section", "commercial-linked-reference");
@@ -594,6 +636,41 @@
     if (!window.CeasefireEstimates?.capture) throw new Error("The project estimate workspace is unavailable.");
     return window.CeasefireEstimates.capture(options);
   }
+  async function deriveCaptured(editor, workspace, captured, selectedIds) {
+    // One result per exact captured estimate, confined to this editor. Sharing
+    // in-flight work also prevents the read-only preview and a selection change
+    // recalculating the same large schedule. Save and issue always revalidate.
+    const available = new Map(captured.estimates.map(item => [item.id, item]));
+    const missing = [];
+    for (const id of selectedIds) {
+      const item = available.get(id);
+      if (!item) throw new Error("Choose estimates from the current project.");
+      const fingerprint = JSON.stringify(item);
+      if (editor.derivedEstimates.get(id)?.fingerprint !== fingerprint) missing.push({id, fingerprint});
+    }
+    if (missing.length) {
+      const pending = request("derive", {workspace_id: workspace, ...captured, selected_ids: missing.map(item => item.id)});
+      for (const {id, fingerprint} of missing) {
+        const cached = {fingerprint};
+        cached.result = pending.then(result => {
+          const group = result.scope_groups.find(item => item.estimate_id === id);
+          return {
+            line: result.lines.find(item => item.estimate_id === id),
+            source: result.sources.find(item => item.estimate_id === id),
+            scope: group.scope,
+            tables: result.scope_tables.slice(group.table_start, group.table_start + group.table_count)
+          };
+        }).catch(error => {
+          if (editor.derivedEstimates.get(id) === cached) editor.derivedEstimates.delete(id);
+          throw error;
+        });
+        editor.derivedEstimates.set(id, cached);
+      }
+    }
+    const selected = await Promise.all(selectedIds.map(id => editor.derivedEstimates.get(id).result));
+    return {lines: selected.map(item => item.line), sources: selected.map(item => item.source),
+      scope: selected.map(item => item.scope).join(""), scope_tables: selected.flatMap(item => item.tables)};
+  }
   async function refreshScopePreview() {
     const editor = state.editor;
     const workspace = state.workspace;
@@ -605,11 +682,7 @@
     try {
       const captured = await capturedEstimates({readOnly:true});
       if (!current()) return;
-      const derived = await request("derive", {
-        workspace_id: workspace,
-        ...captured,
-        selected_ids: editor.document.fields.lines.map(line => line.estimate_id)
-      });
+      const derived = await deriveCaptured(editor, workspace, captured, editor.document.fields.lines.map(line => line.estimate_id));
       if (!current()) return;
       editor.scopeTables = derived.scope_tables;
       renderScope();
@@ -629,11 +702,7 @@
     try {
       const captured = await capturedEstimates();
       if (editor !== state.editor || workspace !== state.workspace || context !== window.CeasefireProject?.runtimeContext?.()) return;
-      const derived = await request("derive", {
-        workspace_id: workspace,
-        ...captured,
-        selected_ids: selectedIds
-      });
+      const derived = await deriveCaptured(editor, workspace, captured, selectedIds);
       if (editor !== state.editor || workspace !== state.workspace || workspace !== currentWorkspace() || context !== window.CeasefireProject?.runtimeContext?.()) return;
       const fields = editor.document.fields,
         previous = new Map(fields.lines.map(line => [line.estimate_id, line]));
@@ -660,12 +729,16 @@
       message("");
       return true;
     } catch (error) {
-      message(error.message, true);
-      renderEstimateOptions();
+      if (editor === state.editor && workspace === state.workspace) {
+        message(error.message, true);
+        renderEstimateOptions();
+      }
       return false;
     } finally {
-      state.busy = false;
-      setDisabled(false);
+      if (editor === state.editor && workspace === state.workspace) {
+        state.busy = false;
+        setDisabled(false);
+      }
     }
   }
   function renderLines() {
@@ -764,10 +837,17 @@
       head.append(header);
       table.append(head);
       const body = node("tbody");
-      scope.rows.forEach(values => {
-        const row = node("tr");
-        values.forEach(value => row.append(node("td", "", value)));
-        body.append(row);
+      let populated = false;
+      details.addEventListener("toggle", () => {
+        if (!details.open || populated) return;
+        populated = true;
+        const rows = document.createDocumentFragment();
+        scope.rows.forEach(values => {
+          const row = node("tr");
+          values.forEach(value => row.append(node("td", "", value)));
+          rows.append(row);
+        });
+        body.append(rows);
       });
       table.append(body);
       const scroll = node("div", "table-scroll");
@@ -805,6 +885,7 @@
   }
   function adoptSaved(saved) {
     const fields = state.editor.document.fields;
+    state.editor.derivedEstimates.clear();
     ++state.editor.scopeRevision;
     Object.assign(fields, saved.fields);
     state.editor.scopeTables = copy(fields.scope_tables || []);
@@ -881,6 +962,14 @@
   }
   window.CeasefireCommercial = {
     activate,
+    projectNumberAssigned(details) {
+      const document = state.editor?.document;
+      if (!document || document.version !== 0 || document.fields.details.project_no || !details?.project_no) return;
+      document.fields.details.project_no = details.project_no;
+      const control = root()?.querySelector('input[aria-label="Project number"]');
+      if (control) control.value = details.project_no;
+      markDirty();
+    },
     async openFromEstimate(kind = "quote") {
       if (!names[kind]) return;
       if (state.busy || state.dirty) return;
@@ -901,6 +990,7 @@
       state.model = null;
       state.editor = null;
       state.dirty = false;
+      state.busy = false;
       state.changed = false;
       state.revision++;
     },

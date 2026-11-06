@@ -68,7 +68,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await idle();
   assert.equal(await page.evaluate(() => window.CeasefireCertification.sessionId()), null);
   await page.getByRole('button',{name:'Estimates',exact:true}).click();
-  await page.locator('#project-no').fill('UNSAVED-QUOTE-1');
+  await expect(page.locator('#project-no')).toHaveAttribute('readonly','');
   await page.locator('#client').fill('Unsaved project client');
   await page.locator('#site-address').fill('25 Current Estimate Street');
   await page.locator('#view-estimate [data-document-menu-toggle]').click();
@@ -76,7 +76,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   const quote=page.locator('#commercial-quote-root');
   await expect(quote.getByLabel('Client',{exact:true})).toHaveValue('Unsaved project client');
   await expect(quote.getByLabel('Site address',{exact:true})).toHaveValue('25 Current Estimate Street');
-  await expect(quote.getByLabel('Project number',{exact:true})).toHaveValue('UNSAVED-QUOTE-1');
+  await expect(quote.getByLabel('Project number',{exact:true})).toHaveValue('');
   await expect(quote.locator('.commercial-lines tbody tr')).toHaveCount(1);
   const introBox = await quote.getByLabel('Introduction',{exact:true}).boundingBox();
   const detailBox = await quote.locator('.commercial-details').boundingBox();

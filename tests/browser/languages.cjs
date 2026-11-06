@@ -29,7 +29,7 @@ async function snapshot(){await idle();return page.evaluate(()=>({project:window
  await page.evaluate(async()=>{await window.CeasefireCalculators.completeProjectSnapshot();await window.CeasefirePenetrations.completeProjectSnapshot();});
  await chooseTakeoff(page,'Steel');await idle();
  await page.locator('nav [data-view="estimate"]').click();await idle();
- await page.locator('#project-no').fill('CF-LANGUAGE');await page.locator('#client').fill('Home');await page.locator('#site-address').fill('原始ข้อมูล العربية हिन्दी <literal>');await page.locator('#site-address').blur();await idle();
+ await expect(page.locator('#project-no')).toHaveAttribute('readonly','');await page.locator('#client').fill('Home');await page.locator('#site-address').fill('原始ข้อมูล العربية हिन्दी <literal>');await page.locator('#site-address').blur();await idle();
  const baseline=await snapshot();
  await openProjectSection(page,'certification');
  await expect(page.locator('#certification-client')).toBeEnabled();

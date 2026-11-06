@@ -4,12 +4,17 @@ const { expect } = require('@playwright/test');
 // Choose an explicit menu destination: the main Projects button now remembers
 // whichever subsection was last opened during this app session.
 async function openProjectSection(page, section) {
-  if (!['quotes', 'quote', 'work-orders', 'purchase-orders', 'scheduler', 'certification', 'documentation'].includes(section)) throw new Error('Unknown Projects section: ' + section);
+  if (!['quotes', 'quote', 'work-orders', 'purchase-orders', 'scheduler', 'certification', 'documentation', 'swms', 'documents'].includes(section)) throw new Error('Unknown workspace section: ' + section);
   const destination = page.locator('#view-' + section);
   if (await destination.isVisible()) return;
-  await page.locator('#projects-navigation-toggle').hover();
-  await expect(page.locator('#projects-navigation-menu')).toBeVisible();
-  await page.locator(`#projects-navigation-menu [data-project-section="${section}"]`).click();
+  if (section === 'scheduler') await page.locator('#scheduler-navigation').click();
+  else {
+    const documents = ['certification', 'documentation', 'swms', 'documents'].includes(section);
+    const owner = documents ? 'documents' : 'projects', attribute = documents ? 'document' : 'project';
+    await page.locator(`#${owner}-navigation-toggle`).hover();
+    await expect(page.locator(`#${owner}-navigation-menu`)).toBeVisible();
+    await page.locator(`#${owner}-navigation-menu [data-${attribute}-section="${section}"]`).click();
+  }
   const confirmation = page.getByRole('dialog', { name: 'Unsaved Pricing Library', exact: true });
   const target = await Promise.race([
     destination.waitFor({ state: 'visible' }).then(() => 'section'),

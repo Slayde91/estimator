@@ -158,11 +158,16 @@ def project_summary(payload, *, edition='full'):
     if not isinstance(title, str) or len(title) > 1000:
         raise ValidationError("The project quote name is invalid.")
     result = {"estimate": {"title": title, **details},
-              "project_status": validate_project_status(snapshot.get("project_status", "Draft"))}
+              "project_status": validate_project_status(snapshot.get("project_status", "Draft")),
+              "clients": [details["client"]], "project_numbers": [details["project_no"]]}
     if "estimates" in snapshot or "active_estimate_id" in snapshot:
         entries = estimate_descriptors(snapshot.get("estimates"), snapshot.get("active_estimate_id"))
         result["estimates"] = [{"id": entry["id"], "name": entry["name"]} for entry in entries]
         result["active_estimate_id"] = snapshot["active_estimate_id"]
+        for entry in entries:
+            child = project_details({key: entry['workspace']['estimate'].get(key, '') for key in QUOTE_DETAIL_LIMITS})
+            result['clients'].append(child['client'])
+            result['project_numbers'].append(child['project_no'])
     return result
 
 

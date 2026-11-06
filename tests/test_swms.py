@@ -1,5 +1,6 @@
 """SWMS content, persistence, project isolation and actual export regressions."""
 import base64
+import ast
 from copy import deepcopy
 from io import BytesIO
 import json
@@ -97,6 +98,51 @@ class SwmsTests(unittest.TestCase):
         with self.assertRaises(SwmsConflict):
             self.service.save(self.workspace, payload)
 
+    def test_high_risk_template_tables_and_legacy_snapshot_roundtrip(self):
+        fields = default_fields()
+        tables = fields['high_risk_steps']
+        falls = 'Risk of falls from greater than 2 metres'
+        silica = next(key for key in tables if 'crystalline silica' in key)
+        electrical = 'Work on or near energised electrical installations or services'
+        self.assertEqual(len(tables), 19)
+        self.assertEqual(len(tables[falls]), 4)
+        self.assertEqual(len(tables[silica]), 8)
+        self.assertEqual(tables[falls][0]['job_step'], 'Access workface from mobile scaffold or platform ladder')
+        self.assertIn('annual fit test training for respirators', tables[silica][1]['controls'])
+        self.assertTrue(all(not text for text in tables[electrical][0].values()))
+        self.assertEqual(tables['Work in an area with movement of powered mobile plant'], [])
+        tables[electrical][0]['controls'] = 'Site-specific electrical isolation review'
+        fields['high_risk_work'] = electrical
+        payload = {**self.payload(), 'fields': fields}
+        saved = self.service.save(self.workspace, payload)
+        snapshot = self.service.capture(self.workspace)
+        other = self.projects.add(snapshot['project_id'])
+        self.service.restore(other, snapshot)
+        self.assertEqual(self.service.capture(other), snapshot)
+        self.assertEqual(saved['fields']['high_risk_steps'], tables)
+        # Older drafts keep their original shape, including retired fields, so
+        # capture equality and existing immutable receipt fingerprints survive.
+        legacy = self.payload()
+        legacy['fields'].pop('high_risk_steps')
+        legacy['fields']['template_id'] = 'legacy-template'
+        legacy['fields']['signoffs'] = [{'name': 'Legacy name', 'company': '', 'signature': None,
+                                        'date': '', 'time': '', 'latitude': '', 'longitude': ''}]
+        self.assertEqual(validate_fields(legacy['fields']), legacy['fields'])
+        self.service.save(self.workspace, legacy)
+        current = self.service.capture(self.workspace)
+        self.assertEqual(self.service.capture(self.workspace, current), current)
+        self.assertNotIn('high_risk_steps', next(row for row in current['documents'] if row['id'] == legacy['id'])['fields'])
+
+    def test_high_risk_source_is_in_the_offline_package(self):
+        root = Path(__file__).resolve().parents[1]
+        tree = ast.parse((root / 'scripts/build_windows.py').read_text(encoding='utf-8'))
+        assignment = next(node for node in tree.body if isinstance(node, ast.Assign)
+                          and any(isinstance(target, ast.Name) and target.id == 'DATA_FILES' for target in node.targets))
+        self.assertIn('swms-high-risk.json', ast.literal_eval(assignment.value))
+        source = json.loads((root / 'data/swms-high-risk.json').read_text(encoding='utf-8'))['source']
+        self.assertEqual(source['template_version'], '96')
+        self.assertTrue(source['url'].endswith('/663dbe003928e300193cc4f5'))
+
     def test_portable_snapshot_and_exact_capture(self):
         self.service.save(self.workspace, self.payload())
         snapshot = self.service.capture(self.workspace)
@@ -129,6 +175,9 @@ class SwmsTests(unittest.TestCase):
         for mutate in [lambda f: f.update(script='<script>'),
                        lambda f: f.update(work_types=[]),
                        lambda f: f['steps']['Passive Firestopping'][0].update(initial_risk='4'),
+                       lambda f: f['high_risk_steps'].update({'unknown': []}),
+                       lambda f: f['high_risk_steps']['Risk of falls from greater than 2 metres'][0].update(initial_risk='4'),
+                       lambda f: f['high_risk_steps'].update({'Risk of falls from greater than 2 metres': []}),
                        lambda f: f.update(manager_signature={'version': 1, 'ratio': 1, 'strokes': [[[float('nan'), 0]]]}),
                        lambda f: f.update(manager_signature={'version': 1, 'ratio': 1, 'strokes': [[[0, 0]] * 4001]}),
                        lambda f: f.update(attachments=[{'name': '../bad.pdf', 'media_type': 'application/pdf', 'data': 'data:application/pdf;base64,AA=='}]),
@@ -226,6 +275,30 @@ class SwmsPdfTests(unittest.TestCase):
         self.assertIn('Site emergency', text)
         self.assertIn('EMERGENCY RESPONSE PLAN', text)
         self.assertNotIn('Slayde', text)
+        self.assertNotIn('Template ID', text)
+        self.assertNotIn('Template Version', text)
+        self.assertNotIn('Employees Sign-Off', text)
+        self.assertIn('Form Version: 3', text)
+
+    def test_only_selected_high_risk_tables_export_with_saved_edits(self):
+        fields = default_fields()
+        falls = 'Risk of falls from greater than 2 metres'
+        electrical = 'Work on or near energised electrical installations or services'
+        fields['high_risk_work'] = falls + '\n' + electrical
+        fields['high_risk_steps'][electrical][0]['job_step'] = 'Electrical Review'
+        fields['high_risk_steps'][electrical][0]['controls'] = '<b>Literal review notes</b>'
+        reader = PdfReader(BytesIO(render_swms_pdf({'version': 1, 'fields': fields}, company=DEFAULTS)))
+        text = ' '.join(' '.join(page.extract_text() for page in reader.pages).split())
+        self.assertIn('Access workface from mobile scaffold', text)
+        self.assertIn('Electrical Review', text)
+        self.assertIn('<b>Literal review notes</b>', text)
+        self.assertNotIn('PPE Removal & Decontamination', text)
+        self.assertIn(f'Page {len(reader.pages)} of {len(reader.pages)}', reader.pages[-1].extract_text())
+        # Existing documents without the optional table map still export the
+        # same authoritative defaults for a high-risk choice already selected.
+        fields.pop('high_risk_steps')
+        reader = PdfReader(BytesIO(render_swms_pdf({'version': 1, 'fields': fields}, company=DEFAULTS)))
+        self.assertIn('Access workface from mobile scaffold', ' '.join(' '.join(page.extract_text() for page in reader.pages).split()))
 
     def test_all_work_types_long_rows_signature_and_appendix_preserved(self):
         fields = default_fields()
@@ -238,8 +311,9 @@ class SwmsPdfTests(unittest.TestCase):
         fields['emergency_notify'] = ('Long emergency notification. ' * 150) + 'LAST-NOTIFICATION'
         reader = PdfReader(BytesIO(render_swms_pdf({'version': 2, 'fields': fields}, company=DEFAULTS)))
         text = '\n'.join(page.extract_text() for page in reader.pages)
-        for value in [*fields['work_types'], 'LAST-CONTROL', 'LAST-NOTIFICATION', 'TEST PERSON', 'ATTACHMENT-END']:
+        for value in [*fields['work_types'], 'LAST-CONTROL', 'LAST-NOTIFICATION', 'ATTACHMENT-END']:
             self.assertIn(value, text)
+        self.assertNotIn('TEST PERSON', text)
         self.assertIn(f'Page {len(reader.pages)} of {len(reader.pages)}', reader.pages[-1].extract_text())
 
 

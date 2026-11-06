@@ -209,7 +209,9 @@ class CommercialTests(unittest.TestCase):
         pdf = render_commercial_pdf(saved, 'Q-000001', company=company, scope_documents=[scope.getvalue()])
         reader = PdfReader(BytesIO(pdf))
         text = '\n'.join(page.extract_text() for page in reader.pages)
-        self.assertIn('EXACT FULL SCHEDULE EVIDENCE', reader.pages[1].extract_text())
+        scope_pages = [page.extract_text() for page in reader.pages if 'EXACT FULL SCHEDULE EVIDENCE' in page.extract_text()]
+        self.assertEqual(len(scope_pages), 1)
+        self.assertLess(text.index('SCHEDULE OF RATES'), text.index('EXACT FULL SCHEDULE EVIDENCE'))
         self.assertIn('Example Fire Pty Ltd', text)
         self.assertIn('ABN 12 345 678 901', text)
         self.assertNotIn('ACN 612 231 562', text)

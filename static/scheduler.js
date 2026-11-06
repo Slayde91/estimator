@@ -494,7 +494,7 @@
       const start = input("datetime-local",entry ? localParts(entry.start) : `${today()}T07:00`,{required:true});
       const end = input("datetime-local",entry ? localParts(entry.end) : `${today()}T15:30`,{required:true});
       const project = projectSelect(entry || {}), notes = el("textarea"); notes.value = entry?.notes || ""; notes.maxLength = 2000;
-      host.append(field("Team member",member),field("Start",start,"Australia/Sydney"),field("Finish",end,"Australia/Sydney"),field("Job / project reference",project),field("Notes / reason for correction",notes));
+      host.append(field("Team member",member),field("Start",start,"Australia/Sydney"),field("Job / project reference",project),field("Finish",end,"Australia/Sydney"),field("Notes / reason for correction",notes));
       const breakList = el("div","scheduler-break-editor"), breakRows = [];
       function addBreak(item = {}) {
         const row = el("div","scheduler-break-row"), from = input("datetime-local",item.start ? localParts(item.start) : "",{required:true}), to = input("datetime-local",item.end ? localParts(item.end) : "",{required:true}), paid = check("Paid",!!item.paid);
@@ -569,7 +569,16 @@
     }
     saved.breaks.forEach(addBreakRule);
     form.append(el("h3","","Break rules"),el("p","helper","Automatic breaks are calculated when a time entry is complete. Thresholds use elapsed shift time. Repeated middle breaks are spaced evenly. A matching manual break satisfies one automatic break, and breaks never overlap."),breakList,button("Add break rule",() => {addBreakRule(); state.settingsDirty = true;}));
-    const submit = el("button","button scheduler-primary-action","Save settings"); submit.type = "submit"; form.append(submit,button("Discard settings changes",() => {state.settingsDirty = false; render();}));
+    const submit = el("button","button scheduler-primary-action","Save settings"); submit.type = "submit";
+    const discard = button("",() => {state.settingsDirty = false; render();},"button secondary icon-only");
+    discard.title = "Discard settings changes"; discard.setAttribute("aria-label","Discard settings changes");
+    window.CeasefireI18n?.text(submit,"Save settings");
+    window.CeasefireI18n?.attr(discard,"title","Discard settings changes");
+    window.CeasefireI18n?.attr(discard,"aria-label","Discard settings changes");
+    const resetIcon = document.createElementNS("http://www.w3.org/2000/svg","svg");
+    for (const [key,value] of Object.entries({viewBox:"0 0 24 24",fill:"none",stroke:"currentColor","stroke-width":"2","stroke-linecap":"round","stroke-linejoin":"round","aria-hidden":"true",focusable:"false"})) resetIcon.setAttribute(key,value);
+    for (const d of ["M20 7v5h-5","M4 17v-5h5","M6.1 8.4A7.5 7.5 0 0 1 19.2 10L20 12","M17.9 15.6A7.5 7.5 0 0 1 4.8 14L4 12"]) {const path = document.createElementNS("http://www.w3.org/2000/svg","path"); path.setAttribute("d",d); resetIcon.append(path);}
+    discard.append(resetIcon); const actions = el("div","actions scheduler-settings-actions"); actions.append(submit,discard); form.append(actions);
     form.addEventListener("input",() => {state.settingsDirty = true;}); form.addEventListener("change",() => {state.settingsDirty = true;});
     form.addEventListener("submit",async event => {
       event.preventDefault(); if (state.busy) return; state.busy = true;

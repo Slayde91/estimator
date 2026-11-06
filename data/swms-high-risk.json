@@ -1,0 +1,263 @@
+{
+  "source": {
+    "url": "https://dashpivot.com/apps/companies/6623ed5d74891a0018b6864c/active/grid/663dbe003928e300193cc4f5",
+    "template_id": "CF-RAS-009",
+    "template_version": "96",
+    "captured_on": "2026-11-07",
+    "method": "Read-only rendered template preview; each high-risk choice selected individually. Placeholder Type text... cells become blank strings. No table is present for powered mobile plant or shaft/trench/tunnel in the source."
+  },
+  "tables": {
+    "Risk of falls from greater than 2 metres": [
+      {
+        "job_step": "Access workface from mobile scaffold or platform ladder",
+        "hazards": "Hazard: Access to workface\n\nRisk: Fall from heights, striking personnel/ objects, electric shock, injury",
+        "initial_risk": "2",
+        "controls": "(Dis)assembly to be carried out by a competent person. Scaffolds above 4 metres to be erected by ticketed scaffolder only.\nStay within safety rails and observe SWL\nTools to be placed in receptacles\nEnsure hose and tools are secured or contained\nDo not use on unlevel surfaces or overload platform with material. All feet must be securely positioned on the ground\nThree points of contact whilst climbing a ladder\nDo not use conductive platforms near electrical work \nDo not step above the platform, overreach, or use a ladder whilst closed",
+        "residual_risk": "3",
+        "responsible": "All personnel"
+      },
+      {
+        "job_step": "Access workface from scissor lift",
+        "hazards": "Hazard: MEWP\n\nRisk: Worker, material fall from height. Crush",
+        "initial_risk": "1",
+        "controls": "Operators to have ticket of competency for scissor lift\nStay within the platform and do not climb the sides\nUse spotter when moving or working near live services\nPlace an exclusion zone with signage around scissor lift in all potential drop zones\nObserve wind rating and SWL. Do not elevate in high winds.\nEnsure hose and tools are secured- lanyards must be attached to all tools\nEnsure daily logbook is completed\nEnsure scissor lift is inducted with the principal contractor and plant risk assessment provided\nOperator to be aware of and check blind spots\nWheel stops must be installed at all slab edges and penetrations before scissor lift is used\nCheck that any suspended area is rated to take the load\nDo not drive across an incline\nEnsure scissor lift is turned off, isolated, and keys removed at the end of each day\nTraffic management plan in place if scissor lift is driven on a road.",
+        "residual_risk": "3",
+        "responsible": "All operators"
+      },
+      {
+        "job_step": "Access workface from EWP",
+        "hazards": "Hazard: MEWP\n\nRisk: Worker, material fall from height. Crush",
+        "initial_risk": "1",
+        "controls": "Operators to have HRWL for boom lifts over 11m and must always wear a secured harness \nStay within the platform and do not climb the sides \nUse spotter when moving or working near live services\nDo not approach perimeter edges without a zone permit\nPlace an exclusion zone with signage around EWP in all potential drop zones\nObserve wind rating and SWL. Do not elevate in high winds.\nEnsure hose and tools are secured- lanyards must be attached to all tools\nEnsure safety harness and lanyard have 6-month inspections in place and register of inspection provided to the principal contractor\nEnsure daily logbook is completed\nEnsure EWP is inducted with the principal contractor and plant risk assessment provided\nOperator to be aware of and check blind spots\nWheel stops must be installed at all slab edges and penetrations before EWP is used\nCheck that any suspended area is rated to take the load\nDo not drive across an incline\nEnsure EWP is turned off, isolated, and keys removed at the end of each day\nTraffic management plan in place if EWP is driven on a road",
+        "residual_risk": "3",
+        "responsible": "All operators"
+      },
+      {
+        "job_step": "EWP emergency rescue",
+        "hazards": "Hazard: Access to workface\n\nRisk: Trapped or injured worker",
+        "initial_risk": "2",
+        "controls": "All workers to practice use of ground controls for each EWP\nOne ground-based worker to be present to operate controls if needed\nIf a worker is trapped or injured assess the incident\nCall out to persons inside the EWP\nOnly approach if safe to do so\nRaise the alarm\nLower using ground controls\nCall “000” in an emergency and follow the Emergency Response Plan",
+        "residual_risk": "3",
+        "responsible": "All operators"
+      }
+    ],
+    "Work in an area with movement of powered mobile plant": [],
+    "Work on or near energised electrical installations or services": [
+      {
+        "job_step": "",
+        "hazards": "",
+        "initial_risk": "",
+        "controls": "",
+        "residual_risk": "",
+        "responsible": ""
+      }
+    ],
+    "Temporary load-bearing support structures": [
+      {
+        "job_step": "",
+        "hazards": "",
+        "initial_risk": "",
+        "controls": "",
+        "residual_risk": "",
+        "responsible": ""
+      }
+    ],
+    "Work in confined spaces": [
+      {
+        "job_step": "",
+        "hazards": "",
+        "initial_risk": "",
+        "controls": "",
+        "residual_risk": "",
+        "responsible": ""
+      }
+    ],
+    "Work on, in or adjacent to road, rail shipping or other major traffic corridor": [
+      {
+        "job_step": "",
+        "hazards": "",
+        "initial_risk": "",
+        "controls": "",
+        "residual_risk": "",
+        "responsible": ""
+      }
+    ],
+    "Use of Explosives": [
+      {
+        "job_step": "",
+        "hazards": "",
+        "initial_risk": "",
+        "controls": "",
+        "residual_risk": "",
+        "responsible": ""
+      }
+    ],
+    "Work on or near pressurised gas pipes or mains": [
+      {
+        "job_step": "",
+        "hazards": "",
+        "initial_risk": "",
+        "controls": "",
+        "residual_risk": "",
+        "responsible": ""
+      }
+    ],
+    "Work on or near chemical, fuel or refrigerant lines": [
+      {
+        "job_step": "",
+        "hazards": "",
+        "initial_risk": "",
+        "controls": "",
+        "residual_risk": "",
+        "responsible": ""
+      }
+    ],
+    "Work in an area with contaminated or flammable atmosphere": [
+      {
+        "job_step": "",
+        "hazards": "",
+        "initial_risk": "",
+        "controls": "",
+        "residual_risk": "",
+        "responsible": ""
+      }
+    ],
+    "Work with tilt up or pre-cast concrete": [
+      {
+        "job_step": "",
+        "hazards": "",
+        "initial_risk": "",
+        "controls": "",
+        "residual_risk": "",
+        "responsible": ""
+      }
+    ],
+    "Work in or near shaft or trench with an excavated depth greater than 1.5m or a in tunnel": [],
+    "Likely to involve disturbing asbestos": [
+      {
+        "job_step": "",
+        "hazards": "",
+        "initial_risk": "",
+        "controls": "",
+        "residual_risk": "",
+        "responsible": ""
+      }
+    ],
+    "Work in or areas with artificial extremes of temperature": [
+      {
+        "job_step": "",
+        "hazards": "",
+        "initial_risk": "",
+        "controls": "",
+        "residual_risk": "",
+        "responsible": ""
+      }
+    ],
+    "Work in or near a drowning risk": [
+      {
+        "job_step": "",
+        "hazards": "",
+        "initial_risk": "",
+        "controls": "",
+        "residual_risk": "",
+        "responsible": ""
+      }
+    ],
+    "Diving work": [
+      {
+        "job_step": "",
+        "hazards": "",
+        "initial_risk": "",
+        "controls": "",
+        "residual_risk": "",
+        "responsible": ""
+      }
+    ],
+    "Demolition of load-bearing structure": [
+      {
+        "job_step": "",
+        "hazards": "",
+        "initial_risk": "",
+        "controls": "",
+        "residual_risk": "",
+        "responsible": ""
+      }
+    ],
+    "Work on a telecommunications tower": [
+      {
+        "job_step": "",
+        "hazards": "",
+        "initial_risk": "",
+        "controls": "",
+        "residual_risk": "",
+        "responsible": ""
+      }
+    ],
+    "Work that involves the cutting of crystalline silica material using a power tool or another mechanical process.": [
+      {
+        "job_step": "Site Preparation",
+        "hazards": "Hazard: Failure to establish exclusion zones.\n\nRisk: Nearby workers exposed to silica dust.",
+        "initial_risk": "1",
+        "controls": "- Set up exclusion zone and signage\n\n- Restrict access to other workers",
+        "residual_risk": "3",
+        "responsible": "All Personnel"
+      },
+      {
+        "job_step": "Dust Control Setup",
+        "hazards": "Hazard: Movement of equipment\n\nRisk: Personal Injury",
+        "initial_risk": "2",
+        "controls": "- Obey all signage and directions\n\n- Use correct lifting techniques and mechanical aids where possible\n\n- Do not lift over 20kg alone, use two men or mechanical aid\n\n- Inspect electrical tags and ensure tags are up to date\n\n- Workers must have silica awareness training\n\n- Workers to conduct annual fit test training for respirators\n\n- Workers to conduct annual health monitoring\n\n- Respirators are regularly checked & maintained",
+        "residual_risk": "3",
+        "responsible": "All Personnel"
+      },
+      {
+        "job_step": "Machine & Equipment Testing",
+        "hazards": "Hazard: Faulty or untested dust extraction system\n\nRisk: High airborne dust concentration",
+        "initial_risk": "2",
+        "controls": "- Inspect and test machine extraction, and HEPA filters before use\n\n- Replace filters when needed",
+        "residual_risk": "3",
+        "responsible": "All Personnel"
+      },
+      {
+        "job_step": "Wear Appropriate PPE",
+        "hazards": "Hazard: Inhalation of Dust\n\nRisk: Respiratory Harm",
+        "initial_risk": "2",
+        "controls": "- Enforce Correct PPE\n\n- Wear P3 Respirators\n\n- Check Respirator filters and replace when needed",
+        "residual_risk": "3",
+        "responsible": "All Personnel"
+      },
+      {
+        "job_step": "Mixing/Cutting Material",
+        "hazards": "Hazard: Silica Dust produced by equipment \n\n \n\n Risk: Inhalation of Silica Dust",
+        "initial_risk": "1",
+        "controls": "- Set up dust control tent, air filtration system and HEPA Filter\n - Place machinery within exclusion zone\n - Provide and enforce correct PPE and P3 Respirators\n - Inspect tools and equipment before use\n - Strictly limit access to the exclusion zone while works are in progress",
+        "residual_risk": "3",
+        "responsible": "All Personnel"
+      },
+      {
+        "job_step": "Use of Dust Control Tent",
+        "hazards": "Hazard: HEPA Filter requiring replacement\n\n \n\n Risk: Silica Dust escaping the filters.",
+        "initial_risk": "1",
+        "controls": "- Inspect Air Filtration unit gauge to determine if HEPA Filter is full\n\n - Replace HEPA Filters as required\n\n - Replace P3 Respirator filters as required \n\n - Bag and seal filters for disposal",
+        "residual_risk": "3",
+        "responsible": "All Personnel"
+      },
+      {
+        "job_step": "Housekeeping",
+        "hazards": "Hazard: Silica Dust produced by Sweeping\n\nRisk: Inhalation of Silica Dust",
+        "initial_risk": "1",
+        "controls": "- Use of P3 Respirators while cleaning/sweeping\n\n - Wet dust before sweeping\n\n - Use an M or H class Vacuum unit\n\n - Bag and Seal collected dust for disposal",
+        "residual_risk": "3",
+        "responsible": "All Personnel"
+      },
+      {
+        "job_step": "PPE Removal & Decontamination",
+        "hazards": "Hazard:  Incorrectly removing contaminated gear\n\nRisk: Cross-contamination to clean areas",
+        "initial_risk": "1",
+        "controls": "- Follow proper doffing sequence\n\n- Bag disposable PPE\n\n- Wash reusable gear separately.",
+        "residual_risk": "3",
+        "responsible": "All Personnel"
+      }
+    ]
+  }
+}

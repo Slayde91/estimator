@@ -1,0 +1,9 @@
+Montserrat-Regular.ttf and Montserrat-Bold.ttf are static instances of the
+adjacent Montserrat-Variable.ttf (weight axis 400 and 700 respectively).
+Montserrat-Italic.ttf and Montserrat-BoldItalic.ttf are corresponding instances
+of Montserrat-Italic-Variable.ttf at the same weights.
+License: adjacent OFL.txt. Static instance family/style/PostScript naming was
+set to Montserrat Regular and Montserrat Bold so both embed distinctly.
+Generated using fontTools 4.60.1 varLib.instancer.instantiateVariableFont.
+These static instances allow ReportLab to embed the supplied quotation's
+Montserrat typeface without adding a variable-font runtime dependency.

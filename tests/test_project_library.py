@@ -1036,13 +1036,43 @@ class ProjectLibraryApiTests(unittest.TestCase):
         self.assertEqual(len(self.dialogs.calls), calls)
         self.assertEqual(database_rows(self.store), before)
 
+    def test_project_details_routes_validate_settings_and_origin(self):
+        status, initial = self.request('GET', '/api/project-details')
+        self.assertEqual(status, 200)
+        self.assertEqual(initial['next_reference'], 'PN-00001')
+        status, changed = self.request('POST', '/api/project-details', {'prefix': 'test', 'start_number': 25})
+        self.assertEqual(status, 200, changed)
+        self.assertEqual(changed['next_reference'], 'TEST-00025')
+        self.assertEqual(self.request('POST', '/api/project-details', {'prefix': '../test', 'start_number': 25})[0], 400)
+        self.assertEqual(self.request('POST', '/api/project-details', {'prefix': 'PN', 'start_number': 1}, {'Origin': 'https://evil.example'})[0], 403)
+        self.assertEqual(self.request('GET', '/api/project-clients')[1]['clients'], [])
+        self.assertEqual(self.request('GET', '/api/project-clients', headers={'Origin': 'https://evil.example'})[0], 403)
+
+    def test_imported_legacy_project_save_as_keeps_number_and_assigns_next_to_new_project(self):
+        payload = export_project(self.store, {'estimate': {'project_no': 'PN-00019', 'client': 'Legacy client'}})
+        snapshot = json.loads(payload)
+        status, imported = self.request('POST', '/api/project/import', {
+            'filename': 'Legacy.cf.json', 'content_base64': base64.b64encode(payload).decode('ascii')})
+        self.assertEqual(status, 200, imported)
+        self.dialogs.selection = SaveSelection(str(self.root / 'Legacy copy.cf.json'), None)
+        request = {'estimate': snapshot['estimate'],
+                   'calculators': {key: {'inputs': value['inputs']} for key, value in snapshot['calculators'].items()},
+                   'certifications': {'workspace_id': imported['certification_workspace_id'], 'draft': None}}
+        status, saved = self.request('POST', '/api/project/save-as', request)
+        self.assertEqual(status, 200, saved)
+        self.assertEqual(saved['project']['estimate']['project_no'], 'PN-00019')
+        self.dialogs.selection = SaveSelection(str(self.root / 'New.cf.json'), None)
+        status, new = self.request('POST', '/api/project/save-as', {'estimate': {'project_no': 'FORGED'}})
+        self.assertEqual(status, 200, new)
+        self.assertEqual(new['project']['estimate']['project_no'], 'PN-00020')
+
     def test_full_native_save_folder_list_and_load_preserve_storage(self):
         target = self.root / "Saved.cf.json"
         self.dialogs.selection = SaveSelection(str(target), None)
         before = database_rows(self.store)
         status, saved = self.request("POST", "/api/project/save-as", {"estimate": {"project_no": "Saved native"}})
         self.assertEqual(status, 200, saved)
-        self.assertEqual(saved["project"]["estimate"]["project_no"], "Saved native")
+        self.assertEqual(saved["project"]["estimate"]["project_no"], "PN-00001")
         with patch("estimator.project_library.MAX_SCAN_SECONDS", 0):
             for _ in range(100):
                 status, listing = self.request("GET", "/api/projects")

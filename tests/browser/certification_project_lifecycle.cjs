@@ -27,7 +27,7 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   page=await browser.newPage({viewport:{width:1084,height:900},hasTouch:true,deviceScaleFactor:2});page.on('pageerror',error=>errors.push(error.message));
   await page.route('**/api/certifications/*/revisions*',async route=>{generations.push(route.request().url());await route.abort();});
   await page.goto(base+'/');await idle();await page.locator('#estimate-navigation-toggle').click();
-  await page.locator('#client').fill('PROJECT A CLIENT');await page.locator('#project-no').fill('PROJECT-A');await page.locator('#site-address').fill('Project A example address');await certification();
+  await page.locator('#client').fill('PROJECT A CLIENT');await expect(page.locator('#project-no')).toHaveAttribute('readonly','');await page.locator('#site-address').fill('Project A example address');await certification();
   const tokenA=await page.evaluate(()=>window.CeasefireCertification.sessionId());
   await expect(page.locator(`#certification-document option[value="${original.id}"]`)).toHaveCount(0);
   await expect(page.locator('#certification-legacy-open')).toHaveCount(0);await expect(page.locator('#certification-legacy-dialog')).toHaveCount(0);

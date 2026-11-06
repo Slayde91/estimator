@@ -1,0 +1,380 @@
+{
+  "Scheduler": [
+    "排班",
+    "अनुसूचक",
+    "Planificador",
+    "الجدولة",
+    "ตัวจัดตารางงาน"
+  ],
+  "Company Details": [
+    "公司信息",
+    "कंपनी विवरण",
+    "Datos de la empresa",
+    "تفاصيل الشركة",
+    "รายละเอียดบริษัท"
+  ],
+  "Prefix": [
+    "前缀",
+    "उपसर्ग",
+    "Prefijo",
+    "البادئة",
+    "คำนำหน้า"
+  ],
+  "Project start number": [
+    "项目起始编号",
+    "परियोजना प्रारंभ संख्या",
+    "Número inicial de proyecto",
+    "رقم بداية المشروع",
+    "หมายเลขเริ่มต้นโครงการ"
+  ],
+  "Save settings": [
+    "保存设置",
+    "सेटिंग सहेजें",
+    "Guardar configuración",
+    "حفظ الإعدادات",
+    "บันทึกการตั้งค่า"
+  ],
+  "Assigned when the project is saved": [
+    "保存项目时分配",
+    "परियोजना सहेजने पर आवंटित",
+    "Se asigna al guardar el proyecto",
+    "يُعيّن عند حفظ المشروع",
+    "กำหนดเมื่อบันทึกโครงการ"
+  ],
+  "DOCUMENTS": [
+    "文档",
+    "दस्तावेज़",
+    "DOCUMENTOS",
+    "المستندات",
+    "เอกสาร"
+  ],
+  "Artistic Illustration": [
+    "艺术插图",
+    "कलात्मक चित्रण",
+    "Ilustración artística",
+    "رسم توضيحي فني",
+    "ภาพประกอบเชิงศิลป์"
+  ],
+  "Contact the manufacturer before installation.": [
+    "安装前请联系制造商。",
+    "स्थापना से पहले निर्माता से संपर्क करें।",
+    "Contacte al fabricante antes de instalar.",
+    "تواصل مع الشركة المصنعة قبل التركيب.",
+    "ติดต่อผู้ผลิตก่อนติดตั้ง"
+  ],
+  "Back to statements": [
+    "返回说明书列表",
+    "विवरण सूची पर वापस",
+    "Volver a las declaraciones",
+    "العودة إلى البيانات",
+    "กลับไปยังรายการวิธีปฏิบัติงาน"
+  ],
+  "Safe Work Method Statements": [
+    "安全作业方法说明书",
+    "सुरक्षित कार्य पद्धति विवरण",
+    "Declaraciones de métodos de trabajo seguro",
+    "بيانات طرق العمل الآمن",
+    "เอกสารวิธีปฏิบัติงานอย่างปลอดภัย"
+  ],
+  "Safe Work Method Statement": [
+    "安全作业方法说明书",
+    "सुरक्षित कार्य पद्धति विवरण",
+    "Declaración de método de trabajo seguro",
+    "بيان طريقة العمل الآمن",
+    "เอกสารวิธีปฏิบัติงานอย่างปลอดภัย"
+  ],
+  "Prepare job steps, risk controls and safety statements.": [
+    "编制作业步骤、风险控制措施和安全说明。",
+    "कार्य चरण, जोखिम नियंत्रण और सुरक्षा विवरण तैयार करें।",
+    "Prepare los pasos de trabajo, controles de riesgo y declaraciones de seguridad.",
+    "أعد خطوات العمل وضوابط المخاطر وبيانات السلامة.",
+    "จัดเตรียมขั้นตอนงาน การควบคุมความเสี่ยง และเอกสารความปลอดภัย"
+  ],
+  "Discard settings changes": [
+    "放弃设置更改",
+    "सेटिंग बदलाव छोड़ें",
+    "Descartar cambios de configuración",
+    "تجاهل تغييرات الإعدادات",
+    "ยกเลิกการเปลี่ยนแปลงการตั้งค่า"
+  ],
+  "Project details could not be loaded.": [
+    "无法加载项目信息。",
+    "परियोजना विवरण लोड नहीं हो सके।",
+    "No se pudieron cargar los datos del proyecto.",
+    "تعذر تحميل تفاصيل المشروع.",
+    "โหลดรายละเอียดโครงการไม่ได้"
+  ],
+  "Next new project: {0}. Existing project numbers are retained and used numbers are never reused.": [
+    "下一个新项目：{0}。保留现有项目编号，已用编号不会重复使用。",
+    "अगली नई परियोजना: {0}। मौजूदा परियोजना संख्याएँ बनी रहेंगी और प्रयुक्त संख्याएँ दोबारा नहीं दी जाएँगी।",
+    "Próximo proyecto nuevo: {0}. Se conservan los números existentes y nunca se reutilizan.",
+    "المشروع الجديد التالي: {0}. تُحفظ أرقام المشاريع الحالية ولا تُستخدم الأرقام المستعملة مجددًا.",
+    "โครงการใหม่ถัดไป: {0} หมายเลขโครงการเดิมจะคงอยู่และจะไม่นำหมายเลขที่ใช้แล้วกลับมาใช้ซ้ำ"
+  ],
+  "Some saved projects could not be read. Check the Projects page for details.": [
+    "部分已保存项目无法读取。请在“项目”页面查看详情。",
+    "कुछ सहेजी परियोजनाएँ पढ़ी नहीं जा सकीं। विवरण के लिए परियोजना पृष्ठ देखें।",
+    "No se pudieron leer algunos proyectos guardados. Consulte la página Proyectos.",
+    "تعذرت قراءة بعض المشاريع المحفوظة. راجع صفحة المشاريع للتفاصيل.",
+    "อ่านโครงการที่บันทึกไว้บางรายการไม่ได้ ดูรายละเอียดที่หน้าโครงการ"
+  ],
+  "Loading previous clients…": [
+    "正在加载历史客户…",
+    "पिछले ग्राहक लोड हो रहे हैं…",
+    "Cargando clientes anteriores…",
+    "جارٍ تحميل العملاء السابقين…",
+    "กำลังโหลดลูกค้าเดิม…"
+  ],
+  "The project folder is still being read. Wait for the previous clients to finish loading and save again.": [
+    "仍在读取项目文件夹。请等待历史客户加载完成后再次保存。",
+    "परियोजना फ़ोल्डर अभी पढ़ा जा रहा है। पिछले ग्राहकों के लोड होने के बाद फिर सहेजें।",
+    "La carpeta del proyecto sigue leyéndose. Espere a que carguen los clientes anteriores y guarde de nuevo.",
+    "لا تزال قراءة مجلد المشروع جارية. انتظر تحميل العملاء السابقين ثم احفظ مجددًا.",
+    "กำลังอ่านโฟลเดอร์โครงการ รอให้โหลดลูกค้าเดิมเสร็จแล้วบันทึกอีกครั้ง"
+  ],
+  "Resolve unreadable project files in the linked folder before assigning a new project number.": [
+    "分配新项目编号前，请处理关联文件夹中无法读取的项目文件。",
+    "नया परियोजना नंबर देने से पहले लिंक किए फ़ोल्डर की अपठनीय परियोजना फ़ाइलें ठीक करें।",
+    "Resuelva los archivos de proyecto ilegibles en la carpeta vinculada antes de asignar un número nuevo.",
+    "عالج ملفات المشاريع غير القابلة للقراءة في المجلد المرتبط قبل تعيين رقم مشروع جديد.",
+    "แก้ไขไฟล์โครงการที่อ่านไม่ได้ในโฟลเดอร์ที่เชื่อมโยงก่อนกำหนดหมายเลขโครงการใหม่"
+  ],
+  "Schedule of Rates": [
+    "费率表",
+    "दर अनुसूची",
+    "Lista de tarifas",
+    "جدول الأسعار",
+    "ตารางอัตรา"
+  ],
+  "Schedule of Rates introduction": [
+    "费率表说明",
+    "दर अनुसूची का परिचय",
+    "Introducción a las tarifas",
+    "مقدمة جدول الأسعار",
+    "คำอธิบายตารางอัตรา"
+  ],
+  "Ordinary time": [
+    "正常工时",
+    "सामान्य समय",
+    "Horario ordinario",
+    "وقت العمل العادي",
+    "เวลาทำงานปกติ"
+  ],
+  "Time and a half": [
+    "1.5倍工时费率",
+    "डेढ़ गुना दर",
+    "Tarifa de tiempo y medio",
+    "أجر بزيادة النصف",
+    "อัตราหนึ่งเท่าครึ่ง"
+  ],
+  "Double time": [
+    "双倍工时费率",
+    "दोगुनी दर",
+    "Tarifa doble",
+    "أجر مضاعف",
+    "อัตราสองเท่า"
+  ],
+  "Site Remobilisation": [
+    "现场重新进场",
+    "साइट पर पुनः जुटान",
+    "Removilización en obra",
+    "إعادة التعبئة بالموقع",
+    "การกลับเข้าดำเนินงานที่ไซต์"
+  ],
+  "Access Equipment Transport": [
+    "登高设备运输",
+    "पहुँच उपकरण परिवहन",
+    "Transporte de equipos de acceso",
+    "نقل معدات الوصول",
+    "การขนส่งอุปกรณ์เข้าถึงพื้นที่"
+  ],
+  "Equipment": [
+    "设备",
+    "उपकरण",
+    "Equipos",
+    "المعدات",
+    "อุปกรณ์"
+  ],
+  "AUD per hour · 7:00am to 3:30pm": [
+    "澳元/小时 · 上午7:00至下午3:30",
+    "ऑस्ट्रेलियाई डॉलर प्रति घंटा · सुबह 7:00 से दोपहर 3:30",
+    "AUD por hora · de 7:00 a 15:30",
+    "دولار أسترالي للساعة · من 7:00 صباحًا إلى 3:30 مساءً",
+    "ดอลลาร์ออสเตรเลียต่อชั่วโมง · 7:00 ถึง 15:30 น."
+  ],
+  "AUD per hour · 3:30pm to 5:30pm and night shifts": [
+    "澳元/小时 · 下午3:30至5:30及夜班",
+    "ऑस्ट्रेलियाई डॉलर प्रति घंटा · दोपहर 3:30 से शाम 5:30 और रात की पाली",
+    "AUD por hora · de 15:30 a 17:30 y turnos nocturnos",
+    "دولار أسترالي للساعة · من 3:30 إلى 5:30 مساءً والمناوبات الليلية",
+    "ดอลลาร์ออสเตรเลียต่อชั่วโมง · 15:30 ถึง 17:30 น. และกะกลางคืน"
+  ],
+  "AUD per hour · after 5:30pm and weekends": [
+    "澳元/小时 · 下午5:30后及周末",
+    "ऑस्ट्रेलियाई डॉलर प्रति घंटा · शाम 5:30 के बाद और सप्ताहांत",
+    "AUD por hora · después de las 17:30 y fines de semana",
+    "دولار أسترالي للساعة · بعد 5:30 مساءً وعطلات نهاية الأسبوع",
+    "ดอลลาร์ออสเตรเลียต่อชั่วโมง · หลัง 17:30 น. และวันหยุดสุดสัปดาห์"
+  ],
+  "AUD per occasion": [
+    "澳元/次",
+    "ऑस्ट्रेलियाई डॉलर प्रति अवसर",
+    "AUD por ocasión",
+    "دولار أسترالي لكل مرة",
+    "ดอลลาร์ออสเตรเลียต่อครั้ง"
+  ],
+  "% added to Hire Rate": [
+    "租赁费率加成百分比",
+    "किराया दर में जोड़ा गया %",
+    "% añadido a la tarifa de alquiler",
+    "النسبة المضافة إلى سعر الإيجار",
+    "% ที่เพิ่มจากอัตราค่าเช่า"
+  ],
+  "% added to Cost Rate": [
+    "成本费率加成百分比",
+    "लागत दर में जोड़ा गया %",
+    "% añadido al coste",
+    "النسبة المضافة إلى التكلفة",
+    "% ที่เพิ่มจากอัตราต้นทุน"
+  ],
+  "Accepted by": [
+    "接受人",
+    "स्वीकारकर्ता",
+    "Aceptado por",
+    "قبله",
+    "ผู้ยอมรับ"
+  ],
+  "Title": [
+    "职务",
+    "पदनाम",
+    "Cargo",
+    "المسمى الوظيفي",
+    "ตำแหน่ง"
+  ],
+  "Date": [
+    "日期",
+    "तारीख",
+    "Fecha",
+    "التاريخ",
+    "วันที่"
+  ],
+  "Back to Quotes": [
+    "返回报价",
+    "कोटेशन पर वापस",
+    "Volver a presupuestos",
+    "العودة إلى عروض الأسعار",
+    "กลับไปยังใบเสนอราคา"
+  ],
+  "Back to Work Orders": [
+    "返回工单",
+    "कार्य आदेशों पर वापस",
+    "Volver a órdenes de trabajo",
+    "العودة إلى أوامر العمل",
+    "กลับไปยังใบสั่งงาน"
+  ],
+  "Back to Purchase Orders": [
+    "返回采购订单",
+    "खरीद आदेशों पर वापस",
+    "Volver a órdenes de compra",
+    "العودة إلى أوامر الشراء",
+    "กลับไปยังใบสั่งซื้อ"
+  ],
+  "Refresh the application before saving a new project.": [
+    "保存新项目前请刷新应用。",
+    "नई परियोजना सहेजने से पहले ऐप रीफ़्रेश करें।",
+    "Actualice la aplicación antes de guardar un proyecto nuevo.",
+    "حدّث التطبيق قبل حفظ مشروع جديد.",
+    "รีเฟรชแอปก่อนบันทึกโครงการใหม่"
+  ],
+  "This project number differs from its recorded automatic number. Open the original saved project.": [
+    "此项目编号与已记录的自动编号不同。请打开原始已保存项目。",
+    "यह परियोजना नंबर दर्ज स्वचालित नंबर से अलग है। मूल सहेजी परियोजना खोलें।",
+    "Este número difiere del número automático registrado. Abra el proyecto guardado original.",
+    "يختلف رقم المشروع عن رقمه التلقائي المسجل. افتح المشروع الأصلي المحفوظ.",
+    "หมายเลขโครงการนี้ต่างจากหมายเลขอัตโนมัติที่บันทึกไว้ เปิดโครงการต้นฉบับที่บันทึกไว้"
+  ],
+  "Include Prefix and Project start number only.": [
+    "仅包含前缀和项目起始编号。",
+    "केवल उपसर्ग और परियोजना प्रारंभ संख्या शामिल करें।",
+    "Incluya solo el prefijo y el número inicial de proyecto.",
+    "أدرج البادئة ورقم بداية المشروع فقط.",
+    "ใส่เฉพาะคำนำหน้าและหมายเลขเริ่มต้นโครงการ"
+  ],
+  "Prefix must contain 1 to 12 letters.": [
+    "前缀必须包含1至12个字母。",
+    "उपसर्ग में 1 से 12 अक्षर होने चाहिए।",
+    "El prefijo debe contener de 1 a 12 letras.",
+    "يجب أن تتكون البادئة من حرف إلى 12 حرفًا.",
+    "คำนำหน้าต้องมีตัวอักษร 1 ถึง 12 ตัว"
+  ],
+  "Project start number must be a whole number from 1 to 999999999.": [
+    "项目起始编号必须是1至999999999的整数。",
+    "परियोजना प्रारंभ संख्या 1 से 999999999 के बीच पूर्णांक होनी चाहिए।",
+    "El número inicial debe ser un entero entre 1 y 999999999.",
+    "يجب أن يكون رقم البداية عددًا صحيحًا من 1 إلى 999999999.",
+    "หมายเลขเริ่มต้นโครงการต้องเป็นจำนวนเต็มตั้งแต่ 1 ถึง 999999999"
+  ],
+  "This save was already submitted with different project contents. Reload the saved project before continuing.": [
+    "此保存请求已提交，但项目内容不同。请重新加载已保存项目后继续。",
+    "यह सहेजने का अनुरोध पहले अलग सामग्री के साथ भेजा गया था। आगे बढ़ने से पहले सहेजी परियोजना फिर लोड करें।",
+    "Este guardado ya se envió con otro contenido. Recargue el proyecto guardado antes de continuar.",
+    "أُرسل طلب الحفظ هذا سابقًا بمحتوى مختلف. أعد تحميل المشروع المحفوظ قبل المتابعة.",
+    "คำขอบันทึกนี้ถูกส่งพร้อมเนื้อหาโครงการที่ต่างกันแล้ว โหลดโครงการที่บันทึกไว้อีกครั้งก่อนดำเนินการต่อ"
+  ],
+  "This new-project save is still running. Finish its file chooser before trying again.": [
+    "新项目保存仍在进行中。请完成文件选择后重试。",
+    "नई परियोजना अभी सहेजी जा रही है। फिर कोशिश से पहले उसका फ़ाइल चयन पूरा करें।",
+    "El proyecto nuevo aún se está guardando. Termine de elegir el archivo antes de reintentar.",
+    "لا يزال حفظ المشروع الجديد جاريًا. أكمل اختيار الملف قبل المحاولة مجددًا.",
+    "กำลังบันทึกโครงการใหม่ เลือกไฟล์ให้เสร็จก่อนลองอีกครั้ง"
+  ],
+  "This project already has a first save in progress.": [
+    "此项目的首次保存已在进行中。",
+    "इस परियोजना का पहला सहेजना पहले से जारी है।",
+    "Ya se está realizando el primer guardado de este proyecto.",
+    "يجري بالفعل الحفظ الأول لهذا المشروع.",
+    "โครงการนี้กำลังบันทึกครั้งแรกอยู่แล้ว"
+  ],
+  "Existing project numbers cannot be edited. Reload this project to restore its saved numbers.": [
+    "现有项目编号无法编辑。请重新加载项目以恢复已保存编号。",
+    "मौजूदा परियोजना नंबर नहीं बदले जा सकते। सहेजे नंबर बहाल करने के लिए परियोजना फिर लोड करें।",
+    "Los números existentes no pueden editarse. Recargue el proyecto para restaurarlos.",
+    "لا يمكن تعديل أرقام المشاريع الحالية. أعد تحميل المشروع لاستعادة أرقامه المحفوظة.",
+    "แก้ไขหมายเลขโครงการเดิมไม่ได้ โหลดโครงการอีกครั้งเพื่อคืนค่าหมายเลขที่บันทึกไว้"
+  ],
+  "This project prefix has reached its number limit. Choose a different prefix in Project Details settings.": [
+    "此项目前缀已达到编号上限。请在“项目详情”设置中选择其他前缀。",
+    "इस परियोजना उपसर्ग की संख्या सीमा पूरी हो गई है। परियोजना विवरण सेटिंग में अलग उपसर्ग चुनें।",
+    "Este prefijo alcanzó su límite numérico. Elija otro en la configuración de detalles del proyecto.",
+    "بلغت هذه البادئة حد الأرقام. اختر بادئة أخرى في إعدادات تفاصيل المشروع.",
+    "คำนำหน้านี้ถึงขีดจำกัดหมายเลขแล้ว เลือกคำนำหน้าอื่นในการตั้งค่ารายละเอียดโครงการ"
+  ],
+  "The new-project save reservation expired. Save again to obtain its next number.": [
+    "新项目保存预留已过期。请再次保存以获取下一个编号。",
+    "नई परियोजना सहेजने का आरक्षण समाप्त हुआ। अगला नंबर पाने के लिए फिर सहेजें।",
+    "La reserva de guardado caducó. Guarde de nuevo para obtener el siguiente número.",
+    "انتهت مهلة حجز حفظ المشروع الجديد. احفظ مجددًا للحصول على الرقم التالي.",
+    "การจองบันทึกโครงการใหม่หมดอายุ บันทึกอีกครั้งเพื่อรับหมายเลขถัดไป"
+  ],
+  "The saved project number could not be confirmed. Reload the saved file before continuing.": [
+    "无法确认已保存的项目编号。请重新加载已保存文件后继续。",
+    "सहेजा परियोजना नंबर सत्यापित नहीं हो सका। आगे बढ़ने से पहले सहेजी फ़ाइल फिर लोड करें।",
+    "No se pudo confirmar el número guardado. Recargue el archivo antes de continuar.",
+    "تعذر تأكيد رقم المشروع المحفوظ. أعد تحميل الملف المحفوظ قبل المتابعة.",
+    "ยืนยันหมายเลขโครงการที่บันทึกไว้ไม่ได้ โหลดไฟล์ที่บันทึกไว้อีกครั้งก่อนดำเนินการต่อ"
+  ],
+  "The completed project save has since changed. Load the saved project before continuing.": [
+    "已完成保存的项目随后发生了更改。请加载已保存项目后继续。",
+    "सहेजी गई परियोजना बाद में बदल गई है। आगे बढ़ने से पहले सहेजी परियोजना लोड करें।",
+    "El proyecto guardado ha cambiado desde entonces. Cárguelo antes de continuar.",
+    "تغير المشروع بعد اكتمال حفظه. حمّل المشروع المحفوظ قبل المتابعة.",
+    "โครงการที่บันทึกเสร็จแล้วมีการเปลี่ยนแปลง โหลดโครงการที่บันทึกไว้ก่อนดำเนินการต่อ"
+  ],
+  "The previous save was interrupted and its file cannot be confirmed. Its project number has been retained. Open the saved file, or start a new project before saving again.": [
+    "上次保存被中断，无法确认其文件。已保留其项目编号。请打开已保存文件，或新建项目后再保存。",
+    "पिछला सहेजना बाधित हुआ और फ़ाइल सत्यापित नहीं हो सकती। उसका परियोजना नंबर सुरक्षित रखा गया है। सहेजी फ़ाइल खोलें या फिर सहेजने से पहले नई परियोजना शुरू करें।",
+    "El guardado anterior se interrumpió y no se puede confirmar el archivo. Se ha reservado su número. Abra el archivo guardado o cree un proyecto nuevo antes de guardar otra vez.",
+    "انقطع الحفظ السابق ولا يمكن تأكيد ملفه. تم الاحتفاظ برقم المشروع. افتح الملف المحفوظ أو ابدأ مشروعًا جديدًا قبل الحفظ مجددًا.",
+    "การบันทึกก่อนหน้าถูกขัดจังหวะและยืนยันไฟล์ไม่ได้ หมายเลขโครงการถูกเก็บไว้ เปิดไฟล์ที่บันทึกไว้หรือเริ่มโครงการใหม่ก่อนบันทึกอีกครั้ง"
+  ]
+}

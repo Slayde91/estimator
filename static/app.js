@@ -188,7 +188,7 @@
     result: null, revision: 0, timer: null, pricingExpanded: new Set(), mainSection: "access-travel", mainOutputSection: "material-breakdown", legacyTitle: "",
     workflow: "", defaultWorkflow: "Intumescent spray to ductwork", inputErrors: new Map(), inputDrafts: new Map(), inputRevision: 0, projectBusy: false,
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
-    projectFile: null, projectEstimates: [{id:"estimate-1", name:"Estimate 1"}], activeEstimateId: "estimate-1", estimatesDirty: false, projectStatus: "Draft", projectCards: [], projectColumns: new Set(["Draft", "Review", "Presented", "Accepted", "Lost"]), projectsRevision: 0, initialized: false, currentView: "home", lastProjectSection: null, projectsOffset: 0, projectsTimer: null, desktopRequests: 0,
+    projectFile: null, projectEstimates: [{id:"estimate-1", name:"Estimate 1"}], activeEstimateId: "estimate-1", estimatesDirty: false, projectStatus: "Draft", projectCards: [], projectColumns: new Set(["Draft", "Review", "Presented", "Accepted", "Lost"]), projectsRevision: 0, initialized: false, currentView: "home", lastProjectSection: null, lastDocumentSection: null, projectsOffset: 0, projectsTimer: null, desktopRequests: 0,
     projectBrowserProject: null, projectBrowserPath: "", projectBrowserRevision: 0,
     pricingRender: null, estimatorKind: "estimate", calculatorKind: "steel", libraryKind: "pricing",
     workItems: [], workItemErrors: new Map(), workItemDrafts: new Map(), nextWorkItem: 1,
@@ -1040,7 +1040,8 @@
     window.CeasefireNotifications?.navigate(view === "pricing" ? `pricing:${state.libraryKind}` : view === "calculators" ? `calculators:${calculatorId || state.calculatorKind}` : view === "estimate" ? `estimate:${state.estimateKind || "estimate"}` : view);
     if (view !== state.currentView && $("app-message").hidden) releaseMessageSpace();
     state.currentView = view;
-    if (["quotes", "certification", "documentation", "scheduler", "quote", "work-orders", "purchase-orders", "swms"].includes(view)) state.lastProjectSection = view;
+    if (["quotes", "quote", "work-orders", "purchase-orders"].includes(view)) state.lastProjectSection = view;
+    if (["certification", "documentation", "swms"].includes(view)) state.lastDocumentSection = view;
     $("project-tools").hidden = view !== "quotes";
     closeNavigationMenus({ estimate: "estimate-navigation", calculators: "calculator-navigation", pricing: "library-navigation", takeoffs: "takeoff-navigation" }[view]);
     document.body.classList.toggle("takeoffs-active", view === "takeoffs");
@@ -1049,20 +1050,20 @@
     for (const section of document.querySelectorAll(".view")) section.hidden = section.id !== `view-${view}`;
     window.CeasefirePlay?.setVisible(view === "play");
     for (const button of document.querySelectorAll("[data-view]")) {
-      const active = button.dataset.view === view || (view === "play" && button.dataset.view === "settings") || (["quotes", "certification", "documentation", "scheduler", "quote", "work-orders", "purchase-orders", "swms"].includes(view) && button.dataset.view === "projects");
+      const active = button.dataset.view === view || (view === "play" && button.dataset.view === "settings") || (["quotes", "quote", "work-orders", "purchase-orders"].includes(view) && button.dataset.view === "projects") || (["certification", "documentation", "swms"].includes(view) && button.dataset.view === "documents");
       button.classList.toggle("active", active);
       if (active) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
     }
     for (const choice of document.querySelectorAll("#projects-navigation-menu [data-project-section]")) choice.setAttribute("aria-pressed", String(choice.dataset.projectSection === view));
+    for (const choice of document.querySelectorAll("#documents-navigation-menu [data-document-section]")) choice.setAttribute("aria-pressed", String(choice.dataset.documentSection === view));
     if (view === "quotes") loadProjects();
     if (view === "scheduler") window.CeasefireScheduler?.activate().catch(error => message(error.message, true));
     let estimatorReady;
     if (view === "swms") estimatorReady = window.CeasefireSWMS?.activate().catch(error => message(error.message, true));
     if (["quote", "work-orders", "purchase-orders"].includes(view)) estimatorReady = window.CeasefireCommercial?.activate({quote:"quote", "work-orders":"work_order", "purchase-orders":"purchase_order"}[view]).catch(error => message(error.message, true));
     if (view === "pricing") selectLibrary(state.libraryKind, librarySelection);
-    if (view === "settings") estimatorReady = window.CeasefireCoverSheets?.open?.()?.catch(error => message(error.message, true));
     if (view === "certification") estimatorReady = window.CeasefireCertification?.open().catch(error => message(error.message, true));
-    if (view === "documentation") estimatorReady = window.CeasefireDocumentation?.open().catch(error => message(error.message, true));
+    if (view === "documentation") estimatorReady = Promise.all([window.CeasefireDocumentation?.open(), window.CeasefireCoverSheets?.open?.()]).catch(error => message(error.message, true));
     if (view === "calculators") {
       calculatorId ||= state.calculatorKind;
       state.calculatorKind = calculatorId;
@@ -1115,6 +1116,9 @@
   }
   function requestProjectsNavigation() {
     return requestViewNavigation(state.lastProjectSection || "projects");
+  }
+  function requestDocumentsNavigation() {
+    return requestViewNavigation(state.lastDocumentSection || "documents");
   }
   async function requestCalculatorNavigation(id = state.calculatorKind) {
     if (!["steel", "steel_vermiculite", "steel_intumescent", "steel_board", "steel_factors", "ductwork", "penetration"].includes(id)) return false;
@@ -1205,7 +1209,7 @@
     if (open) positionNavigationMenu(menu);
   }
   function closeNavigationMenus(except) {
-    for (const id of ["estimate-navigation", "calculator-navigation", "library-navigation", "takeoff-navigation", "projects-navigation"]) {
+    for (const id of ["estimate-navigation", "calculator-navigation", "library-navigation", "takeoff-navigation", "projects-navigation", "documents-navigation"]) {
       if (id === except) continue;
       if (id === "calculator-navigation") { setCalculatorMenuOpen(false); continue; }
       const menu = $(id + "-menu"), toggle = $(id + "-toggle");
@@ -1214,7 +1218,7 @@
   }
   function setupCalculatorNavigation() {
     window.addEventListener("resize", () => {
-      for (const id of ["estimate-navigation", "calculator-navigation", "library-navigation", "takeoff-navigation", "projects-navigation"]) {
+      for (const id of ["estimate-navigation", "calculator-navigation", "library-navigation", "takeoff-navigation", "projects-navigation", "documents-navigation"]) {
         const menu = $(id + "-menu");
         if (menu && !menu.hidden) positionNavigationMenu(menu);
       }
@@ -1238,6 +1242,7 @@
     setupSectionNavigation("library-navigation", "[data-library-kind]", open => setSectionMenuOpen("library-navigation", open), choice => requestLibraryNavigation(choice.dataset.libraryKind));
     setupSectionNavigation("takeoff-navigation", "[data-mode]", open => setSectionMenuOpen("takeoff-navigation", open), choice => requestTakeoffNavigation(choice.dataset.mode, choice.dataset.physicalScope));
     setupSectionNavigation("projects-navigation", "[data-project-section]", open => setSectionMenuOpen("projects-navigation", open), choice => requestViewNavigation(choice.dataset.projectSection));
+    setupSectionNavigation("documents-navigation", "[data-document-section]", open => setSectionMenuOpen("documents-navigation", open), choice => requestViewNavigation(choice.dataset.documentSection));
   }
   let takeoffNavigationPending = false;
   async function requestTakeoffNavigation(mode, scope) {
@@ -2229,6 +2234,11 @@
       Object.assign(payload, estimateCollectionWith(payload));
       if (!saveAs) payload.save_token = target.save_token;
       const captured = projectStamp();
+      if (saveAs) {
+        if (!window.CeasefireProjectDetails?.prepareSave) throw new Error("Refresh the application before saving a new project.");
+        payload.project_save_request = await window.CeasefireProjectDetails.prepareSave(context);
+        if (context !== state.quoteContext || target !== state.projectFile || captured !== projectStamp() || preparedPricing !== pricingStamp()) throw new Error("The project changed while checking its previous clients and number. Save again when ready.");
+      }
       const saved = await request(saveAs ? "/api/project/save-as" : "/api/project/save", { method: "POST", body: JSON.stringify(payload) });
       if (saved.cancelled) {
         if (automatic) throw new Error("The project save was cancelled.");
@@ -2241,7 +2251,23 @@
           state.projectEstimates = collectionFromProject(saved.project, payload.estimates);
           state.estimatesDirty = false;
         }
+        // Identity is assigned by the successful save even if other inputs were
+        // edited while its file chooser was open. Retain those later edits.
+        const assigned = new Map((saved.project.estimates || []).map(entry => [entry.id, entry.workspace.estimate.project_no]));
+        for (const entry of state.projectEstimates) {
+          if (!entry.workspace?.estimate) continue;
+          const estimate = entry.workspace.estimate;
+          const projectNo = assigned.get(entry.id) ?? saved.project.estimate.project_no ?? "";
+          if (estimate.project_no !== projectNo) {
+            estimate.project_no = projectNo;
+            estimate.title = [estimate.project_no, estimate.client, estimate.site_address].filter(Boolean).join("- ") || estimate.title;
+          }
+        }
+        $("project-no").value = assigned.get(state.activeEstimateId) ?? saved.project.estimate.project_no ?? "";
+        updateQuoteTitle();
+        window.CeasefireProjectDetails?.saved(context);
         if (commercial) window.CeasefireCommercial?.markProjectSaved?.(saved.project.commercial_documents, commercial);
+        window.CeasefireCommercial?.projectNumberAssigned?.(quoteDetails());
         if (swms) window.CeasefireSWMS?.markProjectSaved?.(saved.project.swms, swms);
         window.CeasefireDownloads?.projectSaved?.({ project_context: context, project_path: saved.file.path });
         window.CeasefireCalculators.markProjectSaved(saved.project.calculators, calculators);
@@ -2740,9 +2766,11 @@
   for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", () => {
     if (button.id === "calculator-navigation-toggle") return requestCalculatorNavigation();
     if (button.id === "projects-navigation-toggle") return requestProjectsNavigation();
+    if (button.id === "documents-navigation-toggle") return requestDocumentsNavigation();
     return requestViewNavigation(button.dataset.view);
   });
   for (const card of document.querySelectorAll(".projects-section-card[data-project-section]")) card.addEventListener("click", () => requestViewNavigation(card.dataset.projectSection));
+  for (const card of document.querySelectorAll(".projects-section-card[data-document-section]")) card.addEventListener("click", () => requestViewNavigation(card.dataset.documentSection));
   for (const card of document.querySelectorAll("[data-steel-calculator]")) card.addEventListener("click", () => requestCalculatorNavigation(card.dataset.steelCalculator));
   setupCalculatorNavigation();
   for (const button of document.querySelectorAll("[data-home-view]")) button.addEventListener("click", () => requestViewNavigation(button.dataset.homeView));

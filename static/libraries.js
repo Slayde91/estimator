@@ -22,7 +22,7 @@
   const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
   const priceText = price => typeof price?.amount === "number" && Number.isFinite(price.amount) ? money.format(price.amount) : "Price unavailable";
   const priceLabel = price => String(price?.label || "").trim().toLowerCase() === "workbook price" ? "Library price" : price?.label || "Library price";
-  const fieldLabel = (kind, label, column) => kind !== "penetration" ? label
+  const fieldLabel = (kind, label, column) => label === "Diagrams & Figures" ? "Artistic Illustration" : kind !== "penetration" ? label
     : label === "Type" && column === "J" ? "Category"
     : ["Item(s)", "Items/Services"].includes(label) ? "Description"
     : ["System", "System Install", "System/Install"].includes(label) ? "System/Install Details" : label;
@@ -557,7 +557,23 @@
     renderFilters(pane, pane.data.filters || libraryInfo(pane)?.filters || []); setBusy(pane, false);
   }
   const compactTechnical = value => window.LibraryDetailText.compact(valueText(value));
-  function imageNode(item, kind, imageOnly = false, replicas = {}) {
+  // Explicit official homepages: source text never becomes a navigable URL.
+  function manufacturerHomepage(record) {
+    const names = (record?.fields || []).filter(field => String(field.label).trim().toLowerCase() === "manufacturer").map(field => String(field.value).trim().toLowerCase());
+    if (!names.length && /^fas19023[456]-/i.test(String(record?.id))) names.push("firefly");
+    const homepages = [
+      [/^(?:promat|promat australia)$/, "https://www.promat.com/en-au/"],
+      [/^(?:boss|boss fire|boss fire & safety)$/, "https://bossfire.com/"],
+      [/^(?:firefly|tba firefly)$/, "https://tbafirefly.com.au/"],
+      [/^(?:trafalgar|trafalgar fire)$/, "https://tfire.com.au/"],
+      [/^(?:hilti|hilti australia)$/, "https://www.hilti.com.au/"],
+      [/^(?:snap|snap fire systems)$/, "https://snapcollars.com.au/"],
+      [/^fendix$/, "https://fendix.com.au/"]
+    ];
+    const urls = [...new Set(names.map(name => homepages.find(([pattern]) => pattern.test(name))?.[1]).filter(Boolean))];
+    return urls.length === 1 ? urls[0] : null;
+  }
+  function imageNode(item, kind, imageOnly = false, replicas = {}, record = null) {
     const figure = node("figure", "library-image"), link = node("a"), image = node("img");
     const captionText = kind === "technical" ? compactTechnical(diagramCaption(kind, item.caption)) : diagramCaption(kind, item.caption);
     const caption = kind === "technical" && item.role ? compactTechnical(`${item.role} — ${captionText}`) : captionText;
@@ -576,7 +592,10 @@
     if (useReplica) {
       // A missing replica must never silently substitute an original image
       // underneath an AI caption. Originals remain in the retained record.
-      figure.append(uiNode("figcaption", "helper", "Illustrative AI generated asset only. Confirm installation details with the manufacturer."));
+      const caption = node("figcaption", "helper"), homepage = manufacturerHomepage(record);
+      const contact = uiNode(homepage ? "a" : "span", "", "Contact the manufacturer before installation.");
+      if (homepage) { contact.href = homepage; contact.target = "_blank"; contact.rel = "noopener noreferrer"; }
+      caption.append(contact); figure.append(caption);
       return figure;
     }
     if (!imageOnly) figure.append(node("figcaption", "helper", caption));
@@ -917,7 +936,7 @@
       }
       if (tables.length) { pair.className += " library-record-field-table"; value.append(...tables); }
       if (links.length) { const navigation = node("div", "library-table-links"); navigation.append(...links); value.append(navigation); }
-      if (images.length) { const gallery = node("div", "library-images library-field-images"); gallery.append(...images.map(item => imageNode(item, pane.kind, imageOnly, pane.detail.image_replicas))); value.append(gallery); }
+      if (images.length) { const gallery = node("div", "library-images library-field-images"); gallery.append(...images.map(item => imageNode(item, pane.kind, imageOnly, pane.detail.image_replicas, data))); value.append(gallery); }
       pair.append(uiNode("dt", "", display(fieldLabel(pane.kind, field.label, field.column) || "Field")), value); fields.append(pair);
     }
     content.push(fields);
@@ -925,7 +944,7 @@
     const images = data.diagram?.custom && validDiagramUrl(data.diagram.url)
       ? [{ url: data.diagram.url, caption: "Source diagram" }]
       : (data.images || []).filter(item => validAssetId(item.id));
-    if (images.length) { const gallery = node("section", "library-images"); uiAttr(gallery, "aria-label", "Source diagrams"); gallery.append(...images.map(item => imageNode(item, pane.kind, false, pane.detail.image_replicas))); content.push(gallery); }
+    if (images.length) { const gallery = node("section", "library-images"); uiAttr(gallery, "aria-label", "Source diagrams"); gallery.append(...images.map(item => imageNode(item, pane.kind, false, pane.detail.image_replicas, data))); content.push(gallery); }
     const technicalRelated = pane.kind === "technical" ? relatedTechnicalSection(data, display) : null;
     if (technicalRelated) content.push(technicalRelated);
     const related = node("section", "library-detail-section"), links = data.links || [];

@@ -1,0 +1,272 @@
+{
+  "Scheduler": [
+    "일정 관리",
+    "Tagapag-iskedyul",
+    "Lập lịch"
+  ],
+  "Company Details": [
+    "회사 정보",
+    "Detalye ng kumpanya",
+    "Thông tin công ty"
+  ],
+  "Prefix": [
+    "접두사",
+    "Unlapi",
+    "Tiền tố"
+  ],
+  "Project start number": [
+    "프로젝트 시작 번호",
+    "Panimulang numero ng proyekto",
+    "Số bắt đầu dự án"
+  ],
+  "Save settings": [
+    "설정 저장",
+    "I-save ang mga setting",
+    "Lưu cài đặt"
+  ],
+  "Assigned when the project is saved": [
+    "프로젝트 저장 시 부여",
+    "Itatalaga kapag na-save ang proyekto",
+    "Được cấp khi lưu dự án"
+  ],
+  "DOCUMENTS": [
+    "문서",
+    "MGA DOKUMENTO",
+    "TÀI LIỆU"
+  ],
+  "Artistic Illustration": [
+    "예술적 일러스트",
+    "Masining na paglalarawan",
+    "Hình minh họa nghệ thuật"
+  ],
+  "Contact the manufacturer before installation.": [
+    "설치 전에 제조업체에 문의하세요.",
+    "Makipag-ugnayan sa tagagawa bago magkabit.",
+    "Liên hệ nhà sản xuất trước khi lắp đặt."
+  ],
+  "Back to statements": [
+    "작업 절차서 목록으로",
+    "Bumalik sa mga pahayag",
+    "Quay lại danh sách biện pháp"
+  ],
+  "Safe Work Method Statements": [
+    "안전 작업 절차서 목록",
+    "Mga pahayag ng ligtas na paraan ng trabaho",
+    "Các bản biện pháp làm việc an toàn"
+  ],
+  "Safe Work Method Statement": [
+    "안전 작업 절차서",
+    "Pahayag ng ligtas na paraan ng trabaho",
+    "Bản biện pháp làm việc an toàn"
+  ],
+  "Prepare job steps, risk controls and safety statements.": [
+    "작업 단계, 위험 관리 및 안전 절차서를 작성합니다.",
+    "Ihanda ang mga hakbang, pagkontrol sa panganib at pahayag ng kaligtasan.",
+    "Soạn các bước công việc, kiểm soát rủi ro và biện pháp an toàn."
+  ],
+  "Discard settings changes": [
+    "설정 변경 취소",
+    "Itapon ang pagbabago sa mga setting",
+    "Hủy thay đổi cài đặt"
+  ],
+  "Project details could not be loaded.": [
+    "프로젝트 정보를 불러오지 못했습니다.",
+    "Hindi ma-load ang detalye ng proyekto.",
+    "Không thể tải thông tin dự án."
+  ],
+  "Next new project: {0}. Existing project numbers are retained and used numbers are never reused.": [
+    "다음 새 프로젝트: {0}. 기존 프로젝트 번호는 유지되며 사용한 번호는 재사용되지 않습니다.",
+    "Susunod na bagong proyekto: {0}. Pananatilihin ang kasalukuyang mga numero at hindi muling gagamitin ang nagamit na.",
+    "Dự án mới tiếp theo: {0}. Giữ nguyên số dự án hiện có và không bao giờ dùng lại số đã cấp."
+  ],
+  "Some saved projects could not be read. Check the Projects page for details.": [
+    "일부 저장된 프로젝트를 읽지 못했습니다. 프로젝트 페이지에서 확인하세요.",
+    "Hindi mabasa ang ilang naka-save na proyekto. Tingnan ang pahina ng Mga Proyekto.",
+    "Không thể đọc một số dự án đã lưu. Xem chi tiết trên trang Dự án."
+  ],
+  "Loading previous clients…": [
+    "이전 고객 불러오는 중…",
+    "Nilo-load ang mga dating kliyente…",
+    "Đang tải khách hàng trước đây…"
+  ],
+  "The project folder is still being read. Wait for the previous clients to finish loading and save again.": [
+    "프로젝트 폴더를 읽는 중입니다. 이전 고객을 모두 불러온 후 다시 저장하세요.",
+    "Binabasa pa ang folder ng proyekto. Hintaying ma-load ang dating mga kliyente bago muling mag-save.",
+    "Đang đọc thư mục dự án. Chờ tải xong khách hàng trước đây rồi lưu lại."
+  ],
+  "Resolve unreadable project files in the linked folder before assigning a new project number.": [
+    "새 프로젝트 번호를 부여하기 전에 연결된 폴더의 읽을 수 없는 프로젝트 파일을 해결하세요.",
+    "Ayusin ang hindi mabasang file sa naka-link na folder bago magtalaga ng bagong numero ng proyekto.",
+    "Xử lý các tệp dự án không đọc được trong thư mục liên kết trước khi cấp số dự án mới."
+  ],
+  "Schedule of Rates": [
+    "요율표",
+    "Talaan ng mga rate",
+    "Bảng đơn giá"
+  ],
+  "Schedule of Rates introduction": [
+    "요율표 소개",
+    "Panimula sa talaan ng rate",
+    "Giới thiệu bảng đơn giá"
+  ],
+  "Ordinary time": [
+    "일반 근무 시간",
+    "Karaniwang oras",
+    "Giờ làm việc bình thường"
+  ],
+  "Time and a half": [
+    "1.5배 요율",
+    "Isa at kalahating rate",
+    "Đơn giá gấp rưỡi"
+  ],
+  "Double time": [
+    "2배 요율",
+    "Dobleng rate",
+    "Đơn giá gấp đôi"
+  ],
+  "Site Remobilisation": [
+    "현장 재투입",
+    "Muling pagmobilisa sa lugar",
+    "Tái huy động tại công trường"
+  ],
+  "Access Equipment Transport": [
+    "접근 장비 운송",
+    "Transportasyon ng kagamitang pang-access",
+    "Vận chuyển thiết bị tiếp cận"
+  ],
+  "Equipment": [
+    "장비",
+    "Kagamitan",
+    "Thiết bị"
+  ],
+  "AUD per hour · 7:00am to 3:30pm": [
+    "시간당 호주 달러 · 오전 7:00~오후 3:30",
+    "AUD bawat oras · 7:00am hanggang 3:30pm",
+    "AUD mỗi giờ · 7:00 đến 15:30"
+  ],
+  "AUD per hour · 3:30pm to 5:30pm and night shifts": [
+    "시간당 호주 달러 · 오후 3:30~5:30 및 야간 근무",
+    "AUD bawat oras · 3:30pm hanggang 5:30pm at mga panggabing shift",
+    "AUD mỗi giờ · 15:30 đến 17:30 và ca đêm"
+  ],
+  "AUD per hour · after 5:30pm and weekends": [
+    "시간당 호주 달러 · 오후 5:30 이후 및 주말",
+    "AUD bawat oras · lampas 5:30pm at katapusan ng linggo",
+    "AUD mỗi giờ · sau 17:30 và cuối tuần"
+  ],
+  "AUD per occasion": [
+    "회당 호주 달러",
+    "AUD bawat pagkakataon",
+    "AUD mỗi lần"
+  ],
+  "% added to Hire Rate": [
+    "임대 요율 가산 %",
+    "% na idinagdag sa upa",
+    "% cộng vào đơn giá thuê"
+  ],
+  "% added to Cost Rate": [
+    "원가 가산 %",
+    "% na idinagdag sa gastos",
+    "% cộng vào giá vốn"
+  ],
+  "Accepted by": [
+    "승인자",
+    "Tinanggap ni",
+    "Người chấp thuận"
+  ],
+  "Title": [
+    "직책",
+    "Katungkulan",
+    "Chức danh"
+  ],
+  "Date": [
+    "날짜",
+    "Petsa",
+    "Ngày"
+  ],
+  "Back to Quotes": [
+    "견적 목록으로",
+    "Bumalik sa mga quote",
+    "Quay lại báo giá"
+  ],
+  "Back to Work Orders": [
+    "작업 지시서 목록으로",
+    "Bumalik sa mga utos sa trabaho",
+    "Quay lại lệnh công việc"
+  ],
+  "Back to Purchase Orders": [
+    "구매 주문 목록으로",
+    "Bumalik sa mga purchase order",
+    "Quay lại đơn đặt hàng"
+  ],
+  "Refresh the application before saving a new project.": [
+    "새 프로젝트를 저장하기 전에 앱을 새로고침하세요.",
+    "I-refresh ang app bago mag-save ng bagong proyekto.",
+    "Làm mới ứng dụng trước khi lưu dự án mới."
+  ],
+  "This project number differs from its recorded automatic number. Open the original saved project.": [
+    "프로젝트 번호가 기록된 자동 번호와 다릅니다. 원래 저장된 프로젝트를 여세요.",
+    "Iba ang numerong ito sa naitalang awtomatikong numero. Buksan ang orihinal na naka-save na proyekto.",
+    "Số dự án khác số tự động đã ghi nhận. Mở dự án gốc đã lưu."
+  ],
+  "Include Prefix and Project start number only.": [
+    "접두사와 프로젝트 시작 번호만 포함하세요.",
+    "Isama lamang ang unlapi at panimulang numero ng proyekto.",
+    "Chỉ nhập tiền tố và số bắt đầu dự án."
+  ],
+  "Prefix must contain 1 to 12 letters.": [
+    "접두사는 1~12자의 문자여야 합니다.",
+    "Dapat may 1 hanggang 12 titik ang unlapi.",
+    "Tiền tố phải gồm 1 đến 12 chữ cái."
+  ],
+  "Project start number must be a whole number from 1 to 999999999.": [
+    "프로젝트 시작 번호는 1~999999999의 정수여야 합니다.",
+    "Dapat buumbilang mula 1 hanggang 999999999 ang panimulang numero.",
+    "Số bắt đầu dự án phải là số nguyên từ 1 đến 999999999."
+  ],
+  "This save was already submitted with different project contents. Reload the saved project before continuing.": [
+    "이 저장 요청은 다른 프로젝트 내용으로 이미 제출되었습니다. 계속하기 전에 저장된 프로젝트를 다시 불러오세요.",
+    "Naisumite na ang pag-save na ito na may ibang nilalaman. I-reload ang naka-save na proyekto bago magpatuloy.",
+    "Yêu cầu lưu này đã được gửi với nội dung khác. Tải lại dự án đã lưu trước khi tiếp tục."
+  ],
+  "This new-project save is still running. Finish its file chooser before trying again.": [
+    "새 프로젝트를 저장하는 중입니다. 파일 선택을 마친 후 다시 시도하세요.",
+    "Sine-save pa ang bagong proyekto. Tapusin ang pagpili ng file bago muling subukan.",
+    "Dự án mới vẫn đang được lưu. Hoàn tất hộp chọn tệp trước khi thử lại."
+  ],
+  "This project already has a first save in progress.": [
+    "이 프로젝트의 첫 저장이 이미 진행 중입니다.",
+    "Kasalukuyang ginagawa na ang unang pag-save ng proyektong ito.",
+    "Dự án này đang được lưu lần đầu."
+  ],
+  "Existing project numbers cannot be edited. Reload this project to restore its saved numbers.": [
+    "기존 프로젝트 번호는 편집할 수 없습니다. 저장된 번호를 복원하려면 프로젝트를 다시 불러오세요.",
+    "Hindi mae-edit ang umiiral na mga numero. I-reload ang proyekto para ibalik ang naka-save na mga numero.",
+    "Không thể sửa số dự án hiện có. Tải lại dự án để khôi phục số đã lưu."
+  ],
+  "This project prefix has reached its number limit. Choose a different prefix in Project Details settings.": [
+    "이 접두사의 번호 한도에 도달했습니다. 프로젝트 정보 설정에서 다른 접두사를 선택하세요.",
+    "Naabot na ng unlaping ito ang limitasyon. Pumili ng iba sa mga setting ng detalye ng proyekto.",
+    "Tiền tố này đã đạt giới hạn số. Chọn tiền tố khác trong cài đặt thông tin dự án."
+  ],
+  "The new-project save reservation expired. Save again to obtain its next number.": [
+    "새 프로젝트 저장 예약이 만료되었습니다. 다음 번호를 받으려면 다시 저장하세요.",
+    "Nag-expire ang reserbasyon sa pag-save. Mag-save muli para makuha ang susunod na numero.",
+    "Đặt trước lưu dự án mới đã hết hạn. Lưu lại để lấy số tiếp theo."
+  ],
+  "The saved project number could not be confirmed. Reload the saved file before continuing.": [
+    "저장된 프로젝트 번호를 확인하지 못했습니다. 계속하기 전에 저장된 파일을 다시 불러오세요.",
+    "Hindi makumpirma ang naka-save na numero. I-reload ang naka-save na file bago magpatuloy.",
+    "Không thể xác nhận số dự án đã lưu. Tải lại tệp đã lưu trước khi tiếp tục."
+  ],
+  "The completed project save has since changed. Load the saved project before continuing.": [
+    "저장이 완료된 프로젝트가 이후 변경되었습니다. 계속하기 전에 저장된 프로젝트를 불러오세요.",
+    "Nagbago na ang naka-save na proyekto. I-load ito bago magpatuloy.",
+    "Dự án đã thay đổi sau khi lưu xong. Tải dự án đã lưu trước khi tiếp tục."
+  ],
+  "The previous save was interrupted and its file cannot be confirmed. Its project number has been retained. Open the saved file, or start a new project before saving again.": [
+    "이전 저장이 중단되어 파일을 확인할 수 없습니다. 프로젝트 번호는 유지됩니다. 저장된 파일을 열거나 새 프로젝트를 시작한 후 다시 저장하세요.",
+    "Naantala ang nakaraang pag-save at hindi makumpirma ang file. Napanatili ang numero ng proyekto. Buksan ang naka-save na file o magsimula ng bagong proyekto bago muling mag-save.",
+    "Lần lưu trước bị gián đoạn và không thể xác nhận tệp. Số dự án đã được giữ lại. Mở tệp đã lưu hoặc bắt đầu dự án mới trước khi lưu lại."
+  ]
+}

@@ -51,7 +51,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await expect(page.locator('#certification-location_area')).toHaveValue('');
   evidence.checks.push('Estimates/default literal prefill','no latest-document auto-load','repeated native New action','removed buttons','no certificate-local cover section','three fresh N/A fields remain multiline-capable');
 
-  await page.getByRole('button',{name:'Settings',exact:true}).click();
+  await openProjectSection(page,'documentation');
   const coverRow=kind=>page.locator('#cover-sheets-rows tr[data-cover-kind="'+kind+'"]');
   await expect(page.locator('#cover-sheets-rows tr')).toHaveCount(10);
   const kindsResponse=await fetch(base+'/api/pdf-covers'),kinds=await kindsResponse.json();
@@ -72,11 +72,12 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await expect(coverRow('certification')).toContainText('Cover sheet: synthetic-drawings.pdf');await expect(coverRow('certification').getByRole('button',{name:'Save cover sheet for Certification',exact:true})).toBeEnabled();
   const afterCancel=await (await fetch(base+'/api/pdf-covers')).json();assert.equal(afterCancel.items.find(item=>item.kind==='certification').cover_pdf_name,'Other window cover.pdf');
   await coverRow('certification').getByRole('button',{name:'Save cover sheet for Certification',exact:true}).click();await page.getByRole('dialog',{name:'Cover sheet changed',exact:true}).getByRole('button',{name:'Apply cover-sheet change',exact:true}).click();await expect(coverRow('certification')).toContainText('Cover sheet saved.');
+  await page.getByRole('button',{name:'Settings',exact:true}).click();
   await page.locator('#company-cover-pdf').setInputFiles(info.fixture);await page.locator('#company-settings-save').click();await expect(page.locator('#company-settings-status')).toContainText('Saved');
   const initialCovers=await (await fetch(base+'/api/pdf-covers')).json();
   assert.equal(initialCovers.items.find(item=>item.kind==='certification').has_cover,true);
   assert.equal(initialCovers.items.find(item=>item.kind==='takeoff_markups').has_cover,true);
-  evidence.checks.push('10 independent Settings cover rows','saved cover metadata excludes PDF bytes','main and specific covers saved independently','stale cover Save blocks silent overwrite','cancelled conflicted Trash retains selected file','explicit approved conflict retry uses current version');
+  evidence.checks.push('10 independent Documentation cover rows','saved cover metadata excludes PDF bytes','main and specific covers saved independently','stale cover Save blocks silent overwrite','cancelled conflicted Trash retains selected file','explicit approved conflict retry uses current version');
   await certification();
 
   await page.locator('#certification-client').fill('Custom certificate client');
@@ -163,7 +164,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await page.locator('#new-quote').click();await page.getByRole('dialog').getByRole('button',{name:'New project',exact:true}).click();
   await expect(page.locator('#client')).toHaveValue('',{timeout:90000});await page.waitForFunction(token=>window.CeasefireCertification.sessionId()!==token,workspaceA);await idle();
   await certification();assert.notEqual(await page.evaluate(()=>window.CeasefireCertification.sessionId()),workspaceA);await expect(page.locator('#certification-document option[value="'+id+'"]')).toHaveCount(0);await fresh();await expect(page.locator('#certification-signature-preview')).toBeVisible();await expect(page.locator('#certification-name')).toHaveValue('Future certificate signer');
-  await page.getByRole('button',{name:'Settings',exact:true}).click();await expect(coverRow('certification')).toContainText('synthetic-drawings.pdf');await expect(coverRow('takeoff_markups')).toContainText('synthetic-board.pdf');
+  await openProjectSection(page,'documentation');await expect(coverRow('certification')).toContainText('synthetic-drawings.pdf');await expect(coverRow('takeoff_markups')).toContainText('synthetic-board.pdf');
   for(const width of [1084,390]){
     await page.setViewportSize({width,height:900});await page.locator('#cover-sheets-heading').scrollIntoViewIfNeeded();
     const filename=path.join(output,`cover-sheets-${width}.png`);await page.screenshot({path:filename,fullPage:true});evidence.screenshots.push(filename);

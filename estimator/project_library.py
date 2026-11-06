@@ -1106,9 +1106,9 @@ class ProjectLibrary:
             result['warning'] = warning
         return result
 
-    def clients(self):
+    def clients(self, *, refresh=False):
         """Continue the bounded linked-folder scan; never follow arbitrary paths."""
-        listing = self.listing(limit=200)
+        listing = self.listing(limit=200, refresh=refresh)
         clients = {}
         with self._lock:
             records = list(self._scan['files'].values()) if self._scan else []
@@ -1168,7 +1168,15 @@ class ProjectLibrary:
         load_project_bytes(self.store, export_project(self.store, captured, edition=self.edition), edition=self.edition)
         self.project_details.recover(_read_file)
         if not self.project_details.known(captured, identifier):
-            discovered = self.clients()
+            # A file can arrive from another window or a synced folder after
+            # the client dropdown was populated. Allocation must not rely on
+            # that short-lived display cache. Re-scan metadata in bounded
+            # batches; no calculator or report work is involved.
+            discovered = self.clients(refresh=True)
+            for _ in range(99):
+                if not discovered['scan_pending']:
+                    break
+                discovered = self.clients()
             if discovered['scan_pending']:
                 raise ValidationError('The project folder is still being read. Wait for the previous clients to finish loading and save again.')
             if discovered['error_count']:

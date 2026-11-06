@@ -257,6 +257,19 @@ class NumberedProjectLibraryTests(unittest.TestCase):
         self.assertFalse(self.target.exists())
         self.assertEqual(self.dialogs.calls, [])
 
+    def test_new_file_arriving_after_client_scan_cannot_duplicate_its_number(self):
+        payload = export_project(self.store, {'estimate': {'project_no': 'PN-00001', 'client': 'Externally added'}})
+        self.store.set_project_folder(self.root)
+        for _ in range(20):
+            if not self.library.clients()['scan_pending']:
+                break
+        (self.root / 'arrived.cf.json').write_bytes(payload)
+        # Hold the UI cache valid so this cannot pass just because validation
+        # happened to outlast the normal cache TTL.
+        with patch('estimator.project_library.SCAN_CACHE_SECONDS', 3600):
+            saved = self.library.save_as(self.request)
+        self.assertEqual(saved['project']['estimate']['project_no'], 'PN-00002')
+
 
 if __name__ == "__main__":
     unittest.main()

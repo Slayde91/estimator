@@ -151,15 +151,22 @@
   function resetAccount() {
     state.authGeneration++; state.loading++; state.mapRequest++;
     closeDialog(true); stopLocation(); state.data = null; state.settingsDirty = false;
+    state.busy = false;
     state.page = "schedule"; state.member = ""; state.mine = false; state.entriesSearch = ""; state.entriesMine = false;
     updateLocationStatus();
   }
+  function accountAction() {
+    // Keep async intent and completion bound to the sign-in that started them.
+    const generation = state.authGeneration, member = state.data?.user?.id;
+    return () => !!member && generation === state.authGeneration && member === state.data?.user?.id;
+  }
   async function mutate(path,payload) {
     if (state.busy) return;
+    const current = accountAction();
     state.busy = true;
-    try { await request(path,payload); await refresh(); }
-    catch (error) { notice(error.message,true); }
-    finally { state.busy = false; }
+    try { await request(path,payload); if(current()) await refresh(); }
+    catch (error) { if(current()) notice(error.message,true); }
+    finally { if(current()) state.busy = false; }
   }
   function shell() {
     state.root.replaceChildren();
@@ -186,22 +193,23 @@
     modal.addEventListener("close", () => { modal.remove(); if (state.dialog === modal) state.dialog = null; });
     modal.addEventListener("cancel", event => {if(state.busy)event.preventDefault();});
     form.addEventListener("submit",async event => {
-      event.preventDefault(); if (state.busy || submit.disabled) return; state.busy = true; error.hidden = true;
+      event.preventDefault(); if (state.busy || submit.disabled || state.dialog !== modal) return;
+      const current = accountAction(); state.busy = true; error.hidden = true;
       form.querySelectorAll("button").forEach(button => button.disabled = true);
-      try { await save(controls); closeDialog(true); await refresh(); }
-      catch (failure) { error.textContent = failure.message; error.hidden = false; }
-      finally { state.busy = false; form.querySelectorAll("button").forEach(button => button.disabled = false); }
+      try { await save(controls); if(!current() || state.dialog !== modal)return; closeDialog(true); await refresh(); }
+      catch (failure) { if(current() && state.dialog === modal) {error.textContent = failure.message; error.hidden = false;} }
+      finally { if(current()) {state.busy = false; form.querySelectorAll("button").forEach(button => button.disabled = false);} }
     });
     state.root.append(modal); state.dialog = modal; modal.showModal();
     return modal;
   }
   async function deleteRecord(path,payload,prompt) {
     if(state.busy || !window.confirm(prompt))return;
-    const modal = state.dialog; state.busy = true;
+    const modal = state.dialog, current = accountAction(); state.busy = true;
     modal?.querySelectorAll("button").forEach(button => button.disabled = true);
-    try {await request(path,payload); closeDialog(true); await refresh();}
-    catch(error) {const feedback = modal?.querySelector('[role="alert"]'); if(feedback) {feedback.textContent = error.message; feedback.hidden = false;} else notice(error.message,true);}
-    finally {state.busy = false; modal?.querySelectorAll("button").forEach(button => button.disabled = false);}
+    try {await request(path,payload); if(!current() || state.dialog !== modal)return; closeDialog(true); await refresh();}
+    catch(error) {if(current() && state.dialog === modal) {const feedback = modal?.querySelector('[role="alert"]'); if(feedback) {feedback.textContent = error.message; feedback.hidden = false;} else notice(error.message,true);}}
+    finally {if(current()) {state.busy = false; modal?.querySelectorAll("button").forEach(button => button.disabled = false);}}
   }
   function auth(setup) {
     shell();
@@ -266,10 +274,17 @@
       bar.append(button("Check location now",() => {void captureLocation(true);},"button secondary scheduler-location-retry"));
       bar.append(button("Clock out",async event => {
         const control = event.currentTarget; if (control.disabled || state.busy) return; control.disabled = true; state.busy = true;
+        const current = accountAction();
         // A failed final fix must never trap a worker in an open time entry.
-        try {await Promise.race([captureLocation(true,2000),new Promise(resolve => setTimeout(resolve,2200))]); await request("/clock/out",{entry_id:active.id}); await refresh(); if (!state.data?.active_entry) stopLocation();}
-        catch(error) {notice(error.message,true);}
-        finally {control.disabled = false; state.busy = false;}
+        try {
+          await Promise.race([captureLocation(true,2000),new Promise(resolve => setTimeout(resolve,2200))]);
+          if(!current())return;
+          await request("/clock/out",{entry_id:active.id});
+          if(!current())return;
+          await refresh(); if(current() && !state.data?.active_entry) stopLocation();
+        }
+        catch(error) {if(current())notice(error.message,true);}
+        finally {if(current()) {control.disabled = false; state.busy = false;}}
       },"button scheduler-add-action"));
       bar.append(el("p","helper scheduler-clock-note",openBreak ? "You are on a break. Shift location recording remains active." : "Location recording is required throughout this shift."));
       const tracking = el("p","helper scheduler-location-status"); tracking.setAttribute("role","status"); bar.append(tracking);
@@ -277,8 +292,11 @@
       const project = projectSelect(), notes = el("textarea"); notes.maxLength = 2000;
       host.append(field("Job / project reference",project),field("Notes",notes),el("p","message scheduler-location-required","Location is required to clock in. Your location is recorded during the shift, including a check every 30 minutes. You and your administrator can view the history."),el("p","helper","Allow location access when your browser asks. Keep CLASSIFIRE open and this computer awake. Missing updates are shown as gaps; they cannot be recovered after the browser was closed or suspended.")); return {project,notes};
     },"Clock in",async ({project,notes}) => {
+      const current = accountAction();
       const location = await currentPosition();
+      if(!current())return;
       const entry = await request("/clock/in",{project_id:project.value,project_name:projectName(project),notes:notes.value,location_consent:true,location});
+      if(!current())return;
       state.data.active_entry = entry;
       state.lastLocation = Date.now(); state.lastPoint = location;
       startLocation();
@@ -555,10 +573,11 @@
     form.addEventListener("input",() => {state.settingsDirty = true;}); form.addEventListener("change",() => {state.settingsDirty = true;});
     form.addEventListener("submit",async event => {
       event.preventDefault(); if (state.busy) return; state.busy = true;
+      const current = accountAction();
       const controls = [...form.querySelectorAll("input,select,button")].map(control => [control,control.disabled]);
       controls.forEach(([control]) => {control.disabled = true;});
-      try {await request("/settings",{...saved,rounding_minutes:Number(rounding.value),rounding_mode:mode.value,overtime_rules:overtimeRows.map(row => row.value()),breaks:breakRows.map(row => row.value())}); state.settingsDirty = false; await refresh(); notice("Scheduler settings saved.");}
-      catch (error) {notice(error.message,true);} finally {state.busy = false; controls.forEach(([control,disabled]) => {control.disabled = disabled;});}
+      try {await request("/settings",{...saved,rounding_minutes:Number(rounding.value),rounding_mode:mode.value,overtime_rules:overtimeRows.map(row => row.value()),breaks:breakRows.map(row => row.value())}); if(!current())return; state.settingsDirty = false; await refresh(); if(current())notice("Scheduler settings saved.");}
+      catch (error) {if(current())notice(error.message,true);} finally {if(current()) {state.busy = false; controls.forEach(([control,disabled]) => {control.disabled = disabled;});}}
     });
     state.root.append(form);
   }

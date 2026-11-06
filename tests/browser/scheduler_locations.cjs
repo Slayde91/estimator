@@ -149,6 +149,104 @@ const errors=[],checks=[];
   Object.assign(state,adminState);await page.evaluate(()=>{const channel=new BroadcastChannel('classifire-scheduler-account');channel.postMessage('changed');channel.close();});await expect(page.locator('.scheduler-account')).toContainText('Location QA Admin');
   releaseBootstrap();await page.waitForTimeout(50);await expect(page.locator('.scheduler-account')).toContainText('Location QA Admin');await expect(page.locator('.scheduler-auth')).toHaveCount(0);
   checks.push('a delayed signed-out bootstrap cannot replace a newer signed-in account with the login form');
+  // Exercise the actual authenticated backend as well as the deterministic
+  // history mocks above. Browser API requests share this context's cookies.
+  // A pending action must retain its original identity across GPS and HTTP waits.
+  await page.close();
+  // Use a separate context so the deterministic location clock above cannot
+  // affect the real backend's GPS freshness validation.
+  const raceContext=await browser.newContext({storageState:await context.storageState(),viewport:{width:1575,height:884}});
+  const realPost=async(action,data)=>{
+    const response=await raceContext.request.post(base+'/api/scheduler/'+action,{data});
+    assert.equal(response.status(),200,await response.text());return response.json();
+  };
+  const worker=await realPost('members/save',{name:'Account race worker',email:'account-race@example.test',password:'Disposable-account-race-2026',base_rate:'40.00'});
+  const realState=async()=>{
+    const response=await raceContext.request.get(base+'/api/scheduler/state?start=2026-11-02&end=2026-11-09');
+    assert.equal(response.status(),200,await response.text());return response.json();
+  };
+  page=await raceContext.newPage();page.setDefaultTimeout(15000);page.on('pageerror',error=>errors.push(error.message));
+  await page.addInitScript(()=>{
+    window.__raceHoldGps=true;window.__racePendingGps=[];window.__raceWatches=new Set();let id=0;
+    window.__raceClockPosts=0;window.__raceClockBodies=0;
+    const fetch=window.fetch.bind(window);
+    window.fetch=async(...args)=>{
+      const clock=args[1]?.method==='POST'&&String(args[0]).endsWith('/api/scheduler/clock/in');
+      if(clock)window.__raceClockPosts++;
+      const response=await fetch(...args);
+      if(clock){const json=response.json.bind(response);response.json=async()=>{const value=await json();window.__raceClockBodies++;return value;};}
+      return response;
+    };
+    const fix=()=>({coords:{latitude:-33.8688,longitude:151.2093,accuracy:10},timestamp:Date.now()});
+    Object.defineProperty(navigator,'geolocation',{value:{
+      getCurrentPosition(ok){if(window.__raceHoldGps)window.__racePendingGps.push(()=>ok(fix()));else queueMicrotask(()=>ok(fix()));},
+      watchPosition(){window.__raceWatches.add(++id);return id;},
+      clearWatch(key){window.__raceWatches.delete(key);}
+    }});
+    window.__raceReleaseGps=async()=>{for(const release of window.__racePendingGps.splice(0))release();await new Promise(resolve=>requestAnimationFrame(()=>queueMicrotask(resolve)));};
+  });
+  const realClockRequests=[];
+  page.on('request',request=>{if(request.method()==='POST'&&new URL(request.url()).pathname==='/api/scheduler/clock/in')realClockRequests.push(request);});
+  await page.goto(base+'/');await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready);
+  await page.locator('#projects-navigation-toggle').hover();await page.locator('#projects-navigation-menu [data-project-section="scheduler"]').click();
+  await expect(page.locator('.scheduler-account')).toContainText('Location QA Admin');
+  const announceAccount=async()=>{
+    await page.evaluate(()=>{const channel=new BroadcastChannel('classifire-scheduler-account');channel.postMessage('changed');channel.close();});
+  };
+  await page.getByRole('button',{name:'Clock in',exact:true}).click();
+  await page.locator('dialog[open]').getByLabel('Notes',{exact:true}).fill('Former account intent');
+  await page.locator('dialog[open]').getByRole('button',{name:'Clock in',exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>window.__racePendingGps.length)).toBe(1);
+  await realPost('login',{email:'account-race@example.test',password:'Disposable-account-race-2026'});await announceAccount();
+  await expect(page.locator('.scheduler-account')).toContainText('Account race worker');
+  await page.getByRole('button',{name:'Clock in',exact:true}).click();
+  await page.locator('dialog[open]').getByLabel('Notes',{exact:true}).fill('New worker draft');
+  await page.evaluate(()=>window.__raceReleaseGps());
+  assert.equal(await page.evaluate(()=>window.__raceClockPosts),0,'The old GPS callback must not even initiate a clock-in fetch after identity changes');
+  assert.equal(realClockRequests.length,0,'The former account GPS callback must not submit a clock-in for the newly signed-in member');
+  assert.equal((await realState()).active_entry,null);
+  await expect(page.locator('dialog[open]').getByLabel('Notes',{exact:true})).toHaveValue('New worker draft');
+  await expect(page.locator('dialog[open]').getByRole('button',{name:'Clock in',exact:true})).toBeEnabled();
+  assert.equal(await page.evaluate(()=>window.__raceWatches.size),0);
+  await page.locator('dialog[open]').getByRole('button',{name:'Cancel',exact:true}).click();
+  checks.push('real backend: an account switch cancels pending GPS clock-in intent without closing the new member dialog');
+
+  let releaseClockResponse,acceptedClock=null;
+  const clockResponseGate=new Promise(resolve=>releaseClockResponse=resolve);
+  await page.route('**/api/scheduler/clock/in',async route=>{
+    if(acceptedClock)return route.fallback();
+    const response=await route.fetch();acceptedClock={...await response.json(),response_status:response.status()};
+    await clockResponseGate;await route.fulfill({response});
+  });
+  await page.evaluate(()=>window.__raceHoldGps=false);
+  await page.getByRole('button',{name:'Clock in',exact:true}).click();
+  await page.locator('dialog[open]').getByRole('button',{name:'Clock in',exact:true}).click();
+  await expect.poll(()=>acceptedClock!==null).toBe(true);
+  assert.equal(acceptedClock.response_status,200,acceptedClock.error);assert.equal(acceptedClock.member_id,worker.id);
+  assert.equal((await realState()).active_entry.member_id,worker.id);
+  await realPost('login',{email:'location-qa@example.test',password:'Disposable-location-password-2026'});await announceAccount();
+  await expect(page.locator('.scheduler-account')).toContainText('Location QA Admin');
+  await page.getByRole('button',{name:'Clock in',exact:true}).click();
+  await page.locator('dialog[open]').getByLabel('Notes',{exact:true}).fill('Current administrator draft');
+  await page.evaluate(()=>window.__raceHoldGps=true);
+  await page.locator('dialog[open]').getByRole('button',{name:'Clock in',exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>window.__racePendingGps.length)).toBe(1);
+  const oldClockResponse=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/scheduler/clock/in');
+  releaseClockResponse();await (await oldClockResponse).finished();
+  await expect.poll(()=>page.evaluate(()=>window.__raceClockBodies)).toBe(1);
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>queueMicrotask(resolve))));
+  await expect(page.locator('.scheduler-account')).toContainText('Location QA Admin');
+  await expect(page.locator('dialog[open]').getByLabel('Notes',{exact:true})).toHaveValue('Current administrator draft');
+  await expect(page.locator('dialog[open]').getByRole('button',{name:'Clock in',exact:true})).toBeDisabled();
+  await page.keyboard.press('Escape');await expect(page.locator('dialog[open]')).toHaveCount(1);
+  assert.equal((await realState()).active_entry,null);
+  assert.equal(await page.evaluate(()=>window.__raceWatches.size),0,'The former account clock response must not start tracking for the current account');
+  assert.equal(realClockRequests.length,1);assert.equal(realClockRequests[0].headers()['x-scheduler-member'],worker.id);
+  await page.evaluate(()=>{window.__raceHoldGps=false;return window.__raceReleaseGps();});
+  await expect(page.locator('dialog[open]')).toHaveCount(0);
+  const currentEntry=(await realState()).active_entry;assert.equal(currentEntry.member_id,adminState.user.id);assert.equal(currentEntry.notes,'Current administrator draft');
+  assert.equal(realClockRequests.length,2);assert.equal(realClockRequests[1].headers()['x-scheduler-member'],adminState.user.id);
+  checks.push('real backend: a former member clock-in response cannot start current-member tracking, close their modal or clear a new in-flight action; the current intent still completes');
   assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,errors},null,2));console.log('PASS deterministic Scheduler locations. '+output);
 })().catch(async error=>{console.error(error);console.error(errors);console.error(logs);if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;})
 .finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);await browser?.close();server.kill();});

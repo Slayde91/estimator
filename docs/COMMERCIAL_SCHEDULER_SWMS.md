@@ -26,6 +26,8 @@ Quote schedules use A4 portrait with all columns in the same table. Text wraps a
 
 Clock-in requires a fresh browser location fix. Tracking is visible while clocked in, resumes after reload and requests a fresh fix at least every 30 minutes while the browser is running. Permission or network failures are visible. No location is invented for time when the application was closed, the device slept or the browser suspended execution. Clock-out stops collection.
 
+Clock actions retain the account and sign-in generation that initiated them. Changing accounts cancels a pending clock action; its later location or HTTP response cannot update the new account's tracking, close its dialog or clear its in-progress save state.
+
 Members access their own history; administrators can review team entries. An authenticated location heartbeat renews only the existing session during an active shift. An inactive session still expires. Location history records timestamped pins, accuracy and gaps, with a map and timeline.
 
 The street map requests only visible viewport tiles from OpenStreetMap via a fixed-host authenticated local adapter. Tile coordinates reveal the displayed map area to the provider; worker identities, timestamps and account credentials are not sent. The adapter has bounded coordinates, timeouts, response size, cache size and request rate, rejects redirects, retains attribution and caches tiles for seven days. Offline maps retain the coordinate history. Tests use mocked imagery and synthetic positions, never live staff coordinates.

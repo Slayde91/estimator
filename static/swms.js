@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const state = { workspace: null, model: null, editor: null, options: null, busy: false, dirty: false, changed: false, revision: 0, search: "", peopleDefaults: null, peopleDesired: {}, peopleSaving: null, peopleTimer: null, peopleError: null };
+  const state = { workspace: null, model: null, editor: null, options: null, busy: false, dirty: false, changed: false, revision: 0, search: "", peopleDefaults: null, peopleDesired: {}, peopleSaving: null, peopleTimer: null, peopleError: null, peopleSeedEligible: true };
   const copy = value => JSON.parse(JSON.stringify(value));
   const root = () => document.getElementById("swms-root");
   const workspace = () => window.CeasefireCertification?.sessionId?.();
@@ -140,6 +140,7 @@
       if (!current() || editor !== state.editor) return;
       clearTimeout(state.peopleTimer); state.peopleTimer = null;
       state.peopleDefaults = result.people_defaults; state.peopleDesired = {}; state.peopleError = null;
+      state.peopleSeedEligible = false;
       notice("Saved defaults retained. Your statement edits are unchanged; choose Save to save this statement.");
     } finally { if (current()) lock(false); }
   }
@@ -168,7 +169,7 @@
     const current = guard(); lock(true);
     try {
       const result = await defaults(); if (!current()) return;
-      state.options = result.options; state.peopleDefaults = result.people_defaults; state.editor = { id: crypto.randomUUID(), version: 0, status: "Draft", fields: result.fields };
+      state.options = result.options; state.peopleDefaults = result.people_defaults; state.peopleSeedEligible = true; state.editor = { id: crypto.randomUUID(), version: 0, status: "Draft", fields: result.fields };
       state.dirty = true; renderEditor(); window.CeasefireProject?.changed?.();
     } finally { if (current()) lock(false); }
   }
@@ -176,7 +177,7 @@
     if (state.busy) return;
     const current = guard(); lock(true);
     try {
-      const result = await defaults(); if (!current()) return; state.options = result.options; state.peopleDefaults = result.people_defaults;
+      const result = await defaults(); if (!current()) return; state.options = result.options; state.peopleDefaults = result.people_defaults; state.peopleSeedEligible = true;
       state.editor = copy(row); state.dirty = false; renderEditor();
     } finally { if (current()) lock(false); }
   }
@@ -190,7 +191,7 @@
     if (state.busy || !state.editor) return false;
     const current = guard(), editor = state.editor; lock(true);
     try {
-      if (seedDefaults) for (const key of ["reviewers", "consultation"]) {
+      if (seedDefaults && state.peopleSeedEligible) for (const key of ["reviewers", "consultation"]) {
         if (state.peopleDefaults?.[key]?.version === 1) queuePeople(key);
       }
       if (!await flushPeopleDefaults() || !current() || editor !== state.editor) return false;

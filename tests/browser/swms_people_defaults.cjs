@@ -38,11 +38,29 @@ module.exports = async function peopleDefaults(root, output) {
     await page.evaluate(()=>window.CeasefireSWMS.activate());
     await host.getByRole('button',{name:'Open',exact:true}).click();
     assert.equal((await defaults()).people_defaults.reviewers.version,1,'Opening an older statement must not set global defaults');
-    await host.getByRole('button',{name:'Save',exact:true}).click();
-    await expect.poll(async()=>(await defaults()).people_defaults.consultation.version).toBe(2);
-    assert.deepEqual((await defaults()).fields.reviewers, seed.fields.reviewers,'Explicit Save seeds existing names and drawn signatures');
     const reviewers = host.locator('.swms-section').filter({has:page.locator(':scope > summary').filter({hasText:/^Person\/s responsible for reviewing SWMS$/})});
     const consultation = host.locator('.swms-section').filter({has:page.locator(':scope > summary').filter({hasText:/^This SWMS has been developed in consultation with$/})});
+    // Retaining defaults must also retain another untouched, unconfigured group.
+    await post('people-defaults',{section:'reviewers',rows:[{name:'Shared reviewer',position:'Lead',signature:null}],expected_version:1});
+    await reviewers.locator(':scope > summary').click();
+    await consultation.locator(':scope > summary').click();
+    await reviewers.getByLabel('Name',{exact:true}).fill('Existing reviewer edited');
+    await consultation.getByLabel('Name',{exact:true}).fill('Existing consultant edited');
+    await expect(host.locator('.swms-message')).toContainText('changed in another window');
+    await host.getByRole('button',{name:'Keep saved defaults',exact:true}).click();
+    await expect(host.locator('.swms-message')).toContainText('Your statement edits are unchanged');
+    await host.getByRole('button',{name:'Save',exact:true}).click(); await expect(host.locator('.swms-message')).toContainText('Saved.');
+    assert.equal((await defaults()).people_defaults.consultation.version,1,'Keep must suppress implicit initial seeding, including pending signatures');
+    assert.equal((await defaults()).fields.consultation[0].signature,null);
+    assert.equal((await defaults()).fields.reviewers[0].name,'Shared reviewer');
+    const retained = await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.fields);
+    assert.equal(retained.consultation[0].name,'Existing consultant edited'); assert.deepEqual(retained.consultation[0].signature,signature);
+    await host.getByRole('button',{name:'Back to statements',exact:true}).click();
+    await host.getByRole('button',{name:'Open',exact:true}).click();
+    await expect(host.getByLabel('Document title',{exact:true})).toBeVisible();
+    await host.getByRole('button',{name:'Save',exact:true}).click();
+    await expect.poll(async()=>(await defaults()).people_defaults.consultation.version).toBe(2);
+    assert.deepEqual((await defaults()).fields.consultation,retained.consultation,'Explicit Save on reopened statement seeds existing names and drawn signatures');
     await reviewers.locator(':scope > summary').click();
     await consultation.locator(':scope > summary').click();
     // A held default write must block navigation, project replacement, Save and unload.

@@ -166,7 +166,11 @@ async function load() {
   const response = await pending; assert.equal(response.status(), 200, await response.text());
   await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await idle();
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
+  // Reopening loads the PDF worker before record_render makes the workspace busy.
+  // Finish that render before a native menu click can be disabled mid-click.
+  await page.waitForFunction(() => window.CeasefireActivity?.active === false);
+  await idle();
 }
 async function sourceAt(position) {
   return page.evaluate(position => {

@@ -742,9 +742,10 @@
     state.root ||= document.getElementById("scheduler-root"); if(!state.root)return;
     if (state.data?.user) await refresh();
     else {
+      const generation = state.authGeneration;
       shell(); notice("Loading Scheduler…");
-      try { const bootstrap = await request("/bootstrap"); if (bootstrap.user) await refresh(); else auth(bootstrap.setup_required); }
-      catch(error) {notice(error.message,true);}
+      try { const bootstrap = await request("/bootstrap"); if(generation !== state.authGeneration)return; if (bootstrap.user) await refresh(); else auth(bootstrap.setup_required); }
+      catch(error) {if(generation === state.authGeneration)notice(error.message,true);}
     }
     void loadProjects();
     beginPolling();
@@ -760,7 +761,8 @@
     const view = state.root.closest('[id^="view-"]');
     if (view) new MutationObserver(updateLocationStatus).observe(view,{attributes:true,attributeFilter:["hidden"]});
     beginPolling();
-    try {const bootstrap = await request("/bootstrap"); if(bootstrap.user) await refresh();}
+    const generation = state.authGeneration;
+    try {const bootstrap = await request("/bootstrap"); if(generation === state.authGeneration && bootstrap.user) await refresh();}
     catch (_) { /* Authentication and connection failures are shown on opening Scheduler. */ }
   }
   document.addEventListener("visibilitychange",() => {if(!document.hidden && state.data?.user) {if(state.locationEnabled)void captureLocation(true); void refresh();}});

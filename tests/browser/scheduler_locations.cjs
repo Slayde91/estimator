@@ -35,6 +35,7 @@ const errors=[],checks=[];
     requests.push({action,payload});
     let result;
     if(action==='bootstrap')result={setup_required:false,user:state.user};
+    else if(action==='logout')result={signed_out:true};
     else if(action==='state')result=state;
     else if(action==='clock/in'){
       assert.equal(payload.location_consent,true);assert.ok(payload.location.captured_at);
@@ -118,6 +119,13 @@ const errors=[],checks=[];
     await page.evaluate(()=>{const channel=new BroadcastChannel('classifire-scheduler-account');channel.postMessage('changed');channel.close();});await expect(page.locator('.scheduler-account')).toContainText('Other worker');
   }
   checks.push('delayed former-account state success and 401 cannot overwrite a newer signed-in account');
+  await page.getByRole('button',{name:'Sign out',exact:true}).click();await expect(page.locator('.scheduler-auth')).toBeVisible();
+  let releaseBootstrap,bootstrapStarted=false;const bootstrapGate=new Promise(resolve=>releaseBootstrap=resolve);
+  await page.route('**/api/scheduler/bootstrap',async route=>{bootstrapStarted=true;await bootstrapGate;await route.fulfill({json:{setup_required:false,user:null}});});
+  await page.evaluate(()=>{void window.CeasefireScheduler.activate();});await expect.poll(()=>bootstrapStarted).toBe(true);
+  Object.assign(state,adminState);await page.evaluate(()=>{const channel=new BroadcastChannel('classifire-scheduler-account');channel.postMessage('changed');channel.close();});await expect(page.locator('.scheduler-account')).toContainText('Location QA Admin');
+  releaseBootstrap();await page.waitForTimeout(50);await expect(page.locator('.scheduler-account')).toContainText('Location QA Admin');await expect(page.locator('.scheduler-auth')).toHaveCount(0);
+  checks.push('a delayed signed-out bootstrap cannot replace a newer signed-in account with the login form');
   assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,errors},null,2));console.log('PASS deterministic Scheduler locations. '+output);
 })().catch(async error=>{console.error(error);console.error(errors);console.error(logs);if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;})
 .finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);await browser?.close();server.kill();});

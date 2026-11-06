@@ -5,7 +5,7 @@
   const state = {root:null, data:null, page:"schedule", week:weekStart(today()), member:"", mine:false,
     loading:0, busy:false, dialog:null, watch:null, lastLocation:0, locationEnabled:false, timer:null, projects:[], settingsDirty:false,
     projectsLoading:false, projectsScan:null, projectsMessage:"", breakNotices:new Set(), noticeTimer:null,
-    locationTimer:null, locationEntry:null, locationPending:false, lastPoint:null, locationIssue:"", trackingBanner:null,
+    locationTimer:null, locationEntry:null, locationPending:false, lastPoint:null, locationIssue:"", locationHealth:0, trackingBanner:null,
     entriesSearch:"", entriesMine:false, collapsedDays:new Set(), locationPlayback:null, authGeneration:0, mapRequest:0};
   const accountChannel = "BroadcastChannel" in window ? new BroadcastChannel("classifire-scheduler-account") : null;
   const colours = [["#2196f3","Blue"],["#b12030","Red"],["#177349","Green"],["#7544a8","Purple"],["#505966","Grey"]];
@@ -566,8 +566,11 @@
     if (state.watch !== null) navigator.geolocation?.clearWatch(state.watch);
     clearInterval(state.locationTimer);
     state.watch = null; state.locationTimer = null; state.locationEnabled = false; state.locationEntry = null;
-    state.lastPoint = null; state.lastLocation = 0; state.locationIssue = "";
+    state.lastPoint = null; state.lastLocation = 0; state.locationIssue = ""; state.locationHealth++;
     updateLocationStatus();
+  }
+  function locationFailure(message) {
+    state.locationHealth++; state.locationIssue = message; updateLocationStatus();
   }
   function locationError(error) {
     if (error.code === 1) return "Location access is blocked. Enable location for CLASSIFIRE in your browser, then check location again.";
@@ -606,18 +609,22 @@
     const target = state.root?.querySelector(".scheduler-location-status");
     if (target) {target.textContent = text; target.classList.toggle("error",!!state.locationIssue || !!late);}
   }
-  async function recordLocation(location, entryId) {
+  async function recordLocation(location, entryId, health = state.locationHealth) {
     if (!state.locationEnabled || state.locationEntry !== entryId || state.data?.active_entry?.id !== entryId) return false;
     const enable = !state.data.active_entry.location_consent;
     try {
       const result = await request(enable ? "/locations/enable" : "/locations",{entry_id:entryId,...location});
       if (state.locationEntry !== entryId || state.data?.active_entry?.id !== entryId) return false;
-      state.lastLocation = Date.parse(result.captured_at || location.captured_at); state.lastPoint = location; state.locationIssue = "";
+      const captured = Date.parse(result.captured_at || location.captured_at);
+      if (captured >= state.lastLocation) {state.lastLocation = captured; state.lastPoint = location;}
+      // Saving an earlier observation does not prove that location access is
+      // still available after a newer browser/permission failure.
+      if (health === state.locationHealth) state.locationIssue = "";
       if (enable) {state.data.active_entry.location_consent = true; void refresh();}
       updateLocationStatus(); return true;
     } catch(error) {
-      if (state.locationEntry !== entryId) return false;
-      state.locationIssue = error.message;
+      if (state.locationEntry !== entryId || health !== state.locationHealth) return false;
+      locationFailure(error.message);
       if ([401,403,409].includes(error.status)) {stopLocation(); void refresh();}
       updateLocationStatus(); return false;
     }
@@ -625,10 +632,10 @@
   async function captureLocation(force = false, timeout = 20000) {
     if (!state.locationEnabled || !state.data?.active_entry || !force && !state.locationIssue && Date.now()-state.lastLocation < LOCATION_INTERVAL) return false;
     if (state.locationPending) return state.locationPending;
-    const entryId = state.locationEntry;
+    const entryId = state.locationEntry, health = state.locationHealth;
     state.locationPending = (async () => {
-      try {return await recordLocation(await currentPosition(timeout),entryId);}
-      catch(error) {if (state.locationEntry === entryId) {state.locationIssue = error.message; updateLocationStatus();} return false;}
+      try {return await recordLocation(await currentPosition(timeout),entryId,health);}
+      catch(error) {if (state.locationEntry === entryId && health === state.locationHealth) locationFailure(error.message); return false;}
       finally {state.locationPending = null;}
     })();
     return state.locationPending;
@@ -640,10 +647,10 @@
     const entryId = active.id;
     if (navigator.geolocation) state.watch = navigator.geolocation.watchPosition(position => {
       if (!state.locationEnabled || state.locationEntry !== entryId || state.locationPending || Date.now()-state.lastLocation < 60000) return;
-      try {void recordLocation(positionValue(position),entryId);} catch(error) {state.locationIssue = error.message; updateLocationStatus();}
-    },error => {if(state.locationEntry === entryId) {state.locationIssue = locationError(error); updateLocationStatus();}},
+      try {void recordLocation(positionValue(position),entryId);} catch(error) {locationFailure(error.message);}
+    },error => {if(state.locationEntry === entryId) locationFailure(locationError(error));},
     {enableHighAccuracy:true,maximumAge:0,timeout:20000});
-    else state.locationIssue = "Location is unavailable in this browser.";
+    else locationFailure("Location is unavailable in this browser.");
     // watchPosition alone need not fire when the device is stationary.
     // This independent timer obtains a fresh fix even without movement.
     state.locationTimer = setInterval(() => {void captureLocation(); updateLocationStatus();},60000);

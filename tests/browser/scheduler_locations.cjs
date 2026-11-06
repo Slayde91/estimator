@@ -13,11 +13,21 @@ const errors=[],checks=[];
   browser=await chromium.launch({headless:true});const context=await browser.newContext({viewport:{width:1575,height:884}});
   const setup=await context.request.post(base+'/api/scheduler/setup',{data:{name:'Location QA Admin',email:'location-qa@example.test',password:'Disposable-location-password-2026'}});assert.equal(setup.status(),200);
   const state=await (await context.request.get(base+'/api/scheduler/state?start=2026-11-02&end=2026-11-09')).json();
-  const points=[],requests=[],tiles=[];let sequence=0,mapOffline=false;
+  const points=[],requests=[],tiles=[];let sequence=0,mapOffline=false,locationGate=null;
   page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',error=>errors.push(error.message));
   const tileImage=Buffer.from(await page.evaluate(()=>{const tile=document.createElement('canvas');tile.width=tile.height=256;const ctx=tile.getContext('2d');ctx.fillStyle='#edf1e5';ctx.fillRect(0,0,256,256);ctx.strokeStyle='#fff';ctx.lineWidth=16;ctx.beginPath();ctx.moveTo(0,80);ctx.lineTo(256,80);ctx.moveTo(120,0);ctx.lineTo(120,256);ctx.stroke();ctx.fillStyle='#465440';ctx.font='12px sans-serif';ctx.fillText('Synthetic map fixture',8,25);return tile.toDataURL('image/png').split(',')[1];}),'base64');
   await page.clock.install({time:new Date('2026-11-06T00:00:00Z')});
   await page.addInitScript(()=>{
+    window.__gpsAcknowledgements=0;
+    const originalFetch=window.fetch.bind(window);
+    window.fetch=async(...args)=>{
+      const response=await originalFetch(...args);
+      if(args[1]?.method==='POST' && /\/api\/scheduler\/locations(?:\/enable)?$/.test(String(args[0]))) {
+        const json=response.json.bind(response);
+        response.json=async()=>{const result=await json();window.__gpsAcknowledgements++;return result;};
+      }
+      return response;
+    };
     window.__gpsMode='denied';window.__gpsCalls=0;window.__gpsWatches=new Map();window.__gpsCleared=0;window.__gpsLatitude=-33.8688;let id=0;
     const fix=()=>({coords:{latitude:window.__gpsLatitude,longitude:151.2093,accuracy:10},timestamp:Date.now()-(window.__gpsMode==='stale'?180000:0)});
     Object.defineProperty(navigator,'geolocation',{value:{
@@ -46,6 +56,7 @@ const errors=[],checks=[];
       assert.equal(payload.entry_id,state.active_entry.id);points.push({id:`point-${points.length+1}`,...payload});
       state.active_entry.location_summary={count:points.length,first_at:points[0].captured_at,last_at:payload.captured_at};
       result={recorded:true,captured_at:payload.captured_at};
+      const gate=locationGate;locationGate=null;if(gate)await gate;
     } else if(action==='clock/out'){
       state.entries[0].end=await page.evaluate(()=>new Date().toISOString());state.active_entry=null;result=state.entries[0];
     } else if(action==='locations' && !payload) result={};
@@ -75,20 +86,32 @@ const errors=[],checks=[];
   const before=await page.evaluate(()=>window.__gpsCalls);
   await page.clock.fastForward(29*60000);assert.equal(await page.evaluate(()=>window.__gpsCalls),before);
   await page.clock.fastForward(60000);await expect.poll(()=>points.length).toBe(2);
+  await expect.poll(()=>page.evaluate(()=>window.__gpsAcknowledgements)).toBe(1);
   checks.push('reopening on Home restores tracking without sessionStorage; stationary position gets fresh 30-minute heartbeat');
+  // Persist a movement, revoke permission, then deliver its older success response.
+  // The acknowledgement must not erase the newer permission failure.
+  let releaseLocation;locationGate=new Promise(resolve=>releaseLocation=resolve);
   await page.clock.fastForward(61000);await page.evaluate(()=>{window.__gpsLatitude=-33.8708;window.__gpsMovement();});await expect.poll(()=>points.length).toBe(3);
   await page.evaluate(()=>window.__gpsDenied());await expect(page.locator('.scheduler-tracking-banner')).toContainText('Location access is blocked');
-  await page.clock.fastForward(40*60000);assert.equal(points.length,3);
+  releaseLocation();await expect.poll(()=>page.evaluate(()=>window.__gpsAcknowledgements)).toBe(2);
+  await expect(page.locator('.scheduler-tracking-banner')).toContainText('Location access is blocked');
+  checks.push('a delayed successful location acknowledgement cannot erase a newer permission-denied warning');
+  await page.evaluate(()=>{window.__gpsMode='granted';window.dispatchEvent(new Event('online'));});
+  await expect.poll(()=>page.evaluate(()=>window.__gpsAcknowledgements)).toBe(3);
+  await expect(page.locator('.scheduler-tracking-banner')).toContainText('Location recording is on');assert.equal(points.length,4);
+  checks.push('a new successful location request after permission is restored clears the warning');
+  await page.evaluate(()=>window.__gpsDenied());await expect(page.locator('.scheduler-tracking-banner')).toContainText('Location access is blocked');
+  await page.clock.fastForward(40*60000);assert.equal(points.length,4);
   await page.locator('#projects-navigation-toggle').hover();await page.locator('#projects-navigation-menu [data-project-section="scheduler"]').click();
   const clockOut=page.getByRole('button',{name:'Clock out',exact:true});await expect(clockOut).toHaveCSS('background-color','rgb(23, 103, 178)');await clockOut.click();
   await expect(page.getByRole('button',{name:'Clock in',exact:true})).toBeVisible();
   assert.equal(await page.evaluate(()=>window.__gpsWatches.size),0);const stopped=await page.evaluate(()=>window.__gpsCalls);await page.clock.fastForward(60*60000);assert.equal(await page.evaluate(()=>window.__gpsCalls),stopped);
   checks.push('movement stored; revoked permission exposes missing coverage; clock-out remains possible and stops all tracking');
   await page.locator('.scheduler-tabs').getByRole('button',{name:'Time entries',exact:true}).click();await page.getByRole('button',{name:/Locations for Location QA Admin/}).first().click();
-  await expect(page.locator('.scheduler-location-list li')).toHaveCount(3);await expect(page.locator('.scheduler-location-gaps')).toContainText('Missing location intervals');
+  await expect(page.locator('.scheduler-location-list li')).toHaveCount(4);await expect(page.locator('.scheduler-location-gaps')).toContainText('Missing location intervals');
   await expect(page.locator('.scheduler-map-status')).toContainText('Drag to pan');
-  await page.locator('.scheduler-timeline-point').nth(2).click();await expect(page.locator('.scheduler-timeline-point').nth(2)).toHaveAttribute('aria-current','true');
-  await page.getByRole('button',{name:'Play route',exact:true}).click();await page.clock.fastForward(3000);await expect(page.getByRole('button',{name:'Play route',exact:true})).toBeVisible();
+  await page.locator('.scheduler-timeline-point').nth(3).click();await expect(page.locator('.scheduler-timeline-point').nth(3)).toHaveAttribute('aria-current','true');
+  await page.getByRole('button',{name:'Play route',exact:true}).click();await page.clock.fastForward(4000);await expect(page.getByRole('button',{name:'Play route',exact:true})).toBeVisible();
   assert.ok(tiles.length>0 && tiles.length<=16);assert.ok(tiles.every(query=>/^\?z=\d+&x=\d+&y=\d+$/.test(query)));
   await page.screenshot({path:path.join(output,'location-popup-desktop.png'),fullPage:true});
   mapOffline=true;await page.getByRole('button',{name:'Zoom out map',exact:true}).click();await expect(page.locator('.scheduler-map-status')).toContainText('Street map unavailable');

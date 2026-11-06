@@ -2848,5 +2848,10 @@
   "The new-project save reservation expired. Save again to obtain its next number.": "নতুন প্রকল্প সংরক্ষণের সংরক্ষণকাল শেষ হয়েছে। পরবর্তী নম্বর পেতে আবার সংরক্ষণ করুন।",
   "The saved project number could not be confirmed. Reload the saved file before continuing.": "সংরক্ষিত প্রকল্পের নম্বর নিশ্চিত করা যায়নি। চালিয়ে যাওয়ার আগে সংরক্ষিত ফাইল আবার লোড করুন।",
   "The completed project save has since changed. Load the saved project before continuing.": "সংরক্ষণ সম্পন্ন হওয়ার পরে প্রকল্প বদলেছে। চালিয়ে যাওয়ার আগে সংরক্ষিত প্রকল্প লোড করুন।",
-  "The previous save was interrupted and its file cannot be confirmed. Its project number has been retained. Open the saved file, or start a new project before saving again.": "আগের সংরক্ষণ বাধাগ্রস্ত হয়েছে এবং ফাইল নিশ্চিত করা যাচ্ছে না। প্রকল্পের নম্বর রেখে দেওয়া হয়েছে। আবার সংরক্ষণের আগে সংরক্ষিত ফাইল খুলুন অথবা নতুন প্রকল্প শুরু করুন।"
+  "The previous save was interrupted and its file cannot be confirmed. Its project number has been retained. Open the saved file, or start a new project before saving again.": "আগের সংরক্ষণ বাধাগ্রস্ত হয়েছে এবং ফাইল নিশ্চিত করা যাচ্ছে না। প্রকল্পের নম্বর রেখে দেওয়া হয়েছে। আবার সংরক্ষণের আগে সংরক্ষিত ফাইল খুলুন অথবা নতুন প্রকল্প শুরু করুন।",
+  "Project status": "প্রকল্পের অবস্থা",
+  "Review": "পর্যালোচনা",
+  "Presented": "উপস্থাপিত",
+  "Accepted": "গৃহীত",
+  "Lost": "হারানো"
 }

@@ -549,11 +549,8 @@
       row.append(node("span", "helper", (key === "equipment" || key === "materials" ? "" : "AUD ") + unit));
       rates.append(row);
     }
-    const acceptance = node("div", "commercial-acceptance");
-    for (const [key, label] of [["accepted_by", "Accepted by"], ["title", "Title"], ["signature", "Signature"], ["date", "Date"]]) {
-      acceptance.append(field(label, input(schedule.acceptance[key], value => fields.rate_schedule.acceptance[key] = value, key === "date" ? "date" : "text")));
-    }
-    section.append(rates, acceptance);
+    // Acceptance remains in the saved document and PDF, not the quote editor.
+    section.append(rates);
     section.querySelectorAll("h2,.field>span").forEach(element => window.CeasefireI18n?.text(element, element.textContent));
     section.querySelectorAll("input,textarea").forEach(element => window.CeasefireI18n?.attr(element, "aria-label", element.getAttribute("aria-label")));
     return section;

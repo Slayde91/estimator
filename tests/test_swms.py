@@ -315,6 +315,11 @@ class SwmsPdfTests(unittest.TestCase):
         for index, page in enumerate(reader.pages, 1):
             self.assertGreater(float(page.mediabox.width), float(page.mediabox.height))
             text = page.extract_text()
+            fonts = []
+            page.extract_text(visitor_text=lambda value, cm, tm, font, size:
+                              fonts.append(str((font or {}).get('/BaseFont', ''))) if value.strip() else None)
+            self.assertTrue(fonts)
+            self.assertTrue(all('Montserrat' in font for font in fonts), (index, fonts))
             self.assertIn(f'Page {index} of 13', text)
             self.assertNotIn('Printed version is uncontrolled', text)
             self.assertNotIn('Filepath:', text)
@@ -331,6 +336,7 @@ class SwmsPdfTests(unittest.TestCase):
         self.assertIn('<script>literal</script>', text)
         self.assertIn('Site emergency', text)
         self.assertIn('EMERGENCY RESPONSE PLAN', text)
+        self.assertNotIn('See the emergency response details below.', text)
         self.assertNotIn('Slayde', text)
         self.assertNotIn('Template ID', text)
         self.assertNotIn('Template Version', text)
@@ -371,6 +377,13 @@ class SwmsPdfTests(unittest.TestCase):
         for value in [*fields['work_types'], 'LAST-CONTROL', 'LAST-NOTIFICATION', 'ATTACHMENT-END']:
             self.assertIn(value, text)
         self.assertNotIn('TEST PERSON', text)
+        attachment_spans = []
+        reader.pages[-1].extract_text(visitor_text=lambda value, cm, tm, font, size:
+                                     attachment_spans.append((value, str((font or {}).get('/BaseFont', '')))) if value.strip() else None)
+        self.assertTrue(any('ATTACHMENT-END' in value and font == '/Helvetica' for value, font in attachment_spans),
+                        'Uploaded source-page text keeps its original font')
+        self.assertTrue(any('Appendix.pdf' in value and 'Montserrat-Bold' in font for value, font in attachment_spans),
+                        'Application-added attachment headings use Montserrat')
         self.assertIn(f'Page {len(reader.pages)} of {len(reader.pages)}', reader.pages[-1].extract_text())
 
 

@@ -4,22 +4,20 @@ from html.parser import HTMLParser
 from io import BytesIO
 from decimal import Decimal
 import re
-from pathlib import Path
 
 from pypdf import PdfReader, PdfWriter
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase.pdfmetrics import stringWidth
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 from reportlab.platypus import (BaseDocTemplate, Frame, HRFlowable, KeepTogether, LongTable,
                                PageTemplate, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle)
 
 from .commercial_documents import KINDS, format_terms, totals, validate_fields
 from .company_settings import company_logo, contact_lines
-from .report import _company_header, _register_fonts
+from .report import _company_header
+from .pdf_fonts import FONT_BOLD, FONT_REGULAR, register_pdf_fonts
 
 RED = colors.HexColor('#bd0018')
 WIDTH = A4[0] - 72
@@ -76,14 +74,14 @@ class _Paragraphs(HTMLParser):
 def _styles(*, quote=False):
     return {
         'quote': quote,
-        'body': ParagraphStyle('CommercialBody', fontName='CeasefireVera', fontSize=8.5, leading=12, spaceAfter=6),
-        'small': ParagraphStyle('CommercialSmall', fontName='CeasefireVera', fontSize=7, leading=10, spaceAfter=3),
-        'title': ParagraphStyle('CommercialTitle', fontName='CeasefireVeraBold', fontSize=18, leading=22, textColor=RED, spaceAfter=14),
-        'section': ParagraphStyle('CommercialSection', fontName='CeasefireVeraBold', fontSize=11, leading=15, textColor=RED, spaceBefore=14, spaceAfter=8, keepWithNext=True),
-        'terms': ParagraphStyle('CommercialTerms', fontName='CeasefireVera', fontSize=8, leading=11.5, spaceAfter=5),
-        'head': ParagraphStyle('CommercialHead', fontName='CeasefireVeraBold', fontSize=8, leading=11,
+        'body': ParagraphStyle('CommercialBody', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=8.5, leading=12, spaceAfter=6),
+        'small': ParagraphStyle('CommercialSmall', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=7, leading=10, spaceAfter=3),
+        'title': ParagraphStyle('CommercialTitle', fontName=FONT_BOLD, bulletFontName=FONT_BOLD, fontSize=18, leading=22, textColor=RED, spaceAfter=14),
+        'section': ParagraphStyle('CommercialSection', fontName=FONT_BOLD, bulletFontName=FONT_BOLD, fontSize=11, leading=15, textColor=RED, spaceBefore=14, spaceAfter=8, keepWithNext=True),
+        'terms': ParagraphStyle('CommercialTerms', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=8, leading=11.5, spaceAfter=5),
+        'head': ParagraphStyle('CommercialHead', fontName=FONT_BOLD, bulletFontName=FONT_BOLD, fontSize=8, leading=11,
                                textColor=colors.white if quote else colors.black),
-        'field': ParagraphStyle('CommercialField', fontName='CeasefireVeraBold', fontSize=7, leading=10,
+        'field': ParagraphStyle('CommercialField', fontName=FONT_BOLD, bulletFontName=FONT_BOLD, fontSize=7, leading=10,
                                 textColor=colors.white if quote else colors.black),
     }
 
@@ -193,15 +191,8 @@ def _terms_pdf(text, document, number, company):
     remain authoritative, including custom terms. Clause labels occupy their
     own hanging gutter and paragraphs can continue into the next column.
     """
-    font_root = Path(__file__).resolve().parent.parent / 'static' / 'fonts'
-    for style in ('Regular', 'Bold', 'Italic', 'BoldItalic'):
-        name = 'CommercialMontserrat' + style
-        if name not in pdfmetrics.getRegisteredFontNames():
-            pdfmetrics.registerFont(TTFont(name, str(font_root / ('Montserrat-' + style + '.ttf'))))
-    pdfmetrics.registerFontFamily('CommercialMontserratRegular', normal='CommercialMontserratRegular',
-                                  bold='CommercialMontserratBold', italic='CommercialMontserratItalic',
-                                  boldItalic='CommercialMontserratBoldItalic')
-    base = ParagraphStyle('TradeTerms', fontName='CommercialMontserratRegular', fontSize=9,
+    register_pdf_fonts()
+    base = ParagraphStyle('TradeTerms', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=9,
                           leading=11, spaceAfter=5, allowWidows=0, allowOrphans=0)
     parser = _Paragraphs()
     parser.feed(format_terms(text))
@@ -232,16 +223,16 @@ def _terms_pdf(text, document, number, company):
                 markup = re.sub(r'^(\s*(?:<(?:b|i|u)>\s*)*)' + re.escape(label) + r'\s*', r'\1', markup, count=1)
                 level = 3 if re.fullmatch(r'\(\d+\)', label) else 2 if label.startswith('(') else 1
                 style.leftIndent, style.bulletIndent = 28.3 * level, 28.3 * (level - 1)
-                style.bulletFontName, style.bulletFontSize = 'CommercialMontserratBold', 9
+                style.bulletFontName, style.bulletFontSize = FONT_BOLD, 9
                 bullet = label
                 if heading:
                     style.textColor = RED
-                    style.fontName = 'CommercialMontserratBold'
+                    style.fontName = FONT_BOLD
                     style.keepWithNext = True
                     style.spaceBefore = 4
             elif disclosure and plain.startswith(('subject to your', 'additional charges')):
                 style.leftIndent, style.bulletIndent = 14, 0
-                style.bulletFontName, style.bulletFontSize = 'CommercialMontserratRegular', 9
+                style.bulletFontName, style.bulletFontSize = FONT_REGULAR, 9
                 bullet = '\u2022'
         if disclosure_heading:
             markup = '<font color="#bd0018"><b>Our Disclosures:</b></font> ' + markup
@@ -276,10 +267,10 @@ def _quotation_header(page, logo, company):
     # The right column cannot cross the centred heading, including long company
     # names or contact details. This does not alter the saved company values.
     for offset, value in [(15, company.get('name', '')), *zip((40, 51, 62), contact_lines(company))]:
-        size = min(7.5, (width / 2 - 100) / max(1, stringWidth(value, 'CeasefireVera', 1)))
-        page.setFont('CeasefireVera', size)
+        size = min(7.5, (width / 2 - 100) / max(1, stringWidth(value, FONT_REGULAR, 1)))
+        page.setFont(FONT_REGULAR, size)
         page.drawRightString(width - margin, height - offset, value)
-    page.setFont('CeasefireVeraBold', 16)
+    page.setFont(FONT_BOLD, 16)
     page.setFillColor(RED)
     page.drawCentredString(width / 2, height - 43, 'QUOTATION')
     page.setStrokeColor(RED)
@@ -306,7 +297,7 @@ def _build(story, document, number, company, *, first_part=False):
 
 
 def render_commercial_pdf(document, number, *, company, scope_documents=None):
-    _register_fonts()
+    register_pdf_fonts()
     fields = validate_fields(document['fields'])
     kind = document['kind']
     styles = _styles(quote=kind == 'quote')
@@ -389,7 +380,7 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None):
         footer = BytesIO()
         width, height = float(page.mediabox.width), float(page.mediabox.height)
         overlay = canvas.Canvas(footer, pagesize=(width, height))
-        overlay.setFont('CeasefireVera', 7)
+        overlay.setFont(FONT_REGULAR, 7)
         overlay.setFillColor(colors.HexColor('#555555'))
         overlay.drawCentredString(width / 2, 20, f'{KINDS[kind]} {number}  |  Page {index} of {count}')
         overlay.save()

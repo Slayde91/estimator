@@ -50,6 +50,14 @@ class PassiveFireMatrixTests(unittest.TestCase):
         for header in MATRIX_HEADERS: self.assertIn(header, text)
         for value in ('<Pipe & cable>','12.345678901','UNAPPROVED DRAFT'): self.assertIn(value,text)
         self.assertNotIn('TAKEOFF LEGEND',text)
+        painted_fonts = set()
+        for page in reader.pages:
+            page.extract_text(visitor_text=lambda value, cm, tm, font, size:
+                              painted_fonts.add(str(font.get('/BaseFont', '')))
+                              if value.strip() and font else None)
+        self.assertTrue(painted_fonts)
+        self.assertTrue(all('Montserrat-' in font for font in painted_fonts))
+        self.assertTrue(any('Montserrat-Bold' in font for font in painted_fonts))
         self.assertEqual(case.graph,before)
 
     def test_many_rows_repeat_headings_and_long_fields_remain_readable(self):

@@ -157,6 +157,28 @@ class CommercialTests(unittest.TestCase):
         self.assertIn('<b>ACL or Australian Consumer Law</b>', terms)
         self.assertIn('<b>NACE</b> refers to', terms)
 
+    def test_generated_pdf_fonts_use_montserrat_and_keep_real_emphasis(self):
+        for kind in ('quote', 'work_order', 'purchase_order'):
+            with self.subTest(kind=kind):
+                fields = default_fields(kind)
+                fields['lines'] = [{'description': 'Installation', 'quantity': '1', 'unit_price': '100'}]
+                fields['allowances'] = '<p>Regular marker <b>Bold marker</b> <i>Italic marker</i> <b><i>Combined marker</i></b></p><ul><li>List marker</li></ul>'
+                fields['terms'] = '<p>1. Terms</p><p>1.1 Retain <i>terms emphasis</i>.</p>'
+                spans = []
+                pdf = render_commercial_pdf({'kind': kind, 'status': 'Draft', 'fields': fields}, 'QA-000001', company=DEFAULTS)
+                for page in PdfReader(BytesIO(pdf)).pages:
+                    page.extract_text(visitor_text=lambda value, cm, tm, font, size:
+                                      spans.append((value, str((font or {}).get('/BaseFont', '')))) if value.strip() else None)
+                self.assertTrue(spans)
+                self.assertTrue(all('Montserrat' in font for _, font in spans), spans)
+                if kind == 'quote':
+                    for marker, style in [('Regular marker', 'Regular'), ('Bold marker', 'Bold'),
+                                          ('Italic marker', 'Italic'), ('Combined marker', 'BoldItalic')]:
+                        self.assertTrue(any(marker in value and style in font for value, font in spans), (marker, spans))
+                    rendered = ''.join(value for value, _ in spans)
+                    for label in ('Accepted by', 'Title', 'Signature', 'Date'):
+                        self.assertIn(label, rendered)
+
     def test_terms_emphasis_preserves_existing_text_and_formats_older_quotes(self):
         original = ('<p><strong>19.</strong> Definitions</p>'
                     '<p><i>ACL</i> or Australian Consumer Law means A &amp; B.</p>'

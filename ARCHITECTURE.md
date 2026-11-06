@@ -1,5 +1,19 @@
 # Architecture
 
+## Shared PDF typography — 7 November 2026
+
+All CLASSIFIRE-authored PDF text uses the four bundled static Montserrat faces
+through `estimator/pdf_fonts.py`. Registration is shared, idempotent and locked;
+paragraph bullets, canvas labels, report headers and drawing overlays use the
+same family without replacing ReportLab's global defaults. Imported drawings,
+cover sheets, manufacturer reports and previously issued PDFs retain their
+original content and fonts. The desktop resource allowlist includes all four
+faces so exports work offline in the frozen application.
+
+The New estimate control is 42 by 42 CSS pixels at every breakpoint, scoped to
+that control. Quote acceptance fields remain in saved data and the PDF but are
+not rendered in the editor; commercial rates remain editable.
+
 ## PDF presentation and reusable SWMS people — 7 November 2026
 
 Projects uses flat rows while the commercial document boards retain their Kanban
@@ -43,7 +57,7 @@ Quote selection caches derivation only within its current editor, keyed by each
 complete captured estimate. Changed estimates invalidate their own result; Save
 and PDF generation still validate all selected inputs through the server.
 Collapsed scope tables populate their cells when opened. Editable Schedule of
-Rates and acceptance fields are separate from Scheduler payroll settings and do
+Rates and PDF-only acceptance fields are separate from Scheduler payroll settings and do
 not affect the estimate or Quote totals. Terms use the supplied quotation's
 two-column Montserrat layout and hanging clause labels without changing saved
 wording or the company identity from Settings.

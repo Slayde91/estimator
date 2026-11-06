@@ -2,7 +2,6 @@
 from copy import deepcopy
 from dataclasses import dataclass
 import math
-from pathlib import Path
 
 from .catalog import ValidationError
 from .takeoff_model import audit_state_digest, identity, object_fields, page_metadata
@@ -66,13 +65,9 @@ def remember_group_identity(identifier, binding, groups):
 
 def validate_text_fit(record, snapshot):
     """Use the marked-PDF renderer's exact font, wrapping and inner padding."""
-    import reportlab
-    from reportlab.pdfbase import pdfmetrics
-    from reportlab.pdfbase.ttfonts import TTFont
+    from .pdf_fonts import FONT_REGULAR, register_pdf_fonts
     from .takeoff_markup_pdf_worker import _annotation_lines, _graphic_text_lines
-    for name, filename in (('ExportVera', 'Vera.ttf'), ('ExportVeraBold', 'VeraBd.ttf')):
-        if name not in pdfmetrics.getRegisteredFontNames():
-            pdfmetrics.registerFont(TTFont(name, str(Path(reportlab.__file__).parent / 'fonts' / filename)))
+    register_pdf_fonts()
     _, page = page_metadata(snapshot, record['document_id'], record['page'])
     q0, q1, _, q3 = record['geometry']['quad_pdf']
     width, height = math.dist(q0, q1)*page['user_unit'], math.dist(q0, q3)*page['user_unit']
@@ -81,7 +76,7 @@ def validate_text_fit(record, snapshot):
     size = graphic_font_size(record)
     try:
         lines = (_annotation_lines(record['text_content'], width-2*padding, size, 'linked Initial Pages Textbox')
-                 if 'text_content' in record else _graphic_text_lines(record['text'], 'ExportVera', size, width-2*padding))
+                 if 'text_content' in record else _graphic_text_lines(record['text'], FONT_REGULAR, size, width-2*padding))
     except ValueError as error:
         raise ValidationError(str(error)) from error
     if lines is None or len(lines)*size*1.25 > height-2*padding:

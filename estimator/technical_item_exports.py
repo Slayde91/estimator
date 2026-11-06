@@ -26,6 +26,7 @@ from .firestopping_library import MAX_DIAGRAM_BYTES, _render_diagram
 from .library_report_links import validate_report_links
 from .pricing_workbook import _serialize_exact
 from .reference_library import identifier
+from .pdf_fonts import FONT_REGULAR
 from .report import _Report, _company_header, _escaped, _register_fonts, _LINE, _MUTED
 from .technical_fields import is_hidden_technical_label
 from .technical_display import compact_technical_text, display_technical_title
@@ -272,7 +273,7 @@ def render_technical_item_pdf(snapshot, *, company=None):
         _company_header(canvas, logo, width, height, margin, 'TECHNICAL ITEM', label_below_logo=True, company=company)
         canvas.setStrokeColor(_LINE)
         canvas.line(margin, 32, width - margin, 32)
-        canvas.setFont('CeasefireVera', 7)
+        canvas.setFont(FONT_REGULAR, 7)
         canvas.setFillColor(_MUTED)
         canvas.drawString(margin, 20, 'CLASSIFIRE ESTIMATOR | Technical Library record snapshot')
         canvas.drawRightString(width - margin, 20, f'Page {doc.page}')

@@ -253,7 +253,11 @@ class TakeoffGraphicTests(unittest.TestCase):
         page.extract_text(visitor_text=lambda value, cm, tm, font, size: segments.append((value, cm, font, size)))
         bold = ''.join(value for value, _, font, _ in segments if font and 'Bold' in font.get('/BaseFont', '')).replace('\n', '')
         self.assertIn('Bold literal', bold)
-        self.assertTrue(any(abs(float(cm[2])-.18) < 1e-6 and float(size) == 10 for value, cm, _, size in segments if value.strip()), 'Italic has its own glyph transform at the requested font size.')
+        self.assertTrue(any(font and 'Montserrat-BoldItalic' in font.get('/BaseFont', '') and float(size) == 10
+                            for value, _, font, size in segments if value.strip()),
+                        'Formatted text uses the embedded Montserrat bold italic face at the requested size.')
+        self.assertFalse(any(abs(float(cm[2])-.18) < 1e-6 for value, cm, _, _ in segments if value.strip()),
+                         'Italic glyphs are not synthesized by shearing another font.')
         ops = page.get_contents().operations
         # First line baseline is 70-6-10=54; underline is exactly 1.2pt below it.
         self.assertEqual(sum(op == b'l' and abs(float(args[1])-52.8) < 1e-5 for args, op in ops), len('Bold literal'))

@@ -69,6 +69,11 @@ Calculators and Projects. **Help** provides a plain-English guide to the
 main workflow and the meaning of each area. The browser interface uses the
 bundled Montserrat font, so it does not depend on an internet font service.
 
+New PDF exports also use bundled Montserrat for all CLASSIFIRE-generated text,
+including reports, headers and drawing annotations. Uploaded drawings, cover
+sheets, manufacturer PDFs and previously issued documents keep their original
+formatting.
+
 **TAKEOFFS** provides manual Steel, Duct, Walls, Slabs and Penetrations workspaces.
 Upload PDFs, calibrate or cite dimensions, confirm measured Steel/Duct items and
 preview their transfer into an existing calculator schedule. Walls and Slabs
@@ -313,7 +318,7 @@ In **Projects**, choose **Link Project Folder**. Only `.cf.json` project files i
 
 Projects appear in a flat list with search, sorting, saved status and an estimate selector. They start in **Draft** and can move through **Review**, **Presented**, **Accepted** and **Lost** using **Status** above the estimate or the project actions. Status saves immediately for a saved project and travels in its `.cf.json` file. Unsaved project status is included when the project is saved. Each row has **Open**, **Edit**, **Delete** and **Browse files** actions. Quotes, Work Orders and Purchase Orders retain their separate Kanban boards. Deleting removes the row and retains its project bytes under a `.ceasefire-deleted-*.json` recovery filename beside its companion documents. Rename that retained file to a `.cf.json` filename to restore it. A changed file must be refreshed or reloaded before a status edit or deletion can proceed.
 
-**Projects** opens **Quotes**, **Work Orders** and **Purchase Orders**. A Quote links selected estimates, uses their Grand Totals as unit prices and includes their Full Schedules in its PDF. Schedule of Rates has editable commercial rates and acceptance fields above Scope of Works; these rates do not change Scheduler payroll rules or Quote totals. Allowances and Terms and Conditions support rich text. The supplied quotation provides the default terms, with company details and ABN supplied by Settings. Each new PDF download receives the next number for that document type. Orders have separate status boards and editable review, approval and completion fields. Save the project to retain these documents and their downloaded revision history.
+**Projects** opens **Quotes**, **Work Orders** and **Purchase Orders**. A Quote links selected estimates, uses their Grand Totals as unit prices and includes their Full Schedules in its PDF. Schedule of Rates has editable commercial rates above Scope of Works; its acceptance table appears only in the PDF. These rates do not change Scheduler payroll rules or Quote totals. Allowances and Terms and Conditions support rich text. The supplied quotation provides the default terms, with company details and ABN supplied by Settings. Each new PDF download receives the next number for that document type. Orders have separate status boards and editable review, approval and completion fields. Save the project to retain these documents and their downloaded revision history.
 
 Scheduler project choices show Accepted projects and fill their Site Address. Scheduler Settings lets administrators edit overtime rules and configure paid or unpaid automatic breaks, including thresholds, weekdays and repetition. Existing break options start with automatic deductions disabled. The highest applicable pay multiplier is used. Current rules recalculate time-entry totals, with the rule version shown in the result.
 

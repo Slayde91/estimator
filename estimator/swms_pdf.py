@@ -14,7 +14,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.platypus import BaseDocTemplate, Flowable, Frame, LongTable, PageBreak, PageTemplate, Paragraph, Spacer, TableStyle
 
 from .company_settings import company_logo, contact_lines
-from .report import _register_fonts
+from .pdf_fonts import FONT_BOLD, FONT_REGULAR, register_pdf_fonts
 from .swms import template_options, validate_fields
 
 PAGE = landscape(A4)
@@ -25,11 +25,11 @@ RED = colors.HexColor('#d40000')
 
 def _styles():
     return {
-        'body': ParagraphStyle('SwmsBody', fontName='CeasefireVera', fontSize=7.1, leading=9.7, spaceAfter=2),
-        'bold': ParagraphStyle('SwmsBold', fontName='CeasefireVeraBold', fontSize=7.1, leading=9.7, spaceAfter=2),
-        'head': ParagraphStyle('SwmsHead', fontName='CeasefireVeraBold', fontSize=7.1, leading=9.7, textColor=colors.white),
-        'section': ParagraphStyle('SwmsSection', fontName='CeasefireVeraBold', fontSize=8, leading=11, spaceAfter=5, keepWithNext=True),
-        'large': ParagraphStyle('SwmsLarge', fontName='CeasefireVeraBold', fontSize=10.5, leading=14, spaceAfter=10),
+        'body': ParagraphStyle('SwmsBody', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=7.1, leading=9.7, spaceAfter=2),
+        'bold': ParagraphStyle('SwmsBold', fontName=FONT_BOLD, bulletFontName=FONT_BOLD, fontSize=7.1, leading=9.7, spaceAfter=2),
+        'head': ParagraphStyle('SwmsHead', fontName=FONT_BOLD, bulletFontName=FONT_BOLD, fontSize=7.1, leading=9.7, textColor=colors.white),
+        'section': ParagraphStyle('SwmsSection', fontName=FONT_BOLD, bulletFontName=FONT_BOLD, fontSize=8, leading=11, spaceAfter=5, keepWithNext=True),
+        'large': ParagraphStyle('SwmsLarge', fontName=FONT_BOLD, bulletFontName=FONT_BOLD, fontSize=10.5, leading=14, spaceAfter=10),
     }
 
 
@@ -63,9 +63,9 @@ def _emergency_paragraphs(text, style, *, bullets_after_first=False, bold_from=N
 
 
 def _emergency_table(fields, styles):
-    body = ParagraphStyle('EmergencyRequirements', fontName='Helvetica', fontSize=8.2, leading=9.2,
+    body = ParagraphStyle('EmergencyRequirements', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=8.2, leading=9.2,
                           textColor=colors.HexColor('#17365d'))
-    head = ParagraphStyle('EmergencyHeader', fontName='Helvetica-Bold', fontSize=9, leading=10,
+    head = ParagraphStyle('EmergencyHeader', fontName=FONT_BOLD, bulletFontName=FONT_BOLD, fontSize=9, leading=10,
                           textColor=colors.white, alignment=1)
     table = _table(None, [[_p('EMERGENCY RESPONSE - CALL 000 IMMEDIATELY.', head), ''],
                          [_emergency_paragraphs(fields[key], body, bullets_after_first=True)
@@ -127,7 +127,7 @@ class Cover(Flowable):
         path.lineTo(w, h * .51)
         path.close()
         c.drawPath(path, fill=1, stroke=0)
-        c.setFont('CeasefireVeraBold', 53)
+        c.setFont(FONT_BOLD, 53)
         for title, y, colour in [('SAFE WORK', h - 104, colors.black), ('METHOD', h - 170, colors.black), ('STATEMENT', h - 236, colors.HexColor('#ff2525'))]:
             c.setFillColor(colour)
             c.drawString(0, y, title)
@@ -139,15 +139,15 @@ class Cover(Flowable):
         c.rect(0, 5, w, 80)
         c.line(w * .61, 5, w * .61, 85)
         c.setFillColor(colors.black)
-        c.setFont('CeasefireVeraBold', 11)
+        c.setFont(FONT_BOLD, 11)
         c.drawString(28, 53, 'Prepared by:')
         c.setFillColor(RED)
-        company_name = _p(self.company.get('name', ''), ParagraphStyle('CoverCompany', fontName='CeasefireVera', fontSize=14, leading=17))
+        company_name = _p(self.company.get('name', ''), ParagraphStyle('CoverCompany', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=14, leading=17))
         company_name.wrap(w * .53, 40)
         company_name.drawOn(c, 28, 26)
         lines = [value for value in [self.company.get('phone'), self.company.get('email'), 'ABN ' + self.company.get('abn', '') if self.company.get('abn') else ''] if value]
         for index, line in enumerate(lines):
-            paragraph = _p(line, ParagraphStyle('CoverContact', fontName='CeasefireVera', fontSize=10, leading=13))
+            paragraph = _p(line, ParagraphStyle('CoverContact', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=10, leading=13))
             paragraph.wrap(w * .35, 50)
             paragraph.drawOn(c, w * .65, 56 - index * 18)
         c.restoreState()
@@ -234,7 +234,7 @@ class EmergencyPlan(Flowable):
 
     def _boxes(self):
         f, w = self.fields, self.width
-        style = ParagraphStyle('EmergencyPlanBody', fontName='Helvetica', fontSize=8.2, leading=9.9)
+        style = ParagraphStyle('EmergencyPlanBody', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=8.2, leading=9.9)
         notify = _emergency_paragraphs(f['emergency_notify'], style, bold_from='immediately', break_before_bold=True)
         notify += [Spacer(1, 10), *_emergency_paragraphs(f['emergency_contacts'], style)]
         call = _emergency_paragraphs(f['emergency_call'], style, bullets_after_first=True)
@@ -245,7 +245,7 @@ class EmergencyPlan(Flowable):
                 (w * .017, 231, w * .276, 40, _emergency_paragraphs(f['emergency_supervisor'], style, bold_from='immediately')),
                 (w * .361, 116, w * .311, 153, call),
                 (w * .732, 171, w * .242, 100, [Spacer(1, 20), *_emergency_paragraphs(f['emergency_stop'].replace('\n', '\n\n', 1), style, first_bold=True)]),
-                (w * .358, 19, w * .276, 52, _emergency_paragraphs(f['emergency_follow'], ParagraphStyle('EmergencyFollow', parent=style, fontName='Helvetica-Bold')))]
+                (w * .358, 19, w * .276, 52, _emergency_paragraphs(f['emergency_follow'], ParagraphStyle('EmergencyFollow', parent=style, fontName=FONT_BOLD)))]
 
     def has_overflow(self):
         return any(sum(part.wrap(width - 10, height)[1] for part in paragraphs) > height - 10
@@ -253,7 +253,7 @@ class EmergencyPlan(Flowable):
 
     def draw(self):
         c, f, w = self.canv, self.fields, self.width
-        c.setFont('Times-Bold', 18)
+        c.setFont(FONT_BOLD, 18)
         c.drawCentredString(w / 2, 404, 'EMERGENCY RESPONSE PLAN')
         def box(x, y, width, height, paragraphs):
             c.setStrokeColor(colors.black)
@@ -294,7 +294,7 @@ class EmergencyPlan(Flowable):
 
 
 def render_swms_pdf(document, *, company):
-    _register_fonts()
+    register_pdf_fonts()
     fields = validate_fields(document['fields'])
     styles, details = _styles(), fields['details']
     story = [Cover(company), PageBreak()]
@@ -370,7 +370,7 @@ def render_swms_pdf(document, *, company):
         c.drawImage(logo, MARGIN, PAGE[1] - 47, width=98, height=32, preserveAspectRatio=True, anchor='sw', mask='auto')
         text = '\n'.join([company.get('name', ''), *contact_lines(company)])
         for size in (7, 6.5, 6, 5.5, 5, 4.5):
-            text_style = ParagraphStyle('SwmsCompany', fontName='CeasefireVera', fontSize=size, leading=size * 1.25, alignment=2)
+            text_style = ParagraphStyle('SwmsCompany', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=size, leading=size * 1.25, alignment=2)
             paragraph = _p(text, text_style)
             _, company_height = paragraph.wrap(WIDTH * .72, 48)
             if company_height <= 44:
@@ -379,7 +379,7 @@ def render_swms_pdf(document, *, company):
         c.setStrokeColor(RED); c.setLineWidth(.6)
         c.line(MARGIN, PAGE[1] - 60, PAGE[0] - MARGIN, PAGE[1] - 60)
         c.line(MARGIN, 39, PAGE[0] - MARGIN, 39)
-        c.setFont('CeasefireVera', 6.2); c.setFillColor(colors.HexColor('#333333'))
+        c.setFont(FONT_REGULAR, 6.2); c.setFillColor(colors.HexColor('#333333'))
         c.drawString(MARGIN + WIDTH * .69, 26, 'This PDF was created at')
         c.drawString(MARGIN + WIDTH * .69, 17, created)
         c.restoreState()
@@ -398,17 +398,17 @@ def render_swms_pdf(document, *, company):
                 scale = min(WIDTH / float(source.mediabox.width), 430 / float(source.mediabox.height))
                 page.merge_transformed_page(source, Transformation().translate(-float(source.mediabox.left), -float(source.mediabox.bottom)).scale(scale).translate(MARGIN + (WIDTH - float(source.mediabox.width) * scale) / 2, 52 + (430 - float(source.mediabox.height) * scale) / 2))
                 header = BytesIO(); c = canvas.Canvas(header, pagesize=PAGE); decorate(c, doc)
-                c.setFont('CeasefireVeraBold', 8); c.drawString(MARGIN, PAGE[1] - 75, attachment['name']); c.save()
+                c.setFont(FONT_BOLD, 8); c.drawString(MARGIN, PAGE[1] - 75, attachment['name']); c.save()
                 page.merge_page(PdfReader(BytesIO(header.getvalue())).pages[0]); pages.append(page)
         else:
             header = BytesIO(); c = canvas.Canvas(header, pagesize=PAGE); decorate(c, doc)
-            c.setFont('CeasefireVeraBold', 8); c.drawString(MARGIN, PAGE[1] - 75, attachment['name'])
+            c.setFont(FONT_BOLD, 8); c.drawString(MARGIN, PAGE[1] - 75, attachment['name'])
             c.drawImage(ImageReader(BytesIO(data)), MARGIN, 52, width=WIDTH, height=430, preserveAspectRatio=True, anchor='c', mask='auto')
             c.save(); pages.extend(PdfReader(BytesIO(header.getvalue())).pages)
     count = len(pages)
     for index, page in enumerate(pages, 1):
         overlay = BytesIO(); c = canvas.Canvas(overlay, pagesize=PAGE)
-        c.setFont('CeasefireVera', 6.2); c.setFillColor(colors.HexColor('#333333'))
+        c.setFont(FONT_REGULAR, 6.2); c.setFillColor(colors.HexColor('#333333'))
         c.drawString(MARGIN, 26, f'Page {index} of {count}')
         c.save(); page.merge_page(PdfReader(BytesIO(overlay.getvalue())).pages[0]); writer.add_page(page)
     writer.add_metadata({'/Title': fields['title'], '/Author': company.get('name', '')})

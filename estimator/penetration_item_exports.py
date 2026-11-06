@@ -24,6 +24,7 @@ from .penetration_calculator import calculate, definition, normalize_composer
 from .penetration_report import _display, _excel_format, _input_basis, _input_value, _visible_outputs
 from .pricing_workbook import _serialize_exact
 from .reference_library import ReferenceNotFound
+from .pdf_fonts import FONT_REGULAR
 from .report import _Report, _company_header, _register_fonts, _LINE, _MUTED
 from .penetration_references import resolve_schedule_references
 
@@ -176,7 +177,7 @@ def render_item_pdf(snapshot, *, company=None):
         _company_header(canvas, logo, width, height, margin, 'FIRESTOPPING ITEM', label_below_logo=True, company=company)
         canvas.setStrokeColor(_LINE)
         canvas.line(margin, 32, width - margin, 32)
-        canvas.setFont('CeasefireVera', 7)
+        canvas.setFont(FONT_REGULAR, 7)
         canvas.setFillColor(_MUTED)
         canvas.drawRightString(width - margin, 20, f'Page {doc.page}')
         canvas.restoreState()

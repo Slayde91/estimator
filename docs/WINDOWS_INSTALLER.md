@@ -61,8 +61,8 @@ signed or as free of Windows reputation warnings.
 
 The explicit resource allowlist includes all calculator data, the penetration
 engine data, UI scripts/styles, the CEASEFIRE logo and flame application icon,
-both Montserrat fonts and their OFL notice. ReportLab's bundled fonts are included
-for offline PDF output. Python, openpyxl, Pillow, ReportLab, pywebview, pythonnet and
+the Montserrat variable fonts, four static PDF faces and their OFL notice.
+ReportLab's bundled resources are also included. Python, openpyxl, Pillow, ReportLab, pywebview, pythonnet and
 their required native libraries are bundled, so users need neither Python nor
 Excel installed. Build dependency versions and discovered licence texts accompany
 the bundle in `THIRD_PARTY_LICENSES`.

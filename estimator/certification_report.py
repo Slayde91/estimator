@@ -7,9 +7,9 @@ from zoneinfo import ZoneInfo
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import Flowable, HRFlowable, KeepTogether, LongTable, Paragraph, SimpleDocTemplate, Spacer, TableStyle
 
+from .pdf_fonts import FONT_REGULAR, FONT_BOLD, PdfParagraphStyle as ParagraphStyle
 from .company_settings import company_logo
 from .report import _company_header, _register_fonts
 
@@ -43,24 +43,24 @@ def render_certificate_pdf(fields, *, company, certificate_id, revision, created
     _register_fonts()
     company_name = company.get('name', '')
     styles = {
-        'title': ParagraphStyle('CertificateTitle', fontName='CeasefireVeraBold', fontSize=15,
+        'title': ParagraphStyle('CertificateTitle', fontName=FONT_BOLD, fontSize=15,
                                 leading=19, alignment=TA_CENTER, textColor=_RED, spaceAfter=9, keepWithNext=True),
-        'heading': ParagraphStyle('CertificateHeading', fontName='CeasefireVera', fontSize=10.5,
+        'heading': ParagraphStyle('CertificateHeading', fontName=FONT_REGULAR, fontSize=10.5,
                                   leading=14, textColor=_RED, spaceBefore=8, spaceAfter=5, keepWithNext=True),
-        'body': ParagraphStyle('CertificateBody', fontName='CeasefireVera', fontSize=8.5,
+        'body': ParagraphStyle('CertificateBody', fontName=FONT_REGULAR, fontSize=8.5,
                                leading=11.5, spaceAfter=5, splitLongWords=True),
-        'statement': ParagraphStyle('CertificateStatement', fontName='CeasefireVeraBold', fontSize=8.5,
+        'statement': ParagraphStyle('CertificateStatement', fontName=FONT_BOLD, fontSize=8.5,
                                     leading=11.5, spaceAfter=5, splitLongWords=True),
-        'attestation': ParagraphStyle('CertificateAttestation', fontName='CeasefireVera', fontSize=8.5,
+        'attestation': ParagraphStyle('CertificateAttestation', fontName=FONT_REGULAR, fontSize=8.5,
                                       leading=11.5, spaceAfter=5, splitLongWords=True),
-        'label': ParagraphStyle('CertificateLabel', fontName='CeasefireVera', fontSize=8.5,
+        'label': ParagraphStyle('CertificateLabel', fontName=FONT_REGULAR, fontSize=8.5,
                                 leading=11.5, textColor=_RED, spaceBefore=6, spaceAfter=2,
                                 keepWithNext=True, splitLongWords=True),
-        'cell_label': ParagraphStyle('CertificateCellLabel', fontName='CeasefireVera', fontSize=8,
+        'cell_label': ParagraphStyle('CertificateCellLabel', fontName=FONT_REGULAR, fontSize=8,
                                     leading=11, textColor=_RED, spaceAfter=5, splitLongWords=True),
-        'cell': ParagraphStyle('CertificateCell', fontName='CeasefireVera', fontSize=8.2,
+        'cell': ParagraphStyle('CertificateCell', fontName=FONT_REGULAR, fontSize=8.2,
                               leading=11.5, splitLongWords=True),
-        'head': ParagraphStyle('CertificateHead', fontName='CeasefireVera', fontSize=8,
+        'head': ParagraphStyle('CertificateHead', fontName=FONT_REGULAR, fontSize=8,
                               leading=11, textColor=colors.white, splitLongWords=True),
     }
     def p(value, style='body'):
@@ -92,7 +92,7 @@ def render_certificate_pdf(fields, *, company, certificate_id, revision, created
         canvas.saveState()
         canvas.setStrokeColor(_LINE); canvas.setLineWidth(.4)
         canvas.line(_MARGIN, 33, A4[0] - _MARGIN, 33)
-        canvas.setFillColor(colors.HexColor('#555555')); canvas.setFont('CeasefireVera', 7)
+        canvas.setFillColor(colors.HexColor('#555555')); canvas.setFont(FONT_REGULAR, 7)
         canvas.drawString(_MARGIN, 22, f'Certificate {short_id} | Revision {revision} | {timestamp}')
         canvas.drawRightString(A4[0] - _MARGIN, 22, f'Page {doc.page}')
         canvas.restoreState()

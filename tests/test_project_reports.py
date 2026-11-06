@@ -67,7 +67,12 @@ class ProjectReportTests(unittest.TestCase):
                 self.assertIn('Nullifire SC902', text)
                 if not materials:
                     self.assertIn('Captured SC902 fixture', ' '.join(text.split()))
-                    self.assertIn('UNIQUE-CALCULATOR-REPORT', text)
+                    # The reference may wrap within its schedule cell as fonts
+                    # change; all letters and the clickable target must survive.
+                    self.assertIn('UNIQUE-CALCULATOR-REPORT', ''.join(text.split()))
+                    self.assertTrue(any(annotation.get_object().get('/A', {}).get('/URI') ==
+                                        'https://example.test/reference.pdf'
+                                        for page in reader.pages for annotation in page.get('/Annots', [])))
                 else:
                     self.assertNotIn('UNIQUE-CALCULATOR-REPORT', text)
                     for page in reader.pages:

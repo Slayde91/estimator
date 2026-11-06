@@ -20,6 +20,7 @@ from reportlab.platypus import PageBreak, SimpleDocTemplate, Spacer, TableStyle,
 from .assessment_references import schedule_report_references
 
 from .excel_engine import column_name
+from .pdf_fonts import FONT_REGULAR
 from .report import _Report, _company_header, _register_fonts, _number, _numeric, _text, _LINE, _MUTED
 from .workbook_calculators import (FYREWRAP_DIRECTION_NOTE, calculator_engine,
                                    normalize_calculator_inputs, source_model)
@@ -762,7 +763,7 @@ def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=N
             return
         canvas.setStrokeColor(_LINE)
         canvas.line(_MARGIN, 32, width - _MARGIN, 32)
-        canvas.setFont('CeasefireVera', 7)
+        canvas.setFont(FONT_REGULAR, 7)
         canvas.setFillColor(_MUTED)
         canvas.drawString(_MARGIN, 20, report_footer or report_label(calculator_id, materials))
         canvas.drawRightString(width - _MARGIN, 20, f'Page {doc.page}')

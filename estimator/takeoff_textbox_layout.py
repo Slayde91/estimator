@@ -59,7 +59,7 @@ def textbox_layout(snapshot, value):
     unwrapped = _lines(content, 1e20, size, physical)
     natural_width = max((math.fsum(run[4] for run in line) for line in unwrapped), default=0)
     # Twelve points provide the same maximum six-point export padding. Reserve
-    # the explicit italic shear overhang in addition to glyph advances.
+    # a conservative italic ink allowance in addition to the actual glyph advances.
     italic_margin = size*.18 if any(run.get('italic') for block in content['blocks'] for run in block['runs']) else 0
     box_width = min(available_width, 10000*page['user_unit'], max(minimum, natural_width+12+italic_margin))
     maximum_padding = min(6, box_width/8)

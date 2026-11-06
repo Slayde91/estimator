@@ -12,10 +12,18 @@ from xml.sax.saxutils import escape
 
 if __package__:
     from . import takeoff_pdf_worker as limits
+    from . import pdf_fonts
 else:
     import importlib.util
     _spec = importlib.util.spec_from_file_location('_ceasefire_pdf_limits', Path(__file__).with_name('takeoff_pdf_worker.py'))
     limits = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(limits)
+    _font_spec = importlib.util.spec_from_file_location('_ceasefire_pdf_fonts', Path(__file__).with_name('pdf_fonts.py'))
+    pdf_fonts = importlib.util.module_from_spec(_font_spec); _font_spec.loader.exec_module(pdf_fonts)
+
+FONT_REGULAR = pdf_fonts.FONT_REGULAR
+FONT_BOLD = pdf_fonts.FONT_BOLD
+FONT_ITALIC = pdf_fonts.FONT_ITALIC
+FONT_BOLD_ITALIC = pdf_fonts.FONT_BOLD_ITALIC
 
 MAX_OUTPUT_BYTES = 256 * 1024 * 1024
 MAX_CONTENT_BYTES = 32 * 1024 * 1024
@@ -130,7 +138,7 @@ def _filename_heading(spec, width):
     from reportlab.lib.styles import ParagraphStyle
     company = spec.get('company') or {'name': 'CEASEFIRE', 'abn': '50 612 231 562', 'phone': '1300 92 62 88', 'email': 'sales@ceasefire.com.au'}
     contacts = ' | '.join([company.get('name', '')] + [f'{label}: {company[key]}' for key, label in (('abn', 'ABN'), ('phone', 'Phone'), ('email', 'Email')) if company.get(key)])
-    paragraph = Paragraph(_text(spec['document']['name']) + '<br/>' + _text(contacts), ParagraphStyle('Source', fontName='ExportVera', fontSize=7, leading=9))
+    paragraph = Paragraph(_text(spec['document']['name']) + '<br/>' + _text(contacts), ParagraphStyle('Source', fontName=FONT_REGULAR, fontSize=7, leading=9))
     _, height = paragraph.wrap(width-36, 1000)
     return paragraph, height
 
@@ -154,9 +162,9 @@ def _paint_legend(pdf, rows, width, height, spec, page_number, *, continuation=F
     lw, lh = logo.getSize(); ratio = min(120/lw, 28/lh)
     pdf.setFillColor(HexColor('#FFFFFF')); pdf.rect(0, 0, width, height, stroke=0, fill=1)
     pdf.drawImage(logo, 18, height-40, width=lw*ratio, height=lh*ratio, mask='auto')
-    pdf.setFont('ExportVeraBold', 9); pdf.setFillColor(HexColor('#151515'))
+    pdf.setFont(FONT_BOLD, 9); pdf.setFillColor(HexColor('#151515'))
     pdf.drawString(155, height-22, 'TAKEOFF LEGEND' + (' - CONTINUED' if continuation else ''))
-    pdf.setFont('ExportVera', 7)
+    pdf.setFont(FONT_REGULAR, 7)
     pdf.drawString(155, height-35, f"Source page {page_number} of {len(spec['document']['pages'])} | {spec['mode'].title()} | Revision {spec['revision']}")
     filename, heading_height = _filename_heading(spec, width)
     filename.drawOn(pdf, 18, height-45-heading_height)
@@ -181,9 +189,9 @@ def _paint_legend(pdf, rows, width, height, spec, page_number, *, continuation=F
         paragraph.drawOn(pdf, 42, y-(row_height-12))
         y -= row_height
     if visual_label and has_marks:
-        pdf.setFont('ExportVera', 7); pdf.setFillColor(HexColor('#151515'))
+        pdf.setFont(FONT_REGULAR, 7); pdf.setFillColor(HexColor('#151515'))
         pdf.drawString(18, 26, visual_label + '; excluded from measurement register.')
-    pdf.setFont('ExportVera', 6); pdf.setFillColor(HexColor('#555555'))
+    pdf.setFont(FONT_REGULAR, 6); pdf.setFillColor(HexColor('#555555'))
     pdf.drawString(18, 14, 'Derived marked drawing. Original PDF retained unchanged. Unconfirmed marks are drafts; technical suitability requires separate assessment.')
 
 
@@ -211,10 +219,10 @@ def _viewer_text(pdf, text, x, y, size, colour, halo):
     """Stroke behind the literal glyphs, matching the drawing label halo."""
     from reportlab.lib.colors import HexColor
     from reportlab.pdfbase.pdfmetrics import getFont
-    if any(ord(character) not in getFont('ExportVeraBold').face.charToGlyph for character in text):
+    if any(ord(character) not in getFont(FONT_BOLD).face.charToGlyph for character in text):
         raise ValueError('A drawing label contains a character unsupported by the bundled PDF font. Edit that character before exporting; the original label is retained.')
     pdf.saveState(); pdf.setFillAlpha(1); pdf.setStrokeAlpha(1)
-    pdf.setFont('ExportVeraBold', size); pdf.setStrokeColor(HexColor('#ffffff')); pdf.setLineWidth(halo)
+    pdf.setFont(FONT_BOLD, size); pdf.setStrokeColor(HexColor('#ffffff')); pdf.setLineWidth(halo)
     stroke = pdf.beginText(x, y); stroke.setTextRenderMode(1); stroke.textOut(text)
     # Text rendering mode persists across BT/ET. Reset on this same object so
     # ReportLab emits an actual 0 Tr, rather than eliding a fresh object's
@@ -265,7 +273,7 @@ def _paint_length_additions(pdf, item, matrix, drawing_bounds, viewer_zoom=None)
         if 'anchor' not in addition:
             continue
         grouped.setdefault(tuple(addition['anchor']['point']), []).append(_addition_label(addition))
-    pdf.setLineWidth(.7); pdf.setFont('ExportVera', 7)
+    pdf.setLineWidth(.7); pdf.setFont(FONT_REGULAR, 7)
     for point, labels in grouped.items():
         x, y = transform(point, matrix)
         label_x, label_y = x+10, y-14
@@ -273,7 +281,7 @@ def _paint_length_additions(pdf, item, matrix, drawing_bounds, viewer_zoom=None)
             labels = [f'{len(labels)} Rise/Drop additions (see legend)']
         if drawing_bounds:
             left, bottom, right, top = drawing_bounds
-            width = max(stringWidth(label, 'ExportVera', 7) for label in labels)
+            width = max(stringWidth(label, FONT_REGULAR, 7) for label in labels)
             label_x = max(left+4, min(label_x, right-width-4))
             if label_y-11*(len(labels)-1) < bottom+4:
                 label_y = min(top-9, y+12+11*(len(labels)-1))
@@ -306,24 +314,24 @@ def _paint_drawing_legends(pdf, legends, matrix, viewer=False):
                 wrapped = [(colour, _physical_lines([text], max(10*scale, width-30*scale), font_size)) for colour, text in lines]
                 if (sum(len(values) for _, values in wrapped)+3)*font_size*1.3 < height-12*scale: break
                 font_size *= .9
-            pdf.setFillAlpha(1); pdf.setFillColor(HexColor(style['font_color'])); pdf.setFont('ExportVeraBold', font_size)
+            pdf.setFillAlpha(1); pdf.setFillColor(HexColor(style['font_color'])); pdf.setFont(FONT_BOLD, font_size)
             pdf.drawString(x+8*scale, top-8*scale-font_size, legend['mode'].title() + ' Legend')
             y = top-8*scale-font_size*2.5
             for colour, values in wrapped:
                 pdf.setFillColor(HexColor(colour)); pdf.rect(x+8*scale, y-font_size*.2, font_size, font_size, stroke=0, fill=1)
-                pdf.setFillColor(HexColor(style['font_color'])); pdf.setFont('ExportVera', font_size)
+                pdf.setFillColor(HexColor(style['font_color'])); pdf.setFont(FONT_REGULAR, font_size)
                 for value in values:
                     pdf.drawString(x+12*scale+font_size, y, value); y -= font_size*1.3
             pdf.restoreState(); continue
         font_size = 9 * scale; padding = min(8 * scale, width/10, height/10)
         for _ in range(40):
-            paragraphs = [Paragraph(_text(text), ParagraphStyle('DrawingLegend', fontName='ExportVera',
+            paragraphs = [Paragraph(_text(text), ParagraphStyle('DrawingLegend', fontName=FONT_REGULAR,
                 fontSize=font_size, leading=font_size*1.3, textColor=HexColor(style['font_color']))) for _, text in lines]
             sizes = [paragraph.wrap(max(.1, width-3*padding-font_size), height)[1] for paragraph in paragraphs]
             if sum(sizes) + font_size*2 + max(0, len(lines)-1)*font_size*.3 + padding*2 <= height:
                 break
             font_size *= .9
-        pdf.setFillAlpha(1); pdf.setFillColor(HexColor(style['font_color'])); pdf.setFont('ExportVeraBold', font_size)
+        pdf.setFillAlpha(1); pdf.setFillColor(HexColor(style['font_color'])); pdf.setFont(FONT_BOLD, font_size)
         pdf.drawString(x+padding, top-padding-font_size, legend['mode'].title() + ' Legend')
         y = top-padding-font_size*2
         for (colour, _), paragraph, needed in zip(lines, paragraphs, sizes):
@@ -339,11 +347,11 @@ def _physical_lines(summary, width, font_size):
     for paragraph in summary:
         if not paragraph:
             continue
-        line = ''; font = 'ExportVera' if lines else 'ExportVeraBold'
+        line = ''; font = FONT_REGULAR if lines else FONT_BOLD
         for word in paragraph.split():
             candidate = f'{line} {word}' if line else word
             if line and stringWidth(candidate, font, font_size) > width:
-                lines.append(line); line = ''; font = 'ExportVera'
+                lines.append(line); line = ''; font = FONT_REGULAR
             part = ''
             for character in word:
                 if part and stringWidth(part+character, font, font_size) > width:
@@ -395,7 +403,7 @@ def _paint_physical_callout(pdf, item, point, center, matrix, bounds, zoom):
     pdf.roundRect(x,y,width,height,3*factor,stroke=int(style.get('stroke_enabled', True)),fill=int(style['fill_enabled']))
     pdf.setFillAlpha(1);pdf.setFillColor(HexColor(style['font_color']))
     for index,line in enumerate(lines):
-        pdf.setFont('ExportVeraBold' if index == 0 else 'ExportVera',font_size)
+        pdf.setFont(FONT_BOLD if index == 0 else FONT_REGULAR,font_size)
         pdf.drawString(x+padding,y+height-padding-font_size-index*font_size*1.3,line)
 
 
@@ -415,7 +423,7 @@ def _annotation_lines(content, width, font_size, label='free call-out'):
             if character == '\n':
                 lines.append(line); line, used = [], 0
                 continue
-            font = 'ExportVeraBold' if bold else 'ExportVera'
+            font = (FONT_BOLD_ITALIC if bold else FONT_ITALIC) if italic else (FONT_BOLD if bold else FONT_REGULAR)
             if ord(character) not in getFont(font).face.charToGlyph:
                 raise ValueError(f'A {label} contains a character unsupported by the drawing PDF font. Edit that character before exporting; its original text is retained.')
             key = (character, font)
@@ -464,11 +472,7 @@ def _paint_annotations(pdf, annotations, matrix, bounds):
             cursor, baseline = x+padding, y+height-padding-font_size-index*font_size*1.3
             for character, font, italic, underline, advance in line:
                 pdf.saveState(); pdf.setFont(font, font_size)
-                if italic:
-                    pdf.translate(cursor, baseline); pdf.transform(1, 0, .18, 1, 0, 0)
-                    pdf.drawString(0, 0, character)
-                else:
-                    pdf.drawString(cursor, baseline, character)
+                pdf.drawString(cursor, baseline, character)
                 pdf.restoreState()
                 if underline:
                     pdf.setStrokeColor(HexColor(style['font_color'])); pdf.setLineWidth(max(.25, font_size/18))
@@ -586,7 +590,7 @@ def _paint_graphics(pdf, graphics, matrix, bounds):
                               width=image_width, height=image_height, mask='auto')
             elif kind in ('textbox', 'stamp'):
                 padding = min(6, width/8, height/8)
-                font = 'ExportVeraBold' if kind == 'stamp' else 'ExportVera'
+                font = FONT_BOLD if kind == 'stamp' else FONT_REGULAR
                 # This worker also runs as an isolated standalone script.
                 size = style['font_size'] * graphic['geometry'].get('text_scale', 1)
                 rich = kind == 'textbox' and 'text_content' in graphic
@@ -605,11 +609,7 @@ def _paint_graphics(pdf, graphics, matrix, bounds):
                         cursor = padding
                         for character, run_font, italic, underline, advance in line:
                             pdf.saveState(); pdf.setFont(run_font, size)
-                            if italic:
-                                pdf.translate(cursor, y); pdf.transform(1, 0, .18, 1, 0, 0)
-                                pdf.drawString(0, 0, character)
-                            else:
-                                pdf.drawString(cursor, y, character)
+                            pdf.drawString(cursor, y, character)
                             pdf.restoreState()
                             if underline:
                                 pdf.setStrokeColor(HexColor(style['font_color'])); pdf.setLineWidth(max(.25, size/18))
@@ -620,7 +620,7 @@ def _paint_graphics(pdf, graphics, matrix, bounds):
                     else:
                         pdf.drawString(padding, y, line)
         elif kind == 'count':
-            pdf.setFont('ExportVera', style['font_size'])
+            pdf.setFont(FONT_REGULAR, style['font_size'])
             for index, (point, length) in enumerate(zip(geometry['points'], geometry['lengths_m']), 1):
                 x, y = transform(point, matrix)
                 pdf.setFillColor(HexColor(style['fill_color']))
@@ -661,14 +661,14 @@ def _paint_graphics(pdf, graphics, matrix, bounds):
                 else:
                     label = 'Scale needs review'
                 x, y = transform(result['label_point_pdf'], matrix) if kind == 'area' and result['label_point_pdf'] is not None else placed[len(placed)//2]
-                size = style['font_size']; label_width = stringWidth(label, 'ExportVera', size)
+                size = style['font_size']; label_width = stringWidth(label, FONT_REGULAR, size)
                 if label_width+4 > right-left or size+4 > top-bottom:
                     raise ValueError('The PDF measurement label does not fit the source page at the selected font size.')
                 x = max(left+2, min(x-label_width/2, right-label_width-2))
                 y = max(bottom+2, min(y+size*.5, top-size-2))
                 pdf.setFillColor(HexColor('#FFFFFF')); pdf.setFillAlpha(1)
                 pdf.rect(x-2, y-2, label_width+4, size+4, stroke=0, fill=1)
-                pdf.setFillColor(HexColor(style['font_color'])); pdf.setFillAlpha(style['opacity']); pdf.setFont('ExportVera', size)
+                pdf.setFillColor(HexColor(style['font_color'])); pdf.setFillAlpha(style['opacity']); pdf.setFont(FONT_REGULAR, size)
                 pdf.drawString(x, y, label)
         pdf.restoreState()
 
@@ -698,7 +698,7 @@ def _paint_markups(pdf, items, matrix, drawing_bounds=None, physical_zoom=None, 
                     _paint_count_marker(pdf,center,physical_style)
                     continue
                 _paint_count_marker(pdf, center, style)
-                pdf.setFillColor(HexColor(style['stroke_color'])); pdf.setFont('ExportVeraBold', 8)
+                pdf.setFillColor(HexColor(style['stroke_color'])); pdf.setFont(FONT_BOLD, 8)
                 if item['mode'] == 'penetrations':
                     from reportlab.pdfbase.pdfmetrics import stringWidth
                     summary = item['physical_summary']
@@ -726,7 +726,7 @@ def _paint_markups(pdf, items, matrix, drawing_bounds=None, physical_zoom=None, 
                         font_size = 7
                         for _ in range(20):
                             paragraph = Paragraph('<br/>'.join(_text(label) for label in labels),
-                                ParagraphStyle('PhysicalCallout', fontName='ExportVera', fontSize=font_size,
+                                ParagraphStyle('PhysicalCallout', fontName=FONT_REGULAR, fontSize=font_size,
                                     leading=font_size*1.25, textColor=HexColor(callout_style['font_color'])))
                             _, needed = paragraph.wrap(max(.1, width-2*padding), max(.1, height-2*padding))
                             if needed <= height-2*padding:
@@ -747,13 +747,13 @@ def _paint_markups(pdf, items, matrix, drawing_bounds=None, physical_zoom=None, 
                     available = max(20, min(240, right-left-12))
                     fitted = []
                     for label in labels:
-                        while label and stringWidth(label, 'ExportVera', 7) > available:
+                        while label and stringWidth(label, FONT_REGULAR, 7) > available:
                             label = label[:-1]
                         fitted.append(label)
                     label_x = max(left+4, min(center[0]+12, right-available-4))
                     label_y = max(bottom+10*len(fitted), min(center[1]+12, top-12))
                     pdf.line(center[0], center[1], label_x, label_y)
-                    pdf.setFont('ExportVera', 7)
+                    pdf.setFont(FONT_REGULAR, 7)
                     for line_index, label in enumerate(fitted):
                         pdf.drawString(label_x, label_y-10*line_index, label)
                 elif viewer_zoom is None:
@@ -773,7 +773,7 @@ def _paint_markups(pdf, items, matrix, drawing_bounds=None, physical_zoom=None, 
                 path.close()
         pdf.drawPath(path, stroke=int(style.get('stroke_enabled', True)), fill=int(area and style['fill_enabled']), fillMode=0)
         x, y = transform(points[0], matrix)
-        pdf.setFillAlpha(style['opacity']); pdf.setFillColor(HexColor(style['stroke_color'])); pdf.setFont('ExportVeraBold', 8)
+        pdf.setFillAlpha(style['opacity']); pdf.setFillColor(HexColor(style['stroke_color'])); pdf.setFont(FONT_BOLD, 8)
         # The complete human identifier remains in the wrapped legend. A compact
         # ordinal on the drawing avoids obscuring geometry with long identifiers.
         if viewer_zoom is None:
@@ -798,12 +798,12 @@ def _paint_value_labels(pdf, item, matrix, bounds, viewer_zoom=None):
         if viewer_zoom is not None:
             area = label['kind'] == 'area'; size = (13 if area else 12)/viewer_zoom
             if area: text = text.rsplit(' ', 1)[0] + ' Sqm'
-            width = stringWidth(text, 'ExportVeraBold', size)
+            width = stringWidth(text, FONT_BOLD, size)
             x += item['appearance'].get('marker_size', 12)/2+5/viewer_zoom if label['kind'] == 'cited-count' else -width/2
             y += ((8 if label['kind'] == 'cited-count' else 10)/viewer_zoom if not area else 0) - size*.3
             _viewer_text(pdf, text, x, y, size, '#18384e' if area else item['appearance'].get('font_color', item['appearance']['stroke_color']), 4/viewer_zoom)
             continue
-        width = stringWidth(text, 'ExportVeraBold', 8)
+        width = stringWidth(text, FONT_BOLD, 8)
         x += item['appearance'].get('marker_size', 12)/2+5 if label['kind'] == 'cited-count' else -width/2
         y += 9
         if bounds:
@@ -811,7 +811,7 @@ def _paint_value_labels(pdf, item, matrix, bounds, viewer_zoom=None):
             x, y = max(left+2, min(x, right-width-2)), max(bottom+2, min(y, top-10))
         pdf.setFillAlpha(1); pdf.setFillColor(HexColor('#FFFFFF'))
         pdf.rect(x-1, y-1, width+2, 10, stroke=0, fill=1)
-        pdf.setFillColor(HexColor(item['appearance'].get('font_color', item['appearance']['stroke_color']))); pdf.setFont('ExportVeraBold', 8)
+        pdf.setFillColor(HexColor(item['appearance'].get('font_color', item['appearance']['stroke_color']))); pdf.setFont(FONT_BOLD, 8)
         pdf.drawString(x, y, text)
 
 
@@ -830,13 +830,7 @@ def _invisible_link(annotation):
 
 def register_drawing_fonts(physical=False):
     """The identical layout/export glyph contract, without reading a PDF."""
-    import reportlab
-    from reportlab.pdfbase import pdfmetrics
-    from reportlab.pdfbase.ttfonts import TTFont
-    font_dir = Path(__file__).resolve().parent.parent / 'static' / 'fonts' if physical else Path(reportlab.__file__).resolve().parent / 'fonts'
-    for name, filename in (('ExportVera', 'Vera.ttf'), ('ExportVeraBold', 'VeraBd.ttf')):
-        if name not in pdfmetrics.getRegisteredFontNames(): pdfmetrics.registerFont(TTFont(name, str(font_dir / filename)))
-    pdfmetrics.registerFontFamily('ExportVera', normal='ExportVera', bold='ExportVeraBold')
+    pdf_fonts.register_pdf_fonts()
 
 
 def render_document(source, spec, output, *, writer=None, progress=None):
@@ -848,7 +842,7 @@ def render_document(source, spec, output, *, writer=None, progress=None):
     physical = bool(spec.get('physical_drawing'))
     viewer = 'viewer_rendering' in spec
     register_drawing_fonts(physical)
-    style = ParagraphStyle('Legend', fontName='ExportVera', fontSize=8, leading=10, textColor=HexColor('#151515'))
+    style = ParagraphStyle('Legend', fontName=FONT_REGULAR, fontSize=8, leading=10, textColor=HexColor('#151515'))
     reader = PdfReader(source, strict=True); shared_writer = writer is not None
     writer = writer if shared_writer else PdfWriter(); total_content = 0
     if reader.is_encrypted: raise ValueError('Encrypted source PDFs cannot be exported.')
@@ -896,7 +890,7 @@ def render_document(source, spec, output, *, writer=None, progress=None):
         for key in ('/Annots', '/AA', '/OpenAction', '/Metadata', '/Rotate', '/UserUnit'):
             drawing.pop(NameObject(key), None)
         page.merge_transformed_page(drawing, matrix, over=True, expand=False)
-        overlay = BytesIO(); pdf = canvas.Canvas(overlay, pagesize=(width, height), pageCompression=1, invariant=True)
+        overlay = BytesIO(); pdf = canvas.Canvas(overlay, pagesize=(width, height), pageCompression=1, invariant=True, initialFontName=FONT_REGULAR)
         drawing_left = (width-drawing_width)/2
         _paint_markups(pdf, page_items, matrix,
                        (drawing_left, legend_height, drawing_left+drawing_width, height),
@@ -918,7 +912,7 @@ def render_document(source, spec, output, *, writer=None, progress=None):
             while remaining and used+remaining[0][2] <= 810:
                 row = remaining.pop(0); group.append(row); used += row[2]
             if not group: raise ValueError('A markup legend row is too long to fit safely.')
-            overlay = BytesIO(); pdf = canvas.Canvas(overlay, pagesize=(width, 842), pageCompression=1, invariant=True)
+            overlay = BytesIO(); pdf = canvas.Canvas(overlay, pagesize=(width, 842), pageCompression=1, invariant=True, initialFontName=FONT_REGULAR)
             _paint_legend(pdf, group, width, 842, spec, index+1, continuation=True); pdf.save(); overlay.seek(0)
             extra = writer.add_page(PdfReader(overlay).pages[0]); extra.compress_content_streams(level=9)
         if len(writer.pages) > 4000: raise ValueError('The marked PDF exceeds its output page limit.')

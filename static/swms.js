@@ -26,6 +26,22 @@
     result.addEventListener("click", () => Promise.resolve(action()).catch(error => notice(error.message, true)));
     return result;
   }
+  function personAction(label, action, kind) {
+    const result = button("", action, kind === "add");
+    result.classList.add("icon-only"); result.title = label; result.setAttribute("aria-label", label);
+    window.CeasefireI18n?.attr(result, "title", label); window.CeasefireI18n?.attr(result, "aria-label", label);
+    if (kind === "signature") {
+      result.classList.add("takeoff-icon-button", "takeoff-signature-button");
+      const symbol = element("span", "takeoff-action-icon takeoff-signature-icon"); symbol.setAttribute("aria-hidden", "true"); result.append(symbol);
+    } else if (kind === "add") {
+      result.classList.add("penetration-new-item-action");
+      const symbol = element("span", "button-symbol", "+"); symbol.setAttribute("aria-hidden", "true"); result.append(symbol);
+    } else {
+      // Reuse the application's existing trash-can artwork.
+      result.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"></path></svg>';
+    }
+    return result;
+  }
   function control(value, update, type = "text") {
     const result = element(type === "textarea" ? "textarea" : "input");
     if (type !== "textarea") result.type = type;
@@ -244,12 +260,12 @@
         path.setAttribute("fill", "none"); path.setAttribute("stroke", "currentColor"); path.setAttribute("stroke-width", "1.5"); svg.append(path);
       }); host.append(svg);
     } else host.append(element("span", "muted", "Not signed"));
-    host.append(button(value ? "Replace signature" : "Draw signature", async () => {
+    host.append(personAction(value ? "Replace signature" : "Draw signature", async () => {
       if (state.busy) return;
       const current = guard(), editor = state.editor;
       const result = await chooseSignature();
       if (result && current() && editor === state.editor) { update(result); dirty(); host.replaceWith(signature(result, update, label)); }
-    }));
+    }, "signature"));
     if (value) host.append(button("Clear signature", () => { update(null); dirty(); host.replaceWith(signature(null, update, label)); }));
     return host;
   }
@@ -271,13 +287,13 @@
         if (key === "signoffs" && person.latitude && person.longitude && Number.isFinite(Number(person.latitude)) && Number.isFinite(Number(person.longitude))) {
           const link = element("a", "button secondary", "View map"); link.href = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(person.latitude)}&mlon=${encodeURIComponent(person.longitude)}#map=17/${encodeURIComponent(person.latitude)}/${encodeURIComponent(person.longitude)}`; link.target = "_blank"; link.rel = "noopener noreferrer"; row.append(link);
         }
-        row.append(button("Remove person", () => { fields[key].splice(index, 1); dirty(); queuePeople(key); render(); })); list.append(row);
+        row.append(personAction("Remove person", () => { fields[key].splice(index, 1); dirty(); queuePeople(key); render(); }, "remove")); list.append(row);
       });
     }
-    box.append(list, button("Add person", () => {
+    box.append(list, personAction("Add person", () => {
       if (fields[key].length >= 100) throw new Error("This section supports up to 100 people.");
       fields[key].push(key === "signoffs" ? { name: "", company: "", signature: null, date: "", time: "", latitude: "", longitude: "" } : key === "site_signoffs" ? { name: "", signature: null } : { name: "", position: "", signature: null }); dirty(); queuePeople(key); render();
-    }));
+    }, "add"));
     if (key === "signoffs") box.append(element("p", "muted", "Record sign-offs here using the signature pad. A location map opens only when you select View map."));
     render(); host.append(box);
   }

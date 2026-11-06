@@ -98,6 +98,55 @@ class SwmsTests(unittest.TestCase):
         with self.assertRaises(SwmsConflict):
             self.service.save(self.workspace, payload)
 
+    def test_people_defaults_persist_across_projects_without_rewriting_saved_statements(self):
+        original = self.payload()
+        self.service.save(self.workspace, original)
+        snapshot = self.service.capture(self.workspace)
+        people = [{'name': 'Reviewer <literal>', 'position': 'Supervisor',
+                   'signature': {'version': 1, 'ratio': 3, 'strokes': [[[0, .5], [1, .8]]]}}]
+        saved = self.service.save_people_defaults(self.workspace, 'reviewers', people, 1)
+        self.assertEqual(saved['version'], 2)
+        self.assertEqual(self.service.save_people_defaults(self.workspace, 'reviewers', people, 1), saved)
+        other = self.projects.add()
+        restarted = SwmsDocuments(self.projects)
+        adapter = SwmsHTTP(restarted, company=DEFAULTS)
+        handler = Handler({'workspace_id': other, 'details': {'project_no': 'NEW-PROJECT'}})
+        handler.path = '/api/swms/defaults'
+        adapter.dispatch(handler, handler.path)
+        self.assertEqual(handler.result[0], 200)
+        self.assertEqual(handler.result[1]['fields']['reviewers'], people)
+        self.assertEqual(handler.result[1]['fields']['details']['job_reference'], 'NEW-PROJECT')
+        self.assertEqual(restarted.capture(self.workspace), snapshot)
+        restored = self.projects.add(snapshot['project_id'])
+        restarted.restore(restored, snapshot)
+        self.assertEqual(restarted.people_defaults()['reviewers'], saved)
+        cleared = restarted.save_people_defaults(other, 'reviewers', [], 2)
+        self.assertEqual(cleared, {'version': 3, 'rows': []})
+        self.assertEqual(SwmsDocuments(self.projects).people_defaults()['reviewers'], cleared)
+        self.assertEqual(restarted.people_defaults()['consultation']['version'], 1)
+
+    def test_people_defaults_validate_capability_versions_signatures_and_payload_bounds(self):
+        people = [{'name': 'A', 'position': 'B', 'signature': None}]
+        self.service.save_people_defaults(self.workspace, 'reviewers', people, 1)
+        with self.assertRaises(SwmsConflict):
+            self.service.save_people_defaults(self.workspace, 'reviewers', [], 1)
+        with self.assertRaises(ValidationError):
+            self.service.save_people_defaults(str(uuid.uuid4()), 'consultation', people, 1)
+        for key, rows, version in [('signoffs', people, 1), ('reviewers', people, True),
+                                   ('reviewers', [{'name': 'A', 'position': 'B', 'signature': None, 'extra': ''}], 2),
+                                   ('reviewers', people * 101, 2),
+                                   ('reviewers', [{'name': 'A', 'position': 'B', 'signature': {'version': 1, 'ratio': 3, 'strokes': [[[2, 0]]]}}], 2)]:
+            with self.assertRaises(ValidationError):
+                self.service.save_people_defaults(self.workspace, key, rows, version)
+        huge = [{'name': 'A', 'position': 'B', 'signature': {'version': 1, 'ratio': 3, 'strokes': [[[.123456, .654321]] * 4000]}}] * 100
+        with self.assertRaisesRegex(ValidationError, '1 MiB'):
+            self.service.save_people_defaults(self.workspace, 'reviewers', huge, 2)
+        adapter = SwmsHTTP(self.service)
+        handler = Handler({'workspace_id': self.workspace, 'section': 'consultation', 'rows': [], 'expected_version': 1})
+        handler.path = '/api/swms/people-defaults'; handler.headers['Sec-Fetch-Site'] = 'cross-site'
+        adapter.dispatch(handler, handler.path)
+        self.assertEqual(handler.result[0], 400)
+
     def test_high_risk_template_tables_and_legacy_snapshot_roundtrip(self):
         fields = default_fields()
         tables = fields['high_risk_steps']
@@ -267,7 +316,15 @@ class SwmsPdfTests(unittest.TestCase):
             self.assertGreater(float(page.mediabox.width), float(page.mediabox.height))
             text = page.extract_text()
             self.assertIn(f'Page {index} of 13', text)
-            self.assertEqual(text.count('Printed version is uncontrolled'), 1)
+            self.assertNotIn('Printed version is uncontrolled', text)
+            self.assertNotIn('Filepath:', text)
+            self.assertNotIn('Form Version:', text)
+            self.assertIn(DEFAULTS['name'], text)
+            self.assertIn(DEFAULTS['abn'], text)
+            positions = []
+            page.extract_text(visitor_text=lambda text, cm, tm, font, size: positions.append((text, cm[4] + tm[4])) if text.startswith('Page ') else None)
+            self.assertEqual(len(positions), 1)
+            self.assertAlmostEqual(positions[0][1], 39, places=1)
             if 7 <= index <= 10:
                 self.assertIn('Responsible Person', text)
         text = '\n'.join(page.extract_text() for page in reader.pages)
@@ -278,7 +335,7 @@ class SwmsPdfTests(unittest.TestCase):
         self.assertNotIn('Template ID', text)
         self.assertNotIn('Template Version', text)
         self.assertNotIn('Employees Sign-Off', text)
-        self.assertIn('Form Version: 3', text)
+        self.assertNotIn('Form Version: 3', text)
 
     def test_only_selected_high_risk_tables_export_with_saved_edits(self):
         fields = default_fields()

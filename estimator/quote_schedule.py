@@ -31,7 +31,7 @@ def quote_schedule_table(report, headings, rows, widths, page_height):
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#bd0018')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('GRID', (0, 0), (-1, -1), .4, colors.black),
+        ('GRID', (0, 0), (-1, -1), .4, colors.HexColor('#bd0018')),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('LEFTPADDING', (0, 0), (-1, -1), padding),

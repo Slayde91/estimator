@@ -83,7 +83,8 @@ def _styles(*, quote=False):
         'terms': ParagraphStyle('CommercialTerms', fontName='CeasefireVera', fontSize=8, leading=11.5, spaceAfter=5),
         'head': ParagraphStyle('CommercialHead', fontName='CeasefireVeraBold', fontSize=8, leading=11,
                                textColor=colors.white if quote else colors.black),
-        'field': ParagraphStyle('CommercialField', fontName='CeasefireVeraBold', fontSize=7, leading=10),
+        'field': ParagraphStyle('CommercialField', fontName='CeasefireVeraBold', fontSize=7, leading=10,
+                                textColor=colors.white if quote else colors.black),
     }
 
 
@@ -111,19 +112,25 @@ def _table(headers, rows, styles, widths=None):
     count = len(headers) if headers else len(rows[0])
     result = LongTable(data, colWidths=widths or [WIDTH / count] * count, repeatRows=1 if headers else 0, hAlign='LEFT')
     commands = [
-        ('GRID', (0, 0), (-1, -1), .4, colors.black if styles['quote'] else colors.HexColor('#cccccc')),
+        ('GRID', (0, 0), (-1, -1), .4, RED if styles['quote'] else colors.HexColor('#cccccc')),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('LEFTPADDING', (0, 0), (-1, -1), 7), ('RIGHTPADDING', (0, 0), (-1, -1), 7),
         ('TOPPADDING', (0, 0), (-1, -1), 6), ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
     ]
     if headers:
         commands.append(('BACKGROUND', (0, 0), (-1, 0), RED if styles['quote'] else colors.HexColor('#eeeeee')))
+    elif styles['quote']:
+        commands.append(('BACKGROUND', (0, 0), (0, -1), RED))
     result.setStyle(TableStyle(commands))
     return result
 
 
 def _section(story, title, styles):
     story.append(_paragraph(title, styles['section']))
+    if styles['quote'] and title in {'QUOTE SUMMARY', 'SCHEDULE OF RATES', 'SCOPE OF WORKS', 'ALLOWANCES'}:
+        rule = HRFlowable(width=WIDTH, thickness=1, color=RED, spaceAfter=8)
+        rule.keepWithNext = True
+        story.append(rule)
 
 
 def _fields(story, pairs, styles):
@@ -150,7 +157,6 @@ def _totals(story, fields, styles):
 
 def _rates(story, schedule, styles):
     _section(story, 'SCHEDULE OF RATES', styles)
-    story.append(HRFlowable(width=WIDTH, thickness=1, color=RED, spaceAfter=8))
     story.append(_paragraph(schedule['introduction'], styles['body']))
     rates = schedule['rates']
     for key, label, suffix in [
@@ -169,10 +175,10 @@ def _rates(story, schedule, styles):
     for labels in [(('accepted_by', 'Accepted by'), ('title', 'Title')), (('signature', 'Signature'), ('date', 'Date'))]:
         cells.append([[Paragraph('<b>' + label + '</b>', styles['small']),
                        _paragraph(acceptance[key], styles['body']), Spacer(1, 13),
-                       HRFlowable(width=WIDTH / 2 - 18, thickness=.5, color=colors.black)]
+                       HRFlowable(width=WIDTH / 2 - 18, thickness=.5, color=RED)]
                       for key, label in labels])
     table = Table(cells, colWidths=[WIDTH / 2] * 2)
-    table.setStyle(TableStyle([('GRID', (0, 0), (-1, -1), .6, colors.black),
+    table.setStyle(TableStyle([('GRID', (0, 0), (-1, -1), .4, RED),
                               ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                               ('TOPPADDING', (0, 0), (-1, -1), 8),
                               ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
@@ -229,7 +235,7 @@ def _terms_pdf(text, document, number, company):
                 style.bulletFontName, style.bulletFontSize = 'CommercialMontserratBold', 9
                 bullet = label
                 if heading:
-                    style.textColor = colors.HexColor('#f47721')
+                    style.textColor = RED
                     style.fontName = 'CommercialMontserratBold'
                     style.keepWithNext = True
                     style.spaceBefore = 4
@@ -238,24 +244,21 @@ def _terms_pdf(text, document, number, company):
                 style.bulletFontName, style.bulletFontSize = 'CommercialMontserratRegular', 9
                 bullet = '\u2022'
         if disclosure_heading:
-            markup = '<font color="#f47721"><b>Our Disclosures:</b></font> ' + markup
+            markup = '<font color="#bd0018"><b>Our Disclosures:</b></font> ' + markup
             disclosure_heading = False
         story.append(Paragraph(markup, style, bulletText=bullet))
     if disclosure_heading:
-        story.append(Paragraph('<font color="#f47721"><b>Our Disclosures:</b></font>', base))
+        story.append(Paragraph('<font color="#bd0018"><b>Our Disclosures:</b></font>', base))
     if not story:
         return None
     output = BytesIO()
-    margin, gap, top, bottom = 40.6, 8.7, 84, 48
+    margin, gap, top, bottom = 40.6, 8.7, 96, 48
     column = (A4[0] - margin * 2 - gap) / 2
     frames = [Frame(margin + index * (column + gap), bottom, column, A4[1] - top - bottom,
                     leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0, id=f'terms-{index}') for index in range(2)]
     logo = company_logo(company)
     def header(page, doc):
-        image_width, image_height = logo.getSize()
-        scale = min(240 / image_width, 56 / image_height)
-        page.drawImage(logo, (A4[0] - image_width * scale) / 2, A4[1] - 12 - image_height * scale,
-                       width=image_width * scale, height=image_height * scale, mask='auto')
+        _company_header(page, logo, A4[0], A4[1], 36, '', company=company)
     pdf = BaseDocTemplate(output, pagesize=A4, title='Terms and Conditions ' + number, author=company.get('name', ''))
     pdf.addPageTemplates(PageTemplate(id='trade-terms', frames=frames, onPage=header))
     pdf.build(story)

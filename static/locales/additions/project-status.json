@@ -1,0 +1,27 @@
+{
+  "Project status": [
+    "프로젝트 상태",
+    "Katayuan ng proyekto",
+    "Trạng thái dự án"
+  ],
+  "Review": [
+    "검토",
+    "Pagsusuri",
+    "Xem xét"
+  ],
+  "Presented": [
+    "제안 완료",
+    "Naipresenta",
+    "Đã trình bày"
+  ],
+  "Accepted": [
+    "수락됨",
+    "Tinanggap",
+    "Đã chấp nhận"
+  ],
+  "Lost": [
+    "수주 실패",
+    "Hindi nakuha",
+    "Không trúng"
+  ]
+}

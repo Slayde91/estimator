@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const state = { workspace: null, model: null, editor: null, options: null, busy: false, dirty: false, changed: false, revision: 0, search: "" };
+  const state = { workspace: null, model: null, editor: null, options: null, busy: false, dirty: false, changed: false, revision: 0, search: "", peopleDefaults: null, peopleDesired: {}, peopleSaving: null, peopleTimer: null, peopleError: null, peopleSeedEligible: true };
   const copy = value => JSON.parse(JSON.stringify(value));
   const root = () => document.getElementById("swms-root");
   const workspace = () => window.CeasefireCertification?.sessionId?.();
@@ -13,7 +13,10 @@
   };
   function notice(text, error = false) {
     const target = root()?.querySelector(".swms-message");
-    if (target) { target.textContent = text; target.hidden = !text; target.classList.toggle("error", error); }
+    if (target) {
+      target.textContent = text; target.hidden = !text; target.classList.toggle("error", error);
+      if (error && state.peopleError?.status === 409) target.append(document.createTextNode(" "), button("Keep saved defaults", keepPeopleDefaults));
+    }
   }
   function changed() { state.changed = true; window.CeasefireProject?.changed?.(); }
   function dirty() { state.dirty = true; if (state.editor) state.editor.pendingIssue = null; window.CeasefireProject?.changed?.(); }
@@ -21,6 +24,22 @@
     const result = element("button", `button ${primary ? "primary" : "secondary"}`, label);
     result.type = "button";
     result.addEventListener("click", () => Promise.resolve(action()).catch(error => notice(error.message, true)));
+    return result;
+  }
+  function personAction(label, action, kind) {
+    const result = button("", action, kind === "add");
+    result.classList.add("icon-only"); result.title = label; result.setAttribute("aria-label", label);
+    window.CeasefireI18n?.attr(result, "title", label); window.CeasefireI18n?.attr(result, "aria-label", label);
+    if (kind === "signature") {
+      result.classList.add("takeoff-icon-button", "takeoff-signature-button");
+      const symbol = element("span", "takeoff-action-icon takeoff-signature-icon"); symbol.setAttribute("aria-hidden", "true"); result.append(symbol);
+    } else if (kind === "add") {
+      result.classList.add("penetration-new-item-action");
+      const symbol = element("span", "button-symbol", "+"); symbol.setAttribute("aria-hidden", "true"); result.append(symbol);
+    } else {
+      // Reuse the application's existing trash-can artwork.
+      result.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"></path></svg>';
+    }
     return result;
   }
   function control(value, update, type = "text") {
@@ -64,7 +83,7 @@
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "The SWMS request failed.");
+    if (!response.ok) { const error = new Error(data.error || "The SWMS request failed."); error.status = response.status; throw error; }
     return data;
   }
   function guard() {
@@ -99,6 +118,7 @@
     } catch (error) { if (revision === state.revision) notice(error.message, true); }
   }
   function renderList() {
+    clearTimeout(state.peopleTimer); state.peopleTimer = null; state.peopleDesired = {}; state.peopleError = null;
     state.editor = null; state.dirty = false;
     const host = shell("Safe Work Method Statements"), bar = element("div", "swms-toolbar");
     const search = element("input"); search.type = "search"; search.value = state.search;
@@ -121,12 +141,51 @@
     const details = window.CeasefireProject?.details?.() || {};
     return request("defaults", { workspace_id: state.workspace, details: { project_no: details.project_no || "", client: details.client || "", site_address: details.site_address || "" } });
   }
+  function queuePeople(key) {
+    if (!["reviewers", "consultation"].includes(key)) return;
+    state.peopleDesired[key] = copy(state.editor.fields[key]);
+    clearTimeout(state.peopleTimer);
+    state.peopleTimer = setTimeout(() => flushPeopleDefaults().catch(error => notice(error.message, true)), 350);
+  }
+  function peoplePending() { return !!state.peopleSaving || !!state.peopleError || !!Object.keys(state.peopleDesired).length; }
+  async function keepPeopleDefaults() {
+    if (state.busy || !state.editor) return;
+    const current = guard(), editor = state.editor; lock(true);
+    try {
+      const result = await defaults();
+      if (!current() || editor !== state.editor) return;
+      clearTimeout(state.peopleTimer); state.peopleTimer = null;
+      state.peopleDefaults = result.people_defaults; state.peopleDesired = {}; state.peopleError = null;
+      state.peopleSeedEligible = false;
+      notice("Saved defaults retained. Your statement edits are unchanged; choose Save to save this statement.");
+    } finally { if (current()) lock(false); }
+  }
+  async function flushPeopleDefaults() {
+    clearTimeout(state.peopleTimer); state.peopleTimer = null;
+    if (state.peopleSaving) return state.peopleSaving;
+    if (state.peopleError?.status === 409) throw state.peopleError;
+    const current = guard();
+    state.peopleSaving = (async () => {
+      while (Object.keys(state.peopleDesired).length) {
+          const key = Object.keys(state.peopleDesired)[0];
+          const rows = copy(state.peopleDesired[key]);
+          const saved = await request("people-defaults", {workspace_id: state.workspace, section:key, rows, expected_version:state.peopleDefaults[key].version});
+          if (!current()) return false;
+          state.peopleDefaults[key] = saved; state.peopleError = null;
+          if (JSON.stringify(state.peopleDesired[key]) === JSON.stringify(rows)) delete state.peopleDesired[key];
+      }
+      return true;
+    })();
+    try { return await state.peopleSaving; }
+    catch (error) { state.peopleError = error; throw error; }
+    finally { state.peopleSaving = null; }
+  }
   async function openNew() {
     if (state.busy) return;
     const current = guard(); lock(true);
     try {
       const result = await defaults(); if (!current()) return;
-      state.options = result.options; state.editor = { id: crypto.randomUUID(), version: 0, status: "Draft", fields: result.fields };
+      state.options = result.options; state.peopleDefaults = result.people_defaults; state.peopleSeedEligible = true; state.editor = { id: crypto.randomUUID(), version: 0, status: "Draft", fields: result.fields };
       state.dirty = true; renderEditor(); window.CeasefireProject?.changed?.();
     } finally { if (current()) lock(false); }
   }
@@ -134,7 +193,7 @@
     if (state.busy) return;
     const current = guard(); lock(true);
     try {
-      if (!state.options) { const result = await defaults(); if (!current()) return; state.options = result.options; }
+      const result = await defaults(); if (!current()) return; state.options = result.options; state.peopleDefaults = result.people_defaults; state.peopleSeedEligible = true;
       state.editor = copy(row); state.dirty = false; renderEditor();
     } finally { if (current()) lock(false); }
   }
@@ -144,11 +203,15 @@
     try { await request("delete", { workspace_id: state.workspace, id: row.id, version: row.version }); if (!current()) return; changed(); if (await load()) renderList(); }
     finally { if (current()) lock(false); }
   }
-  async function save() {
+  async function save({seedDefaults = false} = {}) {
     if (state.busy || !state.editor) return false;
-    if (!state.dirty && state.editor.version) return true;
     const current = guard(), editor = state.editor; lock(true);
     try {
+      if (seedDefaults && state.peopleSeedEligible) for (const key of ["reviewers", "consultation"]) {
+        if (state.peopleDefaults?.[key]?.version === 1) queuePeople(key);
+      }
+      if (!await flushPeopleDefaults() || !current() || editor !== state.editor) return false;
+      if (!state.dirty && editor.version) return true;
       const saved = await request("save", { workspace_id: state.workspace, id: editor.id, version: editor.version, status: editor.status, fields: editor.fields });
       if (!current() || editor !== state.editor) return false;
       state.editor = saved; state.dirty = false; changed();
@@ -197,12 +260,12 @@
         path.setAttribute("fill", "none"); path.setAttribute("stroke", "currentColor"); path.setAttribute("stroke-width", "1.5"); svg.append(path);
       }); host.append(svg);
     } else host.append(element("span", "muted", "Not signed"));
-    host.append(button(value ? "Replace signature" : "Draw signature", async () => {
+    host.append(personAction(value ? "Replace signature" : "Draw signature", async () => {
       if (state.busy) return;
       const current = guard(), editor = state.editor;
       const result = await chooseSignature();
       if (result && current() && editor === state.editor) { update(result); dirty(); host.replaceWith(signature(result, update, label)); }
-    }));
+    }, "signature"));
     if (value) host.append(button("Clear signature", () => { update(null); dirty(); host.replaceWith(signature(null, update, label)); }));
     return host;
   }
@@ -217,20 +280,20 @@
         const row = element("div", "swms-person"), grid = element("div", "swms-grid");
         Object.keys(person).filter(name => name !== "signature").forEach(name => {
           const title = name[0].toUpperCase() + name.slice(1);
-          const input = control(person[name], value => { person[name] = value; }, name === "date" ? "date" : name === "time" ? "time" : "text");
+          const input = control(person[name], value => { person[name] = value; queuePeople(key); }, name === "date" ? "date" : name === "time" ? "time" : "text");
           grid.append(field(title, input));
         });
-        row.append(grid, signature(person.signature, value => { person.signature = value; }, `${heading} ${index + 1}`));
+        row.append(grid, signature(person.signature, value => { person.signature = value; queuePeople(key); }, `${heading} ${index + 1}`));
         if (key === "signoffs" && person.latitude && person.longitude && Number.isFinite(Number(person.latitude)) && Number.isFinite(Number(person.longitude))) {
           const link = element("a", "button secondary", "View map"); link.href = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(person.latitude)}&mlon=${encodeURIComponent(person.longitude)}#map=17/${encodeURIComponent(person.latitude)}/${encodeURIComponent(person.longitude)}`; link.target = "_blank"; link.rel = "noopener noreferrer"; row.append(link);
         }
-        row.append(button("Remove person", () => { fields[key].splice(index, 1); dirty(); render(); })); list.append(row);
+        row.append(personAction("Remove person", () => { fields[key].splice(index, 1); dirty(); queuePeople(key); render(); }, "remove")); list.append(row);
       });
     }
-    box.append(list, button("Add person", () => {
+    box.append(list, personAction("Add person", () => {
       if (fields[key].length >= 100) throw new Error("This section supports up to 100 people.");
-      fields[key].push(key === "signoffs" ? { name: "", company: "", signature: null, date: "", time: "", latitude: "", longitude: "" } : key === "site_signoffs" ? { name: "", signature: null } : { name: "", position: "", signature: null }); dirty(); render();
-    }));
+      fields[key].push(key === "signoffs" ? { name: "", company: "", signature: null, date: "", time: "", latitude: "", longitude: "" } : key === "site_signoffs" ? { name: "", signature: null } : { name: "", position: "", signature: null }); dirty(); queuePeople(key); render();
+    }, "add"));
     if (key === "signoffs") box.append(element("p", "muted", "Record sign-offs here using the signature pad. A location map opens only when you select View map."));
     render(); host.append(box);
   }
@@ -293,11 +356,11 @@
   function renderEditor() {
     const editor = state.editor, fields = editor.fields, host = shell("Safe Work Method Statement"), actions = element("div", "swms-toolbar");
     const downloadButton = button("Download PDF", download, true); downloadButton.classList.add("swms-download");
-    const back = button("", () => { if (!state.busy && (!state.dirty || window.confirm("Discard unsaved SWMS edits?"))) renderList(); });
+    const back = button("", async () => { await flushPeopleDefaults().catch(error => notice(error.message, true)); if (!state.busy && (!state.dirty || window.confirm("Discard unsaved SWMS edits?"))) renderList(); });
     back.classList.add("icon-only"); back.title = "Back to statements"; back.setAttribute("aria-label", "Back to statements");
     window.CeasefireI18n?.attr(back, "title", "Back to statements"); window.CeasefireI18n?.attr(back, "aria-label", "Back to statements");
     const arrow = element("span", "button-symbol", "←"); arrow.setAttribute("aria-hidden", "true"); back.append(arrow);
-    actions.append(back, button("Save", save, true), downloadButton, element("span", "muted", editor.version ? `Revision ${editor.version}` : "New statement")); host.append(actions);
+    actions.append(back, button("Save", () => save({seedDefaults:true}), true), downloadButton, element("span", "muted", editor.version ? `Revision ${editor.version}` : "New statement")); host.append(actions);
     const identity = element("div", "swms-grid"); identity.append(field("Document title", control(fields.title, value => { fields.title = value; })), field("Status", select(state.model?.statuses || ["Draft", "Review", "Approved", "Archived"], editor.status, value => { editor.status = value; }))); host.append(identity);
     const details = section("Project Details", true), grid = element("div", "swms-grid");
     Object.entries(detailLabels).forEach(([key, label]) => grid.append(field(label, control(fields.details[key], value => { fields.details[key] = value; }, key === "date" ? "date" : "text")))); details.append(grid, element("h3", "", "Project Manager Signature"), signature(fields.manager_signature, value => { fields.manager_signature = value; }, "Project manager")); host.append(details);
@@ -336,7 +399,7 @@
   window.CeasefireSWMS = {
     activate,
     async completeProjectSnapshot() {
-      if (state.busy || state.dirty) throw new Error("Save or discard SWMS edits before saving the project.");
+      if (state.busy || state.dirty || peoplePending()) throw new Error("Save or discard SWMS edits before saving the project.");
       if (!workspace()) return null;
       const captured = workspace(), capturedContext = context();
       const result = await request(`state?workspace=${encodeURIComponent(captured)}`);
@@ -345,12 +408,13 @@
     },
     async prepareProject(value, workspace_id) { return { value: copy(value || null), workspace_id }; },
     applyProject(prepared) {
+      clearTimeout(state.peopleTimer); state.peopleTimer = null; state.peopleDesired = {}; state.peopleDefaults = null; state.peopleError = null;
       state.workspace = prepared?.workspace_id || null; state.model = null; state.editor = null; state.options = null;
       state.dirty = false; state.changed = false; state.busy = false; state.revision++;
     },
-    projectFingerprint() { return JSON.stringify({ workspace: state.workspace, snapshot: state.model?.snapshot, editor: state.editor, dirty: state.dirty }); },
-    hasPendingOperation() { return state.busy || state.dirty; },
-    hasProjectChanges() { return state.changed || state.dirty; },
+    projectFingerprint() { return JSON.stringify({ workspace: state.workspace, snapshot: state.model?.snapshot, editor: state.editor, dirty: state.dirty, peopleDesired: state.peopleDesired, peopleError: state.peopleError?.message }); },
+    hasPendingOperation() { return state.busy || state.dirty || peoplePending(); },
+    hasProjectChanges() { return state.changed || state.dirty || peoplePending(); },
     markProjectSaved(saved, captured) { if (!captured || JSON.stringify(state.model?.snapshot) === JSON.stringify(captured)) state.changed = false; }
   };
 })();

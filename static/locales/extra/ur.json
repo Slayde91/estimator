@@ -2848,5 +2848,10 @@
   "The new-project save reservation expired. Save again to obtain its next number.": "نیا منصوبہ محفوظ کرنے کی ریزرویشن ختم ہو گئی۔ اگلا نمبر حاصل کرنے کے لیے دوبارہ محفوظ کریں۔",
   "The saved project number could not be confirmed. Reload the saved file before continuing.": "محفوظ منصوبے کا نمبر تصدیق نہیں ہو سکا۔ آگے بڑھنے سے پہلے محفوظ فائل دوبارہ لوڈ کریں۔",
   "The completed project save has since changed. Load the saved project before continuing.": "محفوظ ہونے کے بعد منصوبہ تبدیل ہو گیا ہے۔ آگے بڑھنے سے پہلے محفوظ منصوبہ لوڈ کریں۔",
-  "The previous save was interrupted and its file cannot be confirmed. Its project number has been retained. Open the saved file, or start a new project before saving again.": "پچھلی بار محفوظ کرنے کا عمل رک گیا تھا اور فائل کی تصدیق نہیں ہو سکتی۔ منصوبے کا نمبر محفوظ رکھا گیا ہے۔ دوبارہ محفوظ کرنے سے پہلے محفوظ فائل کھولیں یا نیا منصوبہ شروع کریں۔"
+  "The previous save was interrupted and its file cannot be confirmed. Its project number has been retained. Open the saved file, or start a new project before saving again.": "پچھلی بار محفوظ کرنے کا عمل رک گیا تھا اور فائل کی تصدیق نہیں ہو سکتی۔ منصوبے کا نمبر محفوظ رکھا گیا ہے۔ دوبارہ محفوظ کرنے سے پہلے محفوظ فائل کھولیں یا نیا منصوبہ شروع کریں۔",
+  "Project status": "منصوبے کی حالت",
+  "Review": "جائزہ",
+  "Presented": "پیش کیا گیا",
+  "Accepted": "منظور شدہ",
+  "Lost": "ناکام"
 }

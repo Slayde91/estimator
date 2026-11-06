@@ -71,7 +71,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await expect(page.locator('#project-no')).toHaveAttribute('readonly','');
   await page.locator('#client').fill('Unsaved project client');
   await page.locator('#site-address').fill('25 Current Estimate Street');
-  await page.locator('#view-estimate [data-document-menu-toggle]').click();
+  await page.locator('#view-estimate').getByRole('button',{name:'Document',exact:true}).click();
   await page.locator('#estimate-open-quote').click();
   const quote=page.locator('#commercial-quote-root');
   await expect(quote.getByLabel('Client',{exact:true})).toHaveValue('Unsaved project client');

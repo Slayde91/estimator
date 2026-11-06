@@ -72,7 +72,7 @@ vm.createContext(context);
   appSource = appSource.replace(appEnd, `
     globalThis.appAudit = {state, saveProject, loadProject, openNativeProject, newQuote, projectStamp, saveQuote, openQuote, calculate, reportPayload, projectEstimate, downloadFullReport,
       applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,openProjectBrowser,loadProjectFiles,openProjectFolderFile,closeProjectBrowser,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,requestViewNavigation,requestProjectsNavigation,requestDocumentsNavigation,requestCalculatorNavigation,uploadProjectFiles,reviewDesktopClose,
-      renderInputs, selectMainSection, changeProjectStage, changeCurrentProjectStage, renderProjectBoard, renameProjectEstimate, addProjectEstimate, selectEstimate, setRequest(fn) { request = fn; }};
+      renderInputs, selectMainSection, changeProjectStage, changeCurrentProjectStage, renderProjectList, renameProjectEstimate, addProjectEstimate, selectEstimate, setRequest(fn) { request = fn; }};
   })();`);
   vm.runInContext(appSource, context);
   const app = context.appAudit, calc = context.calcAudit, bridgeApi = context.window.CeasefireCalculators;
@@ -735,7 +735,7 @@ async function penetrationCheck(name, fn) {
   });
   await check('Folder library loads the selected opaque file and restores the entire project', async h => {
     const paths=[];h.app.setRequest(async(path,options)=>{paths.push(path);if(path==='/api/projects')return {folder:'C:/estimates',files:[{id:'opaque',name:'project.cf.json',title:'Project',modified_at:'2026-09-16T00:00:00Z'}],errors:[]};assert.equal(JSON.parse(options.body).id,'opaque');return {...project(),file:{name:'project.cf.json'}};});
-    await h.app.loadProjects();assert.match(h.byId('project-folder').textContent,/C:\/estimates/);assert.equal(h.byId('project-list').children.length,5);
+    await h.app.loadProjects();assert.match(h.byId('project-folder').textContent,/C:\/estimates/);assert.equal(h.byId('project-list').children.length,1);
     const opening=h.app.openProjectFile({id:'opaque',name:'project.cf.json'},h.element('button'));await flush();await h.byId('discard-dialog').close('confirm');await opening;
     assert.deepEqual(paths,['/api/projects','/api/projects/load']);assert.equal(h.app.state.dirty,false);assert.equal(h.calc.state.entries.size,3);
   });
@@ -820,12 +820,12 @@ async function penetrationCheck(name, fn) {
     h.app.state.draft.rates.frozen.price=17.12345;h.app.updateProjectStatus();
     assert.equal(h.byId('project-save-state').textContent,'Saved project');
   });
-  await check('Folder search retains relative paths while scanning the entire Kanban', async h => {
+  await check('Folder search retains relative paths while scanning the entire list', async h => {
     const calls=[];h.byId('project-search').value='Client & north';h.byId('project-sort').value='name_asc';
     h.app.setRequest(async path=>{calls.push(path);return {folder:'C:/Estimates',files:[{id:'nested',name:'Quote.cf.json',relative_path:'Client/north/Quote.cf.json',title:'Quote',modified_at:'2026-09-17T00:00:00Z'}],total:500,matched:120,offset:100,errors:[],scan_pending:true,scanned_entries:2000};});
     await h.app.loadProjects({offset:100});
     assert.equal(calls[0],'/api/projects?search=Client%20%26%20north&sort=name_asc');
-    assert.equal(h.byId('project-list').children[0].children[1].children[3].textContent,'Client/north/Quote.cf.json');
+    assert.equal(h.byId('project-list').children[0].children[0].children[3].textContent,'Client/north/Quote.cf.json');
     assert.match(h.byId('project-list-status').textContent,/120 matching projects/);assert.equal(h.byId('project-continue').hidden,false);
     assert.equal(h.byId('project-previous').disabled,true);assert.equal(h.byId('project-next').disabled,true);
   });
@@ -839,7 +839,7 @@ async function penetrationCheck(name, fn) {
       if(path==='/api/projects/open-file')return {opened:true,name:'site.jpg',relative_path:'Photos/site.jpg'};
       throw new Error(`Unexpected ${path}`);
     });
-    await h.app.loadProjects();const title=h.byId('project-list').children[0].children[1].children[0].children[0];
+    await h.app.loadProjects();const title=h.byId('project-list').children[0].children[0].children[0].children[0];
     assert.equal(title.textContent,'Quote files');assert.match(title.getAttribute('aria-label'),/Browse files/);await title.emit('click');
     assert.equal(h.byId('project-list-card').hidden,true);assert.equal(h.byId('project-browser').hidden,false);assert.equal(h.byId('project-browser-list').children.length,2);
     await h.byId('project-browser-list').children[0].emit('click');assert.equal(h.app.state.projectBrowserPath,'Photos');
@@ -853,7 +853,7 @@ async function penetrationCheck(name, fn) {
     const pending=deferred();let count=0;h.app.setRequest(()=>++count===1?pending.promise:Promise.resolve({files:[],folder:'New folder',total:0,matched:0,errors:[]}));
     const first=h.app.loadProjects();h.byId('project-search').value='new';await h.app.loadProjects({offset:0});
     pending.resolve({folder:'Old folder',files:[],errors:[]});await first;assert.equal(h.byId('project-folder').textContent,'New folder');
-    assert.equal(h.app.state.projectCards.length,0);assert.equal(h.byId('project-list').children.length,5);
+    assert.equal(h.app.state.projectCards.length,0);assert.equal(h.byId('project-list').children.length,1);
   });
   await check('Saved projects view has no request or control for older estimate-only records', async h => {
     const calls=[];h.app.setRequest(async path=>{calls.push(path);return {files:[],errors:[]};});h.app.showView('quotes');await flush();
@@ -867,12 +867,13 @@ async function penetrationCheck(name, fn) {
     pending.resolve({files:[],errors:[]});await loading;
     assert.equal(h.byId('project-list').getAttribute('aria-busy'),'false');
   });
-  await check('Kanban fetches all project pages and ignores obsolete page offsets', async h => {
+  await check('Project list fetches all project pages and ignores obsolete page offsets', async h => {
     const paths=[];h.app.setRequest(async path=>{paths.push(path);return {folder:'C:/estimates',files:[{id:paths.length===1?'first':'second',name:'Quote.cf.json',project_status:paths.length===1?'Draft':'Review',modified_at:'2026-09-17T00:00:00Z'}],total:2,matched:2,scan_pending:false,errors:[]};});
     await h.app.loadProjects({offset:200});assert.deepEqual(paths,['/api/projects','/api/projects?offset=1']);
     assert.equal(h.app.state.projectsOffset,0);assert.equal(h.app.state.projectCards.length,2);
-    assert.equal(h.byId('project-list').children[0].children.length,2);
-    assert.equal(h.byId('project-list').children[1].children.length,2);
+    assert.equal(h.byId('project-list').children.length,2);
+    assert.equal(h.byId('project-list').children[0].children[0].children[0].children[1].textContent,'Draft');
+    assert.equal(h.byId('project-list').children[1].children[0].children[0].children[1].textContent,'Review');
     assert.match(h.byId('project-list-status').textContent,/2 matching projects/);
   });
   await check('Status changes refresh only the matching current project revision and retain drafts', async h => {

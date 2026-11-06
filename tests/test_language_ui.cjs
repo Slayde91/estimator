@@ -106,7 +106,7 @@ test('Mandarin breakdown tables translate owned tasks and contexts while retaini
 });
 test('Generated estimate material descriptions translate without altering selected product names or canonical results',()=>{
   const h=harness(null,false,catalogs());
-  const source=fs.readFileSync(path.join(__dirname,'../static/app.js'),'utf8').match(/  function materialNameCell\(material\) \{[\s\S]*?\n  \}\n/)[0];
+  const source=fs.readFileSync(path.join(__dirname,'../static/app.js'),'utf8').replace(/\r\n/g,'\n').match(/  function materialNameCell\(material\) \{[\s\S]*?\n  \}\n/)[0];
   h.context.node=(tag,cls,text)=>new Element(tag.toUpperCase(),text??'');
   h.context.uiNode=(tag,cls,source,args)=>h.ui.text(new Element(tag.toUpperCase()),source,args);
   vm.runInContext(source,h.context);

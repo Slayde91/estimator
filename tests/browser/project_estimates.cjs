@@ -67,7 +67,7 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   await page.setViewportSize({width:1440,height:1000});
   await page.locator('#projects-navigation-toggle').hover();
   await page.locator('#projects-navigation-menu [data-project-section="quotes"]').click();await idle();
-  const card=page.locator('.project-kanban-card').filter({hasText:'PN-00001'});
+  const card=page.locator('.project-list-row').filter({hasText:'PN-00001'});
   await expect(card).toHaveCount(1);await expect(card.locator('.project-card-estimate option')).toHaveCount(2);
   await card.locator('.project-card-estimate select').selectOption(second);await idle();
   await expect(page.locator('#measurements')).toHaveValue('Second estimate notes');

@@ -80,7 +80,8 @@ async function screenshot(name,fixture) {
   await page.addInitScript(()=>{window.qaCsp=[];document.addEventListener('securitypolicyviolation',event=>window.qaCsp.push({directive:event.effectiveDirective,blocked:event.blockedURI}));});
   const initial=await page.goto(`http://127.0.0.1:${info.port}/`);assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Estimates',exact:true}).click();
-  await page.getByLabel('Project No.',{exact:true}).fill(fixture.synthetic?'SYNTHETIC-MONOKOTE-QA':'PRIVATE-MONOKOTE-QA');
+  await expect(page.getByLabel('Project No.',{exact:true})).toHaveAttribute('readonly','');
+  await page.locator('#client').fill(fixture.synthetic?'SYNTHETIC-MONOKOTE-QA':'PRIVATE-MONOKOTE-QA');
   await chooseCalculator(page,'Steel (spray)');
   await expect(page.locator('#calculator-title')).toHaveText('Steel (spray)');await idle();
   // START is intentionally hidden; its complete operating rules still exist

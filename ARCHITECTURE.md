@@ -1,5 +1,25 @@
 # Architecture
 
+## PDF presentation and reusable SWMS people — 7 November 2026
+
+Projects uses flat rows while the commercial document boards retain their Kanban
+layout. Status is an accessible radio menu using the existing Document disclosure
+behaviour; its trigger remains labelled Status. Search, sorting, estimate selection
+and optimistic saved-file status checks are unchanged.
+
+Quote PDFs use red grids, white labels on red detail/totals columns and ruled main
+section headings. Terms retain their two-column text flow with the same company
+header as preceding pages. These presentation changes apply to new exports only.
+
+The application SWMS database stores reviewer and consultation defaults in
+`swms_people_defaults`, with separate optimistic versions for each section.
+Only name, position and validated signature graphics are copied. Explicit edits
+persist these defaults; the first explicit statement Save can seed them from an
+existing statement. Loading or restoring a project never writes shared defaults.
+Existing statement snapshots remain authoritative for their own people. Pending
+default writes and validation failures participate in navigation and save guards.
+No passive-fire calculations, commercial totals or payroll rules change.
+
 ## Navigation, project identity and document refinements — 7 November 2026
 
 Projects follows Home in the header and owns saved projects, Quotes, Work Orders
@@ -60,11 +80,11 @@ produces each line total. GST defaults to 10 percent, matching the supplied
 quotation. Source fingerprints include the estimate name and canonical input
 snapshot. Issuance rejects changed sources until the quote is saved again.
 Quote scope tables reuse the Full Schedule column and cell projections. Quote
-PDFs use A4 portrait schedules with wide tables divided into column groups and
-repeated item identities. Schedule diagrams and report links remain attached to
+PDFs use A4 portrait schedules with all columns fitted within each page's width.
+Schedule diagrams and report links remain attached to
 their items. The existing standalone report builders retain their default page
-formats. Schedules appear between the quote summary and allowances, followed by
-totals and editable Terms and Conditions. Clause labels and definition names are
+formats. Totals follow the quote summary, before Schedule of Rates and Scope of
+Works. Allowances and editable Terms and Conditions follow the schedules. Clause labels and definition names are
 emphasised during PDF rendering, including for previously saved terms.
 
 Estimate Outputs includes the Firestopping Schedule and Firestopping Breakdown

@@ -2848,5 +2848,10 @@
   "The new-project save reservation expired. Save again to obtain its next number.": "La réservation a expiré. Enregistrez à nouveau pour obtenir le prochain numéro.",
   "The saved project number could not be confirmed. Reload the saved file before continuing.": "Impossible de confirmer le numéro enregistré. Rechargez le fichier enregistré avant de continuer.",
   "The completed project save has since changed. Load the saved project before continuing.": "Le projet a été modifié depuis son enregistrement. Chargez le projet enregistré avant de continuer.",
-  "The previous save was interrupted and its file cannot be confirmed. Its project number has been retained. Open the saved file, or start a new project before saving again.": "L’enregistrement précédent a été interrompu et le fichier ne peut pas être confirmé. Son numéro de projet est réservé. Ouvrez le fichier enregistré ou créez un nouveau projet avant d’enregistrer à nouveau."
+  "The previous save was interrupted and its file cannot be confirmed. Its project number has been retained. Open the saved file, or start a new project before saving again.": "L’enregistrement précédent a été interrompu et le fichier ne peut pas être confirmé. Son numéro de projet est réservé. Ouvrez le fichier enregistré ou créez un nouveau projet avant d’enregistrer à nouveau.",
+  "Project status": "État du projet",
+  "Review": "Révision",
+  "Presented": "Présenté",
+  "Accepted": "Accepté",
+  "Lost": "Perdu"
 }

@@ -111,7 +111,20 @@ async function calculatorAppearance(id,name){
  // Initialize each real workspace once before checking that theme changes do not alter models.
  await main();await chooseCalculator(page,'Steel (spray)');await idle();await chooseCalculator(page,'Firestopping');await idle();await chooseTakeoff(page,'physical');await idle();if(!alignmentOnly)await seedRegisterParity(page,fixture);
  let mainDaysBefore;if(!alignmentOnly){await main();await expect(page.locator('#labour-breakdown')).toHaveAttribute('aria-busy','false');mainDaysBefore=(await page.locator('.labour-table tr.labour-total > td').textContent()).trim();}
- await settings();const before=await snapshot();
+ await settings();
+ if(!alignmentOnly){
+  // Exercise the transparent fallback explicitly; the saved company default may
+  // be an opaque uploaded logo and is independent of CLASSIFIRE's header brand.
+  await expect(page.locator('#company-logo-delete')).toBeEnabled();
+  await page.locator('#company-logo-delete').click();
+  await expect(page.locator('#company-logo-preview')).toBeHidden();
+  await page.locator('#company-settings-save').click();
+  await expect(page.locator('#company-settings-status')).toContainText('Saved');
+  await expect(page.locator('#company-logo-preview')).toHaveAttribute('src','/classifire-logo.png');
+  await page.mouse.move(0,0);
+  await expect(page.locator('#company-settings-save')).toHaveCSS('background-color','rgb(185, 10, 21)');
+ }
+ const before=await snapshot();
  for(const id of ['ceasefire','midnight','ocean','forest','slate']){
   await theme(id);const item={id};
   if(!alignmentOnly){

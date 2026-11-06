@@ -22,6 +22,14 @@
     const result = el("button", className, text); result.type = "button";
     result.addEventListener("click", action); return result;
   }
+  function addRuleButton(label, action) {
+    const result = button("", action, "button primary icon-only penetration-new-item-action");
+    result.title = label; result.setAttribute("aria-label", label);
+    window.CeasefireI18n?.attr(result, "title", label);
+    window.CeasefireI18n?.attr(result, "aria-label", label);
+    const symbol = el("span", "button-symbol", "+"); symbol.setAttribute("aria-hidden", "true");
+    result.append(symbol); return result;
+  }
   function input(type, value = "", attributes = {}) {
     const result = el("input"); result.type = type; result.value = value;
     if (type === "datetime-local") result.step = "1";
@@ -544,7 +552,7 @@
       row.append(grid); overtimeRows.push(record); overtimeList.append(row);
     }
     saved.overtime_rules.forEach(addOvertime);
-    form.append(el("h3","","Overtime and penalty rules"),el("p","helper","The highest matching multiplier applies. All paid hours count toward weekly thresholds. Days and weeks start at midnight, with Monday starting the week."),overtimeList,button("Add overtime rule",() => {addOvertime(); state.settingsDirty = true;}));
+    form.append(el("h3","","Overtime and penalty rules"),el("p","helper","The highest matching multiplier applies. All paid hours count toward weekly thresholds. Days and weeks start at midnight, with Monday starting the week."),overtimeList,addRuleButton("Add overtime rule",() => {addOvertime(); state.settingsDirty = true;}));
     const breakRows = [], breakList = el("div","scheduler-rule-editors");
     function addBreakRule(item = {id:crypto.randomUUID(),name:"",code:"",minutes:15,paid:false,member_ids:[],automatic:false,after_hours:"4",repeat_hours:null,days:[0,1,2,3,4],placement:"middle",manual:true,auto_end:false,minimum:false,notify_minutes:0}) {
       const row = el("details","scheduler-rule-editor"), summary = el("summary","",item.name || "New break rule"); row.open = !item.name; row.append(summary);
@@ -568,7 +576,7 @@
       sync(); row.append(grid); breakRows.push(record); breakList.append(row);
     }
     saved.breaks.forEach(addBreakRule);
-    form.append(el("h3","","Break rules"),el("p","helper","Automatic breaks are calculated when a time entry is complete. Thresholds use elapsed shift time. Repeated middle breaks are spaced evenly. A matching manual break satisfies one automatic break, and breaks never overlap."),breakList,button("Add break rule",() => {addBreakRule(); state.settingsDirty = true;}));
+    form.append(el("h3","","Break rules"),el("p","helper","Automatic breaks are calculated when a time entry is complete. Thresholds use elapsed shift time. Repeated middle breaks are spaced evenly. A matching manual break satisfies one automatic break, and breaks never overlap."),breakList,addRuleButton("Add break rule",() => {addBreakRule(); state.settingsDirty = true;}));
     const submit = el("button","button scheduler-primary-action","Save settings"); submit.type = "submit";
     const discard = button("",() => {state.settingsDirty = false; render();},"button secondary icon-only");
     discard.title = "Discard settings changes"; discard.setAttribute("aria-label","Discard settings changes");

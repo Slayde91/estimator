@@ -13,7 +13,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 from reportlab.platypus import BaseDocTemplate, Flowable, Frame, LongTable, PageBreak, PageTemplate, Paragraph, Spacer, TableStyle
 
-from .company_settings import company_logo
+from .company_settings import company_logo, contact_lines
 from .report import _register_fonts
 from .swms import template_options, validate_fields
 
@@ -21,8 +21,6 @@ PAGE = landscape(A4)
 MARGIN = 39
 WIDTH = PAGE[0] - MARGIN * 2
 RED = colors.HexColor('#d40000')
-GREY = colors.HexColor('#e6e6e6')
-TEAL = colors.HexColor('#208f98')
 
 
 def _styles():
@@ -71,10 +69,10 @@ def _emergency_table(fields, styles):
                           textColor=colors.white, alignment=1)
     table = _table(None, [[_p('EMERGENCY RESPONSE - CALL 000 IMMEDIATELY.', head), ''],
                          [_emergency_paragraphs(fields[key], body, bullets_after_first=True)
-                          for key in ('emergency_requirements', 'emergency_access')]], [WIDTH / 2] * 2, styles, red=False)
+                          for key in ('emergency_requirements', 'emergency_access')]], [WIDTH / 2] * 2, styles)
     table.setStyle(TableStyle([('SPAN', (0, 0), (1, 0)), ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e52000')),
                                ('TOPPADDING', (0, 0), (-1, -1), 1), ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
-                               ('LINEBEFORE', (1, 1), (1, 1), 0, colors.white)]))
+                               ('LINEBEFORE', (1, 1), (1, 1), .45, RED)]))
     return table
 
 
@@ -137,6 +135,7 @@ class Cover(Flowable):
         c.setLineWidth(2)
         c.line(0, h - 268, w * .53, h - 268)
         c.setLineWidth(.9)
+        c.setStrokeColor(RED)
         c.rect(0, 5, w, 80)
         c.line(w * .61, 5, w * .61, 85)
         c.setFillColor(colors.black)
@@ -169,8 +168,8 @@ class SwmsTable(LongTable):
         return parts
 
 
-def _table(headers, rows, widths, styles, *, red=True, repeated=True, grid=True, row_heights=None):
-    head_style = styles['head'] if red else styles['bold']
+def _table(headers, rows, widths, styles, *, repeated=True, grid=True, row_heights=None):
+    head_style = styles['head']
     data = [[_p(label, head_style) for label in headers]] if headers else []
     for row in rows:
         data.append([value if isinstance(value, (Flowable, list)) else _p(value, styles['body']) for value in row])
@@ -182,16 +181,16 @@ def _table(headers, rows, widths, styles, *, red=True, repeated=True, grid=True,
                 ('RIGHTPADDING', (0, 0), (-1, -1), 4), ('TOPPADDING', (0, 0), (-1, -1), 4),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 4)]
     if headers:
-        commands.append(('BACKGROUND', (0, 0), (-1, 0), RED if red else GREY))
+        commands.append(('BACKGROUND', (0, 0), (-1, 0), RED))
     if grid:
-        commands.append(('GRID', (0, 0), (-1, -1), .45, RED if red else colors.HexColor('#c9c9c9')))
+        commands.append(('GRID', (0, 0), (-1, -1), .45, RED))
     table.setStyle(TableStyle(commands))
     return table
 
 
 def _pair(label, text, styles, *, bullets=False):
-    table = _table(None, [[_p(label, styles['bold']), _p(text, styles['body'], bullets=bullets)]], [WIDTH * .27, WIDTH * .73], styles, red=False, grid=False)
-    table.setStyle(TableStyle([('LINEABOVE', (0, 0), (-1, 0), .35, colors.HexColor('#dddddd')),
+    table = _table(None, [[_p(label, styles['bold']), _p(text, styles['body'], bullets=bullets)]], [WIDTH * .27, WIDTH * .73], styles, grid=False)
+    table.setStyle(TableStyle([('LINEABOVE', (0, 0), (-1, 0), .35, RED),
                                ('TOPPADDING', (0, 0), (-1, -1), 7), ('BOTTOMPADDING', (0, 0), (-1, -1), 7)]))
     return table
 
@@ -219,13 +218,12 @@ def _matrix(styles):
     table = _table(['Level', 'Description of Consequence or Impact', 'Consequence', 'Likely', 'Moderate', 'Unlikely'], rows,
                    [WIDTH * fraction for fraction in (.13, .52, .12, .077, .077, .076)], styles)
     colours = {'1': '#ff2600', '2': '#ffd43b', '3': '#a3ce36'}
-    commands = [('BACKGROUND', (0, 0), (-1, 0), TEAL), ('TEXTCOLOR', (0, 0), (-1, 0), colors.white), ('GRID', (0, 0), (-1, -1), .6, colors.grey)]
+    commands = [('BACKGROUND', (0, 0), (-1, 0), RED), ('TEXTCOLOR', (0, 0), (-1, 0), colors.white), ('GRID', (0, 0), (-1, -1), .6, RED)]
     for row, values in enumerate(rows, 1):
         for column in range(3, 6):
             commands.extend([('BACKGROUND', (column, row), (column, row), colors.HexColor(colours[values[column]])), ('ALIGN', (column, row), (column, row), 'CENTER')])
     table.setStyle(TableStyle(commands))
     legend = _table(['Level', 'Likelihood / Probability'], [['Likely', 'Could happen frequently'], ['Moderate', 'Could happen occasionally'], ['Unlikely', 'May occur only in exceptional circumstances']], [WIDTH * .13, WIDTH * .87], styles)
-    legend.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), TEAL)]))
     return [table, legend]
 
 
@@ -300,11 +298,11 @@ def render_swms_pdf(document, *, company):
     fields = validate_fields(document['fields'])
     styles, details = _styles(), fields['details']
     story = [Cover(company), PageBreak()]
-    story.append(_table(['Job Reference', 'Contact Person', 'Position', 'Phone:'], [[details[key] for key in ('job_reference', 'contact_person', 'position', 'phone')]], [WIDTH * fraction for fraction in (.267, .267, .267, .199)], styles, red=False))
+    story.append(_table(['Job Reference', 'Contact Person', 'Position', 'Phone:'], [[details[key] for key in ('job_reference', 'contact_person', 'position', 'phone')]], [WIDTH * fraction for fraction in (.267, .267, .267, .199)], styles))
     story.append(Spacer(1, 10))
     story.append(_table(['Principal Contractor (PC)', 'Project Name', 'Date:', 'Project Address', 'Project Manager (PM)', 'Signature:', 'Contact'],
                         [[details['principal_contractor'], details['project_name'], details['date'], details['project_address'], details['project_manager'], Signature(fields['manager_signature'], 40, 25), details['manager_contact']]],
-                        [WIDTH * fraction for fraction in (.20, .20, .067, .20, .13, .07, .133)], styles, red=False))
+                        [WIDTH * fraction for fraction in (.20, .20, .067, .20, .13, .07, .133)], styles))
     story.extend([Spacer(1, 6), _p(fields['communication'], styles['bold']), Spacer(1, 6), _p(fields['toolbox'], styles['body']), Spacer(1, 6)])
     story.extend([_p('Person/s responsible for ensuring compliance with SWMS:', styles['bold']), _p(fields['compliance'], styles['body']), Spacer(1, 6)])
     for label, key in [('Person/s responsible for reviewing SWMS:', 'reviewers'), ('This SWMS has been developed in consultation with:', 'consultation')]:
@@ -353,8 +351,8 @@ def render_swms_pdf(document, *, company):
             row.extend([person['name'], Signature(person['signature'], 110, 18)])
         row += [''] * (4 - len(row))
         site_rows.append(row)
-    site_table = _table(['NAME', 'SIGNATURE', 'NAME', 'SIGNATURE'], site_rows, [WIDTH / 3, WIDTH / 6] * 2, styles, red=False)
-    site_table.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#ffca00')), ('TOPPADDING', (0, 1), (-1, -1), 8), ('BOTTOMPADDING', (0, 1), (-1, -1), 8)]))
+    site_table = _table(['NAME', 'SIGNATURE', 'NAME', 'SIGNATURE'], site_rows, [WIDTH / 3, WIDTH / 6] * 2, styles)
+    site_table.setStyle(TableStyle([('TOPPADDING', (0, 1), (-1, -1), 8), ('BOTTOMPADDING', (0, 1), (-1, -1), 8)]))
     emergency = EmergencyPlan(fields, styles)
     story.extend([site_table, PageBreak(), emergency])
     # Preserve all user-entered emergency text even when it outgrows the diagram.
@@ -367,28 +365,24 @@ def render_swms_pdf(document, *, company):
     output = BytesIO()
     doc = BaseDocTemplate(output, pagesize=PAGE, leftMargin=MARGIN, rightMargin=MARGIN, topMargin=76, bottomMargin=49,
                             title=fields['title'], author=company.get('name', ''), allowSplitting=True)
-    path = '/'.join(value for value in [company.get('name', ''), details['principal_contractor'], details['job_reference'], details['project_address'], 'SWMS'] if value)
-    if len(path) > 150:
-        path = path[:147] + '...'
     def decorate(c, document):
         c.saveState()
         c.drawImage(logo, MARGIN, PAGE[1] - 47, width=98, height=32, preserveAspectRatio=True, anchor='sw', mask='auto')
-        text_style = ParagraphStyle('SwmsMetadata', fontName='CeasefireVera', fontSize=6.1, leading=8)
-        paragraph = _p('Filepath: ' + path, text_style)
-        paragraph.wrap(WIDTH * .34, 40)
-        paragraph.drawOn(c, MARGIN + WIDTH * .34, PAGE[1] - 40)
-        paragraph = _p(f"Form Version: {document._swms_version}", text_style)
-        paragraph.wrap(WIDTH * .30, 40)
-        paragraph.drawOn(c, MARGIN + WIDTH * .69, PAGE[1] - 43)
+        text = '\n'.join([company.get('name', ''), *contact_lines(company)])
+        for size in (7, 6.5, 6, 5.5, 5, 4.5):
+            text_style = ParagraphStyle('SwmsCompany', fontName='CeasefireVera', fontSize=size, leading=size * 1.25, alignment=2)
+            paragraph = _p(text, text_style)
+            _, company_height = paragraph.wrap(WIDTH * .72, 48)
+            if company_height <= 44:
+                break
+        paragraph.drawOn(c, MARGIN + WIDTH * .28, PAGE[1] - 12 - company_height)
         c.setStrokeColor(RED); c.setLineWidth(.6)
         c.line(MARGIN, PAGE[1] - 60, PAGE[0] - MARGIN, PAGE[1] - 60)
         c.line(MARGIN, 39, PAGE[0] - MARGIN, 39)
         c.setFont('CeasefireVera', 6.2); c.setFillColor(colors.HexColor('#333333'))
-        c.drawString(MARGIN + WIDTH * .345, 26, 'Printed version is uncontrolled')
         c.drawString(MARGIN + WIDTH * .69, 26, 'This PDF was created at')
         c.drawString(MARGIN + WIDTH * .69, 17, created)
         c.restoreState()
-    doc._swms_version = document['version']
     frame = Frame(MARGIN, 49, WIDTH, PAGE[1] - 76 - 49, leftPadding=0, bottomPadding=0, rightPadding=0, topPadding=0)
     doc.addPageTemplates(PageTemplate('SWMS', frames=frame, onPage=decorate))
     doc.build(story)
@@ -415,7 +409,7 @@ def render_swms_pdf(document, *, company):
     for index, page in enumerate(pages, 1):
         overlay = BytesIO(); c = canvas.Canvas(overlay, pagesize=PAGE)
         c.setFont('CeasefireVera', 6.2); c.setFillColor(colors.HexColor('#333333'))
-        c.drawString(MARGIN + WIDTH * .345, 17, f'Page {index} of {count}')
+        c.drawString(MARGIN, 26, f'Page {index} of {count}')
         c.save(); page.merge_page(PdfReader(BytesIO(overlay.getvalue())).pages[0]); writer.add_page(page)
     writer.add_metadata({'/Title': fields['title'], '/Author': company.get('name', '')})
     output = BytesIO(); writer.write(output)

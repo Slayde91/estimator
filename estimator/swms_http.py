@@ -35,7 +35,7 @@ class SwmsHTTP:
                 body = handler.read_json()
                 if not isinstance(body, dict):
                     raise ValidationError('Include SWMS input as an object.')
-                fields = {'defaults': {'details'}, 'save': {'id', 'version', 'status', 'fields'},
+                fields = {'defaults': {'details'}, 'people-defaults': {'section', 'rows', 'expected_version'}, 'save': {'id', 'version', 'status', 'fields'},
                           'delete': {'id', 'version'}, 'issue': {'id', 'version', 'request_id', 'download'}}
                 if action not in fields or set(body) - {'workspace_id'} - fields[action]:
                     raise ValidationError('SWMS request contains unsupported fields.')
@@ -49,7 +49,10 @@ class SwmsHTTP:
                     details = body.get('details', {})
                     if not isinstance(details, dict) or set(details) - {'project_no', 'client', 'site_address'}:
                         raise ValidationError('Choose valid SWMS project details.')
-                    result = {'fields': default_fields(details, company), 'options': template_options()}
+                    people_defaults = self.service.people_defaults()
+                    result = {'fields': default_fields(details, company, people_defaults), 'options': template_options(), 'people_defaults': people_defaults}
+                elif action == 'people-defaults':
+                    result = self.service.save_people_defaults(workspace, body.get('section'), body.get('rows'), body.get('expected_version'))
                 elif action == 'save':
                     result = self.service.save(workspace, {key: body.get(key) for key in fields['save']})
                 elif action == 'delete':

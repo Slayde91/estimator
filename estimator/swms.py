@@ -29,6 +29,8 @@ STATUSES = ('Draft', 'Review', 'Approved', 'Archived')
 WORK_TYPES = ('Protective Coatings', 'Passive Firestopping', 'Installation of Passive Fire Protection Works')
 MAX_SNAPSHOT_BYTES = 12 * 1024 * 1024
 MAX_PDF_BYTES = 64 * 1024 * 1024
+PEOPLE_DEFAULT_KEYS = ('reviewers', 'consultation')
+MAX_PEOPLE_DEFAULT_BYTES = 1024 * 1024
 
 
 class SwmsConflict(ValidationError):
@@ -92,7 +94,7 @@ def validate_signature(value):
     return deepcopy(value)
 
 
-def default_fields(details=None, company=None):
+def default_fields(details=None, company=None, people_defaults=None):
     fields = json.loads((Path(__file__).resolve().parent.parent / 'data' / 'swms-template.json').read_text(encoding='utf-8'))
     details, company = details or {}, company or DEFAULTS
     options = template_options()
@@ -109,7 +111,24 @@ def default_fields(details=None, company=None):
     fields['details'].update(job_reference=details.get('project_no', ''), principal_contractor=details.get('client', ''),
                              project_name=details.get('client', ''), project_address=details.get('site_address', ''),
                              date=datetime.now(ZoneInfo('Australia/Sydney')).date().isoformat())
+    if people_defaults is not None:
+        for key in PEOPLE_DEFAULT_KEYS:
+            fields[key] = validate_default_people(people_defaults[key]['rows'])
     return validate_fields(fields)
+
+
+def validate_default_people(rows):
+    if not isinstance(rows, list) or len(rows) > 100:
+        raise ValidationError('A SWMS supports at most 100 people per section.')
+    result = []
+    for row in rows:
+        if not isinstance(row, dict) or set(row) != {'name', 'position', 'signature'}:
+            raise ValidationError('SWMS person details contain unsupported fields.')
+        result.append({'name': _text(row['name'], 'name', 1000), 'position': _text(row['position'], 'position', 1000),
+                       'signature': validate_signature(row['signature'])})
+    if len(_json(result).encode('utf-8')) > MAX_PEOPLE_DEFAULT_BYTES:
+        raise ValidationError('Saved SWMS people and signatures must be smaller than 1 MiB per section.')
+    return result
 
 
 def template_options():
@@ -268,7 +287,32 @@ class SwmsDocuments:
                 CREATE TABLE IF NOT EXISTS swms_drafts (workspace TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(workspace,id));
                 CREATE TABLE IF NOT EXISTS swms_audit (sequence INTEGER PRIMARY KEY, workspace TEXT NOT NULL, id TEXT NOT NULL, action TEXT NOT NULL, before_data TEXT, after_data TEXT, created_at TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS swms_issued (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, request_id TEXT UNIQUE NOT NULL, fingerprint TEXT NOT NULL, filename TEXT NOT NULL, pdf BLOB NOT NULL);
+                CREATE TABLE IF NOT EXISTS swms_people_defaults (section TEXT PRIMARY KEY, version INTEGER NOT NULL, data TEXT NOT NULL);
             ''')
+            seed = [{'name': '', 'position': 'Health & Safety Representative', 'signature': None},
+                    {'name': '', 'position': 'General Manager', 'signature': None}]
+            for section in PEOPLE_DEFAULT_KEYS:
+                db.execute('INSERT OR IGNORE INTO swms_people_defaults VALUES(?,1,?)', (section, _json(seed)))
+
+    def people_defaults(self):
+        with self._connect() as db:
+            return {row['section']: {'version': row['version'], 'rows': json.loads(row['data'])}
+                    for row in db.execute('SELECT section,version,data FROM swms_people_defaults')}
+
+    def save_people_defaults(self, workspace, section, rows, expected_version):
+        if section not in PEOPLE_DEFAULT_KEYS or type(expected_version) is not int or expected_version < 1:
+            raise ValidationError('Choose a valid SWMS people section and saved version.')
+        rows = validate_default_people(rows)
+        with self._connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            self._workspace(db, workspace)
+            current = db.execute('SELECT version,data FROM swms_people_defaults WHERE section=?', (section,)).fetchone()
+            if current['version'] > 1 and json.loads(current['data']) == rows:
+                return {'version': current['version'], 'rows': rows}
+            if current['version'] != expected_version:
+                raise SwmsConflict('The saved SWMS people changed in another window. Reopen the statement before editing these people again.')
+            db.execute('UPDATE swms_people_defaults SET version=version+1,data=? WHERE section=?', (_json(rows), section))
+            return {'version': current['version'] + 1, 'rows': rows}
 
     @contextmanager
     def _connect(self):

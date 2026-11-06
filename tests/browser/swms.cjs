@@ -157,4 +157,4 @@ async function run(edition) {
   } catch(error) { fs.mkdirSync(directory,{recursive:true});fs.writeFileSync(path.join(directory,'server.log'),logs);throw error; }
   finally { await browser?.close(); server.kill(); }
 }
-(async()=>{ await run('full'); await run('standard'); fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({checks},null,2)); console.log(JSON.stringify({checks,output})); })().catch(error=>{console.error(error);process.exitCode=1;});
+(async()=>{ await run('full'); await run('standard'); checks.push(await require('./swms_people_defaults.cjs')(root,output)); fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({checks},null,2)); console.log(JSON.stringify({checks,output})); })().catch(error=>{console.error(error);process.exitCode=1;});

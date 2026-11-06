@@ -478,3 +478,22 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 @media(max-width:880px){.estimate-banner-heading>.actions{width:100%}#firestopping-document-actions{right:0;left:auto}}
 
 .project-estimate-controls{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin:0 0 20px}.project-estimate-controls>.field{min-width:110px;max-width:100%;flex:0 0 220px}.project-card-estimate{margin-top:12px;font-size:11px}.project-card-estimate select{margin-top:5px;font-size:12px}#project-estimate-dialog .actions{margin-top:20px}
+
+/* The saved-project view uses flat rows; commercial boards keep their columns. */
+.project-list{display:grid;gap:0;min-width:0}
+.project-list-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,220px) auto;align-items:center;gap:20px;padding:20px 0;border-bottom:1px solid var(--line);min-width:0}
+.project-list-row:first-child{padding-top:8px}
+.project-list-row:last-child{border-bottom:0}
+.project-row-details{min-width:0}
+.project-row-heading{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.project-row-heading .project-title-button{font-size:15px;font-weight:700;line-height:1.5;overflow-wrap:anywhere}
+.project-row-status{flex-shrink:0}
+.project-row-details p{margin:7px 0 0;overflow-wrap:anywhere;font-size:11px;line-height:1.5}
+.project-row-actions{display:flex;gap:8px;align-items:center;justify-content:flex-end}
+.project-list-row .project-card-estimate{margin:0;min-width:0}
+.project-status-menu [role="menuitemradio"]{display:flex;justify-content:space-between;gap:24px}
+.project-status-menu [aria-checked="true"]::after{content:"✓";font-weight:700}
+@media(max-width:880px){.project-list-row{grid-template-columns:minmax(0,1fr) minmax(150px,220px)}.project-row-details{grid-column:1/-1}.project-row-actions{align-self:end}}
+@media(max-width:480px){.project-list-row{grid-template-columns:minmax(0,1fr)}.project-row-actions{justify-content:flex-start}}
+
+.project-status-menu .calculator-document-actions{width:190px;left:0;right:auto}

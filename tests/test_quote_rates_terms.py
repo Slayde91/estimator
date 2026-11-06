@@ -15,7 +15,7 @@ from estimator.catalog import ValidationError
 from estimator.commercial_documents import (CommercialDocuments, default_fields,
                                             validate_fields)
 from estimator.commercial_pdf import render_commercial_pdf
-from estimator.company_settings import DEFAULTS
+from estimator.company_settings import DEFAULTS, contact_lines
 from tests.test_commercial_documents import Projects
 
 
@@ -69,16 +69,29 @@ class QuoteRatesTermsTests(unittest.TestCase):
             self.assertTrue(any(char['x0'] < 100 for char in body))
             self.assertTrue(any(char['x0'] > 303 for char in body))
             self.assertTrue(any('Bold' in char['fontname'] and isinstance(char['non_stroking_color'], tuple)
-                                and all(abs(actual - target) < .00001 for actual, target in zip(char['non_stroking_color'], (244 / 255, 119 / 255, 33 / 255))) for char in body))
+                                and all(abs(actual - target) < .00001 for actual, target in zip(char['non_stroking_color'], (189 / 255, 0, 24 / 255))) for char in body))
             self.assertTrue(all(39 < char['x0'] < char['x1'] < 556 for page in terms_pages
                                 for char in page.chars if 'Montserrat' in char['fontname']))
+            for page in terms_pages:
+                header = page.crop((0, 0, page.width, 80))
+                for value in [DEFAULTS['name'], *contact_lines(DEFAULTS)]:
+                    self.assertIn(value, header.extract_text())
+                self.assertEqual(len(header.images), 1)
+                self.assertAlmostEqual(header.images[0]['x0'], 36)
+                self.assertAlmostEqual(header.images[0]['top'], 22)
+                self.assertTrue(any(abs(line['top'] - 78) < .001 and line['width'] > 500 for line in header.lines))
+                self.assertNotIn('QUOTATION', header.extract_text())
+                self.assertTrue(all(char['top'] > 90 for char in page.chars if 'Montserrat' in char['fontname']))
         # Compare word order using the PDF content stream: visual extraction
         # would interleave adjacent columns. Hanging labels remain in the text.
         reader = PdfReader(BytesIO(payload))
-        actual = '\n'.join(page.extract_text() for page in reader.pages if 'TERMS OF TRADE' in page.extract_text() or any('Montserrat' in str(font.get_object().get('/BaseFont', '')) for font in page['/Resources'].get('/Font', {}).values()))
+        terms = []
+        for page in reader.pages:
+            page.extract_text(visitor_text=lambda text, cm, tm, font, size:
+                              terms.append(text) if font and 'Montserrat' in str(font.get('/BaseFont', '')) else None)
+        actual = ''.join(terms)
         expected = unescape(re.sub('<[^>]+>', ' ', fields['terms']))
         normal = lambda value: re.sub(r'\s+', '', value).replace('\u2022', '')
-        actual = re.sub(r'Quote Q-000002\s*\|\s*Page \d+ of \d+', '', actual)
         self.assertEqual(normal(actual).strip('-'), normal(expected).replace('TERMSOFTRADE', '-TERMSOFTRADE-', 1).strip('-'))
 
 

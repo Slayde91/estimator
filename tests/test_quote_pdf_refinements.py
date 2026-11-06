@@ -26,6 +26,11 @@ def compact(value):
     return ' '.join(value.split())
 
 
+def brand_red(value):
+    return isinstance(value, tuple) and len(value) == 3 and all(
+        abs(actual - expected) < .000001 for actual, expected in zip(value, (189 / 255, 0, 24 / 255)))
+
+
 class QuotePdfRefinementTests(unittest.TestCase):
     def setUp(self):
         self.enterContext(patch('estimator.calculator_report.schedule_report_references', return_value=[REFERENCE]))
@@ -56,15 +61,20 @@ class QuotePdfRefinementTests(unittest.TestCase):
             all_text = '\n'.join(item.extract_text() for item in pdf.pages)
             self.assertLess(all_text.index('Grand total'), all_text.index('SCHEDULE OF RATES'))
             self.assertLess(all_text.index('SCHEDULE OF RATES'), all_text.index('SCOPE OF WORKS'))
-            for label in ('Document', 'Date', 'Customer', 'Contact', 'Site', 'Project'):
+            for label in ('Document', 'Date', 'Customer', 'Contact', 'Site', 'Project', 'Subtotal', 'GST', 'Grand'):
                 word = next(word for word in words if word['text'] == label)
                 chars = page.crop((word['x0'] - .1, word['top'] - .1, word['x1'] + .1, word['bottom'] + .1)).chars
                 self.assertTrue(chars and all('Bold' in char['fontname'] for char in chars), label)
-            # Authored table strokes are black; header fills are the brand red.
+                self.assertTrue(all(char['non_stroking_color'] == (1, 1, 1) for char in chars), label)
+                self.assertTrue(any(brand_red(rect['non_stroking_color']) and
+                                    rect['x0'] < word['x0'] < word['x1'] < rect['x1'] and
+                                    rect['top'] < word['top'] < word['bottom'] < rect['bottom']
+                                    for rect in page.rects), label)
+            # The quote's grids and section rules use the same brand red.
             rates_heading = next(word for word in words if word['text'] == 'RATES')
             table_lines = [line for line in page.lines if 85 < line['top'] < rates_heading['top']]
             self.assertTrue(table_lines)
-            self.assertTrue(all(line['stroking_color'] == (0, 0, 0) for line in table_lines))
+            self.assertTrue(all(brand_red(line['stroking_color']) for line in table_lines))
             red_rects = [rect for rect in page.rects if isinstance(rect['non_stroking_color'], tuple)
                          and len(rect['non_stroking_color']) == 3
                          and all(abs(actual - expected) < .000001 for actual, expected in
@@ -73,6 +83,18 @@ class QuotePdfRefinementTests(unittest.TestCase):
             header = next(word for word in words if word['text'] == 'Product')
             chars = page.crop((header['x0'] - .1, header['top'] - .1, header['x1'] + .1, header['bottom'] + .1)).chars
             self.assertTrue(all(char['non_stroking_color'] == (1, 1, 1) for char in chars))
+
+    def test_main_sections_have_red_rules_and_acceptance_grid_matches(self):
+        with pdfplumber.open(BytesIO(self.quote())) as pdf:
+            for heading in ('SUMMARY', 'RATES', 'SCOPE', 'ALLOWANCES'):
+                page, word = next((page, word) for page in pdf.pages for word in page.extract_words()
+                                  if word['text'] == heading)
+                self.assertTrue(any(brand_red(line['stroking_color']) and line['width'] > 500
+                                    and word['bottom'] < line['top'] < word['bottom'] + 25
+                                    for line in page.lines), heading)
+            acceptance_page = next(page for page in pdf.pages if 'Accepted by' in page.extract_text())
+            lines = [line for line in acceptance_page.lines if line['top'] > 85]
+            self.assertTrue(lines and all(brand_red(line['stroking_color']) for line in lines))
 
     def test_all_schedule_columns_are_on_one_portrait_page_width_without_bands(self):
         for identity, value in calculators().items():
@@ -95,6 +117,8 @@ class QuotePdfRefinementTests(unittest.TestCase):
                     body = [char for char in pdf.pages[0].chars if 90 < char['top'] < 790]
                     self.assertTrue(all(char['x0'] >= 31.5 and char['x1'] <= A4[0] - 31.5 for char in body))
                     self.assertTrue(all(char['size'] >= 6.79 for char in body))
+                    lines = [line for line in pdf.pages[0].lines if line['top'] > 90]
+                    self.assertTrue(lines and all(brand_red(line['stroking_color']) for line in lines))
 
     def test_firestopping_full_width_table_retains_diagram_and_report_link(self):
         library = DiagramLibrary(png())
@@ -109,6 +133,9 @@ class QuotePdfRefinementTests(unittest.TestCase):
         self.assertTrue(any(image.image.size == (320, 160) for image in reader.pages[0].images))
         links = [item.get_object().get('/A', {}).get('/URI') for item in reader.pages[0].get('/Annots', [])]
         self.assertIn(REFERENCE['url'], links)
+        with pdfplumber.open(BytesIO(payload)) as pdf:
+            lines = [line for line in pdf.pages[0].lines if line['top'] > 90]
+            self.assertTrue(lines and all(brand_red(line['stroking_color']) for line in lines))
 
     def test_assembled_quote_has_only_one_continuous_page_sequence_and_one_title(self):
         scope = build_project_report(calculators(), fire_draft(), {}, {'project_no': 'REPEATED-PROJECT'},

@@ -21,6 +21,12 @@ const ready = new Promise((resolve,reject)=>{
 });
 const rail=()=>page.getByRole('toolbar',{name:'Drawing tools',exact:true});
 const snapshot=async()=>{await settingsSettled(page);return page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot());};
+async function projectSettled() {
+  await page.waitForFunction(() => {
+    const desktop = window.CeasefireDesktop?.status();
+    return desktop?.ready && !desktop.busy && !window.CeasefireProject.hasPendingOperation();
+  }, null, { timeout: 60000 });
+}
 async function command(action,op){const pending=page.waitForResponse(r=>r.url().endsWith('/commands')&&r.request().postDataJSON()?.op===op);pending.catch(()=>{});await action();const reply=await pending;assert.equal(reply.status(),200,await reply.text());await settingsSettled(page);return reply.json();}
 async function chooseDrawingTool(name,tool){await rail().getByRole('button',{name,exact:true}).click();await expect(page.locator('.takeoff-viewport')).toHaveAttribute('data-tool',tool);}
 async function clickPoint(x,y,options){const overlay=page.locator('.takeoff-overlay');await overlay.scrollIntoViewIfNeeded();await overlay.evaluate(el=>window.scrollTo(0,window.scrollY+el.getBoundingClientRect().top-180));const box=await overlay.boundingBox();await page.mouse.click(box.x+x/842*box.width,box.y+(1-y/595)*box.height,options);}
@@ -65,7 +71,22 @@ async function length(mm,reuse=false){const modal=page.getByRole('dialog');await
     const text=spawnSync(python,['-X','utf8','-B','-c',"from pypdf import PdfReader;import sys;print('\\n'.join(p.extract_text() or '' for p in PdfReader(sys.argv[1]).pages))",pdf],{cwd:root,encoding:'utf8',windowsHide:true});assert.equal(text.status,0,text.stderr);assert.match(text.stdout,/4\.50 m/);assert.match(text.stdout,/2\.00 m/);
     await page.screenshot({path:path.join(output,`${mode.replaceAll('/','-').replaceAll(' ','-')}.png`)});checks.push(`${mode}: trace, counts, reuse, exact manual lengths, edit, cancellation, double-click and PDF; no register mutation`);console.log(checks.at(-1));
   }
-  const saved=await snapshot();await clickProjectControl(page,'Save');await expect(page.locator('#project-save-state')).toHaveText('Saved project');await clickProjectControl(page,'Load');await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click();await expect(page.locator('#project-save-state')).toHaveText('Saved project');await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
+  const saved=await snapshot();
+  const saving = page.waitForResponse(reply => reply.request().method() === 'POST'
+    && /\/api\/project\/save(?:-as)?$/.test(new URL(reply.url()).pathname), { timeout: 60000 });
+  await clickProjectControl(page,'Save');
+  const saveReply = await saving; assert.equal(saveReply.status(),200,await saveReply.text());
+  const savedProject = await saveReply.json();
+  assert.equal(path.resolve(savedProject.file.path),path.resolve(info.project));
+  assert.ok(fs.statSync(info.project).size > 0);
+  await projectSettled(); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  const loading = page.waitForResponse(reply => reply.request().method() === 'POST'
+    && new URL(reply.url()).pathname === '/api/project/open', { timeout: 60000 });
+  await clickProjectControl(page,'Load');
+  const loadReply = await loading; assert.equal(loadReply.status(),200,await loadReply.text());
+  await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click();
+  await projectSettled(); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  await page.getByRole('button',{name:'Takeoffs',exact:true}).click();
   assert.deepEqual((await snapshot()).graphics.records,saved.graphics.records);invariant(await snapshot(),before);assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>window.qaCsp),[]);
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,saveReopen:true,errors},null,2));console.log(`PASS: ${output}`);
 })().catch(async error=>{console.error(error);console.error(logs.slice(-2000));if(page)await page.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});process.exitCode=1;}).finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);await browser?.close();server.kill();});

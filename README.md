@@ -254,14 +254,23 @@ The Estimator accepts whole-number edits for Access Qty, Sqm/Items, Masking/clea
 
 ## Save and load a project
 
-The Projects hub contains **Projects**, **Certification** and **Documentation**.
-The header opens this hub first, then returns to the most recently selected
-section; its hover menu also provides all three destinations.
+**Projects**, immediately beside Home, contains saved projects, **Quotes**,
+**Work Orders** and **Purchase Orders**. **Documents** contains **Documentation**,
+**Safe Work Method Statement** and **Certification**. Each header destination
+opens its hub first, then returns to its most recently selected subpage in the
+current session. **Scheduler** has its own clock button in the header.
+
+New projects receive a read-only reference such as **PN-00001** on their first
+successful save. **Settings → Project Details** sets the prefix and starting
+number for future projects; issued numbers are not reused. Existing and imported
+references remain unchanged, and Save As preserves the same project identity.
+The Client field suggests names from saved project files and also accepts a new
+name.
 
 Certification documents belong to the open project. The certificate selector
 lists only that project's certificates. The older-certificate picker is removed;
 new projects start with an empty certificate list. Shared
-signer details, the saved drawn signature and Settings cover sheets remain
+signer details, the saved drawn signature and Documentation cover sheets remain
 available across projects. Save the project to retain certificate drafts and
 revisions. When copying a project, also copy the adjacent `.ceasefire-evidence`
 folder: certificate PDFs use verified, immutable companions there, as Takeoffs
@@ -277,7 +286,7 @@ both the browser and API. Saving the whole project still retains incomplete work
 for recovery. New forms use the two-paragraph compliance statement; existing saved
 statements remain unchanged. The Project files button is white with a dark icon.
 
-Settings shows ten cover-sheet rows for certificates, Breakdown, full schedules and
+Documentation shows ten cover-sheet rows for certificates, Breakdown, full schedules and
 summaries, specialist schedules and Markups. Hidden reference/product-summary cover
 settings remain stored and available to existing exports. Company uploads share a
 first-column layout with adjacent trash controls; the logo preview sits to the right
@@ -304,7 +313,7 @@ In **Projects**, choose **Link Project Folder**. Only `.cf.json` project files i
 
 Projects start in **Draft** and can move through **Review**, **Presented**, **Accepted** and **Lost**. Drag a card, use its **Move to** selection, or change **Status** above the estimate. Status saves immediately for a saved project and travels in its `.cf.json` file. Unsaved project status is included when the project is saved. **Columns** controls which stages are visible in this browser. Each card has **Open**, **Edit**, **Delete** and **Browse files** actions. Deleting removes the card and retains its project bytes under a `.ceasefire-deleted-*.json` recovery filename beside its companion documents. Rename that retained file to a `.cf.json` filename to restore it. A changed file must be refreshed or reloaded before a status edit or deletion can proceed.
 
-**Projects** also opens **Quotes**, **Work Orders**, **Purchase Orders** and **Scheduler**. A Quote links selected estimates, uses their Grand Totals as unit prices and includes their Full Schedules in its PDF. Allowances and Terms and Conditions support rich text. The supplied quotation provides the default terms, with company details and ABN supplied by Settings. Each new PDF download receives the next number for that document type. Orders have separate status boards and editable review, approval and completion fields. Save the project to retain these documents and their downloaded revision history.
+**Projects** opens **Quotes**, **Work Orders** and **Purchase Orders**. A Quote links selected estimates, uses their Grand Totals as unit prices and includes their Full Schedules in its PDF. Schedule of Rates has editable commercial rates and acceptance fields above Scope of Works; these rates do not change Scheduler payroll rules or Quote totals. Allowances and Terms and Conditions support rich text. The supplied quotation provides the default terms, with company details and ABN supplied by Settings. Each new PDF download receives the next number for that document type. Orders have separate status boards and editable review, approval and completion fields. Save the project to retain these documents and their downloaded revision history.
 
 Scheduler project choices show Accepted projects and fill their Site Address. Scheduler Settings lets administrators edit overtime rules and configure paid or unpaid automatic breaks, including thresholds, weekdays and repetition. Existing break options start with automatic deductions disabled. The highest applicable pay multiplier is used. Current rules recalculate time-entry totals, with the rule version shown in the result.
 
@@ -324,7 +333,7 @@ All PDF and XLSX exports, including calculator templates and pricing workbooks, 
 
 An existing export is never overwritten: duplicate filenames receive a numbered suffix. **Save As** and opening another project change the destination for subsequent exports; **New project** clears it. Each export captures its destination when clicked, so changing projects while a file is being prepared does not redirect that file. If a selected project file has become stale or inaccessible, the export reports the problem and asks you to reopen the project or use **Save As**, without silently falling back to Downloads. Exporting does not save pending project or pricing changes.
 
-**Projects → Documentation** groups authored downloads into PDF and XLSX tables.
+**Documents → Documentation** groups authored downloads into PDF and XLSX tables.
 Each row provides the existing export action and links to revisions generated
 within the current project. Source-specific exports retain their normal item,
 drawing or filter choices. New authored downloads started elsewhere in the app

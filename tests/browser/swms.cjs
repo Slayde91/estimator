@@ -72,6 +72,14 @@ async function run(edition) {
     const reviewTops = await host.locator('.swms-review-grid input').evaluateAll(inputs=>inputs.map(input=>Math.round(input.getBoundingClientRect().top)));
     assert.equal(new Set(reviewTops).size,1);
     await host.locator('summary').filter({hasText:/^Reviews$/}).click();
+    const additionalSection = host.locator(':scope > details').filter({has:page.locator(':scope > summary').filter({hasText:/^Additional Job Steps$/})});
+    await additionalSection.locator(':scope > summary').click();
+    await additionalSection.getByLabel('Are there additional job steps to consider?',{exact:true}).selectOption('Yes');
+    await additionalSection.getByRole('button',{name:'Add job step',exact:true}).click();
+    const additionalControl = host.getByLabel('Additional Job Steps item 1 controls',{exact:true});
+    assert.ok((await additionalControl.boundingBox()).height <= 45);
+    await additionalControl.fill('Saved additional control\nLine two\nLine three\nLine four\nLine five');
+    await additionalSection.locator(':scope > summary').click();
     await host.getByRole('button',{name:'Draw signature',exact:true}).first().click();
     const pad = page.getByLabel('SWMS signature drawing pad'), rect = await pad.boundingBox();
     await page.mouse.move(rect.x+30,rect.y+120); await page.mouse.down(); await page.mouse.move(rect.x+90,rect.y+45,{steps:6}); await page.mouse.move(rect.x+160,rect.y+125,{steps:6}); await page.mouse.up();
@@ -132,7 +140,11 @@ async function run(edition) {
     await host.getByRole('button',{name:'Back to statements',exact:true}).click();
     await host.getByRole('button',{name:'Open',exact:true}).click();
     await expect(host.getByRole('img',{name:'Project manager drawn signature'})).toBeVisible();
-    await expect(host.locator('.swms-step-table tbody tr')).toHaveCount(45);
+    await expect(host.locator('.swms-step-table tbody tr')).toHaveCount(46);
+    await additionalSection.locator(':scope > summary').click();
+    await expect(additionalControl).toHaveValue('Saved additional control\nLine two\nLine three\nLine four\nLine five');
+    await expect.poll(()=>additionalControl.evaluate(input=>input.clientHeight >= input.scrollHeight)).toBe(true);
+    assert.ok((await additionalControl.boundingBox()).height > 80,'Saved additional controls expand when their collapsed parent opens');
     await page.screenshot({path:path.join(directory,'swms-editor.png'),fullPage:false});
     // Raw user text is rendered through DOM text/value properties, never HTML.
     await host.getByLabel('Document title',{exact:true}).fill('<img src=x onerror=alert(1)>');
@@ -141,7 +153,7 @@ async function run(edition) {
     await expect(host.getByRole('heading',{name:'<img src=x onerror=alert(1)>',exact:true})).toBeVisible();
     assert.equal(await host.locator('img').count(),0);
     assert.deepEqual(errors,[]); assert.deepEqual(external,[]);
-    checks.push(`${edition}: Documents entry, project defaults, 45 work steps, conditional high-risk tables and retained edits, compact expanding rows, ten reviews on one row, removed legacy UI, back icon, drawn signature, delayed attachment lock and encoded budget, save/reopen, portable project, real PDF download after company change, cleared successful export receipt and retained cancellation receipt, escaped text, no external location requests`);
+    checks.push(`${edition}: Documents entry, project defaults, 45 work steps, conditional high-risk tables and retained edits, compact expanding rows and saved additional controls grow on parent reopen, ten reviews on one row, removed legacy UI, back icon, drawn signature, delayed attachment lock and encoded budget, save/reopen, portable project, real PDF download after company change, cleared successful export receipt and retained cancellation receipt, escaped text, no external location requests`);
   } catch(error) { fs.mkdirSync(directory,{recursive:true});fs.writeFileSync(path.join(directory,'server.log'),logs);throw error; }
   finally { await browser?.close(); server.kill(); }
 }

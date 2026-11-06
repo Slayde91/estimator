@@ -577,6 +577,43 @@ assert.equal(run([notice('Saved '),notice('details'),notice('×',true)]),'Saved 
             self.assertIn('steel-calculator-navigation-menu', template.parents[identifier])
         self.assertNotIn('steel-calculator-navigation-menu', template.parents['ductwork'])
 
+    def test_native_smoke_navigation_matches_standard_header_including_document_and_clock_artwork(self):
+        from estimator.desktop_selftest import STANDARD_NAVIGATION, STANDARD_NAVIGATION_ARTWORK
+        from estimator.edition import render_index
+
+        class Header(HTMLParser):
+            def __init__(self):
+                super().__init__(); self.in_nav = False; self.current = None; self.icons = []; self.labels = False
+            def handle_starttag(self, tag, attributes):
+                attrs = dict(attributes)
+                if tag == 'nav': self.in_nav = attrs.get('aria-label') == 'Main navigation'
+                if self.in_nav and tag == 'button' and 'nav-icon' in attrs.get('class', '').split():
+                    self.current = {'view': attrs['data-view'], 'label': '', 'artwork': {'paths': [], 'circles': []}}
+                    self.icons.append(self.current)
+                if self.current is not None:
+                    if tag == 'svg': self.current['svg'] = attrs
+                    if tag == 'img': self.current['image'] = attrs
+                    if tag == 'path': self.current['artwork']['paths'].append(attrs['d'])
+                    if tag == 'circle': self.current['artwork']['circles'].append([attrs[key] for key in ('cx', 'cy', 'r')])
+                    if tag == 'span': self.labels = 'nav-page-label' in attrs.get('class', '').split()
+            def handle_data(self, data):
+                if self.current is not None and self.labels: self.current['label'] += data.strip()
+            def handle_endtag(self, tag):
+                if tag == 'nav': self.in_nav = False
+                if tag == 'button': self.current = None
+                if tag == 'span': self.labels = False
+
+        header = Header()
+        header.feed(render_index((ROOT / 'static/index.html').read_bytes(), 'standard').decode('utf-8'))
+        self.assertEqual(len(header.icons), 9)
+        self.assertEqual([(icon['view'], icon['label'], icon['svg'].get('data-lucide')) for icon in header.icons], list(STANDARD_NAVIGATION))
+        for icon in header.icons:
+            self.assertNotIn('image', icon)
+            self.assertEqual({key: icon['svg'][key] for key in ('viewbox', 'fill', 'stroke-width', 'aria-hidden', 'focusable')},
+                             {'viewbox': '0 0 24 24', 'fill': 'none', 'stroke-width': '2', 'aria-hidden': 'true', 'focusable': 'false'})
+            if icon['view'] in STANDARD_NAVIGATION_ARTWORK:
+                self.assertEqual(icon['artwork'], STANDARD_NAVIGATION_ARTWORK[icon['view']])
+
     def test_native_runtime_inputs_require_both_distinct_verified_packages(self):
         x64=self.root/'runtime-x64.exe'
         arm64=self.root/'runtime-arm64.exe'

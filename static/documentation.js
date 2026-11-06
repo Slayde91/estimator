@@ -51,7 +51,7 @@
       const seen=new Set();
       for(const row of value.documents) {
         if(!row||typeof row.id!=="string"||!row.id||seen.has(row.id)||!["pdf","xlsx"].includes(row.format)
-          ||typeof row.label!=="string"||!["estimate","calculator","firestopping","pricing","certification","library","takeoff","commercial"].includes(row.adapter)
+          ||typeof row.label!=="string"||!["estimate","calculator","firestopping","pricing","certification","library","takeoff","commercial","swms"].includes(row.adapter)
           ||!row.spec||typeof row.spec!=="object")throw new Error("The document download list is invalid.");
         seen.add(row.id);
       }
@@ -195,7 +195,7 @@
   }
   function hasPendingOperation() {return !!state.action||!!state.opening||state.pending.size>0;}
   function supported(path) {
-    return path === '/api/commercial/issue'
+    return path === '/api/swms/issue' || path === '/api/commercial/issue'
       || /^\/api\/(?:quote-report|quotes\/[^/]+\/report\.pdf|pricing\/export|project\/(?:full-schedule|full-product-summary)\.pdf)$/.test(path)
       ||/^\/api\/calculators\/(?:steel_vermiculite|steel_intumescent|steel_board|ductwork)\/(?:report\.pdf|summary\.pdf|register\.xlsx|template)$/.test(path)
       ||/^\/api\/(?:technical\/item\.(?:pdf|xlsx)|penetration\/(?:item\.(?:pdf|xlsx)|report\.pdf|register\.xlsx))$/.test(path)

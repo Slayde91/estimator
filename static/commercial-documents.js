@@ -20,6 +20,7 @@
     dirty: false,
     changed: false,
     search: "",
+    sort: "Most recently saved",
     hidden: new Set(),
     revision: 0
   };
@@ -54,7 +55,7 @@
     });
     return element;
   }
-  function select(options, value, changed) {
+  function select(options, value, changed, dirty = true) {
     const element = node("select");
     options.forEach(item => {
       const option = node("option", "", item);
@@ -64,7 +65,7 @@
     element.value = value;
     element.addEventListener("change", () => {
       changed(element.value);
-      markDirty();
+      if (dirty) markDirty();
     });
     return element;
   }
@@ -90,6 +91,15 @@
     state.dirty = true;
     if (state.editor) state.editor.pendingIssue = null;
     window.CeasefireProject?.changed?.();
+  }
+  function positionCardMenu(menu) {
+    menu.addEventListener("toggle", () => {
+      if (!menu.open) return;
+      const panel = menu.querySelector(".commercial-menu-options");
+      const rect = menu.querySelector("summary").getBoundingClientRect();
+      panel.style.left = `${Math.max(8, Math.min(innerWidth - panel.offsetWidth - 8, rect.right - panel.offsetWidth))}px`;
+      panel.style.top = `${rect.bottom + panel.offsetHeight + 12 <= innerHeight ? rect.bottom + 6 : Math.max(8, rect.top - panel.offsetHeight - 6)}px`;
+    });
   }
   function changed() {
     state.changed = true;
@@ -207,9 +217,20 @@
       state.search = search.value;
       renderCards();
     });
-    controls.append(field("Search documents", search), button("New " + names[state.kind], () => openNew(), true));
+    search.placeholder = "Document, client, project or reference…";
+    controls.append(field("Search documents", search));
+    const sort = select(["Most recently saved", "Oldest saved first", "Document name A–Z"], state.sort, value => {
+      state.sort = value;
+      state.dirty = false;
+      renderCards();
+    }, false);
+    const sortField = field("Sort by", sort);
+    sort.addEventListener("change", () => { state.dirty = false; });
+    sortField.classList.add("commercial-sort");
+    controls.append(sortField, button("New " + names[state.kind], () => openNew(), true));
     const columns = node("details", "commercial-columns-menu");
-    columns.append(node("summary", "button secondary", "Columns"));
+    columns.append(node("summary", "button secondary", "Columns ▾"));
+    const columnOptions = node("div", "commercial-menu-options");
     for (const status of state.model.statuses[state.kind]) {
       const label = node("label", "commercial-check"),
         checkbox = node("input");
@@ -220,23 +241,34 @@
         renderCards();
       });
       label.append(checkbox, node("span", "", status));
-      columns.append(label);
+      columnOptions.append(label);
     }
+    columns.append(columnOptions);
     controls.append(columns);
-    host.append(controls, node("div", "commercial-board"));
+    const list = node("section", "card commercial-list");
+    list.append(controls, node("p", "helper commercial-match-count"), node("div", "commercial-board project-kanban"));
+    host.append(list);
     renderCards();
   }
   function renderCards() {
     const board = root()?.querySelector(".commercial-board");
     if (!board) return;
     board.replaceChildren();
-    const documents = state.model.documents.filter(document => document.kind === state.kind && `${document.fields.title} ${document.fields.details.client} ${document.last_number}`.toLowerCase().includes(state.search.toLowerCase()));
+    const all = state.model.documents.filter(document => document.kind === state.kind);
+    const documents = all.filter(document => `${document.fields.title} ${document.fields.details.client} ${document.fields.details.project_no} ${document.last_number} ${document.fields.order.work_order_reference}`.toLowerCase().includes(state.search.toLowerCase()));
+    documents.sort((a, b) => state.sort === "Document name A–Z"
+      ? a.fields.title.localeCompare(b.fields.title, "en", {numeric:true}) || a.id.localeCompare(b.id)
+      : (state.sort === "Oldest saved first" ? 1 : -1) * a.updated_at.localeCompare(b.updated_at) || a.id.localeCompare(b.id));
+    root().querySelector(".commercial-match-count").textContent = `${documents.length} matching documents · ${all.length} found`;
     for (const status of state.model.statuses[state.kind]) {
       if (state.hidden.has(status)) continue;
-      const column = node("section", "commercial-column");
+      const column = node("section", "commercial-column project-kanban-column");
+      column.dataset.status = status;
       column.setAttribute("aria-label", status);
       const matches = documents.filter(document => document.status === status);
-      column.append(node("h2", "", `${status} (${matches.length})`));
+      const columnHeading = node("div", "project-column-heading");
+      columnHeading.append(node("h2", "", status), node("span", "status-label", matches.length));
+      column.append(columnHeading);
       column.addEventListener("dragover", event => {
         event.preventDefault();
         event.dataTransfer.dropEffect = "move";
@@ -248,26 +280,41 @@
         if (document) void move(document, status);
       });
       for (const document of matches) {
-        const card = node("article", "commercial-card");
+        const card = node("article", "commercial-card project-kanban-card");
         card.draggable = true;
         card.addEventListener("dragstart", event => {
+          if (state.busy || event.target.closest("button,select,summary,input")) { event.preventDefault(); return; }
           event.dataTransfer.setData("text/plain", document.id);
           event.dataTransfer.effectAllowed = "move";
         });
-        card.append(node("h3", "", document.fields.title), node("p", "helper", document.last_number || "Number assigned on PDF download"), node("p", "", document.fields.details.client), node("p", "helper", "Updated " + new Date(document.updated_at).toLocaleString("en-AU")));
         const menu = node("details", "commercial-card-menu");
-        menu.append(node("summary", "button secondary", "Actions"), button("Open / Edit", () => {
-          if (!state.busy) openEditor(document);
-        }), button("Delete", () => remove(document)));
-        const statusSelect = select(state.model.statuses[state.kind], document.status, value => void move(document, value));
+        const toggle = node("summary", "", "▾");
+        toggle.setAttribute("aria-label", `Actions for ${document.fields.title}`);
+        const actions = node("div", "commercial-menu-options");
+        for (const [label, action] of [["Open", () => openEditor(document)], ["Edit", () => openEditor(document)], ["Delete", () => remove(document)]]) {
+          const control = button(label, () => { menu.open = false; if (!state.busy) action(); });
+          control.className = "text-button";
+          actions.append(control);
+        }
+        const statusSelect = select(state.model.statuses[state.kind], document.status, value => void move(document, value), false);
         statusSelect.addEventListener("change", () => {
           state.dirty = false;
+          menu.open = false;
         });
-        card.append(menu, field("Status", statusSelect));
+        actions.append(field("Move to", statusSelect));
+        menu.append(toggle, actions);
+        positionCardMenu(menu);
+        const title = button(document.fields.title, () => { if (!state.busy) openEditor(document); });
+        title.className = "project-title-button";
+        const heading = node("div", "project-card-heading");
+        heading.append(title, menu);
+        card.append(heading, node("p", "helper", document.fields.order.work_order_reference && state.kind === "work_order" ? document.fields.order.work_order_reference : document.last_number || "Number assigned on PDF download"), node("p", "helper", [document.fields.details.project_no, document.fields.details.client].filter(Boolean).join(" · ")), node("p", "helper", "Last updated " + new Date(document.updated_at).toLocaleString("en-AU")));
         column.append(card);
       }
+      if (!matches.length) column.append(node("p", "project-column-empty", "No documents"));
       board.append(column);
     }
+    if (!board.children.length) board.append(node("p", "empty-state", "Choose a column from Columns to show documents."));
   }
   async function move(document, status) {
     if (state.busy) return;
@@ -306,7 +353,7 @@
       state.busy = false;
     }
   }
-  async function openNew() {
+  async function openNew(fromEstimate = false) {
     if (state.busy) return;
     state.busy = true;
     try {
@@ -329,7 +376,28 @@
       };
       openEditor(document);
       state.dirty = true;
-      if (state.kind === "quote") await refreshEstimates([window.CeasefireEstimates?.activeId?.() || "estimate-1"]);
+      const estimateId = window.CeasefireEstimates?.activeId?.() || "estimate-1";
+      if ((state.kind === "quote" || fromEstimate) && !(await refreshEstimates([estimateId]))) return;
+      if (fromEstimate && state.kind !== "quote") {
+        const fields = state.editor.document.fields;
+        const eligible = state.model.documents.filter(item => item.kind === "quote" && item.last_number && item.fields.sources?.some(source => source.id === estimateId || source.estimate_id === estimateId));
+        if (eligible.length === 1) fields.order.quote_id = eligible[0].id;
+        if (state.kind === "work_order") {
+          fields.order.description = fields.lines.map(line => line.description).join("\n");
+          fields.order.estimated_cost = (Number(summary(fields).subtotal) / 100).toFixed(2);
+        } else {
+          fields.order.ship_to_address = fields.details.site_address;
+          const workOrders = state.model.documents.filter(item => item.kind === "work_order" && item.fields.order.work_order_reference && eligible.some(quote => quote.id === item.fields.order.quote_id));
+          if (workOrders.length === 1) {
+            fields.order.work_order_id = workOrders[0].id;
+            fields.order.work_order_reference = workOrders[0].fields.order.work_order_reference;
+          }
+        }
+        const draft = copy(state.editor.document);
+        state.dirty = false;
+        openEditor(draft);
+        markDirty();
+      }
     } catch (error) {
       message(error.message, true);
     } finally {
@@ -407,17 +475,24 @@
         renderBoard();
       }
     }), button("Save", () => void saveEditor(), true), button("Download PDF", () => void downloadEditor(), true));
-    form.append(actions, field("Document title", input(fields.title, value => fields.title = value)), field("Status", select(state.model.statuses[state.kind], state.editor.document.status, value => state.editor.document.status = value)));
+    const titleRow = node("div", "commercial-title-row");
+    titleRow.append(field("Document title", input(fields.title, value => fields.title = value)), field("Status", select(state.model.statuses[state.kind], state.editor.document.status, value => state.editor.document.status = value)));
+    form.append(actions, titleRow);
     const details = node("section", "card commercial-details");
     details.append(node("h2", "", "Project details"));
-    for (const [key, label] of [["project_no", "Project number"], ["client", "Client"], ["site_address", "Site address"], ["contact", "Client contact"], ["phone", "Client phone"], ["email", "Client email"], ["date", "Document date"]]) details.append(field(label, input(fields.details[key], value => fields.details[key] = value, key === "date" ? "date" : "text")));
+    for (const [key, label] of [["project_no", "Project number"], ["client", "Client"], ["site_address", "Site address"], ["contact", "Client contact"], ["phone", "Client phone"], ["email", "Client email"], ["date", "Document date"]]) {
+      if (state.kind === "purchase_order" && ["client", "contact", "phone", "email"].includes(key)) continue;
+      const control = input(fields.details[key], value => fields.details[key] = value, key === "date" ? "date" : "text");
+      if (key === "project_no" && state.kind === "work_order" && document.version > 0 && fields.order.work_order_reference) control.readOnly = true;
+      details.append(field(label, control));
+    }
     form.append(details);
     if (state.kind === "quote") {
       form.append(field("Introduction", textarea(fields.introduction, value => fields.introduction = value)));
       const chooser = node("details", "commercial-estimate-picker");
       chooser.append(node("summary", "button secondary", "Select estimates"), node("div", "commercial-estimate-options"));
       form.append(chooser);
-      form.append(node("section", "commercial-lines"), node("section", "commercial-scope"), richEditor("Scope preamble", fields.scope, value => fields.scope = value), richEditor("Allowances", fields.allowances, value => fields.allowances = value), node("div", "commercial-totals"), richEditor("Terms & Conditions", fields.terms, value => fields.terms = value));
+      form.append(node("section", "commercial-lines"), node("div", "commercial-totals"), node("section", "commercial-scope"), richEditor("Scope preamble", fields.scope, value => fields.scope = value), richEditor("Allowances", fields.allowances, value => fields.allowances = value), richEditor("Terms & Conditions", fields.terms, value => fields.terms = value));
     } else {
       renderOrderFields(form, fields);
       if (state.kind === "purchase_order") form.append(node("section", "commercial-lines"), button("Add line item", () => {
@@ -442,12 +517,55 @@
     if (state.kind === "quote" && document.version > 0) void refreshScopePreview();
   }
   function renderOrderFields(form, fields) {
+    const references = node("section", "commercial-linked-reference");
+    const isWorkOrder = state.kind === "work_order";
+    const linkKey = isWorkOrder ? "quote_id" : "work_order_id";
+    const choices = state.model.documents.filter(item => isWorkOrder
+      ? item.kind === "quote" && item.last_number
+      : item.kind === "work_order" && item.fields.order.work_order_reference);
+    const linked = node("select");
+    const blank = node("option", "", isWorkOrder ? "Select an issued Quote…" : "No Work Order linked");
+    blank.value = "";
+    linked.append(blank);
+    for (const item of choices) {
+      const quoteNumber = state.editor.document.version > 0 && fields.order.quote_id === item.id && fields.order.work_order_reference ? fields.order.quote_reference : item.last_number;
+      const option = node("option", "", `${isWorkOrder ? quoteNumber : item.fields.order.work_order_reference} · ${item.fields.title}`);
+      option.value = item.id;
+      linked.append(option);
+    }
+    if (fields.order[linkKey] && !choices.some(item => item.id === fields.order[linkKey])) {
+      const retained = node("option", "", isWorkOrder ? fields.order.quote_reference : fields.order.work_order_reference);
+      retained.value = fields.order[linkKey];
+      linked.append(retained);
+    }
+    linked.value = fields.order[linkKey] || "";
+    linked.dataset.orderLink = linkKey;
+    linked.disabled = isWorkOrder && state.editor.document.version > 0 && !!fields.order.work_order_reference;
+    const reference = input(fields.order.work_order_reference, () => {});
+    reference.readOnly = true;
+    reference.placeholder = isWorkOrder ? "Assigned when this Work Order is saved" : "Select a linked Work Order";
+    reference.dataset.orderReference = "true";
+    linked.addEventListener("change", () => {
+      fields.order[linkKey] = linked.value;
+      const selected = choices.find(item => item.id === linked.value);
+      if (isWorkOrder) fields.order.quote_reference = selected?.last_number || "";
+      else {
+        fields.order.work_order_reference = selected?.fields.order.work_order_reference || "";
+        reference.value = fields.order.work_order_reference;
+      }
+      markDirty();
+    });
+    references.append(field(isWorkOrder ? "Linked Quote" : "Linked Work Order", linked), field("Work order reference", reference));
+    form.append(references);
     const commonReview = [["approval", "Approval"], ["reviewed_by", "Reviewed by"], ["review_date", "Review date"]];
     const groups = state.kind === "work_order" ? [["Work order details", [["start_date", "Proposed start date"], ["end_date", "Proposed end date"], ["urgency", "Category / urgency"], ["quote_reference", "Quote reference"], ["description", "Description of works"], ["estimated_cost", "Estimated cost (AUD)"], ["attachments", "Image / video references"]]], ["Work order review", [...commonReview, ["justification", "Justification"]]], ["OHS documentation", [["swms", "SWMS"], ["sds", "SDS"], ["sop", "SOP"], ["other_documents", "Other documents"], ["prepared_by", "Prepared by"]]], ["Client approval", [["client_approval", "Safety documentation approval"], ["client_approved_by", "Approved by"], ["client_approval_date", "Approval date"]]], ["Progress and completion", [["progress", "Work progress"], ["claim", "Products and services charged"], ["certification", "Certification details"], ["completion", "Completion"], ["closed_by", "Closed by"]]]] : [["Purchase order information", [["work_order_reference", "Work order reference"], ["supplier", "Supplier"], ["supplier_email", "Supplier email"], ["supplier_contact", "Supplier contact"], ["payment_terms", "Payment terms"], ["ship_to_name", "Ship to name"], ["ship_to_address", "Ship to address"], ["delivery_date", "Delivery date"], ["expense_type", "Type of expense"], ["delivery_method", "Delivery or pickup"]]], ["Request and approval", [["requested_by", "Requested by"], ["requested_date", "Request date"], ...commonReview]], ["Procurement verification", [["verification", "Verification method, specification, result and actions"], ["sent_by", "Sent by"], ["sent_date", "Sent date"], ["verified_by", "Verified by"], ["verified_date", "Verification date"]]]];
     for (const [title, items] of groups) {
       const section = node("section", "card commercial-order-fields");
       section.append(node("h2", "", title));
-      for (const [key, label] of items) section.append(field(label, textarea(fields.order[key], value => fields.order[key] = value)));
+      for (const [key, label] of items) {
+        if (["quote_reference", "work_order_reference"].includes(key)) continue;
+        section.append(field(label, key.endsWith("_date") ? input(fields.order[key], value => fields.order[key] = value, "date") : textarea(fields.order[key], value => fields.order[key] = value)));
+      }
       form.append(section);
     }
   }
@@ -501,7 +619,7 @@
   }
   async function refreshEstimates(selectedIds) {
     const editor = state.editor;
-    if (!editor) return;
+    if (!editor) return false;
     const workspace = state.workspace;
     const context = window.CeasefireProject?.runtimeContext?.();
     ++editor.scopeRevision;
@@ -540,9 +658,11 @@
       renderLines();
       renderScope();
       message("");
+      return true;
     } catch (error) {
       message(error.message, true);
       renderEstimateOptions();
+      return false;
     } finally {
       state.busy = false;
       setDisabled(false);
@@ -566,7 +686,14 @@
         quantity = node("td"),
         unit = node("td"),
         total = node("td", "commercial-line-total");
-      description.append(textarea(line.description, value => line.description = value));
+      const descriptionInput = textarea(line.description, value => line.description = value);
+      descriptionInput.rows = 1;
+      descriptionInput.classList.add("commercial-line-description");
+      descriptionInput.setAttribute("aria-label", `Product / Service ${index + 1}`);
+      const resize = () => resizeDescription(descriptionInput);
+      descriptionInput.addEventListener("input", resize);
+      description.append(descriptionInput);
+      requestAnimationFrame(resize);
       quantity.append(input(line.quantity, value => {
         line.quantity = value;
         renderTotals();
@@ -602,6 +729,11 @@
     scroll.append(table);
     host.append(scroll);
     renderTotals();
+  }
+  function resizeDescription(control) {
+    if (!control.isConnected || !control.getBoundingClientRect().width) return;
+    control.style.height = "auto";
+    control.style.height = `${Math.max(42, control.scrollHeight + 2)}px`;
   }
   function renderTotals() {
     if (!state.editor) return;
@@ -647,6 +779,12 @@
   function setDisabled(disabled) {
     root()?.querySelectorAll(".commercial-editor button,.commercial-editor input,.commercial-editor textarea,.commercial-editor select").forEach(control => control.disabled = disabled);
     root()?.querySelectorAll(".commercial-rich-input").forEach(control => control.contentEditable = String(!disabled));
+    if (!disabled && state.kind === "work_order" && state.editor?.document.version > 0 && state.editor.document.fields.order.work_order_reference) {
+      const linked = root()?.querySelector('[data-order-link="quote_id"]');
+      if (linked) linked.disabled = true;
+      const number = root()?.querySelector('input[aria-label="Project number"]');
+      if (number) number.readOnly = true;
+    }
   }
   async function persist(captured) {
     const document = state.editor.document;
@@ -675,6 +813,8 @@
     });
     renderLines();
     renderScope();
+    const reference = root()?.querySelector("[data-order-reference]");
+    if (reference) reference.value = fields.order.work_order_reference;
   }
   async function saveEditor() {
     if (state.busy || !state.editor) return;
@@ -741,12 +881,13 @@
   }
   window.CeasefireCommercial = {
     activate,
-    async openFromEstimate() {
+    async openFromEstimate(kind = "quote") {
+      if (!names[kind]) return;
       if (state.busy || state.dirty) return;
       const context = window.CeasefireProject?.runtimeContext?.();
-      if (state.kind !== "quote" || state.model?.workspace_id !== currentWorkspace()) await activate("quote");
+      if (state.kind !== kind || state.model?.workspace_id !== currentWorkspace()) await activate(kind);
       const workspace = currentWorkspace();
-      if (context === window.CeasefireProject?.runtimeContext?.() && workspace && state.workspace === workspace && state.kind === "quote" && state.model?.workspace_id === workspace && !state.busy && !state.dirty) await openNew();
+      if (context === window.CeasefireProject?.runtimeContext?.() && workspace && state.workspace === workspace && state.kind === kind && state.model?.workspace_id === workspace && !state.busy && !state.dirty) await openNew(true);
     },
     completeProjectSnapshot,
     async prepareProject(value, workspace_id) {
@@ -781,4 +922,24 @@
       if (!captured || JSON.stringify(state.model?.snapshot) === JSON.stringify(captured)) state.changed = false;
     }
   };
+  document.addEventListener("click", event => {
+    for (const menu of document.querySelectorAll(".commercial-columns-menu[open],.commercial-card-menu[open]")) {
+      if (!menu.contains(event.target)) menu.open = false;
+    }
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key !== "Escape") return;
+    for (const menu of document.querySelectorAll(".commercial-columns-menu[open],.commercial-card-menu[open]")) {
+      menu.open = false;
+      menu.querySelector("summary").focus();
+    }
+  });
+  const closeCardMenus = () => document.querySelectorAll(".commercial-card-menu[open]").forEach(menu => { menu.open = false; });
+  window.addEventListener("resize", closeCardMenus);
+  window.addEventListener("resize", () => {
+    document.querySelectorAll(".commercial-line-description").forEach(resizeDescription);
+  });
+  document.addEventListener("scroll", event => {
+    if (!event.target.closest?.(".commercial-menu-options")) closeCardMenus();
+  }, true);
 })();

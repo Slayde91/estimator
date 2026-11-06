@@ -24,7 +24,7 @@
     // Export adapters release their own busy flags after save() returns. Wait
     // for those finalizers before taking the ordinary complete project snapshot.
     const modules = ['CeasefireProject', 'CeasefireDocumentation', 'CeasefireCalculators',
-      'CeasefirePenetrations', 'CeasefireTakeoffs', 'CeasefireLibraryEditor', 'CeasefireCertification', 'CeasefireCommercial'];
+      'CeasefirePenetrations', 'CeasefireTakeoffs', 'CeasefireLibraryEditor', 'CeasefireCertification', 'CeasefireCommercial', 'CeasefireSWMS'];
     if (active || modules.some(name => window[name]?.hasPendingOperation?.())) { scheduleProjectSave(); return; }
     const batch = projectSaves.splice(0), latest = batch[batch.length - 1];
     if (!currentTarget(latest.target)) { window.CeasefireProject?.changed?.(); return; }
@@ -227,7 +227,7 @@
         if (documentationHeaders) await window.CeasefireDocumentation?.downloadCompleted?.(documentationHeaders, savedResult);
       } finally {
         if (tracked) active--;
-        if (path === '/api/commercial/issue' && savedResult?.destination === 'project' && download?.project_token) {
+        if (['/api/commercial/issue', '/api/swms/issue'].includes(path) && savedResult?.destination === 'project' && download?.project_token) {
           queueProjectSave(download, savedResult);
         }
       }

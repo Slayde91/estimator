@@ -129,10 +129,13 @@ def penetration_schedule_table(result, definition, *, library=None):
     return {'headers': list(SCHEDULE_HEADERS), 'rows': rows}
 
 
-def render_penetration_pdf(result, definition, project_details, *, library=None, company=None, include_project_details=True, project_report_title=None, report_footer=None, portrait=False):
+def render_penetration_pdf(result, definition, project_details, *, library=None, company=None, include_project_details=True, project_report_title=None, report_footer=None, portrait=False, quote_scope=False):
     """Show the technical schedule without prices, using captured inputs."""
     _register_fonts()
     report = _Report({})
+    if quote_scope:
+        from .quote_schedule import configure_quote_schedule
+        configure_quote_schedule(report)
     # Let long schedule tables split on the current page. Keeping an entire
     # table with its heading can otherwise strand the schedule heading alone.
     report.styles['subheading'].keepWithNext = False
@@ -142,20 +145,22 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
     margin = 32
     content = width - 2 * margin
     logo = company_logo(company)
-    report.story.append(report.p(project_report_title or 'FIRESTOPPING SCHEDULE', 'title'))
+    report.story.append(report.p('Firestopping' if quote_scope else project_report_title or 'FIRESTOPPING SCHEDULE',
+                                 'section' if quote_scope else 'title'))
     details = [('Project No.', project_details.get('project_no', '')),
                ('Client', project_details.get('client', '')),
                ('Site Address', project_details.get('site_address', ''))]
-    if include_project_details:
+    if include_project_details and not quote_scope:
         report.story.append(report.table(['Project details', 'Value'],
             [[report.p(label, 'cell'), report.p(value, 'cell')] for label, value in details],
             [content * .25, content * .75]))
         report.story.append(Spacer(1, 12))
-    if project_report_title:
+    if project_report_title and not quote_scope:
         report.story.append(report.p('Firestopping schedule', 'section'))
     if result.get('errors'):
         report.story.append(report.p('Some workbook results are unavailable. Review the calculation errors below.', 'alert'))
-    report.story.append(report.p('Schedule', 'subheading'))
+    if not quote_scope:
+        report.story.append(report.p('Schedule', 'subheading'))
     widths = [content * part for part in (.04, .08, .18, .075, .09, .13, .11, .145, .15)]
     schedule_rows = []
     for record in _schedule_records(result, definition, library):
@@ -166,15 +171,19 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
         schedule_rows.append([report.p(record['line'], 'cell'), record['diagram'] or report.p('', 'cell')] +
             [report.p(value, 'cell') for value in record['values']] +
             [report.rich(' | '.join(captions), 'cell')])
-    groups = [[0, 2, 1, 3, 4], [0, 2, 5, 6, 7], [0, 2, 8]] if portrait else [list(range(len(SCHEDULE_HEADERS)))]
+    groups = [[0, 2, 1, 3, 4], [0, 2, 5, 6, 7], [0, 2, 8]] if portrait and not quote_scope else [list(range(len(SCHEDULE_HEADERS)))]
     for group_index, columns in enumerate(groups):
         if group_index:
             report.story.append(Spacer(1, 12))
         group_widths = [widths[index] for index in columns]
-        if portrait:
+        if portrait and not quote_scope:
             total = sum(group_widths[1:])
             group_widths = [32] + [(content - 32) * value / total for value in group_widths[1:]]
         rows = [[row[index] for index in columns] for row in schedule_rows]
+        if quote_scope:
+            from .quote_schedule import quote_schedule_table
+            report.story.append(quote_schedule_table(report, SCHEDULE_HEADERS, rows, group_widths, height))
+            continue
         schedule_table = report.table([SCHEDULE_HEADERS[index] for index in columns], rows, group_widths, compact=True)
         # Split tall cells while keeping room for a body line beneath the header.
         schedule_table.splitByRow = 0
@@ -191,13 +200,17 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
         report.story.append(report.p('Check the schedule; a summary result is unavailable.', 'alert'))
 
     output = BytesIO()
-    document = SimpleDocTemplate(output, pagesize=page_size, leftMargin=margin, rightMargin=margin,
+    frame_margin = margin - 6 if quote_scope else margin
+    document = SimpleDocTemplate(output, pagesize=page_size, leftMargin=frame_margin, rightMargin=frame_margin,
         topMargin=91, bottomMargin=43, pageCompression=1,
         title='CLASSIFIRE - Firestopping schedule', author='CLASSIFIRE')
 
     def decorate(canvas, doc):
         canvas.saveState()
         _company_header(canvas, logo, width, height, margin, '', label_below_logo=True, company=company)
+        if quote_scope:
+            canvas.restoreState()
+            return
         canvas.setStrokeColor(_LINE)
         canvas.line(margin, 32, width - margin, 32)
         canvas.setFont('CeasefireVera', 7)

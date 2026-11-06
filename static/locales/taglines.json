@@ -286,47 +286,47 @@
     "الإعداد السليم يمنع الأداء الرديء للغاية.",
     "เตรียมให้พร้อม ป้องกันงานห่วยแตก"
   ],
-  "CLASSIFIRE | Passive Fire Intelligence | Talk FRL to me.": [
-    "CLASSIFIRE | Passive Fire Intelligence | 跟我聊聊 FRL。",
-    "CLASSIFIRE | Passive Fire Intelligence | मुझसे FRL की बातें करो।",
-    "CLASSIFIRE | Passive Fire Intelligence | Háblame de FRL.",
-    "CLASSIFIRE | Passive Fire Intelligence | حدثني بلغة FRL.",
-    "CLASSIFIRE | Passive Fire Intelligence | คุยเรื่อง FRL กับฉันสิ"
+  "Talk FRL to me.": [
+    "跟我聊聊 FRL。",
+    "मुझसे FRL की बातें करो।",
+    "Háblame de FRL.",
+    "حدثني بلغة FRL.",
+    "คุยเรื่อง FRL กับฉันสิ"
   ],
-  "CLASSIFIRE | Passive Fire Intelligence | Let me fill your holes.": [
-    "CLASSIFIRE | Passive Fire Intelligence | 让我来填满你的孔洞。",
-    "CLASSIFIRE | Passive Fire Intelligence | मुझे आपके छेद भरने दें।",
-    "CLASSIFIRE | Passive Fire Intelligence | Déjame rellenar tus agujeros.",
-    "CLASSIFIRE | Passive Fire Intelligence | دعني أملأ ثقوبك.",
-    "CLASSIFIRE | Passive Fire Intelligence | ให้ฉันอุดรูของคุณ"
+  "Let me fill your holes.": [
+    "让我来填满你的孔洞。",
+    "मुझे आपके छेद भरने दें।",
+    "Déjame rellenar tus agujeros.",
+    "دعني أملأ ثقوبك.",
+    "ให้ฉันอุดรูของคุณ"
   ],
-  "CLASSIFIRE | Passive Fire Intelligence | I know my way around an opening.": [
-    "CLASSIFIRE | Passive Fire Intelligence | 开口这方面，我很在行。",
-    "CLASSIFIRE | Passive Fire Intelligence | मुझे पता है कि खुली जगह को कैसे संभालना है।",
-    "CLASSIFIRE | Passive Fire Intelligence | Sé cómo manejarme con una abertura.",
-    "CLASSIFIRE | Passive Fire Intelligence | أعرف كيف أتعامل مع الفتحات.",
-    "CLASSIFIRE | Passive Fire Intelligence | เรื่องช่องเปิด ฉันรู้ทางดี"
+  "I know my way around an opening.": [
+    "开口这方面，我很在行。",
+    "मुझे पता है कि खुली जगह को कैसे संभालना है।",
+    "Sé cómo manejarme con una abertura.",
+    "أعرف كيف أتعامل مع الفتحات.",
+    "เรื่องช่องเปิด ฉันรู้ทางดี"
   ],
-  "CLASSIFIRE | Passive Fire Intelligence | Looks aren’t everything. Size matters.": [
-    "CLASSIFIRE | Passive Fire Intelligence | 外表并非一切。尺寸很重要。",
-    "CLASSIFIRE | Passive Fire Intelligence | दिखावट ही सब कुछ नहीं। आकार मायने रखता है।",
-    "CLASSIFIRE | Passive Fire Intelligence | La apariencia no lo es todo. El tamaño importa.",
-    "CLASSIFIRE | Passive Fire Intelligence | المظهر ليس كل شيء. الحجم مهم.",
-    "CLASSIFIRE | Passive Fire Intelligence | หน้าตาไม่ใช่ทุกอย่าง ขนาดก็สำคัญ"
+  "Looks aren’t everything. Size matters.": [
+    "外表并非一切。尺寸很重要。",
+    "दिखावट ही सब कुछ नहीं। आकार मायने रखता है।",
+    "La apariencia no lo es todo. El tamaño importa.",
+    "المظهر ليس كل شيء. الحجم مهم.",
+    "หน้าตาไม่ใช่ทุกอย่าง ขนาดก็สำคัญ"
   ],
-  "CLASSIFIRE | Passive Fire Intelligence | Stop staring at my calculations.": [
-    "CLASSIFIRE | Passive Fire Intelligence | 别再盯着我的计算结果看了。",
-    "CLASSIFIRE | Passive Fire Intelligence | मेरी गणनाओं को घूरना बंद करो।",
-    "CLASSIFIRE | Passive Fire Intelligence | Deja de mirar mis cálculos.",
-    "CLASSIFIRE | Passive Fire Intelligence | توقف عن التحديق في حساباتي.",
-    "CLASSIFIRE | Passive Fire Intelligence | เลิกจ้องการคำนวณของฉันได้แล้ว"
+  "Stop staring at my calculations.": [
+    "别再盯着我的计算结果看了。",
+    "मेरी गणनाओं को घूरना बंद करो।",
+    "Deja de mirar mis cálculos.",
+    "توقف عن التحديق في حساباتي.",
+    "เลิกจ้องการคำนวณของฉันได้แล้ว"
   ],
-  "CLASSIFIRE | Passive Fire Intelligence | Ridiculously good at looking things up.": [
-    "CLASSIFIRE | Passive Fire Intelligence | 查资料，我强得离谱。",
-    "CLASSIFIRE | Passive Fire Intelligence | चीज़ें ढूँढ़ने में हद से ज़्यादा अच्छा।",
-    "CLASSIFIRE | Passive Fire Intelligence | Ridículamente bueno buscando información.",
-    "CLASSIFIRE | Passive Fire Intelligence | بارع في البحث عن المعلومات بشكل لا يُصدَّق.",
-    "CLASSIFIRE | Passive Fire Intelligence | เก่งเรื่องค้นข้อมูลจนน่าเหลือเชื่อ"
+  "Ridiculously good at looking things up.": [
+    "查资料，我强得离谱。",
+    "चीज़ें ढूँढ़ने में हद से ज़्यादा अच्छा।",
+    "Ridículamente bueno buscando información.",
+    "بارع في البحث عن المعلومات بشكل لا يُصدَّق.",
+    "เก่งเรื่องค้นข้อมูลจนน่าเหลือเชื่อ"
   ],
   "“By others” is the hardest-working subcontractor on the project.": [
     "“由他人负责”是整个项目最勤劳的分包商。",
@@ -349,25 +349,25 @@
     "يُقاس الرش بالملليمترات. ويُقاس الرش الزائد بعدد رسائل البريد الإلكتروني.",
     "งานพ่นวัดเป็นมิลลิเมตร ส่วนละอองพ่นเกินวัดเป็นจำนวนอีเมล"
   ],
-  "CLASSIFIRE | Passive Fire Intelligence | Depth. Thickness. Compatibility. I have standards.": [
-    "CLASSIFIRE | Passive Fire Intelligence | 深度。厚度。兼容性。我有标准。",
-    "CLASSIFIRE | Passive Fire Intelligence | गहराई। मोटाई। अनुकूलता। मेरे अपने मानक हैं।",
-    "CLASSIFIRE | Passive Fire Intelligence | Profundidad. Espesor. Compatibilidad. Tengo mis estándares.",
-    "CLASSIFIRE | Passive Fire Intelligence | العمق. السماكة. التوافق. لدي معايير.",
-    "CLASSIFIRE | Passive Fire Intelligence | ความลึก ความหนา ความเข้ากันได้ ฉันมีมาตรฐานนะ"
+  "Depth. Thickness. Compatibility. I have standards.": [
+    "深度。厚度。兼容性。我有标准。",
+    "गहराई। मोटाई। अनुकूलता। मेरे अपने मानक हैं।",
+    "Profundidad. Espesor. Compatibilidad. Tengo mis estándares.",
+    "العمق. السماكة. التوافق. لدي معايير.",
+    "ความลึก ความหนา ความเข้ากันได้ ฉันมีมาตรฐานนะ"
   ],
-  "CLASSIFIRE | Passive Fire Intelligence | Looking for something long-term. Minimum 120 minutes.": [
-    "CLASSIFIRE | Passive Fire Intelligence | 寻求长久关系。至少 120 分钟。",
-    "CLASSIFIRE | Passive Fire Intelligence | कुछ लंबे समय तक टिकने वाला चाहिए। कम से कम 120 मिनट।",
-    "CLASSIFIRE | Passive Fire Intelligence | Busco algo duradero. Mínimo 120 minutos.",
-    "CLASSIFIRE | Passive Fire Intelligence | أبحث عن شيء طويل الأمد. 120 دقيقة على الأقل.",
-    "CLASSIFIRE | Passive Fire Intelligence | มองหาอะไรที่ยาวนาน ขั้นต่ำ 120 นาที"
+  "Looking for something long-term. Minimum 120 minutes.": [
+    "寻求长久关系。至少 120 分钟。",
+    "कुछ लंबे समय तक टिकने वाला चाहिए। कम से कम 120 मिनट।",
+    "Busco algo duradero. Mínimo 120 minutos.",
+    "أبحث عن شيء طويل الأمد. 120 دقيقة على الأقل.",
+    "มองหาอะไรที่ยาวนาน ขั้นต่ำ 120 นาที"
   ],
-  "CLASSIFIRE | Passive Fire Intelligence | Let me help you spray your load.": [
-    "CLASSIFIRE | Passive Fire Intelligence | 让我帮你把那批料喷出去。",
-    "CLASSIFIRE | Passive Fire Intelligence | अपना माल स्प्रे करने में मुझे मदद करने दो।",
-    "CLASSIFIRE | Passive Fire Intelligence | Déjame ayudarte a proyectar tu carga.",
-    "CLASSIFIRE | Passive Fire Intelligence | دعني أساعدك في رش حمولتك.",
-    "CLASSIFIRE | Passive Fire Intelligence | ให้ฉันช่วยพ่นของที่คุณบรรทุกมาสิ"
+  "Let me help you spray your load.": [
+    "让我帮你把那批料喷出去。",
+    "अपना माल स्प्रे करने में मुझे मदद करने दो।",
+    "Déjame ayudarte a proyectar tu carga.",
+    "دعني أساعدك في رش حمولتك.",
+    "ให้ฉันช่วยพ่นของที่คุณบรรทุกมาสิ"
   ]
 }

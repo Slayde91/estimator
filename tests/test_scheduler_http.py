@@ -1,11 +1,13 @@
 """Exercise Scheduler authentication and isolation through the application server."""
 
 from http.client import HTTPConnection
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 
 from estimator.server import create_server
 
@@ -35,7 +37,8 @@ class SchedulerHTTPTests(unittest.TestCase):
                            json.dumps(body) if body is not None else None, request_headers)
         response = connection.getresponse()
         status, response_headers = response.status, dict(response.getheaders())
-        result = json.loads(response.read())
+        raw = response.read()
+        result = raw if response_headers.get('Content-Type') == 'image/png' else json.loads(raw)
         connection.close()
         return status, response_headers, result
 
@@ -89,6 +92,33 @@ class SchedulerHTTPTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(state['shifts'][0]['title'], 'Updated job')
         self.assertEqual(self.request('state?start=2026-11-02&start=2026-11-03')[0], 400)
+
+    def test_location_required_and_heartbeat_cannot_overwrite_a_newer_login_cookie(self):
+        self.setup_account()
+        self.assertEqual(self.request('clock/in', {})[0], 400)
+        self.assertIsNone(self.request('state')[2]['active_entry'])
+        fix = {'latitude': -33.8688, 'longitude': 151.2093, 'accuracy': 10, 'captured_at': datetime.now(timezone.utc).isoformat()}
+        status, _, entry = self.request('clock/in', {'location_consent': True, 'location': fix})
+        self.assertEqual(status, 200, entry)
+        fix['captured_at'] = datetime.now(timezone.utc).isoformat()
+        status, headers, _ = self.request('locations', {'entry_id': entry['id'], **fix})
+        self.assertEqual(status, 200)
+        self.assertNotIn('Set-Cookie', headers)
+        self.assertEqual(len(self.request('locations?entry_id='+entry['id'])[2]['locations']), 1)
+        self.assertEqual(self.request('locations?entry_id='+entry['id'], headers={'X-Scheduler-Member': 'previous-account'})[0], 409)
+
+    def test_map_imagery_requires_account_and_same_origin_referer(self):
+        route = 'map-tile?z=10&x=942&y=614'
+        self.assertEqual(self.request(route)[0], 401)
+        self.setup_account()
+        for referer in ('', 'https://other.test/', 'http://127.0.0.1:1234/', f'http://127.0.0.1:{self.server.server_port}/?worker=private'):
+            self.assertEqual(self.request(route, headers={'Referer': referer})[0], 403)
+        with patch('estimator.scheduler_http.SchedulerMapTiles.get', return_value=b'synthetic-png') as get:
+            status, headers, body = self.request(route, headers={'Referer': f'http://127.0.0.1:{self.server.server_port}/'})
+        self.assertEqual((status, body), (200, b'synthetic-png'))
+        self.assertEqual(headers['Content-Type'], 'image/png')
+        self.assertEqual(get.call_args.args[0], {'z': '10', 'x': '942', 'y': '614'})
+        self.assertNotIn('cookie', get.call_args.kwargs)
 
 
 if __name__ == '__main__':

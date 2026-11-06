@@ -52,10 +52,11 @@ WRITE_FIELDS = {
     'shifts/delete': {'id', 'version'},
     'entries/delete': {'id', 'version'},
     'settings': set(DEFAULT_SETTINGS),
-    'clock/in': {'project_id', 'project_name', 'notes', 'location_consent'},
+    'clock/in': {'project_id', 'project_name', 'notes', 'location_consent', 'location'},
     'clock/out': {'entry_id', 'version'},
     'clock/break': {'entry_id', 'version', 'action', 'paid', 'rule_id'},
     'locations': {'entry_id', 'latitude', 'longitude', 'accuracy', 'captured_at'},
+    'locations/enable': {'entry_id', 'latitude', 'longitude', 'accuracy', 'captured_at'},
 }
 READ_FIELDS = {'bootstrap': set(), 'state': {'start', 'end'}, 'locations': {'entry_id'}}
 
@@ -359,10 +360,12 @@ class SchedulerStore:
                 return self._state(db, user, query)
             if action == 'locations':
                 entry = self._record(db, _text(query.get('entry_id', ''), 'Entry', required=True), 'entry')
-                if entry['member_id'] != user['id']:
-                    raise SchedulerError('Location history is available only to its signed-in owner.', 403)
+                if entry['member_id'] != user['id'] and user['role'] != 'admin':
+                    raise SchedulerError('Location history is available only to its owner or an administrator.', 403)
                 rows = db.execute('SELECT id,entry_id,captured_at,latitude,longitude,accuracy FROM scheduler_locations WHERE entry_id=? ORDER BY captured_at,id LIMIT 10000', (entry['id'],))
-                return {'locations': [dict(row) for row in rows]}
+                points = [dict(row) for row in rows]
+                return {'locations': points, 'coverage': self._location_coverage(entry, points),
+                        'entry': self._entry_view(entry, self._read_settings(db))}
             raise SchedulerError('Scheduler endpoint not found.', 404)
 
     def _state(self, db, user, query):
@@ -385,7 +388,13 @@ class SchedulerStore:
             if kind == 'entry' and (user['role'] == 'admin' or record['member_id'] == user['id']):
                 entries.append(record)
         settings = self._read_settings(db)
-        entries = [self._entry_view(entry, settings) for entry in entries]
+        active = self._current(db, user['id'])
+        summaries = {row['entry_id']: dict(row) for row in db.execute('''SELECT l.entry_id,count(*) AS count,
+            min(l.captured_at) AS first_at,max(l.captured_at) AS last_at FROM scheduler_locations l
+            JOIN scheduler_records r ON r.id=l.entry_id
+            WHERE ((r.start<? AND (r.end IS NULL OR r.end>?)) OR r.id=?) AND (?='admin' OR r.member_id=?)
+            GROUP BY l.entry_id''', (_iso(end_date), _iso(start_date), active['id'] if active else '', user['role'], user['id']))}
+        entries = [{**self._entry_view(entry, settings), 'location_summary': summaries.get(entry['id'], {'count': 0, 'first_at': None, 'last_at': None})} for entry in entries]
         # Whole weeks supply context for overtime even when the visible range starts midweek.
         local_start = start_date.astimezone(SYDNEY)
         week_start = (local_start - timedelta(days=local_start.weekday())).replace(hour=0, minute=0, second=0)
@@ -394,8 +403,11 @@ class SchedulerStore:
             (_iso(end_date), _iso(week_start)))]
         if user['role'] != 'admin':
             payroll_entries = [entry for entry in payroll_entries if entry['member_id'] == user['id']]
+        if active:
+            active = {**active, 'location_summary': summaries.get(active['id'], {'count': 0, 'first_at': None, 'last_at': None})}
         return {'user': _public_member(user), 'members': members, 'shifts': shifts, 'entries': entries,
-                'settings': settings, 'active_entry': self._current(db, user['id']),
+                'settings': settings, 'active_entry': active,
+                'location_policy': {'required': True, 'interval_minutes': 30, 'history_access': 'owner_and_administrator'},
                 'payroll': calculate_payroll(payroll_entries, settings, start_date, end_date)}
 
     @staticmethod
@@ -473,8 +485,13 @@ class SchedulerStore:
                 return self._settings(db, user, payload)
             if action.startswith('clock/'):
                 return self._clock(db, user, action, payload)
-            if action == 'locations':
-                return self._location(db, user, payload)
+            if action in {'locations', 'locations/enable'}:
+                result = self._location(db, user, payload, enable=action == 'locations/enable')
+                # An active shift can exceed twelve hours. A successful location
+                # heartbeat renews only this existing session, not its permissions.
+                db.execute('UPDATE scheduler_sessions SET expires_at=? WHERE token_hash=?',
+                           (_iso(self.now() + timedelta(hours=12)), hashlib.sha256(token.encode()).hexdigest()))
+                return result
             raise SchedulerError('Scheduler endpoint not found.', 404)
 
     def _shift_save(self, db, user, payload):
@@ -631,7 +648,7 @@ class SchedulerStore:
                 raise SchedulerError('A location-linked time entry cannot be reassigned to another person.')
             if previous:
                 pins = db.execute('SELECT min(captured_at),max(captured_at) FROM scheduler_locations WHERE entry_id=?', (previous['id'],)).fetchone()
-                if pins[0] and (start > _timestamp(pins[0]) or end < _timestamp(pins[1])):
+                if pins[0] and (start > max(_timestamp(pins[0]), _timestamp(previous['start'])) or end < _timestamp(pins[1])):
                     raise SchedulerError('Keep all recorded locations inside the edited time entry.')
             breaks = self._validate_breaks(payload.get('breaks', []), start, end)
             if previous:
@@ -725,15 +742,22 @@ class SchedulerStore:
         if action == 'clock/in':
             if previous:
                 raise SchedulerError('You are already clocked in.', 409)
+            if not _boolean(payload.get('location_consent', False), 'Location consent'):
+                raise SchedulerError('Location is required to clock in. Enable location access and try again.')
+            first_location = self._validated_location(payload.get('location'), freshness=timedelta(minutes=2))
             self._no_overlap(db, user['id'], now, datetime(2100, 12, 31, tzinfo=UTC))
             value = {'id': str(uuid.uuid4()), 'member_id': user['id'], 'start': _iso(now), 'end': None,
                      'breaks': [], 'base_rate': user['base_rate'], 'source': 'clock',
                      'project_id': _text(payload.get('project_id', ''), 'Project', 1000),
                      'project_name': _text(payload.get('project_name', ''), 'Project name', 1000),
                      'notes': _text(payload.get('notes', ''), 'Notes', 4000),
-                     'location_consent': _boolean(payload.get('location_consent', False), 'Location consent')}
+                     'location_consent': True}
             self._project_reference(value)
-            return self._save_record(db, user, 'entry', value)
+            saved = self._save_record(db, user, 'entry', value)
+            # Preserve the actual GPS capture time, including the few seconds
+            # spent obtaining the fix before the server creates the clock entry.
+            self._insert_location(db, saved, user, first_location)
+            return saved
         if previous is None:
             raise SchedulerError('Clock in first.', 409)
         if payload.get('entry_id') and payload['entry_id'] != previous['id']:
@@ -796,26 +820,59 @@ class SchedulerStore:
             raise SchedulerError('Clock action not found.', 404)
         return self._save_record(db, user, 'entry', value, previous)
 
-    def _location(self, db, user, payload):
-        entry = self._current(db, user['id'])
-        if not entry or not entry['location_consent']:
-            raise SchedulerError('Location recording needs consent and an active clock session.', 403)
-        entry_id = _text(payload.get('entry_id', ''), 'Entry ID', 100, True)
-        if entry_id != entry['id']:
-            raise SchedulerError('The location belongs to a different clock session. Refresh before recording locations.', 409)
+    def _validated_location(self, payload, *, freshness=timedelta(minutes=5)):
+        keys = {'latitude', 'longitude', 'accuracy', 'captured_at'}
+        if not isinstance(payload, dict) or set(payload) != keys:
+            raise SchedulerError('A fresh browser location is required, including its capture time and accuracy.')
         latitude = float(_number(payload.get('latitude'), 'Latitude', -90, 90))
         longitude = float(_number(payload.get('longitude'), 'Longitude', -180, 180))
         accuracy = float(_number(payload.get('accuracy'), 'Accuracy', 0, 100000))
-        captured = _timestamp(payload['captured_at']) if payload.get('captured_at') else self.now()
-        if not _timestamp(entry['start']) <= captured <= self.now() or captured < self.now()-timedelta(minutes=5):
-            raise SchedulerError('Location timestamps must be current and inside this clock session.')
-        latest = db.execute('SELECT captured_at FROM scheduler_locations WHERE entry_id=? ORDER BY captured_at DESC LIMIT 1', (entry['id'],)).fetchone()
-        if latest and captured < _timestamp(latest['captured_at']) + timedelta(seconds=10):
-            return {'recorded': False, 'reason': 'A recent location is already recorded.'}
+        captured = _timestamp(payload['captured_at'])
+        if not self.now()-freshness <= captured <= self.now():
+            raise SchedulerError('The location is not current. Enable location access and obtain a new location.')
+        return latitude, longitude, accuracy, captured
+
+    @staticmethod
+    def _insert_location(db, entry, user, location):
+        latitude, longitude, accuracy, captured = location
         location_id = str(uuid.uuid4())
         db.execute('INSERT INTO scheduler_locations VALUES(?,?,?,?,?,?,?)',
                    (location_id, entry['id'], user['id'], _iso(captured), latitude, longitude, accuracy))
-        return {'recorded': True, 'id': location_id, 'entry_id': entry['id']}
+        return {'recorded': True, 'id': location_id, 'entry_id': entry['id'], 'captured_at': _iso(captured)}
+
+    def _location(self, db, user, payload, *, enable=False):
+        entry = self._current(db, user['id'])
+        if not entry or not entry['location_consent'] and not enable:
+            raise SchedulerError('Location recording needs an active clock session with location enabled.', 403)
+        entry_id = _text(payload.get('entry_id', ''), 'Entry ID', 100, True)
+        if entry_id != entry['id']:
+            raise SchedulerError('The location belongs to a different clock session. Refresh before recording locations.', 409)
+        location = self._validated_location({key: value for key, value in payload.items() if key != 'entry_id'})
+        captured = location[3]
+        if captured < _timestamp(entry['start']):
+            raise SchedulerError('Location timestamps must be current and inside this clock session.')
+        if not entry['location_consent']:
+            entry = self._save_record(db, user, 'entry', {**entry, 'location_consent': True}, entry)
+        latest = db.execute('SELECT captured_at FROM scheduler_locations WHERE entry_id=? ORDER BY captured_at DESC LIMIT 1', (entry['id'],)).fetchone()
+        if latest and captured < _timestamp(latest['captured_at']) + timedelta(seconds=10):
+            return {'recorded': False, 'reason': 'A recent location is already recorded.', 'captured_at': latest['captured_at']}
+        return self._insert_location(db, entry, user, location)
+
+    def _location_coverage(self, entry, points):
+        """Expose real gaps; never infer movement or manufacture missed pings."""
+        start = _timestamp(entry['start'])
+        finish = _timestamp(entry['end']) if entry.get('end') else self.now()
+        cursor, gaps = start, []
+        for point in points:
+            captured = min(finish, max(start, _timestamp(point['captured_at'])))
+            if captured-cursor > timedelta(minutes=35):
+                gaps.append({'start': _iso(cursor), 'end': _iso(captured), 'minutes': round((captured-cursor).total_seconds()/60)})
+            cursor = max(cursor, captured)
+        if finish-cursor > timedelta(minutes=35) or not points:
+            gaps.append({'start': _iso(cursor), 'end': _iso(finish), 'minutes': max(0, round((finish-cursor).total_seconds()/60))})
+        return {'interval_minutes': 30, 'gap_tolerance_minutes': 5, 'gaps': gaps,
+                'first_at': points[0]['captured_at'] if points else None,
+                'last_at': points[-1]['captured_at'] if points else None}
 
 
 def _rounded(value, settings):

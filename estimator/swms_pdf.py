@@ -1,0 +1,379 @@
+"""Editable SWMS content rendered in the supplied landscape template's layout."""
+import base64
+from datetime import datetime
+from html import escape
+from io import BytesIO
+from zoneinfo import ZoneInfo
+
+from pypdf import PdfReader, PdfWriter, Transformation
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
+from reportlab.platypus import BaseDocTemplate, Flowable, Frame, LongTable, PageBreak, PageTemplate, Paragraph, Spacer, TableStyle
+
+from .company_settings import company_logo
+from .report import _register_fonts
+from .swms import validate_fields
+
+PAGE = landscape(A4)
+MARGIN = 39
+WIDTH = PAGE[0] - MARGIN * 2
+RED = colors.HexColor('#d40000')
+GREY = colors.HexColor('#e6e6e6')
+TEAL = colors.HexColor('#208f98')
+
+
+def _styles():
+    return {
+        'body': ParagraphStyle('SwmsBody', fontName='CeasefireVera', fontSize=7.1, leading=9.7, spaceAfter=2),
+        'bold': ParagraphStyle('SwmsBold', fontName='CeasefireVeraBold', fontSize=7.1, leading=9.7, spaceAfter=2),
+        'head': ParagraphStyle('SwmsHead', fontName='CeasefireVeraBold', fontSize=7.1, leading=9.7, textColor=colors.white),
+        'section': ParagraphStyle('SwmsSection', fontName='CeasefireVeraBold', fontSize=8, leading=11, spaceAfter=5, keepWithNext=True),
+        'large': ParagraphStyle('SwmsLarge', fontName='CeasefireVeraBold', fontSize=10.5, leading=14, spaceAfter=10),
+    }
+
+
+def _p(text, style, bullets=False):
+    lines = str(text or '').splitlines()
+    if not lines:
+        lines = ['']
+    rendered = '<br/>'.join(('&#8226; ' if bullets and line.strip() else '') + escape(line.removeprefix('◦ '), quote=False) for line in lines)
+    return Paragraph(rendered or '&#160;', style)
+
+
+class Signature(Flowable):
+    def __init__(self, value, width=75, height=28):
+        super().__init__()
+        self.value, self.width, self.height = value, width, height
+
+    def draw(self):
+        if not self.value:
+            return
+        ratio = self.value['ratio']
+        width = min(self.width, self.height * ratio)
+        height = width / ratio
+        x, y = (self.width - width) / 2, (self.height - height) / 2
+        self.canv.setStrokeColor(colors.black)
+        self.canv.setLineWidth(.7)
+        for stroke in self.value['strokes']:
+            path = self.canv.beginPath()
+            path.moveTo(x + stroke[0][0] * width, y + (1 - stroke[0][1]) * height)
+            for px, py in stroke[1:]:
+                path.lineTo(x + px * width, y + (1 - py) * height)
+            if len(stroke) == 1:
+                path.lineTo(x + stroke[0][0] * width + .1, y + (1 - stroke[0][1]) * height)
+            self.canv.drawPath(path)
+
+
+class Cover(Flowable):
+    def __init__(self, company):
+        super().__init__()
+        self.company, self.width, self.height = company, WIDTH, 438
+
+    def draw(self):
+        c, w, h = self.canv, self.width, self.height
+        # Light architectural linework preserves the reference cover's composition
+        # while keeping its company information editable rather than embedded in art.
+        c.saveState()
+        c.setStrokeColor(colors.HexColor('#d1d1d1'))
+        c.setLineWidth(.45)
+        origin = (w * .91, h - 15)
+        for n in range(16):
+            bottom = w * .5 + n * w * .034
+            c.line(origin[0], origin[1], min(bottom, w), 92)
+        for n in range(1, 15):
+            y = 92 + n * (h - 110) / 15
+            left = w * .5 + (y - 92) / (h - 107) * (origin[0] - w * .5)
+            c.line(left, y, w, max(92, y - 28))
+        c.setFillColor(colors.HexColor('#222222'))
+        path = c.beginPath()
+        path.moveTo(w * .82, h)
+        path.lineTo(w, h)
+        path.lineTo(w, h * .51)
+        path.close()
+        c.drawPath(path, fill=1, stroke=0)
+        c.setFont('CeasefireVeraBold', 53)
+        for title, y, colour in [('SAFE WORK', h - 104, colors.black), ('METHOD', h - 170, colors.black), ('STATEMENT', h - 236, colors.HexColor('#ff2525'))]:
+            c.setFillColor(colour)
+            c.drawString(0, y, title)
+        c.setStrokeColor(colors.black)
+        c.setLineWidth(2)
+        c.line(0, h - 268, w * .53, h - 268)
+        c.setLineWidth(.9)
+        c.rect(0, 5, w, 80)
+        c.line(w * .61, 5, w * .61, 85)
+        c.setFillColor(colors.black)
+        c.setFont('CeasefireVeraBold', 11)
+        c.drawString(28, 53, 'Prepared by:')
+        c.setFillColor(RED)
+        company_name = _p(self.company.get('name', ''), ParagraphStyle('CoverCompany', fontName='CeasefireVera', fontSize=14, leading=17))
+        company_name.wrap(w * .53, 40)
+        company_name.drawOn(c, 28, 26)
+        lines = [value for value in [self.company.get('phone'), self.company.get('email'), 'ABN ' + self.company.get('abn', '') if self.company.get('abn') else ''] if value]
+        for index, line in enumerate(lines):
+            paragraph = _p(line, ParagraphStyle('CoverContact', fontName='CeasefireVera', fontSize=10, leading=13))
+            paragraph.wrap(w * .35, 50)
+            paragraph.drawOn(c, w * .65, 56 - index * 18)
+        c.restoreState()
+
+
+class SwmsTable(LongTable):
+    def split(self, available_width, available_height):
+        parts = super().split(available_width, available_height)
+        headers = getattr(self, '_swms_headers', None)
+        if headers:
+            for part in parts:
+                part._swms_headers = headers
+                part._swms_header_style = self._swms_header_style
+            for part in parts[1:]:
+                # ReportLab may consume a wrapped Paragraph when the same
+                # repeating header passes through several split fragments.
+                part._cellvalues[0] = [_p(label, self._swms_header_style) for label in headers]
+        return parts
+
+
+def _table(headers, rows, widths, styles, *, red=True, repeated=True, grid=True, row_heights=None):
+    head_style = styles['head'] if red else styles['bold']
+    data = [[_p(label, head_style) for label in headers]] if headers else []
+    for row in rows:
+        data.append([value if isinstance(value, (Flowable, list)) else _p(value, styles['body']) for value in row])
+    table = SwmsTable(data, colWidths=widths, rowHeights=row_heights, repeatRows=1 if headers and repeated else 0, hAlign='LEFT')
+    if headers and repeated:
+        table._swms_headers, table._swms_header_style = headers, head_style
+    table.splitInRow = 30
+    commands = [('VALIGN', (0, 0), (-1, -1), 'TOP'), ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 4), ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4)]
+    if headers:
+        commands.append(('BACKGROUND', (0, 0), (-1, 0), RED if red else GREY))
+    if grid:
+        commands.append(('GRID', (0, 0), (-1, -1), .45, RED if red else colors.HexColor('#c9c9c9')))
+    table.setStyle(TableStyle(commands))
+    return table
+
+
+def _pair(label, text, styles, *, bullets=False):
+    table = _table(None, [[_p(label, styles['bold']), _p(text, styles['body'], bullets=bullets)]], [WIDTH * .27, WIDTH * .73], styles, red=False, grid=False)
+    table.setStyle(TableStyle([('LINEABOVE', (0, 0), (-1, 0), .35, colors.HexColor('#dddddd')),
+                               ('TOPPADDING', (0, 0), (-1, -1), 7), ('BOTTOMPADDING', (0, 0), (-1, -1), 7)]))
+    return table
+
+
+def _people(rows, styles):
+    pairs = []
+    for index in range(0, len(rows), 2):
+        row = []
+        for person in rows[index:index + 2]:
+            row.extend([_p(person['name'], styles['bold']), person['position'], Signature(person['signature'], 91, 28)])
+        row += [''] * (6 - len(row))
+        pairs.append(row)
+    return _table(['Name', 'Position', 'Signature'] * 2, pairs or [[''] * 6], [WIDTH * .135, WIDTH * .20, WIDTH * .165] * 2, styles)
+
+
+def _matrix(styles):
+    descriptions = [
+        'Potential death, permanent disability, or major structural failure/damage. Off-site environmental discharge/release not contained and significant long-term environmental harm.',
+        'Potential temporary disability or minor structural failure/damage. On-site environmental discharge/release contained, minor remediation required, short-term environmental harm.',
+        'Incident that has the potential to cause persons to require first aid. On-site environmental discharge/release immediately contained, minor level clean up with no short-term environmental harm.'
+    ]
+    rows = []
+    for index, (label, levels) in enumerate([('H (1)\n(High level of harm)', ['1', '1', '2']), ('M (2)\n(Medium level of harm)', ['1', '2', '3']), ('L (3)\n(Low level of harm)', ['2', '3', '3'])]):
+        rows.append([label, descriptions[index], ('H (1)\n(High)', 'M (2)\n(Medium)', 'L (3)\n(Low)')[index], *levels])
+    table = _table(['Level', 'Description of Consequence or Impact', 'Consequence', 'Likely', 'Moderate', 'Unlikely'], rows,
+                   [WIDTH * fraction for fraction in (.13, .52, .12, .077, .077, .076)], styles)
+    colours = {'1': '#ff2600', '2': '#ffd43b', '3': '#a3ce36'}
+    commands = [('BACKGROUND', (0, 0), (-1, 0), TEAL), ('TEXTCOLOR', (0, 0), (-1, 0), colors.white), ('GRID', (0, 0), (-1, -1), .6, colors.grey)]
+    for row, values in enumerate(rows, 1):
+        for column in range(3, 6):
+            commands.extend([('BACKGROUND', (column, row), (column, row), colors.HexColor(colours[values[column]])), ('ALIGN', (column, row), (column, row), 'CENTER')])
+    table.setStyle(TableStyle(commands))
+    legend = _table(['Level', 'Likelihood / Probability'], [['Likely', 'Could happen frequently'], ['Moderate', 'Could happen occasionally'], ['Unlikely', 'May occur only in exceptional circumstances']], [WIDTH * .13, WIDTH * .87], styles)
+    legend.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), TEAL)]))
+    return [table, legend]
+
+
+class EmergencyPlan(Flowable):
+    def __init__(self, fields, styles):
+        super().__init__()
+        self.fields, self.styles, self.width, self.height = fields, styles, WIDTH, 425
+
+    def has_overflow(self):
+        f, w = self.fields, self.width
+        boxes = [(f['emergency_notify'] + '\n\n' + f['emergency_contacts'], w * .32, 91),
+                 (f['emergency_supervisor'], w * .29, 54), (f['emergency_call'], w * .30, 155),
+                 (f['emergency_stop'], w * .27, 82), (f['emergency_follow'], w * .30, 62)]
+        return any(_p(text, self.styles['body']).wrap(width - 12, height - 12)[1] > height - 12 for text, width, height in boxes)
+
+    def draw(self):
+        c, f, w = self.canv, self.fields, self.width
+        c.setFont('CeasefireVeraBold', 18)
+        c.drawCentredString(w / 2, 404, 'EMERGENCY RESPONSE PLAN')
+        def box(x, y, width, height, text):
+            c.setStrokeColor(colors.black)
+            c.setLineWidth(.75)
+            c.rect(x, y, width, height)
+            paragraph = _p(text, self.styles['body'])
+            _, measured = paragraph.wrap(width - 12, height - 12)
+            if measured > height - 12:
+                # Long editable text is also printed in the following overflow table.
+                paragraph = _p('See the emergency response details below.', self.styles['body'])
+                paragraph.wrap(width - 12, height - 12)
+                measured = 12
+            paragraph.drawOn(c, x + 6, y + height - measured - 6)
+        top = f['emergency_notify'] + '\n\n' + f['emergency_contacts']
+        box(w * .35, 294, w * .32, 91, top)
+        box(0, 225, w * .29, 54, f['emergency_supervisor'])
+        box(w * .37, 124, w * .30, 155, f['emergency_call'])
+        box(w * .73, 197, w * .27, 82, f['emergency_stop'])
+        box(w * .37, 20, w * .30, 62, f['emergency_follow'])
+        c.setStrokeColor(colors.HexColor('#386fc1'))
+        c.setFillColor(colors.HexColor('#386fc1'))
+        c.setLineWidth(1.1)
+        def arrow(points):
+            path = c.beginPath(); path.moveTo(*points[0])
+            for point in points[1:]: path.lineTo(*point)
+            c.drawPath(path)
+            x, y = points[-1]; previous_x, previous_y = points[-2]
+            if x == previous_x:
+                direction = 1 if previous_y > y else -1
+                triangle = [x - 3, y + 6 * direction, x + 3, y + 6 * direction]
+            else:
+                direction = 1 if previous_x > x else -1
+                triangle = [x + 6 * direction, y - 3, x + 6 * direction, y + 3]
+            path = c.beginPath(); path.moveTo(x, y); path.lineTo(*triangle[:2]); path.lineTo(*triangle[2:]); path.close(); c.drawPath(path, fill=1)
+        arrow([(w * .51, 294), (w * .51, 281)])
+        arrow([(w * .35, 360), (w * .145, 360), (w * .145, 281)])
+        arrow([(w * .67, 360), (w * .865, 360), (w * .865, 281)])
+        arrow([(w * .51, 124), (w * .51, 84)])
+        arrow([(w * .145, 225), (w * .145, 51), (w * .367, 51)])
+        arrow([(w * .865, 197), (w * .865, 51), (w * .673, 51)])
+
+
+def render_swms_pdf(document, *, company):
+    _register_fonts()
+    fields = validate_fields(document['fields'])
+    styles, details = _styles(), fields['details']
+    story = [Cover(company), PageBreak()]
+    story.append(_table(['Job Reference', 'Contact Person', 'Position', 'Phone:'], [[details[key] for key in ('job_reference', 'contact_person', 'position', 'phone')]], [WIDTH * fraction for fraction in (.267, .267, .267, .199)], styles, red=False))
+    story.append(Spacer(1, 10))
+    story.append(_table(['Principal Contractor (PC)', 'Project Name', 'Date:', 'Project Address', 'Project Manager (PM)', 'Signature:', 'Contact'],
+                        [[details['principal_contractor'], details['project_name'], details['date'], details['project_address'], details['project_manager'], Signature(fields['manager_signature'], 40, 25), details['manager_contact']]],
+                        [WIDTH * fraction for fraction in (.20, .20, .067, .20, .13, .07, .133)], styles, red=False))
+    story.extend([Spacer(1, 6), _p(fields['communication'], styles['bold']), Spacer(1, 6), _p(fields['toolbox'], styles['body']), Spacer(1, 6)])
+    story.extend([_p('Person/s responsible for ensuring compliance with SWMS:', styles['bold']), _p(fields['compliance'], styles['body']), Spacer(1, 6)])
+    for label, key in [('Person/s responsible for reviewing SWMS:', 'reviewers'), ('This SWMS has been developed in consultation with:', 'consultation')]:
+        story.extend([_p(label, styles['section']), _people(fields[key], styles), Spacer(1, 7)])
+    story.append(_table(['Qualifications/Competency Required to complete tasks', 'Personnel/Duties and Responsibilities (Supervisory Staff and others)', 'Additional training required to complete task'],
+                        [[_p(fields[key], styles['body'], bullets=True) for key in ('qualifications', 'duties', 'training')]], [WIDTH / 3] * 3, styles))
+    story.extend([PageBreak(), _p(fields['requirements'], styles['body'], bullets=True), Spacer(1, 10)])
+    for label, key, bullets in [('Activity', 'activity', False), ('OHS/Environmental Legislation', 'legislation', True), ('Codes of Practice', 'codes', True), ('Resources/Trades Involved', 'resources', True), ('Equipment/Plant/Materials Used', 'equipment', False)]:
+        story.append(_pair(label, fields[key], styles, bullets=bullets))
+    story.extend([PageBreak(), _pair('Maintenance Checks Required', fields['maintenance'], styles), PageBreak(), _p('Risk Matrix', styles['section']), *_matrix(styles), PageBreak(), _pair('High Risk Work involves', fields['high_risk_work'], styles), PageBreak()])
+    story.append(_pair('Type of Works', '\n'.join(fields['work_types']), styles))
+    def step_table(title, steps):
+        rows = []
+        for index, row in enumerate(steps, 1):
+            rows.append([str(index), _p(row['job_step'], styles['bold']), row['hazards'], row['initial_risk'], _p(row['controls'], styles['body'], bullets=True), row['residual_risk'], row['responsible']])
+        heading = _p(title, styles['section'])
+        heading.keepWithNext = False
+        table = _table(['Item', 'Job Steps', 'Hazards', 'Risk Rating', 'Controls to Eliminate/Reduce Hazard', 'Retained Risk', 'Responsible Person'], rows,
+                       [WIDTH * fraction for fraction in (.055, .13, .255, .065, .255, .065, .175)], styles)
+        table.wrap(WIDTH, 100000)
+        # Keep normal job steps together; allow an exceptionally long editable
+        # row to continue across pages instead of failing or dropping its text.
+        table.splitInRow = 30 if max(table._rowHeights) > 400 else 0
+        return [heading, table]
+    for index, kind in enumerate(fields['work_types']):
+        if index:
+            story.append(PageBreak())
+        story.extend(step_table(kind, fields['steps'][kind]))
+    story.append(_pair('Additional Job Steps', 'Are there additional job steps to consider? ' + ('Yes' if fields['additional_steps'] else 'No'), styles))
+    if fields['additional_steps'] and fields['additional_rows']:
+        story.extend(step_table('Additional Job Steps', fields['additional_rows']))
+    story.extend([PageBreak(), _p(fields['acknowledgement'], styles['large']), _p('Employees Sign-Off', styles['section'])])
+    signoffs = []
+    for person in fields['signoffs']:
+        map_link = Paragraph(f'<link href="https://www.openstreetmap.org/?mlat={float(person["latitude"])}&amp;mlon={float(person["longitude"])}">Map</link>', styles['body']) if person['latitude'] and person['longitude'] else ''
+        signoffs.append([person['name'], person['company'], Signature(person['signature'], 75, 28), person['date'], person['time'], map_link, person['latitude'], person['longitude']])
+    story.append(_table(['Name', 'Company', 'Signature', 'Date', 'Time', 'Map', 'Latitude', 'Longitude'], signoffs or [['There are no signatures to display yet for this field.', '', '', '', '', '', '', '']], [WIDTH * fraction for fraction in (.17, .17, .16, .12, .08, .06, .12, .12)], styles, red=False))
+    story.extend([Spacer(1, 7), _table(None, [[_p('Employees Sign-Off (Manual Signature)', styles['bold']), Signature(fields['manual_signature'], 170, 35) if fields['manual_signature'] else 'Not signed yet.']], [WIDTH * .40, WIDTH * .60], styles, red=False, grid=False), Spacer(1, 8), _p('Reviews', styles['section'])])
+    story.append(_table(['Review No.', *map(str, range(1, 11))], [['Initials', *fields['reviews']]], [WIDTH / 3, *([WIDTH / 15] * 10)], styles))
+    story.extend([Spacer(1, 16), _table(['EMERGENCY RESPONSE - CALL 000 IMMEDIATELY.', ''], [[_p(fields['emergency_requirements'], styles['body']), _p(fields['emergency_access'], styles['body'])]], [WIDTH / 2] * 2, styles)])
+    story.extend([PageBreak(), _p('Site Sign-Off', styles['section'])])
+    signoffs = fields['site_signoffs']
+    site_rows = []
+    for index in range(0, max(32, len(signoffs)), 2):
+        row = []
+        for person in signoffs[index:index + 2]:
+            row.extend([person['name'], Signature(person['signature'], 110, 18)])
+        row += [''] * (4 - len(row))
+        site_rows.append(row)
+    site_table = _table(['NAME', 'SIGNATURE', 'NAME', 'SIGNATURE'], site_rows, [WIDTH / 3, WIDTH / 6] * 2, styles, red=False)
+    site_table.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#ffca00')), ('TOPPADDING', (0, 1), (-1, -1), 8), ('BOTTOMPADDING', (0, 1), (-1, -1), 8)]))
+    emergency = EmergencyPlan(fields, styles)
+    story.extend([site_table, PageBreak(), emergency])
+    # Preserve all user-entered emergency text even when it outgrows the diagram.
+    if emergency.has_overflow():
+        story.extend([PageBreak(), _p('Emergency response details', styles['large'])])
+        for label, key in [('Notify', 'emergency_notify'), ('Contacts', 'emergency_contacts'), ('Supervisor', 'emergency_supervisor'), ('Emergency call', 'emergency_call'), ('Stop work', 'emergency_stop'), ('Follow instructions', 'emergency_follow')]:
+            story.append(_pair(label, fields[key], styles))
+    created = datetime.now(ZoneInfo('Australia/Sydney')).strftime('%a, %d %b %Y, %I:%M %p')
+    logo = company_logo(company)
+    output = BytesIO()
+    doc = BaseDocTemplate(output, pagesize=PAGE, leftMargin=MARGIN, rightMargin=MARGIN, topMargin=76, bottomMargin=49,
+                            title=fields['title'], author=company.get('name', ''), allowSplitting=True)
+    path = '/'.join(value for value in [company.get('name', ''), details['principal_contractor'], details['job_reference'], details['project_address'], 'SWMS'] if value)
+    if len(path) > 150:
+        path = path[:147] + '...'
+    def decorate(c, document):
+        c.saveState()
+        c.drawImage(logo, MARGIN, PAGE[1] - 47, width=98, height=32, preserveAspectRatio=True, anchor='sw', mask='auto')
+        text_style = ParagraphStyle('SwmsMetadata', fontName='CeasefireVera', fontSize=6.1, leading=8)
+        paragraph = _p('Filepath: ' + path, text_style)
+        paragraph.wrap(WIDTH * .34, 40)
+        paragraph.drawOn(c, MARGIN + WIDTH * .34, PAGE[1] - 40)
+        paragraph = _p(f"Template ID: {fields['template_id']}\nTemplate Version: {fields['template_version']}\nForm Version: {document._swms_version}", text_style)
+        paragraph.wrap(WIDTH * .30, 40)
+        paragraph.drawOn(c, MARGIN + WIDTH * .69, PAGE[1] - 43)
+        c.setStrokeColor(RED); c.setLineWidth(.6)
+        c.line(MARGIN, PAGE[1] - 60, PAGE[0] - MARGIN, PAGE[1] - 60)
+        c.line(MARGIN, 39, PAGE[0] - MARGIN, 39)
+        c.setFont('CeasefireVera', 6.2); c.setFillColor(colors.HexColor('#333333'))
+        c.drawString(MARGIN + WIDTH * .345, 26, 'Printed version is uncontrolled')
+        c.drawString(MARGIN + WIDTH * .69, 26, 'This PDF was created at')
+        c.drawString(MARGIN + WIDTH * .69, 17, created)
+        c.restoreState()
+    doc._swms_version = document['version']
+    frame = Frame(MARGIN, 49, WIDTH, PAGE[1] - 76 - 49, leftPadding=0, bottomPadding=0, rightPadding=0, topPadding=0)
+    doc.addPageTemplates(PageTemplate('SWMS', frames=frame, onPage=decorate))
+    doc.build(story)
+    reader, writer = PdfReader(BytesIO(output.getvalue())), PdfWriter()
+    pages = list(reader.pages)
+    for attachment in fields['attachments']:
+        data = base64.b64decode(attachment['data'].split(',', 1)[1])
+        if attachment['media_type'] == 'application/pdf':
+            for source in PdfReader(BytesIO(data)).pages:
+                attachment_writer = PdfWriter()
+                page = attachment_writer.add_blank_page(*PAGE)
+                source.transfer_rotation_to_content()
+                scale = min(WIDTH / float(source.mediabox.width), 430 / float(source.mediabox.height))
+                page.merge_transformed_page(source, Transformation().translate(-float(source.mediabox.left), -float(source.mediabox.bottom)).scale(scale).translate(MARGIN + (WIDTH - float(source.mediabox.width) * scale) / 2, 52 + (430 - float(source.mediabox.height) * scale) / 2))
+                header = BytesIO(); c = canvas.Canvas(header, pagesize=PAGE); decorate(c, doc)
+                c.setFont('CeasefireVeraBold', 8); c.drawString(MARGIN, PAGE[1] - 75, attachment['name']); c.save()
+                page.merge_page(PdfReader(BytesIO(header.getvalue())).pages[0]); pages.append(page)
+        else:
+            header = BytesIO(); c = canvas.Canvas(header, pagesize=PAGE); decorate(c, doc)
+            c.setFont('CeasefireVeraBold', 8); c.drawString(MARGIN, PAGE[1] - 75, attachment['name'])
+            c.drawImage(ImageReader(BytesIO(data)), MARGIN, 52, width=WIDTH, height=430, preserveAspectRatio=True, anchor='c', mask='auto')
+            c.save(); pages.extend(PdfReader(BytesIO(header.getvalue())).pages)
+    count = len(pages)
+    for index, page in enumerate(pages, 1):
+        overlay = BytesIO(); c = canvas.Canvas(overlay, pagesize=PAGE)
+        c.setFont('CeasefireVera', 6.2); c.setFillColor(colors.HexColor('#333333'))
+        c.drawString(MARGIN + WIDTH * .345, 17, f'Page {index} of {count}')
+        c.save(); page.merge_page(PdfReader(BytesIO(overlay.getvalue())).pages[0]); writer.add_page(page)
+    writer.add_metadata({'/Title': fields['title'], '/Author': company.get('name', '')})
+    output = BytesIO(); writer.write(output)
+    return output.getvalue()

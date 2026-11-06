@@ -16,7 +16,7 @@ const ready = new Promise((resolve, reject) => {
   server.once('error', reject); server.once('exit', code => { clearTimeout(timer); reject(Error(`Fixture exited ${code}: ${logs}`)); });
 });
 const phrase = "I'm an expert at reading plans and looking at photos - a site visit would just be a waste of my time.";
-const newPhrase = 'CLASSIFIRE | Passive Fire Intelligence | Talk FRL to me.';
+const newPhrase = 'Talk FRL to me.';
 const errors = [], evidence = {}, csp = [], bootReadiness = [];
 const pendingRequests = new WeakMap();
 const clockOrigin = Date.parse('2026-10-04T00:00:00Z');

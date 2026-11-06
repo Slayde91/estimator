@@ -9,11 +9,12 @@ from pypdf import PdfReader, PdfWriter
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
 from reportlab.platypus import LongTable, Paragraph, SimpleDocTemplate, Spacer, TableStyle
 
 from .commercial_documents import KINDS, format_terms, totals, validate_fields
-from .company_settings import company_logo
+from .company_settings import company_logo, contact_lines
 from .report import _company_header, _register_fonts
 
 RED = colors.HexColor('#bd0018')
@@ -68,14 +69,17 @@ class _Paragraphs(HTMLParser):
         self.current.append(escape(data, quote=False))
 
 
-def _styles():
+def _styles(*, quote=False):
     return {
+        'quote': quote,
         'body': ParagraphStyle('CommercialBody', fontName='CeasefireVera', fontSize=8.5, leading=12, spaceAfter=6),
         'small': ParagraphStyle('CommercialSmall', fontName='CeasefireVera', fontSize=7, leading=10, spaceAfter=3),
         'title': ParagraphStyle('CommercialTitle', fontName='CeasefireVeraBold', fontSize=18, leading=22, textColor=RED, spaceAfter=14),
         'section': ParagraphStyle('CommercialSection', fontName='CeasefireVeraBold', fontSize=11, leading=15, textColor=RED, spaceBefore=14, spaceAfter=8, keepWithNext=True),
         'terms': ParagraphStyle('CommercialTerms', fontName='CeasefireVera', fontSize=8, leading=11.5, spaceAfter=5),
-        'head': ParagraphStyle('CommercialHead', fontName='CeasefireVeraBold', fontSize=8, leading=11),
+        'head': ParagraphStyle('CommercialHead', fontName='CeasefireVeraBold', fontSize=8, leading=11,
+                               textColor=colors.white if quote else colors.black),
+        'field': ParagraphStyle('CommercialField', fontName='CeasefireVeraBold', fontSize=7, leading=10),
     }
 
 
@@ -97,16 +101,20 @@ def _rich(text, style, *, keep_headings=False):
 
 
 def _table(headers, rows, styles, widths=None):
-    data = [[_paragraph(value, styles['head']) for value in headers]]
-    data.extend([[_paragraph(value, styles['small']) for value in row] for row in rows])
-    result = LongTable(data, colWidths=widths or [WIDTH / len(headers)] * len(headers), repeatRows=1, hAlign='LEFT')
-    result.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#eeeeee')),
-        ('GRID', (0, 0), (-1, -1), .4, colors.HexColor('#cccccc')),
+    data = [[_paragraph(value, styles['head']) for value in headers]] if headers else []
+    data.extend([[_paragraph(value, styles['field'] if headers is None and index == 0 else styles['small'])
+                  for index, value in enumerate(row)] for row in rows])
+    count = len(headers) if headers else len(rows[0])
+    result = LongTable(data, colWidths=widths or [WIDTH / count] * count, repeatRows=1 if headers else 0, hAlign='LEFT')
+    commands = [
+        ('GRID', (0, 0), (-1, -1), .4, colors.black if styles['quote'] else colors.HexColor('#cccccc')),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('LEFTPADDING', (0, 0), (-1, -1), 7), ('RIGHTPADDING', (0, 0), (-1, -1), 7),
         ('TOPPADDING', (0, 0), (-1, -1), 6), ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-    ]))
+    ]
+    if headers:
+        commands.append(('BACKGROUND', (0, 0), (-1, 0), RED if styles['quote'] else colors.HexColor('#eeeeee')))
+    result.setStyle(TableStyle(commands))
     return result
 
 
@@ -116,7 +124,7 @@ def _section(story, title, styles):
 
 def _fields(story, pairs, styles):
     rows = [(label, value or '—') for label, value in pairs]
-    story.append(_table(('Field', 'Details'), rows, styles, [125, WIDTH - 125]))
+    story.append(_table(None if styles['quote'] else ('Field', 'Details'), rows, styles, [125, WIDTH - 125]))
 
 
 def _money(value):
@@ -136,13 +144,42 @@ def _totals(story, fields, styles):
     _fields(story, [('Subtotal', _money(amounts['subtotal'])), ('GST (10%)', _money(amounts['gst'])), ('Grand total', _money(amounts['grand_total']))], styles)
 
 
-def _build(story, document, number, company):
+def _quotation_header(page, logo, company):
+    """Reserve a true centre column for the first-page quotation heading."""
+    width, height, margin = A4[0], A4[1], 36
+    image_width, image_height = logo.getSize()
+    scale = min(146 / image_width, 35 / image_height)
+    page.drawImage(logo, margin, height - 22 - image_height * scale,
+                   width=image_width * scale, height=image_height * scale, mask='auto')
+    page.setFillColor(colors.HexColor('#555555'))
+    # The right column cannot cross the centred heading, including long company
+    # names or contact details. This does not alter the saved company values.
+    for offset, value in [(15, company.get('name', '')), *zip((40, 51, 62), contact_lines(company))]:
+        size = min(7.5, (width / 2 - 100) / max(1, stringWidth(value, 'CeasefireVera', 1)))
+        page.setFont('CeasefireVera', size)
+        page.drawRightString(width - margin, height - offset, value)
+    page.setFont('CeasefireVeraBold', 16)
+    page.setFillColor(RED)
+    page.drawCentredString(width / 2, height - 43, 'QUOTATION')
+    page.setStrokeColor(RED)
+    page.setLineWidth(1.1)
+    page.line(margin, height - 78, width - margin, height - 78)
+
+
+def _build(story, document, number, company, *, first_part=False):
     output = BytesIO()
-    pdf = SimpleDocTemplate(output, pagesize=A4, leftMargin=36, rightMargin=36, topMargin=90, bottomMargin=32,
+    frame_margin = 30 if document['kind'] == 'quote' else 36
+    pdf = SimpleDocTemplate(output, pagesize=A4, leftMargin=frame_margin, rightMargin=frame_margin, topMargin=90, bottomMargin=32,
                             title=KINDS[document['kind']] + ' ' + number, author=company.get('name', ''))
     logo = company_logo(company)
     def decorate(page, doc):
-        _company_header(page, logo, A4[0], A4[1], 36, KINDS[document['kind']].upper() + ' ' + number, company=company)
+        if document['kind'] == 'quote':
+            if first_part and doc.page == 1:
+                _quotation_header(page, logo, company)
+            else:
+                _company_header(page, logo, A4[0], A4[1], 36, '', company=company)
+        else:
+            _company_header(page, logo, A4[0], A4[1], 36, KINDS[document['kind']].upper() + ' ' + number, company=company)
     pdf.build(story, onFirstPage=decorate, onLaterPages=decorate)
     return output.getvalue()
 
@@ -150,10 +187,10 @@ def _build(story, document, number, company):
 def render_commercial_pdf(document, number, *, company, scope_documents=None):
     _register_fonts()
     fields = validate_fields(document['fields'])
-    styles = _styles()
     kind = document['kind']
+    styles = _styles(quote=kind == 'quote')
     details, order = fields['details'], fields['order']
-    story = [_paragraph(KINDS[kind].upper(), styles['title'])]
+    story = [] if kind == 'quote' else [_paragraph(KINDS[kind].upper(), styles['title'])]
     _fields(story, [('Document number', number), ('Date', details['date']), ('Customer', details['client']),
                    ('Contact', details['contact']), ('Site address', details['site_address']), ('Project number', details['project_no'])], styles)
     story.append(Spacer(1, 12))
@@ -162,11 +199,12 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None):
     parts = []
     if kind == 'quote':
         _summary(story, fields, styles)
+        _totals(story, fields, styles)
         _section(story, 'SCOPE OF WORKS', styles)
         story.extend(_rich(fields['scope'], styles['body']))
         if scope_documents:
             story.append(_paragraph('The following Full Schedules form the Scope of Works for this quotation.', styles['body']))
-            parts.append(_build(story, document, number, company))
+            parts.append(_build(story, document, number, company, first_part=True))
             parts.extend(scope_documents)
             story = []
         else:
@@ -175,7 +213,6 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None):
                 story.append(_table(table['headers'], table['rows'], styles))
         _section(story, 'ALLOWANCES', styles)
         story.extend(_rich(fields['allowances'], styles['body']) or [_paragraph('—', styles['body'])])
-        _totals(story, fields, styles)
         _section(story, 'TERMS & CONDITIONS', styles)
         reference = fields['company_reference']
         previous_company = escape(f"{reference['name']} (ABN {reference['abn']})", quote=False)
@@ -217,7 +254,7 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None):
         ]:
             _section(story, title, styles)
             _fields(story, [(label, order[key]) for label, key in pairs], styles)
-    parts.append(_build(story, document, number, company))
+    parts.append(_build(story, document, number, company, first_part=not parts))
     writer = PdfWriter()
     for part in parts:
         writer.append(PdfReader(BytesIO(part)))
@@ -228,7 +265,7 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None):
         overlay = canvas.Canvas(footer, pagesize=(width, height))
         overlay.setFont('CeasefireVera', 7)
         overlay.setFillColor(colors.HexColor('#555555'))
-        overlay.drawCentredString(width / 2, 9, f'{KINDS[kind]} {number}  |  Page {index} of {count}')
+        overlay.drawCentredString(width / 2, 20, f'{KINDS[kind]} {number}  |  Page {index} of {count}')
         overlay.save()
         page.merge_page(PdfReader(BytesIO(footer.getvalue())).pages[0])
     writer.add_metadata({'/Title': KINDS[kind] + ' ' + number, '/Author': company.get('name', '')})

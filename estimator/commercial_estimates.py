@@ -102,7 +102,7 @@ def derive_estimates(store, body, *, edition='full', company=None, library=None,
             calculators = {key: {'inputs': value['inputs']} for key, value in project['calculators'].items()}
             document = build_project_report(calculators,
                 project.get('penetration', {}).get('draft'), project['estimate']['configuration'],
-                project['project_details'], company=company, library=library, portrait=True)
+                project['project_details'], company=company, library=library, portrait=True, quote_scope=True)
             output['scope_documents'].append({'estimate_id': identity, 'name': item['name'], 'pdf': document})
     output['scope'] = ''.join(paragraphs)
     return output

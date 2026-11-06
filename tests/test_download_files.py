@@ -13,6 +13,7 @@ import unittest
 from unittest.mock import patch
 
 from estimator.catalog import ValidationError
+from estimator.company_settings import DEFAULTS
 from estimator.download_files import DownloadDestination, standard_downloads_directory, write_download_file
 from estimator.native_dialogs import SaveSelection
 from estimator.project_file import export_project
@@ -281,7 +282,7 @@ class DownloadApiTests(unittest.TestCase):
         request = {'save_token': saved['file']['save_token'], 'estimate': {key: project['estimate'][key] for key in ('title', 'workflow', 'measurements', 'inputs', 'configuration', 'project_no', 'client', 'site_address')},
                    'calculators': {key: {'inputs': value['inputs'], 'schedule_rows': value['schedule_rows']} for key, value in project['calculators'].items()}}
         def render(_, *, company):
-            self.assertEqual(company['email'], 'sales@ceasefire.com.au')
+            self.assertEqual(company['email'], DEFAULTS['email'])
             status, _, payload = self.request('/api/project/save', request)
             self.assertEqual(status, 200, payload[:500])
             return b'bytes rendered after token rotation'

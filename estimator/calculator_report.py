@@ -432,9 +432,11 @@ class _ScheduleReport(_Report):
         # Paragraphs split safely even for 2,000-character notes or identifiers.
         return self.p(' | '.join(f'{label}: {self.display(value, blank="Blank")}' for label, value in values), 'small')
 
-    def overview(self, *, materials=False, include_project_details=True, project_report_title=None, include_references=True):
+    def overview(self, *, materials=False, include_project_details=True, project_report_title=None, include_references=True, quote_scope=False):
         data = self.data
-        if project_report_title:
+        if quote_scope:
+            self.story.append(self.p(data['title'], 'section'))
+        elif project_report_title:
             self.story.append(self.p(project_report_title, 'title'))
         else:
             title = report_label(data['id'], True) if materials else data['title']
@@ -449,11 +451,11 @@ class _ScheduleReport(_Report):
         details = [[self.p(label, 'cell'), self.p(self.project_details.get(key) or 'Not recorded', 'cell')]
                    for key, label in (('project_no', 'Project No.'), ('client', 'Client'),
                                       ('site_address', 'Site Address'))]
-        if include_project_details:
+        if include_project_details and not quote_scope:
             self.story.append(self.table(['Project details', 'Recorded value'], details,
                                          [self.content_width * .20, self.content_width * .80]))
             self.story.append(Spacer(1, 10))
-        if project_report_title:
+        if project_report_title and not quote_scope:
             self.story.append(self.p(REPORT_SCOPES[data['id']] if materials else data['title'], 'section'))
         if materials and data['id'] != 'ductwork':
             basis = data['basis']
@@ -463,7 +465,7 @@ class _ScheduleReport(_Report):
             self.story.append(self.p('Material quantities and summary', 'section'))
             if data['id'] != 'steel_vermiculite':
                 self.story.append(self.p(basis))
-        if not (materials and data['id'] in {'steel_board', 'steel_vermiculite'}):
+        if not quote_scope and not (materials and data['id'] in {'steel_board', 'steel_vermiculite'}):
             coverage = ('Review the schedule PDF for individual items and their statuses.' if materials else
                         'Every used item remains in this report.')
             self.story.append(self.p(f"{len(data['rows'])} used schedule items. {data['incomplete_rows']} item(s) have incomplete or unavailable primary quantities. {coverage}", 'alert' if data['incomplete_rows'] else 'body'))
@@ -550,14 +552,22 @@ class _ScheduleReport(_Report):
             cells.insert(position, self.report_links(item['report_references']))
         return heads, rows, fractions
 
-    def schedule(self, *, portrait=False):
-        for notice in self.data['quantity_notices']:
-            self.story.append(self.p(notice, 'alert'))
-        self.story.append(self.p('Full schedule', 'section'))
+    def schedule(self, *, portrait=False, quote_scope=False):
+        if not quote_scope:
+            for notice in self.data['quantity_notices']:
+                self.story.append(self.p(notice, 'alert'))
+            self.story.append(self.p('Full schedule', 'section'))
         if not self.data['rows']:
             self.story.append(self.p('No schedule inputs are entered.'))
             return
         heads, rows, fractions = self.schedule_cells()
+        if quote_scope:
+            # One table keeps every column alongside its item. Only rows flow
+            # onto later portrait pages; no item is repeated in column bands.
+            from .quote_schedule import quote_schedule_table
+            self.story.append(quote_schedule_table(self, heads, rows,
+                [self.content_width * size for size in fractions], self.height))
+            return
         if portrait:
             # Each narrow band repeats the original line and, where available,
             # item identity. The same cells retain all quantities and links.
@@ -691,11 +701,11 @@ def calculator_schedule_table(data):
     return {'headers': heads, 'rows': [[visible_text(cell) for cell in row] for row in rows]}
 
 
-def build_calculator_report(calculator_id, inputs=None, *, project_details=None, company=None, include_project_details=True, project_report_title=None, report_footer=None, portrait=False):
+def build_calculator_report(calculator_id, inputs=None, *, project_details=None, company=None, include_project_details=True, project_report_title=None, report_footer=None, portrait=False, quote_scope=False):
     """Return the full schedule only; reading a draft never saves it."""
     return _build_calculator_pdf(calculator_id, inputs, materials=False, project_details=project_details, company=company,
                                  include_project_details=include_project_details, project_report_title=project_report_title, report_footer=report_footer,
-                                 portrait=portrait)
+                                 portrait=portrait, quote_scope=quote_scope)
 
 
 def build_calculator_summary_report(calculator_id, inputs=None, *, project_details=None, company=None, include_project_details=True, project_report_title=None, include_references=True, report_footer=None):
@@ -705,16 +715,19 @@ def build_calculator_summary_report(calculator_id, inputs=None, *, project_detai
                                  include_references=include_references, report_footer=report_footer)
 
 
-def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=None, company=None, include_project_details=True, project_report_title=None, include_references=True, report_footer=None, portrait=False):
+def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=None, company=None, include_project_details=True, project_report_title=None, include_references=True, report_footer=None, portrait=False, quote_scope=False):
     data = project_calculator_report(calculator_id, inputs)
     _register_fonts()
     logo = company_logo(company)
     page_size = A4 if portrait else landscape(A3 if calculator_id == 'steel_board' and not materials else A4)
     width, height = page_size
     report = _ScheduleReport(data, project_details, page_size)
+    if quote_scope:
+        from .quote_schedule import configure_quote_schedule
+        configure_quote_schedule(report)
     data = report.data
     report.overview(materials=materials, include_project_details=include_project_details, project_report_title=project_report_title,
-                    include_references=include_references)
+                    include_references=include_references, quote_scope=quote_scope)
     if data.get('assessment_notes'):
         # Assessment evidence can occupy several pages. Start its quantities
         # on a fresh page so neither a section title nor table header is left
@@ -724,14 +737,17 @@ def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=N
         report.product_totals()
         report.extras()
     else:
-        report.schedule(portrait=portrait)
+        report.schedule(portrait=portrait, quote_scope=quote_scope)
     # A final spacer can overflow an otherwise complete summary onto a page
     # containing only its header and footer. It carries no report content.
     while report.story and isinstance(report.story[-1], Spacer):
         report.story.pop()
     report_title = 'Material quantities and summary' if materials else 'Full schedule'
     output = BytesIO()
-    document = SimpleDocTemplate(output, pagesize=page_size, leftMargin=_MARGIN, rightMargin=_MARGIN,
+    # SimpleDocTemplate's frame adds 6 pt padding. Embedded tables use the
+    # visible margin as their full width, so reserve that padding outside it.
+    frame_margin = _MARGIN - 6 if quote_scope else _MARGIN
+    document = SimpleDocTemplate(output, pagesize=page_size, leftMargin=frame_margin, rightMargin=frame_margin,
         topMargin=91, bottomMargin=43, pageCompression=1, title='CLASSIFIRE - ' + data['title'] + ' - ' + report_title,
         author='CLASSIFIRE', subject=report_title)
 
@@ -740,6 +756,10 @@ def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=N
         _company_header(canvas, logo, width, height, _MARGIN,
                         '',
                         label_below_logo=True, company=company)
+        if quote_scope:
+            # The assembled quotation supplies the only page-number sequence.
+            canvas.restoreState()
+            return
         canvas.setStrokeColor(_LINE)
         canvas.line(_MARGIN, 32, width - _MARGIN, 32)
         canvas.setFont('CeasefireVera', 7)

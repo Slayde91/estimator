@@ -42,10 +42,19 @@ class CommercialTests(unittest.TestCase):
         self.workspace = self.projects.add()
         self.store = CommercialDocuments(self.projects)
 
-    def payload(self, kind='work_order'):
+    def payload(self, kind='work_order', workspace=None):
         fields = default_fields(kind)
         fields['details'].update(client='Example client', site_address='10 Example Road', project_no='CF-10', date='2026-11-06')
         fields['lines'] = [{'estimate_id':'estimate-1', 'description':'Supply and installation', 'quantity':'2', 'unit_price':'125.25'}]
+        if kind == 'work_order':
+            workspace = workspace or self.workspace
+            quote = next((row for row in self.store.view(workspace)['documents'] if row['kind'] == 'quote' and row['last_number']), None)
+            if quote is None:
+                quote_payload = self.payload('quote')
+                quote_payload['fields']['terms'] = ''
+                quote = self.store.save(workspace, quote_payload)
+                quote = self.store.issue(workspace, quote['id'], quote['version'], str(uuid.uuid4()))['document']
+            fields['order']['quote_id'] = quote['id']
         return {'id':str(uuid.uuid4()), 'version':0, 'kind':kind, 'status':'Draft', 'fields':fields}
 
     def test_create_retry_and_stale_update(self):
@@ -65,7 +74,7 @@ class CommercialTests(unittest.TestCase):
         self.store.delete(self.workspace, saved['id'], saved['version'])
         with self.assertRaises(CommercialConflict):
             self.store.save(self.workspace, payload)
-        self.assertEqual(self.store.capture(self.workspace)['documents'], [])
+        self.assertFalse(any(row['kind'] == 'work_order' for row in self.store.capture(self.workspace)['documents']))
 
     def test_portable_restore_ownership_and_exact_capture(self):
         saved = self.store.save(self.workspace, self.payload())
@@ -104,7 +113,7 @@ class CommercialTests(unittest.TestCase):
     def test_concurrent_projects_receive_distinct_numbers(self):
         another = self.projects.add()
         first = self.store.save(self.workspace, self.payload())
-        second = self.store.save(another, self.payload())
+        second = self.store.save(another, self.payload(workspace=another))
         with ThreadPoolExecutor(max_workers=2) as pool:
             futures = [pool.submit(self.store.issue, workspace, document['id'], document['version'], str(uuid.uuid4())) for workspace, document in [(self.workspace, first),(another,second)]]
             self.assertEqual({future.result()['number'] for future in futures}, {'WO-000001','WO-000002'})
@@ -112,14 +121,14 @@ class CommercialTests(unittest.TestCase):
     def test_imported_number_can_advance_but_not_rewind_sequence(self):
         self.store.save(self.workspace, self.payload())
         snapshot = self.store.capture(self.workspace)
-        snapshot['documents'][0]['last_number'] = 'WO-000050'
+        saved = next(row for row in snapshot['documents'] if row['kind'] == 'work_order')
+        saved['last_number'] = 'WO-000050'
         restored = self.projects.add(snapshot['project_id'])
         self.store.restore(restored, snapshot)
-        saved = snapshot['documents'][0]
         issue = self.store.issue(restored, saved['id'], saved['version'], str(uuid.uuid4()))
         self.assertEqual(issue['number'], 'WO-000051')
         older = self.projects.add(snapshot['project_id'])
-        snapshot['documents'][0]['last_number'] = 'WO-000002'
+        saved['last_number'] = 'WO-000002'
         self.store.restore(older, snapshot)
         self.assertEqual(self.store.issue(older, saved['id'], saved['version'], str(uuid.uuid4()))['number'], 'WO-000052')
 
@@ -213,7 +222,7 @@ class CommercialTests(unittest.TestCase):
         saved = self.store.save(self.workspace, self.payload())
         issued = self.store.issue(self.workspace, saved['id'], saved['version'], str(uuid.uuid4()))
         self.store.delete(self.workspace, saved['id'], issued['document']['version'])
-        self.assertEqual(self.store.capture(self.workspace)['documents'], [])
+        self.assertFalse(any(row['kind'] == 'work_order' for row in self.store.capture(self.workspace)['documents']))
         self.assertEqual(self.store.read_pdf(self.workspace, issued['id'])[1], issued['pdf'])
         with self.assertRaises(ValidationError):
             self.store.read_pdf(self.projects.add(), issued['id'])
@@ -227,10 +236,10 @@ class CommercialTests(unittest.TestCase):
         self.assertEqual(replay['pdf'], issued['pdf'])
         snapshot = self.store.capture(self.workspace)
         self.assertEqual(snapshot['number_counters']['work_order'], 1)
-        self.assertEqual(snapshot['documents'], [])
+        self.assertFalse(any(row['kind'] == 'work_order' for row in snapshot['documents']))
         restored = self.projects.add(snapshot['project_id'])
         self.store.restore(restored, snapshot)
-        created = self.store.save(restored, self.payload())
+        created = self.store.save(restored, self.payload(workspace=restored))
         self.assertEqual(self.store.issue(restored, created['id'], created['version'], str(uuid.uuid4()))['number'], 'WO-000002')
 
     def test_http_replaces_tampered_price_and_scope_with_authoritative_values(self):

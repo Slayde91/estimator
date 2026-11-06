@@ -1,9 +1,13 @@
 (() => {
   "use strict";
   const ZONE = "Australia/Sydney";
+  const LOCATION_INTERVAL = 30 * 60 * 1000;
   const state = {root:null, data:null, page:"schedule", week:weekStart(today()), member:"", mine:false,
     loading:0, busy:false, dialog:null, watch:null, lastLocation:0, locationEnabled:false, timer:null, projects:[], settingsDirty:false,
-    projectsLoading:false, projectsScan:null, projectsMessage:"", breakNotices:new Set(), noticeTimer:null};
+    projectsLoading:false, projectsScan:null, projectsMessage:"", breakNotices:new Set(), noticeTimer:null,
+    locationTimer:null, locationEntry:null, locationPending:false, lastPoint:null, locationIssue:"", trackingBanner:null,
+    entriesSearch:"", entriesMine:false, collapsedDays:new Set(), locationPlayback:null, authGeneration:0, mapRequest:0};
+  const accountChannel = "BroadcastChannel" in window ? new BroadcastChannel("classifire-scheduler-account") : null;
   const colours = [["#2196f3","Blue"],["#b12030","Red"],["#177349","Green"],["#7544a8","Purple"],["#505966","Grey"]];
   const dayFormatter = new Intl.DateTimeFormat("en-AU", {timeZone:ZONE, weekday:"short", day:"numeric", month:"short"});
   const dateFormatter = new Intl.DateTimeFormat("en-AU", {timeZone:ZONE, day:"numeric", month:"short", hour:"numeric", minute:"2-digit"});
@@ -116,33 +120,39 @@
   }
   async function request(path, payload) {
     const headers = {"Content-Type":"application/json"};
-    if (state.data?.user?.id && !["/login","/setup"].includes(path)) headers["X-Scheduler-Member"] = state.data.user.id;
-    const response = await fetch(`/api/scheduler${path}`, {credentials:"same-origin", cache:"no-store",
-      ...(payload === undefined ? {} : {method:"POST",headers,body:JSON.stringify(payload)})});
+    if (state.data?.user?.id && !["/login","/setup","/bootstrap","/state"].includes(path.split("?")[0])) headers["X-Scheduler-Member"] = state.data.user.id;
+    const response = await fetch(`/api/scheduler${path}`, {credentials:"same-origin", cache:"no-store",headers,
+      ...(payload === undefined ? {} : {method:"POST",body:JSON.stringify(payload)})});
     const data = await response.json();
     if (!response.ok) {
-      if (response.status === 401) stopLocation();
       const error = new Error(data.error || "The Scheduler request could not be completed."); error.status = response.status; throw error;
     }
     return data;
   }
   async function refresh() {
-    const revision = ++state.loading;
+    const revision = ++state.loading, generation = state.authGeneration;
     try {
       const data = await request(`/state?start=${state.week}&end=${addDays(state.week,7)}`);
-      if (revision !== state.loading || state.dialog || state.settingsDirty) return;
-      if (state.locationEnabled && state.data?.active_entry?.id !== data.active_entry?.id) stopLocation();
-      if (state.data?.user && state.data.user.id !== data.user?.id) {state.page = "schedule"; state.member = ""; state.mine = false;}
+      if (revision !== state.loading || generation !== state.authGeneration) return;
+      if (state.locationEntry && (state.data?.user?.id !== data.user?.id || state.locationEntry !== data.active_entry?.id)) stopLocation();
+      if (state.data?.user && (state.data.user.id !== data.user?.id || state.data.user.role !== data.user?.role)) resetAccount();
       state.data = data;
-      if (!data.active_entry?.location_consent) stopLocation();
-      else if (!state.locationEnabled) {
-        try { if (sessionStorage.getItem("classifire-scheduler-location-entry") === data.active_entry.id) startLocation(); } catch (_) { /* Storage may be unavailable. */ }
-      }
+      if (!data.active_entry) stopLocation();
+      else if (state.locationEntry !== data.active_entry.id) startLocation();
+      updateLocationStatus();
+      if (state.dialog || state.settingsDirty) return;
       render();
     } catch (error) {
-      if (error.status === 401) {state.data = null; auth(false);}
+      if (revision !== state.loading || generation !== state.authGeneration) return;
+      if (error.status === 401) {resetAccount(); auth(false);}
       notice(error.message, true);
     }
+  }
+  function resetAccount() {
+    state.authGeneration++; state.loading++; state.mapRequest++;
+    closeDialog(true); stopLocation(); state.data = null; state.settingsDirty = false;
+    state.page = "schedule"; state.member = ""; state.mine = false; state.entriesSearch = ""; state.entriesMine = false;
+    updateLocationStatus();
   }
   async function mutate(path,payload) {
     if (state.busy) return;
@@ -161,7 +171,7 @@
     projects.append(label,button("Refresh project choices",() => {void loadProjects();},"text-button scheduler-projects-refresh"));
     state.root.append(projects); projectStatus();
   }
-  function closeDialog(force = false) { if(state.busy && force !== true)return; state.dialog?.close(); state.dialog?.remove(); state.dialog = null; }
+  function closeDialog(force = false) { if(state.busy && force !== true)return; clearInterval(state.locationPlayback); state.locationPlayback = null; state.dialog?.close(); state.dialog?.remove(); state.dialog = null; }
   function dialog(title, build, saveLabel, save, submitClass = "button") {
     closeDialog();
     const modal = el("dialog", "scheduler-dialog"), form = el("form", "scheduler-form");
@@ -205,7 +215,8 @@
     const submit = el("button", "button",setup ? "Create administrator account" : "Sign in"); submit.type = "submit"; form.append(submit);
     form.addEventListener("submit",async event => {
       event.preventDefault(); if (submit.disabled) return; submit.disabled = true;
-      try { await request(setup ? "/setup" : "/login",{...(setup ? {name:name.value} : {}),email:email.value,password:password.value}); password.value = ""; state.page = "schedule"; state.member = ""; state.mine = false; await refresh(); }
+      resetAccount();
+      try { await request(setup ? "/setup" : "/login",{...(setup ? {name:name.value} : {}),email:email.value,password:password.value}); password.value = ""; accountChannel?.postMessage("changed"); await refresh(); }
       catch (error) { notice(error.message,true); } finally { submit.disabled = false; }
     });
     card.append(form); state.root.append(card);
@@ -223,8 +234,9 @@
     });
     const account = el("div", "scheduler-account"); account.append(el("span","",state.data.user.name),button("Sign out",async () => {
       if (state.busy || state.settingsDirty) {notice("Finish saving or discard your settings changes before signing out.",true); return;}
-      try { await request("/logout",{}); stopLocation(); state.data = null; auth(false); }
-      catch (error) { notice(error.message,true); }
+      const logout = request("/logout",{}); resetAccount(); shell(); notice("Signing out…");
+      try { await logout; accountChannel?.postMessage("changed"); auth(false); }
+      catch (error) {await refresh(); notice(error.message,true);}
     })); top.append(tabs,account); state.root.append(top);
     renderClock();
     if (state.page === "schedule") renderSchedule();
@@ -251,26 +263,31 @@
       }));
       if (openBreak?.expected_end_at) bar.append(el("p","helper",`${openBreak.name || "Break"} · expected end ${timeFormatter.format(new Date(openBreak.expected_end_at))}${openBreak.min_end_at ? " · minimum duration required" : ""}${openBreak.auto_end_at ? " · ends automatically" : ""}`));
       if (openBreak?.notify_at && "Notification" in window && Notification.permission !== "granted") bar.append(button("Enable break notifications",async () => {await Notification.requestPermission(); render();}));
-      if (active.location_consent) {
-        bar.append(button(state.locationEnabled ? "Stop location recording" : "Record my locations",() => {
-          if (state.locationEnabled) stopLocation(); else startLocation();
-          render();
-        },"button secondary scheduler-location-toggle"));
-      }
-      bar.append(button("Clock out",async () => { await mutate("/clock/out",{entry_id:active.id,version:active.version}); if (!state.data?.active_entry) stopLocation(); },"button"));
-      bar.append(el("p","helper scheduler-clock-note",openBreak ? "You are on a break." : state.locationEnabled ? "Location recording is on while this browser can access your location." : "Location recording is off."));
+      bar.append(button("Check location now",() => {void captureLocation(true);},"button secondary scheduler-location-retry"));
+      bar.append(button("Clock out",async event => {
+        const control = event.currentTarget; if (control.disabled || state.busy) return; control.disabled = true; state.busy = true;
+        // A failed final fix must never trap a worker in an open time entry.
+        try {await Promise.race([captureLocation(true,2000),new Promise(resolve => setTimeout(resolve,2200))]); await request("/clock/out",{entry_id:active.id}); await refresh(); if (!state.data?.active_entry) stopLocation();}
+        catch(error) {notice(error.message,true);}
+        finally {control.disabled = false; state.busy = false;}
+      },"button scheduler-add-action"));
+      bar.append(el("p","helper scheduler-clock-note",openBreak ? "You are on a break. Shift location recording remains active." : "Location recording is required throughout this shift."));
+      const tracking = el("p","helper scheduler-location-status"); tracking.setAttribute("role","status"); bar.append(tracking);
     } else bar.append(button("Clock in",() => dialog("Clock in",host => {
-      const project = projectSelect(), notes = el("textarea"), location = check("Record my location while clocked in"); notes.maxLength = 2000;
-      host.append(field("Job / project reference",project),field("Notes",notes),location.label,el("p","helper","Locations are recorded only with your permission while you are clocked in. Keep this browser open. A closed or suspended browser cannot record your location.")); return {project,notes,location};
-    },"Clock in",async ({project,notes,location}) => {
-      const entry = await request("/clock/in",{project_id:project.value,project_name:projectName(project),notes:notes.value,location_consent:location.control.checked});
+      const project = projectSelect(), notes = el("textarea"); notes.maxLength = 2000;
+      host.append(field("Job / project reference",project),field("Notes",notes),el("p","message scheduler-location-required","Location is required to clock in. Your location is recorded during the shift, including a check every 30 minutes. You and your administrator can view the history."),el("p","helper","Allow location access when your browser asks. Keep CLASSIFIRE open and this computer awake. Missing updates are shown as gaps; they cannot be recovered after the browser was closed or suspended.")); return {project,notes};
+    },"Clock in",async ({project,notes}) => {
+      const location = await currentPosition();
+      const entry = await request("/clock/in",{project_id:project.value,project_name:projectName(project),notes:notes.value,location_consent:true,location});
       state.data.active_entry = entry;
-      if (location.control.checked) startLocation();
+      state.lastLocation = Date.now(); state.lastPoint = location;
+      startLocation();
     },"button scheduler-primary-action"),"button scheduler-primary-action"));
     bar.addEventListener("click",event => {
       if(state.settingsDirty) {event.stopImmediatePropagation(); notice("Save or discard your settings changes before using the time clock.",true);}
     },true);
     state.root.append(bar);
+    updateLocationStatus();
   }
   function checkBreakNotification() {
     const entry = state.data?.active_entry, item = entry?.breaks?.find(value => !value.end);
@@ -379,23 +396,52 @@
       ...(controls.password.value ? {password:controls.password.value} : {}),base_rate:controls.rate.value,role:controls.role.value,active:controls.active.control.checked}));
   }
   function renderEntries() {
-    const controls = weekControls(); if (admin()) controls.append(button("Add time entry",() => editEntry(),"button scheduler-add-action")); state.root.append(controls);
+    const controls = weekControls(); if (admin()) controls.append(button("Add time entry",() => editEntry(),"button scheduler-add-action"));
+    const search = input("search",state.entriesSearch,{"aria-label":"Search time entries",placeholder:"Team member, job or notes"});
+    controls.append(search);
+    if (admin()) for (const [mine,label] of [[true,"My"],[false,"All"]]) {
+      const toggle = button(label,() => {state.entriesMine = mine; render();}); toggle.setAttribute("aria-pressed",String(state.entriesMine === mine)); controls.append(toggle);
+    }
+    state.root.append(el("h2","scheduler-entries-title","Time Entries"),controls);
     const scroll = el("div","table-scroll"), table = el("table","scheduler-entries"), head = el("thead"), row = el("tr");
-    ["Team member","Start / finish","Job","Worked","Breaks","Actions"].forEach(label => row.append(el("th","",label))); head.append(row); table.append(head);
+    ["Name","Time in – out","Duration","Job","Location","Notes","Actions"].forEach(label => row.append(el("th","",label))); head.append(row); table.append(head);
     const body = el("tbody");
-    state.data.entries.forEach(entry => {
-      const row = el("tr"), interval = el("td"); interval.append(el("div","",dateFormatter.format(new Date(entry.start))),el("small","helper",entry.end ? dateFormatter.format(new Date(entry.end)) : "Clocked in"));
-      const effective = entry.effective_breaks || entry.breaks || [];
-      const unpaid = effective.filter(item => !item.paid).reduce((total,item) => total + duration(item.start,item.end || entry.end),0);
-      const breaks = effective.reduce((total,item) => total + duration(item.start,item.end || entry.end),0);
-      const breakCell = el("td","",hours(breaks));
-      if (effective.length) {const detail = el("details","scheduler-break-summary"); detail.append(el("summary","","Break details")); effective.forEach(item => detail.append(el("p","",`${item.name || "Break"} · ${timeFormatter.format(new Date(item.start))}–${item.end ? timeFormatter.format(new Date(item.end)) : "running"} · ${item.paid ? "paid" : "unpaid"}${item.automatic ? " · automatic" : ""}`))); breakCell.append(detail);}
-      row.append(el("td","",memberName(entry.member_id)),interval,el("td","",entry.project_name || state.projects.find(project => project.id === entry.project_id)?.title || entry.project_id || "—"),el("td","",hours(entry.paid_seconds !== undefined ? entry.paid_seconds/60 : Math.max(0,duration(entry.start,entry.end)-unpaid))),breakCell);
-      const actions = el("td","scheduler-row-actions"); if (admin() && entry.end) actions.append(button("Edit",() => editEntry(entry)));
-      if (entry.member_id === state.data.user.id) actions.append(button("Locations",() => showLocations(entry))); row.append(actions); body.append(row);
-    });
+    const empty = el("p","empty-state","No time entries match this week and filter.");
+    const drawRows = () => {
+      body.replaceChildren();
+      const term = state.entriesSearch.trim().toLocaleLowerCase();
+      const entries = state.data.entries.filter(entry => (!state.entriesMine || entry.member_id === state.data.user.id) && (!term || [memberName(entry.member_id),entry.project_name,entry.notes].join(" ").toLocaleLowerCase().includes(term)));
+      const segments = entries.flatMap(entry => entrySegments(entry).map(segment => ({...segment,entry})));
+      segments.sort((a,b) => b.start.localeCompare(a.start) || memberName(a.entry.member_id).localeCompare(memberName(b.entry.member_id)));
+      let day = "";
+      for (const segment of segments) {
+        const entry = segment.entry, date = localParts(segment.start).slice(0,10);
+        if (date !== day) {
+          day = date; const group = el("tr","scheduler-entry-day"), cell = el("th"); cell.colSpan = 7;
+          const toggle = button(dayFormatter.format(new Date(`${date}T12:00:00Z`)),() => {state.collapsedDays.has(date) ? state.collapsedDays.delete(date) : state.collapsedDays.add(date); drawRows();},"scheduler-day-toggle");
+          toggle.setAttribute("aria-expanded",String(!state.collapsedDays.has(date))); cell.append(toggle); group.append(cell); body.append(group);
+        }
+        const row = el("tr",segment.break ? "scheduler-entry-break" : "scheduler-entry-work"); row.hidden = state.collapsedDays.has(date); row.dataset.entryId = entry.id;
+        const interval = el("td","scheduler-entry-time",`${timeFormatter.format(new Date(segment.start))} – ${segment.end ? timeFormatter.format(new Date(segment.end)) : "Clocked in"}`);
+        if (segment.end && localParts(segment.end).slice(0,10) !== date) interval.append(el("small","helper",dayFormatter.format(new Date(segment.end))));
+        const job = el("td");
+        if (segment.break) {
+          job.append(el("span","scheduler-break-badge",segment.break.name || "Break"),el("small","helper",`${segment.break.paid ? "Paid" : "Unpaid"}${segment.break.automatic ? " · automatic" : ""}`));
+          const detail = el("details","scheduler-break-summary"); detail.append(el("summary","","Break details"),el("p","",`${segment.break.name || "Break"} · ${segment.break.paid ? "paid" : "unpaid"}${segment.break.automatic ? " · automatic" : ""}`)); job.append(detail);
+        } else job.textContent = entry.project_name || state.projects.find(project => project.id === entry.project_id)?.title || entry.project_id || "—";
+        const location = el("td");
+        if (!segment.break && (admin() || entry.member_id === state.data.user.id)) {
+          const count = entry.location_summary?.count || 0, action = button(count ? `⌖ Web app · ${count} pins` : "⌖ No locations",() => showLocations(entry),"text-button scheduler-location-link");
+          action.setAttribute("aria-label",`Locations for ${memberName(entry.member_id)}, ${dateFormatter.format(new Date(entry.start))}`); location.append(action);
+        } else location.textContent = "—";
+        const actions = el("td","scheduler-row-actions"); if(admin() && entry.end && !segment.break) actions.append(button("Edit",() => editEntry(entry)));
+        row.append(el("td","",memberName(entry.member_id)),interval,el("td","",hours(duration(segment.start,segment.end))),job,location,el("td","scheduler-entry-notes",segment.break ? "" : entry.notes || "—"),actions); body.append(row);
+      }
+      empty.hidden = segments.length > 0;
+    };
+    search.addEventListener("input",() => {state.entriesSearch = search.value; drawRows();}); drawRows();
     table.append(body); scroll.append(table); state.root.append(scroll);
-    if (!state.data.entries.length) state.root.append(el("p","empty-state","No time entries for this week."));
+    state.root.append(empty,el("p","helper","Timesheets are grouped by day. Breaks appear as separate rows. Location history shows recorded observations and any missing intervals."));
     const pay = state.data.payroll;
     if (pay) {
       const card = el("section","card scheduler-payroll"); card.append(el("h2","","Pay breakdown"));
@@ -413,6 +459,16 @@
       }
       state.root.append(card);
     }
+  }
+  function entrySegments(entry) {
+    const finish = entry.end || new Date().toISOString(), segments = [];
+    let cursor = entry.start;
+    for (const item of [...(entry.effective_breaks || entry.breaks || [])].sort((a,b) => a.start.localeCompare(b.start))) {
+      if (item.start > cursor) segments.push({start:cursor,end:item.start});
+      const end = item.end || finish; segments.push({start:item.start,end:item.end ? end : null,break:item}); cursor = end;
+    }
+    if (cursor < finish || !segments.length) segments.push({start:cursor,end:entry.end ? finish : null});
+    return segments;
   }
   function editEntry(entry = null) {
     dialog(entry ? "Edit time entry" : "Add time entry",host => {
@@ -508,52 +564,179 @@
   }
   function stopLocation() {
     if (state.watch !== null) navigator.geolocation?.clearWatch(state.watch);
-    state.watch = null; state.locationEnabled = false;
-    try {sessionStorage.removeItem("classifire-scheduler-location-entry");} catch (_) { /* Storage may be unavailable. */ }
-    const toggle = state.root?.querySelector(".scheduler-location-toggle"); if(toggle)toggle.textContent = "Record my locations";
+    clearInterval(state.locationTimer);
+    state.watch = null; state.locationTimer = null; state.locationEnabled = false; state.locationEntry = null;
+    state.lastPoint = null; state.lastLocation = 0; state.locationIssue = "";
+    updateLocationStatus();
+  }
+  function locationError(error) {
+    if (error.code === 1) return "Location access is blocked. Enable location for CLASSIFIRE in your browser, then check location again.";
+    if (error.code === 3) return "The location request timed out. Check this computer's location services and try again.";
+    return error.message || "A location could not be obtained. Enable location services and try again.";
+  }
+  function positionValue(position) {
+    const value = {latitude:position.coords.latitude,longitude:position.coords.longitude,accuracy:position.coords.accuracy,captured_at:new Date(position.timestamp).toISOString()};
+    if (![value.latitude,value.longitude,value.accuracy].every(Number.isFinite) || Date.now()-position.timestamp > 120000 || position.timestamp > Date.now()+1000) throw new Error("The browser returned an old or invalid location. Obtain a new location and try again.");
+    return value;
+  }
+  function currentPosition(timeout = 20000) {
+    return new Promise((resolve,reject) => {
+      if (!navigator.geolocation) return reject(new Error("Location is unavailable in this browser. Use a browser with location services enabled."));
+      navigator.geolocation.getCurrentPosition(position => {
+        try {resolve(positionValue(position));} catch(error) {reject(error);}
+      },error => reject(new Error(locationError(error))),{enableHighAccuracy:true,maximumAge:0,timeout});
+    });
+  }
+  function updateLocationStatus() {
+    const active = state.data?.active_entry;
+    if (!state.trackingBanner && document.body) {
+      state.trackingBanner = el("aside","scheduler-tracking-banner"); state.trackingBanner.setAttribute("aria-label","Shift location recording");
+      state.trackingBanner.append(el("span","scheduler-tracking-text"),button("Open time clock",() => document.querySelector('[data-project-section="scheduler"]')?.click(),"text-button"));
+      document.body.append(state.trackingBanner);
+    }
+    const last = state.lastLocation || Date.parse(active?.location_summary?.last_at || "");
+    const late = active && (!last || Date.now()-last > LOCATION_INTERVAL+5*60000);
+    const text = !active ? "" : state.locationIssue ? `${state.locationIssue} Your clock continues; this gap will be visible in the history.` :
+      `Location recording is on · checks every 30 minutes${last ? ` · last recorded ${timeFormatter.format(new Date(last))}` : " · obtaining first location"}${late ? " · update overdue" : ""}.`;
+    if (state.trackingBanner) {
+      state.trackingBanner.hidden = !active || !state.root?.closest("[hidden]");
+      state.trackingBanner.classList.toggle("error",!!state.locationIssue || !!late);
+      state.trackingBanner.querySelector(".scheduler-tracking-text").textContent = text;
+    }
+    const target = state.root?.querySelector(".scheduler-location-status");
+    if (target) {target.textContent = text; target.classList.toggle("error",!!state.locationIssue || !!late);}
+  }
+  async function recordLocation(location, entryId) {
+    if (!state.locationEnabled || state.locationEntry !== entryId || state.data?.active_entry?.id !== entryId) return false;
+    const enable = !state.data.active_entry.location_consent;
+    try {
+      const result = await request(enable ? "/locations/enable" : "/locations",{entry_id:entryId,...location});
+      if (state.locationEntry !== entryId || state.data?.active_entry?.id !== entryId) return false;
+      state.lastLocation = Date.parse(result.captured_at || location.captured_at); state.lastPoint = location; state.locationIssue = "";
+      if (enable) {state.data.active_entry.location_consent = true; void refresh();}
+      updateLocationStatus(); return true;
+    } catch(error) {
+      if (state.locationEntry !== entryId) return false;
+      state.locationIssue = error.message;
+      if ([401,403,409].includes(error.status)) {stopLocation(); void refresh();}
+      updateLocationStatus(); return false;
+    }
+  }
+  async function captureLocation(force = false, timeout = 20000) {
+    if (!state.locationEnabled || !state.data?.active_entry || !force && !state.locationIssue && Date.now()-state.lastLocation < LOCATION_INTERVAL) return false;
+    if (state.locationPending) return state.locationPending;
+    const entryId = state.locationEntry;
+    state.locationPending = (async () => {
+      try {return await recordLocation(await currentPosition(timeout),entryId);}
+      catch(error) {if (state.locationEntry === entryId) {state.locationIssue = error.message; updateLocationStatus();} return false;}
+      finally {state.locationPending = null;}
+    })();
+    return state.locationPending;
   }
   function startLocation() {
-    if (!state.data?.active_entry?.location_consent) {state.locationEnabled = false; return;}
-    if (!navigator.geolocation) {notice("Location is unavailable in this browser.",true); state.locationEnabled = false; return;}
-    stopLocation(); state.locationEnabled = true; state.lastLocation = 0;
-    const entryId = state.data.active_entry.id;
-    try {sessionStorage.setItem("classifire-scheduler-location-entry",entryId);} catch (_) { /* Storage may be unavailable. */ }
-    state.watch = navigator.geolocation.watchPosition(async position => {
-      if (!state.locationEnabled || state.data?.active_entry?.id !== entryId || position.timestamp < Date.parse(state.data.active_entry.start) || Date.now() - state.lastLocation < 60000) return;
-      state.lastLocation = Date.now();
-      try {await request("/locations",{entry_id:entryId,latitude:position.coords.latitude,longitude:position.coords.longitude,accuracy:position.coords.accuracy,captured_at:new Date(position.timestamp).toISOString()});}
-      catch (error) {notice(error.message,true); stopLocation();}
-    },error => {
-      if(error.code === 1) {stopLocation(); notice("Location permission was declined. Your time clock continues to run.",true);}
-      else notice("Your location is temporarily unavailable. Waiting for the next location update.",true);
-    },
+    const active = state.data?.active_entry; if (!active) return;
+    const last = Date.parse(active.location_summary?.last_at || "") || state.lastLocation;
+    stopLocation(); state.locationEnabled = true; state.locationEntry = active.id; state.lastLocation = last;
+    const entryId = active.id;
+    if (navigator.geolocation) state.watch = navigator.geolocation.watchPosition(position => {
+      if (!state.locationEnabled || state.locationEntry !== entryId || state.locationPending || Date.now()-state.lastLocation < 60000) return;
+      try {void recordLocation(positionValue(position),entryId);} catch(error) {state.locationIssue = error.message; updateLocationStatus();}
+    },error => {if(state.locationEntry === entryId) {state.locationIssue = locationError(error); updateLocationStatus();}},
     {enableHighAccuracy:true,maximumAge:0,timeout:20000});
+    else state.locationIssue = "Location is unavailable in this browser.";
+    // watchPosition alone need not fire when the device is stationary.
+    // This independent timer obtains a fresh fix even without movement.
+    state.locationTimer = setInterval(() => {void captureLocation(); updateLocationStatus();},60000);
+    if (!last || Date.now()-last >= LOCATION_INTERVAL || !active.location_consent) void captureLocation(true);
+    updateLocationStatus();
   }
   async function showLocations(entry) {
+    const actor = state.data?.user?.id, generation = state.authGeneration, revision = ++state.mapRequest;
     try {
       const data = await request(`/locations?entry_id=${encodeURIComponent(entry.id)}`);
-      closeDialog(); const modal = el("dialog","scheduler-dialog scheduler-locations"), title = el("h2","","Your location history");
-      modal.append(title,el("p","helper",`${dateFormatter.format(new Date(entry.start))} · Recorded accuracy is shown for each pin.`));
+      if (actor !== state.data?.user?.id || generation !== state.authGeneration || revision !== state.mapRequest || state.page !== "entries") return;
+      closeDialog(); const modal = el("dialog","scheduler-dialog scheduler-locations"), header = el("div","section-heading"), title = el("h2","",`Timesheet map for ${memberName(entry.member_id)}`);
+      title.id = "scheduler-location-title"; modal.setAttribute("aria-labelledby",title.id); header.append(title,button("Close",closeDialog)); modal.append(header);
       const locations = data.locations || [];
-      if (!locations.length) modal.append(el("p","empty-state","No locations were recorded for this time entry."));
+      const layout = el("div","scheduler-location-layout"), mapColumn = el("div"), side = el("aside","scheduler-location-sidebar");
+      const shifts = state.data.entries.filter(item => item.member_id === entry.member_id && localParts(item.start).slice(0,10) === localParts(entry.start).slice(0,10));
+      const chooser = select(shifts.map(item => [item.id,`${timeFormatter.format(new Date(item.start))} – ${item.end ? timeFormatter.format(new Date(item.end)) : "Clocked in"}`]),entry.id);
+      chooser.setAttribute("aria-label","Time entry for location history"); chooser.addEventListener("change",() => {const selected = shifts.find(item => item.id === chooser.value); if(selected) void showLocations(selected);});
+      side.append(el("strong","",memberName(entry.member_id)),chooser,el("p","",dayFormatter.format(new Date(entry.start))),el("p","",hours(duration(entry.start,entry.end))),el("p","",entry.project_name || "No project assigned"),el("h3","","Timesheet timeline"));
+      const list = el("ol","scheduler-location-list"), selectedText = el("p","scheduler-selected-location"); selectedText.setAttribute("aria-live","polite");
+      let map, selectedIndex = 0;
+      const selectPoint = index => {
+        selectedIndex = index; const point = locations[index]; if(!point)return;
+        map?.select(index);
+        [...list.children].forEach((row,number) => row.querySelector("button")?.setAttribute("aria-current",number === index ? "true" : "false"));
+        selectedText.textContent = `${dateFormatter.format(new Date(point.captured_at))} · ${Number(point.latitude).toFixed(5)}, ${Number(point.longitude).toFixed(5)} · accuracy ±${Math.round(point.accuracy)} m`;
+      };
+      if (!locations.length) mapColumn.append(el("p","empty-state","No locations were recorded for this time entry. Past movements cannot be reconstructed."));
       else {
-        const map = el("div","scheduler-location-map"); map.append(locationPlot(locations),el("p","helper","Coordinate trail · North is up · Open a pin link for a street map.")); modal.append(map);
-        const list = el("ol","scheduler-location-list"); locations.forEach(point => {
-          const row = el("li"), link = el("a","",`${dateFormatter.format(new Date(point.captured_at))} · ${Number(point.latitude).toFixed(5)}, ${Number(point.longitude).toFixed(5)} · ±${Math.round(point.accuracy)} m`);
-          link.href = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(point.latitude)}&mlon=${encodeURIComponent(point.longitude)}#map=17/${encodeURIComponent(point.latitude)}/${encodeURIComponent(point.longitude)}`;
-          link.target = "_blank"; link.rel = "noopener noreferrer"; row.append(link); list.append(row);
-        }); modal.append(list);
+        map = locationPlot(locations,selectPoint); mapColumn.append(map.element);
+        const playback = button("Play route",() => {
+          if(state.locationPlayback) {clearInterval(state.locationPlayback); state.locationPlayback = null; playback.textContent = "Play route"; return;}
+          selectedIndex = -1; playback.textContent = "Pause route";
+          const step = () => {selectPoint(selectedIndex+1); if(selectedIndex >= locations.length-1) {clearInterval(state.locationPlayback); state.locationPlayback = null; playback.textContent = "Play route";}};
+          state.locationPlayback = setInterval(step,1000); step();
+        },"button scheduler-add-action");
+        mapColumn.append(playback,selectedText,el("p","helper","Map imagery from OpenStreetMap. Visible map tile coordinates are sent to OpenStreetMap; staff names, timestamps and sign-in details are not sent. Lines join recorded observations, not a verified driving route. Dashed lines indicate a gap longer than 35 minutes."));
+        locations.forEach((point,index) => {
+          const row = el("li"); row.append(button(`${index+1}. ${timeFormatter.format(new Date(point.captured_at))}`,() => selectPoint(index),"scheduler-timeline-point"),el("small","helper",`±${Math.round(point.accuracy)} m`)); list.append(row);
+        });
       }
-      modal.append(button("Close",closeDialog)); modal.addEventListener("close",() => {modal.remove(); if(state.dialog === modal)state.dialog = null;}); state.root.append(modal); state.dialog = modal; modal.showModal();
-    } catch(error) {notice(error.message,true);}
+      side.append(list);
+      const gaps = data.coverage?.gaps || [];
+      if(gaps.length) {const warning = el("section","scheduler-location-gaps"); warning.append(el("strong","","Missing location intervals")); for(const gap of gaps) warning.append(el("p","helper",`${dateFormatter.format(new Date(gap.start))} – ${dateFormatter.format(new Date(gap.end))} · ${hours(gap.minutes)}`)); side.append(warning);}
+      layout.append(mapColumn,side); modal.append(layout);
+      modal.addEventListener("close",() => {clearInterval(state.locationPlayback); state.locationPlayback = null; map?.dispose(); modal.remove(); if(state.dialog === modal)state.dialog = null;}); state.root.append(modal); state.dialog = modal; modal.showModal(); selectPoint(0);
+    } catch(error) {if(generation === state.authGeneration && revision === state.mapRequest) {notice(error.message,true); if([401,409].includes(error.status)) void refresh();}}
   }
-  function locationPlot(points) {
-    const ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns,"svg"); svg.setAttribute("viewBox","0 0 640 320"); svg.setAttribute("role","img"); svg.setAttribute("aria-label",`Location trail with ${points.length} recorded pins`);
-    const cos = Math.cos(Number(points[0].latitude) * Math.PI / 180), xs = points.map(point => Number(point.longitude) * cos), ys = points.map(point => Number(point.latitude));
-    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys), scale = Math.min(560 / Math.max(maxX-minX,0.0001),240 / Math.max(maxY-minY,0.0001));
-    const coords = xs.map((value,index) => [320 + (value-(minX+maxX)/2)*scale,160 - (ys[index]-(minY+maxY)/2)*scale]);
-    const line = document.createElementNS(ns,"polyline"); line.setAttribute("points",coords.map(pair => pair.join(",")).join(" ")); line.setAttribute("class","scheduler-location-line"); svg.append(line);
-    coords.forEach(([x,y],index) => {const group = document.createElementNS(ns,"g"), circle = document.createElementNS(ns,"circle"), label = document.createElementNS(ns,"text"); circle.setAttribute("cx",x); circle.setAttribute("cy",y); circle.setAttribute("r","12"); label.setAttribute("x",x); label.setAttribute("y",y+4); label.textContent = index+1; group.append(circle,label); svg.append(group);}); return svg;
+  function locationPlot(points,onSelect) {
+    const ns = "http://www.w3.org/2000/svg", wrapper = el("div","scheduler-location-map"), surface = el("div","scheduler-map-surface"), canvas = el("canvas"), svg = document.createElementNS(ns,"svg");
+    canvas.width = 640; canvas.height = 420; canvas.setAttribute("aria-hidden","true"); svg.setAttribute("viewBox","0 0 640 420"); svg.setAttribute("role","img"); svg.setAttribute("aria-label",`Location trail with ${points.length} recorded pins`); surface.append(canvas,svg);
+    const status = el("p","helper scheduler-map-status","Loading street map…"), controls = el("div","scheduler-map-controls");
+    const project = point => {const latitude = Math.max(-85.0511,Math.min(85.0511,Number(point.latitude)))*Math.PI/180; return [(Number(point.longitude)+180)/360,(1-Math.log(Math.tan(latitude)+1/Math.cos(latitude))/Math.PI)/2];};
+    const coords = points.map(project), xs = coords.map(point => point[0]), ys = coords.map(point => point[1]);
+    const original = [(Math.min(...xs)+Math.max(...xs))/2,(Math.min(...ys)+Math.max(...ys))/2];
+    const fitZoom = Math.max(1,Math.min(17,Math.floor(Math.log2(Math.min(530/(Math.max(...xs)-Math.min(...xs) || .00003)/256,320/(Math.max(...ys)-Math.min(...ys) || .00003)/256)))));
+    let centre = [...original], zoom = fitZoom, selected = 0, revision = 0, disposed = false, dragging = null;
+    const images = new Map(), context = canvas.getContext("2d");
+    function draw(loadTiles = true) {
+      if(disposed)return; revision++; const current = revision, size = 256*2**zoom, left = centre[0]*size-320, top = centre[1]*size-210;
+      context.clearRect(0,0,640,420); svg.replaceChildren();
+      const tileJobs = [];
+      for(let y=Math.floor(top/256);y<=Math.floor((top+419)/256);y++) for(let x=Math.floor(left/256);x<=Math.floor((left+639)/256);x++) {
+        if(y<0 || y>=2**zoom)continue;
+        const column = ((x%2**zoom)+2**zoom)%2**zoom, key = `${zoom}/${column}/${y}`;
+        let tile = images.get(key);
+        if(!tile && loadTiles) {tile = new Image(); tile.referrerPolicy = "same-origin"; tile.src = `/api/scheduler/map-tile?z=${zoom}&x=${column}&y=${y}`; images.set(key,tile);}
+        if(tile) tileJobs.push({tile,x:x*256-left,y:y*256-top});
+      }
+      if(images.size > 128) for(const [key,tile] of images) {if(images.size <= 128)break; if(!tileJobs.some(item => item.tile === tile)) {tile.onload = null; tile.onerror = null; images.delete(key);}}
+      let failed = false;
+      const paint = () => {
+        if(disposed || current !== revision)return;
+        context.clearRect(0,0,640,420);
+        for(const item of tileJobs) if(item.tile.complete && item.tile.naturalWidth) context.drawImage(item.tile,item.x,item.y,256,256);
+        failed = tileJobs.some(item => item.tile.complete && !item.tile.naturalWidth);
+        status.textContent = failed ? "Street map unavailable. Recorded pins and coordinates remain available." : tileJobs.every(item => item.tile.complete) ? "OpenStreetMap · Drag to pan or use the zoom buttons." : "Loading street map…";
+      };
+      for(const item of tileJobs) {item.tile.onload = paint; item.tile.onerror = paint;} paint();
+      const screen = coords.map(([x,y]) => [x*size-left,y*size-top]);
+      for(let index=1;index<screen.length;index++) {
+        const line = document.createElementNS(ns,"line"); line.setAttribute("x1",screen[index-1][0]); line.setAttribute("y1",screen[index-1][1]); line.setAttribute("x2",screen[index][0]); line.setAttribute("y2",screen[index][1]); line.setAttribute("class","scheduler-location-line");
+        if(Date.parse(points[index].captured_at)-Date.parse(points[index-1].captured_at)>35*60000)line.setAttribute("stroke-dasharray","7 6"); svg.append(line);
+      }
+      screen.forEach(([x,y],index) => {const group = document.createElementNS(ns,"g"), circle = document.createElementNS(ns,"circle"), label = document.createElementNS(ns,"text"), title = document.createElementNS(ns,"title"); circle.setAttribute("cx",x); circle.setAttribute("cy",y); circle.setAttribute("r",index===selected ? "15" : "11"); circle.setAttribute("class",index===0 ? "scheduler-pin-start" : index===points.length-1 ? "scheduler-pin-end" : ""); label.setAttribute("x",x); label.setAttribute("y",y+4); label.textContent = index+1; title.textContent = `${timeFormatter.format(new Date(points[index].captured_at))} · ±${Math.round(points[index].accuracy)} m`; group.append(title,circle,label); group.addEventListener("click",() => onSelect(index)); svg.append(group);});
+    }
+    controls.append(button("+",() => {zoom=Math.min(19,zoom+1);draw();}),button("−",() => {zoom=Math.max(1,zoom-1);draw();}),button("Fit route",() => {centre=[...original];zoom=fitZoom;draw();})); controls.children[0].setAttribute("aria-label","Zoom in map"); controls.children[1].setAttribute("aria-label","Zoom out map");
+    surface.addEventListener("pointerdown",event => {if(event.target.closest("g"))return; dragging={x:event.clientX,y:event.clientY,centre:[...centre]};surface.setPointerCapture(event.pointerId);});
+    surface.addEventListener("pointermove",event => {if(!dragging)return;const scale=640/surface.getBoundingClientRect().width/(256*2**zoom);centre=[dragging.centre[0]-(event.clientX-dragging.x)*scale,Math.max(0,Math.min(1,dragging.centre[1]-(event.clientY-dragging.y)*scale))];draw(false);});
+    const endDrag=()=>{if(dragging){dragging=null;draw();}};surface.addEventListener("pointerup",endDrag);surface.addEventListener("pointercancel",endDrag);
+    const attribution=el("a","scheduler-map-attribution","© OpenStreetMap contributors");attribution.href="https://www.openstreetmap.org/copyright";attribution.target="_blank";attribution.rel="noopener noreferrer";
+    wrapper.append(surface,controls,attribution,status);draw();
+    return {element:wrapper,select(index){selected=index;draw(false);},dispose(){disposed=true;for(const tile of images.values()){tile.onload=null;tile.onerror=null;}}};
   }
   async function activate() {
     state.root ||= document.getElementById("scheduler-root"); if(!state.root)return;
@@ -564,10 +747,26 @@
       catch(error) {notice(error.message,true);}
     }
     void loadProjects();
+    beginPolling();
+  }
+  function beginPolling() {
     if (!state.timer) state.timer = setInterval(() => {
-      if (state.data?.user && !state.root.closest("[hidden]") && !state.dialog && !state.busy && state.page !== "settings") refresh();
+      if (state.data?.user && !state.busy && (state.data.active_entry || !state.root?.closest("[hidden]"))) void refresh();
     },60000);
     if (!state.noticeTimer) state.noticeTimer = setInterval(checkBreakNotification,1000);
   }
+  async function restoreClock() {
+    state.root ||= document.getElementById("scheduler-root"); if(!state.root)return;
+    const view = state.root.closest('[id^="view-"]');
+    if (view) new MutationObserver(updateLocationStatus).observe(view,{attributes:true,attributeFilter:["hidden"]});
+    beginPolling();
+    try {const bootstrap = await request("/bootstrap"); if(bootstrap.user) await refresh();}
+    catch (_) { /* Authentication and connection failures are shown on opening Scheduler. */ }
+  }
+  document.addEventListener("visibilitychange",() => {if(!document.hidden && state.data?.user) {if(state.locationEnabled)void captureLocation(true); void refresh();}});
+  accountChannel?.addEventListener("message",() => {resetAccount(); auth(false); void refresh();});
+  window.addEventListener("online",() => {if(state.locationEnabled) void captureLocation(true);});
+  window.addEventListener("pagehide",stopLocation);
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded",restoreClock,{once:true}); else void restoreClock();
   window.CeasefireScheduler = {activate,init(options = {}) {state.root = options.root || document.getElementById("scheduler-root");},hasPendingOperation() {return state.busy || !!state.dialog || state.settingsDirty;}};
 })();

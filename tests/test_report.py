@@ -14,6 +14,7 @@ from pypdf import PdfReader
 
 from estimator.calculator import calculate
 from estimator.catalog import ROOT
+from estimator.company_settings import DEFAULTS, company_logo
 from estimator.report import render_quote_pdf, _number, _Report
 from estimator.presentation import calculation_error_details
 from estimator.storage import Store, WORKFLOWS
@@ -160,12 +161,13 @@ class ReportTests(unittest.TestCase):
 
     def test_official_logo_and_fonts_are_embedded_on_each_page(self):
         self.assertEqual(sha256((ROOT / "static/classifire-logo.png").read_bytes()).hexdigest(), "a91d44ba45c0f96a589c577800d9e4cc292efaa1f8a9cdab7be18aaebc0d32da")
+        logo_size = company_logo(DEFAULTS).getSize()
         self.assertGreaterEqual(len(self.reader.pages), 4)
         for page in self.reader.pages:
-            for contact in ("ABN: 50 612 231 562", "Phone: 1300 92 62 88", "Email: sales@ceasefire.com.au"):
+            for contact in (f"ABN: {DEFAULTS['abn']}", f"Phone: {DEFAULTS['phone']}", f"Email: {DEFAULTS['email']}"):
                 self.assertIn(contact, page.extract_text())
             images = [obj.get_object() for obj in page["/Resources"]["/XObject"].values()]
-            self.assertTrue(any(obj.get("/Subtype") == "/Image" and obj.get("/Width") == 2172 and obj.get("/Height") == 724 for obj in images))
+            self.assertTrue(any(obj.get("/Subtype") == "/Image" and (obj.get("/Width"), obj.get("/Height")) == logo_size for obj in images))
             fonts = [obj.get_object() for obj in page["/Resources"]["/Font"].values()]
             self.assertTrue(any("/FontFile2" in font.get("/FontDescriptor", {}) for font in fonts))
         self.assertEqual(self.reader.metadata.author, "CLASSIFIRE")

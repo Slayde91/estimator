@@ -120,6 +120,8 @@ class SchedulerRulePersistence(unittest.TestCase):
         self.token, self.user = auth['token'], auth['user']
 
     def write(self, action, payload):
+        if action == 'clock/in':
+            payload = {'location_consent': True, 'location': {'latitude': -33.8688, 'longitude': 151.2093, 'accuracy': 10, 'captured_at': self.now.isoformat()}, **payload}
         return self.store.write(action, payload, self.token)
 
     def state(self):

@@ -107,7 +107,7 @@ async function load(){const pending=page.waitForResponse(r=>r.url().endsWith('/a
   const uiHeaders=(await page.locator('.takeoff-register:not(.takeoff-physical-register) table').first().getByRole('columnheader').allTextContents()).map(value=>value.trim());
   assert.equal(uiHeaders.at(-1),'Delete');assert.deepEqual(uiHeaders,['Select','Hide','View/Edit',...registerHeaders,'Delete']);
   assert.deepEqual(workbook.headers,registerHeaders,'XLSX retains every data column and excludes UI action controls');evidence.xlsxHeaders=workbook.headers;evidence.uiFinalColumn=uiHeaders.at(-1);
-  for(const item of[a,b,c]){const row=workbook.rows.find(row=>row['Member mark']===item.fields.mark);assert.ok(row);assert.equal(row.Qty,item.quantity);assert.equal(row.Confirmation,'Draft');assert.ok(!Object.hasOwn(row,'Geometry'));}evidence.xlsxSheets=workbook.sheets;
+  for(const item of[a,b,c]){const row=workbook.rows.find(row=>row['Member mark']===item.fields.mark);assert.ok(row);assert.equal(row.Qty,item.quantity);assert.equal(row.Status,'Draft');assert.ok(!Object.hasOwn(row,'Geometry'));}evidence.xlsxSheets=workbook.sheets;
   let releaseRender;
   const renderHeld=new Promise(resolve=>{releaseRender=resolve;});
   let renderCaptured=false,renderHeldReady=false,focusComplete=false;

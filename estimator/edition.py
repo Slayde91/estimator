@@ -48,9 +48,14 @@ def features(edition):
 def require_project_edition(value, edition):
     """Reject incompatible input before calculation, imports, dialogs or writes."""
     if validate_edition(edition) == 'standard' and isinstance(value, dict):
-        if ('takeoffs' in value or 'takeoffs_session_id' in value
-                or value.get('version') == 2):
-            raise ValidationError(TAKEOFF_PROJECT_ERROR)
+        workspaces = [value]
+        if isinstance(value.get('estimates'), list):
+            workspaces.extend(item['workspace'] for item in value['estimates']
+                              if isinstance(item, dict) and isinstance(item.get('workspace'), dict))
+        for workspace in workspaces:
+            if ('takeoffs' in workspace or 'takeoffs_session_id' in workspace
+                    or workspace.get('version') == 2):
+                raise ValidationError(TAKEOFF_PROJECT_ERROR)
 
 
 def excluded_route(route, edition):

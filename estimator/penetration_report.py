@@ -23,6 +23,7 @@ SCHEDULE = (
     ('Service', 'K'), ('Quantity', 'O'), ('FRL', 'N'),
     ('Service size', 'service_size'), ('Orientation', 'M'), ('Substrate', 'P'),
 )
+SCHEDULE_HEADERS = ['Line', 'Diagram', *[label for label, _ in SCHEDULE], 'Report']
 LABOUR_INPUTS = {'pipe_labour_hours': 'pipe_hours'}
 
 
@@ -95,7 +96,40 @@ def _excel_format(field):
     return {'percent': '0.00%', 'currency': '$#,##0.00'}.get(field.get('format'), '#,##0.00')
 
 
-def render_penetration_pdf(result, definition, project_details, *, library=None, company=None, include_project_details=True, project_report_title=None, report_footer=None):
+def _schedule_records(result, definition, library):
+    """One public technical projection for the PDF and the Quote editor."""
+    fields = {field['column']: field for field in definition['row_fields'] + definition['output_fields']}
+    source_rows = {row['id']: row for row in result.get('draft', {}).get('rows', [])}
+    references = resolve_schedule_references(result['draft'], library)['row_references']
+    records = []
+    for index, row in enumerate(result['rows'], 1):
+        diagram = None
+        library_id = source_rows.get(row['id'], {}).get('library_item_id')
+        if library is not None and library_id:
+            try:
+                payload, _, _ = library.diagram_asset(library_id, True)
+                image_width, image_height = ImageReader(BytesIO(payload)).getSize()
+                if image_width <= 0 or image_height <= 0:
+                    raise ValueError('Source image has no visible area.')
+                scale = min(64 / image_width, 44 / image_height)
+                diagram = Image(BytesIO(payload), width=image_width * scale, height=image_height * scale)
+            except (ReferenceNotFound, OSError, ValueError):
+                pass
+        records.append({'line': str(index), 'diagram': diagram,
+                        'values': [_display(_value(row, column), fields.get(column)) for _, column in SCHEDULE],
+                        'reports': references[row['id']]['reports']})
+    return records
+
+
+def penetration_schedule_table(result, definition, *, library=None):
+    """Use the exact schedule headings and display values in the Quote editor."""
+    rows = [[record['line'], 'Included in PDF' if record['diagram'] is not None else '',
+             *record['values'], ' | '.join(reference['label'] for reference in record['reports'])]
+            for record in _schedule_records(result, definition, library)]
+    return {'headers': list(SCHEDULE_HEADERS), 'rows': rows}
+
+
+def render_penetration_pdf(result, definition, project_details, *, library=None, company=None, include_project_details=True, project_report_title=None, report_footer=None, portrait=False):
     """Show the technical schedule without prices, using captured inputs."""
     _register_fonts()
     report = _Report({})
@@ -103,7 +137,8 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
     # table with its heading can otherwise strand the schedule heading alone.
     report.styles['subheading'].keepWithNext = False
     report.styles['section'].keepWithNext = True
-    width, height = landscape(A4)
+    page_size = A4 if portrait else landscape(A4)
+    width, height = page_size
     margin = 32
     content = width - 2 * margin
     logo = company_logo(company)
@@ -121,48 +156,34 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
     if result.get('errors'):
         report.story.append(report.p('Some workbook results are unavailable. Review the calculation errors below.', 'alert'))
     report.story.append(report.p('Schedule', 'subheading'))
-    fields_by_column = {field['column']: field for field in definition['row_fields'] + definition['output_fields']}
-    source_rows = {row['id']: row for row in result.get('draft', {}).get('rows', [])}
-    references = resolve_schedule_references(result['draft'], library)['row_references']
     widths = [content * part for part in (.04, .08, .18, .075, .09, .13, .11, .145, .15)]
     schedule_rows = []
-    for index, row in enumerate(result['rows'], 1):
-        thumbnail = report.p('', 'cell')
-        library_id = source_rows.get(row['id'], {}).get('library_item_id')
-        if library is not None and library_id:
-            try:
-                payload, _, _ = library.diagram_asset(library_id, True)
-                image_width, image_height = ImageReader(BytesIO(payload)).getSize()
-                if image_width <= 0 or image_height <= 0:
-                    raise ValueError('Source image has no visible area.')
-                scale = min(64 / image_width, 44 / image_height)
-                thumbnail = Image(BytesIO(payload), width=image_width * scale,
-                                  height=image_height * scale)
-            except (ReferenceNotFound, OSError, ValueError):
-                # A removed or unreadable optional diagram must not prevent
-                # the calculated schedule from being downloaded.
-                pass
+    for record in _schedule_records(result, definition, library):
         captions = []
-        for reference in references[row['id']]['reports']:
+        for reference in record['reports']:
             label, url = escape(reference['label']), reference.get('url')
             captions.append(f'<link href={quoteattr(url)}>{label}</link>' if valid_report_url(url) else label)
-        schedule_rows.append([report.p(str(index), 'cell'), thumbnail] +
-            [report.p(_display(_value(row, col), fields_by_column.get(col)), 'cell') for _, col in SCHEDULE] +
+        schedule_rows.append([report.p(record['line'], 'cell'), record['diagram'] or report.p('', 'cell')] +
+            [report.p(value, 'cell') for value in record['values']] +
             [report.rich(' | '.join(captions), 'cell')])
-    schedule_table = report.table(['Line', 'Diagram'] + [label for label, _ in SCHEDULE] + ['Report'],
-                                  schedule_rows, widths, compact=True)
-    # Split a long row within the first page fragment instead of adding a
-    # second repeated header below the preceding complete rows on that page.
-    # Require room for a body line and padding beneath every header.
-    schedule_table.splitByRow = 0
-    schedule_table.splitInRow = 20
-    for row_index, row in enumerate(schedule_rows, 1):
-        if any(cell.wrap(widths[index] - 12, height)[1] > height - 160
-               for index, cell in enumerate(row)):
-            # Middle alignment can carry large blank margins into fragments
-            # when a cell is taller than a full page. Ordinary rows stay centred.
-            schedule_table.setStyle(TableStyle([('VALIGN', (0, row_index), (-1, row_index), 'TOP')]))
-    report.story.append(schedule_table)
+    groups = [[0, 2, 1, 3, 4], [0, 2, 5, 6, 7], [0, 2, 8]] if portrait else [list(range(len(SCHEDULE_HEADERS)))]
+    for group_index, columns in enumerate(groups):
+        if group_index:
+            report.story.append(Spacer(1, 12))
+        group_widths = [widths[index] for index in columns]
+        if portrait:
+            total = sum(group_widths[1:])
+            group_widths = [32] + [(content - 32) * value / total for value in group_widths[1:]]
+        rows = [[row[index] for index in columns] for row in schedule_rows]
+        schedule_table = report.table([SCHEDULE_HEADERS[index] for index in columns], rows, group_widths, compact=True)
+        # Split tall cells while keeping room for a body line beneath the header.
+        schedule_table.splitByRow = 0
+        schedule_table.splitInRow = 20
+        for row_index, row in enumerate(rows, 1):
+            if any(cell.wrap(group_widths[index] - 12, height)[1] > height - 160
+                   for index, cell in enumerate(row)):
+                schedule_table.setStyle(TableStyle([('VALIGN', (0, row_index), (-1, row_index), 'TOP')]))
+        report.story.append(schedule_table)
     for index, row in enumerate(result['rows'], 1):
         if row.get('errors'):
             report.story.append(report.p(f'Line {index}: Check the entered values; a result is unavailable.', 'alert'))
@@ -170,7 +191,7 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
         report.story.append(report.p('Check the schedule; a summary result is unavailable.', 'alert'))
 
     output = BytesIO()
-    document = SimpleDocTemplate(output, pagesize=landscape(A4), leftMargin=margin, rightMargin=margin,
+    document = SimpleDocTemplate(output, pagesize=page_size, leftMargin=margin, rightMargin=margin,
         topMargin=91, bottomMargin=43, pageCompression=1,
         title='CLASSIFIRE - Firestopping schedule', author='CLASSIFIRE')
 

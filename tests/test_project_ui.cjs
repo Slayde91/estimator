@@ -71,7 +71,7 @@ vm.createContext(context);
   appSource = appSource.replace(appEnd, `
     globalThis.appAudit = {state, saveProject, loadProject, openNativeProject, newQuote, projectStamp, saveQuote, openQuote, calculate, reportPayload, projectEstimate, downloadFullReport,
       applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,openProjectBrowser,loadProjectFiles,openProjectFolderFile,closeProjectBrowser,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,requestViewNavigation,requestProjectsNavigation,requestCalculatorNavigation,uploadProjectFiles,reviewDesktopClose,
-      renderInputs, selectMainSection, setRequest(fn) { request = fn; }};
+      renderInputs, selectMainSection, changeProjectStage, changeCurrentProjectStage, renderProjectBoard, renameProjectEstimate, addProjectEstimate, selectEstimate, setRequest(fn) { request = fn; }};
   })();`);
   vm.runInContext(appSource, context);
   const app = context.appAudit, calc = context.calcAudit, bridgeApi = context.window.CeasefireCalculators;
@@ -711,7 +711,7 @@ async function penetrationCheck(name, fn) {
   });
   await check('Folder library loads the selected opaque file and restores the entire project', async h => {
     const paths=[];h.app.setRequest(async(path,options)=>{paths.push(path);if(path==='/api/projects')return {folder:'C:/estimates',files:[{id:'opaque',name:'project.cf.json',title:'Project',modified_at:'2026-09-16T00:00:00Z'}],errors:[]};assert.equal(JSON.parse(options.body).id,'opaque');return {...project(),file:{name:'project.cf.json'}};});
-    await h.app.loadProjects();assert.match(h.byId('project-folder').textContent,/C:\/estimates/);assert.equal(h.byId('project-list').children.length,1);
+    await h.app.loadProjects();assert.match(h.byId('project-folder').textContent,/C:\/estimates/);assert.equal(h.byId('project-list').children.length,5);
     const opening=h.app.openProjectFile({id:'opaque',name:'project.cf.json'},h.element('button'));await flush();await h.byId('discard-dialog').close('confirm');await opening;
     assert.deepEqual(paths,['/api/projects','/api/projects/load']);assert.equal(h.app.state.dirty,false);assert.equal(h.calc.state.entries.size,3);
   });
@@ -726,7 +726,7 @@ async function penetrationCheck(name, fn) {
   });
   await check('Main input and output tabs retain independent selection, keyboard bounds and original controls', async h => {
     const inputContainers=['input-sections','post-material-input-sections','adjustment-sections'].map(h.byId);
-    const outputKeys=['material-breakdown','labour-breakdown'];
+    const outputKeys=['material-breakdown','labour-breakdown','firestopping-schedule','firestopping-breakdown'];
     const outputs=outputKeys.map(key=>{const panel=h.byId(`main-panel-${key}`);panel.id=`main-panel-${key}`;panel.dataset.mainSection=key;panel.dataset.mainSectionTitle=key;return panel;});
     const materials=h.byId('main-panel-materials');materials.id='main-panel-materials';materials.dataset.mainSection='materials';
     h.app.state.fields=[['B2','Access'],['D2','Teams'],['D7','Masking teams'],['B9','Masking'],['B26','Global'],['E26','Addition'],['A50','Other']].map(([cell,label])=>({cell,label,type:cell==='D7'?'select':'number',options:cell==='D7'?['N/A','1']:undefined}));
@@ -742,13 +742,13 @@ async function penetrationCheck(name, fn) {
     h.app.selectMainSection('additions');const additions=inputCards().find(card=>card.dataset.mainSection==='additions');
     const fields=additions.children[1],controls=[...fields.children];
     for(const key of outputKeys){h.app.selectMainSection(key);assert.deepEqual(visibleInputs(),['additions']);assert.deepEqual(visibleOutputs(),[key]);assert.equal(h.app.state.mainSection,'additions');assert.equal(h.app.state.mainOutputSection,key);assert.deepEqual(fields.children,controls);}
-    h.app.selectMainSection('teams-crews');assert.deepEqual(visibleOutputs(),['labour-breakdown']);
+    h.app.selectMainSection('teams-crews');assert.deepEqual(visibleOutputs(),['firestopping-breakdown']);
     const press=async(tab,key)=>{let prevented=false;await tab.emit('keydown',{key,preventDefault(){prevented=true;}});assert.equal(prevented,true);};
-    await press(tabs('main-section-tabs')[0],'End');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'other-inputs');assert.deepEqual(visibleOutputs(),['labour-breakdown']);
+    await press(tabs('main-section-tabs')[0],'End');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'other-inputs');assert.deepEqual(visibleOutputs(),['firestopping-breakdown']);
     await press(tabs('main-section-tabs').at(-1),'ArrowRight');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'access-travel');
-    await press(tabs('main-output-tabs')[0],'End');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'labour-breakdown');assert.deepEqual(visibleInputs(),['access-travel']);
+    await press(tabs('main-output-tabs')[0],'End');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'firestopping-breakdown');assert.deepEqual(visibleInputs(),['access-travel']);
     await press(tabs('main-output-tabs').at(-1),'ArrowRight');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'material-breakdown');
-    await press(tabs('main-output-tabs')[0],'ArrowLeft');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'labour-breakdown');
+    await press(tabs('main-output-tabs')[0],'ArrowLeft');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'firestopping-breakdown');
     await press(tabs('main-output-tabs').at(-1),'Home');assert.equal(h.context.document.activeElement.dataset.mainSectionTab,'material-breakdown');
     for(const id of ['main-section-tabs','main-output-tabs'])assert.equal(tabs(id).filter(tab=>tab.tabIndex===0&&tab.getAttribute('aria-selected')==='true').length,1);
     for(const panel of [...inputCards(),...outputs])assert.equal(panel.getAttribute('aria-labelledby'),`main-tab-${panel.dataset.mainSection}`);
@@ -796,14 +796,14 @@ async function penetrationCheck(name, fn) {
     h.app.state.draft.rates.frozen.price=17.12345;h.app.updateProjectStatus();
     assert.equal(h.byId('project-save-state').textContent,'Saved project');
   });
-  await check('Folder search and paging retain relative paths and never fetch older estimate saves', async h => {
+  await check('Folder search retains relative paths while scanning the entire Kanban', async h => {
     const calls=[];h.byId('project-search').value='Client & north';h.byId('project-sort').value='name_asc';
     h.app.setRequest(async path=>{calls.push(path);return {folder:'C:/Estimates',files:[{id:'nested',name:'Quote.cf.json',relative_path:'Client/north/Quote.cf.json',title:'Quote',modified_at:'2026-09-17T00:00:00Z'}],total:500,matched:120,offset:100,errors:[],scan_pending:true,scanned_entries:2000};});
     await h.app.loadProjects({offset:100});
-    assert.equal(calls[0],'/api/projects?search=Client%20%26%20north&sort=name_asc&offset=100');
-    assert.equal(h.byId('project-list').children[0].children[0].children[2].textContent,'Client/north/Quote.cf.json');
-    assert.match(h.byId('project-list-status').textContent,/101–101 of 120/);assert.equal(h.byId('project-continue').hidden,false);
-    assert.equal(h.byId('project-previous').disabled,false);assert.equal(h.byId('project-next').disabled,false);
+    assert.equal(calls[0],'/api/projects?search=Client%20%26%20north&sort=name_asc');
+    assert.equal(h.byId('project-list').children[0].children[1].children[3].textContent,'Client/north/Quote.cf.json');
+    assert.match(h.byId('project-list-status').textContent,/120 matching projects/);assert.equal(h.byId('project-continue').hidden,false);
+    assert.equal(h.byId('project-previous').disabled,true);assert.equal(h.byId('project-next').disabled,true);
   });
   await check('Clicking a project name browses folders and opens files through opaque project requests', async h => {
     const calls=[];
@@ -815,7 +815,7 @@ async function penetrationCheck(name, fn) {
       if(path==='/api/projects/open-file')return {opened:true,name:'site.jpg',relative_path:'Photos/site.jpg'};
       throw new Error(`Unexpected ${path}`);
     });
-    await h.app.loadProjects();const title=h.byId('project-list').children[0].children[0].children[0].children[0];
+    await h.app.loadProjects();const title=h.byId('project-list').children[0].children[1].children[0].children[0];
     assert.equal(title.textContent,'Quote files');assert.match(title.getAttribute('aria-label'),/Browse files/);await title.emit('click');
     assert.equal(h.byId('project-list-card').hidden,true);assert.equal(h.byId('project-browser').hidden,false);assert.equal(h.byId('project-browser-list').children.length,2);
     await h.byId('project-browser-list').children[0].emit('click');assert.equal(h.app.state.projectBrowserPath,'Photos');
@@ -829,17 +829,70 @@ async function penetrationCheck(name, fn) {
     const pending=deferred();let count=0;h.app.setRequest(()=>++count===1?pending.promise:Promise.resolve({files:[],folder:'New folder',total:0,matched:0,errors:[]}));
     const first=h.app.loadProjects();h.byId('project-search').value='new';await h.app.loadProjects({offset:0});
     pending.resolve({folder:'Old folder',files:[],errors:[]});await first;assert.equal(h.byId('project-folder').textContent,'New folder');
-    assert.match(h.byId('project-list').children[0].textContent,/No projects match/);
+    assert.equal(h.app.state.projectCards.length,0);assert.equal(h.byId('project-list').children.length,5);
   });
   await check('Saved projects view has no request or control for older estimate-only records', async h => {
     const calls=[];h.app.setRequest(async path=>{calls.push(path);return {files:[],errors:[]};});h.app.showView('quotes');await flush();
     assert.deepEqual(calls,['/api/projects']);const html=fs.readFileSync('static/index.html','utf8');
     assert.ok(!html.includes('Older estimate-only saves'));assert.ok(!html.includes('id="quote-list"'));
   });
-  await check('Completed folder rescan returns an out-of-range page to existing projects', async h => {
-    const paths=[];h.app.setRequest(async path=>{paths.push(path);return {folder:'C:/estimates',files:paths.length===1?[]:[{id:'remaining',name:'Remaining.cf.json',modified_at:'2026-09-17T00:00:00Z'}],offset:paths.length===1?200:0,total:20,matched:20,scan_pending:false,errors:[]};});
-    await h.app.loadProjects({offset:200});assert.deepEqual(paths,['/api/projects?offset=200','/api/projects']);
-    assert.equal(h.app.state.projectsOffset,0);assert.match(h.byId('project-list-status').textContent,/1–1 of 20/);
+  await check('Leaving Projects clears a superseded scan busy indicator', async h => {
+    const pending=deferred();h.app.setRequest(()=>pending.promise);
+    const loading=h.app.loadProjects();assert.equal(h.byId('project-list').getAttribute('aria-busy'),'true');
+    h.app.showView('home');assert.equal(h.byId('project-list').getAttribute('aria-busy'),'false');
+    pending.resolve({files:[],errors:[]});await loading;
+    assert.equal(h.byId('project-list').getAttribute('aria-busy'),'false');
+  });
+  await check('Kanban fetches all project pages and ignores obsolete page offsets', async h => {
+    const paths=[];h.app.setRequest(async path=>{paths.push(path);return {folder:'C:/estimates',files:[{id:paths.length===1?'first':'second',name:'Quote.cf.json',project_status:paths.length===1?'Draft':'Review',modified_at:'2026-09-17T00:00:00Z'}],total:2,matched:2,scan_pending:false,errors:[]};});
+    await h.app.loadProjects({offset:200});assert.deepEqual(paths,['/api/projects','/api/projects?offset=1']);
+    assert.equal(h.app.state.projectsOffset,0);assert.equal(h.app.state.projectCards.length,2);
+    assert.equal(h.byId('project-list').children[0].children.length,2);
+    assert.equal(h.byId('project-list').children[1].children.length,2);
+    assert.match(h.byId('project-list-status').textContent,/2 matching projects/);
+  });
+  await check('Status changes refresh only the matching current project revision and retain drafts', async h => {
+    const file={id:'first',path:'C:/estimates/First.cf.json',revision:'original',project_status:'Draft'};
+    h.app.state.projectFile=file;h.app.state.projectStatus='Draft';
+    const before=h.snapshot();
+    h.app.setRequest(async(path,options)=>{
+      if(path==='/api/projects/status'){assert.deepEqual(JSON.parse(options.body),{id:'first',revision:'original',project_status:'Review'});return {file:{...file,revision:'updated',save_token:'new-token',project_status:'Review'}};}
+      return {files:[],errors:[]};
+    });
+    await h.app.changeProjectStage(file,'Review');
+    assert.equal(h.app.state.projectFile.save_token,'new-token');assert.equal(h.app.state.projectStatus,'Review');assert.deepEqual(h.snapshot(),before);
+    h.app.state.projectFile={...file,revision:'older'};h.app.state.projectStatus='Draft';
+    await h.app.changeProjectStage(file,'Review');
+    assert.equal(h.app.state.projectFile.revision,'older');assert.equal(h.app.state.projectStatus,'Draft');
+  });
+  await check('Estimate rename stays busy through the deferred native dialog close event', async h => {
+    const secondId='estimate-'+'2'.repeat(32);
+    h.app.state.projectEstimates.push({id:secondId,name:'Second',workspace:project()});
+    const original=h.app.projectStamp();
+    const renaming=h.app.renameProjectEstimate();await flush();
+    const dialog=h.byId('project-estimate-dialog');assert.equal(dialog.open,true);
+    h.byId('project-estimate-name').value='Renamed estimate';
+    dialog.open=false;dialog.returnValue='save';
+    assert.equal(h.app.state.projectBusy,true,'Native dialog closure must not expose an idle app before its name is committed');
+    assert.equal(h.app.projectStamp(),original);
+    const requests=h.calls.length;await h.app.selectEstimate(secondId);
+    assert.equal(h.calls.length,requests);assert.equal(h.app.state.activeEstimateId,'estimate-1');
+    await dialog.emit('close');await renaming;
+    assert.equal(h.app.state.projectEstimates[0].name,'Renamed estimate');
+    assert.equal(h.app.state.projectBusy,false);
+  });
+  await check('Cancelled new-estimate naming keeps all drafts and clears its busy guard', async h => {
+    const original=h.app.projectStamp();
+    const naming=h.app.addProjectEstimate();await flush();
+    assert.equal(h.app.state.projectBusy,true);
+    await h.byId('project-estimate-dialog').close('cancel');await naming;
+    assert.equal(h.app.projectStamp(),original);assert.equal(h.app.state.projectBusy,false);
+  });
+  await check('Unsaved project status participates in save and replacement fingerprints', async h => {
+    const before=h.app.projectStamp();h.byId('project-status').value='Accepted';
+    await h.app.changeCurrentProjectStage();assert.equal(h.app.state.projectStatus,'Accepted');assert.notEqual(h.app.projectStamp(),before);
+    h.app.setRequest(async(path,options)=>{const request=JSON.parse(options.body);assert.equal(request.project_status,'Accepted');return {cancelled:true};});
+    await h.app.saveProject();assert.equal(h.app.state.projectStatus,'Accepted');
   });
   await check('Loaded schedule row lists survive project saving for every calculator', async h => {
     const incoming=project();
@@ -1045,6 +1098,48 @@ async function penetrationCheck(name, fn) {
     h.app.setRequest(async(path,options)=>{paths.push(path);const body=JSON.parse(options.body);if(path==='/api/configuration/preview')return{configuration:body.configuration,fields:copy(h.app.state.fields)};saved=body;return{file:{path:'C:/estimates/all.cf.json',save_token:'saved'},project:{...project(),estimate:body.estimate,calculators:body.calculators}};});
     await h.app.saveProject(saveAs);assert.deepEqual(paths,['/api/configuration/preview',saveAs?'/api/project/save-as':'/api/project/save']);assert.equal(saved.estimate.configuration.rates.local.price,67.123456789);
     assert.deepEqual(copy(h.app.state.configuration),shared);assert.deepEqual(copy(h.app.state.libraryDraft),shared);assert.equal(h.app.state.quoteConfiguration.rates.local.price,67.123456789);assert.equal(h.app.state.pricingScope,'project');assert.equal(h.app.projectPricingChanged(),false);assert.match(h.byId('app-message').textContent,/saved for this project only/);
+  });
+  await check('Read-only estimate capture uses applied prices without choosing or mutating conflicting pricing drafts', async h => {
+    await h.bridgeApi.completeProjectSnapshot();
+    h.app.state.draft.rates.local.price = 55;
+    h.app.switchPricingScope('project');
+    h.app.state.draft.rates.frozen.price = 99;
+    const before = h.snapshot(), drafts = copy([h.app.state.libraryDraft, h.app.state.projectPricingDraft]);
+    const estimates = copy(h.app.state.projectEstimates), paths = [];
+    h.app.setRequest(async (path, options) => {
+      paths.push(path);
+      const body = JSON.parse(options.body);
+      if (path === '/api/configuration/preview') return {configuration:body.configuration, fields:copy(h.app.state.fields)};
+      assert.equal(path, '/api/project/estimate/prepare');
+      return {...body, fields:copy(h.app.state.fields)};
+    });
+    const preview = await h.context.window.CeasefireEstimates.capture({readOnly:true});
+    assert.equal(!!h.byId('discard-dialog').open, false);
+    assert.deepEqual(paths, ['/api/project/estimate/prepare']);
+    assert.deepEqual(copy(preview.estimates[0].workspace.estimate.configuration), before.estimate.configuration);
+    assert.deepEqual(h.snapshot(), before);
+    assert.deepEqual(copy([h.app.state.libraryDraft, h.app.state.projectPricingDraft]), drafts);
+    assert.deepEqual(copy(h.app.state.projectEstimates), estimates);
+    const normal = h.context.window.CeasefireEstimates.capture();
+    await flush();
+    assert.equal(h.byId('discard-dialog').open, true);
+    assert.equal(paths.length, 1);
+    await h.byId('discard-dialog').close('confirm');
+    const selected = await normal;
+    assert.equal(selected.estimates[0].workspace.estimate.configuration.rates.frozen.price, 99);
+    assert.deepEqual(paths, ['/api/project/estimate/prepare', '/api/configuration/preview', '/api/project/estimate/prepare']);
+    assert.deepEqual(h.snapshot(), before);
+    assert.deepEqual(copy([h.app.state.libraryDraft, h.app.state.projectPricingDraft]), drafts);
+  });
+  await check('Read-only estimate capture rejects edits made during server validation', async h => {
+    const pending = deferred();
+    h.app.setRequest(async path => {assert.equal(path, '/api/project/estimate/prepare'); return pending.promise;});
+    const captured = h.context.window.CeasefireEstimates.capture({readOnly:true});
+    await flush();
+    h.app.state.inputs.B15 = 456;
+    pending.resolve({});
+    await assert.rejects(captured, /estimate changed during validation/);
+    assert.equal(h.app.state.inputs.B15, 456);
   });
   for(const choice of ['confirm','library','cancel']) await check(`Conflicting pricing drafts require an explicit project save choice: ${choice}`, async h=>{
     h.app.state.draft.rates.local.price=55;h.app.switchPricingScope('project');h.app.state.draft.rates.frozen.price=99;const before=h.snapshot(),paths=[];let saved;

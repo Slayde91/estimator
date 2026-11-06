@@ -5129,7 +5129,7 @@
   function hasUnsavedChanges() { return !!state.linkedRecovery || state.busy || state.countFinishing || state.physicalPlacing || state.formDirty || state.settingsDirty || !!state.gesture || !!state.pendingViewport || !!state.signatureDraft || physicalUnfinished() || state.points.length > 0 || !!state.session && snapshotKey(snapshot()) !== state.saved; }
   async function prepareDefaults() { requireSettledLinkedChange(); if (state.busy) throw new Error("Wait for the takeoff operation to finish."); return { session: null, saved: null }; }
   async function prepareProject(value, sessionId) { requireSettledLinkedChange(); if (state.busy) throw new Error("Wait for the takeoff operation to finish."); if (!value) return prepareDefaults(); if (!sessionId) throw new Error("This project has takeoffs but no authorised evidence session. Reopen the project from its companion folder."); const session = await api(`/sessions/${sessionId}`); return { session, saved: snapshotKey(session.snapshot) }; }
-  function applyProject(prepared) {
+  function applyProject(prepared, { preservePrevious = false } = {}) {
     state.ui?.documentMenu?.close(false);
     state.showDeleted = false; state.deletedOffset = 0; state.deletedHistory = null; state.deletedFilterContext = null;
     if (state.ui?.showDeleted) state.ui.showDeleted.checked = false;
@@ -5150,7 +5150,7 @@
     state.generation = (state.generation || 0) + 1; state.opening = null; ++state.renderId; ++state.searchId; state.pending?.cancel?.(); void releaseDocuments();
     state.session = null; state.railKey = null; state.pageError = null; state.saved = prepared.saved; state.document = null; state.page = 1; state.calibration = ""; state.calibrationContext = null; state.calibrationSelections.clear(); state.viewportSelection = ""; state.calibrationTarget = null; state.viewportsOpen = false; state.selected.clear(); state.hidden.clear(); state.points = []; state.pendingViewport = null; state.zoomAnchor = null; state.retraceId = null; state.exclusionItemId = null; state.formDirty = false; state.tool = "select"; state.viewport = null; state.searchHits = []; state.resultMap.clear();
     if (prepared.session) accept(prepared.session);
-    if (prior && prior !== state.session?.session_id) void discardPreparedSession(prior);
+    if (!preservePrevious && prior && prior !== state.session?.session_id) void discardPreparedSession(prior);
     if (state.ui) { renderData(); state.ui.pageWrap.hidden = true; state.ui.empty.hidden = false; state.ui.searchResults.replaceChildren(); }
   }
   async function discardPreparedSession(sessionId) { if (sessionId && sessionId !== state.session?.session_id) await api(`/sessions/${sessionId}/close`, {}).catch(() => {}); }

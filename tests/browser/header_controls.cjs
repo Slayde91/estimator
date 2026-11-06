@@ -87,7 +87,7 @@ async function inspectHeader(width) {
   await page.getByRole('button',{name:'Settings',exact:true}).click(); await idle();
   for(const theme of ['ceasefire','midnight','ocean','forest','slate']) {
     await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
-    await expect(coordinates).toHaveCSS('color','rgb(255, 0, 0)');
+    await expect(page.locator('#cursor-position')).toHaveCount(0);
     await page.locator('#theme-toggle').click();
   }
   // Compare fully initialized drafts, including the lazily loaded composer.

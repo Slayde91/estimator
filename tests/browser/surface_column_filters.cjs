@@ -105,7 +105,7 @@ async function reset(label) { await finishMenu(await menu(label), 'Reset filter'
     const uiHeaders=(await register().getByRole('columnheader').allTextContents()).map(value=>value.trim());
     assert.equal(uiHeaders.at(-1),'Delete');assert.deepEqual(uiHeaders,['Select','Hide','View/Edit',...registerHeaders,'Delete']);
     assert.deepEqual(workbook.headers,registerHeaders,'XLSX retains every data column and excludes UI action controls');
-    for(const row of exported){const original=seeded.snapshot.items.find(item=>item.fields.mark===row['Surface ID']),native=seeded.results.find(result=>result.id===original.id);assert.equal(row['Net (m²)'],native.net_area_m2);assert.equal(row['Gross (m²)'],native.gross_area_m2);assert.equal(row['Excluded (m²)'],native.excluded_area_m2);assert.equal(row['Total (m²)'],native.total_area_m2);if(category!=='all')assert.equal(row.Confirmation,category==='confirmed'?'Approved':'Draft');}
+    for(const row of exported){const original=seeded.snapshot.items.find(item=>item.fields.mark===row['Surface ID']),native=seeded.results.find(result=>result.id===original.id);assert.equal(row['Net (m²)'],native.net_area_m2);assert.equal(row['Gross (m²)'],native.gross_area_m2);assert.equal(row['Excluded (m²)'],native.excluded_area_m2);assert.equal(row['Total (m²)'],native.total_area_m2);if(category!=='all')assert.equal(row.Status,category==='confirmed'?'Approved':'Draft');}
     downloadResults[category]={count,path:target,headers:workbook.headers,uiFinalColumn:uiHeaders.at(-1)};
   }
   for (const value of ['wall', 'slab']) {

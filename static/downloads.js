@@ -11,9 +11,50 @@
     element.setAttribute(name, value); if (["title", "placeholder"].includes(name)) element[name] = value; return element;
   };
 
+  let active = 0, projectSaveTimer = null, savingTarget = null, failedTarget = null;
+  const projectSaves = [];
+  const currentTarget = target => !!window.CeasefireProject?.isCurrentDownloadTarget?.(target);
+  function projectSavePending() { return !!savingTarget || projectSaves.length > 0; }
+  function scheduleProjectSave() {
+    if (projectSaveTimer !== null || savingTarget || !projectSaves.length) return;
+    projectSaveTimer = setTimeout(() => { projectSaveTimer = null; void saveProjectDownloads(); }, 50);
+  }
+  async function saveProjectDownloads() {
+    if (savingTarget || !projectSaves.length) return;
+    // Export adapters release their own busy flags after save() returns. Wait
+    // for those finalizers before taking the ordinary complete project snapshot.
+    const modules = ['CeasefireProject', 'CeasefireDocumentation', 'CeasefireCalculators',
+      'CeasefirePenetrations', 'CeasefireTakeoffs', 'CeasefireLibraryEditor', 'CeasefireCertification', 'CeasefireCommercial'];
+    if (active || modules.some(name => window[name]?.hasPendingOperation?.())) { scheduleProjectSave(); return; }
+    const batch = projectSaves.splice(0), latest = batch[batch.length - 1];
+    if (!currentTarget(latest.target)) { window.CeasefireProject?.changed?.(); return; }
+    savingTarget = latest.target;
+    window.CeasefireProject?.changed?.();
+    try {
+      const saved = await window.CeasefireProject.saveAfterDownload(latest.target);
+      if (saved?.saved !== true) throw new Error('The project save could not be confirmed.');
+      if (currentTarget(latest.target)) failedTarget = null;
+    } catch (error) {
+      if (currentTarget(latest.target)) failedTarget = latest.target;
+      window.CeasefireProject?.downloadSaveFailed?.(latest.target, latest.result, error);
+    } finally {
+      savingTarget = null; window.CeasefireProject?.changed?.(); scheduleProjectSave();
+    }
+  }
+  function queueProjectSave(target, result) {
+    projectSaves.push({ target, result }); window.CeasefireProject?.changed?.(); scheduleProjectSave();
+  }
+  function projectSaved(target) {
+    if (currentTarget(target)) {
+      failedTarget = null;
+      for (let i = projectSaves.length - 1; i >= 0; i--) if (currentTarget(projectSaves[i].target)) projectSaves.splice(i, 1);
+    }
+  }
+
 
   function progressView(button) {
-    const host = button?.closest?.('.calculator-document-menu, .takeoff-document-menu') || button?.parentElement;
+    const host = button?.closest?.('.calculator-document-menu, .takeoff-document-menu') ||
+      button?.closest?.('tr[data-document-kind]')?.firstElementChild || button?.parentElement;
     if (!host) return { update() {}, remove() {} };
     const box = document.createElement('div'); box.className = 'document-download-progress';
     const label = document.createElement('span'), bar = document.createElement('progress');
@@ -132,14 +173,17 @@
   async function save(path, payload = {}, { button = document.activeElement } = {}) {
     if (referenceExports.has(path)) return referenceExport(path, payload, button);
     const endActivity = window.CeasefireActivity?.begin();
-    let endSound, view, poll = null, finished = false, token = null, documentationHeaders = null, savedResult = null;
+    let endSound, view, poll = null, finished = false, token = null, documentationHeaders = null, savedResult = null, download = null, tracked = false;
     try {
+    download = window.CeasefireProject?.downloadTarget?.() || { project_token: null };
+    if (window.CeasefireProject?.hasPendingOperation?.())
+      throw new Error('Finish the current project save before downloading.');
+    active++; tracked = true;
     view = progressView(button);
     endSound = window.CeasefireDownloadSound?.begin();
     view.update(0, 'waiting');
     // Capture the destination with the clicked draft. Later Save As, New or
     // Open actions must not redirect a file that is already being prepared.
-    const download = window.CeasefireProject?.downloadTarget?.() || { project_token: null };
     const body = JSON.stringify({ ...payload, download: { project_token: download.project_token ?? null } });
     documentationHeaders = await window.CeasefireDocumentation?.downloadHeaders?.(path, payload) || {};
     const begin = await fetch('/api/download-progress', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
@@ -179,9 +223,20 @@
       clearTimeout(poll); endSound?.(); endActivity?.();
       if (!finished) view?.remove();
       finished = true;
-      if (documentationHeaders) await window.CeasefireDocumentation?.downloadCompleted?.(documentationHeaders, savedResult);
+      try {
+        if (documentationHeaders) await window.CeasefireDocumentation?.downloadCompleted?.(documentationHeaders, savedResult);
+      } finally {
+        if (tracked) active--;
+        if (path === '/api/commercial/issue' && savedResult?.destination === 'project' && download?.project_token) {
+          queueProjectSave(download, savedResult);
+        }
+      }
     }
   }
 
-  window.CeasefireDownloads = { save };
+  window.CeasefireDownloads = { save, projectSaved,
+    hasInFlight: () => active > 0,
+    hasPendingOperation: () => active > 0 || projectSavePending(),
+    hasUnsavedProjectSave: () => projectSaves.some(entry => currentTarget(entry.target)) ||
+      !!savingTarget && currentTarget(savingTarget) || !!failedTarget && currentTarget(failedTarget) };
 })();

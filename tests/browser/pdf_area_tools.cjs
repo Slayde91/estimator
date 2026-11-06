@@ -20,6 +20,12 @@ const ready = new Promise((resolve, reject) => {
 const check = name => { checks.push(name); console.log(`ok - ${name}`); }, rail = () => page.locator(".takeoff-tool-rail"), panel = () => page.locator("#takeoff-markup-settings");
 const areaOf = points => Math.abs(points.reduce((sum, [x,y], index) => { const next = points[(index+1)%points.length]; return sum+x*next[1]-next[0]*y; }, 0))/2*.01;
 async function snapshot() { await settingsSettled(page); return page.evaluate(() => window.CeasefireTakeoffs.projectSnapshot()); }
+async function projectSettled() {
+  await page.waitForFunction(() => {
+    const desktop = window.CeasefireDesktop?.status();
+    return desktop?.ready && !desktop.busy && !window.CeasefireProject.hasPendingOperation();
+  }, null, { timeout: 60000 });
+}
 function invariant(current, baseline) { for (const key of ["items", "documents", "calibrations", "transfers", "physical", "service_plans", "annotations", "signatures", "image_extractions"]) assert.deepEqual(current[key], baseline[key], `${key} is outside PDF Area authority`); }
 async function command(action, op) {
   const pending = page.waitForResponse(reply => reply.url().endsWith("/commands") && reply.request().postDataJSON()?.op === op); pending.catch(() => {});
@@ -89,8 +95,22 @@ async function tools() {
   const pending = waitForTakeoffDownload(page); await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()); const pdf = path.join(output, "area-marked.pdf"); await (await pending).saveAs(pdf);
   const extracted = spawnSync(python, ["-X", "utf8", "-B", "-c", "from pypdf import PdfReader;import sys;print('\\n'.join(p.extract_text() or '' for p in PdfReader(sys.argv[1]).pages))", pdf], { cwd: root, encoding: "utf8", windowsHide: true });
   assert.equal(extracted.status, 0, extracted.stderr); assert.ok(extracted.stdout.includes(`${netAreas[0].toFixed(2)} m²`)); check("Marked PDF includes measured net area");
-  const saved = await snapshot(); await clickProjectControl(page, "Save"); await expect(page.locator("#project-save-state")).toHaveText("Saved project");
-  await clickProjectControl(page, "Load"); await page.getByRole("dialog").getByRole("button", { name: "Load Project", exact: true }).click(); await expect(page.locator("#project-save-state")).toHaveText("Saved project");
+  const saved = await snapshot();
+  const saving = page.waitForResponse(reply => reply.request().method() === "POST"
+    && /\/api\/project\/save(?:-as)?$/.test(new URL(reply.url()).pathname), { timeout: 60000 });
+  await clickProjectControl(page, "Save");
+  const saveReply = await saving;
+  assert.equal(saveReply.status(), 200, await saveReply.text());
+  const savedProject = await saveReply.json();
+  assert.equal(path.resolve(savedProject.file.path), path.resolve(info.project));
+  assert.ok(fs.statSync(info.project).size > 0);
+  await projectSettled(); await expect(page.locator("#project-save-state")).toHaveText("Saved project");
+  const loading = page.waitForResponse(reply => reply.request().method() === "POST"
+    && new URL(reply.url()).pathname === "/api/project/open", { timeout: 60000 });
+  await clickProjectControl(page, "Load");
+  const loadReply = await loading; assert.equal(loadReply.status(), 200, await loadReply.text());
+  await page.getByRole("dialog").getByRole("button", { name: "Load Project", exact: true }).click();
+  await projectSettled(); await expect(page.locator("#project-save-state")).toHaveText("Saved project");
   await page.getByRole("button", { name: "Takeoffs", exact: true }).click(); await settingsSettled(page);
   assert.deepEqual((await snapshot()).graphics.records, saved.graphics.records); invariant(await snapshot(), baseline); check("All workspace Area records and holes survive real save and reopen");
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []); assert.deepEqual(hashes(), sourceBefore);

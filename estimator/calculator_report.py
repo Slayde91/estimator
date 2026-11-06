@@ -9,6 +9,7 @@ from copy import deepcopy
 from .calculation_work import calculation_work
 from decimal import Decimal, ROUND_HALF_UP, localcontext
 from io import BytesIO
+from html import unescape
 from .company_settings import company_logo
 import re
 from xml.sax.saxutils import escape
@@ -494,14 +495,9 @@ class _ScheduleReport(_Report):
                 self.story.append(self.p('Report', 'subheading'))
                 self.story.append(self.report_links(references))
 
-    def schedule(self):
+    def schedule_cells(self):
+        """The public schedule columns and cells shared by PDF and Quote scope."""
         data = self.data
-        for notice in data['quantity_notices']:
-            self.story.append(self.p(notice, 'alert'))
-        self.story.append(self.p('Full schedule', 'section'))
-        if not data['rows']:
-            self.story.append(self.p('No schedule inputs are entered.'))
-            return
         rows = []
         for item in data['rows']:
             v = item['values']
@@ -552,16 +548,45 @@ class _ScheduleReport(_Report):
         fractions = [size / sum(fractions) for size in fractions]
         for cells, item in zip(rows, data['rows']):
             cells.insert(position, self.report_links(item['report_references']))
-        table = self.table(heads, rows, [self.content_width * size for size in fractions], compact=True)
+        return heads, rows, fractions
+
+    def schedule(self, *, portrait=False):
+        for notice in self.data['quantity_notices']:
+            self.story.append(self.p(notice, 'alert'))
+        self.story.append(self.p('Full schedule', 'section'))
+        if not self.data['rows']:
+            self.story.append(self.p('No schedule inputs are entered.'))
+            return
+        heads, rows, fractions = self.schedule_cells()
+        if portrait:
+            # Each narrow band repeats the original line and, where available,
+            # item identity. The same cells retain all quantities and links.
+            identity = [0]
+            if 'Item / mark' in heads:
+                identity.append(heads.index('Item / mark'))
+            remaining = [index for index in range(len(heads)) if index not in identity]
+            count = 5 - len(identity)
+            for start in range(0, len(remaining), count):
+                columns = identity + remaining[start:start + count]
+                weights = [fractions[index] for index in columns[1:]]
+                widths = [32] + [(self.content_width - 32) * weight / sum(weights) for weight in weights]
+                self.append_schedule_table([heads[index] for index in columns],
+                    [[row[index] for index in columns] for row in rows], widths, portrait=True)
+                self.story.append(Spacer(1, 12))
+            return
+        self.append_schedule_table(heads, rows, [self.content_width * size for size in fractions])
+
+    def append_schedule_table(self, heads, rows, widths, *, portrait=False):
+        table = self.table(heads, rows, widths, compact=True)
         # Allow long cells to split, but require space for a body line with its
         # padding. A one-point fragment can otherwise leave a header alone at
         # the bottom of the previous page before the row continues.
-        table.splitInRow = 60 if data['id'] == 'steel_board' else 20
+        table.splitInRow = 60 if self.data['id'] == 'steel_board' and not portrait else 20
         # Centre ordinary cells. For a cell taller than a complete page, start
         # at the top so ReportLab does not carry centring padding into otherwise
         # empty continuation pages. Horizontal alignment remains centred.
         for row_index, row in enumerate(rows, 1):
-            if any(cell.wrap(self.content_width * fractions[index] - 12, self.height)[1] > self.height - 180
+            if any(cell.wrap(widths[index] - 12, self.height)[1] > self.height - 180
                    for index, cell in enumerate(row)):
                 table.setStyle(TableStyle([('VALIGN', (0, row_index), (-1, row_index), 'TOP')]))
         self.story.append(table)
@@ -654,10 +679,23 @@ class _ScheduleReport(_Report):
             else:
                 self.story.append(self.p(f"{data['incomplete_rows']} schedule item(s) have incomplete or unavailable primary quantities. Displayed product quantities retain the source workbook's exclusions; review the item statuses in the calculator before ordering.", 'small'))
 
-def build_calculator_report(calculator_id, inputs=None, *, project_details=None, company=None, include_project_details=True, project_report_title=None, report_footer=None):
+def calculator_schedule_table(data):
+    """Expose the actual PDF headings and visible text to the Quote editor."""
+    _register_fonts()
+    heads, rows, _ = _ScheduleReport(data).schedule_cells()
+    # Markup here is authored by the renderer; user values are already escaped.
+    # Decode entities only after removing tags so literal user <...> survives.
+    def visible_text(cell):
+        markup = re.sub(r'<br\s*/?>', '\n', cell.text)
+        return unescape(re.sub(r'<[^>]*>', '', markup))
+    return {'headers': heads, 'rows': [[visible_text(cell) for cell in row] for row in rows]}
+
+
+def build_calculator_report(calculator_id, inputs=None, *, project_details=None, company=None, include_project_details=True, project_report_title=None, report_footer=None, portrait=False):
     """Return the full schedule only; reading a draft never saves it."""
     return _build_calculator_pdf(calculator_id, inputs, materials=False, project_details=project_details, company=company,
-                                 include_project_details=include_project_details, project_report_title=project_report_title, report_footer=report_footer)
+                                 include_project_details=include_project_details, project_report_title=project_report_title, report_footer=report_footer,
+                                 portrait=portrait)
 
 
 def build_calculator_summary_report(calculator_id, inputs=None, *, project_details=None, company=None, include_project_details=True, project_report_title=None, include_references=True, report_footer=None):
@@ -667,11 +705,11 @@ def build_calculator_summary_report(calculator_id, inputs=None, *, project_detai
                                  include_references=include_references, report_footer=report_footer)
 
 
-def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=None, company=None, include_project_details=True, project_report_title=None, include_references=True, report_footer=None):
+def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=None, company=None, include_project_details=True, project_report_title=None, include_references=True, report_footer=None, portrait=False):
     data = project_calculator_report(calculator_id, inputs)
     _register_fonts()
     logo = company_logo(company)
-    page_size = landscape(A3 if calculator_id == 'steel_board' and not materials else A4)
+    page_size = A4 if portrait else landscape(A3 if calculator_id == 'steel_board' and not materials else A4)
     width, height = page_size
     report = _ScheduleReport(data, project_details, page_size)
     data = report.data
@@ -686,7 +724,7 @@ def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=N
         report.product_totals()
         report.extras()
     else:
-        report.schedule()
+        report.schedule(portrait=portrait)
     # A final spacer can overflow an otherwise complete summary onto a page
     # containing only its header and footer. It carries no report content.
     while report.story and isinstance(report.story[-1], Spacer):

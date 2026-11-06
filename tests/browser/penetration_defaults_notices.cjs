@@ -104,9 +104,43 @@ async function clear() {
   await reviewedDelete('penetration-estimator-schedule-body', 'Yes'); await expect(page.locator('#penetration-estimator-schedule-body > tr')).toHaveCount(0); await page.locator('#penetration-estimator-undo').click(); await expect(page.locator('#penetration-estimator-schedule-body > tr')).toHaveCount(1); await settled();
   assert.ok(require('node:util').isDeepStrictEqual(await snapshot(), beforeDelete), 'Undo restores the exact native row, precision, composer and other draft scopes');
   await page.locator('#estimate-navigation-toggle').hover(); await page.locator('#estimate-navigation-menu').getByRole('button', { name: 'Estimate', exact: true }).click(); await page.mouse.move(0, 0);
-  await expect(page.locator('#main-tab-firestopping-schedule')).toHaveCount(0);
-  await expect(page.locator('#main-panel-firestopping-schedule')).toBeHidden();
-  assert.ok(require('node:util').isDeepStrictEqual(await snapshot(), beforeDelete)); checks.confirmedDeleteCalculatorSchedule = true; checks.cancelAndUndoExact = true;
+  const outputTabs = page.locator('#main-output-tabs');
+  await expect(outputTabs.getByRole('tab')).toHaveText(['Material Breakdown', 'Labour Breakdown', 'Firestopping Schedule', 'Firestopping Breakdown']);
+  await outputTabs.getByRole('tab', { name: 'Firestopping Schedule', exact: true }).click();
+  await expect(page.locator('#main-panel-firestopping-schedule')).toBeVisible();
+  await expect(page.locator('#penetration-schedule-body > tr')).toHaveCount(1);
+  assert.ok(require('node:util').isDeepStrictEqual(await snapshot(), beforeDelete));
+  const mainQuantity = page.locator('#penetration-schedule-body [data-penetration-field="O"]');
+  async function changeScheduleQuantity(value) {
+    const calculated = page.waitForResponse(reply => new URL(reply.url()).pathname === '/api/penetration/calculate'
+      && reply.request().postDataJSON()?.draft?.rows?.some(row => row.id === beforeDelete.firestopping.draft.rows[0].id && row.inputs.O === Number(value)));
+    await mainQuantity.fill(value); await mainQuantity.press('Tab');
+    assert.equal((await calculated).status(), 200); await settled();
+    await expect(page.locator('#penetration-estimator-schedule-body [data-penetration-field="O"]')).toHaveValue(await mainQuantity.inputValue());
+  }
+  await changeScheduleQuantity('3.45678901234567');
+  assert.equal((await snapshot()).firestopping.draft.rows[0].inputs.O, 3.45678901234567);
+  await changeScheduleQuantity(String(beforeDelete.firestopping.draft.rows[0].inputs.O));
+  for (const width of [1146, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await outputTabs.getByRole('tab', { name: 'Firestopping Breakdown', exact: true }).click();
+    await expect(page.locator('#main-panel-firestopping-breakdown')).toBeVisible();
+    await expect(page.locator('#penetration-main-schedule-breakdown table')).toHaveCount(1);
+    for (const suffix of ['breakdown', 'summary', 'summary-notes']) {
+      assert.equal(await page.locator(`#penetration-main-schedule-${suffix}`).textContent(), await page.locator(`#penetration-schedule-${suffix}`).textContent());
+    }
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'Estimate output stays inside the viewport');
+    await page.screenshot({ path: path.join(output, `estimate-firestopping-breakdown-${width}.png`), fullPage: true });
+  }
+  await outputTabs.getByRole('tab', { name: 'Firestopping Schedule', exact: true }).click();
+  await reviewedDelete('penetration-schedule-body', 'Cancel');
+  await reviewedDelete('penetration-schedule-body', 'Yes');
+  await expect(page.locator('#penetration-schedule-body > tr')).toHaveCount(0);
+  await page.locator('#penetration-undo').click(); await settled();
+  await expect(page.locator('#penetration-schedule-body > tr')).toHaveCount(1);
+  assert.ok(require('node:util').isDeepStrictEqual(await snapshot(), beforeDelete));
+  checks.estimateOutputsShareScheduleAndBreakdown = true;
+  checks.confirmedDeleteCalculatorSchedule = true; checks.confirmedDeleteEstimateSchedule = true; checks.cancelAndUndoExact = true;
   assert.deepEqual(errors, []);
   for (const [name, expected] of Object.entries(sourceHashes)) assert.equal(hash(fs.readFileSync(path.join(root, name))), expected);
   for (const [name, expected] of Object.entries(assetHashes)) assert.equal(hash(fs.readFileSync(path.join(root, name))), expected, `Tested runtime remains stable: ${name}`);

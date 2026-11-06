@@ -46,6 +46,8 @@ async function responseTo(action, suffix) {
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   // Open a values-only saved project with a precise per-row waste override.
   const importedProject=JSON.parse(fs.readFileSync(info.project,'utf8'));importedProject.calculators.steel_board.inputs.CALCULATOR.L9=0.123456789012345;
+  const activeEstimate=importedProject.estimates?.find(entry=>entry.id===importedProject.active_estimate_id);
+  if(activeEstimate)activeEstimate.workspace.calculators.steel_board.inputs.CALCULATOR.L9=0.123456789012345;
   fs.writeFileSync(info.project,JSON.stringify(importedProject));await clickProjectControl(page,'Load');
   const review=page.getByRole('dialog');await expect(review.getByRole('heading')).toHaveText('Load this project?');await review.getByRole('button',{name:'Load Project',exact:true}).click();await expect(review).toBeHidden();await idle();
   const before = await snapshot(), savedProject = fs.readFileSync(info.project);assert.equal(before.calculators.steel_board.inputs.CALCULATOR.L9,0.123456789012345);

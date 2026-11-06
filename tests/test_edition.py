@@ -69,6 +69,17 @@ class Dialogs:
 
 
 class EditionPolicyTests(unittest.TestCase):
+    def test_inactive_estimate_takeoffs_require_full_edition(self):
+        for field in ({'takeoffs': {}}, {'takeoffs_session_id': 'untrusted'}, {'version': 2}):
+            project = {'active_estimate_id': 'estimate-1', 'estimates': [
+                {'id': 'estimate-1', 'workspace': {'estimate': {}}},
+                {'id': 'estimate-2', 'workspace': field},
+            ]}
+            with self.subTest(field=field), no_takeoff_imports():
+                with self.assertRaisesRegex(ValidationError, 'TAKEOFFS'):
+                    require_project_edition(project, 'standard')
+                require_project_edition(project, 'full')
+
     def test_explicit_capabilities_and_routes_fail_closed(self):
         self.assertEqual(features('full'), {'takeoffs': True})
         self.assertEqual(features('standard'), {'takeoffs': False})
@@ -240,6 +251,18 @@ class StandardProjectTests(unittest.TestCase):
             self.assertEqual(path.read_bytes(), value)
             self.assertEqual(companion.read_bytes(), b'preserve all original evidence')
             self.assertEqual(database_rows(self.store), before)
+
+    def test_named_estimate_overwrite_reports_the_protected_target_edition(self):
+        path = self.root / 'Protected.cf.json'
+        original = takeoff_project(self.payload, 2)
+        path.write_bytes(original)
+        self.dialogs.selection = SaveSelection(str(path), file_fingerprint(path))
+        request = {**deepcopy(self.request), 'project_status':'Draft', 'active_estimate_id':'estimate-1',
+                   'estimates':[{'id':'estimate-1', 'name':'Original', 'workspace':deepcopy(self.request)}]}
+        with no_takeoff_imports(), self.assertRaisesRegex(ValidationError, 'TAKEOFFS'), patch('estimator.project_library._atomic_write') as write:
+            self.library.save_as(request)
+        write.assert_not_called()
+        self.assertEqual(path.read_bytes(), original)
 
     def test_existing_full_edition_preservation_and_standard_ordinary_save_remain(self):
         require_project_edition({'version': 2, 'takeoffs': {}}, 'full')

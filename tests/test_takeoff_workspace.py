@@ -59,6 +59,17 @@ def document():
 
 
 class TakeoffWorkspaceTests(unittest.TestCase):
+    def test_two_maximum_estimate_collections_fit_with_a_bounded_session_limit(self):
+        original = [self.service.open() for _ in range(50)]
+        replacement = [self.service.open(item['snapshot']) for item in original]
+        self.assertEqual(len(replacement), 50)
+        while len(self.service._sessions) < 128:
+            self.service.open()
+        with self.assertRaisesRegex(ValidationError, 'Too many open takeoff sessions'):
+            self.service.open()
+        self.service.close(original[0]['session_id'])
+        self.assertIsNotNone(self.service.open()['session_id'])
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)

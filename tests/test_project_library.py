@@ -71,6 +71,14 @@ class ProjectLibraryTests(unittest.TestCase):
         self.library = ProjectLibrary(self.store, self.dialogs)
         self.addCleanup(self.library.close)
 
+    def complete_listing(self, **options):
+        for _ in range(100):
+            listing = self.library.listing(**options)
+            if not listing["scan_pending"]:
+                return listing
+            options["refresh"] = False
+        self.fail("The project folder scan did not finish within 100 batches.")
+
     def test_schema_upgrade_adds_preference_without_rewriting_existing_data(self):
         database = self.root / "old.sqlite3"
         with sqlite3.connect(database) as db:
@@ -138,9 +146,7 @@ class ProjectLibraryTests(unittest.TestCase):
         (client / "manual note.txt").write_text("note", encoding="utf-8")
         (documents / "inspection.pdf").write_bytes(b"pdf")
         self.store.set_project_folder(self.folder)
-        listing = self.library.listing(refresh=True)
-        while listing["scan_pending"]:
-            listing = self.library.listing()
+        listing = self.complete_listing(refresh=True)
         project_id = listing["files"][0]["id"]
 
         root = self.library.browse_files({"id": project_id, "relative_path": ""})
@@ -548,7 +554,7 @@ class ProjectLibraryTests(unittest.TestCase):
         (self.folder / "broken.cf.json").write_text('{"format":"ceasefire-project","version":1}', encoding="utf-8")
         (self.folder / "ignored.txt").write_bytes(self.payload)
         self.store.set_project_folder(self.folder)
-        listing = self.library.listing()
+        listing = self.complete_listing()
         self.assertEqual([item["name"] for item in listing["files"]], ["valid.cf.json"])
         self.assertEqual([item["name"] for item in listing["errors"]], ["broken.cf.json"])
         identifier = listing["files"][0]["id"]
@@ -593,7 +599,7 @@ class ProjectLibraryTests(unittest.TestCase):
                 raise AssertionError("An unrelated file was inspected")
             return original_lstat(path, *args, **kwargs)
         with patch.object(Path, "lstat", only_project_stat), patch("estimator.project_library._read_file", wraps=_read_file) as read:
-            listing = self.library.listing()
+            listing = self.complete_listing()
         self.assertEqual([item["relative_path"] for item in listing["files"]], ["Client/Project.CF.JSON"])
         self.assertEqual(listing["errors"], [])
         self.assertEqual(listing["scanned_files"], 1)
@@ -624,7 +630,7 @@ class ProjectLibraryTests(unittest.TestCase):
                                                "content_base64": base64.b64encode(self.payload).decode("ascii")})
         self.assertEqual(first["filename"], "Other.cf.json")
         self.assertEqual(second["filename"], "Other (1).cf.json")
-        listing = self.library.listing(refresh=True)
+        listing = self.complete_listing(refresh=True)
         self.assertEqual({item["name"] for item in listing["files"]}, {target.name, first["filename"], second["filename"]})
         self.assertEqual(listing["errors"], [])
 
@@ -648,8 +654,11 @@ class ProjectLibraryTests(unittest.TestCase):
         (self.folder / "arbitrary-name.cf.json").write_bytes(self.payload)
         self.store.set_project_folder(self.folder)
         from estimator.project_file import project_summary
-        with patch("estimator.project_library.project_summary", wraps=project_summary) as summary, patch("estimator.project_library.load_project_bytes", side_effect=AssertionError("Listing recalculated a project")):
-            listing = self.library.listing()
+        with (patch("estimator.project_library.project_summary", wraps=project_summary) as summary,
+              patch("estimator.project_library.load_project_bytes", side_effect=AssertionError("Listing recalculated a project")),
+              patch("estimator.project_library.MAX_SCAN_SECONDS", 0)):
+            self.assertTrue(self.library.listing()["scan_pending"])
+            listing = self.complete_listing()
         self.assertEqual([item["name"] for item in listing["files"]], ["arbitrary-name.cf.json"])
         self.assertEqual(listing["errors"], [])
         self.assertEqual(listing["scanned_files"], len(unrelated) + 1)
@@ -671,7 +680,7 @@ class ProjectLibraryTests(unittest.TestCase):
         for name, payload in invalid.items():
             (self.folder / name).write_bytes(payload)
         self.store.set_project_folder(self.folder)
-        listing = self.library.listing()
+        listing = self.complete_listing()
         self.assertEqual(listing["files"], [])
         self.assertEqual({item["name"] for item in listing["errors"]}, set(invalid))
         self.assertEqual(listing["scanned_files"], len(invalid))
@@ -877,10 +886,10 @@ class ProjectLibraryTests(unittest.TestCase):
             directory.mkdir(parents=True)
             (directory / "Same quote.cf.json").write_bytes(self.payload)
         self.store.set_project_folder(self.folder)
-        listing = self.library.listing(sort="name_asc", limit=1)
+        listing = self.complete_listing(sort="name_asc", limit=1)
         self.assertEqual((listing["total"], listing["matched"], len(listing["files"])), (2, 2, 1))
         first = listing["files"][0]
-        second = self.library.listing(sort="name_asc", limit=1, offset=1)["files"][0]
+        second = self.complete_listing(sort="name_asc", limit=1, offset=1)["files"][0]
         self.assertEqual(first["relative_path"], "2025/Same quote.cf.json")
         self.assertEqual(second["relative_folder"], "2026/Client")
         self.assertNotEqual(first["id"], second["id"])
@@ -888,7 +897,7 @@ class ProjectLibraryTests(unittest.TestCase):
             loaded = self.library.load(entry["id"])
             self.assertEqual(loaded["file"]["relative_path"], entry["relative_path"])
             self.assertTrue(Path(loaded["file"]["path"]).is_absolute())
-        searched = self.library.listing(search="2026/client", sort="modified_asc")
+        searched = self.complete_listing(search="2026/client", sort="modified_asc")
         self.assertEqual([item["id"] for item in searched["files"]], [second["id"]])
         self.dialogs.selection = SaveSelection(str(self.folder / "2026" / "New quote.cf.json"), None)
         saved = self.library.save_as(self.request)
@@ -919,18 +928,18 @@ class ProjectLibraryTests(unittest.TestCase):
         self.store.set_project_folder(self.folder)
         from estimator.project_library import _read_file
         with patch("estimator.project_library._read_file", wraps=_read_file) as read, patch("estimator.project_library.load_project_bytes", side_effect=AssertionError("Listing recalculated a project")):
-            first = self.library.listing()
+            first = self.complete_listing()
             self.assertEqual(read.call_count, 1)
             self.assertTrue(self.library.listing(search="client")["cached"])
-            self.library.listing(refresh=True)
+            self.complete_listing(refresh=True)
             self.assertEqual(read.call_count, 1)
             changed = json.loads(self.payload)
             changed["estimate"]["title"] = "Changed project"
             target.write_text(json.dumps(changed), encoding="utf-8")
-            self.assertEqual(self.library.listing(refresh=True)["files"][0]["title"], "Changed project")
+            self.assertEqual(self.complete_listing(refresh=True)["files"][0]["title"], "Changed project")
             self.assertEqual(read.call_count, 2)
         target.unlink()
-        self.assertEqual(self.library.listing(refresh=True)["files"], [])
+        self.assertEqual(self.complete_listing(refresh=True)["files"], [])
         with self.assertRaises(ValidationError):
             self.library.load(first["files"][0]["id"])
 
@@ -974,7 +983,7 @@ class ProjectLibraryTests(unittest.TestCase):
                 raise PermissionError("Access denied")
             return scandir(path)
         with patch("estimator.project_library.os.scandir", side_effect=unreadable):
-            listing = self.library.listing()
+            listing = self.complete_listing()
         self.assertFalse(listing["scan_pending"])
         self.assertEqual(listing["errors"], [{"name": "Unavailable", "error": "Access denied"}])
 
@@ -1034,8 +1043,13 @@ class ProjectLibraryApiTests(unittest.TestCase):
         status, saved = self.request("POST", "/api/project/save-as", {"estimate": {"project_no": "Saved native"}})
         self.assertEqual(status, 200, saved)
         self.assertEqual(saved["project"]["estimate"]["project_no"], "Saved native")
-        status, listing = self.request("GET", "/api/projects")
-        self.assertEqual(status, 200)
+        with patch("estimator.project_library.MAX_SCAN_SECONDS", 0):
+            for _ in range(100):
+                status, listing = self.request("GET", "/api/projects")
+                self.assertEqual(status, 200, listing)
+                if not listing["scan_pending"]:
+                    break
+        self.assertFalse(listing["scan_pending"])
         status, loaded = self.request("POST", "/api/projects/load", {"id": listing["files"][0]["id"]})
         self.assertEqual(status, 200, loaded)
         self.assertEqual(loaded["estimate"]["configuration"], saved["project"]["estimate"]["configuration"])
@@ -1123,8 +1137,19 @@ class ProjectLibraryApiTests(unittest.TestCase):
         (parent / "Quote.cf.json").write_bytes(payload)
         (nested / "Quote.cf.json").write_bytes(payload)
         self.store.set_project_folder(parent)
-        status, response = self.request("GET", "/api/projects?search=Client%20work&sort=name_asc&offset=0&limit=1&refresh=1")
-        self.assertEqual(status, 200, response)
+        query = "/api/projects?search=Client%20work&sort=name_asc&offset=0&limit=1"
+        # Exercise partial responses deterministically. Both the entry budget
+        # and the elapsed-time budget require callers to continue the scan.
+        with patch("estimator.project_library.MAX_SCAN_ENTRIES", 1):
+            status, response = self.request("GET", query + "&refresh=1")
+            self.assertEqual(status, 200, response)
+            self.assertTrue(response["scan_pending"])
+            for _ in range(10):
+                status, response = self.request("GET", query)
+                self.assertEqual(status, 200, response)
+                if not response["scan_pending"]:
+                    break
+        self.assertFalse(response["scan_pending"], "The recursive folder scan must finish.")
         self.assertEqual((response["total"], response["matched"], len(response["files"])), (2, 1, 1))
         self.assertEqual(response["files"][0]["relative_path"], "Client work/Quote.cf.json")
         for suffix in ("?path=x", "?limit=1&limit=2", "?limit=201", "?offset=-1", "?sort=wrong", "?refresh=yes"):

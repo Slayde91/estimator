@@ -30,8 +30,43 @@ MAX_PROJECT_FILE = 16 * 1_048_576
 LEGACY_CALCULATOR_IDS = ("steel_vermiculite", "steel_board", "ductwork")
 CALCULATOR_IDS = (*LEGACY_CALCULATOR_IDS, "steel_intumescent")
 OPTIONAL_CALCULATOR_IDS = ("steel_intumescent",)
+PROJECT_STATUSES = ("Draft", "Review", "Presented", "Accepted", "Lost")
+WORKSPACE_FIELDS = {"estimate", "calculators", "penetration", "takeoffs", "library_drafts"}
+MAX_PROJECT_ESTIMATES = 50
 ESTIMATE_REQUIRED_FIELDS = {"title", "workflow", "measurements", "inputs", "configuration", *QUOTE_DETAIL_LIMITS}
 ESTIMATE_FIELDS = {*ESTIMATE_REQUIRED_FIELDS, "work_items"}
+
+
+def validate_project_status(value):
+    if not isinstance(value, str) or value not in PROJECT_STATUSES:
+        raise ValidationError("Choose Draft, Review, Presented, Accepted or Lost for the project status.")
+    return value
+
+
+def estimate_descriptors(value, active_id):
+    """Validate the bounded collection before any nested workspace processing."""
+    if not isinstance(value, list) or not 1 <= len(value) <= MAX_PROJECT_ESTIMATES:
+        raise ValidationError("A project must contain between 1 and 50 named estimates.")
+    result = []
+    seen = set()
+    for item in value:
+        if not isinstance(item, dict) or set(item) != {"id", "name", "workspace"}:
+            raise ValidationError("Each project estimate requires its ID, name and workspace only.")
+        identifier, name, workspace = item["id"], item["name"], item["workspace"]
+        if not isinstance(identifier, str) or not re.fullmatch(r"estimate-(?:1|[0-9a-f]{32})", identifier) or identifier in seen:
+            raise ValidationError("Project estimates require unique supported IDs.")
+        if not isinstance(name, str) or not name.strip() or len(name) > 150:
+            raise ValidationError("Give every estimate a name between 1 and 150 characters.")
+        if not isinstance(workspace, dict) or not {"estimate", "calculators"} <= set(workspace) or set(workspace) - WORKSPACE_FIELDS:
+            raise ValidationError("An estimate workspace must contain its estimate, calculators and supported project data only.")
+        if (not isinstance(workspace["estimate"], dict) or not ESTIMATE_REQUIRED_FIELDS <= set(workspace["estimate"])
+                or not isinstance(workspace["calculators"], dict) or not set(LEGACY_CALCULATOR_IDS) <= set(workspace["calculators"])):
+            raise ValidationError("Every named estimate must include its complete estimate inputs and original calculator drafts.")
+        seen.add(identifier)
+        result.append({"id": identifier, "name": name, "workspace": workspace})
+    if not isinstance(active_id, str) or active_id not in seen:
+        raise ValidationError("Choose an active estimate from this project's estimate collection.")
+    return result
 
 
 def project_filename(title):
@@ -122,7 +157,13 @@ def project_summary(payload, *, edition='full'):
     title = estimate.get("title")
     if not isinstance(title, str) or len(title) > 1000:
         raise ValidationError("The project quote name is invalid.")
-    return {"estimate": {"title": title, **details}}
+    result = {"estimate": {"title": title, **details},
+              "project_status": validate_project_status(snapshot.get("project_status", "Draft"))}
+    if "estimates" in snapshot or "active_estimate_id" in snapshot:
+        entries = estimate_descriptors(snapshot.get("estimates"), snapshot.get("active_estimate_id"))
+        result["estimates"] = [{"id": entry["id"], "name": entry["name"]} for entry in entries]
+        result["active_estimate_id"] = snapshot["active_estimate_id"]
+    return result
 
 
 def project_download_header(filename):
@@ -198,7 +239,7 @@ def _portable_penetration(value, *, saved=False):
 def export_project(store, request, *, edition='full'):
     """Return a portable project snapshot with verified evidence manifests."""
     require_project_edition(request, edition)
-    if not isinstance(request, dict) or set(request) - {"estimate", "calculators", "penetration", "takeoffs", "library_drafts", "certifications", "documentation"} or "estimate" not in request:
+    if not isinstance(request, dict) or set(request) - {"estimate", "calculators", "penetration", "takeoffs", "library_drafts", "certifications", "documentation", "project_status", "estimates", "active_estimate_id", "commercial_documents"} or "estimate" not in request:
         raise ValidationError("Include the current estimate and optional calculator drafts to save a project.")
     _check_tree(request)
     estimate = request["estimate"]
@@ -236,6 +277,7 @@ def export_project(store, request, *, edition='full'):
     snapshot = {
         "format": PROJECT_FORMAT,
         "version": PROJECT_VERSION,
+        "project_status": validate_project_status(request.get("project_status", "Draft")),
         "estimate": {key: prepared[key] for key in sorted(ESTIMATE_FIELDS)},
         "calculators": calculators,
     }
@@ -256,9 +298,26 @@ def export_project(store, request, *, edition='full'):
         from .takeoff_model import validate_snapshot
         snapshot["takeoffs"] = validate_snapshot(request["takeoffs"])
         snapshot["version"] = TAKEOFF_PROJECT_VERSION
+    if "commercial_documents" in request:
+        from .commercial_documents import validate_commercial_documents
+        snapshot["commercial_documents"] = validate_commercial_documents(request["commercial_documents"])
+        if snapshot["commercial_documents"] is not None and snapshot.get("certifications", {}).get("project_id") != snapshot["commercial_documents"]["project_id"]:
+            raise ValidationError("Commercial documents must belong to the saved certificate/project workspace.")
+    if "estimates" in request or "active_estimate_id" in request:
+        entries = estimate_descriptors(request.get("estimates"), request.get("active_estimate_id"))
+        normalized = []
+        for entry in entries:
+            child = json.loads(export_project(store, entry["workspace"], edition=edition))
+            normalized.append({"id": entry["id"], "name": entry["name"],
+                               "workspace": {key: child[key] for key in WORKSPACE_FIELDS if key in child}})
+        active = next(entry["workspace"] for entry in normalized if entry["id"] == request["active_estimate_id"])
+        if {key: snapshot[key] for key in WORKSPACE_FIELDS if key in snapshot} != active:
+            raise ValidationError("The current workspace must match the selected project estimate.")
+        snapshot["estimates"] = normalized
+        snapshot["active_estimate_id"] = request["active_estimate_id"]
     payload = json.dumps(snapshot, ensure_ascii=False, allow_nan=False, indent=2).encode("utf-8")
     if len(payload) > MAX_PROJECT_FILE:
-        raise ValidationError("The project file must be at most 16 MB.")
+        raise ValidationError("The complete project, including all estimates, must be at most 16 MB.")
     return payload
 
 
@@ -270,7 +329,7 @@ def import_project(store, filename, content_base64, *, edition='full'):
     if not is_project_filename(filename) or len(filename) > 255:
         raise ValidationError("Choose a .cf.json project file.")
     if not isinstance(content_base64, str) or len(content_base64) > ((MAX_PROJECT_FILE + 2) // 3) * 4:
-        raise ValidationError("The project file must be at most 16 MB.")
+        raise ValidationError("The complete project, including all estimates, must be at most 16 MB.")
     try:
         payload = base64.b64decode(content_base64, validate=True)
     except (ValueError, binascii.Error) as error:
@@ -290,7 +349,7 @@ def load_project_bytes(store, payload, *, edition='full'):
     require_project_edition(snapshot, edition)
     _check_tree(snapshot)
     required = {"format", "version", "estimate", "calculators"}
-    if not isinstance(snapshot, dict) or not required <= set(snapshot) or set(snapshot) - required - {"penetration", "takeoffs", "library_drafts", "certifications", "documentation"}:
+    if not isinstance(snapshot, dict) or not required <= set(snapshot) or set(snapshot) - required - {"penetration", "takeoffs", "library_drafts", "certifications", "documentation", "project_status", "estimates", "active_estimate_id", "commercial_documents"}:
         raise ValidationError("The project file contains missing or unsupported fields.")
     if snapshot["format"] != PROJECT_FORMAT or type(snapshot["version"]) is not int or snapshot["version"] not in {PROJECT_VERSION, TAKEOFF_PROJECT_VERSION}:
         raise ValidationError("This project file format or version is not supported.")
@@ -335,6 +394,7 @@ def load_project_bytes(store, payload, *, edition='full'):
     prepared["id"] = None
     metadata = fields(effective_catalog(prepared["configuration"]))
     result = {"estimate": prepared, "fields": metadata, "calculators": normalized,
+              "project_status": validate_project_status(snapshot.get("project_status", "Draft")),
               "project_details": project_details({key: prepared[key] for key in QUOTE_DETAIL_LIMITS})}
     if penetration is not None:
         result["penetration"] = penetration
@@ -352,6 +412,24 @@ def load_project_bytes(store, payload, *, edition='full'):
     if "takeoffs" in snapshot:
         from .takeoff_model import validate_snapshot
         result["takeoffs"] = validate_snapshot(snapshot["takeoffs"])
+    if "commercial_documents" in snapshot:
+        from .commercial_documents import validate_commercial_documents
+        result["commercial_documents"] = validate_commercial_documents(snapshot["commercial_documents"])
+        if result["commercial_documents"] is not None and result.get("certifications", {}).get("project_id") != result["commercial_documents"]["project_id"]:
+            raise ValidationError("Commercial documents do not match this project workspace identity.")
+    if "estimates" in snapshot or "active_estimate_id" in snapshot:
+        entries = estimate_descriptors(snapshot.get("estimates"), snapshot.get("active_estimate_id"))
+        active = next(entry["workspace"] for entry in entries if entry["id"] == snapshot["active_estimate_id"])
+        if {key: snapshot[key] for key in WORKSPACE_FIELDS if key in snapshot} != active:
+            raise ValidationError("The saved current workspace does not match its active estimate.")
+        normalized = []
+        for entry in entries:
+            workspace = entry["workspace"]
+            child = {"format": PROJECT_FORMAT, "version": TAKEOFF_PROJECT_VERSION if "takeoffs" in workspace else PROJECT_VERSION, **workspace}
+            prepared = load_project_bytes(store, json.dumps(child, ensure_ascii=False, allow_nan=False).encode("utf-8"), edition=edition)
+            normalized.append({"id": entry["id"], "name": entry["name"], "workspace": prepared})
+        result["estimates"] = normalized
+        result["active_estimate_id"] = snapshot["active_estimate_id"]
     return result
 
 

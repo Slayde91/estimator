@@ -37,6 +37,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
         # Keep style attributes and scripts under the normal strict policy.
         content_security_policy += "; style-src-elem 'self' 'unsafe-inline'"
     store = Store(database or ROOT / ".runtime" / "estimator.sqlite3")
+    from .scheduler_http import SchedulerHTTP
     travel = TravelService()
     takeoffs = takeoff_http = None
     if capabilities['takeoffs']:
@@ -47,6 +48,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
         takeoff_http = TakeoffHTTP(takeoffs, ROOT, content_security_policy)
     from .project_library import ProjectLibrary
     projects = ProjectLibrary(store, project_dialogs, takeoffs=takeoffs, edition=edition)
+    scheduler_http = SchedulerHTTP(store.path.with_name(store.path.stem + "-scheduler.sqlite3"), projects=projects)
     from .download_progress import DownloadProgress
     download_progress = DownloadProgress()
     from .reference_library import ReferenceNotFound
@@ -63,6 +65,11 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     document_types = document_catalog(edition)
     documentation = ProjectDocumentation(certification_projects, kinds={row['id']:row['label'] for row in document_catalog('full')})
     projects.documentation = documentation
+    from .commercial_documents import CommercialDocuments
+    from .commercial_http import CommercialHTTP
+    from .commercial_estimates import derive_estimates
+    commercial = CommercialDocuments(certification_projects)
+    projects.commercial = commercial
     from .pdf_download_covers import PdfCoverConflict
     pdf_covers = certifications.covers
     if takeoffs is not None:
@@ -182,6 +189,9 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
         def capture_download(self, request):
             return projects.capture_download(request)
 
+        def capture_commercial_download(self, request, workspace):
+            return projects.capture_download(request, project_id=certification_projects.project_id(workspace))
+
         def download_progress(self, completed, total):
             download_progress.pages(getattr(self, '_download_progress_token', None), completed, total)
 
@@ -288,6 +298,14 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 self._documentation_context = workspace, request_id
             if excluded_route(route, edition):
                 self.send_payload(404, {'error': 'Not found.'})
+                return
+            if scheduler_http.dispatch(self, route):
+                return
+            commercial_http = CommercialHTTP(commercial,
+                derive=lambda body, include_pdfs=False: derive_estimates(store, body, edition=edition,
+                    company=self.company_details(), library=libraries, include_pdfs=include_pdfs),
+                company=self.company_details)
+            if commercial_http.dispatch(self, route):
                 return
             if takeoff_http is not None and takeoff_http.dispatch(self, route):
                 return
@@ -400,7 +418,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_report(store.quote(route[len("/api/quotes/"):-len("/report.pdf")]), "Saved quote")
                 elif route.startswith("/api/quotes/"):
                     self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
-                elif route in {'/certification.js', '/certification.css', '/cover-sheets.js', '/documentation.js', '/documentation.css', '/notifications.js', '/notifications.css'}:
+                elif route in {'/scheduler.js', '/scheduler.css', '/commercial-documents.js', '/commercial-documents.css', '/certification.js', '/certification.css', '/cover-sheets.js', '/documentation.js', '/documentation.css', '/notifications.js', '/notifications.css'}:
                     kind = 'text/javascript; charset=utf-8' if route.endswith('.js') else 'text/css; charset=utf-8'
                     self.send_payload(200, (ROOT / 'static' / route[1:]).read_bytes(), kind)
                 elif route in {'/games/play.js', '/games/play.css', '/games/fireline-art.js', '/games/fireline.js', '/penetration-references.js', '/sounds/type.mp3', '/sounds/gameover.mp3', '/sounds/flame-whoosh.wav', '/takeoff-visual-search-icon.png', '/takeoff-ocr-icon.png', '/header-steel-intumescent.png', '/sounds/checkpoint.ogg', '/sounds/loading.mp3', '/sounds/new-explosion.mp3', '/sounds/hover.mp3', '/sounds/select.mp3', '/sounds/select-2.mp3', '/sounds/mixkit-vintage-dot-printing-1371.wav', '/takeoff-visual-search.js', '/takeoff-visual-search.css', '/takeoff-ocr-layer.js', '/takeoff-ocr-layer.css', '/header-menu-sounds.js', '/sounds/mgs1-menu-move.mp3', '/sounds/mgs-confirm2.mp3', '/brand-boot.js', '/brand-boot.css', '/classifire-app.ico', '/register-references.js', '/travel.js', '/travel.css', '/maps-setup.html', '/pdf-cursors.css', '/cursors/pointer.png', '/cursors/precision.png', '/cursors/move.png', '/cursors/text.png', '/cursors/handwriting.png', '/cursors/link.png', '/cursors/resize-nwse.png', '/cursors/resize-nesw.png', '/cursors/resize-horizontal.png', '/cursors/resize-vertical.png', '/cursors/unavailable.png', '/cursors/busy.png', "/", "/index.html", "/company-settings.js", "/classifire-logo.png", "/main-layout.js", "/downloads.css", "/activity.js", "/calculation-queue.js", "/searchable-choice.js", "/penetration-presentation.js", "/icons/navigation-takeoffs.svg", "/icons/navigation-takeoffs.jpg", "/icons/navigation-help.jpg", "/theme.js", "/language.js", "/language-catalog.js", "/language.css", "/theme.css", "/laser.css", "/laser-steel.svg", "/home-steel-frame.png", "/header-layout.css", "/workspace-art.css", "/pointer-effects.css", "/pointer-effects.js", "/laser-reticle.svg", "/takeoff-header-steel.png", "/takeoff-header-ductwork.png", "/takeoff-header-physical.png", "/takeoff-header-service-plans.png", "/header-steel-spray.png", "/header-steel-board.png", "/header-ductwork.png", "/header-firestopping.png", "/header-estimate.png", "/header-projects.png", "/projects-evidence-banner.png", "/header-firestopping-library.png", "/header-technical-library.png", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/library-detail-text.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/icons/navigation-home.png", "/icons/document.png", "/icons/schedule-add.png", "/icons/navigation-help.png", "/icons/navigation-takeoffs.png", "/icons/takeoff-visibility.jpg", "/icons/takeoff-colour-wheel.png", "/icons/takeoff-legend.png", "/ceasefire-logo.png", "/ceasefire-app.ico", "/fonts/Montserrat-Variable.ttf", "/fonts/Vera.ttf", "/fonts/VeraBd.ttf", "/fonts/Montserrat-Italic-Variable.ttf", "/takeoffs.js", "/takeoffs.css", "/takeoff-geometry.js", "/takeoff-physical.js", "/takeoff-annotations.js", "/takeoff-signatures.js", "/takeoff-graphics.js", "/takeoff-graphics-ui.js", "/takeoff-pane-resize.js", "/takeoff-initial-pages.js", "/takeoff-pdf-tools.js", "/takeoff-pdf-tools.css", "/icons/default-memory.svg", "/icons/takeoff-set-default.png", "/icons/signature.svg", "/help-glossary.js", "/help-glossary.css", "/takeoff-search.js", "/takeoff-shortcuts.js", "/icons/takeoff-callout.png", "/takeoff-pdf-worker.mjs", "/takeoff-library-links.js", "/icons/takeoff-visibility.png", "/icons/takeoff-bullet-list.png", "/icons/takeoff-numbered-list.png", "/icons/takeoff-add-service.png", "/icons/takeoff-add-barrier.png", "/icons/takeoff-transfer.png", "/icons/takeoff-measure.png", "/header-tagline-media.js", "/header-tagline-character.gif", "/header-tagline-character-still.png"}:
@@ -620,7 +638,10 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 elif route == '/api/project/export' and self.command == 'POST':
                     from .project_file import export_project, project_filename, project_download_header
                     require_project_edition(body, edition)
-                    if 'takeoffs' in body or 'certifications' in body or 'documentation' in body:
+                    estimates = body.get('estimates', [])
+                    workspaces = [item.get('workspace') for item in estimates if isinstance(item, dict)] if isinstance(estimates, list) else []
+                    if ('takeoffs' in body or 'certifications' in body or 'documentation' in body
+                            or any(isinstance(workspace, dict) and 'takeoffs' in workspace for workspace in workspaces)):
                         raise ValidationError('Use Save As to save the project together with its evidence and certificate companion folders.')
                     project = export_project(store, body, edition=edition)
                     filename = project_filename(json.loads(project)['estimate']['title'])
@@ -628,6 +649,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                                       {'Content-Disposition': project_download_header(filename)})
                 elif route == '/api/project/save-as' and self.command == 'POST':
                     self.send_payload(200, projects.save_as(body))
+                elif route == '/api/project/estimate/prepare' and self.command == 'POST':
+                    self.send_payload(200, projects.prepare_estimate(body))
                 elif route == '/api/project/save' and self.command == 'POST':
                     self.send_payload(200, projects.save(body))
                 elif route == '/api/project/attachment' and self.command == 'POST':
@@ -644,6 +667,10 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if set(body) != {'id'}:
                         raise ValidationError('Choose a project file from the linked folder.')
                     self.send_payload(200, projects.load(body['id']))
+                elif route == '/api/projects/status' and self.command == 'POST':
+                    self.send_payload(200, projects.update_status(body))
+                elif route == '/api/projects/delete' and self.command == 'POST':
+                    self.send_payload(200, projects.delete_project(body))
                 elif route == '/api/projects/files' and self.command == 'POST':
                     self.send_payload(200, projects.browse_files(body))
                 elif route == '/api/projects/open-file' and self.command == 'POST':
@@ -658,17 +685,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if set(body) != {'filename', 'content_base64'}:
                         raise ValidationError('Include the project filename and file content only.')
                     project = import_project(store, body['filename'], body['content_base64'], edition=edition)
-                    workspace = certification_projects.restore(project.get('certifications'))
-                    project['certification_workspace_id'] = workspace['workspace_id']
-                    try:
-                        documentation.restore(project.get('documentation'), workspace['workspace_id'])
-                        if 'takeoffs' in project:
-                            session = takeoffs.open(project['takeoffs'])
-                            project.update(takeoffs=session['snapshot'], takeoffs_session_id=session['session_id'], takeoffs_issues=session.get('issues', []))
-                    except Exception:
-                        certification_projects.discard(workspace['workspace_id'])
-                        raise
-                    self.send_payload(200, project)
+                    self.send_payload(200, projects.restore_import(project))
                 elif route.startswith('/api/quotes/') and route.endswith('/report.pdf') and self.command == 'POST':
                     if set(body) - {'download'}:
                         raise ValidationError('Saved quote report requests accept download options only.')

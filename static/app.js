@@ -188,7 +188,7 @@
     result: null, revision: 0, timer: null, pricingExpanded: new Set(), mainSection: "access-travel", mainOutputSection: "material-breakdown", legacyTitle: "",
     workflow: "", defaultWorkflow: "Intumescent spray to ductwork", inputErrors: new Map(), inputDrafts: new Map(), inputRevision: 0, projectBusy: false,
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
-    projectFile: null, projectsRevision: 0, initialized: false, currentView: "home", lastProjectSection: null, projectsOffset: 0, projectsTimer: null, desktopRequests: 0,
+    projectFile: null, projectEstimates: [{id:"estimate-1", name:"Estimate 1"}], activeEstimateId: "estimate-1", estimatesDirty: false, projectStatus: "Draft", projectCards: [], projectColumns: new Set(["Draft", "Review", "Presented", "Accepted", "Lost"]), projectsRevision: 0, initialized: false, currentView: "home", lastProjectSection: null, projectsOffset: 0, projectsTimer: null, desktopRequests: 0,
     projectBrowserProject: null, projectBrowserPath: "", projectBrowserRevision: 0,
     pricingRender: null, estimatorKind: "estimate", calculatorKind: "steel", libraryKind: "pricing",
     workItems: [], workItemErrors: new Map(), workItemDrafts: new Map(), nextWorkItem: 1,
@@ -395,7 +395,12 @@
     updateProjectStatus();
   }
 
+  const projectStatuses = ["Draft", "Review", "Presented", "Accepted", "Lost"];
+
   function updateProjectStatus() {
+    renderEstimateControls();
+    $("project-status").value = state.projectStatus;
+    $("project-status").disabled = state.projectBusy;
     const file = state.projectFile, changed = !!projectHasChanges();
     // A fresh draft updates the save badge; notices remain until dismissal/navigation.
     if (changed && state.projectSavedNotice) {
@@ -616,7 +621,8 @@
 
   function mainSectionPanels(group = "input") {
     if (group === "output") return [$("main-panel-material-breakdown"),
-      $("main-panel-labour-breakdown")].filter(section => section?.dataset.mainSection);
+      $("main-panel-labour-breakdown"), $("main-panel-firestopping-schedule"),
+      $("main-panel-firestopping-breakdown")].filter(section => section?.dataset.mainSection);
     const cards = id => [...$(id).children].filter(section => section.dataset.mainSection);
     return [...cards("input-sections"), $("main-panel-materials"), ...cards("post-material-input-sections"),
       ...cards("adjustment-sections")].filter(section => section?.dataset.mainSection);
@@ -873,7 +879,7 @@
     state.quoteContext++;
     state.quoteLoadRevision++;
     state.inputErrors.clear(); state.inputDrafts.clear(); state.workItemErrors.clear(); state.workItemDrafts.clear();
-    state.quote = null; state.quoteConfiguration = null; state.projectFile = null;
+    state.quote = null; state.quoteConfiguration = null; state.projectFile = null; state.projectStatus = "Draft"; resetEstimateCollection();
     resetProjectPricing();
     state.fields = clone(state.currentFields);
     // Start notes blank without changing workbook defaults or saved-quote inputs.
@@ -884,6 +890,7 @@
     updateQuoteTitle();
     if (preparedCertification) window.CeasefireCertification.applyProject(preparedCertification);
     window.CeasefireDocumentation?.applyProject?.(preparedDocumentation);
+    window.CeasefireCommercial?.applyProject?.({workspace_id:preparedCertification?.workspace_id || null});
     state.workflow = state.defaultWorkflow;
     $("measurements").value = "";
     $("snapshot-message").hidden = true;
@@ -967,7 +974,7 @@
       state.quoteContext++;
       state.inputErrors.clear(); state.inputDrafts.clear(); state.workItemErrors.clear(); state.workItemDrafts.clear();
       state.quote = quote;
-      state.projectFile = null;
+      state.projectFile = null; state.projectStatus = "Draft"; resetEstimateCollection();
       window.CeasefireCalculators.applyProject(prepared);
       if (penetration) window.CeasefirePenetrations.applyProject(penetration);
       if (takeoffs) window.CeasefireTakeoffs.applyProject(takeoffs);
@@ -1022,6 +1029,8 @@
   }
 
   function showView(view, librarySelection, calculatorId) {
+    if (view !== state.currentView && window.CeasefireCommercial?.hasPendingOperation?.()) { message("Save or discard the current commercial document edit before changing views.", true); return; }
+    if (view !== state.currentView && window.CeasefireScheduler?.hasPendingOperation?.()) { message("Finish or cancel the current Scheduler edit before changing views.", true); return; }
     if (view !== state.currentView && window.CeasefireCoverSheets?.hasPendingOperation?.()) { message(uiCopy("Finish or retry the current cover-sheet operation before changing views."), true); return; }
     if (view !== state.currentView && window.CeasefireCertification?.hasPendingOperation?.()) { message(uiCopy("Finish or retry the current certification operation before changing views."), true); return; }
     if (window.CeasefirePenetrations?.hasTakeoffReservation?.() || window.CeasefireTakeoffs?.hasLinkedRecovery?.()) { message(uiCopy("Finish or recover the confirmed Takeoff library link before changing views."), true); return; }
@@ -1029,22 +1038,25 @@
     window.CeasefireNotifications?.navigate(view === "pricing" ? `pricing:${state.libraryKind}` : view === "calculators" ? `calculators:${calculatorId || state.calculatorKind}` : view === "estimate" ? `estimate:${state.estimateKind || "estimate"}` : view);
     if (view !== state.currentView && $("app-message").hidden) releaseMessageSpace();
     state.currentView = view;
-    if (["quotes", "certification", "documentation"].includes(view)) state.lastProjectSection = view;
+    if (["quotes", "certification", "documentation", "scheduler", "quote", "work-orders", "purchase-orders"].includes(view)) state.lastProjectSection = view;
     $("project-tools").hidden = view !== "quotes";
     closeNavigationMenus({ estimate: "estimate-navigation", calculators: "calculator-navigation", pricing: "library-navigation", takeoffs: "takeoff-navigation" }[view]);
     document.body.classList.toggle("takeoffs-active", view === "takeoffs");
     clearTimeout(state.projectsTimer); ++state.projectsRevision;
+    $("project-list").setAttribute("aria-busy", "false");
     for (const section of document.querySelectorAll(".view")) section.hidden = section.id !== `view-${view}`;
     window.CeasefirePlay?.setVisible(view === "play");
     for (const button of document.querySelectorAll("[data-view]")) {
-      const active = button.dataset.view === view || (view === "play" && button.dataset.view === "settings") || (["quotes", "certification", "documentation"].includes(view) && button.dataset.view === "projects");
+      const active = button.dataset.view === view || (view === "play" && button.dataset.view === "settings") || (["quotes", "certification", "documentation", "scheduler", "quote", "work-orders", "purchase-orders"].includes(view) && button.dataset.view === "projects");
       button.classList.toggle("active", active);
       if (active) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
     }
     for (const choice of document.querySelectorAll("#projects-navigation-menu [data-project-section]")) choice.setAttribute("aria-pressed", String(choice.dataset.projectSection === view));
     if (view === "quotes") loadProjects();
-    if (view === "pricing") selectLibrary(state.libraryKind, librarySelection);
+    if (view === "scheduler") window.CeasefireScheduler?.activate().catch(error => message(error.message, true));
     let estimatorReady;
+    if (["quote", "work-orders", "purchase-orders"].includes(view)) estimatorReady = window.CeasefireCommercial?.activate({quote:"quote", "work-orders":"work_order", "purchase-orders":"purchase_order"}[view]).catch(error => message(error.message, true));
+    if (view === "pricing") selectLibrary(state.libraryKind, librarySelection);
     if (view === "settings") estimatorReady = window.CeasefireCoverSheets?.open?.()?.catch(error => message(error.message, true));
     if (view === "certification") estimatorReady = window.CeasefireCertification?.open().catch(error => message(error.message, true));
     if (view === "documentation") estimatorReady = window.CeasefireDocumentation?.open().catch(error => message(error.message, true));
@@ -1257,7 +1269,7 @@
     switchPricingScope(scope); return true;
   }
   function projectPricingChanged() { return draftChanged(state.pricingScope === "project" ? state.draft : state.projectPricingDraft, state.quoteConfiguration || state.configuration); }
-  function projectHasChanges() { return state.dirty || projectPricingChanged() || window.CeasefireCalculators?.hasUnsavedChanges() || window.CeasefirePenetrations?.hasUnsavedChanges() || window.CeasefireTakeoffs?.hasUnsavedChanges() || window.CeasefireLibraryEditor?.hasProjectChanges?.() || window.CeasefireCertification?.hasProjectChanges?.() || window.CeasefireDocumentation?.hasProjectChanges?.(); }
+  function projectHasChanges() { return state.estimatesDirty || window.CeasefireCommercial?.hasProjectChanges?.() || state.projectStatus !== (state.projectFile?.project_status || "Draft") || window.CeasefireDownloads?.hasUnsavedProjectSave?.() || state.dirty || projectPricingChanged() || window.CeasefireCalculators?.hasUnsavedChanges() || window.CeasefirePenetrations?.hasUnsavedChanges() || window.CeasefireTakeoffs?.hasUnsavedChanges() || window.CeasefireLibraryEditor?.hasProjectChanges?.() || window.CeasefireCertification?.hasProjectChanges?.() || window.CeasefireDocumentation?.hasProjectChanges?.(); }
   function pricingScopeUi() {
     $("pricing-scope").value = state.pricingScope;
     const save = $("save-pricing"), project = state.pricingScope === "project";
@@ -1967,12 +1979,156 @@
     };
   }
 
+  const estimateWorkspaceKeys = ["estimate", "calculators", "penetration", "takeoffs", "takeoffs_session_id", "library_drafts"];
+
+  function estimateWorkspaceRequest(workspace) {
+    const result = {};
+    for (const key of estimateWorkspaceKeys) if (workspace[key] !== undefined) result[key] = clone(workspace[key]);
+    if (result.estimate) {
+      result.estimate = Object.fromEntries(["title", "workflow", "measurements", "inputs", "configuration", "project_no", "client", "site_address", "work_items"].filter(key => workspace.estimate[key] !== undefined).map(key => [key, clone(workspace.estimate[key])]));
+    }
+    if (result.penetration) result.penetration = {draft:result.penetration.draft, ...(result.penetration.composer ? {composer:result.penetration.composer} : {}), library_tracking_version:1};
+    if (result.calculators) result.calculators = Object.fromEntries(Object.entries(result.calculators).map(([id, value]) => [id, {inputs: value.inputs, ...(value.schedule_rows ? {schedule_rows: value.schedule_rows} : {})}]));
+    return result;
+  }
+
+  function collectionFromProject(project, captured = []) {
+    const entries = project.estimates || [{id:"estimate-1", name:"Estimate 1", workspace:project}];
+    return entries.map(entry => {
+      const previous = captured.find(item => item.id === entry.id);
+      const workspace = {...entry.workspace};
+      if (!workspace.takeoffs_session_id && previous?.workspace.takeoffs_session_id) workspace.takeoffs_session_id = previous.workspace.takeoffs_session_id;
+      return {id:entry.id, name:entry.name, workspace};
+    });
+  }
+
+  function estimateCollectionWith(workspace) {
+    return {active_estimate_id:state.activeEstimateId, estimates:state.projectEstimates.map(entry => ({id:entry.id, name:entry.name,
+      workspace:estimateWorkspaceRequest(entry.id === state.activeEstimateId ? workspace : entry.workspace)}))};
+  }
+
+  function resetEstimateCollection() {
+    for (const entry of state.projectEstimates) void window.CeasefireTakeoffs?.discardPreparedSession?.(entry.workspace?.takeoffs_session_id);
+    state.projectEstimates = [{id:"estimate-1", name:"Estimate 1"}]; state.activeEstimateId = "estimate-1"; state.estimatesDirty = false;
+  }
+
+  function renderEstimateControls() {
+    const select = $("project-estimate-select");
+    if (!select) return;
+    select.replaceChildren(...state.projectEstimates.map(entry => {const option = node("option", "", entry.name); option.value = entry.id; return option;}));
+    select.value = state.activeEstimateId;
+    for (const id of ["project-estimate-select", "project-estimate-new", "project-estimate-rename"]) $(id).disabled = state.projectBusy;
+  }
+
+  async function captureCurrentEstimate({ readOnly = false } = {}) {
+    document.activeElement?.blur?.();
+    if (inputProblem()) throw new Error(inputProblem());
+    const context = state.quoteContext, target = state.projectFile;
+    const pricing = readOnly ? undefined : await previewSavePricing(), pricingRevision = savePricingStamp();
+    const [calculators, penetration] = await Promise.all([window.CeasefireCalculators.completeProjectSnapshot(), window.CeasefirePenetrations?.completeProjectSnapshot()]);
+    const libraryDrafts = await window.CeasefireLibraryEditor?.completeProjectSnapshot?.();
+    const takeoffs = await window.CeasefireTakeoffs?.completeProjectSnapshot();
+    if (context !== state.quoteContext || target !== state.projectFile || pricingRevision !== savePricingStamp() || inputProblem()) throw new Error("The estimate changed while preparing it. Try again.");
+    if (JSON.stringify(calculators) !== JSON.stringify(window.CeasefireCalculators.projectSnapshot()) || JSON.stringify(penetration) !== JSON.stringify(window.CeasefirePenetrations?.projectSnapshot()) || JSON.stringify(libraryDrafts) !== JSON.stringify(window.CeasefireLibraryEditor?.projectSnapshot?.()) || JSON.stringify(takeoffs) !== JSON.stringify(window.CeasefireTakeoffs?.projectSnapshot())) throw new Error("An estimate workspace changed while preparing it. Try again.");
+    const workspace = {estimate:projectEstimate(), calculators, ...(penetration ? {penetration} : {}), ...(libraryDrafts ? {library_drafts:libraryDrafts} : {}), ...(takeoffs ? {takeoffs, takeoffs_session_id:window.CeasefireTakeoffs.sessionId()} : {})};
+    if (pricing) workspace.estimate.configuration = clone(pricing.configuration);
+    const stamp = projectStamp();
+    const prepared = await request("/api/project/estimate/prepare", {method:"POST", body:JSON.stringify(workspace)});
+    if (stamp !== projectStamp()) throw new Error("The estimate changed during validation. Try again.");
+    return {...prepared, ...workspace};
+  }
+
+  async function applyEstimateWorkspace(workspace) {
+    const stamp = projectStamp();
+    const [calculators, penetration, takeoffs, libraryDrafts] = await Promise.all([
+      window.CeasefireCalculators.prepareProject(workspace.calculators), window.CeasefirePenetrations?.prepareProject(workspace.penetration, workspace.estimate.configuration),
+      window.CeasefireTakeoffs?.prepareProject(workspace.takeoffs, workspace.takeoffs_session_id), window.CeasefireLibraryEditor?.prepareProject?.(workspace.library_drafts)]);
+    if (stamp !== projectStamp()) throw new Error("The estimate changed while switching. Try again.");
+    window.CeasefireCalculators.applyProject(calculators);
+    window.CeasefireCalculators.markProjectSaved(workspace.calculators);
+    if (penetration) window.CeasefirePenetrations.applyProject(penetration);
+    if (takeoffs) window.CeasefireTakeoffs.applyProject(takeoffs, {preservePrevious:true});
+    if (libraryDrafts) window.CeasefireLibraryEditor.applyProject(libraryDrafts);
+    const estimate = workspace.estimate;
+    ++state.quoteContext; ++state.quoteLoadRevision;
+    state.inputErrors.clear(); state.inputDrafts.clear(); state.workItemErrors.clear(); state.workItemDrafts.clear();
+    state.quote = null; state.quoteConfiguration = clone(estimate.configuration); state.fields = clone(workspace.fields || state.currentFields); state.inputs = clone(estimate.inputs);
+    state.workItems = clone(estimate.work_items || []); state.nextWorkItem = state.workItems.length + 1;
+    state.legacyTitle = [estimate.project_no, estimate.client, estimate.site_address].some(Boolean) ? "" : estimate.title || "";
+    for (const [id, key] of [["project-no","project_no"],["client","client"],["site-address","site_address"]]) $(id).value = estimate[key] || "";
+    state.workflow = estimate.workflow; $("measurements").value = estimate.measurements || "";
+    resetProjectPricing("project"); updateQuoteTitle(); renderInputs(); updateDirty(false); scheduleCalculation();
+    window.CeasefirePenetrations?.pricingChanged();
+  }
+
+  async function selectEstimate(identifier) {
+    if (identifier === state.activeEstimateId || state.projectBusy || coverReplacementPending()) return;
+    const selected = state.projectEstimates.find(entry => entry.id === identifier);
+    if (!selected?.workspace) return;
+    projectBusy(true);
+    try {
+      const current = await captureCurrentEstimate();
+      await applyEstimateWorkspace(selected.workspace);
+      state.projectEstimates.find(entry => entry.id === state.activeEstimateId).workspace = current;
+      state.activeEstimateId = identifier; state.estimatesDirty = true;
+      message(uiCopy("Estimate selected. Save the project to keep all estimate changes."));
+    } catch (error) { message(error.message, true); }
+    finally { projectBusy(false); }
+  }
+
+  async function estimateName(title, current) {
+    const dialog = $("project-estimate-dialog");
+    $("project-estimate-dialog-title").textContent = title; $("project-estimate-name").value = current;
+    dialog.returnValue = "";
+    const result = new Promise(resolve => dialog.addEventListener("close", () => resolve(dialog.returnValue === "save" ? $("project-estimate-name").value.trim() : null), {once:true}));
+    dialog.showModal(); $("project-estimate-name").focus(); return result;
+  }
+
+  async function addProjectEstimate() {
+    if (state.projectBusy || coverReplacementPending()) return;
+    if (state.projectEstimates.length >= 50) {message("A project supports up to 50 estimates.", true); return;}
+    projectBusy(true);
+    try {
+      const stamp = projectStamp(), name = await estimateName("New estimate", `Estimate ${state.projectEstimates.length + 1}`);
+      if (!name || stamp !== projectStamp()) return;
+      const current = await captureCurrentEstimate();
+      const captured = projectStamp();
+      const defaults = await window.CeasefireCalculators.prepareDefaults();
+      const workspace = {estimate:{...current.estimate, measurements:"", work_items:[], configuration:clone(state.configuration),
+        inputs:Object.fromEntries(state.currentFields.map(field => [field.cell, field.cell === "B12" ? "" : field.default ?? ""]))},
+        calculators:Object.fromEntries(defaults.entries.map(([id, entry]) => [id, {inputs:entry.inputs, ...(entry.scheduleRows ? {schedule_rows:entry.scheduleRows} : {})}]))};
+      const prepared = await request("/api/project/estimate/prepare", {method:"POST", body:JSON.stringify(workspace)});
+      if (captured !== projectStamp()) throw new Error("The estimate changed while preparing a new estimate. Try again.");
+      await applyEstimateWorkspace(prepared);
+      state.projectEstimates.find(entry => entry.id === state.activeEstimateId).workspace = current;
+      const identifier = `estimate-${crypto.randomUUID().replaceAll("-", "")}`;
+      state.projectEstimates.push({id:identifier, name, workspace:prepared}); state.activeEstimateId = identifier; state.estimatesDirty = true;
+      message(uiCopy("Estimate added. Save the project to keep it."));
+    } catch (error) {message(error.message, true);}
+    finally {projectBusy(false);}
+  }
+
+  async function renameProjectEstimate() {
+    if (state.projectBusy || coverReplacementPending()) return;
+    projectBusy(true);
+    try {
+      const selected = state.projectEstimates.find(entry => entry.id === state.activeEstimateId);
+      const stamp = projectStamp(), name = await estimateName("Rename estimate", selected.name);
+      if (!name || stamp !== projectStamp()) return;
+      selected.name = name; state.estimatesDirty = true; updateProjectStatus();
+    } catch (error) { message(error.message, true); }
+    finally { projectBusy(false); }
+  }
+
+  window.CeasefireEstimates = {list:() => state.projectEstimates.map(({id,name}) => ({id,name})), activeId:() => state.activeEstimateId, select:selectEstimate,
+    async capture(options) {if (state.projectBusy) throw new Error("Finish the current project operation first."); return estimateCollectionWith(await captureCurrentEstimate(options));}};
+
   function projectEstimate() {
     const payload = reportPayload(); delete payload.source_quote_id; delete payload.penetration; return payload;
   }
 
   function projectStamp() {
-    return JSON.stringify({ estimate: projectEstimate(), quoteContext: state.quoteContext,
+    return JSON.stringify({ estimates: state.projectEstimates, active_estimate_id: state.activeEstimateId, commercial: window.CeasefireCommercial?.projectFingerprint?.(), project_status: state.projectStatus, estimate: projectEstimate(), quoteContext: state.quoteContext,
       quoteLoadRevision: state.quoteLoadRevision, inputRevision: state.inputRevision,
       errors: [...state.inputErrors], inputDrafts: [...state.inputDrafts],
       pricing: state.pricingScope === "project" ? state.draft : state.projectPricingDraft,
@@ -1987,6 +2143,11 @@
     return JSON.stringify({project:projectStamp(),coverSheets:window.CeasefireCoverSheets?.fingerprint?.()});
   }
   function coverReplacementPending() {
+    if (window.CeasefireCommercial?.hasPendingOperation?.()) { message("Finish the current commercial document edit first.", true); return true; }
+    if (window.CeasefireDownloads?.hasPendingOperation?.()) {
+      message(uiCopy("Finish the download and its project save before replacing a project."), true);
+      return true;
+    }
     if (window.CeasefireDocumentation?.hasPendingOperation?.()) {
       message(uiCopy("Finish the current document download before replacing a project."), true);
       return true;
@@ -2002,7 +2163,7 @@
 
   function projectBusy(value, activeId = null) {
     state.projectBusy = value;
-    for (const id of ["save-current-project", "load-project", "link-project-folder", "new-quote", "use-current-pricing"]) {
+    for (const id of ["save-current-project", "load-project", "link-project-folder", "new-quote", "use-current-pricing", "project-estimate-select", "project-estimate-new", "project-estimate-rename"]) {
       $(id).disabled = value;
       $(id).setAttribute("aria-busy", String(value && id === activeId));
     }
@@ -2012,9 +2173,17 @@
     updateProjectStatus();
   }
 
-  async function saveProject() {
-    if (state.projectBusy) return;
-    if (window.CeasefireDocumentation?.hasPendingOperation?.()) { message(uiCopy("Finish the current document download before saving the project."),true); return; }
+  async function saveProject({ automatic = false, downloadTarget = null } = {}) {
+    if (state.projectBusy || window.CeasefireDownloads?.hasInFlight?.()) {
+      if (automatic) throw new Error("Finish the current file operation before saving the project.");
+      message(uiCopy("Finish the current file operation before saving the project."),true);
+      return;
+    }
+    if (window.CeasefireDocumentation?.hasPendingOperation?.()) {
+      if (automatic) throw new Error("Finish the current document download before saving the project.");
+      message(uiCopy("Finish the current document download before saving the project."),true); return;
+    }
+    if (automatic && !isCurrentDownloadTarget(downloadTarget)) throw new Error("The project changed after the download. Its file was not overwritten.");
     const target = state.projectFile, context = state.quoteContext;
     const saveAs = !target?.save_token;
     projectBusy(true, "save-current-project");
@@ -2045,15 +2214,29 @@
       if (libraryStamp !== window.CeasefireLibraryEditor?.projectFingerprint?.()) throw new Error("Project library drafts changed while preparing the file. Save again when ready.");
       if (certificationStamp !== window.CeasefireCertification?.projectFingerprint?.()) throw new Error("Project certificates changed while preparing the file. Save again when ready.");
       if (documentationStamp !== window.CeasefireDocumentation?.projectFingerprint?.()) throw new Error("Project documents changed while preparing the file. Save again when ready.");
-      const payload = { estimate: projectEstimate(), calculators, ...(penetration ? { penetration } : {}), ...(libraryDrafts ? { library_drafts: libraryDrafts } : {}), ...(certifications ? { certifications } : {}), ...(documentation ? {documentation} : {}), ...(takeoffs ? { takeoffs, takeoffs_session_id: window.CeasefireTakeoffs.sessionId() } : {}) };
+      const payload = { project_status: state.projectStatus, estimate: projectEstimate(), calculators, ...(penetration ? { penetration } : {}), ...(libraryDrafts ? { library_drafts: libraryDrafts } : {}), ...(certifications ? { certifications } : {}), ...(documentation ? {documentation} : {}), ...(takeoffs ? { takeoffs, takeoffs_session_id: window.CeasefireTakeoffs.sessionId() } : {}) };
       if (pricing) payload.estimate.configuration = clone(pricing.configuration);
+      const beforeCommercial = projectStamp();
+      const commercial = await window.CeasefireCommercial?.completeProjectSnapshot?.();
+      if (beforeCommercial !== projectStamp()) throw new Error("The project changed while preparing its commercial documents. Save again when ready.");
+      if (commercial) payload.commercial_documents = commercial;
+      Object.assign(payload, estimateCollectionWith(payload));
       if (!saveAs) payload.save_token = target.save_token;
       const captured = projectStamp();
       const saved = await request(saveAs ? "/api/project/save-as" : "/api/project/save", { method: "POST", body: JSON.stringify(payload) });
-      if (saved.cancelled) { message(uiCopy("Save cancelled. Your current project remains open.")); return; }
+      if (saved.cancelled) {
+        if (automatic) throw new Error("The project save was cancelled.");
+        message(uiCopy("Save cancelled. Your current project remains open.")); return;
+      }
       const changed = captured !== projectStamp() || preparedPricing !== pricingStamp();
       if (context === state.quoteContext) {
         state.projectFile = saved.file;
+        if (!changed) {
+          state.projectEstimates = collectionFromProject(saved.project, payload.estimates);
+          state.estimatesDirty = false;
+        }
+        if (commercial) window.CeasefireCommercial?.markProjectSaved?.(saved.project.commercial_documents, commercial);
+        window.CeasefireDownloads?.projectSaved?.({ project_context: context, project_path: saved.file.path });
         window.CeasefireCalculators.markProjectSaved(saved.project.calculators, calculators);
         if (penetration) window.CeasefirePenetrations.markProjectSaved(saved.project.penetration, penetration);
         if (takeoffs) window.CeasefireTakeoffs.markProjectSaved(saved.project.takeoffs, takeoffs);
@@ -2076,7 +2259,12 @@
         } else updateDirty();
       }
       if (!changed || $("app-message").getAttribute("role") !== "alert") message(uiCopy("Project saved to {0}. It includes the Quote, Firestopping items, {1}project pricing{2} and all three specialist calculators.{3}{4}{5}{6}", [saved.file.path, window.CeasefireI18n.term(takeoffContents()), window.CeasefireI18n.term(libraryDrafts ? ", project library drafts" : ""), window.CeasefireI18n.term(pricing?.scope === "library" ? " Pricing Library edits were saved for this project only." : ""), window.CeasefireI18n.term(pricing?.conflict ? " The other pricing draft is still available and was not included." : ""), window.CeasefireI18n.term(changed ? " Later edits are not included and still need saving." : ""), saved.warning ? ` ${saved.warning}` : ""]), false, "project-saved");
-    } catch (error) { message(uiCopy("Project was not saved. {0}", [error.message]), true); }
+      return { saved: true, file: saved.file, changed };
+    } catch (error) {
+      if (automatic) throw error;
+      message(uiCopy("Project was not saved. {0}", [error.message]), true);
+      return { saved: false, error: error.message };
+    }
     finally { projectBusy(false); }
   }
 
@@ -2154,6 +2342,7 @@
       const [prepared, penetration, takeoffs, libraryDrafts, certification] = await Promise.all([window.CeasefireCalculators.prepareProject(project.calculators), window.CeasefirePenetrations?.prepareProject(project.penetration, project.estimate.configuration), window.CeasefireTakeoffs?.prepareProject(project.takeoffs, project.takeoffs_session_id), window.CeasefireLibraryEditor?.prepareProject?.(project.library_drafts), window.CeasefireCertification?.prepareProject?.(project.certifications, project.certification_workspace_id)]);
       preparedCertification = certification;
       const documentation = await window.CeasefireDocumentation?.prepareProject?.(project.documentation, certification?.workspace_id || project.certification_workspace_id);
+      const commercial = await window.CeasefireCommercial?.prepareProject?.(project.commercial_documents, certification?.workspace_id || project.certification_workspace_id);
       if (coverReplacementPending()) return;
       if (captured !== projectReplacementStamp()) throw new Error("Your draft changed while reading the file. Load it again when ready.");
       const detail = project.project_details || {};
@@ -2174,11 +2363,17 @@
       state.inputErrors.clear(); state.inputDrafts.clear(); state.workItemErrors.clear(); state.workItemDrafts.clear();
       state.quote = null; state.quoteConfiguration = configuration; state.fields = fields; state.inputs = inputs;
       state.workItems = clone(estimate.work_items || []); state.nextWorkItem = state.workItems.length + 1;
-      state.projectFile = { ...file, title: estimate.title }; resetProjectPricing("project");
+      resetEstimateCollection();
+      state.projectEstimates = collectionFromProject(project);
+      state.activeEstimateId = project.active_estimate_id || "estimate-1";
+      state.estimatesDirty = !!file.active_estimate_id && file.active_estimate_id !== state.activeEstimateId;
+      state.projectStatus = project.project_status || "Draft";
+      state.projectFile = { ...file, title: estimate.title, project_status: state.projectStatus }; resetProjectPricing("project");
       state.legacyTitle = [estimate.project_no, estimate.client, estimate.site_address].some(Boolean) ? "" : estimate.title || "";
       $("project-no").value = estimate.project_no || ""; $("client").value = estimate.client || ""; $("site-address").value = estimate.site_address || "";
       if (certification) { window.CeasefireCertification.applyProject(certification); certificationAdopted = true; }
       window.CeasefireDocumentation?.applyProject?.(documentation);
+      window.CeasefireCommercial?.applyProject?.(commercial);
       state.workflow = estimate.workflow; $("measurements").value = estimate.measurements || "";
       updateQuoteTitle(); renderInputs(); updateDirty(false);
       $("snapshot-message").hidden = false; window.CeasefireI18n.text($("snapshot-message").querySelector("span"), "This project uses the pricing snapshot from its file.");
@@ -2186,8 +2381,128 @@
       window.CeasefirePenetrations?.pricingChanged();
       message(file.save_token ? uiCopy("Project loaded with the Quote, Firestopping items, {0}original pricing and all three specialist calculators. Save updates this project file.", [window.CeasefireI18n.term(takeoffContents())]) : uiCopy("Project imported with the Quote, Firestopping items, {0}original pricing and all three specialist calculators. Use Save to choose its project file.", [window.CeasefireI18n.term(takeoffContents())]));
     } finally {
-      if (!takeoffsAdopted) await window.CeasefireTakeoffs?.discardPreparedSession?.(project.takeoffs_session_id);
+      if (!takeoffsAdopted) {
+        await window.CeasefireTakeoffs?.discardPreparedSession?.(project.takeoffs_session_id);
+        for (const entry of project.estimates || []) await window.CeasefireTakeoffs?.discardPreparedSession?.(entry.workspace.takeoffs_session_id);
+      }
       if (!certificationAdopted) await window.CeasefireCertification?.discardPreparedSession?.(preparedCertification?.workspace_id || project.certification_workspace_id);
+    }
+  }
+
+  function renderProjectBoard() {
+    const columns = projectStatuses.filter(status => state.projectColumns.has(status)).map(status => {
+      const column = node("section", "project-kanban-column");
+      column.dataset.status = status;
+      column.setAttribute("aria-label", `${status} projects`);
+      const files = state.projectCards.filter(file => (file.project_status || "Draft") === status);
+      const heading = node("div", "project-column-heading");
+      heading.append(uiNode("h2", "", status), node("span", "status-label", files.length));
+      column.append(heading);
+      column.addEventListener("dragover", event => {
+        if (!state.draggedProject || state.projectBusy) return;
+        event.preventDefault(); event.dataTransfer.dropEffect = "move";
+      });
+      column.addEventListener("drop", event => {
+        event.preventDefault();
+        const file = state.projectCards.find(item => item.id === state.draggedProject);
+        state.draggedProject = null;
+        if (file) changeProjectStage(file, status);
+      });
+      for (const file of files) {
+        const card = node("article", "project-kanban-card");
+        card.draggable = true; card.dataset.projectId = file.id;
+        card.addEventListener("dragstart", event => {
+          if (state.projectBusy) { event.preventDefault(); return; }
+          state.draggedProject = file.id;
+          event.dataTransfer.setData("text/plain", file.id); event.dataTransfer.effectAllowed = "move";
+        });
+        card.addEventListener("dragend", () => { state.draggedProject = null; });
+        const title = node("button", "project-title-button", file.title || file.name);
+        title.type = "button";
+        window.CeasefireI18n.attr(title, "aria-label", "Browse files for {0}", [file.title || file.name]);
+        title.addEventListener("click", () => openProjectBrowser(file));
+        const menu = node("details", "project-card-menu"), toggle = node("summary", "", "▾");
+        toggle.setAttribute("aria-label", `Actions for ${file.title || file.name}`);
+        const actions = node("div", "project-menu-options");
+        for (const [label, action] of [["Open", () => openProjectFile(file, title)], ["Edit", () => openProjectFile(file, title)], ["Delete", () => deleteProjectCard(file)]]) {
+          const button = uiNode("button", "text-button", label); button.type = "button";
+          button.addEventListener("click", () => { menu.open = false; action(); }); actions.append(button);
+        }
+        const browse = uiNode("button", "text-button", "Browse files"); browse.type = "button";
+        browse.addEventListener("click", () => { menu.open = false; openProjectBrowser(file); }); actions.append(browse);
+        const moveLabel = uiNode("label", "field", "Move to"), move = node("select");
+        move.setAttribute("aria-label", `Status for ${file.title || file.name}`);
+        for (const name of projectStatuses) { const option = uiNode("option", "", name); option.value = name; move.append(option); }
+        move.value = status;
+        move.addEventListener("change", () => { menu.open = false; changeProjectStage(file, move.value); });
+        moveLabel.append(move); actions.append(moveLabel); menu.append(toggle, actions);
+        const cardHeading = node("div", "project-card-heading"); cardHeading.append(title, menu);
+        card.append(cardHeading, node("p", "helper", [file.project_no, file.client, file.site_address].filter(Boolean).join(" · ")),
+          uiNode("p", "helper", "Last updated {0}", [new Date(file.modified_at).toLocaleString("en-AU")]),
+          node("p", "helper project-relative-path", file.relative_path || file.name));
+        const estimateLabel = uiNode("label", "field project-card-estimate", "Estimate"), estimateSelect = node("select");
+        estimateSelect.setAttribute("aria-label", `Estimate for ${file.title || file.name}`);
+        for (const entry of file.estimates || [{id:"estimate-1",name:"Estimate 1"}]) {const option = node("option", "", entry.name); option.value = entry.id; estimateSelect.append(option);}
+        estimateSelect.value = file.active_estimate_id || "estimate-1";
+        estimateSelect.addEventListener("change", () => openProjectFile(file, title, estimateSelect.value));
+        estimateLabel.append(estimateSelect); card.append(estimateLabel);
+        column.append(card);
+      }
+      if (!files.length) column.append(uiNode("p", "project-column-empty", "No projects"));
+      return column;
+    });
+    $("project-list").replaceChildren(...(columns.length ? columns : [uiNode("p", "empty-state", "Choose a column from Columns to show projects.")]));
+  }
+
+  async function changeProjectStage(file, status) {
+    if (state.projectBusy || status === (file.project_status || "Draft")) return;
+    projectBusy(true);
+    try {
+      const selection = file.save_token ? {save_token: file.save_token} : {id: file.id};
+      const result = await request("/api/projects/status", { method: "POST", body: JSON.stringify({...selection, revision: file.revision, project_status: status}) });
+      if (state.projectFile?.path === file.path && state.projectFile.revision === file.revision) {
+        state.projectFile = result.file; state.projectStatus = status;
+      }
+      await loadProjects();
+      message(uiCopy("Project moved to {0}.", [status]));
+    } catch (error) { message(error.message, true); }
+    finally { projectBusy(false); }
+  }
+
+  async function changeCurrentProjectStage() {
+    const status = $("project-status").value;
+    if (state.projectBusy || !projectStatuses.includes(status)) return;
+    if (state.projectFile?.save_token) await changeProjectStage(state.projectFile, status);
+    else { state.projectStatus = status; updateProjectStatus(); }
+  }
+
+  async function deleteProjectCard(file) {
+    if (state.projectBusy) return;
+    const accepted = await confirmReplace(uiCopy("Delete project?"), uiCopy("Remove {0} from Projects? Its project file will be retained under a recovery filename in the same folder. Companion documents stay in place.", [file.title || file.name]), uiCopy("Delete"));
+    if (!accepted || state.projectBusy) return;
+    projectBusy(true);
+    try {
+      await request("/api/projects/delete", {method: "POST", body: JSON.stringify({id: file.id, revision: file.revision})});
+      if (state.projectFile?.path === file.path) { state.projectFile = null; updateDirty(true); }
+      await loadProjects(); message(uiCopy("Project deleted from Projects."));
+    } catch (error) { message(error.message, true); }
+    finally { projectBusy(false); }
+  }
+
+  function initializeProjectColumns() {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem("classifire.projectColumns"));
+      if (Array.isArray(saved)) state.projectColumns = new Set(saved.filter(name => projectStatuses.includes(name)));
+    } catch { /* Use all columns if browser preferences are unavailable. */ }
+    for (const status of projectStatuses) {
+      const label = node("label"), checkbox = node("input"); checkbox.type = "checkbox";
+      checkbox.checked = state.projectColumns.has(status);
+      checkbox.addEventListener("change", () => {
+        if (checkbox.checked) state.projectColumns.add(status); else state.projectColumns.delete(status);
+        try { window.localStorage.setItem("classifire.projectColumns", JSON.stringify([...state.projectColumns])); } catch { /* This view still updates. */ }
+        renderProjectBoard();
+      });
+      label.append(checkbox, uiNode("span", "", status)); $("project-column-options").append(label);
     }
   }
 
@@ -2199,30 +2514,29 @@
     const query = [];
     if (search) query.push(`search=${encodeURIComponent(search)}`);
     if (sort !== "modified_desc") query.push(`sort=${encodeURIComponent(sort)}`);
-    if (offset) query.push(`offset=${offset}`);
     if (refresh) query.push("refresh=1");
     try {
       const data = await request(`/api/projects${query.length ? `?${query.join("&")}` : ""}`);
-      if (revision !== state.projectsRevision) return;
-      if (!data.scan_pending && offset > 0 && data.matched !== undefined && offset >= data.matched) {
-        return loadProjects({ offset: data.matched ? Math.floor((data.matched - 1) / 100) * 100 : 0 });
+      if (!data.scan_pending) {
+        const pageQuery = query.filter(part => part !== "refresh=1");
+        while (data.files?.length < data.matched) {
+          const page = await request(`/api/projects?${[...pageQuery, `offset=${data.files.length}`].join("&")}`);
+          if (revision !== state.projectsRevision) return;
+          if (!page.files.length) break;
+          data.files.push(...page.files);
+        }
       }
+      if (revision !== state.projectsRevision) return;
       if (data.folder) $("project-folder").textContent = data.folder;
       else window.CeasefireI18n.text($("project-folder"), "Link your estimates folder to list its project files and use it as the default save location.");
-      state.projectsOffset = data.offset ?? offset;
-      const items = (data.files || []).map(file => {
-        const item = node("article", "quote-item"), description = node("div");
-        const heading = node("h3"), title = node("button", "project-title-button", file.title || file.name); title.type = "button";
-        window.CeasefireI18n.attr(title, "aria-label", "Browse files for {0}", [file.title || file.name]); title.addEventListener("click", () => openProjectBrowser(file)); heading.append(title);
-        description.append(heading, node("p", "", [file.project_no, file.client, file.site_address].filter(Boolean).join(" · ")), node("p", "helper project-relative-path", file.relative_path || file.name), uiNode("p", "helper", "Saved {0}", [new Date(file.modified_at).toLocaleString("en-AU")]));
-        const button = uiNode("button", "button secondary", "Open project"); button.type = "button";
-        button.addEventListener("click", () => openProjectFile(file, button)); item.append(description, button); return item;
-      });
-      list.replaceChildren(...(items.length ? items : [uiNode("p", "empty-state", data.scan_pending ? "Scanning the linked folder and subfolders…" : search ? "No projects match this search." : "No project files in the linked folder or its subfolders yet.")]));
-      const matched = data.matched ?? items.length, total = data.total ?? matched, first = items.length ? state.projectsOffset + 1 : 0;
-      window.CeasefireI18n.text($("project-list-status"), "{0}–{1} of {2} matching projects · {3} found{4}", [first, items.length ? state.projectsOffset + items.length : 0, matched, total, data.scan_pending ? ` · Scanning subfolders (${data.scanned_entries || 0} entries checked)…` : ""]);
-      $("project-previous").disabled = !state.projectsOffset;
-      $("project-next").disabled = state.projectsOffset + items.length >= matched;
+      state.projectsOffset = 0;
+      state.projectCards = data.files || [];
+      renderProjectBoard();
+      const matched = data.matched ?? state.projectCards.length, total = data.total ?? matched;
+      window.CeasefireI18n.text($("project-list-status"), "{0} matching projects · {1} found{2}", [matched, total, data.scan_pending ? ` · Scanning subfolders (${data.scanned_entries || 0} entries checked)…` : ""]);
+      $("project-previous").disabled = true;
+      $("project-next").disabled = true;
+      if ($("project-previous").parentElement) $("project-previous").parentElement.hidden = true;
       $("project-continue").hidden = !data.scan_pending;
       const problems = (data.errors || []).map(item => `${item.name}: ${item.error}`);
       if (data.error_count > problems.length) problems.push(`${data.error_count - problems.length} additional entries could not be listed.`);
@@ -2250,12 +2564,24 @@
     finally { projectBusy(false); }
   }
 
-  async function openProjectFile(file, button) {
+  async function openProjectFile(file, button, estimateId = null) {
     if (state.projectBusy || coverReplacementPending()) return;
+    if (estimateId && state.projectFile?.path === file.path && state.projectEstimates.some(entry => entry.id === estimateId)) {
+      await selectEstimate(estimateId);
+      if (state.activeEstimateId === estimateId) { selectEstimator("estimate"); showView("estimate"); }
+      return;
+    }
     projectBusy(true); button.disabled = true; button.setAttribute("aria-busy", "true");
     try {
       const captured = projectReplacementStamp();
       const project = await request("/api/projects/load", { method: "POST", body: JSON.stringify({ id: file.id }) });
+      if (estimateId && project.estimates) {
+        const selected = project.estimates.find(entry => entry.id === estimateId);
+        if (!selected) throw new Error("The selected estimate is no longer available. Refresh Projects.");
+        for (const key of [...estimateWorkspaceKeys, "fields"]) delete project[key];
+        for (const key of [...estimateWorkspaceKeys, "fields", "project_details"]) if (selected.workspace[key] !== undefined) project[key] = selected.workspace[key];
+        project.active_estimate_id = estimateId;
+      }
       await reviewAndLoadProject(project, project.file || file, captured);
     } catch (error) { message(uiCopy("Project was not loaded. {0}", [error.message]), true); }
     finally { projectBusy(false); button.disabled = false; button.setAttribute("aria-busy", "false"); }
@@ -2416,7 +2742,11 @@
   $("measurements").addEventListener("input", () => updateDirty());
   $("new-quote").addEventListener("click", async () => { if (await confirmLeavePricingLibrary()) newQuote(); });
   $("download-quote-pdf").addEventListener("click", () => downloadQuotePdf());
-  for (const [id, label, materials] of [["download-full-schedule", "Download Full Schedule", false], ["download-full-product-summary", "Download Full Product Summary", true]]) {
+  $("estimate-open-quote").addEventListener("click", async () => {
+    const context = state.quoteContext;
+    if (await requestViewNavigation("quote") && state.currentView === "quote" && context === state.quoteContext) await window.CeasefireCommercial?.openFromEstimate?.();
+  });
+  for (const [id, label, materials] of [["download-full-schedule", "Full Schedule", false], ["download-full-product-summary", "Full Product Summary", true]]) {
     const button = node("button", "button pdf-button calculator-document-action"); button.id = id; button.type = "button";
     const icon = node("span", "download-format-icon"); icon.setAttribute("aria-hidden", "true");
     icon.append(node("span", "download-arrow", "⇩"), node("span", "download-format", "PDF"));
@@ -2443,6 +2773,11 @@
     state.projectsTimer = setTimeout(() => loadProjects({ offset: 0 }), 250);
   });
   $("project-sort").addEventListener("change", () => loadProjects({ offset: 0 }));
+  $("project-status").addEventListener("change", changeCurrentProjectStage);
+  $("project-estimate-select").addEventListener("change", () => selectEstimate($("project-estimate-select").value));
+  $("project-estimate-new").addEventListener("click", addProjectEstimate);
+  $("project-estimate-rename").addEventListener("click", renameProjectEstimate);
+  initializeProjectColumns();
   $("project-previous").addEventListener("click", () => loadProjects({ offset: Math.max(0, state.projectsOffset - 100) }));
   $("project-next").addEventListener("click", () => loadProjects({ offset: state.projectsOffset + 100 }));
   $("project-continue").addEventListener("click", () => loadProjects());
@@ -2472,7 +2807,7 @@
   });
   window.addEventListener("beforeunload", (event) => {
     const pricingChanged = sharedPricingChanged();
-    if (projectHasChanges() || pricingChanged || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.() || window.CeasefireCoverSheets?.hasUnsavedChanges?.()) {
+    if (projectHasChanges() || pricingChanged || window.CeasefireScheduler?.hasPendingOperation?.() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.() || window.CeasefireCoverSheets?.hasUnsavedChanges?.()) {
       event.preventDefault(); event.returnValue = pricingChanged ? pricingUnsavedPrompt : "";
     }
   });
@@ -2482,7 +2817,7 @@
   window.addEventListener("input", () => { desktopInputRevision++; }, true);
   window.addEventListener("change", () => { desktopInputRevision++; }, true);
   function desktopCloseStamp() { return JSON.stringify({ project: projectStamp(), input: desktopInputRevision, pricing: sharedPricingDraft(), pricingRevision: state.pricingRevision, libraryDirty: !!window.CeasefireLibraryEditor?.hasUnsavedChanges(), certification: window.CeasefireCertification?.fingerprint?.(), coverSheets:window.CeasefireCoverSheets?.fingerprint?.() }); }
-  function desktopBusy() { return state.projectBusy || state.desktopRequests > 0 || !!document.querySelector('dialog[open], [aria-busy="true"]') || !state.initialized || !!window.CeasefireCalculators?.hasPendingOperation?.() || !!window.CeasefirePenetrations?.hasPendingOperation?.() || !!window.CeasefireTakeoffs?.hasPendingOperation?.() || !!window.CeasefireLibraryEditor?.hasPendingOperation?.() || !!window.CeasefireCertification?.hasPendingOperation?.() || !!window.CeasefireCoverSheets?.hasPendingOperation?.() || !!window.CeasefireDocumentation?.hasPendingOperation?.(); }
+  function desktopBusy() { return state.projectBusy || state.desktopRequests > 0 || !!window.CeasefireCommercial?.hasPendingOperation?.() || !!window.CeasefireDownloads?.hasPendingOperation?.() || !!document.querySelector('dialog[open], [aria-busy="true"]') || !state.initialized || !!window.CeasefireCalculators?.hasPendingOperation?.() || !!window.CeasefirePenetrations?.hasPendingOperation?.() || !!window.CeasefireTakeoffs?.hasPendingOperation?.() || !!window.CeasefireLibraryEditor?.hasPendingOperation?.() || !!window.CeasefireCertification?.hasPendingOperation?.() || !!window.CeasefireCoverSheets?.hasPendingOperation?.() || !!window.CeasefireDocumentation?.hasPendingOperation?.(); }
   async function reviewDesktopClose() {
     if (desktopBusy()) { message(uiCopy("Finish the current operation or dialog before closing ESTIMATOR."), true); return false; }
     const captured = desktopCloseStamp();
@@ -2513,11 +2848,27 @@
     state.firestoppingStamp = stamp;
     if (state.initialized) { if (hadSchedule) updateDirty(); scheduleCalculation(); }
   }
+  function isCurrentDownloadTarget(target) {
+    return !!target && target.project_context === state.quoteContext &&
+      typeof target.project_path === "string" && target.project_path === state.projectFile?.path;
+  }
   window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus, scheduleChanged,
     configuration: () => clone(state.quoteConfiguration || state.configuration),
+    context: () => ({project_token:state.projectFile?.save_token || null,project_context:state.quoteContext,project_path:state.projectFile?.path || null}),
     runtimeContext: () => state.quoteContext,
-    downloadTarget: () => ({ project_token: state.projectFile?.save_token || null }) };
+    hasPendingOperation: () => state.projectBusy,
+    isCurrentDownloadTarget,
+    downloadTarget() {
+      // Schedules also read this identity to guard deletion reviews. Reading
+      // an unsaved project's identity must not prevent worksheet rendering.
+      return { project_token: state.projectFile?.save_token || null, project_context: state.quoteContext, project_path: state.projectFile?.path || null };
+    },
+    saveAfterDownload: target => saveProject({ automatic: true, downloadTarget: target }),
+    downloadSaveFailed(target, result, error) {
+      if (isCurrentDownloadTarget(target)) message(uiCopy("File saved to {0}, but the project was not saved. {1}", [result.path, error.message]), true);
+    } };
   window.CeasefireDocumentationApp = { async run(adapter, spec, button) {
+    if (adapter === "commercial") { await requestViewNavigation({quote:"quote",work_order:"work-orders",purchase_order:"purchase-orders"}[spec.kind]); return {selectionRequired:true}; }
     if (adapter === "pricing") return exportPricing(button);
     if (adapter === "estimate") {
       if (spec.action === "summary") return downloadQuotePdf(button);

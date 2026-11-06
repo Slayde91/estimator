@@ -169,14 +169,14 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
  }
   await chooseCalculator(page,'Steel (board)');await idle();const reloadReview=async dialog=>{assert.equal(dialog.type(),'beforeunload');await dialog.accept();};page.once('dialog',reloadReview);await page.reload();page.off('dialog',reloadReview);await boot();await chooseCalculator(page,'Steel (board)');await idle();await expect(nativeCell('column:V')).toBeHidden();
   const restoredPanel=await chooser();await selectAll(restoredPanel,true);await assertBoardColumnsRemoved(restoredPanel);await restoredPanel.press('Escape');await expect(nativeCell('column:V')).toBeVisible();
- // Calculators retains the visible schedule; the hidden compatibility
- // projection must still receive identical data and column preferences.
+ // Both schedule locations share their data and column preferences, while
+ // navigation keeps the inactive Estimates view hidden.
  await chooseCalculator(page,'Firestopping');await fireIdle();
  const setupEstimate=page.waitForResponse(response=>response.request().method()==='POST'&&response.url()===`${base}/api/calculate`&&response.request().postDataJSON()?.penetration?.draft?.rows?.some(row=>row.id==='column-choices-fire'));
  await page.evaluate(async()=>{const api=window.CeasefirePenetrations,snapshot=api.projectSnapshot(),row=structuredClone(snapshot.composer.rows[0]);row.id='column-choices-fire';row.inputs.O=2.3456789012345;row.inputs.T='Column fixture';snapshot.draft.rows=[row];api.applyProject(await api.prepareProject(snapshot));await window.CeasefirePenetrationNavigation.showSchedule();});await fireIdle();
  const setupResponse=await setupEstimate;assert.equal(setupResponse.status(),200);await setupResponse.finished();evidence.firestopping_setup={mainEstimateCompleted:true,requestPath:new URL(setupResponse.url()).pathname};
  const fireBefore=await page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot()),fireRequests=calculations;
- await expect(page.locator('#main-tab-firestopping-schedule')).toHaveCount(0);await expect(page.locator('#main-panel-firestopping-schedule')).toBeHidden();
+ await expect(page.locator('#main-tab-firestopping-schedule')).toHaveCount(1);await expect(page.locator('#main-panel-firestopping-schedule')).toBeHidden();
  const visibleSchedule=page.locator('.penetration-estimator-schedule');await expect(visibleSchedule).toBeVisible();
  if(!await visibleSchedule.evaluate(element=>element.open))await visibleSchedule.locator(':scope > summary').click();
  const toggle=visibleSchedule.locator('.schedule-column-toggle');await toggle.click();const firePanel=page.locator('#'+await toggle.getAttribute('aria-controls'));

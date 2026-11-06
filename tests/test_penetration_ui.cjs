@@ -429,6 +429,40 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     const count=h.calls.length;await h.api.openSchedule();assert.equal(h.calls.length,count+1);assert.equal(h.calls.at(-1).payload.draft.rows.length,0);assert.equal(h.audit.state.result,null);
     await h.api.open();assert.equal(h.calls.at(-1).payload.draft.rows.length,1);assert.equal(h.api.hasUnsavedChanges(),false);
   });
+  await check('Estimate Outputs and Firestopping share schedule rows, breakdowns, summary errors and replacement state', async h => {
+    const snapshot = copy(h.api.projectSnapshot());
+    snapshot.draft.rows = [{id:'shared-row',inputs:{T:'Shared schedule item',O:2.3456789012345}}];
+    h.api.applyProject(await h.api.prepareProject(snapshot));
+    h.audit.setRequest(async (path,payload) => {
+      const response = result(payload.draft);
+      return {...response,schedule_breakdown:response.rows[0].breakdown};
+    });
+    await h.audit.calculateSchedule();
+    const pairedText = suffix => {
+      const main = text(h.byId(`penetration-main-schedule-${suffix}`));
+      assert.equal(main,text(h.byId(`penetration-schedule-${suffix}`)));
+      return main;
+    };
+    assert.equal(text(h.byId('penetration-schedule-body')),text(h.byId('penetration-estimator-schedule-body')));
+    assert.match(pairedText('breakdown'),/Wrap/);
+    assert.match(pairedText('summary'),/123\.46/);
+    assert.notEqual(h.byId('penetration-main-schedule-breakdown').children[0],h.byId('penetration-schedule-breakdown').children[0]);
+    const before = copy(h.api.projectSnapshot());
+    await h.byId('penetration-schedule-tab-breakdown').emit('click');
+    assert.equal(h.byId('penetration-schedule-panel-breakdown').hidden,false);
+    assert.deepEqual(copy(h.api.projectSnapshot()),before);
+    h.audit.setRequest(async (path,payload) => ({...result(payload.draft),summary:{grand_total:'#VALUE!'},errors:[{row_id:null,cell:'H2',message:'Review shared item'}]}));
+    await h.audit.calculateSchedule();
+    assert.match(pairedText('summary-notes'),/Review shared item/);
+    assert.doesNotMatch(pairedText('summary'),/#VALUE!/);
+    h.audit.setRequest(async () => {throw Error('Schedule calculation unavailable');});
+    await h.audit.calculateSchedule();
+    assert.match(pairedText('message'),/Schedule calculation unavailable/);
+    h.api.applyProject({definition:definition(),draft:copy(definition().schedule_defaults),composer:copy(definition().defaults)});
+    assert.doesNotMatch(text(h.byId('penetration-schedule-body')),/Shared schedule item/);
+    assert.doesNotMatch(pairedText('breakdown'),/Wrap/);
+    assert.doesNotMatch(pairedText('summary'),/123\.46/);
+  });
   await check('Raw composer and schedule globals survive editing, calculation and reopening without editable allowance controls',async h=>{
     const snapshot={draft:copy(definition().schedule_defaults),composer:copy(definition().defaults)};
     snapshot.composer.globals={J:'Yes',K:3.14159265358979,L:.123456789012345,M:27.123456789};snapshot.draft.globals={J:'No',K:null,L:.076543210987654,M:0};

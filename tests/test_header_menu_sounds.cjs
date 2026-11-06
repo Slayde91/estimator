@@ -1,33 +1,37 @@
 "use strict";
-const { verifiedPreloadCancellation } = require("./helpers/media_preload_guard.cjs");
+const { verifiedNativeMediaCancellation } = require("./helpers/media_preload_guard.cjs");
 const assert = require("node:assert/strict"), { test } = require("node:test");
 const fs = require("node:fs"), path = require("node:path"), { createHash } = require("node:crypto");
 const { create, sources, createFeedback, feedbackSources, createPrinting, printingSource, createDownloadSound } = require("../static/header-menu-sounds.js");
 
-test("startup media cancellation requires exact request identity, delivered bytes and trusted decoding proof", () => {
+test("native media cancellation at any stage requires exact delivery and fresh trusted decoding proof", () => {
   const origin = "http://127.0.0.1:54321", source = feedbackSources.selectOther, url = origin + source, sha256 = "a".repeat(64);
-  const request = { stage: "initial load", method: "GET", resourceType: "media", url, failure: { errorText: "net::ERR_ABORTED" } };
-  const proof = { origin, paths: [source], hashes: { [`static${source}`]: sha256 },
+  const request = { stage: "responsive layout", observedAt: "2026-11-06T14:37:15.006Z", method: "GET", resourceType: "media", url, failure: { errorText: "net::ERR_ABORTED" } };
+  const proof = { origin, paths: [source], hashes: { [`static${source}`]: sha256 }, capturedAt: "2026-11-06T14:37:16.000Z",
     assets: [{ url, status: 200, contentType: "audio/mpeg", sha256, bytes: 123 }],
-    preloads: [{ url, error: null, readyState: 4, duration: 6, events: [{ type: "loadeddata", trusted: true }, { type: "suspend", error: null }] }] };
-  assert.equal(verifiedPreloadCancellation(request, proof), true);
+    media: [{ url, error: null, readyState: 4, duration: 6, events: [{ type: "loadeddata", trusted: true }, { type: "suspend", error: null }] }] };
+  for (const stage of ["initial load", "responsive layout", "Textbox settings ceasefire"])
+    assert.equal(verifiedNativeMediaCancellation({ ...request, stage }, proof), true);
+  assert.equal(verifiedNativeMediaCancellation(request, { ...proof, capturedAt: request.observedAt }), true);
+  assert.equal(verifiedNativeMediaCancellation(request), false, "Missing final proof cannot excuse a late request");
   for (const [clip, mime] of [[feedbackSources.explosion, "audio/wav"], [feedbackSources.checkpoint, "audio/ogg"], [printingSource, "audio/mpeg"]]) {
     const address = origin + clip;
-    const typed = { ...proof, paths: [clip], hashes: { [`static${clip}`]: sha256 }, assets: [{ ...proof.assets[0], url: address, contentType: mime }], preloads: [{ ...proof.preloads[0], url: address }] };
-    assert.equal(verifiedPreloadCancellation({ ...request, url: address }, typed), true);
-    assert.equal(verifiedPreloadCancellation({ ...request, url: address }, { ...typed, assets: [{ ...typed.assets[0], contentType: "text/plain" }] }), false);
+    const typed = { ...proof, paths: [clip], hashes: { [`static${clip}`]: sha256 }, assets: [{ ...proof.assets[0], url: address, contentType: mime }], media: [{ ...proof.media[0], url: address }] };
+    assert.equal(verifiedNativeMediaCancellation({ ...request, url: address }, typed), true);
+    assert.equal(verifiedNativeMediaCancellation({ ...request, url: address }, { ...typed, assets: [{ ...typed.assets[0], contentType: "text/plain" }] }), false);
   }
-  for (const changed of [{ stage: "drawing upload" }, { method: "POST" }, { resourceType: "fetch" },
+  for (const changed of [{ observedAt: undefined }, { observedAt: "invalid" }, { method: "POST" }, { resourceType: "fetch" },
     { url: origin + feedbackSources.hover }, { url: "http://127.0.0.1:54322" + source }, { url: url + "?other=1" },
     { failure: { errorText: "net::ERR_FAILED" } }, { failure: null }]) {
-    assert.equal(verifiedPreloadCancellation({ ...request, ...changed }, proof), false, JSON.stringify(changed));
+    assert.equal(verifiedNativeMediaCancellation({ ...request, ...changed }, proof), false, JSON.stringify(changed));
   }
-  for (const changed of [{ assets: [] }, { preloads: [] }, { hashes: {} },
+  for (const changed of [{ assets: [] }, { media: [] }, { media: undefined }, { hashes: {} },
+    { capturedAt: undefined }, { capturedAt: "invalid" }, { capturedAt: "2026-11-06T14:37:15.005Z" },
     ...[{ status: 404 }, { status: 500 }, { contentType: "text/html" }, { sha256: "b".repeat(64) }, { bytes: 0 }].map(change => ({ assets: [{ ...proof.assets[0], ...change }] })),
     ...[{ readyState: 0 }, { duration: NaN }, { duration: 0 }, { error: 3 }, { events: [] },
       { events: [{ type: "loadeddata", trusted: false }] },
-      { events: [{ type: "loadeddata", trusted: true }, { type: "error", error: 3 }] }].map(change => ({ preloads: [{ ...proof.preloads[0], ...change }] }))]) {
-    assert.equal(verifiedPreloadCancellation(request, { ...proof, ...changed }), false, JSON.stringify(changed));
+      { events: [{ type: "loadeddata", trusted: true }, { type: "error", error: 3 }] }].map(change => ({ media: [{ ...proof.media[0], ...change }] }))]) {
+    assert.equal(verifiedNativeMediaCancellation(request, { ...proof, ...changed }), false, JSON.stringify(changed));
   }
 });
 

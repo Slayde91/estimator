@@ -30,8 +30,8 @@ async function submit(name) {await page.locator('dialog[open]').getByRole('butto
   page.setDefaultTimeout(30000); page.on('pageerror',error => errors.push(error.message));
   await page.goto(`http://127.0.0.1:${info.port}/`);
   await page.waitForFunction(() => window.CeasefireDesktop?.status()?.ready);
-  await page.locator('#projects-navigation-toggle').hover();
-  await page.locator('#projects-navigation-menu [data-project-section="scheduler"]').click();
+
+  await page.locator('#scheduler-navigation').click();
   await page.getByLabel('Your name',{exact:true}).fill('Rules Admin');
   await page.locator('#scheduler-root').getByLabel('Email',{exact:true}).fill('rules@example.test');
   await page.getByLabel('Password',{exact:true}).fill('Rules-password-2026');
@@ -56,6 +56,11 @@ async function submit(name) {await page.locator('dialog[open]').getByRole('butto
   assert.equal((await api('scheduler/settings',{...initial.settings,overtime_rules:[],breaks:[]})).status,200);
   await page.evaluate(() => window.CeasefireScheduler.activate());
   await tab('Settings');
+  const settingsActions=page.locator('.scheduler-settings-actions');
+  await expect(settingsActions.getByRole('button',{name:'Save settings',exact:true})).toBeVisible();
+  const discard=settingsActions.getByRole('button',{name:'Discard settings changes',exact:true});
+  await expect(discard).toHaveText('');await expect(discard.locator('svg path')).toHaveCount(4);
+  assert.deepEqual(await discard.locator('svg path').evaluateAll(nodes=>nodes.map(node=>node.getAttribute('d'))),await page.locator('#penetration-clear svg path').evaluateAll(nodes=>nodes.map(node=>node.getAttribute('d'))));
   await page.getByRole('button',{name:'Add overtime rule',exact:true}).click();
   await page.getByLabel('Rule name',{exact:true}).fill('After six hours');
   await page.getByLabel('Start after hours',{exact:true}).fill('6');
@@ -79,6 +84,8 @@ async function submit(name) {await page.locator('dialog[open]').getByRole('butto
   await tab('Time entries');
   await page.getByLabel('Week containing date').fill('2026-11-02'); await page.getByLabel('Week containing date').press('Tab');
   await page.getByRole('button',{name:'Add time entry',exact:true}).click(); modal = page.locator('dialog[open]');
+  const fieldOrder=await modal.locator('.scheduler-form-fields > label > span').allTextContents();
+  assert.deepEqual(fieldOrder.slice(0,4),['Team member','Start','Job / project reference','Finish']);
   await modal.getByLabel('Team member',{exact:true}).selectOption(worker.id);
   await modal.getByLabel('Start',{exact:true}).fill('2026-11-02T07:00');
   await modal.getByLabel('Finish',{exact:true}).fill('2026-11-02T15:00');

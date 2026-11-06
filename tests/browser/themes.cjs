@@ -168,7 +168,7 @@ async function readableMidnightIcon(control) {
   await settings(); await expect(page.locator('#theme-toggle')).toHaveAccessibleName('Theme: CLASSIFIRE. Next theme: Midnight.');
   await page.getByRole('button',{name:'Estimates',exact:true}).click(); await idle();
   await expect(page.locator('#project-no')).toBeVisible();
-  await page.locator('#project-no').fill('THEME-DRAFT-UNCHANGED'); await page.locator('#measurements').fill('Pending notes are preserved across every theme.');
+  await expect(page.locator('#project-no')).toHaveAttribute('readonly',''); await page.locator('#measurements').fill('Pending notes are preserved across every theme.');
   await page.locator('#measurements').press('Tab'); await idle(); await page.waitForLoadState('networkidle');
   const before=await snapshot(), requestCount=mutationRequests.length, buttonColors=new Set(), footerText=await page.locator('footer').innerText();
   for(const id of ['ceasefire','midnight','ocean','forest','slate']) {

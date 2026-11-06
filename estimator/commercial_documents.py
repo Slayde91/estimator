@@ -36,6 +36,29 @@ ORDER_FIELDS = ('start_date', 'end_date', 'urgency', 'quote_id', 'work_order_id'
 FIELD_KEYS = {'title', 'details', 'introduction', 'lines', 'scope', 'scope_tables', 'sources', 'allowances', 'terms', 'order', 'company_reference'}
 MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024
 MAX_PDF_BYTES = 64 * 1024 * 1024
+RATE_DEFAULTS = {'ordinary_time': '130', 'time_and_half': '160', 'double_time': '190',
+                 'site_remobilisation': '1000', 'access_equipment_transport': '400',
+                 'equipment': '20', 'materials': '20'}
+RATE_INTRODUCTION = ('If additional work, or rectification work that is not the result of defective workmanship, '
+                     'is directed by the client or their representatives, either verbally or in writing, the '
+                     'following rates shall apply when calculating the value of such work:')
+
+
+def default_rate_schedule():
+    return {'introduction': RATE_INTRODUCTION, 'rates': dict(RATE_DEFAULTS),
+            'acceptance': {key: '' for key in ('accepted_by', 'title', 'signature', 'date')}}
+
+
+def validate_rate_schedule(value):
+    if not isinstance(value, dict) or set(value) != {'introduction', 'rates', 'acceptance'}:
+        raise ValidationError('Schedule of Rates uses an unsupported format.')
+    if not isinstance(value['rates'], dict) or set(value['rates']) != set(RATE_DEFAULTS):
+        raise ValidationError('Include each Schedule of Rates amount.')
+    if not isinstance(value['acceptance'], dict) or set(value['acceptance']) != {'accepted_by', 'title', 'signature', 'date'}:
+        raise ValidationError('Include the Schedule of Rates acceptance fields.')
+    return {'introduction': _text(value['introduction'], 'Schedule of Rates introduction', 20000),
+            'rates': {key: _number(amount, 'Schedule of Rates amount') for key, amount in value['rates'].items()},
+            'acceptance': {key: _text(text, 'Acceptance', 1000) for key, text in value['acceptance'].items()}}
 
 
 class CommercialConflict(ValidationError):
@@ -215,13 +238,15 @@ def default_fields(kind, details=None, company=None):
             'introduction': INTRODUCTION if kind == 'quote' else '', 'lines': [], 'scope': '',
             'scope_tables': [], 'sources': [], 'allowances': '', 'terms': default_terms(company) if kind == 'quote' else '',
             'order': {key: '' for key in ORDER_FIELDS},
+            'rate_schedule': default_rate_schedule(),
             'company_reference': {key: company.get(key, '') for key in ('name', 'abn')}}
 
 
 def validate_fields(value):
-    if not isinstance(value, dict) or set(value) != FIELD_KEYS:
+    if not isinstance(value, dict) or set(value) - {'rate_schedule'} != FIELD_KEYS:
         raise ValidationError('Commercial document fields use an unsupported format.')
     result = {'title': _text(value['title'], 'Title', 300)}
+    result['rate_schedule'] = validate_rate_schedule(value.get('rate_schedule', default_rate_schedule()))
     company = value['company_reference']
     if not isinstance(company, dict) or set(company) != {'name', 'abn'}:
         raise ValidationError('Commercial document company reference is invalid.')

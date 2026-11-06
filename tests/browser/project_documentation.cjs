@@ -74,7 +74,7 @@ function checkCompanions(project,folder){
   page.on('request',request=>{if(request.method()==='POST'&&/\/(?:report\.pdf|quote-report|template|item\.(?:pdf|xlsx)|register\.xlsx|revisions)$/.test(new URL(request.url()).pathname))sourceRequests.push({path:new URL(request.url()).pathname,body:request.postDataJSON()});});
   page.on('request',request=>{if(request.method()==='POST'&&/^\/api\/(?:project\/(?:save|save-as|open)|certifications\/workspaces)$/.test(new URL(request.url()).pathname))projectMutations.push(new URL(request.url()).pathname);});
   await page.goto(base+'/');await idle();await page.locator('#estimate-navigation-toggle').click();
-  await page.locator('#client').fill('SYNTHETIC DOCUMENTATION QA');await page.locator('#project-no').fill('DOC-PROJECT-A');await page.locator('#site-address').fill('Synthetic test address - no installation claim');
+  await page.locator('#client').fill('SYNTHETIC DOCUMENTATION QA');await expect(page.locator('#project-no')).toHaveAttribute('readonly','');await page.locator('#site-address').fill('Synthetic test address - no installation claim');
   choose('project-a.cf.json');await save();console.log('Project A saved on disposable storage.');const baseline=await snapshots();
   await documentation();const catalog=(await api('/api/documentation/catalog')).documents;
   const omittedPdfRows=new Set(['firestopping.current_item.pdf','library.technical.item.pdf','takeoff.pdf_tools.pdf']);

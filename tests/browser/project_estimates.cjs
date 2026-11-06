@@ -24,7 +24,7 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   browser=await chromium.launch({headless:true,...(process.env.CEASEFIRE_BROWSER_PATH?{executablePath:process.env.CEASEFIRE_BROWSER_PATH}:{})});
   page=await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(60000);page.on('pageerror',error=>errors.push(error.message));
   await page.goto(`http://127.0.0.1:${info.port}/`);await idle();await estimate();
-  await page.locator('#project-no').fill('MULTI');await page.locator('#measurements').fill('First estimate notes');await page.locator('#measurements').blur();await idle();
+  await expect(page.locator('#project-no')).toHaveAttribute('readonly','');await page.locator('#measurements').fill('First estimate notes');await page.locator('#measurements').blur();await idle();
   await chooseTakeoff(page,'Steel');await renderDrawing(page,()=>page.locator('#takeoff-upload').setInputFiles(info.fixture),1);await idle();
   const firstSession=await page.evaluate(()=>window.CeasefireTakeoffs.sessionId());
   const firstDrawing=await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot().documents[0].id);
@@ -67,7 +67,7 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   await page.setViewportSize({width:1440,height:1000});
   await page.locator('#projects-navigation-toggle').hover();
   await page.locator('#projects-navigation-menu [data-project-section="quotes"]').click();await idle();
-  const card=page.locator('.project-kanban-card').filter({hasText:'MULTI'});
+  const card=page.locator('.project-kanban-card').filter({hasText:'PN-00001'});
   await expect(card).toHaveCount(1);await expect(card.locator('.project-card-estimate option')).toHaveCount(2);
   await card.locator('.project-card-estimate select').selectOption(second);await idle();
   await expect(page.locator('#measurements')).toHaveValue('Second estimate notes');
@@ -75,7 +75,7 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   await documentToggle.click();await page.locator('#estimate-open-quote').click();
   await expect(page.locator('#view-quote')).toBeVisible();
   await expect(page.locator('#commercial-quote-root').getByLabel('Document title',{exact:true})).toBeVisible();
-  await expect(page.locator('#commercial-quote-root').getByLabel('Project number',{exact:true})).toHaveValue('MULTI');
+  await expect(page.locator('#commercial-quote-root').getByLabel('Project number',{exact:true})).toHaveValue('PN-00001');
   await expect(page.locator('#measurements')).toHaveValue('Second estimate notes');
   await page.screenshot({path:path.join(output,'multiple-estimates.png'),fullPage:true});assert.deepEqual(errors,[]);
   console.log(JSON.stringify({passed:true,output,checks:['create','rename','switch keeps notes','inactive takeoff session retained','save all estimates','reload restores inactive drawings']}));

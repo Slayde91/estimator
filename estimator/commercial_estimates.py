@@ -66,7 +66,7 @@ def derive_estimates(store, body, *, edition='full', company=None, library=None,
     if (not isinstance(selected, list) or any(not isinstance(identity, str) for identity in selected)
             or len(set(selected)) != len(selected) or any(identity not in available for identity in selected)):
         raise ValidationError('Choose each linked estimate once from the current project.')
-    output = {'lines': [], 'scope': '', 'scope_tables': [], 'sources': [], 'scope_documents': []}
+    output = {'lines': [], 'scope': '', 'scope_tables': [], 'scope_groups': [], 'sources': [], 'scope_documents': []}
     paragraphs = []
     for identity in selected:
         item = available[identity]
@@ -94,10 +94,14 @@ def derive_estimates(store, body, *, edition='full', company=None, library=None,
                             sort_keys=True, ensure_ascii=False, allow_nan=False, separators=(',', ':')).encode('utf-8')
         output['sources'].append({'estimate_id': identity, 'sha256': sha256(source).hexdigest()})
         tables = _scope_tables(project, item['name'], library)
+        start = len(output['scope_tables'])
         output['scope_tables'].extend(tables)
-        paragraphs.append('<p><b>' + escape(item['name']) + '</b></p>')
+        scope = '<p><b>' + escape(item['name']) + '</b></p>'
         if not tables:
-            paragraphs.append('<p>No calculator schedule rows have been entered for this estimate.</p>')
+            scope += '<p>No calculator schedule rows have been entered for this estimate.</p>'
+        paragraphs.append(scope)
+        output['scope_groups'].append({'estimate_id': identity, 'scope': scope,
+                                       'table_start': start, 'table_count': len(tables)})
         if include_pdfs and tables:
             calculators = {key: {'inputs': value['inputs']} for key, value in project['calculators'].items()}
             document = build_project_report(calculators,

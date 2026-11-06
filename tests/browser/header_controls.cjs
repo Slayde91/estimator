@@ -58,7 +58,7 @@ async function inspectHeader(width) {
     const buttons = await page.locator('nav[aria-label="Main navigation"] .nav-icon').evaluateAll(nodes => nodes.map(el => {
       const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, width: b.width, height: b.height };
     }));
-    assert.equal(buttons.length, 8);
+    assert.equal(buttons.length, 10);
     for (const b of buttons) {
       assert.ok(b.width >= 40 && b.height >= 40, `Usable navigation target at ${width}`);
       assert.ok(b.x >= nav.x && b.x + b.width <= nav.x + nav.width + 1 && b.y >= nav.y && b.y + b.height <= nav.y + nav.height + 1, `Individual navigation button fits at ${width}`);
@@ -150,7 +150,10 @@ async function inspectHeader(width) {
     }
     // The additional 320px case covers this header change; retained whole-workspace coverage starts at 390px.
     if (width === 320) continue;
-    for (const section of ['Home', 'Estimates', 'Calculators', 'Takeoffs', 'Libraries', 'Projects', 'Help']) {
+    for (const section of ['Home', 'Estimates', 'Calculators', 'Takeoffs', 'Libraries', 'Projects', 'Documents', 'Scheduler', 'Help']) {
+      // Menus intentionally overlay the next navigation row. Dismiss the previous
+      // focused menu before selecting a destination underneath it.
+      await page.keyboard.press('Escape');await page.mouse.move(0,0);
       await page.locator('nav[aria-label="Main navigation"] .nav-button').filter({hasText:section}).click(); if(section==='Projects'&&await page.locator('#view-projects').isVisible())await page.locator('#view-projects [data-project-section="quotes"]').click(); await idle();
       const actions = page.locator('#header-project-actions'); await expect(actions).toBeVisible();
       for (const name of ['Save', 'Project files']) await expect(actions.getByRole('button', { name, exact: true })).toBeVisible();
@@ -189,7 +192,7 @@ async function inspectHeader(width) {
   await expect(page.getByRole('button',{name:'Save As',exact:true})).toHaveCount(0);
   await expect(page.locator('#project-attachment-zone')).toHaveAttribute('title','Drag or drop files');
   const icons=await page.locator('nav[aria-label="Main navigation"] .nav-icon>svg, nav[aria-label="Main navigation"] .nav-icon>span[aria-hidden]>svg, nav[aria-label="Main navigation"] .nav-icon>img').evaluateAll(nodes=>nodes.map(el=>({width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height,src:el.getAttribute('src'),stroke:el.tagName.toLowerCase()==='svg'?el.getAttribute('stroke-width'):null})));
-  assert.equal(icons.length,8);for(const icon of icons){assert.ok(Math.abs(icon.width-26*(.65*1.2))<.02&&Math.abs(icon.height-26*(.65*1.2))<.02,'Original navigation artwork renders20% larger than the previous65% baseline');assert.equal(icon.stroke,'2');}
+  assert.equal(icons.length,10);for(const icon of icons){assert.ok(Math.abs(icon.width-26*(.65*1.2))<.02&&Math.abs(icon.height-26*(.65*1.2))<.02,'Original navigation artwork renders20% larger than the previous65% baseline');assert.equal(icon.stroke,'2');}
   await chooseCalculator(page,'Firestopping'); await idle();
   await expect(page.locator('#penetration-new-item')).toBeHidden(); await expect(page.locator('#penetration-recalculate')).toBeHidden();
   for (const [id, name] of [['penetration-clear','Clear'],['penetration-add-to-schedule','Add to Schedule'],['penetration-add-to-library','Add to Library']]) { await expect(page.locator('#'+id)).toBeVisible(); await expect(page.locator('#'+id)).toHaveAccessibleName(name); }

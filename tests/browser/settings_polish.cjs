@@ -21,7 +21,8 @@ async function idle(){await page.waitForFunction(()=>{const status=window.Ceasef
   page.setDefaultTimeout(45000);page.on('pageerror',error=>errors.push(error.message));
   await page.goto(`http://127.0.0.1:${info.port}/`);await idle();await page.getByRole('button',{name:'Settings',exact:true}).click();
   await expect(page.locator('#company-settings-status')).toHaveText('Saved');
-  await expect(page.locator('#cover-sheets-rows th')).toHaveText(labels);
+  await expect(page.locator('#view-settings #cover-sheets-settings')).toHaveCount(0);
+  await expect(page.locator('#view-documentation #cover-sheets-settings')).toHaveCount(1);
   await expect(page.locator('#view-settings > section').last()).toHaveClass(/play-settings-card/);
   for(const width of [1254,390]){
     await page.setViewportSize({width,height:831});
@@ -47,7 +48,11 @@ async function idle(){await page.waitForFunction(()=>{const status=window.Ceasef
     await page.locator('#theme-toggle').click();
   }
   checks.push('Red Save button in all five themes');
+  await openProjectSection(page,'documentation');
+  await expect(page.locator('#cover-sheets-rows th')).toHaveText(labels);
   await page.locator('#cover-sheets-heading').scrollIntoViewIfNeeded();
+  await page.getByRole('button',{name:'Settings',exact:true}).click();
+  await page.locator('#settings-play-button').scrollIntoViewIfNeeded();
   await page.locator('#company-logo').setInputFiles({name:'invalid.txt',mimeType:'text/plain',buffer:Buffer.from('invalid logo')});
   const alert=page.locator('#company-settings-status');await expect(alert).toContainText('Choose a PNG or JPEG');
   await expect.poll(()=>alert.evaluate(el=>{const box=el.getBoundingClientRect(),header=document.querySelector('.app-header').getBoundingClientRect();return box.top>=header.bottom+10&&box.bottom<=innerHeight;})).toBe(true);

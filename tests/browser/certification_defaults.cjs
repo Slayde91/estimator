@@ -1,6 +1,6 @@
 // Disposable lifecycle coverage. This fixture never generates a certificate PDF.
 const {chromium,expect}=require('@playwright/test');
-const {openProjectSection}=require('./project_actions.cjs');
+const {openProjectSection,clickProjectControl}=require('./project_actions.cjs');
 const {spawn,spawnSync}=require('node:child_process'),{randomUUID}=require('node:crypto');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'../..');
@@ -32,12 +32,12 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await page.route('**/api/certifications/*/revisions',async route=>{generationRequests.push(route.request().url());await route.abort();});
   await page.goto(base+'/');await idle();
   await page.locator('#estimate-navigation-toggle').click();
-  await page.locator('#client').fill('Current estimate client');await page.locator('#site-address').fill('Current estimate address');await page.locator('#project-no').fill('CF-2042');
+  await page.locator('#client').fill('Current estimate client');await page.locator('#site-address').fill('Current estimate address');await expect(page.locator('#project-no')).toHaveAttribute('readonly','');const firstSave=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/save-as');await clickProjectControl(page,'Save');assert.equal((await firstSave).status(),200);await idle();await expect(page.locator('#project-no')).toHaveValue('PN-00001');
   await certification();
   await expect(page.locator('#certification-document')).toHaveValue('__draft__');
   await expect(page.locator('#certification-client')).toHaveValue('Current estimate client');
   await expect(page.locator('#certification-address')).toHaveValue('Current estimate address');
-  await expect(page.locator('#certification-exclusions')).toHaveValue('Project No.: CF-2042');
+  await expect(page.locator('#certification-exclusions')).toHaveValue('Project No.: PN-00001');
   await expect(page.locator('#certification-name')).toHaveValue('Upgrade signer');
   await expect(page.locator('#certification-statement_of_compliance')).toHaveValue("This is to certify that the fire rated materials have been installed according to the manufacturer's specifications to provide the nominated fire resistance level for the items listed in the relevant schedule.\n\nAll materials have been installed at the above location and comply with:");
   await expect(page.locator('#certification-new, #certification-reload')).toHaveCount(0);
@@ -82,12 +82,12 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await page.locator('#certification-client').fill('Custom certificate client');
   await page.locator('#certification-statement_of_compliance').fill('Custom statement retained');
   await page.locator('#estimate-navigation-toggle').click();
-  await page.locator('#client').fill('Changed estimate client');await page.locator('#site-address').fill('Changed estimate address');await page.locator('#project-no').fill('CF-2043');
+  await page.locator('#client').fill('Changed estimate client');await page.locator('#site-address').fill('Changed estimate address');await expect(page.locator('#project-no')).toHaveValue('PN-00001');
   await certification();
   await expect(page.locator('#certification-client')).toHaveValue('Custom certificate client');
   await expect(page.locator('#certification-statement_of_compliance')).toHaveValue('Custom statement retained');
   await expect(page.locator('#certification-address')).toHaveValue('Changed estimate address');
-  await expect(page.locator('#certification-exclusions')).toHaveValue('Project No.: CF-2043');
+  await expect(page.locator('#certification-exclusions')).toHaveValue('Project No.: PN-00001');
   await page.locator('#certification-australian_standards').fill('Manual additional standard');
   await page.locator('#certification-ncc_clauses').fill('Manual first clause.\n\n  Manual second clause.');
   await page.locator('#certification-scopes summary').click();

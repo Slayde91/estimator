@@ -1,17 +1,21 @@
 """White-paper commercial documents with exact Full Schedule PDF appendices."""
-from html import escape
+from html import escape, unescape
 from html.parser import HTMLParser
 from io import BytesIO
 from decimal import Decimal
 import re
+from pathlib import Path
 
 from pypdf import PdfReader, PdfWriter
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase.pdfmetrics import stringWidth
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
-from reportlab.platypus import LongTable, Paragraph, SimpleDocTemplate, Spacer, TableStyle
+from reportlab.platypus import (BaseDocTemplate, Frame, HRFlowable, KeepTogether, LongTable,
+                               PageTemplate, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle)
 
 from .commercial_documents import KINDS, format_terms, totals, validate_fields
 from .company_settings import company_logo, contact_lines
@@ -144,6 +148,120 @@ def _totals(story, fields, styles):
     _fields(story, [('Subtotal', _money(amounts['subtotal'])), ('GST (10%)', _money(amounts['gst'])), ('Grand total', _money(amounts['grand_total']))], styles)
 
 
+def _rates(story, schedule, styles):
+    _section(story, 'SCHEDULE OF RATES', styles)
+    story.append(HRFlowable(width=WIDTH, thickness=1, color=RED, spaceAfter=8))
+    story.append(_paragraph(schedule['introduction'], styles['body']))
+    rates = schedule['rates']
+    for key, label, suffix in [
+        ('ordinary_time', 'Ordinary time', 'per hour (7:00am to 3:30pm)'),
+        ('time_and_half', 'Time and a half', 'per hour (3:30pm to 5:30pm and night shifts)'),
+        ('double_time', 'Double time', 'per hour (After 5:30pm and weekends)'),
+        ('site_remobilisation', 'Site Remobilisation', 'per occasion'),
+        ('access_equipment_transport', 'Access Equipment Transport', 'per occasion'),
+        ('equipment', 'Equipment', ''), ('materials', 'Materials', '')
+    ]:
+        amount = (_money(rates[key]) + ' ' + suffix if suffix else
+                  ('Hire Rate' if key == 'equipment' else 'Cost Rate') + ' + ' + format(Decimal(rates[key]).normalize(), 'f') + '%')
+        story.append(Paragraph('<b>' + label + '</b> - ' + escape(amount), styles['body']))
+    acceptance = schedule['acceptance']
+    cells = []
+    for labels in [(('accepted_by', 'Accepted by'), ('title', 'Title')), (('signature', 'Signature'), ('date', 'Date'))]:
+        cells.append([[Paragraph('<b>' + label + '</b>', styles['small']),
+                       _paragraph(acceptance[key], styles['body']), Spacer(1, 13),
+                       HRFlowable(width=WIDTH / 2 - 18, thickness=.5, color=colors.black)]
+                      for key, label in labels])
+    table = Table(cells, colWidths=[WIDTH / 2] * 2)
+    table.setStyle(TableStyle([('GRID', (0, 0), (-1, -1), .6, colors.black),
+                              ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                              ('TOPPADDING', (0, 0), (-1, -1), 8),
+                              ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+                              ('LEFTPADDING', (0, 0), (-1, -1), 8)]))
+    story.append(KeepTogether([Spacer(1, 14), table]))
+
+
+def _terms_pdf(text, document, number, company):
+    """The supplied quote's two-column, 9pt Montserrat terms layout.
+
+    Only presentation changes: the validated editor wording and inline emphasis
+    remain authoritative, including custom terms. Clause labels occupy their
+    own hanging gutter and paragraphs can continue into the next column.
+    """
+    font_root = Path(__file__).resolve().parent.parent / 'static' / 'fonts'
+    for style in ('Regular', 'Bold', 'Italic', 'BoldItalic'):
+        name = 'CommercialMontserrat' + style
+        if name not in pdfmetrics.getRegisteredFontNames():
+            pdfmetrics.registerFont(TTFont(name, str(font_root / ('Montserrat-' + style + '.ttf'))))
+    pdfmetrics.registerFontFamily('CommercialMontserratRegular', normal='CommercialMontserratRegular',
+                                  bold='CommercialMontserratBold', italic='CommercialMontserratItalic',
+                                  boldItalic='CommercialMontserratBoldItalic')
+    base = ParagraphStyle('TradeTerms', fontName='CommercialMontserratRegular', fontSize=9,
+                          leading=11, spaceAfter=5, allowWidows=0, allowOrphans=0)
+    parser = _Paragraphs()
+    parser.feed(format_terms(text))
+    parser.flush()
+    story = []
+    disclosure = False
+    disclosure_heading = False
+    for markup in parser.paragraphs:
+        plain = unescape(re.sub('<[^>]+>', '', markup)).strip()
+        if not plain:
+            continue
+        style = ParagraphStyle('TradeClause', parent=base)
+        bullet = None
+        if plain == 'TERMS OF TRADE':
+            markup = '<u><b>-TERMS OF TRADE-</b></u>'
+            style.keepWithNext = True
+        elif plain == 'Our Disclosures:':
+            disclosure = True
+            disclosure_heading = True
+            continue
+        else:
+            heading = re.match(r'^(\d+\.)\s+[A-Za-z /&]+$', plain)
+            clause = re.match(r'^(\d+\.\d+(?:\.\d+)*|\([a-z]\)|\(\d+\))\s+', plain)
+            label = (heading or clause)
+            if label:
+                disclosure = False
+                label = label[1]
+                markup = re.sub(r'^(\s*(?:<(?:b|i|u)>\s*)*)' + re.escape(label) + r'\s*', r'\1', markup, count=1)
+                level = 3 if re.fullmatch(r'\(\d+\)', label) else 2 if label.startswith('(') else 1
+                style.leftIndent, style.bulletIndent = 28.3 * level, 28.3 * (level - 1)
+                style.bulletFontName, style.bulletFontSize = 'CommercialMontserratBold', 9
+                bullet = label
+                if heading:
+                    style.textColor = colors.HexColor('#f47721')
+                    style.fontName = 'CommercialMontserratBold'
+                    style.keepWithNext = True
+                    style.spaceBefore = 4
+            elif disclosure and plain.startswith(('subject to your', 'additional charges')):
+                style.leftIndent, style.bulletIndent = 14, 0
+                style.bulletFontName, style.bulletFontSize = 'CommercialMontserratRegular', 9
+                bullet = '\u2022'
+        if disclosure_heading:
+            markup = '<font color="#f47721"><b>Our Disclosures:</b></font> ' + markup
+            disclosure_heading = False
+        story.append(Paragraph(markup, style, bulletText=bullet))
+    if disclosure_heading:
+        story.append(Paragraph('<font color="#f47721"><b>Our Disclosures:</b></font>', base))
+    if not story:
+        return None
+    output = BytesIO()
+    margin, gap, top, bottom = 40.6, 8.7, 84, 48
+    column = (A4[0] - margin * 2 - gap) / 2
+    frames = [Frame(margin + index * (column + gap), bottom, column, A4[1] - top - bottom,
+                    leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0, id=f'terms-{index}') for index in range(2)]
+    logo = company_logo(company)
+    def header(page, doc):
+        image_width, image_height = logo.getSize()
+        scale = min(240 / image_width, 56 / image_height)
+        page.drawImage(logo, (A4[0] - image_width * scale) / 2, A4[1] - 12 - image_height * scale,
+                       width=image_width * scale, height=image_height * scale, mask='auto')
+    pdf = BaseDocTemplate(output, pagesize=A4, title='Terms and Conditions ' + number, author=company.get('name', ''))
+    pdf.addPageTemplates(PageTemplate(id='trade-terms', frames=frames, onPage=header))
+    pdf.build(story)
+    return output.getvalue()
+
+
 def _quotation_header(page, logo, company):
     """Reserve a true centre column for the first-page quotation heading."""
     width, height, margin = A4[0], A4[1], 36
@@ -200,6 +318,7 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None):
     if kind == 'quote':
         _summary(story, fields, styles)
         _totals(story, fields, styles)
+        _rates(story, fields['rate_schedule'], styles)
         _section(story, 'SCOPE OF WORKS', styles)
         story.extend(_rich(fields['scope'], styles['body']))
         if scope_documents:
@@ -213,11 +332,14 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None):
                 story.append(_table(table['headers'], table['rows'], styles))
         _section(story, 'ALLOWANCES', styles)
         story.extend(_rich(fields['allowances'], styles['body']) or [_paragraph('—', styles['body'])])
-        _section(story, 'TERMS & CONDITIONS', styles)
         reference = fields['company_reference']
         previous_company = escape(f"{reference['name']} (ABN {reference['abn']})", quote=False)
         current_company = escape(f"{company.get('name', '')} (ABN {company.get('abn', '')})", quote=False)
-        story.extend(_rich(format_terms(fields['terms'].replace(previous_company, current_company)), styles['terms'], keep_headings=True))
+        parts.append(_build(story, document, number, company, first_part=not parts))
+        story = []
+        terms = _terms_pdf(fields['terms'].replace(previous_company, current_company), document, number, company)
+        if terms:
+            parts.append(terms)
     elif kind == 'work_order':
         _section(story, 'WORK ORDER DETAILS', styles)
         _fields(story, [('Proposed start date', order['start_date']), ('Proposed end date', order['end_date']),
@@ -254,7 +376,8 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None):
         ]:
             _section(story, title, styles)
             _fields(story, [(label, order[key]) for label, key in pairs], styles)
-    parts.append(_build(story, document, number, company, first_part=not parts))
+    if story:
+        parts.append(_build(story, document, number, company, first_part=not parts))
     writer = PdfWriter()
     for part in parts:
         writer.append(PdfReader(BytesIO(part)))

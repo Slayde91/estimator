@@ -103,7 +103,8 @@ def default_fields(details=None, company=None):
                   consultation=[{'name': '', 'position': 'Health & Safety Representative', 'signature': None},
                                 {'name': '', 'position': 'General Manager', 'signature': None}],
                   additional_steps=False, additional_rows=[], signoffs=[], manual_signature=None, site_signoffs=[], reviews=[''] * 10,
-                  emergency_contacts='', work_types=['Passive Firestopping'], steps=options['works'], attachments=[])
+                  emergency_contacts='', work_types=['Passive Firestopping'], steps=options['works'],
+                  high_risk_steps=options['high_risk_tables'], attachments=[])
     fields['resources'] = fields['resources'].replace('{company}', company.get('name', ''))
     fields['details'].update(job_reference=details.get('project_no', ''), principal_contractor=details.get('client', ''),
                              project_name=details.get('client', ''), project_address=details.get('site_address', ''),
@@ -112,7 +113,11 @@ def default_fields(details=None, company=None):
 
 
 def template_options():
-    return json.loads((Path(__file__).resolve().parent.parent / 'data' / 'swms-work-types.json').read_text(encoding='utf-8'))
+    directory = Path(__file__).resolve().parent.parent / 'data'
+    options = json.loads((directory / 'swms-work-types.json').read_text(encoding='utf-8'))
+    high_risk = json.loads((directory / 'swms-high-risk.json').read_text(encoding='utf-8'))
+    options['high_risk_tables'] = high_risk['tables']
+    return options
 
 
 def _steps(rows, minimum=0):
@@ -130,7 +135,9 @@ def _steps(rows, minimum=0):
 
 
 def validate_fields(fields):
-    if not isinstance(fields, dict) or set(fields) != FIELD_KEYS:
+    # Keep old saved drafts byte-for-byte compatible with capture and immutable
+    # receipt fingerprints. Conditional tables are added only when edited/saved.
+    if not isinstance(fields, dict) or set(fields) not in (FIELD_KEYS, FIELD_KEYS | {'high_risk_steps'}):
         raise ValidationError('SWMS fields use an unsupported format.')
     result = {key: _text(fields[key], key, 300 if key in {'title', 'template_id', 'template_version'} else 30000) for key in TEXT_FIELDS}
     if not isinstance(fields['details'], dict) or set(fields['details']) != set(DETAIL_FIELDS):
@@ -173,6 +180,16 @@ def validate_fields(fields):
     if not isinstance(fields['steps'], dict) or set(fields['steps']) != set(WORK_TYPES):
         raise ValidationError('SWMS work type tables are incomplete.')
     result['steps'] = {key: _steps(rows, minimum=1) for key, rows in fields['steps'].items()}
+    if 'high_risk_steps' in fields:
+        templates = template_options()['high_risk_tables']
+        tables = fields['high_risk_steps']
+        if not isinstance(tables, dict) or set(tables) != set(templates):
+            raise ValidationError('SWMS high-risk work tables are incomplete.')
+        result['high_risk_steps'] = {}
+        for key, rows in tables.items():
+            if not templates[key] and rows != []:
+                raise ValidationError('This high-risk choice has no table in the source template.')
+            result['high_risk_steps'][key] = _steps(rows, minimum=1 if templates[key] else 0)
     result['additional_rows'] = _steps(fields['additional_rows'])
     if type(fields['additional_steps']) is not bool:
         raise ValidationError('Choose whether additional job steps are required.')

@@ -15,7 +15,7 @@ from reportlab.platypus import BaseDocTemplate, Flowable, Frame, LongTable, Page
 
 from .company_settings import company_logo
 from .report import _register_fonts
-from .swms import validate_fields
+from .swms import template_options, validate_fields
 
 PAGE = landscape(A4)
 MARGIN = 39
@@ -41,6 +41,41 @@ def _p(text, style, bullets=False):
         lines = ['']
     rendered = '<br/>'.join(('&#8226; ' if bullets and line.strip() else '') + escape(line.removeprefix('◦ '), quote=False) for line in lines)
     return Paragraph(rendered or '&#160;', style)
+
+
+def _emergency_paragraphs(text, style, *, bullets_after_first=False, bold_from=None, first_bold=False, break_before_bold=False):
+    """Reproduce the reference's emphasis and hanging bullets with editable text.
+
+    Text is always escaped; formatting comes only from the trusted layout, never
+    from HTML supplied in a draft.
+    """
+    lines = str(text or '').splitlines() or ['']
+    result = []
+    for index, line in enumerate(lines):
+        markup = escape(line, quote=False)
+        if index == 0 and bold_from and bold_from.lower() in line.lower():
+            position = line.lower().index(bold_from.lower())
+            markup = escape(line[:position], quote=False) + ('<br/>' if break_before_bold else '') + '<b>' + escape(line[position:], quote=False) + '</b>'
+        elif index == 0 and first_bold:
+            markup = '<b>' + markup + '</b>'
+        bullet = bullets_after_first and index > 0 and line.strip()
+        paragraph_style = ParagraphStyle('EmergencyBullet', parent=style, leftIndent=19, bulletIndent=2) if bullet else style
+        result.append(Paragraph(markup or '&#160;', paragraph_style, bulletText='•' if bullet else None))
+    return result
+
+
+def _emergency_table(fields, styles):
+    body = ParagraphStyle('EmergencyRequirements', fontName='Helvetica', fontSize=8.2, leading=9.2,
+                          textColor=colors.HexColor('#17365d'))
+    head = ParagraphStyle('EmergencyHeader', fontName='Helvetica-Bold', fontSize=9, leading=10,
+                          textColor=colors.white, alignment=1)
+    table = _table(None, [[_p('EMERGENCY RESPONSE - CALL 000 IMMEDIATELY.', head), ''],
+                         [_emergency_paragraphs(fields[key], body, bullets_after_first=True)
+                          for key in ('emergency_requirements', 'emergency_access')]], [WIDTH / 2] * 2, styles, red=False)
+    table.setStyle(TableStyle([('SPAN', (0, 0), (1, 0)), ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e52000')),
+                               ('TOPPADDING', (0, 0), (-1, -1), 1), ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
+                               ('LINEBEFORE', (1, 1), (1, 1), 0, colors.white)]))
+    return table
 
 
 class Signature(Flowable):
@@ -199,35 +234,44 @@ class EmergencyPlan(Flowable):
         super().__init__()
         self.fields, self.styles, self.width, self.height = fields, styles, WIDTH, 425
 
-    def has_overflow(self):
+    def _boxes(self):
         f, w = self.fields, self.width
-        boxes = [(f['emergency_notify'] + '\n\n' + f['emergency_contacts'], w * .32, 91),
-                 (f['emergency_supervisor'], w * .29, 54), (f['emergency_call'], w * .30, 155),
-                 (f['emergency_stop'], w * .27, 82), (f['emergency_follow'], w * .30, 62)]
-        return any(_p(text, self.styles['body']).wrap(width - 12, height - 12)[1] > height - 12 for text, width, height in boxes)
+        style = ParagraphStyle('EmergencyPlanBody', fontName='Helvetica', fontSize=8.2, leading=9.9)
+        notify = _emergency_paragraphs(f['emergency_notify'], style, bold_from='immediately', break_before_bold=True)
+        notify += [Spacer(1, 10), *_emergency_paragraphs(f['emergency_contacts'], style)]
+        call = _emergency_paragraphs(f['emergency_call'], style, bullets_after_first=True)
+        first_line = f['emergency_call'].splitlines()[0] if f['emergency_call'] else ''
+        if first_line.startswith('Call 000'):
+            call[0] = Paragraph('<b>Call 000</b>' + escape(first_line[8:]), style)
+        return [(w * .344, 290, w * .311, 97, notify),
+                (w * .017, 231, w * .276, 40, _emergency_paragraphs(f['emergency_supervisor'], style, bold_from='immediately')),
+                (w * .361, 116, w * .311, 153, call),
+                (w * .732, 171, w * .242, 100, [Spacer(1, 20), *_emergency_paragraphs(f['emergency_stop'].replace('\n', '\n\n', 1), style, first_bold=True)]),
+                (w * .358, 19, w * .276, 52, _emergency_paragraphs(f['emergency_follow'], ParagraphStyle('EmergencyFollow', parent=style, fontName='Helvetica-Bold')))]
+
+    def has_overflow(self):
+        return any(sum(part.wrap(width - 10, height)[1] for part in paragraphs) > height - 10
+                   for _, _, width, height, paragraphs in self._boxes())
 
     def draw(self):
         c, f, w = self.canv, self.fields, self.width
-        c.setFont('CeasefireVeraBold', 18)
+        c.setFont('Times-Bold', 18)
         c.drawCentredString(w / 2, 404, 'EMERGENCY RESPONSE PLAN')
-        def box(x, y, width, height, text):
+        def box(x, y, width, height, paragraphs):
             c.setStrokeColor(colors.black)
             c.setLineWidth(.75)
             c.rect(x, y, width, height)
-            paragraph = _p(text, self.styles['body'])
-            _, measured = paragraph.wrap(width - 12, height - 12)
-            if measured > height - 12:
+            measurements = [part.wrap(width - 10, height)[1] for part in paragraphs]
+            if sum(measurements) > height - 10:
                 # Long editable text is also printed in the following overflow table.
-                paragraph = _p('See the emergency response details below.', self.styles['body'])
-                paragraph.wrap(width - 12, height - 12)
-                measured = 12
-            paragraph.drawOn(c, x + 6, y + height - measured - 6)
-        top = f['emergency_notify'] + '\n\n' + f['emergency_contacts']
-        box(w * .35, 294, w * .32, 91, top)
-        box(0, 225, w * .29, 54, f['emergency_supervisor'])
-        box(w * .37, 124, w * .30, 155, f['emergency_call'])
-        box(w * .73, 197, w * .27, 82, f['emergency_stop'])
-        box(w * .37, 20, w * .30, 62, f['emergency_follow'])
+                paragraphs = [_p('See the emergency response details below.', self.styles['body'])]
+                measurements = [paragraphs[0].wrap(width - 10, height)[1]]
+            top = y + height - 5
+            for part, measured in zip(paragraphs, measurements):
+                top -= measured
+                part.drawOn(c, x + 5, top)
+        for coordinates in self._boxes():
+            box(*coordinates)
         c.setStrokeColor(colors.HexColor('#386fc1'))
         c.setFillColor(colors.HexColor('#386fc1'))
         c.setLineWidth(1.1)
@@ -243,12 +287,12 @@ class EmergencyPlan(Flowable):
                 direction = 1 if previous_x > x else -1
                 triangle = [x + 6 * direction, y - 3, x + 6 * direction, y + 3]
             path = c.beginPath(); path.moveTo(x, y); path.lineTo(*triangle[:2]); path.lineTo(*triangle[2:]); path.close(); c.drawPath(path, fill=1)
-        arrow([(w * .51, 294), (w * .51, 281)])
-        arrow([(w * .35, 360), (w * .145, 360), (w * .145, 281)])
-        arrow([(w * .67, 360), (w * .865, 360), (w * .865, 281)])
-        arrow([(w * .51, 124), (w * .51, 84)])
-        arrow([(w * .145, 225), (w * .145, 51), (w * .367, 51)])
-        arrow([(w * .865, 197), (w * .865, 51), (w * .673, 51)])
+        arrow([(w * .50, 290), (w * .50, 271)])
+        arrow([(w * .344, 360), (w * .148, 360), (w * .148, 273)])
+        arrow([(w * .655, 360), (w * .851, 360), (w * .851, 273)])
+        arrow([(w * .496, 116), (w * .496, 73)])
+        arrow([(w * .148, 231), (w * .148, 45), (w * .356, 45)])
+        arrow([(w * .851, 171), (w * .851, 43), (w * .636, 43)])
 
 
 def render_swms_pdf(document, *, company):
@@ -270,12 +314,12 @@ def render_swms_pdf(document, *, company):
     story.extend([PageBreak(), _p(fields['requirements'], styles['body'], bullets=True), Spacer(1, 10)])
     for label, key, bullets in [('Activity', 'activity', False), ('OHS/Environmental Legislation', 'legislation', True), ('Codes of Practice', 'codes', True), ('Resources/Trades Involved', 'resources', True), ('Equipment/Plant/Materials Used', 'equipment', False)]:
         story.append(_pair(label, fields[key], styles, bullets=bullets))
-    story.extend([PageBreak(), _pair('Maintenance Checks Required', fields['maintenance'], styles), PageBreak(), _p('Risk Matrix', styles['section']), *_matrix(styles), PageBreak(), _pair('High Risk Work involves', fields['high_risk_work'], styles), PageBreak()])
-    story.append(_pair('Type of Works', '\n'.join(fields['work_types']), styles))
+    story.extend([PageBreak(), _pair('Maintenance Checks Required', fields['maintenance'], styles), PageBreak(), _p('Risk Matrix', styles['section']), *_matrix(styles), PageBreak(), _pair('High Risk Work involves', fields['high_risk_work'], styles)])
     def step_table(title, steps):
         rows = []
         for index, row in enumerate(steps, 1):
-            rows.append([str(index), _p(row['job_step'], styles['bold']), row['hazards'], row['initial_risk'], _p(row['controls'], styles['body'], bullets=True), row['residual_risk'], row['responsible']])
+            controls = '\n'.join(line.strip().removeprefix('- ') for line in row['controls'].splitlines() if line.strip())
+            rows.append([str(index), _p(row['job_step'], styles['bold']), row['hazards'], row['initial_risk'], _p(controls, styles['body'], bullets=True), row['residual_risk'], row['responsible']])
         heading = _p(title, styles['section'])
         heading.keepWithNext = False
         table = _table(['Item', 'Job Steps', 'Hazards', 'Risk Rating', 'Controls to Eliminate/Reduce Hazard', 'Retained Risk', 'Responsible Person'], rows,
@@ -285,6 +329,11 @@ def render_swms_pdf(document, *, company):
         # row to continue across pages instead of failing or dropping its text.
         table.splitInRow = 30 if max(table._rowHeights) > 400 else 0
         return [heading, table]
+    high_risk_tables = fields.get('high_risk_steps', template_options()['high_risk_tables'])
+    for choice in fields['high_risk_work'].splitlines():
+        if high_risk_tables.get(choice):
+            story.extend(step_table(choice, high_risk_tables[choice]))
+    story.extend([PageBreak(), _pair('Type of Works', '\n'.join(fields['work_types']), styles)])
     for index, kind in enumerate(fields['work_types']):
         if index:
             story.append(PageBreak())
@@ -292,15 +341,9 @@ def render_swms_pdf(document, *, company):
     story.append(_pair('Additional Job Steps', 'Are there additional job steps to consider? ' + ('Yes' if fields['additional_steps'] else 'No'), styles))
     if fields['additional_steps'] and fields['additional_rows']:
         story.extend(step_table('Additional Job Steps', fields['additional_rows']))
-    story.extend([PageBreak(), _p(fields['acknowledgement'], styles['large']), _p('Employees Sign-Off', styles['section'])])
-    signoffs = []
-    for person in fields['signoffs']:
-        map_link = Paragraph(f'<link href="https://www.openstreetmap.org/?mlat={float(person["latitude"])}&amp;mlon={float(person["longitude"])}">Map</link>', styles['body']) if person['latitude'] and person['longitude'] else ''
-        signoffs.append([person['name'], person['company'], Signature(person['signature'], 75, 28), person['date'], person['time'], map_link, person['latitude'], person['longitude']])
-    story.append(_table(['Name', 'Company', 'Signature', 'Date', 'Time', 'Map', 'Latitude', 'Longitude'], signoffs or [['There are no signatures to display yet for this field.', '', '', '', '', '', '', '']], [WIDTH * fraction for fraction in (.17, .17, .16, .12, .08, .06, .12, .12)], styles, red=False))
-    story.extend([Spacer(1, 7), _table(None, [[_p('Employees Sign-Off (Manual Signature)', styles['bold']), Signature(fields['manual_signature'], 170, 35) if fields['manual_signature'] else 'Not signed yet.']], [WIDTH * .40, WIDTH * .60], styles, red=False, grid=False), Spacer(1, 8), _p('Reviews', styles['section'])])
+    story.extend([PageBreak(), _p(fields['acknowledgement'], styles['large']), _p('Reviews', styles['section'])])
     story.append(_table(['Review No.', *map(str, range(1, 11))], [['Initials', *fields['reviews']]], [WIDTH / 3, *([WIDTH / 15] * 10)], styles))
-    story.extend([Spacer(1, 16), _table(['EMERGENCY RESPONSE - CALL 000 IMMEDIATELY.', ''], [[_p(fields['emergency_requirements'], styles['body']), _p(fields['emergency_access'], styles['body'])]], [WIDTH / 2] * 2, styles)])
+    story.extend([Spacer(1, 16), _emergency_table(fields, styles)])
     story.extend([PageBreak(), _p('Site Sign-Off', styles['section'])])
     signoffs = fields['site_signoffs']
     site_rows = []
@@ -334,7 +377,7 @@ def render_swms_pdf(document, *, company):
         paragraph = _p('Filepath: ' + path, text_style)
         paragraph.wrap(WIDTH * .34, 40)
         paragraph.drawOn(c, MARGIN + WIDTH * .34, PAGE[1] - 40)
-        paragraph = _p(f"Template ID: {fields['template_id']}\nTemplate Version: {fields['template_version']}\nForm Version: {document._swms_version}", text_style)
+        paragraph = _p(f"Form Version: {document._swms_version}", text_style)
         paragraph.wrap(WIDTH * .30, 40)
         paragraph.drawOn(c, MARGIN + WIDTH * .69, PAGE[1] - 43)
         c.setStrokeColor(RED); c.setLineWidth(.6)

@@ -99,7 +99,7 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
   }
   await page.setViewportSize({width:1440,height:1100});
 
-  await page.locator('#project-no').fill('CF-7000'); await page.locator('#client').fill('<saved quote> & Client'); await page.locator('#site-address').fill('Fixture site');
+  await expect(page.locator('#project-no')).toHaveAttribute('readonly',''); await page.locator('#client').fill('<saved quote> & Client'); await page.locator('#site-address').fill('Fixture site');
   await headerTitle('');
   const saved = await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as'); await idle(); await settledEstimate();
   const savedTitle = saved.project.estimate.title; assert.equal(saved.file.title, savedTitle); assert.notEqual(savedTitle, path.basename(info.project)); await headerTitle(savedTitle);

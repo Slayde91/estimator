@@ -51,6 +51,7 @@ function harness({ penetration = false } = {}) {
   };
   require('./helpers/download_progress_vm.cjs').installProgressReceipts(context);
   context.window.CeasefireI18n = require('./english_i18n_fixture.cjs')();
+  context.window.CeasefireProjectDetails = {prepareSave: async () => '10000000-0000-0000-0000-000000000001', saved() {}};
 vm.createContext(context);
   vm.runInContext(fs.readFileSync('static/calculation-queue.js','utf8'),context);
   vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
@@ -70,7 +71,7 @@ vm.createContext(context);
   assert.ok(appEnd.test(appSource), 'Estimator test hook must replace bootstrap only');
   appSource = appSource.replace(appEnd, `
     globalThis.appAudit = {state, saveProject, loadProject, openNativeProject, newQuote, projectStamp, saveQuote, openQuote, calculate, reportPayload, projectEstimate, downloadFullReport,
-      applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,openProjectBrowser,loadProjectFiles,openProjectFolderFile,closeProjectBrowser,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,requestViewNavigation,requestProjectsNavigation,requestCalculatorNavigation,uploadProjectFiles,reviewDesktopClose,
+      applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,openProjectBrowser,loadProjectFiles,openProjectFolderFile,closeProjectBrowser,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,requestViewNavigation,requestProjectsNavigation,requestDocumentsNavigation,requestCalculatorNavigation,uploadProjectFiles,reviewDesktopClose,
       renderInputs, selectMainSection, changeProjectStage, changeCurrentProjectStage, renderProjectBoard, renameProjectEstimate, addProjectEstimate, selectEstimate, setRequest(fn) { request = fn; }};
   })();`);
   vm.runInContext(appSource, context);
@@ -120,6 +121,29 @@ async function penetrationCheck(name, fn) {
   await deadline(name,()=>fn(h));passed++;console.log(`ok - ${name}`);
 }
 (async () => {
+  await check('Changes during client-history preparation stop a stale first save before its file chooser', async h => {
+    const pending = deferred();let writes = 0;
+    h.context.window.CeasefireProjectDetails.prepareSave = () => pending.promise;
+    h.app.setRequest(async () => { writes++; });
+    const saving = h.app.saveProject();await flush();
+    h.byId('client').value = 'Later edit while checking history';
+    pending.resolve('10000000-0000-0000-0000-000000000001');await saving;
+    assert.equal(writes, 0);assert.equal(h.byId('client').value, 'Later edit while checking history');
+    assert.match(h.byId('app-message').textContent, /changed while checking/);
+  });
+  await check('A successful first save applies the server number while retaining later nonidentity edits', async h => {
+    const pending = deferred();let sent;const assigned = [];
+    h.context.window.CeasefireCommercial = {projectNumberAssigned: value => assigned.push(copy(value))};
+    h.app.setRequest((path, options) => { sent = JSON.parse(options.body);return pending.promise; });
+    const saving = h.app.saveProject();await flush();
+    h.byId('client').value = 'Later client';
+    const saved = {...project(),estimate: {...sent.estimate,project_no:'PN-00001'},calculators:sent.calculators,
+      estimates: sent.estimates.map(entry => ({...entry,workspace:{...entry.workspace,estimate:{...entry.workspace.estimate,project_no:'PN-00001'}}}))};
+    pending.resolve({file:{path:'C:/saved/PN-00001.cf.json',save_token:'saved-number'},project:saved});await saving;
+    assert.equal(h.byId('project-no').value, 'PN-00001');assert.equal(h.byId('client').value, 'Later client');
+    assert.ok(h.app.state.projectEstimates.filter(entry => entry.workspace).every(entry => entry.workspace.estimate.project_no === 'PN-00001'));
+    assert.equal(assigned[0].project_no, 'PN-00001');assert.match(h.byId('app-message').textContent, /Later edits are not included/);
+  });
   await check('Project Save captures document history with the exact certificate workspace and acknowledges its original capture',async h=>{
     projectCertificates(h);const captured={workspace_id:'project-A',expected_revision:2},acknowledged=[];let sent;
     h.context.window.CeasefireDocumentation={hasPendingOperation:()=>false,projectFingerprint:()=> 'documents:2',
@@ -1220,12 +1244,14 @@ async function penetrationCheck(name, fn) {
     h.app.setRequest(async()=>({...project(),takeoffs:{version:1},takeoffs_session_id:'prepared-session'}));h.chooseFile();const loading=h.app.loadProject();await flush();revision++;pending.resolve({session:{session_id:'prepared-session'}});await loading;
     assert.match(h.byId('app-message').textContent,/draft changed/);assert.deepEqual(closed,['prepared-session']);assert.equal(h.app.state.inputs.B15,123);
   });
-  await check('Projects header starts at the hub then returns to the most recent Certification page', async h => {
+  await check('Documents header starts at its hub then returns to Certification independently of Projects', async h => {
     const before=h.snapshot();let opened=0;h.context.window.CeasefireCertification={open:async()=>{opened++;},hasPendingOperation:()=>false};
     await h.app.requestProjectsNavigation();assert.equal(h.app.state.currentView,'projects');
-    await h.app.requestViewNavigation('certification');assert.equal(h.app.state.currentView,'certification');assert.equal(opened,1);
-    await h.app.requestViewNavigation('home');await h.app.requestProjectsNavigation();assert.equal(h.app.state.currentView,'certification');assert.equal(opened,2);
-    await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'projects');assert.equal(h.app.state.lastProjectSection,'certification');
+    await h.app.requestDocumentsNavigation();assert.equal(h.app.state.currentView,'documents');
+    await h.app.requestViewNavigation('certification');assert.equal(opened,1);
+    await h.app.requestViewNavigation('home');await h.app.requestDocumentsNavigation();assert.equal(h.app.state.currentView,'certification');assert.equal(opened,2);
+    await h.app.requestProjectsNavigation();assert.equal(h.app.state.currentView,'projects');assert.equal(h.app.state.lastProjectSection,null);
+    await h.app.requestViewNavigation('documents');assert.equal(h.app.state.currentView,'documents');assert.equal(h.app.state.lastDocumentSection,'certification');
     assert.deepEqual(h.snapshot(),before);
   });
   await check('Projects header returns to saved projects while direct hub navigation remains available', async h => {
@@ -1234,16 +1260,16 @@ async function penetrationCheck(name, fn) {
     await h.app.requestViewNavigation('home');await h.app.requestProjectsNavigation();assert.equal(h.app.state.currentView,'quotes');
   });
   await check('Pending certification operation blocks navigation without touching project inputs', async h => {
-    const before=h.snapshot();h.app.state.currentView='certification';h.app.state.lastProjectSection='certification';
+    const before=h.snapshot();h.app.state.currentView='certification';h.app.state.lastDocumentSection='certification';
     h.context.window.CeasefireCertification={hasPendingOperation:()=>true};await h.app.requestViewNavigation('home');
     assert.equal(h.app.state.currentView,'certification');assert.match(h.byId('app-message').textContent,/certification operation/);
-    await h.app.requestViewNavigation('quotes');assert.equal(h.app.state.lastProjectSection,'certification');
+    await h.app.requestViewNavigation('quotes');assert.equal(h.app.state.lastDocumentSection,'certification');
     assert.deepEqual(h.snapshot(),before);
   });
-  await check('Settings lazily opens global Cover sheets and preserves its draft across navigation',async h=>{
+  await check('Documentation lazily opens global Cover sheets and preserves its draft across navigation',async h=>{
     let opens=0;const draft={name:'Entered cover.pdf',revision:7};
     h.context.window.CeasefireCoverSheets={open:async()=>{opens++;},hasPendingOperation:()=>false,hasUnsavedChanges:()=>true,fingerprint:()=>JSON.stringify(draft)};
-    const before=h.snapshot();await h.app.requestViewNavigation('settings');assert.equal(opens,1);
+    const before=h.snapshot();await h.app.requestViewNavigation('settings');assert.equal(opens,0);await h.app.requestViewNavigation('documentation');assert.equal(opens,1);
     await h.app.requestViewNavigation('home');assert.equal(h.app.state.currentView,'home');
     assert.deepEqual(draft,{name:'Entered cover.pdf',revision:7});assert.deepEqual(h.snapshot(),before);
   });

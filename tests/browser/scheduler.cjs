@@ -21,8 +21,8 @@ const errors = [], csp = [], checks = [];
 const password = 'Disposable-QA-password-2026';
 async function scheduler() {
   await page.evaluate(() => {void window.CeasefireScheduler.activate();});
-  await page.locator('#projects-navigation-toggle').hover();
-  await page.locator('#projects-navigation-menu [data-project-section="scheduler"]').click();
+
+  await page.locator('#scheduler-navigation').click();
   await expect(page.locator('#scheduler-root')).toBeVisible();
 }
 async function tab(name) {await page.locator('.scheduler-tabs').getByRole('button',{name,exact:true}).click();}

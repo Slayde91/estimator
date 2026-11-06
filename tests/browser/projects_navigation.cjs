@@ -20,14 +20,19 @@ const errors = [], evidence = {widths: [], checks: []};
 async function idle() { await page.waitForFunction(() => { const status = window.CeasefireDesktop?.status(); return status?.ready && !status.busy; }); }
 async function expectHub() {
   await expect(page.locator('#view-projects')).toBeVisible();
-  const expectedSections = ['quotes', 'quote', 'work-orders', 'purchase-orders', 'swms', 'scheduler', 'certification', 'documentation'];
+  const expectedSections = ['quotes', 'quote', 'work-orders', 'purchase-orders'];
   const cards = page.locator('#view-projects .projects-section-card');
   await expect(cards).toHaveCount(expectedSections.length);
   assert.deepEqual(await cards.evaluateAll(nodes => nodes.map(node => node.dataset.projectSection)), expectedSections);
 }
+async function expectDocumentHub() {
+  await expect(page.locator('#view-documents')).toBeVisible();
+  const cards=page.locator('#view-documents .projects-section-card');await expect(cards).toHaveCount(3);
+  assert.deepEqual(await cards.evaluateAll(nodes=>nodes.map(node=>node.dataset.documentSection)),['documentation','swms','certification']);
+}
 async function home() { await page.locator('nav .nav-button[data-view="home"]').click();await expect(page.locator('#view-home')).toBeVisible(); }
 async function headerDestination(section) {
-  await home();await page.locator('#projects-navigation-toggle').click();
+  await home();await page.locator(['documentation','swms','certification'].includes(section)?'#documents-navigation-toggle':'#projects-navigation-toggle').click();
   await expect(page.locator('#view-'+section)).toBeVisible();
   if(section==='certification')await expect(page.locator('#certification-client')).toHaveValue('Navigation draft retained');
 }
@@ -45,70 +50,60 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   await page.goto(`http://127.0.0.1:${info.port}/`); await idle();
   const before = await page.evaluate(() => ({configuration:window.CeasefireProject.configuration(),details:window.CeasefireProject.details()}));
   await page.locator('#projects-navigation-toggle').click();await expectHub();
-  await expect(page.locator('[data-projects-hub]')).toHaveCount(0);
-  await page.locator('#view-projects [data-project-section="certification"]').click();
+  await page.locator('#documents-navigation-toggle').click();await expectDocumentHub();
+  await page.locator('#view-documents [data-document-section="certification"]').click();
   await expect(page.locator('#view-certification')).toBeVisible();
   await expect(page.locator('#certification-client')).toBeEnabled();
   await page.locator('#certification-client').fill('Navigation draft retained');
   const draftBefore=await snapshot();
   await headerDestination('certification');
-  await page.locator('#projects-navigation-toggle').hover();
-  const menu = page.locator('#projects-navigation-menu');
-  await expect(menu).toBeVisible();
-  assert.deepEqual(await menu.locator('button').allTextContents(), ['Projects', 'Quotes', 'Work Orders', 'Purchase Orders', 'Safe Work Method Statements', 'Scheduler', 'Certification', 'Documentation']);
+  const menu = page.locator('#projects-navigation-menu'), documentsMenu = page.locator('#documents-navigation-menu');
+  await page.locator('#projects-navigation-toggle').hover();await expect(menu).toBeVisible();
+  assert.deepEqual(await menu.locator('button').allTextContents(), ['Projects', 'Quotes', 'Work Orders', 'Purchase Orders']);
   await menu.locator('[data-project-section="quotes"]').click();
   await expect(page.locator('#view-quotes')).toBeVisible();
-  await page.mouse.move(0, 0); await expect(menu).toBeHidden();
+  await page.mouse.move(0,0);await expect(menu).toBeHidden();
   await headerDestination('quotes');assert.deepEqual(await snapshot(),draftBefore);
-  // The explicit Home card still opens the Projects hub without replacing the
-  // remembered subsection used by the header button.
   await home();await page.locator('[data-home-view="projects"]').click();await expectHub();
-  await headerDestination('quotes');
-  await home();await page.locator('[data-home-view="projects"]').click();await expectHub();
-  await page.locator('#view-projects [data-project-section="certification"]').click();
-  await expect(page.locator('#view-certification')).toBeVisible();
-  await expect(page.locator('#certification-client')).toHaveValue('Navigation draft retained');
-  await home();
-  assert.equal(await openProjectTools(page),'home','Shared project helper explicitly opens saved projects after Certification was remembered');
-  await expect(page.locator('#view-quotes')).toBeVisible();
+  await headerDestination('quotes');await headerDestination('certification');
+  await page.locator('#documents-navigation-toggle').hover();await expect(documentsMenu).toBeVisible();
+  assert.deepEqual(await documentsMenu.locator('button').allTextContents(),['Documents','Documentation','Safe Work Method Statements','Certification']);
+  await documentsMenu.locator('[data-document-section="documents"]').click();await expectDocumentHub();
+  await headerDestination('certification');
+  await home();assert.equal(await openProjectTools(page),'home');await expect(page.locator('#view-quotes')).toBeVisible();
   await openProjectSection(page,'certification');await expect(page.locator('#certification-client')).toHaveValue('Navigation draft retained');
-  await home();
-  await page.locator('#projects-navigation-toggle').focus();
-  await page.locator('#projects-navigation-toggle').press('ArrowDown');
-  await expect(menu.locator('[data-project-section="quotes"]')).toBeFocused();
-  await page.keyboard.press('End');
-  await expect(menu.locator('[data-project-section="documentation"]')).toBeFocused();
-  await page.keyboard.press('Home');
-  await page.keyboard.press('Enter');
-  await expect(page.locator('#view-quotes')).toBeVisible();
-  await headerDestination('quotes');
-  await page.locator('#projects-navigation-toggle').press('ArrowUp');
-  await expect(menu.locator('[data-project-section="documentation"]')).toBeFocused();
-  await page.keyboard.press('Escape'); await expect(menu).toBeHidden();
-  await expect(page.locator('#projects-navigation-toggle')).toBeFocused();
-  await page.locator('#projects-navigation-toggle').press('ArrowUp');await page.keyboard.press('Enter');await expect(page.locator('#view-documentation')).toBeVisible();
-  await headerDestination('documentation');assert.deepEqual(await snapshot(),draftBefore);
-  await page.locator('#projects-navigation-toggle').press('ArrowUp');await page.keyboard.press('ArrowUp');await page.keyboard.press('Enter');await expect(page.locator('#view-certification')).toBeVisible();
-  await headerDestination('certification');assert.deepEqual(await snapshot(),draftBefore);
-  evidence.checks.push('stale section preference ignored','first header visit opens hub','header returns to most recent Certification, Documentation or saved Projects page','Home Projects card still opens hub','existing menu destinations work','hover choices update remembered page','shared helpers select explicit destinations','certification draft retained','return buttons removed','keyboard navigation and Escape');
-  for (const width of [390, 671, 1084]) {
-    await page.setViewportSize({width, height: 900});
-    await page.mouse.move(0, 0);
-    await page.locator('#projects-navigation-toggle').hover();
-    await expect(menu).toBeVisible();
-    const bounds = await menu.boundingBox();
-    assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width, `Projects menu stays in ${width}px viewport`);
-    await page.screenshot({path: path.join(output, `projects-menu-${width}.png`)});
-    evidence.widths.push({width, bounds});
-    await page.keyboard.press('Escape');
+  for(const [owner,first,last] of [['projects','quotes','purchase-orders'],['documents','documents','certification']]){
+    await home();const toggle=page.locator(`#${owner}-navigation-toggle`), choices=page.locator(`#${owner}-navigation-menu`), attr=owner==='documents'?'document':'project';
+    await toggle.focus();await toggle.press('ArrowDown');await expect(choices.locator(`[data-${attr}-section="${first}"]`)).toBeFocused();
+    await page.keyboard.press('End');await expect(choices.locator(`[data-${attr}-section="${last}"]`)).toBeFocused();
+    await page.keyboard.press('Home');await page.keyboard.press('Enter');await expect(page.locator('#view-'+first)).toBeVisible();
+    await toggle.press('ArrowUp');await expect(choices.locator(`[data-${attr}-section="${last}"]`)).toBeFocused();
+    await page.keyboard.press('Escape');await expect(choices).toBeHidden();await expect(toggle).toBeFocused();
+  }
+  await openProjectSection(page,'documentation');await idle();await headerDestination('documentation');
+  await expect(page.locator('#view-documentation #cover-sheets-settings')).toBeVisible();
+  await expect(page.locator('#view-settings #cover-sheets-settings')).toHaveCount(0);
+  await openProjectSection(page,'scheduler');await expect(page.locator('#scheduler-navigation')).toHaveAttribute('aria-current','page');
+  await expect(page.locator('#projects-navigation-menu [data-project-section="scheduler"]')).toHaveCount(0);
+  await headerDestination('documentation');await headerDestination('quotes');
+  assert.deepEqual(await snapshot(),draftBefore);
+  evidence.checks.push('independent first-visit hubs and remembered destinations','Projects beside Home and Documents beside Projects','explicit Home and Documents hub choices retain remembered destination','Certification draft survives all navigation','Cover sheets live only in Documentation','standalone Scheduler clock navigation','keyboard navigation and Escape');
+  for (const width of [390,671,825,1084,1864]) {
+    await page.setViewportSize({width,height:900});
+    for(const owner of ['projects','documents']){
+      await page.mouse.move(0,0);await page.locator(`#${owner}-navigation-toggle`).hover();const choices=page.locator(`#${owner}-navigation-menu`);await expect(choices).toBeVisible();
+      const bounds=await choices.boundingBox();assert.ok(bounds.x>=-.1&&bounds.x+bounds.width<=width+.1,`${owner} menu stays in ${width}px viewport`);
+      await page.screenshot({path:path.join(output,`${owner}-menu-${width}.png`)});evidence.widths.push({owner,width,bounds});await page.keyboard.press('Escape');
+    }
     await openProjectSection(page,'quotes');await headerDestination('quotes');
     await openProjectSection(page,'certification');await headerDestination('certification');
     await openProjectSection(page,'documentation');await idle();await headerDestination('documentation');await idle();
-    assert.deepEqual(await snapshot(),draftBefore,'Responsive navigation retains exact certificate draft, estimate details and pricing');
+    assert.deepEqual(await snapshot(),draftBefore,'Responsive navigation retains certificate draft, estimate details and pricing');
   }
-  await page.reload(); await idle(); await page.locator('#projects-navigation-toggle').click();await expectHub();
+  await page.reload();await idle();await page.locator('#projects-navigation-toggle').click();await expectHub();
+  await page.locator('#documents-navigation-toggle').click();await expectDocumentHub();
   assert.deepEqual(await page.evaluate(() => ({configuration:window.CeasefireProject.configuration(),details:window.CeasefireProject.details()})), before);
-  evidence.checks.push('fresh reload starts at hub despite old storage and previous in-session destination');
+  evidence.checks.push('fresh reload starts each hub despite old storage and in-session destinations');
   assert.deepEqual(errors, []);
   assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({...evidence, errors, passed: true}, null, 2));

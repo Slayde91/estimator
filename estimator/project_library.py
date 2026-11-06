@@ -17,6 +17,7 @@ import sys
 import tempfile
 import threading
 import time
+import uuid
 
 from .catalog import ValidationError
 from .edition import require_project_edition, validate_edition
@@ -247,6 +248,8 @@ def _metadata(path, info, project, folder, payload):
             "relative_folder": str(Path(relative).parent).replace("\\", "/") if inside else "",
             "title": estimate["title"], "project_no": estimate.get("project_no", ""),
             "client": estimate.get("client", ""), "site_address": estimate.get("site_address", ""),
+            "clients": project.get("clients", [estimate.get("client", "")]),
+            "project_numbers": project.get("project_numbers", [estimate.get("project_no", "")]),
             "project_status": project.get("project_status", "Draft"),
             "estimates": [{"id": entry["id"], "name": entry["name"]} for entry in project.get("estimates", [{"id": "estimate-1", "name": "Estimate 1"}])],
             "active_estimate_id": project.get("active_estimate_id", "estimate-1"),
@@ -309,7 +312,7 @@ def _atomic_write(selection, payload):
 
 
 class ProjectLibrary:
-    def __init__(self, store, dialogs=None, *, takeoffs=None, certifications=None, documentation=None, edition='full'):
+    def __init__(self, store, dialogs=None, *, takeoffs=None, certifications=None, documentation=None, edition='full', project_details=None):
         self.edition = validate_edition(edition)
         if self.edition == 'standard' and takeoffs is not None:
             raise ValidationError('The standard edition cannot attach a TAKEOFFS service.')
@@ -317,6 +320,7 @@ class ProjectLibrary:
         self.takeoffs = takeoffs
         self.certifications = certifications
         self.documentation = documentation
+        self.project_details = project_details
         self.commercial = None
         self.swms = None
         self.dialogs = dialogs if dialogs is not None else NativeDialogs()
@@ -487,14 +491,21 @@ class ProjectLibrary:
                     project.pop(key, None)
                     if key in active:
                         project[key] = active[key]
+                if self.project_details:
+                    self.project_details.register_existing(project, workspace.get('project_id') if workspace else None)
                 return project
             if 'takeoffs' not in project:
+                if self.project_details:
+                    self.project_details.register_existing(project, workspace.get('project_id') if workspace else None)
                 return project
             if self.takeoffs is None:
                 raise ValidationError('This application cannot open a takeoff workspace.')
             session = self.takeoffs.open(project['takeoffs'], source_path=path)
-            return {**project, 'takeoffs': session['snapshot'],
-                    'takeoffs_session_id': session['session_id'], 'takeoffs_issues': session.get('issues', [])}
+            result = {**project, 'takeoffs': session['snapshot'],
+                      'takeoffs_session_id': session['session_id'], 'takeoffs_issues': session.get('issues', [])}
+            if self.project_details:
+                self.project_details.register_existing(result, workspace.get('project_id') if workspace else None)
+            return result
         except Exception:
             for session_id in restored_sessions:
                 self.takeoffs.close(session_id)
@@ -1056,6 +1067,13 @@ class ProjectLibrary:
             path = selected_path
             if file_fingerprint(path) != selection.fingerprint:
                 raise ValidationError('The project file changed or was removed outside this window. Reload it or use "Save As".')
+            if self.project_details:
+                from .project_details import numbers
+                existing, _ = _read_file(path)
+                prior = numbers(json.loads(existing))
+                incoming = numbers(captured)
+                if any(value != prior.get(key, value) or key not in prior and value not in set(prior.values()) for key, value in incoming.items()):
+                    raise ValidationError('Existing project numbers cannot be edited. Reload this project to restore its saved numbers.')
             preservation = self._preserve_estimates(path, request)
             _preserve_penetration_inputs(path, preservation)
             _preserve_library_drafts(path, preservation)
@@ -1088,9 +1106,92 @@ class ProjectLibrary:
             result['warning'] = warning
         return result
 
+    def clients(self):
+        """Continue the bounded linked-folder scan; never follow arbitrary paths."""
+        listing = self.listing(limit=200)
+        clients = {}
+        with self._lock:
+            records = list(self._scan['files'].values()) if self._scan else []
+        for row in records:
+            for value in row.get('clients', [row.get('client', '')]):
+                if value.strip():
+                    clients.setdefault(value.strip().casefold(), value.strip())
+        if self.project_details:
+            self.project_details.observe(value for row in records for value in row.get('project_numbers', [row.get('project_no', '')]))
+        return {'clients': sorted(clients.values(), key=str.casefold), 'scan_pending': listing['scan_pending'],
+                'error_count': listing['error_count'], 'errors': listing['errors']}
+
+    @staticmethod
+    def _apply_project_numbers(captured, values):
+        from copy import deepcopy
+        from .quote_details import compose_quote_title
+        captured = deepcopy(captured)
+        def apply(estimate, number):
+            if estimate.get('project_no', '') != number:
+                estimate['project_no'] = number
+                estimate['title'] = compose_quote_title(number, estimate.get('client', ''), estimate.get('site_address', ''))
+        if captured.get('estimates'):
+            for entry in captured['estimates']:
+                apply(entry['workspace']['estimate'], values[entry['id']])
+            active = next(entry['workspace']['estimate'] for entry in captured['estimates'] if entry['id'] == captured['active_estimate_id'])
+            captured['estimate'] = deepcopy(active)
+        else:
+            apply(captured['estimate'], values['estimate-1'])
+        return captured
+
+    def _saved_number_result(self, ticket):
+        path = Path(ticket['path'])
+        payload, info = _read_file(path)
+        if hashlib.sha256(payload).hexdigest() != ticket['payload_hash']:
+            raise ValidationError('The completed project save has since changed. Load the saved project before continuing.')
+        project = load_project_bytes(self.store, payload, edition=self.edition)
+        selected = self.store.project_folder()
+        try:
+            folder = _directory(selected) if selected else None
+        except ValidationError:
+            folder = None
+        metadata = _metadata(path, info, project, folder, payload)
+        metadata['in_linked_folder'] = folder is not None and path.is_relative_to(folder)
+        return {'cancelled': False, 'file': self._authorize_save(path, info, payload, metadata),
+                'folder': selected, 'project': project, 'replayed': True}
+
     def save_as(self, request):
-        # No dialog or preference/file writes until the complete captured state is valid.
+        if self.project_details is None:
+            return self._save_as(request)
+        from .project_details import request_id
+        if not isinstance(request, dict):
+            raise ValidationError('Include the complete project as an object.')
+        identifier = request_id(request.get('project_save_request', str(uuid.uuid4())))
+        request = {key: value for key, value in request.items() if key != 'project_save_request'}
         captured = self._capture_takeoffs(request)
+        # Complete validation still precedes reservations and native dialogs.
+        load_project_bytes(self.store, export_project(self.store, captured, edition=self.edition), edition=self.edition)
+        self.project_details.recover(_read_file)
+        if not self.project_details.known(captured, identifier):
+            discovered = self.clients()
+            if discovered['scan_pending']:
+                raise ValidationError('The project folder is still being read. Wait for the previous clients to finish loading and save again.')
+            if discovered['error_count']:
+                raise ValidationError('Resolve unreadable project files in the linked folder before assigning a new project number.')
+        ticket = self.project_details.begin(identifier, captured)
+        if ticket['replay']:
+            return self._saved_number_result(ticket)
+        prepared = self._apply_project_numbers(captured, json.loads(ticket['numbers_json']))
+        try:
+            result = self._save_as(request, captured=prepared, ticket=ticket)
+            if result.get('cancelled'):
+                self.project_details.cancel(identifier)
+            return result
+        except Exception:
+            recovered = self.project_details.recover_request(identifier, _read_file)
+            if recovered:
+                return self._saved_number_result(recovered)
+            self.project_details.cancel(identifier)
+            raise
+
+    def _save_as(self, request, *, captured=None, ticket=None):
+        # No dialog or preference/file writes until the complete captured state is valid.
+        captured = self._capture_takeoffs(request) if captured is None else captured
         payload = export_project(self.store, captured, edition=self.edition)
         project = load_project_bytes(self.store, payload, edition=self.edition)
         with _dialog():
@@ -1120,7 +1221,11 @@ class ProjectLibrary:
                     captured = self._publish_takeoffs(captured, selected_path)
                     payload = export_project(self.store, captured, edition=self.edition)
                     project = load_project_bytes(self.store, payload, edition=self.edition)
+                if ticket:
+                    self.project_details.prepare(ticket['id'], selected_path, payload)
                 path, saved_info = _atomic_write(selection, payload)
+                if ticket:
+                    self.project_details.finish(ticket['id'])
                 warning = self._saved_takeoff_source(request, captured, path)
             if selected_folder is None:
                 try:

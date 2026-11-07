@@ -2873,7 +2873,7 @@
   window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus, scheduleChanged,
     openCommercial: kind => requestViewNavigation({quote:"quote", work_order:"work-orders", purchase_order:"purchase-orders"}[kind]),
     configuration: () => clone(state.quoteConfiguration || state.configuration),
-    context: () => ({project_token:state.projectFile?.save_token || null,project_context:state.quoteContext,project_path:state.projectFile?.path || null}),
+    context: () => ({project_token:state.projectFile?.save_token || null,project_context:state.quoteContext,project_path:state.projectFile?.path || null,project_revision:state.projectFile?.revision || null}),
     runtimeContext: () => state.quoteContext,
     hasPendingOperation: () => state.projectBusy,
     isCurrentDownloadTarget,

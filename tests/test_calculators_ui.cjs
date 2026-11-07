@@ -2229,6 +2229,12 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
     assert.equal(reportCells[0].children[0].textContent,'Assessment B (private)');assert.equal(reportCells[1].children[0].textContent,'Assessment C');assert.equal(JSON.stringify(entry.inputs),beforeReports);
     entry.result.rows[1].report_references=[];audit.refreshOutputs(entry.result);assert.equal(reportCells[0].children.length,0);
     assert.equal(reportRenderCalls.length,4);assert.equal(byId('calculator-grid').querySelectorAll('[data-calculator-output]').filter(cell=>cell.dataset.calculatorOutput==='B9').length,1);
+    entry.result.rows[1].result_unavailable=true;
+    entry.result.rows[1].cells[1].display_value='N / A';
+    audit.refreshOutputs(entry.result);
+    assert.equal(reportCells[0].textContent,'N / A');
+    const masked=byId('calculator-grid').querySelectorAll('[data-calculator-output]').find(cell=>cell.dataset.calculatorOutput==='B9');
+    assert.equal(masked.children[0]?.textContent || masked.textContent,'N / A');
     delete context.window.CeasefireRegisterReferences;passed++;
   }
 

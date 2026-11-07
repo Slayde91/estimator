@@ -6,6 +6,7 @@ only the canonical report-reference projection is published from that evidence.
 """
 
 from copy import deepcopy
+from .assessment_references import UNAVAILABLE_RESULT
 
 
 _SUMMARY_COLUMNS = {
@@ -42,6 +43,9 @@ def calculator_download_data(data):
         if public['id'] != 'steel_intumescent':
             summary.pop('qualifications', None)
     for row in public['rows']:
+        if row.get('result_unavailable'):
+            for column in row['values'].keys() - set(row['input_columns']):
+                row['values'][column] = UNAVAILABLE_RESULT
         for key in ('assessment_id', 'assessment_source', 'assessment_reference', 'source_reference'):
             row.pop(key, None)
     for row in public['extra_rows']:
@@ -51,6 +55,16 @@ def calculator_download_data(data):
         public['board_net_steel_areas']['basis'] = ''
         public['board_net_steel_areas']['notes'] = []
     return public
+
+
+def duct_schedule_outputs(row):
+    """Present product-specific schedule quantities for both PDF and Excel."""
+    if row.get('result_unavailable'):
+        return (UNAVAILABLE_RESULT,) * 6
+    v = row['values']
+    if row['wrap']:
+        return row['wrap_layer_mm'], 'Per layer', v['K'], 'N/A', v['N'], v['O']
+    return v['L'], 'Coating', v['K'], v['M'], 'N/A', 'N/A'
 
 
 def without_fingerprints(value):

@@ -95,7 +95,8 @@ class QuoteScheduleLayoutTests(unittest.TestCase):
                         self.assertIn(' '.join(line.split()), content)
         links = [item.get_object().get('/A', {}).get('/URI')
                  for page in reader.pages for item in page.get('/Annots', [])]
-        self.assertIn(REFERENCE['url'], links)
+        if any(REFERENCE['label'] in cell for row in table['rows'] for cell in row):
+            self.assertIn(REFERENCE['url'], links)
 
     def test_all_calculator_scope_columns_values_and_portrait_bands_match_canonical_exports(self):
         for identity, value in calculators().items():
@@ -114,6 +115,10 @@ class QuoteScheduleLayoutTests(unittest.TestCase):
                 self.assertTrue(all(float(page.mediabox.width) > float(page.mediabox.height)
                                     for page in standalone.pages))
                 self.assert_values(table, standalone)
+                if data['rows'][0]['result_unavailable']:
+                    self.assertEqual(table['rows'][0][-1], 'N / A')
+                    self.assertFalse(any(annotation.get_object().get('/A', {}).get('/URI')
+                                         for page in standalone.pages for annotation in page.get('/Annots', [])))
                 self.assertEqual(value, before)
 
     def test_firestopping_scope_preserves_diagram_references_and_every_visible_column(self):

@@ -62,7 +62,8 @@ def assert_missing_promat_projection(test, data):
         test.assertEqual(row['assessment_id'], 'promat-steel-spray-reports-v1')
         test.assertEqual(row['assessment_reference'], PROMAT_REPORTS[product])
         test.assertIn(MISSING_PROMAT_EVIDENCE.error, row['assessment_source'])
-        test.assertEqual([reference['label'] for reference in row['report_references']], [PROMAT_REPORTS[product]])
+        test.assertTrue(row['result_unavailable'])
+        test.assertEqual(row['report_references'], [])
     for product in {row['values']['B'] for row in rows}:
         summary = next(row['values'] for table in data['summaries'] for row in table['rows']
                        if row['values'].get('A') == product)
@@ -391,7 +392,8 @@ class CalculatorReportTests(unittest.TestCase):
                     historical = WorkbookEngine(source_model(identity), {})
                     self.assertEqual(historical.value('SCHEDULE', 'O10'), 26)
                     self.assertNotIn('26.00', text)
-                    self.assertIn('FC13107-01-05', text)
+                    self.assertNotIn('FC13107-01-05', text)
+                    self.assertIn('N / A', text)
                     assert_missing_promat_projection(self, default_projection(identity))
                     self.assertNotIn('Product order totals', text)
                     self.assertNotIn('Product order totals', summary)
@@ -466,6 +468,7 @@ class CalculatorReportTests(unittest.TestCase):
     def test_spray_schedule_has_separate_source_columns_and_only_requested_thickness(self):
         data = deepcopy(default_projection('steel_vermiculite'))
         data['rows'] = data['rows'][:1]
+        data['rows'][0]['result_unavailable'] = False
         values = data['rows'][0]['values']
         values.update(B='PDF-PRODUCT', F='PDF-SECTION', I=123.456789, J=9.87654321,
                       O=26.123456, P=93.876543, R=94.876543, T=95.876543, U=96.876543,

@@ -1301,7 +1301,10 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
   });
   await check('Callouts wrap by measured width and preserve every generated summary line',()=>{
     const h=harness(), summary=['Barrier B-0001 '+ 'Z'.repeat(110),...Array.from({length:20},(_,i)=>`S-${i} electrical cable 1 x 100 mm`)].join('\n');
-    h.context.document.createElement=()=>({getContext:()=>({font:'',measureText:value=>({width:value.length*5})})}); const lines=copy(h.audit.physicalCalloutLines(summary,120,9)); assert.ok(lines.every(line=>line.length<=24)); assert.ok(lines.join(' ').includes('S-19')); const wider=copy(h.audit.physicalCalloutLines(summary,240,9)); assert.ok(wider.length<lines.length); assert.match(summary,/S-19/);
+    const measuredFaces=new Set();
+    h.context.document.createElement=()=>({getContext:()=>({font:'',measureText(value){measuredFaces.add(this.font);return {width:value.length*550};}})});
+    const lines=copy(h.audit.physicalCalloutLines(summary,120,9)); assert.ok(lines.every(line=>line.length<=24)); assert.ok(lines.join(' ').includes('S-19')); const wider=copy(h.audit.physicalCalloutLines(summary,240,9)); assert.ok(wider.length<lines.length); assert.match(summary,/S-19/);
+    assert.deepEqual([...measuredFaces].sort(),['400 1000px CeasefireDrawing','700 1000px CeasefireDrawing']);
   });
   await check('Physical source focus waits for successful navigation and rejects replacement scope or source',async()=>{
     const h=harness(), doc={id:'doc',sha256:'a'.repeat(64),pages:[{}]}, ref={document_id:'doc',document_sha256:doc.sha256,page:1,point:[12.5,23.75]};

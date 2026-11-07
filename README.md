@@ -69,6 +69,17 @@ Calculators and Projects. **Help** provides a plain-English guide to the
 main workflow and the meaning of each area. The browser interface uses the
 bundled Montserrat font, so it does not depend on an internet font service.
 
+**Contacts** holds the shared Leads board, Contacts and Accounts. Saving a lead links
+its contact to the company account. To import people or companies, open the
+corresponding page, choose **Document → Export Template**, fill in the XLSX and
+choose **Import Template** on the same page.
+
+In **Projects**, choose the estimate you want before opening a project. From the
+estimate toolbar you can create a Quote or a SWMS. The **Quotes** board includes
+quotes from saved files inside the linked projects folder; editing a quote keeps
+it in its owning project without switching the estimate you are working on.
+Use the quote card’s **Create WO** action to link a work order to that quote.
+
 New PDF exports also use bundled Montserrat for all CLASSIFIRE-generated text,
 including reports, headers and drawing annotations. Uploaded drawings, cover
 sheets, manufacturer PDFs and previously issued documents keep their original

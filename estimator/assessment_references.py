@@ -81,7 +81,9 @@ def steel_calculation_note(calculator_id, engine, row, available):
     if available:
         if 'area' in state or 'girth' in state or 'length' in state:
             return 'Enter the coating area, or check quantity, length and exposed perimeter.'
-        if 'kit' in state or 'component' in state or 'density' in state or 'yield' in state:
+        if 'numeric range' in state:
+            return 'Check the quantity, dimensions and units. The material quantity exceeds the supported range.'
+        if any(word in state for word in ('kit', 'component', 'density', 'yield', 'quantity settings')):
             return 'Verify the selected product’s pack size, yield and component settings to calculate quantities.'
         return ''
     status = cell('AI' if board else 'V')

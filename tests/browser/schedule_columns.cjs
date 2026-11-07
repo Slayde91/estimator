@@ -44,10 +44,11 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
  page.on('response',response=>{const url=new URL(response.url());if(url.origin===base&&['/calculators.css','/penetration.css'].includes(url.pathname))cssResponses.push((async()=>{assert.equal(response.status(),200);const bytes=await response.body();evidence.served_css.push({url:response.url(),source:`static${url.pathname}`,sha256:createHash('sha256').update(bytes).digest('hex'),size:bytes.length});})().catch(error=>evidence.errors.push(String(error))));});
  for(const [id,inputs,row]of [
    ['steel_board',{CALCULATOR:{A9:'Column chooser precise fixture',C9:'TRAFALGAR COREX',D9:'200UC46',F9:1.23456789012345,G9:4,H9:120,I9:'Column',J9:550,...retainedBoardInputs}},9],
-  ['ductwork',{CALCULATOR:{B11:'250x250',C11:'FyreWrap',D11:1.23456789012345,E11:'120/120/120',F11:0,G11:1,H11:'Other pressurisation',I11:'Both'}},11],
+  ['ductwork',{CALCULATOR:{B11:'300 x 200',C11:'CAFCO 300',D11:1.23456789012345,E11:'120/120/120',F11:1,G11:0,H11:'Internal',I11:'Horizontal',
+    B12:'250x250',C12:'FyreWrap',D12:10,E12:'120/120/120',F12:0,G12:1,H12:'Other pressurisation',I12:'Both'}},11],
   ['steel_vermiculite',{SCHEDULE:{A10:'Spray fixture',B10:'CAFCO 300',J10:1.23456789012345,I10:2}},10],
   ['steel_intumescent',{SCHEDULE:{A10:'Intumescent fixture',B10:'SC902',J10:1.23456789012345,I10:2}},10],
- ]){const reply=await page.request.put(`${base}/api/calculators/${id}/state`,{data:{inputs,schedule_rows:[row]}});assert.equal(reply.status(),200);}
+ ]){const reply=await page.request.put(`${base}/api/calculators/${id}/state`,{data:{inputs,schedule_rows:id==='ductwork'?[11,12]:[row]}});assert.equal(reply.status(),200);}
  await page.addInitScript(()=>{
   // Legacy all-visible preferences must not restore removed columns.
   localStorage.setItem('ceasefire.scheduleColumns.v1.steel_vermiculite:SCHEDULE',JSON.stringify({version:1,hidden:['column:X']}));
@@ -74,9 +75,9 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
    }
   } else {
    assert.equal(headers.some(column => column.id === 'virtual:notes'), false);
-   await expect(table.locator('[data-calculator-output="J11"]')).toHaveText('Wrap total needs a penetration detail');
-   await expect(table.locator('[data-calculator-reports="11"]')).toHaveText('N / A');
-   await expect(table.locator('[data-calculator-output="O11"]')).toHaveText('N / A');
+   await expect(table.locator('[data-calculator-output="J12"]')).toHaveText('Wrap total needs a penetration detail');
+   await expect(table.locator('[data-calculator-reports="12"]')).toHaveText('N / A');
+   await expect(table.locator('[data-calculator-output="O12"]')).toHaveText('N / A');
   }
   if(['steel_vermiculite','steel_intumescent'].includes(id)){
    const reportIndex=headers.findIndex(column=>column.id==='virtual:report');

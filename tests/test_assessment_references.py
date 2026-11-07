@@ -50,6 +50,9 @@ class AssessmentReferenceTests(unittest.TestCase):
                 note = steel_calculation_note(calculator, Engine(**fields), 11, False)
                 self.assertIn(diagnostic, note)
                 self.assertNotIn('Private', note)
+        for status, expected in [('Check product quantity settings', 'pack size'),
+                                 ('Quantity exceeds the supported numeric range', 'dimensions and units')]:
+            self.assertIn(expected, steel_calculation_note('steel_intumescent', Engine(W11=status), 11, True))
         engine = Engine(W11='QUANTIFIED')
         self.assertEqual(steel_calculation_note('steel_vermiculite', engine, 11, True), '')
         engine.all_required_missing_by_row = {11: ['Steel ID', 'Critical temperature']}

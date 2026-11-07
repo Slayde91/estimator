@@ -175,7 +175,11 @@ class PenetrationScheduleTests(unittest.TestCase):
             with self.subTest(long_lines=long_lines):
                 pdf = PdfReader(BytesIO(render_penetration_pdf(result, spec, {}, library=library)))
                 texts = [page.extract_text() for page in pdf.pages]
-                self.assertGreater(len(texts), 1)
+                # Portrait A4 fits the 28-line case on one page; the longer
+                # case must still exercise continuation-page headers.
+                self.assertGreaterEqual(len(texts), 1)
+                if long_lines == 70:
+                    self.assertGreater(len(texts), 1)
                 for text in texts:
                     self.assertEqual(sum(line.strip() == 'Line' for line in text.splitlines()), 1)
                     self.assertIn('ROW', text)

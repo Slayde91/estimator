@@ -47,6 +47,9 @@ class CommercialHTTP:
                 if action == 'register' and self.saved:
                     self.service.certifications.project_id(workspace)
                     result = self.saved.projects.commercial_register(refresh='refresh' in query, active_workspace=workspace)
+                elif action == 'source-metadata' and self.saved:
+                    self.service.certifications.project_id(workspace)
+                    result = self.saved.projects.commercial_source_metadata()
                 elif action == 'state':
                     result = self.service.view(workspace, include_quote_totals=True)
                 elif action == 'supplier-products' and self.pricing:
@@ -74,7 +77,10 @@ class CommercialHTTP:
                 expected_workspace = handler.headers.get('X-Estimator-Documentation-Workspace')
                 if expected_workspace and expected_workspace != workspace:
                     raise CommercialConflict('The export belongs to a different project workspace.')
-                if action == 'attachment' and set(body) == {'workspace_id', 'name', 'content'} and not expected_workspace:
+                if action in {'ignore-source', 'restore-source'} and self.saved and set(body) == {'workspace_id', 'id'} and not expected_workspace:
+                    self.service.certifications.project_id(workspace)
+                    result = self.saved.projects.ignore_commercial_source(body['id'], ignored=action == 'ignore-source')
+                elif action == 'attachment' and set(body) == {'workspace_id', 'name', 'content'} and not expected_workspace:
                     project = self.service.certifications.project_id(workspace)
                     result = self.service.files.add(project, body['name'], body['content'])
                 elif action.startswith('saved-') and self.saved and not expected_workspace:

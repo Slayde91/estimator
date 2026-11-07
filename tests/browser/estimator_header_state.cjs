@@ -1,3 +1,4 @@
+const {fillProjectDetails}=require('./project_actions.cjs');
 // Main section tabs, saved project names and Firestopping controls use
 // real endpoints in an isolated synthetic project folder, never the live app.
 const { chromium, expect } = require('@playwright/test');
@@ -99,18 +100,18 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
   }
   await page.setViewportSize({width:1440,height:1100});
 
-  await expect(page.locator('#project-no')).toHaveAttribute('readonly',''); await page.locator('#client').fill('<saved quote> & Client'); await page.locator('#site-address').fill('Fixture site');
+  await expect(page.locator('#project-no')).toHaveAttribute('readonly',''); await fillProjectDetails(page,{'client':'<saved quote> & Client'}); await fillProjectDetails(page,{'site-address':'Fixture site'});
   await headerTitle('');
   const saved = await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as'); await idle(); await settledEstimate();
   const savedTitle = saved.project.estimate.title; assert.equal(saved.file.title, savedTitle); assert.notEqual(savedTitle, path.basename(info.project)); await headerTitle(savedTitle);
   const savedSnapshot = await snapshot(), beforeSavedFile = fs.readFileSync(info.project); assert.equal(saved.project.estimate.inputs.F26, originalInputs.F26);
-  await page.locator('#client').fill('Captured save client'); await expect(page.locator('#project-save-state')).toHaveText('Unsaved changes'); await headerTitle(savedTitle);
+  await fillProjectDetails(page,{'client':'Captured save client'}); await expect(page.locator('#project-save-state')).toHaveText('Unsaved changes'); await headerTitle(savedTitle);
   const entered = deferred(), release = deferred(); releaseHeld = release.resolve;
   let captured;
   await page.route('**/api/project/save', async route => { captured = route.request().postDataJSON(); entered.resolve(); await release.promise; const reply = await route.fetch(); await route.fulfill({ response: reply }); });
   const heldSave = response(() => clickProjectControl(page, 'Save'), '/api/project/save'); heldSave.catch(() => {}); await Promise.race([entered.promise, heldSave]);
   await expect(page.locator('#project-save-state')).toHaveText('Working…'); await headerTitle(savedTitle);
-  await page.locator('#client').fill('Later unsaved client'); await headerTitle(savedTitle); assert.deepEqual(fs.readFileSync(info.project), beforeSavedFile);
+  await fillProjectDetails(page,{'client':'Later unsaved client'}, {waitForIdle:false}); await headerTitle(savedTitle); assert.deepEqual(fs.readFileSync(info.project), beforeSavedFile);
   release.resolve(); const heldReply = await heldSave; await idle(); await page.unroute('**/api/project/save'); releaseHeld = null;
   await headerTitle(captured.estimate.title); await expect(page.locator('#project-save-state')).toHaveText('Unsaved changes'); await expect(page.locator('#client')).toHaveValue('Later unsaved client');
   assert.equal(heldReply.file.title, captured.estimate.title); assert.equal(JSON.parse(fs.readFileSync(info.project)).estimate.client, 'Captured save client');
@@ -118,7 +119,7 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
   checks.savedName = { plainText: true, differsFromFilename: true, dirtyEditsRetainSavedTitle: true, busyRetainsSavedTitle: true, savedTitleUsesCapturedPayload: true, laterEditsRemainUnsaved: true };
   await response(() => clickProjectControl(page, 'Load'), '/api/project/open'); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await idle(); await settledEstimate();
   await headerTitle(captured.estimate.title); await expect(page.locator('#client')).toHaveValue('Captured save client');
-  await page.locator('#client').fill('Draft before New'); await page.locator('nav [data-view="projects"]').click(); if(await page.locator('#view-projects').isVisible())await page.locator('#view-projects [data-project-section="quotes"]').click(); await page.locator('#new-quote').click(); await page.getByRole('dialog').getByRole('button', { name: 'New project', exact: true }).click(); await idle(); await settledEstimate(); await headerTitle('');
+  await fillProjectDetails(page,{'client':'Draft before New'}); await page.locator('nav [data-view="projects"]').click(); if(await page.locator('#view-projects').isVisible())await page.locator('#view-projects [data-project-section="quotes"]').click(); await page.locator('#new-quote').click(); await page.getByRole('dialog').getByRole('button', { name: 'New project', exact: true }).click(); await idle(); await settledEstimate(); await headerTitle('');
   await response(() => page.locator('#project-import-file').setInputFiles(info.project), '/api/project/import'); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await idle(); await settledEstimate();
   await headerTitle(captured.estimate.title); await expect(page.locator('#client')).toHaveValue('Captured save client'); assert.deepEqual((await snapshot()).pricing, savedSnapshot.pricing); assert.deepEqual((await snapshot()).calculators, savedSnapshot.calculators); assert.deepEqual((await snapshot()).penetration, savedSnapshot.penetration);
   checks.savedName.nativeReloadNewAndImport = true;

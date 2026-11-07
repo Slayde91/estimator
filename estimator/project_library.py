@@ -1170,6 +1170,8 @@ class ProjectLibrary:
         # SQLite commits. Only the exact previously selected file and bytes prove
         # that the file took ownership; an older file at the same path does not.
         def verify(row):
+            if row['project_id'] in self._commercial_sources.ignored_owners():
+                return False
             path = Path(row['path'])
             try:
                 payload, info = _read_file(path)
@@ -1187,11 +1189,39 @@ class ProjectLibrary:
             with self._lock:
                 self.commercial.unfiled.recover_publications(verify)
 
+    @staticmethod
+    def _commercial_source_token(owner):
+        return hashlib.sha256(('commercial-source-owner\0' + owner).encode('utf-8')).hexdigest()
+
+    def commercial_source_metadata(self):
+        """Known ownership labels only: no folder scan, stat, or project reads."""
+        with self._lock:
+            labels = {row[2]: row[3] for row in self._commercial_sources.records() if not row[4]}
+            if self.commercial:
+                for owner, title in self.commercial.issued_source_labels():
+                    labels.setdefault(owner, title)
+            ignored = self._commercial_sources.ignored_owners()
+            return {'sources': [{'id': self._commercial_source_token(owner), 'title': title, 'ignored': owner in ignored}
+                                for owner, title in sorted(labels.items())]}
+
+    def ignore_commercial_source(self, token, *, ignored=True):
+        with self._lock:
+            owners = {row[2] for row in self._commercial_sources.records()}
+            if self.commercial:
+                owners.update(owner for owner, _ in self.commercial.issued_source_labels())
+            owner = next((owner for owner in owners if self._commercial_source_token(owner) == token), None)
+            if owner is None:
+                raise ValidationError('Choose a registered project source to ignore.')
+            self._commercial_sources.ignore_owner(owner, ignored)
+            self._commercial_walk = None
+            return {'ignored': ignored, 'id': token}
+
     def commercial_register(self, *, refresh=False, active_workspace=None):
         # Continue a cold external-file scan between requests. Only the linked
         # folder is enumerated; all other reads target a previously selected file.
         with self._lock:
             self.recover_commercial_publications()
+            ignored = self._commercial_sources.ignored_owners()
             folder = self.store.project_folder()
             walk = self._commercial_walk
             if refresh or walk is None or walk['folder'] != folder:
@@ -1201,11 +1231,11 @@ class ProjectLibrary:
                     return {'documents': [], 'revisions': {}, 'scan_pending': True, 'error_count': listing['error_count'], 'unavailable_sources': []}
                 linked = (list(self._scan['files'].values()) if folder and self._scan
                           and self._scan['folder'] == Path(folder) else [])
-                files = {source_id(f['path']): f for f in linked}
+                files = {source_id(f['path']): f for f in linked if f['source_project_id'] not in ignored}
                 records = self._commercial_sources.records()
                 walk = {'folder': folder, 'files': files, 'errors': listing['error_count'], 'missing': [],
                         'known_owners': {row[2] for row in records},
-                        'pending': deque(row for row in records if not row[4] and row[0] not in files)}
+                        'pending': deque(row for row in records if not row[4] and row[0] not in files and row[2] not in ignored)}
                 self._commercial_walk = walk
             deadline = time.monotonic() + MAX_SCAN_SECONDS
             for _ in range(MAX_PROJECT_FILES):
@@ -1216,7 +1246,7 @@ class ProjectLibrary:
                     walk['files'][identifier] = self._other_commercial_file(identifier, path, owner)
                 except (OSError, ValidationError):
                     self._outside_file_cache.pop(identifier, None)
-                    walk['missing'].append((owner, {'title': title, 'path': path, 'reason': 'unavailable'}))
+                    walk['missing'].append((owner, {'id': self._commercial_source_token(owner), 'title': title, 'path': path, 'reason': 'unavailable'}))
                 if time.monotonic() >= deadline:
                     break
             if walk['pending']:
@@ -1237,8 +1267,8 @@ class ProjectLibrary:
                 present.update(card['project_id'] for card in local_cards)
                 self.commercial.apply_register_numbers(documents)
                 for owner, title in self.commercial.issued_source_labels():
-                    if owner not in present and owner not in walk['known_owners']:
-                        missing.append({'title': title, 'reason': 'unlocated'})
+                    if owner not in present and owner not in walk['known_owners'] and owner not in ignored:
+                        missing.append({'id': self._commercial_source_token(owner), 'title': title, 'reason': 'unlocated'})
             return {'documents': documents, 'revisions': {f['path']: f['revision'] for f in files.values()},
                     'scan_pending': False, 'error_count': walk['errors'], 'unavailable_sources': missing}
 

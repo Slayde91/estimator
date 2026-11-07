@@ -73,10 +73,10 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   await estimate();await save();
   saved=JSON.parse(fs.readFileSync(info.project));assert.equal(saved.estimates[1].workspace.estimate.measurements,'Second estimate notes');
   await page.setViewportSize({width:390,height:1000});
-  const statusBounds=await page.locator('#project-status').boundingBox();
+  await expect(page.locator('#project-status')).toHaveCount(0);
   const documentToggle=page.locator('[aria-controls="firestopping-document-actions"]');
   const documentBounds=await documentToggle.boundingBox();
-  assert.equal(statusBounds.height,48);assert.equal(documentBounds.height,48);
+  assert.equal(documentBounds.height,48);
   await documentToggle.click();
   const documentMenu=await page.locator('#firestopping-document-actions').boundingBox();
   assert.ok(documentMenu.x>=0&&documentMenu.x+documentMenu.width<=390);

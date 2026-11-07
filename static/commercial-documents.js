@@ -314,7 +314,35 @@
         const description = source.path
           ? `${source.title} — the saved file could not be read at ${source.path}`
           : `${source.title} — CLASSIFIRE has issued document history for this project but has no current saved file for it.`;
-        missing.append(node("li","",description));
+        const item = node("li", "", description);
+        if (source.id) {
+          const ignore = button("Ignore deleted project", async () => {
+          if (state.busy) return;
+          const accepted = await window.CeasefireDialogs.confirm("Ignore project source", "Stop looking for this project's saved file and hide its unavailable-file notice? Issued document history is retained.", "Yes", "Cancel");
+          if (!accepted) return;
+          state.busy = true;
+          try {
+            await request("ignore-source", {workspace_id: state.workspace, id: source.id});
+            if (await load()) {
+              renderBoard(); message("Project source ignored.");
+              const notice = root().querySelector(".commercial-message");
+              if (notice?.firstChild) window.CeasefireI18n?.text(notice.firstChild, "Project source ignored.");
+              const undo = button("Undo", async () => {
+                try {
+                  await request("restore-source", {workspace_id: state.workspace, id: source.id});
+                  if (await load()) renderBoard();
+                } catch (error) { message(error.message, true); }
+              });
+              undo.setAttribute("data-i18n", "Undo");
+              notice?.append(undo);
+            }
+          } catch (error) { message(error.message, true); }
+          finally { state.busy = false; }
+          });
+          ignore.setAttribute("data-i18n", "Ignore deleted project");
+          item.append(ignore);
+        }
+        missing.append(item);
       }
       notice.append(missing,node("p","","To show its current documents, use Projects → Load to open the project's .cf.json file, or link the folder containing it."));
       list.insertBefore(notice,list.querySelector(".commercial-board"));
@@ -553,8 +581,8 @@
       state.busy = false;
     }
   }
-  function richEditor(label, value, changedValue, trackDirty = markDirty) {
-    const section = node("section", "commercial-rich"),
+  function richEditor(label, value, changedValue, trackDirty = markDirty, collapsed = false) {
+    const section = node(collapsed ? "details" : "section", "commercial-rich"),
       toolbar = node("div", "commercial-rich-toolbar"),
       editor = node("div", "commercial-rich-input");
     editor.contentEditable = "true";
@@ -601,7 +629,7 @@
       event.preventDefault();
       document.execCommand("insertText", false, event.clipboardData.getData("text/plain"));
     });
-    section.append(node("h2", "", label), toolbar, editor);
+    section.append(node(collapsed ? "summary" : "h2", "", label), toolbar, editor);
     return section;
   }
   function openEditor(document, source = null, linkedQuote = null) {
@@ -632,11 +660,21 @@
     form.append(actions, titleRow);
     const details = node("section", "card commercial-details");
     details.append(node("h2", "", "Project details"));
-    for (const [key, label] of [["project_no", "Project number"], ["client", "Client"], ["site_address", "Site address"], ["contact", "Client contact"], ["phone", "Client phone"], ["email", "Client email"], ["date", "Document date"]]) {
-      if (state.kind === "purchase_order" && ["client", "contact", "phone", "email"].includes(key)) continue;
+    const detailField = (key, label) => {
       const control = input(fields.details[key], value => fields.details[key] = value, key === "date" ? "date" : "text");
       if (["project_no", "client", "site_address"].includes(key)) control.readOnly = true;
-      details.append(field(label, control));
+      return field(label, control);
+    };
+    const detailPair = pairs => {
+      const pair = node("div", "commercial-field-pair");
+      pairs.forEach(([key,label]) => pair.append(detailField(key,label)));
+      return pair;
+    };
+    details.append(detailPair([["date", "Document date"], ["project_no", "Project number"]]));
+    if (state.kind !== "purchase_order") details.append(detailPair([["client", "Client"], ["contact", "Client contact"]]));
+    details.append(detailField("site_address", "Site address"));
+    if (state.kind !== "purchase_order") {
+      details.append(detailPair([["phone", "Client phone"], ["email", "Client email"]]));
     }
     form.append(details);
     if (state.kind === "quote") {
@@ -650,7 +688,7 @@
         form.querySelector(".commercial-lines tbody tr:last-child textarea")?.focus();
       }));
       form.append(chooser);
-      form.append(node("section", "commercial-lines"), node("div", "commercial-totals"), rateSchedule(fields), node("section", "commercial-scope"), richEditor("Scope preamble", fields.scope, value => fields.scope = value), richEditor("Allowances", fields.allowances, value => fields.allowances = value), richEditor("Terms & Conditions", fields.terms, value => fields.terms = value));
+      form.append(node("section", "commercial-lines"), node("div", "commercial-totals"), rateSchedule(fields), node("section", "commercial-scope"), richEditor("Allowances", fields.allowances, value => fields.allowances = value, markDirty, true), richEditor("Terms & Conditions", fields.terms, value => fields.terms = value, markDirty, true));
     } else {
       renderOrderFields(form, fields);
       if (state.kind === "purchase_order") form.append(node("section", "commercial-lines"), button("Add line item", () => {
@@ -866,6 +904,7 @@
     for (const [title, items] of groups) {
       const section = node("section", "card commercial-order-fields");
       section.append(node("h2", "", title));
+      let dates;
       for (const [key, label] of items) {
         if (["quote_reference", "work_order_reference"].includes(key)) continue;
         if (key === "estimated_cost") {
@@ -893,8 +932,10 @@
           control = select(options, fields.order[key], value => fields.order[key] = value);
         } else control = key.endsWith("_date") ? input(fields.order[key], value => fields.order[key] = value, "date") : textarea(fields.order[key], value => fields.order[key] = value);
         const item = field(label, control);
-        if (isWorkOrder && ["start_date","end_date"].includes(key)) item.classList.add("commercial-proposed-date");
-        section.append(item);
+        if (isWorkOrder && ["start_date","end_date"].includes(key)) {
+          if (!dates) { dates = node("div", "commercial-field-pair commercial-proposed-dates"); section.append(dates); }
+          dates.append(item);
+        } else section.append(item);
       }
       form.append(section);
     }
@@ -1010,8 +1051,6 @@
       fields.sources = derived.sources;
       if (!fields.scope || fields.scope === editor.generatedScope) fields.scope = derived.scope;
       editor.generatedScope = derived.scope;
-      const preamble = root()?.querySelector('.commercial-rich-input[aria-label="Scope preamble"]');
-      if (preamble && fields.scope === derived.scope) preamble.innerHTML = derived.scope;
       markDirty();
       renderEstimateOptions();
       renderLines();

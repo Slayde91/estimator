@@ -3,6 +3,7 @@ from html import escape, unescape
 from html.parser import HTMLParser
 from io import BytesIO
 from decimal import Decimal
+from hashlib import sha256
 import re
 
 from pypdf import PdfReader, PdfWriter
@@ -315,17 +316,32 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
         _summary(story, fields, styles)
         _totals(story, fields, styles)
         _rates(story, fields['rate_schedule'], styles)
-        _section(story, 'SCOPE OF WORKS', styles)
-        story.extend(_rich(fields['scope'], styles['body']))
         if scope_documents:
-            story.append(_paragraph('The following Full Schedules form the Scope of Works for this quotation.', styles['body']))
+            scope_hash = sha256(fields['scope'].encode('utf-8')).hexdigest()
+            embedded_scope = PdfReader(BytesIO(scope_documents[0])).metadata or {}
+            if fields['scope'] and embedded_scope.get('/ClassifireScopeSHA256') != scope_hash:
+                # Arbitrary supplied PDFs cannot be reflowed. Preserve the
+                # caller's custom scope before them rather than dropping it.
+                # App-generated scopes already include it with their table.
+                _section(story, 'SCOPE OF WORKS', styles)
+                story.extend(_rich(fields['scope'], styles['body']))
+            # Generated schedules carry their own scope heading and estimate
+            # name. A separate introductory PDF would force a blank remainder
+            # of the page before the first schedule.
             parts.append(_build(story, document, number, company, first_part=True))
             parts.extend(scope_documents)
             story = []
         else:
+            _section(story, 'SCOPE OF WORKS', styles)
+            story.extend(_rich(fields['scope'], styles['body']))
             for table in fields['scope_tables']:
+                columns = [index for index, header in enumerate(table['headers'])
+                           if header.strip().casefold() not in {'calculation notes', 'status / estimating basis'}]
+                if not columns:
+                    continue
                 _section(story, table['title'], styles)
-                story.append(_table(table['headers'], table['rows'], styles))
+                story.append(_table([table['headers'][index] for index in columns],
+                                    [[row[index] for index in columns] for row in table['rows']], styles))
         _section(story, 'ALLOWANCES', styles)
         story.extend(_rich(fields['allowances'], styles['body']) or [_paragraph('—', styles['body'])])
         reference = fields['company_reference']

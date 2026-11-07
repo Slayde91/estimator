@@ -1,3 +1,4 @@
+const {fillProjectDetails}=require('./project_actions.cjs');
 // Real rendered language switching uses only a disposable, isolated fixture.
 const {chromium,expect}=require('@playwright/test');
 const {openProjectSection}=require('./project_actions.cjs');
@@ -29,7 +30,7 @@ async function snapshot(){await idle();return page.evaluate(()=>({project:window
  await page.evaluate(async()=>{await window.CeasefireCalculators.completeProjectSnapshot();await window.CeasefirePenetrations.completeProjectSnapshot();});
  await chooseTakeoff(page,'Steel');await idle();
  await page.locator('nav [data-view="estimate"]').click();await idle();
- await expect(page.locator('#project-no')).toHaveAttribute('readonly','');await page.locator('#client').fill('Home');await page.locator('#site-address').fill('原始ข้อมูล العربية हिन्दी <literal>');await page.locator('#site-address').blur();await idle();
+ await expect(page.locator('#project-no')).toHaveAttribute('readonly','');await fillProjectDetails(page,{'client':'Home'});await fillProjectDetails(page,{'site-address':'原始ข้อมูล العربية हिन्दी <literal>'});await page.locator('#site-address').evaluate(el=>el.blur());await idle();
  const baseline=await snapshot();
  await openProjectSection(page,'certification');
  await expect(page.locator('#certification-client')).toBeEnabled();

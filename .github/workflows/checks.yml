@@ -126,6 +126,7 @@ jobs:
       - run: npm run test:project-library-drafts
       - run: node tests/browser/projects_navigation.cjs
       - run: node tests/browser/contacts.cjs
+      - run: node tests/browser/browser_review.cjs
       - run: node tests/browser/scheduler.cjs
       - run: node tests/browser/scheduler_rules.cjs
       - run: node tests/browser/scheduler_locations.cjs

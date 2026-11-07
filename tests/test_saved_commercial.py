@@ -163,6 +163,77 @@ class SavedQuoteTests(unittest.TestCase):
         self.assertEqual([doc['source_path'] for doc in restored['documents']],[str(renamed)])
         self.assertEqual(restored['unavailable_sources'],[])
 
+    def test_ignored_sources_are_persistent_and_never_read_again(self):
+        self.perform('issue', id=self.document['id'], version=1, kind='quote', request_id=str(uuid.uuid4()))
+        with self.library.commercial._connect() as db:
+            issued_history = [tuple(row) for row in db.execute('SELECT * FROM commercial_issued ORDER BY id')]
+        self.assertTrue(issued_history)
+        empty = self.root / 'empty-linked-folder'
+        empty.mkdir()
+        self.store.set_project_folder(empty)
+        self.path.unlink()
+        # Metadata and ignoring must work without probing the source path.
+        with patch.object(self.library, '_other_commercial_file', side_effect=AssertionError('Source must not be read')):
+            metadata = self.library.commercial_source_metadata()['sources']
+            self.assertEqual(len(metadata), 1)
+            token = metadata[0]['id']
+            self.assertFalse(metadata[0]['ignored'])
+            self.library.ignore_commercial_source(token)
+            self.assertEqual(self.register()['unavailable_sources'], [])
+            self.assertEqual(self.register()['documents'], [])
+        self.assertTrue(self.library.commercial_source_metadata()['sources'][0]['ignored'])
+        owner = self.library._commercial_sources.records()[0][2]
+        self.assertIn(owner, CommercialSources(self.store, None).ignored_owners())
+        with self.library.commercial._connect() as db:
+            self.assertEqual([tuple(row) for row in db.execute('SELECT * FROM commercial_issued ORDER BY id')], issued_history)
+        callbacks = []
+        with patch.object(self.library.commercial.unfiled, 'recover_publications', side_effect=lambda verify: callbacks.append(verify({'project_id': owner}))), \
+             patch('estimator.project_library._read_file', side_effect=AssertionError('Ignored recovery must not read')):
+            self.library.recover_commercial_publications()
+        self.assertEqual(callbacks, [False])
+        with self.assertRaises(ValidationError):
+            self.library.ignore_commercial_source('unknown')
+        self.library.ignore_commercial_source(token, ignored=False)
+        self.assertNotIn(owner, CommercialSources(self.store, None).ignored_owners())
+
+    def test_source_ignore_http_requires_current_workspace_and_exact_payload(self):
+        adapter = CommercialHTTP(self.library.commercial, saved=self.saved)
+        workspace = self.library.certifications.new()['workspace_id']
+        token = self.library.commercial_source_metadata()['sources'][0]['id']
+
+        class Handler:
+            headers = {}
+            command = 'POST'
+            path = '/api/commercial/ignore-source'
+            def read_json(self): return self.body
+            def send_payload(self, status, value): self.result = status, value
+
+        handler = Handler()
+        handler.body = {'workspace_id': workspace, 'id': token}
+        with patch.object(self.library, '_other_commercial_file', side_effect=AssertionError('No project reads')):
+            adapter.dispatch(handler, handler.path)
+        self.assertEqual(handler.result, (200, {'ignored': True, 'id': token}))
+        handler.body = {'workspace_id': str(uuid.uuid4()), 'id': token}
+        adapter.dispatch(handler, handler.path)
+        self.assertEqual(handler.result[0], 400)
+        handler.body = {'workspace_id': workspace, 'id': token, 'path': str(self.path)}
+        adapter.dispatch(handler, handler.path)
+        self.assertEqual(handler.result[0], 400)
+
+    def test_ignoring_one_source_keeps_other_missing_sources_visible(self):
+        empty = self.root / 'empty-linked-folder'
+        empty.mkdir()
+        self.store.set_project_folder(empty)
+        missing = str(self.root / 'another.cf.json')
+        other_owner = str(uuid.uuid4())
+        self.library._commercial_sources.remember([{'path': missing, 'source_project_id': other_owner, 'title': 'Another project'}])
+        self.path.unlink()
+        owner = next(row[2] for row in self.library._commercial_sources.records() if row[1] == str(self.path))
+        token = self.library._commercial_source_token(owner)
+        self.library.ignore_commercial_source(token)
+        notices = self.register()['unavailable_sources']
+        self.assertEqual([item['title'] for item in notices], ['Another project'])
+
     def test_registered_path_replacement_is_not_granted_its_old_owner(self):
         outside = self.root/'empty'
         outside.mkdir()

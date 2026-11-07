@@ -1,5 +1,7 @@
+const {fillProjectDetails}=require('./project_actions.cjs');
 // Disposable lifecycle coverage. This fixture never generates a certificate PDF.
-const {chromium,expect}=require('@playwright/test');
+const {chromium,expect:baseExpect}=require('@playwright/test');
+const expect=baseExpect.configure({timeout:30000});
 const {openProjectSection,clickProjectControl}=require('./project_actions.cjs');
 const {spawn,spawnSync}=require('node:child_process'),{randomUUID}=require('node:crypto');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
@@ -32,7 +34,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await page.route('**/api/certifications/*/revisions',async route=>{generationRequests.push(route.request().url());await route.abort();});
   await page.goto(base+'/');await idle();
   await page.locator('#estimate-navigation-toggle').click();
-  await page.locator('#client').fill('Current estimate client');await page.locator('#site-address').fill('Current estimate address');await expect(page.locator('#project-no')).toHaveAttribute('readonly','');const firstSave=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/save-as');await clickProjectControl(page,'Save');assert.equal((await firstSave).status(),200);await idle();await expect(page.locator('#project-no')).toHaveValue('PN-00001');
+  await fillProjectDetails(page,{'client':'Current estimate client'});await fillProjectDetails(page,{'site-address':'Current estimate address'});await expect(page.locator('#project-no')).toHaveAttribute('readonly','');const firstSave=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/save-as');await clickProjectControl(page,'Save');assert.equal((await firstSave).status(),200);await idle();await expect(page.locator('#project-no')).toHaveValue('PN-00001');
   await certification();
   await expect(page.locator('#certification-document')).toHaveValue('__draft__');
   await expect(page.locator('#certification-client')).toHaveValue('Current estimate client');
@@ -56,34 +58,34 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await expect(page.locator('#documentation-pdf-rows tr[data-cover-kind]')).toHaveCount(10);
   const kindsResponse=await fetch(base+'/api/pdf-covers'),kinds=await kindsResponse.json();
   assert.ok(kinds.items.every(item=>!Object.hasOwn(item,'cover_pdf')&&typeof item.has_cover==='boolean'));
-  await expect(coverRow('certification').getByRole('button',{name:'Save cover sheet for Certification',exact:true})).toBeDisabled();
+  await expect(coverRow('certification').getByRole('button',{name:'Save cover sheet for Certification',exact:true})).toHaveCount(0);
   await coverRow('certification').locator('input').setInputFiles(info.fixture);
   await expect(coverRow('certification')).toContainText('synthetic-drawings.pdf');
-  await coverRow('certification').getByRole('button',{name:'Save cover sheet for Certification',exact:true}).click();
+  await clickProjectControl(page,'Save');
   await expect(coverRow('certification')).toContainText('Cover sheet saved.');
   await coverRow('takeoff_markups').locator('input').setInputFiles(info.board_fixture);
-  await coverRow('takeoff_markups').getByRole('button',{name:'Save cover sheet for Markups',exact:true}).click();
+  await clickProjectControl(page,'Save');
   await expect(coverRow('takeoff_markups')).toContainText('Cover sheet saved.');
   const beforeConflict=await (await fetch(base+'/api/pdf-covers')).json(),certificationCover=beforeConflict.items.find(item=>item.kind==='certification');
   const otherWindow=await fetch(base+'/api/pdf-covers/certification',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cover_pdf:'data:application/pdf;base64,'+fs.readFileSync(info.fixture).toString('base64'),cover_pdf_name:'Other window cover.pdf',expected_version:certificationCover.version})});
   assert.equal(otherWindow.status,200);await coverRow('certification').locator('input').setInputFiles(info.fixture);
-  await coverRow('certification').getByRole('button',{name:'Save cover sheet for Certification',exact:true}).click();await expect(coverRow('certification')).toContainText('changed in another window');
-  await coverRow('certification').getByRole('button',{name:'Delete cover sheet for Certification',exact:true}).click();await page.getByRole('dialog',{name:'Cover sheet changed',exact:true}).getByRole('button',{name:'Keep editing',exact:true}).click();
-  await expect(coverRow('certification')).toContainText('Cover sheet: synthetic-drawings.pdf');await expect(coverRow('certification').getByRole('button',{name:'Save cover sheet for Certification',exact:true})).toBeEnabled();
+  await clickProjectControl(page,'Save');await expect(coverRow('certification')).toContainText('changed in another window');
+  await clickProjectControl(page,'Save');await page.getByRole('dialog',{name:'Cover sheet changed',exact:true}).getByRole('button',{name:'Keep editing',exact:true}).click();
+  await expect(coverRow('certification')).toContainText('Cover sheet: synthetic-drawings.pdf');await expect(page.locator('#save-current-project')).toBeEnabled();
   const afterCancel=await (await fetch(base+'/api/pdf-covers')).json();assert.equal(afterCancel.items.find(item=>item.kind==='certification').cover_pdf_name,'Other window cover.pdf');
-  await coverRow('certification').getByRole('button',{name:'Save cover sheet for Certification',exact:true}).click();await page.getByRole('dialog',{name:'Cover sheet changed',exact:true}).getByRole('button',{name:'Apply cover-sheet change',exact:true}).click();await expect(coverRow('certification')).toContainText('Cover sheet saved.');
+  await clickProjectControl(page,'Save');await page.getByRole('dialog',{name:'Cover sheet changed',exact:true}).getByRole('button',{name:'Apply cover-sheet change',exact:true}).click();await expect(coverRow('certification')).toContainText('Cover sheet saved.');
   await page.getByRole('button',{name:'Settings',exact:true}).click();
   await page.locator('#company-cover-pdf').setInputFiles(info.fixture);await page.locator('#company-settings-save').click();await expect(page.locator('#company-settings-status')).toContainText('Saved');
   const initialCovers=await (await fetch(base+'/api/pdf-covers')).json();
   assert.equal(initialCovers.items.find(item=>item.kind==='certification').has_cover,true);
   assert.equal(initialCovers.items.find(item=>item.kind==='takeoff_markups').has_cover,true);
-  evidence.checks.push('10 independent Documentation cover rows','saved cover metadata excludes PDF bytes','main and specific covers saved independently','stale cover Save blocks silent overwrite','cancelled conflicted Trash retains selected file','explicit approved conflict retry uses current version');
+  evidence.checks.push('10 independent Documentation cover rows','saved cover metadata excludes PDF bytes','main and specific covers saved independently','stale cover Save blocks silent overwrite','cancelled conflicted main Save retains selected file','explicit approved conflict retry uses current version');
   await certification();
 
   await page.locator('#certification-client').fill('Custom certificate client');
   await page.locator('#certification-statement_of_compliance').fill('Custom statement retained');
   await page.locator('#estimate-navigation-toggle').click();
-  await page.locator('#client').fill('Changed estimate client');await page.locator('#site-address').fill('Changed estimate address');await expect(page.locator('#project-no')).toHaveValue('PN-00001');
+  await fillProjectDetails(page,{'client':'Changed estimate client'});await fillProjectDetails(page,{'site-address':'Changed estimate address'});await expect(page.locator('#project-no')).toHaveValue('PN-00001');
   await certification();
   await expect(page.locator('#certification-client')).toHaveValue('Custom certificate client');
   await expect(page.locator('#certification-statement_of_compliance')).toHaveValue('Custom statement retained');
@@ -171,10 +173,10 @@ async function fresh(){await page.locator('#certification-document').selectOptio
     assert.ok(labels.every(label=>label.space==='normal'&&label.scroll<=label.width+1),'Every download name wraps within its own cell');
   }
   await page.setViewportSize({width:1084,height:900});
-  await coverRow('certification').getByRole('button',{name:'Delete cover sheet for Certification',exact:true}).click();await expect(coverRow('certification')).toContainText('Cover sheet removed.');
+  await coverRow('certification').getByRole('button',{name:'Delete cover sheet for Certification',exact:true}).click();await expect(coverRow('certification')).toContainText('Unsaved changes');await clickProjectControl(page,'Save');await expect(coverRow('certification')).toContainText('Cover sheet removed.');
   const afterTrash=await (await fetch(base+'/api/pdf-covers')).json();assert.equal(afterTrash.items.find(item=>item.kind==='certification').has_cover,false);assert.equal(afterTrash.items.find(item=>item.kind==='takeoff_markups').has_cover,true);
   const companyAfter=await (await fetch(base+'/api/company-settings')).json();assert.ok(companyAfter.cover_pdf);assert.equal(companyAfter.cover_pdf_name,'synthetic-drawings.pdf');
-  evidence.checks.push('signer image and all cover defaults survive actual New project','Settings cover table fits desktop/mobile','Trash persists only the selected cover removal','main cover retained independently');
+  evidence.checks.push('signer image and all cover defaults survive actual New project','Settings cover table fits desktop/mobile','main Save persists only the staged cover removal','main cover retained independently');
   assert.deepEqual(generationRequests,[]);assert.deepEqual(errors,[]);
   const legacyAfter=await (await fetch(base+'/api/certifications/'+old.id)).json();assert.deepEqual(legacyAfter.revisions,[]);const listResponse=await fetch(base+'/api/certifications?workspace='+workspaceA),list=await listResponse.json();
   for(const item of list.items){const response=await fetch(base+'/api/certifications/'+item.id+'?workspace='+workspaceA),doc=await response.json();assert.deepEqual(doc.revisions,[]);}

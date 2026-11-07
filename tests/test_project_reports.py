@@ -42,15 +42,19 @@ class ProjectReportTests(unittest.TestCase):
                 with patch('estimator.calculator_report.schedule_report_references', return_value=[{'label':'UNIQUE-CALCULATOR-REPORT', 'url':'https://example.test/reference.pdf'}]):
                     result = build_project_report(calculators, fire, {}, {'project_no': 'FULL-TEST'}, materials=materials, company=company)
                 reader = PdfReader(BytesIO(result))
+                self.assertTrue(all(float(page.mediabox.width) < float(page.mediabox.height) for page in reader.pages))
                 self.assertEqual([entry.title for entry in reader.outline],
                                  ['Steel spray', 'Steel board', 'Ductwork', 'Steel intumescent', 'Firestopping'])
                 text = '\n'.join(page.extract_text() for page in reader.pages)
+                for removed in ('Calculation Notes', 'Status / estimating basis', 'used schedule items.',
+                                'incomplete or unavailable primary quantities'):
+                    self.assertNotIn(removed, text)
                 for page in reader.pages:
                     self.assertIn('Combined Fixture', page.extract_text())
                     self.assertIn('combined@example.test', page.extract_text())
                     body = []
                     page.extract_text(visitor_text=lambda text, cm, tm, font, size: body.append(text)
-                                      if 43 < tm[4] * cm[1] + tm[5] * cm[3] + cm[5] < 500 else None)
+                                      if 43 < tm[4] * cm[1] + tm[5] * cm[3] + cm[5] < float(page.mediabox.height) - 90 else None)
                     self.assertTrue(''.join(body).strip(), 'Every combined PDF page includes report content')
                 self.assertIn('FULL-TEST', text)
                 self.assertNotIn('CLASSIFIRE ESTIMATOR |', text)

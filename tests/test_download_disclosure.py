@@ -83,7 +83,8 @@ class DownloadDisclosureTests(unittest.TestCase):
                     reader, text = pdf_text(builder(identity))
                     self.assertIn(REPORT, text)
                     if identity == 'ductwork' and builder is build_calculator_report:
-                        self.assertIn('Estimate: standard detail assumed', ' '.join(text.split()))
+                        self.assertNotIn('Status / estimating basis', text)
+                        self.assertNotIn('Estimate: standard detail assumed', ' '.join(text.split()))
                     self.assertNotIn(PRIVATE, text)
                     self.assertNotIn(HASH, text)
                     links = [ref.get_object()['/A'].get('/URI') for page in reader.pages

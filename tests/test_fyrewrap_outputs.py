@@ -60,7 +60,7 @@ class FyreWrapOutputTests(unittest.TestCase):
                 text = ' '.join(' '.join(page.extract_text().split()) for page in reader.pages)
                 if builder is build_calculator_summary_report:
                     self.assertNotIn('FyreWrap application notes', text)
-                    self.assertIn('1 item(s) have incomplete or unavailable primary quantities.', text)
+                    self.assertNotIn('incomplete or unavailable primary quantities.', text)
                     self.assertIn('Unresolved material requirements: FyreWrap (1 schedule item(s)).', text)
                     self.assertIn('Primary qty withheld', text)
                     self.assertIn('91.08', text)
@@ -74,7 +74,9 @@ class FyreWrapOutputTests(unittest.TestCase):
                 self.assertNotIn('external 120/120/-; internal not selected', text)
                 self.assertNotIn('full selected FRL', text)
                 self.assertNotIn('Wrap total withheld: matching penetration detail required.', text)
-                self.assertIn('Wrap total needs a penetration detail', text)
+                self.assertNotIn('Status / estimating basis', text)
+                self.assertNotIn('Wrap total needs a penetration detail', text)
+                self.assertIn('N / A', text)
         self.assertEqual(self.data, before)
 
     def test_excel_summary_discloses_exact_notes_and_schedule_quantities_stay_separate(self):

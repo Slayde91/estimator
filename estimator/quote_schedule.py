@@ -4,7 +4,30 @@ Canonical cells and their links remain unchanged. The table has every column
 on the same page width, with normal vertical pagination for additional rows.
 """
 from reportlab.lib import colors
-from reportlab.platypus import Image, LongTable, Paragraph, TableStyle
+from reportlab.platypus import HRFlowable, Image, LongTable, Paragraph, TableStyle
+
+
+def append_scope_intro(report, intro):
+    """Keep the quotation's scope heading in the schedule's own text flow."""
+    if intro.get('heading'):
+        style = report.styles['section'].clone('CommercialScopeHeading', fontSize=11, leading=15,
+                                               textColor=colors.HexColor('#bd0018'), keepWithNext=True)
+        report.story.append(Paragraph('SCOPE OF WORKS', style))
+        rule = HRFlowable(width='100%', thickness=1, color=colors.HexColor('#bd0018'), spaceAfter=8)
+        rule.keepWithNext = True
+        report.story.append(rule)
+        note = report.p('The following Full Schedules form the Scope of Works for this quotation.')
+        note.keepWithNext = True
+        report.story.append(note)
+    if intro.get('preamble'):
+        # Reuse the commercial renderer's safe, validated rich-text conversion
+        # so legacy exclusions retain their emphasis and list structure.
+        from .commercial_documents import validate_rich_text
+        from .commercial_pdf import _rich
+        report.story.extend(_rich(validate_rich_text(intro['preamble'], 'Scope'), report.styles['body']))
+    name = report.p(intro['name'], 'subheading')
+    name.keepWithNext = True
+    report.story.append(name)
 
 
 def configure_quote_schedule(report):
@@ -16,9 +39,8 @@ def configure_quote_schedule(report):
             spaceBefore=0, spaceAfter=0, splitLongWords=True)
 
 
-def quote_schedule_table(report, headings, rows, widths, page_height):
-    padding = 2
-    header = [report.p(heading, 'head') for heading in headings]
+def fitted_column_widths(header, rows, widths, padding=2):
+    """Fit short headings and ordinary values before splitting long tokens."""
     # Reserve whole heading words first, using the actual embedded font.
     inset = 2 * padding + .1
     minimums = [cell.minWidth() + inset for cell in header]
@@ -41,6 +63,13 @@ def quote_schedule_table(report, headings, rows, widths, page_height):
     if 0 < shortfall <= spare:
         widths = [max(width, minimum) - max(0, width - minimum) * shortfall / spare
                   for width, minimum in zip(widths, minimums)]
+    return widths
+
+
+def quote_schedule_table(report, headings, rows, widths, page_height):
+    padding = 2
+    header = [report.p(heading, 'head') for heading in headings]
+    widths = fitted_column_widths(header, rows, widths, padding)
     data = [header]
     for row in rows:
         for index, cell in enumerate(row):
@@ -50,7 +79,10 @@ def quote_schedule_table(report, headings, rows, widths, page_height):
                 cell.drawWidth *= scale
                 cell.drawHeight *= scale
         data.append(row)
-    table = LongTable(data, colWidths=widths, repeatRows=1, hAlign='LEFT', splitInRow=20)
+    # Split a tall row into the available frame before moving whole rows.
+    # Otherwise a split remainder can fit back on the same page and paint
+    # the repeated header twice there.
+    table = LongTable(data, colWidths=widths, repeatRows=1, hAlign='LEFT', splitByRow=0, splitInRow=20)
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#bd0018')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),

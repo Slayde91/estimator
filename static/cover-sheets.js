@@ -2,7 +2,7 @@
   'use strict';
   const host=document.getElementById('documentation-pdf-rows');
   if(!host)return;
-  const status=document.getElementById('cover-sheets-status'),state={rows:new Map(),loaded:false,opening:null};
+  const status=document.getElementById('cover-sheets-status'),state={rows:new Map(),loaded:false,opening:null,saving:false};
   const text=(element,source,args=[])=>{
     if(window.CeasefireI18n)return window.CeasefireI18n.text(element,source,args);
     element.textContent=source.replace(/\{(\d+)\}/g,(_,n)=>typeof args[n]==='function'?args[n]():args[n]??'');return element;
@@ -27,34 +27,39 @@
       !Number.isInteger(value.version)||value.version<1||typeof value.cover_pdf_name!=='string'||value.cover_pdf_name.length>200||typeof value.has_cover!=='boolean')throw new Error('The saved cover-sheet settings are invalid.');
     return value;
   }
-  // Saved rows contain metadata only. Large PDF data stays in a row solely
-  // while its explicitly selected upload is awaiting Save or a safe retry.
+  // Saved rows contain metadata only. Uploads and deletions remain drafts
+  // until the main Save action, including safe retries after lost replies.
   const changed=row=>row.conflicted||row.draft!==undefined;
   function render(row){
     const present=row.draft===undefined?row.current.has_cover:!!row.draft;
     text(row.filename,present?'Cover sheet: {0}':'No cover sheet selected.',present?[row.name||'Cover sheet.pdf']:[]);
-    row.file.disabled=row.reading||row.busy||!!row.pending;
-    row.save.disabled=row.reading||row.busy||!!row.pending&&row.pending.operation!=='save'||!row.pending&&!row.draft;
-    row.remove.disabled=row.reading||row.busy||!!row.pending&&row.pending.operation!=='remove'||!row.pending&&!row.current.has_cover&&!row.draft&&!row.conflicted;
+    row.file.disabled=state.saving||row.reading||row.busy||!!row.pending;
+    row.remove.disabled=state.saving||row.reading||row.busy||!!row.pending||!present;
     row.fileCell.setAttribute('aria-busy',String(row.reading||row.busy));
   }
   function createRow(item){
-    const fileCell=node('td'),actionCell=node('td'),file=node('input'),filename=node('p'),notice=node('p'),actions=node('div'),save=node('button'),remove=node('button');
+    const fileCell=node('td'),actionCell=node('td'),file=node('input'),filename=node('p'),notice=node('p'),actions=node('div'),remove=node('button');
     fileCell.className='document-cover-file';actionCell.className='document-cover-actions';
     file.type='file';file.accept='.pdf,application/pdf';file.id='cover-sheet-'+item.kind;
     attr(file,'aria-label','PDF cover sheet for {0}',[term(item.label)]);
     filename.className='helper';notice.className='helper';notice.setAttribute('role','status');notice.setAttribute('aria-live','polite');
-    save.type=remove.type='button';save.className='button secondary';remove.className='button secondary icon-only';actions.className='cover-sheet-actions';
-    text(save,'Save');attr(save,'aria-label','Save cover sheet for {0}',[term(item.label)]);
+    remove.type='button';remove.className='button secondary icon-only';actions.className='cover-sheet-actions';
     attr(remove,'aria-label','Delete cover sheet for {0}',[term(item.label)]);attr(remove,'title','Delete cover sheet for {0}',[term(item.label)]);
     // Constant application artwork, never user-supplied markup.
     remove.innerHTML='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"></path></svg>';
-    fileCell.append(file,filename,notice);actions.append(save,remove);actionCell.append(actions);
-    const row={current:item,draft:undefined,name:item.cover_pdf_name,revision:0,reading:false,busy:false,pending:null,conflicted:false,fileCell,actionCell,file,filename,notice,save,remove};
-    file.addEventListener('change',()=>upload(row));save.addEventListener('click',()=>perform(row,'save'));remove.addEventListener('click',()=>perform(row,'remove'));render(row);return row;
+    fileCell.append(file,filename,notice);actions.append(remove);actionCell.append(actions);
+    const row={current:item,draft:undefined,name:item.cover_pdf_name,revision:0,reading:false,busy:false,pending:null,conflicted:false,fileCell,actionCell,file,filename,notice,remove};
+    file.addEventListener('change',()=>upload(row));remove.addEventListener('click',()=>{
+      if(row.remove.disabled)return;
+      row.draft=row.current.has_cover?null:undefined;row.name='';row.revision++;
+      // Cancelling a new upload leaves no operation to reconcile. A cover
+      // created by another window must not become an implicit deletion.
+      if(row.draft===undefined)row.conflicted=false;
+      message(row.notice,changed(row)?'Unsaved changes':'');render(row);
+    });render(row);return row;
   }
   async function upload(row){
-    const file=row.file.files?.[0];if(!file||row.reading||row.busy||row.pending)return;
+    const file=row.file.files?.[0];if(!file||state.saving||row.reading||row.busy||row.pending)return;
     if((!/\.pdf$/i.test(file.name)&&file.type!=='application/pdf')||!file.size||file.size>10*1024*1024||file.name.length>200||/[\/\\\x00-\x1f]/.test(file.name)){
       message(row.notice,'Choose a PDF cover sheet smaller than 10 MB.',true);row.file.value='';return;
     }
@@ -68,12 +73,12 @@
     finally{row.reading=false;row.file.value='';render(row);endActivity?.();}
   }
   async function perform(row,operation){
-    if(row.reading||row.busy||row.pending&&row.pending.operation!==operation||operation==='save'&&!row.pending&&!row.draft)return;
+    if(row.reading||row.busy||row.pending&&row.pending.operation!==operation||operation==='save'&&!row.pending&&!row.draft)return false;
     const endActivity=window.CeasefireActivity?.begin();row.busy=true;render(row);
     try{
       if(row.conflicted&&!row.pending){
         const accepted=await window.CeasefireDialogs.confirm('Cover sheet changed','This cover sheet was changed in another window. Apply your cover-sheet change?','Apply cover-sheet change','Keep editing');
-        if(!accepted)return;
+        if(!accepted)return false;
         const latest=await request('/api/pdf-covers');
         const current=(latest.items||[]).find(value=>value.kind===row.current.kind);
         validate(current);row.current=current;
@@ -86,11 +91,31 @@
       if(saved.kind!==row.current.kind)throw new Error('The saved cover-sheet settings are invalid.');
       row.current=saved;row.draft=undefined;row.name=saved.cover_pdf_name;row.pending=null;row.conflicted=false;row.revision++;
       message(row.notice,saved.has_cover?'Cover sheet saved.':'Cover sheet removed.');
+      return true;
     }catch(error){
       if(error.status&&!error.uncertain)row.pending=null;
       if(error.status===409)row.conflicted=true;
       message(row.notice,row.pending?'The cover sheet result could not be confirmed. Retry the same button to recover it.':error.status===409?'Cover sheet changed in another window. Your changes are kept. Retry to review and apply them.':error.message,true);
+      return false;
     }finally{row.busy=false;render(row);endActivity?.();}
+  }
+  async function saveAll(){
+    if(state.saving||state.opening||[...state.rows.values()].some(row=>row.reading||row.busy))throw new Error('Finish the cover-sheet upload before saving.');
+    state.saving=true;for(const row of state.rows.values())render(row);
+    try{
+      for(const row of state.rows.values()){
+        if(!changed(row)&&!row.pending)continue;
+        if(!await perform(row,row.pending?.operation||(row.draft===null?'remove':'save')))throw new Error('Cover sheets were not all saved. Your remaining changes are kept. Click the main Save button to retry.');
+      }
+    }finally{state.saving=false;for(const row of state.rows.values())render(row);}
+  }
+  async function leave(){
+    if(![...state.rows.values()].some(changed))return true;
+    if(!await window.CeasefireDialogs.confirm('Unsaved changes','Discard unsaved cover-sheet changes?','Yes','Cancel'))return false;
+    for(const row of state.rows.values()){
+      row.draft=undefined;row.name=row.current.cover_pdf_name;row.conflicted=false;row.revision++;text(row.notice,'');render(row);
+    }
+    return true;
   }
   const kinds = {
     'certification':'certification', 'estimate.summary.pdf':'estimate', 'project.full_schedule.pdf':'full_schedule',
@@ -124,7 +149,7 @@
     catch(error){message(status,'Cover sheets could not be loaded. Open Documentation again to retry.',true);}
     finally{state.opening=null;host.setAttribute('aria-busy','false');endActivity?.();}
   }
-  window.CeasefireCoverSheets={open,attach,hasPendingOperation:()=>!!state.opening||[...state.rows.values()].some(row=>row.reading||row.busy||row.pending),
+  window.CeasefireCoverSheets={open,attach,saveAll,leave,hasPendingOperation:()=>state.saving||!!state.opening||[...state.rows.values()].some(row=>row.reading||row.busy||row.pending),
     hasUnsavedChanges:()=>[...state.rows.values()].some(changed),
     fingerprint:()=>JSON.stringify([...state.rows.values()].map(row=>({kind:row.current.kind,version:row.current.version,name:row.name,revision:row.revision,reading:row.reading,conflicted:row.conflicted,pending:row.pending&&{operation:row.pending.operation,version:row.pending.expected_version}})))};
 })();

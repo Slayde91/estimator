@@ -1,3 +1,4 @@
+const {fillProjectDetails}=require('./project_actions.cjs');
 // Verify the requested chrome on disposable data and browser state only.
 const {chromium,expect}=require('@playwright/test');
 const {spawn}=require('node:child_process');
@@ -44,7 +45,7 @@ async function dock(){
  const fixture=await ready;assert.notEqual(fixture.port,8765);browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1384,height:764}});page.setDefaultTimeout(60000);page.on('pageerror',e=>errors.push(e.message));
  await page.goto(`http://127.0.0.1:${fixture.port}/`);await idle();await page.evaluate(()=>document.fonts.ready);
  await page.evaluate(async()=>{await window.CeasefireCalculators.completeProjectSnapshot();await window.CeasefirePenetrations.completeProjectSnapshot();});await chooseTakeoff(page,'Steel');await idle();
- await page.locator('nav [data-view="estimate"]').click();await idle();await expect(page.locator('#project-no')).toHaveAttribute('readonly','');await page.locator('#client').fill('Original <literal> client');await page.locator('#client').blur();await idle();const baseline=await snapshot();
+ await page.locator('nav [data-view="estimate"]').click();await idle();await expect(page.locator('#project-no')).toHaveAttribute('readonly','');await fillProjectDetails(page,{'client':'Original <literal> client'});await page.locator('#client').evaluate(el=>el.blur());await idle();const baseline=await snapshot();
  await assertPreviewHeaderIcons(page);
  for(const width of [1600,1384,1146,906,720,390,320]){
   await page.setViewportSize({width,height:764});await page.locator('nav [data-view="home"]').click();await idle();

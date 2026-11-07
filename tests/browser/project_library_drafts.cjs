@@ -1,3 +1,4 @@
+const {fillProjectDetails}=require('./project_actions.cjs');
 const { referenceExport } = require('./reference_export.cjs');
 const { cycleTheme } = require('./theme_navigation.cjs');
 const { chooseLibrary } = require('./section_navigation.cjs');
@@ -160,7 +161,7 @@ async function openProjectCopy() {
   assert.equal(retained.penetration.composer.rows[0].inputs.T, 'Unscheduled composer retained');
   assert.equal(retained.penetration.composer.rows[0].inputs.O, 3);
   await page.getByRole('button', { name: 'Estimates', exact: true }).click();
-  await page.locator('#main-estimate-form').getByLabel('Client', { exact: true }).fill('Project copy client');
+  await fillProjectDetails(page,{client:'Project copy client'});
   const sharedBefore = await api(`/api/libraries/penetration/${info.item_id}/edit`), databaseBefore = sharedDatabase();
   const originalSource = fs.readFileSync(path.join(output, 'reference-library/library.json'));
   const originalImage = fs.readFileSync(info.diagram);

@@ -3,6 +3,11 @@ const {expect}=require('@playwright/test');
 const assert=require('node:assert/strict'),path=require('node:path');
 async function checkPointerEffects(page,output) {
   const home=page.getByRole('button',{name:'Home',exact:true});
+  async function smokeClick(locator){
+    await expect(page.locator('.click-smoke-layer')).toHaveCount(0);
+    for(let i=0;i<10;i++){await locator.click();if(await page.locator('.click-smoke-puff').count())return;}
+    throw Error('No smoke after ten eligible clicks');
+  }
   const cursor=locator=>locator.evaluate(el=>getComputedStyle(el).cursor);
   await home.hover();
   assert.match(await cursor(home),/laser-reticle\.svg.*16 16, pointer/);
@@ -10,7 +15,7 @@ async function checkPointerEffects(page,output) {
   const asset=await page.request.get(new URL('/laser-reticle.svg',page.url()).href);
   assert.equal(asset.status(),200);assert.match(asset.headers()['content-type'],/svg/);
 
-  await home.click();
+  await smokeClick(home);
   await expect(page.locator('.click-smoke-puff')).toHaveCount(4);
   const geometry=await page.locator('.click-smoke-layer').evaluate(el=>{
     const puffs=[...el.querySelectorAll('.click-smoke-puff')];
@@ -29,7 +34,7 @@ async function checkPointerEffects(page,output) {
   // Smoke also appears on plain content, stays bounded under rapid clicks,
   // and disappears immediately when the motion preference changes.
   const heading=page.locator('#view-home h1');
-  await heading.click();await expect(page.locator('.click-smoke-puff')).toHaveCount(4);
+  await smokeClick(heading);await expect(page.locator('.click-smoke-puff')).toHaveCount(4);
   const point=await heading.boundingBox();
   for(let i=0;i<15;i++)await page.mouse.click(point.x+4,point.y+4);
   assert.ok(await page.locator('.click-smoke-puff').count()<=32);
@@ -42,7 +47,7 @@ async function checkPointerEffects(page,output) {
   await page.evaluate(()=>{window.CeasefireDialogs.confirm('Pointer effect check','Synthetic dialog; no saved state changes.','Continue');});
   const dialog=page.getByRole('dialog',{name:'Pointer effect check',exact:true});
   await expect(dialog).toBeVisible();
-  const paragraph=dialog.locator('p');await paragraph.click();
+  const paragraph=dialog.locator('p');await smokeClick(paragraph);
   await expect(page.locator('.click-smoke-puff')).toHaveCount(4);
   assert.equal(await page.locator('.click-smoke-layer').evaluate(el=>el.matches(':popover-open')),true,'Smoke paints above the native modal');
   await expect(dialog).toBeVisible();
@@ -59,7 +64,7 @@ async function checkPointerEffects(page,output) {
     close.addEventListener('click',()=>dialog.remove());
     dialog.append(text,close);document.body.append(dialog);dialog.showModal();
   });
-  await page.locator('#qa-transient-dialog p').click();
+  await smokeClick(page.locator('#qa-transient-dialog p'));
   await page.evaluate(()=>document.querySelectorAll('.click-smoke-puff').forEach(el=>el.getAnimations().forEach(a=>a.pause())));
   await page.getByRole('button',{name:'Dismiss transient dialog',exact:true}).click();
   await expect(page.locator('#qa-transient-dialog')).toHaveCount(0);
@@ -72,7 +77,7 @@ async function checkPointerEffects(page,output) {
   const tab=page.locator('#main-section-tabs [role="tab"]').first();await expect(tab).toBeVisible();
   await expect(page.locator('html')).not.toHaveClass(/\bapp-busy\b/,{timeout:60000});
   await tab.hover();assert.match(await cursor(tab),/cursors\/link\.png/,'Ordinary tabs use the red link cursor');
-  const input=page.locator('#client');
+  const input=page.locator('#measurements');
   assert.doesNotMatch(await cursor(input),/laser-reticle/,'Text fields keep their editing cursor');
   const originalDisabled=await tab.evaluate(el=>{const before=el.disabled;el.disabled=true;return before;});
   assert.match(await cursor(tab),/cursors\/unavailable\.png/,'Disabled controls use the red unavailable cursor');

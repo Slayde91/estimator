@@ -1,3 +1,4 @@
+const {fillProjectDetails}=require('./project_actions.cjs');
 'use strict';
 const {chromium,expect:baseExpect}=require('@playwright/test');
 const expect=baseExpect.configure({timeout:20000});
@@ -38,8 +39,8 @@ async function save(page){
   const original='Unfiled fixture quote',edited='Changed from another window';
   const owner=await newWindow();
   await owner.getByRole('button',{name:'Estimates',exact:true}).click();
-  await owner.locator('#client').fill('Unfiled fixture company');
-  await owner.locator('#site-address').fill('21 Fixture Street');
+  await fillProjectDetails(owner,{'client':'Unfiled fixture company'});
+  await fillProjectDetails(owner,{'site-address':'21 Fixture Street'});
   await openProjectSection(owner,'quote');
   await board(owner).getByRole('button',{name:'New Quote',exact:true}).click();
   await board(owner).getByLabel('Document title',{exact:true}).fill(original);

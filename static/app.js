@@ -399,13 +399,6 @@
 
   function updateProjectStatus() {
     renderEstimateControls();
-    $("project-status").value = state.projectStatus;
-    $("project-status").disabled = state.projectBusy;
-    for (const status of projectStatuses) {
-      const option = $("project-status-" + status.toLowerCase());
-      option.setAttribute("aria-checked", String(status === state.projectStatus));
-      option.disabled = state.projectBusy;
-    }
     const file = state.projectFile, changed = !!projectHasChanges();
     // A fresh draft updates the save badge; notices remain until dismissal/navigation.
     if (changed && state.projectSavedNotice) {
@@ -1038,6 +1031,7 @@
     if (view !== state.currentView && window.CeasefireCommercial?.hasPendingOperation?.() && !await window.CeasefireCommercial.leaveEditor()) return;
     if (view !== state.currentView && window.CeasefireScheduler?.hasPendingOperation?.()) { message("Finish or cancel the current Scheduler edit before changing views.", true); return; }
     if (view !== state.currentView && window.CeasefireCoverSheets?.hasPendingOperation?.()) { message(uiCopy("Finish or retry the current cover-sheet operation before changing views."), true); return; }
+    if (view !== state.currentView && window.CeasefireCoverSheets?.hasUnsavedChanges?.() && !await window.CeasefireCoverSheets.leave()) return;
     if (view !== state.currentView && window.CeasefireCertification?.hasPendingOperation?.()) { message(uiCopy("Finish or retry the current certification operation before changing views."), true); return; }
     if (window.CeasefirePenetrations?.hasTakeoffReservation?.() || window.CeasefireTakeoffs?.hasLinkedRecovery?.()) { message(uiCopy("Finish or recover the confirmed Takeoff library link before changing views."), true); return; }
     if (view === "takeoffs" && !state.takeoffsEnabled) { message(uiCopy("TAKEOFFS is not included in this edition."), true); return; }
@@ -1048,7 +1042,7 @@
     if (["quotes", "quote", "work-orders", "purchase-orders"].includes(view)) state.lastProjectSection = view;
     if (["certification", "documentation", "swms"].includes(view)) state.lastDocumentSection = view;
     $("project-tools").hidden = view !== "quotes";
-    closeNavigationMenus({ estimate: "estimate-navigation", calculators: "calculator-navigation", pricing: "library-navigation", takeoffs: "takeoff-navigation" }[view]);
+    closeNavigationMenus({ estimate: "estimate-navigation", calculators: "calculator-navigation", pricing: "library-navigation", takeoffs: "takeoff-navigation", contacts: "contacts-navigation" }[view]);
     document.body.classList.toggle("takeoffs-active", view === "takeoffs");
     clearTimeout(state.projectsTimer); ++state.projectsRevision;
     $("project-list").setAttribute("aria-busy", "false");
@@ -1215,7 +1209,7 @@
     if (open) positionNavigationMenu(menu);
   }
   function closeNavigationMenus(except) {
-    for (const id of ["estimate-navigation", "calculator-navigation", "library-navigation", "takeoff-navigation", "projects-navigation", "documents-navigation"]) {
+    for (const id of ["estimate-navigation", "calculator-navigation", "library-navigation", "takeoff-navigation", "projects-navigation", "documents-navigation", "contacts-navigation"]) {
       if (id === except) continue;
       if (id === "calculator-navigation") { setCalculatorMenuOpen(false); continue; }
       const menu = $(id + "-menu"), toggle = $(id + "-toggle");
@@ -1224,7 +1218,7 @@
   }
   function setupCalculatorNavigation() {
     window.addEventListener("resize", () => {
-      for (const id of ["estimate-navigation", "calculator-navigation", "library-navigation", "takeoff-navigation", "projects-navigation", "documents-navigation"]) {
+      for (const id of ["estimate-navigation", "calculator-navigation", "library-navigation", "takeoff-navigation", "projects-navigation", "documents-navigation", "contacts-navigation"]) {
         const menu = $(id + "-menu");
         if (menu && !menu.hidden) positionNavigationMenu(menu);
       }
@@ -1249,6 +1243,9 @@
     setupSectionNavigation("takeoff-navigation", "[data-mode]", open => setSectionMenuOpen("takeoff-navigation", open), choice => requestTakeoffNavigation(choice.dataset.mode, choice.dataset.physicalScope));
     setupSectionNavigation("projects-navigation", "[data-project-section]", open => setSectionMenuOpen("projects-navigation", open), choice => requestViewNavigation(choice.dataset.projectSection));
     setupSectionNavigation("documents-navigation", "[data-document-section]", open => setSectionMenuOpen("documents-navigation", open), choice => requestViewNavigation(choice.dataset.documentSection));
+    setupSectionNavigation("contacts-navigation", "[data-contacts-section]", open => setSectionMenuOpen("contacts-navigation", open), async choice => {
+      if (await requestViewNavigation("contacts")) await window.ClassifireContacts?.activate(choice.dataset.contactsSection);
+    });
   }
   let takeoffNavigationPending = false;
   async function requestTakeoffNavigation(mode, scope) {
@@ -2163,9 +2160,9 @@
       calculators: window.CeasefireCalculators.projectFingerprint(), penetration: window.CeasefirePenetrations?.projectFingerprint(), takeoffs: window.CeasefireTakeoffs?.projectFingerprint(), libraryDrafts: window.CeasefireLibraryEditor?.projectFingerprint?.(), certifications: window.CeasefireCertification?.projectFingerprint?.(), documentation:window.CeasefireDocumentation?.projectFingerprint?.() });
   }
 
-  // Cover defaults are global Settings, not part of a saved project. Their
-  // independent stamp protects replacement races without making project Save
-  // capture or clear an unrelated Settings draft.
+  // Cover defaults remain global Settings. Their independent stamp protects
+  // replacement races; the main Save persists their drafts after the project
+  // file succeeds, without embedding cover defaults in that project file.
   function projectReplacementStamp() {
     return JSON.stringify({project:projectStamp(),coverSheets:window.CeasefireCoverSheets?.fingerprint?.()});
   }
@@ -2215,6 +2212,7 @@
     if (automatic && !isCurrentDownloadTarget(downloadTarget)) throw new Error("The project changed after the download. Its file was not overwritten.");
     const target = state.projectFile, context = state.quoteContext;
     const saveAs = !target?.save_token;
+    let projectWritten = false;
     projectBusy(true, "save-current-project");
     try {
       document.activeElement?.blur?.();
@@ -2264,6 +2262,7 @@
         if (automatic) throw new Error("The project save was cancelled.");
         message(uiCopy("Save cancelled. Your current project remains open.")); return;
       }
+      projectWritten = true;
       const changed = captured !== projectStamp() || preparedPricing !== pricingStamp();
       if (context === state.quoteContext) {
         state.projectFile = saved.file;
@@ -2311,11 +2310,12 @@
           window.CeasefireI18n.text($("snapshot-message").querySelector("span"), "This project uses the pricing saved in its file.");
         } else updateDirty();
       }
+      if (!automatic) await window.CeasefireCoverSheets?.saveAll?.();
       if (!changed || $("app-message").getAttribute("role") !== "alert") message(uiCopy("Project saved to {0}. It includes the Quote, Firestopping items, {1}project pricing{2} and all three specialist calculators.{3}{4}{5}{6}", [saved.file.path, window.CeasefireI18n.term(takeoffContents()), window.CeasefireI18n.term(libraryDrafts ? ", project library drafts" : ""), window.CeasefireI18n.term(pricing?.scope === "library" ? " Pricing Library edits were saved for this project only." : ""), window.CeasefireI18n.term(pricing?.conflict ? " The other pricing draft is still available and was not included." : ""), window.CeasefireI18n.term(changed ? " Later edits are not included and still need saving." : ""), saved.warning ? ` ${saved.warning}` : ""]), false, "project-saved");
       return { saved: true, file: saved.file, changed };
     } catch (error) {
       if (automatic) throw error;
-      message(uiCopy("Project was not saved. {0}", [error.message]), true);
+      message(uiCopy(projectWritten ? "The project file was saved, but cover-sheet changes still need saving. {0}" : "Project was not saved. {0}", [error.message]), true);
       return { saved: false, error: error.message };
     }
     finally { projectBusy(false); }
@@ -2387,7 +2387,7 @@
     if (!state.projectBusy && requireSavedProjectForFiles()) $("project-attachment-input").click();
   }
 
-  async function reviewAndLoadProject(project, file, captured) {
+  async function reviewAndLoadProject(project, file, captured, {convertedLead = false} = {}) {
     let takeoffsAdopted = false, certificationAdopted = false, preparedCertification = null;
     try {
       if (coverReplacementPending()) return;
@@ -2400,7 +2400,7 @@
       if (coverReplacementPending()) return;
       if (captured !== projectReplacementStamp()) throw new Error("Your draft changed while reading the file. Load it again when ready.");
       const detail = project.project_details || {};
-      const accepted = await confirmReplace(uiCopy("Load this project?"), uiCopy("{0}\nProject No.: {1}\nClient: {2}\nSite Address: {3}\n\nThis replaces the Quote, Firestopping items, {4}project library drafts, their pricing and all three specialist calculator drafts. Shared libraries stay unchanged.", [file.name, detail.project_no || "Not recorded", detail.client || "Not recorded", detail.site_address || "Not recorded", window.CeasefireI18n.term(takeoffContents())]), uiCopy("Load Project"));
+      const accepted = convertedLead && !projectHasChanges() || await confirmReplace(uiCopy("Load this project?"), uiCopy("{0}\nProject No.: {1}\nClient: {2}\nSite Address: {3}\n\nThis replaces the Quote, Firestopping items, {4}project library drafts, their pricing and all three specialist calculator drafts. Shared libraries stay unchanged.", [file.name, detail.project_no || "Not recorded", detail.client || "Not recorded", detail.site_address || "Not recorded", window.CeasefireI18n.term(takeoffContents())]), uiCopy("Load Project"));
       if (!accepted) { message(uiCopy("Project load cancelled. Your current drafts were kept.")); return; }
       if (coverReplacementPending()) return;
       if (captured !== projectReplacementStamp()) throw new Error("Your draft changed during review. Load the file again to keep your latest edits safe.");
@@ -2506,7 +2506,7 @@
     finally { projectBusy(false); }
   }
 
-  async function changeCurrentProjectStage(status = $("project-status").value) {
+  async function changeCurrentProjectStage(status = state.projectStatus) {
     if (state.projectBusy || !projectStatuses.includes(status)) return;
     if (state.projectFile?.save_token) await changeProjectStage(state.projectFile, status);
     else { state.projectStatus = status; updateProjectStatus(); }
@@ -2584,7 +2584,7 @@
     finally { projectBusy(false); }
   }
 
-  async function openProjectFile(file, button, estimateId = null) {
+  async function openProjectFile(file, button, estimateId = null, options = {}) {
     if (state.projectBusy || coverReplacementPending()) return;
     if (estimateId && state.projectFile?.path === file.path && state.projectEstimates.some(entry => entry.id === estimateId)) {
       await selectEstimate(estimateId);
@@ -2602,7 +2602,7 @@
         for (const key of [...estimateWorkspaceKeys, "fields", "project_details"]) if (selected.workspace[key] !== undefined) project[key] = selected.workspace[key];
         project.active_estimate_id = estimateId;
       }
-      await reviewAndLoadProject(project, project.file || file, captured);
+      await reviewAndLoadProject(project, project.file || file, captured, options);
     } catch (error) { message(uiCopy("Project was not loaded. {0}", [error.message]), true); }
     finally { projectBusy(false); button.disabled = false; button.setAttribute("aria-busy", "false"); }
   }
@@ -2795,9 +2795,6 @@
     state.projectsTimer = setTimeout(() => loadProjects({ offset: 0 }), 250);
   });
   $("project-sort").addEventListener("change", () => loadProjects({ offset: 0 }));
-  for (const status of projectStatuses) {
-    $("project-status-" + status.toLowerCase()).addEventListener("click", () => changeCurrentProjectStage(status));
-  }
   const currentEstimateName = $("project-estimate-current-name");
   currentEstimateName.addEventListener("input", () => {
     editingEstimateName = state.projectEstimates.find(entry => entry.id === state.activeEstimateId);
@@ -2903,7 +2900,22 @@
     return !!target && target.project_context === state.quoteContext &&
       typeof target.project_path === "string" && target.project_path === state.projectFile?.path;
   }
+  async function openConvertedLead(receipt) {
+    if (!receipt || typeof receipt.project_no !== "string" || typeof receipt.path !== "string") throw new Error("The converted project could not be identified. Open it from Projects.");
+    if (state.projectBusy) throw new Error("The project was saved. Finish the current project action and open it from Projects.");
+    // Conversion returns the saved receipt, never a caller-selected file path.
+    // Resolve its opaque identity through the normal linked-folder listing.
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const listing = await request(`/api/projects?search=${encodeURIComponent(receipt.project_no)}`);
+      const file = listing.files?.find(file => file.path === receipt.path && file.project_no === receipt.project_no);
+      if (file) { await openProjectFile(file, node("button"), null, {convertedLead:true}); return; }
+      if (!listing.scan_pending) break;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    throw new Error("The project was saved, but could not be opened automatically. Open it from Projects.");
+  }
   window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus, scheduleChanged,
+    openConvertedLead,
     openCommercial: kind => requestViewNavigation({quote:"quote", work_order:"work-orders", purchase_order:"purchase-orders"}[kind]),
     configuration: () => clone(state.quoteConfiguration || state.configuration),
     context: () => ({project_token:state.projectFile?.save_token || null,project_context:state.quoteContext,project_path:state.projectFile?.path || null,project_revision:state.projectFile?.revision || null}),

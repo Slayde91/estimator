@@ -3,6 +3,9 @@
   const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const bursts = new Set();
   let layer = null;
+  // A fixed cycle keeps feedback sparse and predictable: seven, eight, nine,
+  // then ten eligible pointer clicks between bursts.
+  let clicks = 0, interval = 7;
   function remove(burst) {
     if (!bursts.delete(burst)) return;
     for (const animation of burst.animations) animation.cancel();
@@ -15,6 +18,9 @@
     // must not create a second burst or paint an invented cursor position.
     if (!event.isTrusted || event.detail === 0 || motion.matches || document.hidden || !Element.prototype.animate) return;
     if (document.querySelector('#view-takeoffs:not([hidden])') || event.target.closest?.("#play-canvas,#takeoff-viewport,.takeoff-drawing-layout,.takeoff-viewer-controls,.takeoff-toolbar")) return;
+    if (++clicks < interval) return;
+    clicks = 0;
+    interval = interval === 10 ? 7 : interval + 1;
     const x = event.clientX, y = event.clientY;
     // Let the action finish first, including opening/closing a native dialog.
     queueMicrotask(() => {

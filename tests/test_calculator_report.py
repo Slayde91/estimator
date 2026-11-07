@@ -314,8 +314,8 @@ class CalculatorReportTests(unittest.TestCase):
                     text = '\n'.join(texts)
                     reports.append(text)
                     self.assertTrue(payload.startswith(b'%PDF'))
-                    self.assertTrue(all(float(page.mediabox.width) > float(page.mediabox.height) for page in reader.pages))
-                    expected_width = 1191 if identity == 'steel_board' and builder is build_calculator_report else 842
+                    self.assertTrue(all(float(page.mediabox.width) < float(page.mediabox.height) for page in reader.pages))
+                    expected_width = 595
                     self.assertTrue(all(round(float(page.mediabox.width)) == expected_width for page in reader.pages))
                     footer = report_label(identity, builder is build_calculator_summary_report)
                     self.assertTrue(all(footer in content for content in texts))
@@ -735,10 +735,7 @@ class CalculatorReportTests(unittest.TestCase):
             text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(build_calculator_report(identity, cleared_inputs(identity)))).pages)
             self.assertIn('No schedule inputs are entered.', text)
             summary = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(build_calculator_summary_report(identity, cleared_inputs(identity)))).pages)
-            if identity == 'ductwork':
-                self.assertIn('0 used schedule items. 0 item(s)', ' '.join(summary.split()))
-            else:
-                self.assertNotIn('used schedule items.', summary)
+            self.assertNotIn('used schedule items.', summary)
             self.assertNotIn('Overall schedule totals', summary)
             self.assertNotIn('Full schedule', summary)
 
@@ -759,7 +756,7 @@ class CalculatorReportTests(unittest.TestCase):
                 # Narrow schedule cells may wrap within a long word; the full
                 # identifier must survive PDF extraction without losing text.
                 self.assertIn(''.join(expected.split()), ''.join(text.split()))
-                self.assertIn('1 used schedule items. 1 item(s)', ' '.join(text.split()))
+                self.assertNotIn('used schedule items.', text)
                 for heading in REMOVED_SECTIONS:
                     self.assertNotIn(heading, text)
 

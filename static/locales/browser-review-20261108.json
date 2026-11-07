@@ -1,0 +1,44 @@
+{
+  "Leads": [
+    "潜在客户",
+    "संभावित ग्राहक",
+    "Clientes potenciales",
+    "العملاء المحتملون",
+    "ลูกค้ามุ่งหวัง"
+  ],
+  "Accounts": [
+    "客户账户",
+    "ग्राहक खाते",
+    "Cuentas de clientes",
+    "حسابات العملاء",
+    "บัญชีลูกค้า"
+  ],
+  "Ignore deleted project": [
+    "忽略已删除的项目",
+    "हटाई गई परियोजना को अनदेखा करें",
+    "Ignorar proyecto eliminado",
+    "تجاهل المشروع المحذوف",
+    "ละเว้นโครงการที่ลบแล้ว"
+  ],
+  "Ignore project source": [
+    "忽略项目来源",
+    "परियोजना स्रोत को अनदेखा करें",
+    "Ignorar origen del proyecto",
+    "تجاهل مصدر المشروع",
+    "ละเว้นแหล่งที่มาของโครงการ"
+  ],
+  "Stop looking for this project's saved file and hide its unavailable-file notice? Issued document history is retained.": [
+    "停止查找此项目的已保存文件，并隐藏文件不可用提示？已签发的文档历史将保留。",
+    "क्या इस परियोजना की सहेजी गई फ़ाइल की तलाश बंद करके फ़ाइल अनुपलब्ध होने की सूचना छिपाएँ? जारी किए गए दस्तावेज़ों का इतिहास सुरक्षित रहेगा।",
+    "¿Dejar de buscar el archivo guardado de este proyecto y ocultar el aviso de archivo no disponible? Se conserva el historial de documentos emitidos.",
+    "هل تريد التوقف عن البحث عن الملف المحفوظ لهذا المشروع وإخفاء إشعار عدم توفره؟ سيُحتفظ بسجل المستندات الصادرة.",
+    "หยุดค้นหาไฟล์ที่บันทึกไว้ของโครงการนี้และซ่อนการแจ้งเตือนว่าไฟล์ไม่พร้อมใช้งานหรือไม่? ประวัติเอกสารที่ออกแล้วจะยังคงอยู่"
+  ],
+  "Project source ignored.": [
+    "已忽略项目来源。",
+    "परियोजना स्रोत को अनदेखा किया गया।",
+    "Se ha ignorado el origen del proyecto.",
+    "تم تجاهل مصدر المشروع.",
+    "ละเว้นแหล่งที่มาของโครงการแล้ว"
+  ]
+}

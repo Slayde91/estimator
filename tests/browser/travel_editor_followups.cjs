@@ -1,3 +1,4 @@
+const {fillProjectDetails}=require('./project_actions.cjs');
 // Disposable data only. Google API replies are synthetic; no paid calls.
 const {chromium,expect}=require('@playwright/test'),assert=require('node:assert/strict');
 const {spawn}=require('node:child_process'),fs=require('node:fs'),path=require('node:path');
@@ -52,7 +53,7 @@ async function mapsSettingsHidden(){await expect(page.locator('#view-settings [a
  await mapsSettingsHidden();
  for(const width of [1384,1020,390]){await page.setViewportSize({width,height:900});const cards=await page.locator('.settings-preferences-grid > section').all(),a=await cards[0].boundingBox(),b=await cards[1].boundingBox();if(width>=800){assert.ok(Math.abs(a.y-b.y)<1);assert.ok(a.x+a.width<=b.x);}else assert.ok(a.y+a.height<=b.y);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)<=1);await page.screenshot({path:path.join(output,`settings-${width}.png`)});}
  await page.setViewportSize({width:1384,height:900});
- await page.getByRole('button',{name:'Estimates',exact:true}).click();await idle();await page.locator('#site-address').fill('Fixture Project Road, Sydney NSW');
+ await page.getByRole('button',{name:'Estimates',exact:true}).click();await idle();await fillProjectDetails(page,{'site-address':'Fixture Project Road, Sydney NSW'});
  await expect(page.locator('#project-travel')).toHaveCount(0);
  const routeRequests=[];
  await page.route('**/api/travel/route',r=>{routeRequests.push(r.request().postDataJSON());return r.fulfill({status:503,json:{error:'Unexpected route lookup in panel-removal test'}});});
@@ -110,7 +111,13 @@ async function mapsSettingsHidden(){await expect(page.locator('#view-settings [a
  for(const [name,asset]of[['Pan','move'],['Select PDF text','text']]){await page.getByRole('button',{name,exact:true}).click();await expect(drawing).toHaveCSS('cursor',new RegExp('cursors/'+asset+'\\.png'));await expect(page.locator('.click-smoke-puff')).toHaveCount(0);}
  await page.locator('.takeoff-markup-rail').getByRole('button',{name:'Rectangle',exact:true}).click();await expect(drawing).toHaveCSS('cursor',/cursors\/precision\.png/);await expect(page.locator('.takeoff-overlay')).toHaveCSS('cursor',/cursors\/precision\.png/);await page.screenshot({path:path.join(output,'pdf-cursor-tools.png')});
  await page.getByRole('button',{name:'Home',exact:true}).click();await expect(page.locator('.click-smoke-puff')).toHaveCount(0);
- await page.getByRole('button',{name:'Home',exact:true}).click();await expect(page.locator('.click-smoke-puff')).toHaveCount(4);await expect(page.locator('.click-smoke-layer')).toHaveCount(0);
+ let smoked=false;
+ for(let click=0;click<10;click++){
+  await page.getByRole('button',{name:'Home',exact:true}).click();
+  if(await page.locator('.click-smoke-puff').count()){smoked=true;break;}
+ }
+ assert.equal(smoked,true,'Smoke appears within ten eligible clicks');
+ await expect(page.locator('.click-smoke-puff')).toHaveCount(4);await expect(page.locator('.click-smoke-layer')).toHaveCount(0);
  assert.deepEqual(errors,[]);evidence.googleRequests='Synthetic API checks only';evidence.projectSnapshotsUnchanged=true;evidence.pdfSmokeDisabled=true;evidence.rolesAndHotspotsVerified=true;
  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,evidence,errors},null,2));console.log('PASS travel/editor follow-ups: '+output);
 })().catch(async e=>{console.error(e);process.exitCode=1;await page?.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});}).finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);await browser?.close();server.kill();});

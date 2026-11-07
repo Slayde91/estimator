@@ -910,8 +910,8 @@ async function penetrationCheck(name, fn) {
     assert.equal(h.app.projectStamp(),original);assert.equal(h.app.state.projectBusy,false);
   });
   await check('Unsaved project status participates in save and replacement fingerprints', async h => {
-    const before=h.app.projectStamp();h.byId('project-status').value='Accepted';
-    await h.app.changeCurrentProjectStage();assert.equal(h.app.state.projectStatus,'Accepted');assert.notEqual(h.app.projectStamp(),before);
+    const before=h.app.projectStamp();
+    await h.app.changeCurrentProjectStage('Accepted');assert.equal(h.app.state.projectStatus,'Accepted');assert.notEqual(h.app.projectStamp(),before);
     h.app.setRequest(async(path,options)=>{const request=JSON.parse(options.body);assert.equal(request.project_status,'Accepted');return {cancelled:true};});
     await h.app.saveProject();assert.equal(h.app.state.projectStatus,'Accepted');
   });
@@ -1264,12 +1264,14 @@ async function penetrationCheck(name, fn) {
     await h.app.requestViewNavigation('quotes');assert.equal(h.app.state.lastDocumentSection,'certification');
     assert.deepEqual(h.snapshot(),before);
   });
-  await check('Documentation lazily opens global Cover sheets and preserves its draft across navigation',async h=>{
-    let opens=0;const draft={name:'Entered cover.pdf',revision:7};
-    h.context.window.CeasefireCoverSheets={open:async()=>{opens++;},hasPendingOperation:()=>false,hasUnsavedChanges:()=>true,fingerprint:()=>JSON.stringify(draft)};
+  await check('Documentation navigation honours Cancel then discards global cover edits only after approval',async h=>{
+    let opens=0,dirty=false,accepted=false,reviews=0;const draft={name:'Entered cover.pdf',revision:7};
+    h.context.window.CeasefireCoverSheets={open:async()=>{opens++;},hasPendingOperation:()=>false,hasUnsavedChanges:()=>dirty,fingerprint:()=>JSON.stringify(draft),leave:async()=>{reviews++;if(accepted)dirty=false;return accepted;}};
     const before=h.snapshot();await h.app.requestViewNavigation('settings');assert.equal(opens,0);await h.app.requestViewNavigation('documentation');assert.equal(opens,1);
+    dirty=true;await h.app.requestViewNavigation('home');assert.equal(h.app.state.currentView,'documentation');assert.equal(dirty,true);
+    accepted=true;
     await h.app.requestViewNavigation('home');assert.equal(h.app.state.currentView,'home');
-    assert.deepEqual(draft,{name:'Entered cover.pdf',revision:7});assert.deepEqual(h.snapshot(),before);
+    assert.equal(dirty,false);assert.equal(reviews,2);assert.deepEqual(h.snapshot(),before);
   });
   await check('Pending global cover uploads or saves block navigation and every project replacement entry point',async h=>{
     const before=h.snapshot();let calls=0;h.app.state.currentView='settings';h.app.setRequest(async()=>{calls++;return project();});

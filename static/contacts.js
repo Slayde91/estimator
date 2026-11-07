@@ -70,6 +70,7 @@
       if (root().querySelector("[data-contacts-notice]") && "added" in result)
         feedback(root(), `Imported ${result.added} new records. Matched ${result.matched} existing records.`);
       if (result.project_no) feedback(root(), `Project ${result.project_no} saved.`);
+      return result;
     } finally { saving = false; }
   }
   function dialogEditor(kind, record = {}, readOnly = false) {
@@ -192,7 +193,10 @@
         }
         options.append(button("Convert", async () => {
           menu.open = false;
-          try {await update("leads/convert", {id:lead.id, version:data.version});}
+          try {
+            const saved = await update("leads/convert", {id:lead.id, version:data.version});
+            if (saved) await window.CeasefireProject?.openConvertedLead(saved);
+          }
           catch (error) {feedback(root(), error.message, true);}
         }, "text-button"));
         menu.append(toggle, options);
@@ -204,9 +208,12 @@
         });
         row.append(button(lead.name, () => dialogEditor("leads", lead, true), "text-button project-title-button"), menu);
         card.append(row);
-        card.append(el("p", "", lead.company));
-        if (lead.title) card.append(el("p", "helper", lead.title));
-        if (lead.phone || lead.email) card.append(el("p", "helper", lead.phone || lead.email));
+        const details = el("dl", "kanban-card-details");
+        for (const key of ["company", "title", "phone", "email"]) {
+          if (!lead[key] && key !== "company") continue;
+          details.append(el("dt", "", labels[key]), el("dd", "", lead[key] || "—"));
+        }
+        card.append(details);
         column.append(card);
       }
       if (!group.length) column.append(el("p", "project-column-empty", "No leads"));
@@ -307,6 +314,9 @@
       tab.setAttribute("aria-pressed", String(key === page));
       if (key === page) tab.setAttribute("aria-current", "page");
       tabs.append(tab);
+    }
+    for (const choice of document.querySelectorAll("#contacts-navigation-menu [data-contacts-section]")) {
+      choice.setAttribute("aria-pressed", String(choice.dataset.contactsSection === page));
     }
     const section = el("section", "card contacts-workspace");
     const controls = el("div", "contacts-controls");

@@ -1,3 +1,4 @@
+const {fillProjectDetails}=require('./project_actions.cjs');
 const { chooseCalculator } = require('./calculator_actions.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 // Real rendered standard-edition acceptance. All files and state are synthetic.
@@ -64,7 +65,7 @@ async function worksheetReady(title, label) {
   const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   await expect(page.getByLabel('Project No.', {exact:true})).toHaveAttribute('readonly','');
   await expect(page.getByLabel('Project No.', {exact:true})).toHaveValue(original.estimate.project_no);
-  await page.locator('#client').fill('Offline Windows acceptance');
+  await fillProjectDetails(page,{'client':'Offline Windows acceptance'});
   choose({});
   const savedReply = await reply(() => clickProjectControl(page, 'Save'), '/api/project/save-as');
   assert.equal(savedReply.status,200,JSON.stringify(savedReply.body));

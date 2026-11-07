@@ -9,6 +9,7 @@ from pathlib import Path
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 
 from openpyxl import load_workbook
 
@@ -63,6 +64,36 @@ class DirectoryTests(unittest.TestCase):
         self.assertEqual(len(latest["contacts"]), 2)
         self.assertEqual({p["account_id"] for p in latest["contacts"]}, {account["id"]})
         self.assertEqual(next(l for l in latest["leads"] if l["id"] == result["id"])["status"], "Assisting")
+
+    def test_convert_replays_durable_project_after_interrupted_directory_update(self):
+        from estimator.catalog import ValidationError
+        from estimator.project_library import ProjectLibrary
+        from estimator.storage import Store
+        person = self.request("leads", {"version":0, "fields":{"name":"Alex", "company":"QA Company", "site_address":"QA Site", "description":"Install", "billing_address":"QA HQ"}})
+        body = {"id":person["id"], "version":1}
+        self.request("leads/convert", body, 400)
+        self.assertEqual(len(self.request("directory")["leads"]),1)
+        folder = Path(self.temp.name)/"Projects"
+        folder.mkdir()
+        Store(Path(self.temp.name)/"test.sqlite3").set_project_folder(folder)
+        create = ProjectLibrary.create_from_lead
+        def interrupt(projects, lead):
+            create(projects, lead)
+            raise ValidationError("Simulated interruption after saving")
+        with patch.object(ProjectLibrary, "create_from_lead", interrupt):
+            self.request("leads/convert", body, 400)
+        self.assertEqual(len(list(folder.rglob("*.cf.json"))),1)
+        self.assertEqual(len(self.request("directory")["leads"]),1)
+        saved = self.request("leads/convert", body)
+        self.assertEqual(saved,self.request("leads/convert", body))
+        self.assertEqual(len(list(folder.rglob("*.cf.json"))),1)
+        project = json.loads(Path(saved["path"]).read_bytes())
+        self.assertEqual(project["estimate"]["site_address"],"QA Site")
+        self.assertEqual(project["estimate"]["client"],"QA Company")
+        self.assertIn("Description: Install",project["estimate"]["measurements"])
+        current = self.request("directory")
+        self.assertFalse(current["leads"])
+        self.assertEqual(current["contacts"][0]["account_id"],current["accounts"][0]["id"])
 
     def upload(self, kind, rows, expected=200):
         template = self.request(f"{kind}/template.xlsx")

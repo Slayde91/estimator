@@ -69,7 +69,7 @@ class PdfCoverPackagingTests(unittest.TestCase):
         data_collections = [node for node in ast.walk(source) if isinstance(node, ast.Call)
                             and isinstance(node.func, ast.Name) and node.func.id == 'collect_data_files']
         self.assertTrue(any(node.args[0].value == 'tzdata'
-                            and any(keyword.arg == 'includes' and 'zoneinfo/**' in ast.literal_eval(keyword.value)
+                            and any(keyword.arg == 'includes' and {'zones', 'zoneinfo/**'} <= set(ast.literal_eval(keyword.value))
                                     for keyword in node.keywords) for node in data_collections))
 
     @staticmethod

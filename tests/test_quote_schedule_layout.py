@@ -21,14 +21,14 @@ from tests.test_penetration_labour_exports import draft
 REFERENCE = {'label': 'Verified report <A> & B', 'url': 'https://media.promat.com/verified-report.pdf'}
 HEADERS = {
     'steel_vermiculite': ['Line', 'Location', 'Item / mark', 'Product', 'Section', 'Quantity',
-                         'Length (m)', 'Thickness (mm)', 'Report'],
+                         'Length (m)', 'Thickness (mm)', 'Report', 'Calculation Notes'],
     'steel_board': ['Line', 'Item / mark', 'Location', 'Product', 'Section', 'Design min / °C',
                     'Board stack mm', 'Total thickness mm', 'Box ref. m²', 'Net board m²',
-                    'With waste m²', 'Sheets / line', 'Report'],
+                    'With waste m²', 'Sheets / line', 'Report', 'Calculation Notes'],
     'ductwork': ['Line', 'Product / duct mm', 'Length m × qty', 'FRL', 'Thickness mm',
-                'Duct m²', 'Net spray bags', 'Wrap m²', 'Roll eq.', 'Report'],
+                'Duct m²', 'Net spray bags', 'Wrap m²', 'Roll eq.', 'Status / estimating basis', 'Report'],
     'steel_intumescent': ['Line', 'Location', 'Item / mark', 'Product / member case',
-                          'Period (min)', 'Critical °C', 'DFT (µm)', 'Area (m²)', 'Report'],
+                          'Period (min)', 'Critical °C', 'DFT (µm)', 'Area (m²)', 'Report', 'Calculation Notes'],
 }
 FIRE_HEADERS = ['Line', 'Diagram', 'Service', 'Quantity', 'FRL', 'Service size',
                 'Orientation', 'Substrate', 'Report']
@@ -116,7 +116,7 @@ class QuoteScheduleLayoutTests(unittest.TestCase):
                                     for page in standalone.pages))
                 self.assert_values(table, standalone)
                 if data['rows'][0]['result_unavailable']:
-                    self.assertEqual(table['rows'][0][-1], 'N / A')
+                    self.assertEqual(table['rows'][0][table['headers'].index('Report')], 'N / A')
                     self.assertFalse(any(annotation.get_object().get('/A', {}).get('/URI')
                                          for page in standalone.pages for annotation in page.get('/Annots', [])))
                 self.assertEqual(value, before)

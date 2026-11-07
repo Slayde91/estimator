@@ -64,8 +64,8 @@ async function fillDialog(title, values, submit) {
     if (await field.evaluate(el => el.tagName) === "SELECT") await field.selectOption(String(value)); else await field.fill(String(value)); }
   await modal.getByRole("button", { name: submit, exact: true }).click(); await expect(page.locator("dialog.takeoff-dialog")).toHaveCount(0);
 }
-async function padDraw(replacement = false) {
-  const modal = page.getByRole("dialog", { name: "Signatures", exact: true }); await expect(modal).toBeVisible();
+async function padDraw(replacement = false, title = "Signatures") {
+  const modal = page.getByRole("dialog", { name: title, exact: true }); await expect(modal).toBeVisible();
   await modal.getByRole("button", { name: "Clear pad", exact: true }).click(); const box = await modal.getByLabel("Signature drawing pad", { exact: true }).boundingBox();
   const strokes = replacement ? [[[.1, .75], [.28, .15], [.45, .7], [.65, .15], [.9, .7]], [[.1, .85], [.9, .85]]]
     : [[[.1, .5], [.22, .12], [.35, .75], [.48, .25], [.65, .65], [.87, .3]], [[.12, .84], [.88, .84]]];
@@ -129,10 +129,12 @@ async function saveLoad(info) {
 }
 async function armedPlacementGuards() {
   const before = await snapshot(), commandCount = requests.length;
-  await page.getByRole("button", { name: "Signatures", exact: true }).click(); await padDraw();
+  const settingsInk = await page.evaluate(()=>window.ClassifirePersonalSignature.saved());
+  await page.getByRole("button", { name: "Signatures", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button",{name:"Use saved signature"}).click();
   await expect(page.locator(".takeoff-viewport")).toHaveAttribute("data-tool", "signature");
   const fingerprint = () => page.evaluate(() => JSON.parse(window.CeasefireTakeoffs.projectFingerprint()));
-  const armed = (await fingerprint()).signatureDraft; assert.ok(armed?.strokes.length);
+  const armed = (await fingerprint()).signatureDraft; assert.deepEqual(armed.strokes,settingsInk.strokes);
   const guarded = await page.evaluate(() => { try { window.CeasefireTakeoffs.projectSnapshot(); return false; } catch (error) { return error.message; } });
   assert.match(guarded, /unfinished.*drawing.*before saving/);
   await clickProjectControl(page, "Save");
@@ -165,7 +167,12 @@ async function armedPlacementGuards() {
   });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener("securitypolicyviolation", event => window.qaCsp.push(event.effectiveDirective)); });
   const response = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!response.headers()["content-security-policy"].includes("unsafe-inline"));
-  await page.waitForFunction(() => window.CeasefireDesktop?.status().ready); await page.getByRole("button", { name: "Takeoffs", exact: true }).click();
+  await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
+  await page.locator('nav [data-view="settings"]').click();
+  await page.locator('#personal-signature-set').click();
+  await padDraw(false, "Personal signature");
+  await expect(page.locator('#personal-signature-status')).toHaveText("Personal signature saved.");
+  await page.getByRole("button", { name: "Takeoffs", exact: true }).click();
   await chooseTakeoff(page, "wall"); await renderDrawing(page, () => page.locator("#takeoff-upload").setInputFiles(info.area_fixture), 1); await idle();
   const scale = page.getByLabel("Drawing calibration", { exact: true }); if (!await scale.isVisible()) await page.getByRole("button", { name: "Scale", exact: true }).click();
   await scale.selectOption("scale:100"); await command(() => fillDialog("Apply drawing scale 1:100?", {}, "Apply scale"), "add_calibration");

@@ -15,7 +15,7 @@
     workspace: null,
     kind: "quote",
     model: null,
-    savedQuotes: [],
+    savedCards: [],
     editor: null,
     busy: false,
     dirty: false,
@@ -106,13 +106,12 @@
     window.CeasefireProject?.changed?.();
   }
   function positionCardMenu(menu) {
-    menu.addEventListener("toggle", () => {
-      if (!menu.open) return;
-      const panel = menu.querySelector(".commercial-menu-options");
-      const rect = menu.querySelector("summary").getBoundingClientRect();
-      panel.style.left = `${Math.max(8, Math.min(innerWidth - panel.offsetWidth - 8, rect.right - panel.offsetWidth))}px`;
-      panel.style.top = `${rect.bottom + panel.offsetHeight + 12 <= innerHeight ? rect.bottom + 6 : Math.max(8, rect.top - panel.offsetHeight - 6)}px`;
-    });
+    if (!menu.open) return;
+    const panel = menu.querySelector(".commercial-menu-options");
+    const rect = menu.querySelector("summary").getBoundingClientRect();
+    if (rect.bottom <= 0 || rect.top >= innerHeight || rect.right <= 0 || rect.left >= innerWidth) { menu.open=false; return; }
+    panel.style.left = `${Math.max(8, Math.min(innerWidth - panel.offsetWidth - 8, rect.right - panel.offsetWidth))}px`;
+    panel.style.top = `${rect.bottom + panel.offsetHeight + 12 <= innerHeight ? rect.bottom + 6 : Math.max(8, rect.top - panel.offsetHeight - 6)}px`;
   }
   function changed() {
     state.changed = true;
@@ -138,6 +137,7 @@
   async function documentRequest(action, body, source) {
     if (!source) return request(action, body);
     const {workspace_id, estimates, active_estimate_id, ...fields} = body;
+    if (source.file_id.startsWith("local-") && source.documentId) fields.context_id = source.documentId;
     const response = await request("saved-" + action, {...fields, source: {file_id: source.file_id, revision: source.revision}});
     if (action !== "derive" && action !== "defaults") source.revision = response.revision;
     return response.result;
@@ -195,32 +195,56 @@
     host.append(notice);
     return host;
   }
-  async function load(revision = ++state.revision) {
+  async function load(revision = ++state.revision, refresh = false) {
     const workspace = state.workspace;
     const context = window.CeasefireProject?.runtimeContext?.();
     const result = await request(`state?workspace=${encodeURIComponent(workspace)}`);
+    if (state.kind === "purchase_order") result.products = (await request(`supplier-products?workspace=${encodeURIComponent(workspace)}`)).products;
     if (revision !== state.revision || workspace !== state.workspace || workspace !== currentWorkspace() || context !== window.CeasefireProject?.runtimeContext?.()) return false;
-    if (state.kind === "quote") {
+    {
       let register;
       do {
-        register = await request(`register?workspace=${encodeURIComponent(workspace)}`);
+        register = await request(`register?workspace=${encodeURIComponent(workspace)}${refresh ? "&refresh=1" : ""}`);
+        refresh = false;
         if (revision !== state.revision || workspace !== currentWorkspace() || context !== window.CeasefireProject?.runtimeContext?.()) return false;
       } while (register.scan_pending);
       const active = window.CeasefireProject?.context?.();
       const diskRevision = register.revisions?.[active?.project_path];
       result.activeFileChanged = Boolean(diskRevision && active?.project_revision && diskRevision !== active.project_revision);
-      state.savedQuotes = register.documents.filter(card => card.source_path !== active?.project_path || result.activeFileChanged);
+      state.savedCards = register.documents.filter(card => card.source_path
+        ? card.source_path !== active?.project_path || result.activeFileChanged
+        : !card.current_workspace);
       result.unavailableProjects = register.error_count;
+      result.unavailableSources = register.unavailable_sources || [];
     }
     state.model = result;
     return true;
   }
+  let leavingEditor = false;
+  async function leaveEditor() {
+    if (state.busy || leavingEditor) return false;
+    const editor = state.editor;
+    leavingEditor = true;
+    try {
+      if (state.dirty) {
+        const label = names[state.kind].toLowerCase();
+        const discard = await window.CeasefireDialogs.confirm(`Discard the current ${label}?`, "", "Yes", "Cancel");
+        if (editor !== state.editor || state.busy) return false;
+        if (!discard) {
+          window.CeasefireDialogs.message("Save or discard the current commercial document edit before changing views.", true);
+          return false;
+        }
+      }
+      renderBoard();
+      window.CeasefireProject?.changed?.();
+      return true;
+    } finally {
+      leavingEditor = false;
+    }
+  }
   async function activate(kind) {
     if (!names[kind]) return;
-    if (state.busy || state.dirty) {
-      message("Save or discard the current document before changing pages.", true);
-      return;
-    }
+    if (state.busy || (state.dirty && !await leaveEditor())) return;
     const revision = ++state.revision;
     const context = window.CeasefireProject?.runtimeContext?.();
     state.kind = kind;
@@ -235,7 +259,7 @@
         state.editor = null;
         state.changed = false;
       }
-      if (await load(revision)) renderBoard();
+      if (await load(revision,true)) renderBoard();
     } catch (error) {
       if (revision === state.revision && context === window.CeasefireProject?.runtimeContext?.()) message(error.message, true);
     }
@@ -282,23 +306,51 @@
     controls.append(columns);
     const list = node("section", "card commercial-list");
     list.append(controls, node("p", "helper commercial-match-count"), node("div", "commercial-board project-kanban"));
+    if (state.model.unavailableSources?.length) {
+      const notice = node("section","commercial-source-notice");
+      notice.append(node("h2","","Unavailable project files"));
+      const missing = node("ul");
+      for (const source of state.model.unavailableSources) {
+        const description = source.path
+          ? `${source.title} — the saved file could not be read at ${source.path}`
+          : `${source.title} — CLASSIFIRE has issued document history for this project but has no current saved file for it.`;
+        missing.append(node("li","",description));
+      }
+      notice.append(missing,node("p","","To show its current documents, use Projects → Load to open the project's .cf.json file, or link the folder containing it."));
+      list.insertBefore(notice,list.querySelector(".commercial-board"));
+    }
     host.append(list);
     renderCards();
-    if (state.kind === "quote" && state.model.unavailableProjects) message("Some linked project files could not be read. See Projects for details.", true);
+    if (state.model.unavailableProjects) message("Some linked project files could not be read. See Projects for details.", true);
   }
   function renderCards() {
     const board = root()?.querySelector(".commercial-board");
     if (!board) return;
     board.replaceChildren();
     let all = state.model.documents.filter(document => document.kind === state.kind);
-    if (state.kind === "quote") {
+    {
       const details = window.CeasefireProject?.details?.();
       const local = state.model.activeFileChanged ? [] : all.map(card => ({
         ...card, fields: {...card.fields, details: {...card.fields.details, ...details}}
       }));
-      all = local.concat(state.savedQuotes);
+      all = local.concat(state.savedCards.filter(card => card.kind === state.kind));
     }
-    const documents = all.filter(document => `${document.fields.title} ${document.fields.details.client} ${document.fields.details.project_no} ${document.last_number} ${document.fields.order.work_order_reference}`.toLowerCase().includes(state.search.toLowerCase()));
+    const cardInfo = doc => {
+      const fields = doc.fields, details = fields.details, order = fields.order;
+      const po = doc.kind === "purchase_order", wo = doc.kind === "work_order";
+      const number = doc.reference || (wo && order.work_order_reference) || doc.last_number;
+      const cost = wo ? order.estimated_cost || doc.grand_total || state.model.quote_totals?.[order.quote_id]?.[order.quote_reference] || "" : doc.grand_total;
+      const grand = cost === undefined ? summary(fields).money(summary(fields).total)
+        : cost && Number.isFinite(Number(cost)) ? new Intl.NumberFormat("en-AU", {style:"currency",currency:"AUD"}).format(Number(cost)) : cost;
+      return [
+        [po ? "Supplier" : "Client", po ? order.supplier : details.client],
+        ["Contact name", po ? order.supplier_contact : details.contact],
+        ["Site address", details.site_address],
+        [names[doc.kind] + " number", number], ["Grand total", grand],
+        ["Last updated", new Date(doc.updated_at).toLocaleString("en-AU")]
+      ];
+    };
+    const documents = all.filter(doc => [doc.fields.title, doc.fields.details.project_no, ...cardInfo(doc).map(pair=>pair[1])].join(" ").toLowerCase().includes(state.search.toLowerCase()));
     documents.sort((a, b) => state.sort === "Document name A–Z"
       ? a.fields.title.localeCompare(b.fields.title, "en", {numeric:true}) || a.id.localeCompare(b.id)
       : (state.sort === "Oldest saved first" ? 1 : -1) * a.updated_at.localeCompare(b.updated_at) || a.id.localeCompare(b.id));
@@ -348,12 +400,14 @@
         });
         actions.append(field("Move to", statusSelect));
         menu.append(toggle, actions);
-        positionCardMenu(menu);
+        menu.addEventListener("toggle", () => positionCardMenu(menu));
         const title = button(document.fields.title, () => { if (!state.busy) void openCard(document); });
         title.className = "project-title-button";
         const heading = node("div", "project-card-heading");
         heading.append(title, menu);
-        card.append(heading, node("p", "helper", document.fields.order.work_order_reference && state.kind === "work_order" ? document.fields.order.work_order_reference : document.last_number || "Number assigned on PDF download"), node("p", "helper", [document.fields.details.project_no, document.fields.details.client].filter(Boolean).join(" · ")), node("p", "helper", "Last updated " + new Date(document.updated_at).toLocaleString("en-AU")));
+        const information = node("dl", "commercial-card-info");
+        for (const [label, value] of cardInfo(document)) information.append(node("dt","",label), node("dd","",value || "—"));
+        card.append(heading, information);
         column.append(card);
       }
       if (!matches.length) column.append(node("p", "project-column-empty", "No documents"));
@@ -372,8 +426,10 @@
         const opened = await request("saved-open", {source, id: card.id});
         if (state.revision !== revision) return;
         document = opened.document;
+        source.documentId = document.id;
         source.estimates = opened.estimates;
-        source.quoteTotals = {[document.id]: {[document.last_number]: opened.quote_total}};
+        source.quoteTotals = opened.quote_totals;
+        source.related = opened.related;
         state.busy = false;
       }
       if (!createWorkOrder) { openEditor(document, source); return; }
@@ -419,7 +475,7 @@
       }, sourceFor(document));
       if (!document.source_file) changed();
       await load();
-      if (document.kind === "quote" && !document.source_file) await saveActiveProject();
+      if (!document.source_file) await saveActiveProject();
       renderBoard();
     } catch (error) {
       message(error.message, true);
@@ -438,7 +494,7 @@
       }, sourceFor(document));
       if (!document.source_file) changed();
       await load();
-      if (document.kind === "quote" && !document.source_file) await saveActiveProject();
+      if (!document.source_file) await saveActiveProject();
       renderBoard();
     } catch (error) {
       message(error.message, true);
@@ -497,7 +553,7 @@
       state.busy = false;
     }
   }
-  function richEditor(label, value, changedValue) {
+  function richEditor(label, value, changedValue, trackDirty = markDirty) {
     const section = node("section", "commercial-rich"),
       toolbar = node("div", "commercial-rich-toolbar"),
       editor = node("div", "commercial-rich-input");
@@ -521,7 +577,7 @@
         document.execCommand("styleWithCSS", false, false);
         document.execCommand(command, false);
         changedValue(editor.innerHTML);
-        markDirty();
+        trackDirty();
       });
       control.classList.add("commercial-format-button");
       control.setAttribute("aria-label", text);
@@ -539,7 +595,7 @@
     }
     editor.addEventListener("input", () => {
       changedValue(editor.innerHTML);
-      markDirty();
+      trackDirty();
     });
     editor.addEventListener("paste", event => {
       event.preventDefault();
@@ -549,7 +605,7 @@
     return section;
   }
   function openEditor(document, source = null, linkedQuote = null) {
-    if (state.dirty && !window.confirm("Discard the unsaved document changes?")) return;
+    if (state.dirty) return;
     state.editor = {
       document: copy(document),
       source,
@@ -570,12 +626,7 @@
       if (lockedNumber) fields.details.project_no = lockedNumber;
     }
     const actions = node("div", "commercial-editor-actions");
-    actions.append(backButton("Back to " + names[state.kind] + "s", () => {
-      if (!state.dirty || window.confirm("Discard unsaved changes?")) {
-        state.dirty = false;
-        renderBoard();
-      }
-    }), button("Save", () => void saveEditor(), true), button("Download PDF", () => void downloadEditor(), true));
+    actions.append(backButton("Back to " + names[state.kind] + "s", () => void leaveEditor()), button("Save", () => void saveEditor(), true), button("Download PDF", () => void downloadEditor(), true));
     const titleRow = node("div", "commercial-title-row");
     titleRow.append(field("Document title", input(fields.title, value => fields.title = value)), field("Status", select(state.model.statuses[state.kind], state.editor.document.status, value => state.editor.document.status = value)));
     form.append(actions, titleRow);
@@ -616,12 +667,111 @@
       }), node("div", "commercial-totals"));
     }
     host.append(form);
+    if (state.kind === "work_order") attachWorkPanels(form);
     if (state.kind === "quote") {
       renderEstimateOptions();
       renderScope();
     }
     renderLines();
     if (state.kind === "quote" && document.version > 0) void refreshScopePreview();
+  }
+  function signatureField(fields, key, label) {
+    const wrap = node("div","field commercial-signature"), buttonRow = node("div","commercial-signature-actions");
+    const value = fields.signatures?.[key];
+    if (value) {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", `0 0 ${value.ratio * 100} 100`);
+      svg.setAttribute("role","img"); svg.setAttribute("aria-label",label+" signature");
+      for (const stroke of value.strokes) {
+        const path = document.createElementNS(svg.namespaceURI,"polyline");
+        path.setAttribute("points",stroke.map(p=>(p[0]*value.ratio*100)+","+(p[1]*100)).join(" "));
+        path.setAttribute("fill","none"); path.setAttribute("stroke","currentColor"); path.setAttribute("stroke-width","1.5"); svg.append(path);
+      }
+      buttonRow.append(svg);
+    } else if (fields.order[key]) buttonRow.append(node("span","helper",fields.order[key]));
+    const selected = state.editor;
+    const sign = button("", async () => {
+      if (state.busy) return;
+      try {
+        const result = await window.ClassifirePersonalSignature.choose(fields.signatures?.[key] || null);
+        if (state.editor !== selected || !result) return;
+        (fields.signatures ||= {})[key] = result;
+        markDirty(); wrap.replaceWith(signatureField(fields,key,label));
+      } catch (error) { message(error.message,true); }
+    });
+    sign.classList.add("icon-only","takeoff-icon-button","takeoff-signature-button");
+    sign.title = (value ? "Change " : "Sign ") + label;
+    sign.setAttribute("aria-label", sign.title);
+    sign.append(node("span","takeoff-action-icon takeoff-signature-icon"));
+    buttonRow.append(sign); wrap.append(node("span","",label),buttonRow); return wrap;
+  }
+  function attachWorkPanels(form) {
+    const editor = state.editor, doc = editor.document, fields = doc.fields;
+    const related = editor.source?.related || state.model.documents;
+    const staged = new Map();
+    const source = () => ({file_id:editor.source.file_id,revision:editor.source.revision});
+    const current = () => state.editor === editor;
+    const encode = blob => new Promise((resolve,reject)=>{
+      const reader=new FileReader(); reader.onerror=()=>reject(new Error("The file could not be read."));
+      reader.onload=()=>resolve(reader.result.split(",")[1]); reader.readAsDataURL(blob);
+    });
+    window.ClassifireWorkOrderPanels.attach(form, {
+      fields, id:doc.id, related, message, richEditor, isSaved:()=>Boolean(doc.version),
+      async writeNotes(notes) {
+        if (!current() || state.busy) throw new Error("Finish the current Work Order operation first.");
+        if (!doc.version) { fields.notes=copy(notes); markDirty(); return; }
+        state.busy=true;
+        try {
+          const saved = await documentRequest("notes",{workspace_id:state.workspace,id:doc.id,version:doc.version,notes},editor.source);
+          if (!current()) return;
+          fields.notes=saved.fields.notes || []; doc.version=saved.version; editor.pendingIssue=null;
+          if (!editor.source) changed();
+          await load();
+          if (!editor.source && !state.dirty) await saveActiveProject();
+        } finally { state.busy=false; }
+      },
+      async upload(files) {
+        if (!current() || state.busy) throw new Error("Finish the current Work Order operation first.");
+        state.busy=true;
+        try {
+          const existing=fields.files || [];
+          if(existing.length+files.length>16 || files.some(f=>f.size>12*1024*1024) ||
+              [...existing,...files].reduce((n,f)=>n+f.size,0)>32*1024*1024) throw new Error("Choose up to 16 files, 12 MiB per file and 32 MiB per Work Order.");
+          const incoming=[];
+          for (const file of files) {
+            const data={name:file.name,content:await encode(file)};
+            const record=editor.source ? await request("saved-attachment",{source:source(),...data,
+              ...(editor.source.file_id.startsWith("local-") ? {context_id:editor.source.documentId} : {})}) : await request("attachment",{workspace_id:state.workspace,...data});
+            if (!current()) return;
+            if (![...existing,...incoming].some(f=>f.id===record.id)) incoming.push(record);
+            staged.set(record.id,file);
+          }
+          if(incoming.length) {fields.files=[...existing,...incoming];markDirty();}
+        } finally {state.busy=false;}
+      },
+      async download(file) {
+        let href, objectUrl=false;
+        if(staged.has(file.id)) {href=URL.createObjectURL(staged.get(file.id));objectUrl=true;}
+        else if(editor.source) {
+          const data=await request("saved-read-attachment",{source:source(),id:doc.id,file_id:file.id});
+          const raw=atob(data.content), bytes=Uint8Array.from(raw, ch=>ch.charCodeAt(0));
+          href=URL.createObjectURL(new Blob([bytes],{type:data.mime}));objectUrl=true;
+        } else href=`/api/commercial/attachment/${encodeURIComponent(file.id)}?workspace=${encodeURIComponent(state.workspace)}&document=${encodeURIComponent(doc.id)}`;
+        const link=node("a"); link.href=href; link.download=file.name; link.click();
+        if(objectUrl) setTimeout(()=>URL.revokeObjectURL(href),30000);
+      },
+      removeFile(file) {
+        if (!current() || state.busy) return;
+        fields.files=(fields.files || []).filter(f=>f.id!==file.id); staged.delete(file.id); markDirty();
+      },
+      async openRelated(card) {
+        if (!current() || state.busy || (state.dirty && !await leaveEditor())) return;
+        if (!await window.CeasefireProject.openCommercial(card.kind)) return;
+        const actual=editor.source ? state.savedCards.find(item=>item.source_file===editor.source.file_id && item.id===card.id)
+          : state.model.documents.find(item=>item.id===card.id);
+        if(actual) await openCard(actual); else message("The linked document is unavailable. Refresh its board.",true);
+      }
+    });
   }
   function rateSchedule(fields) {
     const section = node("section", "card commercial-rate-schedule"), schedule = fields.rate_schedule;
@@ -653,7 +803,7 @@
     const references = node("section", "commercial-linked-reference");
     const isWorkOrder = state.kind === "work_order";
     const linkKey = isWorkOrder ? "quote_id" : "work_order_id";
-    const choices = (state.editor.linkedQuote ? [state.editor.linkedQuote] : state.model.documents).filter(item => isWorkOrder
+    const choices = (state.editor.linkedQuote ? [state.editor.linkedQuote] : state.editor.source?.related || state.model.documents).filter(item => isWorkOrder
       ? item.kind === "quote" && item.last_number
       : item.kind === "work_order" && item.fields.order.work_order_reference);
     let costControl;
@@ -686,9 +836,9 @@
     linked.value = fields.order[linkKey] || "";
     linked.dataset.orderLink = linkKey;
     linked.disabled = !!state.editor.linkedQuote || (isWorkOrder && state.editor.document.version > 0 && !!fields.order.work_order_reference);
-    const reference = input(fields.order.work_order_reference, () => {});
+    const reference = input(state.editor.document.reference || (isWorkOrder ? fields.order.work_order_reference : ""), () => {});
     reference.readOnly = true;
-    reference.placeholder = isWorkOrder ? "Assigned when this Work Order is saved" : "Select a linked Work Order";
+    reference.placeholder = "Assigned on first save";
     reference.dataset.orderReference = "true";
     linked.addEventListener("change", () => {
       fields.order[linkKey] = linked.value;
@@ -698,29 +848,53 @@
         applyQuoteCost(linked.value, fields.order.quote_reference);
       } else {
         fields.order.work_order_reference = selected?.fields.order.work_order_reference || "";
-        reference.value = fields.order.work_order_reference;
       }
       markDirty();
     });
-    references.append(field(isWorkOrder ? "Linked Quote" : "Linked Work Order", linked), field("Work order reference", reference));
+    references.append(field(isWorkOrder ? "Linked Quote" : "Linked Work Order", linked), field(isWorkOrder ? "Work order reference" : "Purchase Order No.", reference));
     form.append(references);
     const commonReview = [["approval", "Approval"], ["reviewed_by", "Reviewed by"], ["review_date", "Review date"]];
-    const groups = state.kind === "work_order" ? [["Work order details", [["start_date", "Proposed start date"], ["end_date", "Proposed end date"], ["urgency", "Category / urgency"], ["quote_reference", "Quote reference"], ["description", "Description of works"], ["estimated_cost", "Estimated cost (AUD)"], ["attachments", "Image / video references"]]], ["Work order review", [...commonReview, ["justification", "Justification"]]], ["OHS documentation", [["swms", "SWMS"], ["sds", "SDS"], ["sop", "SOP"], ["other_documents", "Other documents"], ["prepared_by", "Prepared by"]]], ["Client approval", [["client_approval", "Safety documentation approval"], ["client_approved_by", "Approved by"], ["client_approval_date", "Approval date"]]], ["Progress and completion", [["progress", "Work progress"], ["claim", "Products and services charged"], ["certification", "Certification details"], ["completion", "Completion"], ["closed_by", "Closed by"]]]] : [["Purchase order information", [["work_order_reference", "Work order reference"], ["supplier", "Supplier"], ["supplier_email", "Supplier email"], ["supplier_contact", "Supplier contact"], ["payment_terms", "Payment terms"], ["ship_to_name", "Ship to name"], ["ship_to_address", "Ship to address"], ["delivery_date", "Delivery date"], ["expense_type", "Type of expense"], ["delivery_method", "Delivery or pickup"]]], ["Request and approval", [["requested_by", "Requested by"], ["requested_date", "Request date"], ...commonReview]], ["Procurement verification", [["verification", "Verification method, specification, result and actions"], ["sent_by", "Sent by"], ["sent_date", "Sent date"], ["verified_by", "Verified by"], ["verified_date", "Verification date"]]]];
+    const groups = isWorkOrder ? [
+      ["Work order details", [["start_date","Proposed start date"],["end_date","Proposed end date"],["urgency","Category / urgency"],["description","Description of works"],["estimated_cost","Estimated cost (AUD)"]]],
+      ["Work order review", [...commonReview, ["justification","Justification"]]],
+      ["OHS documentation", [["prepared_by","Prepared by"]]],
+      ["Client approval", [["client_approved_by","Approved by"],["client_approval_date","Approval date"]]],
+      ["Works in Progress", [["progress","Work progress"]]],
+      ["Work Order Claim", [["claim","Products and services charged"]]],
+      ["Work Order Completion", [["certification","Certification details"],["completion","Completion"],["closed_by","Closed by"]]]
+    ] : [["Purchase order information", [["work_order_reference", "Work order reference"], ["supplier", "Supplier"], ["supplier_email", "Supplier email"], ["supplier_contact", "Supplier contact"], ["payment_terms", "Payment terms"], ["ship_to_name", "Ship to name"], ["ship_to_address", "Ship to address"], ["delivery_date", "Delivery date"], ["expense_type", "Type of expense"], ["delivery_method", "Delivery or pickup"]]], ["Request and approval", [["requested_by", "Requested by"], ["requested_date", "Request date"], ...commonReview]], ["Procurement verification", [["verification", "Verification method, specification, result and actions"], ["sent_by", "Sent by"], ["sent_date", "Sent date"], ["verified_by", "Verified by"], ["verified_date", "Verification date"]]]];
     for (const [title, items] of groups) {
       const section = node("section", "card commercial-order-fields");
       section.append(node("h2", "", title));
       for (const [key, label] of items) {
         if (["quote_reference", "work_order_reference"].includes(key)) continue;
         if (key === "estimated_cost") {
-          costControl = textarea(fields.order.estimated_cost, value => {
+          costControl = input(fields.order.estimated_cost, value => {
             fields.order.estimated_cost = value;
             costEdited = Boolean(value);
-          });
+          }, "number");
+          costControl.step = "0.01";
           costControl.dataset.orderCost = "true";
-          section.append(field(label, costControl));
+          const group = node("span","commercial-currency"); group.append(node("span","", "$"), costControl);
+          costControl.setAttribute("aria-label", label);
+          section.append(field(label, group));
+          group.removeAttribute("aria-label");
           continue;
         }
-        section.append(field(label, key.endsWith("_date") ? input(fields.order[key], value => fields.order[key] = value, "date") : textarea(fields.order[key], value => fields.order[key] = value)));
+        if (isWorkOrder && ["reviewed_by","prepared_by","client_approved_by"].includes(key)) {
+          section.append(signatureField(fields, key, label));
+          continue;
+        }
+        const choices = isWorkOrder && (key === "urgency" ? ["High Priority","Medium Priority","Low Priority"] : key === "approval" ? ["Approved","Denied"] : null);
+        let control;
+        if (choices) {
+          const options = ["",...choices];
+          if (fields.order[key] && !options.includes(fields.order[key])) options.push(fields.order[key]);
+          control = select(options, fields.order[key], value => fields.order[key] = value);
+        } else control = key.endsWith("_date") ? input(fields.order[key], value => fields.order[key] = value, "date") : textarea(fields.order[key], value => fields.order[key] = value);
+        const item = field(label, control);
+        if (isWorkOrder && ["start_date","end_date"].includes(key)) item.classList.add("commercial-proposed-date");
+        section.append(item);
       }
       form.append(section);
     }
@@ -865,6 +1039,19 @@
       table = node("table"),
       head = node("thead"),
       header = node("tr");
+    const products = new Map();
+    if (state.kind === "purchase_order") {
+      const catalog = state.model.products || [], counts = new Map(), list = node("datalist");
+      list.id = "commercial-supplier-products";
+      for (const item of catalog) counts.set(item.label, (counts.get(item.label) || 0) + 1);
+      for (const item of catalog) {
+        const value = counts.get(item.label) > 1 ? `${item.label} · ${item.code}` : item.label;
+        products.set(value, item);
+        const option = node("option"); option.value = value; list.append(option);
+      }
+      host.append(list);
+      table.classList.add("commercial-po-lines");
+    }
     for (const label of ["Product / Service", "Quantity", "Unit price", "Total", ...(state.kind === "purchase_order" ? ["Size", "Comments", "Actions"] : [])]) header.append(node("th", "", label));
     head.append(header);
     table.append(head);
@@ -875,11 +1062,20 @@
         quantity = node("td"),
         unit = node("td"),
         total = node("td", "commercial-line-total");
-      const descriptionInput = textarea(line.description, value => line.description = value);
+      const descriptionInput = state.kind === "purchase_order" ? input(line.description, value => {
+        line.description = value;
+        const chosen = products.get(value);
+        if (!chosen) return;
+        line.unit_price = String(chosen.supplier_price ?? "");
+        price.value = line.unit_price;
+        if (chosen.supplier_price == null) message("No supplier price is recorded for this item. Enter its purchase price.");
+        renderTotals();
+      }) : textarea(line.description, value => line.description = value);
+      if (state.kind === "purchase_order") descriptionInput.setAttribute("list", "commercial-supplier-products");
       descriptionInput.rows = 1;
       descriptionInput.classList.add("commercial-line-description");
       descriptionInput.setAttribute("aria-label", `Product / Service ${index + 1}`);
-      const resize = () => resizeDescription(descriptionInput);
+      const resize = () => { if (descriptionInput.tagName === "TEXTAREA") resizeDescription(descriptionInput); };
       descriptionInput.addEventListener("input", resize);
       description.append(descriptionInput);
       requestAnimationFrame(resize);
@@ -910,12 +1106,20 @@
           comments = node("td"),
           actions = node("td");
         size.append(input(line.size, value => line.size = value));
-        comments.append(textarea(line.comments, value => line.comments = value));
-        actions.append(button("Remove", () => {
+        const comment = textarea(line.comments, value => line.comments = value);
+        comment.rows = 1; comment.classList.add("commercial-line-comments");
+        comment.setAttribute("aria-label", `Comments ${index+1}`);
+        comment.addEventListener("input", () => resizeDescription(comment));
+        requestAnimationFrame(() => resizeDescription(comment)); comments.append(comment);
+        const remove = button("", () => {
           fields.lines.splice(index, 1);
           markDirty();
           renderLines();
-        }));
+        });
+        remove.classList.add("icon-only", "commercial-remove-line");
+        remove.setAttribute("aria-label", "Remove line item"); remove.title = "Remove line item";
+        remove.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 6h18M8 6V3h8v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg>';
+        actions.append(remove);
         row.append(size, comments, actions);
       }
       body.append(row);
@@ -989,7 +1193,7 @@
       if (number) number.readOnly = true;
     }
   }
-  async function persist(captured) {
+  async function persist(captured, explicitlySaved = false) {
     const document = state.editor.document;
     const saved = await documentRequest("save", {
       workspace_id: state.workspace,
@@ -998,9 +1202,11 @@
       kind: document.kind,
       status: document.status,
       fields: document.fields,
+      ...(explicitlySaved && !state.editor.source && !window.CeasefireProject.context().project_token ? {retain_unfiled:true} : {}),
       ...captured
     }, state.editor.source);
     adoptSaved(saved);
+    if (state.editor.source) state.editor.source.documentId = saved.id;
     state.dirty = false;
     if (!state.editor.source) changed();
     await load();
@@ -1018,7 +1224,7 @@
     renderLines();
     renderScope();
     const reference = root()?.querySelector("[data-order-reference]");
-    if (reference) reference.value = fields.order.work_order_reference;
+    if (reference) reference.value = saved.reference || "";
     const cost = root()?.querySelector("[data-order-cost]");
     if (cost) cost.value = fields.order.estimated_cost;
   }
@@ -1028,9 +1234,11 @@
     setDisabled(true);
     try {
       const captured = state.kind === "quote" ? await capturedEstimates() : {};
-      await persist(captured);
-      const inFile = state.editor.source || (state.kind === "quote" || state.editor.linkedQuote) && await saveActiveProject();
-      message(inFile ? "Document saved. Its linked project file is updated." : "Document saved. Save the project to keep its portable copy.");
+      await persist(captured, true);
+      const source = state.editor.source;
+      const inFile = source ? !source.file_id.startsWith("local-") : await saveActiveProject();
+      message(inFile
+        ? "Document saved. Its linked project file is updated." : "Document saved. It is available on the board.");
     } catch (error) {
       message(error.message, true);
     } finally {
@@ -1088,7 +1296,7 @@
     return result.snapshot;
   }
   window.CeasefireCommercial = {
-    activate,
+    activate, leaveEditor,
     projectNumberAssigned(details) {
       const document = state.editor?.document;
       if (!document || state.editor.source || document.fields.details.project_no || !details?.project_no) return;
@@ -1151,12 +1359,12 @@
       menu.querySelector("summary").focus();
     }
   });
-  const closeCardMenus = () => document.querySelectorAll(".commercial-card-menu[open]").forEach(menu => { menu.open = false; });
-  window.addEventListener("resize", closeCardMenus);
+  const positionOpenMenus = () => document.querySelectorAll(".commercial-card-menu[open]").forEach(positionCardMenu);
+  window.addEventListener("resize", positionOpenMenus);
   window.addEventListener("resize", () => {
-    document.querySelectorAll(".commercial-line-description").forEach(resizeDescription);
+    document.querySelectorAll("textarea.commercial-line-description,.commercial-line-comments").forEach(resizeDescription);
   });
   document.addEventListener("scroll", event => {
-    if (!event.target.closest?.(".commercial-menu-options")) closeCardMenus();
+    if (!event.target.closest?.(".commercial-menu-options")) positionOpenMenus();
   }, true);
 })();

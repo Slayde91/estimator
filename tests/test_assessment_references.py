@@ -2,7 +2,8 @@
 from copy import deepcopy
 import unittest
 
-from estimator.assessment_references import schedule_report_references, schedule_result_available, report_reference_text, _links
+from estimator.assessment_references import (schedule_report_references, schedule_result_available,
+                                            steel_calculation_note, report_reference_text, _links)
 from estimator.calculator_report import _ScheduleReport, _register_fonts
 from estimator.library_display import remove_resolved_source_notices
 
@@ -33,6 +34,30 @@ class AssessmentReferenceTests(unittest.TestCase):
         for identity, cells, available in cases:
             with self.subTest(calculator=identity, cells=cells):
                 self.assertEqual(schedule_result_available(identity, Engine(**cells), 11), available)
+
+    def test_steel_notes_explain_missing_results_without_disclosing_source_locators(self):
+        cases = [
+            ('steel_vermiculite', {'V11': 'UNSUPPORTED CASE / TEMP', 'Y11': 'UNSUPPORTED CASE / TEMP. The critical temperature is outside the assessed range. Private p10'}, 'critical temperature'),
+            ('steel_vermiculite', {'V11': 'UNSUPPORTED CASE / TEMP', 'Y11': 'This member/exposure is not covered. Private p8'}, 'exposed sides'),
+            ('steel_intumescent', {'V11': 'ENTER POSITIVE FACTOR'}, 'positive section factor'),
+            ('steel_intumescent', {'V11': 'NP - NOT PUBLISHED', 'X11': 'Private Table 1'}, 'No thickness is published'),
+            ('steel_board', {'BR11': 'No layer stack available. Private Table 2'}, 'layer preference'),
+            ('steel_vermiculite', {'V11': 'ASSESSMENT DATA UNAVAILABLE'}, 'assessment data'),
+            ('steel_board', {'AI11': 'Check section geometry. Private Table 2'}, 'Steel ID'),
+        ]
+        for calculator, fields, diagnostic in cases:
+            with self.subTest(calculator=calculator, fields=fields):
+                note = steel_calculation_note(calculator, Engine(**fields), 11, False)
+                self.assertIn(diagnostic, note)
+                self.assertNotIn('Private', note)
+        for status, expected in [('Check product quantity settings', 'pack size'),
+                                 ('Quantity exceeds the supported numeric range', 'dimensions and units')]:
+            self.assertIn(expected, steel_calculation_note('steel_intumescent', Engine(W11=status), 11, True))
+        engine = Engine(W11='QUANTIFIED')
+        self.assertEqual(steel_calculation_note('steel_vermiculite', engine, 11, True), '')
+        engine.all_required_missing_by_row = {11: ['Steel ID', 'Critical temperature']}
+        self.assertEqual(steel_calculation_note('steel_vermiculite', engine, 11, False),
+                         'Complete Steel ID, Critical temperature.')
 
     def refs(self, identity, **cells):
         return schedule_report_references(identity, Engine(**cells), 11)

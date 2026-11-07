@@ -27,7 +27,8 @@ def snapshot(identity):
     values = {column_name(index): 1 for index in range(1, 95)}
     values.update(A='Member 1', AA='Level 1', B='Product', C='Case', F='Section 1')
     if identity == 'ductwork':
-        values.update(B='400 x 300', C='CAFCO 300', D=5, E='-/120/120', J=PRIVATE, AP=PRIVATE, AQ=PRIVATE)
+        values.update(B='400 x 300', C='CAFCO 300', D=5, E='-/120/120',
+                      J='Estimate: standard detail assumed', AP=PRIVATE, AQ=PRIVATE)
     elif identity == 'steel_board':
         values.update(B='Level 1', C='PROMATECT 100', D='100UC15', F=5,
                       AI=PRIVATE, AR=PRIVATE, AS=PRIVATE, AT=PRIVATE)
@@ -81,6 +82,8 @@ class DownloadDisclosureTests(unittest.TestCase):
                 for builder in (build_calculator_report, build_calculator_summary_report):
                     reader, text = pdf_text(builder(identity))
                     self.assertIn(REPORT, text)
+                    if identity == 'ductwork' and builder is build_calculator_report:
+                        self.assertIn('Estimate: standard detail assumed', ' '.join(text.split()))
                     self.assertNotIn(PRIVATE, text)
                     self.assertNotIn(HASH, text)
                     links = [ref.get_object()['/A'].get('/URI') for page in reader.pages
@@ -97,6 +100,9 @@ class DownloadDisclosureTests(unittest.TestCase):
                 self.assertFalse(any(cell.comment or cell.data_type == 'f' for sheet in workbook for row in sheet for cell in row))
                 self.assertEqual(workbook['Summary']['E5'].value, 20)
                 headers = [cell.value for cell in workbook['Schedule'][5]]
+                if identity == 'ductwork':
+                    self.assertEqual(workbook['Schedule'].cell(6, headers.index('Status / estimating basis') + 1).value,
+                                     'Estimate: standard detail assumed')
                 self.assertNotIn('Status', headers)
                 self.assertNotIn('Status / basis', headers)
                 self.assertNotIn('Table A/V (m⁻¹)', headers)

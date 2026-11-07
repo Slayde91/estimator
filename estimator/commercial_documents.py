@@ -13,6 +13,8 @@ import sqlite3
 import uuid
 
 from .catalog import ValidationError
+from .commercial_files import WorkOrderFiles, validate_files
+from .document_numbers import DocumentNumbers, valid_reference, validated_counters
 from .company_settings import DEFAULTS as COMPANY_DEFAULTS
 from .evidence_files import _directory
 
@@ -243,10 +245,42 @@ def default_fields(kind, details=None, company=None):
 
 
 def validate_fields(value, *, kind=None):
-    if not isinstance(value, dict) or set(value) - {'rate_schedule'} != FIELD_KEYS:
+    if not isinstance(value, dict) or set(value) - {'rate_schedule', 'notes', 'signatures', 'files'} != FIELD_KEYS:
         raise ValidationError('Commercial document fields use an unsupported format.')
     result = {'title': _text(value['title'], 'Title', 300)}
     result['rate_schedule'] = validate_rate_schedule(value.get('rate_schedule', default_rate_schedule()))
+    files = validate_files(value.get('files', []))
+    if files:
+        if kind not in ('work_order', None):
+            raise ValidationError('Only Work Orders support file attachments.')
+        result['files'] = files
+    from .swms import validate_signature
+    signatures = value.get('signatures', {})
+    if (not isinstance(signatures, dict) or set(signatures) - {'reviewed_by', 'prepared_by', 'client_approved_by'}
+            or (signatures and kind not in ('work_order', None))):
+        raise ValidationError('Invalid work order signatures.')
+    if signatures:
+        result['signatures'] = {key: validate_signature(signature) for key, signature in signatures.items()}
+    notes = value.get('notes', [])
+    if not isinstance(notes, list) or len(notes) > 200 or (notes and kind not in ('work_order', None)):
+        raise ValidationError('A Work Order supports up to 200 notes.')
+    if notes:
+        result['notes'] = []
+        seen = set()
+        for note in notes:
+            if not isinstance(note, dict) or set(note) != {'id','title','body','author','updated_at'}:
+                raise ValidationError('Invalid Work Order note.')
+            identity = _identity(note['id'])
+            if identity in seen:
+                raise ValidationError('A note ID must be unique.')
+            seen.add(identity)
+            title = _text(note['title'],'Note title',300).strip()
+            if not title:
+                raise ValidationError('Enter a title for the Work Order note.')
+            result['notes'].append({'id': identity, 'title': title,
+                                    'body': validate_rich_text(note['body'], 'Note text'),
+                                    'author': _text(note['author'],'Note author',160),
+                                    'updated_at': _text(note['updated_at'],'Note timestamp',60)})
     company = value['company_reference']
     if not isinstance(company, dict) or set(company) != {'name', 'abn'}:
         raise ValidationError('Commercial document company reference is invalid.')
@@ -337,7 +371,7 @@ def validate_commercial_documents(value):
     if value is None:
         return None
     required = {'version', 'project_id', 'documents', 'number_counters'}
-    if not isinstance(value, dict) or not required <= set(value) or set(value) - required - {'work_order_counters'} or type(value['version']) is not int or value['version'] != 1:
+    if not isinstance(value, dict) or not required <= set(value) or set(value) - required - {'work_order_counters','reference_counters'} or type(value['version']) is not int or value['version'] != 1:
         raise ValidationError('Commercial documents use an unsupported project format.')
     _identity(value['project_id'])
     counters = value['number_counters']
@@ -360,7 +394,7 @@ def validate_commercial_documents(value):
     documents = []
     identities = set()
     for document in value['documents']:
-        if not isinstance(document, dict) or set(document) != {'id', 'kind', 'version', 'status', 'fields', 'created_at', 'updated_at', 'last_number'}:
+        if not isinstance(document, dict) or set(document) - {'reference'} != {'id', 'kind', 'version', 'status', 'fields', 'created_at', 'updated_at', 'last_number'}:
             raise ValidationError('A commercial document has unsupported fields.')
         identity = _identity(document['id'])
         if identity in identities:
@@ -372,14 +406,18 @@ def validate_commercial_documents(value):
         row['fields'] = validate_fields(document['fields'], kind=row['kind'])
         for key in ('created_at', 'updated_at', 'last_number'):
             row[key] = _text(row[key], key, 100)
-        prefix = {'quote': 'Q', 'work_order': 'WO', 'purchase_order': 'PO'}[row['kind']]
-        if row['last_number'] and not re.fullmatch(re.escape(prefix) + r'-\d{6,10}', row['last_number']):
+        if row['last_number'] and not valid_reference(row['last_number']):
             raise ValidationError('The last commercial document number is invalid.')
-        if row['kind'] == 'work_order' and row['fields']['order']['quote_id']:
+        if 'reference' in row and (row['kind'] == 'quote' or not valid_reference(row['reference'])):
+            raise ValidationError('The saved order number is invalid.')
+        if row.get('reference') and row['kind'] == 'work_order' and row['fields']['order']['work_order_reference'] != row['reference']:
+            raise ValidationError('The work order reference differs from its assigned number.')
+        if row['kind'] == 'work_order' and row['fields']['order']['quote_id'] and not row.get('reference'):
             quote_number, sequence = _work_order_sequence(row['fields'])
             work_order_counters[quote_number] = max(work_order_counters.get(quote_number, 0), sequence)
         documents.append(row)
-    return {'version': 1, 'project_id': value['project_id'], 'documents': documents,
+    series = validated_counters(value.get('reference_counters', {}), KINDS)
+    return {'version': 1, 'project_id': value['project_id'], 'documents': documents, **({'reference_counters':series} if series else {}),
             'number_counters': deepcopy(counters), 'work_order_counters': work_order_counters}
 
 
@@ -398,8 +436,8 @@ def _work_order_sequence(fields):
     return quote_number, int(suffix)
 
 
-def quote_cards(snapshot):
-    """Keep the folder index small even when quotes contain large schedules."""
+def commercial_cards(snapshot):
+    """Index board fields without loading large scopes or editable document content."""
     if not snapshot:
         return []
     if not isinstance(snapshot, dict) or not isinstance(snapshot.get('documents'), list) or len(snapshot['documents']) > 100:
@@ -407,18 +445,29 @@ def quote_cards(snapshot):
     cards = []
     for document in snapshot['documents']:
         try:
-            if document['kind'] != 'quote':
-                continue
-            _identity(document['id'])
-            if document['status'] not in STATUSES['quote'] or type(document['version']) is not int or document['version'] < 1:
-                raise ValidationError('Invalid saved Quote status or version.')
-            details = document['fields']['details']
-            cards.append({'id': document['id'], 'kind': 'quote', 'version': document['version'], 'status': document['status'],
-                          'updated_at': _text(document['updated_at'], 'Quote date', 100),
-                          'last_number': _text(document['last_number'], 'Quote number', 100),
-                          'fields': {'title': _text(document['fields']['title'], 'Quote title', 300), 'order': {},
-                                     'details': {key: _text(details[key], key, 1000) for key in ('project_no', 'client', 'site_address')}}})
-        except (TypeError, KeyError) as error:
+            kind = document['kind']
+            if kind not in KINDS or document['status'] not in STATUSES[kind] or type(document['version']) is not int or document['version'] < 1:
+                raise ValidationError('Invalid saved commercial document status or version.')
+            fields = document['fields']
+            details = {key: _text(fields['details'].get(key, ''), key, 1000) for key in ('project_no', 'client', 'site_address', 'contact')}
+            order = {key: _text(fields['order'].get(key, ''), key, 6000) for key in
+                     ('work_order_reference', 'quote_id', 'quote_reference', 'work_order_id', 'estimated_cost', 'supplier', 'supplier_contact')}
+            lines = fields['lines']
+            if not isinstance(lines, list) or len(lines) > 2000:
+                raise ValidationError('Invalid saved commercial lines.')
+            if kind == 'work_order':
+                grand_total = order['estimated_cost']
+            else:
+                amounts = [{'quantity': _number(line['quantity'], 'Quantity'), 'unit_price': _number(line['unit_price'], 'Unit price', -1000000000)} for line in lines]
+                grand_total = totals({'lines': amounts})['grand_total']
+            cards.append({'id': _identity(document['id']), 'project_id': snapshot['project_id'], 'kind': kind,
+                          'version': document['version'], 'status': document['status'], 'grand_total': grand_total,
+                          'created_at': _text(document['created_at'], 'Creation date', 100),
+                          'updated_at': _text(document['updated_at'], 'Last updated', 100),
+                          'last_number': _text(document['last_number'], 'Document number', 100),
+                          'reference': _text(document.get('reference', ''), 'Reference', 300),
+                          'fields': {'title': _text(fields['title'], 'Document title', 300), 'order': order, 'details': details}})
+        except (TypeError, KeyError, AttributeError) as error:
             raise ValidationError('Invalid saved commercial document details.') from error
     return cards
 
@@ -441,7 +490,9 @@ class CommercialDocuments:
     def __init__(self, certifications, root=None, renderer=None):
         self.certifications = certifications
         self.root = _directory(Path(root) if root else certifications.root.parent / 'commercial-documents', create=True)
+        self.numbering = getattr(certifications, 'numbering', None) or DocumentNumbers(self.root.parent / 'document-numbers.sqlite3')
         self.path = self.root / 'documents.sqlite3'
+        self.files = WorkOrderFiles(self.root / "files")
         self.renderer = renderer
         with self._connect() as db:
             db.executescript('''
@@ -453,6 +504,80 @@ class CommercialDocuments:
                 CREATE INDEX IF NOT EXISTS commercial_issued_document_number ON commercial_issued(project_id,document_id,number);
                 CREATE TABLE IF NOT EXISTS commercial_audit (sequence INTEGER PRIMARY KEY, workspace TEXT NOT NULL, document_id TEXT NOT NULL, action TEXT NOT NULL, before_data TEXT, after_data TEXT, created_at TEXT NOT NULL);
             ''')
+            from .unfiled_commercial import UnfiledCommercial
+            self.unfiled = UnfiledCommercial(self, db)
+            self.numbering.attach(db)
+            self.numbering.initialize_history(db)
+            db.execute('BEGIN IMMEDIATE')
+            counter = db.execute("SELECT number FROM commercial_sequences WHERE kind='quote'").fetchone()
+            if counter:
+                self.numbering.observe(db, 'quote', 'Q', counter[0])
+            # Old draft rows can exist in several sessions for the same portable project.
+            legacy = []
+            for workspace, project, raw in db.execute("SELECT d.workspace,w.project_id,d.data FROM commercial_drafts d "
+                    "JOIN commercial_workspaces w ON w.workspace=d.workspace WHERE json_extract(d.data,'$.kind') IN ('work_order','purchase_order') "
+                    "AND json_extract(d.data,'$.reference') IS NULL"):
+                legacy.append((workspace, project, _stored_document(raw)))
+            self._number_orders(db, [(project, doc) for _,project,doc in legacy])
+            for workspace, _, doc in legacy:
+                db.execute('UPDATE commercial_drafts SET data=? WHERE workspace=? AND id=?', (_json(doc),workspace,doc['id']))
+
+    def _number_orders(self, db, entries):
+        # Reserve imported explicit numbers first, then deterministically assign older orders.
+        orders = sorted(((project, doc) for project, doc in entries if doc['kind'] in ('work_order','purchase_order')),
+                        key=lambda pair: (not bool(pair[1].get('reference')), pair[1].get('created_at',''), pair[0], pair[1]['id']))
+        for _, doc in orders:
+            if doc.get('reference'):
+                if not valid_reference(doc['reference']):
+                    raise ValidationError('Invalid imported order number.')
+                prefix, serial = doc['reference'].rsplit('-',1)
+                self.numbering.observe(db,doc['kind'],prefix,int(serial))
+        for project, doc in orders:
+            doc['reference'] = self.numbering.assign(db, doc['kind'], project + ':' + doc['id'], doc.get('reference',''), reconcile=True)
+            if doc['kind'] == 'work_order':
+                doc['fields']['order']['work_order_reference'] = doc['reference']
+        for project, doc in orders:
+            order = doc['fields']['order']
+            if doc['kind'] == 'purchase_order' and order.get('work_order_id'):
+                related = db.execute("SELECT reference FROM numbook.assignments WHERE kind='work_order' AND owner=?",
+                                     (project + ':' + order['work_order_id'],)).fetchone()
+                if related:
+                    order['work_order_reference'] = related[0]
+
+    def issued_source_labels(self):
+        # An issued receipt can identify a former project but never supplies its
+        # editable documents. Only a present, validated project file does that.
+        with self._connect() as db:
+            rows = db.execute("""SELECT i.project_id,
+                json_extract(i.document,'$.fields.details.project_no') AS number,
+                json_extract(i.document,'$.fields.details.client') AS client
+                FROM commercial_issued i JOIN
+                    (SELECT project_id,MAX(rowid) AS last_row FROM commercial_issued GROUP BY project_id) latest
+                ON i.rowid=latest.last_row""").fetchall()
+        return [(r['project_id'], ' · '.join(s for s in (r['number'],r['client']) if s))
+                for r in rows if r['number'] and r['number'].strip()]
+
+    def apply_register_numbers(self, cards):
+        with self._connect() as db:
+            self.numbering.attach(db)
+            db.execute('BEGIN IMMEDIATE')
+            self._number_orders(db, [(card['project_id'],card) for card in cards if card['kind'] in ('work_order','purchase_order')])
+            # A linked project's issued quotes also reserve their numbers before
+            # anyone opens that project on this computer.
+            for card in cards:
+                if card['kind'] == 'quote' and valid_reference(card.get('last_number', '')):
+                    prefix, value = card['last_number'].rsplit('-', 1)
+                    self.numbering.observe(db, 'quote', prefix, int(value))
+            # Old work orders can have no cost until opened. Display the issued
+            # quote amount on their cards, using the same portable fallback as the editor.
+            quotes = {(c['source_file'], c['id'], c['last_number']): c['grand_total']
+                      for c in cards if c['kind'] == 'quote' and c.get('source_file') and c['last_number']}
+            for card in cards:
+                if card['kind'] == 'work_order' and not card.get('grand_total') and card.get('source_file'):
+                    order = card['fields']['order']
+                    if order.get('quote_id') and order.get('quote_reference'):
+                        amount = self._linked_quote_total(db, '', card['project_id'], order['quote_id'], order['quote_reference'])
+                        card['grand_total'] = amount or quotes.get((card['source_file'], order['quote_id'], order['quote_reference']), '')
 
     @contextmanager
     def _connect(self):
@@ -465,6 +590,9 @@ class CommercialDocuments:
             db.close()
 
     def _workspace(self, db, workspace):
+        local_project = self.unfiled.verified_project(db, workspace)
+        if local_project is not None:
+            return local_project
         project = self.certifications.project_id(workspace)
         db.execute('INSERT OR IGNORE INTO commercial_workspaces VALUES (?,?)', (workspace, project))
         if db.execute('SELECT project_id FROM commercial_workspaces WHERE workspace=?', (workspace,)).fetchone()[0] != project:
@@ -477,7 +605,8 @@ class CommercialDocuments:
         counters = dict.fromkeys(KINDS, 0)
         counters.update(dict(db.execute('SELECT kind,number FROM commercial_sequences').fetchall()))
         work_order_counters = dict(db.execute('SELECT quote_number,number FROM commercial_work_order_sequences WHERE project_id=?', (project,)).fetchall())
-        return {'version': 1, 'project_id': project, 'documents': [_stored_document(row[0]) for row in rows],
+        series = DocumentNumbers.history(db,project)
+        return {'version': 1, 'project_id': project, 'documents': [_stored_document(row[0]) for row in rows], **({'reference_counters': series} if series else {}),
                 'number_counters': counters, 'work_order_counters': work_order_counters}
 
     def capture(self, workspace, expected_snapshot=None):
@@ -520,10 +649,19 @@ class CommercialDocuments:
     def restore(self, workspace, snapshot):
         snapshot = validate_commercial_documents(snapshot)
         with self._connect() as db:
+            self.numbering.attach(db)
             db.execute('BEGIN IMMEDIATE')
             project = self._workspace(db, workspace)
             if snapshot is not None and snapshot['project_id'] != project:
                 raise CommercialConflict('Commercial documents belong to a different project.')
+            if snapshot:
+                self.numbering.restore_history(db, project, snapshot.get('reference_counters',{}))
+                self._number_orders(db, [(project,doc) for doc in snapshot['documents']])
+                self.numbering.observe(db, 'quote', 'Q', snapshot['number_counters']['quote'])
+                for doc in snapshot['documents']:
+                    if doc['kind'] == 'quote' and doc['last_number']:
+                        prefix, value = doc['last_number'].rsplit('-',1)
+                        self.numbering.observe(db, 'quote', prefix, int(value))
             current = self._snapshot(db, workspace, project)
             if current['documents']:
                 if snapshot != current:
@@ -531,7 +669,7 @@ class CommercialDocuments:
             elif snapshot:
                 for document in snapshot['documents']:
                     db.execute('INSERT INTO commercial_drafts VALUES(?,?,?)', (workspace, document['id'], _json(document)))
-                    if document['last_number']:
+                    if document['last_number'] and (document['kind'] != 'quote' or document['last_number'].startswith('Q-')):
                         number = int(document['last_number'].rsplit('-', 1)[1])
                         db.execute('INSERT INTO commercial_sequences VALUES(?,?) ON CONFLICT(kind) DO UPDATE SET number=max(number,excluded.number)', (document['kind'], number))
             if snapshot:
@@ -556,6 +694,9 @@ class CommercialDocuments:
 
     @staticmethod
     def _audit(db, workspace, identity, action, before=None, after=None):
+        # A confirmed local edit supersedes a pending file image from before
+        # a failed rename. Those stale bytes can no longer claim this document.
+        db.execute('DELETE FROM local_commercial_publications WHERE workspace=?', (workspace,))
         db.execute('INSERT INTO commercial_audit(workspace,document_id,action,before_data,after_data,created_at) VALUES(?,?,?,?,?,?)',
                    (workspace, identity, action, _json(before) if before else None, _json(after) if after else None, datetime.now(timezone.utc).isoformat()))
 
@@ -577,7 +718,6 @@ class CommercialDocuments:
                         if order[key] != prior[key] and not (create_retry and not order[key]):
                             raise ValidationError('Work order and Quote references are assigned automatically and cannot be edited.')
                         order[key] = prior[key]
-                    _work_order_sequence(fields)
                     if create_retry and not order['estimated_cost']:
                         order['estimated_cost'] = prior['estimated_cost']
                     elif not prior['estimated_cost'] and not order['estimated_cost']:
@@ -595,15 +735,9 @@ class CommercialDocuments:
             quote_number = quote['last_number']
             if order['quote_reference'] not in ('', quote_number) or order['work_order_reference']:
                 raise ValidationError('Work order references are assigned automatically when first saved.')
-            row = db.execute('SELECT number FROM commercial_work_order_sequences WHERE project_id=? AND quote_number=?', (project, quote_number)).fetchone()
-            number = (row[0] if row else 0) + 1
-            if number > 9999999999:
-                raise ValidationError('The work order reference sequence is exhausted.')
             order['quote_reference'] = quote_number
-            order['work_order_reference'] = _work_order_prefix(project_no, quote_number) + f'{number:02d}'
             if not order['estimated_cost']:
                 order['estimated_cost'] = self._linked_quote_total(db, workspace, project, quote['id'], quote_number)
-            db.execute('INSERT INTO commercial_work_order_sequences VALUES(?,?,?) ON CONFLICT(project_id,quote_number) DO UPDATE SET number=excluded.number', (project, quote_number, number))
         elif kind == 'purchase_order':
             work_order_id = order['work_order_id']
             if not work_order_id:
@@ -630,7 +764,18 @@ class CommercialDocuments:
                 raise ValidationError('The linked work order reference is automatic and cannot be edited.')
             order['work_order_reference'] = reference
 
-    def save(self, workspace, payload):
+    def read_attachment(self, workspace, document_id, file_id):
+        with self._connect() as db:
+            project = self._workspace(db, workspace)
+            document = self._record(db, workspace, document_id)
+            if document['kind'] != 'work_order':
+                raise ValidationError('Choose a work order attachment.')
+            item = next((item for item in document['fields'].get('files', []) if item['id'] == file_id), None)
+            if item is None:
+                raise ValidationError('Attachment not found on this work order.')
+            return item, self.files.read(project, item)
+
+    def save(self, workspace, payload, *, unfiled_context=None):
         if not isinstance(payload, dict) or set(payload) - {'id', 'version', 'kind', 'status', 'fields'}:
             raise ValidationError('Commercial document save contains unsupported fields.')
         kind = payload.get('kind')
@@ -638,8 +783,11 @@ class CommercialDocuments:
             raise ValidationError('Choose a valid commercial document status.')
         fields = validate_fields(payload.get('fields'), kind=kind)
         with self._connect() as db:
+            self.numbering.attach(db)
             db.execute('BEGIN IMMEDIATE')
             project = self._workspace(db, workspace)
+            for item in fields.get('files', []):
+                self.files.read(project, item)
             previous = None
             if payload.get('id'):
                 _identity(payload['id'])
@@ -657,6 +805,8 @@ class CommercialDocuments:
             self._relationships(db, workspace, project, kind, fields, previous, create_retry=payload.get('version') == 0)
             if payload.get('version') == 0 and previous:
                 if previous['fields'] == fields and previous['status'] == payload['status']:
+                    if unfiled_context is not None:
+                        self.unfiled.enroll(db, workspace, previous['id'], unfiled_context)
                     return previous
                 raise CommercialConflict('This new document was already saved with different content. Reopen it before editing.')
             now = datetime.now(timezone.utc).isoformat()
@@ -664,12 +814,32 @@ class CommercialDocuments:
                         'version': previous['version'] + 1 if previous else 1, 'status': payload['status'], 'fields': fields,
                         'created_at': previous['created_at'] if previous else now, 'updated_at': now,
                         'last_number': previous['last_number'] if previous else ''}
+            if kind in ('work_order','purchase_order'):
+                document['reference'] = self.numbering.assign(db, kind, project + ':' + document['id'], (previous or {}).get('reference',''))
+                if kind == 'work_order':
+                    fields['order']['work_order_reference'] = document['reference']
             snapshot = self._snapshot(db, workspace, project)
             snapshot['documents'] = [row for row in snapshot['documents'] if row['id'] != document['id']] + [document]
             validate_commercial_documents(snapshot)
             db.execute('INSERT INTO commercial_drafts VALUES(?,?,?) ON CONFLICT(workspace,id) DO UPDATE SET data=excluded.data', (workspace, document['id'], _json(document)))
             self._audit(db, workspace, document['id'], 'save', previous, document)
+            if unfiled_context is not None:
+                self.unfiled.enroll(db, workspace, document['id'], unfiled_context)
         return document
+
+    @contextmanager
+    def publishing(self, workspace, snapshot):
+        """Exclude concurrent board writes across processes during the atomic file takeover."""
+        with self._connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            row = db.execute('SELECT filed FROM local_commercial_owners WHERE workspace=?', (workspace,)).fetchone()
+            if row and not row['filed']:
+                project = self.certifications.project_id(workspace)
+                if snapshot is None or self._snapshot(db, workspace, project)['documents'] != snapshot['documents']:
+                    raise CommercialConflict('Commercial documents changed during this project save. Save the project again.')
+            yield
+            self.unfiled.bind_file(db, workspace)
+
 
     def delete(self, workspace, identity, version):
         with self._connect() as db:
@@ -705,6 +875,7 @@ class CommercialDocuments:
         company = deepcopy(company or COMPANY_DEFAULTS)
         signature = self._signature(owner_key or workspace, identity, version, company, request_fingerprint)
         with self._connect() as db:
+            self.numbering.attach(db)
             project = self._workspace(db, workspace)
             row = db.execute('SELECT * FROM commercial_issued WHERE request_id=?', (request_id,)).fetchone()
             if row is None:
@@ -712,6 +883,7 @@ class CommercialDocuments:
             if row['project_id'] != project or row['fingerprint'] != signature:
                 raise CommercialConflict('This download request was already used for different document content.')
             document = _stored_document(row['document'])
+            self._number_orders(db, [(project,document)])
             if owner_key:
                 # A file write may have failed after the PDF was issued. A fresh
                 # workspace for the exact same source file/revision can resume
@@ -731,13 +903,16 @@ class CommercialDocuments:
         # PDFs may contain fresh metadata, which must not defeat a safe retry.
         signature = self._signature(owner_key or workspace, identity, version, company, request_fingerprint)
         with self._connect() as db:
+            self.numbering.attach(db)
             db.execute('BEGIN IMMEDIATE')
             project = self._workspace(db, workspace)
             replay = db.execute('SELECT * FROM commercial_issued WHERE request_id=?', (request_id,)).fetchone()
             if replay:
                 if replay['project_id'] != project or replay['fingerprint'] != signature:
                     raise CommercialConflict('This download request was already used for different document content.')
-                return {**dict(replay), 'document': _stored_document(replay['document']), 'pdf': bytes(replay['pdf'])}
+                document = _stored_document(replay['document'])
+                self._number_orders(db, [(project,document)])
+                return {**dict(replay), 'document': document, 'pdf': bytes(replay['pdf'])}
             document = self._record(db, workspace, identity)
             self._version(document, version)
             kind = document['kind']
@@ -745,27 +920,28 @@ class CommercialDocuments:
             order = document['fields']['order']
             if kind == 'work_order' and order['quote_id'] and not order['estimated_cost']:
                 order['estimated_cost'] = self._linked_quote_total(db, workspace, project, order['quote_id'], order['quote_reference'])
-            row = db.execute('SELECT number FROM commercial_sequences WHERE kind=?', (kind,)).fetchone()
-            number = (row[0] if row else 0) + 1
-            if number > 9999999999:
-                raise ValidationError('The commercial document number sequence is exhausted.')
-            label = {'quote': 'Q', 'work_order': 'WO', 'purchase_order': 'PO'}[kind] + f'-{number:06d}'
+            label = (self.numbering.assign(db, kind, project + ':issue:' + request_id) if kind == 'quote' else document['reference'])
             if self.renderer is None:
                 from .commercial_pdf import render_commercial_pdf
                 renderer = render_commercial_pdf
             else:
                 renderer = self.renderer
-            displayed_number = (document['fields']['order']['work_order_reference']
-                                if kind == 'work_order' and document['fields']['order']['quote_id'] else label)
-            pdf = renderer(document, displayed_number, company=company, scope_documents=scopes)
+            render_options = {'company': company, 'scope_documents': scopes}
+            files = document['fields'].get('files', [])
+            if files:
+                render_options['append_files'] = lambda writer: self.files.append_to(writer, project, files)
+            pdf = renderer(document, label, **render_options)
             if not isinstance(pdf, bytes) or not pdf.startswith(b'%PDF-') or len(pdf) > MAX_PDF_BYTES:
                 raise ValidationError('Generated commercial PDF is invalid or exceeds 64 MiB.')
             document['last_number'] = label
             document['version'] += 1
             document['updated_at'] = datetime.now(timezone.utc).isoformat()
             issued_id = str(uuid.uuid4())
-            filename = KINDS[kind].replace(' ', '-') + '-' + label + '.pdf'
-            db.execute('INSERT INTO commercial_sequences VALUES(?,?) ON CONFLICT(kind) DO UPDATE SET number=excluded.number', (kind, number))
+            revision = '' if kind == 'quote' else '-R' + str(document['version'])
+            filename = KINDS[kind].replace(' ', '-') + '-' + label + revision + '.pdf'
+            if kind != 'quote' or label.startswith('Q-'):
+                value = int(label.rsplit('-',1)[1])
+                db.execute('INSERT INTO commercial_sequences VALUES(?,?) ON CONFLICT(kind) DO UPDATE SET number=max(number,excluded.number)', (kind,value))
             db.execute('UPDATE commercial_drafts SET data=? WHERE workspace=? AND id=?', (_json(document), workspace, identity))
             db.execute('INSERT INTO commercial_issued VALUES(?,?,?,?,?,?,?,?,?)', (issued_id, project, identity, request_id, signature, label, filename, pdf, _json(document)))
             self._audit(db, workspace, identity, 'issue', previous, document)

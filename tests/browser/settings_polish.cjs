@@ -55,7 +55,13 @@ async function idle(){await page.waitForFunction(()=>{const status=window.Ceasef
   }
   checks.push('Red Save button in all five themes');
   await openProjectSection(page,'documentation');
-  await expect(page.locator('#cover-sheets-rows th')).toHaveText(labels);
+  const covered=page.locator('#documentation-pdf-rows tr[data-cover-kind]');
+  await expect(covered).toHaveCount(labels.length);
+  for(const row of await covered.all()){
+    await expect(row.locator('td').nth(2).getByRole('button')).toBeVisible();
+    await expect(row.locator('td').nth(3).locator('input[type=file]')).toHaveCount(1);
+    await expect(row.locator('td').nth(4).getByRole('button')).toHaveCount(2);
+  }
   await page.locator('#cover-sheets-heading').scrollIntoViewIfNeeded();
   await page.getByRole('button',{name:'Settings',exact:true}).click();
   await page.locator('#settings-play-button').scrollIntoViewIfNeeded();
@@ -67,8 +73,8 @@ async function idle(){await page.waitForFunction(()=>{const status=window.Ceasef
   await expect(page.locator('.play-hero-mark,.play-feed')).toHaveCount(0);await page.screenshot({path:path.join(output,'play-lobby.png')});
   await page.getByRole('button',{name:'Play FIRELINE',exact:false}).click();await expect(page.locator('#play-session')).toBeVisible();await expect(page.locator('#play-messages')).toHaveCount(0);
   await page.locator('#play-back').click();await page.getByRole('button',{name:'Back to Settings',exact:false}).click();
-  await openProjectSection(page,'certification');const signature=page.locator('#certification-signature-canvas');
-  const bounds=await signature.boundingBox();assert.ok(bounds.width<=480&&bounds.height<=145);
+  await openProjectSection(page,'certification');const signature=page.getByRole('button',{name:'Insert signature',exact:true});
+  await expect(signature).toBeVisible();
   checks.push('FIRELINE opens and exits without badge or radio; compact signature canvas');
   assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,errors},null,2));console.log('PASS Settings and Play polish: '+output);
 })().catch(async error=>{console.error(error);console.error(logs);await page?.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});process.exitCode=1;})

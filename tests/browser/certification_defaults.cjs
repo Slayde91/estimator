@@ -52,8 +52,8 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   evidence.checks.push('Estimates/default literal prefill','no latest-document auto-load','repeated native New action','removed buttons','no certificate-local cover section','three fresh N/A fields remain multiline-capable');
 
   await openProjectSection(page,'documentation');
-  const coverRow=kind=>page.locator('#cover-sheets-rows tr[data-cover-kind="'+kind+'"]');
-  await expect(page.locator('#cover-sheets-rows tr')).toHaveCount(10);
+  const coverRow=kind=>page.locator('#documentation-pdf-rows tr[data-cover-kind="'+kind+'"]');
+  await expect(page.locator('#documentation-pdf-rows tr[data-cover-kind]')).toHaveCount(10);
   const kindsResponse=await fetch(base+'/api/pdf-covers'),kinds=await kindsResponse.json();
   assert.ok(kinds.items.every(item=>!Object.hasOwn(item,'cover_pdf')&&typeof item.has_cover==='boolean'));
   await expect(coverRow('certification').getByRole('button',{name:'Save cover sheet for Certification',exact:true})).toBeDisabled();
@@ -114,18 +114,16 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await page.locator('#certification-save').click();
   assert.equal(await page.evaluate(()=>document.querySelector('#certification-form').checkValidity()),false);
   for(const [key,value] of Object.entries({location_area:'Ground floor fixture',materials_manufacturers:'Example manufacturer',fire_resistance_level:'-/120/120',position:'Fixture position',qualification:'Fixture qualification',accreditation:'Fixture accreditation'}))await page.locator('#certification-'+key).fill(value);
-  const canvas=page.locator('#certification-signature-canvas');await canvas.scrollIntoViewIfNeeded();
+  await page.locator('#certification-signature-use').click();
+  const padDialog=page.getByRole('dialog',{name:'Signatures',exact:true}), canvas=padDialog.getByLabel('Signature drawing pad');
   const box=await canvas.boundingBox();
   await page.mouse.move(box.x+box.width*.1,box.y+box.height*.7);await page.mouse.down();
   await page.mouse.move(box.x+box.width*.3,box.y+box.height*.2);await page.mouse.move(box.x+box.width*.55,box.y+box.height*.7);await page.mouse.up();
   await expect(page.locator('#certification-signature-preview')).toBeHidden();
-  await page.locator('#certification-save').click();await expect(page.locator('#certification-status')).toContainText('Save or clear');
   await page.setViewportSize({width:390,height:900});
-  await expect(page.locator('#certification-signature-save')).toBeEnabled();
-  await page.locator('#certification-signature-save').click();
+  await padDialog.getByRole('button',{name:'Insert signature'}).click();
   await page.setViewportSize({width:1084,height:900});
   await expect(page.locator('#certification-signature-preview')).toBeVisible();
-  await expect(page.locator('#certification-signer-status')).toContainText('Signer details saved for future certificates.');
   await page.locator('#certification-approved_design').fill('First design line\nSecond design line');
   await page.locator('#certification-save').click();await expect(page.locator('#certification-status')).toContainText('Certification details saved.');
   const id=await page.locator('#certification-document').inputValue();assert.notEqual(id,old.id);assert.notEqual(id,'__draft__');
@@ -142,7 +140,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await fresh();await expect(page.locator('#certification-name')).toHaveValue('Future certificate signer');
   await expect(page.locator('#certification-client')).toHaveValue('Changed estimate client');
   await expect(page.locator('#certification-scope-service_penetrations')).not.toBeChecked();
-  await expect(page.locator('#certification-signature-preview')).toBeVisible();
+  await expect(page.locator('#certification-signature-preview')).toBeHidden();
   await page.locator('#certification-document').selectOption(id);await expect(page.locator('#certification-client')).toHaveValue('Custom certificate client');
   await expect(page.locator('#certification-name')).toHaveValue('Upgrade signer');
   await expect(page.locator('#certification-signature-preview')).toBeVisible();
@@ -151,7 +149,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await page.locator('#certification-document').selectOption('__reload__');
   await page.getByRole('button',{name:'Continue without saving',exact:true}).click();
   await expect(page.locator('#certification-approved_design')).toHaveValue('First design line\nSecond design line');
-  evidence.checks.push('signer and signature defaults auto-save globally','New inherits signer image','older saved fields remain unchanged','saved document reload through dropdown');
+  evidence.checks.push('signer names persist globally','New starts unsigned and saved document retains its signature','older saved fields remain unchanged','saved document reload through dropdown');
   for(const width of [1084,390]){
     await page.setViewportSize({width,height:900});await page.locator('#certification-heading').scrollIntoViewIfNeeded();
     const filename=path.join(output,`certification-form-${width}.png`);await page.screenshot({path:filename,fullPage:true});evidence.screenshots.push(filename);
@@ -163,13 +161,13 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await openProjectSection(page,'quotes');
   await page.locator('#new-quote').click();await page.getByRole('dialog').getByRole('button',{name:'New project',exact:true}).click();
   await expect(page.locator('#client')).toHaveValue('',{timeout:90000});await page.waitForFunction(token=>window.CeasefireCertification.sessionId()!==token,workspaceA);await idle();
-  await certification();assert.notEqual(await page.evaluate(()=>window.CeasefireCertification.sessionId()),workspaceA);await expect(page.locator('#certification-document option[value="'+id+'"]')).toHaveCount(0);await fresh();await expect(page.locator('#certification-signature-preview')).toBeVisible();await expect(page.locator('#certification-name')).toHaveValue('Future certificate signer');
+  await certification();assert.notEqual(await page.evaluate(()=>window.CeasefireCertification.sessionId()),workspaceA);await expect(page.locator('#certification-document option[value="'+id+'"]')).toHaveCount(0);await fresh();await expect(page.locator('#certification-signature-preview')).toBeHidden();await expect(page.locator('#certification-name')).toHaveValue('Future certificate signer');
   await openProjectSection(page,'documentation');await expect(coverRow('certification')).toContainText('synthetic-drawings.pdf');await expect(coverRow('takeoff_markups')).toContainText('synthetic-board.pdf');
   for(const width of [1084,390]){
     await page.setViewportSize({width,height:900});await page.locator('#cover-sheets-heading').scrollIntoViewIfNeeded();
     const filename=path.join(output,`cover-sheets-${width}.png`);await page.screenshot({path:filename,fullPage:true});evidence.screenshots.push(filename);
-    const bounds=await page.locator('.cover-sheets-table').boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=width);
-    const labels=await page.locator('#cover-sheets-rows th').evaluateAll(elements=>elements.map(element=>({width:element.clientWidth,scroll:element.scrollWidth,space:getComputedStyle(element).whiteSpace})));
+    const bounds=await page.locator('#cover-sheets-settings .table-scroll').boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=width);
+    const labels=await page.locator('#documentation-pdf-rows tr[data-cover-kind] .documentation-name').evaluateAll(elements=>elements.map(element=>({width:element.clientWidth,scroll:element.scrollWidth,space:getComputedStyle(element).whiteSpace})));
     assert.ok(labels.every(label=>label.space==='normal'&&label.scroll<=label.width+1),'Every download name wraps within its own cell');
   }
   await page.setViewportSize({width:1084,height:900});

@@ -69,7 +69,7 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   await home();await page.locator('[data-home-view="projects"]').click();await expectHub();
   await headerDestination('quotes');await headerDestination('certification');
   await page.locator('#documents-navigation-toggle').hover();await expect(documentsMenu).toBeVisible();
-  assert.deepEqual(await documentsMenu.locator('button').allTextContents(),['Documentation','Safe Work Method Statements','Certification']);
+  assert.deepEqual(await documentsMenu.locator('button').allTextContents(),['Documentation','SWMS','Certification']);
   await page.locator('#documents-navigation-toggle').click();await expectDocumentHub();
   await headerDestination('certification');
   await home();assert.equal(await openProjectTools(page),'home');await expect(page.locator('#view-quotes')).toBeVisible();

@@ -99,16 +99,15 @@ async function run(edition) {
     await additionalControl.fill('Saved additional control\nLine two\nLine three\nLine four\nLine five');
     await additionalSection.locator(':scope > summary').click();
     await host.getByRole('button',{name:'Draw signature',exact:true}).first().click();
-    const pad = page.getByLabel('SWMS signature drawing pad'), rect = await pad.boundingBox();
-    const padClear = page.getByRole('dialog').getByRole('button',{name:'Clear',exact:true});
+    const pad = page.getByLabel('Signature drawing pad'), rect = await pad.boundingBox();
+    const padClear = page.getByRole('dialog').getByRole('button',{name:'Clear pad',exact:true});
     const artwork = locator => locator.locator('svg path').evaluateAll(paths=>paths.map(p=>p.getAttribute('d')));
     assert.deepEqual(await artwork(padClear),await artwork(page.locator('#penetration-clear')));
     await page.mouse.move(rect.x+15,rect.y+20); await page.mouse.down(); await page.mouse.move(rect.x+45,rect.y+50,{steps:3}); await page.mouse.up();
     await padClear.click();
-    await page.getByRole('dialog').getByRole('button',{name:'Use signature',exact:true}).click();
-    await expect(page.getByRole('dialog')).toContainText('Draw your signature first.');
+    await expect(page.getByRole('dialog').getByRole('button',{name:'Insert signature',exact:true})).toBeDisabled();
     await page.mouse.move(rect.x+30,rect.y+120); await page.mouse.down(); await page.mouse.move(rect.x+90,rect.y+45,{steps:6}); await page.mouse.move(rect.x+160,rect.y+125,{steps:6}); await page.mouse.up();
-    await page.getByRole('dialog').getByRole('button',{name:'Use signature',exact:true}).click();
+    await page.getByRole('dialog').getByRole('button',{name:'Insert signature',exact:true}).click();
     await expect(host.getByRole('img',{name:'Project manager drawn signature'})).toBeVisible();
     assert.deepEqual(await artwork(host.getByRole('button',{name:'Clear signature',exact:true}).first()),await artwork(page.locator('#penetration-clear')));
     await host.locator('summary').filter({hasText:'Form Attachments'}).click();
@@ -195,6 +194,9 @@ async function run(edition) {
     await host.getByRole('button',{name:'Back to statements',exact:true}).click();
     await expect(host.getByRole('heading',{name:'<img src=x onerror=alert(1)>',exact:true})).toBeVisible();
     assert.equal(await host.locator('img').count(),0);
+    // Saved ink is selected only by an explicit click in each document.
+    const signatureProfiles=require('./personal_signature_profiles.cjs');
+    await signatureProfiles(page, edition);
     assert.deepEqual(errors,[]); assert.deepEqual(external,[]);
     checks.push(`${edition}: Documents entry, project defaults, 45 work steps, conditional high-risk tables and retained edits, compact expanding rows and saved additional controls grow on parent reopen, ten reviews on one row, removed legacy UI, back icon, drawn signature, delayed attachment lock and encoded budget, save/reopen, portable project, real PDF download after company change, cleared successful export receipt and retained cancellation receipt, escaped text, no external location requests`);
   } catch(error) { fs.mkdirSync(directory,{recursive:true});fs.writeFileSync(path.join(directory,'server.log'),logs);throw error; }

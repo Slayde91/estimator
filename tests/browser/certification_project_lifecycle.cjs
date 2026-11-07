@@ -36,16 +36,17 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   await expect(page.locator('#certification-client')).toHaveValue('PROJECT A CLIENT');
   checks.push('main selector excludes unassigned global records','older-certificate picker is absent','current project fields and draft remain intact');
 
-  const canvas=page.locator('#certification-signature-canvas');await canvas.scrollIntoViewIfNeeded();const bounds=await canvas.boundingBox(),cdp=await page.context().newCDPSession(page);
+  await page.locator('#certification-signature-use').click();
+  const chooser=page.getByRole('dialog',{name:'Signatures',exact:true}), canvas=chooser.getByLabel('Signature drawing pad');await canvas.scrollIntoViewIfNeeded();const bounds=await canvas.boundingBox(),cdp=await page.context().newCDPSession(page);
   const touch=(x,y)=>[{x:bounds.x+bounds.width*x,y:bounds.y+bounds.height*y,radiusX:2,radiusY:2,force:.7,id:1}];
   await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:touch(.12,.7)});
   await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:touch(.34,.25)});
   await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:touch(.58,.68)});
   await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
-  await expect(page.locator('#certification-signature-preview')).toBeHidden();await expect(page.locator('#certification-signature-save')).toBeEnabled();
-  await page.locator('#certification-signature-save').click();await expect(page.locator('#certification-signature-preview')).toBeVisible();
-  await expect(page.locator('#certification-signer-status')).toContainText('Signer details saved for future certificates.');
-  const preferences=await (await fetch(base+'/api/certifications/defaults')).json();assert.ok(preferences.signature_image.startsWith('data:image/png;base64,'));const signatureHash=digest(preferences.signature_image);
+  await expect(page.locator('#certification-signature-preview')).toBeHidden();await expect(chooser.getByRole('button',{name:'Insert signature'})).toBeEnabled();
+  await chooser.getByRole('button',{name:'Insert signature'}).click();await expect(page.locator('#certification-signature-preview')).toBeVisible();
+  const preferences=await (await fetch(base+'/api/certifications/defaults')).json();assert.equal(preferences.signature_image,null);
+  const signatureHash=digest(await page.locator('#certification-signature-preview').getAttribute('src'));
   await page.locator('#certification-save').click();await expect(page.locator('#certification-status')).toContainText('Certification details saved.');
   const documentId=await page.locator('#certification-document').inputValue();assert.ok(documentId&&documentId!==original.id);
   await page.locator('#certification-save').click();await expect(page.locator('#certification-status')).toContainText('Certification details saved.');
@@ -60,8 +61,7 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   await projects();await page.locator('#new-quote').click();const confirm=page.locator('#discard-dialog');if(await confirm.isVisible())await continueDiscard();
   await expect(page.locator('#client')).toHaveValue('',{timeout:120000});await idle();await certification();
   assert.notEqual(await page.evaluate(()=>window.CeasefireCertification.sessionId()),tokenA);await expect(page.locator(`#certification-document option[value="${documentId}"]`)).toHaveCount(0);await expect(page.locator(`#certification-document option[value="${original.id}"]`)).toHaveCount(0);
-  await expect(page.locator('#certification-signature-preview')).toBeVisible();
-  await page.locator('#certification-signature-delete').click();await expect(page.locator('#certification-signer-status')).toContainText('Signer details saved for future certificates.');
+  await expect(page.locator('#certification-signature-preview')).toBeHidden();
   assert.equal((await (await fetch(base+'/api/certifications/defaults')).json()).signature_image,null);
   await projects();await page.locator('#load-project').click();await expect(page.locator('#discard-dialog')).toBeVisible({timeout:120000});await continueDiscard();
   await expect(page.locator('#client')).toHaveValue('PROJECT A CLIENT',{timeout:120000});await idle();await certification();
@@ -70,7 +70,7 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   await expect(page.locator('#certification-signature-preview')).toBeVisible();assert.equal(digest(await page.locator('#certification-signature-preview').getAttribute('src')),signatureHash);
   const restored=await (await fetch(base+'/api/certifications/'+documentId+'?workspace='+restoredToken)).json();assert.deepEqual(restored,scoped);
   assert.equal(digest(fs.readFileSync(info.project)),digest(projectBytes));
-  checks.push('native project Save writes bounded manifest plus verified companion','New project has an isolated empty certificate list','global signature removal persists for future certificates','native Load restores project-specific document and its frozen signer artwork');
+  checks.push('native project Save writes bounded manifest plus verified companion','New project has an isolated empty certificate list','new certificate stays unsigned until explicit insertion','native Load restores project-specific document and its frozen signer artwork');
   assert.deepEqual(generations,[]);assert.deepEqual(errors,[]);
   const screenshot=path.join(output,'restored-project-certificate.png');await page.screenshot({path:screenshot,fullPage:true});
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,generatedCertificateRevisions:0,errors,project:info.project,screenshot},null,2));

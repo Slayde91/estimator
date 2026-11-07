@@ -22,6 +22,7 @@ from .certification import (CertificationService, CertificationConflict, Certifi
                             _version, _json, validate_fields, validate_options,
                             MAX_REVISION_BYTES)
 from .storage import Store
+from .document_numbers import valid_reference
 from .evidence_files import _directory, _open_regular, _verified
 
 MAX_ARCHIVE_BYTES = 256 * 1024 * 1024
@@ -30,7 +31,7 @@ MAX_DOCUMENTS = 100
 MAX_REVISIONS = 1000
 HASH = re.compile(r'[0-9a-f]{64}\Z')
 DOCUMENT_COLUMNS = ('id', 'fields', 'version', 'created_at', 'updated_at',
-                    'create_request_id', 'create_request_fingerprint', 'options', 'create_options')
+                    'create_request_id', 'create_request_fingerprint', 'options', 'create_options', 'reference')
 REVISION_COLUMNS = ('document_id', 'revision', 'created_at', 'fields', 'company',
                     'sha256', 'request_id', 'request_fingerprint', 'options', 'cover_settings')
 
@@ -159,6 +160,7 @@ def _archive_length(metadata, sizes):
 class CertificationProjects:
     def __init__(self, legacy):
         self.legacy = legacy
+        self.numbering = legacy.numbering
         self.root = _directory(legacy.store.path.parent / 'certification-projects', create=True)
         self._lock = RLock()
         self._workspaces = {}
@@ -187,6 +189,7 @@ class CertificationProjects:
         project_id = project_id or str(uuid.uuid4())
         current = {'service': None, 'project_id': project_id, 'draft': None, 'snapshot': None, 'imports': {}}
         service = CertificationService(Store(self.root / 'workspaces' / token / 'certificates.sqlite3'),
+                                       numbering=self.numbering,
                                        renderer=self.legacy.renderer, coverer=self.legacy.coverer, covers=self.legacy.covers,
                                        precommit=lambda db, identity: self._guard(current, db, identity))
         current['service'] = service
@@ -389,8 +392,11 @@ class CertificationProjects:
         token, current = self._new(snapshot['project_id'])
         try:
             with current['service'].store.connect() as db:
+                self.numbering.attach(db)
                 db.execute('BEGIN IMMEDIATE')
                 for row in metadata['documents']:
+                    if row['reference']:
+                        self.numbering.assign(db, 'certification', row['id'], row['reference'])
                     db.execute('INSERT INTO certification_documents (' + ','.join(DOCUMENT_COLUMNS) + ') VALUES(' + ','.join('?' for _ in DOCUMENT_COLUMNS) + ')',
                                tuple(row[key] for key in DOCUMENT_COLUMNS))
                 for row in metadata['revisions']:
@@ -427,8 +433,12 @@ class CertificationProjects:
                     raise ValueError('Certificate archive counts mismatch')
                 ids, create_requests = {}, set()
                 for row in documents:
+                    if isinstance(row, dict) and 'reference' not in row:
+                        row['reference'] = ''
                     if not isinstance(row, dict) or set(row) != set(DOCUMENT_COLUMNS):
                         raise ValueError('Invalid certificate document')
+                    if row['reference'] != '' and not valid_reference(row['reference']):
+                        raise ValueError('Invalid certificate reference')
                     _identity(row['id']); _version(row['version'])
                     if row['id'] in ids:
                         raise ValueError('Duplicate certificate identity')

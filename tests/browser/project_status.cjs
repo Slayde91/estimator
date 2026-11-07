@@ -91,6 +91,10 @@ async function idle() {
   assert.equal(await page.locator('#project-estimate-new .button-symbol').textContent(),await page.locator('#penetration-estimator-add .button-symbol').textContent());
   for(const width of [320,390,1254,1915]) {
     await page.setViewportSize({width,height:1000});
+    const addBox = await page.locator('#project-estimate-new').boundingBox();
+    const nameBox = await page.locator('.project-estimate-picker input').boundingBox();
+    assert.ok(addBox.x >= nameBox.x && addBox.x - nameBox.x < 10 && addBox.y > nameBox.y &&
+      addBox.y + addBox.height < nameBox.y + nameBox.height, 'Add estimate fits inside the left of the picker at ' + width);
     await status.click();
     const menuBounds=await page.locator('#project-status-options').boundingBox();
     assert.ok(menuBounds.x>=0&&menuBounds.x+menuBounds.width<=width,'Status menu fits '+width);

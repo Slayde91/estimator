@@ -1893,6 +1893,7 @@ window.CeasefireScheduleColumns = (() => {
     renderProductTotals(result, entry.productTotalsElement);
     const reportRows = new Map(result.rows.map(row => [row.row, row]));
     for (const element of $("calculator-grid").querySelectorAll("[data-calculator-reports]")) renderReportReferences(element, reportRows.get(Number(element.dataset.calculatorReports)));
+    for (const cell of $("calculator-grid").querySelectorAll("[data-calculation-notes]")) cell.textContent = reportRows.get(Number(cell.dataset.calculationNotes))?.calculation_notes || "";
     refreshBoardSteelAreas(result);
   }
 
@@ -2177,6 +2178,15 @@ window.CeasefireScheduleColumns = (() => {
     // Report replaces the redundant thickness-source display column. Keep the
     // source cell/result intact, and use the following visible column as the
     // insertion anchor so the report occupies the same register position.
+    const showCalculationNotes = showReports && entry.definition.id.startsWith("steel_");
+    const reportColumns = [{id:"virtual:report", label:"Report"}];
+    if (showCalculationNotes) reportColumns.push({id:"virtual:notes", label:"Calculation Notes"});
+    function appendReportHeadings(header) {
+      for (const column of reportColumns) {
+        const heading = uiNode("th", "calculator-report-column", column.label);
+        heading.scope = "col"; heading.dataset.scheduleColumn = column.id; header.append(heading);
+      }
+    }
     const thicknessSource = showReports ? columns.find(column => /^thickness source$/i.test(String(labels[column] || "").trim())) : null;
     const sourcePosition = columns.indexOf(thicknessSource);
     if (sourcePosition >= 0) columns = columns.filter(column => column !== thicknessSource);
@@ -2343,7 +2353,7 @@ window.CeasefireScheduleColumns = (() => {
     const headRow = node("tr");
     if (syntheticLine) { const heading = uiNode("th", "calculator-line-number", "Line"); heading.scope = "col"; heading.dataset.scheduleColumn = "virtual:line"; headRow.append(heading); }
     for (const column of columns) {
-      if (showReports && column === reportBefore) { const heading = uiNode("th", "calculator-report-column", "Report"); heading.scope = "col"; heading.dataset.scheduleColumn = "virtual:report"; headRow.append(heading); }
+      if (showReports && column === reportBefore) appendReportHeadings(headRow);
       const label = String(labels[column] || "");
       const width = schedule ? scheduleColumnWidth(column, label, lineColumn, entry, result) : Math.max(24, Math.min(320, (Number(metadata.column_widths?.[column]) || 22) * 7));
       widths.push(width);
@@ -2354,18 +2364,32 @@ window.CeasefireScheduleColumns = (() => {
         window.CeasefireI18n.attr(heading, "aria-label", "{0} (required)", [window.CeasefireI18n.term(labels[column] || "")]);
       }
     }
-    if (showReports && !reportBefore) { const heading = uiNode("th", "calculator-report-column", "Report"); heading.scope = "col"; heading.dataset.scheduleColumn = "virtual:report"; headRow.append(heading); }
+    if (showReports && !reportBefore) appendReportHeadings(headRow);
     if (dynamicSchedule) { const heading = uiNode("th", "calculator-row-action", "Actions"); heading.scope = "col"; heading.dataset.scheduleColumn = "virtual:actions"; headRow.append(heading); }
     if (schedule) entry.scheduleColumnChoices = [...(syntheticLine ? [{ id: "virtual:line", label: "Line" }] : []),
-      ...columns.flatMap(column => [...(showReports && column === reportBefore ? [{ id: "virtual:report", label: "Report" }] : []), { id: `column:${columnName(column)}`, label: labels[column] || columnName(column) }]),
-      ...(showReports && !reportBefore ? [{ id: "virtual:report", label: "Report" }] : []), ...(dynamicSchedule ? [{ id: "virtual:actions", label: "Actions" }] : [])];
+      ...columns.flatMap(column => [...(showReports && column === reportBefore ? reportColumns : []), { id: `column:${columnName(column)}`, label: labels[column] || columnName(column) }]),
+      ...(showReports && !reportBefore ? reportColumns : []), ...(dynamicSchedule ? [{ id: "virtual:actions", label: "Actions" }] : [])];
     head.append(headRow);
     let introPlaced = false;
     for (const [group, renderedGroup] of sections) for (const row of renderedGroup.sourceRows) {
       const groupColumns = renderedGroup.columns;
       const tr = node("tr"), values = new Map(row.cells.map((cell) => [cell.column, cell]));
       const item = schedule ? row.row - schedule.first_row + 1 : "";
-      const reportCell = () => { const cell = node("td", "calculator-report-column"); cell.dataset.scheduleColumn = "virtual:report"; cell.dataset.calculatorReports = String(row.row); renderReportReferences(cell, row); return cell; };
+      const appendReportCells = () => {
+        const cell = node("td", "calculator-report-column");
+        cell.dataset.scheduleColumn = "virtual:report";
+        cell.dataset.calculatorReports = String(row.row);
+        renderReportReferences(cell, row);
+        tr.append(cell);
+        if (showCalculationNotes) {
+          const note = node("td", "calculator-calculation-note");
+          const content = node("div", virtualSchedule ? "calculator-virtual-output" : "", row.calculation_notes || "");
+          note.dataset.scheduleColumn = "virtual:notes";
+          content.dataset.calculationNotes = String(row.row);
+          note.append(content);
+          tr.append(note);
+        }
+      };
       tr.dataset.sourceRow = String(row.row);
       if (dynamicSchedule) {
         tr.setAttribute("aria-rowindex", String(entry.scheduleRows.indexOf(row.row) + 2));
@@ -2381,7 +2405,7 @@ window.CeasefireScheduleColumns = (() => {
       }
       for (const placement of rowLayout || groupColumns.map((column) => ({ column }))) {
         const column = placement.column;
-        if (showReports && column === reportBefore) tr.append(reportCell());
+        if (showReports && column === reportBefore) appendReportCells();
         if (boardSummary && column === 10 && row.row >= 11 && row.row <= 29) {
           const steelCell = node(row.row === 11 ? "th" : "td", "calculator-role-output calculator-center calculator-align-center calculator-bold");
           if (row.row === 11) { steelCell.scope = "col"; window.CeasefireI18n.text(steelCell, "Net Steel sqm"); }
@@ -2436,7 +2460,7 @@ window.CeasefireScheduleColumns = (() => {
         }
         td.hidden = hiddenAddresses.has(address); tr.append(td);
       }
-      if (showReports && !groupColumns.includes(reportBefore)) tr.append(reportCell());
+      if (showReports && !groupColumns.includes(reportBefore)) appendReportCells();
       if (dynamicSchedule) {
         const action = node("td", "calculator-row-action");
         action.dataset.scheduleColumn = "virtual:actions";
@@ -2510,7 +2534,7 @@ window.CeasefireScheduleColumns = (() => {
           groupWidths[index] = Math.max(96, ...values.map(value => columnTextWidth(value, column === 1) + 30));
         }
       }
-      if (showReports) groupWidths.splice(groupColumns.includes(reportBefore) ? groupColumns.indexOf(reportBefore) : groupWidths.length, 0, 144);
+      if (showReports) groupWidths.splice(groupColumns.includes(reportBefore) ? groupColumns.indexOf(reportBefore) : groupWidths.length, 0, ...(showCalculationNotes ? [144, 224] : [144]));
       if (boardSummary && definition?.first_row === 11 && groupColumns.includes(10)) groupWidths.splice(groupColumns.indexOf(10), 0, columnTextWidth(window.CeasefireI18n.translate("Net Steel sqm"), true) + 30);
       if (syntheticLine) groupWidths.unshift(lineWidth);
       if (dynamicSchedule) groupWidths.push(80);
@@ -2522,7 +2546,7 @@ window.CeasefireScheduleColumns = (() => {
       if (virtualSchedule) {
         const spacer = (count) => {
           const row = node("tr", "calculator-virtual-spacer"), cell = node("td"); row.setAttribute("aria-hidden", "true");
-          cell.colSpan = groupColumns.length + Number(syntheticLine) + Number(dynamicSchedule) + Number(showReports);
+          cell.colSpan = groupColumns.length + Number(syntheticLine) + Number(dynamicSchedule) + Number(showReports) + Number(showCalculationNotes);
           cell.dataset.scheduleSpacer = "true";
           cell.style.height = `${Math.max(0, count) * scheduleRowHeight}px`; row.append(cell); return row;
         };

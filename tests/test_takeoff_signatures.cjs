@@ -67,12 +67,12 @@ function dialogHarness(saved = null, unavailableStorage = false) {
       setAttribute(name, value) { this.attributes[name] = String(value); }, addEventListener(name, listener) { this.events[name] = listener; },
       getBoundingClientRect() { return { left: 20, top: 40, width: 620, height: 210 }; }, setPointerCapture(id) { this.captures.add(id); },
       hasPointerCapture(id) { return this.captures.has(id); }, releasePointerCapture(id) { this.captures.delete(id); },
-      showModal() { root.dialog = this; }, close(reason) { this.returnValue = reason; this.events.close?.(); }, remove() { this.removed = true; },
+      showModal() { this.open = true; root.dialog = this; }, close(reason) { this.open = false; this.returnValue = reason; this.events.close?.(); }, remove() { this.removed = true; },
       getContext() { return Object.fromEntries(["clearRect", "beginPath", "lineTo", "moveTo", "stroke", "arc", "fill"].map(name => [name, () => {}])); } };
     return el;
   }
   root.document = { createElement: element, createElementNS: (_, tag) => element(tag), createTextNode: text => ({ textContent: text }), body: element("body") };
-  const context = { window: root, console }; vm.createContext(context); vm.runInContext(fs.readFileSync("static/takeoff-signatures.js", "utf8"), context);
+  const context = { window: root, console }; vm.createContext(context); vm.runInContext(fs.readFileSync("static/personal-signature.js","utf8"),context); vm.runInContext(fs.readFileSync("static/takeoff-signatures.js", "utf8"), context);
   function descendants(el = root.dialog) { return [el, ...el.children.flatMap(child => child.children ? descendants(child) : [child])]; }
   const button = name => descendants().find(el => el.tagName === "BUTTON" && el.textContent === name);
   const pad = () => descendants().find(el => el.tagName === "CANVAS");
@@ -83,7 +83,7 @@ function dialogHarness(saved = null, unavailableStorage = false) {
 }
 
 test("Dialog starts empty, records only owned primary pointer strokes, clears and cancels without insertion", async () => {
-  const h = dialogHarness(), promise = h.api.choose(); assert.equal(h.button("Insert signature").disabled, true);
+  const h = dialogHarness(), promise = h.api.choose(); await new Promise(resolve=>setImmediate(resolve)); assert.equal(h.button("Insert signature").disabled, true);
   h.pad().events.pointerdown(h.event("pointerdown", .1, .1, 9, { button: 1 })); assert.equal(h.button("Insert signature").disabled, true);
   h.pad().events.pointerdown(h.event("pointerdown", .2, .3)); h.pad().events.pointermove(h.event("pointermove", .9, .9, 2));
   assert.equal(h.pad().captures.has(1), true); h.button("Clear pad").events.click();
@@ -94,7 +94,7 @@ test("Dialog starts empty, records only owned primary pointer strokes, clears an
 
 test("Dialog inserts a cropped bounded signature and remembers it without requiring browser storage", async () => {
   for (const unavailable of [false, true]) {
-    const h = dialogHarness(null, unavailable), promise = h.api.choose(); h.draw(); h.button("Insert signature").events.click();
+    const h = dialogHarness(null, unavailable), promise = h.api.choose(); await new Promise(resolve=>setImmediate(resolve)); h.draw(); h.button("Insert signature").events.click();
     const value = copy(await promise); S.template(value); assert.equal(value.strokes.length, 1); assert.equal(value.strokes[0].length, 3);
     assert.equal(h.root.dialog.removed, true); assert.equal(h.store.size, unavailable ? 0 : 1);
     if (!unavailable) assert.deepEqual(JSON.parse(h.store.get("ceasefire.takeoff-signature.v1")), value);
@@ -102,23 +102,23 @@ test("Dialog inserts a cropped bounded signature and remembers it without requir
 });
 
 test("Remember checkbox opt-out leaves an existing private template untouched", async () => {
-  const original = sample(), h = dialogHarness(original), promise = h.api.choose();
+  const original = sample(), h = dialogHarness(original), promise = h.api.choose(); await new Promise(resolve=>setImmediate(resolve));
   h.descendants().find(el => el.tagName === "INPUT").checked = false;
   h.draw(); h.button("Insert signature").events.click(); const inserted = copy(await promise);
   assert.notDeepEqual(inserted, original); assert.deepEqual(JSON.parse(h.store.get("ceasefire.takeoff-signature.v1")), original);
 });
 
 test("Saved preview and reuse preserve the exact template; malformed saved data has no reuse action", async () => {
-  const original = sample(), h = dialogHarness(original), promise = h.api.choose();
+  const original = sample(), h = dialogHarness(original), promise = h.api.choose(); await new Promise(resolve=>setImmediate(resolve));
   assert.ok(h.descendants().some(el => el.attributes["aria-label"] === "Saved signature preview"));
   h.button("Use saved signature").events.click(); assert.deepEqual(copy(await promise), original); assert.deepEqual(original, sample());
-  const invalid = dialogHarness({ ...original, svg: "bad" }), other = invalid.api.choose();
+  const invalid = dialogHarness({ ...original, svg: "bad" }), other = invalid.api.choose(); await new Promise(resolve=>setImmediate(resolve));
   assert.equal(invalid.button("Use saved signature"), undefined); invalid.button("Cancel").events.click(); assert.equal(await other, null);
   await assert.rejects(dialogHarness().api.choose({ ...sample(), ratio: 0 }));
 });
 
 test("Pad limits disable insertion until Clear and Escape returns no signature", async () => {
-  const h = dialogHarness(), promise = h.api.choose();
+  const h = dialogHarness(), promise = h.api.choose(); await new Promise(resolve=>setImmediate(resolve));
   for (let i = 0; i < 100; i++) h.draw([[.3, .4]]);
   h.pad().events.pointerdown(h.event("pointerdown")); assert.equal(h.button("Insert signature").disabled, true);
   assert.ok(h.descendants().some(el => /stroke limit reached/.test(el.textContent || "")));

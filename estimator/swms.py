@@ -244,18 +244,23 @@ def validate_fields(fields):
     return result
 
 
+from .document_numbers import DocumentNumbers, valid_reference, validated_counters
+
+
 def validate_swms_snapshot(value):
     if value is None:
         return None
-    if not isinstance(value, dict) or set(value) != {'version', 'project_id', 'documents'} or type(value['version']) is not int or value['version'] != 1:
+    if not isinstance(value, dict) or set(value)-{'reference_counters'} != {'version', 'project_id', 'documents'} or type(value['version']) is not int or value['version'] != 1:
         raise ValidationError('SWMS data uses an unsupported project format.')
     _identity(value['project_id'])
     if not isinstance(value['documents'], list) or len(value['documents']) > 50:
         raise ValidationError('A project supports at most 50 SWMS documents.')
     rows, identities = [], set()
     for row in value['documents']:
-        if not isinstance(row, dict) or set(row) != {'id', 'version', 'status', 'fields', 'created_at', 'updated_at'}:
+        if not isinstance(row, dict) or set(row) - {'reference'} != {'id', 'version', 'status', 'fields', 'created_at', 'updated_at'}:
             raise ValidationError('A saved SWMS has unsupported fields.')
+        if 'reference' in row and not valid_reference(row['reference']):
+            raise ValidationError('The saved SWMS reference is invalid.')
         identity = _identity(row['id'])
         if identity in identities or type(row['version']) is not int or not 1 <= row['version'] <= 1000000000 or row['status'] not in STATUSES:
             raise ValidationError('SWMS identity, version or status is invalid.')
@@ -270,6 +275,8 @@ def validate_swms_snapshot(value):
                 raise ValidationError('SWMS timestamps must include their timezone.') from error
         rows.append(clean)
     result = {'version': 1, 'project_id': value['project_id'], 'documents': rows}
+    if value.get('reference_counters') is not None:
+        result['reference_counters'] = validated_counters(value['reference_counters'], ('swms',))
     if len(_json(result).encode('utf-8')) > MAX_SNAPSHOT_BYTES:
         raise ValidationError('SWMS drafts exceed the 12 MiB project limit.')
     return result
@@ -279,9 +286,11 @@ class SwmsDocuments:
     def __init__(self, certifications, root=None, renderer=None):
         self.certifications = certifications
         self.root = _directory(Path(root) if root else certifications.root.parent / 'swms-documents', create=True)
+        self.numbering = getattr(certifications, 'numbering', None) or DocumentNumbers(self.root.parent / 'document-numbers.sqlite3')
         self.path = self.root / 'documents.sqlite3'
         self.renderer = renderer
         with self._connect() as db:
+            self.numbering.initialize_history(db)
             db.executescript('''
                 CREATE TABLE IF NOT EXISTS swms_workspaces (workspace TEXT PRIMARY KEY, project_id TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS swms_drafts (workspace TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(workspace,id));
@@ -333,7 +342,8 @@ class SwmsDocuments:
 
     @staticmethod
     def _snapshot(db, workspace, project):
-        return {'version': 1, 'project_id': project, 'documents': [json.loads(row[0]) for row in db.execute('SELECT data FROM swms_drafts WHERE workspace=? ORDER BY id', (workspace,))]}
+        series = DocumentNumbers.history(db, project)
+        return {'version': 1, 'project_id': project, **({'reference_counters':series} if series else {}), 'documents': [json.loads(row[0]) for row in db.execute('SELECT data FROM swms_drafts WHERE workspace=? ORDER BY id', (workspace,))]}
 
     def capture(self, workspace, expected_snapshot=None):
         with self._connect() as db:
@@ -350,15 +360,20 @@ class SwmsDocuments:
     def restore(self, workspace, snapshot):
         snapshot = validate_swms_snapshot(snapshot)
         with self._connect() as db:
+            self.numbering.attach(db)
             db.execute('BEGIN IMMEDIATE')
             project = self._workspace(db, workspace)
             if snapshot is not None and snapshot['project_id'] != project:
                 raise SwmsConflict('SWMS documents belong to a different project.')
+            if snapshot:
+                self.numbering.restore_history(db, project, snapshot.get('reference_counters', {}))
             current = self._snapshot(db, workspace, project)
             if current['documents'] and snapshot != current:
                 raise SwmsConflict('This SWMS workspace already has drafts. Reopen the project before restoring another snapshot.')
             if not current['documents'] and snapshot:
                 for document in snapshot['documents']:
+                    if document.get('reference'):
+                        self.numbering.assign(db, 'swms', project + ':' + document['id'], document['reference'])
                     db.execute('INSERT INTO swms_drafts VALUES(?,?,?)', (workspace, document['id'], _json(document)))
         return self.view(workspace)
 
@@ -385,6 +400,7 @@ class SwmsDocuments:
             raise ValidationError('SWMS save contains unsupported fields or status.')
         identity, fields = _identity(payload['id']), validate_fields(payload['fields'])
         with self._connect() as db:
+            self.numbering.attach(db)
             db.execute('BEGIN IMMEDIATE')
             project = self._workspace(db, workspace)
             row = db.execute('SELECT data FROM swms_drafts WHERE workspace=? AND id=?', (workspace, identity)).fetchone()
@@ -399,6 +415,7 @@ class SwmsDocuments:
                 raise SwmsConflict('This SWMS is unavailable. Create a new SWMS instead of retrying its original save.')
             now = datetime.now(timezone.utc).isoformat()
             document = {'id': identity, 'version': previous['version'] + 1 if previous else 1,
+                        'reference': self.numbering.assign(db, 'swms', project + ':' + identity, (previous or {}).get('reference', '')),
                         'status': payload['status'], 'fields': fields, 'created_at': previous['created_at'] if previous else now, 'updated_at': now}
             snapshot = self._snapshot(db, workspace, project)
             snapshot['documents'] = [row for row in snapshot['documents'] if row['id'] != identity] + [document]
@@ -439,7 +456,7 @@ class SwmsDocuments:
             if not isinstance(pdf, bytes) or not pdf.startswith(b'%PDF-') or len(pdf) > MAX_PDF_BYTES:
                 raise ValidationError('The generated SWMS PDF is invalid or exceeds 64 MiB.')
             issued_id = str(uuid.uuid4())
-            filename = f'SAFE-WORK-METHOD-STATEMENT-{identity[:8]}-R{version}.pdf'
+            filename = f"SAFE-WORK-METHOD-STATEMENT-{document.get('reference') or identity[:8]}-R{version}.pdf"
             db.execute('INSERT INTO swms_issued VALUES(?,?,?,?,?,?)', (issued_id, project, request_id, fingerprint, filename, pdf))
             self._audit(db, workspace, identity, 'issue', document, document)
         return {'id': issued_id, 'filename': filename, 'pdf': pdf}

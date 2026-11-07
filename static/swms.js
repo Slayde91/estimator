@@ -32,7 +32,7 @@
     window.CeasefireI18n?.attr(result, "title", label); window.CeasefireI18n?.attr(result, "aria-label", label);
     if (kind !== "add") result.classList.add("swms-icon-action");
     if (kind === "signature") {
-      result.classList.add("takeoff-icon-button", "takeoff-signature-button");
+      result.classList.add("takeoff-icon-button", "takeoff-signature-button", "personal-signature-button");
       const symbol = element("span", "takeoff-action-icon takeoff-signature-icon"); symbol.setAttribute("aria-hidden", "true"); result.append(symbol);
     } else if (kind === "clear") {
       const icon = document.querySelector("#penetration-clear svg").cloneNode(true);
@@ -113,7 +113,7 @@
     if (state.busy) return;
     if (state.workspace === workspace() && state.editor) { renderEditor(); return; }
     const revision = ++state.revision, capturedContext = context();
-    shell("Safe Work Method Statements");
+    shell("SWMS");
     try {
       const identity = workspace() || (await window.CeasefireCertification.projectWorkspace()).workspace_id;
       if (revision !== state.revision || capturedContext !== context() || identity !== workspace()) return;
@@ -155,7 +155,7 @@
   function renderList() {
     clearTimeout(state.peopleTimer); state.peopleTimer = null; state.peopleDesired = {}; state.peopleError = null;
     state.editor = null; state.dirty = false;
-    const host = shell("Safe Work Method Statements"), bar = element("div", "swms-toolbar");
+    const host = shell("SWMS"), bar = element("div", "swms-toolbar");
     const search = element("input"); search.type = "search"; search.value = state.search;
     search.placeholder = "Title, project or site address…";
     search.addEventListener("input", () => { state.search = search.value; cards(); });
@@ -266,24 +266,6 @@
       }
     } finally { if (current()) lock(false); }
   }
-  async function chooseSignature() {
-    const dialog = element("dialog", "modal swms-signature-dialog"), pad = element("canvas"), actions = element("div", "actions"), status = element("p", "muted");
-    pad.width = 620; pad.height = 210; pad.setAttribute("aria-label", "SWMS signature drawing pad");
-    dialog.append(element("h2", "", "Draw signature"), element("p", "", "Draw your signature below, then choose Use signature."), pad, status, actions);
-    const ink = pad.getContext("2d"); let strokes = [], drawing = null, count = 0, result = null;
-    function paint() { ink.fillStyle = "white"; ink.fillRect(0, 0, pad.width, pad.height); ink.strokeStyle = "#111"; ink.lineWidth = 2; ink.lineCap = "round"; strokes.forEach(stroke => { ink.beginPath(); stroke.forEach((point, index) => { if (!index) ink.moveTo(point[0] * pad.width, point[1] * pad.height); else ink.lineTo(point[0] * pad.width, point[1] * pad.height); }); ink.stroke(); }); }
-    function point(event) { const box = pad.getBoundingClientRect(); return [Math.max(0, Math.min(1, (event.clientX - box.left) / box.width)), Math.max(0, Math.min(1, (event.clientY - box.top) / box.height))]; }
-    pad.addEventListener("pointerdown", event => { if (strokes.length >= 100 || count >= 4000) { status.textContent = "Clear the pad and draw a simpler signature."; return; } drawing = [point(event)]; strokes.push(drawing); count++; pad.setPointerCapture(event.pointerId); paint(); });
-    pad.addEventListener("pointermove", event => { if (drawing && count < 4000) { drawing.push(point(event)); count++; paint(); } });
-    ["pointerup", "pointercancel", "lostpointercapture"].forEach(name => pad.addEventListener(name, () => { drawing = null; }));
-    actions.append(iconAction("Clear", () => { strokes = []; drawing = null; count = 0; status.textContent = ""; paint(); }, "clear"), button("Cancel", () => dialog.close()), button("Use signature", () => {
-      if (!strokes.some(stroke => stroke.length > 1)) { status.textContent = "Draw your signature first."; return; }
-      result = { version: 1, ratio: pad.width / pad.height, strokes }; dialog.close();
-    }, true));
-    document.body.append(dialog); paint();
-    try { dialog.showModal(); await new Promise(resolve => dialog.addEventListener("close", resolve, { once: true })); return result; }
-    finally { dialog.remove(); }
-  }
   function signature(value, update, label, removePerson) {
     const host = element("div", "swms-signature"), actions = element("div", "swms-signature-actions");
     if (value) {
@@ -305,7 +287,7 @@
     actions.append(iconAction(value ? "Replace signature" : "Draw signature", async () => {
       if (state.busy) return;
       const current = guard(), editor = state.editor;
-      const result = await chooseSignature();
+      const result = await window.ClassifirePersonalSignature.choose(value, "swms");
       if (result && current() && editor === state.editor) setSignature(result);
     }, "signature"));
     if (value) actions.append(iconAction("Clear signature", () => setSignature(null), "clear"));
@@ -439,7 +421,14 @@
     actions.append(back, button("Save", () => save({seedDefaults:true}), true), downloadButton, element("span", "muted", editor.version ? `Revision ${editor.version}` : "New statement")); host.append(actions);
     const identity = element("div", "swms-grid"); identity.append(field("Document title", control(fields.title, value => { fields.title = value; })), field("Status", select(state.model?.statuses || ["Draft", "Review", "Approved", "Archived"], editor.status, value => { editor.status = value; }))); host.append(identity);
     const details = section("Project Details", true), grid = element("div", "swms-grid");
-    Object.entries(detailLabels).forEach(([key, label]) => grid.append(field(label, control(fields.details[key], value => { fields.details[key] = value; }, key === "date" ? "date" : "text")))); details.append(grid, element("h3", "", "Project Manager Signature"), signature(fields.manager_signature, value => { fields.manager_signature = value; }, "Project manager")); host.append(details);
+    for (const [key, label] of Object.entries(detailLabels)) {
+      grid.append(field(label, control(fields.details[key], value => { fields.details[key] = value; }, key === "date" ? "date" : "text")));
+      if (key === "job_reference") {
+        const ref = element("input"); ref.readOnly = true; ref.value = editor.reference || ""; ref.placeholder = "Assigned on first save";
+        grid.append(field("SWMS Reference", ref));
+      }
+    }
+    details.append(grid, element("h3", "", "Project Manager Signature"), signature(fields.manager_signature, value => { fields.manager_signature = value; }, "Project manager")); host.append(details);
     const communication = section("Communication and responsibilities"); textFields(communication, fields, ["communication", "toolbox", "compliance"]); host.append(communication);
     people(host, "reviewers", "Person/s responsible for reviewing SWMS"); people(host, "consultation", "This SWMS has been developed in consultation with");
     const qualifications = section("Qualifications, duties and training"); textFields(qualifications, fields, ["qualifications", "duties", "training"]); host.append(qualifications);

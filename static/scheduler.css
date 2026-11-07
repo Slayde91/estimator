@@ -4,9 +4,12 @@
 #scheduler-root .button.scheduler-add-action:hover:not(:disabled) { background:#12558f; border-color:#12558f; }
 #scheduler-root .button.scheduler-primary-action { background:#d0001b; border-color:#a80016; color:#fff; }
 #scheduler-root .button.scheduler-primary-action:hover:not(:disabled) { background:#a80016; border-color:#8d0012; }
-.scheduler-top,.scheduler-tabs,.scheduler-account,.scheduler-toolbar,.scheduler-clock,.scheduler-dialog-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+.scheduler-top,.scheduler-account,.scheduler-toolbar,.scheduler-clock,.scheduler-dialog-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
 .scheduler-top { justify-content:space-between; margin-bottom:18px; }
-.scheduler-tabs .button[aria-current="page"] { background:var(--accent); color:#fff; border-color:var(--accent); }
+.scheduler-tabs { min-width:0; flex:1; }
+.scheduler-local-time { font-size:clamp(13px,1.4vw,18px); font-variant-numeric:tabular-nums; font-weight:600; }
+.settings-preferences-grid .field { min-width:0; }
+#organization-timezone-form select { max-width:100%; }
 .scheduler-account { color:var(--muted); font-size:12px; }
 .scheduler-notice { margin-bottom:16px; }
 .scheduler-projects-info { display:flex; align-items:center; flex-wrap:wrap; gap:6px 12px; margin:0 0 16px; }

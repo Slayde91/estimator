@@ -140,11 +140,30 @@ async function controlAppearance(control) {
     return value;
   });
 }
-async function readableMidnightIcon(control) {
+async function readableMidnightIcon(control, transfer = false) {
   await expect(control).toBeVisible();await expect(control.locator('img')).toHaveJSProperty('complete',true);
   const value=await controlAppearance(control);assert.equal(value.image.width,512);assert.equal(value.image.height,512);assert.ok(value.image.opaque>0);assert.equal(value.image.nonBlackOpaque,0);
-  assert.equal(value.filter,'none');assert.equal(value.image.filter,'brightness(0) invert(1)');assert.ok(contrast('rgb(255,255,255)',value.background)>=3,'white icon must contrast with its dark control');assert.ok(contrast(value.color,value.background)>=4.5,'control text must remain readable');
-  await control.hover();const hover=await controlAppearance(control);assert.equal(hover.image.filter,'brightness(0) invert(1)');assert.ok(contrast('rgb(255,255,255)',hover.background)>=3,'hover must preserve white icon contrast');assert.ok(contrast(hover.color,hover.background)>=4.5);
+  assert.equal(value.filter,'none');
+  await control.hover();const hover=await controlAppearance(control);
+  for(const appearance of [value,hover]) {
+    if(transfer) {
+      assert.equal(appearance.image.src,'/icons/takeoff-transfer.png');
+      assert.equal(appearance.background,appearance===hover&&!appearance.disabled?'rgb(255, 232, 134)':'rgb(255, 221, 83)');
+      assert.equal(appearance.color,'rgb(173, 0, 29)');
+      // Measure the actual raster ink after applying the displayed filter to its opaque black source.
+      const ink=await page.evaluate(filter=>{
+        const canvas=document.createElement('canvas');canvas.width=canvas.height=1;
+        const context=canvas.getContext('2d');context.filter=filter;context.fillRect(0,0,1,1);
+        return Array.from(context.getImageData(0,0,1,1).data).slice(0,3);
+      },appearance.image.filter);
+      assert.ok(ink[0]>90 && ink[0]>ink[1]*3 && ink[0]>ink[2]*2,'Transfer icon is red');
+      assert.ok(contrast(`rgb(${ink.join(',')})`,appearance.background)>=3,'Transfer icon contrasts with yellow');
+    } else {
+      assert.equal(appearance.image.filter,'brightness(0) invert(1)');
+      assert.ok(contrast('rgb(255,255,255)',appearance.background)>=3,'white icon must contrast with its dark control');
+    }
+    assert.ok(contrast(appearance.color,appearance.background)>=4.5,'control text must remain readable');
+  }
   await page.mouse.move(1,1);return {normal:value,hover};
 }
 (async () => {
@@ -215,7 +234,7 @@ async function readableMidnightIcon(control) {
       const documentControl=page.locator(physical?'.takeoff-workspace-heading .takeoff-physical-document-host':'.takeoff-workspace-heading').getByRole('button',{name:physical?'Document':'Takeoff register document actions',exact:true});
       await documentControl.scrollIntoViewIfNeeded();const document=await readableMidnightIcon(documentControl);
       const transfer=register.getByRole('button',{name:physical?'Transfer to Firestopping Schedule':'Preview transfer',exact:true});
-      const transferAppearance=await transfer.isVisible()?await readableMidnightIcon(transfer):null;
+      const transferAppearance=await transfer.isVisible()?await readableMidnightIcon(transfer,true):null;
       // Both draft and ordinary register chrome follow the selected theme.
       const undo=await controlAppearance(register.getByRole('button',{name:'Undo last edit',exact:true}));
       let physicalPalette;
@@ -233,7 +252,6 @@ async function readableMidnightIcon(control) {
       for(const value of adjacent) {
         if(physical) { assert.equal(value.background,document.normal.background);assert.ok(contrast(value.color,value.background)>=4.5,'Physical adjacent control text contrast'); }
         else { assert.equal(document.normal.background,value.background,'Document shares adjacent control surface');assert.equal(document.normal.color,value.color,'Document shares adjacent control text color'); }
-        if(transferAppearance){assert.equal(transferAppearance.normal.background,value.background,'Transfer shares adjacent control surface');assert.equal(transferAppearance.normal.color,value.color,'Transfer shares adjacent control text color');}
       }
       const rail=[];
       for(const control of await page.locator('.takeoff-tool-rail button,.takeoff-markup-rail button').all()) {

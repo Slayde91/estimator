@@ -18,7 +18,30 @@ def configure_quote_schedule(report):
 
 def quote_schedule_table(report, headings, rows, widths, page_height):
     padding = 2
-    data = [[report.p(heading, 'head') for heading in headings]]
+    header = [report.p(heading, 'head') for heading in headings]
+    # Reserve whole heading words first, using the actual embedded font.
+    inset = 2 * padding + .1
+    minimums = [cell.minWidth() + inset for cell in header]
+    body_widths = minimums.copy()
+    for row in rows:
+        for index, cell in enumerate(row):
+            if isinstance(cell, Paragraph):
+                body_widths[index] = max(body_widths[index], cell.minWidth() + inset)
+    # Protect ordinary words and identifiers before exceptionally long tokens.
+    # A column that cannot fit its longest token keeps its normal wrapping.
+    space = sum(widths) - sum(minimums)
+    for extra, index in sorted((wanted - minimum, index)
+                               for index, (wanted, minimum) in enumerate(zip(body_widths, minimums))):
+        if extra > space:
+            break
+        minimums[index] += extra
+        space -= extra
+    shortfall = sum(max(0, minimum - width) for minimum, width in zip(minimums, widths))
+    spare = sum(max(0, width - minimum) for minimum, width in zip(minimums, widths))
+    if 0 < shortfall <= spare:
+        widths = [max(width, minimum) - max(0, width - minimum) * shortfall / spare
+                  for width, minimum in zip(widths, minimums)]
+    data = [header]
     for row in rows:
         for index, cell in enumerate(row):
             if isinstance(cell, Image):

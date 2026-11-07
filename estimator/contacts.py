@@ -68,6 +68,9 @@ class ContactsStore:
                     id TEXT PRIMARY KEY, contact_id TEXT NOT NULL UNIQUE REFERENCES contacts(id),
                     site_address TEXT NOT NULL, billing_address TEXT NOT NULL,
                     description TEXT NOT NULL, status TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS converted_leads (
+                    lead_id TEXT PRIMARY KEY, contact_id TEXT NOT NULL REFERENCES contacts(id),
+                    account_id TEXT NOT NULL REFERENCES accounts(id), project_no TEXT NOT NULL, path TEXT NOT NULL);
             """)
 
     @contextmanager
@@ -165,6 +168,30 @@ class ContactsStore:
                               company=excluded.company,lookup_key=excluded.lookup_key,billing_address=excluded.billing_address""",
                            (ident, data["company"], key, data["billing_address"]))
         return {"id": ident}
+
+    def convert(self, body, create_project):
+        if not isinstance(body, dict) or set(body) != {'id', 'version'} or not isinstance(body['id'], str):
+            raise ValidationError('Choose a saved lead to convert.')
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            receipt = db.execute('SELECT project_no,path FROM converted_leads WHERE lead_id=?', (body['id'],)).fetchone()
+            if receipt:
+                return dict(receipt)
+            if type(body['version']) is not int or self._version(db) != body['version']:
+                raise ContactsConflict('The lead changed. Reopen the directory before converting it.')
+            lead = db.execute('''SELECT l.*,c.name,c.phone,c.title,c.email,c.account_id,a.company
+                FROM leads l JOIN contacts c ON l.contact_id=c.id JOIN accounts a ON a.id=c.account_id
+                WHERE l.id=?''', (body['id'],)).fetchone()
+            if lead is None:
+                raise ValidationError('This lead could not be found.')
+            # The numbered file save uses this lead's stable ID as its replay
+            # key. A retry after a lost response or DB rollback reuses the file.
+            result = create_project(dict(lead))
+            db.execute('INSERT INTO converted_leads VALUES (?,?,?,?,?)',
+                       (lead['id'], lead['contact_id'], lead['account_id'], result['project_no'], result['path']))
+            db.execute('DELETE FROM leads WHERE id=?', (lead['id'],))
+            db.execute('UPDATE revision SET version=version+1 WHERE id=1')
+            return result
 
     def import_rows(self, kind, records, version):
         if kind not in {"accounts", "contacts"}:

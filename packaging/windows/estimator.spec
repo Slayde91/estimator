@@ -11,7 +11,7 @@ datas += [(config['seed'], 'factory-seed'), (config['notices'], 'THIRD_PARTY_LIC
 if config.get('calculator_evidence'):
     datas.append((config['calculator_evidence'], 'calculator-evidence'))
 datas += collect_data_files('reportlab', includes=['fonts/*'])
-datas += collect_data_files('tzdata', includes=['zoneinfo/**'])
+datas += collect_data_files('tzdata', includes=['zones', 'zoneinfo/**'], include_py_files=True)
 excluded = config['excluded_modules'] + [
     'PyQt5', 'PyQt6', 'PySide2', 'PySide6', 'cefpython3', 'gi', 'gtk',
     'webview.platforms.cef', 'webview.platforms.qt', 'webview.platforms.gtk',

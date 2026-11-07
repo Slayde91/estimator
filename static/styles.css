@@ -528,3 +528,6 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .takeoff-signature-remember>span{flex:1;min-width:0;overflow-wrap:anywhere}
 .takeoff-signature-preview{display:block;max-width:100%;color:var(--text)}
 .personal-signature-button>span{display:block;width:24px;height:24px;background:currentColor;mask:url('/icons/signature.svg') center/contain no-repeat}
+
+#personal-details-form textarea{height:44px;min-height:44px;width:100%;min-width:0;resize:vertical}
+#personal-details-form + .actions{margin-top:16px}

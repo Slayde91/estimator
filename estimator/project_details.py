@@ -163,7 +163,8 @@ class ProjectDetails:
                 candidate += 1
             return dict(row) | {"next_number": candidate, "next_reference": f'{row["prefix"]}-{candidate:05d}'}
 
-    def save_settings(self, value):
+    @staticmethod
+    def validated_settings(value):
         if not isinstance(value, dict) or set(value) != {"prefix", "start_number"}:
             raise ValidationError("Include Prefix and Project start number only.")
         prefix, start = value["prefix"], value["start_number"]
@@ -171,8 +172,12 @@ class ProjectDetails:
             raise ValidationError("Prefix must contain 1 to 12 letters.")
         if type(start) is not int or not 1 <= start <= MAX_NUMBER:
             raise ValidationError("Project start number must be a whole number from 1 to 999999999.")
+        return prefix.strip().upper(), start
+
+    def save_settings(self, value):
+        prefix, start = self.validated_settings(value)
         with self.connect() as db:
-            db.execute("UPDATE preferences SET prefix=?,start_number=? WHERE id=1", (prefix.strip().upper(), start))
+            db.execute("UPDATE preferences SET prefix=?,start_number=? WHERE id=1", (prefix, start))
         return self.settings()
 
     @staticmethod

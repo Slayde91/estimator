@@ -1,0 +1,47 @@
+{
+  "Full Name": [
+    "성명",
+    "Buong pangalan",
+    "Họ và tên"
+  ],
+  "Position/Title": [
+    "직위/직함",
+    "Posisyon/Titulo",
+    "Chức vụ/chức danh"
+  ],
+  "Accreditation No.": [
+    "인증 번호",
+    "Numero ng akreditasyon",
+    "Số chứng nhận"
+  ],
+  "Save personal details": [
+    "개인 정보 저장",
+    "I-save ang personal na detalye",
+    "Lưu thông tin cá nhân"
+  ],
+  "These details are saved for future certificates. Existing saved certificates retain their details.": [
+    "이 정보는 향후 인증서에 사용됩니다. 기존에 저장된 인증서는 원래 정보를 유지합니다.",
+    "Ise-save ang mga detalyeng ito para sa mga susunod na sertipiko. Mananatili ang detalye ng mga naka-save na sertipiko.",
+    "Thông tin này được lưu cho các chứng nhận sau này. Chứng nhận đã lưu giữ nguyên thông tin."
+  ],
+  "Personal details changed": [
+    "개인 정보 변경됨",
+    "Nagbago ang personal na detalye",
+    "Thông tin cá nhân đã thay đổi"
+  ],
+  "Personal details saved for future certificates.": [
+    "향후 인증서에 사용할 개인 정보를 저장했습니다.",
+    "Na-save ang personal na detalye para sa mga susunod na sertipiko.",
+    "Đã lưu thông tin cá nhân cho các chứng nhận sau này."
+  ],
+  "Personal details were changed in another window. Use the entered details for future certificates?": [
+    "다른 창에서 개인 정보가 변경되었습니다. 입력한 정보를 향후 인증서에 사용하시겠습니까?",
+    "Binago ang personal na detalye sa ibang window. Gamitin ang mga inilagay na detalye para sa mga susunod na sertipiko?",
+    "Thông tin cá nhân đã thay đổi ở cửa sổ khác. Dùng thông tin đã nhập cho các chứng nhận sau này?"
+  ],
+  "There are unsaved changes. Close without saving discards them. Keep editing to save them first.": [
+    "저장하지 않은 변경 사항이 있습니다. 저장하지 않고 닫으면 변경 사항이 사라집니다. 먼저 저장하려면 계속 편집하세요.",
+    "May mga pagbabagong hindi pa nai-save. Mawawala ang mga ito kung isasara nang hindi sine-save. Magpatuloy sa pag-edit upang i-save muna ang mga ito.",
+    "Có thay đổi chưa lưu. Đóng mà không lưu sẽ bỏ các thay đổi đó. Tiếp tục chỉnh sửa để lưu trước."
+  ]
+}

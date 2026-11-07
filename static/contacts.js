@@ -230,7 +230,7 @@
     return board;
   }
   function directoryTable(rows) {
-    const keys = page === "accounts" ? ["company", "billing_address"] : personFields;
+    const keys = page === "accounts" ? ["company", "billing_address"] : ["name", "company", "title", "phone", "email"];
     const wrapper = el("div", "table-scroll");
     const table = el("table", "contacts-table");
     const header = table.createTHead().insertRow();

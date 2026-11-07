@@ -10,7 +10,8 @@
 .certification-history{overflow-x:auto}.certification-history table{width:100%;border-collapse:collapse}
 .certification-history th,.certification-history td{padding:.8rem;text-align:start;border-bottom:1px solid var(--border,#48525f);vertical-align:top}
 .certification-history td:last-child{white-space:nowrap}
-.certification-history a{overflow-wrap:anywhere}.certification-document-select{width:100%;min-width:0}
+.certification-history a{overflow-wrap:anywhere}.certification-document-select{width:fit-content;max-width:100%;min-width:0}
+.certification-document-select select{width:auto;max-width:100%;min-width:0}
 .certification-document-actions{display:block}
 .certification-bottom-actions{justify-content:space-between;align-items:center;gap:1rem;margin-block:1.5rem}
 .certification-bottom-actions .button{min-height:48px}.certification-save-status{min-height:1.6em}

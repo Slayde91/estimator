@@ -1,0 +1,65 @@
+{
+  "Full Name": [
+    "全名",
+    "पूरा नाम",
+    "Nombre completo",
+    "الاسم الكامل",
+    "ชื่อ-นามสกุล"
+  ],
+  "Position/Title": [
+    "职位/头衔",
+    "पद/पदनाम",
+    "Cargo/título",
+    "المنصب/المسمى الوظيفي",
+    "ตำแหน่ง/คำนำหน้าตำแหน่ง"
+  ],
+  "Accreditation No.": [
+    "认证编号",
+    "प्रत्यायन संख्या",
+    "N.º de acreditación",
+    "رقم الاعتماد",
+    "เลขที่การรับรอง"
+  ],
+  "Save personal details": [
+    "保存个人资料",
+    "व्यक्तिगत विवरण सहेजें",
+    "Guardar datos personales",
+    "حفظ البيانات الشخصية",
+    "บันทึกข้อมูลส่วนบุคคล"
+  ],
+  "These details are saved for future certificates. Existing saved certificates retain their details.": [
+    "这些资料将用于以后的证书。已保存的证书保留其原有资料。",
+    "ये विवरण भविष्य के प्रमाणपत्रों के लिए सहेजे जाते हैं। पहले से सहेजे गए प्रमाणपत्रों के विवरण नहीं बदलते।",
+    "Estos datos se guardan para futuros certificados. Los certificados guardados conservan sus datos.",
+    "تُحفظ هذه البيانات للشهادات المستقبلية. وتحتفظ الشهادات المحفوظة ببياناتها.",
+    "ข้อมูลนี้จะบันทึกไว้สำหรับใบรับรองในอนาคต ใบรับรองที่บันทึกแล้วจะคงข้อมูลเดิมไว้"
+  ],
+  "Personal details changed": [
+    "个人资料已更改",
+    "व्यक्तिगत विवरण बदले गए",
+    "Datos personales modificados",
+    "تغيّرت البيانات الشخصية",
+    "ข้อมูลส่วนบุคคลมีการเปลี่ยนแปลง"
+  ],
+  "Personal details saved for future certificates.": [
+    "个人资料已保存，供以后的证书使用。",
+    "व्यक्तिगत विवरण भविष्य के प्रमाणपत्रों के लिए सहेजे गए।",
+    "Datos personales guardados para futuros certificados.",
+    "حُفظت البيانات الشخصية للشهادات المستقبلية.",
+    "บันทึกข้อมูลส่วนบุคคลสำหรับใบรับรองในอนาคตแล้ว"
+  ],
+  "Personal details were changed in another window. Use the entered details for future certificates?": [
+    "个人资料已在另一个窗口中更改。是否将当前输入的资料用于以后的证书？",
+    "व्यक्तिगत विवरण दूसरी विंडो में बदल गए हैं। भविष्य के प्रमाणपत्रों में दर्ज किए गए विवरण इस्तेमाल करें?",
+    "Los datos personales se modificaron en otra ventana. ¿Usar los datos introducidos para futuros certificados?",
+    "تغيّرت البيانات الشخصية في نافذة أخرى. هل تريد استخدام البيانات المُدخلة للشهادات المستقبلية؟",
+    "ข้อมูลส่วนบุคคลถูกเปลี่ยนในหน้าต่างอื่น ต้องการใช้ข้อมูลที่ป้อนสำหรับใบรับรองในอนาคตหรือไม่"
+  ],
+  "There are unsaved changes. Close without saving discards them. Keep editing to save them first.": [
+    "有尚未保存的更改。不保存就关闭将丢弃这些更改。请继续编辑并先保存。",
+    "कुछ बदलाव सहेजे नहीं गए हैं। बिना सहेजे बंद करने पर वे मिट जाएंगे। पहले सहेजने के लिए संपादन जारी रखें।",
+    "Hay cambios sin guardar. Cerrar sin guardar los descarta. Siga editando para guardarlos primero.",
+    "توجد تغييرات غير محفوظة. سيؤدي الإغلاق دون حفظ إلى تجاهلها. تابع التحرير لحفظها أولاً.",
+    "มีการเปลี่ยนแปลงที่ยังไม่บันทึก การปิดโดยไม่บันทึกจะละทิ้งการเปลี่ยนแปลง แก้ไขต่อเพื่อบันทึกก่อน"
+  ]
+}

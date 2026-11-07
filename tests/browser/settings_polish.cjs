@@ -60,7 +60,7 @@ async function idle(){await page.waitForFunction(()=>{const status=window.Ceasef
   for(const row of await covered.all()){
     await expect(row.locator('td').nth(2).getByRole('button')).toBeVisible();
     await expect(row.locator('td').nth(3).locator('input[type=file]')).toHaveCount(1);
-    await expect(row.locator('td').nth(4).getByRole('button')).toHaveCount(2);
+    await expect(row.locator('td').nth(4).getByRole('button')).toHaveCount(1);
   }
   await page.locator('#cover-sheets-heading').scrollIntoViewIfNeeded();
   await page.getByRole('button',{name:'Settings',exact:true}).click();

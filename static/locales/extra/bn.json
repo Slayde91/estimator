@@ -2870,5 +2870,14 @@
   "Ignore deleted project": "মুছে ফেলা প্রকল্প উপেক্ষা করুন",
   "Ignore project source": "প্রকল্পের উৎস উপেক্ষা করুন",
   "Stop looking for this project's saved file and hide its unavailable-file notice? Issued document history is retained.": "এই প্রকল্পের সংরক্ষিত ফাইল খোঁজা বন্ধ করে ফাইল না পাওয়ার বিজ্ঞপ্তি লুকাবেন? জারি করা নথির ইতিহাস রাখা হবে।",
-  "Project source ignored.": "প্রকল্পের উৎস উপেক্ষা করা হয়েছে।"
+  "Project source ignored.": "প্রকল্পের উৎস উপেক্ষা করা হয়েছে।",
+  "Full Name": "পূর্ণ নাম",
+  "Position/Title": "পদ/পদবি",
+  "Accreditation No.": "স্বীকৃতি নম্বর",
+  "Save personal details": "ব্যক্তিগত বিবরণ সংরক্ষণ করুন",
+  "These details are saved for future certificates. Existing saved certificates retain their details.": "এই বিবরণ ভবিষ্যতের সনদের জন্য সংরক্ষিত হয়। আগে সংরক্ষিত সনদগুলির বিবরণ অপরিবর্তিত থাকে।",
+  "Personal details changed": "ব্যক্তিগত বিবরণ পরিবর্তিত হয়েছে",
+  "Personal details saved for future certificates.": "ভবিষ্যতের সনদের জন্য ব্যক্তিগত বিবরণ সংরক্ষিত হয়েছে।",
+  "Personal details were changed in another window. Use the entered details for future certificates?": "অন্য উইন্ডোতে ব্যক্তিগত বিবরণ পরিবর্তিত হয়েছে। ভবিষ্যতের সনদের জন্য প্রবেশ করানো বিবরণ ব্যবহার করবেন?",
+  "There are unsaved changes. Close without saving discards them. Keep editing to save them first.": "কিছু পরিবর্তন সংরক্ষিত হয়নি। সংরক্ষণ না করে বন্ধ করলে সেগুলি বাতিল হবে। আগে সংরক্ষণ করতে সম্পাদনা চালিয়ে যান।"
 }

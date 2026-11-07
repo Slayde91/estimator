@@ -92,6 +92,10 @@ async function exported(extension){
     await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
     const add=fireDetail.getByRole('button',{name:'Add to Schedule',exact:true});
     await add.scrollIntoViewIfNeeded();const box=await add.boundingBox();assert.equal(box.width,48);assert.equal(box.height,48);
+    await page.mouse.move(0,0);
+    const palette=await add.evaluate(element=>{const style=getComputedStyle(element);return {background:style.backgroundColor,border:style.borderTopColor,color:style.color,icon:getComputedStyle(element.querySelector('img')).filter};});
+    assert.deepEqual({background:palette.background,border:palette.border,color:palette.color},{background:'rgb(255, 221, 83)',border:'rgb(188, 0, 34)',color:'rgb(173, 0, 29)'},`${theme} uses the Takeoff transfer palette`);
+    assert.notEqual(palette.icon,'none',`${theme} transfer artwork uses the red transfer tint`);
     const colors=await contrast('[data-library-detail="penetration"] .library-add-transfer');assert.ok(colors.ratio>=4.5,`${theme} library schedule control contrast`);
     scheduleContrast.push({theme,control:'library',...colors});
     await page.screenshot({path:path.join(output,`firestopping-library-${theme}.png`)});await cycleTheme(page);

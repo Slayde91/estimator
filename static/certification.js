@@ -115,6 +115,7 @@
         const saved=await post('/api/certifications/defaults',{...desired,expected_version:version});
         state.defaults=saved;state.defaultsError=null;
         if(equal(desired,state.defaultsDesired))state.defaultsDesired=null;
+        if(typeof CustomEvent==='function')window.dispatchEvent(new CustomEvent('ceasefire:signer-defaults-saved',{detail:saved}));
         signerMessage('Signer details saved for future certificates.');return true;
       } catch(error) {
         state.defaultsError=error;
@@ -419,6 +420,14 @@
   generateButton.addEventListener('click',event=>{if(!(event.detail>1))return perform('generate');});
   selector.addEventListener('change',()=>{if(selector.value==='__draft__')return;return loadDocument(selector.value==='__reload__'?state.id:selector.value);});
   window.addEventListener('ceasefire:company-settings-saved',event=>{if(typeof event.detail?.name==='string')companyText(event.detail.name);});
+  window.addEventListener('ceasefire:signer-defaults-saved',event=>{
+    const saved=event.detail;
+    if(state.defaultsDesired||state.defaultsSaving||!saved||!Number.isInteger(saved.version)||saved.version<state.defaults.version||
+        !saved.fields||signerNames.some(name=>typeof saved.fields[name]!=='string'))return;
+    // Only future defaults change here. Existing certificate controls retain
+    // their captured signer, including unsaved local edits.
+    state.defaults=saved;
+  });
   window.addEventListener('ceasefire:languagechange',renderScopes);
   window.CeasefireCertification={open,projectWorkspace,completeProjectSnapshot,prepareProject,applyProject,markProjectSaved,discardPreparedSession,
     sessionId:()=>state.workspaceId,projectFingerprint,hasProjectChanges:()=>state.loaded&&state.projectBaseline!==null&&state.projectBaseline!==projectFingerprint(),

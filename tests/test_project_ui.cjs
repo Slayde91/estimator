@@ -820,12 +820,14 @@ async function penetrationCheck(name, fn) {
     h.app.state.draft.rates.frozen.price=17.12345;h.app.updateProjectStatus();
     assert.equal(h.byId('project-save-state').textContent,'Saved project');
   });
-  await check('Folder search retains relative paths while scanning the entire list', async h => {
+  await check('Folder search retains relative-path matching without showing file paths in project rows', async h => {
     const calls=[];h.byId('project-search').value='Client & north';h.byId('project-sort').value='name_asc';
     h.app.setRequest(async path=>{calls.push(path);return {folder:'C:/Estimates',files:[{id:'nested',name:'Quote.cf.json',relative_path:'Client/north/Quote.cf.json',title:'Quote',modified_at:'2026-09-17T00:00:00Z'}],total:500,matched:120,offset:100,errors:[],scan_pending:true,scanned_entries:2000};});
     await h.app.loadProjects({offset:100});
     assert.equal(calls[0],'/api/projects?search=Client%20%26%20north&sort=name_asc');
-    assert.equal(h.byId('project-list').children[0].children[0].children[3].textContent,'Client/north/Quote.cf.json');
+    const details=h.byId('project-list').children[0].children[0];
+    assert.equal(details.children.length,3);
+    assert.ok(details.children.every(child=>!child.textContent.includes('Client/north/Quote.cf.json')));
     assert.match(h.byId('project-list-status').textContent,/120 matching projects/);assert.equal(h.byId('project-continue').hidden,false);
     assert.equal(h.byId('project-previous').disabled,true);assert.equal(h.byId('project-next').disabled,true);
   });
@@ -1299,6 +1301,17 @@ async function penetrationCheck(name, fn) {
     assert.match(h.byId('discard-dialog').querySelector('p').textContent,/cover-sheet edits/);revision++;
     await h.byId('discard-dialog').close('confirm');assert.equal(await closing,false);assert.equal(h.app.projectStamp(),stamp);
     pending=true;assert.equal(await h.app.reviewDesktopClose(),false);assert.equal(h.byId('discard-dialog').open,false);
+  });
+  await check('Personal details protect unload and native close without becoming project data',async h=>{
+    h.app.state.initialized=true;h.app.state.dirty=false;h.app.state.configuration={inventory:{},rates:{}};h.app.state.draft=copy(h.app.state.configuration);
+    h.app.state.quoteConfiguration=null;h.app.state.projectPricingDraft=null;h.context.window.CeasefireCalculators.hasUnsavedChanges=()=>false;
+    let revision=1,pending=false;h.context.window.CeasefirePersonalDetails={hasUnsavedChanges:()=>true,hasPendingOperation:()=>pending,fingerprint:()=>String(revision)};
+    const stamp=h.app.projectStamp();assert.equal(h.context.window.CeasefireDesktop.status().dirty,true);
+    let prevented=false;h.windowListeners.beforeunload[0]({preventDefault(){prevented=true;}});assert.equal(prevented,true);
+    const closing=h.app.reviewDesktopClose();await flush();assert.equal(h.byId('discard-dialog').open,true);
+    assert.match(h.byId('discard-dialog').querySelector('p').textContent,/unsaved changes/);revision++;
+    await h.byId('discard-dialog').close('confirm');assert.equal(await closing,false);assert.equal(h.app.projectStamp(),stamp);
+    pending=true;assert.equal(h.context.window.CeasefireDesktop.status().busy,true);assert.equal(await h.app.reviewDesktopClose(),false);
   });
   console.log(`${passed} project UI regression checks passed.`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

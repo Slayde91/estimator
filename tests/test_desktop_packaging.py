@@ -608,7 +608,6 @@ assert.equal(run([notice('Saved '),notice('details'),notice('×',true)]),'Saved 
 
         header = Header()
         header.feed(render_index((ROOT / 'static/index.html').read_bytes(), 'standard').decode('utf-8'))
-        self.assertEqual(len(header.icons), 9)
         self.assertEqual([(icon['view'], icon['label'], icon['svg'].get('data-lucide')) for icon in header.icons], list(STANDARD_NAVIGATION))
         for icon in header.icons:
             self.assertNotIn('image', icon)

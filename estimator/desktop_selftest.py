@@ -12,13 +12,14 @@ from .catalog import ROOT
 from .desktop_seed import safe_directory
 
 STANDARD_NAVIGATION = (
-    ('home', 'Home', 'house'), ('projects', 'Projects', 'folders'),
+    ('home', 'Home', 'house'), ('contacts', 'Contacts', None), ('projects', 'Projects', 'folders'),
     ('documents', 'Documents', None), ('estimate', 'Estimates', 'sigma'),
     ('calculators', 'Calculators', 'calculator'), ('pricing', 'Libraries', 'book-open'),
     ('scheduler', 'Scheduler', None), ('help', 'Help', 'circle-help'), ('settings', 'Settings', 'settings'),
 )
 
 STANDARD_NAVIGATION_ARTWORK = {
+    'contacts': {'paths': ['M2 7h4m-4 5h4m-4 5h4m3-1c0-3 6-3 6 0'], 'circles': [['12', '9', '2']]},
     'documents': {'paths': ['M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z', 'M14 2v6h6M8 13h8M8 17h8'], 'circles': []},
     'scheduler': {'paths': ['M12 6v6l4 2'], 'circles': [['12', '12', '10']]},
 }
@@ -256,6 +257,9 @@ def self_test(data_directory, output_report):
                 report['help_icon_alignment'] = alignment
                 report['checks'].append('Native preview SVG navigation icons render 20% larger than the previous 65% scale of their original 26 pixels, decorative, consistently stroked and centred above visible page names')
                 probe.script('window.nativeQaCsp=[]; document.addEventListener("securitypolicyviolation",event=>window.nativeQaCsp.push(event.effectiveDirective));')
+                probe.click('[data-view="contacts"]')
+                probe.wait('!document.querySelector("#view-contacts").hidden && document.querySelectorAll("#contacts-root .project-kanban-column").length === 6')
+                report['checks'].append('Packaged Contacts opened the six-column Leads board')
                 probe.click('[data-view="settings"]')
                 probe.wait('!document.querySelector("#view-settings").hidden && !document.querySelector("#company-settings-save").disabled && '
                            + notification_text('#company-settings-status') + ' === "Saved" && document.querySelector("#theme-toggle").dataset.themeReady === "true"')

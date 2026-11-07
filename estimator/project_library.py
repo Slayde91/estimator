@@ -240,6 +240,7 @@ def _open_default_file(path):
 
 
 def _metadata(path, info, project, folder, payload):
+    from .commercial_documents import quote_cards
     estimate = project["estimate"]
     inside = folder is not None and path.is_relative_to(folder)
     relative = path.relative_to(folder).as_posix() if inside else path.name
@@ -248,6 +249,7 @@ def _metadata(path, info, project, folder, payload):
             "relative_folder": str(Path(relative).parent).replace("\\", "/") if inside else "",
             "title": estimate["title"], "project_no": estimate.get("project_no", ""),
             "client": estimate.get("client", ""), "site_address": estimate.get("site_address", ""),
+            "quote_cards": project["quote_cards"] if "quote_cards" in project else quote_cards(project.get("commercial_documents")),
             "clients": project.get("clients", [estimate.get("client", "")]),
             "project_numbers": project.get("project_numbers", [estimate.get("project_no", "")]),
             "project_status": project.get("project_status", "Draft"),
@@ -1105,6 +1107,45 @@ class ProjectLibrary:
         if warning:
             result['warning'] = warning
         return result
+
+    def quote_register(self):
+        listing = self.listing(limit=200)
+        with self._lock:
+            files = list(self._scan['files'].values()) if listing['folder'] and self._scan else []
+        documents = []
+        for file in files:
+            for card in file['quote_cards']:
+                documents.append({**card, 'source_file': file['id'], 'source_revision': file['revision'],
+                                  'source_path': file['path']})
+        return {'documents': documents, 'revisions': {file['path']: file['revision'] for file in files},
+                'scan_pending': listing['scan_pending'], 'error_count': listing['error_count']}
+
+    @contextmanager
+    def commercial_file(self, identifier, revision, *, find_issued=False):
+        """Grant a single revision-checked operation on a linked project only."""
+        from .commercial_documents import CommercialConflict
+        with self._lock:
+            _, path = self._project_path(identifier)
+            payload, info = _read_file(path)
+            actual_revision = hashlib.sha256(payload).hexdigest()
+            if actual_revision != revision and not find_issued:
+                raise CommercialConflict('The saved project changed. Return to Quotes and reopen it.')
+            summary = project_summary(payload, edition=self.edition)
+            snapshot = json.loads(payload.decode('utf-8-sig'))
+            def commit():
+                updated = json.dumps(snapshot, ensure_ascii=False, allow_nan=False, indent=2).encode('utf-8')
+                if len(updated) > MAX_PROJECT_FILE:
+                    raise ValidationError('The updated project exceeds the 16 MB file limit.')
+                selection = SaveSelection(str(path), {'size': info.st_size, 'mtime_ns': info.st_mtime_ns, 'sha256': revision})
+                _, after = _atomic_write(selection, updated)
+                from .commercial_documents import quote_cards
+                summary['quote_cards'] = quote_cards(snapshot['commercial_documents'])
+                folder = self._scan['folder']
+                metadata = _metadata(path, after, summary, folder, updated)
+                self._scan['files'][identifier] = metadata
+                self._cache.pop((str(folder), str(path)), None)
+                return metadata['revision']
+            yield path, snapshot, actual_revision, commit
 
     def clients(self, *, refresh=False):
         """Continue the bounded linked-folder scan; never follow arbitrary paths."""

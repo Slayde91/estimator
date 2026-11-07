@@ -376,6 +376,37 @@ def _work_order_sequence(fields):
     return quote_number, int(suffix)
 
 
+def quote_cards(snapshot):
+    """Keep the folder index small even when quotes contain large schedules."""
+    if not snapshot:
+        return []
+    if not isinstance(snapshot, dict) or not isinstance(snapshot.get('documents'), list) or len(snapshot['documents']) > 100:
+        raise ValidationError('Invalid saved commercial document collection.')
+    cards = []
+    for document in snapshot['documents']:
+        try:
+            if document['kind'] != 'quote':
+                continue
+            _identity(document['id'])
+            if document['status'] not in STATUSES['quote'] or type(document['version']) is not int or document['version'] < 1:
+                raise ValidationError('Invalid saved Quote status or version.')
+            details = document['fields']['details']
+            cards.append({'id': document['id'], 'kind': 'quote', 'version': document['version'], 'status': document['status'],
+                          'updated_at': _text(document['updated_at'], 'Quote date', 100),
+                          'last_number': _text(document['last_number'], 'Quote number', 100),
+                          'fields': {'title': _text(document['fields']['title'], 'Quote title', 300), 'order': {},
+                                     'details': {key: _text(details[key], key, 1000) for key in ('project_no', 'client', 'site_address')}}})
+        except (TypeError, KeyError) as error:
+            raise ValidationError('Invalid saved commercial document details.') from error
+    return cards
+
+
+def linked_estimate_ids(lines):
+    if not isinstance(lines, list) or any(not isinstance(line, dict) or not isinstance(line.get('estimate_id', ''), str) for line in lines):
+        raise ValidationError('Include valid linked estimates or custom quote rows.')
+    return [line['estimate_id'] for line in lines if line.get('estimate_id')]
+
+
 def _stored_document(value):
     document = json.loads(value)
     # Older drafts did not contain relationship identities. Normalise them on read
@@ -615,10 +646,10 @@ class CommercialDocuments:
         return sha256(_json({'workspace': workspace, 'id': identity, 'version': version, 'company': company,
                              'request_fingerprint': request_fingerprint}).encode('utf-8')).hexdigest()
 
-    def replay(self, workspace, request_id, identity, version, company=None, request_fingerprint=''):
+    def replay(self, workspace, request_id, identity, version, company=None, request_fingerprint='', *, owner_key=None):
         _identity(request_id)
         company = deepcopy(company or COMPANY_DEFAULTS)
-        signature = self._signature(workspace, identity, version, company, request_fingerprint)
+        signature = self._signature(owner_key or workspace, identity, version, company, request_fingerprint)
         with self._connect() as db:
             project = self._workspace(db, workspace)
             row = db.execute('SELECT * FROM commercial_issued WHERE request_id=?', (request_id,)).fetchone()
@@ -626,15 +657,25 @@ class CommercialDocuments:
                 return None
             if row['project_id'] != project or row['fingerprint'] != signature:
                 raise CommercialConflict('This download request was already used for different document content.')
-            return {**dict(row), 'document': json.loads(row['document']), 'pdf': bytes(row['pdf'])}
+            document = json.loads(row['document'])
+            if owner_key:
+                # A file write may have failed after the PDF was issued. A fresh
+                # workspace for the exact same source file/revision can resume
+                # the immutable receipt without issuing another number.
+                prior = self._record(db, workspace, identity)
+                if prior['version'] == version:
+                    db.execute('UPDATE commercial_drafts SET data=? WHERE workspace=? AND id=?', (_json(document), workspace, identity))
+                elif prior != document:
+                    raise CommercialConflict('The linked Quote changed before its download could be retried.')
+            return {**dict(row), 'document': document, 'pdf': bytes(row['pdf'])}
 
-    def issue(self, workspace, identity, version, request_id, company=None, scope_documents=None, request_fingerprint=''):
+    def issue(self, workspace, identity, version, request_id, company=None, scope_documents=None, request_fingerprint='', *, owner_key=None):
         _identity(request_id)
         company = deepcopy(company or COMPANY_DEFAULTS)
         scopes = scope_documents or []
         # The saved version fixes fields and source fingerprints. Generated source
         # PDFs may contain fresh metadata, which must not defeat a safe retry.
-        signature = self._signature(workspace, identity, version, company, request_fingerprint)
+        signature = self._signature(owner_key or workspace, identity, version, company, request_fingerprint)
         with self._connect() as db:
             db.execute('BEGIN IMMEDIATE')
             project = self._workspace(db, workspace)

@@ -15,6 +15,7 @@
     workspace: null,
     kind: "quote",
     model: null,
+    savedQuotes: [],
     editor: null,
     busy: false,
     dirty: false,
@@ -131,6 +132,16 @@
     if (!response.ok) throw new Error(result.error || "The commercial document request failed.");
     return result;
   }
+  const linkedIds = lines => lines.map(line => line.estimate_id).filter(Boolean);
+  const sourceFor = card => card.source_file ? {file_id: card.source_file, revision: card.source_revision} : null;
+  const cardKey = card => [card.source_file || "", card.id].join("/");
+  async function documentRequest(action, body, source) {
+    if (!source) return request(action, body);
+    const {workspace_id, estimates, active_estimate_id, ...fields} = body;
+    const response = await request("saved-" + action, {...fields, source: {file_id: source.file_id, revision: source.revision}});
+    if (action !== "derive" && action !== "defaults") source.revision = response.revision;
+    return response.result;
+  }
   function today() {
     const parts = new Intl.DateTimeFormat("en-CA", {
       timeZone: "Australia/Sydney",
@@ -189,6 +200,18 @@
     const context = window.CeasefireProject?.runtimeContext?.();
     const result = await request(`state?workspace=${encodeURIComponent(workspace)}`);
     if (revision !== state.revision || workspace !== state.workspace || workspace !== currentWorkspace() || context !== window.CeasefireProject?.runtimeContext?.()) return false;
+    if (state.kind === "quote") {
+      let register;
+      do {
+        register = await request(`register?workspace=${encodeURIComponent(workspace)}`);
+        if (revision !== state.revision || workspace !== currentWorkspace() || context !== window.CeasefireProject?.runtimeContext?.()) return false;
+      } while (register.scan_pending);
+      const active = window.CeasefireProject?.context?.();
+      const diskRevision = register.revisions?.[active?.project_path];
+      result.activeFileChanged = Boolean(diskRevision && active?.project_revision && diskRevision !== active.project_revision);
+      state.savedQuotes = register.documents.filter(card => card.source_path !== active?.project_path || result.activeFileChanged);
+      result.unavailableProjects = register.error_count;
+    }
     state.model = result;
     return true;
   }
@@ -261,12 +284,14 @@
     list.append(controls, node("p", "helper commercial-match-count"), node("div", "commercial-board project-kanban"));
     host.append(list);
     renderCards();
+    if (state.kind === "quote" && state.model.unavailableProjects) message("Some linked project files could not be read. See Projects for details.", true);
   }
   function renderCards() {
     const board = root()?.querySelector(".commercial-board");
     if (!board) return;
     board.replaceChildren();
-    const all = state.model.documents.filter(document => document.kind === state.kind);
+    const all = state.kind === "quote" && state.model.activeFileChanged ? [] : state.model.documents.filter(document => document.kind === state.kind);
+    if (state.kind === "quote") all.push(...state.savedQuotes);
     const documents = all.filter(document => `${document.fields.title} ${document.fields.details.client} ${document.fields.details.project_no} ${document.last_number} ${document.fields.order.work_order_reference}`.toLowerCase().includes(state.search.toLowerCase()));
     documents.sort((a, b) => state.sort === "Document name A–Z"
       ? a.fields.title.localeCompare(b.fields.title, "en", {numeric:true}) || a.id.localeCompare(b.id)
@@ -288,7 +313,7 @@
       column.addEventListener("drop", event => {
         event.preventDefault();
         const identity = event.dataTransfer.getData("text/plain");
-        const document = documents.find(item => item.id === identity);
+        const document = documents.find(item => cardKey(item) === identity);
         if (document) void move(document, status);
       });
       for (const document of matches) {
@@ -296,14 +321,16 @@
         card.draggable = true;
         card.addEventListener("dragstart", event => {
           if (state.busy || event.target.closest("button,select,summary,input")) { event.preventDefault(); return; }
-          event.dataTransfer.setData("text/plain", document.id);
+          event.dataTransfer.setData("text/plain", cardKey(document));
           event.dataTransfer.effectAllowed = "move";
         });
         const menu = node("details", "commercial-card-menu");
         const toggle = node("summary", "", "▾");
         toggle.setAttribute("aria-label", `Actions for ${document.fields.title}`);
         const actions = node("div", "commercial-menu-options");
-        for (const [label, action] of [["Open", () => openEditor(document)], ["Edit", () => openEditor(document)], ["Delete", () => remove(document)]]) {
+        const options = [["Open", () => openCard(document)], ["Edit", () => openCard(document)], ["Delete", () => remove(document)]];
+        if (state.kind === "quote") options.splice(2, 0, ["Create WO", () => openCard(document, true)]);
+        for (const [label, action] of options) {
           const control = button(label, () => { menu.open = false; if (!state.busy) action(); });
           control.className = "text-button";
           actions.append(control);
@@ -316,7 +343,7 @@
         actions.append(field("Move to", statusSelect));
         menu.append(toggle, actions);
         positionCardMenu(menu);
-        const title = button(document.fields.title, () => { if (!state.busy) openEditor(document); });
+        const title = button(document.fields.title, () => { if (!state.busy) void openCard(document); });
         title.className = "project-title-button";
         const heading = node("div", "project-card-heading");
         heading.append(title, menu);
@@ -328,18 +355,65 @@
     }
     if (!board.children.length) board.append(node("p", "empty-state", "Choose a column from Columns to show documents."));
   }
+  async function openCard(card, createWorkOrder = false) {
+    if (state.busy) return;
+    const source = sourceFor(card);
+    const revision = state.revision;
+    try {
+      let document = card;
+      if (source) {
+        state.busy = true;
+        const opened = await request("saved-open", {source, id: card.id});
+        if (state.revision !== revision) return;
+        document = opened.document;
+        source.estimates = opened.estimates;
+        state.busy = false;
+      }
+      if (!createWorkOrder) { openEditor(document, source); return; }
+      if (!document.last_number) {
+        message("Download the Quote PDF to assign its number before creating a Work Order.", true);
+        return;
+      }
+      const details = {...document.fields.details, date: today()};
+      const {fields} = await documentRequest("defaults", {workspace_id: state.workspace, kind: "work_order", details}, source);
+      if (state.revision !== revision || !await window.CeasefireProject.openCommercial("work_order")) return;
+      fields.order.quote_id = document.id;
+      fields.order.quote_reference = document.last_number;
+      fields.order.description = document.fields.lines.map(line => line.description).join("\n");
+      fields.order.estimated_cost = (Number(summary(document.fields).subtotal) / 100).toFixed(2);
+      openEditor({id: crypto.randomUUID(), version: 0, kind: "work_order", status: "Draft", fields, last_number: ""}, source, document);
+      markDirty();
+    } catch (error) {
+      message(error.message, true);
+    } finally {
+      state.busy = false;
+    }
+  }
+  async function saveActiveProject() {
+    const target = window.CeasefireProject?.context?.();
+    if (!target?.project_token) return false;
+    state.syncingProject = true;
+    try {
+      const result = await window.CeasefireProject.saveAfterDownload(target);
+      if (!result?.saved) throw new Error(result?.error || "The project file save could not be confirmed.");
+      return true;
+    } finally {
+      state.syncingProject = false;
+    }
+  }
   async function move(document, status) {
     if (state.busy) return;
     state.busy = true;
     try {
-      await request("status", {
+      await documentRequest("status", {
         workspace_id: state.workspace,
         id: document.id,
         version: document.version,
         status
-      });
-      changed();
+      }, sourceFor(document));
+      if (!document.source_file) changed();
       await load();
+      if (document.kind === "quote" && !document.source_file) await saveActiveProject();
       renderBoard();
     } catch (error) {
       message(error.message, true);
@@ -351,13 +425,14 @@
     if (state.busy || !window.confirm(`Delete “${document.fields.title}”?`)) return;
     state.busy = true;
     try {
-      await request("delete", {
+      await documentRequest("delete", {
         workspace_id: state.workspace,
         id: document.id,
         version: document.version
-      });
-      changed();
+      }, sourceFor(document));
+      if (!document.source_file) changed();
       await load();
+      if (document.kind === "quote" && !document.source_file) await saveActiveProject();
       renderBoard();
     } catch (error) {
       message(error.message, true);
@@ -467,10 +542,12 @@
     section.append(node("h2", "", label), toolbar, editor);
     return section;
   }
-  function openEditor(document) {
+  function openEditor(document, source = null, linkedQuote = null) {
     if (state.dirty && !window.confirm("Discard the unsaved document changes?")) return;
     state.editor = {
       document: copy(document),
+      source,
+      linkedQuote,
       pendingIssue: null,
       generatedScope: null,
       scopeTables: copy(document.fields.scope_tables || []),
@@ -481,6 +558,11 @@
     const host = shell(names[state.kind]),
       form = node("div", "commercial-editor"),
       fields = state.editor.document.fields;
+    if (!source) {
+      const lockedNumber = fields.order.work_order_reference && state.kind === "work_order" ? fields.details.project_no : "";
+      Object.assign(fields.details, window.CeasefireProject?.details?.());
+      if (lockedNumber) fields.details.project_no = lockedNumber;
+    }
     const actions = node("div", "commercial-editor-actions");
     actions.append(backButton("Back to " + names[state.kind] + "s", () => {
       if (!state.dirty || window.confirm("Discard unsaved changes?")) {
@@ -496,7 +578,7 @@
     for (const [key, label] of [["project_no", "Project number"], ["client", "Client"], ["site_address", "Site address"], ["contact", "Client contact"], ["phone", "Client phone"], ["email", "Client email"], ["date", "Document date"]]) {
       if (state.kind === "purchase_order" && ["client", "contact", "phone", "email"].includes(key)) continue;
       const control = input(fields.details[key], value => fields.details[key] = value, key === "date" ? "date" : "text");
-      if (key === "project_no" && state.kind === "work_order" && document.version > 0 && fields.order.work_order_reference) control.readOnly = true;
+      if (["project_no", "client", "site_address"].includes(key)) control.readOnly = true;
       details.append(field(label, control));
     }
     form.append(details);
@@ -504,6 +586,12 @@
       form.append(field("Introduction", textarea(fields.introduction, value => fields.introduction = value)));
       const chooser = node("details", "commercial-estimate-picker");
       chooser.append(node("summary", "button secondary", "Select estimates"), node("div", "commercial-estimate-options"));
+      chooser.append(button("Add custom row", () => {
+        fields.lines.push({estimate_id: "", description: "", quantity: "1", unit_price: "0", size: "", comments: ""});
+        markDirty();
+        renderLines();
+        form.querySelector(".commercial-lines tbody tr:last-child textarea")?.focus();
+      }));
       form.append(chooser);
       form.append(node("section", "commercial-lines"), node("div", "commercial-totals"), rateSchedule(fields), node("section", "commercial-scope"), richEditor("Scope preamble", fields.scope, value => fields.scope = value), richEditor("Allowances", fields.allowances, value => fields.allowances = value), richEditor("Terms & Conditions", fields.terms, value => fields.terms = value));
     } else {
@@ -559,7 +647,7 @@
     const references = node("section", "commercial-linked-reference");
     const isWorkOrder = state.kind === "work_order";
     const linkKey = isWorkOrder ? "quote_id" : "work_order_id";
-    const choices = state.model.documents.filter(item => isWorkOrder
+    const choices = (state.editor.linkedQuote ? [state.editor.linkedQuote] : state.model.documents).filter(item => isWorkOrder
       ? item.kind === "quote" && item.last_number
       : item.kind === "work_order" && item.fields.order.work_order_reference);
     const linked = node("select");
@@ -579,7 +667,7 @@
     }
     linked.value = fields.order[linkKey] || "";
     linked.dataset.orderLink = linkKey;
-    linked.disabled = isWorkOrder && state.editor.document.version > 0 && !!fields.order.work_order_reference;
+    linked.disabled = !!state.editor.linkedQuote || (isWorkOrder && state.editor.document.version > 0 && !!fields.order.work_order_reference);
     const reference = input(fields.order.work_order_reference, () => {});
     reference.readOnly = true;
     reference.placeholder = isWorkOrder ? "Assigned when this Work Order is saved" : "Select a linked Work Order";
@@ -612,8 +700,8 @@
     const container = root()?.querySelector(".commercial-estimate-options");
     if (!container) return;
     container.replaceChildren();
-    const selected = new Set(state.editor.document.fields.lines.map(line => line.estimate_id));
-    for (const estimate of window.CeasefireEstimates?.list?.() || [{
+    const selected = new Set(linkedIds(state.editor.document.fields.lines));
+    for (const estimate of state.editor.source?.estimates || window.CeasefireEstimates?.list?.() || [{
       id: "estimate-1",
       name: "Current estimate"
     }]) {
@@ -630,6 +718,7 @@
     }
   }
   async function capturedEstimates(options) {
+    if (state.editor?.source) return {estimates: state.editor.source.estimates};
     if (!window.CeasefireEstimates?.capture) throw new Error("The project estimate workspace is unavailable.");
     return window.CeasefireEstimates.capture(options);
   }
@@ -646,7 +735,7 @@
       if (editor.derivedEstimates.get(id)?.fingerprint !== fingerprint) missing.push({id, fingerprint});
     }
     if (missing.length) {
-      const pending = request("derive", {workspace_id: workspace, ...captured, selected_ids: missing.map(item => item.id)});
+      const pending = documentRequest("derive", {workspace_id: workspace, ...captured, selected_ids: missing.map(item => item.id)}, editor.source);
       for (const {id, fingerprint} of missing) {
         const cached = {fingerprint};
         cached.result = pending.then(result => {
@@ -679,7 +768,7 @@
     try {
       const captured = await capturedEstimates({readOnly:true});
       if (!current()) return;
-      const derived = await deriveCaptured(editor, workspace, captured, editor.document.fields.lines.map(line => line.estimate_id));
+      const derived = await deriveCaptured(editor, workspace, captured, linkedIds(editor.document.fields.lines));
       if (!current()) return;
       editor.scopeTables = derived.scope_tables;
       renderScope();
@@ -703,6 +792,7 @@
       if (editor !== state.editor || workspace !== state.workspace || workspace !== currentWorkspace() || context !== window.CeasefireProject?.runtimeContext?.()) return;
       const fields = editor.document.fields,
         previous = new Map(fields.lines.map(line => [line.estimate_id, line]));
+      const customLines = fields.lines.filter(line => !line.estimate_id);
       fields.lines = derived.lines.map(line => ({
         ...line,
         size: "",
@@ -711,7 +801,7 @@
           description: previous.get(line.estimate_id).description,
           quantity: previous.get(line.estimate_id).quantity
         } : {})
-      }));
+      })).concat(customLines);
       fields.scope_tables = derived.scope_tables;
       editor.scopeTables = derived.scope_tables;
       fields.sources = derived.sources;
@@ -776,9 +866,16 @@
       }, "number");
       price.min = "-1000000000";
       price.step = "any";
-      price.readOnly = state.kind === "quote";
+      price.readOnly = state.kind === "quote" && !!line.estimate_id;
       unit.append(price);
       row.append(description, quantity, unit, total);
+      if (state.kind === "quote" && !line.estimate_id) {
+        description.append(button("Remove row", () => {
+          fields.lines.splice(index, 1);
+          markDirty();
+          renderLines();
+        }));
+      }
       if (state.kind === "purchase_order") {
         const size = node("td"),
           comments = node("td"),
@@ -856,7 +953,7 @@
   function setDisabled(disabled) {
     root()?.querySelectorAll(".commercial-editor button,.commercial-editor input,.commercial-editor textarea,.commercial-editor select").forEach(control => control.disabled = disabled);
     root()?.querySelectorAll(".commercial-rich-input").forEach(control => control.contentEditable = String(!disabled));
-    if (!disabled && state.kind === "work_order" && state.editor?.document.version > 0 && state.editor.document.fields.order.work_order_reference) {
+    if (!disabled && state.kind === "work_order" && (state.editor?.linkedQuote || (state.editor?.document.version > 0 && state.editor.document.fields.order.work_order_reference))) {
       const linked = root()?.querySelector('[data-order-link="quote_id"]');
       if (linked) linked.disabled = true;
       const number = root()?.querySelector('input[aria-label="Project number"]');
@@ -865,7 +962,7 @@
   }
   async function persist(captured) {
     const document = state.editor.document;
-    const saved = await request("save", {
+    const saved = await documentRequest("save", {
       workspace_id: state.workspace,
       id: document.id,
       version: document.version,
@@ -873,10 +970,10 @@
       status: document.status,
       fields: document.fields,
       ...captured
-    });
+    }, state.editor.source);
     adoptSaved(saved);
     state.dirty = false;
-    changed();
+    if (!state.editor.source) changed();
     await load();
     return saved;
   }
@@ -901,7 +998,8 @@
     try {
       const captured = state.kind === "quote" ? await capturedEstimates() : {};
       await persist(captured);
-      message("Document saved. Save the project to keep its portable copy.");
+      const inFile = state.editor.source || (state.kind === "quote" || state.editor.linkedQuote) && await saveActiveProject();
+      message(inFile ? "Document saved. Its linked project file is updated." : "Document saved. Save the project to keep its portable copy.");
     } catch (error) {
       message(error.message, true);
     } finally {
@@ -926,7 +1024,8 @@
           ...captured
         };
       }
-      const result = await window.CeasefireDownloads.save("/api/commercial/issue", state.editor.pendingIssue, {
+      const source = state.editor.source;
+      const result = source ? await documentRequest("issue", state.editor.pendingIssue, source) : await window.CeasefireDownloads.save("/api/commercial/issue", state.editor.pendingIssue, {
         button: root().querySelector(".commercial-editor-actions button:last-child")
       });
       if (result?.cancelled) {
@@ -934,9 +1033,9 @@
         return;
       }
       state.editor.pendingIssue = null;
-      changed();
+      if (!source) changed();
       await load();
-      const latest = state.model.documents.find(document => document.id === state.editor.document.id);
+      const latest = source ? result.document : state.model.documents.find(document => document.id === state.editor.document.id);
       if (latest) adoptSaved(copy(latest));
       else renderBoard();
       message(`PDF saved as ${result?.filename || latest?.last_number || "the numbered document"}.`);
@@ -951,7 +1050,7 @@
     }
   }
   async function completeProjectSnapshot() {
-    if (state.busy || state.dirty) throw new Error("Save or discard commercial document edits before saving the project.");
+    if ((state.busy && !state.syncingProject) || state.dirty) throw new Error("Save or discard commercial document edits before saving the project.");
     const workspace = currentWorkspace();
     if (!workspace) return null;
     const result = await request(`state?workspace=${encodeURIComponent(workspace)}`);

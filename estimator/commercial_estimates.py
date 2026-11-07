@@ -12,6 +12,7 @@ import math
 
 from .calculator_report import project_calculator_report, calculator_schedule_table
 from .catalog import ValidationError
+from .commercial_documents import linked_estimate_ids
 from .edition import require_project_edition
 from .penetration_calculator import calculate as calculate_penetration, definition
 from .penetration_report import penetration_schedule_table
@@ -62,7 +63,7 @@ def derive_estimates(store, body, *, edition='full', company=None, library=None,
         lines = fields.get('lines', [])
         if not isinstance(lines, list) or any(not isinstance(line, dict) for line in lines):
             raise ValidationError('Choose the estimates included in the Quote Summary.')
-        selected = [line.get('estimate_id') for line in lines]
+        selected = linked_estimate_ids(lines)
     if (not isinstance(selected, list) or any(not isinstance(identity, str) for identity in selected)
             or len(set(selected)) != len(selected) or any(identity not in available for identity in selected)):
         raise ValidationError('Choose each linked estimate once from the current project.')

@@ -46,7 +46,7 @@ async function theme(id) { for (let index = 0; index < 5 && await page.locator('
   if (standard) fs.writeFileSync(path.join(output, 'dialog-mode.json'), '{}');
   const save = page.waitForResponse(response => new URL(response.url()).pathname === '/api/project/save-as');
   await clickProjectControl(page, 'Save'); assert.equal((await save).status(), 200); await idle();
-  const projectFile = standard ? path.join(output, 'standard-project.cf.json') : info.project;
+  const projectFile = standard ? info.saved : info.project;
   const savedBytes = fs.readFileSync(projectFile), before = await snapshot();
   await page.getByRole('button', { name: 'Help', exact: true }).click();
   const glossary = page.locator('.help-glossary'); await expect(glossary.getByRole('heading', { name: 'Button symbols, functions and shortcuts', exact: true })).toBeVisible();

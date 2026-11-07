@@ -127,6 +127,19 @@ class UnfiledRecoveryTests(unittest.TestCase):
         filed, = register(lib)
         self.assertEqual((filed['source_path'], filed['status']), (str(path), 'Draft'))
 
+    def test_transient_read_failure_after_replace_cannot_drop_an_acknowledged_edit(self):
+        lib, card, path = self.interrupted(True)
+        native_open = os.open
+        def locked(name, *args, **kwargs):
+            if Path(name) == path:
+                raise PermissionError('File is temporarily unavailable')
+            return native_open(name, *args, **kwargs)
+        with patch('estimator.project_library.os.open', side_effect=locked):
+            with self.assertRaises(CommercialConflict):
+                SavedCommercial(lib).perform('status', card, CommercialHTTP(lib.commercial).execute)
+        filed, = register(lib)
+        self.assertEqual((filed['source_path'], filed['status']), (str(path), 'Draft'))
+
     def test_exit_before_replace_retains_original_local_card_and_edits(self):
         lib, card, path = self.interrupted(False)
         self.assertFalse(path.exists())

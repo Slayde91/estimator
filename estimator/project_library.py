@@ -1105,7 +1105,7 @@ class ProjectLibrary:
                 captured = self._publish_takeoffs(captured, path)
                 payload = export_project(self.store, captured, edition=self.edition)
                 project = load_project_bytes(self.store, payload, edition=self.edition)
-            with self._commercial_publication(request, captured, selected_path, payload):
+            with self._commercial_publication(request, captured, selection, payload):
                 path, info = _atomic_write(selection, payload)
             warning = self._saved_takeoff_source(request, captured, path)
             del self._save_targets[token]
@@ -1146,14 +1146,15 @@ class ProjectLibrary:
         return metadata
 
     @contextmanager
-    def _commercial_publication(self, request, captured, path, payload):
+    def _commercial_publication(self, request, captured, selection, payload):
         workspace = request.get('certifications', {}).get('workspace_id')
         if not self.commercial or not workspace:
             yield
             return
         self.recover_commercial_publications()
+        path = _project_save_path(selection)
         digest = hashlib.sha256(payload).hexdigest()
-        self.commercial.unfiled.prepare_publication(workspace, path, digest)
+        self.commercial.unfiled.prepare_publication(workspace, path, digest, (selection.fingerprint or {}).get('sha256', ''))
         replaced = False
         try:
             with self.commercial.publishing(workspace, captured.get('commercial_documents')):
@@ -1434,7 +1435,7 @@ class ProjectLibrary:
                     project = load_project_bytes(self.store, payload, edition=self.edition)
                 if ticket:
                     self.project_details.prepare(ticket['id'], selected_path, payload)
-                with self._commercial_publication(request, captured, selected_path, payload):
+                with self._commercial_publication(request, captured, selection, payload):
                     path, saved_info = _atomic_write(selection, payload)
                 if ticket:
                     self.project_details.finish(ticket['id'])

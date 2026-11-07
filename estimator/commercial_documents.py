@@ -694,6 +694,9 @@ class CommercialDocuments:
 
     @staticmethod
     def _audit(db, workspace, identity, action, before=None, after=None):
+        # A confirmed local edit supersedes a pending file image from before
+        # a failed rename. Those stale bytes can no longer claim this document.
+        db.execute('DELETE FROM local_commercial_publications WHERE workspace=?', (workspace,))
         db.execute('INSERT INTO commercial_audit(workspace,document_id,action,before_data,after_data,created_at) VALUES(?,?,?,?,?,?)',
                    (workspace, identity, action, _json(before) if before else None, _json(after) if after else None, datetime.now(timezone.utc).isoformat()))
 
@@ -831,7 +834,7 @@ class CommercialDocuments:
             db.execute('BEGIN IMMEDIATE')
             row = db.execute('SELECT filed FROM local_commercial_owners WHERE workspace=?', (workspace,)).fetchone()
             if row and not row['filed']:
-                project = self._workspace(db, workspace)
+                project = self.certifications.project_id(workspace)
                 if snapshot is None or self._snapshot(db, workspace, project)['documents'] != snapshot['documents']:
                     raise CommercialConflict('Commercial documents changed during this project save. Save the project again.')
             yield

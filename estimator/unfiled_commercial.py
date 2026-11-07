@@ -4,6 +4,7 @@ from contextvars import ContextVar
 from hashlib import sha256
 import base64
 import json
+from pathlib import Path
 import secrets
 import zlib
 
@@ -41,7 +42,7 @@ class UnfiledCommercial:
                 workspace TEXT NOT NULL, id TEXT NOT NULL, estimates BLOB,
                 PRIMARY KEY(workspace,id));
             CREATE TABLE IF NOT EXISTS local_commercial_publications (
-                workspace TEXT PRIMARY KEY, path TEXT NOT NULL, digest TEXT NOT NULL);
+                workspace TEXT PRIMARY KEY, path TEXT NOT NULL, digest TEXT NOT NULL, prior_digest TEXT NOT NULL);
             CREATE TRIGGER IF NOT EXISTS local_commercial_edit AFTER UPDATE ON commercial_drafts
                 WHEN EXISTS (SELECT 1 FROM local_commercial_documents WHERE workspace=NEW.workspace AND id=NEW.id)
                 BEGIN UPDATE local_commercial_owners SET generation=generation+1 WHERE workspace=NEW.workspace; END;
@@ -52,6 +53,8 @@ class UnfiledCommercial:
                     DELETE FROM local_commercial_documents WHERE workspace=OLD.workspace AND id=OLD.id;
                 END;
         """)
+        if 'prior_digest' not in {column['name'] for column in db.execute('PRAGMA table_info(local_commercial_publications)')}:
+            db.execute("ALTER TABLE local_commercial_publications ADD COLUMN prior_digest TEXT NOT NULL DEFAULT 'unknown'")
 
     def enroll(self, db, workspace, identity, captured):
         db.execute('INSERT OR IGNORE INTO local_commercial_owners(workspace,token) VALUES (?,?)',
@@ -75,12 +78,14 @@ class UnfiledCommercial:
         db.execute('DELETE FROM local_commercial_documents WHERE workspace=?', (workspace,))
         db.execute('DELETE FROM local_commercial_publications WHERE workspace=?', (workspace,))
 
-    def prepare_publication(self, workspace, path, digest):
+    def prepare_publication(self, workspace, path, digest, prior_digest):
         with self.service._connect() as db:
-            db.execute("""INSERT INTO local_commercial_publications(workspace,path,digest)
-                SELECT workspace,?,? FROM local_commercial_owners WHERE workspace=? AND filed=0
-                ON CONFLICT(workspace) DO UPDATE SET path=excluded.path,digest=excluded.digest""",
-                (str(path), digest, workspace))
+            db.execute('BEGIN IMMEDIATE')
+            self._check_pending(db, workspace)
+            db.execute("""INSERT INTO local_commercial_publications(workspace,path,digest,prior_digest)
+                SELECT workspace,?,?,? FROM local_commercial_owners WHERE workspace=? AND filed=0
+                ON CONFLICT(workspace) DO UPDATE SET path=excluded.path,digest=excluded.digest,prior_digest=excluded.prior_digest""",
+                (str(path), digest, prior_digest, workspace))
 
     def recover_publications(self, verify_and_register):
         with self.service._connect() as db:
@@ -120,27 +125,41 @@ class UnfiledCommercial:
     def verified_project(self, db, workspace):
         # Only this request's internal adapter may reopen a durable commercial
         # owner after the interactive certificate session expires or restarts.
+        self._check_pending(db, workspace)
         source = self._access.get()
         if source is not None:
             owner = self._owner(db, source)
             if owner['workspace'] != workspace:
                 raise CommercialConflict(STALE)
-            # The request may already be in flight when another process dies
-            # between replacing the file and retiring this SQLite owner. Check
-            # the committed bytes again inside each document write transaction.
-            pending = db.execute('SELECT path,digest FROM local_commercial_publications WHERE workspace=?',
-                                 (workspace,)).fetchone()
-            if pending:
-                from .project_library import _read_file
-                try:
-                    contents, _ = _read_file(pending['path'])
-                except (ValidationError, OSError):
-                    pass
-                else:
-                    if sha256(contents).hexdigest() == pending['digest']:
-                        raise CommercialConflict(STALE)
             return owner['project_id']
         return None
+
+    @staticmethod
+    def _check_pending(db, workspace):
+        # A request may be in flight when the publishing process dies. Check
+        # the native selection again inside each document write transaction.
+        pending = db.execute('SELECT path,digest,prior_digest FROM local_commercial_publications WHERE workspace=?',
+                             (workspace,)).fetchone()
+        if not pending:
+            return
+        from .project_library import _directory, _read_file
+        path = Path(pending['path'])
+        unavailable = 'The project save destination cannot be verified. Restore access to its folder and reopen the board.'
+        try:
+            _directory(path.parent)
+            try:
+                path.lstat()
+            except FileNotFoundError:
+                actual = ''
+            else:
+                contents, _ = _read_file(path)
+                actual = sha256(contents).hexdigest()
+        except (ValidationError, OSError) as error:
+            raise CommercialConflict(unavailable) from error
+        if actual == pending['digest']:
+            raise CommercialConflict(STALE)
+        if actual != pending['prior_digest']:
+            raise CommercialConflict(unavailable)
 
     @contextmanager
     def _authorized(self, source):

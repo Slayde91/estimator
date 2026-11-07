@@ -86,7 +86,10 @@
       p.maxLength = 12; p.pattern = '[A-Za-z]{1,12}'; p.required = true; p.value = settings[kind].prefix;
       s.type = 'number'; s.min = 1; s.max = 9999999999; s.step = 1; s.required = true; s.value = settings[kind].start_number;
       p.setAttribute('aria-label', label + ' prefix'); s.setAttribute('aria-label', label + ' starting number');
-      row.insertCell().append(p); row.insertCell().append(s); row.insertCell().textContent = settings[kind].next_reference;
+      row.insertCell().append(p); row.insertCell().append(s);
+      const reference = row.insertCell();
+      if (settings[kind].exhausted) text(reference, 'Sequence exhausted. Choose another prefix.');
+      else reference.textContent = settings[kind].next_reference;
       fields.set(kind, {p,s});
     }
   }

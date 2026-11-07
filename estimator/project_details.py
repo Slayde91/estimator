@@ -155,13 +155,17 @@ class ProjectDetails:
 
     def settings(self):
         with self.connect() as db:
-            row = db.execute("SELECT prefix,start_number FROM preferences WHERE id=1").fetchone()
-            sequence = db.execute("SELECT next_number FROM sequences WHERE prefix=?", (row["prefix"],)).fetchone()
-            candidate = max(row["start_number"], sequence[0] if sequence else 1)
-            reserved = {number for record in db.execute("SELECT numbers_json FROM saves WHERE state IN ('reserved','prepared')") for number in json.loads(record[0]).values()}
-            while f'{row["prefix"]}-{candidate:05d}' in reserved or db.execute("SELECT 1 FROM occupied WHERE number=?", (f'{row["prefix"]}-{candidate:05d}'.casefold(),)).fetchone():
-                candidate += 1
-            return dict(row) | {"next_number": candidate, "next_reference": f'{row["prefix"]}-{candidate:05d}'}
+            return self.settings_from_connection(db)
+
+    @staticmethod
+    def settings_from_connection(db, schema=''):
+        prefix, start = db.execute(f"SELECT prefix,start_number FROM {schema}preferences WHERE id=1").fetchone()
+        sequence = db.execute(f"SELECT next_number FROM {schema}sequences WHERE prefix=?", (prefix,)).fetchone()
+        candidate = max(start, sequence[0] if sequence else 1)
+        reserved = {number for record in db.execute(f"SELECT numbers_json FROM {schema}saves WHERE state IN ('reserved','prepared')") for number in json.loads(record[0]).values()}
+        while f'{prefix}-{candidate:05d}' in reserved or db.execute(f"SELECT 1 FROM {schema}occupied WHERE number=?", (f'{prefix}-{candidate:05d}'.casefold(),)).fetchone():
+            candidate += 1
+        return {"prefix": prefix, "start_number": start, "next_number": candidate, "next_reference": f'{prefix}-{candidate:05d}'}
 
     @staticmethod
     def validated_settings(value):

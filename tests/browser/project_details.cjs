@@ -45,6 +45,15 @@ async function settings(prefix,start){await page.locator('nav [data-view="settin
  await expect(series.locator('tr').filter({hasText:'Purchase Orders'})).toContainText('PO-01');
  await estimate();await page.locator('nav [data-view="settings"]').click();
  await expect(series.getByLabel('Work Orders prefix',{exact:true})).toHaveValue('JOB');
+ // Exhaustion must leave Settings usable so the owner can choose a new series.
+ const exhaust=spawnSync(python,['-c',"import sqlite3,sys; from contextlib import closing; from pathlib import Path\nwith closing(sqlite3.connect(Path(sys.argv[1])/'qa-document-numbers.sqlite3')) as db, db:\n db.execute(\"INSERT INTO series VALUES('quote_short','Q',9999999999) ON CONFLICT(kind,prefix) DO UPDATE SET high=excluded.high\")",output],{cwd:root,encoding:'utf8',windowsHide:true});
+ assert.equal(exhaust.status,0,exhaust.stderr);
+ await page.locator('nav [data-view="home"]').click();await page.locator('nav [data-view="settings"]').click();
+ await expect(series.locator('tr[data-document-kind="quote"]')).toContainText('Sequence exhausted. Choose another prefix.');
+ await expect(series.getByLabel('Quotes prefix',{exact:true})).toBeEnabled();
+ await series.getByLabel('Quotes prefix',{exact:true}).fill('QT');
+ await series.getByRole('button',{name:'Save document numbering',exact:true}).click();
+ await expect(series.locator('tr[data-document-kind="quote"]')).toContainText('QT-01');
  await page.screenshot({path:path.join(output,'project-number-settings.png'),fullPage:true});assert.deepEqual(errors,[]);
  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,first:first.project.estimate.project_no,second:second.project.estimate.project_no,errors},null,2));console.log(`PASS project details: ${output}`);
 })().catch(async error=>{console.error(error);if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});fs.writeFileSync(path.join(output,'failure.txt'),String(error.stack));process.exitCode=1;}).finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);if(browser)await browser.close();server.kill();});

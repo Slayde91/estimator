@@ -61,5 +61,26 @@
     "Hay cambios sin guardar. Cerrar sin guardar los descarta. Siga editando para guardarlos primero.",
     "توجد تغييرات غير محفوظة. سيؤدي الإغلاق دون حفظ إلى تجاهلها. تابع التحرير لحفظها أولاً.",
     "มีการเปลี่ยนแปลงที่ยังไม่บันทึก การปิดโดยไม่บันทึกจะละทิ้งการเปลี่ยนแปลง แก้ไขต่อเพื่อบันทึกก่อน"
+  ],
+  "Sequence exhausted. Choose another prefix.": [
+    "编号序列已用尽。请选择其他前缀。",
+    "संख्या क्रम समाप्त हो गया है। दूसरा उपसर्ग चुनें।",
+    "Secuencia agotada. Elija otro prefijo.",
+    "نفد تسلسل الأرقام. اختر بادئة أخرى.",
+    "ลำดับหมายเลขเต็มแล้ว โปรดเลือกคำนำหน้าอื่น"
+  ],
+  "Numbering saved. Later edits remain unsaved.": [
+    "编号设置已保存。后续编辑尚未保存。",
+    "क्रमांकन सहेजा गया। बाद के बदलाव अभी सहेजे नहीं गए हैं।",
+    "Numeración guardada. Los cambios posteriores siguen sin guardar.",
+    "حُفظت إعدادات الترقيم. التعديلات اللاحقة لم تُحفظ.",
+    "บันทึกการตั้งค่าหมายเลขแล้ว การแก้ไขภายหลังยังไม่ถูกบันทึก"
+  ],
+  "Numbering settings could not be loaded.": [
+    "无法加载编号设置。",
+    "क्रमांकन सेटिंग लोड नहीं हो सकीं।",
+    "No se pudieron cargar los ajustes de numeración.",
+    "تعذّر تحميل إعدادات الترقيم.",
+    "ไม่สามารถโหลดการตั้งค่าหมายเลขได้"
   ]
 }

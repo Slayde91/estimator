@@ -1,3 +1,4 @@
+from contextlib import closing
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from io import BytesIO
@@ -143,6 +144,28 @@ class DocumentNumberingTests(unittest.TestCase):
         self.assertEqual(self.issue(self.order('quote'))['number'],'Q-100001')
 
 
+    def test_counter_only_legacy_history_reserves_the_six_digit_overlap(self):
+        with self.commercial._connect() as db:
+            self.numbers.attach(db)
+            self.numbers.observe(db,'quote','Q',200000)
+        self.configure(quote=('Q',100000))
+        self.assertEqual(self.numbers.settings()['quote']['next_reference'],'Q-200001')
+        self.assertEqual(self.issue(self.order('quote'))['number'],'Q-200001')
+
+    def test_concurrent_short_quote_issues_and_exact_retries_use_distinct_numbers(self):
+        quotes = [self.order('quote') for _ in range(3)]
+        requests = [uid() for _ in quotes]
+        def issue(pair):
+            quote, request = pair
+            return self.commercial.issue(self.workspace,quote['id'],quote['version'],request)
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            issued=list(pool.map(issue,zip(quotes,requests)))
+        self.assertEqual({row['number'] for row in issued},{'Q-01','Q-02','Q-03'})
+        for pair,result in zip(zip(quotes,requests),issued):
+            replay=issue(pair)
+            self.assertEqual((replay['number'],replay['pdf']),(result['number'],result['pdf']))
+        self.assertEqual(self.numbers.settings()['quote']['next_reference'],'Q-04')
+
     def test_folder_migration_is_repeatable_preserves_content_and_updates_linked_po(self):
         folder = self.root / 'projects'; folder.mkdir()
         self.store.set_project_folder(folder)
@@ -225,4 +248,55 @@ class CombinedNumberingTests(unittest.TestCase):
         values['project']['prefix'] = 'SITE'; values['project']['start_number'] = 42
         saved = self.numbers.save_combined_settings(self.projects,values)
         self.assertEqual(saved['project']['next_reference'],'SITE-00042')
+        self.assertEqual(saved['documents']['quote']['next_reference'],'QT-01')
+
+    def test_combined_get_holds_one_snapshot_across_concurrent_save(self):
+        from threading import Event
+        old = self.numbers.combined_settings(self.projects)
+        values = self.values(); values['project']['prefix'] = 'SITE'; values['documents']['quote']['prefix'] = 'QT'
+        original = self.projects.settings_from_connection
+        started = Event(); futures = []; scheduled = False
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            def save():
+                started.set()
+                return self.numbers.save_combined_settings(self.projects,values)
+            def project_read(db,schema=''):
+                nonlocal scheduled
+                self.assertTrue(db.in_transaction)
+                value = original(db,schema)
+                if not scheduled:
+                    scheduled = True; futures.append(pool.submit(save))
+                    self.assertTrue(started.wait(5))
+                    self.assertFalse(futures[0].done())
+                return value
+            with patch.object(self.projects,'settings_from_connection',side_effect=project_read):
+                observed = self.numbers.combined_settings(self.projects)
+                saved = futures[0].result(timeout=10)
+        self.assertEqual(observed,old)
+        self.assertEqual((saved['project']['prefix'],saved['documents']['quote']['prefix']),('SITE','QT'))
+
+    def test_save_response_uses_the_write_transaction_snapshot(self):
+        original=self.numbers._combined_settings; transactions=[]
+        def capture(db,projects):
+            transactions.append(db.in_transaction)
+            return original(db,projects)
+        values=self.values();values['project']['prefix']='ABC';values['documents']['quote']['prefix']='QT'
+        with patch.object(self.numbers,'_combined_settings',side_effect=capture):
+            saved=self.numbers.save_combined_settings(self.projects,values)
+        self.assertEqual(transactions,[True])
+        self.assertEqual((saved['project']['prefix'],saved['documents']['quote']['prefix']),('ABC','QT'))
+
+    def test_exhausted_preview_stays_editable_and_new_prefix_recovers(self):
+        from estimator.document_numbers import LIMIT
+        with closing(sqlite3.connect(self.numbers.path)) as db, db:
+            db.execute("INSERT INTO series VALUES('quote_short','Q',?)",(LIMIT,))
+        exhausted=self.numbers.combined_settings(self.projects)
+        self.assertEqual(exhausted['documents']['quote']['next_reference'],'')
+        self.assertTrue(exhausted['documents']['quote']['exhausted'])
+        with closing(sqlite3.connect(Path(self.temp.name)/'owner.sqlite3')) as db, db:
+            self.numbers.attach(db);self.numbers.initialize_history(db)
+            with self.assertRaisesRegex(ValidationError,'exhausted'):
+                self.numbers.assign(db,'quote','owner')
+        values=self.values();values['documents']['quote']['prefix']='QT'
+        saved=self.numbers.save_combined_settings(self.projects,values)
         self.assertEqual(saved['documents']['quote']['next_reference'],'QT-01')

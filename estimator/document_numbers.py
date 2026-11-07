@@ -79,9 +79,22 @@ class DocumentNumbers:
 
     def settings(self):
         with closing(sqlite3.connect(self.path, timeout=30)) as db:
-            return {k: {'prefix': p, 'start_number': s, 'next_reference': self._next_reference(db, '', k, p, s, h)[1]}
-                    for k,p,s,h in db.execute('SELECT s.kind,s.prefix,s.start,COALESCE(n.high,0) FROM settings s '
-                        "LEFT JOIN series n ON n.kind=CASE WHEN s.kind='quote' THEN 'quote_short' ELSE s.kind END AND n.prefix=s.prefix")}
+            return self._settings(db)
+
+    @classmethod
+    def _settings(cls, db, schema=''):
+        values = {}
+        for kind, prefix, start, high in db.execute(f'SELECT s.kind,s.prefix,s.start,COALESCE(n.high,0) FROM {schema}settings s '
+                f"LEFT JOIN {schema}series n ON n.kind=CASE WHEN s.kind='quote' THEN 'quote_short' ELSE s.kind END AND n.prefix=s.prefix"):
+            value = {'prefix': prefix, 'start_number': start}
+            try:
+                value['next_reference'] = cls._next_reference(db, schema, kind, prefix, start, high)[1]
+            except ValidationError:
+                # Settings must stay editable after a series is exhausted.
+                # Only allocation fails; a new prefix can recover normally.
+                value.update(next_reference='', exhausted=True)
+            values[kind] = value
+        return values
 
     @staticmethod
     def _next_reference(db, schema, kind, prefix, start, high):
@@ -124,7 +137,13 @@ class DocumentNumbers:
         return self.settings()
 
     def combined_settings(self, projects):
-        return {'project': projects.settings(), 'documents': self.settings()}
+        with closing(sqlite3.connect(self.path, timeout=30)) as db, db:
+            db.execute('ATTACH DATABASE ? AS projectbook', (str(projects.path),))
+            db.execute('BEGIN')
+            return self._combined_settings(db, projects)
+
+    def _combined_settings(self, db, projects):
+        return {'project': projects.settings_from_connection(db, 'projectbook.'), 'documents': self._settings(db)}
 
     def save_combined_settings(self, projects, value):
         if not isinstance(value, dict) or set(value) != {'project', 'documents'}:
@@ -140,7 +159,8 @@ class DocumentNumbers:
             db.executemany('UPDATE settings SET prefix=?,start=? WHERE kind=?', rows)
             db.execute('UPDATE projectbook.preferences SET prefix=?,start_number=? WHERE id=1',
                        (project_prefix, project_start))
-        return self.combined_settings(projects)
+            saved = self._combined_settings(db, projects)
+        return saved
 
     @staticmethod
     def observe(db, kind, prefix, number):

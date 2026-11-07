@@ -12,6 +12,7 @@ from estimator.certification import CertificationService
 from estimator.certification_projects import CertificationProjects
 from estimator.commercial_documents import CommercialConflict, CommercialDocuments, default_fields
 from estimator.commercial_http import CommercialHTTP
+from estimator.commercial_sources import CommercialSources, source_id
 from estimator.project_documentation import ProjectDocumentation
 from estimator.project_file import export_project
 from estimator.project_library import ProjectLibrary
@@ -21,6 +22,24 @@ from test_certification import pdf
 
 
 class SavedQuoteTests(unittest.TestCase):
+    def test_existing_commercial_file_registry_moves_out_of_catalog(self):
+        with tempfile.TemporaryDirectory() as folder:
+            catalog = Store(Path(folder) / 'old.sqlite3')
+            path = str(Path(folder) / 'original.cf.json')
+            project = str(uuid.uuid4())
+            identity = source_id(path)
+            with catalog.connect() as db:
+                db.execute('CREATE TABLE commercial_source_files(id,path,project,title,deleted)')
+                db.execute('INSERT INTO commercial_source_files VALUES(?,?,?,?,0)', (identity, path, project, 'Original'))
+                db.execute('CREATE TABLE commercial_source_aliases(alias,source_id)')
+                db.execute('INSERT INTO commercial_source_aliases VALUES(?,?)', ('earlier-id', identity))
+            registry = CommercialSources(catalog, None)
+            self.assertEqual(registry.resolve('earlier-id'), (path, project))
+            registry.delete(path)
+            self.assertIsNone(CommercialSources(catalog, None).resolve(identity))
+            with catalog.connect() as db:
+                self.assertEqual(db.execute('SELECT deleted FROM commercial_source_files').fetchone(), (0,))
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)

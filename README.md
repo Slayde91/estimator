@@ -75,9 +75,10 @@ corresponding page, choose **Document → Export Template**, fill in the XLSX an
 choose **Import Template** on the same page.
 
 In **Projects**, choose the estimate you want before opening a project. From the
-estimate toolbar you can create a Quote or a SWMS. The **Quotes** board includes
-quotes from saved files inside the linked projects folder; editing a quote keeps
-it in its owning project without switching the estimate you are working on.
+estimate toolbar you can create a Quote or a SWMS. The **Quotes**, **Work Orders** and
+**Purchase Orders** boards show documents across saved projects. You can edit a
+card or change its status while another project is open. If a project file has
+moved, use **Projects → Load** to locate its current copy.
 Use the quote card’s **Create WO** action to link a work order to that quote.
 
 New PDF exports also use bundled Montserrat for all CLASSIFIRE-generated text,
@@ -272,7 +273,7 @@ The Estimator accepts whole-number edits for Access Qty, Sqm/Items, Masking/clea
 
 **Projects**, immediately beside Home, contains saved projects, **Quotes**,
 **Work Orders** and **Purchase Orders**. **Documents** contains **Documentation**,
-**Safe Work Method Statement** and **Certification**. Each header destination
+**SWMS** and **Certification**. Each header destination
 opens its hub first, then returns to its most recently selected subpage in the
 current session. **Scheduler** has its own clock button in the header.
 
@@ -329,9 +330,9 @@ In **Projects**, choose **Link Project Folder**. Only `.cf.json` project files i
 
 Projects appear in a flat list with search, sorting, saved status and an estimate selector. They start in **Draft** and can move through **Review**, **Presented**, **Accepted** and **Lost** using **Status** above the estimate or the project actions. Status saves immediately for a saved project and travels in its `.cf.json` file. Unsaved project status is included when the project is saved. Each row has **Open**, **Edit**, **Delete** and **Browse files** actions. Quotes, Work Orders and Purchase Orders retain their separate Kanban boards. Deleting removes the row and retains its project bytes under a `.ceasefire-deleted-*.json` recovery filename beside its companion documents. Rename that retained file to a `.cf.json` filename to restore it. A changed file must be refreshed or reloaded before a status edit or deletion can proceed.
 
-**Projects** opens **Quotes**, **Work Orders** and **Purchase Orders**. A Quote links selected estimates, uses their Grand Totals as unit prices and includes their Full Schedules in its PDF. Schedule of Rates has editable commercial rates above Scope of Works; its acceptance table appears only in the PDF. These rates do not change Scheduler payroll rules or Quote totals. Allowances and Terms and Conditions support rich text. The supplied quotation provides the default terms, with company details and ABN supplied by Settings. Each new PDF download receives the next number for that document type. Orders have separate status boards and editable review, approval and completion fields. Save the project to retain these documents and their downloaded revision history.
+**Projects** opens **Quotes**, **Work Orders** and **Purchase Orders**. A Quote links selected estimates, uses their Grand Totals as unit prices and includes their Full Schedules in its PDF. Schedule of Rates has editable commercial rates above Scope of Works; its acceptance table appears only in the PDF. These rates do not change Scheduler payroll rules or Quote totals. Allowances and Terms and Conditions support rich text. The supplied quotation provides the default terms, with company details and ABN supplied by Settings. Each new Quote download receives the next Quote number. A Work Order, Purchase Order or SWMS receives its own reference on first save and keeps it across revisions. Orders have separate status boards and editable review, approval and completion fields. Save the project to retain these documents and their downloaded revision history.
 
-Scheduler project choices show Accepted projects and fill their Site Address. Scheduler Settings lets administrators edit overtime rules and configure paid or unpaid automatic breaks, including thresholds, weekdays and repetition. Existing break options start with automatic deductions disabled. The highest applicable pay multiplier is used. Current rules recalculate time-entry totals, with the rule version shown in the result.
+Scheduler project choices show Accepted projects and fill their Site Address. Scheduler Settings lets administrators edit overtime rules and configure paid or unpaid automatic breaks, including thresholds, weekdays and repetition. Existing break options start with automatic deductions disabled. The highest applicable pay multiplier is used. Current rules recalculate time-entry totals, with the rule version shown in the result. **Settings → Application Settings → Time zone** sets the local calendar for the entire organisation. Changing the zone recalculates overtime and penalty rates for completed shifts from their recorded times.
 
 SWMS reviewer and consultation names, positions and drawn signatures are saved as defaults on this computer and reused when creating a statement in another estimate or project. Opening an older statement preserves its recorded people and does not replace the shared defaults. Concurrent edits are checked before saving. New SWMS PDFs use the company details from Settings, red table borders and headers, and page numbers on the left; previously issued PDFs retain their original appearance.
 

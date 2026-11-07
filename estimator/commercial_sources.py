@@ -1,6 +1,8 @@
 """Only native selections and the linked folder can register a commercial owner file."""
+from contextlib import closing, contextmanager
 import hashlib
 import os
+import sqlite3
 from pathlib import Path
 from uuid import UUID
 
@@ -11,11 +13,23 @@ def source_id(path):
 
 class CommercialSources:
     def __init__(self, store, project_details):
-        self.store = store
-        with store.connect() as db:
+        self.path = store.path.with_name(store.path.stem + '-commercial-sources.sqlite3')
+        with self.connect() as db:
             db.execute('''CREATE TABLE IF NOT EXISTS commercial_source_files(
                 id TEXT PRIMARY KEY, path TEXT NOT NULL, project TEXT NOT NULL, title TEXT NOT NULL, deleted INTEGER NOT NULL DEFAULT 0)''')
             db.execute('CREATE TABLE IF NOT EXISTS commercial_source_aliases(alias TEXT PRIMARY KEY, source_id TEXT NOT NULL)')
+            # Earlier local installations stored these two tables in the estimate database.
+            # Copy existing authorizations once; all subsequent register writes go to this file.
+            if not db.execute('PRAGMA user_version').fetchone()[0]:
+                with store.connect() as previous:
+                    tables = {row[0] for row in previous.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+                    if 'commercial_source_files' in tables:
+                        db.executemany('INSERT OR IGNORE INTO commercial_source_files VALUES(?,?,?,?,?)',
+                                       previous.execute('SELECT id,path,project,title,deleted FROM commercial_source_files'))
+                    if 'commercial_source_aliases' in tables:
+                        db.executemany('INSERT OR IGNORE INTO commercial_source_aliases VALUES(?,?)',
+                                       previous.execute('SELECT alias,source_id FROM commercial_source_aliases'))
+                db.execute('PRAGMA user_version=1')
             if project_details:
                 # First-save numbers were already journalled, including the native
                 # destination. Reservations/cancellations never grant file access.
@@ -27,6 +41,11 @@ class CommercialSources:
                         db.execute('INSERT OR IGNORE INTO commercial_source_files VALUES(?,?,?,?,0)',
                                    (source_id(path), path, project, Path(path).name))
 
+    @contextmanager
+    def connect(self):
+        with closing(sqlite3.connect(self.path, timeout=10)) as db, db:
+            yield db
+
     @staticmethod
     def valid(path, project):
         try:
@@ -37,7 +56,7 @@ class CommercialSources:
     def remember(self, files):
         known = [f for f in files if self.valid(f.get('path'), f.get('source_project_id'))]
         if known:
-            with self.store.connect() as db:
+            with self.connect() as db:
                 db.executemany('''INSERT INTO commercial_source_files VALUES(?,?,?,?,0) ON CONFLICT(id) DO UPDATE
                     SET project=excluded.project, title=excluded.title, deleted=0
                     WHERE project<>excluded.project OR title<>excluded.title OR deleted<>0''',
@@ -46,14 +65,14 @@ class CommercialSources:
                     [(f['id'], source_id(f['path'])) for f in known if f.get('id')])
 
     def delete(self, path):
-        with self.store.connect() as db:
+        with self.connect() as db:
             db.execute('UPDATE commercial_source_files SET deleted=1 WHERE id=?', (source_id(path),))
 
     def records(self):
-        with self.store.connect() as db:
+        with self.connect() as db:
             return db.execute('SELECT id,path,project,title,deleted FROM commercial_source_files ORDER BY path').fetchall()
 
     def resolve(self, identifier):
-        with self.store.connect() as db:
+        with self.connect() as db:
             return db.execute('''SELECT path,project FROM commercial_source_files WHERE deleted=0 AND
                 (id=? OR id=(SELECT source_id FROM commercial_source_aliases WHERE alias=?))''', (identifier,identifier)).fetchone()

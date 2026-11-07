@@ -170,6 +170,9 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   assert.ok(pdfText.replace(/\s+/g,'').includes('SCOPE-ORIGINAL-123'));
   assert.ok(pdfText.replace(/\s+/g,'').includes('SCOPE-ADDITIONAL-456'));
   checks.push('quote uses linked estimate totals, edited descriptions/quantities and a new number for each distinct PDF download');
+  await quote.locator('.commercial-lines tbody input').first().fill('3');
+  await save(quote);
+  assert.notEqual(await quoteTotal(),originalTotal,'The saved quote edit has a different total to the issued PDF');
   await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
   await expect(quote.locator('.commercial-card')).toContainText('QA quotation revised');
   await open('work-orders');
@@ -228,6 +231,10 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await purchase.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();
   await expect(purchase.locator('.commercial-card')).toContainText('QA material order');
   checks.push('purchase order supplier, items, GST and PDF');
+  await open('quote');
+  await quote.getByRole('button',{name:'QA quotation revised',exact:true}).click();
+  await download(quote);
+  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
   await idle();
   const saved=JSON.parse(fs.readFileSync(info.project,'utf8'));
   assert.equal(saved.commercial_documents.documents.length,3);
@@ -249,7 +256,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await expect(work.getByLabel('Work order reference',{exact:true})).toHaveValue(assignedReference);
   await expect(cost).toHaveValue(originalTotal);
   await work.getByRole('button',{name:'Back to Work Orders',exact:true}).click();
-  checks.push('legacy saved work order opens with compact reference and its linked quote grand total');
+  checks.push('legacy saved work order opens with compact reference and its original issued quote total after a later issue');
   await open('quote');
   await expect(quote.locator('.commercial-card')).toContainText('QA quotation revised');
   await quote.locator('.commercial-card-menu summary').click();
@@ -299,6 +306,9 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   assert.ok(otherText.includes('Custom commissioning'));
   assert.ok(otherText.includes('$421.50'));
   const otherTotal = await quoteTotal();
+  await quote.locator('.commercial-lines tbody tr').last().locator('input').first().fill('4');
+  await save(quote);
+  assert.notEqual(await quoteTotal(),otherTotal);
   assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),info.project);
   await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
   await otherCard.locator('summary').click();

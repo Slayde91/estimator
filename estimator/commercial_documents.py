@@ -450,6 +450,7 @@ class CommercialDocuments:
                 CREATE TABLE IF NOT EXISTS commercial_sequences (kind TEXT PRIMARY KEY, number INTEGER NOT NULL);
                 CREATE TABLE IF NOT EXISTS commercial_work_order_sequences (project_id TEXT NOT NULL, quote_number TEXT NOT NULL, number INTEGER NOT NULL, PRIMARY KEY(project_id,quote_number));
                 CREATE TABLE IF NOT EXISTS commercial_issued (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, document_id TEXT NOT NULL, request_id TEXT UNIQUE NOT NULL, fingerprint TEXT NOT NULL, number TEXT NOT NULL, filename TEXT NOT NULL, pdf BLOB NOT NULL, document TEXT NOT NULL);
+                CREATE INDEX IF NOT EXISTS commercial_issued_document_number ON commercial_issued(project_id,document_id,number);
                 CREATE TABLE IF NOT EXISTS commercial_audit (sequence INTEGER PRIMARY KEY, workspace TEXT NOT NULL, document_id TEXT NOT NULL, action TEXT NOT NULL, before_data TEXT, after_data TEXT, created_at TEXT NOT NULL);
             ''')
 
@@ -487,9 +488,34 @@ class CommercialDocuments:
             raise CommercialConflict('Commercial documents changed while the project was being saved. Refresh and save again.')
         return snapshot
 
-    def view(self, workspace):
-        snapshot = self.capture(workspace)
-        return {'workspace_id': workspace, 'project_id': snapshot['project_id'], 'documents': snapshot['documents'], 'snapshot': snapshot, 'statuses': STATUSES}
+    @staticmethod
+    def _linked_quote_total(db, workspace, project, quote_id, quote_number):
+        # The receipt fixes the price of this issue even when the draft changes.
+        row = db.execute("SELECT json_extract(document,'$.fields.lines') FROM commercial_issued "
+                         "WHERE project_id=? AND document_id=? AND number=?", (project, quote_id, quote_number)).fetchone()
+        if row is None:
+            # Portable projects may carry the quote draft without the original receipt.
+            row = db.execute("SELECT json_extract(data,'$.fields.lines') FROM commercial_drafts "
+                             "WHERE workspace=? AND id=? AND json_extract(data,'$.kind')='quote' "
+                             "AND json_extract(data,'$.last_number')=?", (workspace, quote_id, quote_number)).fetchone()
+        return totals({'lines': json.loads(row[0])})['grand_total'] if row is not None else ''
+
+    def view(self, workspace, *, include_quote_totals=False):
+        with self._connect() as db:
+            project = self._workspace(db, workspace)
+            snapshot = self._snapshot(db, workspace, project)
+            documents = snapshot['documents']
+            result = {'workspace_id': workspace, 'project_id': project, 'documents': documents, 'snapshot': snapshot, 'statuses': STATUSES}
+            if include_quote_totals:
+                links = {(doc['id'], doc['last_number']) for doc in documents if doc['kind'] == 'quote' and doc['last_number']}
+                for doc in documents:
+                    order = doc['fields']['order']
+                    if doc['kind'] == 'work_order' and order['quote_id'] and not order['estimated_cost']:
+                        links.add((order['quote_id'], order['quote_reference']))
+                result['quote_totals'] = {}
+                for identity, number in sorted(links):
+                    result['quote_totals'].setdefault(identity, {})[number] = self._linked_quote_total(db, workspace, project, identity, number)
+            return result
 
     def restore(self, workspace, snapshot):
         snapshot = validate_commercial_documents(snapshot)
@@ -554,6 +580,8 @@ class CommercialDocuments:
                     _work_order_sequence(fields)
                     if create_retry and not order['estimated_cost']:
                         order['estimated_cost'] = prior['estimated_cost']
+                    elif not prior['estimated_cost'] and not order['estimated_cost']:
+                        order['estimated_cost'] = self._linked_quote_total(db, workspace, project, order['quote_id'], order['quote_reference'])
                 return
             if not order['quote_id']:
                 raise ValidationError('Select an issued Quote before creating a work order.')
@@ -574,7 +602,7 @@ class CommercialDocuments:
             order['quote_reference'] = quote_number
             order['work_order_reference'] = _work_order_prefix(project_no, quote_number) + f'{number:02d}'
             if not order['estimated_cost']:
-                order['estimated_cost'] = totals(quote['fields'])['grand_total']
+                order['estimated_cost'] = self._linked_quote_total(db, workspace, project, quote['id'], quote_number)
             db.execute('INSERT INTO commercial_work_order_sequences VALUES(?,?,?) ON CONFLICT(project_id,quote_number) DO UPDATE SET number=excluded.number', (project, quote_number, number))
         elif kind == 'purchase_order':
             work_order_id = order['work_order_id']
@@ -713,6 +741,10 @@ class CommercialDocuments:
             document = self._record(db, workspace, identity)
             self._version(document, version)
             kind = document['kind']
+            previous = deepcopy(document)
+            order = document['fields']['order']
+            if kind == 'work_order' and order['quote_id'] and not order['estimated_cost']:
+                order['estimated_cost'] = self._linked_quote_total(db, workspace, project, order['quote_id'], order['quote_reference'])
             row = db.execute('SELECT number FROM commercial_sequences WHERE kind=?', (kind,)).fetchone()
             number = (row[0] if row else 0) + 1
             if number > 9999999999:
@@ -728,7 +760,6 @@ class CommercialDocuments:
             pdf = renderer(document, displayed_number, company=company, scope_documents=scopes)
             if not isinstance(pdf, bytes) or not pdf.startswith(b'%PDF-') or len(pdf) > MAX_PDF_BYTES:
                 raise ValidationError('Generated commercial PDF is invalid or exceeds 64 MiB.')
-            previous = deepcopy(document)
             document['last_number'] = label
             document['version'] += 1
             document['updated_at'] = datetime.now(timezone.utc).isoformat()

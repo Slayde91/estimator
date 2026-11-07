@@ -117,6 +117,53 @@ class WorkOrderReferences(unittest.TestCase):
         next_order = self.store.save(portable, self.payload())
         self.assertEqual(next_order['fields']['order']['work_order_reference'], 'CF123Q1-02')
 
+    def test_cost_follows_pinned_issue_through_draft_edits_reissue_and_portable_restore(self):
+        def set_price(document, amount):
+            changed = self.edit(document)
+            changed['fields']['lines'] = [{'description': 'Work', 'quantity': '1', 'unit_price': amount}]
+            return self.store.save(self.workspace, changed)
+
+        quote = set_price(self.quote, '100')
+        issue = self.store.issue(self.workspace, quote['id'], quote['version'], str(uuid.uuid4()))
+        number = issue['number']
+        quote = set_price(issue['document'], '300')
+        # The unissued edit is 330.00 including GST, but the linked issue is 110.00.
+        order = self.store.save(self.workspace, self.payload(quote=quote))
+        self.assertEqual(order['fields']['order']['estimated_cost'], '110.00')
+        new_issue = self.store.issue(self.workspace, quote['id'], quote['version'], str(uuid.uuid4()))
+        snapshot = self.store.capture(self.workspace)
+        blank = next(item for item in snapshot['documents'] if item['id'] == order['id'])
+        blank['fields']['order']['estimated_cost'] = ''
+        reopened = self.projects.add(snapshot['project_id'])
+        self.store.restore(reopened, snapshot)
+        state = self.store.view(reopened, include_quote_totals=True)
+        self.assertEqual(state['quote_totals'][quote['id']], {number: '110.00', new_issue['number']: '330.00'})
+        self.assertEqual(self.store.capture(reopened), snapshot)
+        self.assertEqual(self.store.save(reopened, self.edit(blank))['fields']['order']['estimated_cost'], '110.00')
+        override = self.payload(quote=new_issue['document'])
+        override['fields']['order']['estimated_cost'] = '42.00'
+        self.assertEqual(self.store.save(reopened, override)['fields']['order']['estimated_cost'], '42.00')
+        self.assertEqual(self.store.read_pdf(reopened, issue['id'])[1], issue['pdf'])
+        fresh = self.projects.add(snapshot['project_id'])
+        self.store.restore(fresh, snapshot)
+        order_pdf = self.store.issue(fresh, blank['id'], blank['version'], str(uuid.uuid4()))
+        self.assertEqual(order_pdf['document']['fields']['order']['estimated_cost'], '110.00')
+        self.assertIn('110.00', PdfReader(BytesIO(order_pdf['pdf'])).pages[0].extract_text())
+
+        different_project = self.projects.add()
+        self.store.restore(different_project, {**snapshot, 'project_id': self.projects.project_id(different_project)})
+        state = self.store.view(different_project, include_quote_totals=True)
+        self.assertEqual(state['quote_totals'][quote['id']][number], '')
+
+        imported_projects = Projects(Path(self.temp.name) / 'portable-no-history')
+        workspace = imported_projects.add(snapshot['project_id'])
+        portable = CommercialDocuments(imported_projects)
+        portable.restore(workspace, snapshot)
+        state = portable.view(workspace, include_quote_totals=True)
+        self.assertEqual(state['quote_totals'][quote['id']], {number: '', new_issue['number']: '330.00'})
+        self.assertEqual(portable.save(workspace, self.edit(blank))['fields']['order']['estimated_cost'], '')
+        self.assertEqual(portable.save(workspace, self.payload(quote=new_issue['document']))['fields']['order']['estimated_cost'], '330.00')
+
     def test_concurrent_creates_are_sequential_and_project_scoped(self):
         payloads = [self.payload() for _ in range(8)]
         with ThreadPoolExecutor(max_workers=8) as pool:

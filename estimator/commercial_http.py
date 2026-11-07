@@ -40,7 +40,7 @@ class CommercialHTTP:
                     self.service.certifications.project_id(workspace)
                     result = self.saved.projects.quote_register()
                 elif action == 'state':
-                    result = self.service.view(workspace)
+                    result = self.service.view(workspace, include_quote_totals=True)
                 elif action.startswith('pdf/'):
                     filename, pdf = self.service.read_pdf(workspace, action[4:])
                     handler.send_payload(200, pdf, 'application/pdf', {'Content-Disposition': f'attachment; filename="{filename}"'})

@@ -167,22 +167,20 @@
     const rounded = ((negative ? -amount : amount) + divisor / 2n) / divisor;
     return negative ? -rounded : rounded;
   }
-  function formatCents(value, withCurrency = true) {
-    const amount = value < 0n ? -value : value;
-    const whole = amount / 100n;
-    const dollars = withCurrency ? "$" + whole.toLocaleString("en-AU") : String(whole);
-    return `${value < 0n ? "-" : ""}${dollars}.${String(amount % 100n).padStart(2, "0")}`;
-  }
   function summary(fields) {
     const rows = fields.lines.map(line => roundFraction(scaledDecimal(line.quantity) * scaledDecimal(line.unit_price), 10000000000n));
     const subtotal = rows.reduce((sum, value) => sum + value, 0n);
     const gst = roundFraction(subtotal, 10n);
+    const money = value => {
+      const amount = value < 0n ? -value : value;
+      return `${value < 0n ? "-" : ""}$${(amount / 100n).toLocaleString("en-AU")}.${String(amount % 100n).padStart(2, "0")}`;
+    };
     return {
       rows,
       subtotal,
       gst,
       total: subtotal + gst,
-      money: formatCents
+      money
     };
   }
   function shell(title) {
@@ -375,6 +373,7 @@
         if (state.revision !== revision) return;
         document = opened.document;
         source.estimates = opened.estimates;
+        source.quoteTotals = {[document.id]: {[document.last_number]: opened.quote_total}};
         state.busy = false;
       }
       if (!createWorkOrder) { openEditor(document, source); return; }
@@ -477,6 +476,7 @@
         const eligible = state.model.documents.filter(item => item.kind === "quote" && item.last_number && item.fields.sources?.some(source => source.id === estimateId || source.estimate_id === estimateId));
         if (eligible.length === 1) fields.order.quote_id = eligible[0].id;
         if (state.kind === "work_order") {
+          if (eligible.length === 1) fields.order.quote_reference = eligible[0].last_number;
           fields.order.description = fields.lines.map(line => line.description).join("\n");
         } else {
           fields.order.ship_to_address = fields.details.site_address;
@@ -658,14 +658,15 @@
       : item.kind === "work_order" && item.fields.order.work_order_reference);
     let costControl;
     let costEdited = Boolean(fields.order.estimated_cost);
-    const applyQuoteCost = quote => {
+    const quoteTotals = state.editor.source?.quoteTotals || state.model.quote_totals;
+    const applyQuoteCost = (id, number) => {
       if (costEdited) return;
-      fields.order.estimated_cost = quote ? formatCents(summary(quote.fields).total, false) : "";
+      fields.order.estimated_cost = quoteTotals?.[id]?.[number] || "";
       if (costControl) costControl.value = fields.order.estimated_cost;
     };
     if (isWorkOrder) {
       const quote = choices.find(item => item.id === fields.order.quote_id);
-      if (quote && (!fields.order.quote_reference || fields.order.quote_reference === quote.last_number)) applyQuoteCost(quote);
+      applyQuoteCost(fields.order.quote_id, fields.order.quote_reference || quote?.last_number);
     }
     const linked = node("select");
     const blank = node("option", "", isWorkOrder ? "Select an issued Quote…" : "No Work Order linked");
@@ -694,7 +695,7 @@
       const selected = choices.find(item => item.id === linked.value);
       if (isWorkOrder) {
         fields.order.quote_reference = selected?.last_number || "";
-        applyQuoteCost(selected);
+        applyQuoteCost(linked.value, fields.order.quote_reference);
       } else {
         fields.order.work_order_reference = selected?.fields.order.work_order_reference || "";
         reference.value = fields.order.work_order_reference;

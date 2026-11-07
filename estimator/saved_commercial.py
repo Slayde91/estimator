@@ -66,7 +66,7 @@ class SavedCommercial:
         with self.projects.commercial_file(file_id, revision, find_issued=action == 'issue') as (path, snapshot, actual_revision, commit):
             session = self._session(file_id, actual_revision, snapshot, path)
             workspace = session['workspace']
-            model = self.projects.commercial.view(workspace)
+            model = self.projects.commercial.view(workspace, include_quote_totals=action == 'open')
             details = {key: snapshot['estimate'].get(key, '') for key in ('project_no', 'client', 'site_address')}
             captured = estimate_inputs(snapshot)
             if action == 'open':
@@ -76,7 +76,8 @@ class SavedCommercial:
                 if document is None:
                     raise CommercialConflict('This quote is no longer available. Refresh Quotes.')
                 document['fields']['details'].update(details)
-                return {'document': document, 'details': details,
+                quote_total = model['quote_totals'].get(document['id'], {}).get(document['last_number'], '')
+                return {'document': document, 'details': details, 'quote_total': quote_total,
                         'estimates': [{'id': item['id'], 'name': item['name']} for item in captured['estimates']]}
             if action == 'save':
                 if body.get('kind') not in ('quote', 'work_order'):

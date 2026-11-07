@@ -44,7 +44,7 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
     if(kind === "area-exclusion" && (area.geometry.exclusions.length >= 64 || areaVertexCount(area.geometry) >= 998)) throw new Error("An Area supports at most 64 exclusions and 1,000 total vertices.");
     if (["measure","area"].includes(kind)) measureCalibration(kind);
     const context = activationKey(), calibration = state.calibration, areaVersion=area?.version;
-    await Promise.all([document.fonts.load("12px CeasefireDrawing"), document.fonts.load("700 12px CeasefireDrawing")]);
+    await Promise.all(["12px CeasefireDrawing", "700 12px CeasefireDrawing", "italic 12px CeasefireDrawing", "italic 700 12px CeasefireDrawing"].map(font => document.fonts.load(font)));
     if (generation !== activationGeneration || context !== activationKey() || state.busy || state.modal || state.navigationBusy || !state.viewport) throw new Error("The drawing changed while loading the markup font. Select the tool again.");
     if (["measure","area"].includes(kind) && calibration !== measureCalibration(kind)) throw new Error(`The drawing calibration changed. Select ${X.labels[kind]} again.`);
     if(area && (selected() !== area || area.version !== areaVersion || !currentCalibrations().some(value=>value.id===area.calibration_id && value.uniform_scale === true))) throw new Error("The Area changed. Select it again.");

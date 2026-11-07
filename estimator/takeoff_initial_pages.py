@@ -1,7 +1,6 @@
 """One atomic PDF-only batch, expanded into existing text/signature records."""
 from copy import deepcopy
 import math
-from pathlib import Path
 from uuid import uuid4
 
 from .catalog import ValidationError
@@ -74,12 +73,10 @@ def fitted_signature_box(page, box, ratio, stroke_width):
 
 
 def _fit_text(value, width, height, maximum):
-    import reportlab
     from reportlab.pdfbase import pdfmetrics
-    from reportlab.pdfbase.ttfonts import TTFont
-    font = 'InitialPagesVera'
-    if font not in pdfmetrics.getRegisteredFontNames():
-        pdfmetrics.registerFont(TTFont(font, str(Path(reportlab.__file__).parent / 'fonts/Vera.ttf')))
+    from .pdf_fonts import FONT_REGULAR, register_pdf_fonts
+    register_pdf_fonts()
+    font = FONT_REGULAR
     if any(ord(character) not in pdfmetrics.getFont(font).face.charToGlyph for character in value):
         raise ValidationError('The entered initials contain a character unsupported by the PDF font.')
     padding = min(6, width/8, height/8)

@@ -283,6 +283,7 @@ def export_matrix_pdf(graph, *, company=None):
     from reportlab.platypus import SimpleDocTemplate, Paragraph, LongTable, TableStyle, Spacer
 
     from .report import _company_header, _register_fonts, _table_branding, _INK, _MUTED
+    from .pdf_fonts import FONT_REGULAR, FONT_BOLD
     from .company_settings import company_logo
     _register_fonts()
     logo = company_logo(company)
@@ -291,8 +292,8 @@ def export_matrix_pdf(graph, *, company=None):
     document = SimpleDocTemplate(output, pagesize=landscape(A3), leftMargin=30,
         rightMargin=30, topMargin=92, bottomMargin=36, title='Passive_Fire_Matrix',
         author='CEASEFIRE ESTIMATOR', invariant=True)
-    cell_style = ParagraphStyle('MatrixCell', fontName='Helvetica', fontSize=8, leading=10)
-    header_style = ParagraphStyle('MatrixHeader', parent=cell_style, fontName='Helvetica-Bold', textColor=colors.white)
+    cell_style = ParagraphStyle('MatrixCell', fontName=FONT_REGULAR, fontSize=8, leading=10)
+    header_style = ParagraphStyle('MatrixHeader', parent=cell_style, fontName=FONT_BOLD, textColor=colors.white)
     def cell(value, heading=False):
         text = re.sub(r'\s+', ' ', str(value if value is not None else '')).strip()
         style = header_style if heading else cell_style
@@ -307,11 +308,11 @@ def export_matrix_pdf(graph, *, company=None):
         ('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),6),
         ('RIGHTPADDING',(0,0),(-1,-1),6),('TOPPADDING',(0,0),(-1,-1),7),
         ('BOTTOMPADDING',(0,0),(-1,-1),7)]))
-    title = Paragraph('Passive_Fire_Matrix', ParagraphStyle('MatrixTitle',fontName='Helvetica-Bold',fontSize=18,leading=22))
+    title = Paragraph('Passive_Fire_Matrix', ParagraphStyle('MatrixTitle',fontName=FONT_BOLD,fontSize=18,leading=22))
     def footer(canvas, doc):
         canvas.saveState()
         _company_header(canvas, logo, *doc.pagesize, 30, 'PASSIVE FIRE MATRIX', company=company)
-        canvas.setFont('Helvetica',7)
+        canvas.setFont(FONT_REGULAR,7)
         canvas.setFillColor(_MUTED)
         canvas.drawString(30,18,f"UNAPPROVED DRAFT | {('Service Plans' if graph['version'] == 3 else 'Defect Reports')} | Physical revision {graph['revision']}")
         canvas.drawRightString(doc.pagesize[0]-30,18,f'Page {doc.page}')

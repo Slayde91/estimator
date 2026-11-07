@@ -61,17 +61,24 @@ class QuoteRatesTermsTests(unittest.TestCase):
         fields = default_fields('quote')
         payload = render_commercial_pdf({'kind': 'quote', 'fields': fields}, 'Q-000002', company=DEFAULTS)
         with pdfplumber.open(BytesIO(payload)) as pdf:
-            terms_pages = [page for page in pdf.pages if any('Montserrat' in char['fontname'] for char in page.chars)]
+            starts = [index for index, page in enumerate(pdf.pages) if '-TERMS OF TRADE-' in page.extract_text()]
+            self.assertEqual(len(starts), 1)
+            self.assertGreater(starts[0], 0)
+            terms_pages = pdf.pages[starts[0]:]
             self.assertGreater(len(terms_pages), 2)
-            first = terms_pages[0]
-            body = [char for char in first.chars if 'Montserrat' in char['fontname']]
+            # Company headers and page numbers now use the same font as the
+            # clauses. Isolate the area between the header rule and footer.
+            bodies = [[char for char in page.chars if char['top'] > 78 and char['bottom'] < page.height - 32]
+                      for page in terms_pages]
+            self.assertTrue(all(bodies))
+            body = [char for page_chars in bodies for char in page_chars]
+            self.assertTrue(all('Montserrat' in char['fontname'] for char in body))
             self.assertTrue(all(abs(char['size'] - 9) < .01 for char in body))
-            self.assertTrue(any(char['x0'] < 100 for char in body))
-            self.assertTrue(any(char['x0'] > 303 for char in body))
+            self.assertTrue(any(char['x0'] < 100 for char in bodies[0]))
+            self.assertTrue(any(char['x0'] > 303 for char in bodies[0]))
             self.assertTrue(any('Bold' in char['fontname'] and isinstance(char['non_stroking_color'], tuple)
-                                and all(abs(actual - target) < .00001 for actual, target in zip(char['non_stroking_color'], (189 / 255, 0, 24 / 255))) for char in body))
-            self.assertTrue(all(39 < char['x0'] < char['x1'] < 556 for page in terms_pages
-                                for char in page.chars if 'Montserrat' in char['fontname']))
+                                and all(abs(actual - target) < .00001 for actual, target in zip(char['non_stroking_color'], (189 / 255, 0, 24 / 255))) for char in bodies[0]))
+            self.assertTrue(all(39 < char['x0'] < char['x1'] < 556 and char['top'] > 90 for char in body))
             for page in terms_pages:
                 header = page.crop((0, 0, page.width, 80))
                 for value in [DEFAULTS['name'], *contact_lines(DEFAULTS)]:
@@ -81,15 +88,9 @@ class QuoteRatesTermsTests(unittest.TestCase):
                 self.assertAlmostEqual(header.images[0]['top'], 22)
                 self.assertTrue(any(abs(line['top'] - 78) < .001 and line['width'] > 500 for line in header.lines))
                 self.assertNotIn('QUOTATION', header.extract_text())
-                self.assertTrue(all(char['top'] > 90 for char in page.chars if 'Montserrat' in char['fontname']))
-        # Compare word order using the PDF content stream: visual extraction
-        # would interleave adjacent columns. Hanging labels remain in the text.
-        reader = PdfReader(BytesIO(payload))
-        terms = []
-        for page in reader.pages:
-            page.extract_text(visitor_text=lambda text, cm, tm, font, size:
-                              terms.append(text) if font and 'Montserrat' in str(font.get('/BaseFont', '')) else None)
-        actual = ''.join(terms)
+            # Read characters in content-stream order to keep each column's
+            # clauses and hanging labels together. Every word must be in body.
+            actual = ''.join(char['text'] for char in body)
         expected = unescape(re.sub('<[^>]+>', ' ', fields['terms']))
         normal = lambda value: re.sub(r'\s+', '', value).replace('\u2022', '')
         self.assertEqual(normal(actual).strip('-'), normal(expected).replace('TERMSOFTRADE', '-TERMSOFTRADE-', 1).strip('-'))

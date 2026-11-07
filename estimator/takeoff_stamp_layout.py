@@ -13,11 +13,12 @@ FIELDS = {'mode', 'document_id', 'source_sha256', 'page', 'anchor_pdf',
 
 def _text_width(value, size, physical):
     from reportlab.pdfbase.pdfmetrics import getFont, stringWidth
+    from .pdf_fonts import FONT_BOLD
     from .takeoff_markup_pdf_worker import register_drawing_fonts
     register_drawing_fonts(physical)
-    if any(ord(character) not in getFont('ExportVeraBold').face.charToGlyph for character in value):
+    if any(ord(character) not in getFont(FONT_BOLD).face.charToGlyph for character in value):
         raise ValueError('A Stamp contains a character unsupported by the drawing PDF font.')
-    return stringWidth(value, 'ExportVeraBold', size)
+    return stringWidth(value, FONT_BOLD, size)
 
 
 def stamp_layout(snapshot, value):

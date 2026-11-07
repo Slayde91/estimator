@@ -283,6 +283,12 @@ class StampInitialPagesTests(unittest.TestCase):
         for page in pages:
             self.assertIn('ZK', page.extract_text())
             self.assertNotIn('/Annots', page)
+            initials_fonts = []
+            page.extract_text(visitor_text=lambda value, cm, tm, font, size:
+                              initials_fonts.append(str(font.get('/BaseFont', '')))
+                              if 'ZK' in value and font else None)
+            self.assertTrue(initials_fonts)
+            self.assertTrue(all('Montserrat-Regular' in font for font in initials_fonts))
         self.assertEqual(self.case.documents.document_path(self.document).read_bytes(), original)
         self.command('undo')
         restored = self.case.session['snapshot']

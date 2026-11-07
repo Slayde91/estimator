@@ -11,7 +11,7 @@ assert.equal(before['static/icons/takeoff-set-default.png'],'dc8c0ba65090852527e
 const resources = new Map(names.filter(name => name.startsWith('static/')).map(name => ['/' + name.slice(7),fs.readFileSync(path.join(root,name))]));
 resources.set('/pdf-cursors.css',fs.readFileSync(path.join(root,'static/pdf-cursors.css')));
 for(const name of fs.readdirSync(path.join(root,'static/cursors')).filter(name=>name.endsWith('.png'))) resources.set('/cursors/'+name,fs.readFileSync(path.join(root,'static/cursors',name)));
-for (const name of ['Montserrat-Variable.ttf','Montserrat-Italic-Variable.ttf','Vera.ttf','VeraBd.ttf']) resources.set('/fonts/'+name,fs.readFileSync(path.join(root,'static/fonts',name)));
+for (const name of ['Montserrat-Variable.ttf','Montserrat-Italic-Variable.ttf','Montserrat-Regular.ttf','Montserrat-Bold.ttf','Montserrat-Italic.ttf','Montserrat-BoldItalic.ttf']) resources.set('/fonts/'+name,fs.readFileSync(path.join(root,'static/fonts',name)));
 const eye = '<button class="button secondary icon-only takeoff-icon-button takeoff-current-visibility takeoff-visibility-button" aria-label="Visibility"><img src="/icons/takeoff-visibility.png" width="32" height="32" alt=""></button>';
 const memory = '<button class="button secondary icon-only takeoff-icon-button takeoff-default-button" aria-label="Set as default"><span class="takeoff-action-icon takeoff-default-icon" aria-hidden="true"></span></button>';
 const signature = '<button class="button secondary icon-only takeoff-icon-button takeoff-signature-button" aria-label="Signature"><span class="takeoff-action-icon takeoff-signature-icon" aria-hidden="true"></span></button>';

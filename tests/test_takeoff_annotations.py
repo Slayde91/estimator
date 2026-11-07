@@ -176,7 +176,8 @@ class TakeoffAnnotationTests(unittest.TestCase):
 
     def test_pdf_contains_every_literal_formatted_character_and_visibility_scope_is_separate(self):
         identifier = self.create(content={'version': 1, 'blocks': [
-            {'kind': 'paragraph', 'runs': [{'text': 'SAFE <b>literal</b>', 'bold': True}, {'text': ' italic', 'italic': True}]},
+            {'kind': 'paragraph', 'runs': [{'text': 'SAFE <b>literal</b>', 'bold': True}, {'text': ' italic', 'italic': True},
+                                         {'text': ' both', 'bold': True, 'italic': True}]},
             {'kind': 'bullet', 'runs': [{'text': 'Underlined LAST_TOKEN', 'underline': True}]}]})
         self.create(mode='duct', content=content('DUCT_ONLY'))
         original = self.case.documents.document_path(self.document).read_bytes()
@@ -190,6 +191,13 @@ class TakeoffAnnotationTests(unittest.TestCase):
         self.assertIn('1 free Call-out (drawing notes only); no measurement markups.', text)
         self.assertNotIn('No visible markups', text)
         self.assertEqual(kind, 'application/pdf')
+        painted_fonts = set()
+        for page in reader.pages:
+            page.extract_text(visitor_text=lambda value, cm, tm, font, size:
+                              painted_fonts.add(str(font.get('/BaseFont', '')).split('+')[-1])
+                              if value.strip() and font else None)
+        self.assertTrue({'Montserrat-Regular', 'Montserrat-Bold', 'Montserrat-Italic',
+                         'Montserrat-BoldItalic'}.issubset(painted_fonts))
         operations = reader.pages[0].get_contents().operations
         self.assertTrue(any(operator == b'l' for _, operator in operations), 'Leader and underline have vector paths.')
         self.assertNotIn('LAST_TOKEN', PdfReader(BytesIO(self.export(annotation_ids=[])[0])).pages[0].extract_text())

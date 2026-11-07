@@ -217,7 +217,7 @@ There are at most 1,000 free notes. Unknown fields, unsafe control/direction
 characters, HTML-shaped formatting and authority fields are rejected; literal
 text containing angle brackets is safe text. The editor constructs DOM nodes,
 pastes plain text and stores the validated projection; it never imports HTML.
-Browser and PDF use the bundled Vera fonts, measured character wrapping and
+Browser and PDF use the same four bundled static Montserrat faces, measured character wrapping and
 explicit fit failure. Unsupported PDF-font characters fail export and retain text.
 
 Shared new-note defaults are captured explicitly in new free and physical

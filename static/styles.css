@@ -478,6 +478,7 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 @media(max-width:880px){.estimate-banner-heading>.actions{width:100%}#firestopping-document-actions{right:0;left:auto}}
 
 .project-estimate-controls{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin:0 0 20px}.project-estimate-controls>.field{min-width:110px;max-width:100%;flex:0 0 220px}.project-card-estimate{margin-top:12px;font-size:11px}.project-card-estimate select{margin-top:5px;font-size:12px}#project-estimate-dialog .actions{margin-top:20px}
+#project-estimate-new{width:42px;min-width:42px;height:42px;min-height:42px;flex:0 0 42px;padding:0}
 
 /* The saved-project view uses flat rows; commercial boards keep their columns. */
 .project-list{display:grid;gap:0;min-width:0}

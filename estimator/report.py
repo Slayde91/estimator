@@ -12,28 +12,24 @@ from html import unescape
 import math
 from pathlib import Path
 import re
-from threading import Lock
 from xml.sax.saxutils import escape
 
-import reportlab
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
     KeepTogether, LongTable, PageBreak, Paragraph, SimpleDocTemplate, Spacer,
     Table, TableStyle,
 )
 
+from .pdf_fonts import FONT_REGULAR, FONT_BOLD, PdfParagraphStyle as ParagraphStyle, register_pdf_fonts
 from .calculator import masking_breakdown
 from .company_settings import company_logo, contact_lines, DEFAULTS as COMPANY_DEFAULTS
 
 
 ROOT = Path(__file__).resolve().parent.parent
-_FONT_LOCK = Lock()
 _RED = colors.HexColor("#BD0018")
 _INK = colors.black
 _MUTED = colors.HexColor("#555555")
@@ -50,18 +46,18 @@ def _company_header(canvas, logo, page_width, page_height, margin, report_label,
     canvas.drawImage(logo, margin, page_height - 22 - logo_height * scale,
                      width=logo_width * scale, height=logo_height * scale, mask="auto")
     canvas.setFillColor(_MUTED)
-    canvas.setFont("CeasefireVera", 7.5)
+    canvas.setFont(FONT_REGULAR, 7.5)
     if label_below_logo:
         canvas.drawString(margin, page_height - 69, report_label)
     else:
         canvas.drawRightString(page_width - margin, page_height - 27, report_label)
     value = company or COMPANY_DEFAULTS
     name = value.get('name', '')
-    canvas.setFont("CeasefireVera", min(7.5, (page_width * .5 - margin) / max(1, pdfmetrics.stringWidth(name, "CeasefireVera", 1))))
+    canvas.setFont(FONT_REGULAR, min(7.5, (page_width * .5 - margin) / max(1, pdfmetrics.stringWidth(name, FONT_REGULAR, 1))))
     canvas.drawRightString(page_width - margin, page_height - 15, name)
     for offset, text in zip((40, 51, 62), contact_lines(value)):
-        size = min(7.5, (page_width * .5 - margin) / max(1, pdfmetrics.stringWidth(text, "CeasefireVera", 1)))
-        canvas.setFont("CeasefireVera", size)
+        size = min(7.5, (page_width * .5 - margin) / max(1, pdfmetrics.stringWidth(text, FONT_REGULAR, 1)))
+        canvas.setFont(FONT_REGULAR, size)
         canvas.drawRightString(page_width - margin, page_height - offset, text)
     canvas.setStrokeColor(_RED)
     canvas.setLineWidth(1.1)
@@ -92,17 +88,8 @@ _ADDITIONS = (
 
 
 def _register_fonts():
-    """Use fonts shipped with ReportLab on every supported platform."""
-    with _FONT_LOCK:
-        if "CeasefireVera" in pdfmetrics.getRegisteredFontNames():
-            return
-        font_dir = Path(reportlab.__file__).resolve().parent / "fonts"
-        pdfmetrics.registerFont(TTFont("CeasefireVera", str(font_dir / "Vera.ttf")))
-        pdfmetrics.registerFont(TTFont("CeasefireVeraBold", str(font_dir / "VeraBd.ttf")))
-        pdfmetrics.registerFontFamily(
-            "CeasefireVera", normal="CeasefireVera", bold="CeasefireVeraBold",
-            italic="CeasefireVera", boldItalic="CeasefireVeraBold",
-        )
+    """Compatibility entry point for the shared PDF font family."""
+    register_pdf_fonts()
 
 
 def _text(value):
@@ -169,26 +156,26 @@ def _table_branding():
 
 
 def _styles():
-    base = dict(fontName="CeasefireVera", textColor=_INK, leading=12, splitLongWords=1)
+    base = dict(fontName=FONT_REGULAR, textColor=_INK, leading=12, splitLongWords=1)
     return {
-        "title": ParagraphStyle("QuoteTitle", fontName="CeasefireVeraBold", fontSize=21,
+        "title": ParagraphStyle("QuoteTitle", fontName=FONT_BOLD, fontSize=21,
                                 leading=27, spaceAfter=8, textColor=_INK, splitLongWords=1),
-        "long_title": ParagraphStyle("LongQuoteTitle", fontName="CeasefireVeraBold", fontSize=14,
+        "long_title": ParagraphStyle("LongQuoteTitle", fontName=FONT_BOLD, fontSize=14,
                                      leading=18, spaceAfter=8, textColor=_INK, splitLongWords=1),
-        "section": ParagraphStyle("QuoteSection", fontName="CeasefireVeraBold", fontSize=15,
+        "section": ParagraphStyle("QuoteSection", fontName=FONT_BOLD, fontSize=15,
                                   leading=19, spaceBefore=6, spaceAfter=10, textColor=_INK),
-        "subheading": ParagraphStyle("QuoteSubheading", fontName="CeasefireVeraBold", fontSize=10,
+        "subheading": ParagraphStyle("QuoteSubheading", fontName=FONT_BOLD, fontSize=10,
                                      leading=13, spaceBefore=12, spaceAfter=6, textColor=_INK,
                                      keepWithNext=True),
         "body": ParagraphStyle("QuoteBody", fontSize=9, spaceAfter=7, **base),
-        "small": ParagraphStyle("QuoteSmall", fontName="CeasefireVera", fontSize=7.5,
+        "small": ParagraphStyle("QuoteSmall", fontName=FONT_REGULAR, fontSize=7.5,
                                  leading=10, spaceAfter=5, textColor=_MUTED, splitLongWords=1),
         "cell": ParagraphStyle("QuoteCell", fontSize=7.7, alignment=TA_CENTER, **(base | {"leading": 10})),
         "numeric": ParagraphStyle("QuoteNumeric", fontSize=7.7, alignment=TA_CENTER,
                                    **(base | {"leading": 10})),
-        "head": ParagraphStyle("QuoteHead", fontName="CeasefireVeraBold", fontSize=7.5,
+        "head": ParagraphStyle("QuoteHead", fontName=FONT_BOLD, fontSize=7.5,
                                 leading=10, textColor=colors.white, splitLongWords=1, alignment=TA_CENTER),
-        "alert": ParagraphStyle("QuoteAlert", fontName="CeasefireVeraBold", fontSize=10,
+        "alert": ParagraphStyle("QuoteAlert", fontName=FONT_BOLD, fontSize=10,
                                  leading=14, textColor=_RED, splitLongWords=1),
     }
 
@@ -281,7 +268,7 @@ class _Report:
                           if numeric_pattern.fullmatch(unescape(line).strip())]
         if not numeric_tokens:
             return paragraph
-        largest = max(pdfmetrics.stringWidth(token, "CeasefireVera", 7.7) for token in numeric_tokens)
+        largest = max(pdfmetrics.stringWidth(token, FONT_REGULAR, 7.7) for token in numeric_tokens)
         size = min(7.7, 7.7 * available_width / largest) if largest else 7.7
         if size >= 6.8:
             style = ParagraphStyle("FittedQuoteNumeric", parent=self.styles["numeric"],
@@ -293,7 +280,7 @@ class _Report:
         rendered = []
         for line in lines:
             token = unescape(line).strip()
-            if numeric_pattern.fullmatch(token) and pdfmetrics.stringWidth(token, "CeasefireVera", 6.8) > available_width:
+            if numeric_pattern.fullmatch(token) and pdfmetrics.stringWidth(token, FONT_REGULAR, 6.8) > available_width:
                 prefix = "$" if "$" in token else ""
                 suffix = "%" if token.endswith("%") else ""
                 value = Decimal(token.replace("$", "").replace(",", "").replace("%", ""))
@@ -602,7 +589,7 @@ def render_quote_pdf(quote: dict, *, company=None) -> bytes:
         canvas.setStrokeColor(_LINE)
         canvas.setLineWidth(.5)
         canvas.line(_MARGIN, 34, _PAGE_WIDTH - _MARGIN, 34)
-        canvas.setFont("CeasefireVera", 7)
+        canvas.setFont(FONT_REGULAR, 7)
         canvas.setFillColor(_MUTED)
         canvas.drawString(_MARGIN, 22, "ESTIMATE | COMPLETE BREAKDOWN")
         canvas.drawRightString(_PAGE_WIDTH - _MARGIN, 22, f"Page {doc.page}")

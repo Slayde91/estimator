@@ -6,6 +6,8 @@
   const A = window.CeasefireTakeoffAnnotations;
   const S = window.CeasefireTakeoffSignatures;
   const X = window.CeasefireTakeoffGraphics;
+  const drawingFontStyles = ["9px CeasefireDrawing", "700 9px CeasefireDrawing", "italic 9px CeasefireDrawing", "italic 700 9px CeasefireDrawing"];
+  const loadDrawingFonts = () => Promise.all(drawingFontStyles.map(font => document.fonts.load(font)));
   // Historical implicit appearance retains the delivered defaults; new notes
   // capture the shared chosen defaults explicitly when they are created.
   const calloutDefaults = () => ({ stroke_enabled: true, stroke_color: "#FF3300", fill_color: "#FFDD33", font_color: "#000000", stroke_width: 4, fill_enabled: true, opacity: .75 });
@@ -557,7 +559,7 @@
     if (state.ui) return;
     const root = $("takeoffs-workspace"); if (!root) return;
     const ui = state.ui = { root };
-    state.drawingFonts ||= Promise.all([document.fonts.load("9px CeasefireDrawing"), document.fonts.load("700 9px CeasefireDrawing")]).then(() => { if (state.viewport) renderOverlay(); });
+    state.drawingFonts ||= loadDrawingFonts().then(() => { if (state.viewport) renderOverlay(); });
     ui.title = uiNode("h1", "takeoff-workspace-title", "Steel");
     ui.documentMenu = registerDocumentMenu();
     ui.physicalDocumentHost = node("div", "takeoff-physical-document-host"); ui.physicalDocumentHost.hidden = true;
@@ -971,7 +973,7 @@
   }
   function ensurePhysicalUI() {
     if (state.physicalUI) return;
-    state.drawingFonts ||= Promise.all([document.fonts.load("9px CeasefireDrawing"), document.fonts.load("700 9px CeasefireDrawing")]).then(() => { if (state.mode === "physical") renderOverlay(); });
+    state.drawingFonts ||= loadDrawingFonts().then(() => { if (state.mode === "physical") renderOverlay(); });
     if (!window.CeasefireTakeoffPhysical?.mount) throw new Error("The physical draft workspace could not be loaded.");
     const scope = state.physicalScope;
     state.physicalUI = window.CeasefireTakeoffPhysical.mount(state.ui.physicalContainer, {
@@ -2925,7 +2927,7 @@
     requireFinishedEdits();
     const source = currentDocument(), scale = Math.hypot(state.viewport.transform[0], state.viewport.transform[1]), context = JSON.stringify([state.session?.session_id, state.mode, state.document, state.page]);
     if (!A || !source || !["steel", "duct", "wall", "slab"].includes(state.mode)) throw new Error("Choose a drawing workspace for a free Call-out.");
-    await Promise.all([document.fonts.load("10px CeasefireDrawing"), document.fonts.load("700 10px CeasefireDrawing")]);
+    await loadDrawingFonts();
     if (context !== JSON.stringify([state.session?.session_id, state.mode, state.document, state.page]) || state.tool !== "callout") return;
     const anchor = G.transform(point, state.viewport.transform), width = Math.min(238, state.viewport.width / scale - 12), height = Math.min(120, state.viewport.height / scale - 12);
     const label_position = G.inverse([Math.max(0, Math.min(state.viewport.width - width * scale, anchor[0] + 20)), Math.max(0, Math.min(state.viewport.height - height * scale, anchor[1] - 60))], state.viewport.transform);
@@ -5078,8 +5080,8 @@
     const endSound = window.CeasefireDownloadSound?.begin();
     try {
       if (pdf) {
-        await Promise.all([document.fonts.load("9px CeasefireDrawing"), document.fonts.load("700 9px CeasefireDrawing")]);
-        if (!document.fonts.check("9px CeasefireDrawing") || !document.fonts.check("700 9px CeasefireDrawing")) throw new Error("The drawing fonts could not load. Retry after the drawing finishes loading.");
+        await loadDrawingFonts();
+        if (!drawingFontStyles.every(font => document.fonts.check(font))) throw new Error("The drawing fonts could not load. Retry after the drawing finishes loading.");
       }
       const calculatorDrafts = {}, calculatorFingerprints = [], destinations = aggregate ? [...steelCalculators, "ductwork"] : mode === "steel" ? steelCalculators : mode === "duct" ? ["ductwork"] : [];
       for (const id of destinations) {

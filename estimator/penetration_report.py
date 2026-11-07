@@ -11,6 +11,7 @@ from reportlab.platypus import Image, SimpleDocTemplate, Spacer, TableStyle
 
 from .calculator_register import _sheet, _table
 from .pricing_workbook import _serialize_exact
+from .pdf_fonts import FONT_REGULAR
 from .report import _Report, _company_header, _register_fonts, _number, _numeric, _LINE, _MUTED
 from .reference_library import ReferenceNotFound
 from .service_dimensions import service_size_evidence
@@ -213,7 +214,7 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
             return
         canvas.setStrokeColor(_LINE)
         canvas.line(margin, 32, width - margin, 32)
-        canvas.setFont('CeasefireVera', 7)
+        canvas.setFont(FONT_REGULAR, 7)
         canvas.setFillColor(_MUTED)
         canvas.drawString(margin, 20, report_footer or 'FIRESTOPPING SCHEDULE')
         canvas.drawRightString(width - margin, 20, f'Page {doc.page}')
@@ -266,7 +267,7 @@ def render_penetration_summary_pdf(result, definition, project_details, *, libra
         _company_header(canvas, logo, width, height, margin, '', label_below_logo=True, company=company)
         canvas.setStrokeColor(_LINE)
         canvas.line(margin, 32, width - margin, 32)
-        canvas.setFont('CeasefireVera', 7)
+        canvas.setFont(FONT_REGULAR, 7)
         canvas.setFillColor(_MUTED)
         canvas.drawString(margin, 20, report_footer or 'FIRESTOPPING PRODUCT SUMMARY')
         canvas.drawRightString(width - margin, 20, f'Page {doc.page}')

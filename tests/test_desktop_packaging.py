@@ -381,6 +381,9 @@ class DesktopPackagingTests(unittest.TestCase):
         self.assertIn('calculators/steel_vermiculite.json.gz',DATA_FILES)
         self.assertIn('penetration.json.gz',DATA_FILES)
         self.assertIn('fonts/Montserrat-Variable.ttf',STATIC_FILES)
+        for face in ('Regular', 'Bold', 'Italic', 'BoldItalic'):
+            self.assertIn(f'fonts/Montserrat-{face}.ttf', STATIC_FILES)
+            self.assertTrue((ROOT / 'static' / 'fonts' / f'Montserrat-{face}.ttf').is_file())
         self.assertIn('notifications.js', STATIC_FILES)
         self.assertIn('notifications.css', STATIC_FILES)
         self.assertIn('ceasefire-app.ico',STATIC_FILES)

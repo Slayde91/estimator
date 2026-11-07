@@ -50,6 +50,8 @@ STATIC_FILES = (
     'scheduler.js', 'scheduler.css', 'commercial-documents.js', 'commercial-documents.css', 'help-glossary.js', 'help-glossary.css', 'company-settings.js', 'certification.js', 'certification.css', 'cover-sheets.js', 'documentation.js', 'documentation.css', 'theme.js', 'theme.css', 'language.js', 'language-catalog.js', 'language.css', 'laser.css', 'laser-steel.svg', 'home-steel-frame.png',
     'header-layout.css', 'workspace-art.css', 'header-steel-spray.png', 'header-steel-intumescent.png', 'header-steel-board.png', 'header-ductwork.png', 'header-firestopping.png', 'header-estimate.png', 'header-projects.png', 'projects-evidence-banner.png', 'header-firestopping-library.png', 'header-technical-library.png',
     'fonts/Montserrat-Italic-Variable.ttf', 'fonts/Montserrat-Variable.ttf', 'fonts/OFL.txt',
+    'fonts/Montserrat-Regular.ttf', 'fonts/Montserrat-Bold.ttf',
+    'fonts/Montserrat-Italic.ttf', 'fonts/Montserrat-BoldItalic.ttf',
     'ceasefire-app.ico', 'ceasefire-app-icon.png',
     'icons/navigation-home.png', 'icons/navigation-help.png', 'icons/navigation-help.jpg', 'icons/document.png', 'icons/schedule-add.png',
 )

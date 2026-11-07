@@ -133,6 +133,12 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers["Content-Type"], "font/ttf")
         self.assertEqual(body, (ROOT / "static/fonts/Montserrat-Variable.ttf").read_bytes())
+        for face in ("Regular", "Bold", "Italic", "BoldItalic"):
+            path = f"/fonts/Montserrat-{face}.ttf"
+            status, headers, body = self.request("GET", path)
+            self.assertEqual(status, 200)
+            self.assertEqual(headers["Content-Type"], "font/ttf")
+            self.assertEqual(body, (ROOT / "static" / path.lstrip("/")).read_bytes())
         self.assertEqual(self.request("GET", "/fonts/OFL.txt")[0], 404)
         status, headers, body = self.request("GET", "/icons/document.png")
         self.assertEqual(status, 200)

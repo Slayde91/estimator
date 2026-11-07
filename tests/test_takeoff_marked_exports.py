@@ -241,6 +241,17 @@ class TakeoffMarkedPDFTests(unittest.TestCase):
             self.assertIn(company['name'], page.extract_text())
             self.assertIn(company['email'], page.extract_text())
             self.assertRegex(page.get_contents().get_data(), rb'0?\.741176 0 0?\.094118 RG')
+        painted = []
+        for page in reader.pages:
+            page.extract_text(visitor_text=lambda value, cm, tm, font, size:
+                              painted.append((value, str(font.get('/BaseFont', ''))))
+                              if value.strip() and font else None)
+        source_fonts = [font for value, font in painted if 'ORIGINAL DRAWING ROTATION' in value]
+        generated_fonts = [font for value, font in painted if 'ORIGINAL DRAWING ROTATION' not in value]
+        self.assertTrue(source_fonts)
+        self.assertTrue(all(font == '/Helvetica' for font in source_fonts), 'Imported drawing text retains its original font.')
+        self.assertTrue(generated_fonts)
+        self.assertTrue(all('Montserrat-' in font for font in generated_fonts), 'Every generated label and legend uses Montserrat.')
         self.assertEqual(self.case.service.get(self.case.session['session_id'])['snapshot'], before)
 
     @classmethod

@@ -95,7 +95,7 @@ target.write_bytes(export_project(store,{**large,'estimates':[{'id':'estimate-1'
   assert.deepEqual(calls.at(-1), ['estimate-1'], 'Changed captured inputs recalculate the large estimate');
   assert.equal(calls.length, 3);
   await quote.getByLabel('Ordinary time',{exact:true}).fill('145.5');
-  await quote.getByLabel('Accepted by',{exact:true}).fill('Performance reviewer');
+  await expect(quote.getByLabel('Accepted by',{exact:true})).toHaveCount(0);
   await quote.getByRole('button',{name:'Save',exact:true}).click();
   await expect(quote.locator('.commercial-message')).toContainText('Document saved.');
   await quote.getByLabel('Ordinary time',{exact:true}).fill('146.75');
@@ -105,7 +105,7 @@ target.write_bytes(export_project(store,{**large,'estimates':[{'id':'estimate-1'
   await quote.locator('.commercial-card-menu summary').click();
   await quote.getByRole('button',{name:'Open',exact:true}).click();
   await expect(quote.getByLabel('Ordinary time',{exact:true})).toHaveValue('146.75');
-  await expect(quote.getByLabel('Accepted by',{exact:true})).toHaveValue('Performance reviewer');
+  await expect(quote.getByLabel('Accepted by',{exact:true})).toHaveCount(0);
   assert.deepEqual(errors, []);
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,timings,calls,errors},null,2));
   console.log(`PASS commercial estimate performance: ${output} ${JSON.stringify(timings)}`);

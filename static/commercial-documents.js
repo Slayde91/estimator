@@ -106,13 +106,12 @@
     window.CeasefireProject?.changed?.();
   }
   function positionCardMenu(menu) {
-    menu.addEventListener("toggle", () => {
-      if (!menu.open) return;
-      const panel = menu.querySelector(".commercial-menu-options");
-      const rect = menu.querySelector("summary").getBoundingClientRect();
-      panel.style.left = `${Math.max(8, Math.min(innerWidth - panel.offsetWidth - 8, rect.right - panel.offsetWidth))}px`;
-      panel.style.top = `${rect.bottom + panel.offsetHeight + 12 <= innerHeight ? rect.bottom + 6 : Math.max(8, rect.top - panel.offsetHeight - 6)}px`;
-    });
+    if (!menu.open) return;
+    const panel = menu.querySelector(".commercial-menu-options");
+    const rect = menu.querySelector("summary").getBoundingClientRect();
+    if (rect.bottom <= 0 || rect.top >= innerHeight || rect.right <= 0 || rect.left >= innerWidth) { menu.open=false; return; }
+    panel.style.left = `${Math.max(8, Math.min(innerWidth - panel.offsetWidth - 8, rect.right - panel.offsetWidth))}px`;
+    panel.style.top = `${rect.bottom + panel.offsetHeight + 12 <= innerHeight ? rect.bottom + 6 : Math.max(8, rect.top - panel.offsetHeight - 6)}px`;
   }
   function changed() {
     state.changed = true;
@@ -138,6 +137,7 @@
   async function documentRequest(action, body, source) {
     if (!source) return request(action, body);
     const {workspace_id, estimates, active_estimate_id, ...fields} = body;
+    if (source.file_id.startsWith("local-") && source.documentId) fields.context_id = source.documentId;
     const response = await request("saved-" + action, {...fields, source: {file_id: source.file_id, revision: source.revision}});
     if (action !== "derive" && action !== "defaults") source.revision = response.revision;
     return response.result;
@@ -211,7 +211,9 @@
       const active = window.CeasefireProject?.context?.();
       const diskRevision = register.revisions?.[active?.project_path];
       result.activeFileChanged = Boolean(diskRevision && active?.project_revision && diskRevision !== active.project_revision);
-      state.savedCards = register.documents.filter(card => card.source_path !== active?.project_path || result.activeFileChanged);
+      state.savedCards = register.documents.filter(card => card.source_path
+        ? card.source_path !== active?.project_path || result.activeFileChanged
+        : !card.current_workspace);
       result.unavailableProjects = register.error_count;
       result.unavailableSources = register.unavailable_sources || [];
     }
@@ -398,7 +400,7 @@
         });
         actions.append(field("Move to", statusSelect));
         menu.append(toggle, actions);
-        positionCardMenu(menu);
+        menu.addEventListener("toggle", () => positionCardMenu(menu));
         const title = button(document.fields.title, () => { if (!state.busy) void openCard(document); });
         title.className = "project-title-button";
         const heading = node("div", "project-card-heading");
@@ -424,6 +426,7 @@
         const opened = await request("saved-open", {source, id: card.id});
         if (state.revision !== revision) return;
         document = opened.document;
+        source.documentId = document.id;
         source.estimates = opened.estimates;
         source.quoteTotals = opened.quote_totals;
         source.related = opened.related;
@@ -737,7 +740,8 @@
           const incoming=[];
           for (const file of files) {
             const data={name:file.name,content:await encode(file)};
-            const record=editor.source ? await request("saved-attachment",{source:source(),...data}) : await request("attachment",{workspace_id:state.workspace,...data});
+            const record=editor.source ? await request("saved-attachment",{source:source(),...data,
+              ...(editor.source.file_id.startsWith("local-") ? {context_id:editor.source.documentId} : {})}) : await request("attachment",{workspace_id:state.workspace,...data});
             if (!current()) return;
             if (![...existing,...incoming].some(f=>f.id===record.id)) incoming.push(record);
             staged.set(record.id,file);
@@ -1189,7 +1193,7 @@
       if (number) number.readOnly = true;
     }
   }
-  async function persist(captured) {
+  async function persist(captured, explicitlySaved = false) {
     const document = state.editor.document;
     const saved = await documentRequest("save", {
       workspace_id: state.workspace,
@@ -1198,9 +1202,11 @@
       kind: document.kind,
       status: document.status,
       fields: document.fields,
+      ...(explicitlySaved && !state.editor.source && !window.CeasefireProject.context().project_token ? {retain_unfiled:true} : {}),
       ...captured
     }, state.editor.source);
     adoptSaved(saved);
+    if (state.editor.source) state.editor.source.documentId = saved.id;
     state.dirty = false;
     if (!state.editor.source) changed();
     await load();
@@ -1228,9 +1234,11 @@
     setDisabled(true);
     try {
       const captured = state.kind === "quote" ? await capturedEstimates() : {};
-      await persist(captured);
-      const inFile = state.editor.source || await saveActiveProject();
-      message(inFile ? "Document saved. Its linked project file is updated." : "Document saved. Save the project to keep its portable copy.");
+      await persist(captured, true);
+      const source = state.editor.source;
+      const inFile = source ? !source.file_id.startsWith("local-") : await saveActiveProject();
+      message(inFile
+        ? "Document saved. Its linked project file is updated." : "Document saved. It is available on the board.");
     } catch (error) {
       message(error.message, true);
     } finally {
@@ -1351,12 +1359,12 @@
       menu.querySelector("summary").focus();
     }
   });
-  const closeCardMenus = () => document.querySelectorAll(".commercial-card-menu[open]").forEach(menu => { menu.open = false; });
-  window.addEventListener("resize", closeCardMenus);
+  const positionOpenMenus = () => document.querySelectorAll(".commercial-card-menu[open]").forEach(positionCardMenu);
+  window.addEventListener("resize", positionOpenMenus);
   window.addEventListener("resize", () => {
     document.querySelectorAll("textarea.commercial-line-description,.commercial-line-comments").forEach(resizeDescription);
   });
   document.addEventListener("scroll", event => {
-    if (!event.target.closest?.(".commercial-menu-options")) closeCardMenus();
+    if (!event.target.closest?.(".commercial-menu-options")) positionOpenMenus();
   }, true);
 })();

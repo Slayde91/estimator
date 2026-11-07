@@ -76,8 +76,10 @@ choose **Import Template** on the same page.
 
 In **Projects**, choose the estimate you want before opening a project. From the
 estimate toolbar you can create a Quote or a SWMS. The **Quotes**, **Work Orders** and
-**Purchase Orders** boards show documents across saved projects. You can edit a
-card or change its status while another project is open. If a project file has
+**Purchase Orders** boards show documents across saved projects. A document saved
+before its project has a file appears on the board immediately. The first project
+save carries over edits made from other tabs. You can edit a card or change its
+status while another project is open. If a project file has
 moved, use **Projects → Load** to locate its current copy.
 Use the quote card’s **Create WO** action to link a work order to that quote.
 

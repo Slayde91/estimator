@@ -139,7 +139,7 @@ def migrate_saved_orders(projects):
         return result
     files = {}
     for card in register['documents']:
-        if card['kind'] in ('work_order','purchase_order'):
+        if card.get('source_path') and card['kind'] in ('work_order', 'purchase_order'):
             files.setdefault((card['source_file'],card['source_revision']), {})[card['id']] = card
     for (identifier, revision), cards in sorted(files.items()):
         try:

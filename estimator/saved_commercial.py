@@ -59,8 +59,11 @@ class SavedCommercial:
             raise ValidationError('Choose the saved project owning this document.')
         file_id, revision = source['file_id'], source['revision']
         body = {key: value for key, value in body.items() if key != 'source'}
-        if not isinstance(revision, str) or len(revision) != 64 or set(body) & {'workspace_id', 'estimates', 'active_estimate_id', 'download'}:
+        if not isinstance(revision, str) or len(revision) != 64 or set(body) & {'workspace_id', 'estimates', 'active_estimate_id', 'download', 'retain_unfiled'}:
             raise ValidationError('Saved document estimates and downloads come from their own project.')
+        if isinstance(file_id, str) and file_id.startswith('local-'):
+            self.projects.recover_commercial_publications()
+            return self.projects.commercial.unfiled.perform(action, source, body, execute)
         # The library holds its lock through the conditional file write. Other
         # open project tabs keep their original save fingerprints and cannot
         # accidentally overwrite a newer commercial document revision.

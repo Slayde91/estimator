@@ -188,6 +188,93 @@ class SavedQuoteTests(unittest.TestCase):
         self.assertEqual(result['documents'],[])
         self.assertEqual(result['unavailable_sources'],[])
 
+    def test_only_explicitly_saved_unfiled_documents_survive_restart_with_their_estimates(self):
+        original = self.library.commercial
+        workspace = original.certifications.new()['workspace_id']
+        held = {'id':'steel', 'name':'Steel allowance', 'workspace':{'estimate':{'project_no':'T-1',
+                'client':'Held client', 'site_address':'Held site'}, 'takeoffs_session_id':'never expose'}}
+        quote = self.http.execute('save', {'workspace_id':workspace, 'kind':'quote', 'status':'Draft',
+               'fields':default_fields('quote'), 'retain_unfiled':True, 'estimates':[held], 'active_estimate_id':'steel'})
+        transient = original.save(workspace, {'kind':'purchase_order','status':'Draft','fields':default_fields('purchase_order')})
+        purchase = self.http.execute('save', {'workspace_id':workspace,'kind':'purchase_order','status':'Draft',
+                                              'fields':default_fields('purchase_order'),'retain_unfiled':True})
+        original.certifications.discard(workspace)
+        certs = CertificationProjects(CertificationService(self.store))
+        service = CommercialDocuments(certs, renderer=lambda *args, **kwargs: pdf('Local'))
+        restarted = ProjectLibrary(self.store, certifications=certs)
+        self.addCleanup(restarted.close)
+        restarted.commercial = service
+        from estimator.document_numbers import migrate_saved_orders
+        migration = migrate_saved_orders(restarted)
+        self.assertEqual((migration['errors'], migration['updated_files']), ([], 0))
+        saved = SavedCommercial(restarted)
+        seen = []
+        def derive(body, **_):
+            seen.append(body['estimates'])
+            return {'lines':[], 'sources':[], 'scope_tables':[]}
+        execute = CommercialHTTP(service, derive=derive).execute
+        result = restarted.commercial_register(active_workspace=certs.new()['workspace_id'])
+        cards = {c['id']:c for c in result['documents'] if c['source_path'] is None}
+        self.assertEqual(set(cards), {quote['id'], purchase['id']})
+        self.assertFalse(any(c['current_workspace'] for c in cards.values()))
+        source = {'file_id':cards[quote['id']]['source_file'], 'revision':cards[quote['id']]['source_revision']}
+        def act(action, **fields):
+            return saved.perform(action, {'source':source, **fields}, execute)
+        opened = act('open', id=quote['id'])
+        self.assertEqual(opened['estimates'], [{'id':'steel','name':'Steel allowance'}])
+        self.assertEqual(opened['details']['client'], 'Held client')
+        with self.assertRaises(CommercialConflict):
+            act('open', id=transient['id'])
+        with self.assertRaises(ValidationError):
+            act('issue', id=quote['id'])
+        fields = opened['document']['fields']
+        fields.update(title='Edited elsewhere')
+        fields['details']['client'] = 'Other active project'
+        updated = act('save', kind='quote', version=1, id=quote['id'], status='Review', fields=fields)
+        self.assertEqual(updated['result']['fields']['details']['client'], 'Held client')
+        self.assertEqual(seen[-1][0]['workspace'], {'estimate':held['workspace']['estimate']})
+        with self.assertRaises(CommercialConflict):
+            act('status', id=quote['id'], version=1, status='Lost')
+        source['revision'] = updated['revision']
+        moved = act('status', id=purchase['id'], version=1, status='Requested')
+        source['revision'] = moved['revision']
+        act('delete', id=purchase['id'], version=2)
+        cards = restarted.commercial_register()['documents']
+        self.assertNotIn(purchase['id'], {c['id'] for c in cards})
+        self.assertEqual([c['fields']['title'] for c in cards if c['id']==quote['id']], ['Edited elsewhere'])
+
+    def test_first_file_write_rechecks_unfiled_versions_and_closes_old_capabilities(self):
+        from estimator.native_dialogs import SaveSelection
+        service = self.library.commercial
+        workspace = service.certifications.new()['workspace_id']
+        # A portable, issued Quote may be present before this workspace's first native Save.
+        quote = service.save(workspace, {'kind':'quote','status':'Draft','fields':default_fields('quote')}, unfiled_context={})
+        quote = service.issue(workspace,quote['id'],quote['version'],str(uuid.uuid4()))['document']
+        fields = default_fields('work_order', {'project_no':'PN-00007'})
+        fields['order']['quote_id'] = quote['id']
+        work = service.save(workspace, {'kind':'work_order','status':'Draft','fields':fields}, unfiled_context={})
+        captured = service.capture(workspace)
+        card = next(c for c in self.register()['documents'] if c['id']==work['id'])
+        source = {'file_id':card['source_file'],'revision':card['source_revision']}
+        moved = self.saved.perform('status',{'source':source,'id':work['id'],'version':1,'status':'Review'},self.http.execute)
+        source['revision'] = moved['revision']
+        with self.assertRaises(CommercialConflict), service.publishing(workspace,captured):
+            self.fail('The stale file image was published')
+        selected = self.folder / 'first-save.cf.json'
+        self.library.dialogs = type('SavePicker', (), {'choose_save':lambda *_:SaveSelection(str(selected),None)})()
+        request = {'estimate':{'project_no':'PN-00007','client':'Local owner'}, 'certifications':{'workspace_id':workspace,'draft':None},
+                   'commercial_documents':service.capture(workspace)}
+        with patch('estimator.project_library._atomic_write', side_effect=ValidationError('Disk full')):
+            with self.assertRaisesRegex(ValidationError, 'Disk full'):
+                self.library.save_as(request)
+        self.assertEqual(self.saved.perform('open', {'source':source,'id':work['id']}, self.http.execute)['document']['status'],'Review')
+        self.library.save_as(request)
+        self.assertEqual([c['source_path'] for c in self.register()['documents'] if c['id']==work['id']],[str(selected)])
+        with self.assertRaises(CommercialConflict):
+            self.saved.perform('delete',{'source':source,'id':work['id'],'version':2},self.http.execute)
+        with self.assertRaises(CommercialConflict):
+            service.save(workspace, {'kind':'purchase_order','status':'Draft','fields':default_fields('purchase_order')}, unfiled_context={})
+
     def test_retry_after_each_file_boundary_reuses_the_number_and_pdf(self):
         args = {'id': self.document['id'], 'version': 1, 'kind': 'quote', 'request_id': str(uuid.uuid4())}
         original = self.path.read_bytes()

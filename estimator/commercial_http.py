@@ -6,6 +6,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from .catalog import ValidationError, effective_catalog
 from .commercial_documents import CommercialConflict, default_fields, linked_estimate_ids
+from .unfiled_commercial import quote_context
 
 
 class CommercialHTTP:
@@ -45,7 +46,7 @@ class CommercialHTTP:
                 workspace = query['workspace'][0]
                 if action == 'register' and self.saved:
                     self.service.certifications.project_id(workspace)
-                    result = self.saved.projects.commercial_register(refresh='refresh' in query)
+                    result = self.saved.projects.commercial_register(refresh='refresh' in query, active_workspace=workspace)
                 elif action == 'state':
                     result = self.service.view(workspace, include_quote_totals=True)
                 elif action == 'supplier-products' and self.pricing:
@@ -98,7 +99,7 @@ class CommercialHTTP:
         common = {'workspace_id', 'estimates', 'active_estimate_id'}
         fields_by_action = {
             'defaults': {'kind', 'details'}, 'derive': {'fields', 'selected_ids'},
-            'save': {'id', 'version', 'kind', 'status', 'fields'},
+            'save': {'id', 'version', 'kind', 'status', 'fields', 'retain_unfiled'},
             'delete': {'id', 'version'}, 'status': {'id', 'version', 'status'},
             'notes': {'id', 'version', 'notes'},
             'issue': {'id', 'kind', 'version', 'request_id'},
@@ -146,7 +147,12 @@ class CommercialHTTP:
                 fields['scope_tables'] = derived['scope_tables']
                 fields['sources'] = derived['sources']
             allowed = {key: body[key] for key in ('id', 'version', 'kind', 'status') if key in body}
-            result = self.service.save(workspace, {**allowed, 'fields': fields})
+            if 'retain_unfiled' in body and body['retain_unfiled'] is not True:
+                raise ValidationError('Invalid local document save.')
+            captured = None
+            if body.get('retain_unfiled'):
+                captured = quote_context(body) if body.get('kind') == 'quote' else {}
+            result = self.service.save(workspace, {**allowed, 'fields': fields}, unfiled_context=captured)
         elif action == 'delete':
             result = self.service.delete(workspace, body.get('id'), body.get('version'))
         elif action == 'status':

@@ -504,6 +504,8 @@ class CommercialDocuments:
                 CREATE INDEX IF NOT EXISTS commercial_issued_document_number ON commercial_issued(project_id,document_id,number);
                 CREATE TABLE IF NOT EXISTS commercial_audit (sequence INTEGER PRIMARY KEY, workspace TEXT NOT NULL, document_id TEXT NOT NULL, action TEXT NOT NULL, before_data TEXT, after_data TEXT, created_at TEXT NOT NULL);
             ''')
+            from .unfiled_commercial import UnfiledCommercial
+            self.unfiled = UnfiledCommercial(self, db)
             self.numbering.attach(db)
             self.numbering.initialize_history(db)
             db.execute('BEGIN IMMEDIATE')
@@ -588,6 +590,9 @@ class CommercialDocuments:
             db.close()
 
     def _workspace(self, db, workspace):
+        local_project = self.unfiled.verified_project(db, workspace)
+        if local_project is not None:
+            return local_project
         project = self.certifications.project_id(workspace)
         db.execute('INSERT OR IGNORE INTO commercial_workspaces VALUES (?,?)', (workspace, project))
         if db.execute('SELECT project_id FROM commercial_workspaces WHERE workspace=?', (workspace,)).fetchone()[0] != project:
@@ -767,7 +772,7 @@ class CommercialDocuments:
                 raise ValidationError('Attachment not found on this work order.')
             return item, self.files.read(project, item)
 
-    def save(self, workspace, payload):
+    def save(self, workspace, payload, *, unfiled_context=None):
         if not isinstance(payload, dict) or set(payload) - {'id', 'version', 'kind', 'status', 'fields'}:
             raise ValidationError('Commercial document save contains unsupported fields.')
         kind = payload.get('kind')
@@ -797,6 +802,8 @@ class CommercialDocuments:
             self._relationships(db, workspace, project, kind, fields, previous, create_retry=payload.get('version') == 0)
             if payload.get('version') == 0 and previous:
                 if previous['fields'] == fields and previous['status'] == payload['status']:
+                    if unfiled_context is not None:
+                        self.unfiled.enroll(db, workspace, previous['id'], unfiled_context)
                     return previous
                 raise CommercialConflict('This new document was already saved with different content. Reopen it before editing.')
             now = datetime.now(timezone.utc).isoformat()
@@ -813,7 +820,23 @@ class CommercialDocuments:
             validate_commercial_documents(snapshot)
             db.execute('INSERT INTO commercial_drafts VALUES(?,?,?) ON CONFLICT(workspace,id) DO UPDATE SET data=excluded.data', (workspace, document['id'], _json(document)))
             self._audit(db, workspace, document['id'], 'save', previous, document)
+            if unfiled_context is not None:
+                self.unfiled.enroll(db, workspace, document['id'], unfiled_context)
         return document
+
+    @contextmanager
+    def publishing(self, workspace, snapshot):
+        """Exclude concurrent board writes across processes during the atomic file takeover."""
+        with self._connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            row = db.execute('SELECT filed FROM local_commercial_owners WHERE workspace=?', (workspace,)).fetchone()
+            if row and not row['filed']:
+                project = self._workspace(db, workspace)
+                if snapshot is None or self._snapshot(db, workspace, project)['documents'] != snapshot['documents']:
+                    raise CommercialConflict('Commercial documents changed during this project save. Save the project again.')
+            yield
+            self.unfiled.bind_file(db, workspace)
+
 
     def delete(self, workspace, identity, version):
         with self._connect() as db:

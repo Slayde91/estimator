@@ -483,6 +483,9 @@ class ProjectLibrary:
             if self.commercial is not None and workspace is not None:
                 self.commercial.files.transfer(project.get('commercial_documents'), path, restore=True)
                 self.commercial.restore(workspace['workspace_id'], project.get('commercial_documents'))
+                if path:
+                    with self.commercial._connect() as db:
+                        self.commercial.unfiled.bind_file(db, workspace['workspace_id'])
             elif 'commercial_documents' in project:
                 raise ValidationError('Open this project with its commercial document workspace available.')
             if 'estimates' in project:
@@ -1102,7 +1105,8 @@ class ProjectLibrary:
                 captured = self._publish_takeoffs(captured, path)
                 payload = export_project(self.store, captured, edition=self.edition)
                 project = load_project_bytes(self.store, payload, edition=self.edition)
-            path, info = _atomic_write(selection, payload)
+            with self._commercial_publication(request, captured, selected_path, payload):
+                path, info = _atomic_write(selection, payload)
             warning = self._saved_takeoff_source(request, captured, path)
             del self._save_targets[token]
             try:
@@ -1141,10 +1145,52 @@ class ProjectLibrary:
         self._outside_file_cache[identifier] = (_identity(info), metadata)
         return metadata
 
-    def commercial_register(self, *, refresh=False):
+    @contextmanager
+    def _commercial_publication(self, request, captured, path, payload):
+        workspace = request.get('certifications', {}).get('workspace_id')
+        if not self.commercial or not workspace:
+            yield
+            return
+        self.recover_commercial_publications()
+        digest = hashlib.sha256(payload).hexdigest()
+        self.commercial.unfiled.prepare_publication(workspace, path, digest)
+        replaced = False
+        try:
+            with self.commercial.publishing(workspace, captured.get('commercial_documents')):
+                yield
+                replaced = True
+        except Exception:
+            if not replaced:
+                self.commercial.unfiled.cancel_publication(workspace, path, digest)
+            raise
+
+    def recover_commercial_publications(self):
+        # A power loss can interrupt the handover after the file rename but before
+        # SQLite commits. Only the exact previously selected file and bytes prove
+        # that the file took ownership; an older file at the same path does not.
+        def verify(row):
+            path = Path(row['path'])
+            try:
+                payload, info = _read_file(path)
+                if hashlib.sha256(payload).hexdigest() != row['digest']:
+                    return False
+                summary = project_summary(payload, edition=self.edition)
+                if summary['source_project_id'] != row['project_id']:
+                    return False
+            except (ValidationError, OSError):
+                return False
+            self._commercial_sources.remember([_metadata(path, info, summary, None, payload)])
+            self._commercial_walk = None
+            return True
+        if self.commercial:
+            with self._lock:
+                self.commercial.unfiled.recover_publications(verify)
+
+    def commercial_register(self, *, refresh=False, active_workspace=None):
         # Continue a cold external-file scan between requests. Only the linked
         # folder is enumerated; all other reads target a previously selected file.
         with self._lock:
+            self.recover_commercial_publications()
             folder = self.store.project_folder()
             walk = self._commercial_walk
             if refresh or walk is None or walk['folder'] != folder:
@@ -1185,6 +1231,9 @@ class ProjectLibrary:
                     documents.append({**card, 'fields': {**card['fields'], 'details': {**card['fields']['details'], **details}},
                                       'source_file': file['id'] or identifier, 'source_revision': file['revision'], 'source_path': file['path']})
             if self.commercial:
+                local_cards = self.commercial.unfiled.cards(active_workspace)
+                documents.extend(local_cards)
+                present.update(card['project_id'] for card in local_cards)
                 self.commercial.apply_register_numbers(documents)
                 for owner, title in self.commercial.issued_source_labels():
                     if owner not in present and owner not in walk['known_owners']:
@@ -1271,6 +1320,7 @@ class ProjectLibrary:
         return captured
 
     def _saved_number_result(self, ticket):
+        self.recover_commercial_publications()
         path = Path(ticket['path'])
         payload, info = _read_file(path)
         if hashlib.sha256(payload).hexdigest() != ticket['payload_hash']:
@@ -1384,7 +1434,8 @@ class ProjectLibrary:
                     project = load_project_bytes(self.store, payload, edition=self.edition)
                 if ticket:
                     self.project_details.prepare(ticket['id'], selected_path, payload)
-                path, saved_info = _atomic_write(selection, payload)
+                with self._commercial_publication(request, captured, selected_path, payload):
+                    path, saved_info = _atomic_write(selection, payload)
                 if ticket:
                     self.project_details.finish(ticket['id'])
                 warning = self._saved_takeoff_source(request, captured, path)

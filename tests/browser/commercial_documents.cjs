@@ -164,6 +164,8 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await page.screenshot({path:path.join(output,'quote-editor.png'),fullPage:true});
   const first=await download(quote), second=await download(quote);
   assert.notEqual(first.filename,second.filename);
+  const quoteTotal = async () => (await quote.locator('.commercial-totals p').filter({hasText:'Grand total'}).locator('span').innerText()).replace(/[$,]/g,'');
+  const originalTotal = await quoteTotal();
   const pdfText=execFileSync(process.env.CEASEFIRE_PYTHON||'python',['-c','from pypdf import PdfReader; import sys; print("\\n".join(page.extract_text() for page in PdfReader(sys.argv[1]).pages))',second.path],{encoding:'utf8',windowsHide:true});
   assert.ok(pdfText.replace(/\s+/g,'').includes('SCOPE-ORIGINAL-123'));
   assert.ok(pdfText.replace(/\s+/g,'').includes('SCOPE-ADDITIONAL-456'));
@@ -180,6 +182,14 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await work.getByRole('button',{name:'New Work Order',exact:true}).click();
   await work.getByLabel('Document title',{exact:true}).fill('QA site installation');
   await work.getByLabel('Linked Quote',{exact:true}).selectOption({label:await work.getByLabel('Linked Quote',{exact:true}).locator('option').nth(1).textContent()});
+  const cost = work.getByLabel('Estimated cost (AUD)',{exact:true});
+  await expect(cost).toHaveValue(originalTotal);
+  await cost.fill('125.25');
+  const linkedQuote = work.getByLabel('Linked Quote',{exact:true});
+  const quoteId = await linkedQuote.inputValue();
+  await linkedQuote.selectOption('');
+  await linkedQuote.selectOption(quoteId);
+  await expect(cost).toHaveValue('125.25');
   await work.getByLabel('Description of works',{exact:true}).fill('Install the scheduled passive fire systems.');
   await work.getByLabel('SWMS',{exact:true}).fill('Approved project SWMS revision 2');
   await expect(work.getByLabel('Proposed start date',{exact:true})).toHaveAttribute('type','date');
@@ -187,7 +197,8 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   assert.ok(statusBox.x>titleBox.x && Math.abs(statusBox.y-titleBox.y)<2,'Status aligns to the right of title');
   await save(work);
   const assignedReference=await work.getByLabel('Work order reference',{exact:true}).inputValue();
-  assert.match(assignedReference,/^COMM-1-Q-\d{6}-01$/);
+  assert.match(assignedReference,/^COMM1Q[1-9]\d*-01$/);
+  await expect(cost).toHaveValue('125.25');
   await expect(work.getByLabel('Work order reference',{exact:true})).toHaveAttribute('readonly','');
   await download(work);
   await work.getByRole('button',{name:'Back to Work Orders',exact:true}).click();
@@ -221,11 +232,24 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   const saved=JSON.parse(fs.readFileSync(info.project,'utf8'));
   assert.equal(saved.commercial_documents.documents.length,3);
   assert.ok(saved.documentation,'Generated PDFs are captured in portable Documentation');
+  // Open a project saved by the previous release with an empty work order cost.
+  const savedWork = saved.commercial_documents.documents.find(item=>item.kind==='work_order');
+  const oldReference = [savedWork.fields.details.project_no, savedWork.fields.order.quote_reference, '01'].join('-');
+  savedWork.fields.order.estimated_cost = '';
+  savedWork.fields.order.work_order_reference = oldReference;
+  saved.commercial_documents.documents.find(item=>item.kind==='purchase_order').fields.order.work_order_reference = oldReference;
+  fs.writeFileSync(info.project,JSON.stringify(saved));
   await page.reload();
   await idle();
   await clickProjectControl(page,'Load');
   await page.locator('#discard-dialog').getByRole('button',{name:'Load Project',exact:true}).click();
   await idle();
+  await open('work-orders');
+  await work.getByRole('button',{name:'QA site installation',exact:true}).click();
+  await expect(work.getByLabel('Work order reference',{exact:true})).toHaveValue(assignedReference);
+  await expect(cost).toHaveValue(originalTotal);
+  await work.getByRole('button',{name:'Back to Work Orders',exact:true}).click();
+  checks.push('legacy saved work order opens with compact reference and its linked quote grand total');
   await open('quote');
   await expect(quote.locator('.commercial-card')).toContainText('QA quotation revised');
   await quote.locator('.commercial-card-menu summary').click();
@@ -274,14 +298,17 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   const otherText = execFileSync(process.env.CEASEFIRE_PYTHON || 'python',['-c','from pypdf import PdfReader; import sys; print(chr(10).join(p.extract_text() for p in PdfReader(sys.argv[1]).pages))',otherPdf],{encoding:'utf8'});
   assert.ok(otherText.includes('Custom commissioning'));
   assert.ok(otherText.includes('$421.50'));
+  const otherTotal = await quoteTotal();
   assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),info.project);
   await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
   await otherCard.locator('summary').click();
   await otherCard.getByRole('button',{name:'Create WO'}).click();
   await expect(work.getByLabel('Linked Quote',{exact:true})).toHaveValue(clonedQuote.id);
   await expect(work.getByLabel('Description of works',{exact:true})).toHaveValue(/Custom commissioning/);
+  await expect(cost).toHaveValue(otherTotal);
   await save(work);
-  assert.ok(owner().some(doc=>doc.kind==='work_order' && doc.fields.order.quote_reference===ownerQuote().last_number));
+  assert.ok(owner().some(doc=>doc.kind==='work_order' && doc.fields.order.quote_reference===ownerQuote().last_number
+    && doc.fields.order.estimated_cost === otherTotal && /^COMM1Q[1-9]\d*-01$/.test(doc.fields.order.work_order_reference)));
   assert.deepEqual(JSON.parse(fs.readFileSync(info.project,'utf8')).commercial_documents.documents,saved.commercial_documents.documents);
   checks.push('global register edits, prices, exports and creates a numbered work order in the correct saved file while another project is open');
   assert.deepEqual(errors,[]);

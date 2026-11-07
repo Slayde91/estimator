@@ -1,4 +1,14 @@
 {
+  "Estimate name": [
+    "견적 이름",
+    "Pangalan ng pagtatantya",
+    "Tên dự toán"
+  ],
+  "Give every estimate a name between 1 and 150 characters.": [
+    "각 견적의 이름은 1~150자로 입력하세요.",
+    "Bigyan ang bawat pagtatantya ng pangalang may 1 hanggang 150 karakter.",
+    "Đặt tên cho mỗi dự toán từ 1 đến 150 ký tự."
+  ],
   "Actions for {0}": [
     "{0} 작업",
     "Mga aksyon para sa {0}",

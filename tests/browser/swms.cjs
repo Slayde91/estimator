@@ -53,7 +53,16 @@ async function run(edition) {
     await page.evaluate(()=>window.scrollBy(0,-170));
     await page.screenshot({path:path.join(directory,'swms-high-risk-table.png')});
     const fallsControl = host.getByLabel(`${falls} item 1 controls`,{exact:true});
+    async function assertEvenStep(rowInput) {
+      await expect.poll(() => rowInput.evaluate(input => {
+        const row = input.closest('tr');
+        const fields = [1,2,4].map(column => row.cells[column].querySelector('textarea'));
+        return fields.every(field => field.clientHeight >= field.scrollHeight &&
+          field.getBoundingClientRect().height === fields[0].getBoundingClientRect().height);
+      })).toBe(true);
+    }
     assert.match(await fallsControl.inputValue(), /ticketed scaffolder/);
+    await assertEvenStep(fallsControl);
     await fallsControl.fill('Retained site control');
     await host.getByLabel(falls,{exact:true}).uncheck();
     await expect(host.locator('.swms-high-risk-tables tbody tr')).toHaveCount(0);
@@ -65,6 +74,15 @@ async function run(edition) {
     assert.ok(smallHeight <= 45, `Blank step is one line (${smallHeight}px)`);
     await blankControl.fill('Electrical review\nLine two\nLine three\nLine four');
     assert.ok((await blankControl.boundingBox()).height > smallHeight);
+    await assertEvenStep(blankControl);
+    const narrow = {width:1101,height:884}, wide = page.viewportSize();
+    await page.setViewportSize(narrow);
+    await assertEvenStep(fallsControl);
+    await page.setViewportSize(wide);
+    await blankControl.fill('Short');
+    await assertEvenStep(blankControl);
+    assert.equal((await blankControl.boundingBox()).height,smallHeight);
+    await blankControl.fill('Electrical review\nLine two\nLine three\nLine four');
     await host.getByLabel('NA',{exact:true}).check();
     await expect(host.locator('.swms-high-risk-tables tbody tr')).toHaveCount(0);
     await host.locator('summary').filter({hasText:'Risk Matrix and High Risk Work'}).click();
@@ -82,9 +100,17 @@ async function run(edition) {
     await additionalSection.locator(':scope > summary').click();
     await host.getByRole('button',{name:'Draw signature',exact:true}).first().click();
     const pad = page.getByLabel('SWMS signature drawing pad'), rect = await pad.boundingBox();
+    const padClear = page.getByRole('dialog').getByRole('button',{name:'Clear',exact:true});
+    const artwork = locator => locator.locator('svg path').evaluateAll(paths=>paths.map(p=>p.getAttribute('d')));
+    assert.deepEqual(await artwork(padClear),await artwork(page.locator('#penetration-clear')));
+    await page.mouse.move(rect.x+15,rect.y+20); await page.mouse.down(); await page.mouse.move(rect.x+45,rect.y+50,{steps:3}); await page.mouse.up();
+    await padClear.click();
+    await page.getByRole('dialog').getByRole('button',{name:'Use signature',exact:true}).click();
+    await expect(page.getByRole('dialog')).toContainText('Draw your signature first.');
     await page.mouse.move(rect.x+30,rect.y+120); await page.mouse.down(); await page.mouse.move(rect.x+90,rect.y+45,{steps:6}); await page.mouse.move(rect.x+160,rect.y+125,{steps:6}); await page.mouse.up();
     await page.getByRole('dialog').getByRole('button',{name:'Use signature',exact:true}).click();
     await expect(host.getByRole('img',{name:'Project manager drawn signature'})).toBeVisible();
+    assert.deepEqual(await artwork(host.getByRole('button',{name:'Clear signature',exact:true}).first()),await artwork(page.locator('#penetration-clear')));
     await host.locator('summary').filter({hasText:'Form Attachments'}).click();
     await page.evaluate(() => {
       const original = FileReader.prototype.readAsDataURL;
@@ -144,11 +170,28 @@ async function run(edition) {
     await additionalSection.locator(':scope > summary').click();
     await expect(additionalControl).toHaveValue('Saved additional control\nLine two\nLine three\nLine four\nLine five');
     await expect.poll(()=>additionalControl.evaluate(input=>input.clientHeight >= input.scrollHeight)).toBe(true);
+    await assertEvenStep(additionalControl);
     assert.ok((await additionalControl.boundingBox()).height > 80,'Saved additional controls expand when their collapsed parent opens');
     await page.screenshot({path:path.join(directory,'swms-editor.png'),fullPage:false});
     // Raw user text is rendered through DOM text/value properties, never HTML.
     await host.getByLabel('Document title',{exact:true}).fill('<img src=x onerror=alert(1)>');
     await host.getByRole('button',{name:'Save',exact:true}).click(); await expect(host.locator('.swms-message')).toContainText('Saved.');
+    const lastSavedTitle = '<img src=x onerror=alert(1)>';
+    const title = host.getByLabel('Document title',{exact:true});
+    await title.fill('Unsaved site changes');
+    const home = page.locator('nav [data-view="home"]');
+    await home.click();
+    const discard = page.getByRole('dialog',{name:'Discard the current SWMS?'});
+    await discard.getByRole('button',{name:'Cancel',exact:true}).click();
+    await expect(title).toHaveValue('Unsaved site changes');
+    await expect(page.locator('#app-message')).toContainText('Save or discard the current SWMS edit before changing views.');
+    await home.click();
+    await discard.getByRole('button',{name:'Yes',exact:true}).click();
+    await expect(page.locator('#view-home')).toBeVisible();
+    await openProjectSection(page,'swms');
+    await expect(host.getByRole('heading',{name:lastSavedTitle,exact:true})).toBeVisible();
+    await host.getByRole('button',{name:'Open',exact:true}).click();
+    await expect(title).toHaveValue(lastSavedTitle);
     await host.getByRole('button',{name:'Back to statements',exact:true}).click();
     await expect(host.getByRole('heading',{name:'<img src=x onerror=alert(1)>',exact:true})).toBeVisible();
     assert.equal(await host.locator('img').count(),0);

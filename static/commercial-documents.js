@@ -167,20 +167,22 @@
     const rounded = ((negative ? -amount : amount) + divisor / 2n) / divisor;
     return negative ? -rounded : rounded;
   }
+  function formatCents(value, withCurrency = true) {
+    const amount = value < 0n ? -value : value;
+    const whole = amount / 100n;
+    const dollars = withCurrency ? "$" + whole.toLocaleString("en-AU") : String(whole);
+    return `${value < 0n ? "-" : ""}${dollars}.${String(amount % 100n).padStart(2, "0")}`;
+  }
   function summary(fields) {
     const rows = fields.lines.map(line => roundFraction(scaledDecimal(line.quantity) * scaledDecimal(line.unit_price), 10000000000n));
     const subtotal = rows.reduce((sum, value) => sum + value, 0n);
     const gst = roundFraction(subtotal, 10n);
-    const money = value => {
-      const amount = value < 0n ? -value : value;
-      return `${value < 0n ? "-" : ""}$${(amount / 100n).toLocaleString("en-AU")}.${String(amount % 100n).padStart(2, "0")}`;
-    };
     return {
       rows,
       subtotal,
       gst,
       total: subtotal + gst,
-      money
+      money: formatCents
     };
   }
   function shell(title) {
@@ -386,7 +388,6 @@
       fields.order.quote_id = document.id;
       fields.order.quote_reference = document.last_number;
       fields.order.description = document.fields.lines.map(line => line.description).join("\n");
-      fields.order.estimated_cost = (Number(summary(document.fields).subtotal) / 100).toFixed(2);
       openEditor({id: crypto.randomUUID(), version: 0, kind: "work_order", status: "Draft", fields, last_number: ""}, source, document);
       markDirty();
     } catch (error) {
@@ -477,7 +478,6 @@
         if (eligible.length === 1) fields.order.quote_id = eligible[0].id;
         if (state.kind === "work_order") {
           fields.order.description = fields.lines.map(line => line.description).join("\n");
-          fields.order.estimated_cost = (Number(summary(fields).subtotal) / 100).toFixed(2);
         } else {
           fields.order.ship_to_address = fields.details.site_address;
           const workOrders = state.model.documents.filter(item => item.kind === "work_order" && item.fields.order.work_order_reference && eligible.some(quote => quote.id === item.fields.order.quote_id));
@@ -656,6 +656,17 @@
     const choices = (state.editor.linkedQuote ? [state.editor.linkedQuote] : state.model.documents).filter(item => isWorkOrder
       ? item.kind === "quote" && item.last_number
       : item.kind === "work_order" && item.fields.order.work_order_reference);
+    let costControl;
+    let costEdited = Boolean(fields.order.estimated_cost);
+    const applyQuoteCost = quote => {
+      if (costEdited) return;
+      fields.order.estimated_cost = quote ? formatCents(summary(quote.fields).total, false) : "";
+      if (costControl) costControl.value = fields.order.estimated_cost;
+    };
+    if (isWorkOrder) {
+      const quote = choices.find(item => item.id === fields.order.quote_id);
+      if (quote && (!fields.order.quote_reference || fields.order.quote_reference === quote.last_number)) applyQuoteCost(quote);
+    }
     const linked = node("select");
     const blank = node("option", "", isWorkOrder ? "Select an issued Quote…" : "No Work Order linked");
     blank.value = "";
@@ -681,8 +692,10 @@
     linked.addEventListener("change", () => {
       fields.order[linkKey] = linked.value;
       const selected = choices.find(item => item.id === linked.value);
-      if (isWorkOrder) fields.order.quote_reference = selected?.last_number || "";
-      else {
+      if (isWorkOrder) {
+        fields.order.quote_reference = selected?.last_number || "";
+        applyQuoteCost(selected);
+      } else {
         fields.order.work_order_reference = selected?.fields.order.work_order_reference || "";
         reference.value = fields.order.work_order_reference;
       }
@@ -697,6 +710,15 @@
       section.append(node("h2", "", title));
       for (const [key, label] of items) {
         if (["quote_reference", "work_order_reference"].includes(key)) continue;
+        if (key === "estimated_cost") {
+          costControl = textarea(fields.order.estimated_cost, value => {
+            fields.order.estimated_cost = value;
+            costEdited = Boolean(value);
+          });
+          costControl.dataset.orderCost = "true";
+          section.append(field(label, costControl));
+          continue;
+        }
         section.append(field(label, key.endsWith("_date") ? input(fields.order[key], value => fields.order[key] = value, "date") : textarea(fields.order[key], value => fields.order[key] = value)));
       }
       form.append(section);
@@ -996,6 +1018,8 @@
     renderScope();
     const reference = root()?.querySelector("[data-order-reference]");
     if (reference) reference.value = fields.order.work_order_reference;
+    const cost = root()?.querySelector("[data-order-cost]");
+    if (cost) cost.value = fields.order.estimated_cost;
   }
   async function saveEditor() {
     if (state.busy || !state.editor) return;

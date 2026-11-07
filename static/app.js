@@ -1034,14 +1034,14 @@
     else window.CeasefireLibraries?.open(kind, selection);
   }
 
-  function showView(view, librarySelection, calculatorId) {
-    if (view !== state.currentView && window.CeasefireSWMS?.hasPendingOperation?.()) { message("Save or discard the current SWMS edit before changing views.", true); return; }
+  async function showView(view, librarySelection, calculatorId) {
     if (view !== state.currentView && window.CeasefireCommercial?.hasPendingOperation?.()) { message("Save or discard the current commercial document edit before changing views.", true); return; }
     if (view !== state.currentView && window.CeasefireScheduler?.hasPendingOperation?.()) { message("Finish or cancel the current Scheduler edit before changing views.", true); return; }
     if (view !== state.currentView && window.CeasefireCoverSheets?.hasPendingOperation?.()) { message(uiCopy("Finish or retry the current cover-sheet operation before changing views."), true); return; }
     if (view !== state.currentView && window.CeasefireCertification?.hasPendingOperation?.()) { message(uiCopy("Finish or retry the current certification operation before changing views."), true); return; }
     if (window.CeasefirePenetrations?.hasTakeoffReservation?.() || window.CeasefireTakeoffs?.hasLinkedRecovery?.()) { message(uiCopy("Finish or recover the confirmed Takeoff library link before changing views."), true); return; }
     if (view === "takeoffs" && !state.takeoffsEnabled) { message(uiCopy("TAKEOFFS is not included in this edition."), true); return; }
+    if (view !== state.currentView && window.CeasefireSWMS?.hasPendingOperation?.() && !await window.CeasefireSWMS.leaveEditor()) return;
     window.CeasefireNotifications?.navigate(view === "pricing" ? `pricing:${state.libraryKind}` : view === "calculators" ? `calculators:${calculatorId || state.calculatorKind}` : view === "estimate" ? `estimate:${state.estimateKind || "estimate"}` : view);
     if (view !== state.currentView && $("app-message").hidden) releaseMessageSpace();
     state.currentView = view;
@@ -1137,7 +1137,7 @@
     state.estimatorKind = "estimate";
     await showView("calculators", undefined, id);
     if (state.currentView === "calculators") window.CeasefireHeaderTagline?.next();
-    return true;
+    return state.currentView === "calculators";
   }
   async function requestEstimateNavigation(kind) {
     if (kind === "penetration") return requestCalculatorNavigation(kind);
@@ -1148,7 +1148,7 @@
     state.estimateKind = kind;
     await showView("estimate");
     if (state.currentView === "estimate") window.CeasefireHeaderTagline?.next();
-    return true;
+    return state.currentView === "estimate";
   }
   function positionNavigationMenu(menu) {
     // Relative positioning keeps wrapped menus beside their actual owner.
@@ -1264,7 +1264,7 @@
         if (state.currentView !== "takeoffs") await showView("takeoffs");
         window.CeasefireHeaderTagline?.next();
       }
-      return !!changed;
+      return !!changed && state.currentView === "takeoffs";
     } finally { takeoffNavigationPending = false; }
   }
   async function requestLibraryNavigation(kind, selection) {
@@ -1272,8 +1272,8 @@
     if ((state.currentView !== "pricing" || kind !== state.libraryKind) && !await confirmLeavePricingLibrary()) return false;
     state.libraryKind = kind;
     await showView("pricing", selection);
-    window.CeasefireHeaderTagline?.next();
-    return true;
+    if (state.currentView === "pricing") window.CeasefireHeaderTagline?.next();
+    return state.currentView === "pricing";
   }
   async function requestPricingScopeSwitch(scope) {
     const previous = state.pricingScope;
@@ -1283,7 +1283,10 @@
     switchPricingScope(scope); return true;
   }
   function projectPricingChanged() { return draftChanged(state.pricingScope === "project" ? state.draft : state.projectPricingDraft, state.quoteConfiguration || state.configuration); }
-  function projectHasChanges() { return state.estimatesDirty || window.CeasefireSWMS?.hasProjectChanges?.() || window.CeasefireCommercial?.hasProjectChanges?.() || state.projectStatus !== (state.projectFile?.project_status || "Draft") || window.CeasefireDownloads?.hasUnsavedProjectSave?.() || state.dirty || projectPricingChanged() || window.CeasefireCalculators?.hasUnsavedChanges() || window.CeasefirePenetrations?.hasUnsavedChanges() || window.CeasefireTakeoffs?.hasUnsavedChanges() || window.CeasefireLibraryEditor?.hasProjectChanges?.() || window.CeasefireCertification?.hasProjectChanges?.() || window.CeasefireDocumentation?.hasProjectChanges?.(); }
+  function projectHasChanges() {
+    if (editingEstimateName && $("project-estimate-current-name").value.trim() !== editingEstimateName.name) return true;
+    return state.estimatesDirty || window.CeasefireSWMS?.hasProjectChanges?.() || window.CeasefireCommercial?.hasProjectChanges?.() || state.projectStatus !== (state.projectFile?.project_status || "Draft") || window.CeasefireDownloads?.hasUnsavedProjectSave?.() || state.dirty || projectPricingChanged() || window.CeasefireCalculators?.hasUnsavedChanges() || window.CeasefirePenetrations?.hasUnsavedChanges() || window.CeasefireTakeoffs?.hasUnsavedChanges() || window.CeasefireLibraryEditor?.hasProjectChanges?.() || window.CeasefireCertification?.hasProjectChanges?.() || window.CeasefireDocumentation?.hasProjectChanges?.();
+  }
   function pricingScopeUi() {
     $("pricing-scope").value = state.pricingScope;
     const save = $("save-pricing"), project = state.pricingScope === "project";
@@ -2026,12 +2029,19 @@
     state.projectEstimates = [{id:"estimate-1", name:"Estimate 1"}]; state.activeEstimateId = "estimate-1"; state.estimatesDirty = false;
   }
 
+  let editingEstimateName = null;
+
   function renderEstimateControls() {
     const select = $("project-estimate-select");
     if (!select) return;
+    const current = state.projectEstimates.find(entry => entry.id === state.activeEstimateId);
+    if (editingEstimateName !== current) {
+      editingEstimateName = null;
+      $("project-estimate-current-name").value = current?.name || "";
+    }
     select.replaceChildren(...state.projectEstimates.map(entry => {const option = node("option", "", entry.name); option.value = entry.id; return option;}));
     select.value = state.activeEstimateId;
-    for (const id of ["project-estimate-select", "project-estimate-new", "project-estimate-rename", "project-estimate-quote", "project-estimate-swms"]) $(id).disabled = state.projectBusy;
+    for (const id of ["project-estimate-current-name", "project-estimate-select", "project-estimate-new", "project-estimate-quote", "project-estimate-swms"]) $(id).disabled = state.projectBusy;
   }
 
   async function captureCurrentEstimate({ readOnly = false } = {}) {
@@ -2122,16 +2132,19 @@
     finally {projectBusy(false);}
   }
 
-  async function renameProjectEstimate() {
-    if (state.projectBusy || coverReplacementPending()) return;
-    projectBusy(true);
-    try {
-      const selected = state.projectEstimates.find(entry => entry.id === state.activeEstimateId);
-      const stamp = projectStamp(), name = await estimateName("Rename estimate", selected.name);
-      if (!name || stamp !== projectStamp()) return;
-      selected.name = name; state.estimatesDirty = true; updateProjectStatus();
-    } catch (error) { message(error.message, true); }
-    finally { projectBusy(false); }
+  function finishEstimateName() {
+    const entry = editingEstimateName;
+    editingEstimateName = null;
+    if (!entry || !state.projectEstimates.includes(entry) || entry.id !== state.activeEstimateId) return;
+    const input = $("project-estimate-current-name");
+    const name = input.value.trim();
+    if (!name || [...name].length > 150) {
+      message(uiCopy("Give every estimate a name between 1 and 150 characters."), true);
+    } else if (name !== entry.name) {
+      entry.name = name;
+      state.estimatesDirty = true;
+    }
+    updateProjectStatus();
   }
 
   window.CeasefireEstimates = {list:() => state.projectEstimates.map(({id,name}) => ({id,name})), activeId:() => state.activeEstimateId, select:selectEstimate,
@@ -2177,8 +2190,9 @@
   }
 
   function projectBusy(value, activeId = null) {
+    if (value) finishEstimateName();
     state.projectBusy = value;
-    for (const id of ["save-current-project", "load-project", "link-project-folder", "new-quote", "use-current-pricing", "project-estimate-select", "project-estimate-new", "project-estimate-rename", "project-estimate-quote", "project-estimate-swms"]) {
+    for (const id of ["save-current-project", "load-project", "link-project-folder", "new-quote", "use-current-pricing", "project-estimate-current-name", "project-estimate-select", "project-estimate-new", "project-estimate-quote", "project-estimate-swms"]) {
       $(id).disabled = value;
       $(id).setAttribute("aria-busy", String(value && id === activeId));
     }
@@ -2784,9 +2798,27 @@
   for (const status of projectStatuses) {
     $("project-status-" + status.toLowerCase()).addEventListener("click", () => changeCurrentProjectStage(status));
   }
+  const currentEstimateName = $("project-estimate-current-name");
+  currentEstimateName.addEventListener("input", () => {
+    editingEstimateName = state.projectEstimates.find(entry => entry.id === state.activeEstimateId);
+    updateProjectStatus();
+  });
+  currentEstimateName.addEventListener("blur", finishEstimateName);
+  currentEstimateName.addEventListener("keydown", event => {
+    if (event.isComposing) return;
+    if (event.key === "Enter" || event.key === "Escape") {
+      event.preventDefault();
+      if (event.key === "Escape" && editingEstimateName) currentEstimateName.value = editingEstimateName.name;
+      currentEstimateName.blur();
+    } else if (event.key === "ArrowDown") {
+      event.preventDefault();
+      const select = $("project-estimate-select");
+      select.focus();
+      select.showPicker?.();
+    }
+  });
   $("project-estimate-select").addEventListener("change", () => selectEstimate($("project-estimate-select").value));
   $("project-estimate-new").addEventListener("click", addProjectEstimate);
-  $("project-estimate-rename").addEventListener("click", renameProjectEstimate);
   $("project-estimate-swms").addEventListener("click", async () => {
     const context = state.quoteContext;
     if (await requestViewNavigation("swms") && context === state.quoteContext) await window.CeasefireSWMS?.openFromEstimate?.();
@@ -2838,6 +2870,7 @@
   function desktopBusy() { return state.projectBusy || state.desktopRequests > 0 || !!window.CeasefireSWMS?.hasPendingOperation?.() || !!window.CeasefireCommercial?.hasPendingOperation?.() || !!window.CeasefireDownloads?.hasPendingOperation?.() || !!document.querySelector('dialog[open], [aria-busy="true"]') || !state.initialized || !!window.CeasefireCalculators?.hasPendingOperation?.() || !!window.CeasefirePenetrations?.hasPendingOperation?.() || !!window.CeasefireTakeoffs?.hasPendingOperation?.() || !!window.CeasefireLibraryEditor?.hasPendingOperation?.() || !!window.CeasefireCertification?.hasPendingOperation?.() || !!window.CeasefireCoverSheets?.hasPendingOperation?.() || !!window.CeasefireDocumentation?.hasPendingOperation?.(); }
   async function reviewDesktopClose() {
     if (desktopBusy()) { message(uiCopy("Finish the current operation or dialog before closing ESTIMATOR."), true); return false; }
+    finishEstimateName();
     const captured = desktopCloseStamp();
     if (projectHasChanges() || sharedPricingChanged() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.() || window.CeasefireCoverSheets?.hasUnsavedChanges?.()) {
       if (!await confirmReplace(uiCopy("Close ESTIMATOR?"), uiCopy("There are unsaved project, calculator, library, certification or cover-sheet edits. Close without saving discards these edits. Keep editing to save them first."), uiCopy("Close without saving"))) return false;

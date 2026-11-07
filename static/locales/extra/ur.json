@@ -1,4 +1,9 @@
 {
+  "Estimate name": "تخمینے کا نام",
+  "Give every estimate a name between 1 and 150 characters.": "ہر تخمینے کا نام 1 سے 150 حروف کے درمیان رکھیں۔",
+  "Discard the current SWMS?": "موجودہ SWMS مسترد کریں؟",
+  "Finish the current SWMS operation before changing views.": "منظر تبدیل کرنے سے پہلے موجودہ SWMS کارروائی مکمل کریں۔",
+  "Save or discard the current SWMS edit before changing views.": "منظر تبدیل کرنے سے پہلے موجودہ SWMS کی تبدیلیاں محفوظ یا مسترد کریں۔",
   " Ancestor context": "سابقہ متعلقہ سیاق",
   " It uses the item, image/diagram and prices captured when you clicked Download; later changes are not included.": "اس میں وہ آئٹم، تصویر/خاکہ اور قیمتیں استعمال ہوتی ہیں جو ڈاؤن لوڈ پر کلک کرتے وقت محفوظ ہوئیں؛ بعد کی تبدیلیاں شامل نہیں ہیں۔",
   " Later edits are not included and still need saving.": "بعد کی تبدیلیاں شامل نہیں ہیں اور انہیں ابھی محفوظ کرنا ہے۔",

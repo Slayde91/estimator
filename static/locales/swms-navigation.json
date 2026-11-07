@@ -1,0 +1,23 @@
+{
+  "Discard the current SWMS?": [
+    "放弃当前的安全工作方法说明书 (SWMS) 吗？",
+    "मौजूदा सुरक्षित कार्य विधि विवरण (SWMS) छोड़ें?",
+    "¿Descartar el SWMS actual?",
+    "هل تريد تجاهل بيان طريقة العمل الآمن (SWMS) الحالي؟",
+    "ทิ้ง SWMS ฉบับปัจจุบันหรือไม่"
+  ],
+  "Finish the current SWMS operation before changing views.": [
+    "切换页面前，请先完成当前 SWMS 操作。",
+    "दृश्य बदलने से पहले मौजूदा SWMS कार्रवाई पूरी करें।",
+    "Finalice la operación del SWMS antes de cambiar de vista.",
+    "أكمل عملية SWMS الحالية قبل تغيير العرض.",
+    "โปรดดำเนินการกับ SWMS ให้เสร็จก่อนเปลี่ยนหน้า"
+  ],
+  "Save or discard the current SWMS edit before changing views.": [
+    "切换页面前，请保存或放弃当前 SWMS 的更改。",
+    "दृश्य बदलने से पहले मौजूदा SWMS के बदलाव सहेजें या छोड़ें।",
+    "Guarde o descarte los cambios del SWMS actual antes de cambiar de vista.",
+    "احفظ تعديلات SWMS الحالية أو تجاهلها قبل تغيير العرض.",
+    "บันทึกหรือทิ้งการแก้ไข SWMS ปัจจุบันก่อนเปลี่ยนหน้า"
+  ]
+}

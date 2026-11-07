@@ -1,0 +1,17 @@
+{
+  "Discard the current SWMS?": [
+    "현재 SWMS를 폐기하시겠습니까?",
+    "Itapon ang kasalukuyang SWMS?",
+    "Hủy bản SWMS hiện tại?"
+  ],
+  "Finish the current SWMS operation before changing views.": [
+    "화면을 전환하기 전에 현재 SWMS 작업을 완료하세요.",
+    "Tapusin muna ang kasalukuyang gawain sa SWMS bago lumipat ng pahina.",
+    "Hoàn tất thao tác SWMS hiện tại trước khi chuyển trang."
+  ],
+  "Save or discard the current SWMS edit before changing views.": [
+    "화면을 전환하기 전에 현재 SWMS의 변경 사항을 저장하거나 폐기하세요.",
+    "I-save o itapon ang kasalukuyang pagbabago sa SWMS bago lumipat ng pahina.",
+    "Lưu hoặc hủy các thay đổi của SWMS hiện tại trước khi chuyển trang."
+  ]
+}

@@ -26,13 +26,17 @@
     result.addEventListener("click", () => Promise.resolve(action()).catch(error => notice(error.message, true)));
     return result;
   }
-  function personAction(label, action, kind) {
+  function iconAction(label, action, kind) {
     const result = button("", action, kind === "add");
     result.classList.add("icon-only"); result.title = label; result.setAttribute("aria-label", label);
     window.CeasefireI18n?.attr(result, "title", label); window.CeasefireI18n?.attr(result, "aria-label", label);
+    if (kind !== "add") result.classList.add("swms-icon-action");
     if (kind === "signature") {
       result.classList.add("takeoff-icon-button", "takeoff-signature-button");
       const symbol = element("span", "takeoff-action-icon takeoff-signature-icon"); symbol.setAttribute("aria-hidden", "true"); result.append(symbol);
+    } else if (kind === "clear") {
+      const icon = document.querySelector("#penetration-clear svg").cloneNode(true);
+      icon.setAttribute("aria-hidden", "true"); result.append(icon);
     } else if (kind === "add") {
       result.classList.add("penetration-new-item-action");
       const symbol = element("span", "button-symbol", "+"); symbol.setAttribute("aria-hidden", "true"); result.append(symbol);
@@ -117,6 +121,37 @@
       if (await load()) renderList();
     } catch (error) { if (revision === state.revision) notice(error.message, true); }
   }
+  let leavingEditor = false;
+  async function leaveEditor() {
+    if (leavingEditor) return false;
+    if (state.busy) {
+      window.CeasefireDialogs.message("Finish the current SWMS operation before changing views.", true);
+      return false;
+    }
+    const editor = state.editor, current = guard();
+    leavingEditor = true;
+    try {
+      if (state.dirty) {
+        const discard = await window.CeasefireDialogs.confirm("Discard the current SWMS?", "", "Yes", "Cancel");
+        if (!current() || state.editor !== editor) return false;
+        if (!discard) {
+          window.CeasefireDialogs.message("Save or discard the current SWMS edit before changing views.", true);
+          return false;
+        }
+      }
+      // Reviewer and consultation defaults are saved independently of this statement.
+      if (peoplePending()) await flushPeopleDefaults();
+      if (!current() || state.editor !== editor || state.busy) return false;
+      renderList();
+      window.CeasefireProject?.changed?.();
+      return true;
+    } catch (error) {
+      notice(error.message, true);
+      return false;
+    } finally {
+      leavingEditor = false;
+    }
+  }
   function renderList() {
     clearTimeout(state.peopleTimer); state.peopleTimer = null; state.peopleDesired = {}; state.peopleError = null;
     state.editor = null; state.dirty = false;
@@ -134,7 +169,7 @@
       const card = element("article", "card swms-card"), actions = element("div", "actions");
       card.append(element("h2", "", row.fields.title), element("span", "badge", row.status), element("p", "", [row.fields.details.job_reference, row.fields.details.project_address].filter(Boolean).join(" · ")),
         element("p", "muted", `Revision ${row.version} · Updated ${new Date(row.updated_at).toLocaleString("en-AU")}`));
-      actions.append(button("Open", () => open(row)), button("Delete", () => remove(row))); card.append(actions); host.append(card);
+      actions.append(button("Open", () => open(row)), iconAction("Delete", () => remove(row), "remove")); card.append(actions); host.append(card);
     });
   }
   async function defaults() {
@@ -241,7 +276,7 @@
     pad.addEventListener("pointerdown", event => { if (strokes.length >= 100 || count >= 4000) { status.textContent = "Clear the pad and draw a simpler signature."; return; } drawing = [point(event)]; strokes.push(drawing); count++; pad.setPointerCapture(event.pointerId); paint(); });
     pad.addEventListener("pointermove", event => { if (drawing && count < 4000) { drawing.push(point(event)); count++; paint(); } });
     ["pointerup", "pointercancel", "lostpointercapture"].forEach(name => pad.addEventListener(name, () => { drawing = null; }));
-    actions.append(button("Clear", () => { strokes = []; count = 0; status.textContent = ""; paint(); }), button("Cancel", () => dialog.close()), button("Use signature", () => {
+    actions.append(iconAction("Clear", () => { strokes = []; drawing = null; count = 0; status.textContent = ""; paint(); }, "clear"), button("Cancel", () => dialog.close()), button("Use signature", () => {
       if (!strokes.some(stroke => stroke.length > 1)) { status.textContent = "Draw your signature first."; return; }
       result = { version: 1, ratio: pad.width / pad.height, strokes }; dialog.close();
     }, true));
@@ -249,8 +284,8 @@
     try { dialog.showModal(); await new Promise(resolve => dialog.addEventListener("close", resolve, { once: true })); return result; }
     finally { dialog.remove(); }
   }
-  function signature(value, update, label) {
-    const host = element("div", "swms-signature");
+  function signature(value, update, label, removePerson) {
+    const host = element("div", "swms-signature"), actions = element("div", "swms-signature-actions");
     if (value) {
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("viewBox", `0 0 ${Math.round(value.ratio * 100)} 100`); svg.setAttribute("role", "img"); svg.setAttribute("aria-label", label + " drawn signature");
@@ -260,13 +295,22 @@
         path.setAttribute("fill", "none"); path.setAttribute("stroke", "currentColor"); path.setAttribute("stroke-width", "1.5"); svg.append(path);
       }); host.append(svg);
     } else host.append(element("span", "muted", "Not signed"));
-    host.append(personAction(value ? "Replace signature" : "Draw signature", async () => {
+    function setSignature(next) {
+      update(next);
+      dirty();
+      const replacement = signature(next, update, label, removePerson);
+      host.replaceWith(replacement);
+      replacement.querySelector("button").focus({preventScroll:true});
+    }
+    actions.append(iconAction(value ? "Replace signature" : "Draw signature", async () => {
       if (state.busy) return;
       const current = guard(), editor = state.editor;
       const result = await chooseSignature();
-      if (result && current() && editor === state.editor) { update(result); dirty(); host.replaceWith(signature(result, update, label)); }
+      if (result && current() && editor === state.editor) setSignature(result);
     }, "signature"));
-    if (value) host.append(button("Clear signature", () => { update(null); dirty(); host.replaceWith(signature(null, update, label)); }));
+    if (value) actions.append(iconAction("Clear signature", () => setSignature(null), "clear"));
+    if (removePerson) actions.append(iconAction("Remove person", removePerson, "remove"));
+    host.append(actions);
     return host;
   }
   const detailLabels = { job_reference: "Job Reference", contact_person: "Contact Person", position: "Position", phone: "Phone", principal_contractor: "Principal Contractor (PC)", project_name: "Project Name", date: "Date", project_address: "Project Address", project_manager: "Project Manager (PM)", manager_contact: "Contact" };
@@ -283,14 +327,15 @@
           const input = control(person[name], value => { person[name] = value; queuePeople(key); }, name === "date" ? "date" : name === "time" ? "time" : "text");
           grid.append(field(title, input));
         });
-        row.append(grid, signature(person.signature, value => { person.signature = value; queuePeople(key); }, `${heading} ${index + 1}`));
+        const removePerson = () => { fields[key].splice(index, 1); dirty(); queuePeople(key); render(); };
+        row.append(grid, signature(person.signature, value => { person.signature = value; queuePeople(key); }, `${heading} ${index + 1}`, removePerson));
         if (key === "signoffs" && person.latitude && person.longitude && Number.isFinite(Number(person.latitude)) && Number.isFinite(Number(person.longitude))) {
           const link = element("a", "button secondary", "View map"); link.href = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(person.latitude)}&mlon=${encodeURIComponent(person.longitude)}#map=17/${encodeURIComponent(person.latitude)}/${encodeURIComponent(person.longitude)}`; link.target = "_blank"; link.rel = "noopener noreferrer"; row.append(link);
         }
-        row.append(personAction("Remove person", () => { fields[key].splice(index, 1); dirty(); queuePeople(key); render(); }, "remove")); list.append(row);
+        list.append(row);
       });
     }
-    box.append(list, personAction("Add person", () => {
+    box.append(list, iconAction("Add person", () => {
       if (fields[key].length >= 100) throw new Error("This section supports up to 100 people.");
       fields[key].push(key === "signoffs" ? { name: "", company: "", signature: null, date: "", time: "", latitude: "", longitude: "" } : key === "site_signoffs" ? { name: "", signature: null } : { name: "", position: "", signature: null }); dirty(); queuePeople(key); render();
     }, "add"));
@@ -298,10 +343,38 @@
     render(); host.append(box);
   }
   const emptyStep = () => ({ job_step: "", hazards: "", initial_risk: "", controls: "", residual_risk: "", responsible: "" });
-  function growStepInput(input) {
-    if (!input.getClientRects().length) return;
-    input.style.height = "auto";
-    input.style.height = `${input.scrollHeight + 2}px`;
+  function sizeStepRows(rows) {
+    const groups = [];
+    for (const row of rows) {
+      if (row.closest("details:not([open])") || !row.getClientRects().length) continue;
+      groups.push([...row.querySelectorAll(".swms-step-narrative")], [row.querySelector(".swms-step-responsible")]);
+    }
+    // Reset in one pass so a shortened field can also shrink the whole row.
+    for (const group of groups) for (const input of group) input.style.height = "auto";
+    const heights = groups.map(group => Math.max(...group.map(input => input.scrollHeight + input.offsetHeight - input.clientHeight)));
+    groups.forEach((group, index) => {
+      for (const input of group) input.style.height = `${heights[index]}px`;
+    });
+  }
+  let stepLayoutFrame = 0;
+  function scheduleStepLayout() {
+    if (stepLayoutFrame) return;
+    stepLayoutFrame = requestAnimationFrame(() => {
+      stepLayoutFrame = 0;
+      sizeStepRows(root().querySelectorAll(".swms-step-table tbody > tr"));
+    });
+  }
+  const swmsRoot = root();
+  if (swmsRoot) {
+    let previousWidth = 0;
+    new ResizeObserver(([entry]) => {
+      if (entry.contentRect.width !== previousWidth) {
+        previousWidth = entry.contentRect.width;
+        scheduleStepLayout();
+      }
+    }).observe(swmsRoot);
+    swmsRoot.addEventListener("toggle", event => { if (event.target.open) scheduleStepLayout(); }, true);
+    document.fonts.ready.then(scheduleStepLayout);
   }
   function steps(host, title, rows, minimum = 1) {
     const box = section(title, true), scroll = element("div", "table-scroll"), table = element("table", "swms-step-table");
@@ -313,21 +386,24 @@
         ["job_step", "hazards", "initial_risk", "controls", "residual_risk", "responsible"].forEach(key => {
           const cell = element("td"), label = `${title} item ${index + 1} ${key.replaceAll("_", " ")}`;
           const input = key.endsWith("risk") ? select(["", "1", "2", "3"], row[key], value => { row[key] = value; }) : control(row[key], value => { row[key] = value; }, "textarea");
-          if (input.tagName === "TEXTAREA") { input.rows = 1; input.addEventListener("input", () => growStepInput(input)); }
+          if (input.tagName === "TEXTAREA") {
+            input.rows = 1;
+            input.classList.add(key === "responsible" ? "swms-step-responsible" : "swms-step-narrative");
+            input.addEventListener("input", () => sizeStepRows([line]));
+          }
           input.setAttribute("aria-label", label); input.maxLength = 12000; cell.append(input); line.append(cell);
         });
-        const actions = element("td"), remove = button("Remove", () => { if (rows.length > minimum) { rows.splice(index, 1); dirty(); render(); } }); remove.disabled = rows.length <= minimum;
+        const actions = element("td"), remove = iconAction("Remove", () => { if (rows.length > minimum) { rows.splice(index, 1); dirty(); render(); } }, "remove"); remove.disabled = rows.length <= minimum;
         actions.append(remove); line.append(actions); body.append(line);
       });
-      requestAnimationFrame(() => body.querySelectorAll("textarea").forEach(growStepInput));
+      scheduleStepLayout();
     }
-    box.addEventListener("toggle", () => { if (box.open) body.querySelectorAll("textarea").forEach(growStepInput); });
     box.append(scroll, button("Add job step", () => { if (rows.length >= 200) throw new Error("A work type supports up to 200 steps."); rows.push(emptyStep()); dirty(); render(); })); render(); host.append(box);
   }
   function attachments(host, fields) {
     const box = section("Form Attachments"), list = element("div"), input = element("input"); input.type = "file"; input.multiple = true; input.accept = ".pdf,.png,.jpg,.jpeg";
     function render() {
-      list.replaceChildren(); fields.attachments.forEach((file, index) => { const row = element("div", "swms-attachment"); row.append(element("span", "", file.name), button("Remove attachment", () => { fields.attachments.splice(index, 1); dirty(); render(); })); list.append(row); });
+      list.replaceChildren(); fields.attachments.forEach((file, index) => { const row = element("div", "swms-attachment"); row.append(element("span", "", file.name), iconAction("Remove attachment", () => { fields.attachments.splice(index, 1); dirty(); render(); }, "remove")); list.append(row); });
     }
     input.addEventListener("change", async () => {
       if (state.busy) return;
@@ -356,7 +432,7 @@
   function renderEditor() {
     const editor = state.editor, fields = editor.fields, host = shell("Safe Work Method Statement"), actions = element("div", "swms-toolbar");
     const downloadButton = button("Download PDF", download, true); downloadButton.classList.add("swms-download");
-    const back = button("", async () => { await flushPeopleDefaults().catch(error => notice(error.message, true)); if (!state.busy && (!state.dirty || window.confirm("Discard unsaved SWMS edits?"))) renderList(); });
+    const back = button("", leaveEditor);
     back.classList.add("icon-only"); back.title = "Back to statements"; back.setAttribute("aria-label", "Back to statements");
     window.CeasefireI18n?.attr(back, "title", "Back to statements"); window.CeasefireI18n?.attr(back, "aria-label", "Back to statements");
     const arrow = element("span", "button-symbol", "←"); arrow.setAttribute("aria-hidden", "true"); back.append(arrow);
@@ -384,7 +460,7 @@
       })));
       selected.forEach(value => { if (fields.high_risk_steps[value]?.length) steps(riskTables, value, fields.high_risk_steps[value]); });
     }
-    renderRisks(); risks.append(riskChecks, riskTables); risks.addEventListener("toggle", () => { if (risks.open) riskTables.querySelectorAll("textarea").forEach(growStepInput); }); host.append(risks);
+    renderRisks(); risks.append(riskChecks, riskTables); host.append(risks);
     const work = section("Type of Works", true), checks = element("div", "swms-check-grid"), tables = element("div");
     function renderWorks() { tables.replaceChildren(); fields.work_types.forEach(kind => steps(tables, kind, fields.steps[kind])); }
     Object.keys(fields.steps).forEach(kind => checks.append(check(kind, fields.work_types.includes(kind), enabled => { if (!enabled && fields.work_types.length === 1) { notice("Choose at least one type of works.", true); checks.querySelectorAll("input").forEach((item, index) => { item.checked = fields.work_types.includes(Object.keys(fields.steps)[index]); }); return; } fields.work_types = enabled ? [...fields.work_types, kind] : fields.work_types.filter(value => value !== kind); renderWorks(); })));
@@ -398,6 +474,7 @@
   }
   window.CeasefireSWMS = {
     activate,
+    leaveEditor,
     async openFromEstimate() {
       if (!state.workspace || state.workspace !== workspace() || !state.model || state.dirty || state.busy) return;
       try { await openNew(); } catch (error) { notice(error.message, true); }

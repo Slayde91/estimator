@@ -242,7 +242,7 @@ def default_fields(kind, details=None, company=None):
             'company_reference': {key: company.get(key, '') for key in ('name', 'abn')}}
 
 
-def validate_fields(value):
+def validate_fields(value, *, kind=None):
     if not isinstance(value, dict) or set(value) - {'rate_schedule'} != FIELD_KEYS:
         raise ValidationError('Commercial document fields use an unsupported format.')
     result = {'title': _text(value['title'], 'Title', 300)}
@@ -297,7 +297,29 @@ def validate_fields(value):
         if not isinstance(source, dict) or set(source) != {'estimate_id', 'sha256'} or not re.fullmatch('[0-9a-f]{64}', source.get('sha256', '')):
             raise ValidationError('Linked estimate fingerprints are invalid.')
         result['sources'].append({'estimate_id': _text(source['estimate_id'], 'Estimate identity', 100), 'sha256': source['sha256']})
+    if kind in ('work_order', 'purchase_order'):
+        _normalise_legacy_reference(kind, result)
     return result
+
+
+def _work_order_prefix(project_no, quote_number):
+    # Remove padding from each numeric component before joining the identifiers.
+    parts = re.sub(r'[0-9]+', lambda match: match[0].lstrip('0') or '0', project_no + '-' + quote_number)
+    return parts.replace('-', '') + '-'
+
+
+def _normalise_legacy_reference(kind, fields):
+    """Translate linked draft references on read without changing historic PDF bytes."""
+    order = fields['order']
+    if not order['quote_id' if kind == 'work_order' else 'work_order_id']:
+        return
+    legacy = re.fullmatch(r'(.+)-(Q-[0-9]{6,10})-([0-9]{2,10})', order['work_order_reference'])
+    if not legacy:
+        return
+    project_no, quote_number, suffix = legacy.groups()
+    if kind == 'work_order' and (project_no, quote_number) != (fields['details']['project_no'], order['quote_reference']):
+        return
+    order['work_order_reference'] = _work_order_prefix(project_no, quote_number) + suffix
 
 
 def totals(fields):
@@ -347,7 +369,7 @@ def validate_commercial_documents(value):
         if document['kind'] not in KINDS or document['status'] not in STATUSES[document['kind']] or type(document['version']) is not int or document['version'] < 1:
             raise ValidationError('Commercial document kind, status or version is invalid.')
         row = deepcopy(document)
-        row['fields'] = validate_fields(document['fields'])
+        row['fields'] = validate_fields(document['fields'], kind=row['kind'])
         for key in ('created_at', 'updated_at', 'last_number'):
             row[key] = _text(row[key], key, 100)
         prefix = {'quote': 'Q', 'work_order': 'WO', 'purchase_order': 'PO'}[row['kind']]
@@ -368,7 +390,7 @@ def _work_order_sequence(fields):
     quote_number = order['quote_reference']
     if not project_no.strip() or any(char in project_no for char in '\r\n\t') or not re.fullmatch(r'Q-\d{6,10}', quote_number):
         raise ValidationError('A work order requires a project number and an issued Quote number.')
-    prefix = project_no + '-' + quote_number + '-'
+    prefix = _work_order_prefix(project_no, quote_number)
     reference = order['work_order_reference']
     suffix = reference[len(prefix):] if reference.startswith(prefix) else ''
     if not re.fullmatch(r'\d{2,10}', suffix) or not 1 <= int(suffix) <= 9999999999 or suffix != f'{int(suffix):02d}':
@@ -411,7 +433,7 @@ def _stored_document(value):
     document = json.loads(value)
     # Older drafts did not contain relationship identities. Normalise them on read
     # so opening an existing project does not require rewriting its saved data.
-    document['fields'] = validate_fields(document['fields'])
+    document['fields'] = validate_fields(document['fields'], kind=document['kind'])
     return document
 
 
@@ -530,6 +552,8 @@ class CommercialDocuments:
                             raise ValidationError('Work order and Quote references are assigned automatically and cannot be edited.')
                         order[key] = prior[key]
                     _work_order_sequence(fields)
+                    if create_retry and not order['estimated_cost']:
+                        order['estimated_cost'] = prior['estimated_cost']
                 return
             if not order['quote_id']:
                 raise ValidationError('Select an issued Quote before creating a work order.')
@@ -548,7 +572,9 @@ class CommercialDocuments:
             if number > 9999999999:
                 raise ValidationError('The work order reference sequence is exhausted.')
             order['quote_reference'] = quote_number
-            order['work_order_reference'] = f'{project_no}-{quote_number}-{number:02d}'
+            order['work_order_reference'] = _work_order_prefix(project_no, quote_number) + f'{number:02d}'
+            if not order['estimated_cost']:
+                order['estimated_cost'] = totals(quote['fields'])['grand_total']
             db.execute('INSERT INTO commercial_work_order_sequences VALUES(?,?,?) ON CONFLICT(project_id,quote_number) DO UPDATE SET number=excluded.number', (project, quote_number, number))
         elif kind == 'purchase_order':
             work_order_id = order['work_order_id']
@@ -582,7 +608,7 @@ class CommercialDocuments:
         kind = payload.get('kind')
         if kind not in KINDS or payload.get('status') not in STATUSES[kind]:
             raise ValidationError('Choose a valid commercial document status.')
-        fields = validate_fields(payload.get('fields'))
+        fields = validate_fields(payload.get('fields'), kind=kind)
         with self._connect() as db:
             db.execute('BEGIN IMMEDIATE')
             project = self._workspace(db, workspace)
@@ -657,7 +683,7 @@ class CommercialDocuments:
                 return None
             if row['project_id'] != project or row['fingerprint'] != signature:
                 raise CommercialConflict('This download request was already used for different document content.')
-            document = json.loads(row['document'])
+            document = _stored_document(row['document'])
             if owner_key:
                 # A file write may have failed after the PDF was issued. A fresh
                 # workspace for the exact same source file/revision can resume
@@ -683,7 +709,7 @@ class CommercialDocuments:
             if replay:
                 if replay['project_id'] != project or replay['fingerprint'] != signature:
                     raise CommercialConflict('This download request was already used for different document content.')
-                return {**dict(replay), 'document': json.loads(replay['document']), 'pdf': bytes(replay['pdf'])}
+                return {**dict(replay), 'document': _stored_document(replay['document']), 'pdf': bytes(replay['pdf'])}
             document = self._record(db, workspace, identity)
             self._version(document, version)
             kind = document['kind']

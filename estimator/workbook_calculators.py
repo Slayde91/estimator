@@ -16,7 +16,7 @@ from .workbook_runtime import _application_catalog, list_application_catalogs, a
 from .calculator_defaults import (default_calculator_inputs, yield_review,
                                   MONOKOTE_APPLICATION_BASIS_CELLS, MONOKOTE_APPLICATION_BASES)
 from .ductwork_policy import canonical_ductwork_value, normalize_schedule_choices
-from .assessment_references import UNAVAILABLE_RESULT, schedule_report_references, schedule_result_available
+from .assessment_references import UNAVAILABLE_RESULT, schedule_report_references, schedule_result_available, steel_calculation_note
 
 
 FYREWRAP_DIRECTION_NOTE = (
@@ -965,7 +965,8 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
                 cell = {'column': column, 'address': address, 'value': value, 'editable': editable,
                         'type': field.get('type', 'number' if isinstance(value, (int, float)) else 'text'),
                         'number_format': style.get('number_format', 'General'), 'calculated': 'formula' in original}
-                if result_unavailable and not editable and column_name(column) != schedule.get('line_id_column'):
+                if (result_unavailable and not editable and column_name(column) != schedule.get('line_id_column')
+                        and not (calculator_id == 'ductwork' and column_name(column) == 'J')):
                     cell['display_value'] = UNAVAILABLE_RESULT
                 if editable and metadata['display_cells'].get(address, {}).get('control_exact'):
                     cell['control_exact'] = True
@@ -1026,6 +1027,9 @@ def _render_sheet(calculator_id, inputs, source, metadata, start_row, end_row,
             rendered_row = {'row': row, 'cells': cells}
             if schedule_row:
                 rendered_row['result_unavailable'] = result_unavailable
+                if calculator_id.startswith('steel_'):
+                    rendered_row['calculation_notes'] = (steel_calculation_note(calculator_id, engine, row, not result_unavailable)
+                                                         if row_entered else 'Choose a product and enter the member details.')
                 rendered_row['report_references'] = (schedule_report_references(calculator_id, engine, row)
                                                      if row_entered and not result_unavailable else [])
             rows.append(rendered_row)

@@ -88,5 +88,57 @@
       }).catch(() => {});
     },
   });
+  const numberForm = document.getElementById('document-number-settings');
+  if (numberForm) {
+    const labels = {quote:'Quotes', work_order:'Work Orders', purchase_order:'Purchase Orders', swms:'SWMS', certification:'Certification'};
+    const numberStatus = numberForm.querySelector('[role="status"]');
+    const fields = new Map();
+    let numberDirty = false, numberGeneration = 0;
+    function renderNumbers(settings) {
+      numberForm.querySelector('tbody').replaceChildren();
+      for (const [kind, label] of Object.entries(labels)) {
+        const row = numberForm.querySelector('tbody').insertRow();
+        row.insertCell().textContent = label;
+        const p = document.createElement('input'), s = document.createElement('input');
+        p.maxLength = 12; p.pattern = '[A-Za-z]{1,12}'; p.required = true; p.value = settings[kind].prefix;
+        s.type = 'number'; s.min = 1; s.max = 9999999999; s.step = 1; s.required = true; s.value = settings[kind].start_number;
+        p.setAttribute('aria-label', label + ' prefix'); s.setAttribute('aria-label', label + ' starting number');
+        row.insertCell().append(p); row.insertCell().append(s); row.insertCell().textContent = settings[kind].next_reference;
+        fields.set(kind, {p,s});
+      }
+      numberForm.querySelector('button').disabled = false;
+    }
+    numberForm.addEventListener('input', () => { numberDirty = true; numberGeneration++; text(numberStatus, 'Unsaved changes'); });
+    document.getElementById('migrate-order-numbers').addEventListener('click', async event => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        let result;
+        do {
+          result = await request('/api/document-numbering/migrate-orders', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+        } while (result.scan_pending);
+        text(numberStatus, '{0} orders updated in {1} files. {2} files need review.', [result.updated_orders,result.updated_files,result.errors.length+result.unreadable_files]);
+      } catch (error) { text(numberStatus, error.message); }
+      finally { button.disabled = false; }
+    });
+    numberForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!numberForm.reportValidity()) return;
+      const body = Object.fromEntries([...fields].map(([kind,{p,s}]) => [kind, {prefix:p.value.trim(),start_number:Number(s.value)}]));
+      for (const field of numberForm.elements) field.disabled = true;
+      try { renderNumbers(await request('/api/document-numbering', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})); numberDirty = false; text(numberStatus, 'Saved'); }
+      catch (error) { text(numberStatus, error.message); }
+      finally { for (const field of numberForm.elements) field.disabled = false; }
+    });
+    const settingsView = document.getElementById('view-settings');
+    const refreshNumbers = async () => {
+      if (settingsView.hidden || numberDirty) return;
+      const generation = ++numberGeneration;
+      try { const numbers = await request('/api/document-numbering'); if (generation === numberGeneration) renderNumbers(numbers); }
+      catch (error) { text(numberStatus, error.message); }
+    };
+    new MutationObserver(refreshNumbers).observe(settingsView, {attributes:true, attributeFilter:['hidden']});
+    void refreshNumbers();
+  }
   void clients().catch(() => {}); void loadSettings();
 })();

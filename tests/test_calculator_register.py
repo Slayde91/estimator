@@ -31,7 +31,7 @@ VARIATIONS = {
 }
 SCHEDULE_COLUMNS = {
     'ductwork': {'Product': 'C', 'Duct dimensions (mm)': 'B', 'Length (m)': 'D', 'Quantity': 'CM',
-                 'FRL': 'E', 'Duct surface (m²)': 'K'},
+                 'FRL': 'E', 'Duct surface (m²)': 'K', 'Status / estimating basis': 'J'},
     'steel_vermiculite': {'Location': 'AA', 'Mark': 'A', 'Product': 'B', 'Section': 'F', 'Quantity': 'I',
                          'Length (m)': 'J', 'Published thickness (mm)': 'O',
                          'Spray surface (m²)': 'R'},
@@ -87,18 +87,24 @@ class CalculatorRegisterTests(unittest.TestCase):
         headers = {cell.value: cell.column for cell in sheet[5]}
         if identity == 'steel_vermiculite':
             self.assertEqual(set(headers), {'Line', 'Location', 'Mark', 'Product', 'Section', 'Quantity',
-                                           'Length (m)', 'Published thickness (mm)', 'Spray surface (m²)', 'Report'})
+                                           'Length (m)', 'Published thickness (mm)', 'Spray surface (m²)', 'Report', 'Calculation Notes'})
         self.assertNotIn('Status', headers)
-        self.assertEqual(headers['Report'], len(headers))
+        self.assertEqual(headers['Report'], len(headers) - int(identity.startswith('steel_')))
+        if identity.startswith('steel_'):
+            self.assertEqual(headers['Calculation Notes'], headers['Report'] + 1)
         self.assertEqual(sheet.max_row, 5 + len(data['rows']))
         comparisons = 0
         for target_row, item in enumerate(data['rows'], 6):
             self.assert_cell_value(sheet.cell(target_row, headers['Line']), item['line'])
             self.assert_cell_value(sheet.cell(target_row, headers['Report']),
                                    'N / A' if item['result_unavailable'] else report_reference_text(item['report_references'], urls=True))
+            if identity.startswith('steel_'):
+                self.assert_cell_value(sheet.cell(target_row, headers['Calculation Notes']), item['calculation_notes'])
+                if item['result_unavailable']:
+                    self.assertTrue(item['calculation_notes'])
             for label, column in SCHEDULE_COLUMNS[identity].items():
                 cell = sheet.cell(target_row, headers[label])
-                masked = item['result_unavailable'] and column not in item['input_columns']
+                masked = item['result_unavailable'] and column not in item['input_columns'] and (identity, column) != ('ductwork', 'J')
                 self.assert_cell_value(cell, 'N / A' if masked else item['values'][column])
                 address = column + str(item['row'])
                 if address in native.get(data['sheet'], {}):
@@ -129,7 +135,6 @@ class CalculatorRegisterTests(unittest.TestCase):
                         actual = output[column] if item['result_unavailable'] else ('' if cell.value is None and cell.data_type == 'inlineStr' else cell.value)
                         self.assertTrue(excel_equal(actual, native[data['sheet']][address]), (identity, address))
                         comparisons += 1
-                status = output['J'] or 'No calculated status returned'
             else:
                 columns = ('V', 'W') if identity == 'steel_vermiculite' else ('AR', 'AS', 'AT')
                 status = '\n'.join(str(item['values'][column]) for column in columns
@@ -138,7 +143,7 @@ class CalculatorRegisterTests(unittest.TestCase):
                     provenance = item.get('assessment_source') or item.get('source_reference')
                     if provenance:
                         status += '\n' + provenance
-            self.assertNotIn(status, [cell.value for cell in sheet[target_row]])
+                self.assertNotIn(status, [cell.value for cell in sheet[target_row]])
             if identity == 'steel_vermiculite':
                 # Removing presentation columns must not alter their underlying
                 # calculation or the product totals still exported in Summary.
@@ -296,7 +301,7 @@ class CalculatorRegisterTests(unittest.TestCase):
                 self.assertEqual(sheet.max_row, 6)
                 self.assertEqual(sheet['A6'].value, schedule['last_row'] - schedule['first_row'] + 1)
                 self.assertIn('1 used schedule items. 1 item(s)', sheet['A3'].value)
-                self.assertEqual(sheet.cell(5, sheet.max_column).value, 'Report')
+                self.assertEqual(sheet.cell(5, sheet.max_column).value, 'Report' if identity == 'ductwork' else 'Calculation Notes')
                 if identity == 'ductwork':
                     self.assert_cell_value(sheet['D6'], 0)
                     self.assertIsNone(sheet['B6'].value)

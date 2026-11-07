@@ -2,17 +2,17 @@
 
 ## Scope and classification
 
-This change implements the 6 November 2026 annotated review of CLASSIFIRE. It extends the existing project workspace and document services. It does not change passive-fire calculation or pay-rate rules.
+CLASSIFIRE manages commercial documents across saved projects, records shifts in the organisation’s time zone and issues project-owned SWMS revisions.
 
 Risk classification: **high** for location privacy, account/session handling, portable document ownership and commercial numbering; **medium** for authored PDF output and SWMS editing; **low** for layout, colours and wording. High-risk paths require negative tests for permissions, stale state, replay, concurrent creation and project identity.
 
 ## Commercial references and saved projects
 
-New Work Orders require an issued Quote and a project number. On the first successful Save, the server assigns `[Project No.]-[issued Quote No.]-01`, increasing the final number for that project and issued Quote. Opening or cancelling a form consumes no number. The database transaction serialises concurrent creation, and exact retries return the original reference. The project number, issued Quote and generated reference are frozen after creation.
+New Work Orders link to an issued Quote. The first successful save assigns an organisation-wide Work Order number and fills Estimated cost with the linked issue's GST-inclusive grand total. Purchase Orders have their own numbers and retain their Work Order links. The default series start at **WO-01** and **PO-01**. Retries keep their original numbers. New Quote downloads advance the Quote series.
 
-A later Quote download creates a new Quote number; existing Work Orders keep their original reference. The portable project retains reference counters, including numbers consumed by deleted Work Orders. Purchase Orders select a Work Order and display its server-derived reference. Only Purchase Orders omit the Client, Client contact, Client email and Client phone inputs, as confirmed by the user.
+**Settings → Project Details** sets the prefix and starting number for each series. Existing orders can be renumbered in their source files. The migration checks the source revision before writing and keeps historical issued PDFs available under their original numbers. SWMS and Certification references remain attached to the same document across revisions.
 
-Create WO and Create PO use the current estimate's project details, scope description and amount. A unique matching issued Quote or Work Order is selected automatically; multiple choices remain explicit. Existing documents remain readable. The internal legacy WO export sequence is retained separately from its visible project/Quote reference.
+Choose **Create WO** on a Quote card. In the Work Order editor, Notes saves an individual note, Files holds the Work Order attachments, and the related document panels open the linked Quote and Purchase Orders. PDF and image attachments appear as appendix pages. Other file types, including videos, are embedded as original files in the downloaded PDF. Each Work Order supports up to 16 files, 12 MiB per file and 32 MiB altogether.
 
 SWMS drafts are project-owned, bounded snapshots under `swms`. They require the same explicit project identity as certifications and document history. An older client cannot overwrite a project while omitting its SWMS. Downloads retain immutable receipts and are included in the existing Documentation history and post-download project save flow.
 
@@ -36,7 +36,7 @@ The street map requests only visible viewport tiles from OpenStreetMap via a fix
 
 The editor follows the supplied Dashpivot template CF-RAS-009 (visible template history v96) and `SAFE-WORK-METHOD-STATEMENT.pdf`. The live preview was inspected without saving changes to Dashpivot. It supplies two Activity choices and three independently selectable work types: Protective Coatings, Passive Firestopping and Installation of Passive Fire Protection Works, plus additional steps, high-risk work selections, signoffs, reviews and attachments.
 
-The supplied PDF determines the landscape page layout, risk matrix, tables and emergency sections. Template wording and risk values are editable. Historical people's names and signatures are cleared in new forms. Drawn signatures record user input; the application does not claim a Sitemate ID scanning integration or automatically approve the safety content.
+The supplied PDF determines the landscape page layout, risk matrix, tables and emergency sections. Template wording and risk values are editable. Reviewer and consultation defaults carry forward to new forms. **Settings → Personal Details** stores the current user’s signature for insertion in SWMS, Certification, Takeoffs and Work Orders. Selecting an existing SWMS signature opens the chooser for replacement.
 
 ## Validation
 

@@ -104,7 +104,7 @@
       const documents=rows.filter(row=>row.format===format&&!omittedRows.has(row.id));
       host.replaceChildren(...(format==='pdf'?groupedPdfRows(documents):documents).map(row=>{
         if(row.groupHeading) {
-          const tr=node('tr','documentation-group'),cell=node('th');cell.colSpan=3;
+          const tr=node('tr','documentation-group'),cell=node('th');cell.colSpan=format==='pdf'?5:3;
           cell.append(node('h3','documentation-group-heading',row.groupHeading));tr.append(cell);return tr;
         }
         const tr=node('tr'), name=node('td','documentation-name',row.label), action=node('td','documentation-action'), history=node('td'), controls=node('div','documentation-download');
@@ -141,7 +141,7 @@
           }
           history.append(list);
         }
-        tr.append(name,history,action);return tr;
+        tr.append(name,history,action);if(format==='pdf')window.CeasefireCoverSheets?.attach(tr,row.id);return tr;
       }));
     }
   }

@@ -96,8 +96,9 @@ def read_template(kind, filename, encoded):
 
 
 class ContactsHTTP:
-    def __init__(self, path):
+    def __init__(self, path, projects):
         self.store = ContactsStore(path)
+        self.projects = projects
 
     def dispatch(self, handler, route):
         prefix = "/api/contacts/"
@@ -116,6 +117,8 @@ class ContactsHTTP:
                 handler.send_payload(403, {"error": "Open Contacts in the CLASSIFIRE web app."})
             elif handler.command == "POST" and action in {"leads", "contacts", "accounts"}:
                 handler.send_payload(200, self.store.save(action, handler.read_json()))
+            elif handler.command == "POST" and action == "leads/convert":
+                handler.send_payload(200, self.store.convert(handler.read_json(), self.projects.create_from_lead))
             elif handler.command == "POST" and workbook and workbook[2] == "import":
                 body = handler.read_json()
                 records = read_template(workbook[1], body.get("filename"), body.get("file"))

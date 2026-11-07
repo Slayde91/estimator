@@ -193,6 +193,7 @@
       if (label === "Undo last edit") el.classList.add("takeoff-undo-button");
       const symbol = node("span", "button-symbol takeoff-button-symbol"); symbol.setAttribute("aria-hidden", "true");
       if (schedule) {
+        el.classList.add("takeoff-preview-transfer");
         const image = node("img", "takeoff-transfer-icon"); image.src = "/icons/takeoff-transfer.png"; image.alt = ""; image.setAttribute("aria-hidden", "true"); symbol.append(image);
       } else if (label === "Undo last edit") {
         symbol.textContent = "↶";

@@ -45,7 +45,8 @@ def calculator_download_data(data):
     for row in public['rows']:
         if row.get('result_unavailable'):
             for column in row['values'].keys() - set(row['input_columns']):
-                row['values'][column] = UNAVAILABLE_RESULT
+                if public['id'] != 'ductwork' or column != 'J':
+                    row['values'][column] = UNAVAILABLE_RESULT
         for key in ('assessment_id', 'assessment_source', 'assessment_reference', 'source_reference'):
             row.pop(key, None)
     for row in public['extra_rows']:

@@ -50,7 +50,7 @@ async function mapsSettingsHidden(){await expect(page.locator('#view-settings [a
  await page.screenshot({path:path.join(output,'firestopping-first-row.png')});
  await page.locator('nav [data-view="settings"]').click();await idle();
  await mapsSettingsHidden();
- for(const width of [1384,1020,390]){await page.setViewportSize({width,height:900});const cards=await page.locator('.settings-preferences-grid > .card').all(),a=await cards[0].boundingBox(),b=await cards[1].boundingBox();if(width>=800){assert.ok(Math.abs(a.y-b.y)<1);assert.ok(a.x+a.width<=b.x);}else assert.ok(a.y+a.height<=b.y);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)<=1);await page.screenshot({path:path.join(output,`settings-${width}.png`)});}
+ for(const width of [1384,1020,390]){await page.setViewportSize({width,height:900});const cards=await page.locator('.settings-preferences-grid > section').all(),a=await cards[0].boundingBox(),b=await cards[1].boundingBox();if(width>=800){assert.ok(Math.abs(a.y-b.y)<1);assert.ok(a.x+a.width<=b.x);}else assert.ok(a.y+a.height<=b.y);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)<=1);await page.screenshot({path:path.join(output,`settings-${width}.png`)});}
  await page.setViewportSize({width:1384,height:900});
  await page.getByRole('button',{name:'Estimates',exact:true}).click();await idle();await page.locator('#site-address').fill('Fixture Project Road, Sydney NSW');
  await expect(page.locator('#project-travel')).toHaveCount(0);

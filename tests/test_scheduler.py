@@ -42,6 +42,33 @@ class SchedulerTests(unittest.TestCase):
             call()
         self.assertEqual(caught.exception.status_code, status)
 
+    def test_organization_zone_reassigns_members_and_recalculates_recorded_work(self):
+        worker = self.member()
+        original = self.store.read('organization')
+        self.assertEqual(original['timezone'], 'Australia/Sydney')
+        self.assertIn('Asia/Kathmandu', original['zones'])
+        entry = self.write('entries/save', {'member_id': worker['id'], 'start': '2026-11-06T14:00:00Z',
+                                             'end': '2026-11-06T15:00:00Z'})
+        self.assertEqual(self.state()['payroll']['rows'][0]['gross'], '60.00')
+        with self.assertRaises(SchedulerError):
+            self.write('organization', {'timezone': 'Mars/City', 'version': original['version']})
+        self.write('organization', {'timezone': 'America/New_York', 'version': original['version']})
+        revised = self.state()
+        self.assertEqual(revised['entries'][0]['start'], entry['start'])
+        self.assertEqual(revised['payroll']['rows'][0]['gross'], '40.00')
+        self.assertTrue(all(person['timezone']=='America/New_York' for person in revised['members']))
+        self.assertEqual(self.member('Additional')['timezone'], 'America/New_York')
+        self.assert_error(409, lambda: self.write('organization', {'timezone':'UTC','version':original['version']}))
+        self.assert_error(409, lambda: self.write('entries/save', {'member_id':worker['id'], 'input_timezone':'Australia/Sydney',
+                                                                    'start':'2026-11-08T08:00','end':'2026-11-08T09:00'}))
+        for missing_or_repeated in ('2026-03-08T02:15', '2026-11-01T01:15'):
+            self.assert_error(400, lambda: self.write('entries/save', {'member_id':worker['id'],
+                'start': missing_or_repeated, 'end':missing_or_repeated[:10]+'T04:00'}))
+        fallback = self.write('entries/save', {'member_id':worker['id'], 'start':'2026-11-01T00:00','end':'2026-11-01T04:00'})
+        self.assertEqual((fallback['start'], fallback['end']), ('2026-11-01T04:00:00Z','2026-11-01T09:00:00Z'))
+        token = self.store.write('login', {'email':worker['email'], 'password':'worker password 123'})['token']
+        self.assert_error(403, lambda: self.store.write('organization', {'timezone':'UTC','version':revised['settings']['version']}, token))
+
     def test_setup_once_and_no_credentials_in_public_state(self):
         self.assert_error(409, lambda: self.store.write('setup', {'name': 'Other'}))
         self.assertFalse(self.store.read('bootstrap')['setup_required'])

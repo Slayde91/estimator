@@ -105,9 +105,9 @@ module.exports = async function peopleDefaults(root, output) {
     await expect.poll(async()=>(await defaults()).fields.consultation[0].name).toBe('New consultant');
     assert.equal((await defaults()).fields.reviewers[0].signature,null,'Clearing a signature clears the reusable signature');
     await consultation.getByRole('button',{name:'Replace signature',exact:true}).click();
-    const pad = page.getByLabel('SWMS signature drawing pad'), box = await pad.boundingBox();
+    const pad = page.getByLabel('Signature drawing pad'), box = await pad.boundingBox();
     await page.mouse.move(box.x+20,box.y+100); await page.mouse.down(); await page.mouse.move(box.x+170,box.y+50,{steps:8}); await page.mouse.up();
-    await page.getByRole('dialog').getByRole('button',{name:'Use signature',exact:true}).click();
+    await page.getByRole('dialog').getByRole('button',{name:'Insert signature',exact:true}).click();
     await expect.poll(async()=>(await defaults()).fields.consultation[0].signature.strokes[0].length).toBeGreaterThan(3);
     const savedPeople = (await defaults()).fields.consultation;
     await host.getByRole('button',{name:'Save',exact:true}).click(); await expect(host.locator('.swms-message')).toContainText('Saved.');

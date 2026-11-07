@@ -67,6 +67,65 @@ def schedule_result_available(calculator_id, engine, row):
     raise ValueError(f'Unknown schedule calculator: {calculator_id}')
 
 
+def steel_calculation_note(calculator_id, engine, row, available):
+    """Turn evaluated diagnostics into short input guidance, without exposing source citations."""
+    board = calculator_id == 'steel_board'
+    sheet = 'CALCULATOR' if board else 'SCHEDULE'
+    cell = lambda col: str(engine.value(sheet, f'{col}{row}') or '').casefold()
+    state = cell('AR' if board else 'W')
+    if available and (state.startswith('quantified') and 'held' not in state or state == 'cladding estimate'):
+        return ''
+    missing = getattr(engine, 'all_required_missing_by_row', {}).get(row, ())
+    if missing:
+        return 'Complete ' + ', '.join(missing[:3]) + (' and the remaining required fields.' if len(missing) > 3 else '.')
+    if available:
+        if 'area' in state or 'girth' in state or 'length' in state:
+            return 'Enter the coating area, or check quantity, length and exposed perimeter.'
+        if 'numeric range' in state:
+            return 'Check the quantity, dimensions and units. The material quantity exceeds the supported range.'
+        if any(word in state for word in ('kit', 'component', 'density', 'yield', 'quantity settings')):
+            return 'Verify the selected product’s pack size, yield and component settings to calculate quantities.'
+        return ''
+    status = cell('AI' if board else 'V')
+    # These detail columns may contain assessment numbers or page/table locations.
+    # Use them only to identify the cause, never copy their text to the public note.
+    detail = (cell('BR') or cell('AS') or status) if board else cell('Y').removeprefix(status + '. ')
+    reason = detail.split('. ', 1)[0]
+    if 'data unavailable' in status or any(term in reason for term in ('not installed','integrity validation','unavailable dataset','source file missing')):
+        return 'Install or restore the reviewed assessment data for the selected product.'
+    if board and any(term in reason for term in ('layer','stock','stack')):
+        return 'Check the layer preference and available board thicknesses for this member.'
+    if 'input calculation' in status:
+        return 'Check the Steel ID, exposed sides and input dimensions used to calculate the section factor.'
+    if 'product' in status and 'unsupported' in status:
+        return 'Select an assessed steel protection product.'
+    if 'source review' in status or 'blocked' in status:
+        return 'Obtain verified assessment data for this combination before selecting a thickness.'
+    if 'exact factor' in status or 'lookup policy' in status:
+        return 'Check the section factor against a published row and verify the selected lookup policy.'
+    if 'factor out of range' in status or 'section factor is outside' in reason:
+        return 'Verify the section factor and exposed perimeter against this product’s assessed range.'
+    if 'positive factor' in status or 'positive section factor' in reason or 'positive a/v' in reason:
+        return 'Enter a verified positive section factor in the units of the selected input method.'
+    if 'temperature' in status or 'temperature' in reason and ('exact' in reason or 'outside' in reason):
+        return 'Check the specified critical temperature against the assessed temperatures for this member.'
+    if 'frl' in status or 'fire period' in reason and 'range' in reason:
+        return 'Check that this product covers the specified fire period for this member and exposure.'
+    if 'not published' in status or 'table cell' in reason:
+        return 'No thickness is published for this combination. Verify an assessed alternative with the manufacturer.'
+    if 'family' in reason or 'geometry' in reason or 'section id' in reason:
+        return 'Check the Steel ID, section family and member dimensions against the actual steelwork.'
+    if 'case' in status or 'exposure' in reason or 'sided' in reason:
+        return 'Check the beam or column selection and the number of exposed sides against the assessed cases.'
+    if 'excluded' in status and 'above' in status:
+        return 'Check the required thickness against the assessed maximum for the selected steel member.'
+    if 'thickness limit' in status:
+        return 'Verify an assessed coating system for the required dry film thickness on this member.'
+    if board:
+        return 'Verify the Steel ID, member dimensions, fixing arrangement and board layer selection.'
+    return 'Verify the selected product, member case and section factor for the specified fire period.'
+
+
 def schedule_report_references(calculator_id, engine, row):
     """Read the evaluated row under its caller's existing evaluation lock."""
     sheet = 'SCHEDULE' if calculator_id in {'steel_vermiculite', 'steel_intumescent'} else 'CALCULATOR'

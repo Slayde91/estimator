@@ -13,6 +13,7 @@ import uuid
 from pypdf import PdfReader
 
 from .catalog import ValidationError
+from .document_numbers import DocumentNumbers
 
 
 FIELDS = (
@@ -129,8 +130,9 @@ def _revision_metadata(document_id, row):
 
 
 class CertificationService:
-    def __init__(self, store, *, renderer=None, coverer=None, covers=None, precommit=None):
+    def __init__(self, store, *, renderer=None, coverer=None, covers=None, precommit=None, numbering=None):
         self.store = store
+        self.numbering = numbering or DocumentNumbers(store.path.with_name(store.path.stem + '-document-numbers.sqlite3'))
         self.renderer = renderer
         self.coverer = coverer
         self.precommit = precommit
@@ -163,6 +165,8 @@ class CertificationService:
                 if 'options' not in columns:
                     db.execute('ALTER TABLE '+table+" ADD COLUMN options TEXT NOT NULL DEFAULT '"+_json(DEFAULT_OPTIONS)+"'")
             columns = {row[1] for row in db.execute('PRAGMA table_info(certification_documents)')}
+            if 'reference' not in columns:
+                db.execute("ALTER TABLE certification_documents ADD COLUMN reference TEXT NOT NULL DEFAULT ''")
             if 'create_options' not in columns:
                 db.execute('ALTER TABLE certification_documents ADD COLUMN create_options TEXT')
             columns = {row[1] for row in db.execute('PRAGMA table_info(certification_signer_defaults)')}
@@ -184,25 +188,25 @@ class CertificationService:
 
     @staticmethod
     def _get(db, document_id):
-        row = db.execute('SELECT fields,version,created_at,updated_at,options FROM certification_documents WHERE id=?',
+        row = db.execute('SELECT fields,version,created_at,updated_at,options,reference FROM certification_documents WHERE id=?',
                          (document_id,)).fetchone()
         if row is None:
             raise CertificationNotFound('This certification document could not be found.')
         revisions = db.execute('SELECT revision,created_at,sha256 FROM certification_revisions '
                                'WHERE document_id=? ORDER BY revision DESC', (document_id,)).fetchall()
-        return {'id': document_id, 'fields': json.loads(row[0]), 'version': row[1], 'options': json.loads(row[4]),
+        return {'id': document_id, 'reference': row[5], 'fields': json.loads(row[0]), 'version': row[1], 'options': json.loads(row[4]),
                 'created_at': row[2], 'updated_at': row[3],
                 'revisions': [_revision_metadata(document_id, item) for item in revisions]}
 
     def list_documents(self):
         with self.store.connect() as db:
-            rows = db.execute('SELECT d.id,d.fields,d.version,d.created_at,d.updated_at,COUNT(r.revision) '
+            rows = db.execute('SELECT d.id,d.fields,d.version,d.created_at,d.updated_at,COUNT(r.revision),d.reference '
                               'FROM certification_documents d LEFT JOIN certification_revisions r '
                               'ON r.document_id=d.id GROUP BY d.id ORDER BY d.updated_at DESC,d.id').fetchall()
         items = []
-        for identity, raw, version, created_at, updated_at, count in rows:
+        for identity, raw, version, created_at, updated_at, count, reference in rows:
             fields = json.loads(raw)
-            items.append({'id': identity, 'client': fields['client'], 'project': fields['project'],
+            items.append({'id': identity, 'reference': reference, 'client': fields['client'], 'project': fields['project'],
                           'address': fields['address'], 'version': version, 'created_at': created_at,
                           'updated_at': updated_at, 'revision_count': count,
                           'label': fields['project'].strip() or fields['client'].strip() or 'Untitled certification'})
@@ -218,9 +222,10 @@ class CertificationService:
         # Preserve the exact old fingerprint format for old clients/retries.
         fingerprint = _fingerprint({'fields': fields, 'options': options}) if supplied_options else _fingerprint(fields)
         with self.store.connect() as db:
+            self.numbering.attach(db)
             db.execute('BEGIN IMMEDIATE')
             if request_id is not None:
-                old = db.execute('SELECT id,create_request_fingerprint,created_at,create_options FROM certification_documents '
+                old = db.execute('SELECT id,create_request_fingerprint,created_at,create_options,reference FROM certification_documents '
                                  'WHERE create_request_id=?', (request_id,)).fetchone()
                 if old:
                     if old[1] != fingerprint:
@@ -230,15 +235,16 @@ class CertificationService:
                     # version; its automatic Generate must still conflict if
                     # another window has since changed this document. GET is
                     # the separate source of fresh current document state.
-                    return {'id': old[0], 'fields': json.loads(_json(fields)), 'version': 1,
+                    return {'id': old[0], 'reference': old[4], 'fields': json.loads(_json(fields)), 'version': 1,
                             'options': json.loads(old[3]) if old[3] is not None else deepcopy(DEFAULT_OPTIONS),
                             'created_at': old[2], 'updated_at': old[2], 'revisions': []}
             identity, timestamp = str(uuid.uuid4()), _now()
+            reference = self.numbering.assign(db, 'certification', identity)
             db.execute('INSERT INTO certification_documents '
-                       '(id,fields,version,created_at,updated_at,create_request_id,create_request_fingerprint,options,create_options) '
-                       'VALUES(?,?,?,?,?,?,?,?,?)',
+                       '(id,fields,version,created_at,updated_at,create_request_id,create_request_fingerprint,options,create_options,reference) '
+                       'VALUES(?,?,?,?,?,?,?,?,?,?)',
                        (identity, _json(fields), 1, timestamp, timestamp, request_id, fingerprint,
-                        _json(options), _json(options)))
+                        _json(options), _json(options), reference))
             if self.precommit is not None:
                 self.precommit(db, identity)
             return self._get(db, identity)
@@ -345,6 +351,8 @@ class CertificationService:
         from .pdf_cover import prepend_cover_pdf
         timestamp = _now()
         signature = {'signature': selected_options['signature_image']} if selected_options.get('signature_image') else {}
+        if self.renderer is None and current.get('reference'):
+            signature['reference'] = current['reference']
         payload = (self.renderer or render_certificate_pdf)(deepcopy(fields), company=deepcopy(company),
                     certificate_id=document_id, revision=revision, created_at=timestamp, **signature)
         # Retain the historical two-argument injectable hook for failure tests;

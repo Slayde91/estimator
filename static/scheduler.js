@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const ZONE = "Australia/Sydney";
+  let zone = "Australia/Sydney";
   const LOCATION_INTERVAL = 30 * 60 * 1000;
   const state = {root:null, data:null, page:"schedule", week:weekStart(today()), member:"", mine:false,
     loading:0, busy:false, dialog:null, watch:null, lastLocation:0, locationEnabled:false, timer:null, projects:[], settingsDirty:false,
@@ -9,9 +9,27 @@
     entriesSearch:"", entriesMine:false, collapsedDays:new Set(), locationPlayback:null, authGeneration:0, mapRequest:0};
   const accountChannel = "BroadcastChannel" in window ? new BroadcastChannel("classifire-scheduler-account") : null;
   const colours = [["#2196f3","Blue"],["#b12030","Red"],["#177349","Green"],["#7544a8","Purple"],["#505966","Grey"]];
-  const dayFormatter = new Intl.DateTimeFormat("en-AU", {timeZone:ZONE, weekday:"short", day:"numeric", month:"short"});
-  const dateFormatter = new Intl.DateTimeFormat("en-AU", {timeZone:ZONE, day:"numeric", month:"short", hour:"numeric", minute:"2-digit"});
-  const timeFormatter = new Intl.DateTimeFormat("en-AU", {timeZone:ZONE, hour:"numeric", minute:"2-digit"});
+  let dayFormatter, dateFormatter, timeFormatter, clockFormatter;
+  const calendarDay = new Intl.DateTimeFormat("en-AU", {timeZone:"UTC",weekday:"short",day:"numeric",month:"short"});
+  function setZone(value) {
+    if (!value || (zone === value && clockFormatter)) return;
+    const currentWeek = weekStart(today());
+    zone = value;
+    dayFormatter = new Intl.DateTimeFormat("en-AU", {timeZone:zone,weekday:"short",day:"numeric",month:"short"});
+    dateFormatter = new Intl.DateTimeFormat("en-AU", {timeZone:zone,day:"numeric",month:"short",hour:"numeric",minute:"2-digit"});
+    timeFormatter = new Intl.DateTimeFormat("en-AU", {timeZone:zone,hour:"numeric",minute:"2-digit"});
+    clockFormatter = new Intl.DateTimeFormat("en-AU", {timeZone:zone,hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"});
+    if (state.week === currentWeek) state.week = weekStart(today());
+    renderHeaderTime();
+  }
+  setZone(zone);
+  function renderHeaderTime() {
+    const clock = document.getElementById("scheduler-local-time");
+    if (!clock || clock.closest("[hidden]")) return;
+    const now = new Date();
+    clock.dateTime = now.toISOString();
+    clock.textContent = clockFormatter.format(now) + " · " + zone;
+  }
   function el(tag, className, text) {
     const result = document.createElement(tag);
     if (className) result.className = className;
@@ -56,7 +74,7 @@
   }
   function weekStart(date) { const day = new Date(`${date}T12:00:00Z`).getUTCDay(); return addDays(date, -(day + 6) % 7); }
   function localParts(value) {
-    const parts = new Intl.DateTimeFormat("en-CA", {timeZone:ZONE,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).formatToParts(new Date(value));
+    const parts = new Intl.DateTimeFormat("en-CA", {timeZone:zone,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).formatToParts(new Date(value));
     const values = Object.fromEntries(parts.map(part => [part.type,part.value]));
     return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}:${values.second}`;
   }
@@ -145,6 +163,9 @@
       if (state.locationEntry && (state.data?.user?.id !== data.user?.id || state.locationEntry !== data.active_entry?.id)) stopLocation();
       if (state.data?.user && (state.data.user.id !== data.user?.id || state.data.user.role !== data.user?.role)) resetAccount();
       state.data = data;
+      const previousWeek = state.week;
+      setZone(data.settings.timezone);
+      if (previousWeek !== state.week) return refresh();
       if (!data.active_entry) stopLocation();
       else if (state.locationEntry !== data.active_entry.id) startLocation();
       updateLocationStatus();
@@ -178,7 +199,8 @@
   }
   function shell() {
     state.root.replaceChildren();
-    const heading = el("div","page-heading"); heading.append(el("h1","","Scheduler")); state.root.append(heading);
+    const heading = el("div","page-heading"); const clock = el("time","scheduler-local-time"); clock.id = "scheduler-local-time";
+    heading.append(el("h1","","Scheduler"),clock); state.root.append(heading); renderHeaderTime();
     const status = el("p", "scheduler-notice message"); status.setAttribute("role","status"); status.hidden = true;
     state.root.append(status);
     const projects = el("div","scheduler-projects-info helper"), label = el("span","scheduler-projects-status",state.projectsMessage);
@@ -240,13 +262,13 @@
   function render() {
     if (!state.data?.user) return auth(false);
     shell();
-    const top = el("div", "scheduler-top"), tabs = el("nav", "scheduler-tabs"); tabs.setAttribute("aria-label","Scheduler pages");
+    const top = el("div", "scheduler-top"), tabs = el("nav", "calculator-pages scheduler-tabs"); tabs.setAttribute("aria-label","Scheduler pages");
     const pages = [["schedule","Schedule"],["entries","Time entries"],...(admin() ? [["team","Team members"],["settings","Settings"]] : [])];
     pages.forEach(([id,label]) => {
       const tab = button(label,() => {
         if (state.busy || state.settingsDirty) {notice("Finish saving or discard your settings changes before changing pages.",true); return;}
         state.page = id; render();
-      }); tab.setAttribute("aria-current",state.page === id ? "page" : "false"); tabs.append(tab);
+      }, "calculator-page"); tab.setAttribute("aria-pressed", String(state.page === id)); tab.setAttribute("aria-current",state.page === id ? "page" : "false"); tabs.append(tab);
     });
     const account = el("div", "scheduler-account"); account.append(el("span","",state.data.user.name),button("Sign out",async () => {
       if (state.busy || state.settingsDirty) {notice("Finish saving or discard your settings changes before signing out.",true); return;}
@@ -264,7 +286,7 @@
     const active = state.data.active_entry, bar = el("section", "scheduler-clock card"); bar.setAttribute("aria-label","Your time clock");
     const summary = el("div"); summary.append(el("strong","",active ? "You are clocked in" : "Your time clock"));
     if (active) summary.append(el("p","helper",`Started ${dateFormatter.format(new Date(active.start))} · ${hours(duration(active.start))}`));
-    else summary.append(el("p","helper","Record your working time in Australia/Sydney."));
+    else summary.append(el("p","helper",`Record your working time in ${zone}.`));
     bar.append(summary);
     if (active) {
       const openBreak = active.breaks?.find(item => !item.end);
@@ -331,7 +353,7 @@
     date.addEventListener("change",() => { if (date.value) { state.week = weekStart(date.value); refresh(); } });
     controls.append(button("Today",() => {state.week = weekStart(today()); refresh();}),button("←",() => {state.week = addDays(state.week,-7); refresh();}),date,button("→",() => {state.week = addDays(state.week,7); refresh();}));
     controls.children[1].setAttribute("aria-label","Previous week"); controls.children[3].setAttribute("aria-label","Next week");
-    controls.append(el("strong", "scheduler-week",`${dayFormatter.format(new Date(`${state.week}T12:00:00Z`))} – ${dayFormatter.format(new Date(`${addDays(state.week,6)}T12:00:00Z`))}`));
+    controls.append(el("strong", "scheduler-week",`${calendarDay.format(new Date(`${state.week}T12:00:00Z`))} – ${calendarDay.format(new Date(`${addDays(state.week,6)}T12:00:00Z`))}`));
     return controls;
   }
   function renderSchedule() {
@@ -340,10 +362,10 @@
     filter.setAttribute("aria-label","Filter team members"); filter.addEventListener("change",() => {state.member = filter.value; render();}); controls.append(filter);
     const mine = check("My schedule",state.mine); mine.control.addEventListener("change",() => {state.mine = mine.control.checked; render();}); controls.append(mine.label);
     if (admin()) controls.append(button("Add shift",() => editShift(),"button scheduler-add-action"));
-    state.root.append(controls,el("p","helper","Week view · Australia/Sydney · Select a shift for details."));
+    state.root.append(controls,el("p","helper",`Week view · ${zone} · Select a shift for details.`));
     const scroll = el("div", "scheduler-grid-scroll"), table = el("table", "scheduler-grid"); table.append(el("caption", "sr-only","Weekly schedule by team member"));
     const head = el("thead"), row = el("tr"); row.append(el("th","scheduler-person","Team member"));
-    for(let day=0;day<7;day++) { const date = addDays(state.week,day), cell = el("th",date === today() ? "scheduler-today" : "",dayFormatter.format(new Date(`${date}T12:00:00Z`))); cell.scope = "col"; row.append(cell); }
+    for(let day=0;day<7;day++) { const date = addDays(state.week,day), cell = el("th",date === today() ? "scheduler-today" : "",calendarDay.format(new Date(`${date}T12:00:00Z`))); cell.scope = "col"; row.append(cell); }
     head.append(row); table.append(head); const body = el("tbody");
     let members = [{id:"",name:"Unassigned",active:true},...state.data.members.filter(item => item.active)];
     if (state.mine) members = members.filter(item => item.id === state.data.user.id);
@@ -372,7 +394,7 @@
     if (state.data.members.length === 0) state.root.append(el("p","helper","Add your team in Team members, then select a day to schedule a shift."));
   }
   function editShift(shift = null,date = today(),memberId = "") {
-    const requestId = shift ? null : crypto.randomUUID();
+    const inputZone = zone, requestId = shift ? null : crypto.randomUUID();
     if (!admin()) {
       const modal = el("dialog","scheduler-dialog"); modal.append(el("h2","",shift.title),el("p","",`${dateFormatter.format(new Date(shift.start))} – ${dateFormatter.format(new Date(shift.end))}`),el("p","",shift.location || ""),el("p","",shift.notes || ""),button("Close",() => modal.close())); state.root.append(modal); modal.addEventListener("close",() => modal.remove()); modal.showModal(); return;
     }
@@ -391,13 +413,13 @@
         const item = check(member.name,selected.has(member.id)); members.append(item.label); return {id:member.id,control:item.control};
       });
       const publish = check("Published",shift?.published ?? true);
-      host.append(field("Title",title),field("Colour",color),field("Start",start,"Australia/Sydney"),field("End",end,"Australia/Sydney"),members,field("Job / project reference",project),field("Location",location),field("Notes",notes),publish.label);
+      host.append(field("Title",title),field("Colour",color),field("Start",start,zone),field("End",end,zone),members,field("Job / project reference",project),field("Location",location),field("Notes",notes),publish.label);
       if (shift) host.append(button("Delete shift",() => {
         deleteRecord("/shifts/delete",{id:shift.id,version:shift.version},`Delete “${shift.title}” from the schedule?`);
       },"button secondary scheduler-danger"));
       return {title,start,end,color,project,location,notes,publish,memberChecks};
     },"Save shift",async controls => {
-      await request("/shifts/save",{...(shift ? {id:shift.id,version:shift.version} : {request_id:requestId}),title:controls.title.value,
+      await request("/shifts/save",{input_timezone:inputZone,...(shift ? {id:shift.id,version:shift.version} : {request_id:requestId}),title:controls.title.value,
         start:editedTime(controls.start,shift?.start),end:editedTime(controls.end,shift?.end),color:controls.color.value,
         project_id:controls.project.value,project_name:projectName(controls.project),location:controls.location.value,notes:controls.notes.value,published:controls.publish.control.checked,
         member_ids:controls.memberChecks.filter(item => item.control.checked).map(item => item.id)});
@@ -444,7 +466,7 @@
         const entry = segment.entry, date = localParts(segment.start).slice(0,10);
         if (date !== day) {
           day = date; const group = el("tr","scheduler-entry-day"), cell = el("th"); cell.colSpan = 7;
-          const toggle = button(dayFormatter.format(new Date(`${date}T12:00:00Z`)),() => {state.collapsedDays.has(date) ? state.collapsedDays.delete(date) : state.collapsedDays.add(date); drawRows();},"scheduler-day-toggle");
+          const toggle = button(calendarDay.format(new Date(`${date}T12:00:00Z`)),() => {state.collapsedDays.has(date) ? state.collapsedDays.delete(date) : state.collapsedDays.add(date); drawRows();},"scheduler-day-toggle");
           toggle.setAttribute("aria-expanded",String(!state.collapsedDays.has(date))); cell.append(toggle); group.append(cell); body.append(group);
         }
         const row = el("tr",segment.break ? "scheduler-entry-break" : "scheduler-entry-work"); row.hidden = state.collapsedDays.has(date); row.dataset.entryId = entry.id;
@@ -497,12 +519,13 @@
     return segments;
   }
   function editEntry(entry = null) {
+    const inputZone = zone;
     dialog(entry ? "Edit time entry" : "Add time entry",host => {
       const member = select(state.data.members.map(item => [item.id,item.name]),entry?.member_id || state.data.user.id);
       const start = input("datetime-local",entry ? localParts(entry.start) : `${today()}T07:00`,{required:true});
       const end = input("datetime-local",entry ? localParts(entry.end) : `${today()}T15:30`,{required:true});
       const project = projectSelect(entry || {}), notes = el("textarea"); notes.value = entry?.notes || ""; notes.maxLength = 2000;
-      host.append(field("Team member",member),field("Start",start,"Australia/Sydney"),field("Job / project reference",project),field("Finish",end,"Australia/Sydney"),field("Notes / reason for correction",notes));
+      host.append(field("Team member",member),field("Start",start,zone),field("Job / project reference",project),field("Finish",end,zone),field("Notes / reason for correction",notes));
       const breakList = el("div","scheduler-break-editor"), breakRows = [];
       function addBreak(item = {}) {
         const row = el("div","scheduler-break-row"), from = input("datetime-local",item.start ? localParts(item.start) : "",{required:true}), to = input("datetime-local",item.end ? localParts(item.end) : "",{required:true}), paid = check("Paid",!!item.paid);
@@ -514,7 +537,7 @@
         deleteRecord("/entries/delete",{id:entry.id,version:entry.version},"Delete this time entry? The audit history is retained.");
       },"button secondary scheduler-danger"));
       return {member,start,end,project,notes,breakRows};
-    },"Save time entry",async controls => request("/entries/save",{...(entry ? {id:entry.id,version:entry.version} : {}),member_id:controls.member.value,
+    },"Save time entry",async controls => request("/entries/save",{input_timezone:inputZone,...(entry ? {id:entry.id,version:entry.version} : {}),member_id:controls.member.value,
       start:editedTime(controls.start,entry?.start),end:editedTime(controls.end,entry?.end),project_id:controls.project.value,project_name:projectName(controls.project),notes:controls.notes.value,
       breaks:controls.breakRows.map(item => ({start:editedTime(item.from,item.original.start),end:editedTime(item.to,item.original.end),paid:item.paid.control.checked}))}));
   }
@@ -527,7 +550,7 @@
   }
   function renderSettings() {
     const saved = state.data.settings, form = el("form","card scheduler-settings");
-    form.append(el("h2","","Scheduler settings"),el("p","helper",`Australia/Sydney · Rule version ${saved.version}. Saved rules recalculate time entries using their recorded hourly rates.`));
+    form.append(el("h2","","Scheduler settings"),el("p","helper",`${zone} · Rule version ${saved.version}. Saved rules recalculate time entries using their recorded hourly rates.`));
     const rounding = select([["0","No rounding"],...([5,6,10,15,30].map(value => [String(value),`${value} minutes`]))],String(saved.rounding_minutes));
     const mode = select([["nearest","Nearest interval"],["up","Round up"],["down","Round down"]],saved.rounding_mode);
     form.append(field("Timesheet rounding",rounding),field("Rounding method",mode));
@@ -787,7 +810,7 @@
     else {
       const generation = state.authGeneration;
       shell(); notice("Loading Scheduler…");
-      try { const bootstrap = await request("/bootstrap"); if(generation !== state.authGeneration)return; if (bootstrap.user) await refresh(); else auth(bootstrap.setup_required); }
+      try { const bootstrap = await request("/bootstrap"); if(generation !== state.authGeneration)return; setZone(bootstrap.timezone); if (bootstrap.user) await refresh(); else auth(bootstrap.setup_required); }
       catch(error) {if(generation === state.authGeneration)notice(error.message,true);}
     }
     void loadProjects();
@@ -797,15 +820,52 @@
     if (!state.timer) state.timer = setInterval(() => {
       if (state.data?.user && !state.busy && (state.data.active_entry || !state.root?.closest("[hidden]"))) void refresh();
     },60000);
-    if (!state.noticeTimer) state.noticeTimer = setInterval(checkBreakNotification,1000);
+    if (!state.noticeTimer) state.noticeTimer = setInterval(() => {renderHeaderTime(); checkBreakNotification();},1000);
   }
+  function initializeOrganizationSettings() {
+    const form = document.getElementById("organization-timezone-form");
+    if (!form) return;
+    const picker = form.querySelector("select"), save = form.querySelector("button"), status = form.querySelector('[role="status"]');
+    let version, saved, busy = false;
+    async function loadSettings() {
+      if (busy) return;
+      busy = true; picker.disabled = save.disabled = true;
+      try {
+        const settings = await request("/organization");
+        picker.replaceChildren(...settings.zones.map(name => new Option(name, name)));
+        saved = picker.value = settings.timezone;
+        version = settings.version; status.textContent = ""; picker.disabled = false;
+        setZone(saved);
+      } catch (error) {status.textContent = error.message;}
+      finally {busy = false;}
+    }
+    picker.addEventListener("change", () => {save.disabled = busy || picker.value === saved;});
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      if (busy || save.disabled) return;
+      busy = true; picker.disabled = save.disabled = true;
+      try {
+        const result = await request("/organization", {version, timezone: picker.value});
+        version = result.version; saved = result.timezone; setZone(saved);
+        if (state.data?.user) await refresh();
+        status.textContent = "Time zone saved.";
+      } catch (error) {
+        status.textContent = error.message;
+        if (error.status === 409) {busy = false; await loadSettings(); status.textContent = "Settings changed. Review the current time zone and try again.";}
+      } finally {busy = false; picker.disabled = false; save.disabled = picker.value === saved;}
+    });
+    const view = form.closest(".view");
+    new MutationObserver(() => { if (!view.hidden) void loadSettings(); }).observe(view, {attributes:true,attributeFilter:["hidden"]});
+    if (!view.hidden) void loadSettings();
+  }
+  initializeOrganizationSettings();
   async function restoreClock() {
     state.root ||= document.getElementById("scheduler-root"); if(!state.root)return;
     const view = state.root.closest('[id^="view-"]');
     if (view) new MutationObserver(updateLocationStatus).observe(view,{attributes:true,attributeFilter:["hidden"]});
     beginPolling();
     const generation = state.authGeneration;
-    try {const bootstrap = await request("/bootstrap"); if(generation === state.authGeneration && bootstrap.user) await refresh();}
+    try {const bootstrap = await request("/bootstrap"); if(generation === state.authGeneration) {setZone(bootstrap.timezone); if(bootstrap.user) await refresh();}}
     catch (_) { /* Authentication and connection failures are shown on opening Scheduler. */ }
   }
   document.addEventListener("visibilitychange",() => {if(!document.hidden && state.data?.user) {if(state.locationEnabled)void captureLocation(true); void refresh();}});

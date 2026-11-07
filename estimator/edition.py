@@ -22,7 +22,7 @@ TAKEOFF_ASSETS = frozenset({
     '/takeoff-visual-search.js', '/takeoff-visual-search.css', '/takeoff-ocr-layer.js', '/takeoff-ocr-layer.css',
     '/takeoff-visual-search-icon.png', '/takeoff-ocr-icon.png',
     '/takeoff-graphics.js', '/takeoff-graphics-ui.js', '/takeoff-pane-resize.js', '/takeoff-pdf-tools.js', '/takeoff-pdf-tools.css',
-    '/icons/default-memory.svg', '/icons/signature.svg',
+    '/icons/default-memory.svg',
     '/icons/takeoff-colour-wheel.png', '/icons/takeoff-legend.png', '/icons/takeoff-visibility.jpg',
     '/icons/navigation-takeoffs.png', '/icons/navigation-takeoffs.svg', '/icons/navigation-takeoffs.jpg',
     '/icons/takeoff-callout.png',

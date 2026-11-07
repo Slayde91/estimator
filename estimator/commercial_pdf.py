@@ -18,6 +18,7 @@ from .commercial_documents import KINDS, format_terms, totals, validate_fields
 from .company_settings import company_logo, contact_lines
 from .report import _company_header
 from .pdf_fonts import FONT_BOLD, FONT_REGULAR, register_pdf_fonts
+from .swms_pdf import Signature
 
 RED = colors.HexColor('#bd0018')
 WIDTH = A4[0] - 72
@@ -105,7 +106,7 @@ def _rich(text, style, *, keep_headings=False):
 
 def _table(headers, rows, styles, widths=None):
     data = [[_paragraph(value, styles['head']) for value in headers]] if headers else []
-    data.extend([[_paragraph(value, styles['field'] if headers is None and index == 0 else styles['small'])
+    data.extend([[value if isinstance(value, Signature) else _paragraph(value, styles['field'] if headers is None and index == 0 else styles['small'])
                   for index, value in enumerate(row)] for row in rows])
     count = len(headers) if headers else len(rows[0])
     result = LongTable(data, colWidths=widths or [WIDTH / count] * count, repeatRows=1 if headers else 0, hAlign='LEFT')
@@ -296,14 +297,15 @@ def _build(story, document, number, company, *, first_part=False):
     return output.getvalue()
 
 
-def render_commercial_pdf(document, number, *, company, scope_documents=None):
+def render_commercial_pdf(document, number, *, company, scope_documents=None, append_files=None):
     register_pdf_fonts()
     fields = validate_fields(document['fields'])
     kind = document['kind']
     styles = _styles(quote=kind == 'quote')
     details, order = fields['details'], fields['order']
     story = [] if kind == 'quote' else [_paragraph(KINDS[kind].upper(), styles['title'])]
-    _fields(story, [('Document number', number), ('Date', details['date']), ('Customer', details['client']),
+    number_label = {'work_order':'Work order reference', 'purchase_order':'Purchase Order No.'}.get(kind, 'Document number')
+    _fields(story, [(number_label, number), ('Date', details['date']), ('Customer', details['client']),
                    ('Contact', details['contact']), ('Site address', details['site_address']), ('Project number', details['project_no'])], styles)
     story.append(Spacer(1, 12))
     if fields['introduction']:
@@ -341,18 +343,23 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None):
                        ('Client phone', details['phone']), ('Client email', details['email'])], styles)
         _section(story, 'WORK REQUESTED', styles)
         story.append(_paragraph(order['description'], styles['body']))
-        _fields(story, [('Estimated cost (AUD)', order['estimated_cost']), ('Image / video references', order['attachments'])], styles)
+        cost = order['estimated_cost']
+        try:
+            cost = _money(cost) if cost else ''
+        except ArithmeticError:
+            pass  # Historical work orders could contain a free-text cost.
+        _fields(story, [('Estimated cost (AUD)', cost)], styles)
+        signatures = fields.get('signatures', {})
         for title, pairs in [
             ('WORK ORDER REVIEW', [('Review date', 'review_date'), ('Approval', 'approval'), ('Justification', 'justification'), ('Reviewed by', 'reviewed_by')]),
-            ('OHS DOCUMENTATION', [('SWMS', 'swms'), ('SDS', 'sds'), ('SOP', 'sop'), ('Other documents', 'other_documents'), ('Prepared by', 'prepared_by')]),
-            ('CLIENT APPROVAL', [('Safety documentation approval', 'client_approval'), ('Approved by', 'client_approved_by'), ('Approval date', 'client_approval_date')]),
+            ('OHS DOCUMENTATION', [('Prepared by', 'prepared_by')]),
+            ('CLIENT APPROVAL', [('Approved by', 'client_approved_by'), ('Approval date', 'client_approval_date')]),
             ('WORKS IN PROGRESS', [('Progress', 'progress')]),
             ('WORK ORDER CLAIM', [('Products and services charged', 'claim')]),
-            ('CERTIFICATION', [('Certification details', 'certification')]),
-            ('WORK ORDER COMPLETION', [('Completion', 'completion'), ('Closed by', 'closed_by')]),
+            ('WORK ORDER COMPLETION', [('Certification details', 'certification'), ('Completion', 'completion'), ('Closed by', 'closed_by')]),
         ]:
             _section(story, title, styles)
-            _fields(story, [(label, order[key]) for label, key in pairs], styles)
+            _fields(story, [(label, Signature(signatures[key], 110, 30) if signatures.get(key) else order[key]) for label, key in pairs], styles)
     else:
         _section(story, 'PURCHASE ORDER DETAILS', styles)
         _fields(story, [('Work order reference', order['work_order_reference']), ('Status', document['status']),
@@ -375,8 +382,11 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None):
     writer = PdfWriter()
     for part in parts:
         writer.append(PdfReader(BytesIO(part)))
+    original_pages = append_files(writer) if append_files else set()
     count = len(writer.pages)
     for index, page in enumerate(writer.pages, 1):
+        if index - 1 in original_pages:
+            continue
         footer = BytesIO()
         width, height = float(page.mediabox.width), float(page.mediabox.height)
         overlay = canvas.Canvas(footer, pagesize=(width, height))

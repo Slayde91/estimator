@@ -19,6 +19,12 @@ async function idle(){await page.waitForFunction(()=>{const status=window.Ceasef
   const info=await ready;assert.notEqual(info.port,8765);
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1254,height:831}});
   page.setDefaultTimeout(45000);page.on('pageerror',error=>errors.push(error.message));
+  // Reproduce a slow language catalog. If the form started fetching during HTML
+  // parsing, let that response update the status before localization runs.
+  await page.route('**/language-catalog.js',async route=>{
+    await page.waitForFunction(()=>document.readyState==='interactive' && !document.getElementById('company-name').disabled);
+    await route.continue();
+  });
   await page.goto(`http://127.0.0.1:${info.port}/`);await idle();await page.getByRole('button',{name:'Settings',exact:true}).click();
   await expect(page.locator('#company-settings-status')).toHaveText('Saved');
   await expect(page.locator('#view-settings #cover-sheets-settings')).toHaveCount(0);

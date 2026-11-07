@@ -102,6 +102,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   const firstSaved=JSON.parse(fs.readFileSync(info.project,'utf8'));
   assert.equal(firstSaved.commercial_documents.documents[0].fields.title,'Quote prepared before first project save');
   assert.equal(firstSaved.estimate.client,'Unsaved project client');
+  await expect(quote.getByLabel('Project number',{exact:true})).toHaveValue(firstSaved.estimate.project_no);
   await download(quote);
   checks.push('unsaved Estimate Document → Quote inherits details, saves its draft and requires the first project Save before PDF download');
   let releaseState, notifyStateHeld, notifyStateCompleted;

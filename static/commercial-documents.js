@@ -290,8 +290,14 @@
     const board = root()?.querySelector(".commercial-board");
     if (!board) return;
     board.replaceChildren();
-    const all = state.kind === "quote" && state.model.activeFileChanged ? [] : state.model.documents.filter(document => document.kind === state.kind);
-    if (state.kind === "quote") all.push(...state.savedQuotes);
+    let all = state.model.documents.filter(document => document.kind === state.kind);
+    if (state.kind === "quote") {
+      const details = window.CeasefireProject?.details?.();
+      const local = state.model.activeFileChanged ? [] : all.map(card => ({
+        ...card, fields: {...card.fields, details: {...card.fields.details, ...details}}
+      }));
+      all = local.concat(state.savedQuotes);
+    }
     const documents = all.filter(document => `${document.fields.title} ${document.fields.details.client} ${document.fields.details.project_no} ${document.last_number} ${document.fields.order.work_order_reference}`.toLowerCase().includes(state.search.toLowerCase()));
     documents.sort((a, b) => state.sort === "Document name A–Z"
       ? a.fields.title.localeCompare(b.fields.title, "en", {numeric:true}) || a.id.localeCompare(b.id)
@@ -1060,11 +1066,11 @@
     activate,
     projectNumberAssigned(details) {
       const document = state.editor?.document;
-      if (!document || document.version !== 0 || document.fields.details.project_no || !details?.project_no) return;
+      if (!document || state.editor.source || document.fields.details.project_no || !details?.project_no) return;
       document.fields.details.project_no = details.project_no;
       const control = root()?.querySelector('input[aria-label="Project number"]');
       if (control) control.value = details.project_no;
-      markDirty();
+      if (!document.version) markDirty();
     },
     async openFromEstimate(kind = "quote") {
       if (!names[kind]) return;

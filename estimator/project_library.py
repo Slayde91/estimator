@@ -1111,12 +1111,14 @@ class ProjectLibrary:
     def quote_register(self):
         listing = self.listing(limit=200)
         with self._lock:
-            files = list(self._scan['files'].values()) if listing['folder'] and self._scan else []
+            files = (list(self._scan['files'].values()) if listing['folder'] and self._scan
+                     and self._scan['folder'] == Path(listing['folder']) else [])
         documents = []
         for file in files:
             for card in file['quote_cards']:
-                documents.append({**card, 'source_file': file['id'], 'source_revision': file['revision'],
-                                  'source_path': file['path']})
+                details = {key: file[key] for key in ('project_no', 'client', 'site_address')}
+                documents.append({**card, 'fields': {**card['fields'], 'details': details},
+                                  'source_file': file['id'], 'source_revision': file['revision'], 'source_path': file['path']})
         return {'documents': documents, 'revisions': {file['path']: file['revision'] for file in files},
                 'scan_pending': listing['scan_pending'], 'error_count': listing['error_count']}
 

@@ -63,10 +63,14 @@ async function idle() {
   await first.locator('summary').click();
   await first.getByRole('button',{name:'Open',exact:true}).click();
   await page.locator('#discard-dialog').getByRole('button',{name:'Load Project',exact:true}).click();
+  await expect(page.locator('#view-estimate')).toBeVisible();
+  await idle();
   await expect(page.locator('#project-status-draft')).toHaveAttribute('aria-checked','true');
   await expect(page.locator('#project-status')).toHaveText('Status');
   const status=page.locator('#project-status');
   const documentToggle=page.locator('[aria-controls="firestopping-document-actions"]');
+  await expect(status).toBeVisible();
+  await expect(documentToggle).toBeVisible();
   const statusBox=await status.boundingBox(), documentBox=await documentToggle.boundingBox();
   assert.equal(statusBox.height,documentBox.height);
   assert.ok(Math.abs(statusBox.y-documentBox.y)<1);

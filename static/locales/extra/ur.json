@@ -2853,5 +2853,11 @@
   "Review": "جائزہ",
   "Presented": "پیش کیا گیا",
   "Accepted": "منظور شدہ",
-  "Lost": "ناکام"
+  "Lost": "ناکام",
+  "Actions for {0}": "{0} کے لیے کارروائیاں",
+  "Contacts": "رابطے",
+  "Create Quote": "قیمت کی پیشکش بنائیں",
+  "Create SWMS": "SWMS بنائیں",
+  "Rename": "نام تبدیل کریں",
+  "Select estimate": "تخمینہ منتخب کریں"
 }

@@ -7,7 +7,8 @@ async function openProjectSection(page, section) {
   if (!['quotes', 'quote', 'work-orders', 'purchase-orders', 'scheduler', 'certification', 'documentation', 'swms', 'documents'].includes(section)) throw new Error('Unknown workspace section: ' + section);
   const destination = page.locator('#view-' + section);
   if (await destination.isVisible()) return;
-  if (section === 'scheduler') await page.locator('#scheduler-navigation').click();
+  if (section === 'documents') await page.locator('#documents-navigation-toggle').click();
+  else if (section === 'scheduler') await page.locator('#scheduler-navigation').click();
   else {
     const documents = ['certification', 'documentation', 'swms', 'documents'].includes(section);
     const owner = documents ? 'documents' : 'projects', attribute = documents ? 'document' : 'project';

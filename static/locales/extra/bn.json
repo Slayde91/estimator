@@ -2853,5 +2853,11 @@
   "Review": "পর্যালোচনা",
   "Presented": "উপস্থাপিত",
   "Accepted": "গৃহীত",
-  "Lost": "হারানো"
+  "Lost": "হারানো",
+  "Actions for {0}": "{0} এর জন্য ক্রিয়া",
+  "Contacts": "পরিচিতি",
+  "Create Quote": "কোটেশন তৈরি করুন",
+  "Create SWMS": "SWMS তৈরি করুন",
+  "Rename": "নাম পরিবর্তন করুন",
+  "Select estimate": "প্রাক্কলন নির্বাচন করুন"
 }

@@ -398,6 +398,10 @@
   }
   window.CeasefireSWMS = {
     activate,
+    async openFromEstimate() {
+      if (!state.workspace || state.workspace !== workspace() || !state.model || state.dirty || state.busy) return;
+      try { await openNew(); } catch (error) { notice(error.message, true); }
+    },
     async completeProjectSnapshot() {
       if (state.busy || state.dirty || peoplePending()) throw new Error("Save or discard SWMS edits before saving the project.");
       if (!workspace()) return null;

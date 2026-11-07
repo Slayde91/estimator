@@ -58,7 +58,7 @@ async function inspectHeader(width) {
     const buttons = await page.locator('nav[aria-label="Main navigation"] .nav-icon').evaluateAll(nodes => nodes.map(el => {
       const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, width: b.width, height: b.height };
     }));
-    assert.equal(buttons.length, 10);
+    assert.equal(buttons.length, 11);
     for (const b of buttons) {
       assert.ok(b.width >= 40 && b.height >= 40, `Usable navigation target at ${width}`);
       assert.ok(b.x >= nav.x && b.x + b.width <= nav.x + nav.width + 1 && b.y >= nav.y && b.y + b.height <= nav.y + nav.height + 1, `Individual navigation button fits at ${width}`);

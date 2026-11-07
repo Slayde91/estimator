@@ -2853,5 +2853,11 @@
   "Review": "Révision",
   "Presented": "Présenté",
   "Accepted": "Accepté",
-  "Lost": "Perdu"
+  "Lost": "Perdu",
+  "Actions for {0}": "Actions pour {0}",
+  "Contacts": "Contacts",
+  "Create Quote": "Créer un devis",
+  "Create SWMS": "Créer un SWMS",
+  "Rename": "Renommer",
+  "Select estimate": "Sélectionner une estimation"
 }

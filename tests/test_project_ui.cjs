@@ -872,8 +872,7 @@ async function penetrationCheck(name, fn) {
     await h.app.loadProjects({offset:200});assert.deepEqual(paths,['/api/projects','/api/projects?offset=1']);
     assert.equal(h.app.state.projectsOffset,0);assert.equal(h.app.state.projectCards.length,2);
     assert.equal(h.byId('project-list').children.length,2);
-    assert.equal(h.byId('project-list').children[0].children[0].children[0].children[1].textContent,'Draft');
-    assert.equal(h.byId('project-list').children[1].children[0].children[0].children[1].textContent,'Review');
+    assert.deepEqual(h.app.state.projectCards.map(file=>file.project_status),['Draft','Review']);
     assert.match(h.byId('project-list-status').textContent,/2 matching projects/);
   });
   await check('Status changes refresh only the matching current project revision and retain drafts', async h => {
@@ -1250,7 +1249,8 @@ async function penetrationCheck(name, fn) {
     await h.app.requestProjectsNavigation();assert.equal(h.app.state.currentView,'projects');
     await h.app.requestDocumentsNavigation();assert.equal(h.app.state.currentView,'documents');
     await h.app.requestViewNavigation('certification');assert.equal(opened,1);
-    await h.app.requestViewNavigation('home');await h.app.requestDocumentsNavigation();assert.equal(h.app.state.currentView,'certification');assert.equal(opened,2);
+    await h.app.requestViewNavigation('home');await h.app.requestDocumentsNavigation();assert.equal(h.app.state.currentView,'documents');
+    await h.app.requestDocumentsNavigation();assert.equal(h.app.state.currentView,'certification');assert.equal(opened,2);
     await h.app.requestProjectsNavigation();assert.equal(h.app.state.currentView,'projects');assert.equal(h.app.state.lastProjectSection,null);
     await h.app.requestViewNavigation('documents');assert.equal(h.app.state.currentView,'documents');assert.equal(h.app.state.lastDocumentSection,'certification');
     assert.deepEqual(h.snapshot(),before);

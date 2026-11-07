@@ -68,11 +68,15 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   await page.locator('#projects-navigation-toggle').hover();
   await page.locator('#projects-navigation-menu [data-project-section="quotes"]').click();await idle();
   const card=page.locator('.project-list-row').filter({hasText:'PN-00001'});
-  await expect(card).toHaveCount(1);await expect(card.locator('.project-card-estimate option')).toHaveCount(2);
-  await card.locator('.project-card-estimate select').selectOption(second);await idle();
+  await expect(card).toHaveCount(1);await expect(card.locator('.project-card-estimate option')).toHaveCount(3);
+  await card.locator('.project-card-estimate select').selectOption(second);await expect(page.locator('#view-quotes')).toBeVisible();
+  await card.locator('summary').click();await card.getByRole('button',{name:'Open',exact:true}).click();await idle();
   await expect(page.locator('#measurements')).toHaveValue('Second estimate notes');
   assert.equal(await page.locator('#discard-dialog').isVisible(),false);
-  await documentToggle.click();await page.locator('#estimate-open-quote').click();
+  await page.locator('#project-estimate-swms').click();
+  await expect(page.locator('#swms-root').getByLabel('Job Reference',{exact:true})).toHaveValue('PN-00001');
+  page.once('dialog', dialog=>dialog.accept());await page.locator('#swms-root').getByRole('button',{name:'Back to statements'}).click();
+  await estimate(); await page.locator('#project-estimate-quote').click();
   await expect(page.locator('#view-quote')).toBeVisible();
   await expect(page.locator('#commercial-quote-root').getByLabel('Document title',{exact:true})).toBeVisible();
   await expect(page.locator('#commercial-quote-root').getByLabel('Project number',{exact:true})).toHaveValue('PN-00001');

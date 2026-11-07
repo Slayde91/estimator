@@ -30,9 +30,10 @@ async function expectDocumentHub() {
   const cards=page.locator('#view-documents .projects-section-card');await expect(cards).toHaveCount(3);
   assert.deepEqual(await cards.evaluateAll(nodes=>nodes.map(node=>node.dataset.documentSection)),['documentation','swms','certification']);
 }
-async function home() { await page.locator('nav .nav-button[data-view="home"]').click();await expect(page.locator('#view-home')).toBeVisible(); }
+async function home() { await idle();await page.locator('nav .nav-button[data-view="home"]').click();await expect(page.locator('#view-home')).toBeVisible(); }
 async function headerDestination(section) {
   await home();await page.locator(['documentation','swms','certification'].includes(section)?'#documents-navigation-toggle':'#projects-navigation-toggle').click();
+  if (['documentation','swms','certification'].includes(section)) { await expectDocumentHub(); await page.locator('#documents-navigation-toggle').click(); }
   await expect(page.locator('#view-'+section)).toBeVisible();
   if(section==='certification')await expect(page.locator('#certification-client')).toHaveValue('Navigation draft retained');
 }
@@ -48,6 +49,7 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
     document.addEventListener('securitypolicyviolation', event => window.qaCsp.push(event.effectiveDirective));
   });
   await page.goto(`http://127.0.0.1:${info.port}/`); await idle();
+  assert.deepEqual(await page.locator('nav[aria-label="Main navigation"] [data-view]').evaluateAll(nodes => nodes.slice(0,4).map(el=>el.dataset.view)), ['home','contacts','projects','documents']);
   const before = await page.evaluate(() => ({configuration:window.CeasefireProject.configuration(),details:window.CeasefireProject.details()}));
   await page.locator('#projects-navigation-toggle').click();await expectHub();
   await page.locator('#documents-navigation-toggle').click();await expectDocumentHub();
@@ -67,12 +69,12 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   await home();await page.locator('[data-home-view="projects"]').click();await expectHub();
   await headerDestination('quotes');await headerDestination('certification');
   await page.locator('#documents-navigation-toggle').hover();await expect(documentsMenu).toBeVisible();
-  assert.deepEqual(await documentsMenu.locator('button').allTextContents(),['Documents','Documentation','Safe Work Method Statements','Certification']);
-  await documentsMenu.locator('[data-document-section="documents"]').click();await expectDocumentHub();
+  assert.deepEqual(await documentsMenu.locator('button').allTextContents(),['Documentation','Safe Work Method Statements','Certification']);
+  await page.locator('#documents-navigation-toggle').click();await expectDocumentHub();
   await headerDestination('certification');
   await home();assert.equal(await openProjectTools(page),'home');await expect(page.locator('#view-quotes')).toBeVisible();
   await openProjectSection(page,'certification');await expect(page.locator('#certification-client')).toHaveValue('Navigation draft retained');
-  for(const [owner,first,last] of [['projects','quotes','purchase-orders'],['documents','documents','certification']]){
+  for(const [owner,first,last] of [['projects','quotes','purchase-orders'],['documents','documentation','certification']]){
     await home();const toggle=page.locator(`#${owner}-navigation-toggle`), choices=page.locator(`#${owner}-navigation-menu`), attr=owner==='documents'?'document':'project';
     await toggle.focus();await toggle.press('ArrowDown');await expect(choices.locator(`[data-${attr}-section="${first}"]`)).toBeFocused();
     await page.keyboard.press('End');await expect(choices.locator(`[data-${attr}-section="${last}"]`)).toBeFocused();
@@ -87,7 +89,7 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   await expect(page.locator('#projects-navigation-menu [data-project-section="scheduler"]')).toHaveCount(0);
   await headerDestination('documentation');await headerDestination('quotes');
   assert.deepEqual(await snapshot(),draftBefore);
-  evidence.checks.push('independent first-visit hubs and remembered destinations','Projects beside Home and Documents beside Projects','explicit Home and Documents hub choices retain remembered destination','Certification draft survives all navigation','Cover sheets live only in Documentation','standalone Scheduler clock navigation','keyboard navigation and Escape');
+  evidence.checks.push('independent first-visit hubs and remembered destinations','Contacts beside Home and Documents beside Projects','explicit Home and Documents hub choices retain remembered destination','Certification draft survives all navigation','Cover sheets live only in Documentation','standalone Scheduler clock navigation','keyboard navigation and Escape');
   for (const width of [390,671,825,1084,1864]) {
     await page.setViewportSize({width,height:900});
     for(const owner of ['projects','documents']){

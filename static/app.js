@@ -1064,6 +1064,7 @@
     if (view === "quotes") loadProjects();
     if (view === "scheduler") window.CeasefireScheduler?.activate().catch(error => message(error.message, true));
     let estimatorReady;
+    if (view === "contacts") estimatorReady = window.ClassifireContacts?.activate().catch(error => message(error.message, true));
     if (view === "swms") estimatorReady = window.CeasefireSWMS?.activate().catch(error => message(error.message, true));
     if (["quote", "work-orders", "purchase-orders"].includes(view)) estimatorReady = window.CeasefireCommercial?.activate({quote:"quote", "work-orders":"work_order", "purchase-orders":"purchase_order"}[view]).catch(error => message(error.message, true));
     if (view === "pricing") selectLibrary(state.libraryKind, librarySelection);
@@ -1117,13 +1118,13 @@
     if (view !== state.currentView && !await confirmLeavePricingLibrary()) return false;
     await showView(view, librarySelection);
     if (state.currentView === view) window.CeasefireHeaderTagline?.next();
-    return true;
+    return state.currentView === view;
   }
   function requestProjectsNavigation() {
     return requestViewNavigation(state.lastProjectSection || "projects");
   }
   function requestDocumentsNavigation() {
-    return requestViewNavigation(state.lastDocumentSection || "documents");
+    return requestViewNavigation(state.currentView === "documents" && state.lastDocumentSection ? state.lastDocumentSection : "documents");
   }
   async function requestCalculatorNavigation(id = state.calculatorKind) {
     if (!["steel", "steel_vermiculite", "steel_intumescent", "steel_board", "steel_factors", "ductwork", "penetration"].includes(id)) return false;
@@ -2030,7 +2031,7 @@
     if (!select) return;
     select.replaceChildren(...state.projectEstimates.map(entry => {const option = node("option", "", entry.name); option.value = entry.id; return option;}));
     select.value = state.activeEstimateId;
-    for (const id of ["project-estimate-select", "project-estimate-new", "project-estimate-rename", "project-estimate-work-order", "project-estimate-purchase-order"]) $(id).disabled = state.projectBusy;
+    for (const id of ["project-estimate-select", "project-estimate-new", "project-estimate-rename", "project-estimate-quote", "project-estimate-swms"]) $(id).disabled = state.projectBusy;
   }
 
   async function captureCurrentEstimate({ readOnly = false } = {}) {
@@ -2177,7 +2178,7 @@
 
   function projectBusy(value, activeId = null) {
     state.projectBusy = value;
-    for (const id of ["save-current-project", "load-project", "link-project-folder", "new-quote", "use-current-pricing", "project-estimate-select", "project-estimate-new", "project-estimate-rename", "project-estimate-work-order", "project-estimate-purchase-order"]) {
+    for (const id of ["save-current-project", "load-project", "link-project-folder", "new-quote", "use-current-pricing", "project-estimate-select", "project-estimate-new", "project-estimate-rename", "project-estimate-quote", "project-estimate-swms"]) {
       $(id).disabled = value;
       $(id).setAttribute("aria-busy", String(value && id === activeId));
     }
@@ -2437,7 +2438,7 @@
       window.CeasefireI18n.attr(title, "aria-label", "Browse files for {0}", [file.title || file.name]);
       title.addEventListener("click", () => openProjectBrowser(file));
       const heading = node("div", "project-row-heading");
-      heading.append(title, uiNode("span", "status-label project-row-status", file.project_status || "Draft"));
+      heading.append(title);
       const details = node("div", "project-row-details");
       details.append(heading,
         node("p", "helper", [file.project_no, file.client, file.site_address].filter(Boolean).join(" · ")),
@@ -2445,28 +2446,32 @@
         node("p", "helper project-relative-path", file.relative_path || file.name));
       const estimateLabel = uiNode("label", "field project-card-estimate", "Estimate"), estimateSelect = node("select");
       estimateSelect.setAttribute("aria-label", `Estimate for ${file.title || file.name}`);
+      const prompt = uiNode("option", "", "Select estimate"); prompt.value = ""; estimateSelect.append(prompt);
       for (const entry of file.estimates || [{id:"estimate-1",name:"Estimate 1"}]) {
         const option = node("option", "", entry.name); option.value = entry.id; estimateSelect.append(option);
       }
-      estimateSelect.value = file.active_estimate_id || "estimate-1";
-      estimateSelect.addEventListener("change", () => openProjectFile(file, title, estimateSelect.value));
-      estimateLabel.append(estimateSelect);
-      const controls = node("div", "project-row-actions"), open = uiNode("button", "button secondary", "Open project");
-      open.type = "button"; open.addEventListener("click", () => openProjectFile(file, open));
-      const menu = node("details", "project-card-menu"), toggle = node("summary", "", "▾");
-      toggle.setAttribute("aria-label", `Actions for ${file.title || file.name}`);
-      const actions = node("div", "project-menu-options");
-      for (const [label, action] of [["Open", () => openProjectFile(file, title)], ["Edit", () => openProjectFile(file, title)], ["Delete", () => deleteProjectCard(file)], ["Browse files", () => openProjectBrowser(file)]]) {
+      estimateSelect.value = ""; estimateLabel.append(estimateSelect);
+      const controls = node("div", "project-row-actions");
+      const menu = node("details", "project-card-menu"), toggle = node("summary", "button secondary calculator-document-toggle");
+      window.CeasefireI18n.attr(toggle, "aria-label", "Actions for {0}", [file.title || file.name]);
+      const chevron = node("span", "calculator-document-chevron"); chevron.setAttribute("aria-hidden", "true");
+      chevron.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"></path></svg>';
+      toggle.append(uiNode("span", "", "Actions"), chevron);
+      const actions = node("div", "project-menu-options"), needsEstimate = [];
+      for (const [label, action, requiresEstimate] of [
+        ["Open", button => openProjectFile(file, button, estimateSelect.value), true],
+        ["Edit", button => openProjectFile(file, button, estimateSelect.value), true],
+        ["Delete", () => deleteProjectCard(file)], ["Browse files", () => openProjectBrowser(file)]
+      ]) {
         const button = uiNode("button", "text-button", label); button.type = "button";
-        button.addEventListener("click", () => { menu.open = false; action(); }); actions.append(button);
+        if (requiresEstimate) { button.disabled = true; needsEstimate.push(button); }
+        button.addEventListener("click", () => { if (requiresEstimate && !estimateSelect.value) return; menu.open = false; action(button); });
+        actions.append(button);
       }
-      const statusLabel = uiNode("label", "field", "Status"), statusSelect = node("select");
-      statusSelect.setAttribute("aria-label", `Status for ${file.title || file.name}`);
-      for (const name of projectStatuses) { const option = uiNode("option", "", name); option.value = name; statusSelect.append(option); }
-      statusSelect.value = file.project_status || "Draft";
-      statusSelect.addEventListener("change", () => { menu.open = false; changeProjectStage(file, statusSelect.value); });
-      statusLabel.append(statusSelect); actions.append(statusLabel); menu.append(toggle, actions);
-      controls.append(open, menu); row.append(details, estimateLabel, controls);
+      estimateSelect.addEventListener("change", () => { for (const button of needsEstimate) button.disabled = !estimateSelect.value; });
+      menu.addEventListener("keydown", event => { if (event.key === "Escape" && menu.open) { menu.open = false; toggle.focus(); } });
+      menu.addEventListener("focusout", event => { if (!menu.contains(event.relatedTarget)) menu.open = false; });
+      menu.append(toggle, actions); controls.append(menu); row.append(details, estimateLabel, controls);
       return row;
     });
     $("project-list").replaceChildren(...(rows.length ? rows : [uiNode("p", "empty-state", "No projects")]));
@@ -2745,7 +2750,7 @@
   $("measurements").addEventListener("input", () => updateDirty());
   $("new-quote").addEventListener("click", async () => { if (await confirmLeavePricingLibrary()) newQuote(); });
   $("download-quote-pdf").addEventListener("click", () => downloadQuotePdf());
-  $("estimate-open-quote").addEventListener("click", async () => {
+  for (const id of ["estimate-open-quote", "project-estimate-quote"]) $(id).addEventListener("click", async () => {
     const context = state.quoteContext;
     if (await requestViewNavigation("quote") && state.currentView === "quote" && context === state.quoteContext) await window.CeasefireCommercial?.openFromEstimate?.();
   });
@@ -2782,12 +2787,10 @@
   $("project-estimate-select").addEventListener("change", () => selectEstimate($("project-estimate-select").value));
   $("project-estimate-new").addEventListener("click", addProjectEstimate);
   $("project-estimate-rename").addEventListener("click", renameProjectEstimate);
-  for (const [id, kind, view] of [["project-estimate-work-order", "work_order", "work-orders"], ["project-estimate-purchase-order", "purchase_order", "purchase-orders"]]) {
-    $(id).addEventListener("click", async () => {
-      const context = state.quoteContext;
-      if (await requestViewNavigation(view) && state.currentView === view && context === state.quoteContext) await window.CeasefireCommercial?.openFromEstimate?.(kind);
-    });
-  }
+  $("project-estimate-swms").addEventListener("click", async () => {
+    const context = state.quoteContext;
+    if (await requestViewNavigation("swms") && context === state.quoteContext) await window.CeasefireSWMS?.openFromEstimate?.();
+  });
   const estimateWidth = () => {
     const width = $("project-no")?.getBoundingClientRect().width;
     if (width > 0) $("project-estimate-select").closest(".field").style.flexBasis = `${width}px`;
@@ -2868,6 +2871,7 @@
       typeof target.project_path === "string" && target.project_path === state.projectFile?.path;
   }
   window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus, scheduleChanged,
+    openCommercial: kind => requestViewNavigation({quote:"quote", work_order:"work-orders", purchase_order:"purchase-orders"}[kind]),
     configuration: () => clone(state.quoteConfiguration || state.configuration),
     context: () => ({project_token:state.projectFile?.save_token || null,project_context:state.quoteContext,project_path:state.projectFile?.path || null}),
     runtimeContext: () => state.quoteContext,

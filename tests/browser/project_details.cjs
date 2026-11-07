@@ -33,6 +33,15 @@ async function settings(prefix,start){await page.locator('nav [data-view="settin
  fs.renameSync(info.project,path.join(output,'first-saved-project.cf.json'));
  await page.locator('#client').fill('Beta');await page.locator('#client').blur();await idle();const second=await save();assert.equal(second.project.estimate.project_no,'PK-00042');await expect(page.locator('#project-no')).toHaveValue('PK-00042');
  await settings('PK',1);await expect(page.locator('#project-number-next')).toContainText('PK-00043');
+ const series=page.locator('#document-number-settings');
+ await expect(series.locator('tbody tr')).toHaveCount(5);
+ await series.getByLabel('Work Orders prefix',{exact:true}).fill('Job');
+ await series.getByLabel('Work Orders starting number',{exact:true}).fill('31');
+ await series.getByRole('button',{name:'Save document numbering'}).click();
+ await expect(series.locator('tr').filter({hasText:'Work Orders'})).toContainText('JOB-31');
+ await expect(series.locator('tr').filter({hasText:'Purchase Orders'})).toContainText('PO-01');
+ await estimate();await page.locator('nav [data-view="settings"]').click();
+ await expect(series.getByLabel('Work Orders prefix',{exact:true})).toHaveValue('JOB');
  await page.screenshot({path:path.join(output,'project-number-settings.png'),fullPage:true});assert.deepEqual(errors,[]);
  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,first:first.project.estimate.project_no,second:second.project.estimate.project_no,errors},null,2));console.log(`PASS project details: ${output}`);
 })().catch(async error=>{console.error(error);if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});fs.writeFileSync(path.join(output,'failure.txt'),String(error.stack));process.exitCode=1;}).finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);if(browser)await browser.close();server.kill();});

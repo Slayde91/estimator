@@ -29,7 +29,7 @@ DATA_FILES = (
 )
 STATIC_FILES = (
     'contacts.js', 'contacts.css',
-    'notifications.js', 'notifications.css', 'swms.js', 'swms.css', 'default-company-logo.png',
+    'notifications.js', 'notifications.css', 'personal-signature.js', 'icons/signature.svg', 'swms.js', 'swms.css', 'default-company-logo.png',
     'travel.js', 'travel.css', 'maps-setup.html',
     'pointer-effects.js', 'pointer-effects.css', 'pdf-cursors.css', 'laser-reticle.svg',
     'cursors/busy.png', 'cursors/handwriting.png', 'cursors/link.png', 'cursors/move.png',
@@ -48,7 +48,7 @@ STATIC_FILES = (
     'header-menu-sounds.js', 'sounds/mgs1-menu-move.mp3', 'sounds/mgs-confirm2.mp3',
     'sounds/new-explosion.mp3', 'sounds/flame-whoosh.wav', 'sounds/type.mp3', 'sounds/hover.mp3', 'sounds/select.mp3', 'sounds/select-2.mp3',
     'sounds/mixkit-vintage-dot-printing-1371.wav', 'sounds/checkpoint.ogg', 'sounds/loading.mp3',
-    'scheduler.js', 'scheduler.css', 'commercial-documents.js', 'commercial-documents.css', 'help-glossary.js', 'help-glossary.css', 'company-settings.js', 'certification.js', 'certification.css', 'cover-sheets.js', 'documentation.js', 'documentation.css', 'theme.js', 'theme.css', 'language.js', 'language-catalog.js', 'language.css', 'laser.css', 'laser-steel.svg', 'home-steel-frame.png',
+    'scheduler.js', 'scheduler.css', 'commercial-panels.js', 'commercial-documents.js', 'commercial-documents.css', 'help-glossary.js', 'help-glossary.css', 'company-settings.js', 'certification.js', 'certification.css', 'cover-sheets.js', 'documentation.js', 'documentation.css', 'theme.js', 'theme.css', 'language.js', 'language-catalog.js', 'language.css', 'laser.css', 'laser-steel.svg', 'home-steel-frame.png',
     'header-layout.css', 'workspace-art.css', 'header-steel-spray.png', 'header-steel-intumescent.png', 'header-steel-board.png', 'header-ductwork.png', 'header-firestopping.png', 'header-estimate.png', 'header-projects.png', 'projects-evidence-banner.png', 'header-firestopping-library.png', 'header-technical-library.png',
     'fonts/Montserrat-Italic-Variable.ttf', 'fonts/Montserrat-Variable.ttf', 'fonts/OFL.txt',
     'fonts/Montserrat-Regular.ttf', 'fonts/Montserrat-Bold.ttf',

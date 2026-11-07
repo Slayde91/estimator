@@ -2,7 +2,7 @@
 from hashlib import sha256
 import json
 from .catalog import ValidationError
-from .commercial_documents import CommercialConflict
+from .commercial_documents import KINDS, CommercialConflict, commercial_cards
 from .download_files import DownloadDestination
 from .project_file import WORKSPACE_FIELDS, load_project_bytes
 
@@ -44,6 +44,7 @@ class SavedCommercial:
             self.sessions.pop(file_id)
         workspace = self.projects.certifications.restore(manifest, path)['workspace_id']
         try:
+            self.projects.commercial.files.transfer(commercial, path, restore=True)
             self.projects.commercial.restore(workspace, commercial)
         except Exception:
             self.projects.certifications.discard(workspace)
@@ -66,22 +67,29 @@ class SavedCommercial:
         with self.projects.commercial_file(file_id, revision, find_issued=action == 'issue') as (path, snapshot, actual_revision, commit):
             session = self._session(file_id, actual_revision, snapshot, path)
             workspace = session['workspace']
+            if action == 'attachment' and set(body) == {'name', 'content'}:
+                return self.projects.commercial.files.add(snapshot['commercial_documents']['project_id'], body['name'], body['content'])
+            if action == 'read-attachment' and set(body) == {'id', 'file_id'}:
+                import base64
+                item, raw = self.projects.commercial.read_attachment(workspace, body['id'], body['file_id'])
+                return {**item, 'content': base64.b64encode(raw).decode('ascii')}
             model = self.projects.commercial.view(workspace, include_quote_totals=action == 'open')
             details = {key: snapshot['estimate'].get(key, '') for key in ('project_no', 'client', 'site_address')}
             captured = estimate_inputs(snapshot)
             if action == 'open':
                 if set(body) != {'id'}:
-                    raise ValidationError('Select one linked quote.')
-                document = next((d for d in model['documents'] if d['id'] == body['id'] and d['kind'] == 'quote'), None)
+                    raise ValidationError('Select one linked document.')
+                document = next((d for d in model['documents'] if d['id'] == body['id']), None)
                 if document is None:
-                    raise CommercialConflict('This quote is no longer available. Refresh Quotes.')
+                    raise CommercialConflict('This document is no longer available. Reopen its board.')
                 document['fields']['details'].update(details)
                 quote_total = model['quote_totals'].get(document['id'], {}).get(document['last_number'], '')
                 return {'document': document, 'details': details, 'quote_total': quote_total,
+                        'related': commercial_cards(model['snapshot']), 'quote_totals': model['quote_totals'],
                         'estimates': [{'id': item['id'], 'name': item['name']} for item in captured['estimates']]}
             if action == 'save':
-                if body.get('kind') not in ('quote', 'work_order'):
-                    raise ValidationError('Choose a Quote or its linked Work Order.')
+                if body.get('kind') not in KINDS:
+                    raise ValidationError('Choose a supported commercial document.')
                 if not isinstance(body.get('fields'), dict) or not isinstance(body['fields'].get('details'), dict):
                     raise ValidationError('Include the document and its project details.')
                 body['fields']['details'].update(details)
@@ -105,8 +113,8 @@ class SavedCommercial:
                     session['last_download'] = {'fingerprint': fingerprint, 'response': response}
                     return response
                 if actual_revision != revision:
-                    raise CommercialConflict('The saved project changed. Return to Quotes and reopen it.')
-            modified = action in {'save', 'status', 'delete', 'issue'}
+                    raise CommercialConflict('The saved project changed. Reopen its board and select the document again.')
+            modified = action in {'save', 'status', 'delete', 'issue', 'notes'}
             try:
                 result = execute(action, {**body, **captured, 'workspace_id': workspace}, owner_key=file_id + ':' + revision)
                 if action == 'issue':
@@ -117,6 +125,7 @@ class SavedCommercial:
                     snapshot['documentation'] = history
                 if modified:
                     snapshot['commercial_documents'] = self.projects.commercial.capture(workspace)
+                    self.projects.commercial.files.transfer(snapshot['commercial_documents'], path)
                     session['revision'] = commit()
             except Exception:
                 # An abandoned workspace cannot leak an uncommitted edit into

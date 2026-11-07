@@ -18,7 +18,8 @@ from pathlib import Path
 import secrets
 import sqlite3
 import uuid
-from zoneinfo import ZoneInfo
+from functools import lru_cache
+from zoneinfo import ZoneInfo, available_timezones
 
 
 UTC = timezone.utc
@@ -46,19 +47,20 @@ WRITE_FIELDS = {
     'setup': {'name', 'email', 'password'},
     'login': {'email', 'password'},
     'logout': set(),
-    'members/save': {'id', 'version', 'name', 'email', 'password', 'role', 'active', 'base_rate'},
-    'shifts/save': {'id', 'version', 'updated_at', 'title', 'start', 'end', 'member_ids', 'project_id', 'project_name', 'location', 'notes', 'color', 'published', 'request_id'},
-    'entries/save': {'id', 'version', 'updated_at', 'member_id', 'start', 'end', 'breaks', 'project_id', 'project_name', 'notes', 'base_rate', 'source', 'location_consent'},
+    'members/save': {'timezone', 'id', 'version', 'name', 'email', 'password', 'role', 'active', 'base_rate'},
+    'shifts/save': {'input_timezone', 'id', 'version', 'updated_at', 'title', 'start', 'end', 'member_ids', 'project_id', 'project_name', 'location', 'notes', 'color', 'published', 'request_id'},
+    'entries/save': {'input_timezone', 'id', 'version', 'updated_at', 'member_id', 'start', 'end', 'breaks', 'project_id', 'project_name', 'notes', 'base_rate', 'source', 'location_consent'},
     'shifts/delete': {'id', 'version'},
     'entries/delete': {'id', 'version'},
     'settings': set(DEFAULT_SETTINGS),
+    'organization': {'timezone', 'version'},
     'clock/in': {'project_id', 'project_name', 'notes', 'location_consent', 'location'},
     'clock/out': {'entry_id', 'version'},
     'clock/break': {'entry_id', 'version', 'action', 'paid', 'rule_id'},
     'locations': {'entry_id', 'latitude', 'longitude', 'accuracy', 'captured_at'},
     'locations/enable': {'entry_id', 'latitude', 'longitude', 'accuracy', 'captured_at'},
 }
-READ_FIELDS = {'bootstrap': set(), 'state': {'start', 'end'}, 'locations': {'entry_id'}}
+READ_FIELDS = {'bootstrap': set(), 'organization': set(), 'state': {'start', 'end'}, 'locations': {'entry_id'}}
 
 
 class SchedulerError(ValueError):
@@ -94,7 +96,12 @@ def _number(value, label, minimum=0, maximum=100000):
     return result
 
 
-def _timestamp(value):
+@lru_cache(maxsize=1)
+def organization_zones():
+    return tuple(sorted(available_timezones() - {'localtime', 'Factory'}))
+
+
+def _timestamp(value, zone=SYDNEY):
     if not isinstance(value, str) or len(value) > 40:
         raise SchedulerError('Include a valid date and time.')
     try:
@@ -102,12 +109,12 @@ def _timestamp(value):
     except ValueError:
         raise SchedulerError('Include a valid date and time.') from None
     if parsed.tzinfo is None:
-        first = parsed.replace(tzinfo=SYDNEY, fold=0)
-        second = parsed.replace(tzinfo=SYDNEY, fold=1)
-        if first.astimezone(UTC).astimezone(SYDNEY).replace(tzinfo=None) != parsed:
-            raise SchedulerError('That Sydney time does not exist during the daylight saving change.')
+        first = parsed.replace(tzinfo=zone, fold=0)
+        second = parsed.replace(tzinfo=zone, fold=1)
+        if first.astimezone(UTC).astimezone(zone).replace(tzinfo=None) != parsed:
+            raise SchedulerError(f'That {zone.key} time does not exist during the daylight saving change.')
         if first.utcoffset() != second.utcoffset():
-            raise SchedulerError('That Sydney time occurs twice. Include an explicit UTC offset.')
+            raise SchedulerError(f'That {zone.key} time occurs twice. Include an explicit UTC offset.')
         parsed = first
     if not 2000 <= parsed.year <= 2100:
         raise SchedulerError('Dates must be between 2000 and 2100.')
@@ -116,6 +123,19 @@ def _timestamp(value):
 
 def _iso(value):
     return value.astimezone(UTC).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+
+
+def _range_boundary(value, zone):
+    # A calendar date starts at its first instant even where DST jumps at
+    # midnight. Typed shift times still reject ambiguous or nonexistent times.
+    if isinstance(value, str) and re.fullmatch(r'\d{4}-\d{2}-\d{2}', value):
+        try:
+            midnight = datetime.fromisoformat(value)
+        except ValueError:
+            raise SchedulerError('Include a valid calendar date.') from None
+        if 2000 <= midnight.year <= 2100:
+            return midnight.replace(tzinfo=zone).astimezone(UTC)
+    return _timestamp(value, zone)
 
 
 def _json(value):
@@ -233,9 +253,10 @@ def _password(value, salt=None):
     return salt, digest
 
 
-def _public_member(row):
+def _public_member(row, zone_name):
     member = {key: row[key] for key in ('id', 'name', 'email', 'role', 'version')}
     member['active'] = bool(row['active'])
+    member['timezone'] = zone_name
     member['base_rate'] = row['base_rate']
     return member
 
@@ -350,10 +371,15 @@ class SchedulerStore:
         if not isinstance(query, dict) or set(query) - READ_FIELDS[action]:
             raise SchedulerError('The Scheduler request contains unknown filters.')
         with self.connect() as db:
-            user = self._user(db, token, required=action != 'bootstrap')
+            user = self._user(db, token, required=action not in {'bootstrap', 'organization'})
+            if action == 'organization':
+                settings = self._read_settings(db)
+                return {'timezone': settings['timezone'], 'version': settings['version'], 'zones': organization_zones()}
             if action == 'bootstrap':
+                zone_name = self._read_settings(db)['timezone']
                 return {'setup_required': not bool(db.execute('SELECT 1 FROM scheduler_members LIMIT 1').fetchone()),
-                        'user': _public_member(user) if user else None}
+                        'timezone': zone_name,
+                        'user': _public_member(user, zone_name) if user else None}
             if action == 'state':
                 db.execute('BEGIN IMMEDIATE')
                 self._settle_breaks(db)
@@ -369,12 +395,14 @@ class SchedulerStore:
             raise SchedulerError('Scheduler endpoint not found.', 404)
 
     def _state(self, db, user, query):
-        today = self.now().astimezone(SYDNEY).date()
-        start_date = _timestamp(query.get('start', str(today - timedelta(days=today.weekday()))))
-        end_date = _timestamp(query.get('end', str(today + timedelta(days=7-today.weekday()))))
-        if not timedelta(0) < end_date - start_date <= timedelta(days=93):
+        settings = self._read_settings(db)
+        zone = ZoneInfo(settings['timezone'])
+        today = self.now().astimezone(zone).date()
+        start_date = _range_boundary(query.get('start', str(today - timedelta(days=today.weekday()))), zone)
+        end_date = _range_boundary(query.get('end', str(today + timedelta(days=7-today.weekday()))), zone)
+        if end_date <= start_date or end_date.astimezone(zone) - start_date.astimezone(zone) > timedelta(days=93):
             raise SchedulerError('Select a date range of at most 93 days.')
-        members = [_public_member(row) for row in db.execute('SELECT * FROM scheduler_members ORDER BY name,id')
+        members = [_public_member(row, zone.key) for row in db.execute('SELECT * FROM scheduler_members ORDER BY name,id')
                    if user['role'] == 'admin' or row['id'] == user['id']]
         records = [json.loads(row['data']) | {'_kind': row['kind']} for row in db.execute(
             'SELECT kind,data FROM scheduler_records WHERE start<? AND (end IS NULL OR end>?) ORDER BY start,id',
@@ -387,7 +415,6 @@ class SchedulerStore:
                 shifts.append(record)
             if kind == 'entry' and (user['role'] == 'admin' or record['member_id'] == user['id']):
                 entries.append(record)
-        settings = self._read_settings(db)
         active = self._current(db, user['id'])
         summaries = {row['entry_id']: dict(row) for row in db.execute('''SELECT l.entry_id,count(*) AS count,
             min(l.captured_at) AS first_at,max(l.captured_at) AS last_at FROM scheduler_locations l
@@ -396,7 +423,7 @@ class SchedulerStore:
             GROUP BY l.entry_id''', (_iso(end_date), _iso(start_date), active['id'] if active else '', user['role'], user['id']))}
         entries = [{**self._entry_view(entry, settings), 'location_summary': summaries.get(entry['id'], {'count': 0, 'first_at': None, 'last_at': None})} for entry in entries]
         # Whole weeks supply context for overtime even when the visible range starts midweek.
-        local_start = start_date.astimezone(SYDNEY)
+        local_start = start_date.astimezone(zone)
         week_start = (local_start - timedelta(days=local_start.weekday())).replace(hour=0, minute=0, second=0)
         payroll_entries = [json.loads(row['data']) for row in db.execute(
             "SELECT data FROM scheduler_records WHERE kind='entry' AND end IS NOT NULL AND start<? AND end>? ORDER BY start,id",
@@ -405,7 +432,7 @@ class SchedulerStore:
             payroll_entries = [entry for entry in payroll_entries if entry['member_id'] == user['id']]
         if active:
             active = {**active, 'location_summary': summaries.get(active['id'], {'count': 0, 'first_at': None, 'last_at': None})}
-        return {'user': _public_member(user), 'members': members, 'shifts': shifts, 'entries': entries,
+        return {'user': _public_member(user, zone.key), 'members': members, 'shifts': shifts, 'entries': entries,
                 'settings': settings, 'active_entry': active,
                 'location_policy': {'required': True, 'interval_minutes': 30, 'history_access': 'owner_and_administrator'},
                 'payroll': calculate_payroll(payroll_entries, settings, start_date, end_date)}
@@ -469,6 +496,20 @@ class SchedulerStore:
             db.execute('BEGIN IMMEDIATE')
             if action == 'setup':
                 return self._setup(db, payload)
+            if action == 'organization':
+                user = None
+                if db.execute('SELECT 1 FROM scheduler_members LIMIT 1').fetchone():
+                    user = self._user(db, token)
+                    self._admin(user)
+                previous = self._read_settings(db)
+                self._version(payload, previous)
+                name = payload.get('timezone')
+                if not isinstance(name, str) or name not in organization_zones():
+                    raise SchedulerError('Choose a listed IANA time zone.')
+                settings = {**previous, 'timezone': name, 'version': previous['version'] + 1}
+                db.execute('UPDATE scheduler_settings SET data=? WHERE id=1', (_json(settings),))
+                self._audit(db, user['id'] if user else 'setup', 'organization.timezone', 'settings', previous, settings)
+                return {'timezone': name, 'version': settings['version']}
             user = self._user(db, token)
             if action == 'logout':
                 db.execute('DELETE FROM scheduler_sessions WHERE token_hash=?', (hashlib.sha256(token.encode()).hexdigest(),))
@@ -529,7 +570,7 @@ class SchedulerStore:
         db.execute('DELETE FROM scheduler_sessions WHERE expires_at<=?', (_iso(self.now()),))
         db.execute('INSERT INTO scheduler_sessions VALUES(?,?,?)',
                    (hashlib.sha256(token.encode()).hexdigest(), user['id'], _iso(self.now() + timedelta(hours=12))))
-        return {'token': token, 'user': _public_member(user)}
+        return {'token': token, 'user': _public_member(user, self._read_settings(db)['timezone'])}
 
     def _setup(self, db, payload):
         if db.execute('SELECT 1 FROM scheduler_members LIMIT 1').fetchone():
@@ -568,6 +609,9 @@ class SchedulerStore:
 
     def _member_save(self, db, user, payload):
         self._admin(user)
+        zone_name = self._read_settings(db)['timezone']
+        if payload.get('timezone', zone_name) != zone_name:
+            raise SchedulerError('Team members inherit the organization time zone.', 409)
         member_id = _text(payload.get('id', ''), 'Member ID', 100) or str(uuid.uuid4())
         previous = db.execute('SELECT * FROM scheduler_members WHERE id=?', (member_id,)).fetchone()
         if payload.get('id') and not previous:
@@ -604,8 +648,8 @@ class SchedulerStore:
             raise SchedulerError('That email already belongs to a team member.', 409) from None
         if previous and (payload.get('password') or not active or role != previous['role']):
             db.execute('DELETE FROM scheduler_sessions WHERE member_id=?', (member_id,))
-        value = _public_member(db.execute('SELECT * FROM scheduler_members WHERE id=?', (member_id,)).fetchone())
-        self._audit(db, user['id'], 'member.save', member_id, _public_member(previous) if previous else None, value)
+        value = _public_member(db.execute('SELECT * FROM scheduler_members WHERE id=?', (member_id,)).fetchone(), zone_name)
+        self._audit(db, user['id'], 'member.save', member_id, _public_member(previous, zone_name) if previous else None, value)
         return value
 
     def _record_save(self, db, user, payload, kind):
@@ -615,7 +659,10 @@ class SchedulerStore:
         self._version(payload, previous)
         if previous and previous.get('end') is None:
             raise SchedulerError('Clock out before editing this time entry.')
-        start, end = _timestamp(payload.get('start')), _timestamp(payload.get('end'))
+        zone = ZoneInfo(self._read_settings(db)['timezone'])
+        if payload.get('input_timezone', zone.key) != zone.key:
+            raise SchedulerError('The organization time zone changed. Reopen the editor to review its local times.', 409)
+        start, end = _timestamp(payload.get('start'), zone), _timestamp(payload.get('end'), zone)
         if not timedelta(0) < end-start <= timedelta(days=7):
             raise SchedulerError('End must follow start, within seven days.')
         value = {'id': previous['id'] if previous else str(uuid.uuid4()), 'start': _iso(start), 'end': _iso(end),
@@ -650,7 +697,7 @@ class SchedulerStore:
                 pins = db.execute('SELECT min(captured_at),max(captured_at) FROM scheduler_locations WHERE entry_id=?', (previous['id'],)).fetchone()
                 if pins[0] and (start > max(_timestamp(pins[0]), _timestamp(previous['start'])) or end < _timestamp(pins[1])):
                     raise SchedulerError('Keep all recorded locations inside the edited time entry.')
-            breaks = self._validate_breaks(payload.get('breaks', []), start, end)
+            breaks = self._validate_breaks(payload.get('breaks', []), start, end, zone)
             if previous:
                 for item in breaks:
                     original = next((old for old in previous['breaks'] if old['start'] == item['start'] and old['end'] == item['end'] and old['paid'] == item['paid']), None)
@@ -677,14 +724,14 @@ class SchedulerStore:
             raise SchedulerError('Time entries for the same person cannot overlap.', 409)
 
     @staticmethod
-    def _validate_breaks(items, start, end):
+    def _validate_breaks(items, start, end, zone):
         if not isinstance(items, list) or len(items) > 50:
             raise SchedulerError('Include at most 50 breaks.')
         breaks = []
         for item in items:
             if not isinstance(item, dict):
                 raise SchedulerError('Breaks must contain start, end and paid fields.')
-            begin, finish = _timestamp(item.get('start')), _timestamp(item.get('end'))
+            begin, finish = _timestamp(item.get('start'), zone), _timestamp(item.get('end'), zone)
             if not start <= begin < finish <= end:
                 raise SchedulerError('Each break must fit inside its time entry.')
             breaks.append({'start': _iso(begin), 'end': _iso(finish), 'paid': _boolean(item.get('paid', False), 'Paid break')})
@@ -710,8 +757,8 @@ class SchedulerStore:
         value = {**previous, **payload}
         if set(value) - set(DEFAULT_SETTINGS):
             raise SchedulerError('Unknown Scheduler setting.')
-        if value['timezone'] != 'Australia/Sydney':
-            raise SchedulerError('This schedule uses Australia/Sydney time.')
+        if value['timezone'] != previous['timezone']:
+            raise SchedulerError('Change the organization time zone in Application Settings.')
         if type(value['rounding_minutes']) is not int or value['rounding_minutes'] not in (0, 5, 6, 10, 15, 30):
             raise SchedulerError('Choose rounding of 0, 5, 6, 10, 15 or 30 minutes.')
         if value['rounding_mode'] not in ('nearest', 'up', 'down'):
@@ -744,7 +791,7 @@ class SchedulerStore:
                 raise SchedulerError('You are already clocked in.', 409)
             if not _boolean(payload.get('location_consent', False), 'Location consent'):
                 raise SchedulerError('Location is required to clock in. Enable location access and try again.')
-            first_location = self._validated_location(payload.get('location'), freshness=timedelta(minutes=2))
+            first_location = self._validated_location(payload.get('location'), ZoneInfo(self._read_settings(db)['timezone']), freshness=timedelta(minutes=2))
             self._no_overlap(db, user['id'], now, datetime(2100, 12, 31, tzinfo=UTC))
             value = {'id': str(uuid.uuid4()), 'member_id': user['id'], 'start': _iso(now), 'end': None,
                      'breaks': [], 'base_rate': user['base_rate'], 'source': 'clock',
@@ -820,14 +867,14 @@ class SchedulerStore:
             raise SchedulerError('Clock action not found.', 404)
         return self._save_record(db, user, 'entry', value, previous)
 
-    def _validated_location(self, payload, *, freshness=timedelta(minutes=5)):
+    def _validated_location(self, payload, zone, *, freshness=timedelta(minutes=5)):
         keys = {'latitude', 'longitude', 'accuracy', 'captured_at'}
         if not isinstance(payload, dict) or set(payload) != keys:
             raise SchedulerError('A fresh browser location is required, including its capture time and accuracy.')
         latitude = float(_number(payload.get('latitude'), 'Latitude', -90, 90))
         longitude = float(_number(payload.get('longitude'), 'Longitude', -180, 180))
         accuracy = float(_number(payload.get('accuracy'), 'Accuracy', 0, 100000))
-        captured = _timestamp(payload['captured_at'])
+        captured = _timestamp(payload['captured_at'], zone)
         if not self.now()-freshness <= captured <= self.now():
             raise SchedulerError('The location is not current. Enable location access and obtain a new location.')
         return latitude, longitude, accuracy, captured
@@ -847,7 +894,7 @@ class SchedulerStore:
         entry_id = _text(payload.get('entry_id', ''), 'Entry ID', 100, True)
         if entry_id != entry['id']:
             raise SchedulerError('The location belongs to a different clock session. Refresh before recording locations.', 409)
-        location = self._validated_location({key: value for key, value in payload.items() if key != 'entry_id'})
+        location = self._validated_location({key: value for key, value in payload.items() if key != 'entry_id'}, ZoneInfo(self._read_settings(db)['timezone']))
         captured = location[3]
         if captured < _timestamp(entry['start']):
             raise SchedulerError('Location timestamps must be current and inside this clock session.')
@@ -879,14 +926,16 @@ def _rounded(value, settings):
     seconds = settings['rounding_minutes'] * 60
     if not seconds:
         return value
-    quotient = value.timestamp() / seconds
+    zone = ZoneInfo(settings['timezone'])
+    offset = value.astimezone(zone).utcoffset().total_seconds()
+    quotient = (value.timestamp() + offset) / seconds
     mode = settings['rounding_mode']
     rounded = math.floor(quotient + 0.5) if mode == 'nearest' else (math.ceil(quotient) if mode == 'up' else math.floor(quotient))
-    return datetime.fromtimestamp(rounded * seconds, UTC)
+    return datetime.fromtimestamp(rounded * seconds - offset, UTC)
 
 
-def break_applies(rule, member_id, start):
-    return (not rule['member_ids'] or member_id in rule['member_ids']) and start.astimezone(SYDNEY).weekday() in rule['days']
+def break_applies(rule, member_id, start, zone):
+    return (not rule['member_ids'] or member_id in rule['member_ids']) and start.astimezone(zone).weekday() in rule['days']
 
 
 def _available_break_start(start, end, duration, desired, occupied):
@@ -907,15 +956,16 @@ def effective_breaks(entry, settings):
     in equal portions of the completed shift. Each manual matching break satisfies
     one entitlement, and all placed breaks avoid existing intervals.
     """
+    zone = ZoneInfo(settings['timezone'])
     result = [dict(item) for item in entry.get('breaks', [])]
     if not entry.get('end'):
         return result, []
-    start, end = _timestamp(entry['start']), _timestamp(entry['end'])
+    start, end = _timestamp(entry['start'], zone), _timestamp(entry['end'], zone)
     elapsed = int((end-start).total_seconds())
-    occupied = [(_timestamp(item['start']), _timestamp(item['end'])) for item in result]
+    occupied = [(_timestamp(item['start'], zone), _timestamp(item['end'], zone)) for item in result]
     used, warnings = set(), []
     for rule in settings['breaks']:
-        if not rule['automatic'] or not break_applies(rule, entry['member_id'], start):
+        if not rule['automatic'] or not break_applies(rule, entry['member_id'], start, zone):
             continue
         threshold = int(Decimal(rule['after_hours']) * 3600)
         if elapsed < threshold:
@@ -929,7 +979,7 @@ def effective_breaks(entry, settings):
         satisfied = []
         for index, item in enumerate(entry.get('breaks', [])):
             same_rule = item.get('rule_id') == rule['id']
-            legacy_match = not item.get('rule_id') and item['paid'] == rule['paid'] and _timestamp(item['end'])-_timestamp(item['start']) >= duration
+            legacy_match = not item.get('rule_id') and item['paid'] == rule['paid'] and _timestamp(item['end'], zone)-_timestamp(item['start'], zone) >= duration
             if index not in used and (same_rule or legacy_match):
                 satisfied.append(index)
         for index in satisfied[:count]:
@@ -945,17 +995,18 @@ def effective_breaks(entry, settings):
             occupied.append((begin, finish))
             result.append({'start': _iso(begin), 'end': _iso(finish), 'paid': rule['paid'], 'rule_id': rule['id'],
                            'name': rule['name'], 'code': rule['code'], 'automatic': True})
-    return sorted(result, key=lambda item: _timestamp(item['start'])), warnings
+    return sorted(result, key=lambda item: _timestamp(item['start'], zone)), warnings
 
 
 def _paid_intervals(entry, settings):
-    start, end = _rounded(_timestamp(entry['start']), settings), _rounded(_timestamp(entry['end']), settings)
+    zone = ZoneInfo(settings['timezone'])
+    start, end = _rounded(_timestamp(entry['start'], zone), settings), _rounded(_timestamp(entry['end'], zone), settings)
     cursor = start
     breaks, _ = effective_breaks(entry, settings)
     for item in breaks:
         if item['paid']:
             continue
-        begin, finish = max(start, _timestamp(item['start'])), min(end, _timestamp(item['end']))
+        begin, finish = max(start, _timestamp(item['start'], zone)), min(end, _timestamp(item['end'], zone))
         if finish <= begin:
             continue
         if begin > cursor:
@@ -965,8 +1016,8 @@ def _paid_intervals(entry, settings):
         yield cursor, end
 
 
-def _time_rule_matches(rule, moment):
-    local = moment.astimezone(SYDNEY)
+def _time_rule_matches(rule, moment, zone):
+    local = moment.astimezone(zone)
     minutes = local.hour*60+local.minute
     begin = int(rule['start_time'][:2])*60+int(rule['start_time'][3:])
     end = int(rule['end_time'][:2])*60+int(rule['end_time'][3:])
@@ -976,28 +1027,28 @@ def _time_rule_matches(rule, moment):
     return day in rule['days'] and (minutes >= begin or minutes < end)
 
 
-def _time_boundaries(rule, cursor):
-    date = cursor.astimezone(SYDNEY).date()
+def _time_boundaries(rule, cursor, zone):
+    date = cursor.astimezone(zone).date()
     for day in (date, date+timedelta(days=1)):
         for text in (rule['start_time'], rule['end_time']):
             local = datetime.combine(day, datetime.min.time()).replace(hour=int(text[:2]), minute=int(text[3:]))
             for fold in (0, 1):
-                point = local.replace(tzinfo=SYDNEY, fold=fold).astimezone(UTC)
+                point = local.replace(tzinfo=zone, fold=fold).astimezone(UTC)
                 if point > cursor:
                     yield point
 
 
-def _day_transition(date):
-    """Locate Sydney's offset change so repeated clock minutes get their rate."""
-    start = datetime.combine(date, datetime.min.time(), SYDNEY).astimezone(UTC)
-    end = datetime.combine(date+timedelta(days=1), datetime.min.time(), SYDNEY).astimezone(UTC)
-    offset = start.astimezone(SYDNEY).utcoffset()
-    if offset == (end-timedelta(seconds=1)).astimezone(SYDNEY).utcoffset():
+def _day_transition(date, zone):
+    """Locate the local offset change so repeated clock minutes get their rate."""
+    start = datetime.combine(date, datetime.min.time(), zone).astimezone(UTC)
+    end = datetime.combine(date+timedelta(days=1), datetime.min.time(), zone).astimezone(UTC)
+    offset = start.astimezone(zone).utcoffset()
+    if offset == (end-timedelta(seconds=1)).astimezone(zone).utcoffset():
         return None
     low, high = int(start.timestamp()), int(end.timestamp())
     while high-low > 1:
         middle = (low+high)//2
-        if datetime.fromtimestamp(middle, UTC).astimezone(SYDNEY).utcoffset() == offset:
+        if datetime.fromtimestamp(middle, UTC).astimezone(zone).utcoffset() == offset:
             low = middle
         else:
             high = middle
@@ -1009,34 +1060,35 @@ def calculate_payroll(entries, settings, visible_start=None, visible_end=None):
     settings = normalize_settings(settings)
     if not settings['pay_rules_confirmed']:
         return {'status': 'confirmation_required', 'rules_version': settings['version'], 'rows': [], 'message': 'Confirm pay rules before calculating pay.'}
+    zone = ZoneInfo(settings['timezone'])
     rules = [rule for rule in settings['overtime_rules'] if rule['enabled']]
     daily, weekly, rows, warnings, transitions = defaultdict(int), defaultdict(int), {}, [], {}
-    for entry in sorted(entries, key=lambda item: (_timestamp(item['start']), item['id'])):
+    for entry in sorted(entries, key=lambda item: (_timestamp(item['start'], zone), item['id'])):
         if not entry.get('end'):
             continue
         member_id = entry['member_id']
         _, break_warnings = effective_breaks(entry, settings)
         warnings.extend({'entry_id': entry['id'], 'message': warning} for warning in break_warnings)
-        shift_start = _timestamp(entry['start'])
+        shift_start = _timestamp(entry['start'], zone)
         for begin, finish in _paid_intervals(entry, settings):
             cursor = begin
             while cursor < finish:
-                local = cursor.astimezone(SYDNEY)
+                local = cursor.astimezone(zone)
                 day_key = member_id, local.date()
                 week_key = member_id, local.date()-timedelta(days=local.weekday())
-                midnight = datetime.combine(local.date()+timedelta(days=1), datetime.min.time(), SYDNEY).astimezone(UTC)
+                midnight = datetime.combine(local.date()+timedelta(days=1), datetime.min.time(), zone).astimezone(UTC)
                 boundary = min(finish, midnight)
                 if local.date() not in transitions:
-                    transitions[local.date()] = _day_transition(local.date())
+                    transitions[local.date()] = _day_transition(local.date(), zone)
                 transition = transitions[local.date()]
                 if transition and transition > cursor:
                     boundary = min(boundary, transition)
                 matches = [(Decimal('1'), 'Ordinary', '')]
                 for rule in rules:
                     if rule['type'] == 'time':
-                        applies = _time_rule_matches(rule, shift_start if rule['run_late'] else cursor)
+                        applies = _time_rule_matches(rule, shift_start if rule['run_late'] else cursor, zone)
                         if not rule['run_late']:
-                            boundary = min(boundary, *_time_boundaries(rule, cursor))
+                            boundary = min(boundary, *_time_boundaries(rule, cursor, zone))
                     else:
                         count = daily[day_key] if rule['type'] == 'daily' else weekly[week_key]
                         threshold = int(Decimal(rule['threshold_hours'])*3600)
@@ -1068,4 +1120,4 @@ def calculate_payroll(entries, settings, visible_start=None, visible_end=None):
         row['hours'] = str((Decimal(row['seconds'])/Decimal(3600)).quantize(Decimal('0.0001')))
         row['gross'] = str(row['gross'].quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
     return {'status': 'calculated', 'rules_version': settings['version'], 'rows': list(rows.values()), 'break_warnings': warnings,
-            'message': 'Sydney calendar days; highest matching rate; all paid hours count toward weekly overtime. Current rule version applies to this calculation.'}
+            'message': f'{zone.key} calendar days; highest matching rate; all paid hours count toward weekly overtime. Current rule version applies to this calculation.'}

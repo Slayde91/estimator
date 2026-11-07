@@ -47,9 +47,9 @@ class SavedQuoteTests(unittest.TestCase):
         self.source = {'file_id': self.card['source_file'], 'revision': self.card['source_revision']}
 
     def register(self):
-        result = self.library.quote_register()
+        result = self.library.commercial_register()
         while result['scan_pending']:
-            result = self.library.quote_register()
+            result = self.library.commercial_register()
         return result
 
     def perform(self, action, **body):
@@ -63,6 +63,30 @@ class SavedQuoteTests(unittest.TestCase):
         result = self.register()
         self.assertEqual(result['error_count'], 1)
         self.assertEqual([card['id'] for card in result['documents']], [self.document['id']])
+
+    def test_fresh_register_and_purchase_status_use_the_owning_file(self):
+        original = self.path.read_bytes()
+        snapshot = json.loads(original)
+        purchase = {**self.document, 'id': str(uuid.uuid4()), 'kind':'purchase_order', 'status':'Requested',
+                    'fields': default_fields('purchase_order')}
+        purchase['fields']['order'].update(supplier='Fixture Materials', supplier_contact='Morgan')
+        purchase['fields']['lines'] = [{'description':'Collars', 'quantity':'3', 'unit_price':'25.50',
+                                        'estimate_id':'', 'size':'', 'comments':''}]
+        snapshot['commercial_documents']['documents'].append(purchase)
+        other = self.folder / 'other.cf.json'
+        other.write_text(json.dumps(snapshot), encoding='utf8')
+        self.library.commercial_register(refresh=True)
+        card = next(c for c in self.register()['documents'] if c['kind']=='purchase_order')
+        self.assertEqual((card['grand_total'], card['fields']['order']['supplier_contact']),('84.15','Morgan'))
+        self.assertRegex(card['reference'],r'^PO-\d{2,}$')
+        source = {'file_id':card['source_file'], 'revision':card['source_revision']}
+        changed = self.saved.perform('status', {'source':source,'id':purchase['id'],'version':1,'status':'Sent'},self.http.execute)
+        self.assertNotEqual(changed['revision'], source['revision'])
+        self.assertEqual(self.path.read_bytes(), original)
+        written = json.loads(other.read_bytes())['commercial_documents']['documents']
+        self.assertEqual(next(d for d in written if d['id']==purchase['id'])['status'],'Sent')
+        with self.assertRaises(CommercialConflict):
+            self.saved.perform('open',{'source':source,'id':purchase['id']},self.http.execute)
 
     def test_file_conflict_keeps_external_edits_and_malformed_inputs_do_not_mutate(self):
         original = self.path.read_bytes()

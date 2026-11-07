@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const host=document.getElementById('cover-sheets-rows');
+  const host=document.getElementById('documentation-pdf-rows');
   if(!host)return;
   const status=document.getElementById('cover-sheets-status'),state={rows:new Map(),loaded:false,opening:null};
   const text=(element,source,args=[])=>{
@@ -36,11 +36,11 @@
     row.file.disabled=row.reading||row.busy||!!row.pending;
     row.save.disabled=row.reading||row.busy||!!row.pending&&row.pending.operation!=='save'||!row.pending&&!row.draft;
     row.remove.disabled=row.reading||row.busy||!!row.pending&&row.pending.operation!=='remove'||!row.pending&&!row.current.has_cover&&!row.draft&&!row.conflicted;
-    row.element.setAttribute('aria-busy',String(row.reading||row.busy));
+    row.fileCell.setAttribute('aria-busy',String(row.reading||row.busy));
   }
   function createRow(item){
-    const element=node('tr'),label=node('th'),fileCell=node('td'),actionCell=node('td'),file=node('input'),filename=node('p'),notice=node('p'),actions=node('div'),save=node('button'),remove=node('button');
-    element.setAttribute('data-cover-kind',item.kind);label.scope='row';text(label,item.label);
+    const fileCell=node('td'),actionCell=node('td'),file=node('input'),filename=node('p'),notice=node('p'),actions=node('div'),save=node('button'),remove=node('button');
+    fileCell.className='document-cover-file';actionCell.className='document-cover-actions';
     file.type='file';file.accept='.pdf,application/pdf';file.id='cover-sheet-'+item.kind;
     attr(file,'aria-label','PDF cover sheet for {0}',[term(item.label)]);
     filename.className='helper';notice.className='helper';notice.setAttribute('role','status');notice.setAttribute('aria-live','polite');
@@ -49,8 +49,8 @@
     attr(remove,'aria-label','Delete cover sheet for {0}',[term(item.label)]);attr(remove,'title','Delete cover sheet for {0}',[term(item.label)]);
     // Constant application artwork, never user-supplied markup.
     remove.innerHTML='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"></path></svg>';
-    fileCell.append(file,filename,notice);actions.append(save,remove);actionCell.append(actions);element.append(label,fileCell,actionCell);
-    const row={current:item,draft:undefined,name:item.cover_pdf_name,revision:0,reading:false,busy:false,pending:null,conflicted:false,element,file,filename,notice,save,remove};
+    fileCell.append(file,filename,notice);actions.append(save,remove);actionCell.append(actions);
+    const row={current:item,draft:undefined,name:item.cover_pdf_name,revision:0,reading:false,busy:false,pending:null,conflicted:false,fileCell,actionCell,file,filename,notice,save,remove};
     file.addEventListener('change',()=>upload(row));save.addEventListener('click',()=>perform(row,'save'));remove.addEventListener('click',()=>perform(row,'remove'));render(row);return row;
   }
   async function upload(row){
@@ -92,6 +92,22 @@
       message(row.notice,row.pending?'The cover sheet result could not be confirmed. Retry the same button to recover it.':error.status===409?'Cover sheet changed in another window. Your changes are kept. Retry to review and apply them.':error.message,true);
     }finally{row.busy=false;render(row);endActivity?.();}
   }
+  const kinds = {
+    'certification':'certification', 'estimate.summary.pdf':'estimate', 'project.full_schedule.pdf':'full_schedule',
+    'project.full_product_summary.pdf':'full_product_summary','firestopping.schedule.pdf':'firestopping_schedule',
+    'calculator.steel_vermiculite.schedule.pdf':'steel_vermiculite_schedule','calculator.steel_intumescent.schedule.pdf':'steel_intumescent_schedule',
+    'calculator.steel_board.schedule.pdf':'steel_board_schedule','calculator.ductwork.schedule.pdf':'ductwork_schedule','takeoff.markups.pdf':'takeoff_markups'
+  };
+  function attach(tr, documentKind) {
+    const kind=kinds[documentKind], row=state.rows.get(kind);
+    if(kind)tr.dataset.coverKind=kind;
+    for(const existing of tr.querySelectorAll('.document-cover-file,.document-cover-actions'))existing.remove();
+    if(row)tr.append(row.fileCell,row.actionCell);
+    else {
+      const file=node('td'), actions=node('td');
+      file.className='document-cover-file'; actions.className='document-cover-actions';tr.append(file,actions);
+    }
+  }
   async function open(){
     if(state.opening)return state.opening;
     if(state.loaded)return;
@@ -101,14 +117,14 @@
       if(!Array.isArray(result.items)||result.items.length>64)throw new Error('The saved cover-sheet settings are invalid.');
       const items=result.items.map(validate),kinds=new Set(items.map(item=>item.kind));
       if(kinds.size!==items.length)throw new Error('The saved cover-sheet settings are invalid.');
-      state.rows=new Map(items.map(item=>[item.kind,createRow(item)]));host.replaceChildren(...[...state.rows.values()].map(row=>row.element));state.loaded=true;text(status,'');
+      state.rows=new Map(items.map(item=>[item.kind,createRow(item)]));for(const tr of host.querySelectorAll('tr[data-document-kind]'))attach(tr,tr.dataset.documentKind);state.loaded=true;text(status,'');
     })();
     const endActivity=window.CeasefireActivity?.begin();
     try{await state.opening;}
-    catch(error){message(status,'Cover sheets could not be loaded. Open Settings again to retry.',true);}
+    catch(error){message(status,'Cover sheets could not be loaded. Open Documentation again to retry.',true);}
     finally{state.opening=null;host.setAttribute('aria-busy','false');endActivity?.();}
   }
-  window.CeasefireCoverSheets={open,hasPendingOperation:()=>!!state.opening||[...state.rows.values()].some(row=>row.reading||row.busy||row.pending),
+  window.CeasefireCoverSheets={open,attach,hasPendingOperation:()=>!!state.opening||[...state.rows.values()].some(row=>row.reading||row.busy||row.pending),
     hasUnsavedChanges:()=>[...state.rows.values()].some(changed),
     fingerprint:()=>JSON.stringify([...state.rows.values()].map(row=>({kind:row.current.kind,version:row.current.version,name:row.name,revision:row.revision,reading:row.reading,conflicted:row.conflicted,pending:row.pending&&{operation:row.pending.operation,version:row.pending.expected_version}})))};
 })();

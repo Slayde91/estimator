@@ -161,6 +161,22 @@ async function api(route) {return page.evaluate(async route => {const response =
   await page.screenshot({path:path.join(output,'location-history.png'),fullPage:true});
   await page.locator('dialog[open]').getByRole('button',{name:'Close',exact:true}).click();
   checks.push('clock in, consented GPS pin, reload recovery, unpaid break, clock out and personal location history');
+  await page.locator('nav [data-view="settings"]').click();
+  const zoneForm = page.locator('#organization-timezone-form');
+  await expect(zoneForm.getByLabel('Organization time zone')).toHaveValue('Australia/Sydney');
+  await zoneForm.getByLabel('Organization time zone').selectOption('Asia/Kathmandu');
+  await zoneForm.getByRole('button',{name:'Save time zone'}).click();
+  await expect(zoneForm.getByRole('status')).toHaveText('Time zone saved.');
+  await scheduler();
+  await expect.poll(() => page.locator('#scheduler-local-time').evaluate(clock => {
+    const display = new Intl.DateTimeFormat('en-AU',{timeZone:'Asia/Kathmandu',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).format(new Date(clock.dateTime));
+    return clock.textContent === display+' · Asia/Kathmandu';
+  })).toBe(true);
+  const previousClock = await page.locator('#scheduler-local-time').textContent();
+  await expect(page.locator('#scheduler-local-time')).not.toHaveText(previousClock);
+  const localized = await api('/state');
+  assert.ok(localized.members.every(member=>member.timezone==='Asia/Kathmandu'));
+  checks.push('Application Settings zone changes every team member and the live local clock with seconds');
   await page.getByRole('button',{name:'Sign out',exact:true}).click();
   await page.locator('#scheduler-root').getByLabel('Email',{exact:true}).fill('jordan@example.test');
   await page.getByLabel('Password',{exact:true}).fill(password);

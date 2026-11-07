@@ -39,7 +39,6 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     store = Store(database or ROOT / ".runtime" / "estimator.sqlite3")
     from .scheduler_http import SchedulerHTTP
     from .contacts_http import ContactsHTTP
-    contacts_http = ContactsHTTP(store.path.with_name(store.path.stem + "-contacts.sqlite3"))
     travel = TravelService()
     takeoffs = takeoff_http = None
     if capabilities['takeoffs']:
@@ -50,8 +49,11 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
         takeoff_http = TakeoffHTTP(takeoffs, ROOT, content_security_policy)
     from .project_library import ProjectLibrary
     from .project_details import ProjectDetails
+    from .document_numbers import DocumentNumbers
+    document_numbers = DocumentNumbers(store.path.with_name(store.path.stem + '-document-numbers.sqlite3'))
     project_details_settings = ProjectDetails(store.path.with_name(store.path.stem + '-project-details.sqlite3'))
     projects = ProjectLibrary(store, project_dialogs, takeoffs=takeoffs, edition=edition, project_details=project_details_settings)
+    contacts_http = ContactsHTTP(store.path.with_name(store.path.stem + "-contacts.sqlite3"), projects)
     scheduler_http = SchedulerHTTP(store.path.with_name(store.path.stem + "-scheduler.sqlite3"), projects=projects)
     from .download_progress import DownloadProgress
     download_progress = DownloadProgress()
@@ -60,7 +62,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     from .technical_library_edits import ManualTechnicalLibrary
     libraries = ManualTechnicalLibrary(library_directory, store)
     from .certification import CertificationService, CertificationConflict, CertificationNotFound
-    certifications = CertificationService(store)
+    certifications = CertificationService(store, numbering=document_numbers)
     from .certification_projects import CertificationProjects
     certification_projects = CertificationProjects(certifications)
     projects.certifications = certification_projects
@@ -316,7 +318,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             commercial_http = CommercialHTTP(commercial,
                 derive=lambda body, include_pdfs=False: derive_estimates(store, body, edition=edition,
                     company=self.company_details(), library=libraries, include_pdfs=include_pdfs),
-                company=self.company_details, saved=saved_commercial)
+                company=self.company_details, saved=saved_commercial, pricing=store.configuration)
             if commercial_http.dispatch(self, route):
                 return
             if SwmsHTTP(swms, company=self.company_details).dispatch(self, route):
@@ -332,6 +334,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_payload(200, self.company_details())
                 elif route == '/api/project-details':
                     self.send_payload(200, project_details_settings.settings())
+                elif route == '/api/document-numbering':
+                    self.send_payload(200, document_numbers.settings())
                 elif route == '/api/project-clients':
                     self.send_payload(200, projects.clients())
                 elif route == '/api/pdf-covers':
@@ -436,7 +440,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_report(store.quote(route[len("/api/quotes/"):-len("/report.pdf")]), "Saved quote")
                 elif route.startswith("/api/quotes/"):
                     self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
-                elif route in {'/contacts.js', '/contacts.css', '/swms.js', '/swms.css', '/scheduler.js', '/scheduler.css', '/commercial-documents.js', '/commercial-documents.css', '/certification.js', '/certification.css', '/cover-sheets.js', '/documentation.js', '/documentation.css', '/notifications.js', '/notifications.css'}:
+                elif route in {'/contacts.js', '/contacts.css', '/personal-signature.js', '/swms.js', '/swms.css', '/scheduler.js', '/scheduler.css', '/commercial-panels.js', '/commercial-documents.js', '/commercial-documents.css', '/certification.js', '/certification.css', '/cover-sheets.js', '/documentation.js', '/documentation.css', '/notifications.js', '/notifications.css'}:
                     kind = 'text/javascript; charset=utf-8' if route.endswith('.js') else 'text/css; charset=utf-8'
                     self.send_payload(200, (ROOT / 'static' / route[1:]).read_bytes(), kind)
                 elif route in {'/project-details.js', '/games/play.js', '/games/play.css', '/games/fireline-art.js', '/games/fireline.js', '/penetration-references.js', '/sounds/type.mp3', '/sounds/gameover.mp3', '/sounds/flame-whoosh.wav', '/takeoff-visual-search-icon.png', '/takeoff-ocr-icon.png', '/header-steel-intumescent.png', '/sounds/checkpoint.ogg', '/sounds/loading.mp3', '/sounds/new-explosion.mp3', '/sounds/hover.mp3', '/sounds/select.mp3', '/sounds/select-2.mp3', '/sounds/mixkit-vintage-dot-printing-1371.wav', '/takeoff-visual-search.js', '/takeoff-visual-search.css', '/takeoff-ocr-layer.js', '/takeoff-ocr-layer.css', '/header-menu-sounds.js', '/sounds/mgs1-menu-move.mp3', '/sounds/mgs-confirm2.mp3', '/brand-boot.js', '/brand-boot.css', '/classifire-app.ico', '/register-references.js', '/travel.js', '/travel.css', '/maps-setup.html', '/pdf-cursors.css', '/cursors/pointer.png', '/cursors/precision.png', '/cursors/move.png', '/cursors/text.png', '/cursors/handwriting.png', '/cursors/link.png', '/cursors/resize-nwse.png', '/cursors/resize-nesw.png', '/cursors/resize-horizontal.png', '/cursors/resize-vertical.png', '/cursors/unavailable.png', '/cursors/busy.png', "/", "/index.html", "/company-settings.js", "/classifire-logo.png", "/main-layout.js", "/downloads.css", "/activity.js", "/calculation-queue.js", "/searchable-choice.js", "/penetration-presentation.js", "/icons/navigation-takeoffs.svg", "/icons/navigation-takeoffs.jpg", "/icons/navigation-help.jpg", "/theme.js", "/language.js", "/language-catalog.js", "/language.css", "/theme.css", "/laser.css", "/laser-steel.svg", "/home-steel-frame.png", "/header-layout.css", "/workspace-art.css", "/pointer-effects.css", "/pointer-effects.js", "/laser-reticle.svg", "/takeoff-header-steel.png", "/takeoff-header-ductwork.png", "/takeoff-header-physical.png", "/takeoff-header-service-plans.png", "/header-steel-spray.png", "/header-steel-board.png", "/header-ductwork.png", "/header-firestopping.png", "/header-estimate.png", "/header-projects.png", "/projects-evidence-banner.png", "/header-firestopping-library.png", "/header-technical-library.png", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/library-detail-text.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/icons/navigation-home.png", "/icons/document.png", "/icons/schedule-add.png", "/icons/navigation-help.png", "/icons/navigation-takeoffs.png", "/icons/takeoff-visibility.jpg", "/icons/takeoff-colour-wheel.png", "/icons/takeoff-legend.png", "/ceasefire-logo.png", "/ceasefire-app.ico", "/fonts/Montserrat-Variable.ttf", "/fonts/Vera.ttf", "/fonts/VeraBd.ttf", "/fonts/Montserrat-Regular.ttf", "/fonts/Montserrat-Bold.ttf", "/fonts/Montserrat-Italic.ttf", "/fonts/Montserrat-BoldItalic.ttf", "/fonts/Montserrat-Italic-Variable.ttf", "/takeoffs.js", "/takeoffs.css", "/takeoff-geometry.js", "/takeoff-physical.js", "/takeoff-annotations.js", "/takeoff-signatures.js", "/takeoff-graphics.js", "/takeoff-graphics-ui.js", "/takeoff-pane-resize.js", "/takeoff-initial-pages.js", "/takeoff-pdf-tools.js", "/takeoff-pdf-tools.css", "/icons/default-memory.svg", "/icons/takeoff-set-default.png", "/icons/signature.svg", "/help-glossary.js", "/help-glossary.css", "/takeoff-search.js", "/takeoff-shortcuts.js", "/icons/takeoff-callout.png", "/takeoff-pdf-worker.mjs", "/takeoff-library-links.js", "/icons/takeoff-visibility.png", "/icons/takeoff-bullet-list.png", "/icons/takeoff-numbered-list.png", "/icons/takeoff-add-service.png", "/icons/takeoff-add-barrier.png", "/icons/takeoff-transfer.png", "/icons/takeoff-measure.png", "/header-tagline-media.js", "/header-tagline-character.gif", "/header-tagline-character-still.png"}:
@@ -482,6 +486,13 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_payload(200, store.save_company_settings(body))
                 elif route == '/api/project-details':
                     self.send_payload(200, project_details_settings.save_settings(body))
+                elif route == '/api/document-numbering':
+                    self.send_payload(200, document_numbers.save_settings(body))
+                elif route == '/api/document-numbering/migrate-orders':
+                    if body or self.headers.get('Sec-Fetch-Site') == 'cross-site':
+                        raise ValidationError('Update order numbers from CLASSIFIRE Settings.')
+                    from .document_numbers import migrate_saved_orders
+                    self.send_payload(200, migrate_saved_orders(projects))
                 elif re.fullmatch(r'/api/pdf-covers/[a-z_]+', route):
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})

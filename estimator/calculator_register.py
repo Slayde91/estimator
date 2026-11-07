@@ -97,10 +97,10 @@ def _schedule(data, workbook):
     identity = data['id']
     if identity == 'ductwork':
         labels = ['Line', 'Product', 'Duct dimensions (mm)', 'Length (m)', 'Quantity', 'FRL', 'Thickness (mm)',
-                  'Thickness basis', 'Duct surface (m²)', 'Net spray bags', 'Wrap material (m²)', 'Roll equivalents', 'Status']
+                  'Thickness basis', 'Duct surface (m²)', 'Net spray bags', 'Wrap material (m²)', 'Roll equivalents', 'Status / estimating basis']
         widths = [9, 26, 23, 16, 14, 18, 17, 19, 19, 18, 20, 18, 65]
         records = [[item['line'], v['C'], v['B'], v['D'], v['CM'], v['E'],
-                    *duct_schedule_outputs(item), v['J'] or 'No calculated status returned']
+                    *duct_schedule_outputs(item), v['J']]
                    for item in data['rows'] for v in [item['values']]]
     elif identity == 'steel_intumescent':
         labels = ['Line', 'Location', 'Mark', 'Product', 'Member case', 'Section', 'Period (min)',
@@ -126,11 +126,12 @@ def _schedule(data, workbook):
         records = [[item['line'], v['A'], v['B'], v['C'], v['D'], v['F'], v['CJ'], v['AN'], v['AO'], v['Z'], v['AB'], v['AD'], v['AE'], v['AF'], v['AG'],
                     '\n'.join(str(value) for value in (v['AR'], v['AS'], v['AT']) if value not in (None, '')) or 'No calculated status returned']
                    for item in data['rows'] for v in [item['values']]]
-    # The diagnostic last column is not a customer-facing schedule field.
-    labels.pop()
-    widths.pop()
-    for values in records:
-        values.pop()
+    # Steel's internal status can contain source locators. Use the public note below.
+    if identity != 'ductwork':
+        labels.pop()
+        widths.pop()
+        for values in records:
+            values.pop()
     if identity == 'steel_intumescent':
         for label in ('Input A/V (m⁻¹)', 'Table A/V (m⁻¹)'):
             index = labels.index(label)
@@ -142,6 +143,11 @@ def _schedule(data, workbook):
     widths.append(32)
     for values, item in zip(records, data['rows']):
         values.append(UNAVAILABLE_RESULT if item.get('result_unavailable') else report_reference_text(item['report_references'], urls=True))
+    if identity.startswith('steel_'):
+        labels.append('Calculation Notes')
+        widths.append(48)
+        for values, item in zip(records, data['rows']):
+            values.append(item['calculation_notes'])
     sheet = _sheet(workbook, 'Schedule', data['title'] + ' — Schedule', widths)
     _band(sheet, 3, f"{len(records)} used schedule items. {data['incomplete_rows']} item(s) have incomplete or unavailable primary quantities.", len(widths))
     _table(sheet, 5, labels, records, widths, formats={1: '0'}, filtered=True)

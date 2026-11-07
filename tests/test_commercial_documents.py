@@ -93,12 +93,13 @@ class CommercialTests(unittest.TestCase):
         request_id = str(uuid.uuid4())
         issued = self.store.issue(self.workspace, saved['id'], saved['version'], request_id)
         replay = self.store.issue(self.workspace, saved['id'], saved['version'], request_id)
-        self.assertEqual(issued['number'], 'WO-000001')
+        self.assertEqual(issued['number'], 'WO-01')
         self.assertEqual(replay['pdf'], issued['pdf'])
         with self.assertRaises(CommercialConflict):
             self.store.issue(self.workspace, saved['id'], saved['version'], request_id, {**DEFAULTS,'name':'Changed'})
         next_issue = self.store.issue(self.workspace, saved['id'], issued['document']['version'], str(uuid.uuid4()))
-        self.assertEqual(next_issue['number'], 'WO-000002')
+        self.assertEqual(next_issue['number'], 'WO-01')
+        self.assertNotEqual(next_issue['filename'], issued['filename'])
 
     def test_failed_pdf_does_not_consume_a_number(self):
         saved = self.store.save(self.workspace, self.payload())
@@ -108,7 +109,7 @@ class CommercialTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.store.issue(self.workspace, saved['id'], saved['version'], str(uuid.uuid4()))
         self.store.renderer = None
-        self.assertEqual(self.store.issue(self.workspace, saved['id'], saved['version'], str(uuid.uuid4()))['number'], 'WO-000001')
+        self.assertEqual(self.store.issue(self.workspace, saved['id'], saved['version'], str(uuid.uuid4()))['number'], 'WO-01')
 
     def test_concurrent_projects_receive_distinct_numbers(self):
         another = self.projects.add()
@@ -116,21 +117,23 @@ class CommercialTests(unittest.TestCase):
         second = self.store.save(another, self.payload(workspace=another))
         with ThreadPoolExecutor(max_workers=2) as pool:
             futures = [pool.submit(self.store.issue, workspace, document['id'], document['version'], str(uuid.uuid4())) for workspace, document in [(self.workspace, first),(another,second)]]
-            self.assertEqual({future.result()['number'] for future in futures}, {'WO-000001','WO-000002'})
+            self.assertEqual({future.result()['number'] for future in futures}, {'WO-01','WO-02'})
 
     def test_imported_number_can_advance_but_not_rewind_sequence(self):
         self.store.save(self.workspace, self.payload())
         snapshot = self.store.capture(self.workspace)
         saved = next(row for row in snapshot['documents'] if row['kind'] == 'work_order')
-        saved['last_number'] = 'WO-000050'
+        snapshot['reference_counters']['work_order']['WO'] = 50
         restored = self.projects.add(snapshot['project_id'])
         self.store.restore(restored, snapshot)
         issue = self.store.issue(restored, saved['id'], saved['version'], str(uuid.uuid4()))
-        self.assertEqual(issue['number'], 'WO-000051')
+        self.assertEqual(issue['number'], 'WO-01')
+        first_new = self.store.save(restored, self.payload(workspace=restored))
+        self.assertEqual(first_new['reference'], 'WO-51')
         older = self.projects.add(snapshot['project_id'])
-        saved['last_number'] = 'WO-000002'
+        snapshot['reference_counters']['work_order']['WO'] = 2
         self.store.restore(older, snapshot)
-        self.assertEqual(self.store.issue(older, saved['id'], saved['version'], str(uuid.uuid4()))['number'], 'WO-000052')
+        self.assertEqual(self.store.save(older, self.payload(workspace=older))['reference'], 'WO-52')
 
     def test_rich_text_rejects_active_content_and_preserves_formatting(self):
         for unsafe in ['<script>alert(1)</script>','<img src=x>','<p onclick="bad()">Text</p>','<a href="https://example.com">Link</a>']:
@@ -264,7 +267,7 @@ class CommercialTests(unittest.TestCase):
         restored = self.projects.add(snapshot['project_id'])
         self.store.restore(restored, snapshot)
         created = self.store.save(restored, self.payload(workspace=restored))
-        self.assertEqual(self.store.issue(restored, created['id'], created['version'], str(uuid.uuid4()))['number'], 'WO-000002')
+        self.assertEqual(self.store.issue(restored, created['id'], created['version'], str(uuid.uuid4()))['number'], 'WO-02')
 
     def test_http_replaces_tampered_price_and_scope_with_authoritative_values(self):
         from estimator.commercial_http import CommercialHTTP

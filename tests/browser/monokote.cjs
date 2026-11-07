@@ -103,7 +103,7 @@ async function screenshot(name,fixture) {
   const fieldLabels = Object.fromEntries(sourceDefinition.schedule.columns.map(field => [field.column, field.label]));
   const browserFieldLabels = {...fieldLabels, O: 'DFT (mm)'};
   const reportIndex = displayColumns.indexOf('J') + 1;
-  await expect(scheduleTable.locator('thead th')).toHaveText([...displayColumns.slice(0,reportIndex).map(column => browserFieldLabels[column]), 'Report', ...displayColumns.slice(reportIndex).map(column => browserFieldLabels[column]), 'Actions']);
+  await expect(scheduleTable.locator('thead th')).toHaveText([...displayColumns.slice(0,reportIndex).map(column => browserFieldLabels[column]), 'Report', 'Calculation Notes', ...displayColumns.slice(reportIndex).map(column => browserFieldLabels[column]), 'Actions']);
   const rowAddresses = await scheduleTable.locator('tbody tr[data-source-row="10"] td').evaluateAll(cells => cells
     .map(cell => cell.querySelector('[data-calculator-cell]')?.dataset.calculatorCell || cell.dataset.calculatorOutput).filter(Boolean));
   assert.deepEqual(rowAddresses, displayColumns.map(column => `${column}10`));
@@ -178,6 +178,7 @@ async function screenshot(name,fixture) {
   assert.match(scheduled.V12,/BLOCKED - SOURCE REVIEW/);
   await expect(rendered('O12')).toHaveText('N / A');
   const blockedReport=page.locator('[data-calculator-reports="12"]');
+  await expect(page.locator('[data-calculation-notes="12"]')).toContainText(/verified assessment|reviewed assessment/i);
   await expect(blockedReport).toHaveText('N / A');await expect(blockedReport.locator('a')).toHaveCount(0);
   for(const address of ['V12','W12','X12','Y12'])await expect(rendered(address)).toHaveCount(0);
   await page.getByRole('button',{name:'Add row',exact:true}).click();
@@ -247,7 +248,7 @@ async function screenshot(name,fixture) {
   assert.equal(workbook.formulas,0);const exportText=JSON.stringify(workbook.rows);assert.match(exportText,/FAR4856 Issue 2/);assert.match(exportText,/MONOKOTE Z106/);
   for(const privateText of [/BLOCKED - SOURCE REVIEW/,/FAR4856 Issue2 p12 Table 4/,/MK6-030521 p15/,/Source SHA-256/,/Source workbook/])assert.doesNotMatch(exportText,privateText);
   const originalExportHeaders = ['Line','Location','Mark','Product','Section','Quantity','Length (m)','Published thickness (mm)',
-    'Spray surface (m²)','Report'];
+    'Spray surface (m²)','Report','Calculation Notes'];
   assert.deepEqual(workbook.rows.Schedule[4], originalExportHeaders, 'XLSX exports the requested schedule columns');
   schedulePresentation.exportHeaders = originalExportHeaders;
   for(const index of [0,1]) {
@@ -256,7 +257,8 @@ async function screenshot(name,fixture) {
     assert.equal(row[9],'FAR4856 Issue 2 (https://tfire.com.au/documents/Internal-Fire-Hollow-Steel-Sections-FAR4856)');assert.equal(row.length,originalExportHeaders.length);
   }
   const blockedRow=workbook.rows.Schedule.find(row=>row[2]==='SYNTHETIC-BLOCKED');assert.ok(blockedRow);
-  assert.deepEqual(blockedRow.slice(7),['N / A','N / A','N / A'],'withhold thickness, surface and report for the blocked row');
+  assert.match(blockedRow[10], /verified assessment|reviewed assessment/i);
+  assert.deepEqual(blockedRow.slice(7,10),['N / A','N / A','N / A'],'withhold thickness, surface and report for the blocked row');
   const pfcRow=workbook.rows.Schedule.find(row=>row[2]==='SYNTHETIC-PFC');assert.ok(pfcRow);
   closeNumber(pfcRow[7],19,'exported PFC published thickness');closeNumber(pfcRow[8],scheduled.R13,'exported PFC spray surface');
   assert.equal(pfcRow[9],'FAR4853 Issue 3 (https://tfire.com.au/documents/Monokote-Internal-Fire-Solid-Steel-Sections-FAR4853)');assert.equal(pfcRow.length,originalExportHeaders.length);

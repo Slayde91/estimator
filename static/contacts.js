@@ -69,13 +69,14 @@
       await activate(page);
       if (root().querySelector("[data-contacts-notice]") && "added" in result)
         feedback(root(), `Imported ${result.added} new records. Matched ${result.matched} existing records.`);
+      if (result.project_no) feedback(root(), `Project ${result.project_no} saved.`);
     } finally { saving = false; }
   }
-  function dialogEditor(kind, record = {}) {
+  function dialogEditor(kind, record = {}, readOnly = false) {
     const dialog = el("dialog", "contacts-dialog");
     const form = el("form", "contacts-form");
     const version = data.version;
-    const heading = el("h2", "", (record.id ? "Edit " : "New ") + singular[kind]);
+    const heading = el("h2", "", readOnly ? record.name : (record.id ? "Edit " : "New ") + singular[kind]);
     heading.id = "contacts-editor-title";
     dialog.setAttribute("aria-labelledby", heading.id);
     form.append(heading, notice());
@@ -99,6 +100,7 @@
         input.value = record[key] || (key === "status" ? data.statuses[0] : "");
         input.required = key === "name" || (key === "company" && kind !== "contacts");
         input.name = key;
+        if (readOnly) { if (input.tagName === "SELECT") input.disabled = true; else input.readOnly = true; }
         fields[key] = input;
         label.append(input);
         section.append(label);
@@ -133,10 +135,12 @@
     const save = el("button", "button primary", "Save");
     save.type = "submit";
     const cancel = button("Cancel", () => dialog.close());
-    actions.append(cancel, save);
+    if (readOnly) actions.append(button("Close", () => dialog.close()), button("Edit", () => {dialog.close(); dialogEditor(kind, record);}, "button primary"));
+    else actions.append(cancel, save);
     form.append(actions);
     form.addEventListener("submit", async event => {
       event.preventDefault();
+      if (readOnly) return;
       save.disabled = cancel.disabled = true;
       const values = Object.fromEntries(Object.entries(fields).map(([key, input]) => [key, input.value]));
       try { await update(kind, {id: record.id, fields: values, version}, () => dialog.close()); }
@@ -179,7 +183,27 @@
           event.dataTransfer.effectAllowed = "move";
           event.dataTransfer.setData("application/x-classifire-lead", lead.id);
         });
-        card.append(button(lead.name, () => dialogEditor("leads", lead), "text-button project-title-button"));
+        const row = el("div", "project-card-heading"), menu = el("details", "commercial-card-menu contacts-lead-menu");
+        const toggle = el("summary", "", "▾");
+        toggle.setAttribute("aria-label", `Actions for ${lead.name}`);
+        const options = el("div", "commercial-menu-options");
+        for (const [name, open] of [["Open", true], ["Edit", false]]) {
+          options.append(button(name, () => {menu.open = false; dialogEditor("leads", lead, open);}, "text-button"));
+        }
+        options.append(button("Convert", async () => {
+          menu.open = false;
+          try {await update("leads/convert", {id:lead.id, version:data.version});}
+          catch (error) {feedback(root(), error.message, true);}
+        }, "text-button"));
+        menu.append(toggle, options);
+        menu.addEventListener("toggle", () => {
+          if (!menu.open) return;
+          const rect = toggle.getBoundingClientRect();
+          options.style.left = `${Math.max(8, Math.min(innerWidth - options.offsetWidth - 8, rect.right - options.offsetWidth))}px`;
+          options.style.top = `${rect.bottom + options.offsetHeight + 12 <= innerHeight ? rect.bottom + 6 : Math.max(8, rect.top - options.offsetHeight - 6)}px`;
+        });
+        row.append(button(lead.name, () => dialogEditor("leads", lead, true), "text-button project-title-button"), menu);
+        card.append(row);
         card.append(el("p", "", lead.company));
         if (lead.title) card.append(el("p", "helper", lead.title));
         if (lead.phone || lead.email) card.append(el("p", "helper", lead.phone || lead.email));
@@ -223,16 +247,28 @@
     host.replaceChildren(page === "leads" ? leadBoard(rows) : directoryTable(rows));
   }
   function documentMenu(kind) {
-    const menu = el("details", "commercial-columns-menu contacts-document");
-    menu.append(el("summary", "button secondary", "Document ▾"));
-    const options = el("div", "commercial-menu-options");
+    const menu = el("details", "calculator-document-menu contacts-document");
+    const toggle = el("summary", "button secondary calculator-document-toggle"), icon = el("img", "calculator-document-icon");
+    icon.src = "/icons/document.png"; icon.alt = ""; icon.width = icon.height = 24;
+    toggle.append(icon, "Document", document.querySelector("#calculator-document-toggle .calculator-document-chevron").cloneNode(true));
+    menu.append(toggle);
+    const options = el("div", "calculator-document-actions");
+    function fileLabel(arrow, label) {
+      const symbol = el("span", "download-format-icon");
+      symbol.setAttribute("aria-hidden", "true");
+      symbol.append(el("span", "download-arrow", arrow), el("span", "download-format", "XLSX"));
+      return [symbol, el("span", "", label)];
+    }
     const file = el("input");
     file.type = "file"; file.accept = ".xlsx"; file.hidden = true;
-    const download = el("a", "text-button", "Export Template");
+    const download = el("a", "button excel-button calculator-document-action");
+    download.append(...fileLabel("⇩", "Export Template"));
     download.href = `/api/contacts/${kind}/template.xlsx`;
     download.download = "";
     download.addEventListener("click", () => { menu.open = false; });
-    options.append(button("Import Template", () => { menu.open = false; file.click(); }, "text-button"), download);
+    const upload = button("", () => {menu.open = false; file.click();}, "button excel-button calculator-document-action");
+    upload.append(...fileLabel("⇧", "Import Template"));
+    options.append(upload, download);
     file.addEventListener("change", async () => {
       const selected = file.files[0];
       const version = data.version;
@@ -264,10 +300,11 @@
     const title = el("div");
     title.append(el("p", "eyebrow", "CONTACTS"), el("h1", "", titles[page]));
     heading.append(title);
-    const tabs = el("nav", "contacts-tabs");
+    const tabs = el("nav", "calculator-pages contacts-tabs");
     tabs.setAttribute("aria-label", "Contacts pages");
     for (const [key, label] of Object.entries(titles)) {
-      const tab = button(label, () => switchPage(key));
+      const tab = button(label, () => switchPage(key), "calculator-page");
+      tab.setAttribute("aria-pressed", String(key === page));
       if (key === page) tab.setAttribute("aria-current", "page");
       tabs.append(tab);
     }
@@ -285,5 +322,13 @@
     container.append(heading, tabs, notice(), section);
     displayRows();
   }
+  document.addEventListener("click", event => {
+    root()?.querySelectorAll("details[open]").forEach(menu => {if (!menu.contains(event.target)) menu.open = false;});
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key !== "Escape") return;
+    const menu = event.target.closest?.("#contacts-root details[open]");
+    if (menu) {menu.open = false; menu.querySelector("summary").focus();}
+  });
   window.ClassifireContacts = {activate};
 })();

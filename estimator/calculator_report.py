@@ -17,7 +17,7 @@ from xml.sax.saxutils import escape
 from reportlab.lib.pagesizes import A3, A4, landscape
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.platypus import PageBreak, SimpleDocTemplate, Spacer, TableStyle, Paragraph
-from .assessment_references import UNAVAILABLE_RESULT, schedule_report_references, schedule_result_available
+from .assessment_references import UNAVAILABLE_RESULT, schedule_report_references, schedule_result_available, steel_calculation_note
 
 from .excel_engine import column_name
 from .pdf_fonts import FONT_REGULAR
@@ -228,6 +228,8 @@ def project_calculator_report(calculator_id, inputs=None):
         else:
             record['complete'] = values['AR'] == 'CLADDING ESTIMATE'
         record['result_unavailable'] = not schedule_result_available(calculator_id, engine, row)
+        if calculator_id.startswith('steel_'):
+            record['calculation_notes'] = steel_calculation_note(calculator_id, engine, row, not record['result_unavailable'])
         record['complete'] = record['complete'] and not record['result_unavailable']
         record['report_references'] = schedule_report_references(calculator_id, engine, row) if not record['result_unavailable'] else []
         rows.append(record)
@@ -514,7 +516,7 @@ class _ScheduleReport(_Report):
                 rows.append([self.p(identity, 'cell'), self.detail(v['C'] or 'Product missing', v['B']),
                     self.p(self.display(v['D']) + ' × ' + self.display(v['CM']), 'numeric'),
                     self.p(self.display(v['E']), 'cell'), self.p(thickness, 'numeric'), self.numeric(area),
-                    self.numeric(bags), self.numeric(wrap), self.numeric(rolls), self.p(v['J'] or 'No calculated status returned', 'cell')])
+                    self.numeric(bags), self.numeric(wrap), self.numeric(rolls), self.p(v['J'], 'cell')])
             elif data['id'] == 'steel_intumescent':
                 rows.append([self.p(identity, 'cell'), self.p(v['AA'], 'cell'), self.p(v['A'], 'cell'),
                     self.detail(v['B'] or 'Product missing', v['C']), self.numeric(v['H']), self.numeric(v['D']),
@@ -532,7 +534,7 @@ class _ScheduleReport(_Report):
                     self.numeric(v['AB']), self.numeric(v['AD']), self.numeric(v['AE']), self.numeric(v['AF']), self.numeric(v['AG']),
                     self.p('\n'.join(str(value) for value in (v['AR'], v['AS']) if _has_value(value)) or 'No calculated status returned', 'cell')])
         if data['id'] == 'ductwork':
-            heads = ['Line', 'Product / duct mm', 'Length m × qty', 'FRL', 'Thickness mm', 'Duct m²', 'Net spray bags', 'Wrap m²', 'Roll eq.', 'Status']
+            heads = ['Line', 'Product / duct mm', 'Length m × qty', 'FRL', 'Thickness mm', 'Duct m²', 'Net spray bags', 'Wrap m²', 'Roll eq.', 'Status / estimating basis']
             fractions = [.05, .16, .065, .085, .08, .085, .085, .085, .075, .23]
         elif data['id'] == 'steel_intumescent':
             heads = ['Line', 'Location', 'Item / mark', 'Product / member case', 'Period (min)', 'Critical °C', 'DFT (µm)', 'Area (m²)', 'Status']
@@ -551,10 +553,16 @@ class _ScheduleReport(_Report):
         position = len(heads)
         heads.insert(position, 'Report')
         fractions.append(.12)
+        steel = data['id'].startswith('steel_')
+        if steel:
+            heads.append('Calculation Notes')
+            fractions.append(.18)
         fractions = [size / sum(fractions) for size in fractions]
         for cells, item in zip(rows, data['rows']):
             report = self.p(UNAVAILABLE_RESULT, 'cell') if item.get('result_unavailable') else self.report_links(item['report_references'])
             cells.insert(position, report)
+            if steel:
+                cells.append(self.p(item['calculation_notes'], 'cell'))
         return heads, rows, fractions
 
     def schedule(self, *, portrait=False, quote_scope=False):

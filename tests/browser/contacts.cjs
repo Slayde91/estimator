@@ -37,6 +37,7 @@ const ready = new Promise((resolve, reject) => {
   const dlg=page.getByRole('dialog');
   await dlg.getByLabel('Name',{exact:true}).fill('Robin Sample');
   await dlg.getByLabel('Company',{exact:true}).fill('Sample Company');
+  await dlg.getByLabel('Site address').fill('QA Site Street');
   await dlg.getByLabel('Billing address').fill('Demo Billing Street');
   await dlg.getByRole('button',{name:'Save',exact:true}).click();
   const card=root.locator('.project-kanban-card').filter({hasText:'Robin Sample'});
@@ -66,6 +67,28 @@ const ready = new Promise((resolve, reject) => {
   await root.getByRole('button',{name:'Accounts',exact:true}).click();
   await root.getByRole('button',{name:'Sample Company',exact:true}).click();
   await expect(dlg.getByRole('button',{name:'Imported Sample'})).toBeVisible();
+  await dlg.getByRole('button',{name:'Cancel'}).click();
+  await root.getByRole('button',{name:'Leads',exact:true}).click();
+  await card.locator('summary').click(); await card.getByRole('button',{name:'Open',exact:true}).click();
+  await expect(dlg.getByLabel('Site address')).toHaveAttribute('readonly','');
+  await dlg.getByRole('button',{name:'Close',exact:true}).click();
+  await card.locator('summary').click(); await card.getByRole('button',{name:'Edit',exact:true}).click();
+  await dlg.getByLabel('Title',{exact:true}).fill('Technician');
+  await dlg.getByRole('button',{name:'Save',exact:true}).click();
+  await expect(card).toContainText('Technician');
+  const linked = await page.request.post('http://127.0.0.1:'+port+'/api/projects/link-folder',{data:{}});
+  assert.equal(linked.status(),200,await linked.text());
+  const pending = page.waitForResponse(response=>response.url().endsWith('/api/contacts/leads/convert'));
+  await card.locator('summary').click(); await card.getByRole('button',{name:'Convert',exact:true}).click();
+  const converted = await pending;
+  assert.equal(converted.status(),200,await converted.text());
+  const receipt = await converted.json();
+  const saved = JSON.parse(fs.readFileSync(receipt.path,'utf8'));
+  assert.equal(saved.estimate.site_address,'QA Site Street'); assert.equal(saved.estimate.client,'Sample Company');
+  assert.equal(saved.estimate.project_no,receipt.project_no); assert.match(saved.estimate.measurements,/Robin Sample/);
+  await expect(card).toHaveCount(0);
+  await root.getByRole('button',{name:'Contacts',exact:true}).click();
+  await expect(root.getByRole('button',{name:'Robin Sample'})).toBeVisible();
   assert.deepEqual(errors, []);
   console.log('Contacts browser acceptance passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; })

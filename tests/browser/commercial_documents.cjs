@@ -194,16 +194,39 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await linkedQuote.selectOption(quoteId);
   await expect(cost).toHaveValue('125.25');
   await work.getByLabel('Description of works',{exact:true}).fill('Install the scheduled passive fire systems.');
-  await work.getByLabel('SWMS',{exact:true}).fill('Approved project SWMS revision 2');
+  await expect(work.getByLabel('SWMS',{exact:true})).toHaveCount(0);
+  await work.getByLabel('Category / urgency',{exact:true}).selectOption('High Priority');
+  await work.getByLabel('Approval',{exact:true}).selectOption('Approved');
+  await page.evaluate(()=>localStorage.setItem('ceasefire.takeoff-signature.v1',JSON.stringify({version:1,ratio:2,strokes:[[[0,.3],[.5,1],[1,0]]]})));
+  for(const label of ['Reviewed by','Prepared by','Approved by']) {
+    await work.getByRole('button',{name:'Sign '+label,exact:true}).click();
+    await expect(work.getByRole('img',{name:label+' signature',exact:true})).toBeVisible();
+  }
+  await work.getByRole('button',{name:'Change Reviewed by',exact:true}).click();
+  await page.getByRole('dialog').getByRole('button',{name:'Cancel',exact:true}).click();
+  for(const panel of ['Account Details','Contact Details','Notes','Files','Linked Quotes','Linked Purchase Orders']) await expect(work.locator('.commercial-side-panel summary').filter({hasText:panel})).toBeVisible();
+  const startBounds=await work.getByLabel('Proposed start date').boundingBox(), endBounds=await work.getByLabel('Proposed end date').boundingBox();
+  assert.equal(startBounds.x,endBounds.x);
+  await work.getByRole('button',{name:'New note'}).click();
+  const note=page.getByRole('dialog',{name:'Work Order note'});
+  await note.getByLabel('Note title').fill('Site observation');
+  await note.getByRole('textbox',{name:'Compose text'}).fill('Test the access route.');
+  await note.getByRole('button',{name:'Done'}).click();
+  await expect(work.locator('.commercial-note-card')).toContainText('Site observation');
+  await work.getByLabel('Attach files',{exact:true}).setInputFiles({name:'qa-field-record.bin',mimeType:'application/octet-stream',buffer:Buffer.from('QA portable original')});
+  await expect(work.locator('.commercial-attached-file')).toContainText('qa-field-record.bin');
   await expect(work.getByLabel('Proposed start date',{exact:true})).toHaveAttribute('type','date');
   const titleBox=await work.getByLabel('Document title',{exact:true}).boundingBox(),statusBox=await work.getByLabel('Status',{exact:true}).boundingBox();
   assert.ok(statusBox.x>titleBox.x && Math.abs(statusBox.y-titleBox.y)<2,'Status aligns to the right of title');
   await save(work);
   const assignedReference=await work.getByLabel('Work order reference',{exact:true}).inputValue();
-  assert.match(assignedReference,/^COMM1Q[1-9]\d*-01$/);
+  assert.match(assignedReference,/^WO-\d{2,}$/);
   await expect(cost).toHaveValue('125.25');
   await expect(work.getByLabel('Work order reference',{exact:true})).toHaveAttribute('readonly','');
-  await download(work);
+  const workPdf=await download(work);
+  const attachmentProof=execFileSync(process.env.CEASEFIRE_PYTHON||'python',['-c',
+    'from pypdf import PdfReader; import sys; r=PdfReader(sys.argv[1]); assert r.attachments["qa-field-record.bin"][0]==b"QA portable original"; print(len(r.pages))',workPdf.path],{encoding:'utf8'});
+  assert.ok(Number(attachmentProof)>1);
   await work.getByRole('button',{name:'Back to Work Orders',exact:true}).click();
   await work.locator('.commercial-card').dragTo(work.getByRole('region',{name:'Review',exact:true}).or(work.locator('.commercial-column[aria-label="Review"]')));
   await expect(work.locator('.commercial-column[aria-label="Review"] .commercial-card')).toHaveCount(1);
@@ -214,19 +237,27 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await purchase.getByRole('button',{name:'New Purchase Order',exact:true}).click();
   for(const label of ['Client','Client contact','Client phone','Client email']) await expect(purchase.getByLabel(label,{exact:true})).toHaveCount(0);
   await purchase.getByLabel('Linked Work Order',{exact:true}).selectOption({label:await purchase.getByLabel('Linked Work Order',{exact:true}).locator('option').nth(1).textContent()});
-  await expect(purchase.getByLabel('Work order reference',{exact:true})).toHaveValue(assignedReference);
-  await expect(purchase.getByLabel('Work order reference',{exact:true})).toHaveAttribute('readonly','');
+  await expect(purchase.getByLabel('Purchase Order No.',{exact:true})).toHaveValue('');
+  await expect(purchase.getByLabel('Linked Work Order',{exact:true}).locator('option:checked')).toContainText(assignedReference);
+  await expect(purchase.getByLabel('Purchase Order No.',{exact:true})).toHaveAttribute('readonly','');
   await purchase.getByLabel('Document title',{exact:true}).fill('QA material order');
   await purchase.getByLabel('Supplier',{exact:true}).fill('Example supplier');
   await purchase.getByRole('button',{name:'Add line item',exact:true}).click();
-  await purchase.locator('.commercial-lines tbody textarea').first().fill('Fire collar');
-  await purchase.locator('.commercial-lines tbody input').nth(0).fill('1');
-  await purchase.locator('.commercial-lines tbody input').nth(1).fill('-0.05');
+  const catalog=await page.evaluate(async()=> (await fetch('/api/commercial/supplier-products?workspace='+window.CeasefireCertification.sessionId()).then(r=>r.json())).products);
+  const supplierProduct=catalog.find(item=>item.supplier_price>0 && catalog.filter(x=>x.label===item.label).length===1);
+  assert.ok(supplierProduct);
+  await purchase.getByLabel('Product / Service 1').fill(supplierProduct.label);
+  await expect(purchase.locator('.commercial-lines tbody input[type=number]').nth(1)).toHaveValue(String(supplierProduct.supplier_price));
+  await purchase.getByLabel('Comments 1').fill('Deliver to the site store.');
+  await expect(purchase.getByRole('button',{name:'Remove line item'})).toBeVisible();
+  await purchase.locator('.commercial-lines tbody input[type=number]').nth(0).fill('1');
+  await purchase.locator('.commercial-lines tbody input[type=number]').nth(1).fill('-0.05');
   await expect(purchase.locator('.commercial-totals')).toContainText('-$0.06');
-  await purchase.locator('.commercial-lines tbody input').nth(0).fill('10');
-  await purchase.locator('.commercial-lines tbody input').nth(1).fill('25');
+  await purchase.locator('.commercial-lines tbody input[type=number]').nth(0).fill('10');
+  await purchase.locator('.commercial-lines tbody input[type=number]').nth(1).fill('25');
   await expect(purchase.locator('.commercial-totals')).toContainText('$275.00');
   await save(purchase);
+  await expect(purchase.getByLabel('Purchase Order No.',{exact:true})).toHaveValue(/^PO-\d{2,}$/);
   await download(purchase);
   await purchase.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();
   await expect(purchase.locator('.commercial-card')).toContainText('QA material order');
@@ -242,6 +273,8 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   // Open a project saved by the previous release with an empty work order cost.
   const savedWork = saved.commercial_documents.documents.find(item=>item.kind==='work_order');
   const oldReference = [savedWork.fields.details.project_no, savedWork.fields.order.quote_reference, '01'].join('-');
+  delete savedWork.reference;
+  delete saved.commercial_documents.documents.find(item=>item.kind==='purchase_order').reference;
   savedWork.fields.order.estimated_cost = '';
   savedWork.fields.order.work_order_reference = oldReference;
   saved.commercial_documents.documents.find(item=>item.kind==='purchase_order').fields.order.work_order_reference = oldReference;
@@ -274,6 +307,8 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   const clone = structuredClone(saved);
   const clonedQuote = clone.commercial_documents.documents.find(document => document.kind === 'quote');
   clonedQuote.fields.title = 'Other project quote';
+  clone.commercial_documents.documents.find(doc=>doc.kind==='work_order').fields.title='Other site order';
+  clone.commercial_documents.documents.find(doc=>doc.kind==='purchase_order').fields.title='Other purchase order';
   fs.writeFileSync(otherPath, JSON.stringify(clone));
   await open('quotes');
   await page.locator('#refresh-quotes').click();
@@ -318,9 +353,41 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await expect(cost).toHaveValue(otherTotal);
   await save(work);
   assert.ok(owner().some(doc=>doc.kind==='work_order' && doc.fields.order.quote_reference===ownerQuote().last_number
-    && doc.fields.order.estimated_cost === otherTotal && /^COMM1Q[1-9]\d*-01$/.test(doc.fields.order.work_order_reference)));
+    && doc.fields.order.estimated_cost === otherTotal && /^WO-\d{2,}$/.test(doc.fields.order.work_order_reference)));
   assert.deepEqual(JSON.parse(fs.readFileSync(info.project,'utf8')).commercial_documents.documents,saved.commercial_documents.documents);
   checks.push('global register edits, prices, exports and creates a numbered work order in the correct saved file while another project is open');
+
+  // Opening the directory with a fresh tab creates an empty active workspace.
+  // Board actions must still address the saved file selected on the card.
+  await page.reload(); await idle();
+  assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path), null);
+  for(const [route,host,title,target] of [
+    ['work-orders',work,'Other site order','Client Approval'],
+    ['purchase-orders',purchase,'Other purchase order','Requested']
+  ]){
+    await open(route);
+    const card=host.locator('.commercial-card').filter({hasText:title});
+    await expect(card).toHaveCount(1);
+    await expect(card.locator('dl')).toContainText('Grand total');
+    await card.locator('summary').click();
+    await card.getByRole('combobox',{name:'Move to'}).selectOption(target);
+    await expect(host.locator(`.commercial-column[aria-label="${target}"] .commercial-card`).filter({hasText:title})).toHaveCount(1);
+    assert.equal(owner().find(d=>d.fields.title===title).status,target);
+    assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),null);
+    await card.getByRole('button',{name:title,exact:true}).click();
+    const formTitle=host.getByLabel('Document title',{exact:true});
+    await formTitle.fill('Unsaved text');
+    await page.locator('nav [data-view="home"]').click();
+    const prompt=page.locator('#discard-dialog');
+    await prompt.getByRole('button',{name:'Cancel',exact:true}).click();
+    await expect(formTitle).toHaveValue('Unsaved text');
+    await expect(page.locator('#app-message')).toContainText('Save or discard the current commercial document edit');
+    await page.locator('nav [data-view="home"]').click();
+    await prompt.getByRole('button',{name:'Yes',exact:true}).click();
+    await expect(page.locator('#view-home')).toBeVisible();
+    assert.equal(owner().find(d=>d.fields.title===title).status,target);
+  }
+  checks.push('all three boards work with no open project, linked Work Orders and Purchase Orders move from their cards and retain drafts on cancel');
   assert.deepEqual(errors,[]);
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,files,errors},null,2));
   console.log(`PASS commercial documents. ${output}`);

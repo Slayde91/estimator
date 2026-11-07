@@ -240,8 +240,9 @@ def _open_default_file(path):
 
 
 def _metadata(path, info, project, folder, payload):
-    from .commercial_documents import quote_cards
+    from .commercial_documents import commercial_cards
     estimate = project["estimate"]
+    cards = project["commercial_cards"] if "commercial_cards" in project else commercial_cards(project.get("commercial_documents"))
     inside = folder is not None and path.is_relative_to(folder)
     relative = path.relative_to(folder).as_posix() if inside else path.name
     return {"id": _file_id(folder, relative) if inside else None, "name": path.name,
@@ -249,7 +250,7 @@ def _metadata(path, info, project, folder, payload):
             "relative_folder": str(Path(relative).parent).replace("\\", "/") if inside else "",
             "title": estimate["title"], "project_no": estimate.get("project_no", ""),
             "client": estimate.get("client", ""), "site_address": estimate.get("site_address", ""),
-            "quote_cards": project["quote_cards"] if "quote_cards" in project else quote_cards(project.get("commercial_documents")),
+            "commercial_cards": cards, "quote_cards": [card for card in cards if card['kind'] == 'quote'],
             "clients": project.get("clients", [estimate.get("client", "")]),
             "project_numbers": project.get("project_numbers", [estimate.get("project_no", "")]),
             "project_status": project.get("project_status", "Draft"),
@@ -431,6 +432,8 @@ class ProjectLibrary:
             prepared['takeoffs'] = self.takeoffs.documents.publish(request['takeoffs'], path)
         if 'certifications' in request:
             prepared['certifications'] = self.certifications.publish(request['certifications'], path)
+        if 'commercial_documents' in request:
+            self.commercial.files.transfer(request['commercial_documents'], path)
         if 'documentation' in request:
             prepared['documentation'] = self.documentation.publish(request['documentation'], path)
         if 'estimates' in request:
@@ -473,6 +476,7 @@ class ProjectLibrary:
             elif 'swms' in project:
                 raise ValidationError('Open this project with its SWMS workspace available.')
             if self.commercial is not None and workspace is not None:
+                self.commercial.files.transfer(project.get('commercial_documents'), path, restore=True)
                 self.commercial.restore(workspace['workspace_id'], project.get('commercial_documents'))
             elif 'commercial_documents' in project:
                 raise ValidationError('Open this project with its commercial document workspace available.')
@@ -1108,19 +1112,26 @@ class ProjectLibrary:
             result['warning'] = warning
         return result
 
-    def quote_register(self):
-        listing = self.listing(limit=200)
+    def commercial_register(self, *, refresh=False):
+        listing = self.listing(limit=200, refresh=refresh)
         with self._lock:
             files = (list(self._scan['files'].values()) if listing['folder'] and self._scan
                      and self._scan['folder'] == Path(listing['folder']) else [])
         documents = []
         for file in files:
-            for card in file['quote_cards']:
+            for card in file['commercial_cards']:
                 details = {key: file[key] for key in ('project_no', 'client', 'site_address')}
-                documents.append({**card, 'fields': {**card['fields'], 'details': details},
+                documents.append({**card, 'fields': {**card['fields'], 'details': {**card['fields']['details'], **details}},
                                   'source_file': file['id'], 'source_revision': file['revision'], 'source_path': file['path']})
+        if self.commercial and not listing['scan_pending']:
+            self.commercial.apply_register_numbers(documents)
         return {'documents': documents, 'revisions': {file['path']: file['revision'] for file in files},
                 'scan_pending': listing['scan_pending'], 'error_count': listing['error_count']}
+
+    def quote_register(self):
+        register = self.commercial_register()
+        register['documents'] = [doc for doc in register['documents'] if doc['kind'] == 'quote']
+        return register
 
     @contextmanager
     def commercial_file(self, identifier, revision, *, find_issued=False):
@@ -1131,7 +1142,7 @@ class ProjectLibrary:
             payload, info = _read_file(path)
             actual_revision = hashlib.sha256(payload).hexdigest()
             if actual_revision != revision and not find_issued:
-                raise CommercialConflict('The saved project changed. Return to Quotes and reopen it.')
+                raise CommercialConflict('The saved project changed. Reopen its board and select the document again.')
             summary = project_summary(payload, edition=self.edition)
             snapshot = json.loads(payload.decode('utf-8-sig'))
             def commit():
@@ -1140,8 +1151,8 @@ class ProjectLibrary:
                     raise ValidationError('The updated project exceeds the 16 MB file limit.')
                 selection = SaveSelection(str(path), {'size': info.st_size, 'mtime_ns': info.st_mtime_ns, 'sha256': revision})
                 _, after = _atomic_write(selection, updated)
-                from .commercial_documents import quote_cards
-                summary['quote_cards'] = quote_cards(snapshot['commercial_documents'])
+                from .commercial_documents import commercial_cards
+                summary['commercial_cards'] = commercial_cards(snapshot['commercial_documents'])
                 folder = self._scan['folder']
                 metadata = _metadata(path, after, summary, folder, updated)
                 self._scan['files'][identifier] = metadata
@@ -1198,8 +1209,23 @@ class ProjectLibrary:
         return {'cancelled': False, 'file': self._authorize_save(path, info, payload, metadata),
                 'folder': selected, 'project': project, 'replayed': True}
 
-    def save_as(self, request):
+    def create_from_lead(self, lead):
+        from .schedule_rows import empty_schedule_inputs
+        if not self.store.project_folder():
+            raise ValidationError('Link a folder in Projects before converting a lead.')
+        notes = '\n'.join(f'{label}: {lead[key]}' for key, label in (
+            ('name', 'Contact'), ('phone', 'Phone'), ('email', 'Email'), ('title', 'Title'),
+            ('billing_address', 'Billing address'), ('description', 'Description')) if lead[key])
+        request = {'project_save_request': lead['id'],
+                   'estimate': {'client': lead['company'], 'site_address': lead['site_address'], 'measurements': notes},
+                   'calculators': {key: {'inputs': empty_schedule_inputs(key)} for key in CALCULATOR_IDS}}
+        result = self.save_as(request, linked_folder=True)
+        return {'project_no': result['file']['project_no'], 'path': result['file']['path']}
+
+    def save_as(self, request, *, linked_folder=False):
         if self.project_details is None:
+            if linked_folder:
+                raise ValidationError('Project numbering is unavailable.')
             return self._save_as(request)
         from .project_details import request_id
         if not isinstance(request, dict):
@@ -1229,7 +1255,7 @@ class ProjectLibrary:
             return self._saved_number_result(ticket)
         prepared = self._apply_project_numbers(captured, json.loads(ticket['numbers_json']))
         try:
-            result = self._save_as(request, captured=prepared, ticket=ticket)
+            result = self._save_as(request, captured=prepared, ticket=ticket, linked_folder=linked_folder)
             if result.get('cancelled'):
                 self.project_details.cancel(identifier)
             return result
@@ -1240,7 +1266,7 @@ class ProjectLibrary:
             self.project_details.cancel(identifier)
             raise
 
-    def _save_as(self, request, *, captured=None, ticket=None):
+    def _save_as(self, request, *, captured=None, ticket=None, linked_folder=False):
         # No dialog or preference/file writes until the complete captured state is valid.
         captured = self._capture_takeoffs(request) if captured is None else captured
         payload = export_project(self.store, captured, edition=self.edition)
@@ -1249,7 +1275,14 @@ class ProjectLibrary:
             selected_folder = self.store.project_folder()
             filename = project_filename(project["estimate"]["title"])
             initial_directory = _quote_save_directory(selected_folder, filename)
-            selection = self.dialogs.choose_save(initial_directory, filename)
+            if linked_folder:
+                if initial_directory is None:
+                    raise ValidationError('Link a folder in Projects before converting a lead.')
+                # New files only. The normal atomic writer rejects existing paths
+                # even if an unrelated file arrives after project-number allocation.
+                selection = SaveSelection(str(Path(initial_directory) / filename), None)
+            else:
+                selection = self.dialogs.choose_save(initial_directory, filename)
             if selection is None:
                 return {"cancelled": True}
             selected_path = _project_save_path(selection)

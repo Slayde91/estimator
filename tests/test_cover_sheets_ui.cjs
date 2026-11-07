@@ -5,7 +5,7 @@ const flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 const cover='data:application/pdf;base64,JVBERi0x';
 function harness(){
-  const element=tag=>({tagName:tag,children:[],handlers:{},attributes:{},files:[],value:'',textContent:'',disabled:false,
+  const element=tag=>({tagName:tag,children:[],handlers:{},attributes:{},dataset:{},files:[],value:'',textContent:'',disabled:false,
     append(...children){this.children.push(...children);},replaceChildren(...children){this.children=children;},
     setAttribute(name,value){this.attributes[name]=value;},getAttribute(name){return this.attributes[name]??null;},
     addEventListener(name,handler){(this.handlers[name]||=[]).push(handler);},async emit(name){for(const handler of this.handlers[name]||[])await handler({});}});
@@ -31,9 +31,15 @@ function harness(){
   }
   class FileReader{readAsDataURL(file){this.result=file.dataURL||cover;const finish=()=>file.fail?this.onerror():this.onload();if(file.hold)pendingReads.push(finish);else Promise.resolve().then(finish);}}
   const window={CeasefireDialogs:{confirm:async()=>approve},CeasefireActivity:{begin:()=>()=>{}},addEventListener:(name,handler)=>{(events[name]||=[]).push(handler);}};
-  const context={window,document:{getElementById:id=>id==='cover-sheets-rows'?host:status,createElement:element},FileReader,fetch,JSON,Map,Set,Array,Object,Number,Error,encodeURIComponent};
+  for(const documentKind of ['certification','takeoff.markups.pdf']) {
+    const tr=element('tr');tr.dataset.documentKind=documentKind;
+    tr.append(element('td'),element('td'),element('td'));tr.querySelectorAll=()=>[];
+    host.append(tr);
+  }
+  host.querySelectorAll=()=>host.children;
+  const context={window,document:{getElementById:id=>id==='documentation-pdf-rows'?host:status,createElement:element},FileReader,fetch,JSON,Map,Set,Array,Object,Number,Error,encodeURIComponent};
   vm.createContext(context);vm.runInContext(fs.readFileSync('static/cover-sheets.js','utf8'),context);
-  function row(kind){const e=host.children.find(el=>el.attributes['data-cover-kind']===kind);return {element:e,file:e.children[1].children[0],filename:e.children[1].children[1],notice:e.children[1].children[2],save:e.children[2].children[0].children[0],remove:e.children[2].children[0].children[1]};}
+  function row(kind){const e=host.children.find(el=>el.dataset.coverKind===kind);return {element:e,file:e.children[3].children[0],filename:e.children[3].children[1],notice:e.children[3].children[2],save:e.children[4].children[0].children[0],remove:e.children[4].children[0].children[1]};}
   return {api:window.CeasefireCoverSheets,row,records,calls,host,status,window,response,serverError,metadata,
     override:fn=>{override=fn;},approve:value=>{approve=value;},loseReply:()=>{lostReply=true;},
     upload:async(kind,file={})=>{const input=row(kind).file;input.files=[{name:'Selected.pdf',type:'application/pdf',size:123,...file}];await input.emit('change');},
@@ -116,8 +122,8 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
   });
   await check('Failed or malformed initial loading can retry without publishing partial rows',async h=>{
     let invalid=true;h.override(async path=>path==='/api/pdf-covers'&&invalid?h.response({items:[{kind:'bad',label:'Invalid'}]}):undefined);
-    await h.api.open();assert.equal(h.host.children.length,0);assert.match(h.status.textContent,/Open Settings again/);assert.equal(h.api.hasPendingOperation(),false);
-    invalid=false;await h.api.open();assert.equal(h.host.children.length,2);
+    await h.api.open();assert.ok(h.host.children.every(row=>row.children.length===3));assert.match(h.status.textContent,/Open Documentation again/);assert.equal(h.api.hasPendingOperation(),false);
+    invalid=false;await h.api.open();assert.ok(h.host.children.every(row=>row.children.length===5));
   },{open:false});
   await check('A shared in-flight initial open cannot race duplicate table loads',async h=>{
     const held=deferred();h.override(async path=>path==='/api/pdf-covers'?held.promise:undefined);const first=h.api.open(),second=h.api.open();await flush();

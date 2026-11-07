@@ -193,6 +193,7 @@
       if (label === "Undo last edit") el.classList.add("takeoff-undo-button");
       const symbol = node("span", "button-symbol takeoff-button-symbol"); symbol.setAttribute("aria-hidden", "true");
       if (schedule) {
+        el.classList.add("takeoff-preview-transfer");
         const image = node("img", "takeoff-transfer-icon"); image.src = "/icons/takeoff-transfer.png"; image.alt = ""; image.setAttribute("aria-hidden", "true"); symbol.append(image);
       } else if (label === "Undo last edit") {
         symbol.textContent = "↶";
@@ -3411,14 +3412,29 @@
   }
   function physicalCalloutLines(summary, width, fontSize = 9, fontFamily = "CeasefireDrawing") {
     const context = (state.calloutMeasure ||= document.createElement("canvas").getContext("2d")), lines = [];
+    // Use the bundled font's 1000 units/em for PDF line breaks. Native font
+    // hinting at screen sizes can round each advance to a different pixel.
+    const advance = new Map();
+    context.fontKerning = "none";
+    function textWidth(value) {
+      const weight = lines.length ? 400 : 700;
+      context.font = `${weight} 1000px ${fontFamily}`;
+      let units = 0;
+      for (const glyph of value) {
+        const key = weight + glyph;
+        if (!advance.has(key)) advance.set(key, context.measureText(glyph).width);
+        units += advance.get(key);
+      }
+      return units * fontSize / 1000;
+    }
     for (const paragraph of String(summary).split(/\r?\n/).filter(Boolean)) {
-      let line = ""; context.fontKerning = fontFamily === "CeasefireDrawing" ? "none" : "auto"; context.font = `${lines.length ? "400" : "700"} ${fontSize}px ${fontFamily}`;
+      let line = "";
       for (const word of paragraph.split(/\s+/)) {
         const candidate = line ? `${line} ${word}` : word;
-        if (line && context.measureText(candidate).width > width) { lines.push(line); line = ""; context.font = `400 ${fontSize}px ${fontFamily}`; }
+        if (line && textWidth(candidate) > width) { lines.push(line); line = ""; }
         let part = "";
         for (const character of word) {
-          if (part && context.measureText(part + character).width > width) { if (line) { lines.push(line); line = ""; } lines.push(part); part = ""; }
+          if (part && textWidth(part + character) > width) { if (line) { lines.push(line); line = ""; } lines.push(part); part = ""; }
           part += character;
         }
         line += `${line ? " " : ""}${part}`;

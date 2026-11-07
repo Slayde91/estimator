@@ -166,6 +166,7 @@ jobs:
       - run: node --test tests/test_signature_snapshot_readiness.cjs
       - run: npm run test:takeoffs-signatures
       - run: node tests/browser/signature_chooser_layout.cjs
+      - run: node tests/browser/personal_signature_profiles.cjs
       - run: npm run test:takeoffs-graphics
       - run: node tests/browser/takeoff_pdf_fonts.cjs
       - run: npm run test:takeoffs-pdf-area

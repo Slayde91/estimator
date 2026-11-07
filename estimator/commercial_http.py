@@ -4,16 +4,17 @@ from hashlib import sha256
 import json
 from urllib.parse import parse_qs, urlsplit
 
-from .catalog import ValidationError
+from .catalog import ValidationError, effective_catalog
 from .commercial_documents import CommercialConflict, default_fields, linked_estimate_ids
 
 
 class CommercialHTTP:
-    def __init__(self, service, derive=None, company=None, saved=None):
+    def __init__(self, service, derive=None, company=None, saved=None, pricing=None):
         self.service = service
         self.saved = saved
         self.derive = derive
         self.company = company
+        self.pricing = pricing
 
     def _company(self):
         return self.company() if callable(self.company) else self.company
@@ -33,14 +34,27 @@ class CommercialHTTP:
             if any(len(values) != 1 for values in query.values()):
                 raise ValidationError('Use one value for each commercial document filter.')
             if handler.command == 'GET':
-                if set(query) != {'workspace'}:
+                if action.startswith('attachment/') and set(query) == {'workspace', 'document'}:
+                    from urllib.parse import quote
+                    item, data = self.service.read_attachment(query['workspace'][0], query['document'][0], action[11:])
+                    handler.send_payload(200, data, 'application/octet-stream',
+                                         {'Content-Disposition': "attachment; filename*=UTF-8''" + quote(item['name'], safe='')})
+                    return True
+                if set(query) != {'workspace'} and not (action == 'register' and set(query) == {'workspace', 'refresh'} and query['refresh'] == ['1']):
                     raise ValidationError('Choose the current project document workspace.')
                 workspace = query['workspace'][0]
                 if action == 'register' and self.saved:
                     self.service.certifications.project_id(workspace)
-                    result = self.saved.projects.quote_register()
+                    result = self.saved.projects.commercial_register(refresh='refresh' in query)
                 elif action == 'state':
                     result = self.service.view(workspace, include_quote_totals=True)
+                elif action == 'supplier-products' and self.pricing:
+                    self.service.certifications.project_id(workspace)
+                    catalog = effective_catalog(self.pricing())
+                    items = [*catalog['inventory'], *(row for rows in catalog['rate_groups'].values() for row in rows if not row.get('inventory_id'))]
+                    result = {'products': [{'label': item.get('product_service') or item.get('display_name') or item['name'],
+                                            'code': item.get('item_code') or item['id'],
+                                            'supplier_price': item.get('supplier_price')} for item in items]}
                 elif action.startswith('pdf/'):
                     filename, pdf = self.service.read_pdf(workspace, action[4:])
                     handler.send_payload(200, pdf, 'application/pdf', {'Content-Disposition': f'attachment; filename="{filename}"'})
@@ -59,7 +73,10 @@ class CommercialHTTP:
                 expected_workspace = handler.headers.get('X-Estimator-Documentation-Workspace')
                 if expected_workspace and expected_workspace != workspace:
                     raise CommercialConflict('The export belongs to a different project workspace.')
-                if action.startswith('saved-') and self.saved and not expected_workspace:
+                if action == 'attachment' and set(body) == {'workspace_id', 'name', 'content'} and not expected_workspace:
+                    project = self.service.certifications.project_id(workspace)
+                    result = self.service.files.add(project, body['name'], body['content'])
+                elif action.startswith('saved-') and self.saved and not expected_workspace:
                     result = self.saved.perform(action[6:], body, self.execute)
                 else:
                     result = self.execute(action, body)
@@ -83,17 +100,24 @@ class CommercialHTTP:
             'defaults': {'kind', 'details'}, 'derive': {'fields', 'selected_ids'},
             'save': {'id', 'version', 'kind', 'status', 'fields'},
             'delete': {'id', 'version'}, 'status': {'id', 'version', 'status'},
+            'notes': {'id', 'version', 'notes'},
             'issue': {'id', 'kind', 'version', 'request_id'},
         }
         if action not in fields_by_action or set(body) - common - fields_by_action[action]:
             raise ValidationError('Commercial document request contains unsupported fields.')
         workspace = body.get('workspace_id')
-        self.service.view(workspace)
+        model = self.service.view(workspace)
         if action == 'defaults':
             result = {'fields': default_fields(body.get('kind'), body.get('details'), self._company())}
         elif action == 'derive':
             result = self._derive(body)
             result = {key: value for key, value in result.items() if key != 'scope_documents'}
+        elif action == 'notes':
+            doc = next((d for d in model['documents'] if d['id'] == body.get('id') and d['kind'] == 'work_order'), None)
+            if doc is None:
+                raise ValidationError('Open the Work Order before adding a note.')
+            result = self.service.save(workspace, {'id': doc['id'], 'version': body.get('version'), 'kind': doc['kind'],
+                'status': doc['status'], 'fields': {**doc['fields'], 'notes': body.get('notes')}})
         elif action == 'save':
             fields = deepcopy(body.get('fields'))
             if body.get('kind') == 'quote':

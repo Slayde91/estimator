@@ -44,6 +44,29 @@
 .commercial-lines td:first-child { width:50%; min-width:240px; }
 .commercial-lines input { min-width:85px; }
 .commercial-line-total { min-width:110px; white-space:nowrap; }
+.commercial-card-info{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.35rem .55rem;margin:.4rem 0 0;font-size:.75rem;overflow-wrap:anywhere}
+.commercial-card-info dt{font-weight:650}.commercial-card-info dd{margin:0}
+.commercial-card .commercial-card-info{display:block}
+.commercial-card .commercial-card-info dt:not(:first-child){margin-top:.55rem}
+.commercial-card .commercial-card-info dd{overflow-wrap:break-word}
+.commercial-work-layout{display:grid;grid-template-columns:minmax(170px,1fr) minmax(0,3fr) minmax(200px,1.15fr);gap:16px;align-items:start}
+.commercial-work-layout>.commercial-editor,.commercial-sidebar{min-width:0}
+.commercial-sidebar{display:grid;gap:12px}
+.commercial-sidebar .commercial-side-panel{margin:0;padding:14px}
+.commercial-side-panel>summary{cursor:pointer;font-weight:700;overflow-wrap:anywhere}
+.commercial-side-panel[open]>summary{margin-bottom:12px}
+.commercial-note-card,.commercial-attached-file{display:grid;justify-items:start;gap:4px;margin-top:10px;border-top:1px solid var(--line);padding-top:8px;overflow-wrap:anywhere}
+.commercial-note-card p{margin:0}.commercial-note-card small,.commercial-attached-file small{color:var(--muted)}
+.commercial-note-dialog{width:min(480px,100%);max-height:88vh;overflow:auto;margin:auto 18px 18px auto;padding:18px}
+.commercial-note-dialog form{display:grid;gap:12px}.commercial-note-dialog .commercial-rich-input{min-height:135px}
+.commercial-proposed-date{grid-column:1}
+.commercial-currency{display:flex;align-items:center;gap:6px}.commercial-currency>span{font-weight:700}
+.commercial-signature-actions{display:flex;gap:8px;align-items:center}.commercial-signature-actions svg{background:white;color:#151515;max-height:45px;max-width:115px}
+.commercial-lines .commercial-po-lines td:first-child{width:25%;min-width:175px}
+.commercial-po-lines td:nth-child(6){min-width:180px;width:24%}
+.commercial-editor textarea.commercial-line-comments{min-height:42px;height:42px;overflow-y:hidden;resize:vertical;line-height:20px}
+.commercial-po-lines .commercial-remove-line{width:42px;height:42px}
+@media(max-width:1050px){.commercial-work-layout{grid-template-columns:minmax(0,1fr)}.commercial-work-layout>.commercial-editor{grid-row:1}.commercial-sidebar{grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr))}}
 .commercial-scope>details { margin:10px 0; border:1px solid var(--line); border-radius:8px; padding:12px; }
 .commercial-scope summary { font-weight:600; font-size:13px; cursor:pointer; }
 .commercial-scope td { font-size:11px; white-space:pre-wrap; overflow-wrap:anywhere; }

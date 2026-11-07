@@ -298,7 +298,9 @@ def render_swms_pdf(document, *, company):
     fields = validate_fields(document['fields'])
     styles, details = _styles(), fields['details']
     story = [Cover(company), PageBreak()]
-    story.append(_table(['Job Reference', 'Contact Person', 'Position', 'Phone:'], [[details[key] for key in ('job_reference', 'contact_person', 'position', 'phone')]], [WIDTH * fraction for fraction in (.267, .267, .267, .199)], styles))
+    story.append(_table(['Job Reference', 'SWMS Reference', 'Contact Person', 'Position', 'Phone:'],
+                        [[details['job_reference'], document.get('reference', ''), details['contact_person'], details['position'], details['phone']]],
+                        [WIDTH * fraction for fraction in (.21, .18, .23, .21, .17)], styles))
     story.append(Spacer(1, 10))
     story.append(_table(['Principal Contractor (PC)', 'Project Name', 'Date:', 'Project Address', 'Project Manager (PM)', 'Signature:', 'Contact'],
                         [[details['principal_contractor'], details['project_name'], details['date'], details['project_address'], details['project_manager'], Signature(fields['manager_signature'], 40, 25), details['manager_contact']]],

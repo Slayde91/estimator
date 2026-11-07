@@ -70,7 +70,7 @@ function harness() {
     }
     return response(doc);
   };
-  const window = {crypto:{randomUUID:()=> '00000000-0000-4000-8000-'+String(++serial).padStart(12,'0')},
+  const window = {ClassifirePersonalSignature:{choose:async()=>({version:1,strokes:[[[0,0],[1,1]]],ratio:3}),png:()=>canvasData},crypto:{randomUUID:()=> '00000000-0000-4000-8000-'+String(++serial).padStart(12,'0')},
     addEventListener(k,fn){(events[k]||=[]).push(fn);},CeasefireProject:{details:()=>copy(project)},
     dispatchEvent(event){for(const fn of events[event.type]||[])fn(event);return true;},
     CeasefireDialogs:{confirm:async()=>approve},CeasefireActivity:{begin:()=>()=>{}}};
@@ -78,12 +78,11 @@ function harness() {
   vm.createContext(context);vm.runInContext(fs.readFileSync('static/certification.js','utf8'),context);
   const api=window.CeasefireCertification;
   const fillRequired=()=>fieldNames.forEach(key=>{const field=byId('certification-'+key);if(!field.value.trim()){field.value='Required fixture '+key;void field.emit('input');}});
-  const draw=async()=>{const canvas=byId('certification-signature-canvas');await canvas.emit('pointerdown',{pointerId:7,clientX:30,clientY:50,button:0});await canvas.emit('pointermove',{pointerId:7,clientX:90,clientY:80});await canvas.emit('pointerup',{pointerId:7,clientX:150,clientY:30});};
-  return {api,byId,calls,elements,get documents(){return workspaces.get(api.sessionId())?.documents||documents;},legacyDocuments:documents,workspaces,events,fillRequired,draw,canvasData:value=>{canvasData=value;},field:(key,value)=>{byId('certification-'+key).value=value;void byId('certification-'+key).emit('input');},
+  return {api,byId,calls,elements,get documents(){return workspaces.get(api.sessionId())?.documents||documents;},legacyDocuments:documents,workspaces,events,fillRequired,canvasData:value=>{canvasData=value;},field:(key,value)=>{byId('certification-'+key).value=value;void byId('certification-'+key).emit('input');},
     project:value=>{project=copy(value);},defaults:()=>copy(defaults),setDefaults:value=>{defaults=copy(value);},window,
     autoSave:async()=>{for(const [id,fn]of timers){timers.delete(id);fn();}await flush();},
     scope:async(ids)=>{for(const id of ['structural_steel','structural_steel_columns','ductwork','service_penetrations'])byId('certification-scope-'+id).checked=ids.includes(id);await byId('certification-scope-'+(ids[0]||'structural_steel')).emit('change');},
-    saveSignature:async()=>{await draw();await byId('certification-signature-save').emit('click');},
+    saveSignature:()=>byId('certification-signature-use').emit('click'),
     generate:()=>{fillRequired();return byId('certification-generate').emit('click');},save:()=>{fillRequired();return byId('certification-save').emit('click');},
     select:async id=>{byId('certification-document').value=id;await byId('certification-document').emit('change');},
     approve:value=>{approve=value;},override:fn=>{routeOverride=fn;},loseNextGeneratedReply:()=>{loseGeneratedReply=true;},loseNextCreatedReply:()=>{loseCreatedReply=true;},serverError,response};
@@ -286,49 +285,40 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
     h.documents.set(legacy.id,legacy);await h.select(legacy.id);await h.api.open();
     assert.equal(h.byId('certification-client').value,'Legacy literal client');assert.equal(h.byId('certification-statement_of_compliance').value,'');
   });
-  await check('Signature is safely named, saved with signer defaults and snapshotted in document options',async h=>{
+  await check('Personal signature is copied only into the selected document and a cancelled replacement preserves it',async h=>{
     await h.scope(['ductwork']);await h.saveSignature();
-    assert.match(h.byId('certification-signature-name').textContent,/Drawn signature\.png/);await h.save();
-    const doc=[...h.documents.values()][0];assert.deepEqual(doc.options,{cover_pdf:null,cover_pdf_name:'',scopes:['ductwork'],signature_image:signature,signature_name:'Drawn signature.png'});
-    assert.equal(h.defaults().signature_image,signature);assert.equal(h.byId('certification-signature-preview').src,signature);
-    assert.equal(h.calls.filter(c=>c.path==='/api/company-settings'&&c.body).length,0);
-    await h.byId('certification-signature-delete').emit('click');await h.save();assert.equal(doc.options.signature_image,null);assert.equal(doc.options.signature_name,'');assert.equal(h.defaults().signature_image,null);
-  });
-  await check('Drawing is explicit, cancels a partial pointer, survives resizing, and clearing preserves the saved signature',async h=>{
-    await h.saveSignature();await h.autoSave();const saved=h.defaults().signature_image;
-    const canvas=h.byId('certification-signature-canvas');
-    await canvas.emit('pointerdown',{pointerId:4,clientX:60,clientY:30,button:0});
-    await canvas.emit('pointercancel',{pointerId:4});
-    assert.equal(h.byId('certification-signature-save').disabled,true);assert.equal(h.defaults().signature_image,saved);
-    await h.draw();const fingerprint=h.api.fingerprint();
-    await h.byId('certification-save').emit('click');assert.equal(h.documents.size,0);
-    assert.match(h.byId('certification-status').textContent,/Save or clear/);
-    h.window.devicePixelRatio=2;h.events.resize[0]();assert.equal(canvas.width,1200);assert.equal(h.api.fingerprint(),fingerprint);
-    await h.byId('certification-signature-clear').emit('click');assert.equal(h.defaults().signature_image,saved);
-    assert.equal(h.byId('certification-signature-save').disabled,true);assert.equal(h.byId('certification-signature-preview').src,saved);
-    await h.draw();h.canvasData('data:image/png;base64,');await h.byId('certification-signature-save').emit('click');
-    assert.match(h.byId('certification-status').textContent,/could not be saved/);assert.equal(h.defaults().signature_image,saved);
+    assert.equal(h.byId('certification-signature-preview').src,signature);await h.save();
+    const doc=[...h.documents.values()][0];
+    assert.deepEqual(doc.options,{cover_pdf:null,cover_pdf_name:'',scopes:['ductwork'],signature_image:signature,signature_name:'Personal signature.png'});
+    h.field('name','Changed signer');await h.autoSave();
+    const post=h.calls.filter(c=>c.path==='/api/certifications/defaults'&&c.body).at(-1);
+    assert.ok(!Object.hasOwn(post.body,'signature_image'));
+    h.window.ClassifirePersonalSignature.choose=async existing=>{assert.equal(existing,true);return null;};
+    await h.saveSignature();
+    assert.equal(h.byId('certification-signature-preview').src,signature);
+    assert.equal(h.defaults().signature_image,null);
   });
   await check('Lost creation and generation requests retain the exact signature and scope snapshot across retry',async h=>{
     await h.scope(['structural_steel_columns','service_penetrations']);await h.saveSignature();
     h.loseNextCreatedReply();await h.generate();await h.generate();
     const creates=h.calls.filter(c=>c.path==='/api/certifications'&&c.body);assert.deepEqual(creates[0].body,creates[1].body);
-    const doc=[...h.documents.values()][0];assert.equal(doc.revisions.length,1);assert.equal(doc.revisions[0].options.signature_name,'Drawn signature.png');assert.equal(doc.revisions[0].options.signature_image,signature);
+    const doc=[...h.documents.values()][0];assert.equal(doc.revisions.length,1);assert.equal(doc.revisions[0].options.signature_name,'Personal signature.png');assert.equal(doc.revisions[0].options.signature_image,signature);
     assert.deepEqual(doc.revisions[0].options.scopes,['structural_steel_columns','service_penetrations']);
   });
-  await check('Only new certificates inherit N/A fields and a shared signature; old and manually edited values stay literal',async h=>{
+  await check('New certificates inherit N/A fields, while saved signatures stay with their signed document',async h=>{
     h.setDefaults({fields:{name:'Signer',position:'',qualification:'',accreditation:''},signature_image:signature,signature_name:'Shared.png',version:2});await h.api.open();
     for(const key of ['approved_design','additional_standards','other_references'])assert.equal(h.byId('certification-'+key).value,'N/A');
-    assert.equal(h.byId('certification-signature-preview').src,signature);h.field('approved_design','My manual approval text');h.field('additional_standards','');
+    assert.equal(h.byId('certification-signature-preview').hidden,true);h.field('approved_design','My manual approval text');h.field('additional_standards','');
     await h.api.open();assert.equal(h.byId('certification-approved_design').value,'My manual approval text');assert.equal(h.byId('certification-additional_standards').value,'');
     const old={id:'old-no-signature',version:1,fields:{...blank(),approved_design:'Old design'},options:{cover_pdf:coverData,cover_pdf_name:'Legacy.pdf',scopes:[]},revisions:[]};
     h.documents.set(old.id,old);await h.select(old.id);assert.equal(h.byId('certification-approved_design').value,'Old design');assert.equal(h.byId('certification-additional_standards').value,'');
     assert.equal(h.byId('certification-signature-preview').hidden,true);await h.save();assert.equal(old.options.cover_pdf,coverData);assert.equal(old.options.signature_image,null);
   });
-  await check('New certificates and changed projects retain globally saved signer images without altering an old document',async h=>{
-    await h.saveSignature();await h.autoSave();await h.save();const old=[...h.documents.values()][0];
-    h.project({client:'A new project',site_address:'New address',project_no:'NEW'});await h.select('');assert.equal(h.byId('certification-client').value,'A new project');assert.equal(h.byId('certification-signature-preview').src,signature);
-    await h.byId('certification-signature-delete').emit('click');await h.autoSave();await h.select('');assert.equal(h.byId('certification-signature-preview').hidden,true);assert.equal(old.options.signature_image,signature);
+  await check('A new project requires signature insertion while the older certificate retains its copy',async h=>{
+    await h.saveSignature();await h.save();const old=[...h.documents.values()][0];
+    h.project({client:'A new project',site_address:'New address',project_no:'NEW'});await h.select('');
+    assert.equal(h.byId('certification-client').value,'A new project');assert.equal(h.byId('certification-signature-preview').hidden,true);
+    assert.equal(old.options.signature_image,signature);
   });
   await check('Editing an older unsigned certificate does not implicitly clear the shared future signature',async h=>{
     h.setDefaults({fields:{name:'Shared signer',position:'',qualification:'',accreditation:''},signature_image:signature,signature_name:'Shared.png',version:2});
@@ -336,7 +326,7 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
     assert.equal(h.byId('certification-signature-preview').hidden,true);h.field('name','Updated old signer');await h.autoSave();
     assert.equal(h.defaults().signature_image,signature);assert.equal(h.defaults().signature_name,'Shared.png');
     const post=h.calls.filter(call=>call.path==='/api/certifications/defaults'&&call.body).at(-1);assert.equal(Object.hasOwn(post.body,'signature_image'),false);
-    await h.select('');assert.equal(h.byId('certification-signature-preview').src,signature);
+    await h.select('');assert.equal(h.byId('certification-signature-preview').hidden,true);
   });
   await check('Document conflict recovery works through the Saved certification reload option and respects cancellation',async h=>{
     h.field('project','Saved project');await h.save();h.field('project','Local unsaved project');
@@ -423,7 +413,7 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
     h.workspaces.get(tokenA).draft=copy(capture.draft);h.api.markProjectSaved({},capture);
     const preparedB=await h.api.prepareProject();h.api.applyProject(preparedB);
     assert.notEqual(h.api.sessionId(),tokenA);assert.equal(h.documents.size,0);assert.equal(h.byId('certification-document').children.some(option=>option.value===id),false);
-    assert.equal(h.byId('certification-signature-preview').src,signature);await h.select(id);
+    assert.equal(h.byId('certification-signature-preview').hidden,true);await h.select(id);
     assert.equal(h.byId('certification-document').value,'__draft__');assert.match(h.byId('certification-status').textContent,/Not found/);
     h.field('project','PROJECT B');await h.save();assert.equal(h.documents.size,1);
     const restoredA=await h.api.prepareProject({version:1},tokenA);h.api.applyProject(restoredA);await h.api.open();
@@ -439,10 +429,12 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
     assert.equal(h.byId('certification-client').value,'ARCHIVED CLIENT');assert.equal(h.byId('certification-approved_design').value,'');
     assert.equal(h.byId('certification-location_area').value,'ARCHIVED AREA');assert.equal(h.api.hasProjectChanges(),false);
   });
-  await check('Uncommitted drawing cannot be silently dropped by project Save or cancelled replacement',async h=>{
-    await h.draw();const original=h.api.fingerprint();await assert.rejects(h.api.completeProjectSnapshot(),/Save or clear/);
-    h.approve(false);await h.select('');assert.equal(h.api.fingerprint(),original);assert.equal(h.byId('certification-signature-save').disabled,false);
-    await h.byId('certification-signature-clear').emit('click');assert.equal((await h.api.completeProjectSnapshot()).draft.options.signature_image,null);
+  await check('Pending signature choice and document writes guard project snapshots',async h=>{
+    const choosing=deferred();h.window.ClassifirePersonalSignature.choose=()=>choosing.promise;
+    const action=h.saveSignature();await flush();assert.equal(h.api.hasPendingOperation(),true);
+    await assert.rejects(h.api.completeProjectSnapshot(),/Finish/);
+    choosing.resolve(null);await action;
+    assert.equal((await h.api.completeProjectSnapshot()).draft.options.signature_image,null);
     const pending=deferred();h.override(async path=>path==='/api/certifications'?pending.promise:undefined);
     const saving=h.save();await flush();await assert.rejects(h.api.completeProjectSnapshot(),/Finish the current certificate/);
     pending.resolve(h.serverError(400,'Fixture stopped'));await saving;
@@ -508,7 +500,7 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
   assert.ok(!html.includes('id="certification-new"'));assert.ok(!html.includes('id="certification-reload"'));
   assert.ok(!html.includes('id="certification-legacy-open"'));assert.ok(!html.includes('id="certification-legacy-dialog"'));
   assert.ok(html.includes('<details id="certification-scopes"'));assert.ok(!html.includes('id="certification-cover-pdf"'));
-  assert.ok(!html.includes('id="certification-signature-image"'));assert.ok(html.includes('id="certification-signature-canvas"'));assert.ok(html.includes('id="cover-sheets-settings"'));
+  assert.ok(!html.includes('id="certification-signature-image"'));assert.ok(!html.includes('id="certification-signature-canvas"'));assert.ok(html.includes('id="certification-signature-use"'));assert.ok(html.includes('id="cover-sheets-settings"'));
   for(const key of ['approved_design','additional_standards','other_references','exclusions','materials_manufacturers','fire_resistance_level','name','position','qualification','accreditation'])assert.match(html,new RegExp('id="certification-'+key+'" name="'+key+'" rows="1"'));
   for(const key of fieldNames)assert.match(html,new RegExp('<textarea id="certification-'+key+'"[^>]* required>'));
   const form=html.slice(html.indexOf('<form id="certification-form">'),html.indexOf('</form>',html.indexOf('<form id="certification-form">')));

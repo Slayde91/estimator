@@ -55,12 +55,12 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
 (async()=>{
   await check('Both document tables place their download action after names and revision history',async h=>{
     const html=fs.readFileSync('static/index.html','utf8');
-    const tables=[...html.matchAll(/<table class="documentation-table"><thead><tr>(.*?)<\/tr><\/thead>/g)];
+    const tables=[...html.matchAll(/<table class="documentation-table([^"]*)"><thead><tr>(.*?)<\/tr><\/thead>/g)];
     assert.equal(tables.length,2);
-    for(const [,head] of tables)assert.deepEqual([...head.matchAll(/<th[^>]*>(.*?)<\/th>/g)].map(match=>match[1]),['Document','Previous revisions','Download']);
+    for(const [,extra,head] of tables)assert.deepEqual([...head.matchAll(/<th[^>]*>(.*?)<\/th>/g)].map(match=>match[1]),['Document','Previous revisions','Download',...(extra.includes('documentation-pdf-table')?['PDF cover sheet','Actions']:[])]);
     await h.api.open();
     for(const format of ['pdf','xlsx'])for(const row of h.byId('documentation-'+format+'-rows').children.filter(row=>row.dataset.documentKind))
-      assert.equal(row.children.at(-1).className,'documentation-action');
+      assert.equal(row.children[2].className,'documentation-action');
   });
   await check('PDF schedules and product summaries are grouped without changing export identities or frozen history',async h=>{
     const rows=[catalog[0],
@@ -80,7 +80,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.equal(first.children[1].children[0].textContent,'No revisions generated in this project.');
     assert.equal(first.children[2].className,'documentation-action');
     assert.equal(h.buttons()[0].children[0].textContent,'⇩');
-    assert.ok(rendered.filter(row=>row.children[0].tagName==='TH').every(row=>row.children[0].colSpan===3));
+    assert.ok(rendered.filter(row=>row.children[0].tagName==='TH').every(row=>row.children[0].colSpan===5));
     assert.equal(h.buttons().find(button=>button.dataset.documentKind===legacy.kind).disabled,true);
     await h.buttons().find(button=>button.dataset.documentKind==='project.full_product_summary.pdf').emit('click');
     assert.equal(h.adapters[0].owner,'estimate');assert.deepEqual(h.adapters[0].spec,{action:'full_product_summary'});

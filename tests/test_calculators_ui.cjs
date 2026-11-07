@@ -1868,7 +1868,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
       {row:10,report_references:[],cells:columns.map(column=>({column,address:`${letters(column)}10`,value:column===10?1.23456789012345:column===24?'Retained source reference':column===25?'Retained basis note':2,calculated:column>=15}))},
     ]});
     const rawResult=JSON.stringify(entry.result),rawInputs=JSON.stringify(entry.inputs);realRender(entry);
-    const table=renderedTable(),ids=['column:A','column:I','column:J','virtual:report','column:O','virtual:actions'];
+    const table=renderedTable(),ids=['column:A','column:I','column:J','virtual:report','virtual:notes','column:O','virtual:actions'];
     assert.deepEqual(table.children.find(node=>node.tagName==='thead').children[0].children.map(cell=>cell.dataset.scheduleColumn),ids);
     assert.deepEqual(table.children.find(node=>node.tagName==='tbody').children[0].children.map(cell=>cell.dataset.scheduleColumn),ids);
     assert.equal(table.children[0].children.length,ids.length);assert.deepEqual(copy(entry.scheduleColumnChoices).map(column=>column.id),ids);
@@ -2215,6 +2215,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
     const expectedHead=sourcePlacement==='none'?['Line','Member','Report','Status','Source','Actions']
       :sourcePlacement==='middle'&&id==='ductwork'?['Line','Member','Status','Notes','Report','Actions']
       :['Line','Member','Status','Report',...(sourcePlacement==='middle'?['Notes']:[]),'Actions'];
+    if (id.startsWith('steel_')) expectedHead.splice(expectedHead.indexOf('Report')+1,0,'Calculation Notes');
     assert.deepEqual(reportHead.children.map(cell=>cell.textContent),expectedHead,`${id}/${sourcePlacement}`);
     assert.deepEqual(copy(entry.scheduleColumnChoices).map(column=>column.label),expectedHead);
     assert.equal(entry.scheduleColumnChoices.some(column=>column.label==='Thickness source'),false);
@@ -2647,7 +2648,8 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   ]});
   const boardReportBefore=JSON.stringify(entry.result);realRender(entry);
   const boardReportChoices=copy(entry.scheduleColumnChoices).map(column=>column.label),boardReportTable=renderedTable();
-  assert.equal(boardReportChoices[boardReportChoices.indexOf('ESA/M used (m2/t)')-1],'Report');
+  const esaIndex = boardReportChoices.indexOf('ESA/M used (m2/t)');
+  assert.deepEqual(boardReportChoices.slice(esaIndex-2, esaIndex), ['Report','Calculation Notes']);
   assert.ok(boardReportTable.children.find(node=>node.tagName==='tbody').children.every(row=>row.children.length===boardReportChoices.length));
   assert.equal(JSON.stringify(entry.result),boardReportBefore);assert.equal(entry.inputs.CALCULATOR.E9,12.3456789012345);passed++;
 

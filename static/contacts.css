@@ -1,6 +1,10 @@
-.contacts-tabs,.contacts-controls,.contacts-dialog-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.contacts-controls,.contacts-dialog-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
 .contacts-tabs { margin-bottom:18px; }
-.contacts-tabs [aria-current="page"] { background:var(--accent); border-color:var(--accent); color:white; }
+.contacts-document > summary { list-style:none; cursor:pointer; }
+.contacts-document > summary::-webkit-details-marker { display:none; }
+.contacts-document[open] .calculator-document-chevron { transform:rotate(180deg); }
+.contacts-document a { text-decoration:none; }
+.contacts-lead-menu { z-index:2; }
 .contacts-controls { align-items:end; margin-bottom:18px; }
 .contacts-controls>.field { flex:1 1 220px; }
 .contacts-workspace,.contacts-results { min-width:0; }

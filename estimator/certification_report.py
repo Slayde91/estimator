@@ -38,7 +38,7 @@ class _SignerImage(Flowable):
         self.canv.drawImage(self.image, 0, 0, width=self.width, height=self.height, mask='auto')
 
 
-def render_certificate_pdf(fields, *, company, certificate_id, revision, created_at, signature=None):
+def render_certificate_pdf(fields, *, company, certificate_id, revision, created_at, signature=None, reference=''):
     """Render one immutable revision; covers are applied by the revision service."""
     _register_fonts()
     company_name = company.get('name', '')
@@ -85,7 +85,7 @@ def render_certificate_pdf(fields, *, company, certificate_id, revision, created
         issued = issued.replace(tzinfo=timezone.utc)
     timestamp = issued.astimezone(timezone.utc).strftime('%d %b %Y, %H:%M UTC')
     issue_date = issued.astimezone(ZoneInfo('Australia/Sydney')).strftime('%d %B %Y')
-    short_id = certificate_id[:8].upper()
+    short_id = reference or certificate_id[:8].upper()
     logo = company_logo(company)
     def page(canvas, doc):
         _company_header(canvas, logo, A4[0], A4[1], _MARGIN, '', company=company)

@@ -76,8 +76,8 @@ class CommercialRegressionTests(unittest.TestCase):
         fields['order']['quote_id'] = next(row['id'] for row in snapshot['documents'] if row['kind'] == 'quote')
         next_document = restored.save(other_workspace, {'kind': 'work_order', 'status': 'Draft', 'fields': fields})
         next_issue = restored.issue(other_workspace, next_document['id'], next_document['version'], str(uuid.uuid4()))
-        self.assertEqual(issued['number'], 'WO-000001')
-        self.assertEqual(next_issue['number'], 'WO-000002')
+        self.assertEqual(issued['number'], 'WO-01')
+        self.assertEqual(next_issue['number'], 'WO-02')
 
     def test_http_exact_retry_after_delete_uses_original_pdf_without_derivation(self):
         saved = self.create('quote')
@@ -145,7 +145,7 @@ class CommercialRegressionTests(unittest.TestCase):
         accepted = Handler(body, capture)
         adapter.dispatch(accepted, accepted.path)
         self.assertEqual(accepted.result[0], 200)
-        self.assertEqual(accepted.result[1]['filename'], 'Work-Order-WO-000001.pdf')
+        self.assertEqual(accepted.result[1]['filename'], 'Work-Order-WO-01-R2.pdf')
 
 
 if __name__ == '__main__':

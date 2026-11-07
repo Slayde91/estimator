@@ -157,8 +157,8 @@ def project_summary(payload, *, edition='full'):
     title = estimate.get("title")
     if not isinstance(title, str) or len(title) > 1000:
         raise ValidationError("The project quote name is invalid.")
-    from .commercial_documents import quote_cards
-    result = {"quote_cards": quote_cards(snapshot.get("commercial_documents")), "estimate": {"title": title, **details},
+    from .commercial_documents import commercial_cards
+    result = {"commercial_cards": commercial_cards(snapshot.get("commercial_documents")), "estimate": {"title": title, **details},
               "project_status": validate_project_status(snapshot.get("project_status", "Draft")),
               "clients": [details["client"]], "project_numbers": [details["project_no"]]}
     if "estimates" in snapshot or "active_estimate_id" in snapshot:

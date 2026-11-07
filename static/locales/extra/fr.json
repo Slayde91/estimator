@@ -2870,5 +2870,17 @@
   "Ignore deleted project": "Ignorer le projet supprimé",
   "Ignore project source": "Ignorer la source du projet",
   "Stop looking for this project's saved file and hide its unavailable-file notice? Issued document history is retained.": "Arrêter de rechercher le fichier enregistré de ce projet et masquer son avis d’indisponibilité ? L’historique des documents émis est conservé.",
-  "Project source ignored.": "Source du projet ignorée."
+  "Project source ignored.": "Source du projet ignorée.",
+  "Full Name": "Nom complet",
+  "Position/Title": "Poste/titre",
+  "Accreditation No.": "N° d’accréditation",
+  "Save personal details": "Enregistrer les renseignements personnels",
+  "These details are saved for future certificates. Existing saved certificates retain their details.": "Ces renseignements sont conservés pour les futurs certificats. Les certificats déjà enregistrés conservent leurs renseignements.",
+  "Personal details changed": "Renseignements personnels modifiés",
+  "Personal details saved for future certificates.": "Renseignements personnels enregistrés pour les futurs certificats.",
+  "Personal details were changed in another window. Use the entered details for future certificates?": "Les renseignements personnels ont été modifiés dans une autre fenêtre. Utiliser les renseignements saisis pour les futurs certificats ?",
+  "There are unsaved changes. Close without saving discards them. Keep editing to save them first.": "Des modifications ne sont pas enregistrées. Fermer sans enregistrer les abandonne. Continuez la modification pour les enregistrer d’abord.",
+  "Sequence exhausted. Choose another prefix.": "Séquence épuisée. Choisissez un autre préfixe.",
+  "Numbering saved. Later edits remain unsaved.": "Numérotation enregistrée. Les modifications ultérieures ne sont pas enregistrées.",
+  "Numbering settings could not be loaded.": "Impossible de charger les paramètres de numérotation."
 }

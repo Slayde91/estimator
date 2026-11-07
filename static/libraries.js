@@ -217,7 +217,7 @@
     const actions = node("div", "library-item-actions");
     if (item.editable || pane.kind === "technical") { const edit = uiButton("Edit", () => pane.kind === "technical" ? openTechnicalEditor(pane, item.id) : editItem(pane, item.id), "button library-edit-button"); edit.dataset.libraryEdit = item.id; actions.append(edit); }
     const link = symbolButton("🔗︎", "Link Library Item", () => openLinkPicker(pane, item, link)); link.className += " link-action-button"; link.dataset.libraryLink = item.id;
-    const add = button("", () => pane.kind === "technical" ? applyTechnicalToSchedule(pane, item) : addToSchedule(pane, item.id), "button secondary takeoff-physical-icon-action library-add-transfer");
+    const add = button("", () => pane.kind === "technical" ? applyTechnicalToSchedule(pane, item) : addToSchedule(pane, item.id), "button secondary takeoff-physical-icon-action library-add-transfer takeoff-preview-transfer");
     const transfer = node("img", "takeoff-transfer-icon"); transfer.src = "/icons/takeoff-transfer.png"; transfer.alt = ""; transfer.width = transfer.height = 24; transfer.setAttribute("aria-hidden", "true");
     add.append(transfer, uiNode("span", "sr-only", "Add to Schedule"));
     add.dataset.libraryAdd = item.id; uiAttr(add, "title", "Add to Schedule"); uiAttr(add, "aria-label", "Add to Schedule");

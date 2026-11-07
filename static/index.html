@@ -56,6 +56,7 @@
   <link rel="stylesheet" href="/contacts.css">
   <script src="/contacts.js" defer></script>
   <script src="/personal-signature.js" defer></script>
+  <script src="/personal-details.js" defer></script>
   <script src="/swms.js" defer></script>
   <script src="/app.js" defer></script>
   <script src="/certification.js" defer></script>
@@ -248,19 +249,24 @@ SOFTWARE. -->
 <div class="company-branding-fields"><div class="company-logo-controls"><div class="company-logo-upload-row"><label class="field"><span data-i18n="Company logo (PNG or JPEG, up to 2 MB)">Company logo (PNG or JPEG, up to 2 MB)</span><input id="company-logo" type="file" accept="image/png,image/jpeg"></label><button id="company-logo-delete" type="button" class="button secondary icon-only" aria-label="Delete company logo" title="Delete company logo" data-i18n-title="Delete company logo" data-i18n-aria-label="Delete company logo"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"></path></svg></button></div><img id="company-logo-preview" src="/classifire-logo.png" alt="Company logo preview" data-i18n-alt="Company logo preview"></div>
 <div class="company-cover-controls"><div class="company-logo-upload-row"><label class="field"><span data-i18n="PDF cover sheet (PDF, up to 10 MB and 25 pages)">PDF cover sheet (PDF, up to 10 MB and 25 pages)</span><input id="company-cover-pdf" type="file" accept=".pdf,application/pdf"></label><button id="company-cover-delete" type="button" class="button secondary icon-only" aria-label="Remove cover sheet" title="Remove cover sheet" data-i18n-title="Remove cover sheet" data-i18n-aria-label="Remove cover sheet"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"></path></svg></button></div><p id="company-cover-name" class="helper" role="status"></p><p class="helper" data-i18n="Prepended to new PDF exports. Saved certificate revisions retain their original cover.">Prepended to new PDF exports. Saved certificate revisions retain their original cover.</p></div></div>
 <div class="actions"><button id="company-settings-save" type="submit" class="button" disabled data-i18n="Save company details">Save company details</button><span id="company-settings-status" class="status-label calculator-status" role="status" data-i18n="Loading…">Loading…</span></div></form></section>
-  <section class="card" aria-labelledby="personal-details-heading"><h2 id="personal-details-heading">Personal Details</h2><div class="actions"><button id="personal-signature-set" type="button" class="button secondary icon-only personal-signature-button" aria-label="Set personal signature" title="Set personal signature"><span aria-hidden="true"></span></button><span id="personal-signature-status" role="status">Personal signature</span></div></section>
+  <section class="card" aria-labelledby="personal-details-heading"><h2 id="personal-details-heading">Personal Details</h2>
+    <form id="personal-details-form"><div class="fields">
+      <label class="field"><span data-i18n="Full Name">Full Name</span><textarea id="personal-name" rows="1" maxlength="8000" autocomplete="name" disabled></textarea></label>
+      <label class="field"><span data-i18n="Position/Title">Position/Title</span><textarea id="personal-position" rows="1" maxlength="8000" autocomplete="organization-title" disabled></textarea></label>
+      <label class="field"><span data-i18n="Qualification">Qualification</span><textarea id="personal-qualification" rows="1" maxlength="8000" disabled></textarea></label>
+      <label class="field"><span data-i18n="Accreditation No.">Accreditation No.</span><textarea id="personal-accreditation" rows="1" maxlength="8000" disabled></textarea></label>
+    </div><p class="helper" data-i18n="These details are saved for future certificates. Existing saved certificates retain their details.">These details are saved for future certificates. Existing saved certificates retain their details.</p>
+    <div class="actions"><button id="personal-details-save" type="submit" class="button primary" disabled data-i18n="Save personal details">Save personal details</button><span id="personal-details-status" role="status" class="helper"></span></div></form>
+    <div class="actions"><button id="personal-signature-set" type="button" class="button secondary icon-only personal-signature-button" aria-label="Set personal signature" title="Set personal signature"><span aria-hidden="true"></span></button><span id="personal-signature-status" role="status">Personal signature</span></div></section>
   <section class="card" aria-labelledby="project-details-settings-heading">
-    <h2 id="project-details-settings-heading" data-i18n="Project Details">Project Details</h2>
-    <form id="project-details-settings-form">
-      <div class="fields"><label class="field"><span data-i18n="Prefix">Prefix</span><input id="project-number-prefix" maxlength="12" required autocomplete="off" value="PN"></label>
-      <label class="field"><span data-i18n="Project start number">Project start number</span><input id="project-start-number" type="number" min="1" max="999999999" step="1" required value="1"></label></div>
-      <p id="project-number-next" class="helper" role="status"></p>
-      <div class="actions"><button id="project-details-settings-save" type="submit" class="button primary" data-i18n="Save settings">Save settings</button><span id="project-details-settings-status" class="status-label" role="status"></span></div>
-    </form>
-    <h3>Document numbering</h3>
+    <h2 id="project-details-settings-heading">Document numbering</h2>
     <form id="document-number-settings">
-      <div class="table-scroll"><table><thead><tr><th>Document</th><th>Prefix</th><th>Starting number</th><th>Next reference</th></tr></thead><tbody></tbody></table></div>
-      <div class="actions"><button class="button primary" type="submit" disabled>Save document numbering</button><button type="button" class="button secondary" id="migrate-order-numbers">Update numbers in saved project files</button><span role="status"></span></div>
+      <div class="table-scroll"><table><thead><tr><th>Document</th><th>Prefix</th><th>Starting number</th><th>Next reference</th></tr></thead><tbody>
+        <tr id="project-number-settings-row"><td data-i18n="Projects">Projects</td><td><input id="project-number-prefix" maxlength="12" pattern="[A-Za-z]{1,12}" required autocomplete="off" aria-label="Projects prefix" value="PN" disabled></td>
+        <td><input id="project-start-number" type="number" min="1" max="999999999" step="1" required aria-label="Project start number" value="1" disabled></td><td><span id="project-number-next" role="status"></span></td></tr>
+      </tbody></table></div>
+      <p class="helper">Existing project and document numbers are retained; used numbers are never reused.</p>
+      <div class="actions"><button class="button primary" type="submit" disabled>Save document numbering</button><button type="button" class="button secondary" id="migrate-order-numbers">Update numbers in saved project files</button><span id="project-details-settings-status" class="status-label" role="status"></span></div>
     </form>
   </section>
 <section class="card" hidden aria-labelledby="google-maps-heading"><h2 id="google-maps-heading">Google Maps</h2><p id="google-maps-status" class="helper" role="status" data-i18n="Checking Google Maps setup…">Checking Google Maps setup…</p><p class="helper" data-i18n="Driving estimates use your current location and the project Site Address. They do not change quote travel charges.">Driving estimates use your current location and the project Site Address. They do not change quote travel charges.</p><div class="actions"><a class="button secondary" href="/maps-setup.html" target="_blank" rel="noopener" data-i18n="Open setup guide">Open setup guide</a><button id="google-maps-refresh" class="button secondary" type="button" data-i18n="Refresh Google Maps status">Refresh Google Maps status</button></div></section><section class="card play-settings-card" aria-labelledby="settings-play-heading"><div><h2 id="settings-play-heading" data-i18n="Play">Play</h2><p class="helper" data-i18n="Take a break with FIRELINE.">Take a break with FIRELINE.</p></div><button id="settings-play-button" type="button" class="button" data-view="play"><span aria-hidden="true">▶</span> <span data-i18n="Play">Play</span></button></section></section>

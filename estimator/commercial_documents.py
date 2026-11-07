@@ -347,7 +347,7 @@ def _normalise_legacy_reference(kind, fields):
     order = fields['order']
     if not order['quote_id' if kind == 'work_order' else 'work_order_id']:
         return
-    legacy = re.fullmatch(r'(.+)-(Q-[0-9]{6,10})-([0-9]{2,10})', order['work_order_reference'])
+    legacy = re.fullmatch(r'(.+)-(Q-[0-9]{2,10})-([0-9]{2,10})', order['work_order_reference'])
     if not legacy:
         return
     project_no, quote_number, suffix = legacy.groups()
@@ -371,7 +371,7 @@ def validate_commercial_documents(value):
     if value is None:
         return None
     required = {'version', 'project_id', 'documents', 'number_counters'}
-    if not isinstance(value, dict) or not required <= set(value) or set(value) - required - {'work_order_counters','reference_counters'} or type(value['version']) is not int or value['version'] != 1:
+    if not isinstance(value, dict) or not required <= set(value) or set(value) - required - {'work_order_counters','reference_counters','short_quote_counters'} or type(value['version']) is not int or value['version'] != 1:
         raise ValidationError('Commercial documents use an unsupported project format.')
     _identity(value['project_id'])
     counters = value['number_counters']
@@ -379,7 +379,7 @@ def validate_commercial_documents(value):
         raise ValidationError('Commercial document number counters are invalid.')
     work_order_counters = deepcopy(value.get('work_order_counters', {}))
     if (not isinstance(work_order_counters, dict) or len(work_order_counters) > 10000
-            or any(not isinstance(label, str) or not re.fullmatch(r'Q-\d{6,10}', label)
+            or any(not isinstance(label, str) or not re.fullmatch(r'Q-\d{2,10}', label)
                    or type(number) is not int or not 0 <= number <= 9999999999
                    for label, number in work_order_counters.items())):
         raise ValidationError('Work order number counters are invalid.')
@@ -417,7 +417,9 @@ def validate_commercial_documents(value):
             work_order_counters[quote_number] = max(work_order_counters.get(quote_number, 0), sequence)
         documents.append(row)
     series = validated_counters(value.get('reference_counters', {}), KINDS)
+    short_quotes = validated_counters({'quote': value.get('short_quote_counters', {})}, {'quote'})['quote']
     return {'version': 1, 'project_id': value['project_id'], 'documents': documents, **({'reference_counters':series} if series else {}),
+            **({'short_quote_counters':short_quotes} if short_quotes else {}),
             'number_counters': deepcopy(counters), 'work_order_counters': work_order_counters}
 
 
@@ -426,7 +428,7 @@ def _work_order_sequence(fields):
     project_no = fields['details']['project_no']
     order = fields['order']
     quote_number = order['quote_reference']
-    if not project_no.strip() or any(char in project_no for char in '\r\n\t') or not re.fullmatch(r'Q-\d{6,10}', quote_number):
+    if not project_no.strip() or any(char in project_no for char in '\r\n\t') or not re.fullmatch(r'Q-\d{2,10}', quote_number):
         raise ValidationError('A work order requires a project number and an issued Quote number.')
     prefix = _work_order_prefix(project_no, quote_number)
     reference = order['work_order_reference']
@@ -512,6 +514,9 @@ class CommercialDocuments:
             counter = db.execute("SELECT number FROM commercial_sequences WHERE kind='quote'").fetchone()
             if counter:
                 self.numbering.observe(db, 'quote', 'Q', counter[0])
+            for kind, reference in db.execute("SELECT json_extract(document,'$.kind'),number FROM commercial_issued"):
+                if valid_reference(reference):
+                    self.numbering.observe_reference(db, kind, reference)
             # Old draft rows can exist in several sessions for the same portable project.
             legacy = []
             for workspace, project, raw in db.execute("SELECT d.workspace,w.project_id,d.data FROM commercial_drafts d "
@@ -566,8 +571,7 @@ class CommercialDocuments:
             # anyone opens that project on this computer.
             for card in cards:
                 if card['kind'] == 'quote' and valid_reference(card.get('last_number', '')):
-                    prefix, value = card['last_number'].rsplit('-', 1)
-                    self.numbering.observe(db, 'quote', prefix, int(value))
+                    self.numbering.observe_reference(db, 'quote', card['last_number'])
             # Old work orders can have no cost until opened. Display the issued
             # quote amount on their cards, using the same portable fallback as the editor.
             quotes = {(c['source_file'], c['id'], c['last_number']): c['grand_total']
@@ -606,7 +610,9 @@ class CommercialDocuments:
         counters.update(dict(db.execute('SELECT kind,number FROM commercial_sequences').fetchall()))
         work_order_counters = dict(db.execute('SELECT quote_number,number FROM commercial_work_order_sequences WHERE project_id=?', (project,)).fetchall())
         series = DocumentNumbers.history(db,project)
+        short_quotes = DocumentNumbers.short_quote_history(db,project)
         return {'version': 1, 'project_id': project, 'documents': [_stored_document(row[0]) for row in rows], **({'reference_counters': series} if series else {}),
+                **({'short_quote_counters': short_quotes} if short_quotes else {}),
                 'number_counters': counters, 'work_order_counters': work_order_counters}
 
     def capture(self, workspace, expected_snapshot=None):
@@ -656,12 +662,12 @@ class CommercialDocuments:
                 raise CommercialConflict('Commercial documents belong to a different project.')
             if snapshot:
                 self.numbering.restore_history(db, project, snapshot.get('reference_counters',{}))
+                self.numbering.restore_history(db, project, {'quote_short': snapshot.get('short_quote_counters', {})})
                 self._number_orders(db, [(project,doc) for doc in snapshot['documents']])
                 self.numbering.observe(db, 'quote', 'Q', snapshot['number_counters']['quote'])
                 for doc in snapshot['documents']:
                     if doc['kind'] == 'quote' and doc['last_number']:
-                        prefix, value = doc['last_number'].rsplit('-',1)
-                        self.numbering.observe(db, 'quote', prefix, int(value))
+                        self.numbering.observe_reference(db, 'quote', doc['last_number'])
             current = self._snapshot(db, workspace, project)
             if current['documents']:
                 if snapshot != current:

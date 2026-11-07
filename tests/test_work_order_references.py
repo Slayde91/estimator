@@ -95,7 +95,10 @@ class WorkOrderReferences(unittest.TestCase):
 
     def test_legacy_order_links_compact_on_read_and_keep_issued_pdf(self):
         from estimator.commercial_pdf import render_commercial_pdf
-        legacy_ref = 'CF-123-Q-000001-01'
+        from estimator.document_numbers import SERIES
+        with patch.dict(SERIES, {'quote':('Q',6)}):
+            self.quote = self.create_quote()
+        legacy_ref = 'CF-123-' + self.quote['last_number'] + '-01'
         with patch.object(self.store, 'renderer', lambda document, number, **kwargs: render_commercial_pdf(document, legacy_ref, **kwargs)):
             old = self.store.save(self.workspace, self.payload())
             purchase = self.payload('purchase_order')
@@ -108,7 +111,7 @@ class WorkOrderReferences(unittest.TestCase):
             if row['kind'] != 'quote':
                 row.pop('reference')
                 row['fields']['order']['work_order_reference'] = legacy_ref
-        self.assertIn('CF-123-Q-000001-01', PdfReader(BytesIO(issued['pdf'])).pages[0].extract_text())
+        self.assertIn(legacy_ref, PdfReader(BytesIO(issued['pdf'])).pages[0].extract_text())
         self.assertEqual(self.store.read_pdf(self.workspace, issued['id'])[1], issued['pdf'])
         replay = self.store.issue(self.workspace, old['id'], old['version'], request_id)
         self.assertEqual(replay['pdf'], issued['pdf'])
@@ -187,7 +190,7 @@ class WorkOrderReferences(unittest.TestCase):
         edit = self.edit(original)
         edit['fields']['title'] = 'Updated title'
         saved = self.store.save(self.workspace, edit)
-        self.assertEqual(saved['fields']['order']['quote_reference'], 'Q-000001')
+        self.assertEqual(saved['fields']['order']['quote_reference'], 'Q-01')
         for section, key, value in [('details', 'project_no', 'OTHER'), ('order', 'quote_id', str(uuid.uuid4())),
                                     ('order', 'quote_reference', newer_quote['last_number']), ('order', 'work_order_reference', 'replacement')]:
             changed = self.edit(saved)

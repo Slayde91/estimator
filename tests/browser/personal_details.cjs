@@ -1,0 +1,56 @@
+'use strict';
+const {chromium,expect}=require('@playwright/test');
+const {spawn}=require('node:child_process'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const {openProjectSection}=require('./project_actions.cjs');
+const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`personal-details-${Date.now()}`);
+fs.mkdirSync(output,{recursive:true});
+const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
+let logs='',browser,page;server.stderr.on('data',v=>logs+=v);
+const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()=>reject(Error(logs||'Fixture timeout')),120000);
+  server.stdout.on('data',v=>{data+=v;if(data.includes('\n')){clearTimeout(timer);resolve(JSON.parse(data.split('\n')[0]));}});server.once('error',reject);});
+const errors=[],checks=[];
+async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready&&!window.CeasefireDesktop.status().busy);}
+async function settings(){await page.getByRole('button',{name:'Settings',exact:true}).click();await expect(page.locator('#personal-details-save')).toBeEnabled();await idle();}
+(async()=>{
+  const info=await ready,base=`http://127.0.0.1:${info.port}`;browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1101,height:884}});page.setDefaultTimeout(60000);
+  page.on('pageerror',e=>errors.push(e.message));await page.goto(base);await idle();
+  const defaults=()=>page.request.get(base+'/api/certifications/defaults').then(r=>r.json());
+  const signature=await page.evaluate(()=>{const canvas=document.createElement('canvas');canvas.width=40;canvas.height=20;const ink=canvas.getContext('2d');ink.moveTo(2,15);ink.lineTo(32,3);ink.stroke();return canvas.toDataURL('image/png');});
+  const initial=await defaults();const seed=await page.request.post(base+'/api/certifications/defaults',{data:{fields:initial.fields,expected_version:initial.version,signature_image:signature,signature_name:'Saved signer.png'}});
+  assert.equal(seed.status(),200);
+  await settings();
+  const first={name:'Signer <literal> One',position:'Site Manager',qualification:'Cert 2\nAdditional qualification',accreditation:'ACC-123'};
+  for(const [name,value]of Object.entries(first))await page.locator('#personal-'+name).fill(value);
+  await page.locator('#personal-details-save').click();await expect(page.locator('#personal-details-status')).toContainText('saved for future certificates');await idle();
+  const saved=await defaults();assert.deepEqual(saved.fields,first);assert.equal(saved.signature_image,signature);assert.equal(saved.signature_name,'Saved signer.png');
+  checks.push('Personal text saves through existing signer-default API without changing signature artwork');
+  await openProjectSection(page,'certification');await idle();
+  for(const [name,value]of Object.entries(first))await expect(page.locator('#certification-'+name)).toHaveValue(value);
+  await page.locator('#certification-form textarea[required]').evaluateAll(controls=>{for(const control of controls)if(!control.value.trim()){control.value='Synthetic certificate evidence';control.dispatchEvent(new Event('input',{bubbles:true}));}});
+  const creation=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/certifications'&&r.request().method()==='POST');
+  await page.locator('#certification-save').click();const document=await (await creation).json();await idle();
+  assert.ok(document.id);checks.push('New certificate inherits the saved personal defaults');
+  await settings();await page.locator('#personal-name').fill('Updated future signer');await page.locator('#personal-details-save').click();await expect(page.locator('#personal-details-status')).toContainText('saved for future certificates');await idle();
+  await openProjectSection(page,'certification');await idle();await expect(page.locator('#certification-name')).toHaveValue(first.name);
+  const workspace=await page.evaluate(()=>window.CeasefireCertification.sessionId());
+  const old=await (await page.request.get(base+'/api/certifications/'+document.id+'?workspace='+workspace)).json();assert.equal(old.fields.name,first.name);
+  await page.locator('#certification-document').selectOption('');await idle();await expect(page.locator('#certification-name')).toHaveValue('Updated future signer');
+  checks.push('Existing certificate snapshot retains its signer; choosing New certificate uses updated defaults');
+  const autoSaved=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/certifications/defaults'&&r.request().method()==='POST');
+  await page.locator('#certification-name').fill('Edited in Certification');assert.equal((await autoSaved).status(),200);await idle();
+  await settings();await expect(page.locator('#personal-name')).toHaveValue('Edited in Certification');
+  checks.push('Signer edits made in Certification refresh clean Personal Details');
+  await page.locator('#personal-name').fill('Keep my personal draft');const beforeConflict=await defaults();
+  const external=await page.request.post(base+'/api/certifications/defaults',{data:{fields:{...beforeConflict.fields,name:'Other window signer'},expected_version:beforeConflict.version}});assert.equal(external.status(),200);
+  await page.locator('#personal-details-save').click();await expect(page.locator('#personal-details-status')).toContainText('changed in another window');
+  await page.locator('#personal-details-save').click();const dialog=page.getByRole('dialog',{name:'Personal details changed',exact:true});await dialog.getByRole('button',{name:'Keep editing',exact:true}).click();
+  assert.equal((await defaults()).fields.name,'Other window signer');await expect(page.locator('#personal-name')).toHaveValue('Keep my personal draft');
+  await page.locator('#personal-details-save').click();await dialog.getByRole('button',{name:'Use entered details',exact:true}).click();await expect(page.locator('#personal-details-status')).toContainText('saved for future certificates');
+  assert.equal((await defaults()).fields.name,'Keep my personal draft');assert.equal((await defaults()).signature_image,signature);
+  checks.push('Concurrent defaults conflict preserves entries, supports cancellation, and requires explicit approval');
+  await page.locator('#personal-details-heading').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,'personal-details.png')});
+  await page.setViewportSize({width:390,height:900});await page.locator('#personal-details-heading').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,'personal-details-mobile.png')});
+  const form=await page.locator('#personal-details-form').boundingBox();assert.ok(form.x>=0&&form.x+form.width<=390);
+  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,errors},null,2));console.log(JSON.stringify({passed:true,output,checks:checks.length}));
+})().catch(async error=>{console.error(error);if(page)await page.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});process.exitCode=1;})
+.finally(async()=>{await browser?.close();server.kill();fs.writeFileSync(path.join(output,'server.log'),logs);});

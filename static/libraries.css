@@ -40,6 +40,10 @@
 .library-item-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px}
 .library-item-actions .button{height:48px;min-height:48px}
 .library-item-actions .library-add-transfer{display:inline-flex;align-items:center;justify-content:center;flex:0 0 48px;width:48px;min-width:48px;max-width:48px;height:48px;min-height:48px;padding:8px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#584b53;box-shadow:none;box-sizing:border-box}
+/* Use the Takeoff transfer palette in every theme and in the standard edition. */
+#view-pricing .button.takeoff-preview-transfer{background:#ffdd53;border-color:#bc0022;color:#ad001d}
+#view-pricing .button.takeoff-preview-transfer:hover:not(:disabled){background:#ffe886;border-color:#970020}
+#view-pricing .takeoff-preview-transfer .takeoff-transfer-icon{filter:brightness(0) saturate(100%) invert(10%) sepia(97%) saturate(4000%) hue-rotate(338deg)}
 .library-action-message{flex-basis:100%;margin:0}
 .library-delete{display:grid;place-items:center;width:48px;height:48px;padding:0}
 .library-trash-icon,.library-trash-icon svg{display:block;width:20px;height:20px}

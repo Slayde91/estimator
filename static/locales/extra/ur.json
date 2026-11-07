@@ -2870,5 +2870,17 @@
   "Ignore deleted project": "حذف شدہ منصوبے کو نظر انداز کریں",
   "Ignore project source": "منصوبے کے ماخذ کو نظر انداز کریں",
   "Stop looking for this project's saved file and hide its unavailable-file notice? Issued document history is retained.": "کیا اس منصوبے کی محفوظ شدہ فائل تلاش کرنا بند کر کے فائل دستیاب نہ ہونے کا نوٹس چھپا دیں؟ جاری کردہ دستاویزات کی تاریخ محفوظ رہے گی۔",
-  "Project source ignored.": "منصوبے کے ماخذ کو نظر انداز کر دیا گیا۔"
+  "Project source ignored.": "منصوبے کے ماخذ کو نظر انداز کر دیا گیا۔",
+  "Full Name": "پورا نام",
+  "Position/Title": "عہدہ/عنوان",
+  "Accreditation No.": "منظوری نمبر",
+  "Save personal details": "ذاتی تفصیلات محفوظ کریں",
+  "These details are saved for future certificates. Existing saved certificates retain their details.": "یہ تفصیلات آئندہ سرٹیفکیٹس کے لیے محفوظ ہیں۔ پہلے سے محفوظ سرٹیفکیٹس کی تفصیلات برقرار رہیں گی۔",
+  "Personal details changed": "ذاتی تفصیلات تبدیل ہو گئیں",
+  "Personal details saved for future certificates.": "آئندہ سرٹیفکیٹس کے لیے ذاتی تفصیلات محفوظ کر دی گئیں۔",
+  "Personal details were changed in another window. Use the entered details for future certificates?": "ذاتی تفصیلات دوسری ونڈو میں تبدیل کی گئی ہیں۔ آئندہ سرٹیفکیٹس کے لیے درج کردہ تفصیلات استعمال کریں؟",
+  "There are unsaved changes. Close without saving discards them. Keep editing to save them first.": "کچھ تبدیلیاں محفوظ نہیں ہوئیں۔ محفوظ کیے بغیر بند کرنے سے وہ ضائع ہو جائیں گی۔ پہلے محفوظ کرنے کے لیے ترمیم جاری رکھیں۔",
+  "Sequence exhausted. Choose another prefix.": "نمبروں کی ترتیب ختم ہو گئی۔ کوئی اور سابقہ منتخب کریں۔",
+  "Numbering saved. Later edits remain unsaved.": "نمبرنگ محفوظ ہو گئی۔ بعد کی ترامیم ابھی محفوظ نہیں ہوئیں۔",
+  "Numbering settings could not be loaded.": "نمبرنگ کی ترتیبات لوڈ نہیں ہو سکیں۔"
 }

@@ -105,6 +105,7 @@ const ready = new Promise((resolve, reject) => {
   await page.locator('#contacts-navigation-menu [data-contacts-section="contacts"]').click();
   await expect(root.getByRole('button',{name:'Robin Sample'})).toBeVisible();
   await expect(page.locator('#contacts-navigation-menu [data-contacts-section="contacts"]')).toHaveAttribute('aria-pressed','true');
+  await expect(root.locator('.contacts-table thead th')).toHaveText(['Name','Company','Title','Phone','Email']);
   await root.getByRole('button',{name:'Leads',exact:true}).click();
   await root.getByRole('button',{name:'New Lead',exact:true}).click();
   await dlg.getByLabel('Name',{exact:true}).fill('Second Lead');

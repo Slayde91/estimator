@@ -13,7 +13,7 @@ const errors=[];
 async function idle(){await page.waitForFunction(()=>{const s=window.CeasefireDesktop?.status();return s?.ready&&!s.busy;});}
 async function estimate(){await page.locator('#estimate-navigation-toggle').click();await page.locator('#estimate-navigation-toggle').press('Escape');await idle();}
 async function save(){const reply=page.waitForResponse(r=>/\/api\/project\/save(?:-as)?$/.test(new URL(r.url()).pathname));await clickProjectControl(page,'Save');const response=await reply;assert.equal(response.status(),200,await response.text());await idle();return response.json();}
-async function settings(prefix,start){await page.locator('nav [data-view="settings"]').click();await expect(page.locator('#project-number-prefix')).toBeEnabled();await page.locator('#project-number-prefix').fill(prefix);await page.locator('#project-start-number').fill(String(start));const response=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/project-details');await page.locator('#project-details-settings-save').click();assert.equal((await response).status(),200);await idle();}
+async function settings(prefix,start){await page.locator('nav [data-view="settings"]').click();await expect(page.locator('#project-number-prefix')).toBeEnabled();await page.locator('#project-number-prefix').fill(prefix);await page.locator('#project-start-number').fill(String(start));const response=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/numbering-settings');await page.locator('#document-number-settings').getByRole('button',{name:'Save document numbering',exact:true}).click();assert.equal((await response).status(),200);await idle();}
 (async()=>{
  const info=await ready;assert.notEqual(info.port,8765);const base=`http://127.0.0.1:${info.port}`;
  const seed=spawnSync(python,['-c',`import sys\nfrom pathlib import Path\nfrom estimator.storage import Store\nfrom estimator.project_file import export_project\np=Path(sys.argv[1]);s=Store(p/'qa.sqlite3')\nfor name,number,client in [('legacy','PN-00006','Alpha <literal>'),('other','OLD-12','Beta')]:\n (p/(name+'.cf.json')).write_bytes(export_project(s,{'estimate':{'project_no':number,'client':client}}))`,output],{cwd:root,encoding:'utf8',windowsHide:true});assert.equal(seed.status,0,seed.stderr);
@@ -34,7 +34,10 @@ async function settings(prefix,start){await page.locator('nav [data-view="settin
  await fillProjectDetails(page, {client:'Beta'});const second=await save();assert.equal(second.project.estimate.project_no,'PK-00042');await expect(page.locator('#project-no')).toHaveValue('PK-00042');
  await settings('PK',1);await expect(page.locator('#project-number-next')).toContainText('PK-00043');
  const series=page.locator('#document-number-settings');
- await expect(series.locator('tbody tr')).toHaveCount(5);
+ await expect(series.locator('tbody tr')).toHaveCount(6);
+ await expect(page.locator('#project-details-settings-save')).toHaveCount(0);
+ await expect(series.locator('tbody tr').first()).toContainText('Projects');
+ await expect(series.locator('tr').filter({hasText:'Quotes'})).toContainText('Q-01');
  await series.getByLabel('Work Orders prefix',{exact:true}).fill('Job');
  await series.getByLabel('Work Orders starting number',{exact:true}).fill('31');
  await series.getByRole('button',{name:'Save document numbering'}).click();
@@ -42,6 +45,15 @@ async function settings(prefix,start){await page.locator('nav [data-view="settin
  await expect(series.locator('tr').filter({hasText:'Purchase Orders'})).toContainText('PO-01');
  await estimate();await page.locator('nav [data-view="settings"]').click();
  await expect(series.getByLabel('Work Orders prefix',{exact:true})).toHaveValue('JOB');
+ // Exhaustion must leave Settings usable so the owner can choose a new series.
+ const exhaust=spawnSync(python,['-c',"import sqlite3,sys; from contextlib import closing; from pathlib import Path\nwith closing(sqlite3.connect(Path(sys.argv[1])/'qa-document-numbers.sqlite3')) as db, db:\n db.execute(\"INSERT INTO series VALUES('quote_short','Q',9999999999) ON CONFLICT(kind,prefix) DO UPDATE SET high=excluded.high\")",output],{cwd:root,encoding:'utf8',windowsHide:true});
+ assert.equal(exhaust.status,0,exhaust.stderr);
+ await page.locator('nav [data-view="home"]').click();await page.locator('nav [data-view="settings"]').click();
+ await expect(series.locator('tr[data-document-kind="quote"]')).toContainText('Sequence exhausted. Choose another prefix.');
+ await expect(series.getByLabel('Quotes prefix',{exact:true})).toBeEnabled();
+ await series.getByLabel('Quotes prefix',{exact:true}).fill('QT');
+ await series.getByRole('button',{name:'Save document numbering',exact:true}).click();
+ await expect(series.locator('tr[data-document-kind="quote"]')).toContainText('QT-01');
  await page.screenshot({path:path.join(output,'project-number-settings.png'),fullPage:true});assert.deepEqual(errors,[]);
  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,first:first.project.estimate.project_no,second:second.project.estimate.project_no,errors},null,2));console.log(`PASS project details: ${output}`);
 })().catch(async error=>{console.error(error);if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});fs.writeFileSync(path.join(output,'failure.txt'),String(error.stack));process.exitCode=1;}).finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);if(browser)await browser.close();server.kill();});

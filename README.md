@@ -290,6 +290,19 @@ Leads, Contacts and Accounts through the header menu. Converting a lead opens
 its saved project in Estimates, with the normal review if another project has
 unsaved work.
 
+Settings → Personal Details saves Full Name, Position/Title, Qualification and
+Accreditation No. as the signer defaults for future certificates. Existing
+certificate drafts and issued revisions retain their captured details. The
+personal signature remains separate.
+
+Settings → Document numbering contains both project and document numbering.
+Its Save document numbering button validates and saves all rows together.
+Future quotes use a new short sequence beginning Q-01; existing six-digit quote
+references retain their original values. Historical quote counters do not
+advance the short sequence. Saved projects retain the short sequence's high
+watermark, including deleted quotes; use the current application version when
+exchanging these new project files.
+
 Newly generated PDF schedules and product summaries use portrait pages. Quote
 scope introductions flow into their first schedule. PDF tables omit calculation
 notes and estimating-status columns; calculator screens and Excel registers

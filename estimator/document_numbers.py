@@ -7,7 +7,7 @@ import sqlite3
 from .catalog import ValidationError
 
 
-SERIES = {'quote': ('Q', 6), 'work_order': ('WO', 2), 'purchase_order': ('PO', 2),
+SERIES = {'quote': ('Q', 2), 'work_order': ('WO', 2), 'purchase_order': ('PO', 2),
           'swms': ('SWMS', 2), 'certification': ('CERT', 2)}
 LIMIT = 9999999999
 LABEL = re.compile(r'([A-Z]{1,12})-([0-9]{2,10})\Z')
@@ -39,6 +39,8 @@ class DocumentNumbers:
                     PRIMARY KEY(kind,prefix));
                 CREATE TABLE IF NOT EXISTS assignments(kind TEXT NOT NULL,owner TEXT NOT NULL,reference TEXT NOT NULL,
                     PRIMARY KEY(kind,owner),UNIQUE(kind,reference));
+                CREATE TABLE IF NOT EXISTS observed_references(kind TEXT NOT NULL,reference TEXT NOT NULL,
+                    PRIMARY KEY(kind,reference));
             ''')
             db.executemany('INSERT OR IGNORE INTO settings VALUES(?,?,1)', [(k, v[0]) for k, v in SERIES.items()])
 
@@ -54,8 +56,14 @@ class DocumentNumbers:
     def history(db, project):
         result = {}
         for kind,prefix,number in db.execute('SELECT kind,prefix,high FROM document_number_history WHERE project=?',(project,)):
+            if kind == 'quote_short':
+                continue
             result.setdefault(kind,{})[prefix] = number
         return result
+
+    @staticmethod
+    def short_quote_history(db, project):
+        return dict(db.execute("SELECT prefix,high FROM document_number_history WHERE project=? AND kind='quote_short'", (project,)))
 
     @staticmethod
     def remember(db, project, kind, prefix, number):
@@ -71,11 +79,43 @@ class DocumentNumbers:
 
     def settings(self):
         with closing(sqlite3.connect(self.path, timeout=30)) as db:
-            return {k: {'prefix': p, 'start_number': s, 'next_reference': f'{p}-{max(s,h+1):0{SERIES[k][1]}d}'}
-                    for k,p,s,h in db.execute('SELECT s.kind,s.prefix,s.start,COALESCE(n.high,0) FROM settings s '
-                        'LEFT JOIN series n ON n.kind=s.kind AND n.prefix=s.prefix')}
+            return self._settings(db)
 
-    def save_settings(self, values):
+    @classmethod
+    def _settings(cls, db, schema=''):
+        values = {}
+        for kind, prefix, start, high in db.execute(f'SELECT s.kind,s.prefix,s.start,COALESCE(n.high,0) FROM {schema}settings s '
+                f"LEFT JOIN {schema}series n ON n.kind=CASE WHEN s.kind='quote' THEN 'quote_short' ELSE s.kind END AND n.prefix=s.prefix"):
+            value = {'prefix': prefix, 'start_number': start}
+            try:
+                value['next_reference'] = cls._next_reference(db, schema, kind, prefix, start, high)[1]
+            except ValidationError:
+                # Settings must stay editable after a series is exhausted.
+                # Only allocation fails; a new prefix can recover normally.
+                value.update(next_reference='', exhausted=True)
+            values[kind] = value
+        return values
+
+    @staticmethod
+    def _next_reference(db, schema, kind, prefix, start, high):
+        number = max(start, high + 1)
+        if kind == 'quote' and number >= 100000:
+            # At six digits the two formats become identical. Legacy high
+            # watermarks reserve that overlapping range even if its original
+            # documents are no longer available to register exact labels.
+            legacy = db.execute(f"SELECT high FROM {schema}series WHERE kind='quote' AND prefix=?", (prefix,)).fetchone()
+            number = max(number, legacy[0] + 1 if legacy else number)
+        while number <= LIMIT:
+            label = f'{prefix}-{number:0{SERIES[kind][1]}d}'
+            if not db.execute(f'SELECT 1 FROM {schema}assignments WHERE kind=? AND reference=? UNION ALL '
+                              f'SELECT 1 FROM {schema}observed_references WHERE kind=? AND reference=?',
+                              (kind,label,kind,label)).fetchone():
+                return number, label
+            number += 1
+        raise ValidationError('This document number sequence is exhausted. Choose another prefix.')
+
+    @staticmethod
+    def validated_settings(values):
         if not isinstance(values, dict) or set(values) != set(SERIES):
             raise ValidationError('Include the prefix and starting number for every document type.')
         rows = []
@@ -88,14 +128,55 @@ class DocumentNumbers:
             if type(start) is not int or not 1 <= start <= LIMIT:
                 raise ValidationError('Starting numbers must be positive whole numbers up to 9999999999.')
             rows.append((prefix.strip().upper(), start, k))
+        return rows
+
+    def save_settings(self, values):
+        rows = self.validated_settings(values)
         with closing(sqlite3.connect(self.path, timeout=30)) as db, db:
             db.executemany('UPDATE settings SET prefix=?,start=? WHERE kind=?',rows)
         return self.settings()
+
+    def combined_settings(self, projects):
+        with closing(sqlite3.connect(self.path, timeout=30)) as db, db:
+            db.execute('ATTACH DATABASE ? AS projectbook', (str(projects.path),))
+            db.execute('BEGIN')
+            return self._combined_settings(db, projects)
+
+    def _combined_settings(self, db, projects):
+        return {'project': projects.settings_from_connection(db, 'projectbook.'), 'documents': self._settings(db)}
+
+    def save_combined_settings(self, projects, value):
+        if not isinstance(value, dict) or set(value) != {'project', 'documents'}:
+            raise ValidationError('Include project and document numbering settings only.')
+        project_prefix, project_start = projects.validated_settings(value['project'])
+        rows = self.validated_settings(value['documents'])
+        # Both databases use SQLite rollback journals. One attached transaction
+        # commits all settings together, including rollback after either write
+        # fails. Assignment journals and high-water counters are untouched.
+        with closing(sqlite3.connect(self.path, timeout=30)) as db, db:
+            db.execute('ATTACH DATABASE ? AS projectbook', (str(projects.path),))
+            db.execute('BEGIN IMMEDIATE')
+            db.executemany('UPDATE settings SET prefix=?,start=? WHERE kind=?', rows)
+            db.execute('UPDATE projectbook.preferences SET prefix=?,start_number=? WHERE id=1',
+                       (project_prefix, project_start))
+            saved = self._combined_settings(db, projects)
+        return saved
 
     @staticmethod
     def observe(db, kind, prefix, number):
         db.execute('INSERT INTO numbook.series VALUES(?,?,?) ON CONFLICT(kind,prefix) '
                    'DO UPDATE SET high=max(high,excluded.high)', (kind,prefix,number))
+
+    @classmethod
+    def observe_reference(cls, db, kind, reference):
+        if not valid_reference(reference):
+            raise ValidationError('Invalid document reference.')
+        prefix, serial = reference.rsplit('-', 1)
+        # Six-digit legacy references belong to the retired quote series.
+        # Portable short-series high watermarks cover new larger serials.
+        series_kind = 'quote_short' if kind == 'quote' and len(serial) < 6 else kind
+        cls.observe(db, series_kind, prefix, int(serial))
+        db.execute('INSERT OR IGNORE INTO numbook.observed_references VALUES(?,?)', (kind, reference))
 
     @classmethod
     def assign(cls, db, kind, owner, existing='', *, reconcile=False):
@@ -114,18 +195,21 @@ class DocumentNumbers:
             label = existing
         else:
             prefix, start, high = db.execute('SELECT s.prefix,s.start,COALESCE(n.high,0) FROM numbook.settings s '
-                  'LEFT JOIN numbook.series n ON n.kind=s.kind AND n.prefix=s.prefix WHERE s.kind=?',(kind,)).fetchone()
-            number = max(start, high+1)
-            if number > LIMIT:
-                raise ValidationError('This document number sequence is exhausted. Choose another prefix.')
-            label = f'{prefix}-{number:0{SERIES[kind][1]}d}'
+                  "LEFT JOIN numbook.series n ON n.kind=CASE WHEN s.kind='quote' THEN 'quote_short' ELSE s.kind END AND n.prefix=s.prefix WHERE s.kind=?",(kind,)).fetchone()
+            number, label = cls._next_reference(db, 'numbook.', kind, prefix, start, high)
         try:
             db.execute('INSERT INTO numbook.assignments VALUES(?,?,?)',(kind,owner,label))
         except sqlite3.IntegrityError as error:
             raise ValidationError('This reference is already assigned to another document in this organisation.') from error
-        cls.observe(db, kind, prefix, number)
+        series_kind = 'quote_short' if kind == 'quote' and not existing else kind
+        if existing:
+            cls.observe_reference(db, kind, label)
+            if kind == 'quote' and len(serial) < 6:
+                series_kind = 'quote_short'
+        else:
+            cls.observe(db, series_kind, prefix, number)
         if kind != 'certification':
-            cls.remember(db,owner.split(':',1)[0],kind,prefix,number)
+            cls.remember(db,owner.split(':',1)[0],series_kind,prefix,number)
         return label
 
 

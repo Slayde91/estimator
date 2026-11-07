@@ -37,6 +37,15 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await fillProjectDetails(page,{'client':'Current estimate client'});await fillProjectDetails(page,{'site-address':'Current estimate address'});await expect(page.locator('#project-no')).toHaveAttribute('readonly','');const firstSave=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/save-as');await clickProjectControl(page,'Save');assert.equal((await firstSave).status(),200);await idle();await expect(page.locator('#project-no')).toHaveValue('PN-00001');
   await certification();
   await expect(page.locator('#certification-document')).toHaveValue('__draft__');
+  const selector=page.locator('#certification-document');
+  const compactSelector=await selector.boundingBox();
+  assert.ok(compactSelector.width<400,'Certificate choices use their intrinsic width rather than the full card');
+  await page.setViewportSize({width:390,height:900});
+  await selector.evaluate(select=>{const option=document.createElement('option');option.value='qa-long-label';option.textContent='A deliberately long saved certificate description that must stay inside the card';select.append(option);});
+  const boundedSelector=await selector.boundingBox();
+  assert.ok(boundedSelector.x>=0&&boundedSelector.x+boundedSelector.width<=390,'Long certificate labels remain bounded on phones');
+  await selector.evaluate(select=>select.querySelector('[value="qa-long-label"]').remove());
+  await page.setViewportSize({width:1084,height:900});
   await expect(page.locator('#certification-client')).toHaveValue('Current estimate client');
   await expect(page.locator('#certification-address')).toHaveValue('Current estimate address');
   await expect(page.locator('#certification-exclusions')).toHaveValue('Project No.: PN-00001');

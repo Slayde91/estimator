@@ -10,13 +10,14 @@ const { clickProjectControl } = require('./project_actions.cjs');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `markup-downloads-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
 const hash = file => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+const drawingFonts = Object.fromEntries(['Regular','Bold','Italic','BoldItalic'].map(face=>[face,'static/fonts/Montserrat-'+face+'.ttf']));
 const sourceFiles = ['static/takeoffs.js','static/takeoff-physical.js','static/takeoffs.css','static/downloads.js','static/app.js',
   'estimator/takeoff_markup_exports.py','estimator/takeoff_markup_pdf.py','estimator/takeoff_markup_pdf_worker.py',
   'estimator/takeoff_exports.py','estimator/takeoff_physical_markers.py','estimator/takeoff_workspace.py','estimator/takeoff_http.py',
   'estimator/download_files.py','estimator/download_progress.py','tests/test_takeoff_physical_ui.cjs',
   'tests/browser/markup_downloads.cjs','tests/browser/native_download_helpers.cjs','tests/browser/viewer_helpers.cjs',
   'tests/browser/settings_helpers.cjs','tests/browser/project_actions.cjs','tests/browser/section_navigation.cjs','tests/browser/fixtures.py',
-  'static/fonts/Vera.ttf','static/fonts/VeraBd.ttf','data/calculator.json','data/penetration.json.gz'];
+  'estimator/pdf_fonts.py',...Object.values(drawingFonts),'data/calculator.json','data/penetration.json.gz'];
 const beforeHashes = Object.fromEntries(sourceFiles.map(file => [file, hash(path.join(root, file))]));
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname,'fixtures.py'),'--directory',output], { cwd:root, windowsHide:true });
 let logs='', browser, page, origin, info, current;
@@ -140,7 +141,7 @@ async function download(kind, label, scope, held=false){
     const result=await download('current-all','Download Full Markup',`steel-zoom-${zoom}`);const actualZoom=result.request.rendering[doc.id].zoom;
     const physicalWidth=(doc.pages[0].view[2]-doc.pages[0].view[0])*doc.pages[0].user_unit;
     assert.ok(Math.abs(actualZoom-zoom)*physicalWidth<.01,'Native wheel zoom agrees with the rendered page within0.01CSSpx');
-    evidence.checks.push({zoom:actualZoom,requestedZoom:zoom,fontAssets:{regular:beforeHashes['static/fonts/Vera.ttf'],bold:beforeHashes['static/fonts/VeraBd.ttf']},labels,pdf:result.path});
+    evidence.checks.push({zoom:actualZoom,requestedZoom:zoom,fontAssets:Object.fromEntries(Object.entries(drawingFonts).map(([face,file])=>[face,beforeHashes[file]])),labels,pdf:result.path});
   }
   current=await(await page.request.get(`${origin}/api/takeoffs/sessions/${sid}`)).json();
   await command('review_items',{item_ids:[steel.id]});await command('confirm_items',{item_ids:[steel.id]});

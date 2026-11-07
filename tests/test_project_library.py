@@ -947,7 +947,9 @@ class ProjectLibraryTests(unittest.TestCase):
         for name in ("First.cf.json", "Second.cf.json"):
             (self.folder / name).write_bytes(self.payload)
         self.store.set_project_folder(self.folder)
-        with patch("estimator.project_library.MAX_LIST_BYTES", len(self.payload) + 1):
+        # Exercise byte-budget deferral even if reading the first file is slow.
+        with (patch("estimator.project_library.MAX_LIST_BYTES", len(self.payload) + 1),
+              patch("estimator.project_library.MAX_SCAN_SECONDS", float("inf"))):
             self.assertTrue(self.library.listing()["scan_pending"])
             deferred = self.library._scan["deferred"]
             self.assertIsNotNone(deferred)

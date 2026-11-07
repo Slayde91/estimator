@@ -63,7 +63,7 @@ async function snapshot(){await idle();return page.evaluate(()=>({project:window
   if(locale==='en')await expect(page.locator('#estimate-heading')).toHaveText('Estimate');
   if(locale==='zh-Hans'){
    await expect(page.locator('#estimate-heading')).toHaveText('估算');
-   await expect(page.locator('#view-estimate .calculator-document-toggle')).toContainText('文件');
+   await expect(page.locator('#view-estimate').getByRole('button', {name: '文件', exact: true})).toHaveText('文件');
    await expect(page.locator('#main-panel-materials > p.helper')).toHaveCount(0);
    const previousOutput=await page.locator('#main-output-tabs [aria-selected="true"]').getAttribute('id');
    await page.evaluate(()=>window.CeasefirePenetrationNavigation.showSchedule());

@@ -887,9 +887,11 @@ class CommercialDocuments:
                 renderer = render_commercial_pdf
             else:
                 renderer = self.renderer
-            pdf = renderer(document, label, company=company, scope_documents=scopes)
-            if kind == 'work_order':
-                pdf = self.files.append_pdf(pdf, project, document['fields'].get('files', []))
+            render_options = {'company': company, 'scope_documents': scopes}
+            files = document['fields'].get('files', [])
+            if files:
+                render_options['append_files'] = lambda writer: self.files.append_to(writer, project, files)
+            pdf = renderer(document, label, **render_options)
             if not isinstance(pdf, bytes) or not pdf.startswith(b'%PDF-') or len(pdf) > MAX_PDF_BYTES:
                 raise ValidationError('Generated commercial PDF is invalid or exceeds 64 MiB.')
             document['last_number'] = label

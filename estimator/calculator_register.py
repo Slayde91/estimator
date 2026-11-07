@@ -147,7 +147,7 @@ def _schedule(data, workbook):
         labels.append('Calculation Notes')
         widths.append(48)
         for values, item in zip(records, data['rows']):
-            values.append(item['calculation_notes'])
+            values.append(item.get('calculation_notes', ''))
     sheet = _sheet(workbook, 'Schedule', data['title'] + ' — Schedule', widths)
     _band(sheet, 3, f"{len(records)} used schedule items. {data['incomplete_rows']} item(s) have incomplete or unavailable primary quantities.", len(widths))
     _table(sheet, 5, labels, records, widths, formats={1: '0'}, filtered=True)

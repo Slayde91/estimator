@@ -297,7 +297,7 @@ def _build(story, document, number, company, *, first_part=False):
     return output.getvalue()
 
 
-def render_commercial_pdf(document, number, *, company, scope_documents=None):
+def render_commercial_pdf(document, number, *, company, scope_documents=None, append_files=None):
     register_pdf_fonts()
     fields = validate_fields(document['fields'])
     kind = document['kind']
@@ -382,8 +382,11 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None):
     writer = PdfWriter()
     for part in parts:
         writer.append(PdfReader(BytesIO(part)))
+    original_pages = append_files(writer) if append_files else set()
     count = len(writer.pages)
     for index, page in enumerate(writer.pages, 1):
+        if index - 1 in original_pages:
+            continue
         footer = BytesIO()
         width, height = float(page.mediabox.width), float(page.mediabox.height)
         overlay = canvas.Canvas(footer, pagesize=(width, height))

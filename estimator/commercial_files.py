@@ -129,10 +129,9 @@ class WorkOrderFiles:
                 raise ValidationError('The work order companion file has the wrong size.')
             _put(target, digest, payload)
 
-    def append_pdf(self, pdf, project, items):
-        if not items:
-            return pdf
-        from pypdf import PdfReader, PdfWriter
+    def append_to(self, result, project, items):
+        """Append printable pages and originals; return page indices belonging to source PDFs."""
+        from pypdf import PdfReader
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.utils import ImageReader
         from reportlab.lib.styles import ParagraphStyle
@@ -142,7 +141,7 @@ class WorkOrderFiles:
         from .pdf_cover import _check_passive_content
         from .pdf_fonts import FONT_REGULAR, FONT_BOLD, register_pdf_fonts
         register_pdf_fonts()
-        result = PdfWriter(clone_from=BytesIO(pdf))
+        original_pages = set()
         for item in items:
             payload = self.read(project, item)
             source = None
@@ -157,6 +156,7 @@ class WorkOrderFiles:
                     source = None
             if source is not None:
                 for page in source.pages:
+                    original_pages.add(len(result.pages))
                     result.add_page(page)
                 continue
             image = None
@@ -184,6 +184,4 @@ class WorkOrderFiles:
                 image.close()
             page.save()
             result.add_page(PdfReader(BytesIO(buffer.getvalue())).pages[0])
-        output = BytesIO()
-        result.write(output)
-        return output.getvalue()
+        return original_pages

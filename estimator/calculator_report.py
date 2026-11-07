@@ -562,7 +562,7 @@ class _ScheduleReport(_Report):
             report = self.p(UNAVAILABLE_RESULT, 'cell') if item.get('result_unavailable') else self.report_links(item['report_references'])
             cells.insert(position, report)
             if steel:
-                cells.append(self.p(item['calculation_notes'], 'cell'))
+                cells.append(self.p(item.get('calculation_notes', ''), 'cell'))
         return heads, rows, fractions
 
     def schedule(self, *, portrait=False, quote_scope=False):

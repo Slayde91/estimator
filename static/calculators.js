@@ -2534,7 +2534,7 @@ window.CeasefireScheduleColumns = (() => {
           groupWidths[index] = Math.max(96, ...values.map(value => columnTextWidth(value, column === 1) + 30));
         }
       }
-      if (showReports) groupWidths.splice(groupColumns.includes(reportBefore) ? groupColumns.indexOf(reportBefore) : groupWidths.length, 0, ...(showCalculationNotes ? [144, 235] : [144]));
+      if (showReports) groupWidths.splice(groupColumns.includes(reportBefore) ? groupColumns.indexOf(reportBefore) : groupWidths.length, 0, ...(showCalculationNotes ? [144, 224] : [144]));
       if (boardSummary && definition?.first_row === 11 && groupColumns.includes(10)) groupWidths.splice(groupColumns.indexOf(10), 0, columnTextWidth(window.CeasefireI18n.translate("Net Steel sqm"), true) + 30);
       if (syntheticLine) groupWidths.unshift(lineWidth);
       if (dynamicSchedule) groupWidths.push(80);

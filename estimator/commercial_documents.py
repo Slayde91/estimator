@@ -552,7 +552,8 @@ class CommercialDocuments:
                 FROM commercial_issued i JOIN
                     (SELECT project_id,MAX(rowid) AS last_row FROM commercial_issued GROUP BY project_id) latest
                 ON i.rowid=latest.last_row""").fetchall()
-        return [(r['project_id'], ' · '.join(s for s in (r['number'],r['client']) if s) or 'Previously issued project') for r in rows]
+        return [(r['project_id'], ' · '.join(s for s in (r['number'],r['client']) if s))
+                for r in rows if r['number'] and r['number'].strip()]
 
     def apply_register_numbers(self, cards):
         with self._connect() as db:

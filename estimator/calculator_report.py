@@ -552,8 +552,9 @@ class _ScheduleReport(_Report):
                 cells.pop()
         position = len(heads)
         heads.insert(position, 'Report')
-        fractions.append(.12)
         steel = data['id'].startswith('steel_')
+        # Keep short assessment references and their edition together when notes are present.
+        fractions.append(.15 if steel else .12)
         if steel:
             heads.append('Calculation Notes')
             fractions.append(.18)

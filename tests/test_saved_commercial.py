@@ -157,6 +157,18 @@ class SavedQuoteTests(unittest.TestCase):
         with self.assertRaises(CommercialConflict):
             self.saved.perform('open',{'source':{**self.source,'revision':sha256(self.path.read_bytes()).hexdigest()},'id':self.document['id']},self.http.execute)
 
+    def test_stale_sqlite_drafts_do_not_become_board_cards_after_deletion(self):
+        # The session still contains the earlier draft, but the authoritative
+        # saved file now has an empty commercial manifest.
+        snapshot = json.loads(self.path.read_bytes())
+        snapshot['commercial_documents']['documents'] = []
+        self.path.write_text(json.dumps(snapshot), encoding='utf8')
+        result = self.library.commercial_register(refresh=True)
+        while result['scan_pending']:
+            result = self.library.commercial_register()
+        self.assertEqual(result['documents'],[])
+        self.assertEqual(result['unavailable_sources'],[])
+
     def test_retry_after_each_file_boundary_reuses_the_number_and_pdf(self):
         args = {'id': self.document['id'], 'version': 1, 'kind': 'quote', 'request_id': str(uuid.uuid4())}
         original = self.path.read_bytes()

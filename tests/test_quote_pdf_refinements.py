@@ -179,6 +179,17 @@ class QuotePdfRefinementTests(unittest.TestCase):
         for removed in ('Calculation Notes', 'Status / estimating basis', 'PRIVATE-CALCULATION-NOTE', 'PRIVATE-STATUS-BASIS'):
             self.assertNotIn(removed, content)
 
+    def test_direct_renderer_with_arbitrary_scope_pdf_keeps_custom_prose(self):
+        fields = default_fields('quote', {}, DEFAULTS)
+        fields['scope'] = '<p>DIRECT-CUSTOM-EXCLUSION remains part of this quotation.</p>'
+        fields['terms'] = '<p>Agreed terms.</p>'
+        scope = build_project_report({'steel_board': calculators()['steel_board']}, None, {}, {}, quote_scope=True)
+        payload = render_commercial_pdf({'kind': 'quote', 'fields': fields}, 'Q-DIRECT',
+                                       company=DEFAULTS, scope_documents=[scope])
+        text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(payload)).pages)
+        self.assertEqual(text.count('DIRECT-CUSTOM-EXCLUSION'), 1)
+        self.assertRegex(text, r'\bBoard\s+fixture\b')
+
     def test_board_rows_paginate_vertically_with_every_column_repeated(self):
         inputs = {}
         for index in range(24):

@@ -119,5 +119,13 @@ async function check(name,fn){const h=harness();await h.api.open();await fn(h);c
     assert.equal(h.api.hasUnsavedChanges(),true);h.override(null);await h.api.saveAll();
     assert.equal(h.calls.filter(call=>call.body&&call.path.endsWith('certification')).length,1);
   });
+  await check('Trash cancels a conflicted new upload without trapping main Save or deleting another window cover',async h=>{
+    await h.upload('certification');
+    Object.assign(h.records.get('certification'),{cover_pdf:cover+'X',cover_pdf_name:'Other window.pdf',version:2});
+    await assert.rejects(h.api.saveAll());await h.remove('certification');
+    assert.equal(h.api.hasUnsavedChanges(),false);const posts=h.calls.filter(call=>call.body).length;
+    await h.api.saveAll();assert.equal(h.calls.filter(call=>call.body).length,posts);
+    assert.equal(h.records.get('certification').cover_pdf_name,'Other window.pdf');
+  });
   console.log(checks+' cover-sheet UI checks passed.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -1,6 +1,7 @@
 """Combined project PDFs from captured drafts, using the existing report engines."""
 
 from io import BytesIO
+from hashlib import sha256
 
 from pypdf import PdfReader, PdfWriter
 
@@ -58,7 +59,12 @@ def build_project_report(calculators, penetration, configuration, project_detail
     writer = PdfWriter()
     for title, payload in parts:
         writer.append(PdfReader(BytesIO(payload)), outline_item=title)
-    writer.add_metadata({'/Title': report_title, '/Author': 'CLASSIFIRE'})
+    metadata = {'/Title': report_title, '/Author': 'CLASSIFIRE'}
+    if quote_scope and scope_intro and scope_intro.get('source_scope'):
+        # Bind this generated scope's preamble decision to the exact saved
+        # source. Direct PDF renderer callers can then preserve other prose.
+        metadata['/ClassifireScopeSHA256'] = sha256(scope_intro['source_scope'].encode('utf-8')).hexdigest()
+    writer.add_metadata(metadata)
     output = BytesIO()
     writer.write(output)
     return output.getvalue()

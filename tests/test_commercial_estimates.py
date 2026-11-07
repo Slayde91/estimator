@@ -10,6 +10,9 @@ from pypdf import PdfReader
 
 from estimator.catalog import ValidationError
 from estimator.commercial_estimates import derive_estimates
+from estimator.commercial_documents import default_fields
+from estimator.commercial_pdf import render_commercial_pdf
+from estimator.company_settings import DEFAULTS
 from estimator.storage import Store
 
 
@@ -67,6 +70,47 @@ class CommercialEstimateTests(unittest.TestCase):
         request['estimates'][1]['name'] = 'Renamed scope'
         renamed = derive_estimates(self.store, request)
         self.assertNotEqual(changed['sources'], renamed['sources'])
+
+    def test_custom_legacy_scope_is_preserved_once_with_first_schedule_across_estimates(self):
+        request = self.request()
+        request['estimates'][1]['workspace']['calculators'] = {
+            'steel_board': {'inputs': {'CALCULATOR': {'A9': 'Second captured member'}}}}
+        request['selected_ids'] = ['estimate-1', 'estimate-2']
+        custom = '<p><b>EXCLUDED-ACCESS</b>: scaffold by client.</p><ul><li>Retain existing ceiling.</li></ul>'
+        request['fields'] = {'scope': custom}
+        before = deepcopy(request)
+        derived = derive_estimates(self.store, request, include_pdfs=True, company=DEFAULTS)
+        fields = default_fields('quote', {}, DEFAULTS)
+        fields.update(scope=custom, lines=derived['lines'], sources=derived['sources'], scope_tables=derived['scope_tables'])
+        fields['terms'] = '<p>Agreed terms.</p>'
+        payload = render_commercial_pdf({'kind': 'quote', 'fields': fields}, 'Q-CUSTOM', company=DEFAULTS,
+            scope_documents=[item['pdf'] for item in derived['scope_documents']])
+        pages = [' '.join(page.extract_text().split()) for page in PdfReader(BytesIO(payload)).pages]
+        combined = '\n'.join(pages)
+        self.assertEqual(combined.count('EXCLUDED-ACCESS'), 1)
+        self.assertEqual(combined.count('Retain existing ceiling.'), 1)
+        first_scope = next(page for page in pages if 'SCOPE OF WORKS' in page)
+        for retained in ('EXCLUDED-ACCESS', 'scaffold by client.', 'Line', 'Report', 'Captured member'):
+            self.assertIn(retained, first_scope)
+        self.assertIn('Second captured member', combined)
+        self.assertEqual(len(derived['scope_documents']), 2)
+        self.assertEqual(request, before)
+
+    def test_generated_name_only_scope_does_not_repeat_estimate_heading(self):
+        for name in ('Fire protection', "O'Brien & Sons"):
+            with self.subTest(name=name):
+                request = self.request()
+                request['estimates'][0]['name'] = name
+                request['fields'] = {'scope': derive_estimates(self.store, request)['scope']}
+                result = derive_estimates(self.store, request, include_pdfs=True)
+                text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(result['scope_documents'][0]['pdf'])).pages)
+                self.assertEqual(text.count(name), 1)
+
+    def test_scope_preamble_rejects_untrusted_rich_markup_before_pdf_generation(self):
+        request = self.request()
+        request['fields'] = {'scope': '<p onclick="alert(1)">Unsafe</p>'}
+        with self.assertRaises(ValidationError):
+            derive_estimates(self.store, request, include_pdfs=True)
 
     def test_missing_and_duplicate_estimate_links_are_rejected(self):
         for selected in (['missing'], ['estimate-1', 'estimate-1'], [None]):

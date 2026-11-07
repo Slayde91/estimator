@@ -52,6 +52,9 @@
     file.addEventListener('change',()=>upload(row));remove.addEventListener('click',()=>{
       if(row.remove.disabled)return;
       row.draft=row.current.has_cover?null:undefined;row.name='';row.revision++;
+      // Cancelling a new upload leaves no operation to reconcile. A cover
+      // created by another window must not become an implicit deletion.
+      if(row.draft===undefined)row.conflicted=false;
       message(row.notice,changed(row)?'Unsaved changes':'');render(row);
     });render(row);return row;
   }

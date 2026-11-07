@@ -3,6 +3,7 @@ from html import escape, unescape
 from html.parser import HTMLParser
 from io import BytesIO
 from decimal import Decimal
+from hashlib import sha256
 import re
 
 from pypdf import PdfReader, PdfWriter
@@ -316,6 +317,14 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
         _totals(story, fields, styles)
         _rates(story, fields['rate_schedule'], styles)
         if scope_documents:
+            scope_hash = sha256(fields['scope'].encode('utf-8')).hexdigest()
+            embedded_scope = PdfReader(BytesIO(scope_documents[0])).metadata or {}
+            if fields['scope'] and embedded_scope.get('/ClassifireScopeSHA256') != scope_hash:
+                # Arbitrary supplied PDFs cannot be reflowed. Preserve the
+                # caller's custom scope before them rather than dropping it.
+                # App-generated scopes already include it with their table.
+                _section(story, 'SCOPE OF WORKS', styles)
+                story.extend(_rich(fields['scope'], styles['body']))
             # Generated schedules carry their own scope heading and estimate
             # name. A separate introductory PDF would force a blank remainder
             # of the page before the first schedule.

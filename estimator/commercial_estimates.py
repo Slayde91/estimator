@@ -9,10 +9,12 @@ from html import escape
 from decimal import Decimal, ROUND_HALF_UP
 import json
 import math
+import re
 
 from .calculator_report import project_calculator_report, calculator_schedule_table
 from .catalog import ValidationError
 from .commercial_documents import linked_estimate_ids
+from .commercial_documents import validate_rich_text
 from .edition import require_project_edition
 from .penetration_calculator import calculate as calculate_penetration, definition
 from .penetration_report import penetration_schedule_table
@@ -67,6 +69,21 @@ def derive_estimates(store, body, *, edition='full', company=None, library=None,
     if (not isinstance(selected, list) or any(not isinstance(identity, str) for identity in selected)
             or len(set(selected)) != len(selected) or any(identity not in available for identity in selected)):
         raise ValidationError('Choose each linked estimate once from the current project.')
+    scope_source = ''
+    preamble = ''
+    if include_pdfs:
+        fields = body.get('fields', {})
+        if not isinstance(fields, dict):
+            raise ValidationError('Include the Quote Summary fields.')
+        scope_source = validate_rich_text(fields.get('scope', ''), 'Scope')
+        # The historical default repeats the selected estimate names. Keep
+        # custom exclusions and qualifications, but do not print those names
+        # twice now that each schedule has its own estimate heading.
+        generated = ''.join(re.escape(validate_rich_text('<p><b>' + escape(available[identity]['name']) + '</b></p>', 'Scope')) +
+            '(?:<p>No calculator schedule rows have been entered for this estimate\\.</p>)?'
+            for identity in selected)
+        if scope_source and re.fullmatch(generated, scope_source) is None:
+            preamble = scope_source
     output = {'lines': [], 'scope': '', 'scope_tables': [], 'scope_groups': [], 'sources': [], 'scope_documents': []}
     paragraphs = []
     for identity in selected:
@@ -108,7 +125,9 @@ def derive_estimates(store, body, *, edition='full', company=None, library=None,
             document = build_project_report(calculators,
                 project.get('penetration', {}).get('draft'), project['estimate']['configuration'],
                 project['project_details'], company=company, library=library, portrait=True, quote_scope=True,
-                scope_intro={'name': item['name'], 'heading': not output['scope_documents']})
+                scope_intro={'name': item['name'], 'heading': not output['scope_documents'],
+                             'preamble': preamble if not output['scope_documents'] else '',
+                             'source_scope': scope_source if not output['scope_documents'] else ''})
             output['scope_documents'].append({'estimate_id': identity, 'name': item['name'], 'pdf': document})
     output['scope'] = ''.join(paragraphs)
     return output

@@ -19,6 +19,12 @@ def append_scope_intro(report, intro):
         note = report.p('The following Full Schedules form the Scope of Works for this quotation.')
         note.keepWithNext = True
         report.story.append(note)
+    if intro.get('preamble'):
+        # Reuse the commercial renderer's safe, validated rich-text conversion
+        # so legacy exclusions retain their emphasis and list structure.
+        from .commercial_documents import validate_rich_text
+        from .commercial_pdf import _rich
+        report.story.extend(_rich(validate_rich_text(intro['preamble'], 'Scope'), report.styles['body']))
     name = report.p(intro['name'], 'subheading')
     name.keepWithNext = True
     report.story.append(name)

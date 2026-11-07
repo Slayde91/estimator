@@ -188,6 +188,8 @@ function assertSubsetMove(before, after, memberIds, drag) {
   }
 }
 async function download(label, name) {
+  // The saved-file receipt can arrive before the previous export releases the workspace.
+  await idle();
   const pending = waitForTakeoffDownload(page); pending.catch(() => {});
   const response = page.waitForResponse(value => value.url().endsWith(label === 'Download PDF' ? '/export/marked-pdf' : '/export/register-xlsx'), {timeout:180000}); response.catch(() => {});
   if (label === 'Download PDF') await page.evaluate(() => window.CeasefireTakeoffs.downloadDrawing()); else { await page.getByRole('button', { name: 'Takeoff register document actions', exact: true }).click(); await page.getByRole('button', { name: 'Download all items', exact: true }).click(); }

@@ -326,8 +326,13 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
             _section(story, 'SCOPE OF WORKS', styles)
             story.extend(_rich(fields['scope'], styles['body']))
             for table in fields['scope_tables']:
+                columns = [index for index, header in enumerate(table['headers'])
+                           if header.strip().casefold() not in {'calculation notes', 'status / estimating basis'}]
+                if not columns:
+                    continue
                 _section(story, table['title'], styles)
-                story.append(_table(table['headers'], table['rows'], styles))
+                story.append(_table([table['headers'][index] for index in columns],
+                                    [[row[index] for index in columns] for row in table['rows']], styles))
         _section(story, 'ALLOWANCES', styles)
         story.extend(_rich(fields['allowances'], styles['body']) or [_paragraph('—', styles['body'])])
         reference = fields['company_reference']

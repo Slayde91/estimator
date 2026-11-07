@@ -2864,5 +2864,11 @@
   "Create Quote": "قیمت کی پیشکش بنائیں",
   "Create SWMS": "SWMS بنائیں",
   "Rename": "نام تبدیل کریں",
-  "Select estimate": "تخمینہ منتخب کریں"
+  "Select estimate": "تخمینہ منتخب کریں",
+  "Leads": "ممکنہ گاہک",
+  "Accounts": "گاہکوں کے کھاتے",
+  "Ignore deleted project": "حذف شدہ منصوبے کو نظر انداز کریں",
+  "Ignore project source": "منصوبے کے ماخذ کو نظر انداز کریں",
+  "Stop looking for this project's saved file and hide its unavailable-file notice? Issued document history is retained.": "کیا اس منصوبے کی محفوظ شدہ فائل تلاش کرنا بند کر کے فائل دستیاب نہ ہونے کا نوٹس چھپا دیں؟ جاری کردہ دستاویزات کی تاریخ محفوظ رہے گی۔",
+  "Project source ignored.": "منصوبے کے ماخذ کو نظر انداز کر دیا گیا۔"
 }

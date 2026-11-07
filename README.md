@@ -284,13 +284,24 @@ successful save. **Settings → Project Details** sets the prefix and starting
 number for future projects; issued numbers are not reused. Existing and imported
 references remain unchanged, and Save As preserves the same project identity.
 The Client field suggests names from saved project files and also accepts a new
-name.
+name. Project number, Client and Site Address are edited in the Projects
+subpage; the Estimate page retains its area and notes. Contacts also exposes
+Leads, Contacts and Accounts through the header menu. Converting a lead opens
+its saved project in Estimates, with the normal review if another project has
+unsaved work.
+
+Newly generated PDF schedules and product summaries use portrait pages. Quote
+scope introductions flow into their first schedule. PDF tables omit calculation
+notes and estimating-status columns; calculator screens and Excel registers
+retain their detailed evidence and status. Issued historical PDFs remain unchanged.
 
 Certification documents belong to the open project. The certificate selector
 lists only that project's certificates. The older-certificate picker is removed;
 new projects start with an empty certificate list. Shared
 signer details, the saved drawn signature and Documentation cover sheets remain
-available across projects. Save the project to retain certificate drafts and
+available across projects. Cover-sheet uploads and removals are drafts until
+the main Save button is used. Leaving Documentation asks whether to discard
+these changes (Cancel or Yes). Save the project to retain certificate drafts and
 revisions. When copying a project, also copy the adjacent `.ceasefire-evidence`
 folder: certificate PDFs use verified, immutable companions there, as Takeoffs
 originals already do. Native Load always requires this companion and rejects a

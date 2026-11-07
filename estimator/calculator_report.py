@@ -659,7 +659,12 @@ class _ScheduleReport(_Report):
                         value = 'N/A'
                     formatted.append(self.numeric(value, blank='-', percent=data['id'] in {'steel_vermiculite', 'steel_intumescent'} and column == 'F') if _numeric(value) else self.p(self.display(value, blank='-'), 'cell'))
                 rows.append(formatted)
-            material_table = self.table([labels[column] for column in columns], rows, widths, compact=True)
+            from .quote_schedule import fitted_column_widths
+            headings = [labels[column] for column in columns]
+            widths = fitted_column_widths([self.p(heading, 'head') for heading in headings], rows, widths)
+            material_table = self.table(headings, rows, widths, compact=True)
+            material_table.setStyle(TableStyle([('LEFTPADDING', (0, 0), (-1, -1), 2),
+                                               ('RIGHTPADDING', (0, 0), (-1, -1), 2)]))
             # Keep the steel counting basis with its table instead of orphaning
             # the explanation on a nearly empty continuation page.
             if data.get('board_net_steel_areas'):

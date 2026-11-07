@@ -111,7 +111,7 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
   await page.route('**/api/project/save', async route => { captured = route.request().postDataJSON(); entered.resolve(); await release.promise; const reply = await route.fetch(); await route.fulfill({ response: reply }); });
   const heldSave = response(() => clickProjectControl(page, 'Save'), '/api/project/save'); heldSave.catch(() => {}); await Promise.race([entered.promise, heldSave]);
   await expect(page.locator('#project-save-state')).toHaveText('Working…'); await headerTitle(savedTitle);
-  await fillProjectDetails(page,{'client':'Later unsaved client'}); await headerTitle(savedTitle); assert.deepEqual(fs.readFileSync(info.project), beforeSavedFile);
+  await fillProjectDetails(page,{'client':'Later unsaved client'}, {waitForIdle:false}); await headerTitle(savedTitle); assert.deepEqual(fs.readFileSync(info.project), beforeSavedFile);
   release.resolve(); const heldReply = await heldSave; await idle(); await page.unroute('**/api/project/save'); releaseHeld = null;
   await headerTitle(captured.estimate.title); await expect(page.locator('#project-save-state')).toHaveText('Unsaved changes'); await expect(page.locator('#client')).toHaveValue('Later unsaved client');
   assert.equal(heldReply.file.title, captured.estimate.title); assert.equal(JSON.parse(fs.readFileSync(info.project)).estimate.client, 'Captured save client');

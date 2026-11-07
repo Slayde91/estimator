@@ -2864,5 +2864,11 @@
   "Create Quote": "কোটেশন তৈরি করুন",
   "Create SWMS": "SWMS তৈরি করুন",
   "Rename": "নাম পরিবর্তন করুন",
-  "Select estimate": "প্রাক্কলন নির্বাচন করুন"
+  "Select estimate": "প্রাক্কলন নির্বাচন করুন",
+  "Leads": "সম্ভাব্য গ্রাহক",
+  "Accounts": "গ্রাহক অ্যাকাউন্ট",
+  "Ignore deleted project": "মুছে ফেলা প্রকল্প উপেক্ষা করুন",
+  "Ignore project source": "প্রকল্পের উৎস উপেক্ষা করুন",
+  "Stop looking for this project's saved file and hide its unavailable-file notice? Issued document history is retained.": "এই প্রকল্পের সংরক্ষিত ফাইল খোঁজা বন্ধ করে ফাইল না পাওয়ার বিজ্ঞপ্তি লুকাবেন? জারি করা নথির ইতিহাস রাখা হবে।",
+  "Project source ignored.": "প্রকল্পের উৎস উপেক্ষা করা হয়েছে।"
 }

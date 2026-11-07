@@ -99,7 +99,10 @@ class FiretexExportTests(unittest.TestCase):
             text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(builder('steel_intumescent', values))).pages)
             for name in PRODUCTS:
                 self.assertIn(name, text)
-            self.assertIn('incomplete' if builder == build_calculator_summary_report else 'DFT', text)
+            if builder == build_calculator_summary_report:
+                self.assertIn('Unresolved material requirements: FIRETEX FX6010 (1 schedule item(s)).', text)
+            else:
+                self.assertIn('DFT', text)
             self.assertNotIn('dataset SHA-256', text)
         workbook = load_workbook(BytesIO(build_calculator_register('steel_intumescent', values)))
         record = next(row for row in workbook['Summary'] if row[0].value == PRODUCTS[1])

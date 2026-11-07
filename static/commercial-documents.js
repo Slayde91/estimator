@@ -315,7 +315,8 @@
           ? `${source.title} — the saved file could not be read at ${source.path}`
           : `${source.title} — CLASSIFIRE has issued document history for this project but has no current saved file for it.`;
         const item = node("li", "", description);
-        if (source.id) item.append(button("Ignore deleted project", async () => {
+        if (source.id) {
+          const ignore = button("Ignore deleted project", async () => {
           if (state.busy) return;
           const accepted = await window.CeasefireDialogs.confirm("Ignore project source", "Stop looking for this project's saved file and hide its unavailable-file notice? Issued document history is retained.", "Yes", "Cancel");
           if (!accepted) return;
@@ -324,16 +325,23 @@
             await request("ignore-source", {workspace_id: state.workspace, id: source.id});
             if (await load()) {
               renderBoard(); message("Project source ignored.");
-              root().querySelector(".commercial-message")?.append(button("Undo", async () => {
+              const notice = root().querySelector(".commercial-message");
+              if (notice?.firstChild) window.CeasefireI18n?.text(notice.firstChild, "Project source ignored.");
+              const undo = button("Undo", async () => {
                 try {
                   await request("restore-source", {workspace_id: state.workspace, id: source.id});
                   if (await load()) renderBoard();
                 } catch (error) { message(error.message, true); }
-              }));
+              });
+              undo.setAttribute("data-i18n", "Undo");
+              notice?.append(undo);
             }
           } catch (error) { message(error.message, true); }
           finally { state.busy = false; }
-        }));
+          });
+          ignore.setAttribute("data-i18n", "Ignore deleted project");
+          item.append(ignore);
+        }
         missing.append(item);
       }
       notice.append(missing,node("p","","To show its current documents, use Projects → Load to open the project's .cf.json file, or link the folder containing it."));

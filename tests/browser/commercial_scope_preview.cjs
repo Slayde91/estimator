@@ -29,7 +29,7 @@ const ready = new Promise((resolve, reject) => {
 });
 const errors = [], checks = [];
 const headers = ['Line', 'Item / mark', 'Location', 'Product', 'Section', 'Design min / °C',
-  'Board stack mm', 'Total thickness mm', 'Box ref. m²', 'Net board m²', 'With waste m²', 'Sheets / line', 'Report', 'Calculation Notes'];
+  'Board stack mm', 'Total thickness mm', 'Box ref. m²', 'Net board m²', 'With waste m²', 'Sheets / line', 'Report'];
 async function idle() {
   await page.waitForFunction(() => {const value = window.CeasefireDesktop?.status(); return value?.ready && !value.busy;});
 }

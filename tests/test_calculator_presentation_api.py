@@ -420,7 +420,9 @@ class CalculatorPresentationApiTests(unittest.TestCase):
                             if identity != "steel_board":
                                 self.assertIn("12.35", text)
                             else:
-                                self.assertIn("Net board", text)
+                                # Portrait headings wrap between whole words.
+                                # Require both words and the unit, in order.
+                                self.assertRegex(text, r"\bNet\s+board\s+m²\b")
                         else:
                             self.assertNotIn("Full schedule", text)
                             self.assertNotIn("".join(marker.split()), compact_text)
@@ -548,8 +550,8 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         text = " ".join(" ".join(page.extract_text() for page in PdfReader(BytesIO(payload)).pages).split())
         self.assertIn("ZERO LENGTH REVIEW", text)
         self.assertIn("LAST ITEM REVIEW", text)
-        self.assertIn("2 used schedule items", text)
-        self.assertIn("2 item(s) have incomplete or unavailable primary quantities", text)
+        self.assertNotIn("used schedule items", text)
+        self.assertNotIn("incomplete or unavailable primary quantities", text)
         self.assertIn("Not available", text)
         self.assertEqual(self.stored_rows(), before)
 

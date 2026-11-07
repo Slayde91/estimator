@@ -2864,5 +2864,11 @@
   "Create Quote": "Créer un devis",
   "Create SWMS": "Créer un SWMS",
   "Rename": "Renommer",
-  "Select estimate": "Sélectionner une estimation"
+  "Select estimate": "Sélectionner une estimation",
+  "Leads": "Prospects",
+  "Accounts": "Comptes clients",
+  "Ignore deleted project": "Ignorer le projet supprimé",
+  "Ignore project source": "Ignorer la source du projet",
+  "Stop looking for this project's saved file and hide its unavailable-file notice? Issued document history is retained.": "Arrêter de rechercher le fichier enregistré de ce projet et masquer son avis d’indisponibilité ? L’historique des documents émis est conservé.",
+  "Project source ignored.": "Source du projet ignorée."
 }

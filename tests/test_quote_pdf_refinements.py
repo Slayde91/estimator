@@ -167,6 +167,18 @@ class QuotePdfRefinementTests(unittest.TestCase):
                                 'incomplete or unavailable primary quantities'):
                     self.assertNotIn(removed, content)
 
+    def test_legacy_scope_tables_omit_private_notes_and_estimating_basis(self):
+        fields = default_fields('quote', {}, DEFAULTS)
+        fields['scope_tables'] = [{'title': 'Historical schedule',
+            'headers': ['Member', 'Calculation Notes', 'Status / estimating basis', 'Quantity'],
+            'rows': [['RETAINED-MEMBER', 'PRIVATE-CALCULATION-NOTE', 'PRIVATE-STATUS-BASIS', '12']]}]
+        payload = render_commercial_pdf({'kind': 'quote', 'fields': fields}, 'Q-HISTORY', company=DEFAULTS)
+        content = compact('\n'.join(page.extract_text() for page in PdfReader(BytesIO(payload)).pages))
+        self.assertIn('RETAINED-MEMBER', content)
+        self.assertIn('Quantity', content)
+        for removed in ('Calculation Notes', 'Status / estimating basis', 'PRIVATE-CALCULATION-NOTE', 'PRIVATE-STATUS-BASIS'):
+            self.assertNotIn(removed, content)
+
     def test_board_rows_paginate_vertically_with_every_column_repeated(self):
         inputs = {}
         for index in range(24):

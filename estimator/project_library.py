@@ -1170,6 +1170,8 @@ class ProjectLibrary:
         # SQLite commits. Only the exact previously selected file and bytes prove
         # that the file took ownership; an older file at the same path does not.
         def verify(row):
+            if row['project_id'] in self._commercial_sources.ignored_owners():
+                return False
             path = Path(row['path'])
             try:
                 payload, info = _read_file(path)

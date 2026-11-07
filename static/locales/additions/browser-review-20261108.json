@@ -1,0 +1,32 @@
+{
+  "Leads": [
+    "잠재 고객",
+    "Mga potensyal na kliyente",
+    "Khách hàng tiềm năng"
+  ],
+  "Accounts": [
+    "고객 계정",
+    "Mga account ng kliyente",
+    "Tài khoản khách hàng"
+  ],
+  "Ignore deleted project": [
+    "삭제된 프로젝트 무시",
+    "Balewalain ang tinanggal na proyekto",
+    "Bỏ qua dự án đã xóa"
+  ],
+  "Ignore project source": [
+    "프로젝트 원본 무시",
+    "Balewalain ang pinagmulan ng proyekto",
+    "Bỏ qua nguồn dự án"
+  ],
+  "Stop looking for this project's saved file and hide its unavailable-file notice? Issued document history is retained.": [
+    "이 프로젝트의 저장된 파일 검색을 중지하고 파일을 사용할 수 없다는 알림을 숨길까요? 발행된 문서 이력은 유지됩니다.",
+    "Ihinto ang paghahanap sa naka-save na file ng proyektong ito at itago ang abisong hindi available ang file? Mananatili ang kasaysayan ng mga inilabas na dokumento.",
+    "Ngừng tìm tệp đã lưu của dự án này và ẩn thông báo không tìm thấy tệp? Lịch sử tài liệu đã phát hành vẫn được giữ lại."
+  ],
+  "Project source ignored.": [
+    "프로젝트 원본을 무시했습니다.",
+    "Binalewala ang pinagmulan ng proyekto.",
+    "Đã bỏ qua nguồn dự án."
+  ]
+}

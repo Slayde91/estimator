@@ -164,6 +164,10 @@ class SavedQuoteTests(unittest.TestCase):
         self.assertEqual(restored['unavailable_sources'],[])
 
     def test_ignored_sources_are_persistent_and_never_read_again(self):
+        self.perform('issue', id=self.document['id'], version=1, kind='quote', request_id=str(uuid.uuid4()))
+        with self.library.commercial._connect() as db:
+            issued_history = [tuple(row) for row in db.execute('SELECT * FROM commercial_issued ORDER BY id')]
+        self.assertTrue(issued_history)
         empty = self.root / 'empty-linked-folder'
         empty.mkdir()
         self.store.set_project_folder(empty)
@@ -180,6 +184,13 @@ class SavedQuoteTests(unittest.TestCase):
         self.assertTrue(self.library.commercial_source_metadata()['sources'][0]['ignored'])
         owner = self.library._commercial_sources.records()[0][2]
         self.assertIn(owner, CommercialSources(self.store, None).ignored_owners())
+        with self.library.commercial._connect() as db:
+            self.assertEqual([tuple(row) for row in db.execute('SELECT * FROM commercial_issued ORDER BY id')], issued_history)
+        callbacks = []
+        with patch.object(self.library.commercial.unfiled, 'recover_publications', side_effect=lambda verify: callbacks.append(verify({'project_id': owner}))), \
+             patch('estimator.project_library._read_file', side_effect=AssertionError('Ignored recovery must not read')):
+            self.library.recover_commercial_publications()
+        self.assertEqual(callbacks, [False])
         with self.assertRaises(ValidationError):
             self.library.ignore_commercial_source('unknown')
         self.library.ignore_commercial_source(token, ignored=False)

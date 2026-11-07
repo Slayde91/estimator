@@ -2160,9 +2160,9 @@
       calculators: window.CeasefireCalculators.projectFingerprint(), penetration: window.CeasefirePenetrations?.projectFingerprint(), takeoffs: window.CeasefireTakeoffs?.projectFingerprint(), libraryDrafts: window.CeasefireLibraryEditor?.projectFingerprint?.(), certifications: window.CeasefireCertification?.projectFingerprint?.(), documentation:window.CeasefireDocumentation?.projectFingerprint?.() });
   }
 
-  // Cover defaults are global Settings, not part of a saved project. Their
-  // independent stamp protects replacement races without making project Save
-  // capture or clear an unrelated Settings draft.
+  // Cover defaults remain global Settings. Their independent stamp protects
+  // replacement races; the main Save persists their drafts after the project
+  // file succeeds, without embedding cover defaults in that project file.
   function projectReplacementStamp() {
     return JSON.stringify({project:projectStamp(),coverSheets:window.CeasefireCoverSheets?.fingerprint?.()});
   }

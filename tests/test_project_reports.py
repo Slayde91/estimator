@@ -54,7 +54,7 @@ class ProjectReportTests(unittest.TestCase):
                     self.assertIn('combined@example.test', page.extract_text())
                     body = []
                     page.extract_text(visitor_text=lambda text, cm, tm, font, size: body.append(text)
-                                      if 43 < tm[4] * cm[1] + tm[5] * cm[3] + cm[5] < 500 else None)
+                                      if 43 < tm[4] * cm[1] + tm[5] * cm[3] + cm[5] < float(page.mediabox.height) - 90 else None)
                     self.assertTrue(''.join(body).strip(), 'Every combined PDF page includes report content')
                 self.assertIn('FULL-TEST', text)
                 self.assertNotIn('CLASSIFIRE ESTIMATOR |', text)

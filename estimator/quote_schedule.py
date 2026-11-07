@@ -33,9 +33,8 @@ def configure_quote_schedule(report):
             spaceBefore=0, spaceAfter=0, splitLongWords=True)
 
 
-def quote_schedule_table(report, headings, rows, widths, page_height):
-    padding = 2
-    header = [report.p(heading, 'head') for heading in headings]
+def fitted_column_widths(header, rows, widths, padding=2):
+    """Fit short headings and ordinary values before splitting long tokens."""
     # Reserve whole heading words first, using the actual embedded font.
     inset = 2 * padding + .1
     minimums = [cell.minWidth() + inset for cell in header]
@@ -58,6 +57,13 @@ def quote_schedule_table(report, headings, rows, widths, page_height):
     if 0 < shortfall <= spare:
         widths = [max(width, minimum) - max(0, width - minimum) * shortfall / spare
                   for width, minimum in zip(widths, minimums)]
+    return widths
+
+
+def quote_schedule_table(report, headings, rows, widths, page_height):
+    padding = 2
+    header = [report.p(heading, 'head') for heading in headings]
+    widths = fitted_column_widths(header, rows, widths, padding)
     data = [header]
     for row in rows:
         for index, cell in enumerate(row):
@@ -67,7 +73,10 @@ def quote_schedule_table(report, headings, rows, widths, page_height):
                 cell.drawWidth *= scale
                 cell.drawHeight *= scale
         data.append(row)
-    table = LongTable(data, colWidths=widths, repeatRows=1, hAlign='LEFT', splitInRow=20)
+    # Split a tall row into the available frame before moving whole rows.
+    # Otherwise a split remainder can fit back on the same page and paint
+    # the repeated header twice there.
+    table = LongTable(data, colWidths=widths, repeatRows=1, hAlign='LEFT', splitByRow=0, splitInRow=20)
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#bd0018')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),

@@ -52,7 +52,7 @@ async function clickProjectControl(page, name) {
   }
 }
 
-async function fillProjectDetails(page, values) {
+async function fillProjectDetails(page, values, {waitForIdle = true} = {}) {
   const previous = await page.locator('.view').evaluateAll(nodes => nodes.find(node => !node.hidden)?.id.replace(/^view-/, ''));
   await openProjectSection(page, 'quotes');
   for (const [id, value] of Object.entries(values)) {
@@ -64,7 +64,7 @@ async function fillProjectDetails(page, values) {
     if (['quote', 'work-orders', 'purchase-orders', 'scheduler', 'certification', 'documentation', 'swms', 'documents'].includes(previous)) await openProjectSection(page, previous);
     else await page.locator('.nav-button[data-view="' + previous + '"]').click();
   }
-  await page.waitForFunction(() => { const state = window.CeasefireDesktop?.status(); return state?.ready && !state.busy; });
+  if (waitForIdle) await page.waitForFunction(() => { const state = window.CeasefireDesktop?.status(); return state?.ready && !state.busy; });
 }
 
 module.exports = { clickProjectControl, openProjectTools, openProjectSection, fillProjectDetails };

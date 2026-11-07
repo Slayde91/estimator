@@ -111,7 +111,13 @@ async function mapsSettingsHidden(){await expect(page.locator('#view-settings [a
  for(const [name,asset]of[['Pan','move'],['Select PDF text','text']]){await page.getByRole('button',{name,exact:true}).click();await expect(drawing).toHaveCSS('cursor',new RegExp('cursors/'+asset+'\\.png'));await expect(page.locator('.click-smoke-puff')).toHaveCount(0);}
  await page.locator('.takeoff-markup-rail').getByRole('button',{name:'Rectangle',exact:true}).click();await expect(drawing).toHaveCSS('cursor',/cursors\/precision\.png/);await expect(page.locator('.takeoff-overlay')).toHaveCSS('cursor',/cursors\/precision\.png/);await page.screenshot({path:path.join(output,'pdf-cursor-tools.png')});
  await page.getByRole('button',{name:'Home',exact:true}).click();await expect(page.locator('.click-smoke-puff')).toHaveCount(0);
- await page.getByRole('button',{name:'Home',exact:true}).click();await expect(page.locator('.click-smoke-puff')).toHaveCount(4);await expect(page.locator('.click-smoke-layer')).toHaveCount(0);
+ let smoked=false;
+ for(let click=0;click<10;click++){
+  await page.getByRole('button',{name:'Home',exact:true}).click();
+  if(await page.locator('.click-smoke-puff').count()){smoked=true;break;}
+ }
+ assert.equal(smoked,true,'Smoke appears within ten eligible clicks');
+ await expect(page.locator('.click-smoke-puff')).toHaveCount(4);await expect(page.locator('.click-smoke-layer')).toHaveCount(0);
  assert.deepEqual(errors,[]);evidence.googleRequests='Synthetic API checks only';evidence.projectSnapshotsUnchanged=true;evidence.pdfSmokeDisabled=true;evidence.rolesAndHotspotsVerified=true;
  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,evidence,errors},null,2));console.log('PASS travel/editor follow-ups: '+output);
 })().catch(async e=>{console.error(e);process.exitCode=1;await page?.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});}).finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);await browser?.close();server.kill();});

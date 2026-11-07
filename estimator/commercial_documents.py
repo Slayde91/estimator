@@ -238,7 +238,7 @@ def default_fields(kind, details=None, company=None):
     company = company or COMPANY_DEFAULTS
     return {'title': KINDS[kind], 'details': {key: supplied.get(key, '') for key in DETAIL_FIELDS},
             'introduction': INTRODUCTION if kind == 'quote' else '', 'lines': [], 'scope': '',
-            'scope_tables': [], 'sources': [], 'allowances': '', 'terms': default_terms(company) if kind == 'quote' else '',
+            'scope_tables': [], 'sources': [], 'allowances': '<ul><li>N / A</li></ul>' if kind == 'quote' else '', 'terms': default_terms(company) if kind == 'quote' else '',
             'order': {key: '' for key in ORDER_FIELDS},
             'rate_schedule': default_rate_schedule(),
             'company_reference': {key: company.get(key, '') for key in ('name', 'abn')}}

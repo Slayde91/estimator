@@ -4,7 +4,24 @@ Canonical cells and their links remain unchanged. The table has every column
 on the same page width, with normal vertical pagination for additional rows.
 """
 from reportlab.lib import colors
-from reportlab.platypus import Image, LongTable, Paragraph, TableStyle
+from reportlab.platypus import HRFlowable, Image, LongTable, Paragraph, TableStyle
+
+
+def append_scope_intro(report, intro):
+    """Keep the quotation's scope heading in the schedule's own text flow."""
+    if intro.get('heading'):
+        style = report.styles['section'].clone('CommercialScopeHeading', fontSize=11, leading=15,
+                                               textColor=colors.HexColor('#bd0018'), keepWithNext=True)
+        report.story.append(Paragraph('SCOPE OF WORKS', style))
+        rule = HRFlowable(width='100%', thickness=1, color=colors.HexColor('#bd0018'), spaceAfter=8)
+        rule.keepWithNext = True
+        report.story.append(rule)
+        note = report.p('The following Full Schedules form the Scope of Works for this quotation.')
+        note.keepWithNext = True
+        report.story.append(note)
+    name = report.p(intro['name'], 'subheading')
+    name.keepWithNext = True
+    report.story.append(name)
 
 
 def configure_quote_schedule(report):

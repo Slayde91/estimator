@@ -42,9 +42,13 @@ class ProjectReportTests(unittest.TestCase):
                 with patch('estimator.calculator_report.schedule_report_references', return_value=[{'label':'UNIQUE-CALCULATOR-REPORT', 'url':'https://example.test/reference.pdf'}]):
                     result = build_project_report(calculators, fire, {}, {'project_no': 'FULL-TEST'}, materials=materials, company=company)
                 reader = PdfReader(BytesIO(result))
+                self.assertTrue(all(float(page.mediabox.width) < float(page.mediabox.height) for page in reader.pages))
                 self.assertEqual([entry.title for entry in reader.outline],
                                  ['Steel spray', 'Steel board', 'Ductwork', 'Steel intumescent', 'Firestopping'])
                 text = '\n'.join(page.extract_text() for page in reader.pages)
+                for removed in ('Calculation Notes', 'Status / estimating basis', 'used schedule items.',
+                                'incomplete or unavailable primary quantities'):
+                    self.assertNotIn(removed, text)
                 for page in reader.pages:
                     self.assertIn('Combined Fixture', page.extract_text())
                     self.assertIn('combined@example.test', page.extract_text())

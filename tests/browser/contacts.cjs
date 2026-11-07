@@ -24,7 +24,7 @@ const ready = new Promise((resolve, reject) => {
 (async () => {
   const {port} = await ready;
   assert.notEqual(port, 8765);
-  browser = await chromium.launch({headless: true});
+  browser = await chromium.launch({headless: true, ...(process.env.CEASEFIRE_BROWSER_EXECUTABLE ? {executablePath:process.env.CEASEFIRE_BROWSER_EXECUTABLE} : {})});
   const page = await browser.newPage({viewport: {width: 1101, height: 884}});
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -33,6 +33,13 @@ const ready = new Promise((resolve, reject) => {
   await page.locator('button[data-view="contacts"]').click();
   const root=page.locator('#contacts-root');
   await expect(root.getByRole('heading',{name:'Leads',exact:true})).toBeVisible();
+  await expect(page.locator('#contacts-navigation-menu [data-contacts-section]')).toHaveCount(3);
+  const tabsBox=await root.locator('.contacts-tabs').boundingBox();
+  assert.ok(Math.abs(tabsBox.width-350)<1 && Math.abs(tabsBox.height-40)<1,JSON.stringify(tabsBox));
+  await expect(page.locator('#view-estimate #client')).toHaveCount(0);
+  await expect(page.locator('#view-quotes #client')).toHaveCount(1);
+  await expect(page.locator('#project-status')).toHaveCount(0);
+  await expect(page.locator('#estimate-open-quote .download-format')).toHaveText('PDF');
   await root.getByRole('button',{name:'New Lead',exact:true}).click();
   const dlg=page.getByRole('dialog');
   await dlg.getByLabel('Name',{exact:true}).fill('Robin Sample');
@@ -76,6 +83,9 @@ const ready = new Promise((resolve, reject) => {
   await dlg.getByLabel('Title',{exact:true}).fill('Technician');
   await dlg.getByRole('button',{name:'Save',exact:true}).click();
   await expect(card).toContainText('Technician');
+  await expect(card.locator('dl.kanban-card-details dt')).toContainText(['Company','Title']);
+  const detailColumns=await card.locator('dl.kanban-card-details').evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length);
+  assert.equal(detailColumns,2);
   const linked = await page.request.post('http://127.0.0.1:'+port+'/api/projects/link-folder',{data:{}});
   assert.equal(linked.status(),200,await linked.text());
   const pending = page.waitForResponse(response=>response.url().endsWith('/api/contacts/leads/convert'));
@@ -87,8 +97,33 @@ const ready = new Promise((resolve, reject) => {
   assert.equal(saved.estimate.site_address,'QA Site Street'); assert.equal(saved.estimate.client,'Sample Company');
   assert.equal(saved.estimate.project_no,receipt.project_no); assert.match(saved.estimate.measurements,/Robin Sample/);
   await expect(card).toHaveCount(0);
-  await root.getByRole('button',{name:'Contacts',exact:true}).click();
+  await expect(page.locator('#view-estimate')).toBeVisible();
+  await expect(page.locator('#project-no')).toHaveValue(receipt.project_no);
+  await expect(page.locator('#client')).toHaveValue('Sample Company');
+  await expect(page.locator('#discard-dialog')).not.toBeVisible();
+  await page.locator('#contacts-navigation-toggle').hover();
+  await page.locator('#contacts-navigation-menu [data-contacts-section="contacts"]').click();
   await expect(root.getByRole('button',{name:'Robin Sample'})).toBeVisible();
+  await expect(page.locator('#contacts-navigation-menu [data-contacts-section="contacts"]')).toHaveAttribute('aria-pressed','true');
+  await root.getByRole('button',{name:'Leads',exact:true}).click();
+  await root.getByRole('button',{name:'New Lead',exact:true}).click();
+  await dlg.getByLabel('Name',{exact:true}).fill('Second Lead');
+  await dlg.getByLabel('Company',{exact:true}).fill('Second Company');
+  await dlg.getByRole('button',{name:'Save',exact:true}).click();
+  await page.locator('#estimate-navigation-toggle').click();
+  await page.locator('#estimate-navigation-toggle').press('Escape');
+  await page.locator('#measurements').fill('Keep these unsaved project notes');
+  await page.locator('#measurements').blur();
+  await page.locator('#contacts-navigation-toggle').click();
+  const secondCard=root.locator('.project-kanban-card').filter({hasText:'Second Lead'});
+  await secondCard.locator('summary').click();
+  await secondCard.getByRole('button',{name:'Convert',exact:true}).click();
+  const review=page.locator('#discard-dialog');
+  await expect(review).toBeVisible();
+  await review.getByRole('button',{name:'Keep editing',exact:true}).click();
+  await page.locator('#estimate-navigation-toggle').click();
+  await expect(page.locator('#measurements')).toHaveValue('Keep these unsaved project notes');
+  await expect(page.locator('#project-no')).toHaveValue(receipt.project_no);
   assert.deepEqual(errors, []);
   console.log('Contacts browser acceptance passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; })

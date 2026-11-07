@@ -1,3 +1,4 @@
+const {fillProjectDetails}=require('./project_actions.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 const { chooseCalculator } = require('./calculator_actions.cjs');
 // Rendered manual-input regression. Default evidence is wholly synthetic.
@@ -81,7 +82,7 @@ async function screenshot(name,fixture) {
   const initial=await page.goto(`http://127.0.0.1:${info.port}/`);assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Estimates',exact:true}).click();
   await expect(page.getByLabel('Project No.',{exact:true})).toHaveAttribute('readonly','');
-  await page.locator('#client').fill(fixture.synthetic?'SYNTHETIC-MONOKOTE-QA':'PRIVATE-MONOKOTE-QA');
+  await fillProjectDetails(page,{'client':fixture.synthetic?'SYNTHETIC-MONOKOTE-QA':'PRIVATE-MONOKOTE-QA'});
   await chooseCalculator(page,'Steel (spray)');
   await expect(page.locator('#calculator-title')).toHaveText('Steel (spray)');await idle();
   // START is intentionally hidden; its complete operating rules still exist

@@ -5,7 +5,7 @@ from xml.sax.saxutils import escape, quoteattr
 from .company_settings import company_logo
 
 from openpyxl import Workbook
-from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 from reportlab.platypus import Image, SimpleDocTemplate, Spacer, TableStyle
 
@@ -130,18 +130,20 @@ def penetration_schedule_table(result, definition, *, library=None):
     return {'headers': list(SCHEDULE_HEADERS), 'rows': rows}
 
 
-def render_penetration_pdf(result, definition, project_details, *, library=None, company=None, include_project_details=True, project_report_title=None, report_footer=None, portrait=False, quote_scope=False):
+def render_penetration_pdf(result, definition, project_details, *, library=None, company=None, include_project_details=True, project_report_title=None, report_footer=None, portrait=True, quote_scope=False, scope_intro=None):
     """Show the technical schedule without prices, using captured inputs."""
     _register_fonts()
     report = _Report({})
-    if quote_scope:
-        from .quote_schedule import configure_quote_schedule
-        configure_quote_schedule(report)
+    from .quote_schedule import configure_quote_schedule
+    configure_quote_schedule(report)
+    if scope_intro:
+        from .quote_schedule import append_scope_intro
+        append_scope_intro(report, scope_intro)
     # Let long schedule tables split on the current page. Keeping an entire
     # table with its heading can otherwise strand the schedule heading alone.
     report.styles['subheading'].keepWithNext = False
     report.styles['section'].keepWithNext = True
-    page_size = A4 if portrait else landscape(A4)
+    page_size = A4
     width, height = page_size
     margin = 32
     content = width - 2 * margin
@@ -172,28 +174,14 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
         schedule_rows.append([report.p(record['line'], 'cell'), record['diagram'] or report.p('', 'cell')] +
             [report.p(value, 'cell') for value in record['values']] +
             [report.rich(' | '.join(captions), 'cell')])
-    groups = [[0, 2, 1, 3, 4], [0, 2, 5, 6, 7], [0, 2, 8]] if portrait and not quote_scope else [list(range(len(SCHEDULE_HEADERS)))]
+    groups = [list(range(len(SCHEDULE_HEADERS)))]
     for group_index, columns in enumerate(groups):
         if group_index:
             report.story.append(Spacer(1, 12))
         group_widths = [widths[index] for index in columns]
-        if portrait and not quote_scope:
-            total = sum(group_widths[1:])
-            group_widths = [32] + [(content - 32) * value / total for value in group_widths[1:]]
         rows = [[row[index] for index in columns] for row in schedule_rows]
-        if quote_scope:
-            from .quote_schedule import quote_schedule_table
-            report.story.append(quote_schedule_table(report, SCHEDULE_HEADERS, rows, group_widths, height))
-            continue
-        schedule_table = report.table([SCHEDULE_HEADERS[index] for index in columns], rows, group_widths, compact=True)
-        # Split tall cells while keeping room for a body line beneath the header.
-        schedule_table.splitByRow = 0
-        schedule_table.splitInRow = 20
-        for row_index, row in enumerate(rows, 1):
-            if any(cell.wrap(group_widths[index] - 12, height)[1] > height - 160
-                   for index, cell in enumerate(row)):
-                schedule_table.setStyle(TableStyle([('VALIGN', (0, row_index), (-1, row_index), 'TOP')]))
-        report.story.append(schedule_table)
+        from .quote_schedule import quote_schedule_table
+        report.story.append(quote_schedule_table(report, SCHEDULE_HEADERS, rows, group_widths, height))
     for index, row in enumerate(result['rows'], 1):
         if row.get('errors'):
             report.story.append(report.p(f'Line {index}: Check the entered values; a result is unavailable.', 'alert'))
@@ -228,7 +216,7 @@ def render_penetration_summary_pdf(result, definition, project_details, *, libra
     """Use the canonical product totals, preserving captured rates and units."""
     _register_fonts()
     report = _Report({})
-    width, height = landscape(A4)
+    width, height = A4
     margin, content = 32, width - 64
     logo = company_logo(company)
     report.story.append(report.p(project_report_title or 'FIRESTOPPING PRODUCT SUMMARY', 'title'))
@@ -259,7 +247,7 @@ def render_penetration_summary_pdf(result, definition, project_details, *, libra
     if result.get('errors'):
         report.story.append(report.p('Some quantities are unavailable. Correct the affected schedule inputs before ordering.', 'alert'))
     output = BytesIO()
-    document = SimpleDocTemplate(output, pagesize=landscape(A4), leftMargin=margin, rightMargin=margin,
+    document = SimpleDocTemplate(output, pagesize=A4, leftMargin=margin, rightMargin=margin,
         topMargin=91, bottomMargin=43, title='CLASSIFIRE - Firestopping product summary', author='CLASSIFIRE')
 
     def decorate(canvas, doc):

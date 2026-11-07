@@ -1,3 +1,4 @@
+const {fillProjectDetails}=require('./project_actions.cjs');
 // Disposable data only. Google API replies are synthetic; no paid calls.
 const {chromium,expect}=require('@playwright/test'),assert=require('node:assert/strict');
 const {spawn}=require('node:child_process'),fs=require('node:fs'),path=require('node:path');
@@ -52,7 +53,7 @@ async function mapsSettingsHidden(){await expect(page.locator('#view-settings [a
  await mapsSettingsHidden();
  for(const width of [1384,1020,390]){await page.setViewportSize({width,height:900});const cards=await page.locator('.settings-preferences-grid > section').all(),a=await cards[0].boundingBox(),b=await cards[1].boundingBox();if(width>=800){assert.ok(Math.abs(a.y-b.y)<1);assert.ok(a.x+a.width<=b.x);}else assert.ok(a.y+a.height<=b.y);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)<=1);await page.screenshot({path:path.join(output,`settings-${width}.png`)});}
  await page.setViewportSize({width:1384,height:900});
- await page.getByRole('button',{name:'Estimates',exact:true}).click();await idle();await page.locator('#site-address').fill('Fixture Project Road, Sydney NSW');
+ await page.getByRole('button',{name:'Estimates',exact:true}).click();await idle();await fillProjectDetails(page,{'site-address':'Fixture Project Road, Sydney NSW'});
  await expect(page.locator('#project-travel')).toHaveCount(0);
  const routeRequests=[];
  await page.route('**/api/travel/route',r=>{routeRequests.push(r.request().postDataJSON());return r.fulfill({status:503,json:{error:'Unexpected route lookup in panel-removal test'}});});

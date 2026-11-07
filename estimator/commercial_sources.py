@@ -18,6 +18,7 @@ class CommercialSources:
             db.execute('''CREATE TABLE IF NOT EXISTS commercial_source_files(
                 id TEXT PRIMARY KEY, path TEXT NOT NULL, project TEXT NOT NULL, title TEXT NOT NULL, deleted INTEGER NOT NULL DEFAULT 0)''')
             db.execute('CREATE TABLE IF NOT EXISTS commercial_source_aliases(alias TEXT PRIMARY KEY, source_id TEXT NOT NULL)')
+            db.execute('CREATE TABLE IF NOT EXISTS commercial_ignored_owners(project TEXT PRIMARY KEY)')
             # Earlier local installations stored these two tables in the estimate database.
             # Copy existing authorizations once; all subsequent register writes go to this file.
             if not db.execute('PRAGMA user_version').fetchone()[0]:
@@ -71,6 +72,18 @@ class CommercialSources:
     def records(self):
         with self.connect() as db:
             return db.execute('SELECT id,path,project,title,deleted FROM commercial_source_files ORDER BY path').fetchall()
+
+    def ignored_owners(self):
+        with self.connect() as db:
+            return {row[0] for row in db.execute('SELECT project FROM commercial_ignored_owners')}
+
+    def ignore_owner(self, project, ignored=True):
+        # Ignore registered history without deleting it or touching its source file.
+        with self.connect() as db:
+            if ignored:
+                db.execute('INSERT OR IGNORE INTO commercial_ignored_owners VALUES(?)', (project,))
+            else:
+                db.execute('DELETE FROM commercial_ignored_owners WHERE project=?', (project,))
 
     def resolve(self, identifier):
         with self.connect() as db:

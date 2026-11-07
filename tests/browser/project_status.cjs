@@ -65,28 +65,10 @@ async function idle() {
   await page.locator('#discard-dialog').getByRole('button',{name:'Load Project',exact:true}).click();
   await expect(page.locator('#view-estimate')).toBeVisible();
   await idle();
-  await expect(page.locator('#project-status-draft')).toHaveAttribute('aria-checked','true');
-  await expect(page.locator('#project-status')).toHaveText('Status');
-  const status=page.locator('#project-status');
+  await expect(page.locator('#project-status')).toHaveCount(0);
   const documentToggle=page.locator('[aria-controls="firestopping-document-actions"]');
-  await expect(status).toBeVisible();
   await expect(documentToggle).toBeVisible();
-  const statusBox=await status.boundingBox(), documentBox=await documentToggle.boundingBox();
-  assert.equal(statusBox.height,documentBox.height);
-  assert.ok(Math.abs(statusBox.y-documentBox.y)<1);
-  await status.focus();await status.press('ArrowDown');
-  await expect(page.locator('#project-status-draft')).toBeFocused();
-  await expect(page.locator('#project-status-draft')).toHaveAttribute('aria-checked','true');
-  assert.deepEqual(await page.locator('#project-status-options button').allTextContents(),['Draft','Review','Presented','Accepted','Lost']);
-  await page.locator('#project-status-options').press('Escape');
-  await expect(status).toBeFocused();await expect(status).toHaveAttribute('aria-expanded','false');
-  await status.click();await page.locator('#estimate-heading').click();
-  await expect(status).toHaveAttribute('aria-expanded','false');
-  await status.click();await page.locator('#project-status-accepted').click();
-  await idle();
-  await expect.poll(() => JSON.parse(fs.readFileSync(path.join(output,'Project-1.cf.json'))).project_status).toBe('Accepted');
-  await expect(status).toHaveText('Status');
-  await expect(page.locator('#project-status-accepted')).toHaveAttribute('aria-checked','true');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(output,'Project-1.cf.json'))).project_status,'Draft');
   await expect(page.locator('#project-estimate-new')).toHaveAttribute('aria-label','New estimate');
   assert.equal(await page.locator('#project-estimate-new .button-symbol').textContent(),await page.locator('#penetration-estimator-add .button-symbol').textContent());
   for(const width of [320,390,1254,1915]) {
@@ -95,10 +77,10 @@ async function idle() {
     const nameBox = await page.locator('.project-estimate-picker input').boundingBox();
     assert.ok(addBox.x >= nameBox.x && addBox.x - nameBox.x < 10 && addBox.y > nameBox.y &&
       addBox.y + addBox.height < nameBox.y + nameBox.height, 'Add estimate fits inside the left of the picker at ' + width);
-    await status.click();
-    const menuBounds=await page.locator('#project-status-options').boundingBox();
-    assert.ok(menuBounds.x>=0&&menuBounds.x+menuBounds.width<=width,'Status menu fits '+width);
-    await status.press('Escape');
+    const symbol = await page.locator('#project-estimate-new .button-symbol').evaluate(el=>({size:parseFloat(getComputedStyle(el).fontSize),box:el.getBoundingClientRect().toJSON()}));
+    assert.equal(symbol.size,18);
+    assert.ok(Math.abs(symbol.box.x+symbol.box.width/2-addBox.x-addBox.width/2)<1);
+    assert.ok(Math.abs(symbol.box.y+symbol.box.height/2-addBox.y-addBox.height/2)<1);
   }
   await page.setViewportSize({width:1575,height:1000});
   await projects(); await page.locator('#project-search').fill('');
@@ -116,7 +98,7 @@ async function idle() {
   assert.equal(fs.existsSync(path.join(output,'Project-2.cf.json')),false);
   assert.ok(fs.readdirSync(output).some(name=>name.startsWith('.ceasefire-deleted-')));
   assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({passed:true,output,checks:['flat list retains all statuses','obsolete column preferences do not hide projects','search and sort','open and accessible header status menu','responsive layout','recoverable deletion','no browser errors']}));
+  console.log(JSON.stringify({passed:true,output,checks:['flat list retains all statuses','obsolete column preferences do not hide projects','search and sort','open with redundant status control removed','responsive layout','recoverable deletion','no browser errors']}));
 })().catch(async error => {
   console.error(error);
   fs.writeFileSync(path.join(output,'failure.txt'),`${error.stack}\n${logs}`);

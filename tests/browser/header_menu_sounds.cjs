@@ -137,35 +137,20 @@ async function noDownloadAudio() {
   prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("mgs-confirm2.mp3")).length);
   await home.press("Enter"); await played("/sounds/mgs-confirm2.mp3", prior); await idle();
   evidence.checks.keyboardClickAndNestedHover = true;
-  // Home cards retain the header clips, rather than the ordinary button pair.
+  // Main-section buttons are silent, including Home cards and global Save.
   await home.click(); await idle();
+  const buttonCalls = () => page.evaluate(() => window.qaMenuAudio.calls.filter(row => !row.source.endsWith('type.mp3') && !row.source.endsWith('gameover.mp3')).length);
+  let silentStart = await buttonCalls();
   const homeHelp = page.locator('#view-home [data-home-view="help"]');
-  prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("mgs1-menu-move.mp3")).length);
-  await homeHelp.hover(); await played("/sounds/mgs1-menu-move.mp3", prior);
-  prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("mgs-confirm2.mp3")).length);
-  await homeHelp.click(); await played("/sounds/mgs-confirm2.mp3", prior); await idle();
-  evidence.checks.homeCardsShareHeaderClips = true;
-  // A real ordinary control exercises delegated native pointer/click events.
+  await homeHelp.hover(); await homeHelp.click(); await idle();
+  assert.equal(await buttonCalls(), silentStart);
   await page.locator('.app-header nav [data-view="settings"]').click(); await idle();
-  const theme = page.locator("#theme-toggle");
-  prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("hover.mp3")).length);
-  await theme.hover(); await played("/sounds/hover.mp3", prior);
-  prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("select-2.mp3")).length);
-  await theme.click(); await played("/sounds/select-2.mp3", prior);
-  evidence.checks.otherPageHoverAndSelect2 = true;
-  // The real global Save action is cancelled by the private fixture's chooser.
-  // Its feedback belongs to the click, not to success or the page behind it.
-  prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("checkpoint.ogg")).length);
-  const beforeSaveCalls = await page.evaluate(() => window.qaMenuAudio.calls.length);
-  await page.locator("#save-current-project").click(); await played("/sounds/checkpoint.ogg", prior);
-  await expect(page.locator("#app-message")).toContainText("Save cancelled. Your current project remains open.", { timeout: 60000 });
-  await expect(page.locator("#save-current-project")).toBeEnabled();
-  assert.equal(saveRequests, 1);
-  assert.deepEqual(certificateWorkspaceRequests, [{}], "Save prepares exactly one private project certificate workspace");
-  assert.deepEqual(savedCertificateWorkspaces, [await page.evaluate(() => window.CeasefireCertification.sessionId())], "Save passes its current certificate workspace to the real cancelled Save As request");
-  assert.deepEqual(await page.evaluate(start => window.qaMenuAudio.calls.slice(start).filter(row => row.event === "click").map(row => row.source), beforeSaveCalls), ["/sounds/checkpoint.ogg"]);
-  evidence.checks.globalSaveCheckpointWithoutGenericOverlap = true;
-  evidence.checks.cancelledSaveUsesProjectCertificateWorkspace = { creationRequests: certificateWorkspaceRequests.length, matchedCurrentWorkspace: true };
+  const theme = page.locator('#theme-toggle'); silentStart = await buttonCalls();
+  await theme.hover(); await theme.click(); assert.equal(await buttonCalls(), silentStart);
+  const beforeSaveCalls = await buttonCalls(); await page.locator('#save-current-project').click();
+  await expect(page.locator('#app-message')).toContainText('Save cancelled. Your current project remains open.', {timeout:60000});
+  assert.equal(await buttonCalls(), beforeSaveCalls); assert.equal(saveRequests, 1);
+  evidence.checks.mainButtonsAndSaveSilent = true;
   // These owned lightweight controls isolate delegated routing from Takeoff
   // document/session operations, which have their own browser acceptance gates.
   await page.evaluate(() => {
@@ -179,7 +164,7 @@ async function noDownloadAudio() {
   await scoped.click(); await played("/sounds/select.mp3", prior);
   await page.evaluate(() => document.body.classList.remove("takeoffs-active"));
   prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("select-2.mp3")).length);
-  await scoped.click(); await played("/sounds/select-2.mp3", prior);
+  await scoped.click(); assert.equal(await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source.endsWith("select-2.mp3")).length), 0);
   const hoverCount = await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source.endsWith("hover.mp3")).length);
   await page.locator("#qa-takeoff-audio-icon").hover();
   assert.equal(await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source.endsWith("hover.mp3")).length), hoverCount, "Moving within a dynamic button is silent");
@@ -197,18 +182,17 @@ async function noDownloadAudio() {
     const selected = page.locator(`#calculator-pages button[data-calculator-page="${id}"]`), original = await selected.elementHandle();
     const start = await page.evaluate(() => window.qaMenuAudio.calls.length);
     prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("select-2.mp3")).length);
-    await selected.click(); await played("/sounds/select-2.mp3", prior);
+    await selected.click();
     await expect(selected).toHaveAttribute("aria-pressed", "true");
     assert.equal(await original.evaluate((button, id) => button === document.querySelector(`#calculator-pages button[data-calculator-page="${id}"]`), id), true, "Changing pages retains the clicked native button and its focus");
-    await expect.poll(() => page.evaluate(() => window.qaMenuAudio.media.find(audio => audio.src.endsWith("select-2.mp3")).currentTime)).toBeGreaterThan(0.2);
-    assert.deepEqual(await page.evaluate(start => window.qaMenuAudio.calls.slice(start).filter(row => row.event === "click").map(row => row.source), start), ["/sounds/select-2.mp3"], "A tab owns exactly one immediate click sound");
+    assert.deepEqual(await page.evaluate(start => window.qaMenuAudio.calls.slice(start).filter(row => row.event === "click").map(row => row.source), start), [], "Calculator tabs stay silent");
     await original.dispose();
   }
   evidence.checks.calculatorTabNativeClickWithoutReplacementInterruption = { pages: tabIds.length, pageIds: tabIds, minimumPlaybackSeconds: 0.2 };
   await page.locator("#calculator-document-toggle").click();
   templateActions.push({ hold: true });
   prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("select-2.mp3")).length);
-  await page.locator("#calculator-template").click(); await played("/sounds/select-2.mp3", prior);
+  await page.locator("#calculator-template").click();
   await expect.poll(() => heldTemplates.length).toBe(1); await noDownloadAudio();
   await expect(page.locator(".document-download-progress")).toBeVisible();
   await expect(page.locator("#calculator-template")).toBeDisabled();
@@ -250,47 +234,15 @@ async function noDownloadAudio() {
   assert.match(concurrent.find(result => result.index === 1).error, /cancelled/);
   await page.evaluate(() => document.getElementById("qa-concurrent-documents").remove());
   evidence.checks.concurrentDocumentSuccessAndCancellation = true;
-  // These real tabs replace their buttons synchronously on selection. Native
-  // replacement boundary events must leave the click's selection clip playing.
   await submenu.hover();
   await page.locator('#calculator-navigation-menu').getByRole('button', { name: 'Firestopping', exact: true }).click(); await idle();
-  const groupTab = group => page.locator(`#penetration-input-groups button[data-penetration-group="${group}"]`);
-  const originalGroup = await page.locator('#penetration-input-groups button[aria-selected="true"]').getAttribute('data-penetration-group');
-  const firestoppingBefore = await snapshot(), rebuiltTabs = [];
+  silentStart = await buttonCalls();
   for (const group of ['Additional Allowances', 'Penetration']) {
-    await page.mouse.move(0, 0);
-    const tab = groupTab(group), original = await tab.elementHandle();
-    await tab.hover();
-    const start = await page.evaluate(() => window.qaMenuAudio.calls.length);
-    prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith('select-2.mp3')).length);
-    await tab.click(); await played('/sounds/select-2.mp3', prior); await page.waitForTimeout(400);
-    await expect(tab).toHaveAttribute('aria-selected', 'true');
-    assert.equal(await original.evaluate(button => button.isConnected), false, 'The native regression exercises an actual replaced tab');
-    const observation = await page.evaluate(start => ({
-      calls: window.qaMenuAudio.calls.slice(start),
-      selection: (() => { const audio = window.qaMenuAudio.media.find(audio => audio.src.endsWith('select-2.mp3')); return { paused: audio.paused, currentTime: audio.currentTime, error: audio.error?.code || null }; })(),
-    }), start);
-    assert.deepEqual(observation.calls.map(row => row.source), ['/sounds/select-2.mp3'], 'Stationary replacement hover never reaches sound routing');
-    assert.equal(observation.selection.paused, false); assert.ok(observation.selection.currentTime > 0.2); assert.equal(observation.selection.error, null);
-    rebuiltTabs.push({ group, ...observation }); await original.dispose();
-    // Moving to the neighbouring tab and away/back must still produce genuine
-    // hover, with no timer or global "skip next hover" suppressing the entry.
-    const neighbour = groupTab(group === 'Penetration' ? 'Additional Allowances' : 'Penetration');
-    prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith('hover.mp3')).length);
-    await neighbour.hover(); await played('/sounds/hover.mp3', prior);
-    await page.mouse.move(0, 0);
-    prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith('hover.mp3')).length);
-    await neighbour.hover(); await played('/sounds/hover.mp3', prior);
+    const tab = page.locator(`#penetration-input-groups button[data-penetration-group="${group}"]`);
+    await tab.hover(); await tab.click(); await expect(tab).toHaveAttribute('aria-selected','true');
   }
-  await page.mouse.move(0, 0);
-  const keyboardGroup = groupTab('Additional Allowances'); await keyboardGroup.focus();
-  prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith('select-2.mp3')).length);
-  await keyboardGroup.press('Enter'); await played('/sounds/select-2.mp3', prior); await page.waitForTimeout(400);
-  assert.equal(await page.evaluate(() => window.qaMenuAudio.media.find(audio => audio.src.endsWith('select-2.mp3')).paused), false);
-  await expect(keyboardGroup).toHaveAttribute('aria-selected', 'true');
-  await groupTab(originalGroup).focus(); await groupTab(originalGroup).press('Enter');
-  assert.deepEqual(await snapshot(), firestoppingBefore, 'Tab feedback preserves the initialized Firestopping draft');
-  evidence.checks.rebuiltFirestoppingTabsPreserveSelection = { mouse: rebuiltTabs, keyboard: true, genuineNeighbourAndReentryHover: true, minimumObservationMs: 400 };
+  assert.equal(await buttonCalls(), silentStart);
+  evidence.checks.calculatorTabsSilent = true;
   await page.mouse.move(0, 0);
   prior = await page.evaluate(() => window.qaMenuAudio.calls.length);
   await page.locator(".app-header .brand").hover();

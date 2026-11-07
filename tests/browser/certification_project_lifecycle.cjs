@@ -1,3 +1,4 @@
+const {fillProjectDetails}=require('./project_actions.cjs');
 // Disposable project-only certificate and portable Save/New/Load coverage.
 // Existing global history is a read-only negative control. No PDF is generated.
 const {chromium,expect}=require('@playwright/test');
@@ -27,7 +28,7 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   page=await browser.newPage({viewport:{width:1084,height:900},hasTouch:true,deviceScaleFactor:2});page.on('pageerror',error=>errors.push(error.message));
   await page.route('**/api/certifications/*/revisions*',async route=>{generations.push(route.request().url());await route.abort();});
   await page.goto(base+'/');await idle();await page.locator('#estimate-navigation-toggle').click();
-  await page.locator('#client').fill('PROJECT A CLIENT');await expect(page.locator('#project-no')).toHaveAttribute('readonly','');await page.locator('#site-address').fill('Project A example address');await certification();
+  await fillProjectDetails(page,{'client':'PROJECT A CLIENT'});await expect(page.locator('#project-no')).toHaveAttribute('readonly','');await fillProjectDetails(page,{'site-address':'Project A example address'});await certification();
   const tokenA=await page.evaluate(()=>window.CeasefireCertification.sessionId());
   await expect(page.locator(`#certification-document option[value="${original.id}"]`)).toHaveCount(0);
   await expect(page.locator('#certification-legacy-open')).toHaveCount(0);await expect(page.locator('#certification-legacy-dialog')).toHaveCount(0);

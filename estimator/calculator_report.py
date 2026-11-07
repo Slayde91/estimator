@@ -14,9 +14,9 @@ from .company_settings import company_logo
 import re
 from xml.sax.saxutils import escape
 
-from reportlab.lib.pagesizes import A3, A4, landscape
+from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase.pdfmetrics import stringWidth
-from reportlab.platypus import PageBreak, SimpleDocTemplate, Spacer, TableStyle, Paragraph
+from reportlab.platypus import CondPageBreak, PageBreak, SimpleDocTemplate, Spacer, TableStyle, Paragraph
 from .assessment_references import UNAVAILABLE_RESULT, schedule_report_references, schedule_result_available, steel_calculation_note
 
 from .excel_engine import column_name
@@ -41,7 +41,7 @@ def report_label(calculator_id, materials=False):
     return scope + (' | PRODUCT SUMMARY' if materials else ' | FULL SCHEDULE')
 
 
-_WIDTH, _HEIGHT = landscape(A4)
+_WIDTH, _HEIGHT = A4
 _MARGIN = 32
 _CONTENT = _WIDTH - 2 * _MARGIN
 _OUTPUT_LAST = {'ductwork': 43, 'steel_vermiculite': 27, 'steel_board': 48, 'steel_intumescent': 27}
@@ -399,7 +399,7 @@ def project_calculator_report(calculator_id, inputs=None):
 
 
 class _ScheduleReport(_Report):
-    def __init__(self, data, project_details=None, page_size=landscape(A4)):
+    def __init__(self, data, project_details=None, page_size=A4):
         super().__init__({})
         self.data = calculator_download_data(data)
         self.project_details = project_details or {}
@@ -441,7 +441,9 @@ class _ScheduleReport(_Report):
     def overview(self, *, materials=False, include_project_details=True, project_report_title=None, include_references=True, quote_scope=False):
         data = self.data
         if quote_scope:
+            self.story.append(CondPageBreak(90))
             self.story.append(self.p(data['title'], 'section'))
+            return
         elif project_report_title:
             self.story.append(self.p(project_report_title, 'title'))
         else:
@@ -471,10 +473,6 @@ class _ScheduleReport(_Report):
             self.story.append(self.p('Material quantities and summary', 'section'))
             if data['id'] != 'steel_vermiculite':
                 self.story.append(self.p(basis))
-        if not quote_scope and not (materials and data['id'] in {'steel_board', 'steel_vermiculite'}):
-            coverage = ('Review the schedule PDF for individual items and their statuses.' if materials else
-                        'Every used item remains in this report.')
-            self.story.append(self.p(f"{len(data['rows'])} used schedule items. {data['incomplete_rows']} item(s) have incomplete or unavailable primary quantities. {coverage}", 'alert' if data['incomplete_rows'] else 'body'))
         if data.get('assessment_scope') and not materials:
             self.story.append(self.p(data['assessment_scope'], 'small'))
         if data.get('assessment_receipt'):
@@ -545,58 +543,36 @@ class _ScheduleReport(_Report):
         else:
             heads = ['Line', 'Item / mark', 'Location', 'Product', 'Section', 'Design min / °C', 'Board stack mm', 'Total thickness mm', 'Box ref. m²', 'Net board m²', 'With waste m²', 'Sheets / line', 'Status']
             fractions = [.055, .075, .08, .10, .07, .07, .075, .08, .065, .07, .07, .065, .125]
-        if heads[-1] == 'Status':
+        if heads[-1] in {'Status', 'Status / estimating basis'}:
             heads.pop()
             fractions.pop()
             for cells in rows:
                 cells.pop()
         position = len(heads)
         heads.insert(position, 'Report')
-        steel = data['id'].startswith('steel_')
-        # Keep short assessment references and their edition together when notes are present.
-        fractions.append(.15 if steel else .12)
-        if steel:
-            heads.append('Calculation Notes')
-            fractions.append(.18)
+        fractions.append(.15 if data['id'].startswith('steel_') else .12)
         fractions = [size / sum(fractions) for size in fractions]
         for cells, item in zip(rows, data['rows']):
             report = self.p(UNAVAILABLE_RESULT, 'cell') if item.get('result_unavailable') else self.report_links(item['report_references'])
             cells.insert(position, report)
-            if steel:
-                cells.append(self.p(item.get('calculation_notes', ''), 'cell'))
         return heads, rows, fractions
 
     def schedule(self, *, portrait=False, quote_scope=False):
         if not quote_scope:
             for notice in self.data['quantity_notices']:
                 self.story.append(self.p(notice, 'alert'))
+            self.story.append(CondPageBreak(90))
             self.story.append(self.p('Full schedule', 'section'))
         if not self.data['rows']:
             self.story.append(self.p('No schedule inputs are entered.'))
             return
         heads, rows, fractions = self.schedule_cells()
-        if quote_scope:
+        if portrait or quote_scope:
             # One table keeps every column alongside its item. Only rows flow
             # onto later portrait pages; no item is repeated in column bands.
             from .quote_schedule import quote_schedule_table
             self.story.append(quote_schedule_table(self, heads, rows,
                 [self.content_width * size for size in fractions], self.height))
-            return
-        if portrait:
-            # Each narrow band repeats the original line and, where available,
-            # item identity. The same cells retain all quantities and links.
-            identity = [0]
-            if 'Item / mark' in heads:
-                identity.append(heads.index('Item / mark'))
-            remaining = [index for index in range(len(heads)) if index not in identity]
-            count = 5 - len(identity)
-            for start in range(0, len(remaining), count):
-                columns = identity + remaining[start:start + count]
-                weights = [fractions[index] for index in columns[1:]]
-                widths = [32] + [(self.content_width - 32) * weight / sum(weights) for weight in weights]
-                self.append_schedule_table([heads[index] for index in columns],
-                    [[row[index] for index in columns] for row in rows], widths, portrait=True)
-                self.story.append(Spacer(1, 12))
             return
         self.append_schedule_table(heads, rows, [self.content_width * size for size in fractions])
 
@@ -697,11 +673,6 @@ class _ScheduleReport(_Report):
                 for product, basis, interpretation in summary.get('qualifications', []):
                     self.story.append(self.pairs([(str(product), value) for value in (basis, interpretation) if _has_value(value)]))
             self.story.append(Spacer(1, 9))
-        if not data.get('board_net_steel_areas'):
-            if data['id'] == 'steel_intumescent':
-                self.story.append(self.p(f"{data['incomplete_rows']} schedule item(s) have incomplete or unavailable primary quantities. Displayed quantities follow the assessment and estimating settings. Review the item statuses before ordering.", 'small'))
-            else:
-                self.story.append(self.p(f"{data['incomplete_rows']} schedule item(s) have incomplete or unavailable primary quantities. Displayed product quantities retain the source workbook's exclusions; review the item statuses in the calculator before ordering.", 'small'))
 
 def calculator_schedule_table(data):
     """Expose the actual PDF headings and visible text to the Quote editor."""
@@ -715,11 +686,11 @@ def calculator_schedule_table(data):
     return {'headers': heads, 'rows': [[visible_text(cell) for cell in row] for row in rows]}
 
 
-def build_calculator_report(calculator_id, inputs=None, *, project_details=None, company=None, include_project_details=True, project_report_title=None, report_footer=None, portrait=False, quote_scope=False):
+def build_calculator_report(calculator_id, inputs=None, *, project_details=None, company=None, include_project_details=True, project_report_title=None, report_footer=None, portrait=True, quote_scope=False, scope_intro=None):
     """Return the full schedule only; reading a draft never saves it."""
     return _build_calculator_pdf(calculator_id, inputs, materials=False, project_details=project_details, company=company,
                                  include_project_details=include_project_details, project_report_title=project_report_title, report_footer=report_footer,
-                                 portrait=portrait, quote_scope=quote_scope)
+                                 portrait=portrait, quote_scope=quote_scope, scope_intro=scope_intro)
 
 
 def build_calculator_summary_report(calculator_id, inputs=None, *, project_details=None, company=None, include_project_details=True, project_report_title=None, include_references=True, report_footer=None):
@@ -729,20 +700,24 @@ def build_calculator_summary_report(calculator_id, inputs=None, *, project_detai
                                  include_references=include_references, report_footer=report_footer)
 
 
-def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=None, company=None, include_project_details=True, project_report_title=None, include_references=True, report_footer=None, portrait=False, quote_scope=False):
+def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=None, company=None, include_project_details=True, project_report_title=None, include_references=True, report_footer=None, portrait=True, quote_scope=False, scope_intro=None):
     data = project_calculator_report(calculator_id, inputs)
     _register_fonts()
     logo = company_logo(company)
-    page_size = A4 if portrait else landscape(A3 if calculator_id == 'steel_board' and not materials else A4)
+    # All generated schedules and product summaries use portrait A4. The
+    # legacy portrait argument remains accepted for saved callers.
+    page_size = A4
     width, height = page_size
     report = _ScheduleReport(data, project_details, page_size)
-    if quote_scope:
-        from .quote_schedule import configure_quote_schedule
-        configure_quote_schedule(report)
+    from .quote_schedule import configure_quote_schedule
+    configure_quote_schedule(report)
+    if scope_intro:
+        from .quote_schedule import append_scope_intro
+        append_scope_intro(report, scope_intro)
     data = report.data
     report.overview(materials=materials, include_project_details=include_project_details, project_report_title=project_report_title,
                     include_references=include_references, quote_scope=quote_scope)
-    if data.get('assessment_notes'):
+    if data.get('assessment_notes') and not quote_scope:
         # Assessment evidence can occupy several pages. Start its quantities
         # on a fresh page so neither a section title nor table header is left
         # alone beneath the basis. Unaffected report pagination stays intact.
@@ -751,7 +726,7 @@ def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=N
         report.product_totals()
         report.extras()
     else:
-        report.schedule(portrait=portrait, quote_scope=quote_scope)
+        report.schedule(portrait=True, quote_scope=quote_scope)
     # A final spacer can overflow an otherwise complete summary onto a page
     # containing only its header and footer. It carries no report content.
     while report.story and isinstance(report.story[-1], Spacer):

@@ -5,7 +5,7 @@ const fs = require("node:fs"), path = require("node:path"), { createHash } = req
 const { create, sources, createFeedback, feedbackSources, createPrinting, printingSource, createDownloadSound } = require("../static/header-menu-sounds.js");
 
 test("native media cancellation at any stage requires exact delivery and fresh trusted decoding proof", () => {
-  const origin = "http://127.0.0.1:54321", source = feedbackSources.selectOther, url = origin + source, sha256 = "a".repeat(64);
+  const origin = "http://127.0.0.1:54321", source = feedbackSources.select, url = origin + source, sha256 = "a".repeat(64);
   const request = { stage: "responsive layout", observedAt: "2026-11-06T14:37:15.006Z", method: "GET", resourceType: "media", url, failure: { errorText: "net::ERR_ABORTED" } };
   const proof = { origin, paths: [source], hashes: { [`static${source}`]: sha256 }, capturedAt: "2026-11-06T14:37:16.000Z",
     assets: [{ url, status: 200, contentType: "audio/mpeg", sha256, bytes: 123 }],
@@ -163,7 +163,7 @@ test("the exact supplied MP3 bytes are retained and the module is loaded before 
 
 function audioHarness() {
   const host = target(), document = target(), motion = target(), players = [], calls = [];
-  document.hidden = false; document.takeoffsActive = false;
+  document.hidden = false; document.takeoffsActive = true;
   document.body = { classList: { contains(name) { assert.equal(name, "takeoffs-active"); return document.takeoffsActive; } } };
   motion.matches = false;
   host.Audio = class {
@@ -212,7 +212,7 @@ test("delegated feedback covers dynamic buttons, icons and button-like links onc
   h.document.emit("pointerover", { target: label, pointerType: "mouse", relatedTarget: icon });
   assert.deepEqual(h.plays(), [["play", feedbackSources.hover, 0]]);
   h.document.emit("click", { target: icon, detail: 0, preventDefault() { throw Error("Do not delay the action"); } });
-  assert.equal(h.plays().at(-1)[1], feedbackSources.selectOther);
+  assert.equal(h.plays().at(-1)[1], feedbackSources.select);
   const dynamic = element(null, { control: true });
   h.document.emit("click", { target: dynamic });
   assert.equal(h.plays().length, 3); assert.equal(h.players.length, 5);
@@ -228,7 +228,7 @@ test("stationary replacement hover leaves the clicked tab's selection playing, i
   h.document.emit("pointerover", { ...pointer, target: old });
   h.document.emit("pointermove", { ...pointer, target: old });
   h.document.emit("click", { target: old, clientX: 438, clientY: 498, detail: 1 });
-  const select = h.players.find(player => player.src === feedbackSources.selectOther);
+  const select = h.players.find(player => player.src === feedbackSources.select);
   select.currentTime = 0.1;
   const count = h.plays().length, stops = h.menu.stops;
   // A replacement still interrupted selection when its hover clip was unready.
@@ -246,7 +246,7 @@ test("real neighbouring movement and leaving then returning to the same position
   h.document.emit("pointerover", { ...pointer, target: first });
   h.document.emit("click", { target: first });
   h.document.emit("pointerover", { ...pointer, clientX: 40.5, target: next, relatedTarget: first });
-  assert.deepEqual(h.plays().map(row => row[1]), [feedbackSources.hover, feedbackSources.selectOther, feedbackSources.hover]);
+  assert.deepEqual(h.plays().map(row => row[1]), [feedbackSources.hover, feedbackSources.select, feedbackSources.hover]);
   h.document.emit("pointermove", { ...pointer, clientX: 80.5, target: element(null) });
   h.document.emit("pointerover", { ...pointer, target: first, relatedTarget: next });
   assert.equal(h.plays().length, 4, "Returning to an earlier coordinate follows actual movement");
@@ -261,8 +261,8 @@ test("keyboard clicks do not overwrite the resting pointer and missing coordinat
   h.document.emit("pointerover", { ...pointer, target: first });
   h.document.emit("click", { target: replacement, detail: 0, clientX: 0, clientY: 0 });
   h.document.emit("pointerover", { ...pointer, target: replacement });
-  assert.deepEqual(h.plays().map(row => row[1]), [feedbackSources.hover, feedbackSources.selectOther]);
-  assert.equal(h.players.find(player => player.src === feedbackSources.selectOther).paused, false);
+  assert.deepEqual(h.plays().map(row => row[1]), [feedbackSources.hover, feedbackSources.select]);
+  assert.equal(h.players.find(player => player.src === feedbackSources.select).paused, false);
   h.document.emit("pointerover", { target: first, pointerType: "mouse" });
   h.document.emit("pointerover", { target: replacement, pointerType: "mouse" });
   assert.equal(h.plays().length, 4, "Coordinate-free compatibility events are not suppressed");
@@ -304,24 +304,22 @@ test("stationary drawing boundaries still stop feedback and keep explicit drawin
   assert.equal(h.plays().at(-1)[1], feedbackSources.hover);
 });
 
-test("Home shares header clips, while the logo, Takeoff controls and other-page controls remain distinct", () => {
-  const h = audioHarness(); createFeedback(h.document, h.host, h.menu);
-  const homeButton = element(element(null, { zone: "home" }), { control: true });
-  h.document.emit("pointerover", { target: homeButton, pointerType: "mouse" }); h.document.emit("click", { target: homeButton });
-  assert.deepEqual(h.menu.calls, ["move", "confirm"]); assert.equal(h.plays().length, 0);
+test("main pages including Home are silent; header logo and Takeoff actions retain feedback", () => {
+  const h = audioHarness(); h.document.takeoffsActive = false; createFeedback(h.document, h.host, h.menu);
+  for (const zone of ["home", "", "dialog"]) {
+    const button = element(element(null, { zone }), { control: true });
+    h.document.emit("pointerover", { target: button, pointerType: "mouse" }); h.document.emit("click", { target: button });
+  }
+  assert.equal(h.plays().length, 0); assert.deepEqual(h.menu.calls, []);
   const header = element(null, { zone: "header" }), headerButton = element(header, { control: true });
-  h.document.emit("pointerover", { target: headerButton, pointerType: "mouse" }); h.document.emit("click", { target: headerButton });
-  assert.equal(h.plays().length, 0); assert.equal(h.menu.calls.length, 2, "Header direct listeners remain the only owner");
-  const logo = element(element(header, { brand: true })); h.document.emit("click", { target: logo });
-  assert.equal(h.plays().at(-1)[1], feedbackSources.explosion); assert.equal(h.menu.calls.length, 2);
-  const takeoff = element(element(null, { zone: "takeoff" }), { control: true }); h.document.emit("click", { target: takeoff });
+  h.document.emit("click", { target: headerButton }); assert.equal(h.plays().length, 0, "Direct header listeners own feedback");
+  h.document.emit("click", { target: element(element(header, { brand: true })) });
+  assert.equal(h.plays().at(-1)[1], feedbackSources.explosion);
+  const takeoff = element(element(null, { zone: "takeoff" }), { control: true });
+  h.document.emit("click", { target: takeoff }); assert.equal(h.plays().at(-1)[1], feedbackSources.select);
+  h.document.takeoffsActive = true;
+  h.document.emit("click", { target: element(element(null, { zone: "dialog" }), { control: true }) });
   assert.equal(h.plays().at(-1)[1], feedbackSources.select);
-  const outsideDialogButton = element(element(null, { zone: "dialog" }), { control: true }); h.document.takeoffsActive = true;
-  h.document.emit("click", { target: outsideDialogButton }); assert.equal(h.plays().at(-1)[1], feedbackSources.select);
-  h.document.takeoffsActive = false; h.document.emit("click", { target: outsideDialogButton });
-  assert.equal(h.plays().at(-1)[1], feedbackSources.selectOther);
-  h.document.emit("click", { target: element(null, { control: true }) });
-  assert.equal(h.plays().at(-1)[1], feedbackSources.selectOther, "A calculator hub card outside #view-home uses normal feedback");
 });
 
 test("PDF drawing hits and handles are silent while pane and explicit context-menu buttons keep Takeoff feedback", () => {
@@ -373,7 +371,7 @@ test("ordinary feedback never queues unloaded audio or replays rejected interact
   const button = element(null, { control: true }), hover = h.players.find(player => player.src === feedbackSources.hover);
   hover.readyState = 0; h.document.emit("pointerover", { target: button, pointerType: "mouse" });
   hover.readyState = 4; hover.emit("canplay"); assert.equal(h.plays().length, 0);
-  const select = h.players.find(player => player.src === feedbackSources.selectOther); select.failure = "reject";
+  const select = h.players.find(player => player.src === feedbackSources.select); select.failure = "reject";
   h.document.emit("click", { target: button }); await Promise.resolve(); assert.equal(select.paused, true);
   hover.emit("canplay"); assert.equal(h.plays().length, 1);
   select.failure = "pending"; h.document.emit("click", { target: button });
@@ -381,18 +379,17 @@ test("ordinary feedback never queues unloaded audio or replays rejected interact
   assert.equal(hover.paused, false, "A stale select rejection cannot stop the latest hover");
 });
 
-test("the global Save button owns one immediate checkpoint click on every page", () => {
-  const h = audioHarness(); createFeedback(h.document, h.host, h.menu);
-  for (const zone of ["", "home", "header", "takeoff"]) {
+test("the global Save is silent on main pages and retains checkpoint feedback in Takeoffs", () => {
+  const h = audioHarness(); h.document.takeoffsActive = false; createFeedback(h.document, h.host, h.menu);
+  for (const zone of ["", "home"]) {
     const button = element(element(null, { zone }), { control: true }); button.id = "save-current-project";
-    const icon = element(button), before = h.plays().length, menuBefore = h.menu.calls.length;
-    h.document.emit("click", { target: icon, detail: 0 });
-    assert.equal(h.plays().length, before + 1);
-    assert.equal(h.plays().at(-1)[1], feedbackSources.checkpoint);
-    assert.equal(h.menu.calls.length, menuBefore, "No header/Home confirmation is emitted by delegated Save");
-    button.disabled = true; h.document.emit("click", { target: icon });
-    assert.equal(h.plays().length, before + 1, "Disabled Save stays silent");
+    h.document.emit("click", { target: element(button), detail: 0 });
+    assert.equal(h.plays().length, 0);
   }
+  const button = element(null, { control: true }); button.id = "save-current-project";
+  h.document.takeoffsActive = true; h.document.emit("click", { target: button });
+  assert.equal(h.plays().at(-1)[1], feedbackSources.checkpoint);
+  button.disabled = true; h.document.emit("click", { target: button }); assert.equal(h.plays().length, 1);
 });
 
 test("downloads stay silent through concurrent operations, completion and page lifecycle", () => {

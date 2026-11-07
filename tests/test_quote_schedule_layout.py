@@ -21,14 +21,14 @@ from tests.test_penetration_labour_exports import draft
 REFERENCE = {'label': 'Verified report <A> & B', 'url': 'https://media.promat.com/verified-report.pdf'}
 HEADERS = {
     'steel_vermiculite': ['Line', 'Location', 'Item / mark', 'Product', 'Section', 'Quantity',
-                         'Length (m)', 'Thickness (mm)', 'Report', 'Calculation Notes'],
+                         'Length (m)', 'Thickness (mm)', 'Report'],
     'steel_board': ['Line', 'Item / mark', 'Location', 'Product', 'Section', 'Design min / °C',
                     'Board stack mm', 'Total thickness mm', 'Box ref. m²', 'Net board m²',
-                    'With waste m²', 'Sheets / line', 'Report', 'Calculation Notes'],
+                    'With waste m²', 'Sheets / line', 'Report'],
     'ductwork': ['Line', 'Product / duct mm', 'Length m × qty', 'FRL', 'Thickness mm',
-                'Duct m²', 'Net spray bags', 'Wrap m²', 'Roll eq.', 'Status / estimating basis', 'Report'],
+                'Duct m²', 'Net spray bags', 'Wrap m²', 'Roll eq.', 'Report'],
     'steel_intumescent': ['Line', 'Location', 'Item / mark', 'Product / member case',
-                          'Period (min)', 'Critical °C', 'DFT (µm)', 'Area (m²)', 'Report', 'Calculation Notes'],
+                          'Period (min)', 'Critical °C', 'DFT (µm)', 'Area (m²)', 'Report'],
 }
 FIRE_HEADERS = ['Line', 'Diagram', 'Service', 'Quantity', 'FRL', 'Service size',
                 'Orientation', 'Substrate', 'Report']
@@ -112,8 +112,7 @@ class QuoteScheduleLayoutTests(unittest.TestCase):
                 self.assert_portrait(portrait)
                 self.assert_values(table, portrait)
                 standalone = PdfReader(BytesIO(build_calculator_report(identity, value['inputs'])))
-                self.assertTrue(all(float(page.mediabox.width) > float(page.mediabox.height)
-                                    for page in standalone.pages))
+                self.assert_portrait(standalone)
                 self.assert_values(table, standalone)
                 if data['rows'][0]['result_unavailable']:
                     self.assertEqual(table['rows'][0][table['headers'].index('Report')], 'N / A')
@@ -131,10 +130,7 @@ class QuoteScheduleLayoutTests(unittest.TestCase):
         self.assertEqual(table['rows'][0][1], 'Included in PDF')
         for portrait in (False, True):
             reader = PdfReader(BytesIO(render_penetration_pdf(result, definition(), {}, library=library, portrait=portrait)))
-            if portrait:
-                self.assert_portrait(reader)
-            else:
-                self.assertGreater(float(reader.pages[0].mediabox.width), float(reader.pages[0].mediabox.height))
+            self.assert_portrait(reader)
             self.assert_values(table, reader)
             images = [image for page in reader.pages for image in page.images]
             self.assertTrue(any(image.image.size == (320, 160) for image in images))
@@ -190,7 +186,7 @@ class QuoteScheduleLayoutTests(unittest.TestCase):
         self.assert_portrait(reader)
         content = text(reader)
         for index in range(24):
-            self.assertEqual(content.count(f'Member-{index:02}'), 4)
+            self.assertEqual(content.replace(' ', '').count(f'Member-{index:02}'), 1)
 
 
 if __name__ == '__main__':

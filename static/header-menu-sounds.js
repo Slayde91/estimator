@@ -111,19 +111,15 @@
     }
     function route(button, click) {
       if (closed || document.hidden || !enabled(button)) return;
-      // The global Save control owns one distinct click, regardless of the
-      // page behind it. Do not also emit that page's ordinary selection clip.
-      if (click && button.id === "save-current-project") { menu.stop?.(); players.play("checkpoint"); return; }
       // The header's direct listeners own its sounds. Home shares the same
       // two players; a calculator hub card outside Home uses ordinary feedback.
       if (button.closest(".app-header")) { players.stop(); return; }
-      if (button.closest("#view-home")) { players.stop(); menu.play?.(click ? "confirm" : "move"); }
-      else {
-        // Takeoff dialogs are appended to body, so their active workspace
-        // supplies the context even when they are outside #view-takeoffs.
-        const takeoff = button.closest("#view-takeoffs") || (button.closest('dialog, [role="dialog"]') && document.body?.classList?.contains("takeoffs-active"));
-        menu.stop?.(); players.play(click ? (takeoff ? "select" : "selectOther") : "hover");
-      }
+      // Takeoff dialogs and global actions are outside the workspace node.
+      // Its active state supplies their context; every other main page is silent.
+      const takeoff = button.closest("#view-takeoffs") || document.body?.classList?.contains("takeoffs-active");
+      if (!takeoff) { players.stop(); return; }
+      menu.stop?.();
+      players.play(click ? (button.id === "save-current-project" ? "checkpoint" : "select") : "hover");
     }
     function over(event) {
       const target = element(event.target);

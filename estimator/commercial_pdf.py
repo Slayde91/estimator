@@ -315,14 +315,16 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
         _summary(story, fields, styles)
         _totals(story, fields, styles)
         _rates(story, fields['rate_schedule'], styles)
-        _section(story, 'SCOPE OF WORKS', styles)
-        story.extend(_rich(fields['scope'], styles['body']))
         if scope_documents:
-            story.append(_paragraph('The following Full Schedules form the Scope of Works for this quotation.', styles['body']))
+            # Generated schedules carry their own scope heading and estimate
+            # name. A separate introductory PDF would force a blank remainder
+            # of the page before the first schedule.
             parts.append(_build(story, document, number, company, first_part=True))
             parts.extend(scope_documents)
             story = []
         else:
+            _section(story, 'SCOPE OF WORKS', styles)
+            story.extend(_rich(fields['scope'], styles['body']))
             for table in fields['scope_tables']:
                 _section(story, table['title'], styles)
                 story.append(_table(table['headers'], table['rows'], styles))

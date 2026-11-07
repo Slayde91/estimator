@@ -1,7 +1,7 @@
 const {chromium, expect: defaultExpect} = require('@playwright/test');
 const expect = defaultExpect.configure({timeout:30000});
 const {spawn,execFileSync} = require('node:child_process');
-const {clickProjectControl} = require('./project_actions.cjs');
+const {clickProjectControl,fillProjectDetails} = require('./project_actions.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
@@ -69,8 +69,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   assert.equal(await page.evaluate(() => window.CeasefireCertification.sessionId()), null);
   await page.getByRole('button',{name:'Estimates',exact:true}).click();
   await expect(page.locator('#project-no')).toHaveAttribute('readonly','');
-  await page.locator('#client').fill('Unsaved project client');
-  await page.locator('#site-address').fill('25 Current Estimate Street');
+  await fillProjectDetails(page, {client:'Unsaved project client', 'site-address':'25 Current Estimate Street'});
   await page.locator('#view-estimate').getByRole('button',{name:'Document',exact:true}).click();
   await page.locator('#estimate-open-quote').click();
   const quote=page.locator('#commercial-quote-root');
@@ -150,12 +149,27 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await quote.getByRole('checkbox',{name:'Additional scope',exact:true}).check();
   await expect(quote.locator('.commercial-lines tbody tr')).toHaveCount(2);
   await expect(quote.locator('.commercial-message')).toBeHidden();
-  await expect(quote.getByRole('textbox',{name:'Scope preamble',exact:true})).toContainText('Additional scope');
+  await expect(quote.getByRole('textbox',{name:'Scope preamble',exact:true})).toHaveCount(0);
+  for (const label of ['Allowances', 'Terms & Conditions']) {
+    const section=quote.locator('details.commercial-rich>summary').filter({hasText:label}).locator('..');
+    await expect(section).not.toHaveAttribute('open','');
+  }
+  const samePairRow = async (leftLabel,rightLabel) => {
+    const left=quote.getByLabel(leftLabel,{exact:true}),right=quote.getByLabel(rightLabel,{exact:true});
+    const leftBox=await left.boundingBox(),rightBox=await right.boundingBox();
+    assert.ok(rightBox.x>leftBox.x && Math.abs(rightBox.y-leftBox.y)<2,`${leftLabel} and ${rightLabel} share a row`);
+    assert.equal(await left.evaluate((el,label)=>el.closest('.commercial-field-pair')===document.querySelector(`[aria-label="${label}"]`)?.closest('.commercial-field-pair'),rightLabel),true);
+  };
+  await samePairRow('Document date','Project number');
+  await samePairRow('Client','Client contact');
+  await samePairRow('Client phone','Client email');
   const prices=await quote.locator('.commercial-lines input[readonly]').evaluateAll(inputs=>inputs.map(input=>Number(input.value)));
   assert.deepEqual(prices,seeded.prices);
   await quote.getByLabel('Document title',{exact:true}).fill('QA quotation');
   await quote.locator('.commercial-lines tbody textarea').first().fill('Supply and install the selected system');
   await quote.locator('.commercial-lines tbody input').first().fill('2');
+  await quote.locator('details.commercial-rich>summary').filter({hasText:'Allowances'}).click();
+  await expect(quote.getByRole('textbox',{name:'Allowances',exact:true})).toContainText('N / A');
   await quote.getByRole('textbox',{name:'Allowances',exact:true}).fill('Client provides safe access.');
   await save(quote);
   // Editing after Save must still change the active document, not a detached object.
@@ -206,7 +220,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await page.getByRole('dialog').getByRole('button',{name:'Cancel',exact:true}).click();
   for(const panel of ['Account Details','Contact Details','Notes','Files','Linked Quotes','Linked Purchase Orders']) await expect(work.locator('.commercial-side-panel summary').filter({hasText:panel})).toBeVisible();
   const startBounds=await work.getByLabel('Proposed start date').boundingBox(), endBounds=await work.getByLabel('Proposed end date').boundingBox();
-  assert.equal(startBounds.x,endBounds.x);
+  assert.ok(endBounds.x>startBounds.x && Math.abs(startBounds.y-endBounds.y)<2,'Proposed dates share a row within one column');
   await work.getByRole('button',{name:'New note'}).click();
   const note=page.getByRole('dialog',{name:'Work Order note'});
   await note.getByLabel('Note title').fill('Site observation');

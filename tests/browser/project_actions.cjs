@@ -52,4 +52,19 @@ async function clickProjectControl(page, name) {
   }
 }
 
-module.exports = { clickProjectControl, openProjectTools, openProjectSection };
+async function fillProjectDetails(page, values) {
+  const previous = await page.locator('.view').evaluateAll(nodes => nodes.find(node => !node.hidden)?.id.replace(/^view-/, ''));
+  await openProjectSection(page, 'quotes');
+  for (const [id, value] of Object.entries(values)) {
+    if (!['client', 'site-address'].includes(id)) throw new Error('Unknown editable project detail: ' + id);
+    await page.locator('#' + id).fill(value);
+    await page.locator('#' + id).blur();
+  }
+  if (previous && previous !== 'quotes') {
+    if (['quote', 'work-orders', 'purchase-orders', 'scheduler', 'certification', 'documentation', 'swms', 'documents'].includes(previous)) await openProjectSection(page, previous);
+    else await page.locator('.nav-button[data-view="' + previous + '"]').click();
+  }
+  await page.waitForFunction(() => { const state = window.CeasefireDesktop?.status(); return state?.ready && !state.busy; });
+}
+
+module.exports = { clickProjectControl, openProjectTools, openProjectSection, fillProjectDetails };

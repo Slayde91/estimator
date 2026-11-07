@@ -1,3 +1,4 @@
+const {fillProjectDetails}=require('./project_actions.cjs');
 const {chromium, expect: baseExpect} = require('@playwright/test');
 const expect = baseExpect.configure({timeout:30000});
 const {spawn} = require('node:child_process');
@@ -28,7 +29,7 @@ async function run(edition) {
     await page.goto(`http://127.0.0.1:${info.port}/`); await idle();
     await page.getByRole('button',{name:'Estimates',exact:true}).click();
     const projectNumber = await page.locator('#project-no').inputValue();
-    await page.locator('#client').fill('Example builder'); await page.locator('#site-address').fill('10 Test Street');
+    await fillProjectDetails(page,{'client':'Example builder'}); await fillProjectDetails(page,{'site-address':'10 Test Street'});
     await openProjectSection(page, 'documentation');
     const documentRow = page.locator('#documentation-pdf-rows tr').filter({hasText:'Safe Work Method Statement'});
     await documentRow.getByRole('button').first().click();

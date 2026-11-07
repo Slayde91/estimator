@@ -150,6 +150,23 @@ class QuotePdfRefinementTests(unittest.TestCase):
             numbers = re.findall(r'Page \d+(?: of \d+)?', page.extract_text())
             self.assertEqual(numbers, [f'Page {index} of {len(reader.pages)}'])
 
+    def test_scope_heading_and_first_schedule_share_a_page(self):
+        for values, fire in (({'steel_board': calculators()['steel_board']}, None), ({}, fire_draft())):
+            with self.subTest(first_schedule='board' if values else 'firestopping'):
+                scope = build_project_report(values, fire, {}, {}, company=DEFAULTS,
+                    portrait=True, quote_scope=True, scope_intro={'name': 'Selected estimate', 'heading': True})
+                reader = PdfReader(BytesIO(self.quote([scope])))
+                scope_pages = [page.extract_text() for page in reader.pages if 'SCOPE OF WORKS' in page.extract_text()]
+                self.assertEqual(len(scope_pages), 1)
+                content = compact(scope_pages[0])
+                self.assertIn('Selected estimate', content)
+                self.assertIn('Line', content)
+                self.assertIn('Report', content)
+                self.assertIn('Board fixture' if values else 'Plastic Pipes', content)
+                for removed in ('Calculation Notes', 'Status / estimating basis', 'used schedule items.',
+                                'incomplete or unavailable primary quantities'):
+                    self.assertNotIn(removed, content)
+
     def test_board_rows_paginate_vertically_with_every_column_repeated(self):
         inputs = {}
         for index in range(24):

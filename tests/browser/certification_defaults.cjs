@@ -1,3 +1,4 @@
+const {fillProjectDetails}=require('./project_actions.cjs');
 // Disposable lifecycle coverage. This fixture never generates a certificate PDF.
 const {chromium,expect}=require('@playwright/test');
 const {openProjectSection,clickProjectControl}=require('./project_actions.cjs');
@@ -32,7 +33,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await page.route('**/api/certifications/*/revisions',async route=>{generationRequests.push(route.request().url());await route.abort();});
   await page.goto(base+'/');await idle();
   await page.locator('#estimate-navigation-toggle').click();
-  await page.locator('#client').fill('Current estimate client');await page.locator('#site-address').fill('Current estimate address');await expect(page.locator('#project-no')).toHaveAttribute('readonly','');const firstSave=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/save-as');await clickProjectControl(page,'Save');assert.equal((await firstSave).status(),200);await idle();await expect(page.locator('#project-no')).toHaveValue('PN-00001');
+  await fillProjectDetails(page,{'client':'Current estimate client'});await fillProjectDetails(page,{'site-address':'Current estimate address'});await expect(page.locator('#project-no')).toHaveAttribute('readonly','');const firstSave=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/save-as');await clickProjectControl(page,'Save');assert.equal((await firstSave).status(),200);await idle();await expect(page.locator('#project-no')).toHaveValue('PN-00001');
   await certification();
   await expect(page.locator('#certification-document')).toHaveValue('__draft__');
   await expect(page.locator('#certification-client')).toHaveValue('Current estimate client');
@@ -83,7 +84,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await page.locator('#certification-client').fill('Custom certificate client');
   await page.locator('#certification-statement_of_compliance').fill('Custom statement retained');
   await page.locator('#estimate-navigation-toggle').click();
-  await page.locator('#client').fill('Changed estimate client');await page.locator('#site-address').fill('Changed estimate address');await expect(page.locator('#project-no')).toHaveValue('PN-00001');
+  await fillProjectDetails(page,{'client':'Changed estimate client'});await fillProjectDetails(page,{'site-address':'Changed estimate address'});await expect(page.locator('#project-no')).toHaveValue('PN-00001');
   await certification();
   await expect(page.locator('#certification-client')).toHaveValue('Custom certificate client');
   await expect(page.locator('#certification-statement_of_compliance')).toHaveValue('Custom statement retained');

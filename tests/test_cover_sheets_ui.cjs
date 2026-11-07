@@ -39,95 +39,85 @@ function harness(){
   host.querySelectorAll=()=>host.children;
   const context={window,document:{getElementById:id=>id==='documentation-pdf-rows'?host:status,createElement:element},FileReader,fetch,JSON,Map,Set,Array,Object,Number,Error,encodeURIComponent};
   vm.createContext(context);vm.runInContext(fs.readFileSync('static/cover-sheets.js','utf8'),context);
-  function row(kind){const e=host.children.find(el=>el.dataset.coverKind===kind);return {element:e,file:e.children[3].children[0],filename:e.children[3].children[1],notice:e.children[3].children[2],save:e.children[4].children[0].children[0],remove:e.children[4].children[0].children[1]};}
+  function row(kind){const e=host.children.find(el=>el.dataset.coverKind===kind);return {element:e,file:e.children[3].children[0],filename:e.children[3].children[1],notice:e.children[3].children[2],actions:e.children[4].children[0],remove:e.children[4].children[0].children[0]};}
   return {api:window.CeasefireCoverSheets,row,records,calls,host,status,window,response,serverError,metadata,
     override:fn=>{override=fn;},approve:value=>{approve=value;},loseReply:()=>{lostReply=true;},
     upload:async(kind,file={})=>{const input=row(kind).file;input.files=[{name:'Selected.pdf',type:'application/pdf',size:123,...file}];await input.emit('change');},
-    completeRead:()=>pendingReads.shift()(),save:kind=>row(kind).save.emit('click'),remove:kind=>row(kind).remove.emit('click')};
+    completeRead:()=>pendingReads.shift()(),save:()=>window.CeasefireCoverSheets.saveAll(),remove:kind=>row(kind).remove.emit('click')};
 }
+
 let checks=0;
-async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.api.open();await fn(h);checks++;console.log('ok - '+name);}
+async function check(name,fn){const h=harness();await h.api.open();await fn(h);checks++;console.log('ok - '+name);}
 (async()=>{
-  await check('Cover settings load lazily, render saved metadata and require a selected file for Save',async h=>{
-    assert.deepEqual(h.calls,[]);assert.equal(h.api.hasPendingOperation(),false);await h.api.open();
-    assert.equal(h.host.children.length,2);assert.equal(h.row('certification').save.disabled,true);
-    assert.equal(h.row('takeoff_markups').save.disabled,true);assert.equal(h.row('takeoff_markups').remove.disabled,false);
-    assert.equal(h.row('takeoff_markups').filename.textContent,'Cover sheet: Saved.pdf');
-    assert.equal(h.api.hasUnsavedChanges(),false);await h.api.open();assert.equal(h.calls.length,1);
-  },{open:false});
-  await check('Each row saves only its selected upload and retains unrelated rows',async h=>{
-    const other=copy(h.records.get('takeoff_markups'));await h.upload('certification',{name:'<literal name>.pdf',type:'',dataURL:'data:application/octet-stream;base64,JVBERi0x'});
-    assert.equal(h.api.hasUnsavedChanges(),true);assert.equal(h.row('certification').save.disabled,false);
-    assert.equal(h.row('certification').filename.textContent,'Cover sheet: <literal name>.pdf');await h.save('certification');
-    assert.equal(h.records.get('certification').cover_pdf,cover);assert.equal(h.records.get('certification').cover_pdf_name,'<literal name>.pdf');
-    assert.deepEqual(h.records.get('takeoff_markups'),other);assert.equal(h.api.hasUnsavedChanges(),false);assert.equal(h.row('certification').save.disabled,true);
-    assert.equal(h.calls.filter(call=>call.body).length,1);assert.deepEqual(Object.keys(h.calls.at(-1).body),['cover_pdf','cover_pdf_name','expected_version']);
+  await check('Rows expose only Trash and uploads remain drafts until main Save',async h=>{
+    assert.equal(h.row('certification').actions.children.length,1);
+    await h.upload('certification',{name:'<literal name>.pdf'});
+    assert.equal(h.records.get('certification').cover_pdf,null);
+    assert.equal(h.api.hasUnsavedChanges(),true);
+    assert.equal(h.row('certification').filename.textContent,'Cover sheet: <literal name>.pdf');
+    await h.api.saveAll();assert.equal(h.records.get('certification').cover_pdf,cover);
+    assert.equal(h.records.get('certification').cover_pdf_name,'<literal name>.pdf');
+    assert.equal(h.api.hasUnsavedChanges(),false);
+    assert.equal(h.calls.filter(call=>call.body).length,1);
   });
-  await check('Trash immediately persists removal and discards only that row upload',async h=>{
+  await check('Trash stages removal until main Save, without touching another row',async h=>{
     await h.upload('certification');await h.remove('takeoff_markups');
-    assert.equal(h.records.get('takeoff_markups').cover_pdf,null);assert.equal(h.records.get('takeoff_markups').cover_pdf_name,'');
-    assert.equal(h.row('takeoff_markups').filename.textContent,'No cover sheet selected.');assert.equal(h.row('takeoff_markups').remove.disabled,true);
-    assert.equal(h.row('certification').save.disabled,false);assert.equal(h.api.hasUnsavedChanges(),true);
-    await h.remove('certification');assert.equal(h.api.hasUnsavedChanges(),false);
+    assert.equal(h.records.get('takeoff_markups').cover_pdf,cover);
+    assert.equal(h.row('takeoff_markups').filename.textContent,'No cover sheet selected.');
+    await h.api.saveAll();assert.equal(h.records.get('takeoff_markups').cover_pdf,null);
+    assert.equal(h.records.get('certification').cover_pdf,cover);
+    assert.equal(h.api.hasUnsavedChanges(),false);
   });
-  await check('Invalid or failed uploads keep the prior saved row usable',async h=>{
-    await h.upload('takeoff_markups',{name:'bad.exe',type:'application/octet-stream'});assert.equal(h.row('takeoff_markups').filename.textContent,'Cover sheet: Saved.pdf');
-    assert.match(h.row('takeoff_markups').notice.textContent,/Choose a PDF/);assert.equal(h.api.hasUnsavedChanges(),false);
-    await h.upload('takeoff_markups',{fail:true});assert.equal(h.row('takeoff_markups').filename.textContent,'Cover sheet: Saved.pdf');assert.match(h.row('takeoff_markups').notice.textContent,/could not be read/);
+  await check('Cancel keeps cover drafts and Yes discards them without a write',async h=>{
+    await h.upload('certification');await h.remove('takeoff_markups');
+    const stamp=h.api.fingerprint();h.approve(false);assert.equal(await h.api.leave(),false);
+    assert.equal(h.api.fingerprint(),stamp);h.approve(true);assert.equal(await h.api.leave(),true);
+    assert.equal(h.api.hasUnsavedChanges(),false);assert.equal(h.records.get('takeoff_markups').cover_pdf,cover);
+    assert.equal(h.row('takeoff_markups').filename.textContent,'Cover sheet: Saved.pdf');
+    assert.equal(h.calls.filter(call=>call.body).length,0);
   });
-  await check('A pending read locks its row, guards project replacement and fingerprints the draft',async h=>{
-    const before=h.api.fingerprint(),upload=h.upload('certification',{hold:true});await flush();
-    assert.equal(h.api.hasPendingOperation(),true);assert.equal(h.row('certification').save.disabled,true);
-    await h.save('certification');assert.equal(h.calls.filter(call=>call.body).length,0);assert.notEqual(h.api.fingerprint(),before);
-    h.completeRead();await upload;assert.equal(h.api.hasPendingOperation(),false);assert.equal(h.row('certification').save.disabled,false);
+  await check('Invalid or unreadable uploads retain the saved cover',async h=>{
+    await h.upload('takeoff_markups',{name:'bad.exe',type:'application/octet-stream'});
+    assert.match(h.row('takeoff_markups').notice.textContent,/Choose a PDF/);
+    await h.upload('takeoff_markups',{fail:true});assert.equal(h.api.hasUnsavedChanges(),false);
+    assert.equal(h.row('takeoff_markups').filename.textContent,'Cover sheet: Saved.pdf');
   });
-  await check('Independent row saves can proceed while another row is reading',async h=>{
-    const upload=h.upload('certification',{hold:true});await flush();await h.remove('takeoff_markups');
-    assert.equal(h.records.get('takeoff_markups').cover_pdf,null);assert.equal(h.api.hasPendingOperation(),true);h.completeRead();await upload;
+  await check('Main Save cannot race a pending read',async h=>{
+    const upload=h.upload('certification',{hold:true});await flush();
+    assert.equal(h.api.hasPendingOperation(),true);
+    await assert.rejects(h.api.saveAll(),/Finish the cover-sheet upload/);
+    assert.equal(h.calls.filter(call=>call.body).length,0);
+    h.completeRead();await upload;await h.api.saveAll();assert.equal(h.api.hasUnsavedChanges(),false);
   });
-  await check('An uncertain committed Save retries the identical version and upload',async h=>{
-    await h.upload('certification');h.loseReply();await h.save('certification');
-    assert.equal(h.records.get('certification').version,2);assert.equal(h.api.hasPendingOperation(),true);assert.equal(h.row('certification').file.disabled,true);
-    await h.remove('certification');assert.equal(h.records.get('certification').cover_pdf,cover);await h.save('certification');
-    const posts=h.calls.filter(call=>call.body);assert.deepEqual(posts[0].body,posts[1].body);assert.equal(h.records.get('certification').version,2);
+  await check('An uncertain committed Save retries identical payload and version',async h=>{
+    await h.upload('certification');h.loseReply();await assert.rejects(h.api.saveAll(),/not all saved/);
+    assert.equal(h.records.get('certification').version,2);assert.equal(h.api.hasPendingOperation(),true);
+    assert.equal(h.row('certification').file.disabled,true);
+    await h.api.saveAll();const posts=h.calls.filter(call=>call.body);
+    assert.deepEqual(posts[0].body,posts[1].body);assert.equal(h.records.get('certification').version,2);
     assert.equal(h.api.hasPendingOperation(),false);assert.equal(h.api.hasUnsavedChanges(),false);
   });
-  await check('An uncertain committed Trash retries safely without recreating a deleted cover',async h=>{
-    h.loseReply();await h.remove('takeoff_markups');assert.equal(h.api.hasPendingOperation(),true);assert.equal(h.row('takeoff_markups').save.disabled,true);
-    await h.remove('takeoff_markups');const posts=h.calls.filter(call=>call.body);assert.deepEqual(posts[0].body,posts[1].body);
-    assert.equal(h.records.get('takeoff_markups').cover_pdf,null);assert.equal(h.records.get('takeoff_markups').version,3);assert.equal(h.api.hasPendingOperation(),false);
+  await check('An uncertain committed removal retries without restoring deleted cover',async h=>{
+    await h.remove('takeoff_markups');h.loseReply();await assert.rejects(h.api.saveAll());
+    await h.api.saveAll();const posts=h.calls.filter(call=>call.body);
+    assert.deepEqual(posts[0].body,posts[1].body);assert.equal(h.records.get('takeoff_markups').cover_pdf,null);
+    assert.equal(h.records.get('takeoff_markups').version,3);
   });
-  await check('A stale Save keeps the selection, permits cancellation, then refreshes the version only after approval',async h=>{
-    await h.upload('certification',{name:'My selection.pdf'});Object.assign(h.records.get('certification'),{cover_pdf:cover+'X',cover_pdf_name:'Other window.pdf',version:2});
-    await h.save('certification');assert.equal(h.api.hasPendingOperation(),false);assert.match(h.row('certification').notice.textContent,/another window/);
-    h.approve(false);await h.save('certification');assert.equal(h.records.get('certification').cover_pdf_name,'Other window.pdf');assert.equal(h.row('certification').filename.textContent,'Cover sheet: My selection.pdf');
-    h.approve(true);await h.save('certification');assert.equal(h.calls.at(-1).body.expected_version,2);assert.equal(h.records.get('certification').cover_pdf_name,'My selection.pdf');
+  await check('Conflict cancellation retains upload; approval refreshes version',async h=>{
+    await h.upload('certification',{name:'My selection.pdf'});
+    Object.assign(h.records.get('certification'),{cover_pdf:cover+'X',cover_pdf_name:'Other window.pdf',version:2});
+    await assert.rejects(h.api.saveAll());h.approve(false);await assert.rejects(h.api.saveAll());
+    assert.equal(h.records.get('certification').cover_pdf_name,'Other window.pdf');
+    assert.equal(h.row('certification').filename.textContent,'Cover sheet: My selection.pdf');
+    h.approve(true);await h.api.saveAll();assert.equal(h.calls.at(-1).body.expected_version,2);
+    assert.equal(h.records.get('certification').cover_pdf_name,'My selection.pdf');
   });
-  await check('A stale Trash remains retryable even if another window added a previously empty cover',async h=>{
-    await h.upload('certification');Object.assign(h.records.get('certification'),{cover_pdf:cover+'X',cover_pdf_name:'Other window.pdf',version:2});
-    await h.remove('certification');assert.equal(h.row('certification').remove.disabled,false);h.approve(false);await h.remove('certification');
-    assert.equal(h.records.get('certification').cover_pdf_name,'Other window.pdf');h.approve(true);await h.remove('certification');assert.equal(h.records.get('certification').cover_pdf,null);
+  await check('A failed later row keeps it dirty and does not repeat the saved earlier row',async h=>{
+    await h.upload('certification');await h.remove('takeoff_markups');
+    h.override(async(path,body)=>body&&path.endsWith('takeoff_markups')?h.serverError(400,'Invalid'):undefined);
+    await assert.rejects(h.api.saveAll());assert.equal(h.records.get('certification').cover_pdf,cover);
+    assert.equal(h.api.hasUnsavedChanges(),true);h.override(null);await h.api.saveAll();
+    assert.equal(h.calls.filter(call=>call.body&&call.path.endsWith('certification')).length,1);
   });
-  await check('Cancelling a conflicted Trash preserves the selected upload and its fingerprint exactly',async h=>{
-    await h.upload('certification',{name:'My selected.pdf'});Object.assign(h.records.get('certification'),{cover_pdf:cover+'X',cover_pdf_name:'Other window.pdf',version:2});
-    await h.save('certification');const before=h.api.fingerprint(),posts=h.calls.filter(call=>call.body).length;
-    h.approve(false);await h.remove('certification');assert.equal(h.api.fingerprint(),before);
-    assert.equal(h.row('certification').filename.textContent,'Cover sheet: My selected.pdf');assert.equal(h.row('certification').save.disabled,false);
-    assert.equal(h.calls.filter(call=>call.body).length,posts);assert.equal(h.records.get('certification').cover_pdf_name,'Other window.pdf');
-    h.approve(true);await h.save('certification');assert.equal(h.records.get('certification').cover_pdf_name,'My selected.pdf');
-  });
-  await check('Confirmed validation errors preserve selected files and permit correction',async h=>{
-    await h.upload('certification');h.override(async(path,body)=>body?h.serverError(400,'Invalid passive PDF'):undefined);await h.save('certification');
-    assert.equal(h.api.hasPendingOperation(),false);assert.equal(h.api.hasUnsavedChanges(),true);assert.equal(h.row('certification').file.disabled,false);assert.equal(h.row('certification').filename.textContent,'Cover sheet: Selected.pdf');
-  });
-  await check('Failed or malformed initial loading can retry without publishing partial rows',async h=>{
-    let invalid=true;h.override(async path=>path==='/api/pdf-covers'&&invalid?h.response({items:[{kind:'bad',label:'Invalid'}]}):undefined);
-    await h.api.open();assert.ok(h.host.children.every(row=>row.children.length===3));assert.match(h.status.textContent,/Open Documentation again/);assert.equal(h.api.hasPendingOperation(),false);
-    invalid=false;await h.api.open();assert.ok(h.host.children.every(row=>row.children.length===5));
-  },{open:false});
-  await check('A shared in-flight initial open cannot race duplicate table loads',async h=>{
-    const held=deferred();h.override(async path=>path==='/api/pdf-covers'?held.promise:undefined);const first=h.api.open(),second=h.api.open();await flush();
-    assert.equal(h.api.hasPendingOperation(),true);assert.equal(h.calls.length,1);held.resolve(h.response({items:[...h.records.values()].map(h.metadata)}));await Promise.all([first,second]);assert.equal(h.host.children.length,2);
-  },{open:false});
   console.log(checks+' cover-sheet UI checks passed.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

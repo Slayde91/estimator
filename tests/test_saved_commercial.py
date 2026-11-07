@@ -1,5 +1,6 @@
 """Link ownership and PDF recovery across independent project workspaces."""
 import json
+import shutil
 from pathlib import Path
 import tempfile
 import unittest
@@ -97,6 +98,64 @@ class SavedQuoteTests(unittest.TestCase):
         with self.assertRaises(CommercialConflict):
             self.perform('delete', id=self.document['id'], version=1)
         self.assertEqual(self.path.read_bytes(), original + b'\n')
+
+    def test_native_open_registers_only_the_selected_source_across_restart(self):
+        elsewhere = self.root / 'other-folder'
+        elsewhere.mkdir()
+        selected = elsewhere / 'opened.cf.json'
+        unselected = elsewhere / 'private.cf.json'
+        original = self.path.read_bytes()
+        selected.write_bytes(original)
+        unselected.write_bytes(original)
+        shutil.copytree(self.folder / '.ceasefire-evidence', elsewhere / '.ceasefire-evidence')
+        self.library.dialogs = type('NativePicker', (), {'choose_open': lambda _, folder: str(selected)})()
+        self.library.open_file()
+        restarted = ProjectLibrary(self.store, certifications=self.library.certifications, documentation=self.library.documentation)
+        restarted.commercial = self.library.commercial
+        self.addCleanup(restarted.close)
+        register = restarted.commercial_register(refresh=True)
+        while register['scan_pending']:
+            register = restarted.commercial_register()
+        self.assertEqual({row['source_path'] for row in register['documents']}, {str(self.path), str(selected)})
+        card = next(row for row in register['documents'] if row['source_path'] == str(selected))
+        self.assertNotEqual(card['source_file'], self.card['source_file'])
+        selection = {'file_id': card['source_file'], 'revision': card['source_revision']}
+        SavedCommercial(restarted).perform('status', {'source':selection,'id':card['id'],'version':1,'status':'Review'}, self.http.execute)
+        self.assertEqual(json.loads(selected.read_bytes())['commercial_documents']['documents'][0]['status'],'Review')
+        self.assertEqual(self.path.read_bytes(),original)
+        self.assertEqual(unselected.read_bytes(),original)
+        with self.assertRaises(ValidationError):
+            SavedCommercial(restarted).perform('open',{'source':{**selection,'file_id':str(unselected)},'id':card['id']},self.http.execute)
+
+    def test_relink_retains_owners_and_missing_files_never_recreate_drafts(self):
+        empty = self.root / 'another-linked-folder'
+        empty.mkdir()
+        self.store.set_project_folder(empty)
+        self.assertEqual([doc['source_path'] for doc in self.register()['documents']], [str(self.path)])
+        renamed = self.root / 'moved.cf.json'
+        self.path.rename(renamed)
+        shutil.copytree(self.folder / '.ceasefire-evidence', self.root / '.ceasefire-evidence')
+        missing = self.register()
+        self.assertEqual(missing['documents'],[])
+        self.assertEqual([item['path'] for item in missing['unavailable_sources']],[str(self.path)])
+        self.library.dialogs = type('NativePicker', (), {'choose_open': lambda _, folder: str(renamed)})()
+        self.library.open_file()
+        restored = self.register()
+        self.assertEqual([doc['source_path'] for doc in restored['documents']],[str(renamed)])
+        self.assertEqual(restored['unavailable_sources'],[])
+
+    def test_registered_path_replacement_is_not_granted_its_old_owner(self):
+        outside = self.root/'empty'
+        outside.mkdir()
+        self.store.set_project_folder(outside)
+        snapshot = json.loads(self.path.read_bytes())
+        changed_id = str(uuid.uuid4())
+        snapshot['certifications']['project_id'] = snapshot['commercial_documents']['project_id'] = changed_id
+        self.path.write_text(json.dumps(snapshot),encoding='utf8')
+        self.assertEqual(self.register()['documents'],[])
+        from hashlib import sha256
+        with self.assertRaises(CommercialConflict):
+            self.saved.perform('open',{'source':{**self.source,'revision':sha256(self.path.read_bytes()).hexdigest()},'id':self.document['id']},self.http.execute)
 
     def test_retry_after_each_file_boundary_reuses_the_number_and_pdf(self):
         args = {'id': self.document['id'], 'version': 1, 'kind': 'quote', 'request_id': str(uuid.uuid4())}

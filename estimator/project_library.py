@@ -20,6 +20,7 @@ import time
 import uuid
 
 from .catalog import ValidationError
+from .commercial_sources import CommercialSources, source_id
 from .edition import require_project_edition, validate_edition
 from .native_dialogs import NativeDialogs, SaveSelection
 from .project_file import CALCULATOR_IDS, LEGACY_CALCULATOR_IDS, OPTIONAL_CALCULATOR_IDS, ESTIMATE_FIELDS, ESTIMATE_REQUIRED_FIELDS, MAX_PROJECT_FILE, PROJECT_EXTENSION, assert_project_overwrite, export_project, has_project_identity, is_project_filename, load_project_bytes, project_filename, project_summary, validate_project_status, estimate_descriptors, WORKSPACE_FIELDS
@@ -250,6 +251,7 @@ def _metadata(path, info, project, folder, payload):
             "relative_folder": str(Path(relative).parent).replace("\\", "/") if inside else "",
             "title": estimate["title"], "project_no": estimate.get("project_no", ""),
             "client": estimate.get("client", ""), "site_address": estimate.get("site_address", ""),
+            "source_project_id": project.get("source_project_id") or (project.get("certifications") or {}).get("project_id"),
             "commercial_cards": cards, "quote_cards": [card for card in cards if card['kind'] == 'quote'],
             "clients": project.get("clients", [estimate.get("client", "")]),
             "project_numbers": project.get("project_numbers", [estimate.get("project_no", "")]),
@@ -334,6 +336,9 @@ class ProjectLibrary:
         # Browser requests receive opaque, session-only capabilities, never a
         # writable path argument. Each successful Save consumes its capability.
         self._save_targets = {}
+        self._commercial_sources = CommercialSources(store, project_details)
+        self._commercial_walk = None
+        self._outside_file_cache = {}
 
     def _capture_takeoffs(self, request):
         prepared = self._capture_workspace(request)
@@ -568,6 +573,7 @@ class ProjectLibrary:
     def _scan_batch(self):
         """Bound each request, retaining traversal state so no total cap hides files."""
         scan = self._scan
+        discovered = []
         consumed = processed = inspected = 0
         deadline = time.monotonic() + MAX_SCAN_SECONDS
         # Yield between filesystem operations so a cold/cloud-backed directory
@@ -663,11 +669,13 @@ class ProjectLibrary:
                     scan["errors"].append(value)
                 elif not value.get("ignored"):
                     scan["files"][value["id"]] = value
+                    discovered.append(value)
                 processed += 1
                 scan["json_files"] += 1
             except (OSError, ValidationError) as error:
                 scan["errors"].append({"name": relative, "error": str(error)})
             scan["deferred"] = None
+        self._commercial_sources.remember(discovered)
         scan["scanned_at"] = datetime.now(timezone.utc).isoformat()
 
     def listing(self, search="", sort="modified_desc", offset=0, limit=100, refresh=False):
@@ -815,6 +823,8 @@ class ProjectLibrary:
             except OSError as error:
                 raise ValidationError("The project could not be deleted. Check folder permissions and retry.") from error
             self._scan["files"].pop(request["id"], None)
+            self._commercial_sources.delete(path)
+            self._commercial_walk = None
             self._cache.pop((str(self._scan["folder"]), str(path)), None)
             return {"deleted": True, "retained_file": str(retained)}
 
@@ -922,6 +932,8 @@ class ProjectLibrary:
                        "sha256": hashlib.sha256(payload).hexdigest()}
         with self._lock:
             self._save_targets[token] = SaveSelection(str(path), fingerprint)
+            self._commercial_sources.remember([metadata])
+            self._commercial_walk = None
         return {**metadata, "save_token": token}
 
     def capture_download(self, request, *, project_id=None):
@@ -1112,21 +1124,73 @@ class ProjectLibrary:
             result['warning'] = warning
         return result
 
+    def _other_commercial_file(self, identifier, raw_path, project):
+        path = Path(raw_path)
+        _directory(path.parent)
+        info = path.lstat()
+        if _linked(info) or not stat.S_ISREG(info.st_mode) or not is_project_filename(path.name):
+            raise ValidationError('The recorded source is no longer a regular project file.')
+        previous = self._outside_file_cache.get(identifier)
+        if previous and previous[0] == _identity(info) and previous[1]['source_project_id'] == project:
+            return previous[1]
+        payload, info = _read_file(path)
+        summary = project_summary(payload, edition=self.edition)
+        if summary['source_project_id'] != project:
+            raise ValidationError('The recorded location now belongs to another project.')
+        metadata = _metadata(path, info, summary, None, payload)
+        self._outside_file_cache[identifier] = (_identity(info), metadata)
+        return metadata
+
     def commercial_register(self, *, refresh=False):
-        listing = self.listing(limit=200, refresh=refresh)
+        # Continue a cold external-file scan between requests. Only the linked
+        # folder is enumerated; all other reads target a previously selected file.
         with self._lock:
-            files = (list(self._scan['files'].values()) if listing['folder'] and self._scan
-                     and self._scan['folder'] == Path(listing['folder']) else [])
-        documents = []
-        for file in files:
-            for card in file['commercial_cards']:
-                details = {key: file[key] for key in ('project_no', 'client', 'site_address')}
-                documents.append({**card, 'fields': {**card['fields'], 'details': {**card['fields']['details'], **details}},
-                                  'source_file': file['id'], 'source_revision': file['revision'], 'source_path': file['path']})
-        if self.commercial and not listing['scan_pending']:
-            self.commercial.apply_register_numbers(documents)
-        return {'documents': documents, 'revisions': {file['path']: file['revision'] for file in files},
-                'scan_pending': listing['scan_pending'], 'error_count': listing['error_count']}
+            folder = self.store.project_folder()
+            walk = self._commercial_walk
+            if refresh or walk is None or walk['folder'] != folder:
+                listing = self.listing(limit=200, refresh=refresh)
+                if listing['scan_pending']:
+                    self._commercial_walk = None
+                    return {'documents': [], 'revisions': {}, 'scan_pending': True, 'error_count': listing['error_count'], 'unavailable_sources': []}
+                linked = (list(self._scan['files'].values()) if folder and self._scan
+                          and self._scan['folder'] == Path(folder) else [])
+                files = {source_id(f['path']): f for f in linked}
+                records = self._commercial_sources.records()
+                walk = {'folder': folder, 'files': files, 'errors': listing['error_count'], 'missing': [],
+                        'known_owners': {row[2] for row in records},
+                        'pending': deque(row for row in records if not row[4] and row[0] not in files)}
+                self._commercial_walk = walk
+            deadline = time.monotonic() + MAX_SCAN_SECONDS
+            for _ in range(MAX_PROJECT_FILES):
+                if not walk['pending']:
+                    break
+                identifier, path, owner, title, _deleted = walk['pending'].popleft()
+                try:
+                    walk['files'][identifier] = self._other_commercial_file(identifier, path, owner)
+                except (OSError, ValidationError):
+                    self._outside_file_cache.pop(identifier, None)
+                    walk['missing'].append((owner, {'title': title, 'path': path, 'reason': 'unavailable'}))
+                if time.monotonic() >= deadline:
+                    break
+            if walk['pending']:
+                return {'documents': [], 'revisions': {}, 'scan_pending': True, 'error_count': walk['errors'], 'unavailable_sources': []}
+            self._commercial_walk = None
+            files = walk['files']
+            present = {f['source_project_id'] for f in files.values()}
+            missing = [item for owner, item in walk['missing'] if owner not in present]
+            documents = []
+            for identifier, file in files.items():
+                for card in file['commercial_cards']:
+                    details = {key: file[key] for key in ('project_no', 'client', 'site_address')}
+                    documents.append({**card, 'fields': {**card['fields'], 'details': {**card['fields']['details'], **details}},
+                                      'source_file': file['id'] or identifier, 'source_revision': file['revision'], 'source_path': file['path']})
+            if self.commercial:
+                self.commercial.apply_register_numbers(documents)
+                for owner, title in self.commercial.issued_source_labels():
+                    if owner not in present and owner not in walk['known_owners']:
+                        missing.append({'title': title, 'reason': 'unlocated'})
+            return {'documents': documents, 'revisions': {f['path']: f['revision'] for f in files.values()},
+                    'scan_pending': False, 'error_count': walk['errors'], 'unavailable_sources': missing}
 
     def quote_register(self):
         register = self.commercial_register()
@@ -1135,15 +1199,25 @@ class ProjectLibrary:
 
     @contextmanager
     def commercial_file(self, identifier, revision, *, find_issued=False):
-        """Grant a single revision-checked operation on a linked project only."""
+        """Grant one conditional operation on a current or previously authorized owner file."""
         from .commercial_documents import CommercialConflict
         with self._lock:
-            _, path = self._project_path(identifier)
+            if not isinstance(identifier, str) or not re.fullmatch('[a-f0-9]{64}', identifier):
+                raise ValidationError('Choose a document from its board.')
+            selected = self._commercial_sources.resolve(identifier)
+            if selected:
+                path = Path(selected[0])
+                _directory(path.parent)
+            else:
+                # A previously opened tab can still hold a linked-folder file ID.
+                _, path = self._project_path(identifier)
             payload, info = _read_file(path)
             actual_revision = hashlib.sha256(payload).hexdigest()
             if actual_revision != revision and not find_issued:
                 raise CommercialConflict('The saved project changed. Reopen its board and select the document again.')
             summary = project_summary(payload, edition=self.edition)
+            if selected and summary['source_project_id'] != selected[1]:
+                raise CommercialConflict('This file now belongs to a different project. Load its current copy from Projects.')
             snapshot = json.loads(payload.decode('utf-8-sig'))
             def commit():
                 updated = json.dumps(snapshot, ensure_ascii=False, allow_nan=False, indent=2).encode('utf-8')
@@ -1153,10 +1227,13 @@ class ProjectLibrary:
                 _, after = _atomic_write(selection, updated)
                 from .commercial_documents import commercial_cards
                 summary['commercial_cards'] = commercial_cards(snapshot['commercial_documents'])
-                folder = self._scan['folder']
+                folder = self._scan['folder'] if self._scan else None
                 metadata = _metadata(path, after, summary, folder, updated)
-                self._scan['files'][identifier] = metadata
-                self._cache.pop((str(folder), str(path)), None)
+                if folder is not None and metadata['id']:
+                    self._scan['files'][metadata['id']] = metadata
+                    self._cache.pop((str(folder), str(path)), None)
+                self._outside_file_cache.pop(source_id(path), None)
+                self._commercial_walk = None
                 return metadata['revision']
             yield path, snapshot, actual_revision, commit
 

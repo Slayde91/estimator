@@ -213,6 +213,7 @@
       result.activeFileChanged = Boolean(diskRevision && active?.project_revision && diskRevision !== active.project_revision);
       state.savedCards = register.documents.filter(card => card.source_path !== active?.project_path || result.activeFileChanged);
       result.unavailableProjects = register.error_count;
+      result.unavailableSources = register.unavailable_sources || [];
     }
     state.model = result;
     return true;
@@ -303,6 +304,19 @@
     controls.append(columns);
     const list = node("section", "card commercial-list");
     list.append(controls, node("p", "helper commercial-match-count"), node("div", "commercial-board project-kanban"));
+    if (state.model.unavailableSources?.length) {
+      const notice = node("section","commercial-source-notice");
+      notice.append(node("h2","","Unavailable project files"));
+      const missing = node("ul");
+      for (const source of state.model.unavailableSources) {
+        const description = source.path
+          ? `${source.title} — the saved file could not be read at ${source.path}`
+          : `${source.title} — CLASSIFIRE has issued document history for this project but has no current saved file for it.`;
+        missing.append(node("li","",description));
+      }
+      notice.append(missing,node("p","","To show its current documents, use Projects → Load to open the project's .cf.json file, or link the folder containing it."));
+      list.insertBefore(notice,list.querySelector(".commercial-board"));
+    }
     host.append(list);
     renderCards();
     if (state.model.unavailableProjects) message("Some linked project files could not be read. See Projects for details.", true);

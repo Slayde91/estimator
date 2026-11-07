@@ -542,6 +542,18 @@ class CommercialDocuments:
                 if related:
                     order['work_order_reference'] = related[0]
 
+    def issued_source_labels(self):
+        # An issued receipt can identify a former project but never supplies its
+        # editable documents. Only a present, validated project file does that.
+        with self._connect() as db:
+            rows = db.execute("""SELECT i.project_id,
+                json_extract(i.document,'$.fields.details.project_no') AS number,
+                json_extract(i.document,'$.fields.details.client') AS client
+                FROM commercial_issued i JOIN
+                    (SELECT project_id,MAX(rowid) AS last_row FROM commercial_issued GROUP BY project_id) latest
+                ON i.rowid=latest.last_row""").fetchall()
+        return [(r['project_id'], ' · '.join(s for s in (r['number'],r['client']) if s) or 'Previously issued project') for r in rows]
+
     def apply_register_numbers(self, cards):
         with self._connect() as db:
             self.numbering.attach(db)

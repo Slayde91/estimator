@@ -41,7 +41,13 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   assert.equal(await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot().documents[0].id),firstDrawing);
   const nameEditor=page.getByRole('textbox',{name:'Estimate name',exact:true});
   await expect(nameEditor).toHaveValue('Estimate 1');await expect(page.locator('#project-estimate-rename')).toHaveCount(0);
-  assert.deepEqual(await nameEditor.evaluate(el=>{const box=el.getBoundingClientRect();return [8,box.width-8].map(dx=>document.elementFromPoint(box.x+dx,box.y+box.height/2).id);}),['project-estimate-current-name','project-estimate-select']);
+  const hitAreas = await nameEditor.evaluate(input => {
+    const box = input.getBoundingClientRect();
+    const add = document.getElementById('project-estimate-new').getBoundingClientRect();
+    const xPositions = [add.x + add.width / 2, box.x + box.width / 2, box.right - 8];
+    return xPositions.map(x => document.elementFromPoint(x, box.y + box.height / 2).closest('button,input,select')?.id);
+  });
+  assert.deepEqual(hitAreas, ['project-estimate-new', 'project-estimate-current-name', 'project-estimate-select']);
   await nameEditor.press('ArrowDown');await expect(page.locator('#project-estimate-select')).toBeFocused();
   await page.keyboard.press('Escape');await expect(page.locator('#project-estimate-select')).toHaveValue('estimate-1');
   await nameEditor.fill('Discard my typing');await nameEditor.press('Escape');await expect(nameEditor).toHaveValue('Estimate 1');

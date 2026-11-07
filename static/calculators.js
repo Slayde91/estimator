@@ -1774,13 +1774,14 @@ window.CeasefireScheduleColumns = (() => {
   });
 
   function updateOutputCell(element, cell) {
+    if (cell.display_value !== undefined) cell = { ...cell, value: cell.display_value, error: null };
     const address = cell.address || element.dataset.calculatorOutput, entry = current();
     const value = sourceDisplayText(cell.value, entry, address), suffix = entry && (entry.result?.display_cells || sheetMetadata(entry).display_cells)?.[address]?.suffix;
     if (entry?.definition.id === "steel_board" && entry.sheet === "CALCULATOR" && address === "Y6") {
       element.hidden = value === "Enter a steel schedule. Review the selected report for installation details.";
     }
     const schedule = entry?.definition.schedule, position = parseAddress(address);
-    const basis = scheduleBasis(entry, address, value);
+    const basis = cell.display_value === undefined && scheduleBasis(entry, address, value);
     const lineNumber = schedule && entry.sheet === schedule.sheet && position?.column === columnNumber(schedule.line_id_column) && position.row >= schedule.first_row && position.row <= schedule.last_row;
     element.textContent = (lineNumber && Number.isInteger(value) ? String(value) : displayValue(value, cell)) + (isNumber(value) && !cell.error && typeof suffix === "string" ? suffix : "");
     if (cell.calculated && browserPresentation[entry?.definition.id]?.[entry?.sheet]?.split_status?.includes(address)) {
@@ -1891,11 +1892,16 @@ window.CeasefireScheduleColumns = (() => {
     }
     renderProductTotals(result, entry.productTotalsElement);
     const reportRows = new Map(result.rows.map(row => [row.row, row]));
-    for (const element of $("calculator-grid").querySelectorAll("[data-calculator-reports]")) renderReportReferences(element, reportRows.get(Number(element.dataset.calculatorReports))?.report_references || []);
+    for (const element of $("calculator-grid").querySelectorAll("[data-calculator-reports]")) renderReportReferences(element, reportRows.get(Number(element.dataset.calculatorReports)));
     refreshBoardSteelAreas(result);
   }
 
-  function renderReportReferences(element, references) {
+  function renderReportReferences(element, row) {
+    if (row?.result_unavailable) {
+      element.textContent = "N / A";
+      return;
+    }
+    const references = row?.report_references || [];
     const renderer = window.CeasefireRegisterReferences?.renderReports;
     element.replaceChildren(...(references.length ? [renderer ? renderer(references) : node("span", "", references.map(reference => reference.label).join(" | "))] : []));
   }
@@ -2359,7 +2365,7 @@ window.CeasefireScheduleColumns = (() => {
       const groupColumns = renderedGroup.columns;
       const tr = node("tr"), values = new Map(row.cells.map((cell) => [cell.column, cell]));
       const item = schedule ? row.row - schedule.first_row + 1 : "";
-      const reportCell = () => { const cell = node("td", "calculator-report-column"); cell.dataset.scheduleColumn = "virtual:report"; cell.dataset.calculatorReports = String(row.row); renderReportReferences(cell, row.report_references || []); return cell; };
+      const reportCell = () => { const cell = node("td", "calculator-report-column"); cell.dataset.scheduleColumn = "virtual:report"; cell.dataset.calculatorReports = String(row.row); renderReportReferences(cell, row); return cell; };
       tr.dataset.sourceRow = String(row.row);
       if (dynamicSchedule) {
         tr.setAttribute("aria-rowindex", String(entry.scheduleRows.indexOf(row.row) + 2));

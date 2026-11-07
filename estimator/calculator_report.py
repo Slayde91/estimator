@@ -17,7 +17,7 @@ from xml.sax.saxutils import escape
 from reportlab.lib.pagesizes import A3, A4, landscape
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.platypus import PageBreak, SimpleDocTemplate, Spacer, TableStyle, Paragraph
-from .assessment_references import schedule_report_references
+from .assessment_references import UNAVAILABLE_RESULT, schedule_report_references, schedule_result_available
 
 from .excel_engine import column_name
 from .pdf_fonts import FONT_REGULAR
@@ -25,7 +25,7 @@ from .report import _Report, _company_header, _register_fonts, _number, _numeric
 from .workbook_calculators import (FYREWRAP_DIRECTION_NOTE, calculator_engine,
                                    normalize_calculator_inputs, source_model)
 from .board_steel_area import board_net_steel_areas, steel_area_display
-from .download_disclosure import calculator_download_data
+from .download_disclosure import calculator_download_data, duct_schedule_outputs
 
 
 REPORT_SCOPES = {
@@ -196,7 +196,8 @@ def project_calculator_report(calculator_id, inputs=None):
         if calculator_id == 'ductwork':
             record['product_code'] = engine.value(sheet_name, f'BD{row}')
             record['wrap'] = record['product_code'] == 3
-            record['wrap_layer_mm'] = engine.value('PRODUCT SETTINGS', 'B96') * 1000 if record['wrap'] else None
+            layer_metres = engine.value('PRODUCT SETTINGS', 'B96') if record['wrap'] else None
+            record['wrap_layer_mm'] = layer_metres * 1000 if _numeric(layer_metres) else None
             record['complete'] = _numeric(values['N'] if record['wrap'] else values['M'])
         elif calculator_id == 'steel_vermiculite':
             record['complete'] = isinstance(values['W'], str) and values['W'].startswith('QUANTIFIED')
@@ -226,7 +227,9 @@ def project_calculator_report(calculator_id, inputs=None):
             record['assessment_source'] = values['Y']
         else:
             record['complete'] = values['AR'] == 'CLADDING ESTIMATE'
-        record['report_references'] = schedule_report_references(calculator_id, engine, row)
+        record['result_unavailable'] = not schedule_result_available(calculator_id, engine, row)
+        record['complete'] = record['complete'] and not record['result_unavailable']
+        record['report_references'] = schedule_report_references(calculator_id, engine, row) if not record['result_unavailable'] else []
         rows.append(record)
 
     def table(title, name, header, first, last, columns, *, note=''):
@@ -506,12 +509,12 @@ class _ScheduleReport(_Report):
             v = item['values']
             identity = str(item['line'])
             if data['id'] == 'ductwork':
-                thickness = self.display(item['wrap_layer_mm']) + ' per layer' if item['wrap'] else self.display(v['L'])
+                thickness, basis, area, bags, wrap, rolls = duct_schedule_outputs(item)
+                thickness = self.display(thickness) + (' per layer' if basis == 'Per layer' else '')
                 rows.append([self.p(identity, 'cell'), self.detail(v['C'] or 'Product missing', v['B']),
                     self.p(self.display(v['D']) + ' × ' + self.display(v['CM']), 'numeric'),
-                    self.p(self.display(v['E']), 'cell'), self.p(thickness, 'numeric'), self.numeric(v['K']),
-                    self.numeric('N/A' if item['wrap'] else v['M']), self.numeric(v['N'] if item['wrap'] else 'N/A'),
-                    self.numeric(v['O'] if item['wrap'] else 'N/A'), self.p(v['J'] or 'No calculated status returned', 'cell')])
+                    self.p(self.display(v['E']), 'cell'), self.p(thickness, 'numeric'), self.numeric(area),
+                    self.numeric(bags), self.numeric(wrap), self.numeric(rolls), self.p(v['J'] or 'No calculated status returned', 'cell')])
             elif data['id'] == 'steel_intumescent':
                 rows.append([self.p(identity, 'cell'), self.p(v['AA'], 'cell'), self.p(v['A'], 'cell'),
                     self.detail(v['B'] or 'Product missing', v['C']), self.numeric(v['H']), self.numeric(v['D']),
@@ -525,7 +528,7 @@ class _ScheduleReport(_Report):
                 rows.append([self.p(identity, 'cell'), self.p(v['A'], 'cell'), self.p(v['B'], 'cell'),
                     self.p(v['C'] or 'Product missing', 'cell'), self.detail(v['D'],
                         'Length ' + self.display(v['F']) + ' m × Quantity ' + self.display(v['CJ'])),
-                    self.p(self.display(v['AN']) + ' / ' + self.display(v['AO']), 'numeric'), self.p(self.display(v['Z']), 'cell'),
+                    self.p(UNAVAILABLE_RESULT if item.get('result_unavailable') else self.display(v['AN']) + ' / ' + self.display(v['AO']), 'numeric'), self.p(self.display(v['Z']), 'cell'),
                     self.numeric(v['AB']), self.numeric(v['AD']), self.numeric(v['AE']), self.numeric(v['AF']), self.numeric(v['AG']),
                     self.p('\n'.join(str(value) for value in (v['AR'], v['AS']) if _has_value(value)) or 'No calculated status returned', 'cell')])
         if data['id'] == 'ductwork':
@@ -550,7 +553,8 @@ class _ScheduleReport(_Report):
         fractions.append(.12)
         fractions = [size / sum(fractions) for size in fractions]
         for cells, item in zip(rows, data['rows']):
-            cells.insert(position, self.report_links(item['report_references']))
+            report = self.p(UNAVAILABLE_RESULT, 'cell') if item.get('result_unavailable') else self.report_links(item['report_references'])
+            cells.insert(position, report)
         return heads, rows, fractions
 
     def schedule(self, *, portrait=False, quote_scope=False):

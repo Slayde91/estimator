@@ -10,8 +10,8 @@ from openpyxl.worksheet.page import PageMargins
 from .calculator_report import (project_calculator_report, _source_text,
                                 summary_display_columns, summary_display_value)
 from .pricing_workbook import _serialize_exact
-from .assessment_references import report_reference_text
-from .download_disclosure import calculator_download_data
+from .assessment_references import UNAVAILABLE_RESULT, report_reference_text
+from .download_disclosure import calculator_download_data, duct_schedule_outputs
 
 
 _RED = '941321'
@@ -100,9 +100,7 @@ def _schedule(data, workbook):
                   'Thickness basis', 'Duct surface (m²)', 'Net spray bags', 'Wrap material (m²)', 'Roll equivalents', 'Status']
         widths = [9, 26, 23, 16, 14, 18, 17, 19, 19, 18, 20, 18, 65]
         records = [[item['line'], v['C'], v['B'], v['D'], v['CM'], v['E'],
-                    item['wrap_layer_mm'] if item['wrap'] else v['L'], 'Per layer' if item['wrap'] else 'Coating',
-                    v['K'], 'N/A' if item['wrap'] else v['M'], v['N'] if item['wrap'] else 'N/A',
-                    v['O'] if item['wrap'] else 'N/A', v['J'] or 'No calculated status returned']
+                    *duct_schedule_outputs(item), v['J'] or 'No calculated status returned']
                    for item in data['rows'] for v in [item['values']]]
     elif identity == 'steel_intumescent':
         labels = ['Line', 'Location', 'Mark', 'Product', 'Member case', 'Section', 'Period (min)',
@@ -143,7 +141,7 @@ def _schedule(data, workbook):
     labels.append('Report')
     widths.append(32)
     for values, item in zip(records, data['rows']):
-        values.append(report_reference_text(item['report_references'], urls=True))
+        values.append(UNAVAILABLE_RESULT if item.get('result_unavailable') else report_reference_text(item['report_references'], urls=True))
     sheet = _sheet(workbook, 'Schedule', data['title'] + ' — Schedule', widths)
     _band(sheet, 3, f"{len(records)} used schedule items. {data['incomplete_rows']} item(s) have incomplete or unavailable primary quantities.", len(widths))
     _table(sheet, 5, labels, records, widths, formats={1: '0'}, filtered=True)

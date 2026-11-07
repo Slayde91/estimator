@@ -1,10 +1,10 @@
 const {expect}=require('@playwright/test');
 const assert=require('node:assert/strict');
 const icons=require('./preview_header_icons.json');
-const views=['home','projects','documents','estimate','calculators','takeoffs','pricing','scheduler','help','settings'];
+const views=['home','contacts','projects','documents','estimate','calculators','takeoffs','pricing','scheduler','help','settings'];
 const originalViews=['home','estimate','calculators','takeoffs','pricing','projects','help','settings'];
 async function assertPreviewHeaderIcons(page){
-  await expect(page.locator('nav[aria-label="Main navigation"] .nav-icon')).toHaveCount(10);
+  await expect(page.locator('nav[aria-label="Main navigation"] .nav-icon')).toHaveCount(11);
   assert.deepEqual(await page.locator('nav[aria-label="Main navigation"] .nav-icon').evaluateAll(nodes=>nodes.map(node=>node.dataset.view)),views);
   for(const view of views){
     const index=originalViews.indexOf(view);

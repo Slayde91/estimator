@@ -123,7 +123,7 @@ async function screenshot(name,fixture) {
   const baseline=await recalculate('SCHEDULE');
   await apiReply(()=>clickProjectControl(page,'Save'),'/api/project/save-as');
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
-  const savedPath=path.join(output,'standard-project.cf.json'),savedBytes=fs.readFileSync(savedPath),savedRows=savedCalculatorRows();
+  const savedPath=info.saved,savedBytes=fs.readFileSync(savedPath),savedRows=savedCalculatorRows();
   const placements=[];
   placements.push(await selectBasis('MONOKOTE MK-6 HY','D569',237,'Injected'));
   placements.push(await selectBasis('MONOKOTE Z106','D570',564,'Injected'));
@@ -176,6 +176,9 @@ async function screenshot(name,fixture) {
   let scheduled=await recalculate('SCHEDULE');
   for(const address of ['O12','P12','S12','T12','U12']) assert.equal(scheduled[address],'',`blocked schedule ${address}`);
   assert.match(scheduled.V12,/BLOCKED - SOURCE REVIEW/);
+  await expect(rendered('O12')).toHaveText('N / A');
+  const blockedReport=page.locator('[data-calculator-reports="12"]');
+  await expect(blockedReport).toHaveText('N / A');await expect(blockedReport.locator('a')).toHaveCount(0);
   for(const address of ['V12','W12','X12','Y12'])await expect(rendered(address)).toHaveCount(0);
   await page.getByRole('button',{name:'Add row',exact:true}).click();
   for(const [product,mass,density] of products) {
@@ -223,7 +226,7 @@ async function screenshot(name,fixture) {
   console.log('Verified all six order products, Z106 alignment, hollow coverage and named-only PFC coverage.');
   await apiReply(()=>clickProjectControl(page, 'Save'),'/api/project/save');
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
-  const saved=JSON.parse(fs.readFileSync(path.join(output,'standard-project.cf.json'),'utf8'));
+  const saved=JSON.parse(fs.readFileSync(savedPath,'utf8'));
   const before=await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());
   fs.writeFileSync(path.join(output,'dialog-mode.json'),JSON.stringify({open:'saved'}));
   await apiReply(()=>clickProjectControl(page, 'Load'),'/api/project/open');
@@ -253,7 +256,7 @@ async function screenshot(name,fixture) {
     assert.equal(row[9],'FAR4856 Issue 2 (https://tfire.com.au/documents/Internal-Fire-Hollow-Steel-Sections-FAR4856)');assert.equal(row.length,originalExportHeaders.length);
   }
   const blockedRow=workbook.rows.Schedule.find(row=>row[2]==='SYNTHETIC-BLOCKED');assert.ok(blockedRow);
-  assert.equal(blockedRow[7],null,'blocked published thickness');
+  assert.deepEqual(blockedRow.slice(7),['N / A','N / A','N / A'],'withhold thickness, surface and report for the blocked row');
   const pfcRow=workbook.rows.Schedule.find(row=>row[2]==='SYNTHETIC-PFC');assert.ok(pfcRow);
   closeNumber(pfcRow[7],19,'exported PFC published thickness');closeNumber(pfcRow[8],scheduled.R13,'exported PFC spray surface');
   assert.equal(pfcRow[9],'FAR4853 Issue 3 (https://tfire.com.au/documents/Monokote-Internal-Fire-Solid-Steel-Sections-FAR4853)');assert.equal(pfcRow.length,originalExportHeaders.length);

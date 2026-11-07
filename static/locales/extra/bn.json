@@ -1,4 +1,9 @@
 {
+  "Estimate name": "প্রাক্কলনের নাম",
+  "Give every estimate a name between 1 and 150 characters.": "প্রতিটি প্রাক্কলনের নাম ১ থেকে ১৫০ অক্ষরের মধ্যে রাখুন।",
+  "Discard the current SWMS?": "বর্তমান SWMS বাতিল করবেন?",
+  "Finish the current SWMS operation before changing views.": "অন্য পৃষ্ঠায় যাওয়ার আগে বর্তমান SWMS-এর কাজ শেষ করুন।",
+  "Save or discard the current SWMS edit before changing views.": "অন্য পৃষ্ঠায় যাওয়ার আগে বর্তমান SWMS-এর পরিবর্তনগুলি সংরক্ষণ বা বাতিল করুন।",
   " Ancestor context": " পূর্বসূরি প্রসঙ্গ",
   " It uses the item, image/diagram and prices captured when you clicked Download; later changes are not included.": " ডাউনলোডে ক্লিক করার সময় ধারণ করা আইটেম, ছবি/চিত্র এবং মূল্য ব্যবহৃত হয়; পরের পরিবর্তনগুলি অন্তর্ভুক্ত নয়।",
   " Later edits are not included and still need saving.": " পরের সম্পাদনাগুলি অন্তর্ভুক্ত নয় এবং এখনও সংরক্ষণ করতে হবে।",
@@ -2853,5 +2858,11 @@
   "Review": "পর্যালোচনা",
   "Presented": "উপস্থাপিত",
   "Accepted": "গৃহীত",
-  "Lost": "হারানো"
+  "Lost": "হারানো",
+  "Actions for {0}": "{0} এর জন্য ক্রিয়া",
+  "Contacts": "পরিচিতি",
+  "Create Quote": "কোটেশন তৈরি করুন",
+  "Create SWMS": "SWMS তৈরি করুন",
+  "Rename": "নাম পরিবর্তন করুন",
+  "Select estimate": "প্রাক্কলন নির্বাচন করুন"
 }

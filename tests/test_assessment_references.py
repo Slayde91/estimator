@@ -2,7 +2,7 @@
 from copy import deepcopy
 import unittest
 
-from estimator.assessment_references import schedule_report_references, report_reference_text, _links
+from estimator.assessment_references import schedule_report_references, schedule_result_available, report_reference_text, _links
 from estimator.calculator_report import _ScheduleReport, _register_fonts
 from estimator.library_display import remove_resolved_source_notices
 
@@ -16,6 +16,24 @@ class Engine:
 
 
 class AssessmentReferenceTests(unittest.TestCase):
+    def test_only_the_applicable_result_authorises_a_report(self):
+        cases = [
+            ('steel_vermiculite', {'O11': '', 'P11': 20}, False),
+            ('steel_vermiculite', {'O11': 22, 'W11': 'CHECK QUANTITY'}, True),
+            ('steel_intumescent', {'O11': '#N/A', 'X11': 'FC18580-01-01'}, False),
+            ('steel_intumescent', {'O11': 240}, True),
+            ('steel_board', {'Z11': 'NEEDS REVIEW', 'AB11': 35}, False),
+            ('steel_board', {'Z11': '20+15'}, True),
+            ('ductwork', {'BD11': 1, 'L11': 16, 'O11': ''}, True),
+            ('ductwork', {'BD11': 2, 'L11': '', 'K11': 18}, False),
+            ('ductwork', {'BD11': 3, 'O11': '', 'B96': .038}, False),
+            ('ductwork', {'BD11': 3, 'O11': 1.2, 'B96': ''}, False),
+            ('ductwork', {'BD11': 3, 'O11': .52, 'B96': .038}, True),
+        ]
+        for identity, cells, available in cases:
+            with self.subTest(calculator=identity, cells=cells):
+                self.assertEqual(schedule_result_available(identity, Engine(**cells), 11), available)
+
     def refs(self, identity, **cells):
         return schedule_report_references(identity, Engine(**cells), 11)
 

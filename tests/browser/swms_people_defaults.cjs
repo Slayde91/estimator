@@ -83,7 +83,22 @@ module.exports = async function peopleDefaults(root, output) {
     await expect(host.locator('.swms-message')).toContainText('Saved.');
     await expect.poll(async()=>(await defaults()).fields.reviewers[0].name).toBe('New reviewer');
     await reviewers.locator(':scope > summary').click();
+    async function checkSignatureActions(names) {
+      const actions = reviewers.locator('.swms-person').first().getByRole('button');
+      const boxes = [];
+      for (const name of names) boxes.push(await actions.and(reviewers.getByRole('button',{name,exact:true})).boundingBox());
+      for (const [index, box] of boxes.entries()) {
+        assert.equal(box.y,boxes[0].y);
+        assert.equal(box.width,box.height);
+        assert.equal(box.width,boxes[0].width);
+        if (index) assert.ok(box.x >= boxes[index-1].x + boxes[index-1].width);
+      }
+    }
+    await page.setViewportSize({width:390,height:844});
+    await checkSignatureActions(['Replace signature','Clear signature','Remove person']);
     await reviewers.getByRole('button',{name:'Clear signature',exact:true}).click();
+    await checkSignatureActions(['Draw signature','Remove person']);
+    await page.setViewportSize({width:1575,height:1000});
     await consultation.locator(':scope > summary').click();
     await consultation.getByLabel('Name',{exact:true}).fill('New consultant');
     await consultation.getByLabel('Position',{exact:true}).fill('Site manager');

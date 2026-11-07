@@ -478,23 +478,38 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 @media(max-width:880px){.estimate-banner-heading>.actions{width:100%}#firestopping-document-actions{right:0;left:auto}}
 
 .project-estimate-controls{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin:0 0 20px}.project-estimate-controls>.field{min-width:110px;max-width:100%;flex:0 0 220px}.project-card-estimate{margin-top:12px;font-size:11px}.project-card-estimate select{margin-top:5px;font-size:12px}#project-estimate-dialog .actions{margin-top:20px}
+.project-estimate-controls .field>label{display:block;font-size:12px;font-weight:650;margin-bottom:7px}
+.project-estimate-picker{display:grid;grid-template-columns:minmax(0,1fr) 38px;align-items:stretch}
+.project-estimate-picker input,.project-estimate-picker select{grid-area:1/1/2/-1}
+.project-estimate-picker input{padding-inline-end:40px}
+/* The name is editable. Keep the native list full width, with its hit area on the arrow. */
+.project-estimate-picker select{z-index:1;opacity:0;clip-path:inset(0 0 0 calc(100% - 38px));cursor:pointer}
+.project-estimate-picker:dir(rtl) select{clip-path:inset(0 calc(100% - 38px) 0 0)}
+.project-estimate-chevron{grid-area:1/2;place-self:center;width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:translateY(-2px) rotate(45deg);pointer-events:none}
+.project-estimate-picker:has(select:focus-visible) input{outline:2px solid var(--accent);outline-offset:2px}
 #project-estimate-new{width:42px;min-width:42px;height:42px;min-height:42px;flex:0 0 42px;padding:0}
 
 /* The saved-project view uses flat rows; commercial boards keep their columns. */
+#project-list-card{--project-action-width:clamp(165px,14vw,220px);--project-row-gap:16px}
+#project-list-card .project-list-controls{display:grid;grid-template-columns:minmax(0,1fr) var(--project-action-width);gap:var(--project-row-gap)}
+#project-list-card .project-list-controls>.field{min-width:0}
 .project-list{display:grid;gap:0;min-width:0}
-.project-list-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,220px) auto;align-items:center;gap:20px;padding:20px 0;border-bottom:1px solid var(--line);min-width:0}
+.project-list-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,220px) var(--project-action-width);align-items:end;gap:var(--project-row-gap);padding:20px 0;border-bottom:1px solid var(--line);min-width:0}
 .project-list-row:first-child{padding-top:8px}
 .project-list-row:last-child{border-bottom:0}
 .project-row-details{min-width:0}
 .project-row-heading{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .project-row-heading .project-title-button{font-size:15px;font-weight:700;line-height:1.5;overflow-wrap:anywhere}
-.project-row-status{flex-shrink:0}
 .project-row-details p{margin:7px 0 0;overflow-wrap:anywhere;font-size:11px;line-height:1.5}
-.project-row-actions{display:flex;gap:8px;align-items:center;justify-content:flex-end}
+.project-row-actions{display:flex;align-items:flex-end}
+.project-row-actions .project-card-menu summary{display:inline-flex;align-items:center;justify-content:center;gap:10px;height:42px;min-height:42px;padding:0 16px;font-size:12px}
+.project-row-actions .project-menu-options{left:0;right:auto}
+.project-row-actions .text-button:disabled{opacity:.5;cursor:not-allowed}
+.project-list-row .project-card-estimate select{height:42px;margin:0}
 .project-list-row .project-card-estimate{margin:0;min-width:0}
 .project-status-menu [role="menuitemradio"]{display:flex;justify-content:space-between;gap:24px}
 .project-status-menu [aria-checked="true"]::after{content:"✓";font-weight:700}
-@media(max-width:880px){.project-list-row{grid-template-columns:minmax(0,1fr) minmax(150px,220px)}.project-row-details{grid-column:1/-1}.project-row-actions{align-self:end}}
-@media(max-width:480px){.project-list-row{grid-template-columns:minmax(0,1fr)}.project-row-actions{justify-content:flex-start}}
+@media(max-width:880px){.project-list-row{grid-template-columns:minmax(0,1fr) var(--project-action-width)}.project-row-details{grid-column:1/-1}.project-list-row .project-card-estimate{width:min(100%,220px);justify-self:end}.project-row-actions .project-menu-options{left:auto;right:0}}
+@media(max-width:570px){#project-list-card .project-list-controls{grid-template-columns:1fr}.project-list-row{grid-template-columns:minmax(0,1fr) auto}.project-list-row .project-card-estimate{width:100%}.project-row-actions{justify-self:end}}
 
 .project-status-menu .calculator-document-actions{width:190px;left:0;right:auto}

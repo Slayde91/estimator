@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 import uuid
 
 from estimator.catalog import ValidationError
@@ -115,8 +116,19 @@ class CommercialRegressionTests(unittest.TestCase):
             (self.root/(name+'.cf.json')).write_text(json.dumps(snapshot), encoding='utf-8')
         library = ProjectLibrary(store)
         self.addCleanup(library.close)
-        for item in library.listing()['files']:
+        # A scan may yield after the first file, including in small project folders.
+        with patch('estimator.project_library.MAX_PROJECT_FILES', 1):
+            listing = library.listing()
+            self.assertTrue(listing['scan_pending'])
+            for _ in range(100):
+                listing = library.listing()
+                if not listing['scan_pending']:
+                    break
+        self.assertFalse(listing['scan_pending'])
+        self.assertEqual(listing['errors'], [])
+        for item in listing['files']:
             files[Path(item['name']).name] = library.load(item['id'])['file']
+        self.assertEqual(set(files), {'own.cf.json', 'other.cf.json'})
         saved = self.create()
         body = {'workspace_id': self.workspace, 'id': saved['id'], 'kind': 'work_order', 'version': saved['version'],
                 'request_id': str(uuid.uuid4()), 'download': {'project_token': files['other.cf.json']['save_token']}}

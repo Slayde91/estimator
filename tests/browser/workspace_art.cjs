@@ -98,17 +98,20 @@ async function framing(selector,name,firestopping=false){
  if(!firestopping)await theme('ceasefire',name);
  await page.setViewportSize({width:1384,height:764});
 }
+async function openProjectsList(){
+ const toggle=page.locator('#projects-navigation-toggle');
+ await toggle.click();await idle();
+ // The Projects hover menu overlays the next navigation row on narrow screens.
+ // Move off its trigger and dismiss it before using the hub or changing media.
+ await page.mouse.move(0,0);await toggle.press('Escape');await expect(page.locator('#projects-navigation-menu')).toBeHidden();
+ if(await page.locator('#view-projects').isVisible())await page.locator('#view-projects [data-project-section="quotes"]').click();
+ await expect(page.locator('#view-quotes')).toBeVisible();await idle();
+}
 async function followupBanners(themes=['ceasefire','midnight','ocean','forest','slate'],widths=[1384,1020,825,390]){
  for(const themeId of themes){
   await theme(themeId,'estimate');await chooseEstimate();
   for(const workspace of ['estimate','projects','technical','penetration','pricing']){
-   if(workspace==='projects'){
-    const toggle=page.locator('nav [data-view="projects"]');await toggle.click();await idle();
-    // The Projects hover menu overlays the first hub card on phone widths.
-    // Dismiss it through its keyboard action before exercising the real card.
-    await page.mouse.move(0,0);await toggle.press('Escape');await expect(page.locator('#projects-navigation-menu')).toBeHidden();
-    if(await page.locator('#view-projects').isVisible())await page.locator('#view-projects [data-project-section="quotes"]').click();await idle();
-   }
+   if(workspace==='projects')await openProjectsList();
    else if(['technical','penetration','pricing'].includes(workspace)){await chooseLibrary(page,workspace);await idle();}
    const heading=page.locator(workspace==='estimate'?'.estimate-banner-heading':workspace==='projects'?'.project-banner-heading':`#library-${workspace} > .page-heading`);
    for(const width of widths){
@@ -131,7 +134,7 @@ async function followupBanners(themes=['ceasefire','midnight','ocean','forest','
    }
   }
  }
- await page.locator('nav [data-view="projects"]').click();if(await page.locator('#view-projects').isVisible())await page.locator('#view-projects [data-project-section="quotes"]').click();await idle();await page.emulateMedia({media:'print'});await expect(page.locator('.project-evidence-art')).toBeHidden();await expect(page.locator('.project-heading-art-slot')).toBeHidden();await page.emulateMedia({media:'screen'});
+ await openProjectsList();await page.emulateMedia({media:'print'});await expect(page.locator('.project-evidence-art')).toBeHidden();await expect(page.locator('.project-heading-art-slot')).toBeHidden();await page.emulateMedia({media:'screen'});
  await theme('ceasefire','estimate');await page.setViewportSize({width:1384,height:764});
 }
 async function calculatorFraming(kind,name,themes=['ceasefire','midnight','ocean','forest','slate'],widths=[1384,1146,825,390]){

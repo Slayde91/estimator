@@ -1034,14 +1034,14 @@
     else window.CeasefireLibraries?.open(kind, selection);
   }
 
-  function showView(view, librarySelection, calculatorId) {
-    if (view !== state.currentView && window.CeasefireSWMS?.hasPendingOperation?.()) { message("Save or discard the current SWMS edit before changing views.", true); return; }
+  async function showView(view, librarySelection, calculatorId) {
     if (view !== state.currentView && window.CeasefireCommercial?.hasPendingOperation?.()) { message("Save or discard the current commercial document edit before changing views.", true); return; }
     if (view !== state.currentView && window.CeasefireScheduler?.hasPendingOperation?.()) { message("Finish or cancel the current Scheduler edit before changing views.", true); return; }
     if (view !== state.currentView && window.CeasefireCoverSheets?.hasPendingOperation?.()) { message(uiCopy("Finish or retry the current cover-sheet operation before changing views."), true); return; }
     if (view !== state.currentView && window.CeasefireCertification?.hasPendingOperation?.()) { message(uiCopy("Finish or retry the current certification operation before changing views."), true); return; }
     if (window.CeasefirePenetrations?.hasTakeoffReservation?.() || window.CeasefireTakeoffs?.hasLinkedRecovery?.()) { message(uiCopy("Finish or recover the confirmed Takeoff library link before changing views."), true); return; }
     if (view === "takeoffs" && !state.takeoffsEnabled) { message(uiCopy("TAKEOFFS is not included in this edition."), true); return; }
+    if (view !== state.currentView && window.CeasefireSWMS?.hasPendingOperation?.() && !await window.CeasefireSWMS.leaveEditor()) return;
     window.CeasefireNotifications?.navigate(view === "pricing" ? `pricing:${state.libraryKind}` : view === "calculators" ? `calculators:${calculatorId || state.calculatorKind}` : view === "estimate" ? `estimate:${state.estimateKind || "estimate"}` : view);
     if (view !== state.currentView && $("app-message").hidden) releaseMessageSpace();
     state.currentView = view;
@@ -1064,6 +1064,7 @@
     if (view === "quotes") loadProjects();
     if (view === "scheduler") window.CeasefireScheduler?.activate().catch(error => message(error.message, true));
     let estimatorReady;
+    if (view === "contacts") estimatorReady = window.ClassifireContacts?.activate().catch(error => message(error.message, true));
     if (view === "swms") estimatorReady = window.CeasefireSWMS?.activate().catch(error => message(error.message, true));
     if (["quote", "work-orders", "purchase-orders"].includes(view)) estimatorReady = window.CeasefireCommercial?.activate({quote:"quote", "work-orders":"work_order", "purchase-orders":"purchase_order"}[view]).catch(error => message(error.message, true));
     if (view === "pricing") selectLibrary(state.libraryKind, librarySelection);
@@ -1117,13 +1118,13 @@
     if (view !== state.currentView && !await confirmLeavePricingLibrary()) return false;
     await showView(view, librarySelection);
     if (state.currentView === view) window.CeasefireHeaderTagline?.next();
-    return true;
+    return state.currentView === view;
   }
   function requestProjectsNavigation() {
     return requestViewNavigation(state.lastProjectSection || "projects");
   }
   function requestDocumentsNavigation() {
-    return requestViewNavigation(state.lastDocumentSection || "documents");
+    return requestViewNavigation(state.currentView === "documents" && state.lastDocumentSection ? state.lastDocumentSection : "documents");
   }
   async function requestCalculatorNavigation(id = state.calculatorKind) {
     if (!["steel", "steel_vermiculite", "steel_intumescent", "steel_board", "steel_factors", "ductwork", "penetration"].includes(id)) return false;
@@ -1136,7 +1137,7 @@
     state.estimatorKind = "estimate";
     await showView("calculators", undefined, id);
     if (state.currentView === "calculators") window.CeasefireHeaderTagline?.next();
-    return true;
+    return state.currentView === "calculators";
   }
   async function requestEstimateNavigation(kind) {
     if (kind === "penetration") return requestCalculatorNavigation(kind);
@@ -1147,7 +1148,7 @@
     state.estimateKind = kind;
     await showView("estimate");
     if (state.currentView === "estimate") window.CeasefireHeaderTagline?.next();
-    return true;
+    return state.currentView === "estimate";
   }
   function positionNavigationMenu(menu) {
     // Relative positioning keeps wrapped menus beside their actual owner.
@@ -1263,7 +1264,7 @@
         if (state.currentView !== "takeoffs") await showView("takeoffs");
         window.CeasefireHeaderTagline?.next();
       }
-      return !!changed;
+      return !!changed && state.currentView === "takeoffs";
     } finally { takeoffNavigationPending = false; }
   }
   async function requestLibraryNavigation(kind, selection) {
@@ -1271,8 +1272,8 @@
     if ((state.currentView !== "pricing" || kind !== state.libraryKind) && !await confirmLeavePricingLibrary()) return false;
     state.libraryKind = kind;
     await showView("pricing", selection);
-    window.CeasefireHeaderTagline?.next();
-    return true;
+    if (state.currentView === "pricing") window.CeasefireHeaderTagline?.next();
+    return state.currentView === "pricing";
   }
   async function requestPricingScopeSwitch(scope) {
     const previous = state.pricingScope;
@@ -1282,7 +1283,10 @@
     switchPricingScope(scope); return true;
   }
   function projectPricingChanged() { return draftChanged(state.pricingScope === "project" ? state.draft : state.projectPricingDraft, state.quoteConfiguration || state.configuration); }
-  function projectHasChanges() { return state.estimatesDirty || window.CeasefireSWMS?.hasProjectChanges?.() || window.CeasefireCommercial?.hasProjectChanges?.() || state.projectStatus !== (state.projectFile?.project_status || "Draft") || window.CeasefireDownloads?.hasUnsavedProjectSave?.() || state.dirty || projectPricingChanged() || window.CeasefireCalculators?.hasUnsavedChanges() || window.CeasefirePenetrations?.hasUnsavedChanges() || window.CeasefireTakeoffs?.hasUnsavedChanges() || window.CeasefireLibraryEditor?.hasProjectChanges?.() || window.CeasefireCertification?.hasProjectChanges?.() || window.CeasefireDocumentation?.hasProjectChanges?.(); }
+  function projectHasChanges() {
+    if (editingEstimateName && $("project-estimate-current-name").value.trim() !== editingEstimateName.name) return true;
+    return state.estimatesDirty || window.CeasefireSWMS?.hasProjectChanges?.() || window.CeasefireCommercial?.hasProjectChanges?.() || state.projectStatus !== (state.projectFile?.project_status || "Draft") || window.CeasefireDownloads?.hasUnsavedProjectSave?.() || state.dirty || projectPricingChanged() || window.CeasefireCalculators?.hasUnsavedChanges() || window.CeasefirePenetrations?.hasUnsavedChanges() || window.CeasefireTakeoffs?.hasUnsavedChanges() || window.CeasefireLibraryEditor?.hasProjectChanges?.() || window.CeasefireCertification?.hasProjectChanges?.() || window.CeasefireDocumentation?.hasProjectChanges?.();
+  }
   function pricingScopeUi() {
     $("pricing-scope").value = state.pricingScope;
     const save = $("save-pricing"), project = state.pricingScope === "project";
@@ -2025,12 +2029,19 @@
     state.projectEstimates = [{id:"estimate-1", name:"Estimate 1"}]; state.activeEstimateId = "estimate-1"; state.estimatesDirty = false;
   }
 
+  let editingEstimateName = null;
+
   function renderEstimateControls() {
     const select = $("project-estimate-select");
     if (!select) return;
+    const current = state.projectEstimates.find(entry => entry.id === state.activeEstimateId);
+    if (editingEstimateName !== current) {
+      editingEstimateName = null;
+      $("project-estimate-current-name").value = current?.name || "";
+    }
     select.replaceChildren(...state.projectEstimates.map(entry => {const option = node("option", "", entry.name); option.value = entry.id; return option;}));
     select.value = state.activeEstimateId;
-    for (const id of ["project-estimate-select", "project-estimate-new", "project-estimate-rename", "project-estimate-work-order", "project-estimate-purchase-order"]) $(id).disabled = state.projectBusy;
+    for (const id of ["project-estimate-current-name", "project-estimate-select", "project-estimate-new", "project-estimate-quote", "project-estimate-swms"]) $(id).disabled = state.projectBusy;
   }
 
   async function captureCurrentEstimate({ readOnly = false } = {}) {
@@ -2121,16 +2132,19 @@
     finally {projectBusy(false);}
   }
 
-  async function renameProjectEstimate() {
-    if (state.projectBusy || coverReplacementPending()) return;
-    projectBusy(true);
-    try {
-      const selected = state.projectEstimates.find(entry => entry.id === state.activeEstimateId);
-      const stamp = projectStamp(), name = await estimateName("Rename estimate", selected.name);
-      if (!name || stamp !== projectStamp()) return;
-      selected.name = name; state.estimatesDirty = true; updateProjectStatus();
-    } catch (error) { message(error.message, true); }
-    finally { projectBusy(false); }
+  function finishEstimateName() {
+    const entry = editingEstimateName;
+    editingEstimateName = null;
+    if (!entry || !state.projectEstimates.includes(entry) || entry.id !== state.activeEstimateId) return;
+    const input = $("project-estimate-current-name");
+    const name = input.value.trim();
+    if (!name || [...name].length > 150) {
+      message(uiCopy("Give every estimate a name between 1 and 150 characters."), true);
+    } else if (name !== entry.name) {
+      entry.name = name;
+      state.estimatesDirty = true;
+    }
+    updateProjectStatus();
   }
 
   window.CeasefireEstimates = {list:() => state.projectEstimates.map(({id,name}) => ({id,name})), activeId:() => state.activeEstimateId, select:selectEstimate,
@@ -2176,8 +2190,9 @@
   }
 
   function projectBusy(value, activeId = null) {
+    if (value) finishEstimateName();
     state.projectBusy = value;
-    for (const id of ["save-current-project", "load-project", "link-project-folder", "new-quote", "use-current-pricing", "project-estimate-select", "project-estimate-new", "project-estimate-rename", "project-estimate-work-order", "project-estimate-purchase-order"]) {
+    for (const id of ["save-current-project", "load-project", "link-project-folder", "new-quote", "use-current-pricing", "project-estimate-current-name", "project-estimate-select", "project-estimate-new", "project-estimate-quote", "project-estimate-swms"]) {
       $(id).disabled = value;
       $(id).setAttribute("aria-busy", String(value && id === activeId));
     }
@@ -2437,7 +2452,7 @@
       window.CeasefireI18n.attr(title, "aria-label", "Browse files for {0}", [file.title || file.name]);
       title.addEventListener("click", () => openProjectBrowser(file));
       const heading = node("div", "project-row-heading");
-      heading.append(title, uiNode("span", "status-label project-row-status", file.project_status || "Draft"));
+      heading.append(title);
       const details = node("div", "project-row-details");
       details.append(heading,
         node("p", "helper", [file.project_no, file.client, file.site_address].filter(Boolean).join(" · ")),
@@ -2445,28 +2460,32 @@
         node("p", "helper project-relative-path", file.relative_path || file.name));
       const estimateLabel = uiNode("label", "field project-card-estimate", "Estimate"), estimateSelect = node("select");
       estimateSelect.setAttribute("aria-label", `Estimate for ${file.title || file.name}`);
+      const prompt = uiNode("option", "", "Select estimate"); prompt.value = ""; estimateSelect.append(prompt);
       for (const entry of file.estimates || [{id:"estimate-1",name:"Estimate 1"}]) {
         const option = node("option", "", entry.name); option.value = entry.id; estimateSelect.append(option);
       }
-      estimateSelect.value = file.active_estimate_id || "estimate-1";
-      estimateSelect.addEventListener("change", () => openProjectFile(file, title, estimateSelect.value));
-      estimateLabel.append(estimateSelect);
-      const controls = node("div", "project-row-actions"), open = uiNode("button", "button secondary", "Open project");
-      open.type = "button"; open.addEventListener("click", () => openProjectFile(file, open));
-      const menu = node("details", "project-card-menu"), toggle = node("summary", "", "▾");
-      toggle.setAttribute("aria-label", `Actions for ${file.title || file.name}`);
-      const actions = node("div", "project-menu-options");
-      for (const [label, action] of [["Open", () => openProjectFile(file, title)], ["Edit", () => openProjectFile(file, title)], ["Delete", () => deleteProjectCard(file)], ["Browse files", () => openProjectBrowser(file)]]) {
+      estimateSelect.value = ""; estimateLabel.append(estimateSelect);
+      const controls = node("div", "project-row-actions");
+      const menu = node("details", "project-card-menu"), toggle = node("summary", "button secondary calculator-document-toggle");
+      window.CeasefireI18n.attr(toggle, "aria-label", "Actions for {0}", [file.title || file.name]);
+      const chevron = node("span", "calculator-document-chevron"); chevron.setAttribute("aria-hidden", "true");
+      chevron.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"></path></svg>';
+      toggle.append(uiNode("span", "", "Actions"), chevron);
+      const actions = node("div", "project-menu-options"), needsEstimate = [];
+      for (const [label, action, requiresEstimate] of [
+        ["Open", button => openProjectFile(file, button, estimateSelect.value), true],
+        ["Edit", button => openProjectFile(file, button, estimateSelect.value), true],
+        ["Delete", () => deleteProjectCard(file)], ["Browse files", () => openProjectBrowser(file)]
+      ]) {
         const button = uiNode("button", "text-button", label); button.type = "button";
-        button.addEventListener("click", () => { menu.open = false; action(); }); actions.append(button);
+        if (requiresEstimate) { button.disabled = true; needsEstimate.push(button); }
+        button.addEventListener("click", () => { if (requiresEstimate && !estimateSelect.value) return; menu.open = false; action(button); });
+        actions.append(button);
       }
-      const statusLabel = uiNode("label", "field", "Status"), statusSelect = node("select");
-      statusSelect.setAttribute("aria-label", `Status for ${file.title || file.name}`);
-      for (const name of projectStatuses) { const option = uiNode("option", "", name); option.value = name; statusSelect.append(option); }
-      statusSelect.value = file.project_status || "Draft";
-      statusSelect.addEventListener("change", () => { menu.open = false; changeProjectStage(file, statusSelect.value); });
-      statusLabel.append(statusSelect); actions.append(statusLabel); menu.append(toggle, actions);
-      controls.append(open, menu); row.append(details, estimateLabel, controls);
+      estimateSelect.addEventListener("change", () => { for (const button of needsEstimate) button.disabled = !estimateSelect.value; });
+      menu.addEventListener("keydown", event => { if (event.key === "Escape" && menu.open) { menu.open = false; toggle.focus(); } });
+      menu.addEventListener("focusout", event => { if (!menu.contains(event.relatedTarget)) menu.open = false; });
+      menu.append(toggle, actions); controls.append(menu); row.append(details, estimateLabel, controls);
       return row;
     });
     $("project-list").replaceChildren(...(rows.length ? rows : [uiNode("p", "empty-state", "No projects")]));
@@ -2745,7 +2764,7 @@
   $("measurements").addEventListener("input", () => updateDirty());
   $("new-quote").addEventListener("click", async () => { if (await confirmLeavePricingLibrary()) newQuote(); });
   $("download-quote-pdf").addEventListener("click", () => downloadQuotePdf());
-  $("estimate-open-quote").addEventListener("click", async () => {
+  for (const id of ["estimate-open-quote", "project-estimate-quote"]) $(id).addEventListener("click", async () => {
     const context = state.quoteContext;
     if (await requestViewNavigation("quote") && state.currentView === "quote" && context === state.quoteContext) await window.CeasefireCommercial?.openFromEstimate?.();
   });
@@ -2779,15 +2798,31 @@
   for (const status of projectStatuses) {
     $("project-status-" + status.toLowerCase()).addEventListener("click", () => changeCurrentProjectStage(status));
   }
+  const currentEstimateName = $("project-estimate-current-name");
+  currentEstimateName.addEventListener("input", () => {
+    editingEstimateName = state.projectEstimates.find(entry => entry.id === state.activeEstimateId);
+    updateProjectStatus();
+  });
+  currentEstimateName.addEventListener("blur", finishEstimateName);
+  currentEstimateName.addEventListener("keydown", event => {
+    if (event.isComposing) return;
+    if (event.key === "Enter" || event.key === "Escape") {
+      event.preventDefault();
+      if (event.key === "Escape" && editingEstimateName) currentEstimateName.value = editingEstimateName.name;
+      currentEstimateName.blur();
+    } else if (event.key === "ArrowDown") {
+      event.preventDefault();
+      const select = $("project-estimate-select");
+      select.focus();
+      select.showPicker?.();
+    }
+  });
   $("project-estimate-select").addEventListener("change", () => selectEstimate($("project-estimate-select").value));
   $("project-estimate-new").addEventListener("click", addProjectEstimate);
-  $("project-estimate-rename").addEventListener("click", renameProjectEstimate);
-  for (const [id, kind, view] of [["project-estimate-work-order", "work_order", "work-orders"], ["project-estimate-purchase-order", "purchase_order", "purchase-orders"]]) {
-    $(id).addEventListener("click", async () => {
-      const context = state.quoteContext;
-      if (await requestViewNavigation(view) && state.currentView === view && context === state.quoteContext) await window.CeasefireCommercial?.openFromEstimate?.(kind);
-    });
-  }
+  $("project-estimate-swms").addEventListener("click", async () => {
+    const context = state.quoteContext;
+    if (await requestViewNavigation("swms") && context === state.quoteContext) await window.CeasefireSWMS?.openFromEstimate?.();
+  });
   const estimateWidth = () => {
     const width = $("project-no")?.getBoundingClientRect().width;
     if (width > 0) $("project-estimate-select").closest(".field").style.flexBasis = `${width}px`;
@@ -2835,6 +2870,7 @@
   function desktopBusy() { return state.projectBusy || state.desktopRequests > 0 || !!window.CeasefireSWMS?.hasPendingOperation?.() || !!window.CeasefireCommercial?.hasPendingOperation?.() || !!window.CeasefireDownloads?.hasPendingOperation?.() || !!document.querySelector('dialog[open], [aria-busy="true"]') || !state.initialized || !!window.CeasefireCalculators?.hasPendingOperation?.() || !!window.CeasefirePenetrations?.hasPendingOperation?.() || !!window.CeasefireTakeoffs?.hasPendingOperation?.() || !!window.CeasefireLibraryEditor?.hasPendingOperation?.() || !!window.CeasefireCertification?.hasPendingOperation?.() || !!window.CeasefireCoverSheets?.hasPendingOperation?.() || !!window.CeasefireDocumentation?.hasPendingOperation?.(); }
   async function reviewDesktopClose() {
     if (desktopBusy()) { message(uiCopy("Finish the current operation or dialog before closing ESTIMATOR."), true); return false; }
+    finishEstimateName();
     const captured = desktopCloseStamp();
     if (projectHasChanges() || sharedPricingChanged() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.() || window.CeasefireCoverSheets?.hasUnsavedChanges?.()) {
       if (!await confirmReplace(uiCopy("Close ESTIMATOR?"), uiCopy("There are unsaved project, calculator, library, certification or cover-sheet edits. Close without saving discards these edits. Keep editing to save them first."), uiCopy("Close without saving"))) return false;
@@ -2868,8 +2904,9 @@
       typeof target.project_path === "string" && target.project_path === state.projectFile?.path;
   }
   window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus, scheduleChanged,
+    openCommercial: kind => requestViewNavigation({quote:"quote", work_order:"work-orders", purchase_order:"purchase-orders"}[kind]),
     configuration: () => clone(state.quoteConfiguration || state.configuration),
-    context: () => ({project_token:state.projectFile?.save_token || null,project_context:state.quoteContext,project_path:state.projectFile?.path || null}),
+    context: () => ({project_token:state.projectFile?.save_token || null,project_context:state.quoteContext,project_path:state.projectFile?.path || null,project_revision:state.projectFile?.revision || null}),
     runtimeContext: () => state.quoteContext,
     hasPendingOperation: () => state.projectBusy,
     isCurrentDownloadTarget,

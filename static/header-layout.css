@@ -153,9 +153,9 @@
     /* Compact phone artwork has less transparent padding to overlap safely. */
     .app-header .brand-stack > .header-tagline { margin: 0; width: 100%; font-size: 11px; }
     .app-header .header-navigation-stack { width: 100%; gap: 4px; }
-    /* Ten destinations share two rows without squeezing the logo or labels. */
+    /* Eleven destinations fit in two rows; labels can wrap within each target. */
     .app-header .header-navigation { width: 100%; }
-    .app-header nav { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); width: 100%; gap: 4px; }
+    .app-header nav { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); width: 100%; gap: 2px; padding: 4px; }
     .app-header .nav-icon { width: 100%; min-width: 44px; height: auto; min-height: 68px; padding: 6px 4px; font-size: 11px; }
     /* Keep the menu directly below its button, including the first grid row. */
     .app-header :is(.section-navigation-menu, .calculator-navigation-menu) { top: 100%; max-width: calc(100vw - 28px); }

@@ -1,0 +1,28 @@
+.contacts-tabs,.contacts-controls,.contacts-dialog-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.contacts-tabs { margin-bottom:18px; }
+.contacts-tabs [aria-current="page"] { background:var(--accent); border-color:var(--accent); color:white; }
+.contacts-controls { align-items:end; margin-bottom:18px; }
+.contacts-controls>.field { flex:1 1 220px; }
+.contacts-workspace,.contacts-results { min-width:0; }
+.contacts-board { display:flex; overflow-x:auto; gap:12px; padding-bottom:14px; }
+.contacts-board .project-kanban-card { cursor:grab; }
+.contacts-board .project-title-button,.contacts-table .text-button { text-align:left; }
+.contacts-board .project-kanban-card p { margin:6px 0; overflow-wrap:anywhere; }
+.contacts-board [data-status="Assisting"] .project-column-heading { border-color:#d69f20; }
+.contacts-board [data-status="Interstate"] .project-column-heading { border-color:#5a9ce8; }
+.contacts-board [data-status="Qualified"] .project-column-heading { border-color:#36ad7d; }
+.contacts-board [data-status="Disqualified"] .project-column-heading { border-color:#d96373; }
+.contacts-board [data-status="Not Applicable"] .project-column-heading { border-color:#9c90c6; }
+.contacts-table { width:100%; }
+.contacts-table th,.contacts-table td { text-align:left; padding:12px; overflow-wrap:anywhere; }
+.contacts-dialog { width:min(680px,94vw); max-height:85vh; overflow:auto; margin:auto; padding:0; border:1px solid var(--line); border-top:3px solid var(--accent); border-radius:12px; color:var(--ink); background:var(--paper); }
+.contacts-dialog::backdrop { background:#0009; }
+.contacts-form { display:grid; gap:18px; padding:24px; }
+.contacts-form h2 { margin:0; }
+.contacts-group { min-width:0; margin:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; padding:14px; border:1px solid var(--line); border-radius:8px; }
+.contacts-group legend { font-weight:700; padding:0 5px; }
+.contacts-group label:only-of-type { grid-column:1/-1; }
+.contacts-group textarea { resize:vertical; min-height:56px; }
+.contacts-dialog-actions { justify-content:flex-end; }
+.contacts-related { display:grid; gap:8px; justify-items:start; }
+@media(max-width:560px) { .contacts-group { grid-template-columns:1fr; } .contacts-form { padding:16px; } }

@@ -1,0 +1,42 @@
+{
+  "Estimate name": [
+    "견적 이름",
+    "Pangalan ng pagtatantya",
+    "Tên dự toán"
+  ],
+  "Give every estimate a name between 1 and 150 characters.": [
+    "각 견적의 이름은 1~150자로 입력하세요.",
+    "Bigyan ang bawat pagtatantya ng pangalang may 1 hanggang 150 karakter.",
+    "Đặt tên cho mỗi dự toán từ 1 đến 150 ký tự."
+  ],
+  "Actions for {0}": [
+    "{0} 작업",
+    "Mga aksyon para sa {0}",
+    "Thao tác cho {0}"
+  ],
+  "Contacts": [
+    "연락처",
+    "Mga contact",
+    "Liên hệ"
+  ],
+  "Create Quote": [
+    "견적서 만들기",
+    "Gumawa ng panipi",
+    "Tạo báo giá"
+  ],
+  "Create SWMS": [
+    "안전 작업 방법서 만들기",
+    "Gumawa ng SWMS",
+    "Tạo SWMS"
+  ],
+  "Rename": [
+    "이름 변경",
+    "Palitan ang pangalan",
+    "Đổi tên"
+  ],
+  "Select estimate": [
+    "견적 선택",
+    "Pumili ng pagtatantya",
+    "Chọn dự toán"
+  ]
+}

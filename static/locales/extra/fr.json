@@ -1,4 +1,9 @@
 {
+  "Estimate name": "Nom de l’estimation",
+  "Give every estimate a name between 1 and 150 characters.": "Donnez à chaque estimation un nom de 1 à 150 caractères.",
+  "Discard the current SWMS?": "Abandonner le SWMS en cours ?",
+  "Finish the current SWMS operation before changing views.": "Terminez l’opération en cours sur le SWMS avant de changer de vue.",
+  "Save or discard the current SWMS edit before changing views.": "Enregistrez ou abandonnez les modifications du SWMS en cours avant de changer de vue.",
   " Ancestor context": " Contexte des ascendants",
   " It uses the item, image/diagram and prices captured when you clicked Download; later changes are not included.": " Il utilise l’élément, l’image/le schéma et les prix relevés au clic sur Télécharger ; les modifications ultérieures ne sont pas incluses.",
   " Later edits are not included and still need saving.": " Les modifications ultérieures ne sont pas incluses et doivent encore être enregistrées.",
@@ -2853,5 +2858,11 @@
   "Review": "Révision",
   "Presented": "Présenté",
   "Accepted": "Accepté",
-  "Lost": "Perdu"
+  "Lost": "Perdu",
+  "Actions for {0}": "Actions pour {0}",
+  "Contacts": "Contacts",
+  "Create Quote": "Créer un devis",
+  "Create SWMS": "Créer un SWMS",
+  "Rename": "Renommer",
+  "Select estimate": "Sélectionner une estimation"
 }

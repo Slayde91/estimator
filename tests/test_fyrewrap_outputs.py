@@ -97,7 +97,8 @@ class FyreWrapOutputTests(unittest.TestCase):
             wrap_column = headers['Wrap material (m²)']
             self.assertAlmostEqual(schedule.cell(6, wrap_column).value, 16.7076, places=8)
             self.assertAlmostEqual(schedule.cell(8, wrap_column).value, 37.0328, places=8)
-            self.assertIsNone(schedule.cell(9, wrap_column).value)
+            for label in ('Thickness (mm)', 'Wrap material (m²)', 'Roll equivalents', 'Report'):
+                self.assertEqual(schedule.cell(9, headers[label]).value, 'N / A')
             self.assertAlmostEqual(schedule.cell(10, wrap_column).value, 20.636, places=8)
             self.assertNotIn('Status', headers)
             self.assertNotIn('FyreWrap application notes', [cell.value for row in schedule for cell in row])

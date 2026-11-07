@@ -25,6 +25,23 @@ def serialized_geometry(actual, expected):
     return len(actual) == len(emitted) and [float(value) for value in actual] == emitted
 
 
+def styled_glyphs(page, font_size):
+    """Preserve glyph order and the embedded font actually selected at each glyph."""
+    glyphs = []
+
+    def visit(text, cm, tm, font, size):
+        face = None
+        if font and size == font_size and '/FontDescriptor' in font:
+            descriptor = font['/FontDescriptor']
+            if '/FontFile2' in descriptor:
+                # A subset resource may prefix the PostScript name with ABCDEF+.
+                face = font['/BaseFont'].lstrip('/').split('+')[-1]
+        glyphs.extend((char, face) for char in text if not char.isspace())
+
+    page.extract_text(visitor_text=visit)
+    return glyphs
+
+
 def inspect(pdf_path, specification):
     reader = PdfReader(pdf_path)
     proof = []
@@ -66,33 +83,32 @@ def inspect(pdf_path, specification):
                     break
         assert matched, f"Actual PDF geometry does not match source coordinates for {graphic['kind']}"
         if graphic['kind'] in ('textbox', 'stamp'):
-            content = page.extract_text()
             if 'text_content' in graphic:
-                compact = ''.join(content.split())
-                segments = []
-                page.extract_text(visitor_text=lambda value, cm, tm, font, size: segments.append((value, font, size)))
                 # ReportLab serializes fractional physical font sizes through
                 # fp_str. Check that exact emitted size instead of rejecting
                 # valid scaled fonts for the PDF token's decimal rounding.
                 emitted_size = float(fp_str(style['font_size']))
-                bold = ''.join(value for value, font, size in segments if font and 'Bold' in font.get('/BaseFont', '') and float(size) == emitted_size)
+                actual_glyphs = styled_glyphs(page, emitted_size)
                 numbered = 0
                 italic_count = underline_count = 0
                 for block in graphic['text_content']['blocks']:
                     numbered = numbered+1 if block['kind'] == 'number' else 0
                     prefix = '• ' if block['kind'] == 'bullet' else f'{numbered}. ' if numbered else ''
-                    literal = prefix+''.join(run['text'] for run in block['runs'])
-                    assert ''.join(literal.split()) in compact, 'Rich textbox literal block/list marker absent from actual PDF'
+                    expected = [(char, 'Montserrat-Regular') for char in prefix if not char.isspace()]
                     for run in block['runs']:
-                        if run.get('bold'):
-                            assert ''.join(run['text'].split()) in ''.join(bold.split()), 'Saved bold textbox run absent from actual PDF font'
+                        weight = 'Bold' if run.get('bold') else ''
+                        slant = 'Italic' if run.get('italic') else ''
+                        face = 'Montserrat-' + (weight + slant or 'Regular')
+                        expected.extend((char, face) for char in run['text'] if not char.isspace())
                         count = len(run['text'].replace('\r\n', '\n').replace('\r', '\n').replace('\t', '    ').replace('\n', ''))
                         italic_count += count if run.get('italic') else 0
                         underline_count += count if run.get('underline') else 0
-                # ReportLab combines the glyph translation and shear in one cm.
-                assert sum(op == b'cm' and near(args[:4], [1, 0, .18, 1]) for args, op in operations) >= italic_count, 'Saved italic textbox glyph transforms absent'
+                    assert any(actual_glyphs[i:i+len(expected)] == expected for i in range(len(actual_glyphs)-len(expected)+1)), (
+                        'Rich textbox glyphs, embedded Montserrat faces, font size or list marker differ from the saved block'
+                    )
                 assert sum(op == b'l' for _, op in operations) >= underline_count, 'Saved underline textbox strokes absent'
             else:
+                content = page.extract_text()
                 assert graphic['text'].replace('\n', '') in content.replace('\n', ''), 'Literal drawing note absent from actual PDF'
         proof.append({'id': graphic['id'], 'kind': graphic['kind'], 'page': graphic['page'], 'vector_geometry': True,
                       **({'rich_text': True, 'font_size': style['font_size'], 'italic_glyphs': italic_count,

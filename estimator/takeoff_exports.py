@@ -200,7 +200,7 @@ def _calculator_drafts(value):
 def _linked_results(snapshot, selected, confirmations, registered_bindings, drafts):
     """Project original result cells only after verifying each current link."""
     from .takeoff_transfer import row_values
-    from .assessment_references import schedule_report_references
+    from .assessment_references import schedule_report_references, schedule_result_available
     from .excel_engine import FormulaError
     from .workbook_calculators import calculator_session, source_model
     output = {}; sessions = {}
@@ -239,9 +239,10 @@ def _linked_results(snapshot, selected, confirmations, registered_bindings, draf
                 _, engine, lock = sessions[calculator_id]
                 with lock:
                     value = lambda column: engine.value(schedule['sheet'], f"{column}{binding['row']}")
+                    available = schedule_result_available(calculator_id, engine, binding['row'])
                     if calculator_id == 'steel_vermiculite':
                         status, published, estimating = value('W'), value('O'), value('P')
-                        if not isinstance(status, str) or not status.startswith('QUANTIFIED') or not number(estimating) or estimating <= 0:
+                        if not available or not isinstance(status, str) or not status.startswith('QUANTIFIED') or not number(estimating) or estimating <= 0:
                             result['reason'] = str(status or 'The calculator has no usable coating thickness.')
                             continue
                         result.update(published_thickness_mm=published if number(published) else None,
@@ -260,7 +261,7 @@ def _linked_results(snapshot, selected, confirmations, registered_bindings, draf
                                       intumescent_thickness_status=status, intumescent_thickness_source=source)
                     elif calculator_id == 'steel_board':
                         status, stack, total, layers = value('AR'), value('Z'), value('AB'), value('AA')
-                        if status != 'CLADDING ESTIMATE' or not number(total) or total <= 0:
+                        if not available or status != 'CLADDING ESTIMATE' or not number(total) or total <= 0:
                             result['reason'] = str(status or 'The calculator has no usable board selection.')
                             continue
                         result.update(board_stack_mm=stack, total_thickness_mm=total,
@@ -275,7 +276,7 @@ def _linked_results(snapshot, selected, confirmations, registered_bindings, draf
                                           calculator_source_sha256=model['source']['sha256'],
                                           calculator_draft_sha256=draft['fingerprint'])
                         spray, layers = value('L'), value('R')
-                        if value('CB') != 1:
+                        if not available or value('CB') != 1:
                             result['reason'] = str(value('J') or 'The Ductwork calculator has no usable body result.')
                             continue
                         if number(spray) and spray > 0:

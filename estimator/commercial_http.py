@@ -5,12 +5,13 @@ import json
 from urllib.parse import parse_qs, urlsplit
 
 from .catalog import ValidationError
-from .commercial_documents import CommercialConflict, default_fields
+from .commercial_documents import CommercialConflict, default_fields, linked_estimate_ids
 
 
 class CommercialHTTP:
-    def __init__(self, service, derive=None, company=None):
+    def __init__(self, service, derive=None, company=None, saved=None):
         self.service = service
+        self.saved = saved
         self.derive = derive
         self.company = company
 
@@ -35,8 +36,11 @@ class CommercialHTTP:
                 if set(query) != {'workspace'}:
                     raise ValidationError('Choose the current project document workspace.')
                 workspace = query['workspace'][0]
-                if action == 'state':
-                    result = self.service.view(workspace)
+                if action == 'register' and self.saved:
+                    self.service.certifications.project_id(workspace)
+                    result = self.saved.projects.quote_register()
+                elif action == 'state':
+                    result = self.service.view(workspace, include_quote_totals=True)
                 elif action.startswith('pdf/'):
                     filename, pdf = self.service.read_pdf(workspace, action[4:])
                     handler.send_payload(200, pdf, 'application/pdf', {'Content-Disposition': f'attachment; filename="{filename}"'})
@@ -52,68 +56,16 @@ class CommercialHTTP:
                 if action == 'issue' and 'download' in body:
                     body = dict(body)
                     destination = handler.capture_commercial_download(body.pop('download'), workspace)
-                common = {'workspace_id', 'estimates', 'active_estimate_id'}
-                fields_by_action = {
-                    'defaults': {'kind', 'details'}, 'derive': {'fields', 'selected_ids'},
-                    'save': {'id', 'version', 'kind', 'status', 'fields'},
-                    'delete': {'id', 'version'}, 'status': {'id', 'version', 'status'},
-                    'issue': {'id', 'kind', 'version', 'request_id'},
-                }
-                if action not in fields_by_action or set(body) - common - fields_by_action[action]:
-                    raise ValidationError('Commercial document request contains unsupported fields.')
-                workspace = body.get('workspace_id')
                 expected_workspace = handler.headers.get('X-Estimator-Documentation-Workspace')
                 if expected_workspace and expected_workspace != workspace:
                     raise CommercialConflict('The export belongs to a different project workspace.')
-                self.service.view(workspace)
-                if action == 'defaults':
-                    result = {'fields': default_fields(body.get('kind'), body.get('details'), self._company())}
-                elif action == 'derive':
-                    result = self._derive(body)
-                    result = {key: value for key, value in result.items() if key != 'scope_documents'}
-                elif action == 'save':
-                    fields = deepcopy(body.get('fields'))
-                    if body.get('kind') == 'quote':
-                        derived = self._derive({**body, 'selected_ids': [line['estimate_id'] for line in fields['lines']]})
-                        prices = {line['estimate_id']: line['unit_price'] for line in derived['lines']}
-                        seen = set()
-                        for line in fields['lines']:
-                            identity = line.get('estimate_id')
-                            if identity in seen or identity not in prices:
-                                raise ValidationError('Choose each linked estimate once in the quote summary.')
-                            seen.add(identity)
-                            line['unit_price'] = prices[identity]
-                        fields['scope_tables'] = derived['scope_tables']
-                        fields['sources'] = derived['sources']
-                    allowed = {key: body[key] for key in ('id', 'version', 'kind', 'status') if key in body}
-                    result = self.service.save(workspace, {**allowed, 'fields': fields})
-                elif action == 'delete':
-                    result = self.service.delete(workspace, body.get('id'), body.get('version'))
-                elif action == 'status':
-                    result = self.service.status(workspace, body.get('id'), body.get('version'), body.get('status'))
-                elif action == 'issue':
-                    fingerprint = sha256(json.dumps({key: body.get(key) for key in ('kind', 'estimates', 'active_estimate_id')}, sort_keys=True, separators=(',', ':'), allow_nan=False).encode('utf-8')).hexdigest()
-                    replay = self.service.replay(workspace, body.get('request_id'), body.get('id'), body.get('version'), self._company(), fingerprint)
-                    if replay:
-                        handler.send_download(replay['pdf'], 'application/pdf', replay['filename'], destination, frozen_pdf=True)
-                        return True
-                    documents = self.service.view(workspace)['documents']
-                    document = next((item for item in documents if item['id'] == body.get('id')), None)
-                    if document is None:
-                        raise ValidationError('This document is unavailable in the current project.')
-                    if body.get('kind') != document['kind']:
-                        raise ValidationError('The download kind must match its commercial document.')
-                    scopes = []
-                    if document['kind'] == 'quote':
-                        derived = self._derive({**body, 'fields': document['fields'], 'selected_ids': [line['estimate_id'] for line in document['fields']['lines']]}, include_pdfs=True)
-                        if derived['sources'] != document['fields']['sources']:
-                            raise CommercialConflict('Linked estimates changed. Save the quote again before downloading.')
-                        scopes = [item['pdf'] for item in derived.get('scope_documents', [])]
-                    result = self.service.issue(workspace, body.get('id'), body.get('version'), body.get('request_id'), self._company(), scopes, fingerprint)
-                    handler.send_download(result['pdf'], 'application/pdf', result['filename'], destination, frozen_pdf=True)
-                    return True
+                if action.startswith('saved-') and self.saved and not expected_workspace:
+                    result = self.saved.perform(action[6:], body, self.execute)
                 else:
-                    raise ValidationError('Commercial document endpoint not found.')
+                    result = self.execute(action, body)
+                    if action == 'issue':
+                        handler.send_download(result['pdf'], 'application/pdf', result['filename'], destination, frozen_pdf=True)
+                        return True
             else:
                 handler.send_payload(405, {'error': 'Use GET or POST for commercial documents.'})
                 return True
@@ -124,3 +76,76 @@ class CommercialHTTP:
             message = str(error) if isinstance(error, ValidationError) else 'Commercial document input is incomplete.'
             handler.send_payload(400, {'error': message})
         return True
+
+    def execute(self, action, body, *, owner_key=None):
+        common = {'workspace_id', 'estimates', 'active_estimate_id'}
+        fields_by_action = {
+            'defaults': {'kind', 'details'}, 'derive': {'fields', 'selected_ids'},
+            'save': {'id', 'version', 'kind', 'status', 'fields'},
+            'delete': {'id', 'version'}, 'status': {'id', 'version', 'status'},
+            'issue': {'id', 'kind', 'version', 'request_id'},
+        }
+        if action not in fields_by_action or set(body) - common - fields_by_action[action]:
+            raise ValidationError('Commercial document request contains unsupported fields.')
+        workspace = body.get('workspace_id')
+        self.service.view(workspace)
+        if action == 'defaults':
+            result = {'fields': default_fields(body.get('kind'), body.get('details'), self._company())}
+        elif action == 'derive':
+            result = self._derive(body)
+            result = {key: value for key, value in result.items() if key != 'scope_documents'}
+        elif action == 'save':
+            fields = deepcopy(body.get('fields'))
+            if body.get('kind') == 'quote':
+                if not isinstance(fields, dict) or not isinstance(fields.get('details'), dict):
+                    raise ValidationError('Include the Quote project details.')
+                estimates = body.get('estimates', [])
+                if not isinstance(estimates, list) or any(not isinstance(item, dict) for item in estimates):
+                    raise ValidationError('Include the captured project estimates.')
+                active = next((item['workspace']['estimate'] for item in estimates
+                               if item.get('id') == body.get('active_estimate_id')), None)
+                if active is not None:
+                    if not isinstance(active, dict):
+                        raise ValidationError('Include valid estimate details.')
+                    fields['details'].update({key: active.get(key, '') for key in ('project_no', 'client', 'site_address')})
+                derived = self._derive({**body, 'selected_ids': linked_estimate_ids(fields['lines'])})
+                prices = {line['estimate_id']: line['unit_price'] for line in derived['lines']}
+                seen = set()
+                for line in fields['lines']:
+                    identity = line.get('estimate_id')
+                    if not identity:
+                        continue
+                    if identity in seen or identity not in prices:
+                        raise ValidationError('Choose each linked estimate once in the quote summary.')
+                    seen.add(identity)
+                    line['unit_price'] = prices[identity]
+                fields['scope_tables'] = derived['scope_tables']
+                fields['sources'] = derived['sources']
+            allowed = {key: body[key] for key in ('id', 'version', 'kind', 'status') if key in body}
+            result = self.service.save(workspace, {**allowed, 'fields': fields})
+        elif action == 'delete':
+            result = self.service.delete(workspace, body.get('id'), body.get('version'))
+        elif action == 'status':
+            result = self.service.status(workspace, body.get('id'), body.get('version'), body.get('status'))
+        elif action == 'issue':
+            fingerprint = sha256(json.dumps({key: body.get(key) for key in ('kind', 'estimates', 'active_estimate_id')}, sort_keys=True, separators=(',', ':'), allow_nan=False).encode('utf-8')).hexdigest()
+            replay = self.service.replay(workspace, body.get('request_id'), body.get('id'), body.get('version'), self._company(), fingerprint, owner_key=owner_key)
+            if replay:
+                return replay
+            documents = self.service.view(workspace)['documents']
+            document = next((item for item in documents if item['id'] == body.get('id')), None)
+            if document is None:
+                raise ValidationError('This document is unavailable in the current project.')
+            if body.get('kind') != document['kind']:
+                raise ValidationError('The download kind must match its commercial document.')
+            scopes = []
+            if document['kind'] == 'quote':
+                derived = self._derive({**body, 'fields': document['fields'], 'selected_ids': linked_estimate_ids(document['fields']['lines'])}, include_pdfs=True)
+                if derived['sources'] != document['fields']['sources']:
+                    raise CommercialConflict('Linked estimates changed. Save the quote again before downloading.')
+                scopes = [item['pdf'] for item in derived.get('scope_documents', [])]
+            result = self.service.issue(workspace, body.get('id'), body.get('version'), body.get('request_id'), self._company(), scopes, fingerprint, owner_key=owner_key)
+            return result
+        else:
+            raise ValidationError('Commercial document endpoint not found.')
+        return result

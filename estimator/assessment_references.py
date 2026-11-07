@@ -6,6 +6,7 @@ to report authority. A missing report stays explicit instead of being guessed.
 
 from functools import lru_cache
 import json
+import math
 import re
 
 from .catalog import ROOT
@@ -41,6 +42,29 @@ def _references(labels):
     # Exact editions stay distinct: only a source evaluated under the reviewed
     # current report gets its URL. Historic captions are never silently relabelled.
     return [{'label': label, 'url': _links().get(label)} for label in dict.fromkeys(labels)]
+
+
+UNAVAILABLE_RESULT = 'N / A'
+
+
+def schedule_result_available(calculator_id, engine, row):
+    """Check the applicable schedule result, independently of pooled orders."""
+    def positive(value):
+        return type(value) in (int, float) and math.isfinite(value) and value > 0
+
+    if calculator_id in {'steel_vermiculite', 'steel_intumescent'}:
+        return positive(engine.value('SCHEDULE', f'O{row}'))
+    if calculator_id == 'steel_board':
+        # The workbook returns a stack such as "20+15", or a review message.
+        stack = str(engine.value('CALCULATOR', f'Z{row}')).strip()
+        return (re.fullmatch(r'\d+(?:\.\d+)?(?:\s*\+\s*\d+(?:\.\d+)?)*', stack) is not None
+                and all(positive(float(layer)) for layer in stack.split('+')))
+    if calculator_id == 'ductwork':
+        if engine.value('CALCULATOR', f'BD{row}') == 3:
+            return (positive(engine.value('PRODUCT SETTINGS', 'B96'))
+                    and positive(engine.value('CALCULATOR', f'O{row}')))
+        return positive(engine.value('CALCULATOR', f'L{row}'))
+    raise ValueError(f'Unknown schedule calculator: {calculator_id}')
 
 
 def schedule_report_references(calculator_id, engine, row):

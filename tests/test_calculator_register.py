@@ -95,14 +95,15 @@ class CalculatorRegisterTests(unittest.TestCase):
         for target_row, item in enumerate(data['rows'], 6):
             self.assert_cell_value(sheet.cell(target_row, headers['Line']), item['line'])
             self.assert_cell_value(sheet.cell(target_row, headers['Report']),
-                                   report_reference_text(item['report_references'], urls=True))
+                                   'N / A' if item['result_unavailable'] else report_reference_text(item['report_references'], urls=True))
             for label, column in SCHEDULE_COLUMNS[identity].items():
                 cell = sheet.cell(target_row, headers[label])
-                self.assert_cell_value(cell, item['values'][column])
+                masked = item['result_unavailable'] and column not in item['input_columns']
+                self.assert_cell_value(cell, 'N / A' if masked else item['values'][column])
                 address = column + str(item['row'])
                 if address in native.get(data['sheet'], {}):
                     expected = native[data['sheet']][address]
-                    actual = '' if cell.value is None and cell.data_type == 'inlineStr' else cell.value
+                    actual = item['values'][column] if masked else ('' if cell.value is None and cell.data_type == 'inlineStr' else cell.value)
                     if identity == 'steel_board' and item['values'].get('C') in {'PROMATECT 100', 'PROMATECT 250'} and column_number(column) > 24:
                         # The register must match the current application above;
                         # the old assessment remains a separate immutable oracle.
@@ -119,13 +120,13 @@ class CalculatorRegisterTests(unittest.TestCase):
                                         ('Net spray bags', 'N/A' if item['wrap'] else output['M']),
                                         ('Wrap material (m²)', output['N'] if item['wrap'] else 'N/A'),
                                         ('Roll equivalents', output['O'] if item['wrap'] else 'N/A')]:
-                    self.assert_cell_value(sheet.cell(target_row, headers[label]), expected)
+                    self.assert_cell_value(sheet.cell(target_row, headers[label]), 'N / A' if item['result_unavailable'] else expected)
                 for label, column in ([('Wrap material (m²)', 'N'), ('Roll equivalents', 'O')] if item['wrap'] else
                                       [('Thickness (mm)', 'L'), ('Net spray bags', 'M')]):
                     address = column + str(item['row'])
                     if address in native.get(data['sheet'], {}):
                         cell = sheet.cell(target_row, headers[label])
-                        actual = '' if cell.value is None and cell.data_type == 'inlineStr' else cell.value
+                        actual = output[column] if item['result_unavailable'] else ('' if cell.value is None and cell.data_type == 'inlineStr' else cell.value)
                         self.assertTrue(excel_equal(actual, native[data['sheet']][address]), (identity, address))
                         comparisons += 1
                 status = output['J'] or 'No calculated status returned'

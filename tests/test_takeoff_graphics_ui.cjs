@@ -54,9 +54,10 @@ function fixture(initial = {}, commandOverride) {
   const ui = context.window.CeasefireTakeoffGraphicsUI(host);
   async function start(kind="rectangle") {
     const before = fonts.length, pending = ui.activate(kind); pending.catch(()=>{});
-    for(let attempt=0;attempt<12&&fonts.length<before+2;attempt++) await Promise.resolve();
-    assert.equal(fonts.length,before+2,"Activation reaches both delayed drawing-font loads");
-    return { pending, complete() { fonts.slice(before,before+2).forEach(value=>value.resolve([])); }, fail() { fonts[before].reject(new Error("Drawing font unavailable")); fonts[before+1].resolve([]); } };
+    for(let attempt=0;attempt<12&&fonts.length===before;attempt++) await Promise.resolve();
+    const loads=fonts.slice(before);
+    assert.equal(loads.length,4,"Activation waits for regular, bold, italic and bold italic drawing fonts");
+    return { pending, complete() { loads.forEach(value=>value.resolve([])); }, fail() { loads[0].reject(new Error("Drawing font unavailable")); loads.slice(1).forEach(value=>value.resolve([])); } };
   }
   return {state,calls,snapshot,start,ui,listeners,listenerOptions,clock,fonts};
 }
@@ -171,8 +172,8 @@ test("A stale source during drawing-font loading preserves the inherited Select 
 test("A newer Select deadline created during settings flush still rejects a fresh graphic point",async()=>{
   const f=fixture({suppressSelectionClickUntil:1500});let release;f.calls.flushPromise=new Promise(resolve=>{release=resolve;});
   const pending=f.ui.activate("rectangle");pending.catch(()=>{});await Promise.resolve();assert.equal(f.fonts.length,0);
-  f.state.suppressSelectionClickUntil=1600;release();for(let i=0;i<12&&f.fonts.length<2;i++)await Promise.resolve();
-  assert.equal(f.fonts.length,2);f.fonts.forEach(value=>value.resolve([]));await pending;await f.ui.point(pointer([100,200]));
+  f.state.suppressSelectionClickUntil=1600;release();for(let i=0;i<12&&!f.fonts.length;i++)await Promise.resolve();
+  assert.equal(f.fonts.length,4);f.fonts.forEach(value=>value.resolve([]));await pending;await f.ui.point(pointer([100,200]));
   assert.equal(f.state.tool,"graphic-rectangle");assert.equal(f.state.suppressSelectionClickUntil,1600);assert.equal(f.state.points.length,0);assert.equal(f.calls.command,0);assert.equal(f.clock.now,1000);
 });
 test("A newer Select deadline created during drawing-font loading is not retired",async()=>{

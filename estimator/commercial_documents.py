@@ -39,7 +39,9 @@ ORDER_FIELDS = ('start_date', 'end_date', 'urgency', 'quote_id', 'work_order_id'
                 'requested_date', 'sent_by', 'sent_date', 'verified_by', 'verified_date', 'verification', 'prepared_date')
 FIELD_KEYS = {'title', 'details', 'introduction', 'lines', 'scope', 'scope_tables', 'sources', 'allowances', 'terms', 'order', 'company_reference'}
 WORK_ORDER_OPTIONAL_FIELDS = ('progress_by', 'progress_date', 'closed_date', 'claimed_by', 'claim_date')
-PURCHASE_ORDER_OPTIONAL_FIELDS = ('site_contact_number',)
+PURCHASE_ORDER_OPTIONAL_FIELDS = ('site_contact_number', 'delivery_time', 'rejection_reason')
+WORK_ORDER_SIGNATURE_FIELDS = {'reviewed_by', 'prepared_by', 'client_approved_by', 'progress_by', 'closed_by', 'claimed_by'}
+PURCHASE_ORDER_SIGNATURE_FIELDS = {'requested_by', 'reviewed_by', 'sent_by', 'verified_by'}
 CERTIFICATION_CHOICES = ('Certification issued', 'Certification not issued')
 COMPLETION_CHOICES = ('Completed', 'Ongoing', 'On hold', 'Not completed')
 MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024
@@ -49,6 +51,7 @@ RATE_DEFAULTS = {'ordinary_time': '130', 'time_and_half': '160', 'double_time': 
                  'equipment': '20', 'materials': '20'}
 PURCHASE_EXPENSE_TYPES = ('Labour', 'Materials', 'Services', 'Hire', 'Other')
 PURCHASE_DELIVERY_METHODS = ('Delivery', 'Pickup')
+PURCHASE_APPROVAL_CHOICES = ('Approved', 'Rejected')
 DETAIL_OVERRIDE_KEYS = ('client', 'contact', 'phone', 'email', 'site_address')
 RATE_INTRODUCTION = ('If additional work, or rectification work that is not the result of defective workmanship, '
                      'is directed by the client or their representatives, either verbally or in writing, the '
@@ -291,12 +294,15 @@ def default_fields(kind, details=None, company=None, *, rates=None):
     schedule = default_rate_schedule()
     if rates is not None:
         schedule = validate_rate_schedule({**schedule, 'rates': rates})
-    return {'title': KINDS[kind], 'details': {key: supplied.get(key, '') for key in DETAIL_FIELDS},
+    fields = {'title': KINDS[kind], 'details': {key: supplied.get(key, '') for key in DETAIL_FIELDS},
             'introduction': INTRODUCTION if kind == 'quote' else '', 'lines': [], 'scope': '',
             'scope_tables': [], 'sources': [], 'allowances': '<ul><li>N / A</li></ul>' if kind == 'quote' else '', 'terms': default_terms(company) if kind == 'quote' else '',
             'order': {key: '' for key in (*ORDER_FIELDS, *(WORK_ORDER_OPTIONAL_FIELDS if kind=='work_order' else PURCHASE_ORDER_OPTIONAL_FIELDS if kind=='purchase_order' else ()))},
             'rate_schedule': schedule,
             'company_reference': {key: company.get(key, '') for key in ('name', 'abn')}}
+    if kind == 'purchase_order':
+        fields['order']['ship_to_address'] = fields['details']['site_address']
+    return fields
 
 
 def validate_fields(value, *, kind=None):
@@ -313,9 +319,11 @@ def validate_fields(value, *, kind=None):
         result['files'] = files
     from .swms import validate_signature
     signatures = value.get('signatures', {})
-    if (not isinstance(signatures, dict) or set(signatures) - {'reviewed_by', 'prepared_by', 'client_approved_by', 'progress_by', 'closed_by', 'claimed_by'}
-            or (signatures and kind not in ('work_order', None))):
-        raise ValidationError('Invalid work order signatures.')
+    signature_keys = (WORK_ORDER_SIGNATURE_FIELDS if kind == 'work_order' else
+                      PURCHASE_ORDER_SIGNATURE_FIELDS if kind == 'purchase_order' else
+                      WORK_ORDER_SIGNATURE_FIELDS | PURCHASE_ORDER_SIGNATURE_FIELDS if kind is None else set())
+    if not isinstance(signatures, dict) or set(signatures) - signature_keys:
+        raise ValidationError('Invalid commercial document signatures.')
     if signatures:
         result['signatures'] = {key: validate_signature(signature) for key, signature in signatures.items()}
     if 'work_tracking' in value:
@@ -360,6 +368,9 @@ def validate_fields(value, *, kind=None):
         result[key] = {name: _text(fields.get(name, ''), name, 6000 if key == 'order' else 1000) for name in keys}
         result[key].update({name:_text(fields[name], 'Site contact number' if name=='site_contact_number' else name,
                                       60 if name=='site_contact_number' else 1000) for name in optional if name in fields})
+    delivery_time = result['order'].get('delivery_time', '')
+    if delivery_time and not re.fullmatch(r'(?:[01][0-9]|2[0-3]):[0-5][0-9]', delivery_time):
+        raise ValidationError('Use a delivery time in HH:MM format.')
     for name in ('quote_id', 'work_order_id'):
         if result['order'][name]:
             _identity(result['order'][name])
@@ -877,6 +888,9 @@ class CommercialDocuments:
             if not order['estimated_cost']:
                 order['estimated_cost'] = self._linked_quote_total(db, workspace, project, quote['id'], quote_number)
         elif kind == 'purchase_order':
+            approval = order['approval']
+            if approval and approval not in PURCHASE_APPROVAL_CHOICES and (not prior or approval != prior['approval']):
+                raise ValidationError('Choose Approved or Rejected for the purchase order approval.')
             method = order['delivery_method']
             if method and method not in PURCHASE_DELIVERY_METHODS and (not prior or method != prior['delivery_method']):
                 raise ValidationError('Choose Delivery or Pickup for the delivery method.')
@@ -948,8 +962,14 @@ class CommercialDocuments:
                     self._version(previous, payload.get('version'))
                 # Older open windows omit new editable fields. Preserve them
                 # unless the current client deliberately sends an empty clear.
-                if kind=='purchase_order' and 'site_contact_number' not in fields['order'] and 'site_contact_number' in previous['fields']['order']:
-                    fields['order']['site_contact_number']=previous['fields']['order']['site_contact_number']
+                if kind=='purchase_order':
+                    for key in PURCHASE_ORDER_OPTIONAL_FIELDS:
+                        if key not in fields['order'] and key in previous['fields']['order']:
+                            fields['order'][key]=previous['fields']['order'][key]
+                    # Older PO editors do not know vector signatures. Absence
+                    # preserves saved ink; an explicit empty map clears it.
+                    if 'signatures' not in payload['fields'] and previous['fields'].get('signatures'):
+                        fields['signatures']=deepcopy(previous['fields']['signatures'])
                 if kind=='work_order' and not any(key in payload['fields']['order'] for key in ('claimed_by','claim_date')):
                     for key in ('claimed_by','claim_date'):
                         if key in previous['fields']['order']:

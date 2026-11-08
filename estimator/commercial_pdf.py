@@ -157,6 +157,25 @@ def _fields(story, pairs, styles, *, keep_together=False):
         story.append(table)
 
 
+def _purchase_order_signer(story, label, key, date_label, date_key, order, signatures, styles):
+    """Keep each signature beside its retained name and date on new PO exports."""
+    signature = Signature(signatures[key], WIDTH * .4 - 14, 52) if signatures.get(key) else 'Not signed'
+    table = _table((label, 'Name', date_label),
+                   [(signature, order.get(key, ''), order.get(date_key, ''))],
+                   styles, [WIDTH * .4, WIDTH * .35, WIDTH * .25])
+    # Historical names were free text, so unusually long values must still
+    # paginate without discarding the original narrative.
+    table.splitInRow = 1
+    content = [table]
+    if story and isinstance(story[-1], Paragraph) and story[-1].style is styles['section']:
+        heading = story.pop()
+        # One group avoids nesting a heading's keepWithNext around a separate
+        # KeepTogether, which can otherwise leave the heading on its own page.
+        heading.keepWithNext = False
+        content.insert(0, heading)
+    story.append(KeepTogether(content))
+
+
 def _money(value):
     amount = Decimal(value)
     return ('-' if amount < 0 else '') + f'${abs(amount):,.2f}'
@@ -169,10 +188,11 @@ def _summary(story, fields, styles):
     story.append(_table(('Product / Service', 'Quantity', 'Unit Price', 'Total Price'), rows, styles, [WIDTH * .55, WIDTH * .12, WIDTH * .16, WIDTH * .17]))
 
 
-def _totals(story, fields, styles):
+def _totals(story, fields, styles, *, keep_together=False):
     amounts = totals(fields)
     story.append(Spacer(1, 12))
-    _fields(story, [('Subtotal', _money(amounts['subtotal'])), ('GST (10%)', _money(amounts['gst'])), ('Grand total', _money(amounts['grand_total']))], styles)
+    _fields(story, [('Subtotal', _money(amounts['subtotal'])), ('GST (10%)', _money(amounts['gst'])), ('Grand total', _money(amounts['grand_total']))], styles,
+            keep_together=keep_together)
 
 
 def _rates(story, schedule, styles):
@@ -423,23 +443,33 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
                                for label, key in pairs], styles, keep_together=True)
     else:
         _section(story, 'PURCHASE ORDER DETAILS', styles)
+        delivery = ' '.join(value for value in (order['delivery_date'], order.get('delivery_time', '')) if value)
         _fields(story, [('Work order reference', order['work_order_reference']), ('Status', document['status']),
-                       ('Supplier', order['supplier']), ('Supplier email', order['supplier_email']), ('Supplier contact', order['supplier_contact']),
-                       ('Payment terms', order['payment_terms']), ('Site contact', order['ship_to_name']),
+                       ('Supplier', order['supplier']), ('Payment terms', order['payment_terms']),
+                       ('Supplier contact', order['supplier_contact']), ('Supplier email', order['supplier_email']),
+                       ('Site contact', order['ship_to_name']),
                        ('Site contact number', order.get('site_contact_number', '')), ('Delivery address', order['ship_to_address']),
-                       ('Delivery date', order['delivery_date']), ('Type of expense', order['expense_type']), ('Delivery or pickup', order['delivery_method'])], styles)
+                       ('Delivery date and time', delivery), ('Type of expense', order['expense_type']), ('Delivery or pickup', order['delivery_method'])], styles)
         _section(story, 'REQUEST SUMMARY', styles)
         rows = [(line['description'], line['quantity'], line['size'], line['comments'], _money(line['unit_price'])) for line in fields['lines']]
         story.append(_table(('Item', 'Quantity', 'Size', 'Comments', 'Unit price'), rows, styles, [WIDTH*.28, WIDTH*.12, WIDTH*.18, WIDTH*.28, WIDTH*.14]))
-        _totals(story, fields, styles)
-        for title, pairs in [
-            ('REQUESTED BY', [('Name', 'requested_by'), ('Date', 'requested_date')]),
-            ('PURCHASE ORDER APPROVAL', [('Approval', 'approval'), ('Reviewed by', 'reviewed_by'), ('Review date', 'review_date')]),
-            ('SENT BY', [('Name', 'sent_by'), ('Date', 'sent_date')]),
-            ('PROCUREMENT VERIFICATION', [('Verification method, specification, result and actions', 'verification'), ('Verified by', 'verified_by'), ('Verification date', 'verified_date')]),
+        _totals(story, fields, styles, keep_together=True)
+        signatures = fields.get('signatures', {})
+        for title, label, key, date_label, date_key, pairs in [
+            ('REQUESTED BY', 'Requested by', 'requested_by', 'Request date', 'requested_date', []),
+            ('PURCHASE ORDER APPROVAL', 'Approved by', 'reviewed_by', 'Approval date', 'review_date',
+             [('Approval', order['approval'])] +
+             ([('Rejection reason', order.get('rejection_reason', ''))] if order['approval'] == 'Rejected' else [])),
+            ('SENT BY', 'Sent by', 'sent_by', 'Sent date', 'sent_date', []),
+            ('PROCUREMENT VERIFICATION', 'Verified by', 'verified_by', 'Verification date', 'verified_date',
+             [('Verification method, specification, result and actions', order['verification'])]),
         ]:
             _section(story, title, styles)
-            _fields(story, [(label, order[key]) for label, key in pairs], styles)
+            if pairs:
+                narrative = _table(('Field', 'Details'), pairs, styles, [125, WIDTH - 125])
+                narrative.splitInRow = 1
+                story.append(narrative)
+            _purchase_order_signer(story, label, key, date_label, date_key, order, signatures, styles)
     if story:
         parts.append(_build(story, document, number, company, first_part=not parts))
     writer = PdfWriter()

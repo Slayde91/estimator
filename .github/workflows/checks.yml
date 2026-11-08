@@ -148,6 +148,7 @@ jobs:
       - run: node tests/browser/commercial_directory_search.cjs
       - run: node tests/browser/saved_download_links.cjs
       - run: node tests/browser/commercial_panes_signatures.cjs
+      - run: node tests/browser/purchase_order_signatures_delivery.cjs
       - run: node tests/browser/work_order_tracking.cjs
       - run: node tests/browser/commercial_project_workflows.cjs
       - run: node tests/browser/commercial_rate_defaults.cjs

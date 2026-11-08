@@ -149,6 +149,8 @@ class CommercialHTTP:
                                                rates=profile['rates'] if profile else None)}
             if 'project_details' in body:
                 result['fields']['details'].update(project_document_details(body['project_details']))
+                if body.get('kind') == 'purchase_order':
+                    result['fields']['order']['ship_to_address'] = result['fields']['details']['site_address']
             if profile is not None:
                 result['rate_defaults'] = profile
         elif action == 'purchase-order-defaults':

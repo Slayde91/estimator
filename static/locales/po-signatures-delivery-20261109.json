@@ -1,0 +1,142 @@
+{
+  "Invalid commercial document signatures.": [
+    "商业文档签名无效。",
+    "व्यावसायिक दस्तावेज़ के हस्ताक्षर अमान्य हैं।",
+    "Firmas de documento comercial no válidas.",
+    "توقيعات المستند التجاري غير صالحة.",
+    "ลายเซ็นเอกสารทางการค้าไม่ถูกต้อง"
+  ],
+  "Use a delivery time in HH:MM format.": [
+    "请以HH:MM格式输入交付时间。",
+    "डिलीवरी का समय HH:MM प्रारूप में दर्ज करें।",
+    "Use una hora de entrega con formato HH:MM.",
+    "استخدم وقت تسليم بتنسيق HH:MM.",
+    "ใช้เวลาจัดส่งในรูปแบบ HH:MM"
+  ],
+  "Choose Approved or Rejected for the purchase order approval.": [
+    "请选择采购订单的审批结果：已批准或已拒绝。",
+    "खरीद आदेश की स्वीकृति के लिए स्वीकृत या अस्वीकृत चुनें।",
+    "Elija Aprobado o Rechazado para la aprobación de la orden de compra.",
+    "اختر موافق عليه أو مرفوض للموافقة على أمر الشراء.",
+    "เลือกอนุมัติหรือปฏิเสธสำหรับการอนุมัติใบสั่งซื้อ"
+  ],
+  "Delivery date and time": [
+    "交付日期和时间",
+    "डिलीवरी की तारीख और समय",
+    "Fecha y hora de entrega",
+    "تاريخ ووقت التسليم",
+    "วันที่และเวลาจัดส่ง"
+  ],
+  "Delivery date": [
+    "交付日期",
+    "डिलीवरी की तारीख",
+    "Fecha de entrega",
+    "تاريخ التسليم",
+    "วันที่จัดส่ง"
+  ],
+  "Delivery time": [
+    "交付时间",
+    "डिलीवरी का समय",
+    "Hora de entrega",
+    "وقت التسليم",
+    "เวลาจัดส่ง"
+  ],
+  "Rejected": [
+    "已拒绝",
+    "अस्वीकृत",
+    "Rechazado",
+    "مرفوض",
+    "ปฏิเสธ"
+  ],
+  "Rejection reason": [
+    "拒绝原因",
+    "अस्वीकृति का कारण",
+    "Motivo del rechazo",
+    "سبب الرفض",
+    "เหตุผลที่ปฏิเสธ"
+  ],
+  "Sign Requested by": [
+    "申请人签名",
+    "अनुरोधकर्ता के हस्ताक्षर करें",
+    "Firmar como solicitante",
+    "توقيع مقدم الطلب",
+    "ลงนามผู้ร้องขอ"
+  ],
+  "Change Requested by": [
+    "更改申请人签名",
+    "अनुरोधकर्ता के हस्ताक्षर बदलें",
+    "Cambiar firma del solicitante",
+    "تغيير توقيع مقدم الطلب",
+    "เปลี่ยนลายเซ็นผู้ร้องขอ"
+  ],
+  "Clear Requested by": [
+    "清除申请人签名",
+    "अनुरोधकर्ता के हस्ताक्षर साफ़ करें",
+    "Borrar firma del solicitante",
+    "مسح توقيع مقدم الطلب",
+    "ล้างลายเซ็นผู้ร้องขอ"
+  ],
+  "Requested by name": [
+    "申请人姓名",
+    "अनुरोधकर्ता का नाम",
+    "Nombre del solicitante",
+    "اسم مقدم الطلب",
+    "ชื่อผู้ร้องขอ"
+  ],
+  "Sign Sent by": [
+    "发送人签名",
+    "प्रेषक के हस्ताक्षर करें",
+    "Firmar como remitente",
+    "توقيع المرسل",
+    "ลงนามผู้ส่ง"
+  ],
+  "Change Sent by": [
+    "更改发送人签名",
+    "प्रेषक के हस्ताक्षर बदलें",
+    "Cambiar firma del remitente",
+    "تغيير توقيع المرسل",
+    "เปลี่ยนลายเซ็นผู้ส่ง"
+  ],
+  "Clear Sent by": [
+    "清除发送人签名",
+    "प्रेषक के हस्ताक्षर साफ़ करें",
+    "Borrar firma del remitente",
+    "مسح توقيع المرسل",
+    "ล้างลายเซ็นผู้ส่ง"
+  ],
+  "Sent by name": [
+    "发送人姓名",
+    "प्रेषक का नाम",
+    "Nombre del remitente",
+    "اسم المرسل",
+    "ชื่อผู้ส่ง"
+  ],
+  "Sign Verified by": [
+    "核验人签名",
+    "सत्यापनकर्ता के हस्ताक्षर करें",
+    "Firmar como verificador",
+    "توقيع المتحقق",
+    "ลงนามผู้ตรวจสอบ"
+  ],
+  "Change Verified by": [
+    "更改核验人签名",
+    "सत्यापनकर्ता के हस्ताक्षर बदलें",
+    "Cambiar firma del verificador",
+    "تغيير توقيع المتحقق",
+    "เปลี่ยนลายเซ็นผู้ตรวจสอบ"
+  ],
+  "Clear Verified by": [
+    "清除核验人签名",
+    "सत्यापनकर्ता के हस्ताक्षर साफ़ करें",
+    "Borrar firma del verificador",
+    "مسح توقيع المتحقق",
+    "ล้างลายเซ็นผู้ตรวจสอบ"
+  ],
+  "Verified by name": [
+    "核验人姓名",
+    "सत्यापनकर्ता का नाम",
+    "Nombre del verificador",
+    "اسم المتحقق",
+    "ชื่อผู้ตรวจสอบ"
+  ]
+}

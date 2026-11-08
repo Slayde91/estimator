@@ -1,0 +1,6 @@
+.commercial-pricing-popup { position:fixed; z-index:15; box-sizing:border-box; overflow:auto; overscroll-behavior:contain; padding:5px; border:1px solid var(--line); border-radius:8px; background:var(--paper); color:var(--ink); box-shadow:0 8px 24px #0006; }
+.commercial-pricing-popup[hidden] { display:none; }
+.commercial-pricing-option { display:grid; gap:4px; width:100%; min-height:42px; padding:9px; border:0; border-radius:5px; background:transparent; color:inherit; font:inherit; text-align:start; white-space:normal; overflow-wrap:anywhere; cursor:pointer; }
+.commercial-pricing-option small { font-size:11px; opacity:.85; }
+.commercial-pricing-option:hover,.commercial-pricing-option[aria-selected=true] { background:var(--accent); color:#fff; }
+.commercial-pricing-popup>.helper { margin:8px; font-size:12px; }

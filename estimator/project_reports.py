@@ -24,7 +24,7 @@ def build_project_report(calculators, penetration, configuration, project_detail
     if not isinstance(calculators, dict) or set(calculators) - set(CALCULATORS):
         raise ValidationError('Choose the available project calculators.')
     parts = []
-    report_title = 'FULL PRODUCT SUMMARY' if materials else 'Fire Protection Schedule'
+    report_title = 'FULL PRODUCT SUMMARY' if materials else 'FIRE PROTECTION SCHEDULE'
     builder = build_calculator_summary_report if materials else build_calculator_report
     for key in CALCULATORS:
         supplied = calculators.get(key, {})

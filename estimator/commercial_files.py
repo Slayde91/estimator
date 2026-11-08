@@ -1,4 +1,4 @@
-"""Portable, content-addressed files for work orders and their PDF appendices."""
+"""Portable, content-addressed commercial files and their PDF appendices."""
 import base64
 import binascii
 import hashlib
@@ -28,21 +28,21 @@ def filename(value):
 
 def validate_files(items):
     if not isinstance(items, list) or len(items) > MAX_FILES:
-        raise ValidationError('A Work Order supports up to 16 attached files.')
+        raise ValidationError('A commercial document supports up to 16 attached files.')
     seen = set()
     for item in items:
         if not isinstance(item, dict) or set(item) != {'id', 'name', 'size', 'mime'}:
-            raise ValidationError('Invalid Work Order file metadata.')
+            raise ValidationError('Invalid commercial document file metadata.')
         filename(item['name'])
         digest, size, mime = item['id'], item['size'], item['mime']
         if (not isinstance(digest, str) or not re.fullmatch('[a-f0-9]{64}', digest) or digest in seen
                 or type(size) is not int or not 0 <= size <= MAX_FILE
                 or not isinstance(mime, str) or len(mime) > 160
                 or not re.fullmatch(r'[a-zA-Z0-9.+_-]+/[a-zA-Z0-9.+_-]+', mime)):
-            raise ValidationError('Invalid or duplicate Work Order file.')
+            raise ValidationError('Invalid or duplicate commercial document file.')
         seen.add(digest)
     if sum(item['size'] for item in items) > MAX_TOTAL:
-        raise ValidationError('Work Order files exceed the 32 MiB total limit.')
+        raise ValidationError('Document files exceed the 32 MiB total limit.')
     return [dict(item) for item in items]
 
 
@@ -61,7 +61,7 @@ def _read(folder, digest):
     with _open_regular(Path(folder) / digest, MAX_FILE, allow_empty=True) as source:
         payload = source.read(MAX_FILE + 1)
     if hashlib.sha256(payload).hexdigest() != digest:
-        raise ValidationError('The work order attachment has changed. Restore its original file.')
+        raise ValidationError('The document attachment has changed. Restore its original file.')
     return payload
 
 
@@ -92,13 +92,13 @@ class WorkOrderFiles:
     def add(self, project, name, encoded):
         name = filename(name)
         if not isinstance(encoded, str) or len(encoded) > 4 * ((MAX_FILE + 2) // 3):
-            raise ValidationError('Each work order file must be 12 MiB or smaller.')
+            raise ValidationError('Each document file must be 12 MiB or smaller.')
         try:
             payload = base64.b64decode(encoded, validate=True)
         except (binascii.Error, ValueError) as error:
             raise ValidationError('The attachment could not be decoded.') from error
         if len(payload) > MAX_FILE:
-            raise ValidationError('Each work order file must be 12 MiB or smaller.')
+            raise ValidationError('Each document file must be 12 MiB or smaller.')
         digest = hashlib.sha256(payload).hexdigest()
         _put(self.folder(project), digest, payload)
         return {'id': digest, 'name': name, 'size': len(payload),
@@ -113,11 +113,13 @@ class WorkOrderFiles:
     def transfer(self, snapshot, project_path, *, restore=False):
         if not snapshot:
             return
-        items = {item['id']: item for doc in snapshot['documents'] if doc['kind'] == 'work_order'
+        items = {item['id']: item for doc in snapshot['documents'] if doc['kind'] in {'quote', 'work_order', 'purchase_order'}
                  for item in doc['fields'].get('files', [])}
         if not items:
             return
         project = _owner(snapshot['project_id'])
+        # Retain the existing companion directory for backward compatibility;
+        # the shared file store now serves all three commercial document kinds.
         portable = Path(project_path).parent / '.ceasefire-evidence' / project / 'work-order-files'
         source, target = (portable, self.folder(project)) if restore else (self.folder(project), portable)
         for digest, item in items.items():
@@ -126,7 +128,7 @@ class WorkOrderFiles:
                 continue
             payload = _read(source, digest)
             if len(payload) != item['size']:
-                raise ValidationError('The work order companion file has the wrong size.')
+                raise ValidationError('The document companion file has the wrong size.')
             _put(target, digest, payload)
 
     def append_to(self, result, project, items):

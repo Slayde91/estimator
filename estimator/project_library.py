@@ -249,7 +249,7 @@ def _preserve_project_contacts(request, previous):
     """Old browser windows must not silently erase newly stored identity fields."""
     incoming = request.get("estimate", {})
     saved = previous.get("estimate", {})
-    if any(saved.get(key) and key not in incoming for key in ("contact_name", "contact_phone", "contact_email", "account_id", "contact_id")):
+    if any(saved.get(key) and key not in incoming for key in ("contact_name", "contact_phone", "contact_email", "account_id", "contact_id", "billing_address", "abn_acn")):
         raise ValidationError("Reload this application before saving so the project's Contact and Company details are retained.")
 
 
@@ -1527,7 +1527,8 @@ class ProjectLibrary:
         request = {'project_save_request': lead['id'],
                    'estimate': {'client': lead['company'], 'site_address': lead['site_address'], 'measurements': notes,
                                 'contact_name': lead['name'], 'contact_phone': lead['phone'],
-                                'contact_email': lead['email'], 'account_id': lead.get('account_id') or '',
+                                'contact_email': lead['email'], 'billing_address': lead.get('billing_address', ''),
+                                'abn_acn': lead.get('abn_acn', ''), 'account_id': lead.get('account_id') or '',
                                 'contact_id': lead.get('contact_id') or ''},
                    'calculators': {key: {'inputs': empty_schedule_inputs(key)} for key in CALCULATOR_IDS}}
         result = self.save_as(request, linked_folder=True)

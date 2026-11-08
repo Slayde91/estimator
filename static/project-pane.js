@@ -6,7 +6,7 @@
   const dialog = $("project-new-dialog"), home = pane.parentNode, homeNext = pane.nextSibling;
   const translate = source => window.CeasefireI18n?.translate?.(source) || source;
   const text = (element,source) => window.CeasefireI18n ? window.CeasefireI18n.text(element,source) : (element.textContent=source);
-  const fields = {project_no:"project-pane-number", client:"project-pane-client", site_address:"project-pane-address", contact_name:"project-pane-contact-name", contact_phone:"project-pane-contact-phone", contact_email:"project-pane-contact-email"};
+  const fields = {project_no:"project-pane-number", client:"project-pane-client", site_address:"project-pane-address", contact_name:"project-pane-contact-name", contact_phone:"project-pane-contact-phone", contact_email:"project-pane-contact-email", billing_address:"project-pane-billing-address", abn_acn:"project-pane-abn-acn"};
   const normalize = details => Object.fromEntries([...Object.keys(fields), "account_id", "contact_id"].map(key => [key, String(details?.[key] || "").trim()]));
   const stamp = details => JSON.stringify(normalize(details));
   const sharedStamp = details => { const value = normalize(details); delete value.project_no; return JSON.stringify(value); };
@@ -22,7 +22,7 @@
   function busy(value) {
     pending = value; pane.setAttribute("aria-busy", String(value));
     const recovering = selected?.kind === "new" && selected.creation?.uncertain;
-    for (const control of pane.querySelectorAll("input,button")) control.disabled = value || recovering && control.id !== "project-details-save" || !!selected?.blocked && control.id !== "project-details-close";
+    for (const control of pane.querySelectorAll("input,textarea,button")) control.disabled = value || recovering && control.id !== "project-details-save" || !!selected?.blocked && control.id !== "project-details-close";
     $("project-current-details").disabled = value;
   }
   function refreshToggles() {
@@ -185,6 +185,11 @@
     return Boolean(client && contactCompany(contact)?.id === client.id);
   }
   function setAccount(account) {
+    const previous = accounts.find(value => value.id === accountId) || companyNamed(accountName);
+    for (const key of ["billing_address","abn_acn"]) {
+      const input = $(fields[key]);
+      if (!account || !input.value.trim() || input.value.trim() === String(previous?.[key] || "").replace(/\r\n?/g,"\n").trim()) input.value = account?.[key] || "";
+    }
     accountId = account?.id || ""; accountName = account?.company || "";
     if (selected?.kind === "current" && currentRule) currentRule.account = account ? {id:account.id,company:account.company} : null;
     $("project-pane-client").value = accountName;

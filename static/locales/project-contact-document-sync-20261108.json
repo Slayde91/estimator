@@ -1,0 +1,268 @@
+{
+  "A commercial document supports up to 16 attached files.": [
+    "一份业务文档最多支持 16 个附件。",
+    "एक वाणिज्यिक दस्तावेज़ में अधिकतम 16 फ़ाइलें संलग्न हो सकती हैं।",
+    "Un documento comercial admite hasta 16 archivos adjuntos.",
+    "يدعم المستند التجاري ما يصل إلى 16 ملفاً مرفقاً.",
+    "เอกสารเชิงพาณิชย์หนึ่งฉบับรองรับไฟล์แนบได้สูงสุด 16 ไฟล์"
+  ],
+  "Invalid commercial document file metadata.": [
+    "业务文档文件的元数据无效。",
+    "वाणिज्यिक दस्तावेज़ की फ़ाइल का मेटाडेटा अमान्य है।",
+    "Los metadatos del archivo del documento comercial no son válidos.",
+    "بيانات تعريف ملف المستند التجاري غير صالحة.",
+    "ข้อมูลเมตาของไฟล์เอกสารเชิงพาณิชย์ไม่ถูกต้อง"
+  ],
+  "Invalid or duplicate commercial document file.": [
+    "业务文档文件无效或重复。",
+    "वाणिज्यिक दस्तावेज़ की फ़ाइल अमान्य है या दोहराई गई है।",
+    "El archivo del documento comercial no es válido o está duplicado.",
+    "ملف المستند التجاري غير صالح أو مكرر.",
+    "ไฟล์เอกสารเชิงพาณิชย์ไม่ถูกต้องหรือซ้ำกัน"
+  ],
+  "Document files exceed the 32 MiB total limit.": [
+    "文档文件总大小超过 32 MiB 的上限。",
+    "दस्तावेज़ की फ़ाइलें कुल 32 MiB की सीमा से अधिक हैं।",
+    "Los archivos del documento superan el límite total de 32 MiB.",
+    "تتجاوز ملفات المستند الحد الإجمالي البالغ 32 MiB.",
+    "ไฟล์เอกสารมีขนาดรวมเกินขีดจำกัด 32 MiB"
+  ],
+  "The document attachment has changed. Restore its original file.": [
+    "文档附件已更改。请恢复其原始文件。",
+    "दस्तावेज़ का संलग्नक बदल गया है। उसकी मूल फ़ाइल बहाल करें।",
+    "El archivo adjunto del documento ha cambiado. Restaure el archivo original.",
+    "تغيّر مرفق المستند. استعد ملفه الأصلي.",
+    "ไฟล์แนบของเอกสารเปลี่ยนแปลงไป กู้คืนไฟล์ต้นฉบับ"
+  ],
+  "Each document file must be 12 MiB or smaller.": [
+    "每个文档文件的大小不得超过 12 MiB。",
+    "दस्तावेज़ की प्रत्येक फ़ाइल 12 MiB या उससे छोटी होनी चाहिए।",
+    "Cada archivo del documento debe tener un tamaño de 12 MiB o menos.",
+    "يجب ألا يزيد حجم كل ملف في المستند على 12 MiB.",
+    "ไฟล์เอกสารแต่ละไฟล์ต้องมีขนาดไม่เกิน 12 MiB"
+  ],
+  "The document companion file has the wrong size.": [
+    "文档配套文件的大小不正确。",
+    "दस्तावेज़ की सहायक फ़ाइल का आकार गलत है।",
+    "El archivo complementario del documento tiene un tamaño incorrecto.",
+    "حجم الملف المصاحب للمستند غير صحيح.",
+    "ไฟล์ประกอบของเอกสารมีขนาดไม่ถูกต้อง"
+  ],
+  "Pricing Library matches": [
+    "价格库匹配项",
+    "मूल्य लाइब्रेरी के मिलान",
+    "Coincidencias de la biblioteca de precios",
+    "نتائج مطابقة مكتبة الأسعار",
+    "รายการที่ตรงกันในคลังราคา"
+  ],
+  "Search Pricing Library or enter manually": [
+    "搜索价格库或手动输入",
+    "मूल्य लाइब्रेरी में खोजें या मैन्युअल रूप से दर्ज करें",
+    "Busque en la biblioteca de precios o introduzca manualmente",
+    "ابحث في مكتبة الأسعار أو أدخل يدوياً",
+    "ค้นหาในคลังราคาหรือป้อนด้วยตนเอง"
+  ],
+  "No matching products or services. You can enter a description and price manually.": [
+    "没有匹配的产品或服务。您可以手动输入描述和价格。",
+    "कोई मेल खाते उत्पाद या सेवाएँ नहीं मिलीं। आप विवरण और मूल्य मैन्युअल रूप से दर्ज कर सकते हैं।",
+    "No hay productos o servicios coincidentes. Puede introducir una descripción y un precio manualmente.",
+    "لا توجد منتجات أو خدمات مطابقة. يمكنك إدخال وصف وسعر يدوياً.",
+    "ไม่พบผลิตภัณฑ์หรือบริการที่ตรงกัน คุณสามารถป้อนคำอธิบายและราคาได้ด้วยตนเอง"
+  ],
+  "Pricing Library could not be loaded. You can enter a description and price manually.": [
+    "无法加载价格库。您可以手动输入描述和价格。",
+    "मूल्य लाइब्रेरी लोड नहीं हो सकी। आप विवरण और मूल्य मैन्युअल रूप से दर्ज कर सकते हैं।",
+    "No se pudo cargar la biblioteca de precios. Puede introducir una descripción y un precio manualmente.",
+    "تعذّر تحميل مكتبة الأسعار. يمكنك إدخال وصف وسعر يدوياً.",
+    "ไม่สามารถโหลดคลังราคาได้ คุณสามารถป้อนคำอธิบายและราคาได้ด้วยตนเอง"
+  ],
+  "Showing up to 30 matches. Type more to narrow the list.": [
+    "最多显示 30 个匹配项。请继续输入以缩小列表范围。",
+    "अधिकतम 30 मिलान दिखाए जा रहे हैं। सूची सीमित करने के लिए और लिखें।",
+    "Se muestran hasta 30 coincidencias. Escriba más para reducir la lista.",
+    "يتم عرض ما يصل إلى 30 نتيجة مطابقة. اكتب المزيد لتضييق القائمة.",
+    "แสดงรายการที่ตรงกันสูงสุด 30 รายการ พิมพ์เพิ่มเพื่อจำกัดรายการ"
+  ],
+  "Type up to 500 characters to search Pricing Library.": [
+    "输入不超过 500 个字符以搜索价格库。",
+    "मूल्य लाइब्रेरी में खोजने के लिए अधिकतम 500 अक्षर लिखें।",
+    "Escriba hasta 500 caracteres para buscar en la biblioteca de precios.",
+    "اكتب ما يصل إلى 500 حرف للبحث في مكتبة الأسعار.",
+    "พิมพ์ไม่เกิน 500 อักขระเพื่อค้นหาในคลังราคา"
+  ],
+  "Searching Pricing Library…": [
+    "正在搜索价格库…",
+    "मूल्य लाइब्रेरी में खोज रहे हैं…",
+    "Buscando en la biblioteca de precios…",
+    "جارٍ البحث في مكتبة الأسعار…",
+    "กำลังค้นหาในคลังราคา…"
+  ],
+  "Search Pricing Library using up to 500 characters.": [
+    "搜索价格库时请使用不超过 500 个字符。",
+    "अधिकतम 500 अक्षरों से मूल्य लाइब्रेरी में खोजें।",
+    "Busque en la biblioteca de precios con hasta 500 caracteres.",
+    "ابحث في مكتبة الأسعار باستخدام ما يصل إلى 500 حرف.",
+    "ค้นหาในคลังราคาโดยใช้ข้อความไม่เกิน 500 อักขระ"
+  ],
+  "Use GET for Pricing Library searches.": [
+    "请使用 GET 搜索价格库。",
+    "मूल्य लाइब्रेरी में खोजने के लिए GET इस्तेमाल करें।",
+    "Use GET para buscar en la biblioteca de precios.",
+    "استخدم GET للبحث في مكتبة الأسعار.",
+    "ใช้ GET สำหรับการค้นหาในคลังราคา"
+  ],
+  "Use the Pricing Library search only.": [
+    "请仅使用价格库搜索。",
+    "केवल मूल्य लाइब्रेरी की खोज इस्तेमाल करें।",
+    "Use solo la búsqueda de la biblioteca de precios.",
+    "استخدم البحث في مكتبة الأسعار فقط.",
+    "ใช้การค้นหาในคลังราคาเท่านั้น"
+  ],
+  "Use a pricing search of up to 500 characters.": [
+    "价格搜索内容不得超过 500 个字符。",
+    "मूल्य खोज में अधिकतम 500 अक्षर इस्तेमाल करें।",
+    "Use una búsqueda de precios de hasta 500 caracteres.",
+    "استخدم بحث أسعار لا يتجاوز 500 حرف.",
+    "ค้นหาราคาโดยใช้ข้อความไม่เกิน 500 อักขระ"
+  ],
+  "Billing address": [
+    "账单地址",
+    "बिलिंग पता",
+    "Dirección de facturación",
+    "عنوان الفوترة",
+    "ที่อยู่เรียกเก็บเงิน"
+  ],
+  "Finish the current Contact action first.": [
+    "请先完成当前联系人操作。",
+    "पहले संपर्क की वर्तमान कार्रवाई पूरी करें।",
+    "Primero termine la acción actual del contacto.",
+    "أكمل إجراء جهة الاتصال الحالي أولاً.",
+    "ดำเนินการผู้ติดต่อปัจจุบันให้เสร็จก่อน"
+  ],
+  "Discard changes to this contact?": [
+    "放弃对此联系人的更改？",
+    "इस संपर्क में किए गए बदलाव छोड़ दें?",
+    "¿Descartar los cambios de este contacto?",
+    "هل تريد تجاهل التغييرات على جهة الاتصال هذه؟",
+    "ละทิ้งการเปลี่ยนแปลงของผู้ติดต่อนี้หรือไม่"
+  ],
+  "The Contact changed during review. Check the current changes and try again.": [
+    "审核期间联系人已更改。请检查当前更改后重试。",
+    "समीक्षा के दौरान संपर्क बदल गया। वर्तमान बदलाव जाँचें और फिर प्रयास करें।",
+    "El contacto cambió durante la revisión. Compruebe los cambios actuales e inténtelo de nuevo.",
+    "تغيّرت جهة الاتصال أثناء المراجعة. تحقق من التغييرات الحالية وحاول مرة أخرى.",
+    "ผู้ติดต่อเปลี่ยนแปลงระหว่างการตรวจทาน ตรวจสอบการเปลี่ยนแปลงปัจจุบันแล้วลองอีกครั้ง"
+  ],
+  "Some project records are unavailable. Refresh to check the Contact's links.": [
+    "部分项目记录不可用。请刷新以检查此联系人的关联记录。",
+    "कुछ परियोजना रिकॉर्ड उपलब्ध नहीं हैं। संपर्क के लिंक जाँचने के लिए रीफ़्रेश करें।",
+    "Algunos registros de proyecto no están disponibles. Actualice para comprobar los vínculos del contacto.",
+    "بعض سجلات المشاريع غير متاحة. حدّث للتحقق من روابط جهة الاتصال.",
+    "ระเบียนโครงการบางรายการไม่พร้อมใช้งาน รีเฟรชเพื่อตรวจสอบระเบียนที่เชื่อมโยงกับผู้ติดต่อ"
+  ],
+  "Saved records linked to this Contact are shown here.": [
+    "此处显示与此联系人关联的已保存记录。",
+    "इस संपर्क से जुड़े सहेजे गए रिकॉर्ड यहाँ दिखाए जाते हैं।",
+    "Aquí se muestran los registros guardados vinculados a este contacto.",
+    "تظهر هنا السجلات المحفوظة المرتبطة بجهة الاتصال هذه.",
+    "ระเบียนที่บันทึกและเชื่อมโยงกับผู้ติดต่อนี้จะแสดงที่นี่"
+  ],
+  "This contact could not be found. Reload the directory.": [
+    "找不到此联系人。请重新加载通讯录。",
+    "यह संपर्क नहीं मिला। निर्देशिका फिर से लोड करें।",
+    "No se encontró este contacto. Vuelva a cargar el directorio.",
+    "تعذّر العثور على جهة الاتصال هذه. أعد تحميل الدليل.",
+    "ไม่พบผู้ติดต่อนี้ โหลดไดเรกทอรีใหม่"
+  ],
+  "Choose one contact to view linked records.": [
+    "请选择一位联系人以查看关联记录。",
+    "जुड़े रिकॉर्ड देखने के लिए एक संपर्क चुनें।",
+    "Seleccione un contacto para ver los registros vinculados.",
+    "اختر جهة اتصال واحدة لعرض السجلات المرتبطة.",
+    "เลือกผู้ติดต่อหนึ่งรายเพื่อดูระเบียนที่เชื่อมโยง"
+  ],
+  "Billing address must be text of at most 1200 characters.": [
+    "账单地址必须为不超过 1200 个字符的文本。",
+    "बिलिंग पता अधिकतम 1200 अक्षरों का पाठ होना चाहिए।",
+    "La dirección de facturación debe ser texto de hasta 1200 caracteres.",
+    "يجب أن يكون عنوان الفوترة نصاً لا يتجاوز 1200 حرف.",
+    "ที่อยู่เรียกเก็บเงินต้องเป็นข้อความไม่เกิน 1200 อักขระ"
+  ],
+  "ABN/ACN must be text of at most 80 characters.": [
+    "ABN/ACN 必须为不超过 80 个字符的文本。",
+    "ABN/ACN अधिकतम 80 अक्षरों का पाठ होना चाहिए।",
+    "El ABN/ACN debe ser texto de hasta 80 caracteres.",
+    "يجب أن يكون ABN/ACN نصاً لا يتجاوز 80 حرفاً.",
+    "ABN/ACN ต้องเป็นข้อความไม่เกิน 80 อักขระ"
+  ],
+  "Billing address contains unsupported control characters.": [
+    "账单地址包含不支持的控制字符。",
+    "बिलिंग पते में असमर्थित नियंत्रण अक्षर हैं।",
+    "La dirección de facturación contiene caracteres de control no admitidos.",
+    "يحتوي عنوان الفوترة على محارف تحكم غير مدعومة.",
+    "ที่อยู่เรียกเก็บเงินมีอักขระควบคุมที่ไม่รองรับ"
+  ],
+  "ABN/ACN cannot contain control characters or line breaks.": [
+    "ABN/ACN 不能包含控制字符或换行符。",
+    "ABN/ACN में नियंत्रण अक्षर या पंक्ति विराम नहीं हो सकते।",
+    "El ABN/ACN no puede contener caracteres de control ni saltos de línea.",
+    "لا يمكن أن يحتوي ABN/ACN على محارف تحكم أو فواصل أسطر.",
+    "ABN/ACN ต้องไม่มีอักขระควบคุมหรือการขึ้นบรรทัดใหม่"
+  ],
+  "Purchase Order note": [
+    "采购订单备注",
+    "खरीद आदेश का नोट",
+    "Nota del pedido de compra",
+    "ملاحظة أمر الشراء",
+    "บันทึกใบสั่งซื้อ"
+  ],
+  "Choose a supported commercial document for file attachments.": [
+    "请选择支持添加附件的业务文档。",
+    "फ़ाइल संलग्न करने के लिए एक समर्थित वाणिज्यिक दस्तावेज़ चुनें।",
+    "Seleccione un documento comercial compatible para adjuntar archivos.",
+    "اختر مستنداً تجارياً مدعوماً لإرفاق الملفات.",
+    "เลือกเอกสารเชิงพาณิชย์ที่รองรับเพื่อแนบไฟล์"
+  ],
+  "Commercial documents support up to 200 notes.": [
+    "业务文档最多支持 200 条备注。",
+    "वाणिज्यिक दस्तावेज़ों में अधिकतम 200 नोट हो सकते हैं।",
+    "Los documentos comerciales admiten hasta 200 notas.",
+    "تدعم المستندات التجارية ما يصل إلى 200 ملاحظة.",
+    "เอกสารเชิงพาณิชย์รองรับบันทึกได้สูงสุด 200 รายการ"
+  ],
+  "Invalid document note.": [
+    "无效的文档备注。",
+    "दस्तावेज़ का नोट अमान्य है।",
+    "Nota de documento no válida.",
+    "ملاحظة المستند غير صالحة.",
+    "บันทึกเอกสารไม่ถูกต้อง"
+  ],
+  "Choose an attachment from this document.": [
+    "请选择此文档中的附件。",
+    "इस दस्तावेज़ से एक संलग्नक चुनें।",
+    "Seleccione un archivo adjunto de este documento.",
+    "اختر مرفقاً من هذا المستند.",
+    "เลือกไฟล์แนบจากเอกสารนี้"
+  ],
+  "Open the commercial document before adding a note.": [
+    "添加备注前请先打开业务文档。",
+    "नोट जोड़ने से पहले वाणिज्यिक दस्तावेज़ खोलें।",
+    "Abra el documento comercial antes de añadir una nota.",
+    "افتح المستند التجاري قبل إضافة ملاحظة.",
+    "เปิดเอกสารเชิงพาณิชย์ก่อนเพิ่มบันทึก"
+  ],
+  "Include valid Project details for this document.": [
+    "请为此文档提供有效的项目详情。",
+    "इस दस्तावेज़ के लिए मान्य परियोजना विवरण दें।",
+    "Incluya datos válidos del proyecto para este documento.",
+    "أدرج تفاصيل مشروع صالحة لهذا المستند.",
+    "ระบุรายละเอียดโครงการที่ถูกต้องสำหรับเอกสารนี้"
+  ],
+  "The Project details changed while saving. Reopen this document to use the current Project details.": [
+    "保存期间项目详情已更改。请重新打开此文档以使用当前项目详情。",
+    "सहेजते समय परियोजना विवरण बदल गया। वर्तमान परियोजना विवरण इस्तेमाल करने के लिए यह दस्तावेज़ फिर खोलें।",
+    "Los datos del proyecto cambiaron al guardar. Vuelva a abrir este documento para usar los datos actuales del proyecto.",
+    "تغيّرت تفاصيل المشروع أثناء الحفظ. أعد فتح هذا المستند لاستخدام تفاصيل المشروع الحالية.",
+    "รายละเอียดโครงการเปลี่ยนแปลงระหว่างการบันทึก เปิดเอกสารนี้อีกครั้งเพื่อใช้รายละเอียดโครงการปัจจุบัน"
+  ]
+}

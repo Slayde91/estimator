@@ -41,6 +41,17 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  await page.setViewportSize({width:1915,height:1000});const details=work.locator('.commercial-work-details');const sizes=await details.evaluate(section=>{const box=selector=>section.querySelector(selector).getBoundingClientRect().toJSON();return{description:box('.commercial-work-description textarea'),cost:box('[data-order-cost]'),files:box('input[type=file]'),stack:box('.commercial-work-cost-files')};});
  assert.ok(sizes.files.y>sizes.cost.y);assert.equal(Math.round(sizes.files.x),Math.round(sizes.cost.x));assert.ok(Math.abs(sizes.description.bottom-sizes.stack.bottom)<=2,JSON.stringify(sizes));assert.equal(await work.locator('.commercial-currency').count(),0);
  checks.push('Work Order attachment sits directly below estimated cost; the dollar adornment is absent and description fills the adjacent pair height');
+ const review=work.locator('.commercial-order-fields').filter({has:page.getByRole('heading',{name:'Work order review',exact:true})});
+ const reviewGeometry=await review.evaluate(section=>{const box=selector=>section.querySelector(selector).getBoundingClientRect().toJSON();return{
+  approval:box('[data-order-field=approval]'),justification:box('[data-order-field=justification]'),
+  signer:box('[data-signature-field=reviewed_by]'),name:box('[data-order-field=reviewed_by]'),date:box('[data-order-field=review_date]'),pair:box('.commercial-review-person-details')};});
+ assert.ok(Math.abs(reviewGeometry.approval.y-reviewGeometry.justification.y)<2);
+ assert.ok(reviewGeometry.justification.x>reviewGeometry.approval.right);
+ assert.ok(reviewGeometry.signer.y>reviewGeometry.approval.bottom);
+ assert.ok(reviewGeometry.name.x>=reviewGeometry.pair.x&&reviewGeometry.date.right<=reviewGeometry.pair.right+.5);
+ assert.ok(Math.abs(reviewGeometry.name.y-reviewGeometry.date.y)<2&&reviewGeometry.date.x>reviewGeometry.name.right);
+ assert.ok(reviewGeometry.signer.x<reviewGeometry.pair.x);geometry.push({kind:'review',...reviewGeometry});
+ checks.push('Work Order review places Justification beside Approval, then Reviewed by on the left and Name/Review date together in the right column');
  await groupSign(work,'reviewed_by','Reviewed by','Review Person','Review date');await work.locator('[data-signature-field=reviewed_by]').getByRole('button',{name:'Clear Reviewed by',exact:true}).click();
  await expect(work.getByLabel('Reviewed by name',{exact:true})).toHaveValue('');await expect(work.getByLabel('Review date',{exact:true})).toHaveValue('');await expect(work.locator('[data-signature-field=reviewed_by] svg[role=img]')).toHaveCount(0);
  await groupSign(work,'reviewed_by','Reviewed by','Review Person','Review date');await groupSign(work,'prepared_by','Prepared by','','Date');

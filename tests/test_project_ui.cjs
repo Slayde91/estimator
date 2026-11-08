@@ -22,7 +22,7 @@ function project() {
     workflow: 'Imported workflow', measurements: 'Imported notes', inputs: { D15: 'Imported product', B15: 234 },
     configuration: { inventory: {}, rates: { imported: { price: 98.76543 } }, catalog: { name: 'Frozen imported pricing' } }, result: { summary: { total: 456 } } },
     fields: [{ cell: 'D15', label: 'Product', type: 'select', options: ['Imported product'], default: 'Imported product' }],
-    project_details: { project_no: 'CF-2000', client: 'Imported client', site_address: '20 Imported Road', contact_name:'', contact_phone:'', contact_email:'', account_id:'', contact_id:'' },
+    project_details: { project_no: 'CF-2000', client: 'Imported client', site_address: '20 Imported Road', contact_name:'', contact_phone:'', contact_email:'', account_id:'', contact_id:'', billing_address:'', abn_acn:'' },
     calculators: Object.fromEntries(ids.map(id => [id, { source_sha256: 'matching-source', inputs: { CALCULATOR: { A9: `Imported ${id}` } } }])) };
 }
 
@@ -209,7 +209,7 @@ async function penetrationCheck(name, fn) {
     const cert=projectCertificates(h);h.app.state.initialized=true;const signer={name:'Shared signer'},cover={name:'Shared cover'};
     h.context.window.CeasefireCoverSheets={hasPendingOperation:()=>false,fingerprint:()=>JSON.stringify(cover)};
     const creating=h.app.newQuote();await flush();await h.byId('discard-dialog').close('confirm');await creating;
-    assert.equal(cert.state.workspace,'fresh-1');assert.deepEqual(cert.state.fields,{});assert.deepEqual(cert.state.applied[0].details,{project_no:'',client:'',site_address:'',contact_name:'',contact_phone:'',contact_email:'',account_id:'',contact_id:''});assert.deepEqual(signer,{name:'Shared signer'});assert.deepEqual(cover,{name:'Shared cover'});assert.equal(h.app.state.projectFile,null);
+    assert.equal(cert.state.workspace,'fresh-1');assert.deepEqual(cert.state.fields,{});assert.deepEqual(cert.state.applied[0].details,{project_no:'',client:'',site_address:'',contact_name:'',contact_phone:'',contact_email:'',account_id:'',contact_id:'',billing_address:'',abn_acn:''});assert.deepEqual(signer,{name:'Shared signer'});assert.deepEqual(cover,{name:'Shared cover'});assert.equal(h.app.state.projectFile,null);
   });
   await check('Failed New-project preparation discards its prepared certificate workspace and keeps current drafts',async h=>{
     const cert=projectCertificates(h);h.app.state.initialized=true;const before=h.snapshot();h.bridgeApi.prepareDefaults=async()=>{throw new Error('Calculator preparation failed');};
@@ -1357,11 +1357,13 @@ async function penetrationCheck(name, fn) {
     h.app.state.projectFile={path:'C:/Project/A.cf.json',revision:'old',save_token:'old-token',project_status:'Draft'};
     h.app.state.projectEstimates=[{id:'estimate-1',workspace:{estimate:{...copy(h.context.window.CeasefireProject.details()),inputs:{B15:123}}}},{id:'legacy-estimate',workspace:{estimate:{project_no:'PN-LEGACY',inputs:{B15:456}}}}];
     const before=h.context.window.CeasefireProject.projectPaneSnapshot(),inputs=copy(h.app.state.inputs);
-    const result={file:{...before.file,revision:'new',save_token:'new-token'},details:{...before.details,contact_name:'Robin Sample',contact_phone:'0400000000'}};
+    const result={file:{...before.file,revision:'new',save_token:'new-token'},details:{...before.details,contact_name:'Robin Sample',contact_phone:'0400000000',billing_address:'Project accounts\nPO Box 42',abn_acn:'ABN 123'}};
     assert.equal(h.context.window.CeasefireProject.applyProjectPaneSaved(before,result,'old'),true);
     assert.equal(h.app.state.projectFile.save_token,'new-token');assert.equal(h.byId('project-contact-name').value,'Robin Sample');
     assert.deepEqual(copy(h.app.state.inputs),inputs);assert.equal(h.context.window.CeasefireDesktop.status().dirty,false);
     assert.equal(h.app.state.projectEstimates[0].workspace.estimate.contact_phone,'0400000000');
+    assert.equal(h.byId('project-billing-address').value,'Project accounts\nPO Box 42');assert.equal(h.byId('project-abn-acn').value,'ABN 123');
+    for(const entry of h.app.state.projectEstimates){assert.equal(entry.workspace.estimate.billing_address,'Project accounts\nPO Box 42');assert.equal(entry.workspace.estimate.abn_acn,'ABN 123');}
     assert.equal(h.app.state.projectEstimates[1].workspace.estimate.project_no,'PN-LEGACY');assert.equal(h.app.state.projectEstimates[1].workspace.estimate.inputs.B15,456);
   });
   await check('Metadata saves preserve dirty estimates and later identity edits and ignore another active file',async h=>{
@@ -1468,6 +1470,23 @@ async function penetrationCheck(name, fn) {
     const options=h.byId('project-contact-options').children.filter(item=>item.getAttribute('role')==='option');assert.equal(options.length,1);assert.equal(options[0].textContent,'Legacy Contact');
     assert.deepEqual(h.context.window.CeasefireProject.details(),before);await options[0].emit('click');
     const after=h.context.window.CeasefireProject.details();assert.equal(after.account_id,'alpha');assert.equal(after.client,'Alpha Company');assert.equal(after.contact_id,'legacy');
+  });
+  await check('Project Company defaults copy billing details once, preserve overrides and clear with Client',async h=>{
+    const directory={accounts:[{id:'alpha',company:'Alpha Company',billing_address:'Alpha accounts\nPO Box 1',abn_acn:'ABN A'},
+      {id:'beta',company:'Beta Company',billing_address:'Beta accounts',abn_acn:'ABN B'}],contacts:[]},before=copy(directory);
+    h.context.fetch=async()=>({ok:true,json:async()=>copy(directory)});
+    vm.runInContext(fs.readFileSync('static/project-pane.js','utf8'),h.context);
+    const pane=h.context.window.CeasefireProjectPane;await pane.openCurrent();
+    const client=h.byId('project-pane-client'),billing=h.byId('project-pane-billing-address'),abn=h.byId('project-pane-abn-acn');
+    const choose=async name=>{client.focus();await client.emit('focus');await flush();client.value=name;await client.emit('input');await h.byId('project-account-options').children.find(item=>item.textContent===name).emit('click');};
+    await choose('Alpha Company');assert.equal(billing.value,'Alpha accounts\nPO Box 1');assert.equal(abn.value,'ABN A');
+    billing.value='Project accounts\nPO Box 42';await billing.emit('input');
+    await choose('Beta Company');assert.equal(billing.value,'Project accounts\nPO Box 42');assert.equal(abn.value,'ABN B');
+    assert.equal(h.context.window.CeasefireProject.details().billing_address,'Project accounts\nPO Box 42');
+    await pane.leave();await pane.openCurrent();assert.equal(billing.value,'Project accounts\nPO Box 42');assert.equal(abn.value,'ABN B');
+    const contact=h.byId('project-pane-contact-name');contact.value='';await contact.emit('input');
+    for(const key of ['client','billing_address','abn_acn'])assert.equal(h.context.window.CeasefireProject.details()[key],'');
+    assert.deepEqual(directory,before);
   });
   console.log(`${passed} project UI regression checks passed.`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

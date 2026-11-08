@@ -63,7 +63,7 @@ class ProjectReportTests(unittest.TestCase):
                     positions = []
                     page.extract_text(visitor_text=lambda value, cm, tm, font, size: positions.append((tm[4], tm[5])) if footer in value and size == 7 else None)
                     self.assertEqual(positions, [(32.0, 20.0)])
-                self.assertEqual(reader.metadata.title, 'FULL PRODUCT SUMMARY' if materials else 'Fire Protection Schedule')
+                self.assertEqual(reader.metadata.title, 'FULL PRODUCT SUMMARY' if materials else 'FIRE PROTECTION SCHEDULE')
                 self.assertIn(reader.metadata.title, reader.pages[0].extract_text())
                 self.assertEqual(text.count('FULL-TEST'), 1)
                 self.assertEqual(text.count('Project details'), 1)

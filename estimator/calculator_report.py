@@ -445,7 +445,8 @@ class _ScheduleReport(_Report):
             self.story.append(self.p(data['title'], 'section'))
             return
         elif project_report_title:
-            self.story.append(self.p(project_report_title, 'title'))
+            from .quote_schedule import append_project_report_title
+            append_project_report_title(self, project_report_title)
         else:
             title = report_label(data['id'], True) if materials else data['title']
             style = self.styles['title']

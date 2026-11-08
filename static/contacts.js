@@ -84,13 +84,13 @@
   async function leaveAccount() {
     const target = accountEditor;
     if (!target) return true;
-    if (target.pending()) { target.notice("Finish the current Company action first.", true); return false; }
+    if (target.pending()) { target.notice(target.pendingMessage(), true); return false; }
     if (target.dirty()) {
       const captured = target.fingerprint();
       const translate = value => window.CeasefireI18n?.translate?.(value) || value;
-      if (!await window.CeasefireDialogs.confirm(translate("Discard changes"), translate("Discard changes to this company?"), translate("Yes"), translate("Cancel"))) return false;
+      if (!await window.CeasefireDialogs.confirm(translate("Discard changes"), translate(target.kind === "contacts" ? "Discard changes to this contact?" : "Discard changes to this company?"), translate("Yes"), translate("Cancel"))) return false;
       if (accountEditor !== target || target.pending()) return false;
-      if (target.fingerprint() !== captured) { target.notice("The Company changed during review. Check the current changes and try again.", true); return false; }
+      if (target.fingerprint() !== captured) { target.notice(target.kind === "contacts" ? "The Contact changed during review. Check the current changes and try again." : "The Company changed during review. Check the current changes and try again.", true); return false; }
     }
     target.close();
     return true;
@@ -100,8 +100,9 @@
     if (!accountEditor && (saving || root()?.getAttribute("aria-busy") === "true")) return null;
     if (!await leaveAccount()) return null;
     if (requestId !== editorRequest || saving || root()?.getAttribute("aria-busy") === "true") return null;
-    const inPane = kind === "accounts" && Boolean(record.id) && !options.standalone;
+    const inPane = ["accounts", "contacts"].includes(kind) && Boolean(record.id) && !options.standalone;
     const dialog = el(inPane ? "aside" : "dialog", inPane ? "card contacts-account-pane" : "contacts-dialog");
+    if (inPane && kind === "contacts") dialog.classList.add("contacts-contact-pane");
     const form = el("form", "contacts-form");
     const returnFocus = document.activeElement;
     let finished = false;
@@ -116,7 +117,7 @@
     const version = directory.version;
     let contactId = record.contact_id || "", contactName = record.name || "", accountId = record.account_id || "";
     let accountDefaults = {};
-    let resolveClosed, savedRecord = null, submitting = false, loadingLinks = false, linksReady = kind !== "accounts";
+    let resolveClosed, savedRecord = null, submitting = false, loadingLinks = false, linksReady = kind !== "accounts", contactLinkRefresh, contactLinkLoading = false;
     const closed = new Promise(resolve => { resolveClosed = resolve; });
     const heading = el("h2", "", readOnly ? record.name : (record.id ? "Edit " : "New ") + singular[kind]);
     if (!readOnly) copy(heading, (record.id ? "Edit " : "New ") + singular[kind]);
@@ -430,6 +431,57 @@
       // The dialog must be open before a cached or very fast response is handled.
       queueMicrotask(loadLinks);
     }
+    if (inPane && kind === "contacts") {
+      const related = el("section", "contacts-related"), groups = el("div", "contacts-links");
+      const linkStatus = ui("p", "helper", "Loading linked records…");
+      linkStatus.setAttribute("role", "status");
+      const refresh = button("Refresh linked records", () => loadContactLinks());
+      contactLinkRefresh = refresh;
+      copy(refresh, "Refresh linked records");
+      const unavailable = el("details", "contacts-link-errors"), unavailableSummary = el("summary"), unavailableList = el("ul");
+      unavailable.hidden = true; unavailable.append(unavailableSummary, unavailableList);
+      related.append(ui("h3", "", "Linked records"), refresh, linkStatus, unavailable, groups); form.append(related);
+      let contactLinkTicket = 0;
+      async function loadContactLinks() {
+        const ticket = ++contactLinkTicket;
+        contactLinkLoading = true;
+        refresh.disabled = true; copy(linkStatus, "Loading linked records…");
+        try {
+          const catalog = await request("contact-links?" + new URLSearchParams({id:record.id}));
+          if (!isOpen() || ticket !== contactLinkTicket) return;
+          const expanded = new Set([...groups.querySelectorAll("details[open]")].map(group => group.dataset.linkGroup));
+          const existing = new Set([...groups.querySelectorAll("details")].map(group => group.dataset.linkGroup));
+          groups.replaceChildren();
+          for (const [key, title] of Object.entries({companies:"Companies", projects:"Projects", quotes:"Quotes", work_orders:"Work Orders", purchase_orders:"Purchase Orders"})) {
+            const entries = catalog.linked[key] || [];
+            if (!entries.length) continue;
+            const group = el("details", "contacts-links-group"), summary = el("summary"), list = el("ul", "contacts-links-list");
+            group.dataset.linkGroup = key; group.open = expanded.has(key) || !existing.has(key);
+            copy(summary, "{0} ({1})", [window.CeasefireI18n?.term(title) || title, entries.length]);
+            for (const item of entries) {
+              const row = el("li", "contacts-link-row");
+              const company = key === "companies" && directory.accounts.find(account => account.id === item.id);
+              if (company && item.available) row.append(button(item.label, async () => {
+                if (!await leaveAccount()) return;
+                await switchPage("accounts"); dialogEditor("accounts", company);
+              }, "text-button"));
+              else row.append(el("span", "", item.label));
+              list.append(row);
+            }
+            const body = el("div", "contacts-links-body"); body.append(list); group.append(summary, body); groups.append(group);
+          }
+          if (!groups.children.length) groups.append(ui("p", "helper contacts-links-empty", "No linked records."));
+          unavailable.hidden = !catalog.error_count;
+          copy(unavailableSummary, "Unavailable project records ({0})", [catalog.error_count || 0]);
+          unavailableList.replaceChildren(...(catalog.errors || []).map(item => el("li", "", item.name)));
+          copy(linkStatus, catalog.error_count ? "Some project records are unavailable. Refresh to check the Contact's links." :
+            catalog.scan_pending ? "Project records are still loading. Refresh to list more records." : "Saved records linked to this Contact are shown here.");
+        } catch (error) {
+          if (isOpen() && ticket === contactLinkTicket) linkStatus.textContent = error.message;
+        } finally { if (isOpen() && ticket === contactLinkTicket) { contactLinkLoading = false; refresh.disabled = submitting; } }
+      }
+      queueMicrotask(loadContactLinks);
+    }
     form.append(actions);
     form.addEventListener("submit", async event => {
       event.preventDefault();
@@ -456,6 +508,7 @@
         conversionBusy();
         editable.forEach(input => { input.disabled = false; });
         save.disabled = cancel.disabled = false;
+        if (contactLinkRefresh && !contactLinkLoading) contactLinkRefresh.disabled = false;
         form.removeAttribute("aria-busy");
       }
     });
@@ -475,7 +528,8 @@
       window.CeasefireI18n?.attr(close, "aria-label", "Close"); window.CeasefireI18n?.attr(close, "title", "Close");
       const headingRow = el("div", "contacts-account-heading");
       headingRow.append(heading, close); form.prepend(headingRow);
-      accountEditor = {element:dialog, close:closeEditor, pending:()=>submitting,
+      accountEditor = {element:dialog, kind, close:closeEditor, pending:()=>submitting,
+        pendingMessage:()=>kind === "contacts" ? "Finish the current Contact action first." : "Finish the current Company action first.",
         dirty:()=>Object.keys(fields).some(key=>fields[key].value !== initialValues[key]) || linksChanged(),
         fingerprint:()=>JSON.stringify({id:record.id,version,fields:Object.fromEntries(Object.entries(fields).map(([key,input])=>[key,input.value])),links:Object.fromEntries(Object.entries(linkSelections).map(([key,selected])=>[key,[...selected].sort()]))}),
         notice:(message,error)=>feedback(form,message,error)};
@@ -485,7 +539,7 @@
         if (event.key !== "Escape" || event.defaultPrevented || event.target.closest("details[open]")) return;
         event.preventDefault(); event.stopPropagation(); void leaveAccount();
       });
-      fields.company.focus();
+      (kind === "contacts" ? fields.name : fields.company).focus();
     } else {
       (options.standalone ? document.body : root()).append(dialog);
       dialog.showModal();
@@ -703,6 +757,7 @@
     if (menu) {menu.open = false; menu.querySelector("summary").focus();}
   });
   window.ClassifireContacts = {activate, createAccount, createContact, leave:leaveAccount,
+    pendingMessage:()=>accountEditor?.pendingMessage() || "Finish the current Company action first.",
     hasUnsavedChanges:()=>Boolean(accountEditor?.dirty()), hasPendingOperation:()=>Boolean(accountEditor?.pending()),
     fingerprint:()=>accountEditor?.fingerprint() || ""};
 })();

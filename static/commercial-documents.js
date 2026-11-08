@@ -118,7 +118,7 @@
   }
   function markDirty() {
     state.dirty = true;
-    if (state.editor) state.editor.pendingIssue = null;
+    if (state.editor) {state.editor.pendingIssue = null;state.editor.pendingProjectDetails = null;}
     window.CeasefireProject?.changed?.();
   }
   function positionCardMenu(menu) {
@@ -350,6 +350,7 @@
     }
   }
   function renderBoard() {
+    clearPricingPickers();
     state.editor = null;
     state.dirty = false;
     const host = shell(names[state.kind] + "s"),
@@ -436,10 +437,22 @@
     renderCards();
     if (state.model.unavailableProjects) message("Some linked project files could not be read. See Projects for details.", true);
   }
-  function commercialProjectDetails(includeContact = false) {
-    const details = window.CeasefireProject?.details?.() || {};
+  function projectDetailsSnapshot(source = null) {
+    return copy(source ? source.projectDetails || {} : window.CeasefireProject?.details?.() || {});
+  }
+  function commercialProjectDetails(source = null) {
+    const details = projectDetailsSnapshot(source);
     return {project_no:details.project_no || "", client:details.client || "", site_address:details.site_address || "",
-      ...(includeContact ? {contact:details.contact_name || "", phone:details.contact_phone || "", email:details.contact_email || ""} : {})};
+      contact:details.contact_name || "", phone:details.contact_phone || "", email:details.contact_email || ""};
+  }
+  function boundWorkOrderProjectNumber(editor) {
+    const doc=editor.document;
+    if(doc.kind!=='work_order')return '';
+    const related=editor.source?.related || state.model.documents;
+    const stored=related.find(item=>item.id===doc.id && item.kind==='work_order');
+    if(stored && (stored.fields.order.work_order_reference || stored.fields.order.quote_id))return stored.fields.details.project_no;
+    const quote=related.find(item=>item.id===doc.fields.order.quote_id && item.kind==='quote');
+    return quote?.fields.details.project_no || (doc.fields.order.work_order_reference ? doc.fields.details.project_no : '');
   }
   function renderCards() {
     const board = root()?.querySelector(".commercial-board");
@@ -541,17 +554,22 @@
     if (state.busy) return;
     const source = sourceFor(card);
     const revision = state.revision;
+    const workspace=state.workspace,context=window.CeasefireProject?.runtimeContext?.();
     try {
       let document = card;
       if (source) {
         state.busy = true;
         const opened = await request("saved-open", {source, id: card.id});
-        if (state.revision !== revision) return;
+        if (state.revision !== revision || workspace!==state.workspace || workspace!==currentWorkspace() || context!==window.CeasefireProject?.runtimeContext?.()) return;
         document = opened.document;
         source.documentId = document.id;
         source.estimates = opened.estimates;
         source.quoteTotals = opened.quote_totals;
         source.related = opened.related;
+        source.projectDetails = opened.project_details || {
+          project_no:document.fields.details.project_no,client:document.fields.details.client,site_address:document.fields.details.site_address,
+          contact_name:document.fields.details.contact,contact_phone:document.fields.details.phone,contact_email:document.fields.details.email
+        };
         source.createdProject = opened.created_project === true;
         state.busy = false;
       }
@@ -628,18 +646,25 @@
   }
   async function openNew(fromEstimate = false) {
     if (state.busy || !requireProject()) return;
+    const revision=state.revision,workspace=state.workspace,kind=state.kind,context=window.CeasefireProject?.runtimeContext?.(),
+      projectDetails=projectDetailsSnapshot(),projectFingerprint=JSON.stringify(projectDetails);
+    const current=()=>revision===state.revision && workspace===state.workspace && workspace===currentWorkspace() && kind===state.kind
+      && context===window.CeasefireProject?.runtimeContext?.() && projectFingerprint===JSON.stringify(projectDetailsSnapshot());
     state.busy = true;
     try {
       await flushRateDefaults();
+      if(!current())return;
       const details = {
-        ...commercialProjectDetails(true),
+        ...commercialProjectDetails(),
         date: today()
       };
       const result = await request("defaults", {
         workspace_id: state.workspace,
         kind: state.kind,
-        details
+        details,
+        project_details:projectDetails
       });
+      if(!current())return;
       if (result.rate_defaults) acceptRateDefaults(result.rate_defaults);
       const document = {
         id: crypto.randomUUID(),
@@ -769,11 +794,13 @@
   }
   function openEditor(document, source = null, linkedQuote = null) {
     if (state.dirty) return;
+    clearPricingPickers();
     state.editor = {
       document: copy(document),
       source,
       linkedQuote,
       pendingIssue: null,
+      pendingProjectDetails: null,
       generatedScope: null,
       scopeTables: copy(document.fields.scope_tables || []),
       scopeRevision: 0,
@@ -783,11 +810,11 @@
     const host = shell(names[state.kind]),
       form = node("div", "commercial-editor"),
       fields = state.editor.document.fields;
+    const lockedNumber=boundWorkOrderProjectNumber(state.editor);
     if (!source) {
-      const lockedNumber = fields.order.work_order_reference && state.kind === "work_order" ? fields.details.project_no : "";
       Object.assign(fields.details, commercialProjectDetails());
-      if (lockedNumber) fields.details.project_no = lockedNumber;
     }
+    if (lockedNumber) fields.details.project_no = lockedNumber;
     const actions = node("div", "commercial-editor-actions");
     actions.append(backButton("Back to " + names[state.kind] + "s", () => void leaveEditor()), button("Save", () => void saveEditor(), true), button("Download PDF", () => void downloadEditor(), true));
     if (state.kind === "work_order") actions.append(button("Create PO", () => void createPurchaseOrder()));
@@ -798,7 +825,8 @@
     details.append(node("h2", "", "Project details"));
     const detailField = (key, label) => {
       const control = input(fields.details[key], value => fields.details[key] = value, key === "date" ? "date" : "text");
-      if (["project_no", "client", "site_address"].includes(key)) control.readOnly = true;
+      control.dataset.projectDetail=key;
+      if (key !== "date") control.readOnly = true;
       return field(label, control);
     };
     const detailPair = pairs => {
@@ -832,7 +860,7 @@
       renderOrderFields(form, fields);
     }
     host.append(form);
-    if (["quote","work_order"].includes(state.kind)) attachWorkPanels(form);
+    attachWorkPanels(form);
     if (state.kind === "quote") {
       renderEstimateOptions();
       renderScope();
@@ -920,8 +948,8 @@
       const reader=new FileReader(); reader.onerror=()=>reject(new Error("The file could not be read."));
       reader.onload=()=>resolve(reader.result.split(",")[1]); reader.readAsDataURL(blob);
     });
-    window.ClassifireWorkOrderPanels.attach(form, {
-      fields, kind:doc.kind, id:doc.id, related, message, richEditor, isSaved:()=>Boolean(doc.version),
+    editor.panels=window.ClassifireWorkOrderPanels.attach(form, {
+      fields, kind:doc.kind, id:doc.id, related, message, richEditor, projectDetails:projectDetailsSnapshot(editor.source), isSaved:()=>Boolean(doc.version),
       async writeNotes(notes) {
         if (!current() || state.busy) throw new Error("Finish the current document operation first.");
         if (!doc.version) { fields.notes=copy(notes); markDirty(); return; }
@@ -929,7 +957,7 @@
         try {
           const saved = await documentRequest("notes",{workspace_id:state.workspace,id:doc.id,version:doc.version,notes},editor.source);
           if (!current()) return;
-          fields.notes=saved.fields.notes || []; doc.version=saved.version; editor.pendingIssue=null;
+          fields.notes=saved.fields.notes || []; doc.version=saved.version; editor.pendingIssue=null;editor.pendingProjectDetails=null;
           if (!editor.source) changed();
           await load();
           if (!editor.source && !state.dirty) await saveActiveProject();
@@ -1062,6 +1090,9 @@
       const selected = choices.find(item => item.id === linked.value);
       if (isWorkOrder) {
         fields.order.quote_reference = selected?.last_number || "";
+        const linkedNumber=boundWorkOrderProjectNumber(state.editor) || commercialProjectDetails(state.editor.source).project_no;
+        fields.details.project_no=linkedNumber;
+        const number=root()?.querySelector('[data-project-detail="project_no"]');if(number)number.value=linkedNumber;
         applyQuoteCost(linked.value, fields.order.quote_reference);
       } else {
         fields.order.work_order_reference = selected?.fields.order.work_order_reference || "";
@@ -1073,7 +1104,7 @@
     const commonReview = [["approval", "Approval"], ["reviewed_by", "Reviewed by"], ["review_date", "Review date"]];
     const groups = isWorkOrder ? [
       ["Work order details", [["start_date","Proposed start date"],["end_date","Proposed end date"],["urgency","Category / urgency"],["description","Description of works"],["estimated_cost","Estimated cost (AUD)"]]],
-      ["Work order review", [...commonReview, ["justification","Justification"]]],
+      ["Work order review", [["approval","Approval"],["justification","Justification"],["reviewed_by","Reviewed by"],["review_date","Review date"]]],
       ["OHS documentation", [["prepared_by","Prepared by"],["prepared_date","Date"]]],
       ["Client approval", [["client_approved_by","Approved by"],["client_approval_date","Approval date"]]],
       ["Works in Progress", [["progress","Work progress"]]],
@@ -1084,7 +1115,7 @@
       const section = node("section", "card commercial-order-fields");
       if(isWorkOrder && title==='Work order details')section.classList.add('commercial-work-details');
       section.append(node("h2", "", title));
-      let dates;
+      let dates,reviewPair;
       for (const [key, label] of items) {
         if (["quote_reference", "work_order_reference"].includes(key)) continue;
         if (key === "estimated_cost") {
@@ -1103,7 +1134,11 @@
           name.dataset.orderField=key;
           const nameField=field('Name',name);name.setAttribute('aria-label',label+' name');
           window.CeasefireI18n?.attr(name,'aria-label',label+' name');
-          row.append(signatureField(fields,key,label),nameField);section.append(row);
+          if(key==='reviewed_by') {
+            reviewPair=node('div','commercial-field-pair commercial-review-person-details');reviewPair.append(nameField);
+            row.append(signatureField(fields,key,label),reviewPair);
+          } else row.append(signatureField(fields,key,label),nameField);
+          section.append(row);
           continue;
         }
         const choices = isWorkOrder ? (key === "urgency" ? ["High Priority","Medium Priority","Low Priority"] : key === "approval" ? ["Approved","Denied"] : null)
@@ -1120,7 +1155,8 @@
         if (isWorkOrder && ["start_date","end_date"].includes(key)) {
           if (!dates) { dates = node("div", "commercial-field-pair commercial-proposed-dates"); section.append(dates); }
           dates.append(item);
-        } else section.append(item);
+        } else if(isWorkOrder && key==='review_date' && reviewPair)reviewPair.append(item);
+        else section.append(item);
       }
       form.append(section);
       if (!isWorkOrder && title === "Purchase order information") {
@@ -1300,7 +1336,9 @@
   function renderLines() {
     const host = root()?.querySelector(".commercial-lines");
     if (!host || !state.editor) return;
+    clearPricingPickers();
     host.replaceChildren(node("h2", "", state.kind === "quote" ? "Quote summary" : "Request summary"));
+    const owner=state.editor,workspace=state.workspace,context=window.CeasefireProject?.runtimeContext?.();
     const fields = state.editor.document.fields,
       table = node("table"),
       head = node("thead"),
@@ -1361,6 +1399,18 @@
       price.step = "any";
       price.readOnly = state.kind === "quote" && !!line.estimate_id;
       unit.append(price);
+      if(state.kind==='quote' && !line.estimate_id){
+        const cleanup=window.ClassifireCommercialPricing?.attach(descriptionInput,{
+        isCurrent:()=>!state.busy && state.editor===owner && workspace===state.workspace && workspace===currentWorkspace()
+          && context===window.CeasefireProject?.runtimeContext?.() && row.isConnected && fields.lines.includes(line),
+        onSelect(item){
+          line.description=item.description;line.unit_price=String(Number(Number(item.unit_price).toFixed(6)));
+          descriptionInput.value=line.description;price.value=line.unit_price;
+          resize();markDirty();renderTotals();
+        }
+        });
+        if(typeof cleanup==='function')(owner.pricingCleanups ||= []).push(cleanup);
+      }
       row.append(description, quantity, unit, total);
       if (state.kind === "quote" && !line.estimate_id) {
         const remove = button("", () => {
@@ -1487,23 +1537,41 @@
       if (number) number.readOnly = true;
     }
   }
-  async function persist(captured, explicitlySaved = false) {
-    const document = state.editor.document;
+  function captureDocumentOperation() {
+    const editor=state.editor,projectDetails=projectDetailsSnapshot(editor?.source);
+    return {editor,workspace:state.workspace,context:window.CeasefireProject?.runtimeContext?.(),projectDetails,
+      projectFingerprint:JSON.stringify(projectDetails)};
+  }
+  function assertDocumentOperation(operation) {
+    if(operation.editor!==state.editor || operation.workspace!==state.workspace || operation.workspace!==currentWorkspace()
+      || operation.context!==window.CeasefireProject?.runtimeContext?.()
+      || operation.projectFingerprint!==JSON.stringify(projectDetailsSnapshot(operation.editor.source)))
+      throw new Error("The Project details changed while saving. Reopen this document to use the current Project details.");
+  }
+  async function persist(captured, explicitlySaved, operation) {
+    assertDocumentOperation(operation);
+    const {editor,workspace,projectDetails}=operation, document=editor.document;
+    const lockedNumber=boundWorkOrderProjectNumber(editor);
+    if(!editor.source)Object.assign(document.fields.details,commercialProjectDetails());
+    if(lockedNumber)document.fields.details.project_no=lockedNumber;
     const saved = await documentRequest("save", {
-      workspace_id: state.workspace,
+      workspace_id: workspace,
       id: document.id,
       version: document.version,
       kind: document.kind,
       status: document.status,
       fields: document.fields,
+      ...(!editor.source ? {project_details:projectDetails} : {}),
       ...(explicitlySaved && !state.editor.source && !window.CeasefireProject.context().project_token ? {retain_unfiled:true} : {}),
       ...captured
     }, state.editor.source);
+    assertDocumentOperation(operation);
     adoptSaved(saved);
     if (state.editor.source) state.editor.source.documentId = saved.id;
     state.dirty = false;
     if (!state.editor.source) changed();
     await load();
+    assertDocumentOperation(operation);
     return saved;
   }
   function adoptSaved(saved) {
@@ -1521,15 +1589,19 @@
     if (reference) reference.value = saved.reference || "";
     const cost = root()?.querySelector("[data-order-cost]");
     if (cost) cost.value = fields.order.estimated_cost;
+    root()?.querySelectorAll('[data-project-detail]').forEach(control=>{control.value=fields.details[control.dataset.projectDetail] || '';});
+    state.editor.panels?.refreshProjectDetails(projectDetailsSnapshot(state.editor.source));
   }
   async function saveEditor() {
     if (state.busy || !state.editor) return;
+    const operation=captureDocumentOperation();
     state.busy = true;
     setDisabled(true);
     try {
       await flushRateDefaults();
+      assertDocumentOperation(operation);
       const captured = state.kind === "quote" ? await capturedEstimates() : {};
-      await persist(captured, true);
+      await persist(captured, true, operation);
       const source = state.editor.source;
       const inFile = source ? !source.file_id.startsWith("local-") : await saveActiveProject();
       message(inFile
@@ -1543,13 +1615,18 @@
   }
   async function downloadEditor() {
     if (state.busy || !state.editor) return;
+    const operation=captureDocumentOperation();
     state.busy = true;
     setDisabled(true);
     try {
       await flushRateDefaults();
+      assertDocumentOperation(operation);
+      if(state.editor.pendingIssue && state.editor.pendingProjectDetails!==JSON.stringify(projectDetailsSnapshot(state.editor.source))) {
+        state.editor.pendingIssue=null;state.editor.pendingProjectDetails=null;
+      }
       if (!state.editor.pendingIssue) {
         const captured = state.kind === "quote" ? await capturedEstimates() : {},
-          saved = await persist(captured);
+          saved = await persist(captured, false, operation);
         state.editor.pendingIssue = {
           workspace_id: state.workspace,
           id: saved.id,
@@ -1558,6 +1635,7 @@
           request_id: crypto.randomUUID(),
           ...captured
         };
+        state.editor.pendingProjectDetails=JSON.stringify(projectDetailsSnapshot(state.editor.source));
       }
       const source = state.editor.source;
       const result = source ? await documentRequest("issue", state.editor.pendingIssue, source) : await window.CeasefireDownloads.save("/api/commercial/issue", state.editor.pendingIssue, {
@@ -1568,6 +1646,7 @@
         return;
       }
       state.editor.pendingIssue = null;
+      state.editor.pendingProjectDetails = null;
       if (!source) changed();
       await load();
       const latest = source ? result.document : state.model.documents.find(document => document.id === state.editor.document.id);
@@ -1590,6 +1669,10 @@
     if (!workspace) return null;
     const result = await request(`state?workspace=${encodeURIComponent(workspace)}`);
     return result.snapshot;
+  }
+  function clearPricingPickers() {
+    state.editor?.pricingCleanups?.forEach(cleanup=>cleanup());
+    if(state.editor)state.editor.pricingCleanups=[];
   }
   window.CeasefireCommercial = {
     activate, leaveEditor,
@@ -1617,6 +1700,7 @@
       };
     },
     applyProject(prepared) {
+      clearPricingPickers();
       state.workspace = prepared?.workspace_id || null;
       state.model = null;
       state.editor = null;
@@ -1630,6 +1714,8 @@
         workspace: state.workspace,
         documents: state.model?.snapshot,
         editor: state.editor?.document,
+        editor_project_details: state.editor ? projectDetailsSnapshot(state.editor.source) : null,
+        pending_project_details:state.editor?.pendingProjectDetails,
         dirty: state.dirty
       });
     },

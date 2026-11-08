@@ -2,9 +2,10 @@
 from hashlib import sha256
 import json
 from .catalog import ValidationError
-from .commercial_documents import KINDS, CommercialConflict, commercial_cards
+from .commercial_documents import KINDS, CommercialConflict, commercial_cards, project_document_details
 from .download_files import DownloadDestination
 from .project_file import WORKSPACE_FIELDS, load_project_bytes
+from .quote_details import QUOTE_DETAIL_LIMITS
 
 
 def estimate_inputs(snapshot):
@@ -60,7 +61,7 @@ class SavedCommercial:
             raise ValidationError('Choose the saved project owning this document.')
         file_id, revision = source['file_id'], source['revision']
         body = {key: value for key, value in body.items() if key != 'source'}
-        if not isinstance(revision, str) or len(revision) != 64 or set(body) & {'workspace_id', 'estimates', 'active_estimate_id', 'download', 'retain_unfiled'}:
+        if not isinstance(revision, str) or len(revision) != 64 or set(body) & {'workspace_id', 'estimates', 'active_estimate_id', 'download', 'retain_unfiled', 'project_details'}:
             raise ValidationError('Saved document estimates and downloads come from their own project.')
         if isinstance(file_id, str) and file_id.startswith('local-'):
             self.projects.recover_commercial_publications()
@@ -78,7 +79,7 @@ class SavedCommercial:
                 item, raw = self.projects.commercial.read_attachment(workspace, body['id'], body['file_id'])
                 return {**item, 'content': base64.b64encode(raw).decode('ascii')}
             model = self.projects.commercial.view(workspace, include_quote_totals=action == 'open')
-            details = {key: snapshot['estimate'].get(key, '') for key in ('project_no', 'client', 'site_address')}
+            details = project_document_details(snapshot['estimate'])
             captured = estimate_inputs(snapshot)
             if action == 'open':
                 if set(body) != {'id'}:
@@ -86,9 +87,13 @@ class SavedCommercial:
                 document = next((d for d in model['documents'] if d['id'] == body['id']), None)
                 if document is None:
                     raise CommercialConflict('This document is no longer available. Reopen its board.')
+                bound_number = document['fields']['details']['project_no'] if document['kind']=='work_order' and (document['fields']['order']['work_order_reference'] or document['fields']['order']['quote_id']) else None
                 document['fields']['details'].update(details)
+                if bound_number is not None:
+                    document['fields']['details']['project_no'] = bound_number
                 quote_total = model['quote_totals'].get(document['id'], {}).get(document['last_number'], '')
-                return {'document': document, 'details': details, 'quote_total': quote_total,
+                return {'document': document, 'details': details, 'project_details': {
+                            key: snapshot['estimate'].get(key, '') for key in QUOTE_DETAIL_LIMITS}, 'quote_total': quote_total,
                         'created_project': self.projects.certifications.view(workspace)['created_project'],
                         'related': commercial_cards(model['snapshot']), 'quote_totals': model['quote_totals'],
                         'estimates': [{'id': item['id'], 'name': item['name']} for item in captured['estimates']]}
@@ -97,7 +102,7 @@ class SavedCommercial:
                     raise ValidationError('Choose a supported commercial document.')
                 if not isinstance(body.get('fields'), dict) or not isinstance(body['fields'].get('details'), dict):
                     raise ValidationError('Include the document and its project details.')
-                body['fields']['details'].update(details)
+                body['project_details'] = {key: snapshot['estimate'].get(key, '') for key in QUOTE_DETAIL_LIMITS}
             if action == 'defaults':
                 body['details'] = {**body.get('details', {}), **details}
             if action == 'issue' and not session.get('documentation'):

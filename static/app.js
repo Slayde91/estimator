@@ -226,7 +226,7 @@
   const formatMoney = (value) => isNumber(value) ? money.format(value) : "—";
   const fieldByCell = (cell) => state.fields.find((field) => field.cell === cell);
 
-  const projectDetailControls = {project_no:"project-no", client:"client", site_address:"site-address", contact_name:"project-contact-name", contact_phone:"project-contact-phone", contact_email:"project-contact-email", account_id:"project-account-id", contact_id:"project-contact-id"};
+  const projectDetailControls = {project_no:"project-no", client:"client", site_address:"site-address", contact_name:"project-contact-name", contact_phone:"project-contact-phone", contact_email:"project-contact-email", account_id:"project-account-id", contact_id:"project-contact-id", billing_address:"project-billing-address", abn_acn:"project-abn-acn"};
   function quoteDetails() {
     return Object.fromEntries(Object.entries(projectDetailControls).map(([key, id]) => [key, $(id).value.trim()]));
   }
@@ -2179,7 +2179,7 @@
     return JSON.stringify({project:projectStamp(),coverSheets:window.CeasefireCoverSheets?.fingerprint?.(),projectPane:window.CeasefireProjectPane?.fingerprint?.()});
   }
   function coverReplacementPending(skipProjectPane = false) {
-    if (window.ClassifireContacts?.hasPendingOperation?.()) { message(uiCopy("Finish the current Company action first."), true); return true; }
+    if (window.ClassifireContacts?.hasPendingOperation?.()) { message(uiCopy(window.ClassifireContacts.pendingMessage?.() || "Finish the current Company action first."), true); return true; }
     if (!skipProjectPane && window.CeasefireProjectPane?.hasPendingOperation?.()) { message("Finish the current project details action first.", true); return true; }
     if (window.CeasefireSWMS?.hasPendingOperation?.()) { message("Finish the current SWMS edit first.", true); return true; }
     if (window.CeasefireCommercial?.hasPendingOperation?.()) { message("Finish the current commercial document edit first.", true); return true; }

@@ -5,7 +5,7 @@ import json
 from urllib.parse import parse_qs, urlsplit
 
 from .catalog import ValidationError, effective_catalog
-from .commercial_documents import CommercialConflict, default_fields, linked_estimate_ids
+from .commercial_documents import KINDS, CommercialConflict, default_fields, linked_estimate_ids, project_document_details
 from .unfiled_commercial import quote_context
 
 
@@ -35,6 +35,18 @@ class CommercialHTTP:
             query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
             if any(len(values) != 1 for values in query.values()):
                 raise ValidationError('Use one value for each commercial document filter.')
+            if action == 'pricing':
+                if handler.command != 'GET':
+                    handler.send_payload(405, {'error': 'Use GET for Pricing Library searches.'})
+                    return True
+                if set(query) - {'search'}:
+                    raise ValidationError('Use the Pricing Library search only.')
+                search = query.get('search', [''])[0]
+                if len(search) > 500:
+                    raise ValidationError('Use a pricing search of up to 500 characters.')
+                from .commercial_pricing import search_pricing
+                handler.send_payload(200, search_pricing(self.pricing() if self.pricing else {}, search))
+                return True
             if action == 'rate-defaults' and self.rate_defaults is not None:
                 if query:
                     raise ValidationError('Rate defaults do not accept document or project filters.')
@@ -119,9 +131,9 @@ class CommercialHTTP:
     def execute(self, action, body, *, owner_key=None):
         common = {'workspace_id', 'estimates', 'active_estimate_id'}
         fields_by_action = {
-            'defaults': {'kind', 'details'}, 'derive': {'fields', 'selected_ids', 'include_scope_tables'},
+            'defaults': {'kind', 'details', 'project_details'}, 'derive': {'fields', 'selected_ids', 'include_scope_tables'},
             'purchase-order-defaults': {'work_order_id', 'work_order_version'},
-            'save': {'id', 'version', 'kind', 'status', 'fields', 'retain_unfiled'},
+            'save': {'id', 'version', 'kind', 'status', 'fields', 'retain_unfiled', 'project_details'},
             'delete': {'id', 'version'}, 'status': {'id', 'version', 'status'},
             'notes': {'id', 'version', 'notes'},
             'issue': {'id', 'kind', 'version', 'request_id'},
@@ -135,6 +147,8 @@ class CommercialHTTP:
             profile = self.rate_defaults.read() if self.rate_defaults is not None else None
             result = {'fields': default_fields(body.get('kind'), body.get('details'), self._company(),
                                                rates=profile['rates'] if profile else None)}
+            if 'project_details' in body:
+                result['fields']['details'].update(project_document_details(body['project_details']))
             if profile is not None:
                 result['rate_defaults'] = profile
         elif action == 'purchase-order-defaults':
@@ -148,15 +162,31 @@ class CommercialHTTP:
             result = self._derive(body)
             result = {key: value for key, value in result.items() if key != 'scope_documents'}
         elif action == 'notes':
-            doc = next((d for d in model['documents'] if d['id'] == body.get('id') and d['kind'] in ('quote', 'work_order')), None)
+            doc = next((d for d in model['documents'] if d['id'] == body.get('id') and d['kind'] in KINDS), None)
             if doc is None:
-                raise ValidationError('Open the Quote or Work Order before adding a note.')
+                raise ValidationError('Open the commercial document before adding a note.')
             result = self.service.save(workspace, {'id': doc['id'], 'version': body.get('version'), 'kind': doc['kind'],
                 'status': doc['status'], 'fields': {**doc['fields'], 'notes': body.get('notes')}})
         elif action == 'save':
             if not any(document['id'] == body.get('id') for document in model['documents']):
                 self.service.certifications.require_created_project(workspace)
             fields = deepcopy(body.get('fields'))
+            if 'project_details' in body:
+                if not isinstance(fields, dict) or not isinstance(fields.get('details'), dict):
+                    raise ValidationError('Include the document and its project details.')
+                requested_number = fields['details'].get('project_no', '')
+                fields['details'].update(project_document_details(body['project_details']))
+                if body.get('kind') == 'work_order':
+                    if not isinstance(fields.get('order'), dict):
+                        raise ValidationError('Commercial document details contain unsupported fields.')
+                    previous = next((doc for doc in model['documents'] if doc['id']==body.get('id') and doc['kind']=='work_order'), None)
+                    quote = next((doc for doc in model['documents'] if doc['id']==fields['order'].get('quote_id') and doc['kind']=='quote'), None)
+                    binding = previous if previous and (previous['fields']['order']['work_order_reference'] or previous['fields']['order']['quote_id']) else quote
+                    if binding:
+                        bound_number = binding['fields']['details']['project_no']
+                        if requested_number not in ((bound_number,) if previous else ('', bound_number)):
+                            raise ValidationError('The project number cannot change after a work order reference is assigned.')
+                        fields['details']['project_no'] = bound_number
             if body.get('kind') == 'quote':
                 if not isinstance(fields, dict) or not isinstance(fields.get('details'), dict):
                     raise ValidationError('Include the Quote project details.')
@@ -168,7 +198,10 @@ class CommercialHTTP:
                 if active is not None:
                     if not isinstance(active, dict):
                         raise ValidationError('Include valid estimate details.')
-                    fields['details'].update({key: active.get(key, '') for key in ('project_no', 'client', 'site_address')})
+                    captured_details = project_document_details(active)
+                    if 'project_details' in body and captured_details != project_document_details(body['project_details']):
+                        raise CommercialConflict('The Project details changed while saving. Reopen this document to use the current Project details.')
+                    fields['details'].update(captured_details)
                 derived = self._derive({**body, 'selected_ids': linked_estimate_ids(fields['lines'])})
                 prices = {line['estimate_id']: line['unit_price'] for line in derived['lines']}
                 seen = set()

@@ -26,21 +26,53 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   }
   checks.push('all commercial New actions notify without creating drafts or making mutation/default requests when no project exists');
   await fillProjectDetails(page,{client:'Procurement receiver','site-address':'17 Procurement Road'});
+  await openProjectSection(page,'quotes');await page.locator('#project-current-details').click();
+  for(const [id,value] of Object.entries({'project-pane-contact-name':'Project Contact','project-pane-contact-phone':'0400 123 456',
+    'project-pane-contact-email':'project-contact@example.test','project-pane-billing-address':'Billing floor 2\nSynthetic company office','project-pane-abn-acn':'ABN 12 345'}))await page.locator('#'+id).fill(value);
+  await page.locator('#project-details-close').click();
   const projectSave=page.waitForResponse(response=>response.url().endsWith('/api/project/save-as'));
   await clickProjectControl(page,'Save');assert.equal((await projectSave).status(),200);await idle();
   await openProjectSection(page,'quote');const quote=page.locator('#commercial-quote-root');
   await quote.getByRole('button',{name:'New Quote',exact:true}).click();await expect(quote.locator('.commercial-lines tbody tr')).toHaveCount(1);
+  for(const [label,value] of [['Client','Procurement receiver'],['Client contact','Project Contact'],['Client phone','0400 123 456'],
+    ['Client email','project-contact@example.test'],['Site address','17 Procurement Road']]){
+    await expect(quote.getByLabel(label,{exact:true})).toHaveValue(value);await expect(quote.getByLabel(label,{exact:true})).toHaveAttribute('readonly','');
+  }
+  assert.equal(await quote.getByLabel('Document date',{exact:true}).getAttribute('readonly'),null);
+  await expect(quote.locator('.commercial-sidebar').first()).toContainText('Billing floor 2');await expect(quote.locator('.commercial-sidebar').first()).toContainText('ABN 12 345');
+  checks.push('Quote Project identity/contact fields follow all saved Project values and are readonly; Document date stays editable and Company pane uses Project billing/ABN');
   await quote.getByLabel('Document title',{exact:true}).fill('Procurement source quote');
   await quote.locator('.commercial-estimate-picker summary').click();
   const add=quote.getByRole('button',{name:'Add custom row',exact:true});
   for(const token of ['button','primary','icon-only','penetration-new-item-action'])assert.ok((await add.getAttribute('class')).split(/\s+/).includes(token));
   await expect(add.locator('.button-symbol')).toHaveText('+');await add.click();await expect(quote.locator('.commercial-lines tbody tr')).toHaveCount(2);
-  await quote.getByRole('button',{name:'Remove row',exact:true}).click();await save(quote);
+  await quote.getByRole('button',{name:'Remove row',exact:true}).click();
+  for(const action of ['Save','Download PDF']){
+    const beforeCapture=writes.length,editorVersion=await page.evaluate(()=>JSON.parse(window.CeasefireCommercial.projectFingerprint()).editor.version);
+    await page.evaluate(()=>{
+      window.__qaOriginalCapture=window.CeasefireEstimates.capture;
+      window.CeasefireEstimates.capture=async(...args)=>{
+        const result=await window.__qaOriginalCapture(...args);window.__qaCaptureDetails=window.CeasefireProject.details;
+        window.CeasefireProject.details=()=>({...window.__qaCaptureDetails(),contact_name:'Changed during async estimate capture'});
+        return result;
+      };
+    });
+    await quote.locator('.commercial-editor-actions').getByRole('button',{name:action,exact:true}).click();
+    await expect(quote.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true})).toBeEnabled();
+    await expect(quote.locator('.commercial-message')).toHaveText('The Project details changed while saving. Reopen this document to use the current Project details.');
+    assert.equal(writes.slice(beforeCapture).filter(write=>['/api/commercial/save','/api/commercial/issue'].includes(write.path)).length,0,action+' rejects changed Project data before saving or issuing');
+    assert.equal(await page.evaluate(()=>JSON.parse(window.CeasefireCommercial.projectFingerprint()).editor.version),editorVersion);
+    await expect(quote.getByLabel('Document title',{exact:true})).toHaveValue('Procurement source quote');
+    await page.evaluate(()=>{window.CeasefireEstimates.capture=window.__qaOriginalCapture;window.CeasefireProject.details=window.__qaCaptureDetails;delete window.__qaOriginalCapture;delete window.__qaCaptureDetails;});
+  }
+  checks.push('Save and Download capture Project ownership before asynchronous estimate capture; changes during capture make no Save/Issue request and preserve the document draft');
+  await save(quote);
   const issue=page.waitForResponse(response=>response.url().endsWith('/api/commercial/issue'));
   await quote.getByRole('button',{name:'Download PDF',exact:true}).click();assert.equal((await issue).status(),200);await expect(quote.locator('.commercial-message')).toContainText('PDF saved');await idle();
   await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
   const card=quote.locator('.commercial-card').filter({hasText:'Procurement source quote'});await card.locator('summary').click();await card.getByRole('button',{name:'Create WO',exact:true}).click();
   const work=page.locator('#commercial-work-order-root');await expect(work.getByRole('button',{name:'Create PO',exact:true})).toBeVisible();
+  await expect(work.getByLabel('Client contact',{exact:true})).toHaveValue('Project Contact');await expect(work.getByLabel('Client email',{exact:true})).toHaveValue('project-contact@example.test');
   await work.getByLabel('Document title',{exact:true}).fill('Procurement source work order');
   await work.getByLabel('Description of works',{exact:true}).fill('Manual works description');await work.getByLabel('Estimated cost (AUD)',{exact:true}).fill('987');
   let before=writes.length;await work.getByRole('button',{name:'Create PO',exact:true}).click();
@@ -67,6 +99,9 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   const poDefaults=page.waitForResponse(response=>response.url().endsWith('/api/commercial/purchase-order-defaults'));
   await work.getByRole('button',{name:'Create PO',exact:true}).click();assert.equal((await poDefaults).status(),200);
   const purchase=page.locator('#commercial-purchase-order-root');await expect(purchase.getByLabel('Linked Work Order',{exact:true})).toHaveValue(source.id);
+  await expect(purchase.locator('.commercial-work-layout>.commercial-sidebar')).toHaveCount(2);
+  for(const title of ['Company Details','Contact Details','Notes (0)','Files (0)','Linked Work Orders (1)','Linked Quotes (1)'])await expect(purchase.locator('.commercial-sidebar summary').filter({hasText:title})).toHaveCount(1);
+  await expect(purchase.locator('.commercial-sidebar').first()).toContainText('Project Contact');
   await expect(purchase.getByLabel('Ship to name',{exact:true})).toHaveValue('Procurement receiver');await expect(purchase.getByLabel('Ship to address',{exact:true})).toHaveValue('17 Procurement Road');
   for(const label of ['Supplier','Supplier email','Supplier contact','Payment terms','Requested by'])await expect(purchase.getByLabel(label,{exact:true})).toHaveValue('');
   await expect(purchase.getByLabel('Purchase Order No.',{exact:true})).toHaveValue('');
@@ -84,12 +119,55 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
     await page.screenshot({path:path.join(output,`purchase-draft-${width}.png`),fullPage:true});}
   await page.setViewportSize({width:1600,height:1000});await save(purchase);
   const persisted=await state(),po=persisted.documents.find(doc=>doc.kind==='purchase_order');assert.equal(po.reference,'PO-01');assert.equal(po.last_number,'');assert.equal(po.fields.order.work_order_id,source.id);assert.equal(po.fields.order.work_order_reference,source.reference);assert.equal(po.fields.order.expense_type,'Materials');
+  await purchase.getByRole('button',{name:'New note',exact:true}).click();const note=page.getByRole('dialog',{name:'Purchase Order note',exact:true});
+  await note.getByLabel('Note title',{exact:true}).fill('Owned PO note');await note.locator('[contenteditable=true]').fill('PO-specific note content');
+  await note.getByRole('button',{name:'Done',exact:true}).click();await expect(note).toBeHidden();await idle();
+  await purchase.locator('input[type=file]').setInputFiles(info.fixture);await expect(purchase.locator('.commercial-sidebar summary').filter({hasText:'Files (1)'})).toHaveCount(1);await save(purchase);
+  const withEvidence=await state(),evidence=withEvidence.documents.find(doc=>doc.id===po.id);assert.equal(evidence.fields.notes[0].title,'Owned PO note');assert.equal(evidence.fields.files.length,1);
+  assert.equal(withEvidence.documents.find(doc=>doc.id===source.id).fields.notes,undefined,'PO notes remain confined to their owning document');
+  await purchase.getByLabel('Supplier',{exact:true}).fill('Save race supplier');
+  const editorBeforeRace=await page.evaluate(()=>JSON.parse(window.CeasefireCommercial.projectFingerprint()).editor),fileBeforeRace=fs.readFileSync(info.project,'utf8');
+  await page.route('**/api/commercial/save',async route=>{
+    const response=await route.fetch();
+    await page.evaluate(()=>{window.__qaProjectDetails=window.CeasefireProject.details;window.CeasefireProject.details=()=>({...window.__qaProjectDetails(),contact_name:'A concurrently changed Project contact'});});
+    await route.fulfill({response});
+  });
+  await purchase.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();
+  await expect(purchase.locator('.commercial-message')).toHaveText('The Project details changed while saving. Reopen this document to use the current Project details.');
+  assert.equal((await page.evaluate(()=>JSON.parse(window.CeasefireCommercial.projectFingerprint()).editor)).version,editorBeforeRace.version,'A stale Project snapshot response is not adopted as the current editor');
+  assert.equal(fs.readFileSync(info.project,'utf8'),fileBeforeRace,'A changed Project snapshot prevents publishing the stale document to its project file');
+  await page.unroute('**/api/commercial/save');await page.evaluate(()=>{window.CeasefireProject.details=window.__qaProjectDetails;delete window.__qaProjectDetails;});
+  await purchase.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();
+  await page.getByRole('dialog',{name:'Discard the current purchase order?',exact:true}).getByRole('button',{name:'Yes',exact:true}).click();
+  await openProjectSection(page,'quote');await openProjectSection(page,'purchase-orders');
+  await purchase.getByRole('button',{name:'Purchase Order',exact:true}).click();
+  await expect(purchase.locator('.commercial-sidebar').first()).toContainText('Project Contact');
+  checks.push('A changed Project snapshot while Save is in flight leaves the editor unadopted, keeps the project file intact, and recovers after explicit reopen');
   assert.deepEqual(persisted.documents.find(doc=>doc.id===source.id),source);
   checks.push('Create PO preserves unsaved source edits, then creates a linked unnumbered draft; explicit Save assigns PO reference without issuing or changing the source Work Order');
+  checks.push('Purchase Order reuses Company/Contact/Notes/Files/actual linked Work Order and Quote panes, preserves bounded attachments and CAS-autosaved notes');
   await purchase.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();await openProjectSection(page,'work-orders');
   await work.getByRole('button',{name:'Procurement source work order',exact:true}).click();await expect(work.locator('summary').filter({hasText:'Linked Purchase Orders (1)'})).toHaveCount(1);
   checks.push('PO Request summary follows information, expense categories use a dropdown, and the saved relationship appears in the Work Order reverse list');
   await page.screenshot({path:path.join(output,'work-order-linked-purchase.png'),fullPage:true});
+  const quoteOwner=(await state()).documents.find(doc=>doc.kind==='quote'),projectDetails=await page.evaluate(()=>window.CeasefireProject.details());
+  const directDefaults=await page.request.post(new URL('/api/commercial/defaults',page.url()).href,{data:{workspace_id:await page.evaluate(()=>window.CeasefireCertification.sessionId()),kind:'purchase_order',project_details:projectDetails}});
+  assert.equal(directDefaults.status(),200);const directFields=(await directDefaults.json()).fields;directFields.title='Direct Quote-linked PO';directFields.order.quote_id=quoteOwner.id;
+  const directReply=await page.request.post(new URL('/api/commercial/save',page.url()).href,{data:{workspace_id:await page.evaluate(()=>window.CeasefireCertification.sessionId()),kind:'purchase_order',status:'Draft',fields:directFields,project_details:projectDetails}});
+  assert.equal(directReply.status(),200);const directPurchase=await directReply.json();
+  const unrelatedFields=JSON.parse(JSON.stringify(directFields));unrelatedFields.title='Same Company unrelated PO';unrelatedFields.order.quote_id='';
+  const unrelated=await page.request.post(new URL('/api/commercial/save',page.url()).href,{data:{workspace_id:await page.evaluate(()=>window.CeasefireCertification.sessionId()),kind:'purchase_order',status:'Draft',fields:unrelatedFields,project_details:projectDetails}});
+  assert.equal(unrelated.status(),200);
+  await work.getByRole('button',{name:'Back to Work Orders',exact:true}).click();await openProjectSection(page,'quote');
+  await quote.getByRole('button',{name:'Procurement source quote',exact:true}).click();
+  const relatedPurchases=quote.locator('.commercial-side-panel').filter({has:page.locator('summary').filter({hasText:'Linked Purchase Orders (2)'})});
+  await expect(relatedPurchases).toHaveCount(1);await expect(relatedPurchases.getByRole('button')).toHaveCount(2);await expect(relatedPurchases).not.toContainText('Same Company unrelated PO');
+  await relatedPurchases.getByRole('button').filter({hasText:directPurchase.reference}).click();
+  await expect(purchase.locator('.commercial-side-panel summary').filter({hasText:'Linked Work Orders (0)'})).toHaveCount(1);await expect(purchase.locator('.commercial-side-panel summary').filter({hasText:'Linked Quotes (1)'})).toHaveCount(1);
+  await purchase.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();await openProjectSection(page,'quote');await quote.getByRole('button',{name:'Procurement source quote',exact:true}).click();
+  await relatedPurchases.getByRole('button').filter({hasText:'PO-01'}).click();await expect(purchase.getByLabel('Purchase Order No.',{exact:true})).toHaveValue('PO-01');
+  await expect(purchase.locator('.commercial-sidebar summary').filter({hasText:'Notes (1)'})).toHaveCount(1);await expect(purchase.locator('.commercial-sidebar summary').filter({hasText:'Files (1)'})).toHaveCount(1);
+  checks.push('Quote Linked Purchase Orders follows the exact Quote→Work Order→Purchase Order chain or explicit direct Quote ID, excludes same-Company unrelated POs, and opens the owner with saved notes/files');
   // New Project now stages a popup and preserves the active Project on Cancel.
   // A fresh tab represents a separate user workspace with no active Project.
   const previousPage=page;
@@ -102,6 +180,8 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   const ownerFile=fs.readFileSync(info.project,'utf8'),nativeDefaults=page.waitForResponse(response=>response.url().endsWith('/api/commercial/saved-purchase-order-defaults'));
   await sourceWork.getByRole('button',{name:'Create PO',exact:true}).click();assert.equal((await nativeDefaults).status(),200);
   await expect(sourcePurchase.getByLabel('Linked Work Order',{exact:true})).toHaveValue(source.id);
+  await expect(sourcePurchase.locator('.commercial-sidebar').first()).toContainText('Project Contact');
+  await expect(sourcePurchase.locator('.commercial-sidebar').first()).toContainText('project-contact@example.test');
   assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),null,'Native saved-source creation does not replace the active unsaved Project');
   assert.equal(fs.readFileSync(info.project,'utf8'),ownerFile,'Native source creation leaves owner file unchanged until Save');
   checks.push('a verified native saved-source Project can prepare its own PO with no active global Project, without changing owner file or replacing active workspace');

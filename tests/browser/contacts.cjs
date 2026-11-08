@@ -85,8 +85,9 @@ const ready = new Promise((resolve, reject) => {
   await expect(accountPane.getByLabel('ABN/ACN',{exact:true})).toHaveValue('12 345 678 901');
   await expect(accountPane.locator('.contacts-links-group > summary')).toHaveText(['Contacts (1)']);
   await accountPane.getByRole('button',{name:'Robin Sample'}).click();
-  await expect(dlg.getByLabel('Name',{exact:true})).toHaveValue('Robin Sample');
-  await dlg.getByRole('button',{name:'Cancel'}).click();
+  const contactPane=page.getByRole('complementary',{name:'Edit Contact',exact:true});
+  await expect(contactPane.getByLabel('Name',{exact:true})).toHaveValue('Robin Sample');
+  await contactPane.getByRole('button',{name:'Cancel'}).click();
   const doc=root.locator('.contacts-document');
   await doc.locator('summary').click();
   const download=page.waitForEvent('download');

@@ -28,6 +28,8 @@ INTRODUCTION = ('We have the pleasure in providing you with the following quotat
                 'which will be supplied, installed and certified to comply with the National Construction Code and the relevant Australian '
                 'Standards AS1530.4 and AS4072.1.')
 DETAIL_FIELDS = ('project_no', 'client', 'site_address', 'contact', 'phone', 'email', 'date')
+PROJECT_DETAIL_FIELDS = {'project_no':'project_no', 'client':'client', 'site_address':'site_address',
+                        'contact':'contact_name', 'phone':'contact_phone', 'email':'contact_email'}
 ORDER_FIELDS = ('start_date', 'end_date', 'urgency', 'quote_id', 'work_order_id', 'quote_reference', 'work_order_reference',
                 'description', 'estimated_cost', 'attachments', 'review_date', 'approval', 'justification',
                 'reviewed_by', 'swms', 'sds', 'sop', 'other_documents', 'prepared_by', 'client_approval',
@@ -50,6 +52,15 @@ RATE_INTRODUCTION = ('If additional work, or rectification work that is not the 
 def default_rate_schedule():
     return {'introduction': RATE_INTRODUCTION, 'rates': dict(RATE_DEFAULTS),
             'acceptance': {key: '' for key in ('accepted_by', 'title', 'signature', 'date')}}
+
+
+def project_document_details(value):
+    """Copy bounded Project-owned identity, including explicit empty clears."""
+    from .quote_details import QUOTE_DETAIL_LIMITS, validate_quote_details
+    if not isinstance(value, dict):
+        raise ValidationError('Include valid Project details for this document.')
+    details = validate_quote_details({key: value.get(key, '') for key in QUOTE_DETAIL_LIMITS})
+    return {document_key: details[project_key] for document_key, project_key in PROJECT_DETAIL_FIELDS.items()}
 
 
 def validate_rate_schedule(value):
@@ -272,8 +283,8 @@ def validate_fields(value, *, kind=None):
     result['rate_schedule'] = validate_rate_schedule(value.get('rate_schedule', default_rate_schedule()))
     files = validate_files(value.get('files', []))
     if files:
-        if kind not in ('quote', 'work_order', None):
-            raise ValidationError('Only Quotes and Work Orders support file attachments.')
+        if kind not in (*KINDS, None):
+            raise ValidationError('Choose a supported commercial document for file attachments.')
         result['files'] = files
     from .swms import validate_signature
     signatures = value.get('signatures', {})
@@ -283,21 +294,21 @@ def validate_fields(value, *, kind=None):
     if signatures:
         result['signatures'] = {key: validate_signature(signature) for key, signature in signatures.items()}
     notes = value.get('notes', [])
-    if not isinstance(notes, list) or len(notes) > 200 or (notes and kind not in ('quote', 'work_order', None)):
-        raise ValidationError('A Quote or Work Order supports up to 200 notes.')
+    if not isinstance(notes, list) or len(notes) > 200 or (notes and kind not in (*KINDS, None)):
+        raise ValidationError('Commercial documents support up to 200 notes.')
     if notes:
         result['notes'] = []
         seen = set()
         for note in notes:
             if not isinstance(note, dict) or set(note) != {'id','title','body','author','updated_at'}:
-                raise ValidationError('Invalid Work Order note.')
+                raise ValidationError('Invalid document note.')
             identity = _identity(note['id'])
             if identity in seen:
                 raise ValidationError('A note ID must be unique.')
             seen.add(identity)
             title = _text(note['title'],'Note title',300).strip()
             if not title:
-                raise ValidationError('Enter a title for the Work Order note.')
+                raise ValidationError('Enter a title for the note.')
             result['notes'].append({'id': identity, 'title': title,
                                     'body': validate_rich_text(note['body'], 'Note text'),
                                     'author': _text(note['author'],'Note author',160),
@@ -818,8 +829,8 @@ class CommercialDocuments:
         with self._connect() as db:
             project = self._workspace(db, workspace)
             document = self._record(db, workspace, document_id)
-            if document['kind'] not in ('quote', 'work_order'):
-                raise ValidationError('Choose a Quote or Work Order attachment.')
+            if document['kind'] not in KINDS:
+                raise ValidationError('Choose an attachment from this document.')
             item = next((item for item in document['fields'].get('files', []) if item['id'] == file_id), None)
             if item is None:
                 raise ValidationError('Attachment not found on this document.')

@@ -27,10 +27,14 @@ const ready = new Promise((resolve,reject)=>{
   await page.locator('#project-pane-contact-name').fill('Alpha Person');
   await page.locator('#project-pane-contact-phone').fill('0400000001');
   await page.locator('#project-pane-contact-email').fill('alpha@example.test');
+  await page.locator('#project-pane-billing-address').fill('Project accounts\nPO Box 42');
+  await page.locator('#project-pane-abn-acn').fill('Project ABN');
   await page.locator('#project-details-close').click();
   let response=page.waitForResponse(r=>r.url().endsWith('/api/project/save-as'));
   await page.locator('#save-current-project').click();const initialSave=await response;assert.equal(initialSave.status(),200,await initialSave.text());await idle();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  assert.equal(JSON.parse(fs.readFileSync(info.project,'utf8')).estimate.billing_address,'Project accounts\nPO Box 42');
+  assert.equal(JSON.parse(fs.readFileSync(info.project,'utf8')).estimate.abn_acn,'Project ABN');
   await page.locator('#link-project-folder').click();await idle();
   fs.copyFileSync(info.project,path.join(output,'second-project.cf.json'));
   await page.locator('#refresh-quotes').click();await idle();
@@ -99,6 +103,10 @@ const ready = new Promise((resolve,reject)=>{
   await toggle(second).click();await idle();
   const geometry=await page.evaluate(()=>({columns:getComputedStyle(document.querySelector('.project-pane-fields')).gridTemplateColumns.split(' ').length,pane:document.querySelector('#project-details-pane').getBoundingClientRect().toJSON(),list:document.querySelector('#project-list-card').getBoundingClientRect().toJSON(),number:document.querySelector('#project-pane-number').getBoundingClientRect().toJSON(),client:document.querySelector('#project-pane-client').getBoundingClientRect().toJSON()}));
   assert.equal(geometry.columns,2);assert.ok(geometry.pane.right<=geometry.list.left);assert.ok(Math.abs(geometry.number.top-geometry.client.top)<2,JSON.stringify(geometry));
+  const billingLayout=await page.evaluate(()=>Object.fromEntries(['billing-address','abn-acn','contact-email','contact-phone'].map(key=>[key,document.getElementById('project-pane-'+key).getBoundingClientRect().toJSON()])));
+  assert.ok(Math.abs(billingLayout['billing-address'].top-billingLayout['contact-email'].top)<2);
+  assert.ok(Math.abs(billingLayout['abn-acn'].top-billingLayout['contact-phone'].top)<2);
+  assert.ok(billingLayout['contact-phone'].top>billingLayout['contact-email'].bottom);
   await page.locator('#project-pane-address').fill('20 Other Project Road');
   await page.locator('#project-pane-contact-name').fill('Other Project Person');
   response=saved();await page.locator('#project-details-save').click();assert.equal((await response).status(),200);await idle();
@@ -110,14 +118,19 @@ const ready = new Promise((resolve,reject)=>{
   const client=page.locator('#project-pane-client');await client.fill('Alpha');await client.focus();
   await expect(page.locator('#project-account-options').getByRole('option',{name:'Pane Alpha Account',exact:true})).toBeVisible();
   await page.locator('#project-account-options').getByRole('option',{name:'Pane Alpha Account',exact:true}).click();
+  await page.locator('#project-pane-billing-address').fill('');await page.locator('#project-pane-abn-acn').fill('');
   await client.fill('Pane Beta Account');await page.locator('#project-account-new').click();
   const account=page.getByRole('dialog',{name:'New Company',exact:true});await expect(account).toBeVisible();
   await expect(account.getByLabel('Company',{exact:true})).toHaveValue('Pane Beta Account');
   await account.getByLabel('ABN/ACN',{exact:true}).fill('12 345 678 901');
+  await account.getByLabel('Billing address',{exact:true}).fill('Company accounts\nPO Box 7');
   await account.getByRole('button',{name:'Save',exact:true}).click();await expect(account).not.toBeVisible();
+  await expect(page.locator('#project-pane-billing-address')).toHaveValue('Company accounts\nPO Box 7');
+  await expect(page.locator('#project-pane-abn-acn')).toHaveValue('12 345 678 901');
   response=saved();await page.locator('#project-details-save').click();assert.equal((await response).status(),200);await idle();
   const detail=(await (await page.request.post(new URL('/api/projects/details',page.url()).href,{data:{id:second.id}})).json()).details;
   assert.equal(detail.client,'Pane Beta Account');assert.match(detail.account_id,/^[0-9a-f-]{36}$/);
+  assert.equal(detail.billing_address,'Company accounts\nPO Box 7');assert.equal(detail.abn_acn,'12 345 678 901');
   assert.deepEqual(fs.readFileSync(info.project),original);assert.deepEqual(await page.evaluate(()=>window.CeasefireProject.details()),active.details);
   await page.screenshot({path:path.join(output,'pane-desktop.png'),fullPage:true});
   // A failed conditional save keeps edits and review on navigation is cancellable.

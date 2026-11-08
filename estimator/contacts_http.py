@@ -12,6 +12,7 @@ from openpyxl.utils import get_column_letter
 
 from .catalog import ValidationError
 from .account_relations import AccountRelations
+from .contact_relations import ContactRelations
 from .contacts import ACCOUNT_FIELDS, PERSON_FIELDS, ContactsConflict, ContactsStore
 from .pricing_workbook import MAX_FILE_BYTES, _preflight
 
@@ -105,6 +106,7 @@ class ContactsHTTP:
         self.store = ContactsStore(path)
         self.projects = projects
         self.relations = AccountRelations(self.store, projects)
+        self.contact_relations = ContactRelations(self.store, projects)
 
     def dispatch(self, handler, route):
         prefix = "/api/contacts/"
@@ -120,6 +122,11 @@ class ContactsHTTP:
                 if set(query) - {"id", "search"} or any(len(values) != 1 for values in query.values()):
                     raise ValidationError("Choose one company and related-record search.")
                 handler.send_payload(200, self.relations.view(query.get("id", [None])[0], search=query.get("search", [""])[0]))
+            elif handler.command == "GET" and action == "contact-links":
+                query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
+                if set(query) != {"id"} or len(query["id"]) != 1:
+                    raise ValidationError("Choose one contact to view linked records.")
+                handler.send_payload(200, self.contact_relations.view(query["id"][0]))
             elif handler.command == "GET" and workbook and workbook[2] == "template.xlsx":
                 kind = workbook[1]
                 handler.send_payload(200, template(kind), MIME,

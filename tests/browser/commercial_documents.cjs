@@ -42,6 +42,7 @@ async function download(host) {
   files.push(value.path);
   await expect(host.locator('.commercial-message')).toContainText('PDF saved');
   await idle();
+  assert.equal(await page.evaluate(()=>typeof window.ClassifireCommercialPricing?.attach),'function','Pricing helper is served and loaded in the integrated commercial page');
   return value;
 }
 (async()=>{
@@ -351,7 +352,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await quote.locator('.commercial-estimate-picker summary').click();
   await quote.getByRole('button',{name:'Add custom row'}).click();
   const custom = quote.locator('.commercial-lines tbody tr').last();
-  await custom.getByRole('textbox').fill('Custom commissioning');
+  await custom.getByRole('combobox').fill('Custom commissioning');
   await custom.locator('input').first().fill('3');
   await custom.locator('input').last().fill('140.50');
   await expect(custom.locator('.commercial-line-total')).toHaveText('$421.50');

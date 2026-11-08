@@ -130,6 +130,7 @@ jobs:
       - run: node tests/browser/contact_shortcuts.cjs
       - run: node tests/browser/account_links.cjs
       - run: node tests/browser/account_editor_pane.cjs
+      - run: node tests/browser/contact_editor_pane.cjs
       - run: node tests/browser/project_details_pane.cjs
       - run: node tests/browser/project_new_popup.cjs
       - run: node tests/browser/project_document_guard.cjs
@@ -143,6 +144,7 @@ jobs:
       - run: node tests/browser/project_estimates.cjs
       - run: node tests/browser/project_details.cjs
       - run: node tests/browser/commercial_documents.cjs
+      - run: node tests/browser/commercial_pricing_picker.cjs
       - run: node tests/browser/commercial_panes_signatures.cjs
       - run: node tests/browser/commercial_project_workflows.cjs
       - run: node tests/browser/commercial_rate_defaults.cjs

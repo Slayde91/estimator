@@ -1,0 +1,192 @@
+{
+  "A commercial document supports up to 16 attached files.": [
+    "상업 문서 하나에 파일을 최대 16개까지 첨부할 수 있습니다.",
+    "Maaaring magkaroon ng hanggang 16 na kalakip na file ang isang komersyal na dokumento.",
+    "Một tài liệu thương mại hỗ trợ tối đa 16 tệp đính kèm."
+  ],
+  "Invalid commercial document file metadata.": [
+    "상업 문서 파일의 메타데이터가 유효하지 않습니다.",
+    "Hindi wasto ang metadata ng file ng komersyal na dokumento.",
+    "Siêu dữ liệu tệp của tài liệu thương mại không hợp lệ."
+  ],
+  "Invalid or duplicate commercial document file.": [
+    "상업 문서 파일이 유효하지 않거나 중복되었습니다.",
+    "Hindi wasto o duplicate ang file ng komersyal na dokumento.",
+    "Tệp của tài liệu thương mại không hợp lệ hoặc bị trùng lặp."
+  ],
+  "Document files exceed the 32 MiB total limit.": [
+    "문서 파일의 총 크기가 32 MiB 제한을 초과했습니다.",
+    "Lumampas ang mga file ng dokumento sa kabuuang limitasyong 32 MiB.",
+    "Các tệp của tài liệu vượt giới hạn tổng cộng 32 MiB."
+  ],
+  "The document attachment has changed. Restore its original file.": [
+    "문서 첨부 파일이 변경되었습니다. 원본 파일을 복원하세요.",
+    "Nagbago ang kalakip ng dokumento. Ibalik ang orihinal nitong file.",
+    "Tệp đính kèm của tài liệu đã thay đổi. Khôi phục tệp gốc."
+  ],
+  "Each document file must be 12 MiB or smaller.": [
+    "각 문서 파일의 크기는 12 MiB 이하여야 합니다.",
+    "Ang bawat file ng dokumento ay dapat na 12 MiB o mas maliit.",
+    "Mỗi tệp của tài liệu phải có kích thước tối đa 12 MiB."
+  ],
+  "The document companion file has the wrong size.": [
+    "문서 동반 파일의 크기가 올바르지 않습니다.",
+    "Mali ang laki ng kasamang file ng dokumento.",
+    "Tệp đi kèm của tài liệu có kích thước không đúng."
+  ],
+  "Pricing Library matches": [
+    "가격 라이브러리 일치 항목",
+    "Mga tugma sa Pricing Library",
+    "Kết quả phù hợp trong Thư viện giá"
+  ],
+  "Search Pricing Library or enter manually": [
+    "가격 라이브러리에서 검색하거나 직접 입력하세요",
+    "Maghanap sa Pricing Library o manu-manong maglagay",
+    "Tìm trong Thư viện giá hoặc nhập thủ công"
+  ],
+  "No matching products or services. You can enter a description and price manually.": [
+    "일치하는 제품이나 서비스가 없습니다. 설명과 가격을 직접 입력할 수 있습니다.",
+    "Walang tugmang produkto o serbisyo. Maaari kang manu-manong maglagay ng paglalarawan at presyo.",
+    "Không có sản phẩm hoặc dịch vụ phù hợp. Bạn có thể nhập mô tả và giá thủ công."
+  ],
+  "Pricing Library could not be loaded. You can enter a description and price manually.": [
+    "가격 라이브러리를 불러오지 못했습니다. 설명과 가격을 직접 입력할 수 있습니다.",
+    "Hindi ma-load ang Pricing Library. Maaari kang manu-manong maglagay ng paglalarawan at presyo.",
+    "Không tải được Thư viện giá. Bạn có thể nhập mô tả và giá thủ công."
+  ],
+  "Showing up to 30 matches. Type more to narrow the list.": [
+    "일치 항목을 최대 30개까지 표시합니다. 목록을 좁히려면 더 입력하세요.",
+    "Nagpapakita ng hanggang 30 tugma. Mag-type pa upang paliitin ang listahan.",
+    "Hiển thị tối đa 30 kết quả phù hợp. Nhập thêm để thu hẹp danh sách."
+  ],
+  "Type up to 500 characters to search Pricing Library.": [
+    "가격 라이브러리를 검색하려면 500자 이하로 입력하세요.",
+    "Mag-type ng hanggang 500 character upang maghanap sa Pricing Library.",
+    "Nhập tối đa 500 ký tự để tìm trong Thư viện giá."
+  ],
+  "Searching Pricing Library…": [
+    "가격 라이브러리 검색 중…",
+    "Naghahanap sa Pricing Library…",
+    "Đang tìm trong Thư viện giá…"
+  ],
+  "Search Pricing Library using up to 500 characters.": [
+    "가격 라이브러리는 500자 이하로 검색하세요.",
+    "Maghanap sa Pricing Library gamit ang hanggang 500 character.",
+    "Tìm trong Thư viện giá bằng tối đa 500 ký tự."
+  ],
+  "Use GET for Pricing Library searches.": [
+    "가격 라이브러리 검색에는 GET을 사용하세요.",
+    "Gamitin ang GET para sa paghahanap sa Pricing Library.",
+    "Dùng GET để tìm kiếm trong Thư viện giá."
+  ],
+  "Use the Pricing Library search only.": [
+    "가격 라이브러리 검색만 사용하세요.",
+    "Gamitin lamang ang paghahanap sa Pricing Library.",
+    "Chỉ dùng chức năng tìm kiếm của Thư viện giá."
+  ],
+  "Use a pricing search of up to 500 characters.": [
+    "가격 검색어는 500자 이하로 입력하세요.",
+    "Gumamit ng paghahanap sa presyo na hindi lalampas sa 500 character.",
+    "Dùng từ khóa tìm giá tối đa 500 ký tự."
+  ],
+  "Billing address": [
+    "청구 주소",
+    "Billing address",
+    "Địa chỉ thanh toán"
+  ],
+  "Finish the current Contact action first.": [
+    "먼저 현재 연락처 작업을 완료하세요.",
+    "Tapusin muna ang kasalukuyang aksyon sa contact.",
+    "Hoàn tất thao tác người liên hệ hiện tại trước."
+  ],
+  "Discard changes to this contact?": [
+    "이 연락처의 변경 사항을 취소할까요?",
+    "Itapon ang mga pagbabago sa contact na ito?",
+    "Hủy các thay đổi của người liên hệ này?"
+  ],
+  "The Contact changed during review. Check the current changes and try again.": [
+    "검토 중 연락처 정보가 변경되었습니다. 현재 변경 사항을 확인하고 다시 시도하세요.",
+    "Nagbago ang contact habang sinusuri. Suriin ang kasalukuyang mga pagbabago at subukang muli.",
+    "Người liên hệ đã thay đổi trong khi xem xét. Kiểm tra các thay đổi hiện tại rồi thử lại."
+  ],
+  "Some project records are unavailable. Refresh to check the Contact's links.": [
+    "일부 프로젝트 기록을 사용할 수 없습니다. 새로 고쳐 연락처의 연결을 확인하세요.",
+    "Hindi available ang ilang tala ng proyekto. I-refresh upang suriin ang mga link ng contact.",
+    "Một số bản ghi dự án không khả dụng. Làm mới để kiểm tra các liên kết của người liên hệ."
+  ],
+  "Saved records linked to this Contact are shown here.": [
+    "이 연락처에 연결된 저장 기록이 여기에 표시됩니다.",
+    "Ipinapakita rito ang mga naka-save na talang naka-link sa contact na ito.",
+    "Các bản ghi đã lưu liên kết với người liên hệ này được hiển thị ở đây."
+  ],
+  "This contact could not be found. Reload the directory.": [
+    "이 연락처를 찾을 수 없습니다. 디렉터리를 다시 불러오세요.",
+    "Hindi makita ang contact na ito. I-load muli ang direktoryo.",
+    "Không tìm thấy người liên hệ này. Tải lại danh bạ."
+  ],
+  "Choose one contact to view linked records.": [
+    "연결된 기록을 보려면 연락처 하나를 선택하세요.",
+    "Pumili ng isang contact upang makita ang mga naka-link na tala.",
+    "Chọn một người liên hệ để xem các bản ghi liên kết."
+  ],
+  "Billing address must be text of at most 1200 characters.": [
+    "청구 주소는 1200자 이하의 텍스트여야 합니다.",
+    "Ang billing address ay dapat na tekstong hindi lalampas sa 1200 character.",
+    "Địa chỉ thanh toán phải là văn bản tối đa 1200 ký tự."
+  ],
+  "ABN/ACN must be text of at most 80 characters.": [
+    "ABN/ACN은 80자 이하의 텍스트여야 합니다.",
+    "Ang ABN/ACN ay dapat na tekstong hindi lalampas sa 80 character.",
+    "ABN/ACN phải là văn bản tối đa 80 ký tự."
+  ],
+  "Billing address contains unsupported control characters.": [
+    "청구 주소에 지원하지 않는 제어 문자가 포함되어 있습니다.",
+    "May hindi suportadong control character ang billing address.",
+    "Địa chỉ thanh toán chứa ký tự điều khiển không được hỗ trợ."
+  ],
+  "ABN/ACN cannot contain control characters or line breaks.": [
+    "ABN/ACN에는 제어 문자나 줄바꿈을 포함할 수 없습니다.",
+    "Hindi maaaring maglaman ng control character o line break ang ABN/ACN.",
+    "ABN/ACN không được chứa ký tự điều khiển hoặc ngắt dòng."
+  ],
+  "Purchase Order note": [
+    "구매 발주 메모",
+    "Tala ng Purchase Order",
+    "Ghi chú đơn đặt hàng"
+  ],
+  "Choose a supported commercial document for file attachments.": [
+    "파일을 첨부하려면 지원되는 상업 문서를 선택하세요.",
+    "Pumili ng suportadong komersyal na dokumento para sa mga kalakip na file.",
+    "Chọn tài liệu thương mại được hỗ trợ để đính kèm tệp."
+  ],
+  "Commercial documents support up to 200 notes.": [
+    "상업 문서는 메모를 최대 200개까지 지원합니다.",
+    "Maaaring magkaroon ng hanggang 200 tala ang mga komersyal na dokumento.",
+    "Tài liệu thương mại hỗ trợ tối đa 200 ghi chú."
+  ],
+  "Invalid document note.": [
+    "유효하지 않은 문서 메모입니다.",
+    "Hindi wastong tala ng dokumento.",
+    "Ghi chú tài liệu không hợp lệ."
+  ],
+  "Choose an attachment from this document.": [
+    "이 문서의 첨부 파일을 선택하세요.",
+    "Pumili ng kalakip mula sa dokumentong ito.",
+    "Chọn tệp đính kèm từ tài liệu này."
+  ],
+  "Open the commercial document before adding a note.": [
+    "메모를 추가하기 전에 상업 문서를 여세요.",
+    "Buksan ang komersyal na dokumento bago magdagdag ng tala.",
+    "Mở tài liệu thương mại trước khi thêm ghi chú."
+  ],
+  "Include valid Project details for this document.": [
+    "이 문서의 유효한 프로젝트 세부 정보를 포함하세요.",
+    "Isama ang wastong detalye ng proyekto para sa dokumentong ito.",
+    "Cung cấp chi tiết dự án hợp lệ cho tài liệu này."
+  ],
+  "The Project details changed while saving. Reopen this document to use the current Project details.": [
+    "저장하는 동안 프로젝트 세부 정보가 변경되었습니다. 현재 프로젝트 세부 정보를 사용하려면 이 문서를 다시 여세요.",
+    "Nagbago ang detalye ng proyekto habang nagse-save. Buksan muli ang dokumentong ito upang gamitin ang kasalukuyang detalye ng proyekto.",
+    "Chi tiết dự án đã thay đổi trong khi lưu. Mở lại tài liệu này để sử dụng chi tiết dự án hiện tại."
+  ]
+}

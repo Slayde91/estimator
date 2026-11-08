@@ -4,8 +4,11 @@ from copy import deepcopy
 from io import BytesIO
 import json
 from pathlib import Path
+import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
+from unittest.mock import Mock, patch
 from uuid import uuid4
 
 from pypdf import PdfReader
@@ -13,6 +16,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 from estimator.catalog import ValidationError
 from estimator.commercial_documents import CommercialConflict, CommercialDocuments, default_fields, validate_fields
+from estimator.commercial_http import CommercialHTTP
 from tests.test_commercial_documents import Projects
 import tests.test_saved_commercial as saved_helpers
 
@@ -65,7 +69,8 @@ class CommercialPaneSignerTests(unittest.TestCase):
         portable = self.store.capture(self.workspace)
         target = self.projects.add(self.project)
         self.store.restore(target, portable)
-        restored = self.store.view(target)['documents'][0]
+        restored = next(row for row in self.store.view(target)['documents'] if row['id']==document['id'])
+        self.assertEqual(restored['kind'], 'work_order')
         self.assertEqual(restored['fields']['order'], document['fields']['order'])
         self.assertEqual(default_fields('work_order')['order']['prepared_date'], '')
         # A legacy portable record may omit the newly optional date. Restore
@@ -99,15 +104,198 @@ class CommercialPaneSignerTests(unittest.TestCase):
         self.assertEqual(self.store.issue(self.workspace, changed['id'], changed['version'], operation)['pdf'], issued['pdf'])
         with self.assertRaises(ValidationError):
             self.store.files.read(str(uuid4()), attachment)
-        for key in ('notes','files'):
-            invalid = default_fields('purchase_order'); invalid[key] = fields[key]
-            with self.assertRaises(ValidationError): validate_fields(invalid, kind='purchase_order')
+        purchase = default_fields('purchase_order'); purchase.update(notes=fields['notes'], files=fields['files'])
+        self.assertEqual(validate_fields(purchase, kind='purchase_order')['notes'], fields['notes'])
+
+    def test_purchase_notes_and_files_keep_cas_owner_caps_and_portable_evidence(self):
+        attachment = self.store.files.add(self.project, 'purchase-source.txt', base64.b64encode(b'Original PO source').decode())
+        fields = default_fields('purchase_order'); fields['files'] = [attachment]
+        fields['notes'] = [{'id':str(uuid4()),'title':'Purchase note','body':'<p>PO note</p>',
+                           'author':'Fixture user','updated_at':'2026-11-08T01:00:00Z'}]
+        purchase = self.save('purchase_order', fields)
+        self.assertEqual(self.store.read_attachment(self.workspace, purchase['id'], attachment['id'])[1], b'Original PO source')
+        http = CommercialHTTP(self.store)
+        changed = http.execute('notes', {'workspace_id':self.workspace,'id':purchase['id'],'version':purchase['version'],
+                                        'notes':[{**fields['notes'][0], 'title':'Changed PO note'}]})
+        with self.assertRaises(CommercialConflict):
+            http.execute('notes', {'workspace_id':self.workspace,'id':purchase['id'],'version':purchase['version'],'notes':[]})
+        other = self.projects.add()
+        with self.assertRaises(ValidationError): self.store.read_attachment(other, purchase['id'], attachment['id'])
+        target = self.projects.add(self.project)
+        self.store.restore(target, self.store.capture(self.workspace))
+        restored = next(row for row in self.store.view(target)['documents'] if row['id']==purchase['id'])
+        self.assertEqual(restored['fields']['notes'], changed['fields']['notes'])
+        self.assertEqual(self.store.read_attachment(target, purchase['id'], attachment['id'])[1], b'Original PO source')
+        operation = str(uuid4())
+        issued = self.store.issue(self.workspace, changed['id'], changed['version'], operation)
+        self.assertEqual(PdfReader(BytesIO(issued['pdf'])).attachments['purchase-source.txt'][0], b'Original PO source')
+        (self.store.files.folder(self.project) / attachment['id']).write_bytes(b'Changed later')
+        self.assertEqual(self.store.issue(self.workspace, changed['id'], changed['version'], operation)['pdf'], issued['pdf'])
+        oversized = deepcopy(fields); oversized['notes'] = fields['notes'] * 201
+        with self.assertRaises(ValidationError): validate_fields(oversized, kind='purchase_order')
+
+    def test_project_identity_overrides_document_fields_and_empty_contact_snapshot_clears(self):
+        http = CommercialHTTP(self.store, derive=lambda *_args, **_kwargs:{'lines':[], 'sources':[], 'scope_tables':[]})
+        project = {'project_no':'PN-01','client':'Project Company','site_address':'Project site',
+                   'contact_name':'Project Contact','contact_phone':'0400 123 456','contact_email':'project@example.test'}
+        expected = {'project_no':'PN-01','client':'Project Company','site_address':'Project site',
+                    'contact':'Project Contact','phone':'0400 123 456','email':'project@example.test','date':'2026-11-08'}
+        for kind in ('quote','work_order','purchase_order'):
+            with self.subTest(kind=kind):
+                fields = default_fields(kind); fields['details'] = dict.fromkeys(fields['details'], 'Forged document identity')
+                fields['details']['date'] = '2026-11-08'
+                if kind=='work_order':
+                    fields['details']['project_no'] = 'PN-01'
+                    quote = next(row for row in self.store.view(self.workspace)['documents'] if row['kind']=='quote')
+                    issued = self.store.issue(self.workspace, quote['id'], quote['version'], str(uuid4()))
+                    fields['order']['quote_id'] = issued['document']['id']
+                payload = {'workspace_id':self.workspace,'kind':kind,'status':'Draft','fields':fields,'project_details':project}
+                saved = http.execute('save', payload)
+                self.assertEqual(saved['fields']['details'], expected)
+                blank = {key:('PN-01' if key=='project_no' else '') for key in project}
+                cleared = http.execute('save', {**payload,'fields':saved['fields'],'id':saved['id'],'version':saved['version'],'project_details':blank})
+                self.assertEqual(cleared['fields']['details'], {key:(expected[key] if key in ('date','project_no') else '') for key in expected})
+        before = self.store.capture(self.workspace)
+        with self.assertRaises(ValidationError):
+            http.execute('save', {**payload, 'project_details':{'contact_email':'invalid'}})
+        self.assertEqual(self.store.capture(self.workspace), before)
+
+    def test_quote_rejects_project_metadata_that_changed_during_estimate_capture(self):
+        derive = Mock(return_value={'lines':[], 'sources':[], 'scope_tables':[]})
+        http = CommercialHTTP(self.store, derive=derive)
+        captured = {'project_no':'PN-01','client':'Current Company','site_address':'Current site',
+                    'contact_name':'Contact before capture','contact_phone':'0400 000 001','contact_email':'before@example.test'}
+        current = {**captured, 'contact_name':'Changed during capture','contact_email':'after@example.test'}
+        before = self.store.capture(self.workspace)
+        with self.assertRaisesRegex(CommercialConflict, 'Project details changed'):
+            http.execute('save', {'workspace_id':self.workspace,'kind':'quote','status':'Draft','fields':default_fields('quote'),
+                                 'project_details':current,'active_estimate_id':'estimate-1',
+                                 'estimates':[{'id':'estimate-1','name':'Estimate 1','workspace':{'estimate':captured}}]})
+        self.assertEqual(self.store.capture(self.workspace), before)
+        derive.assert_not_called()
+
+    def test_bound_work_order_retains_owned_number_while_other_project_details_follow_current_project(self):
+        quote = self.save('quote', default_fields('quote'))
+        quote = self.store.issue(self.workspace, quote['id'], quote['version'], str(uuid4()))['document']
+        fields = default_fields('work_order'); fields['order']['quote_id'] = quote['id']
+        work = self.save('work_order', fields)
+        current = {'project_no':'PN-99','client':'Updated Company','site_address':'Updated site',
+                   'contact_name':'Updated Contact','contact_phone':'0400 999 888','contact_email':'updated@example.test'}
+        http = CommercialHTTP(self.store)
+        changed = deepcopy(work['fields']); changed['order'].update(approval='Approved',reviewed_by='Reviewer',review_date='2026-11-08')
+        saved = http.execute('save', {'workspace_id':self.workspace,'id':work['id'],'version':work['version'],'kind':'work_order','status':'Review',
+                                     'fields':changed,'project_details':current})
+        self.assertEqual(saved['fields']['details']['project_no'], 'PN-01')
+        self.assertEqual(saved['fields']['details']['contact'], 'Updated Contact')
+        self.assertEqual(saved['fields']['details']['client'], 'Updated Company')
+        self.assertEqual(saved['fields']['order']['work_order_reference'], work['fields']['order']['work_order_reference'])
+        self.assertEqual(saved['fields']['order']['reviewed_by'], 'Reviewer')
+        noted = http.execute('notes', {'workspace_id':self.workspace,'id':saved['id'],'version':saved['version'],
+                                      'notes':[{'id':str(uuid4()),'title':'Review note','body':'<p>Owned review</p>','author':'Reviewer','updated_at':'2026-11-08T00:00:00Z'}]})
+        self.assertEqual(noted['fields']['details']['project_no'], 'PN-01')
+        for number in ('PN-FORGED',''):
+            forged = deepcopy(noted['fields']); forged['details']['project_no'] = number
+            before = self.store.capture(self.workspace)
+            with self.assertRaisesRegex(ValidationError, 'project number cannot change'):
+                http.execute('save', {'workspace_id':self.workspace,'id':noted['id'],'version':noted['version'],'kind':'work_order','status':'Review',
+                                      'fields':forged,'project_details':current})
+            self.assertEqual(self.store.capture(self.workspace), before)
+        new_fields = default_fields('work_order');new_fields['order']['quote_id'] = quote['id']
+        new_work = http.execute('save', {'workspace_id':self.workspace,'kind':'work_order','status':'Draft','fields':new_fields,'project_details':current})
+        self.assertEqual(new_work['fields']['details']['project_no'], 'PN-01', 'New linked WOs use the issued Quote binding, not a mismatching active estimate number.')
+
+    def test_project_synced_work_order_rejects_malformed_order_without_writes(self):
+        http = CommercialHTTP(self.store)
+        before = self.store.capture(self.workspace)
+        for malformed in (None, [], 'not an order'):
+            with self.subTest(order=malformed):
+                fields = default_fields('work_order');fields['order'] = malformed
+                with self.assertRaisesRegex(ValidationError, 'unsupported fields'):
+                    http.execute('save', {'workspace_id':self.workspace,'kind':'work_order','status':'Draft',
+                                         'fields':fields,'project_details':{'project_no':'PN-01'}})
+                self.assertEqual(self.store.capture(self.workspace), before)
+
+    def test_all_commercial_attachments_publish_and_restore_with_a_cold_machine_cache(self):
+        expected = []
+        quote = None
+        for kind in ('quote','purchase_order','work_order'):
+            raw = ('Original '+kind+' evidence').encode()
+            attachment = self.store.files.add(self.project, kind+'-source.txt', base64.b64encode(raw).decode())
+            fields = default_fields(kind); fields['files'] = [attachment]
+            if kind=='work_order':
+                issued = self.store.issue(self.workspace, quote['id'], quote['version'], str(uuid4()))
+                fields['order']['quote_id'] = issued['document']['id']
+            document = self.save(kind, fields)
+            if kind=='quote': quote = document
+            expected.append((document['id'], attachment, raw))
+        snapshot = self.store.capture(self.workspace)
+        project_path = self.root / 'portable' / 'owner.cf.json'
+        project_path.parent.mkdir()
+        self.store.files.transfer(snapshot, project_path)
+        cold_projects = Projects(self.root / 'another-machine')
+        cold_workspace = cold_projects.add(self.project)
+        cold_store = CommercialDocuments(cold_projects)
+        for _, attachment, _ in expected:
+            self.assertFalse((cold_store.files.folder(self.project) / attachment['id']).exists())
+        cold_store.files.transfer(snapshot, project_path, restore=True)
+        cold_store.restore(cold_workspace, snapshot)
+        for document_id, attachment, raw in expected:
+            self.assertEqual(cold_store.read_attachment(cold_workspace, document_id, attachment['id'])[1], raw)
 
 
 class SavedQuotePaneTests(unittest.TestCase):
     setUp = saved_helpers.SavedQuoteTests.setUp
     register = saved_helpers.SavedQuoteTests.register
     perform = saved_helpers.SavedQuoteTests.perform
+
+    def test_saved_bound_work_order_keeps_its_number_after_owner_project_metadata_changes(self):
+        snapshot = json.loads(self.path.read_bytes());snapshot['estimate']['project_no']='PN-01'
+        snapshot['commercial_documents']['documents'][0]['fields']['details']['project_no']='PN-01'
+        self.path.write_text(json.dumps(snapshot), encoding='utf-8');self.library.commercial_register(refresh=True)
+        card=self.register()['documents'][0];self.source={'file_id':card['source_file'],'revision':card['source_revision']}
+        issued=self.perform('issue',kind='quote',id=self.document['id'],version=self.document['version'],request_id=str(uuid4()))
+        self.source['revision']=issued['revision']
+        fields=default_fields('work_order', {'project_no':'PN-01'});fields['order']['quote_id']=self.document['id']
+        created=self.perform('save',kind='work_order',status='Draft',fields=fields);self.source['revision']=created['revision'];work=created['result']
+        snapshot=json.loads(self.path.read_bytes());snapshot['estimate'].update(project_no='PN-99',contact_name='Current owner contact',contact_email='current@example.test')
+        self.path.write_text(json.dumps(snapshot),encoding='utf-8');self.library.commercial_register(refresh=True)
+        card=next(row for row in self.register()['documents'] if row['id']==work['id']);self.source={'file_id':card['source_file'],'revision':card['source_revision']}
+        opened=self.perform('open',id=work['id'])
+        self.assertEqual(opened['project_details']['project_no'],'PN-99')
+        self.assertEqual(opened['document']['fields']['details']['project_no'],'PN-01')
+        self.assertEqual(opened['document']['fields']['details']['contact'],'Current owner contact')
+        saved=self.perform('save',id=work['id'],version=work['version'],kind='work_order',status='Review',fields=opened['document']['fields'])
+        self.source['revision']=saved['revision'];self.assertEqual(saved['result']['fields']['details']['project_no'],'PN-01')
+        before=self.path.read_bytes();forged=deepcopy(saved['result']['fields']);forged['details']['project_no']='PN-FORGED'
+        with self.assertRaisesRegex(ValidationError,'project number cannot change'):
+            self.perform('save',id=work['id'],version=saved['result']['version'],kind='work_order',status='Review',fields=forged)
+        self.assertEqual(self.path.read_bytes(),before)
+
+    def test_saved_document_uses_owning_project_contacts_and_rejects_caller_snapshot(self):
+        snapshot = json.loads(self.path.read_bytes())
+        owner = {'contact_name':'Owner Contact','contact_phone':'0400 111 222','contact_email':'owner@example.test',
+                 'site_address':'Owning site','client':'Owning Company'}
+        snapshot['estimate'].update(owner)
+        self.path.write_text(json.dumps(snapshot), encoding='utf-8')
+        self.library.commercial_register(refresh=True)
+        card = self.register()['documents'][0]
+        self.source = {'file_id':card['source_file'],'revision':card['source_revision']}
+        before = self.path.read_bytes()
+        opened = self.perform('open', id=self.document['id'])
+        self.assertEqual(self.path.read_bytes(), before, 'Opening current linked Project data is read-only.')
+        self.assertEqual(opened['document']['fields']['details']['contact'], owner['contact_name'])
+        self.assertEqual(opened['project_details']['contact_phone'], owner['contact_phone'])
+        fields = deepcopy(opened['document']['fields']); fields['details'].update(contact='Another Project Contact',phone='wrong',email='wrong@example.test')
+        changed = self.perform('save', id=self.document['id'], version=self.document['version'], kind='quote', status='Draft', fields=fields)
+        self.source['revision'] = changed['revision']
+        self.assertEqual(changed['result']['fields']['details']['contact'], owner['contact_name'])
+        self.assertEqual(changed['result']['fields']['details']['phone'], owner['contact_phone'])
+        self.assertEqual(changed['result']['fields']['details']['email'], owner['contact_email'])
+        after = self.path.read_bytes()
+        with self.assertRaises(ValidationError):
+            self.perform('save', id=self.document['id'], version=changed['result']['version'], kind='quote', status='Draft', fields=fields,
+                         project_details={'client':'Injected Project'})
+        self.assertEqual(self.path.read_bytes(), after)
 
     def test_native_saved_quote_notes_and_files_keep_versions_and_original_bytes(self):
         original = self.path.read_bytes()
@@ -130,6 +318,36 @@ class SavedQuotePaneTests(unittest.TestCase):
         with self.assertRaises(CommercialConflict):
             self.saved.perform('notes', {'source':prior_source,'id':document['id'],'version':1,'notes':[]},self.http.execute)
         self.assertEqual(json.loads(self.path.read_bytes())['commercial_documents']['documents'][0], captured)
+
+
+class CommercialPricingRouteTests(unittest.TestCase):
+    def test_pricing_search_is_read_only_bounded_and_has_no_workspace_capability(self):
+        item = {'id':'inventory:known-item','name':'Known item','description':'Known item','unit_price':42.5}
+        search = Mock(return_value={'items':[item]})
+        pricing = Mock(return_value={'configuration':'current canonical catalog'})
+        service = Mock()
+        http = CommercialHTTP(service, pricing=pricing)
+
+        class Handler:
+            command = 'GET'
+            def __init__(self, path, command='GET'):
+                self.path, self.command, self.result = path, command, None
+            def send_payload(self, *args): self.result = args
+
+        with patch.dict(sys.modules, {'estimator.commercial_pricing':SimpleNamespace(search_pricing=search)}):
+            valid = Handler('/api/commercial/pricing?search=known%20item')
+            self.assertTrue(http.dispatch(valid, '/api/commercial/pricing'))
+            self.assertEqual(valid.result, (200, {'items':[item]}))
+            search.assert_called_once_with(pricing.return_value, 'known item')
+            for suffix, command, status in [('?workspace=foreign', 'GET', 400),('?search=one&search=two','GET',400),
+                                             ('?search='+'x'*501,'GET',400),('', 'POST',405)]:
+                with self.subTest(suffix=suffix,command=command):
+                    invalid = Handler('/api/commercial/pricing'+suffix, command)
+                    self.assertTrue(http.dispatch(invalid, '/api/commercial/pricing'))
+                    self.assertEqual(invalid.result[0], status)
+            self.assertEqual(search.call_count, 1)
+            pricing.assert_called_once_with()
+            self.assertFalse(service.mock_calls, 'Search does not read, mutate or create a document workspace.')
 
 
 if __name__ == '__main__': unittest.main()

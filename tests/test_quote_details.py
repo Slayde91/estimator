@@ -11,16 +11,28 @@ from estimator.storage import WORKFLOWS
 
 
 class QuoteIdentityTests(unittest.TestCase):
-    empty_contacts = {"contact_name": "", "contact_phone": "", "contact_email": "", "account_id": "", "contact_id": ""}
+    empty_contacts = {"contact_name": "", "contact_phone": "", "contact_email": "", "account_id": "", "contact_id": "", "billing_address": "", "abn_acn": ""}
 
     def test_contact_metadata_is_bounded_and_account_ids_are_portable(self):
         details = {"contact_name": "Pat", "contact_phone": "+61 123", "contact_email": "pat@example.com",
                    "account_id": "12345678-1234-1234-1234-123456789012", "contact_id": "12345678-1234-1234-1234-123456789013"}
         self.assertEqual(validate_quote_details(details, {"client": "Original"}),
-                         {"client": "Original", "project_no": "", "site_address": "", **details})
+                         {"client": "Original", "project_no": "", "site_address": "", **self.empty_contacts, **details})
         for key, value in (("contact_name", "x" * 161), ("contact_phone", "x" * 61),
                            ("contact_email", "invalid"), ("account_id", "not-an-account"), ("contact_id", "not-a-contact")):
             with self.subTest(key=key), self.assertRaises(ValidationError):
+                validate_quote_details({key: value})
+
+    def test_project_billing_details_allow_bounded_multiline_address_and_explicit_clear(self):
+        previous = {"client": "Existing", "billing_address": "Old address", "abn_acn": "ABN 123"}
+        details = validate_quote_details({"billing_address": "  Accounts department\r\nPO Box 1\rSydney  "}, previous)
+        self.assertEqual(details["billing_address"], "Accounts department\nPO Box 1\nSydney")
+        self.assertEqual(details["abn_acn"], "ABN 123")
+        self.assertEqual(validate_quote_details({"billing_address": "", "abn_acn": ""}, previous)["abn_acn"], "")
+        self.assertEqual(previous["billing_address"], "Old address")
+        for key, value in (("billing_address", "x" * 1201), ("billing_address", "bad\x00address"),
+                           ("billing_address", "bad\ud800address"), ("abn_acn", "x" * 81), ("abn_acn", "bad\nABN")):
+            with self.subTest(key=key, value=repr(value)), self.assertRaises(ValidationError):
                 validate_quote_details({key: value})
 
     def test_complete_partial_and_empty_titles_use_requested_order_and_separator(self):

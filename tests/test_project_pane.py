@@ -24,7 +24,7 @@ class ProjectPaneTests(unittest.TestCase):
                 "estimate": {"project_no": "PN-00001", "client": "Legacy Company", "site_address": "Old Site",
                              "measurements": "Keep quantities and notes", "inputs": {"B8": 21.23456789}}}))
         # A historical multi-estimate project has none of the new optional keys.
-        for key in ("contact_name", "contact_phone", "contact_email", "account_id", "contact_id"):
+        for key in ("contact_name", "contact_phone", "contact_email", "account_id", "contact_id", "billing_address", "abn_acn"):
             cls.base["estimate"].pop(key, None)
         workspace = {key: deepcopy(cls.base[key]) for key in ("estimate", "calculators")}
         cls.base.update(estimates=[{"id": "estimate-1", "name": "Estimate 1", "workspace": workspace},
@@ -88,6 +88,24 @@ class ProjectPaneTests(unittest.TestCase):
         account = self.accounts.list()["accounts"][0]
         result = self.save(self.request(client=account["company"], account_id=account["id"]))
         self.assertEqual(result["file"]["account_id"], account["id"])
+
+    def test_project_billing_overrides_round_trip_all_estimates_without_changing_company(self):
+        self.accounts.save("accounts", {"version": 0, "fields": {"company": "Known Company", "billing_address": "Company HQ", "abn_acn": "Company ABN"}})
+        directory = self.accounts.list()
+        company = directory["accounts"][0]
+        untouched = self.other.read_bytes()
+        request = self.request(client=company["company"], account_id=company["id"],
+                               billing_address="Project accounts\nPO Box 42", abn_acn="Project ACN")
+        self.save(request)
+        saved = json.loads(self.path.read_bytes())
+        for estimate in [saved["estimate"], *[row["workspace"]["estimate"] for row in saved["estimates"]]]:
+            self.assertEqual(estimate["billing_address"], "Project accounts\nPO Box 42")
+            self.assertEqual(estimate["abn_acn"], "Project ACN")
+        loaded = load_project_bytes(self.store, self.path.read_bytes())
+        self.assertEqual(loaded["estimate"]["billing_address"], "Project accounts\nPO Box 42")
+        self.assertEqual(loaded["project_details"]["abn_acn"], "Project ACN")
+        self.assertEqual(self.accounts.list(), directory)
+        self.assertEqual(self.other.read_bytes(), untouched)
 
     def contact(self, name="Alex Same", phone="111", email="alex@example.test", company="External Company"):
         saved = self.accounts.save("contacts", {"version": self.accounts.list()["version"],
@@ -195,13 +213,14 @@ class ProjectPaneTests(unittest.TestCase):
 
     def test_older_browser_cannot_drop_new_contact_fields_but_explicit_clear_is_valid(self):
         contact = self.contact(name="Saved Person", email="person@example.com")
-        self.save(self.request(contact_id=contact["id"], contact_name=contact["name"], contact_email=contact["email"]))
+        self.save(self.request(contact_id=contact["id"], contact_name=contact["name"], contact_email=contact["email"],
+                               billing_address="Saved billing address", abn_acn="ABN 123"))
         before = self.path.read_bytes()
         saved = json.loads(before)
         loaded = self.library.load(self.file["id"])
         def workspace(value, *, omit=False):
             estimate = deepcopy(value["estimate"])
-            for key in ("contact_name", "contact_email", "contact_id"):
+            for key in ("contact_name", "contact_email", "contact_id", "billing_address", "abn_acn"):
                 if omit:
                     estimate.pop(key, None)
                 else:
@@ -225,3 +244,5 @@ class ProjectPaneTests(unittest.TestCase):
         result = self.library.save(request(False))
         self.assertEqual(result["project"]["estimate"]["contact_name"], "")
         self.assertEqual(result["project"]["estimate"]["contact_id"], "")
+        self.assertEqual(result["project"]["estimate"]["billing_address"], "")
+        self.assertEqual(result["project"]["estimate"]["abn_acn"], "")

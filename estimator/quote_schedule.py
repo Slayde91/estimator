@@ -7,6 +7,16 @@ from reportlab.lib import colors
 from reportlab.platypus import HRFlowable, Image, LongTable, Paragraph, TableStyle
 
 
+def append_project_report_title(report, title):
+    """Brand the full schedule title without changing other report headings."""
+    if title.upper() == 'FIRE PROTECTION SCHEDULE':
+        report.styles['project_schedule_title'] = report.styles['title'].clone(
+            'ProjectScheduleTitle', textColor=colors.HexColor('#bd0018'))
+        report.story.append(report.p(title.upper(), 'project_schedule_title'))
+    else:
+        report.story.append(report.p(title, 'title'))
+
+
 def append_scope_intro(report, intro):
     """Keep the quotation's scope heading in the schedule's own text flow."""
     if intro.get('heading'):
@@ -39,15 +49,16 @@ def configure_quote_schedule(report):
             spaceBefore=0, spaceAfter=0, splitLongWords=True)
 
 
-def fitted_column_widths(header, rows, widths, padding=2):
+def fitted_column_widths(header, rows, widths, padding=2, *, fixed_columns=()):
     """Fit short headings and ordinary values before splitting long tokens."""
     # Reserve whole heading words first, using the actual embedded font.
     inset = 2 * padding + .1
-    minimums = [cell.minWidth() + inset for cell in header]
+    minimums = [widths[index] if index in fixed_columns else cell.minWidth() + inset
+                for index, cell in enumerate(header)]
     body_widths = minimums.copy()
     for row in rows:
         for index, cell in enumerate(row):
-            if isinstance(cell, Paragraph):
+            if isinstance(cell, Paragraph) and index not in fixed_columns:
                 body_widths[index] = max(body_widths[index], cell.minWidth() + inset)
     # Protect ordinary words and identifiers before exceptionally long tokens.
     # A column that cannot fit its longest token keeps its normal wrapping.
@@ -69,7 +80,19 @@ def fitted_column_widths(header, rows, widths, padding=2):
 def quote_schedule_table(report, headings, rows, widths, page_height):
     padding = 2
     header = [report.p(heading, 'head') for heading in headings]
-    widths = fitted_column_widths(header, rows, widths, padding)
+    widths = list(widths)
+    fixed_columns = ()
+    product = next((index for index, heading in enumerate(headings)
+                    if heading == 'Product' or heading.startswith('Product /')), None)
+    if 'Location' in headings and 'Item / mark' in headings and product is not None:
+        location, item = headings.index('Location'), headings.index('Item / mark')
+        # Give both identity fields the same compact width. Long marks wrap
+        # within it instead of borrowing the Product column's reading space.
+        identity = min(widths[location], widths[item])
+        widths[product] += widths[location] + widths[item] - 2 * identity
+        widths[location] = widths[item] = identity
+        fixed_columns = (location, item)
+    widths = fitted_column_widths(header, rows, widths, padding, fixed_columns=fixed_columns)
     data = [header]
     for row in rows:
         for index, cell in enumerate(row):

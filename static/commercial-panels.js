@@ -33,8 +33,9 @@
   }
   function openNote(existing, options, repaint) {
     const dialog = el("dialog"), content = el("form"), title = el("input"), hint = el("span");
-    dialog.className = "commercial-note-dialog"; dialog.setAttribute("aria-label", options.kind==='quote' ? "Quote note" : "Work Order note");
-    window.CeasefireI18n?.attr(dialog,'aria-label',options.kind==='quote' ? "Quote note" : "Work Order note");
+    const noteLabel = {quote:"Quote note",work_order:"Work Order note",purchase_order:"Purchase Order note"}[options.kind];
+    dialog.className = "commercial-note-dialog"; dialog.setAttribute("aria-label", noteLabel);
+    window.CeasefireI18n?.attr(dialog,'aria-label',noteLabel);
     title.maxLength = 300; title.setAttribute("aria-label", "Note title");
     title.value = existing?.title || "";
     const note = existing ? {...existing} : {id:crypto.randomUUID(),title:"",body:"",author:"Local user",updated_at:""};
@@ -89,13 +90,15 @@
     left.append(accountPanel,contactPanel);
     let directory = {};
     function showContact() {
-      const details = options.fields.details, fold = s => (s || "").trim().toLowerCase();
-      const account=directory.accounts?.find(a=>fold(a.company)===fold(details.client));
-      const matches=account ? directory.contacts.filter(c=>c.account_id===account.id && ((details.email && fold(c.email)===fold(details.email)) || (details.contact && fold(c.name)===fold(details.contact)))) : [];
+      const details = options.fields.details, project=options.projectDetails || {}, fold = s => (s || "").trim().toLowerCase();
+      const accounts=(directory.accounts || []).filter(a=>project.account_id ? a.id===project.account_id : fold(a.company)===fold(details.client));
+      const account=accounts.length===1 ? accounts[0] : null;
+      const matches=(directory.contacts || []).filter(c=>project.contact_id ? c.id===project.contact_id
+        : account && c.account_id===account.id && ((details.email && fold(c.email)===fold(details.email)) || (details.contact && fold(c.name)===fold(details.contact))));
       const contact=matches.length===1 ? matches[0] : null;
       accountPanel.querySelector("dl")?.remove(); contactPanel.querySelector("dl")?.remove();
-      fieldList(accountPanel,[["Company",account?.company || details.client],["Billing address",account?.billing_address],["Site address",details.site_address]]);
-      fieldList(contactPanel,[["Name",contact?.name || details.contact],["Title",contact?.title],["Phone",contact?.phone || details.phone],["Email",contact?.email || details.email]]);
+      fieldList(accountPanel,[["Company",details.client],["Billing address",project.billing_address ?? account?.billing_address],["ABN/ACN",project.abn_acn ?? account?.abn_acn],["Site address",details.site_address]]);
+      fieldList(contactPanel,[["Name",details.contact],["Title",contact?.title],["Phone",details.phone],["Email",details.email]]);
     }
     showContact();
     fetch("/api/contacts/directory",{cache:"no-store"}).then(r=>r.ok?r.json():{}).then(data=>{
@@ -137,19 +140,27 @@
     else {uploadLabel.hidden=true;form.append(uploadLabel);}
     if(options.fields.order.attachments) uploadLabel.append(el("small","Existing file references: "+options.fields.order.attachments));
     repaintNotes(); repaintFiles();
-    const quotePanel=panel(options.kind==='quote' ? "Linked Work Orders" : "Linked Quotes",0), purchasePanel=panel("Linked Purchase Orders",0);
+    const relatedPanels = options.kind==='quote' ? [["Linked Work Orders",panel("Linked Work Orders",0)],["Linked Purchase Orders",panel("Linked Purchase Orders",0)]]
+      : options.kind==='purchase_order' ? [["Linked Work Orders",panel("Linked Work Orders",0)],["Linked Quotes",panel("Linked Quotes",0)]]
+      : [["Linked Quotes",panel("Linked Quotes",0)],["Linked Purchase Orders",panel("Linked Purchase Orders",0)]];
     function showRelated() {
-      for(const [block,name,rows] of [
-        [quotePanel,options.kind==='quote' ? "Linked Work Orders" : "Linked Quotes", options.related.filter(d=>options.kind==='quote' ? d.kind==='work_order' && d.fields.order.quote_id===options.id : d.kind==="quote" && d.id===options.fields.order.quote_id)],
-        [purchasePanel,"Linked Purchase Orders",options.related.filter(d=>d.kind==="purchase_order" && d.fields.order.work_order_id===options.id)]
-      ]) {
+      const workOrders=options.related.filter(d=>d.kind==='work_order' &&
+        (options.kind==='purchase_order' ? d.id===options.fields.order.work_order_id : d.fields.order.quote_id===options.id));
+      const quoteIds=new Set(options.kind==='purchase_order' ? [options.fields.order.quote_id,...workOrders.map(d=>d.fields.order.quote_id)] : [options.fields.order.quote_id]);
+      const workIds=new Set(workOrders.map(d=>d.id));
+      for(const [name,block] of relatedPanels) {
+        const rows=name==='Linked Work Orders' ? workOrders : name==='Linked Quotes'
+          ? options.related.filter(d=>d.kind==='quote' && quoteIds.has(d.id))
+          : options.related.filter(d=>d.kind==='purchase_order' && (options.kind==='quote'
+            ? workIds.has(d.fields.order.work_order_id) || d.fields.order.quote_id===options.id
+            : d.fields.order.work_order_id===options.id));
         block.replaceChildren(panelSummary(name,rows.length));
         for(const doc of rows) block.append(action([doc.reference || doc.last_number,doc.fields.title].filter(Boolean).join(" · "),()=>options.openRelated(doc)));
       }
     }
-    right.append(quotePanel);if(options.kind!=='quote')right.append(purchasePanel);showRelated();
+    relatedPanels.forEach(([,block])=>right.append(block));showRelated();
     form.querySelector("[data-order-link]")?.addEventListener("change",showRelated);
-    return {repaintFiles};
+    return {repaintFiles,refreshProjectDetails(value){options.projectDetails=value;showContact();}};
   }
   window.ClassifireWorkOrderPanels = {attach};
 })();

@@ -148,8 +148,12 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
     margin = 32
     content = width - 2 * margin
     logo = company_logo(company)
-    report.story.append(report.p('Firestopping' if quote_scope else project_report_title or 'FIRESTOPPING SCHEDULE',
-                                 'section' if quote_scope else 'title'))
+    if project_report_title and not quote_scope:
+        from .quote_schedule import append_project_report_title
+        append_project_report_title(report, project_report_title)
+    else:
+        report.story.append(report.p('Firestopping' if quote_scope else 'FIRESTOPPING SCHEDULE',
+                                     'section' if quote_scope else 'title'))
     details = [('Project No.', project_details.get('project_no', '')),
                ('Client', project_details.get('client', '')),
                ('Site Address', project_details.get('site_address', ''))]

@@ -9,6 +9,8 @@
 .contacts-lead-menu { z-index:2; }
 .contacts-controls { align-items:end; margin-bottom:18px; }
 .contacts-controls>.field { flex:1 1 220px; }
+#contacts-root .contacts-document>summary { box-sizing:border-box; display:flex; align-items:center; height:calc(1.5em + 24px); min-height:0; padding-block:0; }
+@media(max-width:570px) { #contacts-root .contacts-document>summary { height:calc(1.5em + 22px); } }
 .contacts-workspace,.contacts-results { min-width:0; }
 .contacts-directory-layout { min-width:0; display:grid; gap:20px; align-items:start; }
 .contacts-directory-layout.contacts-account-open { grid-template-columns:minmax(330px,420px) minmax(0,1fr); }

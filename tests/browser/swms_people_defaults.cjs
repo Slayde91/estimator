@@ -66,6 +66,7 @@ module.exports=async function peopleDefaults(root,output){
     await firstConsultant.getByRole('button',{name:'Clear signature',exact:true}).click();
     await expect(firstConsultant.getByLabel('Name',{exact:true})).toHaveValue('');await expect(firstConsultant.getByLabel('Position',{exact:true})).toHaveValue('');
     await sign(firstConsultant);
+    await expect(firstConsultant.getByRole('img')).toBeVisible();
     // Settings loading is part of the guarded signature operation. A newer manual
     // field value must not be replaced when the delayed response arrives.
     let release,intercepted;const held=new Promise(resolve=>intercepted=resolve);

@@ -83,7 +83,7 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   const documentToggle=page.locator('[aria-controls="firestopping-document-actions"]');
   const controlHeights=[];
   // This Estimate row shares responsive button sizing with Create Quote/SWMS.
-  for(const width of [1440,571,570,390]){
+  for(const width of [1440,881,880,571,570,390]){
     await page.setViewportSize({width,height:1000});await expect(documentToggle).toBeVisible();
     const heights=await documentToggle.evaluate(toggle=>({
       document:toggle.getBoundingClientRect().height,
@@ -92,13 +92,14 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
     }));
     assert.ok(heights.document>0&&Math.abs(heights.document-heights.quote)<.5&&Math.abs(heights.document-heights.swms)<.5,
       `Estimate actions should have matching heights at ${width}px: ${JSON.stringify(heights)}`);
-    controlHeights.push({width,...heights});
+    await documentToggle.click();
+    const menu=await page.locator('#firestopping-document-actions').boundingBox();
+    assert.ok(menu.x>=0&&menu.x+menu.width<=width,`Estimate Document menu should fit ${width}px: ${JSON.stringify(menu)}`);
+    if(width===390)await page.screenshot({path:path.join(output,'estimate-document-menu-mobile.png')});
+    await documentToggle.press('Escape');
+    controlHeights.push({width,...heights,menu});
   }
   fs.writeFileSync(path.join(output,'estimate-control-heights.json'),JSON.stringify(controlHeights,null,2));
-  await documentToggle.click();
-  const documentMenu=await page.locator('#firestopping-document-actions').boundingBox();
-  assert.ok(documentMenu.x>=0&&documentMenu.x+documentMenu.width<=390);
-  await documentToggle.press('Escape');
   await page.setViewportSize({width:1440,height:1000});
   await page.locator('#projects-navigation-toggle').hover();
   await page.locator('#projects-navigation-menu [data-project-section="quotes"]').click();await idle();
@@ -118,5 +119,5 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   await expect(page.locator('#commercial-quote-root').getByLabel('Project number',{exact:true})).toHaveValue('PN-01');
   await expect(page.locator('#measurements')).toHaveValue('Second estimate notes');
   await page.screenshot({path:path.join(output,'multiple-estimates.png'),fullPage:true});assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({passed:true,output,checks:['create','rename','switch keeps notes','inactive takeoff session retained','save all estimates','reload restores inactive drawings','Document matches Create Quote/SWMS heights across desktop and mobile breakpoints'],controlHeights}));
+  console.log(JSON.stringify({passed:true,output,checks:['create','rename','switch keeps notes','inactive takeoff session retained','save all estimates','reload restores inactive drawings','Document matches Create Quote/SWMS heights and its menu fits across desktop and mobile breakpoints'],controlHeights}));
 })().catch(async error=>{console.error(error);fs.writeFileSync(path.join(output,'failure.txt'),`${error.stack}\n${logs}`);if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();server.kill();});

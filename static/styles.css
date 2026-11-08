@@ -487,6 +487,8 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .project-estimate-controls .field>label{display:block;font-size:12px;font-weight:650;margin-bottom:7px}
 .project-estimate-controls>.calculator-document-menu>.calculator-document-toggle{height:calc(1.5em + 24px);min-height:0;padding-block:0}
 @media(max-width:570px){.project-estimate-controls>.calculator-document-menu>.calculator-document-toggle{height:calc(1.5em + 22px)}}
+/* Wrapped Estimate actions anchor their dropdown to the full row's edge. */
+@media(max-width:880px){.project-estimate-controls{position:relative}.project-estimate-controls>.calculator-document-menu{position:static}.project-estimate-controls #firestopping-document-actions{right:0;left:auto;max-width:100%}}
 .project-estimate-picker{display:grid;grid-template-columns:minmax(0,1fr) 38px;align-items:stretch}
 .project-estimate-picker input,.project-estimate-picker select{grid-area:1/1/2/-1}
 .project-estimate-picker input{padding-inline:42px 40px}

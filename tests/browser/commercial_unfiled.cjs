@@ -3,7 +3,7 @@ const {fillProjectDetails}=require('./project_actions.cjs');
 const {chromium,expect:baseExpect}=require('@playwright/test');
 const expect=baseExpect.configure({timeout:20000});
 const assert=require('node:assert/strict');
-const {spawn}=require('node:child_process');
+const {spawn,spawnSync}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path');
 const {openProjectSection,clickProjectControl}=require('./project_actions.cjs');
 const root=path.resolve(__dirname,'../..');
@@ -42,9 +42,20 @@ async function save(page){
   await fillProjectDetails(owner,{'client':'Unfiled fixture company'});
   await fillProjectDetails(owner,{'site-address':'21 Fixture Street'});
   await openProjectSection(owner,'quote');
+  await expect(board(owner).getByRole('button',{name:'New Quote',exact:true})).toBeVisible();
+  // Existing pre-policy history is deliberately seeded outside the creation API.
+  // This preserves recovery coverage without re-enabling New without a Project.
+  const workspace=await owner.evaluate(()=>window.CeasefireCertification.sessionId());
+  const scopeResponse=await owner.request.get(base+'/api/certifications/workspaces/'+workspace);
+  assert.equal(scopeResponse.status(),200,await scopeResponse.text());const scope=await scopeResponse.json();
+  assert.equal(scope.created_project,false);
+  const seeded=spawnSync(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'legacy_unfiled_fixture.py'),directory,workspace,scope.project_id],{cwd:root,windowsHide:true,encoding:'utf8'});
+  assert.equal(seeded.status,0,seeded.stderr);assert.equal(JSON.parse(seeded.stdout).title,original);
+  await owner.evaluate(()=>window.CeasefireCommercial.activate('quote'));
+  await expect(board(owner).getByRole('button',{name:original,exact:true})).toBeVisible();
   await board(owner).getByRole('button',{name:'New Quote',exact:true}).click();
-  await board(owner).getByLabel('Document title',{exact:true}).fill(original);
-  await save(owner);
+  await expect(owner.locator('#app-message')).toHaveText('Create or load a project before creating documents.');
+  await expect(board(owner).locator('.commercial-editor')).toHaveCount(0);
   assert.equal(await currentFile(owner),null);
   assert.equal(fs.existsSync(info.project),false);
 
@@ -71,6 +82,12 @@ async function save(page){
   const file=JSON.parse(fs.readFileSync(info.project,'utf8'));
   const documents=file.commercial_documents.documents.filter(d=>d.kind==='quote');
   assert.equal(documents.length,1);assert.equal(documents[0].fields.title,edited);assert.equal(documents[0].status,'Presented');
+  await openProjectSection(owner,'quote');
+  await board(owner).getByRole('button',{name:'New Quote',exact:true}).click();
+  await expect(board(owner).locator('.commercial-editor')).toBeVisible();
+  await board(owner).getByRole('button',{name:'Back to Quotes',exact:true}).click();
+  await owner.locator('#discard-dialog').getByRole('button',{name:'Yes',exact:true}).click();
+  assert.equal(JSON.parse(fs.readFileSync(info.project,'utf8')).commercial_documents.documents.length,1,'An unsaved new draft never duplicates the recovered history');
   await other.reload();await idle(other);await openProjectSection(other,'quote');
   await expect(board(other).locator('.commercial-card')).toHaveCount(1);
   await expect(card(edited)).toBeVisible();
@@ -85,5 +102,5 @@ async function save(page){
   assert.equal(path.resolve(registry[0].path),path.resolve(info.project));
   assert.equal(await currentFile(other),null);
   assert.deepEqual(errors,[]);
-  console.log('PASS: An unfiled quote can be edited in a fresh tab, then filed exactly once with those edits and status.');
+  console.log('PASS: Existing unfiled history is editable across tabs and filed exactly once; New requires an explicitly saved Project.');
 })().catch(error=>{console.error(error,logs);process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

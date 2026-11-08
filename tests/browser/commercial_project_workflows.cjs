@@ -1,0 +1,106 @@
+const {chromium,expect:baseExpect}=require('@playwright/test');
+const {spawn}=require('node:child_process');
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const {openProjectSection,fillProjectDetails,clickProjectControl}=require('./project_actions.cjs');
+const expect=baseExpect.configure({timeout:30000}),root=path.resolve(__dirname,'../..');
+const output=path.join(root,'.runtime/browser-qa',`commercial-project-workflows-${Date.now()}`);fs.mkdirSync(output,{recursive:true});
+const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
+let logs='',browser,page;server.stderr.on('data',value=>logs+=value);
+const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()=>reject(Error(logs||'Fixture timeout')),120000);
+  server.stdout.on('data',value=>{text+=value;if(text.includes('\n')){clearTimeout(timer);resolve(JSON.parse(text.split('\n')[0]));}});
+  server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(Error('Fixture exited '+code));});});
+const errors=[],checks=[],writes=[];
+async function idle(){await page.waitForFunction(()=>{const value=window.CeasefireDesktop?.status();return value?.ready&&!value.busy;});}
+async function save(host){await host.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();await expect(host.locator('.commercial-message')).toContainText('Document saved.');await idle();}
+async function state(){const id=await page.evaluate(()=>window.CeasefireCertification.sessionId());return (await page.request.get(new URL('/api/commercial/state?workspace='+id,page.url()).href)).json();}
+(async()=>{
+  const info=await ready;browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1600,height:1000}});page.setDefaultTimeout(60000);
+  page.on('pageerror',error=>errors.push(error.message));page.on('request',request=>{if(request.method()==='POST')writes.push({path:new URL(request.url()).pathname,body:request.postDataJSON()});});
+  await page.goto(`http://127.0.0.1:${info.port}/`);await idle();
+  for(const [section,name] of [['quote','Quote'],['work-orders','Work Order'],['purchase-orders','Purchase Order']]){
+    await openProjectSection(page,section);const before=writes.length;
+    await page.getByRole('button',{name:'New '+name,exact:true}).click();
+    await expect(page.locator('#app-message')).toContainText('Create or load a project before creating documents.');
+    assert.equal(writes.length,before,'Blocked creation makes no document/default POST request');
+    await expect(page.locator('.commercial-editor')).toHaveCount(0);
+  }
+  checks.push('all commercial New actions notify without creating drafts or making mutation/default requests when no project exists');
+  await fillProjectDetails(page,{client:'Procurement receiver','site-address':'17 Procurement Road'});
+  const projectSave=page.waitForResponse(response=>response.url().endsWith('/api/project/save-as'));
+  await clickProjectControl(page,'Save');assert.equal((await projectSave).status(),200);await idle();
+  await openProjectSection(page,'quote');const quote=page.locator('#commercial-quote-root');
+  await quote.getByRole('button',{name:'New Quote',exact:true}).click();await expect(quote.locator('.commercial-lines tbody tr')).toHaveCount(1);
+  await quote.getByLabel('Document title',{exact:true}).fill('Procurement source quote');
+  await quote.locator('.commercial-estimate-picker summary').click();
+  const add=quote.getByRole('button',{name:'Add custom row',exact:true});
+  for(const token of ['button','primary','icon-only','penetration-new-item-action'])assert.ok((await add.getAttribute('class')).split(/\s+/).includes(token));
+  await expect(add.locator('.button-symbol')).toHaveText('+');await add.click();await expect(quote.locator('.commercial-lines tbody tr')).toHaveCount(2);
+  await quote.getByRole('button',{name:'Remove row',exact:true}).click();await save(quote);
+  const issue=page.waitForResponse(response=>response.url().endsWith('/api/commercial/issue'));
+  await quote.getByRole('button',{name:'Download PDF',exact:true}).click();assert.equal((await issue).status(),200);await expect(quote.locator('.commercial-message')).toContainText('PDF saved');await idle();
+  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
+  const card=quote.locator('.commercial-card').filter({hasText:'Procurement source quote'});await card.locator('summary').click();await card.getByRole('button',{name:'Create WO',exact:true}).click();
+  const work=page.locator('#commercial-work-order-root');await expect(work.getByRole('button',{name:'Create PO',exact:true})).toBeVisible();
+  await work.getByLabel('Document title',{exact:true}).fill('Procurement source work order');
+  await work.getByLabel('Description of works',{exact:true}).fill('Manual works description');await work.getByLabel('Estimated cost (AUD)',{exact:true}).fill('987');
+  let before=writes.length;await work.getByRole('button',{name:'Create PO',exact:true}).click();
+  await expect(work.locator('.commercial-message')).toHaveText('Save this Work Order before creating a Purchase Order.');assert.equal(writes.length,before);
+  await expect(work.getByLabel('Description of works',{exact:true})).toHaveValue('Manual works description');await save(work);
+  const firstWork=(await state()).documents.find(doc=>doc.kind==='work_order');assert.ok(firstWork.reference);assert.equal(firstWork.last_number,'');
+  await work.getByLabel('Description of works',{exact:true}).fill('Uncommitted manual works change');before=writes.length;
+  await work.getByRole('button',{name:'Create PO',exact:true}).click();await expect(work.locator('.commercial-message')).toHaveText('Save this Work Order before creating a Purchase Order.');assert.equal(writes.length,before);
+  await expect(work.getByLabel('Description of works',{exact:true})).toHaveValue('Uncommitted manual works change');
+  assert.equal((await state()).documents.filter(doc=>doc.kind==='purchase_order').length,0);
+  await save(work);
+  const stale=(await state()).documents.find(doc=>doc.kind==='work_order');
+  const externalFields=JSON.parse(JSON.stringify(stale.fields));externalFields.order.description='A newer saved Work Order scope';
+  externalFields.lines=[{estimate_id:'',description:'Copied supplier equipment',quantity:'3',unit_price:'800',size:'Large',comments:'Manual procurement instruction'}];
+  const external=await page.request.post(new URL('/api/commercial/save',page.url()).href,{data:{workspace_id:await page.evaluate(()=>window.CeasefireCertification.sessionId()),
+    id:stale.id,version:stale.version,kind:stale.kind,status:stale.status,fields:externalFields}});assert.equal(external.status(),200);
+  const staleRequest=page.waitForResponse(response=>response.url().endsWith('/api/commercial/purchase-order-defaults'));
+  await work.getByRole('button',{name:'Create PO',exact:true}).click();assert.equal((await staleRequest).status(),409);
+  await expect(work.locator('.commercial-message')).toContainText('changed');await expect(work.getByLabel('Description of works',{exact:true})).toHaveValue('Uncommitted manual works change');
+  assert.equal((await state()).documents.filter(doc=>doc.kind==='purchase_order').length,0);
+  await work.getByRole('button',{name:'Back to Work Orders',exact:true}).click();await openProjectSection(page,'quote');await openProjectSection(page,'work-orders');
+  await work.getByRole('button',{name:'Procurement source work order',exact:true}).click();
+  const source=(await state()).documents.find(doc=>doc.kind==='work_order'),sourceFile=fs.readFileSync(info.project,'utf8');
+  const poDefaults=page.waitForResponse(response=>response.url().endsWith('/api/commercial/purchase-order-defaults'));
+  await work.getByRole('button',{name:'Create PO',exact:true}).click();assert.equal((await poDefaults).status(),200);
+  const purchase=page.locator('#commercial-purchase-order-root');await expect(purchase.getByLabel('Linked Work Order',{exact:true})).toHaveValue(source.id);
+  await expect(purchase.getByLabel('Ship to name',{exact:true})).toHaveValue('Procurement receiver');await expect(purchase.getByLabel('Ship to address',{exact:true})).toHaveValue('17 Procurement Road');
+  for(const label of ['Supplier','Supplier email','Supplier contact','Payment terms','Requested by'])await expect(purchase.getByLabel(label,{exact:true})).toHaveValue('');
+  await expect(purchase.getByLabel('Purchase Order No.',{exact:true})).toHaveValue('');
+  assert.equal(fs.readFileSync(info.project,'utf8'),sourceFile,'Creating the PO draft leaves the source project file unchanged');
+  assert.deepEqual((await state()).documents.find(doc=>doc.id===source.id),source);assert.equal((await state()).documents.filter(doc=>doc.kind==='purchase_order').length,0);
+  const information=purchase.locator('.commercial-order-fields').filter({has:page.getByRole('heading',{name:'Purchase order information',exact:true})});
+  assert.equal(await information.evaluate(section=>section.nextElementSibling.className),'commercial-lines');
+  const expense=purchase.getByLabel('Type of expense',{exact:true});assert.equal(await expense.evaluate(control=>control.tagName),'SELECT');
+  await expect(expense.locator('option')).toHaveText(['','Labour','Materials','Services','Other']);await expense.selectOption('Materials');
+  const item=purchase.locator('.commercial-lines tbody tr');await expect(item).toHaveCount(1);
+  await expect(item.locator('.commercial-line-description')).toHaveValue('Copied supplier equipment');await expect(item.locator('input[type="number"]').first()).toHaveValue('3');
+  await expect(item.locator('input[type="number"]').last()).toHaveValue('0');await expect(purchase.locator('.commercial-message')).toContainText('Enter supplier prices');
+  await item.locator('input[type="number"]').last().fill('25');await expect(item.locator('.commercial-line-total')).toHaveText('$75.00');
+  for(const width of [1600,390]){await page.setViewportSize({width,height:1000});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    await page.screenshot({path:path.join(output,`purchase-draft-${width}.png`),fullPage:true});}
+  await page.setViewportSize({width:1600,height:1000});await save(purchase);
+  const persisted=await state(),po=persisted.documents.find(doc=>doc.kind==='purchase_order');assert.equal(po.reference,'PO-01');assert.equal(po.last_number,'');assert.equal(po.fields.order.work_order_id,source.id);assert.equal(po.fields.order.work_order_reference,source.reference);assert.equal(po.fields.order.expense_type,'Materials');
+  assert.deepEqual(persisted.documents.find(doc=>doc.id===source.id),source);
+  checks.push('Create PO preserves unsaved source edits, then creates a linked unnumbered draft; explicit Save assigns PO reference without issuing or changing the source Work Order');
+  await purchase.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();await openProjectSection(page,'work-orders');
+  await work.getByRole('button',{name:'Procurement source work order',exact:true}).click();await expect(work.locator('summary').filter({hasText:'Linked Purchase Orders (1)'})).toHaveCount(1);
+  checks.push('PO Request summary follows information, expense categories use a dropdown, and the saved relationship appears in the Work Order reverse list');
+  await page.screenshot({path:path.join(output,'work-order-linked-purchase.png'),fullPage:true});
+  await openProjectSection(page,'quotes');await page.locator('#new-quote').click();
+  await page.waitForFunction(()=>document.querySelector('#discard-dialog').open||window.CeasefireProject.context().project_path===null);
+  const prompt=page.locator('#discard-dialog');if(await prompt.isVisible())await prompt.getByRole('button',{name:'New project',exact:true}).click();await idle();
+  assert.equal(await page.evaluate(()=>window.CeasefireProject.hasCreatedProject()),false);
+  await openProjectSection(page,'work-orders');await work.getByRole('button',{name:'Procurement source work order',exact:true}).click();
+  const ownerFile=fs.readFileSync(info.project,'utf8'),nativeDefaults=page.waitForResponse(response=>response.url().endsWith('/api/commercial/saved-purchase-order-defaults'));
+  await work.getByRole('button',{name:'Create PO',exact:true}).click();assert.equal((await nativeDefaults).status(),200);
+  await expect(purchase.getByLabel('Linked Work Order',{exact:true})).toHaveValue(source.id);
+  assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),null,'Native saved-source creation does not replace the active unsaved Project');
+  assert.equal(fs.readFileSync(info.project,'utf8'),ownerFile,'Native source creation leaves owner file unchanged until Save');
+  checks.push('a verified native saved-source Project can prepare its own PO with no active global Project, without changing owner file or replacing active workspace');
+  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,sourceId:source.id,purchaseId:po.id,errors},null,2));console.log('PASS commercial project workflows. '+output);
+})().catch(async error=>{console.error(error);console.error(logs);if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;})
+.finally(async()=>{await browser?.close();server.kill();});

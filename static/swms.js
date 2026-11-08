@@ -174,6 +174,7 @@
   }
   async function openNew() {
     if (state.busy) return;
+    if (!window.CeasefireProject?.requireCreatedProject?.()) return;
     const current = guard(); lock(true);
     try {
       const result = await defaults(); if (!current()) return;
@@ -351,7 +352,7 @@
       });
       scheduleStepLayout();
     }
-    box.append(scroll, button("Add job step", () => { if (rows.length >= 200) throw new Error("A work type supports up to 200 steps."); rows.push(emptyStep()); dirty(); render(); })); render(); host.append(box);
+    box.append(scroll, iconAction("Add job step", () => { if (rows.length >= 200) throw new Error("A work type supports up to 200 steps."); rows.push(emptyStep()); dirty(); render(); }, "add")); render(); host.append(box);
   }
   function attachments(host, fields) {
     const box = section("Form Attachments"), list = element("div"), input = element("input"); input.type = "file"; input.multiple = true; input.accept = ".pdf,.png,.jpg,.jpeg";

@@ -23,6 +23,8 @@ class DocumentationHTTPTests(unittest.TestCase):
     tearDown = helpers.CertificationHTTPTests.tearDown
     request = helpers.CertificationHTTPTests.request
     json = helpers.CertificationHTTPTests.json
+    legacy_certificate = helpers.CertificationHTTPTests.legacy_certificate
+    created_workspace = helpers.CertificationHTTPTests.created_workspace
 
     def workspace(self):
         return self.json('POST','/api/certifications/workspaces',{},expected=201)['workspace_id']
@@ -35,7 +37,7 @@ class DocumentationHTTPTests(unittest.TestCase):
         return self.json('GET','/api/documentation?workspace='+workspace)
 
     def test_catalog_and_explicit_scope_exclude_unrelated_global_certificates(self):
-        self.json('POST','/api/certifications',{'fields':self.fields},expected=201)
+        self.legacy_certificate(self.fields)
         current = self.workspace()
         self.assertEqual(self.retained(current)['items'],[])
         catalog = self.json('GET','/api/documentation/catalog')['documents']
@@ -93,7 +95,7 @@ class DocumentationHTTPTests(unittest.TestCase):
         self.assertEqual(self.request('POST','/api/quote-report',{'inputs':{'B8':2}},self.headers(workspace,operation))[0],409)
 
     def test_certificate_revisions_are_derived_from_the_same_project_scope(self):
-        a,b=self.workspace(),self.workspace();scope='?workspace='+a
+        a,b=self.created_workspace()['workspace_id'],self.workspace();scope='?workspace='+a
         document=self.json('POST','/api/certifications'+scope,{'fields':self.fields},expected=201)
         generated=self.json('POST','/api/certifications/'+document['id']+'/revisions'+scope,
             {'fields':self.fields,'expected_version':1,'request_id':str(uuid.uuid4())},expected=201)

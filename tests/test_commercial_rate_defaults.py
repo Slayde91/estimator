@@ -13,6 +13,8 @@ from estimator.commercial_documents import CommercialConflict, RATE_DEFAULTS, de
 from estimator.commercial_rate_defaults import CommercialRateDefaults, PREFERENCE
 from estimator.server import create_server
 from estimator.storage import Store
+from estimator.native_dialogs import SaveSelection
+from estimator.project_library import file_fingerprint
 
 
 class RateDefaultsTests(unittest.TestCase):
@@ -88,7 +90,11 @@ class RateDefaultsHTTPTests(unittest.TestCase):
     def test_live_server_routes_are_versioned_and_new_defaults_are_injected_only_at_creation(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            server = create_server(0, root / 'state.sqlite3', library_directory=root / 'library')
+            target = root / 'fixture.cf.json'
+            class Dialogs:
+                def choose_save(self, *args):
+                    return SaveSelection(str(target), file_fingerprint(target))
+            server = create_server(0, root / 'state.sqlite3', project_dialogs=Dialogs(), library_directory=root / 'library')
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
             def request(path, body=None):
@@ -107,6 +113,11 @@ class RateDefaultsHTTPTests(unittest.TestCase):
                 status, workspace = request('/api/certifications/workspaces', {})
                 self.assertEqual(status, 201)
                 body = {'workspace_id': workspace['workspace_id'], 'kind': 'quote'}
+                self.assertEqual(request('/api/commercial/defaults', body)[0], 400)
+                status, saved_project = request('/api/project/save-as', {'estimate': {'client':'Rate defaults fixture'},
+                    'certifications': {'workspace_id': workspace['workspace_id'], 'draft': None}})
+                self.assertEqual(status, 200)
+                self.assertFalse(saved_project.get('cancelled'))
                 status, old = request('/api/commercial/defaults', body)
                 self.assertEqual(status, 200)
                 self.assertEqual(old['fields']['rate_schedule']['rates']['ordinary_time'], '130')

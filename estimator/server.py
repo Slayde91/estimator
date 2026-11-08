@@ -62,8 +62,10 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     from .technical_library_edits import ManualTechnicalLibrary
     libraries = ManualTechnicalLibrary(library_directory, store)
     from .certification import CertificationService, CertificationConflict, CertificationNotFound
-    certifications = CertificationService(store, numbering=document_numbers)
-    from .certification_projects import CertificationProjects
+    from .certification_projects import CertificationProjects, PROJECT_REQUIRED
+    def require_project_for_legacy_creation():
+        raise ValidationError(PROJECT_REQUIRED)
+    certifications = CertificationService(store, numbering=document_numbers, creation_guard=require_project_for_legacy_creation)
     certification_projects = CertificationProjects(certifications)
     projects.certifications = certification_projects
     from .documentation_catalog import document_catalog, export_identity, PDF, XLSX

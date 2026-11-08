@@ -119,7 +119,8 @@ class CommercialHTTP:
     def execute(self, action, body, *, owner_key=None):
         common = {'workspace_id', 'estimates', 'active_estimate_id'}
         fields_by_action = {
-            'defaults': {'kind', 'details'}, 'derive': {'fields', 'selected_ids'},
+            'defaults': {'kind', 'details'}, 'derive': {'fields', 'selected_ids', 'include_scope_tables'},
+            'purchase-order-defaults': {'work_order_id', 'work_order_version'},
             'save': {'id', 'version', 'kind', 'status', 'fields', 'retain_unfiled'},
             'delete': {'id', 'version'}, 'status': {'id', 'version', 'status'},
             'notes': {'id', 'version', 'notes'},
@@ -130,12 +131,20 @@ class CommercialHTTP:
         workspace = body.get('workspace_id')
         model = self.service.view(workspace)
         if action == 'defaults':
+            self.service.certifications.require_created_project(workspace)
             profile = self.rate_defaults.read() if self.rate_defaults is not None else None
             result = {'fields': default_fields(body.get('kind'), body.get('details'), self._company(),
                                                rates=profile['rates'] if profile else None)}
             if profile is not None:
                 result['rate_defaults'] = profile
+        elif action == 'purchase-order-defaults':
+            self.service.certifications.require_created_project(workspace)
+            profile = self.rate_defaults.read() if self.rate_defaults is not None else None
+            result = {'fields': self.service.purchase_order_defaults(workspace, body.get('work_order_id'),
+                body.get('work_order_version'), company=self._company(), rates=profile['rates'] if profile else None)}
         elif action == 'derive':
+            if type(body.get('include_scope_tables', True)) is not bool:
+                raise ValidationError('Choose whether to include the complete scope tables.')
             result = self._derive(body)
             result = {key: value for key, value in result.items() if key != 'scope_documents'}
         elif action == 'notes':
@@ -145,6 +154,8 @@ class CommercialHTTP:
             result = self.service.save(workspace, {'id': doc['id'], 'version': body.get('version'), 'kind': doc['kind'],
                 'status': doc['status'], 'fields': {**doc['fields'], 'notes': body.get('notes')}})
         elif action == 'save':
+            if not any(document['id'] == body.get('id') for document in model['documents']):
+                self.service.certifications.require_created_project(workspace)
             fields = deepcopy(body.get('fields'))
             if body.get('kind') == 'quote':
                 if not isinstance(fields, dict) or not isinstance(fields.get('details'), dict):

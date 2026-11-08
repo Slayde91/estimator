@@ -20,6 +20,7 @@ from estimator.company_settings import DEFAULTS
 from estimator.project_file import export_project, load_project_bytes, MAX_PROJECT_FILE
 from estimator.project_library import ProjectLibrary
 from estimator.storage import Store
+from estimator.native_dialogs import SaveSelection
 from test_certification import pdf
 from test_project_library import Chooser
 
@@ -40,7 +41,18 @@ class CertificationProjectTests(unittest.TestCase):
 
     def prepared(self):
         workspace = self.projects.new()
-        return workspace, self.projects.service(workspace['workspace_id'])
+        # These service tests exercise an already-created project. Establish it
+        # through the same trusted native Save As boundary as the application.
+        folder = self.root / 'created-fixtures' / workspace['workspace_id']
+        folder.mkdir(parents=True)
+        chooser = Chooser(); chooser.selection = SaveSelection(str(folder / 'Project.cf.json'), None)
+        library = ProjectLibrary(self.store, chooser, certifications=self.projects)
+        try:
+            library.save_as({'estimate': {'project_no': 'PN-FIXTURE'}, 'calculators': {},
+                'certifications': {'workspace_id': workspace['workspace_id'], 'draft': None}})
+        finally:
+            library.close()
+        return self.projects.view(workspace['workspace_id']), self.projects.service(workspace['workspace_id'])
 
     def capture(self, workspace, document=None, **values):
         draft = {'id': document['id'] if document else None, 'version': document['version'] if document else None,

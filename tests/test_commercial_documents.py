@@ -33,6 +33,11 @@ class Projects:
             raise ValidationError('Unknown project capability')
         return self.ids[workspace]
 
+    def require_created_project(self, workspace):
+        # Pure service fixtures represent capabilities already verified by the
+        # native Project lifecycle; integration tests use the real guard.
+        return self.project_id(workspace)
+
 
 class CommercialTests(unittest.TestCase):
     def setUp(self):

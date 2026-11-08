@@ -1,0 +1,72 @@
+{
+  "Create PO": [
+    "구매 주문 만들기",
+    "Gumawa ng purchase order",
+    "Tạo đơn đặt hàng"
+  ],
+  "Save this Work Order before creating a Purchase Order.": [
+    "구매 주문을 만들기 전에 이 작업 지시서를 저장하세요.",
+    "I-save ang work order na ito bago gumawa ng purchase order.",
+    "Lưu lệnh công việc này trước khi tạo đơn đặt hàng."
+  ],
+  "Enter supplier prices before issuing this Purchase Order.": [
+    "이 구매 주문을 발행하기 전에 공급업체 가격을 입력하세요.",
+    "Ilagay ang mga presyo ng supplier bago ibigay ang purchase order na ito.",
+    "Nhập giá của nhà cung cấp trước khi phát hành đơn đặt hàng này."
+  ],
+  "The selected estimate changed. Select it again to refresh its schedule.": [
+    "선택한 견적이 변경되었습니다. 명세표를 새로 고치려면 다시 선택하세요.",
+    "Nagbago ang napiling pagtatantya. Piliin itong muli upang i-refresh ang talaan nito.",
+    "Dự toán đã chọn đã thay đổi. Chọn lại để làm mới bảng kê."
+  ],
+  "The schedule could not be loaded. Retry to view its rows.": [
+    "명세표를 불러올 수 없습니다. 행을 보려면 다시 시도하세요.",
+    "Hindi ma-load ang talaan. Subukang muli upang makita ang mga row nito.",
+    "Không thể tải bảng kê. Thử lại để xem các dòng."
+  ],
+  "Expand to load the complete schedule.": [
+    "전체 명세표를 불러오려면 펼치세요.",
+    "Palawakin upang i-load ang buong talaan.",
+    "Mở rộng để tải bảng kê đầy đủ."
+  ],
+  "Retry loading schedule": [
+    "명세표 불러오기 재시도",
+    "Subukang i-load muli ang talaan",
+    "Thử tải lại bảng kê"
+  ],
+  "Loading schedule…": [
+    "명세표 불러오는 중…",
+    "Nilo-load ang talaan…",
+    "Đang tải bảng kê…"
+  ],
+  "Select a saved Work Order from this project.": [
+    "이 프로젝트에 저장된 작업 지시서를 선택하세요.",
+    "Pumili ng naka-save na work order mula sa proyektong ito.",
+    "Chọn một lệnh công việc đã lưu trong dự án này."
+  ],
+  "Choose Labour, Materials, Services or Other for the type of expense.": [
+    "비용 유형으로 인건비, 자재, 설비 또는 기타를 선택하세요.",
+    "Piliin ang Paggawa, Mga materyales, Mga serbisyo o Iba pa bilang uri ng gastos.",
+    "Chọn Nhân công, Vật tư, Hệ kỹ thuật hoặc Khác cho loại chi phí."
+  ],
+  "Choose whether to include the complete scope tables.": [
+    "전체 작업 범위 표를 포함할지 선택하세요.",
+    "Piliin kung isasama ang kumpletong mga talahanayan ng saklaw.",
+    "Chọn có đưa vào toàn bộ bảng phạm vi công việc hay không."
+  ],
+  "Create or load a project before creating documents.": [
+    "문서를 만들기 전에 프로젝트를 만들거나 불러오세요.",
+    "Gumawa o mag-load muna ng proyekto bago gumawa ng mga dokumento.",
+    "Tạo hoặc tải dự án trước khi tạo tài liệu."
+  ],
+  "The project was saved, but its document workspace changed. Reload the saved project before creating documents.": [
+    "프로젝트는 저장되었지만 문서 작업 공간이 변경되었습니다. 문서를 만들기 전에 저장된 프로젝트를 다시 불러오세요.",
+    "Na-save ang proyekto, ngunit nagbago ang workspace ng mga dokumento nito. I-load muli ang naka-save na proyekto bago gumawa ng mga dokumento.",
+    "Dự án đã được lưu nhưng không gian tài liệu đã thay đổi. Tải lại dự án đã lưu trước khi tạo tài liệu."
+  ],
+  "Choose a valid linked estimate preview.": [
+    "연결된 견적의 올바른 미리보기를 선택하세요.",
+    "Pumili ng wastong preview ng naka-link na pagtatantya.",
+    "Chọn bản xem trước hợp lệ của dự toán được liên kết."
+  ]
+}

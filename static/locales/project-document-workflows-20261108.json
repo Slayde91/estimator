@@ -1,0 +1,100 @@
+{
+  "Create PO": [
+    "创建采购订单",
+    "खरीद आदेश बनाएँ",
+    "Crear orden de compra",
+    "إنشاء أمر شراء",
+    "สร้างใบสั่งซื้อ"
+  ],
+  "Save this Work Order before creating a Purchase Order.": [
+    "请先保存此工作订单，再创建采购订单。",
+    "खरीद आदेश बनाने से पहले यह कार्य आदेश सहेजें।",
+    "Guarde esta orden de trabajo antes de crear una orden de compra.",
+    "احفظ أمر العمل هذا قبل إنشاء أمر شراء.",
+    "บันทึกใบสั่งงานนี้ก่อนสร้างใบสั่งซื้อ"
+  ],
+  "Enter supplier prices before issuing this Purchase Order.": [
+    "请先输入供应商价格，再签发此采购订单。",
+    "यह खरीद आदेश जारी करने से पहले आपूर्तिकर्ता की कीमतें दर्ज करें।",
+    "Introduzca los precios del proveedor antes de emitir esta orden de compra.",
+    "أدخل أسعار المورد قبل إصدار أمر الشراء هذا.",
+    "ป้อนราคาของผู้จัดหาก่อนออกใบสั่งซื้อนี้"
+  ],
+  "The selected estimate changed. Select it again to refresh its schedule.": [
+    "所选估算已更改。请重新选择以刷新其明细表。",
+    "चयनित अनुमान बदल गया है। उसकी अनुसूची ताज़ा करने के लिए उसे फिर चुनें।",
+    "La estimación seleccionada ha cambiado. Vuelva a seleccionarla para actualizar su listado.",
+    "تغيّر التقدير المحدد. حدده مجددًا لتحديث جدول بنوده.",
+    "ประมาณการที่เลือกมีการเปลี่ยนแปลง เลือกอีกครั้งเพื่อรีเฟรชตารางรายการ"
+  ],
+  "The schedule could not be loaded. Retry to view its rows.": [
+    "无法加载明细表。请重试以查看各行。",
+    "अनुसूची लोड नहीं हो सकी। उसकी पंक्तियाँ देखने के लिए पुनः प्रयास करें।",
+    "No se pudo cargar el listado. Vuelva a intentarlo para ver sus filas.",
+    "تعذر تحميل جدول البنود. أعد المحاولة لعرض صفوفه.",
+    "โหลดตารางรายการไม่สำเร็จ ลองอีกครั้งเพื่อดูแถวข้อมูล"
+  ],
+  "Expand to load the complete schedule.": [
+    "展开以加载完整明细表。",
+    "पूरी अनुसूची लोड करने के लिए विस्तृत करें।",
+    "Despliegue para cargar el listado completo.",
+    "وسّع القسم لتحميل جدول البنود كاملًا.",
+    "ขยายเพื่อโหลดตารางรายการทั้งหมด"
+  ],
+  "Retry loading schedule": [
+    "重试加载明细表",
+    "अनुसूची फिर से लोड करें",
+    "Reintentar cargar el listado",
+    "إعادة محاولة تحميل جدول البنود",
+    "ลองโหลดตารางรายการอีกครั้ง"
+  ],
+  "Loading schedule…": [
+    "正在加载明细表…",
+    "अनुसूची लोड हो रही है…",
+    "Cargando listado…",
+    "جارٍ تحميل جدول البنود…",
+    "กำลังโหลดตารางรายการ…"
+  ],
+  "Select a saved Work Order from this project.": [
+    "请选择此项目中已保存的工作订单。",
+    "इस परियोजना से सहेजा गया कार्य आदेश चुनें।",
+    "Seleccione una orden de trabajo guardada de este proyecto.",
+    "اختر أمر عمل محفوظًا من هذا المشروع.",
+    "เลือกใบสั่งงานที่บันทึกไว้ในโครงการนี้"
+  ],
+  "Choose Labour, Materials, Services or Other for the type of expense.": [
+    "请选择人工、材料、管线或其他作为费用类型。",
+    "खर्च के प्रकार के लिए श्रम, सामग्री, सेवाएँ या अन्य चुनें।",
+    "Elija Mano de obra, Materiales, Servicios u Otros como tipo de gasto.",
+    "اختر العمالة أو المواد أو الخدمات أو أخرى لنوع المصروف.",
+    "เลือกแรงงาน วัสดุ งานระบบ หรืออื่น ๆ เป็นประเภทค่าใช้จ่าย"
+  ],
+  "Choose whether to include the complete scope tables.": [
+    "请选择是否包含完整的工作范围表。",
+    "चुनें कि कार्यक्षेत्र की पूरी तालिकाएँ शामिल करनी हैं या नहीं।",
+    "Elija si desea incluir las tablas completas del alcance.",
+    "اختر ما إذا كنت تريد تضمين جداول نطاق العمل كاملةً.",
+    "เลือกว่าจะรวมตารางขอบเขตงานทั้งหมดหรือไม่"
+  ],
+  "Create or load a project before creating documents.": [
+    "创建文档前，请先创建或加载项目。",
+    "दस्तावेज़ बनाने से पहले परियोजना बनाएँ या लोड करें।",
+    "Cree o cargue un proyecto antes de crear documentos.",
+    "أنشئ مشروعًا أو حمّله قبل إنشاء المستندات.",
+    "สร้างหรือโหลดโครงการก่อนสร้างเอกสาร"
+  ],
+  "The project was saved, but its document workspace changed. Reload the saved project before creating documents.": [
+    "项目已保存，但其文档工作区已更改。请重新加载已保存的项目后再创建文档。",
+    "परियोजना सहेजी गई, लेकिन उसका दस्तावेज़ कार्यक्षेत्र बदल गया। दस्तावेज़ बनाने से पहले सहेजी गई परियोजना फिर लोड करें।",
+    "El proyecto se guardó, pero su espacio de documentos cambió. Vuelva a cargar el proyecto guardado antes de crear documentos.",
+    "حُفظ المشروع، لكن مساحة عمل مستنداته تغيّرت. أعد تحميل المشروع المحفوظ قبل إنشاء المستندات.",
+    "บันทึกโครงการแล้ว แต่พื้นที่ทำงานเอกสารเปลี่ยนแปลง โปรดโหลดโครงการที่บันทึกไว้อีกครั้งก่อนสร้างเอกสาร"
+  ],
+  "Choose a valid linked estimate preview.": [
+    "请选择有效的关联估算预览。",
+    "लिंक किए गए अनुमान का मान्य पूर्वावलोकन चुनें।",
+    "Seleccione una vista previa válida de una estimación vinculada.",
+    "اختر معاينة صالحة لتقدير مرتبط.",
+    "เลือกตัวอย่างประมาณการที่เชื่อมโยงที่ถูกต้อง"
+  ]
+}

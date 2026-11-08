@@ -2971,5 +2971,19 @@
   "View Revisions ({0})": "ترامیم دیکھیں ({0})",
   "Revision history": "ترامیم کی تاریخ",
   "Close revision history": "ترامیم کی تاریخ بند کریں",
-  "Insert signature": "دستخط شامل کریں"
+  "Insert signature": "دستخط شامل کریں",
+  "Create PO": "خریداری کا آرڈر بنائیں",
+  "Save this Work Order before creating a Purchase Order.": "خریداری کا آرڈر بنانے سے پہلے یہ ورک آرڈر محفوظ کریں۔",
+  "Enter supplier prices before issuing this Purchase Order.": "خریداری کا یہ آرڈر جاری کرنے سے پہلے سپلائر کی قیمتیں درج کریں۔",
+  "The selected estimate changed. Select it again to refresh its schedule.": "منتخب تخمینہ تبدیل ہو گیا ہے۔ اس کی فہرست تازہ کرنے کے لیے اسے دوبارہ منتخب کریں۔",
+  "The schedule could not be loaded. Retry to view its rows.": "فہرست لوڈ نہیں ہو سکی۔ اس کی قطاریں دیکھنے کے لیے دوبارہ کوشش کریں۔",
+  "Expand to load the complete schedule.": "مکمل فہرست لوڈ کرنے کے لیے کھولیں۔",
+  "Retry loading schedule": "فہرست دوبارہ لوڈ کریں",
+  "Loading schedule…": "فہرست لوڈ ہو رہی ہے…",
+  "Select a saved Work Order from this project.": "اس منصوبے سے محفوظ شدہ ورک آرڈر منتخب کریں۔",
+  "Choose Labour, Materials, Services or Other for the type of expense.": "اخراجات کی قسم کے لیے مزدوری، مواد، سروسز یا دیگر منتخب کریں۔",
+  "Choose whether to include the complete scope tables.": "منتخب کریں کہ آیا کام کے دائرے کی مکمل جدولیں شامل کرنی ہیں۔",
+  "Create or load a project before creating documents.": "دستاویزات بنانے سے پہلے منصوبہ بنائیں یا لوڈ کریں۔",
+  "The project was saved, but its document workspace changed. Reload the saved project before creating documents.": "منصوبہ محفوظ ہو گیا، لیکن اس کی دستاویزات کی ورک اسپیس تبدیل ہو گئی۔ دستاویزات بنانے سے پہلے محفوظ شدہ منصوبہ دوبارہ لوڈ کریں۔",
+  "Choose a valid linked estimate preview.": "منسلک تخمینے کا درست پیش منظر منتخب کریں۔"
 }

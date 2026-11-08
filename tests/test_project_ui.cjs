@@ -121,6 +121,34 @@ async function penetrationCheck(name, fn) {
   await deadline(name,()=>fn(h));passed++;console.log(`ok - ${name}`);
 }
 (async () => {
+  await check('Document creation requires a native saved project and assigned number, not typed identity',async h=>{
+    const api=h.context.window.CeasefireProject,before=h.snapshot();let writes=0;
+    h.app.setRequest(async()=>{writes++;throw Error('Guard must not save automatically');});
+    assert.equal(api.hasCreatedProject(),false);assert.equal(api.requireCreatedProject(),false);
+    assert.match(h.byId('app-message').textContent,/Create or load a project/);
+    assert.equal(writes,0);assert.deepEqual(h.snapshot(),before);
+    h.app.state.projectFile={name:'Browser imported.cf.json'};assert.equal(api.hasCreatedProject(),false);
+    h.app.state.projectFile={save_token:'native-receipt',path:'C:/Project.cf.json'};assert.equal(api.hasCreatedProject(),false);
+    h.app.state.projectFile.project_no='PN-01';assert.equal(api.hasCreatedProject(),true);
+    h.byId('project-no').value='';assert.equal(api.hasCreatedProject(),true,'A new estimate does not erase its saved Project identity');
+    h.app.state.projectFile.project_no='';assert.equal(api.hasCreatedProject(),false);
+  });
+  await check('Commercial linking skips duplicate preparation while full capture keeps canonical preparation',async h=>{
+    h.addEntry('ductwork');const sent=[];
+    h.app.setRequest(async(path,options)=>{sent.push(path);assert.equal(path,'/api/project/estimate/prepare');return JSON.parse(options.body);});
+    const fast=await h.context.window.CeasefireEstimates.capture({readOnly:true,commercial:true});
+    assert.equal(sent.length,0);assert.equal(fast.estimates[0].workspace.estimate.client,'Local client');
+    const complete=await h.context.window.CeasefireEstimates.capture({readOnly:true});
+    assert.deepEqual(sent,['/api/project/estimate/prepare']);assert.deepEqual(copy(fast),copy(complete));
+  });
+  await check('Commercial capture retains project-context guards while awaiting its snapshots',async h=>{
+    h.addEntry('ductwork');const pending=deferred();let writes=0;
+    h.context.window.CeasefireTakeoffs={completeProjectSnapshot:()=>pending.promise,projectSnapshot:()=>undefined};
+    h.app.setRequest(async()=>{writes++;throw Error('No duplicate preparation expected');});
+    const captured=h.context.window.CeasefireEstimates.capture({readOnly:true,commercial:true});await flush();
+    h.app.state.quoteContext++;pending.resolve(undefined);
+    await assert.rejects(captured,/estimate changed while preparing/);assert.equal(writes,0);
+  });
   await check('Changes during client-history preparation stop a stale first save before its file chooser', async h => {
     const pending = deferred();let writes = 0;
     h.context.window.CeasefireProjectDetails.prepareSave = () => pending.promise;

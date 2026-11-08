@@ -19,6 +19,8 @@ from test_project_library import Chooser
 class CertificationProjectsHTTPTests(unittest.TestCase):
     request = helpers.CertificationHTTPTests.request
     json = helpers.CertificationHTTPTests.json
+    created_workspace = helpers.CertificationHTTPTests.created_workspace
+    legacy_certificate = helpers.CertificationHTTPTests.legacy_certificate
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -33,10 +35,10 @@ class CertificationProjectsHTTPTests(unittest.TestCase):
         self.server.shutdown(); self.server.server_close(); self.thread.join(); self.temp.cleanup()
 
     def test_scoped_membership_required_new_generation_and_explicit_legacy_recovery(self):
-        first = self.json('POST', '/api/certifications/workspaces', {}, expected=201)
+        first = self.created_workspace()
         second = self.json('POST', '/api/certifications/workspaces', {}, expected=201)
         a, b = '?workspace=' + first['workspace_id'], '?workspace=' + second['workspace_id']
-        legacy = self.json('POST', '/api/certifications', {'fields': fields(project='Older certificate')}, expected=201)
+        legacy = self.legacy_certificate(fields(project='Older certificate'))
         self.assertEqual(self.json('GET', '/api/certifications' + a), {'items': []})
         self.assertEqual(self.json('GET', '/api/certifications/legacy')['items'][0]['id'], legacy['id'])
         doc = self.json('POST', '/api/certifications' + a, {'fields': fields()}, expected=201)
@@ -62,7 +64,7 @@ class CertificationProjectsHTTPTests(unittest.TestCase):
         self.assertEqual(self.json('GET', '/api/certifications/' + legacy['id']), legacy)
 
     def test_native_save_reopen_retains_draft_and_revisions_cancellation_and_missing_companion(self):
-        workspace = self.json('POST', '/api/certifications/workspaces', {}, expected=201)
+        workspace = self.created_workspace()
         scope = '?workspace=' + workspace['workspace_id']
         document = self.json('POST', '/api/certifications' + scope, {'fields': fields()}, expected=201)
         generated = self.json('POST', '/api/certifications/' + document['id'] + '/revisions' + scope,
@@ -113,7 +115,7 @@ class CertificationProjectsHTTPTests(unittest.TestCase):
         self.assertEqual(self.request('GET', generated['revision']['pdf_url'])[2], frozen)
 
     def test_older_project_without_certificates_still_opens_empty_and_cancel_drops_only_prepared(self):
-        legacy = self.json('POST', '/api/certifications', {'fields': fields()}, expected=201)
+        legacy = self.legacy_certificate(fields())
         target = self.root / 'Older.cf.json'
         target.write_bytes(export_project(Store(self.database), {'estimate': {'title': 'Older'}}))
         self.chooser.opened = str(target)

@@ -37,6 +37,10 @@ class Projects:
             raise ValidationError('Unknown project capability')
         return self.ids[workspace]
 
+    # This unit fixture represents preverified project capabilities. Real fresh,
+    # Save/Load and imported capabilities are covered by test_project_document_guard.
+    require_created_project = project_id
+
 
 class Handler:
     command, path = 'POST', '/api/swms/issue'

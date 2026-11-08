@@ -130,12 +130,13 @@ def _revision_metadata(document_id, row):
 
 
 class CertificationService:
-    def __init__(self, store, *, renderer=None, coverer=None, covers=None, precommit=None, numbering=None):
+    def __init__(self, store, *, renderer=None, coverer=None, covers=None, precommit=None, numbering=None, creation_guard=None):
         self.store = store
         self.numbering = numbering or DocumentNumbers(store.path.with_name(store.path.stem + '-document-numbers.sqlite3'))
         self.renderer = renderer
         self.coverer = coverer
         self.precommit = precommit
+        self.creation_guard = creation_guard
         with store.connect() as db:
             db.executescript('''
                 CREATE TABLE IF NOT EXISTS certification_documents (
@@ -238,6 +239,8 @@ class CertificationService:
                     return {'id': old[0], 'reference': old[4], 'fields': json.loads(_json(fields)), 'version': 1,
                             'options': json.loads(old[3]) if old[3] is not None else deepcopy(DEFAULT_OPTIONS),
                             'created_at': old[2], 'updated_at': old[2], 'revisions': []}
+            if self.creation_guard is not None:
+                self.creation_guard()
             identity, timestamp = str(uuid.uuid4()), _now()
             reference = self.numbering.assign(db, 'certification', identity)
             db.execute('INSERT INTO certification_documents '

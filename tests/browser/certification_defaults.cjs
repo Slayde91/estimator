@@ -3,7 +3,7 @@ const {fillProjectDetails}=require('./project_actions.cjs');
 const {chromium,expect:baseExpect}=require('@playwright/test');
 const expect=baseExpect.configure({timeout:30000});
 const {openProjectSection,clickProjectControl}=require('./project_actions.cjs');
-const {spawn,spawnSync}=require('node:child_process'),{randomUUID}=require('node:crypto');
+const {spawn,spawnSync}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'../..');
 const output=path.join(root,'.runtime/browser-qa',`certification-defaults-${Date.now()}`);fs.mkdirSync(output,{recursive:true});
@@ -22,8 +22,13 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   const info=await ready;assert.notEqual(info.port,8765);const base=`http://127.0.0.1:${info.port}`;
   // Seed an older draft and separate signer preferences; no PDF/revision is
   // produced. Entering Certification must not load the old document's fields.
-  const created=await fetch(base+'/api/certifications',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields:{...Object.fromEntries(['client','project','address','location_area','statement_of_compliance','australian_standards','ncc_clauses','approved_design','additional_standards','other_references','exclusions','materials_manufacturers','fire_resistance_level','name','position','qualification','accreditation'].map(key=>[key,'N/A'])),client:'Old saved client',project:'Old saved project',statement_of_compliance:'Old saved statement',name:'Upgrade signer'},request_id:randomUUID()})});
-  assert.equal(created.status,201);const old=await created.json();
+  const oldFields={...Object.fromEntries(['client','project','address','location_area','statement_of_compliance','australian_standards','ncc_clauses','approved_design','additional_standards','other_references','exclusions','materials_manufacturers','fire_resistance_level','name','position','qualification','accreditation'].map(key=>[key,'N/A'])),client:'Old saved client',project:'Old saved project',statement_of_compliance:'Old saved statement',name:'Upgrade signer'};
+  // Seed historical global data directly in private fixture storage. New
+  // unscoped Certificate API creation is intentionally prohibited now.
+  const seeded=spawnSync(process.env.CEASEFIRE_PYTHON||'python',['-c',
+    'import json,sys; from pathlib import Path; from estimator.storage import Store; from estimator.certification import CertificationService; print(json.dumps(CertificationService(Store(Path(sys.argv[1]))).create(json.loads(sys.argv[2]))))',
+    path.join(info.directory,'qa.sqlite3'),JSON.stringify(oldFields)],{cwd:root,windowsHide:true,encoding:'utf8'});
+  assert.equal(seeded.status,0,seeded.stderr);const old=JSON.parse(seeded.stdout);
   const preferencesResponse=await fetch(base+'/api/certifications/defaults'),preferences=await preferencesResponse.json();
   const savedPreferences=await fetch(base+'/api/certifications/defaults',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields:{name:'Upgrade signer',position:'',qualification:'',accreditation:''},expected_version:preferences.version})});
   assert.equal(savedPreferences.status,200);

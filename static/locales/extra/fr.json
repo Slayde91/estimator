@@ -2971,5 +2971,19 @@
   "View Revisions ({0})": "Voir les révisions ({0})",
   "Revision history": "Historique des révisions",
   "Close revision history": "Fermer l’historique des révisions",
-  "Insert signature": "Insérer la signature"
+  "Insert signature": "Insérer la signature",
+  "Create PO": "Créer un bon de commande",
+  "Save this Work Order before creating a Purchase Order.": "Enregistrez cet ordre de travail avant de créer un bon de commande.",
+  "Enter supplier prices before issuing this Purchase Order.": "Saisissez les prix du fournisseur avant d’émettre ce bon de commande.",
+  "The selected estimate changed. Select it again to refresh its schedule.": "L’estimation sélectionnée a changé. Sélectionnez-la à nouveau pour actualiser son bordereau.",
+  "The schedule could not be loaded. Retry to view its rows.": "Le bordereau n’a pas pu être chargé. Réessayez pour afficher ses lignes.",
+  "Expand to load the complete schedule.": "Développez pour charger le bordereau complet.",
+  "Retry loading schedule": "Réessayer de charger le bordereau",
+  "Loading schedule…": "Chargement du bordereau…",
+  "Select a saved Work Order from this project.": "Sélectionnez un ordre de travail enregistré dans ce projet.",
+  "Choose Labour, Materials, Services or Other for the type of expense.": "Choisissez Main-d’œuvre, Matériaux, Réseaux ou Autre comme type de dépense.",
+  "Choose whether to include the complete scope tables.": "Choisissez d’inclure ou non les tableaux complets du périmètre.",
+  "Create or load a project before creating documents.": "Créez ou chargez un projet avant de créer des documents.",
+  "The project was saved, but its document workspace changed. Reload the saved project before creating documents.": "Le projet a été enregistré, mais son espace de documents a changé. Rechargez le projet enregistré avant de créer des documents.",
+  "Choose a valid linked estimate preview.": "Choisissez un aperçu valide d’une estimation liée."
 }

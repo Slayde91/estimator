@@ -2971,5 +2971,19 @@
   "View Revisions ({0})": "সংশোধন দেখুন ({0})",
   "Revision history": "সংশোধনের ইতিহাস",
   "Close revision history": "সংশোধনের ইতিহাস বন্ধ করুন",
-  "Insert signature": "স্বাক্ষর সন্নিবেশ করুন"
+  "Insert signature": "স্বাক্ষর সন্নিবেশ করুন",
+  "Create PO": "ক্রয় আদেশ তৈরি করুন",
+  "Save this Work Order before creating a Purchase Order.": "ক্রয় আদেশ তৈরি করার আগে এই কাজের আদেশটি সংরক্ষণ করুন।",
+  "Enter supplier prices before issuing this Purchase Order.": "এই ক্রয় আদেশ জারি করার আগে সরবরাহকারীর মূল্য লিখুন।",
+  "The selected estimate changed. Select it again to refresh its schedule.": "নির্বাচিত প্রাক্কলনটি পরিবর্তিত হয়েছে। এর তালিকা হালনাগাদ করতে আবার নির্বাচন করুন।",
+  "The schedule could not be loaded. Retry to view its rows.": "তালিকা লোড করা যায়নি। এর সারিগুলো দেখতে আবার চেষ্টা করুন।",
+  "Expand to load the complete schedule.": "সম্পূর্ণ তালিকা লোড করতে প্রসারিত করুন।",
+  "Retry loading schedule": "তালিকা আবার লোড করুন",
+  "Loading schedule…": "তালিকা লোড হচ্ছে…",
+  "Select a saved Work Order from this project.": "এই প্রকল্প থেকে একটি সংরক্ষিত কাজের আদেশ নির্বাচন করুন।",
+  "Choose Labour, Materials, Services or Other for the type of expense.": "ব্যয়ের ধরন হিসেবে শ্রম, উপকরণসমূহ, পরিষেবাসমূহ বা অন্যান্য নির্বাচন করুন।",
+  "Choose whether to include the complete scope tables.": "কাজের পরিধির সম্পূর্ণ সারণিগুলো অন্তর্ভুক্ত করা হবে কি না নির্বাচন করুন।",
+  "Create or load a project before creating documents.": "নথি তৈরি করার আগে একটি প্রকল্প তৈরি বা লোড করুন।",
+  "The project was saved, but its document workspace changed. Reload the saved project before creating documents.": "প্রকল্পটি সংরক্ষিত হয়েছে, কিন্তু এর নথির কর্মক্ষেত্র পরিবর্তিত হয়েছে। নথি তৈরি করার আগে সংরক্ষিত প্রকল্পটি আবার লোড করুন।",
+  "Choose a valid linked estimate preview.": "সংযুক্ত প্রাক্কলনের একটি বৈধ পূর্বরূপ নির্বাচন করুন।"
 }

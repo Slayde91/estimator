@@ -413,6 +413,8 @@ class SwmsDocuments:
                 self._version(previous, payload['version'])
             elif type(payload['version']) is not int or payload['version'] != 0 or db.execute('SELECT 1 FROM swms_audit WHERE workspace=? AND id=?', (workspace, identity)).fetchone():
                 raise SwmsConflict('This SWMS is unavailable. Create a new SWMS instead of retrying its original save.')
+            if previous is None:
+                self.certifications.require_created_project(workspace)
             now = datetime.now(timezone.utc).isoformat()
             document = {'id': identity, 'version': previous['version'] + 1 if previous else 1,
                         'reference': self.numbering.assign(db, 'swms', project + ':' + identity, (previous or {}).get('reference', '')),

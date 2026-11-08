@@ -1,5 +1,6 @@
 // Disposable server coverage for durable shared rates and protected quote snapshots.
-const {chromium, expect} = require('@playwright/test');
+const {chromium, expect:baseExpect} = require('@playwright/test');
+const expect=baseExpect.configure({timeout:30000});
 const {spawn} = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -42,6 +43,8 @@ async function discardQuote(host) {
   page.on('pageerror',error=>errors.push(error.message));
   await page.goto(`http://127.0.0.1:${info.port}/`); await idle();
   await fillProjectDetails(page,{client:'Durable rates account','site-address':'7 Rate Street'});
+  const createdResponse=page.waitForResponse(response=>response.url().endsWith('/api/project/save-as'));
+  await clickProjectControl(page,'Save'); assert.equal((await createdResponse).status(),200); await idle();
   await page.getByRole('button',{name:'Estimates',exact:true}).click();
   await page.locator('#project-estimate-quote').click();
   const quote=page.locator('#commercial-quote-root');
@@ -78,7 +81,7 @@ async function discardQuote(host) {
   assert.equal(await quote.locator('.commercial-totals').innerText(),originalTotals);
   checks.push('custom-row trash stays in description cell, removes its amount and preserves generated estimate line');
   await saveQuote(quote);
-  const savedResponse=page.waitForResponse(response=>response.url().endsWith('/api/project/save-as'));
+  const savedResponse=page.waitForResponse(response=>response.url().endsWith('/api/project/save'));
   await clickProjectControl(page,'Save'); assert.equal((await savedResponse).status(),200); await idle();
   const originalFile=fs.readFileSync(info.project,'utf8');
   await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
@@ -170,11 +173,15 @@ async function discardQuote(host) {
   if (await prompt.isVisible()) await prompt.getByRole('button',{name:'New project',exact:true}).click();
   await idle();
   assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),null);
+  const newSaved=page.waitForResponse(response=>response.url().endsWith('/api/project/save-as'));
+  await clickProjectControl(page,'Save'); assert.equal((await newSaved).status(),200); await idle();
   await page.getByRole('button',{name:'Estimates',exact:true}).click();
   await page.locator('#project-estimate-quote').click();
   await expect(ordinary).toHaveValue('142'); await expect(quote.getByLabel('Time and a half',{exact:true})).toHaveValue('177');
   await discardQuote(quote);
   await page.reload(); await idle();
+  await openProjectSection(page,'quotes');await page.locator('#load-project').click();
+  await page.locator('#discard-dialog').getByRole('button',{name:'Load Project',exact:true}).click();await idle();
   await openProjectSection(page,'quote');
   await quote.getByRole('button',{name:'New Quote',exact:true}).click();
   for (const [key,value] of Object.entries(finalProfile.rates)) await expect(quote.locator(`[data-rate-key="${key}"]`)).toHaveValue(value);

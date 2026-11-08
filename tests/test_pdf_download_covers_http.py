@@ -22,6 +22,7 @@ class PdfDownloadCoversHTTPTests(unittest.TestCase):
     tearDown=helpers.CertificationHTTPTests.tearDown
     request=helpers.CertificationHTTPTests.request
     json=helpers.CertificationHTTPTests.json
+    created_workspace=helpers.CertificationHTTPTests.created_workspace
 
     def test_cover_api_methods_origins_validation_cas_and_persistent_clear(self):
         items=self.json('GET','/api/pdf-covers')['items']
@@ -42,6 +43,7 @@ class PdfDownloadCoversHTTPTests(unittest.TestCase):
     def test_all_eighteen_authored_pdf_kinds_get_main_specific_content_in_order(self):
         self.json('POST','/api/company-settings',{**DEFAULTS,'cover_pdf':cover('COMPANY MAIN'),'cover_pdf_name':'Main.pdf'})
         for kind,_ in KINDS:self.json('POST','/api/pdf-covers/'+kind,{'cover_pdf':cover('SPECIFIC '+kind),'cover_pdf_name':kind+'.pdf','expected_version':1})
+        scope='?workspace='+self.created_workspace()['workspace_id']
         body=pdf('BODY CONTENT');session=self.json('POST','/api/takeoffs/sessions',{})['session_id'];covered=set()
         cases=[('estimate','/api/quote-report',{'inputs':{}}),
                ('full_schedule','/api/project/full-schedule.pdf',{}),
@@ -75,8 +77,8 @@ class PdfDownloadCoversHTTPTests(unittest.TestCase):
                     self.assertEqual(status,200,payload)
                     self.assertEqual([t.strip() for t in texts(payload)],['COMPANY MAIN','SPECIFIC '+kind,'BODY CONTENT'])
                     covered.add(kind)
-            document=self.json('POST','/api/certifications',{'fields':self.fields},expected=201)
-            generated=self.json('POST','/api/certifications/'+document['id']+'/revisions',{'fields':self.fields,'expected_version':1,'request_id':str(uuid.uuid4())},expected=201)
+            document=self.json('POST','/api/certifications'+scope,{'fields':self.fields},expected=201)
+            generated=self.json('POST','/api/certifications/'+document['id']+'/revisions'+scope,{'fields':self.fields,'expected_version':1,'request_id':str(uuid.uuid4())},expected=201)
             self.assertEqual([t.strip() for t in texts(self.request('GET',generated['revision']['pdf_url'])[2])],['COMPANY MAIN','SPECIFIC certification','BODY CONTENT'])
             covered.add('certification')
         self.assertEqual(covered,{kind for kind,_ in KINDS})
@@ -96,6 +98,7 @@ class PdfDownloadCoversHTTPTests(unittest.TestCase):
         self.assertEqual([t.strip() for t in texts(saved['pdf'])],['OLD MAIN','OLD SPECIFIC','BODY'])
 
     def test_signature_default_http_round_trip_conflicts_and_generation_snapshot(self):
+        scope='?workspace='+self.created_workspace()['workspace_id']
         initial=self.json('GET','/api/certifications/defaults');image=signature()
         request={**initial,'expected_version':initial['version'],'signature_image':image,'signature_name':'Signed.png'}
         request.pop('version')
@@ -105,11 +108,11 @@ class PdfDownloadCoversHTTPTests(unittest.TestCase):
         self.json('POST','/api/certifications/defaults',{**request,'signature_image':None,'signature_name':''},expected=409)
         self.json('POST','/api/certifications/defaults',{**request,'signature_image':'bad','expected_version':2},expected=400)
         selected={'cover_pdf':None,'cover_pdf_name':'','scopes':[],'signature_image':image,'signature_name':'Signed.png'}
-        document=self.json('POST','/api/certifications',{'fields':self.fields,'options':selected},expected=201)
+        document=self.json('POST','/api/certifications'+scope,{'fields':self.fields,'options':selected},expected=201)
         with patch('estimator.certification_report.render_certificate_pdf',return_value=pdf('SIGNED')) as render:
-            generated=self.json('POST','/api/certifications/'+document['id']+'/revisions',{'fields':self.fields,'options':selected,'expected_version':1,'request_id':str(uuid.uuid4())},expected=201)
+            generated=self.json('POST','/api/certifications/'+document['id']+'/revisions'+scope,{'fields':self.fields,'options':selected,'expected_version':1,'request_id':str(uuid.uuid4())},expected=201)
         self.assertEqual(render.call_args.kwargs['signature'],image)
         first=self.request('GET',generated['revision']['pdf_url'])[2]
         self.json('POST','/api/certifications/defaults',{**request,'signature_image':None,'signature_name':'','expected_version':2})
         self.assertEqual(self.request('GET',generated['revision']['pdf_url'])[2],first)
-        self.assertEqual(self.json('GET','/api/certifications/'+document['id'])['options'],selected)
+        self.assertEqual(self.json('GET','/api/certifications/'+document['id']+scope)['options'],selected)

@@ -22,7 +22,7 @@ async function settings(){await page.getByRole('button',{name:'Settings',exact:t
   await settings();
   const first={name:'Signer <literal> One',position:'Site Manager',qualification:'Cert 2\nAdditional qualification',accreditation:'ACC-123'};
   for(const [name,value]of Object.entries(first))await page.locator('#personal-'+name).fill(value);
-  await page.locator('#personal-details-save').click();await expect(page.locator('#personal-details-status')).toContainText('saved for future certificates');await idle();
+  await page.locator('#personal-details-save').click();await expect(page.locator('#personal-details-status')).toContainText('copied to a certificate only when it is signed');await idle();
   const saved=await defaults();assert.deepEqual(saved.fields,first);assert.equal(saved.signature_image,signature);assert.equal(saved.signature_name,'Saved signer.png');
   checks.push('Personal text saves through existing signer-default API without changing signature artwork');
   await openProjectSection(page,'certification');await idle();
@@ -34,7 +34,7 @@ async function settings(){await page.getByRole('button',{name:'Settings',exact:t
   const creation=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/certifications'&&r.request().method()==='POST');
   await page.locator('#certification-save').click();const document=await (await creation).json();await idle();
   assert.ok(document.id);checks.push('New certificate starts blank; explicit signing fills empty fields from saved Personal Details');
-  await settings();await page.locator('#personal-name').fill('Updated future signer');await page.locator('#personal-details-save').click();await expect(page.locator('#personal-details-status')).toContainText('saved for future certificates');await idle();
+  await settings();await page.locator('#personal-name').fill('Updated future signer');await page.locator('#personal-details-save').click();await expect(page.locator('#personal-details-status')).toContainText('copied to a certificate only when it is signed');await idle();
   await openProjectSection(page,'certification');await idle();await expect(page.locator('#certification-name')).toHaveValue(first.name);
   const workspace=await page.evaluate(()=>window.CeasefireCertification.sessionId());
   const old=await (await page.request.get(base+'/api/certifications/'+document.id+'?workspace='+workspace)).json();assert.equal(old.fields.name,first.name);
@@ -50,7 +50,7 @@ async function settings(){await page.getByRole('button',{name:'Settings',exact:t
   await page.locator('#personal-details-save').click();await expect(page.locator('#personal-details-status')).toContainText('changed in another window');
   await page.locator('#personal-details-save').click();const dialog=page.getByRole('dialog',{name:'Personal details changed',exact:true});await dialog.getByRole('button',{name:'Keep editing',exact:true}).click();
   assert.equal((await defaults()).fields.name,'Other window signer');await expect(page.locator('#personal-name')).toHaveValue('Keep my personal draft');
-  await page.locator('#personal-details-save').click();await dialog.getByRole('button',{name:'Use entered details',exact:true}).click();await expect(page.locator('#personal-details-status')).toContainText('saved for future certificates');
+  await page.locator('#personal-details-save').click();await dialog.getByRole('button',{name:'Use entered details',exact:true}).click();await expect(page.locator('#personal-details-status')).toContainText('copied to a certificate only when it is signed');
   assert.equal((await defaults()).fields.name,'Keep my personal draft');assert.equal((await defaults()).signature_image,signature);
   checks.push('Concurrent defaults conflict preserves entries, supports cancellation, and requires explicit approval');
   await page.locator('#personal-details-heading').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,'personal-details.png')});

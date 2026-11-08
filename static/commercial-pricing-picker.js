@@ -9,7 +9,7 @@
   const price = new Intl.NumberFormat('en-AU', {style:'currency', currency:'AUD', minimumFractionDigits:2, maximumFractionDigits:6});
   const attributes = ['role', 'aria-controls', 'aria-autocomplete', 'aria-expanded', 'aria-activedescendant', 'autocomplete', 'placeholder'];
 
-  function attach(input, {onSelect, isCurrent = () => true} = {}) {
+  function attach(input, {onSelect, searchItems, isCurrent = () => true} = {}) {
     if (!input || typeof onSelect !== 'function') return () => {};
     const original = new Map(attributes.map(name => [name, input.getAttribute(name)]));
     const popup = document.createElement('div'), list = document.createElement('div'), status = document.createElement('p');
@@ -84,10 +84,10 @@
       if (!current() || document.activeElement !== input || ticket !== captured || input.value !== query) return;
       const request = new AbortController(); controller = request;
       try {
-        const response = await fetch('/api/commercial/pricing?search=' + encodeURIComponent(query), {cache:'no-store', signal:request.signal});
-        const data = await response.json();
+        const response = searchItems ? null : await fetch('/api/commercial/pricing?search=' + encodeURIComponent(query), {cache:'no-store', signal:request.signal});
+        const data = searchItems ? {items:await searchItems(query)} : await response.json();
         if (!current() || document.activeElement !== input || ticket !== captured || input.value !== query) return;
-        if (!response.ok || !Array.isArray(data.items)) throw Error('Pricing request failed');
+        if (response && !response.ok || !Array.isArray(data.items)) throw Error('Pricing request failed');
         const items = data.items.slice(0,30).filter(item => item && typeof item.id === 'string' && typeof item.name === 'string'
           && typeof item.description === 'string' && typeof item.unit_price === 'number' && Number.isFinite(item.unit_price) && Math.abs(item.unit_price) <= 1000000000);
         render(items, query);
@@ -100,6 +100,7 @@
       close();
       if (!current() || document.activeElement !== input) return;
       const query = input.value, captured = ticket;
+      if(!query.trim())return;
       list.replaceChildren();
       if (query.length > 500) { uiText(status, 'Type up to 500 characters to search Pricing Library.'); show(); return; }
       uiText(status, 'Searching Pricing Library…'); show();

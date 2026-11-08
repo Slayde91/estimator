@@ -1733,7 +1733,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   const factorDocumentRoot=element();
   byId('calculator-document-toggle').closest=selector=>selector==='.calculator-document-menu'?factorDocumentRoot:null;
   byId('calculator-document-menu').hidden=false;byId('calculator-document-toggle').setAttribute('aria-expanded','true');
-  await audit.selectCalculator('steel_factors');assert.equal(audit.current(),entry);assert.equal(audit.state.entries.size,1);assert.equal(audit.state.current,'steel_vermiculite');assert.equal(byId('calculator-title').textContent,'Factor Calcs');assert.equal(byId('calculator-pages').hidden,true);assert.equal(virtualButtons().length,2);assert.ok(virtualPanels().every(panel=>panel.hidden));assert.equal(renderedControls().length,2);assert.equal(virtualButtons()[1].textContent,'HOLLOW SECTIONS');assert.equal(audit.sourceDisplayText('Original hollow title',entry,'A356'),'HOLLOW SECTIONS');
+  await audit.selectCalculator('steel_factors');assert.equal(audit.current(),entry);assert.equal(audit.state.entries.size,1);assert.equal(audit.state.current,'steel_vermiculite');assert.equal(byId('calculator-title').textContent,'Factor Calcs');assert.equal(byId('calculator-workspace').dataset.factorView,'true');assert.equal(byId('calculator-pages').hidden,true);assert.equal(virtualButtons().length,2);assert.ok(virtualPanels().every(panel=>panel.hidden));assert.equal(renderedControls().length,2);assert.equal(virtualButtons()[1].textContent,'HOLLOW SECTIONS');assert.equal(audit.sourceDisplayText('Original hollow title',entry,'A356'),'HOLLOW SECTIONS');
   assert.equal(factorDocumentRoot.hidden,true);assert.equal(byId('calculator-document-menu').hidden,true);assert.equal(byId('calculator-document-toggle').getAttribute('aria-expanded'),'false');
   assert.ok(!virtualOutputs().includes('A1'));for(const address of ['A9','A31','A270','D42'])assert.ok(!virtualOutputs().includes(address));
   await virtualButtons()[0].emit('click');const virtualFactor=renderedControls().find(control=>control.dataset.calculatorCell==='D342');
@@ -1756,7 +1756,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   const oldVirtualRun=audit.selectCalculator('steel_factors'), newestVirtualRun=audit.selectCalculator('steel_vermiculite');
   assert.equal(virtualCalls,1);oldVirtual.resolve(virtualResult({SETTINGS:{D13:-99}}));await Promise.all([oldVirtualRun,newestVirtualRun]);
   assert.equal(virtualCalls,2);const freshVirtualResult=entry.result;
-  assert.equal(entry.page,'SETTINGS');assert.equal(entry.renderedPage,'SETTINGS');assert.equal(entry.result,freshVirtualResult);assert.equal(virtualButtons().length,6);assert.equal(entry.inputs.SETTINGS.D13,3.45678912);
+  assert.equal(byId('calculator-workspace').dataset.factorView,'false');assert.equal(entry.page,'SETTINGS');assert.equal(entry.renderedPage,'SETTINGS');assert.equal(entry.result,freshVirtualResult);assert.equal(virtualButtons().length,6);assert.equal(entry.inputs.SETTINGS.D13,3.45678912);
   const oldVirtualError=deferred();virtualCalls=0;
   entry.navigationCache=null;
   audit.setRequest(async(path,options)=>++virtualCalls===1?oldVirtualError.promise:virtualResult(JSON.parse(options.body).inputs));

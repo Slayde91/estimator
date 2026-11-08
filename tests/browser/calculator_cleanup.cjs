@@ -216,6 +216,19 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
  const filled=await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());
  await tab('SCHEDULE');await tab('BOARD SUMMARY');assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot()),filled);
  await page.screenshot({path:path.join(output,'net-steel-double-layer.png'),fullPage:true});assert.deepEqual(errors,[]);
+ // Factor navigation keeps the worksheet and live status, without a duplicate visible title stripe.
+ await chooseCalculator(page,'Factor Calcs');await idle();await page.waitForFunction(()=>!window.CeasefireActivity?.active);
+ await expect(page.locator('#calculator-title')).toHaveText('Factor Calcs');
+ const factorStripe=await page.locator('#calculator-workspace>.calculator-sheet-heading').boundingBox();
+ assert.ok(factorStripe.width<=1&&factorStripe.height<=1,'Factor Calcs duplicate stripe takes no visual layout space');
+ await expect(page.locator('#calculator-calculation-status')).toHaveAttribute('role','status');
+ await expect(page.locator('#calculator-grid')).toBeVisible();
+ const factorChoice=page.locator('[data-calculator-settings-section]').first();await expect(factorChoice).toBeVisible();await factorChoice.click();
+ await expect(page.locator('#calculator-grid [data-calculator-cell]').first()).toBeVisible();
+ await page.screenshot({path:path.join(output,'factor-without-stripe.png'),fullPage:true});
+ await chooseCalculator(page,'Steel (spray)');await idle();
+ const ordinaryStripe=await page.locator('#calculator-workspace>.calculator-sheet-heading').boundingBox();
+ assert.ok(ordinaryStripe.width>100&&ordinaryStripe.height>20,'ordinary worksheet heading restores after Factor Calcs');
  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,unchangedInputs:true,requestedSprayInstructions:startChecks,requestedDuctNotes:noteChecks,
    requestedIntumescentSettings:intumSettingsChecks,intumescentSummary:{columns:15,allFullHeadingsRetained:true,summaryLayout,narrowLayout,summaryLocales,valuesUnchanged:true},errors},null,2));console.log(`PASS calculator cleanup: ${output}`);
 })().catch(async error=>{console.error(error);console.error(logs.slice(-3000));if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();server.kill();});

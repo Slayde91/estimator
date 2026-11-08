@@ -290,13 +290,18 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
     held.resolve(h.serverError(503,'Old project settings failure'));await signing;
     assert.equal(h.byId('certification-status').textContent,status);assert.equal(h.byId('certification-name').value,'');assert.equal(h.byId('certification-signature-preview').hidden,true);
   });
-  await check('Clear signature and Delete signer details act independently without editing Settings',async h=>{
+  await check('Clear removes the signature and all signer details without editing Settings',async h=>{
     h.setDefaults({fields:{name:'Profile',position:'Role',qualification:'Qualification',accreditation:'ACC'},version:2});const profile=h.defaults();
     await h.saveSignature();await h.byId('certification-signature-clear').emit('click');
-    assert.equal(h.byId('certification-signature-preview').hidden,true);assert.equal(h.byId('certification-name').value,'Profile');
-    await h.saveSignature();await h.byId('certification-signer-delete').emit('click');
-    assert.equal(h.byId('certification-signature-preview').hidden,false);
+    assert.equal(h.byId('certification-signature-preview').hidden,true);
     for(const key of ['name','position','qualification','accreditation'])assert.equal(h.byId('certification-'+key).value,'');
+    assert.equal(h.byId('certification-signature-clear').disabled,true);
+    h.field('qualification','Unsigned manual detail');
+    assert.equal(h.byId('certification-signature-clear').disabled,false);
+    await h.byId('certification-signature-clear').emit('click');
+    assert.equal(h.byId('certification-qualification').value,'');
+    await h.saveSignature();
+    for(const [key,value]of Object.entries(profile.fields))assert.equal(h.byId('certification-'+key).value,value);
     assert.deepEqual(h.defaults(),profile);
   });
   await check('Scope presets use exact literal lines, stable deduplicated unions and preserve manual additions',async h=>{
@@ -542,7 +547,7 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
   assert.ok(!html.includes('id="certification-new"'));assert.ok(!html.includes('id="certification-reload"'));
   assert.ok(!html.includes('id="certification-legacy-open"'));assert.ok(!html.includes('id="certification-legacy-dialog"'));
   assert.ok(html.includes('<details id="certification-scopes"'));assert.ok(!html.includes('id="certification-cover-pdf"'));
-  assert.ok(!html.includes('id="certification-signature-image"'));assert.ok(!html.includes('id="certification-signature-canvas"'));assert.ok(html.includes('id="certification-signature-use"'));assert.ok(html.includes('id="cover-sheets-settings"'));
+  assert.ok(!html.includes('id="certification-signature-image"'));assert.ok(!html.includes('id="certification-signature-canvas"'));assert.ok(html.includes('id="certification-signature-use"'));assert.ok(!html.includes('id="certification-signer-delete"'));assert.ok(html.includes('id="cover-sheets-settings"'));
   for(const key of ['approved_design','additional_standards','other_references','exclusions','materials_manufacturers','fire_resistance_level','name','position','qualification','accreditation'])assert.match(html,new RegExp('id="certification-'+key+'" name="'+key+'" rows="1"'));
   for(const key of fieldNames)assert.match(html,new RegExp('<textarea id="certification-'+key+'"[^>]* required>'));
   const form=html.slice(html.indexOf('<form id="certification-form">'),html.indexOf('</form>',html.indexOf('<form id="certification-form">')));

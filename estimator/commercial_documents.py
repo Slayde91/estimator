@@ -47,6 +47,8 @@ RATE_DEFAULTS = {'ordinary_time': '130', 'time_and_half': '160', 'double_time': 
                  'site_remobilisation': '1000', 'access_equipment_transport': '400',
                  'equipment': '20', 'materials': '20'}
 PURCHASE_EXPENSE_TYPES = ('Labour', 'Materials', 'Services', 'Other')
+PURCHASE_DELIVERY_METHODS = ('Delivery', 'Pickup')
+DETAIL_OVERRIDE_KEYS = ('client', 'contact', 'phone', 'email', 'site_address')
 RATE_INTRODUCTION = ('If additional work, or rectification work that is not the result of defective workmanship, '
                      'is directed by the client or their representatives, either verbally or in writing, the '
                      'following rates shall apply when calculating the value of such work:')
@@ -64,6 +66,20 @@ def project_document_details(value):
         raise ValidationError('Include valid Project details for this document.')
     details = validate_quote_details({key: value.get(key, '') for key in QUOTE_DETAIL_LIMITS})
     return {document_key: details[project_key] for document_key, project_key in PROJECT_DETAIL_FIELDS.items()}
+
+
+def detail_override_keys(value):
+    """Explicit document-only edits never override the canonical Project number."""
+    if (not isinstance(value, list) or len(value) > len(DETAIL_OVERRIDE_KEYS)
+            or any(not isinstance(key, str) or key not in DETAIL_OVERRIDE_KEYS for key in value)
+            or len(set(value)) != len(value)):
+        raise ValidationError('Choose valid document detail overrides.')
+    return [key for key in DETAIL_OVERRIDE_KEYS if key in value]
+
+
+def apply_project_document_details(fields, details):
+    overrides = detail_override_keys(fields.get('detail_overrides', []))
+    fields['details'].update({key: value for key, value in details.items() if key not in overrides})
 
 
 def validate_rate_schedule(value):
@@ -280,9 +296,11 @@ def default_fields(kind, details=None, company=None, *, rates=None):
 
 
 def validate_fields(value, *, kind=None):
-    if not isinstance(value, dict) or set(value) - {'rate_schedule', 'notes', 'signatures', 'files', 'work_tracking'} != FIELD_KEYS:
+    if not isinstance(value, dict) or set(value) - {'rate_schedule', 'notes', 'signatures', 'files', 'work_tracking', 'detail_overrides'} != FIELD_KEYS:
         raise ValidationError('Commercial document fields use an unsupported format.')
     result = {'title': _text(value['title'], 'Title', 300)}
+    if 'detail_overrides' in value:
+        result['detail_overrides'] = detail_override_keys(value['detail_overrides'])
     result['rate_schedule'] = validate_rate_schedule(value.get('rate_schedule', default_rate_schedule()))
     files = validate_files(value.get('files', []))
     if files:
@@ -519,7 +537,8 @@ def commercial_cards(snapshot):
                           'updated_at': _text(document['updated_at'], 'Last updated', 100),
                           'last_number': _text(document['last_number'], 'Document number', 100),
                           'reference': _text(document.get('reference', ''), 'Reference', 300),
-                          'fields': {'title': _text(fields['title'], 'Document title', 300), 'order': order, 'details': details}})
+                          'fields': {'title': _text(fields['title'], 'Document title', 300), 'order': order, 'details': details,
+                                     **({'detail_overrides':detail_override_keys(fields['detail_overrides'])} if 'detail_overrides' in fields else {})}})
         except (TypeError, KeyError, AttributeError) as error:
             raise ValidationError('Invalid saved commercial document details.') from error
     return cards
@@ -542,6 +561,7 @@ def _stored_document(value):
 class CommercialDocuments:
     def __init__(self, certifications, root=None, renderer=None):
         self.certifications = certifications
+        self.covers = getattr(getattr(certifications, 'legacy', None), 'covers', None)
         self.root = _directory(Path(root) if root else certifications.root.parent / 'commercial-documents', create=True)
         self.numbering = getattr(certifications, 'numbering', None) or DocumentNumbers(self.root.parent / 'document-numbers.sqlite3')
         self.path = self.root / 'documents.sqlite3'
@@ -850,6 +870,9 @@ class CommercialDocuments:
             if not order['estimated_cost']:
                 order['estimated_cost'] = self._linked_quote_total(db, workspace, project, quote['id'], quote_number)
         elif kind == 'purchase_order':
+            method = order['delivery_method']
+            if method and method not in PURCHASE_DELIVERY_METHODS and (not prior or method != prior['delivery_method']):
+                raise ValidationError('Choose Delivery or Pickup for the delivery method.')
             expense = order['expense_type']
             if expense and expense not in PURCHASE_EXPENSE_TYPES and (not prior or expense != prior['expense_type']):
                 raise ValidationError('Choose Labour, Materials, Services or Other for the type of expense.')
@@ -1055,7 +1078,10 @@ class CommercialDocuments:
             files = document['fields'].get('files', [])
             if files:
                 render_options['append_files'] = lambda writer: self.files.append_to(writer, project, files)
+            cover = self.covers.get(kind) if self.covers else None
             pdf = renderer(document, label, **render_options)
+            from .pdf_cover import prepend_cover_pdf
+            pdf = prepend_cover_pdf(pdf, company, cover)
             if not isinstance(pdf, bytes) or not pdf.startswith(b'%PDF-') or len(pdf) > MAX_PDF_BYTES:
                 raise ValidationError('Generated commercial PDF is invalid or exceeds 64 MiB.')
             document['last_number'] = label

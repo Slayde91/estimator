@@ -69,7 +69,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
 
   await openProjectSection(page,'documentation');
   const coverRow=kind=>page.locator('#documentation-pdf-rows tr[data-cover-kind="'+kind+'"]');
-  await expect(page.locator('#documentation-pdf-rows tr[data-cover-kind]')).toHaveCount(10);
+  await expect(page.locator('#documentation-pdf-rows tr[data-cover-kind]')).toHaveCount(18);
   const kindsResponse=await fetch(base+'/api/pdf-covers'),kinds=await kindsResponse.json();
   assert.ok(kinds.items.every(item=>!Object.hasOwn(item,'cover_pdf')&&typeof item.has_cover==='boolean'));
   await expect(coverRow('certification').getByRole('button',{name:'Save cover sheet for Certification',exact:true})).toHaveCount(0);
@@ -80,6 +80,16 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await coverRow('takeoff_markups').locator('input').setInputFiles(info.board_fixture);
   await clickProjectControl(page,'Save');
   await expect(coverRow('takeoff_markups')).toContainText('Cover sheet saved.');
+  const additionalCoverKinds=['steel_vermiculite_product_summary','steel_intumescent_product_summary','steel_board_product_summary','ductwork_product_summary','swms','quote','work_order','purchase_order'];
+  const additionalBefore=await (await fetch(base+'/api/pdf-covers')).json();
+  for(const kind of additionalCoverKinds){await expect(coverRow(kind).locator('input')).toHaveAttribute('type','file');await coverRow(kind).locator('input').setInputFiles(info.fixture);await expect(coverRow(kind)).toContainText('Unsaved changes');}
+  const additionalStaged=await (await fetch(base+'/api/pdf-covers')).json();
+  for(const kind of additionalCoverKinds)assert.deepEqual(additionalStaged.items.find(row=>row.kind===kind),additionalBefore.items.find(row=>row.kind===kind),'Uploads remain drafts until main Save');
+  await clickProjectControl(page,'Save');
+  for(const kind of additionalCoverKinds)await expect(coverRow(kind)).toContainText('Cover sheet saved.');
+  const additionalSaved=await (await fetch(base+'/api/pdf-covers')).json();
+  for(const kind of additionalCoverKinds){const row=additionalSaved.items.find(row=>row.kind===kind);assert.equal(row.has_cover,true);assert.equal(row.cover_pdf_name,'synthetic-drawings.pdf');}
+  evidence.checks.push('All four product summaries and all four issued document kinds expose independent covers that remain drafts until main Save');
   const beforeConflict=await (await fetch(base+'/api/pdf-covers')).json(),certificationCover=beforeConflict.items.find(item=>item.kind==='certification');
   const otherWindow=await fetch(base+'/api/pdf-covers/certification',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cover_pdf:'data:application/pdf;base64,'+fs.readFileSync(info.fixture).toString('base64'),cover_pdf_name:'Other window cover.pdf',expected_version:certificationCover.version})});
   assert.equal(otherWindow.status,200);await coverRow('certification').locator('input').setInputFiles(info.fixture);
@@ -93,7 +103,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   const initialCovers=await (await fetch(base+'/api/pdf-covers')).json();
   assert.equal(initialCovers.items.find(item=>item.kind==='certification').has_cover,true);
   assert.equal(initialCovers.items.find(item=>item.kind==='takeoff_markups').has_cover,true);
-  evidence.checks.push('10 independent Documentation cover rows','saved cover metadata excludes PDF bytes','main and specific covers saved independently','stale cover Save blocks silent overwrite','cancelled conflicted main Save retains selected file','explicit approved conflict retry uses current version');
+  evidence.checks.push('18 independent Documentation cover rows','saved cover metadata excludes PDF bytes','main and specific covers saved independently','stale cover Save blocks silent overwrite','cancelled conflicted main Save retains selected file','explicit approved conflict retry uses current version');
   await certification();
 
   await page.locator('#certification-client').fill('Custom certificate client');
@@ -146,10 +156,10 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   assert.equal(signatureBounds.y+signatureBounds.height/2,buttonBounds.y+buttonBounds.height/2);
   const signatureScreenshot=path.join(output,'certification-signature-controls.png');await page.locator('.certification-signature').screenshot({path:signatureScreenshot});evidence.screenshots.push(signatureScreenshot);
   async function insertAgain(){await page.locator('#certification-signature-use').click();const drawing=page.getByRole('dialog',{name:'Signatures',exact:true}),bounds=await drawing.getByLabel('Signature drawing pad').boundingBox();await page.mouse.move(bounds.x+30,bounds.y+60);await page.mouse.down();await page.mouse.move(bounds.x+90,bounds.y+20,{steps:4});await page.mouse.up();await drawing.getByRole('button',{name:'Insert signature',exact:true}).click();await expect(page.locator('#certification-signature-preview')).toBeVisible();}
-  await page.locator('#certification-signature-clear').click();await expect(page.locator('#certification-signature-preview')).toBeHidden();await expect(page.locator('#certification-name')).toHaveValue('Upgrade signer');
-  await insertAgain();
-  await page.locator('#certification-signer-delete').click();await expect(page.locator('#certification-name')).toHaveValue('');await expect(page.locator('#certification-signature-preview')).toBeVisible();
-  await page.locator('#certification-signature-clear').click();await insertAgain();await expect(page.locator('#certification-name')).toHaveValue('Upgrade signer');
+  await expect(page.locator('#certification-signer-delete')).toHaveCount(0);
+  await page.locator('#certification-signature-clear').click();await expect(page.locator('#certification-signature-preview')).toBeHidden();
+  for(const key of ['name','position','qualification','accreditation'])await expect(page.locator('#certification-'+key)).toHaveValue('');
+  await insertAgain();await expect(page.locator('#certification-name')).toHaveValue('Upgrade signer');
   for(const [key,value] of Object.entries({position:'Fixture position',qualification:'Fixture qualification',accreditation:'Fixture accreditation'}))await page.locator('#certification-'+key).fill(value);
   await page.locator('#certification-approved_design').fill('First design line\nSecond design line');
   await page.locator('#certification-save').click();await expect(page.locator('#certification-status')).toContainText('Certification details saved.');
@@ -176,7 +186,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await page.locator('#certification-document').selectOption('__reload__');
   await page.getByRole('button',{name:'Continue without saving',exact:true}).click();
   await expect(page.locator('#certification-approved_design')).toHaveValue('First design line\nSecond design line');
-  evidence.checks.push('new signer fields blank until explicit signature insertion','signing fills empty fields from saved Settings','preview left of independent Clear/Delete controls','document edits never save Personal Details','New starts unsigned and saved document retains its signature','older saved fields remain unchanged','saved document reload through dropdown');
+  evidence.checks.push('new signer fields blank until explicit signature insertion','signing fills empty fields from saved Settings','preview left of signing and combined Clear controls','document edits never save Personal Details','New starts unsigned and saved document retains its signature','older saved fields remain unchanged','saved document reload through dropdown');
   for(const width of [1084,390]){
     await page.setViewportSize({width,height:900});await page.locator('#certification-heading').scrollIntoViewIfNeeded();
     const filename=path.join(output,`certification-form-${width}.png`);await page.screenshot({path:filename,fullPage:true});evidence.screenshots.push(filename);

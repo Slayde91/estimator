@@ -13,6 +13,14 @@ function harness(){
     ['certification',{kind:'certification',label:'Certification',cover_pdf:null,cover_pdf_name:'',version:1}],
     ['takeoff_markups',{kind:'takeoff_markups',label:'Takeoff markups',cover_pdf:cover,cover_pdf_name:'Saved.pdf',version:2}],
   ]);
+  const addedKinds={
+    'calculator.steel_vermiculite.product_summary.pdf':'steel_vermiculite_product_summary',
+    'calculator.steel_intumescent.product_summary.pdf':'steel_intumescent_product_summary',
+    'calculator.steel_board.product_summary.pdf':'steel_board_product_summary',
+    'calculator.ductwork.product_summary.pdf':'ductwork_product_summary',
+    'swms':'swms','commercial.quote':'quote','commercial.work_order':'work_order','commercial.purchase_order':'purchase_order',
+  };
+  for(const kind of Object.values(addedKinds))records.set(kind,{kind,label:kind,cover_pdf:null,cover_pdf_name:'',version:1});
   let override=null,approve=true,lostReply=false;
   const metadata=value=>{const {cover_pdf,...other}=value;return {...copy(other),has_cover:!!cover_pdf};};
   const response=value=>({ok:true,status:200,json:async()=>copy(value)});
@@ -31,7 +39,7 @@ function harness(){
   }
   class FileReader{readAsDataURL(file){this.result=file.dataURL||cover;const finish=()=>file.fail?this.onerror():this.onload();if(file.hold)pendingReads.push(finish);else Promise.resolve().then(finish);}}
   const window={CeasefireDialogs:{confirm:async()=>approve},CeasefireActivity:{begin:()=>()=>{}},addEventListener:(name,handler)=>{(events[name]||=[]).push(handler);}};
-  for(const documentKind of ['certification','takeoff.markups.pdf']) {
+  for(const documentKind of ['certification','takeoff.markups.pdf',...Object.keys(addedKinds)]) {
     const tr=element('tr');tr.dataset.documentKind=documentKind;
     tr.append(element('td'),element('td'),element('td'));tr.querySelectorAll=()=>[];
     host.append(tr);
@@ -126,6 +134,15 @@ async function check(name,fn){const h=harness();await h.api.open();await fn(h);c
     assert.equal(h.api.hasUnsavedChanges(),false);const posts=h.calls.filter(call=>call.body).length;
     await h.api.saveAll();assert.equal(h.calls.filter(call=>call.body).length,posts);
     assert.equal(h.records.get('certification').cover_pdf_name,'Other window.pdf');
+  });
+  await check('Every product summary and issued document has an independent cover saved through main Save',async h=>{
+    const kinds=['steel_vermiculite_product_summary','steel_intumescent_product_summary','steel_board_product_summary','ductwork_product_summary','swms','quote','work_order','purchase_order'];
+    for(const kind of kinds){assert.equal(h.row(kind).actions.children.length,1);await h.upload(kind,{name:kind+'.pdf'});assert.equal(h.records.get(kind).cover_pdf,null);}
+    await h.api.saveAll();
+    for(const kind of kinds){assert.equal(h.records.get(kind).cover_pdf,cover);assert.equal(h.records.get(kind).cover_pdf_name,kind+'.pdf');}
+    assert.equal(h.calls.filter(call=>call.body).length,kinds.length);
+    await h.remove('quote');await h.api.saveAll();
+    assert.equal(h.records.get('quote').cover_pdf,null);assert.equal(h.records.get('purchase_order').cover_pdf,cover);
   });
   console.log(checks+' cover-sheet UI checks passed.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -2080,7 +2080,7 @@
     }
     select.replaceChildren(...state.projectEstimates.map(entry => {const option = node("option", "", entry.name); option.value = entry.id; return option;}));
     select.value = state.activeEstimateId;
-    for (const id of ["project-estimate-current-name", "project-estimate-select", "project-estimate-new", "project-estimate-quote", "project-estimate-swms"]) $(id).disabled = state.projectBusy;
+    for (const id of ["project-estimate-current-name", "project-estimate-select", "project-estimate-new", "project-estimate-create", "project-estimate-quote", "project-estimate-swms"]) $(id).disabled = state.projectBusy;
   }
 
   async function captureCurrentEstimate({ readOnly = false, commercial = false } = {}) {
@@ -2235,7 +2235,7 @@
   function projectBusy(value, activeId = null) {
     if (value) finishEstimateName();
     state.projectBusy = value;
-    for (const id of ["save-current-project", "load-project", "link-project-folder", "new-quote", "use-current-pricing", "project-estimate-current-name", "project-estimate-select", "project-estimate-new", "project-estimate-quote", "project-estimate-swms"]) {
+    for (const id of ["save-current-project", "load-project", "link-project-folder", "new-quote", "use-current-pricing", "project-estimate-current-name", "project-estimate-select", "project-estimate-new", "project-estimate-create", "project-estimate-quote", "project-estimate-swms"]) {
       $(id).disabled = value;
       $(id).setAttribute("aria-busy", String(value && id === activeId));
     }
@@ -2933,6 +2933,7 @@
   });
   $("project-estimate-select").addEventListener("change", () => selectEstimate($("project-estimate-select").value));
   $("project-estimate-new").addEventListener("click", addProjectEstimate);
+  $("project-estimate-create").addEventListener("click", addProjectEstimate);
   $("project-estimate-swms").addEventListener("click", async () => {
     if (!requireCreatedProject()) return;
     const context = state.quoteContext;

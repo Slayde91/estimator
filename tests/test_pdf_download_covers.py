@@ -50,7 +50,7 @@ class PdfDownloadCoverTests(unittest.TestCase):
 
     def test_catalog_is_finite_ordered_persistent_and_defaults_empty(self):
         items=self.covers.list()['items']
-        self.assertEqual(len(items),10)
+        self.assertEqual(len(items),18)
         self.assertEqual([(row['kind'],row['label']) for row in items],list(SETTINGS_KINDS))
         self.assertNotIn('pdf_tools', {row['kind'] for row in items})
         self.assertIsNone(self.covers.get('pdf_tools')['cover_pdf'])
@@ -65,6 +65,23 @@ class PdfDownloadCoverTests(unittest.TestCase):
             self.assertEqual(PdfDownloadCovers(self.store).get(kind),saved)
             self.assertNotIn(kind,{row['kind'] for row in self.covers.list()['items']})
             self.assertEqual(text_pages(prepend_cover_pdf(pdf('BODY'),{},saved)),['RETAINED '+kind,'BODY'])
+
+    def test_upgrade_exposes_existing_summary_covers_and_adds_only_empty_document_defaults(self):
+        summary=self.covers.save('steel_vermiculite_product_summary',cover('EXISTING SUMMARY'),'Existing.pdf',1)
+        document_kinds={'swms','quote','work_order','purchase_order'}
+        with self.store.connect() as db:
+            db.executemany('DELETE FROM pdf_download_covers WHERE kind=?',[(kind,) for kind in document_kinds])
+            previous={row[0]:tuple(row) for row in db.execute('SELECT * FROM pdf_download_covers')}
+        upgraded=PdfDownloadCovers(self.store)
+        with self.store.connect() as db:
+            after={row[0]:tuple(row) for row in db.execute('SELECT * FROM pdf_download_covers')}
+        self.assertEqual({kind:after[kind] for kind in previous},previous)
+        self.assertEqual(set(after)-set(previous),document_kinds)
+        public={row['kind']:row for row in upgraded.list()['items']}
+        self.assertEqual(public['steel_vermiculite_product_summary'],upgraded.metadata(summary))
+        for kind in document_kinds:
+            self.assertFalse(public[kind]['has_cover']);self.assertEqual(public[kind]['version'],1)
+        self.assertEqual(PdfDownloadCovers(self.store).list(),upgraded.list())
 
     def test_main_then_specific_then_content_with_identical_covers_kept_twice(self):
         main={'cover_pdf':cover('MAIN')};specific={'cover_pdf':cover('SPECIFIC')};body=pdf('BODY')

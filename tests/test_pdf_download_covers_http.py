@@ -40,7 +40,7 @@ class PdfDownloadCoversHTTPTests(unittest.TestCase):
         self.assertFalse(next(row for row in self.json('GET','/api/pdf-covers')['items'] if row['kind']=='estimate')['has_cover'])
         self.assertTrue(all('cover_pdf' not in row for row in self.json('GET','/api/pdf-covers')['items']))
 
-    def test_all_eighteen_authored_pdf_kinds_get_main_specific_content_in_order(self):
+    def test_every_authored_pdf_kind_gets_main_specific_content_in_order(self):
         self.json('POST','/api/company-settings',{**DEFAULTS,'cover_pdf':cover('COMPANY MAIN'),'cover_pdf_name':'Main.pdf'})
         for kind,_ in KINDS:self.json('POST','/api/pdf-covers/'+kind,{'cover_pdf':cover('SPECIFIC '+kind),'cover_pdf_name':kind+'.pdf','expected_version':1})
         scope='?workspace='+self.created_workspace()['workspace_id']
@@ -81,7 +81,65 @@ class PdfDownloadCoversHTTPTests(unittest.TestCase):
             generated=self.json('POST','/api/certifications/'+document['id']+'/revisions'+scope,{'fields':self.fields,'expected_version':1,'request_id':str(uuid.uuid4())},expected=201)
             self.assertEqual([t.strip() for t in texts(self.request('GET',generated['revision']['pdf_url'])[2])],['COMPANY MAIN','SPECIFIC certification','BODY CONTENT'])
             covered.add('certification')
+            from estimator.commercial_documents import default_fields as commercial_fields
+            from estimator.swms import default_fields as swms_fields
+            workspace=scope.split('=',1)[1]
+            stack.enter_context(patch('estimator.commercial_pdf.render_commercial_pdf',return_value=body))
+            stack.enter_context(patch('estimator.swms_pdf.render_swms_pdf',return_value=body))
+            quote=None
+            for kind in ('quote','work_order','purchase_order','swms'):
+                fields=swms_fields() if kind=='swms' else commercial_fields(kind,{'project_no':'PN-COVER'})
+                if kind=='work_order':fields['order']['quote_id']=quote['id']
+                request={'workspace_id':workspace,'id':str(uuid.uuid4()),'version':0,'status':'Draft','fields':fields}
+                if kind!='swms':request.update(kind=kind,estimates=[])
+                prefix='/api/swms' if kind=='swms' else '/api/commercial'
+                document=self.json('POST',prefix+'/save',request)
+                issue={'workspace_id':workspace,'id':document['id'],'version':document['version'],'request_id':str(uuid.uuid4())}
+                if kind!='swms':issue.update(kind=kind,estimates=[])
+                status,_,payload=self.request('POST',prefix+'/issue',issue)
+                self.assertEqual(status,200,payload)
+                self.assertEqual([t.strip() for t in texts(payload)],['COMPANY MAIN','SPECIFIC '+kind,'BODY CONTENT'])
+                if kind=='quote':quote=document
+                covered.add(kind)
         self.assertEqual(covered,{kind for kind,_ in KINDS})
+
+    def test_new_document_covers_are_frozen_and_existing_receipts_keep_their_bytes(self):
+        from estimator.commercial_documents import default_fields as commercial_fields
+        from estimator.swms import default_fields as swms_fields
+        workspace=self.created_workspace()['workspace_id']
+        quote=None
+        for kind in ('quote','work_order','purchase_order','swms'):
+            with self.subTest(kind=kind):
+                self.json('POST','/api/pdf-covers/'+kind,{'cover_pdf':cover('OLD '+kind),'cover_pdf_name':'Old.pdf','expected_version':1})
+                fields=swms_fields() if kind=='swms' else commercial_fields(kind,{'project_no':'PN-COVER'})
+                if kind=='work_order':fields['order']['quote_id']=quote['id']
+                prefix='/api/swms' if kind=='swms' else '/api/commercial'
+                saved={'workspace_id':workspace,'id':str(uuid.uuid4()),'version':0,'status':'Draft','fields':fields}
+                if kind!='swms':saved.update(kind=kind,estimates=[])
+                document=self.json('POST',prefix+'/save',saved)
+                issue={'workspace_id':workspace,'id':document['id'],'version':document['version'],'request_id':str(uuid.uuid4())}
+                if kind!='swms':issue.update(kind=kind,estimates=[])
+                def rendering(*args,**kwargs):
+                    # Change the cover during rendering: this export must retain
+                    # the snapshot captured before the renderer began.
+                    self.json('POST','/api/pdf-covers/'+kind,{'cover_pdf':cover('NEW '+kind),'cover_pdf_name':'New.pdf','expected_version':2})
+                    return pdf('BODY '+kind)
+                renderer='estimator.swms_pdf.render_swms_pdf' if kind=='swms' else 'estimator.commercial_pdf.render_commercial_pdf'
+                with patch(renderer,side_effect=rendering) as render:
+                    status,_,first=self.request('POST',prefix+'/issue',issue)
+                    self.assertEqual(status,200,first)
+                    self.assertEqual([page.strip() for page in texts(first)],['OLD '+kind,'BODY '+kind])
+                    replay=self.request('POST',prefix+'/issue',issue)
+                    self.assertEqual(replay[0],200,replay[2]);self.assertEqual(replay[2],first);self.assertEqual(render.call_count,1)
+                model=self.json('GET',prefix+'/state?workspace='+workspace)
+                latest=next(row for row in model['documents'] if row['id']==document['id'])
+                if kind=='quote':quote=latest
+                with patch(renderer,return_value=pdf('NEXT '+kind)):
+                    status,_,second=self.request('POST',prefix+'/issue',{**issue,'version':latest['version'],'request_id':str(uuid.uuid4())})
+                    self.assertEqual(status,200,second)
+                    self.assertEqual([page.strip() for page in texts(second)],['NEW '+kind,'NEXT '+kind])
+                # Reading/retrying an earlier receipt does not reapply either cover.
+                self.assertEqual(self.request('POST',prefix+'/issue',issue)[2],first)
 
     def test_native_destination_and_concurrent_cover_edits_keep_one_snapshot(self):
         self.json('POST','/api/company-settings',{**DEFAULTS,'cover_pdf':cover('OLD MAIN'),'cover_pdf_name':'Main.pdf'})

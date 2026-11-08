@@ -21,16 +21,19 @@ KINDS = (
     ('steel_board_product_summary', 'Steel board product summary'),
     ('ductwork_schedule', 'Duct Schedule'),
     ('ductwork_product_summary', 'Ductwork product summary'),
+    ('swms', 'Safe Work Method Statement'),
+    ('quote', 'Quote'),
+    ('work_order', 'Work Order'),
+    ('purchase_order', 'Purchase Order'),
     ('takeoff_markups', 'Markups'),
     ('physical_matrix', 'Passive fire matrix'),
     ('pdf_tools', 'PDF tools'),
 )
 LABELS = dict(KINDS)
-# Retain stored covers and export identities; Settings shows only authored schedules.
+# Settings exposes schedules, product summaries and issued document covers.
 HIDDEN_SETTINGS_KINDS = frozenset((
     'pdf_tools', 'technical_library_item', 'firestopping_library_item',
-    'steel_vermiculite_product_summary', 'steel_intumescent_product_summary',
-    'steel_board_product_summary', 'ductwork_product_summary', 'physical_matrix',
+    'physical_matrix',
 ))
 SETTINGS_KINDS = tuple(item for item in KINDS if item[0] not in HIDDEN_SETTINGS_KINDS)
 
@@ -93,7 +96,7 @@ class PdfDownloadCovers:
     def list(self):
         with self.store.connect() as db:
             db.execute('BEGIN')
-            # Never transfer up to 18 PDF blobs to the browser just to display
+            # Never transfer all PDF blobs to the browser just to display
             # names and Save/Trash controls. Internal get() owns PDF access.
             return {'items': [self._get(db, kind, metadata_only=True) for kind, _ in SETTINGS_KINDS]}
 

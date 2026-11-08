@@ -1,0 +1,58 @@
+{
+  "New certificates start with blank signer details. Signing fills these details from Settings for that certificate only.": [
+    "新证书的签署人资料默认为空。签署时，仅将设置中的资料填入该证书。",
+    "नए प्रमाणपत्रों में हस्ताक्षरकर्ता का विवरण खाली रहता है। हस्ताक्षर करने पर सेटिंग्स से विवरण केवल उसी प्रमाणपत्र में भरा जाता है।",
+    "Los certificados nuevos empiezan con los datos del firmante en blanco. Al firmar, se copian los datos de Configuración solo a ese certificado.",
+    "تبدأ الشهادات الجديدة ببيانات مُوقّع فارغة. عند التوقيع، تُنسخ البيانات من الإعدادات إلى تلك الشهادة فقط.",
+    "ใบรับรองใหม่เริ่มต้นโดยเว้นข้อมูลผู้ลงนามว่างไว้ เมื่อลงนาม ระบบจะกรอกข้อมูลจากการตั้งค่าเฉพาะใบรับรองนั้น"
+  ],
+  "Personal details saved. They are copied to a certificate only when it is signed.": [
+    "个人资料已保存。只有签署证书时，才会将资料复制到该证书。",
+    "व्यक्तिगत विवरण सहेजे गए। इन्हें प्रमाणपत्र पर हस्ताक्षर होने पर ही उसमें कॉपी किया जाता है।",
+    "Datos personales guardados. Solo se copian a un certificado cuando se firma.",
+    "تم حفظ البيانات الشخصية. لا تُنسخ إلى الشهادة إلا عند توقيعها.",
+    "บันทึกข้อมูลส่วนบุคคลแล้ว ข้อมูลจะถูกคัดลอกไปยังใบรับรองเมื่อลงนามเท่านั้น"
+  ],
+  "Personal details were changed in another window. Save the entered details in Settings?": [
+    "个人资料已在另一个窗口中更改。要将输入的资料保存到设置吗？",
+    "व्यक्तिगत विवरण दूसरी विंडो में बदले गए हैं। दर्ज किए गए विवरण सेटिंग्स में सहेजें?",
+    "Los datos personales se cambiaron en otra ventana. ¿Guardar los datos introducidos en Configuración?",
+    "تم تغيير البيانات الشخصية في نافذة أخرى. هل تريد حفظ البيانات المُدخلة في الإعدادات؟",
+    "ข้อมูลส่วนบุคคลถูกเปลี่ยนในหน้าต่างอื่น ต้องการบันทึกข้อมูลที่กรอกไว้ในการตั้งค่าหรือไม่"
+  ],
+  "Delivery": [
+    "送货",
+    "डिलीवरी",
+    "Entrega",
+    "توصيل",
+    "จัดส่ง"
+  ],
+  "Pickup": [
+    "自提",
+    "पिकअप",
+    "Recogida",
+    "استلام",
+    "รับสินค้า"
+  ],
+  "No supplier price is recorded for this item. Enter its purchase price.": [
+    "此项目未记录供应商价格。请输入采购价格。",
+    "इस आइटम के लिए आपूर्तिकर्ता की कीमत दर्ज नहीं है। इसका खरीद मूल्य दर्ज करें।",
+    "No hay un precio de proveedor registrado para este artículo. Introduzca su precio de compra.",
+    "لم يُسجَّل سعر مورد لهذا الصنف. أدخل سعر الشراء.",
+    "รายการนี้ยังไม่มีราคาจากผู้จัดจำหน่าย กรุณากรอกราคาซื้อ"
+  ],
+  "Choose valid document detail overrides.": [
+    "请选择有效的文档资料覆盖字段。",
+    "मान्य दस्तावेज़ विवरण ओवरराइड चुनें।",
+    "Seleccione sustituciones válidas de los datos del documento.",
+    "اختر تعديلات صالحة لبيانات المستند.",
+    "เลือกการแทนที่ข้อมูลเอกสารที่ถูกต้อง"
+  ],
+  "Choose Delivery or Pickup for the delivery method.": [
+    "配送方式请选择送货或自提。",
+    "डिलीवरी के तरीके में Delivery या Pickup चुनें।",
+    "Seleccione Entrega o Recogida como método de entrega.",
+    "اختر التوصيل أو الاستلام لطريقة التسليم.",
+    "เลือกจัดส่งหรือรับสินค้าเป็นวิธีการรับสินค้า"
+  ]
+}

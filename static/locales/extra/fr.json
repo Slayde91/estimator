@@ -3149,5 +3149,13 @@
   "Certification details": "Détails de certification",
   "Closed by": "Clôturé par",
   "Product / Service": "Produit / Service",
-  "Unit price": "Prix unitaire"
+  "Unit price": "Prix unitaire",
+  "New certificates start with blank signer details. Signing fills these details from Settings for that certificate only.": "Les nouveaux certificats commencent avec les coordonnées du signataire vides. La signature copie les informations des Paramètres dans ce certificat uniquement.",
+  "Personal details saved. They are copied to a certificate only when it is signed.": "Informations personnelles enregistrées. Elles sont copiées dans un certificat uniquement lors de sa signature.",
+  "Personal details were changed in another window. Save the entered details in Settings?": "Les informations personnelles ont été modifiées dans une autre fenêtre. Enregistrer les informations saisies dans les Paramètres ?",
+  "Choose valid document detail overrides.": "Choisissez des modifications valides des informations du document.",
+  "Choose Delivery or Pickup for the delivery method.": "Choisissez Livraison ou Retrait comme mode de livraison.",
+  "Delivery": "Livraison",
+  "Pickup": "Retrait",
+  "No supplier price is recorded for this item. Enter its purchase price.": "Aucun prix fournisseur n’est enregistré pour cet article. Saisissez son prix d’achat."
 }

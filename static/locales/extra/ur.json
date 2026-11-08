@@ -3149,5 +3149,13 @@
   "Certification details": "سرٹیفکیشن کی تفصیلات",
   "Closed by": "بند کرنے والا",
   "Product / Service": "مصنوعات / خدمت",
-  "Unit price": "فی اکائی قیمت"
+  "Unit price": "فی اکائی قیمت",
+  "New certificates start with blank signer details. Signing fills these details from Settings for that certificate only.": "نئے سرٹیفکیٹس میں دستخط کنندہ کی تفصیلات خالی ہوتی ہیں۔ دستخط کرنے پر ترتیبات سے تفصیلات صرف اسی سرٹیفکیٹ میں بھری جاتی ہیں۔",
+  "Personal details saved. They are copied to a certificate only when it is signed.": "ذاتی تفصیلات محفوظ ہو گئیں۔ انہیں سرٹیفکیٹ میں صرف دستخط کرتے وقت نقل کیا جاتا ہے۔",
+  "Personal details were changed in another window. Save the entered details in Settings?": "ذاتی تفصیلات دوسری ونڈو میں تبدیل کی گئی ہیں۔ درج کردہ تفصیلات ترتیبات میں محفوظ کریں؟",
+  "Choose valid document detail overrides.": "دستاویز کی تفصیلات کے لیے درست تبدیلیاں منتخب کریں۔",
+  "Choose Delivery or Pickup for the delivery method.": "ترسیل کے طریقے کے لیے ڈیلیوری یا پک اپ منتخب کریں۔",
+  "Delivery": "ڈیلیوری",
+  "Pickup": "پک اپ",
+  "No supplier price is recorded for this item. Enter its purchase price.": "اس آئٹم کے لیے سپلائر کی قیمت درج نہیں ہے۔ اس کی خریداری کی قیمت درج کریں۔"
 }

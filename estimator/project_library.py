@@ -1386,7 +1386,7 @@ class ProjectLibrary:
             documents = []
             for identifier, file in files.items():
                 for card in file['commercial_cards']:
-                    details = {key: file[key] for key in ('project_no', 'client', 'site_address')}
+                    details = {key: file[key] for key in ('project_no', 'client', 'site_address') if key not in card['fields'].get('detail_overrides', [])}
                     documents.append({**card, 'fields': {**card['fields'], 'details': {**card['fields']['details'], **details}},
                                       'source_file': file['id'] or identifier, 'source_revision': file['revision'], 'source_path': file['path']})
             if self.commercial:

@@ -276,6 +276,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   const supplierProduct=catalog.find(item=>item.supplier_price>0 && catalog.filter(x=>x.label===item.label).length===1);
   assert.ok(supplierProduct);
   await purchase.getByLabel('Product / Service 1').fill(supplierProduct.label);
+  await page.locator('.commercial-pricing-popup:visible').getByRole('option').filter({hasText:supplierProduct.label}).first().click();
   await expect(purchase.locator('.commercial-lines tbody input[type=number]').nth(1)).toHaveValue(String(supplierProduct.supplier_price));
   await purchase.getByLabel('Comments 1').fill('Deliver to the site store.');
   await expect(purchase.getByRole('button',{name:'Remove line item'})).toBeVisible();

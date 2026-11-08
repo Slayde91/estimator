@@ -120,3 +120,14 @@
   .commercial-column { flex-basis:260px; }
   .commercial-rich { padding:12px; }
 }
+
+/* Directory controls follow the existing Project search geometry inside each pane. */
+.commercial-directory-field { min-width:0; margin-top:12px; }
+.commercial-directory-field .project-account-add svg { width:16px; height:16px; }
+.commercial-directory-field input { min-width:0; width:100%; padding-inline-start:37px; }
+.commercial-directory-options { inset-inline:0; text-align:start; }
+.commercial-directory-options button { text-align:start; }
+.commercial-site-address { display:block; margin-top:14px; }
+.commercial-site-address>span { display:block; margin-bottom:7px; font-size:12px; font-weight:650; }
+.commercial-purchase-information textarea { min-height:42px; height:42px; line-height:20px; resize:vertical; }
+.commercial-purchase-information .commercial-directory-field { margin-top:0; }

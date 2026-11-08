@@ -2934,5 +2934,12 @@
   "Choose an existing Account for this client, or use + to create an Account in Current project details.": "এই গ্রাহকের বিদ্যমান অ্যাকাউন্ট বেছে নিন, অথবা বর্তমান প্রকল্পের বিবরণে + দিয়ে অ্যাকাউন্ট তৈরি করুন।",
   "The saved project changed outside this open estimate. Reload the project before editing its details; your current draft has been kept.": "এই খোলা প্রাক্কলনের বাইরে সংরক্ষিত প্রকল্প বদলেছে। বিবরণ সম্পাদনার আগে প্রকল্প আবার লোড করুন; আপনার বর্তমান খসড়া রাখা হয়েছে।",
   "Edit Account": "অ্যাকাউন্ট সম্পাদনা করুন",
-  "Account Information": "অ্যাকাউন্টের তথ্য"
+  "Account Information": "অ্যাকাউন্টের তথ্য",
+  "Time zone": "সময় অঞ্চল",
+  "Organization time zone": "প্রতিষ্ঠানের সময় অঞ্চল",
+  "Save time zone": "সময় অঞ্চল সংরক্ষণ করুন",
+  "Time zone saved. All team members use this time zone. Changing it recalculates overtime and penalties for recorded shifts.": "সময় অঞ্চল সংরক্ষিত হয়েছে। দলের সবাই এই সময় অঞ্চল ব্যবহার করেন। এটি বদলালে নথিভুক্ত শিফটের অতিরিক্ত কাজের মজুরি ও বিশেষ ভাতা পুনরায় গণনা করা হয়।",
+  "Matching records": "মিলে যাওয়া রেকর্ড",
+  "No linked records.": "কোনো সংযুক্ত রেকর্ড নেই।",
+  "Personal signature": "ব্যক্তিগত স্বাক্ষর"
 }

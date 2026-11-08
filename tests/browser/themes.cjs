@@ -2,6 +2,7 @@
 const { chromium, expect } = require('@playwright/test');
 const { chooseCalculator } = require('./calculator_actions.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
+const { openProjectSection } = require('./project_actions.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `themes-${Date.now()}`);
@@ -106,6 +107,10 @@ async function observeAudioDocument(label) {
   assert.ok(state.media.every(row=>row.readyState>=2&&row.error===null&&Number.isFinite(row.duration)&&row.duration>0&&row.preload==='auto'),'Every real clip must decode successfully');
 }
 async function settings() { await page.locator('nav [data-view="settings"]').click(); await idle(); }
+async function estimateView() {
+  const toggle=page.locator('#estimate-navigation-toggle');
+  await toggle.click();await toggle.press('Escape');await page.mouse.move(0,0);await idle();
+}
 async function theme(id) {
   const view = await page.locator('.view:not([hidden])').getAttribute('id');
   await settings();
@@ -185,16 +190,23 @@ async function readableMidnightIcon(control, transfer = false) {
   page=await context.newPage(); watch(page);
   await page.goto(`http://127.0.0.1:${fixture.port}`,{waitUntil:'networkidle'}); await idle();await observeAudioDocument('initial');
   await settings(); await expect(page.locator('#theme-toggle')).toHaveAccessibleName('Theme: CLASSIFIRE. Next theme: Midnight.');
-  await page.getByRole('button',{name:'Estimates',exact:true}).click(); await idle();
-  await expect(page.locator('#project-no')).toBeVisible();
+  await estimateView();
+  await openProjectSection(page,'quotes');await page.locator('#project-current-details').click();
+  await expect(page.locator('#project-pane-number')).toBeVisible();
+  await expect(page.locator('#project-pane-number')).toHaveAttribute('readonly','');
+  await estimateView();
   await expect(page.locator('#project-no')).toHaveAttribute('readonly',''); await page.locator('#measurements').fill('Pending notes are preserved across every theme.');
   await page.locator('#measurements').press('Tab'); await idle(); await page.waitForLoadState('networkidle');
   const before=await snapshot(), requestCount=mutationRequests.length, buttonColors=new Set(), footerText=await page.locator('footer').innerText();
   for(const id of ['ceasefire','midnight','ocean','forest','slate']) {
-    await theme(id); const button=await colors('#theme-toggle'), card=await colors('#view-estimate .card'), input=await colors('#client'), readonlyInput=await colors('#project-no'), text=await colors('#view-estimate .card .helper');
+    await theme(id);
+    await openProjectSection(page,'quotes');await page.locator('#project-current-details').click();
+    await expect(page.locator('#project-pane-number')).toBeVisible();
+    const button=await colors('#theme-toggle'), card=await colors('#view-estimate .card'), input=await colors('#project-pane-client'), readonlyInput=await colors('#project-pane-number'), text=await colors('#view-estimate .card .helper');
+    await estimateView();
     assert.ok(contrast(button.color,button.background)>=4.5,id+' button contrast'); assert.ok(contrast(card.color,card.background)>=4.5,id+' card contrast'); assert.ok(contrast(input.color,input.background)>=4.5,id+' input contrast'); assert.ok(contrast(text.color,card.background)>=4.5,id+' helper contrast'); buttonColors.add(button.background);
     if(id!=='ceasefire') assert.ok(contrast(input.border,input.background)>=3,id+' input boundary');
-    await expect(page.locator('#project-no')).toHaveAttribute('readonly','');
+    await expect(page.locator('#project-pane-number')).toHaveAttribute('readonly','');
     assert.ok(contrast(readonlyInput.color,readonlyInput.background)>=4.5,id+' readonly project number contrast');
     for(const width of [1146,752,720]) {
       await page.setViewportSize({width,height:1000});

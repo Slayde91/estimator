@@ -287,16 +287,16 @@ def self_test(data_directory, output_report):
                 probe.wait('document.querySelector("#project-save-state").textContent === "Saved project"')
                 saved = json.loads(project.read_text(encoding='utf-8'))
                 assert saved['version'] == 1 and 'takeoffs' not in saved
-                assert saved['estimate']['project_no'] == 'PN-00001'
-                assert probe.script('document.querySelector("#project-no").value') == 'PN-00001'
-                assert all(entry['workspace']['estimate']['project_no'] == 'PN-00001' for entry in saved['estimates'])
-                report['checks'].append('Save As assigned readonly PN-00001 through the native project API and wrote version 1')
+                assert saved['estimate']['project_no'] == 'PN-01'
+                assert probe.script('document.querySelector("#project-no").value') == 'PN-01'
+                assert all(entry['workspace']['estimate']['project_no'] == 'PN-01' for entry in saved['estimates'])
+                report['checks'].append('Save As assigned readonly PN-01 through the native project API and wrote version 1')
                 probe.fill('#client', 'UNSAVED LATER EDIT')
                 probe.wait('document.querySelector("#project-save-state").textContent === "Unsaved changes"')
                 probe.click('#load-project')
                 probe.wait('document.querySelector("#discard-dialog").open')
                 probe.click('#discard-dialog [value="confirm"]')
-                probe.wait('document.querySelector("#project-no").value === "PN-00001" && document.querySelector("#client").value === "Disposable desktop acceptance" && document.querySelector("#project-save-state").textContent === "Saved project"')
+                probe.wait('document.querySelector("#project-no").value === "PN-01" && document.querySelector("#client").value === "Disposable desktop acceptance" && document.querySelector("#project-save-state").textContent === "Saved project"')
                 probe.wait('document.querySelector("#calculation-status").textContent === "Calculated" && window.CeasefireDesktop.status().busy === false && document.querySelector("#sum-total").textContent !== "—"')
                 assert probe.script('document.querySelector("#sum-total").textContent') == baseline
                 report['checks'].append('Reopen preserved saved details, prices and calculated quote output')

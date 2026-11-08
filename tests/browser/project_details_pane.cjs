@@ -39,8 +39,16 @@ const ready = new Promise((resolve,reject)=>{
   const second=listing.files.find(file=>file.id!==first.id);
   const toggle=file=>page.locator(`[data-project-details-id="${file.id}"]`);
   const saved=()=>page.waitForResponse(r=>r.url().endsWith('/api/projects/details/save'));
+  await expect(toggle(first)).toHaveCSS('color','rgb(208, 0, 27)');
   // Clean active-project metadata saves stay clean and rotate its writable target.
   await toggle(first).click();await idle();await expect(toggle(first)).toHaveText('>');
+  await expect(toggle(first)).toHaveCSS('color','rgb(255, 221, 83)');
+  const plusStyles = await page.evaluate(() => ['project-estimate-new','project-account-new'].map(id => {
+    const style=getComputedStyle(document.getElementById(id));
+    return Object.fromEntries(['backgroundColor','color','fontFamily','fontSize','fontWeight','width','height','borderTopWidth','borderRadius'].map(key=>[key,style[key]]));
+  }));
+  assert.deepEqual(plusStyles[0],plusStyles[1]);
+  assert.equal(plusStyles[0].backgroundColor,'rgba(0, 0, 0, 0)');
   await page.locator('#project-pane-contact-name').fill('Updated Alpha Person');
   response=saved();await page.locator('#project-details-save').click();assert.equal((await response).status(),200);await idle();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
@@ -56,6 +64,7 @@ const ready = new Promise((resolve,reject)=>{
   await page.locator('#save-current-project').click();const afterMetadataSave=await response;assert.equal(afterMetadataSave.status(),200,await afterMetadataSave.text());await idle();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await toggle(first).click();await expect(page.locator('#project-details-pane')).toBeHidden();await expect(toggle(first)).toHaveText('<');
+  await expect(toggle(first)).toHaveCSS('color','rgb(208, 0, 27)');
   // Editing another file cannot replace the open estimate or its unsaved notes.
   await page.locator('.nav-button[data-view="estimate"]').click();await page.locator('#measurements').fill('Unsaved active estimate note');
   await openProjectSection(page,'quotes');await idle();

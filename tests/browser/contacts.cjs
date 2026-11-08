@@ -36,6 +36,12 @@ const ready = new Promise((resolve, reject) => {
   await expect(page.locator('#contacts-navigation-menu [data-contacts-section]')).toHaveCount(3);
   const tabsBox=await root.locator('.contacts-tabs').boundingBox();
   assert.ok(Math.abs(tabsBox.width-350)<1 && Math.abs(tabsBox.height-40)<1,JSON.stringify(tabsBox));
+  assert.equal(await root.locator('.contacts-tabs').evaluate(node=>getComputedStyle(node).backgroundColor),'rgb(12, 11, 14)');
+  assert.equal(await root.locator('.contacts-tabs [aria-pressed="false"]').first().evaluate(node=>getComputedStyle(node).backgroundColor),'rgba(0, 0, 0, 0)');
+  assert.equal(await root.locator('.contacts-tabs [aria-pressed="false"]').first().evaluate(node=>getComputedStyle(node).color),'rgb(229, 231, 235)');
+  assert.notEqual(await root.locator('.contacts-tabs [aria-pressed="true"]').evaluate(node=>getComputedStyle(node).backgroundColor),'rgb(12, 11, 14)');
+  await root.locator('.contacts-tabs').hover();
+  assert.equal(await root.locator('.contacts-tabs').evaluate(node=>getComputedStyle(node).backgroundColor),'rgb(12, 11, 14)');
   await expect(page.locator('#view-estimate #client')).toHaveCount(0);
   await expect(page.locator('#view-quotes #client')).toHaveCount(1);
   await expect(page.locator('#project-status')).toHaveCount(0);
@@ -56,7 +62,7 @@ const ready = new Promise((resolve, reject) => {
   await root.getByRole('button',{name:'Sample Company',exact:true}).click();
   await expect(dlg.getByLabel('Billing address')).toHaveValue('Demo Billing Street');
   await expect(dlg.getByLabel('ABN/ACN',{exact:true})).toHaveValue('12 345 678 901');
-  await expect(dlg.locator('.contacts-links-group > summary')).toHaveText(['Contacts (1)','Projects (0)','Quotes (0)','Work Orders (0)','Purchase Orders (0)']);
+  await expect(dlg.locator('.contacts-links-group > summary')).toHaveText(['Contacts (1)']);
   await dlg.getByRole('button',{name:'Robin Sample'}).click();
   await expect(dlg.getByLabel('Name',{exact:true})).toHaveValue('Robin Sample');
   await dlg.getByRole('button',{name:'Cancel'}).click();

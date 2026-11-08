@@ -490,7 +490,7 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .project-estimate-picker:dir(rtl) select{clip-path:inset(0 calc(100% - 38px) 0 0)}
 .project-estimate-chevron{grid-area:1/2;place-self:center;width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:translateY(-2px) rotate(45deg);pointer-events:none}
 .project-estimate-picker:has(select:focus-visible) input{outline:2px solid var(--accent);outline-offset:2px}
-#project-estimate-new{grid-area:1/1;z-index:2;align-self:center;justify-self:start;margin-inline-start:5px;width:30px;min-width:30px;height:30px;min-height:30px;padding:0}
+#project-estimate-new{grid-area:1/1;z-index:2;align-self:center;justify-self:start;margin-inline-start:4px;width:30px;min-width:30px;height:30px;min-height:30px;padding:0}
 #project-estimate-new .button-symbol{font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;width:100%;height:100%}
 .kanban-card-details{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:7px 10px;margin:12px 0 0;font-size:11px;line-height:1.5}
 .kanban-card-details dt{font-weight:700}.kanban-card-details dd{margin:0;min-width:0;overflow-wrap:anywhere}
@@ -508,7 +508,8 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .project-row-heading .project-title-button{font-size:15px;font-weight:700;line-height:1.5;overflow-wrap:anywhere}
 .project-row-heading{flex-wrap:nowrap;align-items:flex-start;gap:8px}
 .project-row-heading .project-title-button{text-align:left;min-width:0}
-.project-details-toggle{flex:0 0 24px;padding:0;border:0;background:transparent;color:var(--accent,#ed0033);font-size:25px;line-height:1.1;font-weight:900;cursor:pointer}
+.project-details-toggle{flex:0 0 24px;padding:0;border:0;background:transparent;color:rgb(208,0,27);font-size:25px;line-height:1.1;font-weight:900;cursor:pointer}
+.project-details-toggle[aria-expanded="true"]{color:#ffdd53}
 .project-details-toggle:focus-visible{outline:2px solid var(--theme-focus,var(--accent));outline-offset:3px;border-radius:3px}
 .project-details-access{display:flex;justify-content:flex-start;margin-bottom:16px}
 .project-workspace-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:start}
@@ -526,7 +527,11 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .project-account-field>label{display:block;margin-bottom:7px;font-size:12px;font-weight:650}
 .project-account-search{position:relative;display:flex;align-items:center}
 .project-account-search input{padding-left:37px}
-.project-account-add{position:absolute;left:4px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:5px;background:var(--accent,#ed0033);color:#fff;font-size:23px;line-height:1;font-weight:700;cursor:pointer}
+.project-account-add{position:absolute;inset-inline-start:4px;top:50%;transform:translateY(-50%);cursor:pointer}
+#project-estimate-new,.project-account-add{display:grid;place-items:center;box-sizing:border-box;width:30px;min-width:30px;height:30px;min-height:30px;padding:0;border:0;border-radius:0;background:transparent;color:var(--ink);font-family:inherit;font-size:18px;line-height:1;font-weight:700;box-shadow:none;text-shadow:none}
+#project-estimate-new:hover:not(:disabled),.project-account-add:hover:not(:disabled){background:transparent;color:var(--ink);box-shadow:none}
+#project-estimate-new:active:not(:disabled){transform:none}
+.project-account-add:focus-visible{outline:2px solid var(--theme-focus,var(--accent));outline-offset:1px}
 .project-account-add:disabled{opacity:.5;cursor:wait}
 .project-account-options{position:absolute;top:100%;left:0;right:0;max-height:230px;overflow:auto;z-index:12;padding:4px;border:1px solid var(--line);border-radius:6px;background:var(--paper);box-shadow:0 6px 18px #0005}
 .project-account-options button{display:block;width:100%;padding:9px 7px;text-align:left;border:0;border-radius:3px;color:inherit;background:transparent;font:inherit;font-size:12px;overflow-wrap:anywhere;cursor:pointer}

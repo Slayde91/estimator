@@ -34,7 +34,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await page.route('**/api/certifications/*/revisions',async route=>{generationRequests.push(route.request().url());await route.abort();});
   await page.goto(base+'/');await idle();
   await page.locator('#estimate-navigation-toggle').click();
-  await fillProjectDetails(page,{'client':'Current estimate client'});await fillProjectDetails(page,{'site-address':'Current estimate address'});await expect(page.locator('#project-no')).toHaveAttribute('readonly','');const firstSave=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/save-as');await clickProjectControl(page,'Save');assert.equal((await firstSave).status(),200);await idle();await expect(page.locator('#project-no')).toHaveValue('PN-00001');
+  await fillProjectDetails(page,{'client':'Current estimate client'});await fillProjectDetails(page,{'site-address':'Current estimate address'});await expect(page.locator('#project-no')).toHaveAttribute('readonly','');const firstSave=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/save-as');await clickProjectControl(page,'Save');assert.equal((await firstSave).status(),200);await idle();await expect(page.locator('#project-no')).toHaveValue('PN-01');
   await certification();
   await expect(page.locator('#certification-document')).toHaveValue('__draft__');
   const selector=page.locator('#certification-document');
@@ -48,7 +48,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await page.setViewportSize({width:1084,height:900});
   await expect(page.locator('#certification-client')).toHaveValue('Current estimate client');
   await expect(page.locator('#certification-address')).toHaveValue('Current estimate address');
-  await expect(page.locator('#certification-exclusions')).toHaveValue('Project No.: PN-00001');
+  await expect(page.locator('#certification-exclusions')).toHaveValue('Project No.: PN-01');
   await expect(page.locator('#certification-name')).toHaveValue('Upgrade signer');
   await expect(page.locator('#certification-statement_of_compliance')).toHaveValue("This is to certify that the fire rated materials have been installed according to the manufacturer's specifications to provide the nominated fire resistance level for the items listed in the relevant schedule.\n\nAll materials have been installed at the above location and comply with:");
   await expect(page.locator('#certification-new, #certification-reload')).toHaveCount(0);
@@ -94,12 +94,12 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await page.locator('#certification-client').fill('Custom certificate client');
   await page.locator('#certification-statement_of_compliance').fill('Custom statement retained');
   await page.locator('#estimate-navigation-toggle').click();
-  await fillProjectDetails(page,{'client':'Changed estimate client'});await fillProjectDetails(page,{'site-address':'Changed estimate address'});await expect(page.locator('#project-no')).toHaveValue('PN-00001');
+  await fillProjectDetails(page,{'client':'Changed estimate client'});await fillProjectDetails(page,{'site-address':'Changed estimate address'});await expect(page.locator('#project-no')).toHaveValue('PN-01');
   await certification();
   await expect(page.locator('#certification-client')).toHaveValue('Custom certificate client');
   await expect(page.locator('#certification-statement_of_compliance')).toHaveValue('Custom statement retained');
   await expect(page.locator('#certification-address')).toHaveValue('Changed estimate address');
-  await expect(page.locator('#certification-exclusions')).toHaveValue('Project No.: PN-00001');
+  await expect(page.locator('#certification-exclusions')).toHaveValue('Project No.: PN-01');
   await page.locator('#certification-australian_standards').fill('Manual additional standard');
   await page.locator('#certification-ncc_clauses').fill('Manual first clause.\n\n  Manual second clause.');
   await page.locator('#certification-scopes summary').click();

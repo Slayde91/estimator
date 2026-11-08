@@ -1,0 +1,51 @@
+{
+  "Time zone": [
+    "时区",
+    "समय क्षेत्र",
+    "Zona horaria",
+    "المنطقة الزمنية",
+    "เขตเวลา"
+  ],
+  "Organization time zone": [
+    "组织时区",
+    "संगठन का समय क्षेत्र",
+    "Zona horaria de la organización",
+    "المنطقة الزمنية للمؤسسة",
+    "เขตเวลาขององค์กร"
+  ],
+  "Save time zone": [
+    "保存时区",
+    "समय क्षेत्र सहेजें",
+    "Guardar zona horaria",
+    "حفظ المنطقة الزمنية",
+    "บันทึกเขตเวลา"
+  ],
+  "Time zone saved. All team members use this time zone. Changing it recalculates overtime and penalties for recorded shifts.": [
+    "时区已保存。所有团队成员均使用此时区。更改时区会重新计算已记录班次的加班和特殊时段津贴。",
+    "समय क्षेत्र सहेजा गया। टीम के सभी सदस्य इसी समय क्षेत्र का उपयोग करते हैं। इसे बदलने पर दर्ज शिफ्टों के ओवरटाइम और विशेष दरों की दोबारा गणना होती है।",
+    "Zona horaria guardada. Todos los miembros del equipo usan esta zona. Al cambiarla, se recalculan las horas extra y los recargos de los turnos registrados.",
+    "تم حفظ المنطقة الزمنية. يستخدم جميع أعضاء الفريق هذه المنطقة. يؤدي تغييرها إلى إعادة حساب العمل الإضافي وبدلات الفترات الخاصة للمناوبات المسجلة.",
+    "บันทึกเขตเวลาแล้ว สมาชิกทีมทุกคนใช้เขตเวลานี้ การเปลี่ยนเขตเวลาจะคำนวณค่าล่วงเวลาและค่าจ้างพิเศษของกะที่บันทึกไว้ใหม่"
+  ],
+  "Matching records": [
+    "匹配的记录",
+    "मेल खाते रिकॉर्ड",
+    "Registros coincidentes",
+    "السجلات المطابقة",
+    "รายการที่ตรงกัน"
+  ],
+  "No linked records.": [
+    "没有已关联的记录。",
+    "कोई लिंक किए गए रिकॉर्ड नहीं हैं।",
+    "No hay registros vinculados.",
+    "لا توجد سجلات مرتبطة.",
+    "ไม่มีรายการที่เชื่อมโยง"
+  ],
+  "Personal signature": [
+    "个人签名",
+    "व्यक्तिगत हस्ताक्षर",
+    "Firma personal",
+    "التوقيع الشخصي",
+    "ลายเซ็นส่วนตัว"
+  ]
+}

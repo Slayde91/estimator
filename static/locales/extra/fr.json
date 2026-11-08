@@ -2934,5 +2934,12 @@
   "Choose an existing Account for this client, or use + to create an Account in Current project details.": "Choisissez un compte existant pour ce client ou utilisez + dans Détails du projet actuel pour en créer un.",
   "The saved project changed outside this open estimate. Reload the project before editing its details; your current draft has been kept.": "Le projet enregistré a changé en dehors de cette estimation ouverte. Rechargez le projet avant de modifier ses détails ; votre brouillon actuel a été conservé.",
   "Edit Account": "Modifier le compte",
-  "Account Information": "Informations du compte"
+  "Account Information": "Informations du compte",
+  "Time zone": "Fuseau horaire",
+  "Organization time zone": "Fuseau horaire de l’organisation",
+  "Save time zone": "Enregistrer le fuseau horaire",
+  "Time zone saved. All team members use this time zone. Changing it recalculates overtime and penalties for recorded shifts.": "Fuseau horaire enregistré. Tous les membres de l’équipe utilisent ce fuseau. Le modifier recalcule les heures supplémentaires et les majorations des postes enregistrés.",
+  "Matching records": "Enregistrements correspondants",
+  "No linked records.": "Aucun enregistrement lié.",
+  "Personal signature": "Signature personnelle"
 }

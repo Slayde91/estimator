@@ -165,8 +165,10 @@ async function api(route) {return page.evaluate(async route => {const response =
   const zoneForm = page.locator('#organization-timezone-form');
   await expect(zoneForm.getByLabel('Organization time zone')).toHaveValue('Australia/Sydney');
   await zoneForm.getByLabel('Organization time zone').selectOption('Asia/Kathmandu');
+  await page.route('**/api/scheduler/state*', route => route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Synthetic Scheduler refresh failure'})}));
   await zoneForm.getByRole('button',{name:'Save time zone'}).click();
-  await expect(zoneForm.getByRole('status')).toHaveText('Time zone saved.');
+  await expect(zoneForm.getByRole('status')).toContainText('Time zone saved. All team members use this time zone.');
+  await page.unroute('**/api/scheduler/state*');
   await scheduler();
   await expect.poll(() => page.locator('#scheduler-local-time').evaluate(clock => {
     const display = new Intl.DateTimeFormat('en-AU',{timeZone:'Asia/Kathmandu',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).format(new Date(clock.dateTime));

@@ -1,3 +1,4 @@
+const {showEstimateNotes}=require('./estimate_notes.cjs');
 // Project metadata editing runs against disposable project files and directory data.
 const {chromium, expect} = require('@playwright/test');
 const {spawn} = require('node:child_process');
@@ -56,7 +57,8 @@ const ready = new Promise((resolve,reject)=>{
   await expect(page.locator('#project-tools')).toBeHidden();
   const symbols=await page.locator('#project-estimate-new .project-add-symbol,#project-account-new .project-add-symbol').evaluateAll(nodes=>nodes.map(node=>node.innerHTML.trim()));
   assert.equal(symbols.length,2);assert.equal(symbols[0],symbols[1]);
-  await toggle(first).locator('..').locator('.project-title-button').click();await idle();
+  const firstRow=toggle(first).locator('xpath=ancestor::article');
+  await firstRow.locator('summary').click();await firstRow.getByRole('button',{name:'Browse files',exact:true}).click();await idle();
   await expect(page.locator('#project-browser')).toBeVisible();await expect(page.locator('#project-details-pane')).toBeVisible();
   for(const width of [1915,1101,800,390]){
     await page.setViewportSize({width,height:884});
@@ -96,11 +98,12 @@ const ready = new Promise((resolve,reject)=>{
   await toggle(first).click();await expect(page.locator('#project-details-pane')).toBeHidden();await expect(toggle(first)).toHaveText('<');
   await expect(toggle(first)).toHaveCSS('color','rgb(208, 0, 27)');
   // Editing another file cannot replace the open estimate or its unsaved notes.
-  await page.locator('.nav-button[data-view="estimate"]').click();await page.locator('#measurements').fill('Unsaved active estimate note');
+  await page.locator('.nav-button[data-view="estimate"]').click();await showEstimateNotes(page);await page.locator('#measurements').fill('Unsaved active estimate note');
   await openProjectSection(page,'quotes');await idle();
   const active=await page.evaluate(()=>window.CeasefireProject.projectPaneSnapshot());
   const original=fs.readFileSync(info.project);
   await toggle(second).click();await idle();
+  await expect(page.locator('#project-pricing-context')).toHaveText(active.file.title);
   const geometry=await page.evaluate(()=>({columns:getComputedStyle(document.querySelector('.project-pane-fields')).gridTemplateColumns.split(' ').length,pane:document.querySelector('#project-details-pane').getBoundingClientRect().toJSON(),list:document.querySelector('#project-list-card').getBoundingClientRect().toJSON(),number:document.querySelector('#project-pane-number').getBoundingClientRect().toJSON(),client:document.querySelector('#project-pane-client').getBoundingClientRect().toJSON()}));
   assert.equal(geometry.columns,2);assert.ok(geometry.pane.right<=geometry.list.left);assert.ok(Math.abs(geometry.number.top-geometry.client.top)<2,JSON.stringify(geometry));
   const billingLayout=await page.evaluate(()=>Object.fromEntries(['billing-address','abn-acn','contact-email','contact-phone'].map(key=>[key,document.getElementById('project-pane-'+key).getBoundingClientRect().toJSON()])));
@@ -110,6 +113,7 @@ const ready = new Promise((resolve,reject)=>{
   await page.locator('#project-pane-address').fill('20 Other Project Road');
   await page.locator('#project-pane-contact-name').fill('Other Project Person');
   response=saved();await page.locator('#project-details-save').click();assert.equal((await response).status(),200);await idle();
+  await expect(page.locator('#project-pricing-context')).toHaveText(active.file.title);
   assert.deepEqual(fs.readFileSync(info.project),original);
   assert.deepEqual(await page.evaluate(()=>window.CeasefireProject.details()),active.details);
   assert.equal(await page.locator('#measurements').inputValue(),'Unsaved active estimate note');

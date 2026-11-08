@@ -272,6 +272,7 @@
     notice.setAttribute("role", "status");
     notice.hidden = true;
     host.append(notice);
+    window.CeasefireProject?.refreshPages?.();
     return host;
   }
   async function load(revision = ++state.revision, refresh = false) {
@@ -435,6 +436,7 @@
     }
     host.append(list);
     renderCards();
+    window.CeasefireProject?.refreshPages?.();
     if (state.model.unavailableProjects) message("Some linked project files could not be read. See Projects for details.", true);
   }
   function projectDetailsSnapshot(source = null) {
@@ -565,6 +567,7 @@
         source.documentId = document.id;
         source.estimates = opened.estimates;
         source.quoteTotals = opened.quote_totals;
+        source.quoteRows = opened.quote_rows;
         source.related = opened.related;
         source.projectDetails = opened.project_details || {
           project_no:document.fields.details.project_no,client:document.fields.details.client,site_address:document.fields.details.site_address,
@@ -866,9 +869,10 @@
       renderScope();
     }
     renderLines();
+    window.CeasefireProject?.refreshPages?.();
     if (state.kind === "quote" && document.version > 0) void refreshScopePreview();
   }
-  const signatureDates = {reviewed_by:"review_date",prepared_by:"prepared_date",client_approved_by:"client_approval_date"};
+  const signatureDates = {reviewed_by:"review_date",prepared_by:"prepared_date",client_approved_by:"client_approval_date",progress_by:"progress_date",closed_by:"closed_date"};
   async function signatureProfile() {
     const response = await fetch('/api/scheduler/bootstrap',{cache:'no-store'}), value = await response.json();
     if(!response.ok || typeof value.timezone !== 'string')throw new Error('Personal details could not be loaded. Try again.');
@@ -899,8 +903,15 @@
       preview.append(svg);
     } else preview.append(node("span","helper","Not signed"));
     const selected = state.editor;
+    const checkProgress = () => {
+      if(key!=='progress_by')return;
+      const rows=fields.work_tracking?.rows || [];
+      if(rows.some(row=>row.completed_percent!=='' && (!Number.isFinite(Number(row.completed_percent)) || Number(row.completed_percent)<1 || Number(row.completed_percent)>100)))throw new Error('Enter a percentage from 1 to 100, or leave it blank.');
+      if(!rows.some(row=>Number(row.completed_percent)>0))throw new Error('Record a completed percentage before signing work progress.');
+    };
     const sign = button("", async () => {
       if (state.busy) return;
+      try {checkProgress();}catch(error){message(error.message,true);return;}
       state.busy=true;setDisabled(true);
       try {
         const before=await signatureProfile();
@@ -908,6 +919,7 @@
         if (state.editor !== selected || !result) return;
         const name=await signerName(),after=await signatureProfile();
         if(state.editor !== selected)return;
+        checkProgress();
         if((before.user?.id||null)!==(after.user?.id||null))throw new Error('Your signature profile changed. Reopen the signature pad.');
         const date=signedDate(after.timezone);
         (fields.signatures ||= {})[key] = result;
@@ -936,7 +948,8 @@
       for(const d of path){const stroke=document.createElementNS(icon.namespaceURI,'path');stroke.setAttribute('d',d);icon.append(stroke);}control.append(icon);return control;
     }
     buttonRow.append(preview,sign,resetButton('Clear',['M20 7v5h-5','M4 17v-5h5','M6.1 8.4A7.5 7.5 0 0 1 19.2 10L20 12','M17.9 15.6A7.5 7.5 0 0 1 4.8 14L4 12']),resetButton('Delete',['M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7']));
-    wrap.append(node("span","",label),buttonRow);return wrap;
+    const heading=node('span','',label);window.CeasefireI18n?.text(heading,label);
+    wrap.append(heading,buttonRow);return wrap;
   }
   function attachWorkPanels(form) {
     const editor = state.editor, doc = editor.document, fields = doc.fields;
@@ -1015,7 +1028,6 @@
       ["time_and_half", "Time and a half", "per hour · 3:30pm to 5:30pm and night shifts"],
       ["double_time", "Double time", "per hour · after 5:30pm and weekends"],
       ["site_remobilisation", "Site Remobilisation", "per occasion"],
-      ["access_equipment_transport", "Access Equipment Transport", "per occasion"],
       ["equipment", "Equipment", "% added to Hire Rate"],
       ["materials", "Materials", "% added to Cost Rate"]
     ]) {
@@ -1054,6 +1066,12 @@
     let costControl;
     let costEdited = Boolean(fields.order.estimated_cost);
     const quoteTotals = state.editor.source?.quoteTotals || state.model.quote_totals;
+    const quoteRows = state.editor.source?.quoteRows || state.model.quote_rows;
+    const trackingHosts = [];
+    const initializeTracking = () => {
+      const template=quoteRows?.[fields.order.quote_id]?.[fields.order.quote_reference];
+      if(!fields.work_tracking && template)fields.work_tracking=copy(template);
+    };
     const applyQuoteCost = (id, number) => {
       if (costEdited) return;
       fields.order.estimated_cost = quoteTotals?.[id]?.[number] || "";
@@ -1062,6 +1080,7 @@
     if (isWorkOrder) {
       const quote = choices.find(item => item.id === fields.order.quote_id);
       applyQuoteCost(fields.order.quote_id, fields.order.quote_reference || quote?.last_number);
+      initializeTracking();
     }
     const linked = node("select");
     const blank = node("option", "", isWorkOrder ? "Select an issued Quote…" : "No Work Order linked");
@@ -1090,6 +1109,14 @@
       const selected = choices.find(item => item.id === linked.value);
       if (isWorkOrder) {
         fields.order.quote_reference = selected?.last_number || "";
+        delete fields.work_tracking;
+        if(fields.signatures)delete fields.signatures.progress_by;
+        fields.order.progress_by='';fields.order.progress_date='';
+        initializeTracking();
+        trackingHosts.forEach(([host,key,label])=>renderTracking(host,key,label));
+        const signature=form.querySelector('[data-signature-field="progress_by"]');
+        if(signature)signature.replaceWith(signatureField(fields,'progress_by','Progress signed by'));
+        form.querySelectorAll('[data-order-field="progress_by"],[data-order-field="progress_date"]').forEach(control=>control.value='');
         const linkedNumber=boundWorkOrderProjectNumber(state.editor) || commercialProjectDetails(state.editor.source).project_no;
         fields.details.project_no=linkedNumber;
         const number=root()?.querySelector('[data-project-detail="project_no"]');if(number)number.value=linkedNumber;
@@ -1107,16 +1134,27 @@
       ["Work order review", [["approval","Approval"],["justification","Justification"],["reviewed_by","Reviewed by"],["review_date","Review date"]]],
       ["OHS documentation", [["prepared_by","Prepared by"],["prepared_date","Date"]]],
       ["Client approval", [["client_approved_by","Approved by"],["client_approval_date","Approval date"]]],
-      ["Works in Progress", [["progress","Work progress"]]],
-      ["Work Order Claim", [["claim","Products and services charged"]]],
-      ["Work Order Completion", [["certification","Certification details"],["completion","Completion"],["closed_by","Closed by"]]]
+      ["Works in Progress", [["completed_percent","% completed"],["progress_by","Progress signed by"],["progress_date","Date"]]],
+      ["Work Order Claim", [["claimed_percent","% claimed"]]],
+      ["Work Order Completion", [["certification","Certification details"],["completion","Completion"],["closed_by","Closed by"],["closed_date","Date"]]]
     ] : [["Purchase order information", [["work_order_reference", "Work order reference"], ["supplier", "Supplier"], ["supplier_email", "Supplier email"], ["supplier_contact", "Supplier contact"], ["payment_terms", "Payment terms"], ["ship_to_name", "Ship to name"], ["ship_to_address", "Ship to address"], ["delivery_date", "Delivery date"], ["expense_type", "Type of expense"], ["delivery_method", "Delivery or pickup"]]], ["Request and approval", [["requested_by", "Requested by"], ["requested_date", "Request date"], ...commonReview]], ["Procurement verification", [["verification", "Verification method, specification, result and actions"], ["sent_by", "Sent by"], ["sent_date", "Sent date"], ["verified_by", "Verified by"], ["verified_date", "Verification date"]]]];
     for (const [title, items] of groups) {
       const section = node("section", "card commercial-order-fields");
       if(isWorkOrder && title==='Work order details')section.classList.add('commercial-work-details');
       section.append(node("h2", "", title));
-      let dates,reviewPair;
+      let dates,personPair,personDate;
       for (const [key, label] of items) {
+        if(['completed_percent','claimed_percent'].includes(key)) {
+          const tracking=node('div','commercial-work-tracking');tracking.dataset.trackingField=key;
+          trackingHosts.push([tracking,key,label]);renderTracking(tracking,key,label);section.append(tracking);
+          const legacy=fields.order[key==='completed_percent'?'progress':'claim'];
+          if(legacy) {
+            const disclosure=node('details','commercial-tracking-legacy');
+            const summary=node('summary','','Previous notes');window.CeasefireI18n?.text(summary,'Previous notes');
+            disclosure.append(summary,node('p','',legacy));section.append(disclosure);
+          }
+          continue;
+        }
         if (["quote_reference", "work_order_reference"].includes(key)) continue;
         if (key === "estimated_cost") {
           costControl = input(fields.order.estimated_cost, value => {
@@ -1129,25 +1167,25 @@
           const costFiles=node('div','commercial-work-cost-files');costFiles.append(field(label,costControl));section.append(costFiles);
           continue;
         }
-        if (isWorkOrder && ["reviewed_by","prepared_by","client_approved_by"].includes(key)) {
+        if (isWorkOrder && Object.hasOwn(signatureDates,key)) {
           const row=node('div','commercial-signer-row'),name=input(fields.order[key],value=>fields.order[key]=value);
           name.dataset.orderField=key;
           const nameField=field('Name',name);name.setAttribute('aria-label',label+' name');
           window.CeasefireI18n?.attr(name,'aria-label',label+' name');
-          if(key==='reviewed_by') {
-            reviewPair=node('div','commercial-field-pair commercial-review-person-details');reviewPair.append(nameField);
-            row.append(signatureField(fields,key,label),reviewPair);
-          } else row.append(signatureField(fields,key,label),nameField);
+          personPair=node('div','commercial-field-pair commercial-review-person-details');personPair.append(nameField);
+          personDate=signatureDates[key];
+          row.append(signatureField(fields,key,label),personPair);
           section.append(row);
           continue;
         }
-        const choices = isWorkOrder ? (key === "urgency" ? ["High Priority","Medium Priority","Low Priority"] : key === "approval" ? ["Approved","Denied"] : null)
+        const choices = isWorkOrder ? (key === "urgency" ? ["High Priority","Medium Priority","Low Priority"] : key === "approval" ? ["Approved","Denied"] : key==='certification' ? ['Certification issued','Certification not issued'] : key==='completion' ? ['Completed','Ongoing','On hold','Not completed'] : null)
           : key === "expense_type" ? ["Labour", "Materials", "Services", "Other"] : null;
         let control;
         if (choices) {
           const options = ["",...choices];
           if (fields.order[key] && !options.includes(fields.order[key])) options.push(fields.order[key]);
           control = select(options, fields.order[key], value => fields.order[key] = value);
+          for(const option of control.options)if(choices.includes(option.value))window.CeasefireI18n?.text(option,option.value);
         } else control = key.endsWith("_date") ? input(fields.order[key], value => fields.order[key] = value, "date") : textarea(fields.order[key], value => fields.order[key] = value);
         control.dataset.orderField=key;
         const item = field(label, control);
@@ -1155,16 +1193,42 @@
         if (isWorkOrder && ["start_date","end_date"].includes(key)) {
           if (!dates) { dates = node("div", "commercial-field-pair commercial-proposed-dates"); section.append(dates); }
           dates.append(item);
-        } else if(isWorkOrder && key==='review_date' && reviewPair)reviewPair.append(item);
+        } else if(isWorkOrder && key===personDate && personPair)personPair.append(item);
         else section.append(item);
       }
       form.append(section);
+      section.querySelectorAll('h2,.field>span').forEach(element=>window.CeasefireI18n?.text(element,window.CeasefireI18n.source(element)));
       if (!isWorkOrder && title === "Purchase order information") {
         form.append(node("section", "commercial-lines"), button("Add line item", () => {
           fields.lines.push({estimate_id: "", description: "", quantity: "1", unit_price: "0", size: "", comments: ""});
           markDirty(); renderLines();
         }), node("div", "commercial-totals"));
       }
+    }
+    function renderTracking(host,key,label) {
+      host.replaceChildren();
+      if(!fields.work_tracking) {
+        const text=fields.order.quote_id ? 'The original issued Quote rows are unavailable.' : 'Select an issued Quote to track work.';
+        const notice=node('p','helper',text);window.CeasefireI18n?.text(notice,text);host.append(notice);return;
+      }
+      const table=node('table'),head=node('thead'),headers=node('tr'),body=node('tbody');
+      ['Product / Service','Quantity','Unit price',label].forEach(text=>{const header=node('th','',text);window.CeasefireI18n?.text(header,text);headers.append(header);});
+      head.append(headers);
+      fields.work_tracking.rows.forEach((row,index)=>{
+        const tr=node('tr');tr.dataset.trackingLine=row.line_id;
+        [row.description,row.quantity,row.unit_price].forEach(text=>tr.append(node('td','',text)));
+        const cell=node('td'),lineId=row.line_id;
+        // Saving replaces the returned row objects. Resolve the current owned
+        // row on each edit so a second Save cannot lose later percentage edits.
+        const control=input(row[key],value=>{
+          const current=fields.work_tracking?.rows.find(item=>item.line_id===lineId);
+          if(current)current[key]=value;
+        },'number');
+        control.min='1';control.max='100';control.step='any';control.setAttribute('aria-label',`${label} ${index+1}`);
+        window.CeasefireI18n?.attr(control,'aria-label',label+' {0}',[index+1]);
+        cell.append(control);tr.append(cell);body.append(tr);
+      });
+      table.append(head,body);host.append(table);
     }
   }
   function renderEstimateOptions() {

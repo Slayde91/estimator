@@ -1,3 +1,4 @@
+const {showEstimateNotes}=require('./estimate_notes.cjs');
 // Exercise the Contacts directory with the full browser and a disposable server.
 const {chromium, expect} = require('@playwright/test');
 const {spawn, execFileSync} = require('node:child_process');
@@ -76,6 +77,18 @@ const ready = new Promise((resolve, reject) => {
   await dlg.getByRole('button',{name:'Save',exact:true}).click();
   const card=root.locator('.project-kanban-card').filter({hasText:'Robin Sample'});
   await expect(card).toBeVisible();
+  const partialDirectory=await page.evaluate(async()=>await(await fetch('/api/contacts/directory')).json());
+  let convertRequests=0;
+  page.on('request',request=>{if(new URL(request.url()).pathname==='/api/contacts/leads/convert')convertRequests++;});
+  await card.locator('.contacts-lead-convert').click();
+  await expect(root.locator('[data-contacts-notice]')).toHaveText('Complete Name, Phone, Company, Email and Site address before converting this Lead.');
+  await card.locator('summary').click();await card.getByRole('button',{name:'Convert',exact:true}).click();
+  assert.equal(convertRequests,0,'Incomplete Lead icon and menu never send a conversion request');
+  assert.deepEqual(await page.evaluate(async()=>await(await fetch('/api/contacts/directory')).json()),partialDirectory);
+  await card.locator('summary').click();await card.getByRole('button',{name:'Edit',exact:true}).click();
+  await dlg.getByLabel('Phone',{exact:true}).fill('0400');
+  await dlg.getByLabel('Email',{exact:true}).fill('robin@example.test');
+  await dlg.getByRole('button',{name:'Save',exact:true}).click();
   await card.dragTo(root.locator('.project-kanban-column[data-status="Qualified"]'));
   await expect(root.locator('.project-kanban-column[data-status="Qualified"]')).toContainText('Robin Sample');
   await root.getByRole('button',{name:'Companies',exact:true}).click();
@@ -141,10 +154,13 @@ const ready = new Promise((resolve, reject) => {
   await root.getByRole('button',{name:'New Lead',exact:true}).click();
   await dlg.getByLabel('Name',{exact:true}).fill('Second Lead');
   await dlg.getByLabel('Company',{exact:true}).fill('Second Company');
+  await dlg.getByLabel('Phone',{exact:true}).fill('0401');
+  await dlg.getByLabel('Email',{exact:true}).fill('second@example.test');
+  await dlg.getByLabel('Site address',{exact:true}).fill('Second Site');
   await dlg.getByRole('button',{name:'Save',exact:true}).click();
   await page.locator('#estimate-navigation-toggle').click();
   await page.locator('#estimate-navigation-toggle').press('Escape');
-  await page.locator('#measurements').fill('Keep these unsaved project notes');
+  await showEstimateNotes(page);await page.locator('#measurements').fill('Keep these unsaved project notes');
   await page.locator('#measurements').blur();
   await page.locator('#contacts-navigation-toggle').click();
   const secondCard=root.locator('.project-kanban-card').filter({hasText:'Second Lead'});

@@ -1,0 +1,352 @@
+{
+  "Complete Name, Phone, Company, Email and Site address before converting this Lead.": [
+    "转换此潜在客户前，请填写姓名、电话、公司、电子邮件和工地地址。",
+    "इस लीड को बदलने से पहले नाम, फ़ोन, कंपनी, ईमेल और कार्यस्थल का पता भरें।",
+    "Complete Nombre, Teléfono, Empresa, Correo electrónico y Dirección de obra antes de convertir este cliente potencial.",
+    "أكمل الاسم والهاتف والشركة والبريد الإلكتروني وعنوان الموقع قبل تحويل هذا العميل المحتمل.",
+    "กรอกชื่อ โทรศัพท์ บริษัท อีเมล และที่อยู่หน้างานให้ครบก่อนแปลงลูกค้าเป้าหมายนี้"
+  ],
+  "Quotes": [
+    "报价",
+    "कोटेशन",
+    "Cotizaciones",
+    "عروض الأسعار",
+    "ใบเสนอราคา"
+  ],
+  "Work Orders": [
+    "工单",
+    "कार्य आदेश",
+    "Órdenes de trabajo",
+    "أوامر العمل",
+    "ใบสั่งงาน"
+  ],
+  "Purchase Orders": [
+    "采购订单",
+    "खरीद आदेश",
+    "Órdenes de compra",
+    "أوامر الشراء",
+    "ใบสั่งซื้อ"
+  ],
+  "Open {0}": [
+    "打开 {0}",
+    "{0} खोलें",
+    "Abrir {0}",
+    "فتح {0}",
+    "เปิด {0}"
+  ],
+  "Project pages": [
+    "项目页面",
+    "परियोजना पृष्ठ",
+    "Páginas de proyectos",
+    "صفحات المشاريع",
+    "หน้าโครงการ"
+  ],
+  "% completed": [
+    "% 已完成",
+    "% पूरा हुआ",
+    "% completado",
+    "% مكتمل",
+    "% ที่เสร็จแล้ว"
+  ],
+  "% claimed": [
+    "% 已请款",
+    "% दावा किया गया",
+    "% solicitado para pago",
+    "% تمت المطالبة به",
+    "% ที่เบิกแล้ว"
+  ],
+  "% completed {0}": [
+    "% 已完成 {0}",
+    "% पूरा हुआ {0}",
+    "% completado {0}",
+    "% مكتمل {0}",
+    "% ที่เสร็จแล้ว {0}"
+  ],
+  "% claimed {0}": [
+    "% 已请款 {0}",
+    "% दावा किया गया {0}",
+    "% solicitado para pago {0}",
+    "% تمت المطالبة به {0}",
+    "% ที่เบิกแล้ว {0}"
+  ],
+  "Progress signed by": [
+    "进度签署人",
+    "प्रगति पर हस्ताक्षरकर्ता",
+    "Progreso firmado por",
+    "وقّع على التقدم",
+    "ผู้ลงนามความคืบหน้า"
+  ],
+  "Progress signed by name": [
+    "进度签署人姓名",
+    "प्रगति पर हस्ताक्षरकर्ता का नाम",
+    "Nombre de quien firma el progreso",
+    "اسم الموقّع على التقدم",
+    "ชื่อผู้ลงนามความคืบหน้า"
+  ],
+  "Sign Progress signed by": [
+    "签署工作进度",
+    "कार्य प्रगति पर हस्ताक्षर करें",
+    "Firmar el progreso",
+    "توقيع تقدم العمل",
+    "ลงนามความคืบหน้างาน"
+  ],
+  "Change Progress signed by": [
+    "更改进度签名",
+    "प्रगति का हस्ताक्षर बदलें",
+    "Cambiar la firma del progreso",
+    "تغيير توقيع التقدم",
+    "เปลี่ยนลายเซ็นความคืบหน้า"
+  ],
+  "Clear Progress signed by": [
+    "清除进度签名",
+    "प्रगति का हस्ताक्षर साफ़ करें",
+    "Borrar la firma del progreso",
+    "مسح توقيع التقدم",
+    "ล้างลายเซ็นความคืบหน้า"
+  ],
+  "Delete Progress signed by": [
+    "删除进度签名",
+    "प्रगति का हस्ताक्षर हटाएँ",
+    "Eliminar la firma del progreso",
+    "حذف توقيع التقدم",
+    "ลบลายเซ็นความคืบหน้า"
+  ],
+  "Closed by name": [
+    "结单人姓名",
+    "बंद करने वाले का नाम",
+    "Nombre de quien cierra",
+    "اسم من أغلق الأمر",
+    "ชื่อผู้ปิดงาน"
+  ],
+  "Sign Closed by": [
+    "签署结单",
+    "बंद करने के लिए हस्ताक्षर करें",
+    "Firmar el cierre",
+    "توقيع الإغلاق",
+    "ลงนามปิดงาน"
+  ],
+  "Change Closed by": [
+    "更改结单签名",
+    "बंद करने का हस्ताक्षर बदलें",
+    "Cambiar la firma de cierre",
+    "تغيير توقيع الإغلاق",
+    "เปลี่ยนลายเซ็นปิดงาน"
+  ],
+  "Clear Closed by": [
+    "清除结单签名",
+    "बंद करने का हस्ताक्षर साफ़ करें",
+    "Borrar la firma de cierre",
+    "مسح توقيع الإغلاق",
+    "ล้างลายเซ็นปิดงาน"
+  ],
+  "Delete Closed by": [
+    "删除结单签名",
+    "बंद करने का हस्ताक्षर हटाएँ",
+    "Eliminar la firma de cierre",
+    "حذف توقيع الإغلاق",
+    "ลบลายเซ็นปิดงาน"
+  ],
+  "Previous notes": [
+    "先前备注",
+    "पिछले नोट",
+    "Notas anteriores",
+    "الملاحظات السابقة",
+    "หมายเหตุก่อนหน้า"
+  ],
+  "Certification issued": [
+    "已签发证书",
+    "प्रमाणपत्र जारी",
+    "Certificación emitida",
+    "تم إصدار الشهادة",
+    "ออกใบรับรองแล้ว"
+  ],
+  "Certification not issued": [
+    "尚未签发证书",
+    "प्रमाणपत्र जारी नहीं",
+    "Certificación no emitida",
+    "لم تُصدر الشهادة",
+    "ยังไม่ออกใบรับรอง"
+  ],
+  "Completed": [
+    "已完成",
+    "पूरा हुआ",
+    "Completado",
+    "مكتمل",
+    "เสร็จแล้ว"
+  ],
+  "Ongoing": [
+    "进行中",
+    "जारी",
+    "En curso",
+    "جارٍ",
+    "กำลังดำเนินการ"
+  ],
+  "On hold": [
+    "已暂停",
+    "रुका हुआ",
+    "En espera",
+    "معلّق",
+    "พักไว้"
+  ],
+  "Not completed": [
+    "未完成",
+    "पूरा नहीं हुआ",
+    "No completado",
+    "غير مكتمل",
+    "ยังไม่เสร็จ"
+  ],
+  "Select an issued Quote to track work.": [
+    "请选择已签发的报价单以跟踪工作。",
+    "कार्य की प्रगति दर्ज करने के लिए जारी किया गया कोटेशन चुनें।",
+    "Seleccione una cotización emitida para seguir el trabajo.",
+    "اختر عرض أسعار صادرًا لتتبع العمل.",
+    "เลือกใบเสนอราคาที่ออกแล้วเพื่อติดตามงาน"
+  ],
+  "The original issued Quote rows are unavailable.": [
+    "原始已发布报价的明细行不可用。",
+    "मूल जारी कोटेशन की पंक्तियाँ उपलब्ध नहीं हैं।",
+    "Las filas de la cotización original emitida no están disponibles.",
+    "صفوف عرض السعر الأصلي الصادر غير متاحة.",
+    "ไม่พบรายการจากใบเสนอราคาต้นฉบับที่ออกแล้ว"
+  ],
+  "Record a completed percentage before signing work progress.": [
+    "签署工作进度前，请填写完成百分比。",
+    "कार्य प्रगति पर हस्ताक्षर करने से पहले पूरा हुआ प्रतिशत दर्ज करें।",
+    "Registre un porcentaje completado antes de firmar el progreso del trabajo.",
+    "سجّل نسبة الإنجاز قبل توقيع تقدم العمل.",
+    "บันทึกเปอร์เซ็นต์ที่เสร็จแล้วก่อนลงนามความคืบหน้างาน"
+  ],
+  "Enter a percentage from 1 to 100, or leave it blank.": [
+    "请输入 1 到 100 之间的百分比，或留空。",
+    "1 से 100 के बीच प्रतिशत दर्ज करें, या इसे खाली छोड़ दें।",
+    "Introduzca un porcentaje de 1 a 100 o deje el campo vacío.",
+    "أدخل نسبة من 1 إلى 100، أو اترك الحقل فارغًا.",
+    "ป้อนเปอร์เซ็นต์ตั้งแต่ 1 ถึง 100 หรือเว้นว่างไว้"
+  ],
+  "Work tracking uses an unsupported format.": [
+    "工作跟踪使用了不支持的格式。",
+    "कार्य की प्रगति का प्रारूप समर्थित नहीं है।",
+    "El seguimiento del trabajo usa un formato no compatible.",
+    "يستخدم تتبع العمل تنسيقًا غير مدعوم.",
+    "การติดตามงานใช้รูปแบบที่ไม่รองรับ"
+  ],
+  "Choose the issued Quote rows for this Work Order.": [
+    "请选择此工单对应的已签发报价单行。",
+    "इस कार्य आदेश के लिए जारी कोटेशन की पंक्तियाँ चुनें।",
+    "Seleccione las filas de la cotización emitida para esta orden de trabajo.",
+    "اختر صفوف عرض الأسعار الصادر لأمر العمل هذا.",
+    "เลือกแถวรายการจากใบเสนอราคาที่ออกแล้วสำหรับใบสั่งงานนี้"
+  ],
+  "Work tracking rows contain unsupported fields.": [
+    "工作跟踪行包含不支持的字段。",
+    "कार्य की प्रगति की पंक्तियों में असमर्थित फ़ील्ड हैं।",
+    "Las filas de seguimiento contienen campos no compatibles.",
+    "تحتوي صفوف تتبع العمل على حقول غير مدعومة.",
+    "แถวรายการติดตามงานมีช่องข้อมูลที่ไม่รองรับ"
+  ],
+  "Work tracking row identities are invalid.": [
+    "工作跟踪行标识无效。",
+    "कार्य की प्रगति की पंक्तियों की पहचान अमान्य है।",
+    "Los identificadores de las filas de seguimiento no son válidos.",
+    "معرّفات صفوف تتبع العمل غير صالحة.",
+    "ตัวระบุแถวรายการติดตามงานไม่ถูกต้อง"
+  ],
+  "The issued Quote row snapshot changed. Reopen this Work Order.": [
+    "已签发报价单的行快照已更改。请重新打开此工单。",
+    "जारी कोटेशन की पंक्तियों का स्नैपशॉट बदल गया है। यह कार्य आदेश दोबारा खोलें।",
+    "La instantánea de las filas de la cotización emitida cambió. Vuelva a abrir esta orden de trabajo.",
+    "تغيّرت اللقطة المحفوظة لصفوف عرض الأسعار الصادر. أعد فتح أمر العمل هذا.",
+    "สำเนาแถวรายการของใบเสนอราคาที่ออกแล้วเปลี่ยนไป ให้เปิดใบสั่งงานนี้ใหม่"
+  ],
+  "Work tracking belongs to a Work Order.": [
+    "工作跟踪仅适用于工单。",
+    "कार्य की प्रगति केवल कार्य आदेश से जुड़ती है।",
+    "El seguimiento del trabajo corresponde a una orden de trabajo.",
+    "يرتبط تتبع العمل بأمر عمل.",
+    "การติดตามงานเป็นส่วนของใบสั่งงาน"
+  ],
+  "Work tracking belongs to a different project.": [
+    "工作跟踪属于另一个项目。",
+    "कार्य की प्रगति किसी दूसरी परियोजना से संबंधित है।",
+    "El seguimiento del trabajo pertenece a otro proyecto.",
+    "يتبع تتبع العمل مشروعًا آخر.",
+    "การติดตามงานเป็นของโครงการอื่น"
+  ],
+  "Work tracking must use this Work Order's linked issued Quote.": [
+    "工作跟踪必须使用此工单关联的已签发报价单。",
+    "कार्य की प्रगति के लिए इस कार्य आदेश से जुड़े जारी कोटेशन का उपयोग करना होगा।",
+    "El seguimiento debe usar la cotización emitida vinculada a esta orden de trabajo.",
+    "يجب أن يستخدم تتبع العمل عرض الأسعار الصادر المرتبط بأمر العمل هذا.",
+    "การติดตามงานต้องใช้ใบเสนอราคาที่ออกแล้วซึ่งเชื่อมโยงกับใบสั่งงานนี้"
+  ],
+  "Reload this application before editing tracked work.": [
+    "编辑工作跟踪记录前，请重新加载此应用。",
+    "दर्ज कार्य प्रगति संपादित करने से पहले यह ऐप फिर से लोड करें।",
+    "Recargue esta aplicación antes de editar el seguimiento del trabajo.",
+    "أعد تحميل التطبيق قبل تعديل العمل المتتبَّع.",
+    "โหลดแอปนี้ใหม่ก่อนแก้ไขงานที่ติดตาม"
+  ],
+  "The original issued Quote rows are unavailable or changed. Reopen this Work Order.": [
+    "原始已签发报价单的行不可用或已更改。请重新打开此工单。",
+    "मूल जारी कोटेशन की पंक्तियाँ उपलब्ध नहीं हैं या बदल गई हैं। यह कार्य आदेश दोबारा खोलें।",
+    "Las filas de la cotización emitida original no están disponibles o cambiaron. Vuelva a abrir esta orden de trabajo.",
+    "صفوف عرض الأسعار الأصلي الصادر غير متاحة أو تغيّرت. أعد فتح أمر العمل هذا.",
+    "แถวรายการของใบเสนอราคาฉบับเดิมที่ออกแล้วไม่พร้อมใช้งานหรือเปลี่ยนไป ให้เปิดใบสั่งงานนี้ใหม่"
+  ],
+  "Choose a listed certification or completion status.": [
+    "请选择列表中的认证或完成状态。",
+    "सूची में दिया गया प्रमाणन या पूर्णता का स्टेटस चुनें।",
+    "Elija un estado de certificación o finalización de la lista.",
+    "اختر حالة شهادة أو إنجاز من القائمة.",
+    "เลือกสถานะการรับรองหรือการเสร็จงานจากรายการ"
+  ],
+  "Works in Progress": [
+    "进行中的工作",
+    "प्रगति पर कार्य",
+    "Trabajos en curso",
+    "الأعمال قيد التنفيذ",
+    "งานระหว่างดำเนินการ"
+  ],
+  "Work Order Claim": [
+    "工单请款",
+    "कार्य आदेश का भुगतान दावा",
+    "Solicitud de pago de la orden de trabajo",
+    "مطالبة أمر العمل",
+    "การเบิกจ่ายตามใบสั่งงาน"
+  ],
+  "Work Order Completion": [
+    "工单完成",
+    "कार्य आदेश की पूर्णता",
+    "Finalización de la orden de trabajo",
+    "إنجاز أمر العمل",
+    "การเสร็จสิ้นใบสั่งงาน"
+  ],
+  "Certification details": [
+    "认证详情",
+    "प्रमाणन विवरण",
+    "Detalles de certificación",
+    "تفاصيل الشهادة",
+    "รายละเอียดการรับรอง"
+  ],
+  "Closed by": [
+    "结单人",
+    "बंद करने वाला",
+    "Cerrado por",
+    "أُغلق بواسطة",
+    "ผู้ปิดงาน"
+  ],
+  "Product / Service": [
+    "产品 / 服务",
+    "उत्पाद / सेवा",
+    "Producto / Servicio",
+    "المنتج / الخدمة",
+    "ผลิตภัณฑ์ / บริการ"
+  ],
+  "Unit price": [
+    "单价",
+    "इकाई मूल्य",
+    "Precio unitario",
+    "سعر الوحدة",
+    "ราคาต่อหน่วย"
+  ]
+}

@@ -570,6 +570,10 @@
   function conversionBusy(){for(const button of root().querySelectorAll('[data-lead-convert]')){button.disabled=saving||Boolean(converting);button.setAttribute('aria-busy',String(converting===button.dataset.leadConvert));}}
   async function convertLead(lead){
     if(saving||converting)return;
+    if(['name','phone','company','email','site_address'].some(key=>typeof lead[key]!=='string'||!lead[key].trim())){
+      feedback(root(),'Complete Name, Phone, Company, Email and Site address before converting this Lead.',true);
+      return;
+    }
     converting=lead.id;conversionBusy();
     try{const saved=await update('leads/convert',{id:lead.id,version:data.version});if(saved)await window.CeasefireProject?.openConvertedLead(saved);}
     catch(error){if(root().querySelector('[data-contacts-notice]'))feedback(root(),error.message,true);}

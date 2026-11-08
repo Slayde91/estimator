@@ -164,7 +164,6 @@ def _rates(story, schedule, styles):
         ('time_and_half', 'Time and a half', 'per hour (3:30pm to 5:30pm and night shifts)'),
         ('double_time', 'Double time', 'per hour (After 5:30pm and weekends)'),
         ('site_remobilisation', 'Site Remobilisation', 'per occasion'),
-        ('access_equipment_transport', 'Access Equipment Transport', 'per occasion'),
         ('equipment', 'Equipment', ''), ('materials', 'Materials', '')
     ]:
         amount = (_money(rates[key]) + ' ' + suffix if suffix else
@@ -370,14 +369,28 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
             ('WORK ORDER REVIEW', [('Review date', 'review_date'), ('Approval', 'approval'), ('Justification', 'justification'), ('Reviewed by', 'reviewed_by'), ('Name', 'reviewed_by')]),
             ('OHS DOCUMENTATION', [('Prepared by', 'prepared_by'), ('Name', 'prepared_by'), ('Date', 'prepared_date')]),
             ('CLIENT APPROVAL', [('Approved by', 'client_approved_by'), ('Name', 'client_approved_by'), ('Approval date', 'client_approval_date')]),
-            ('WORKS IN PROGRESS', [('Progress', 'progress')]),
-            ('WORK ORDER CLAIM', [('Products and services charged', 'claim')]),
-            ('WORK ORDER COMPLETION', [('Certification details', 'certification'), ('Completion', 'completion'), ('Closed by', 'closed_by')]),
+            ('WORKS IN PROGRESS', [('Progress signed by', 'progress_by'), ('Name', 'progress_by'), ('Date', 'progress_date')]),
+            ('WORK ORDER CLAIM', []),
+            ('WORK ORDER COMPLETION', [('Certification details', 'certification'), ('Completion', 'completion'), ('Closed by', 'closed_by'), ('Name', 'closed_by'), ('Date', 'closed_date')]),
         ]:
             _section(story, title, styles)
-            _fields(story, [(label, (Signature(signatures[key], 160, 52) if signatures.get(key) else '')
-                            if label in ('Reviewed by', 'Prepared by', 'Approved by') else order.get(key, ''))
-                           for label, key in pairs], styles)
+            if title in ('WORKS IN PROGRESS','WORK ORDER CLAIM'):
+                tracking = fields.get('work_tracking')
+                key = 'completed_percent' if title=='WORKS IN PROGRESS' else 'claimed_percent'
+                label = '% completed' if title=='WORKS IN PROGRESS' else '% claimed'
+                if tracking is not None:
+                    table = _table(('Product / Service','Quantity','Unit price',label),
+                                   [(row['description'],row['quantity'],_money(row['unit_price']),row[key]) for row in tracking['rows']],
+                                   styles,[WIDTH*.55,WIDTH*.14,WIDTH*.16,WIDTH*.15])
+                    table.splitInRow = 1
+                    story.append(table)
+                legacy = order['progress' if key=='completed_percent' else 'claim']
+                if legacy:
+                    _fields(story,[('Previous notes',legacy)],styles)
+            if pairs:
+                _fields(story, [(label, (Signature(signatures[key], 160, 52) if signatures.get(key) else '')
+                                if label in ('Reviewed by', 'Prepared by', 'Approved by','Progress signed by','Closed by') else order.get(key, ''))
+                               for label, key in pairs], styles)
     else:
         _section(story, 'PURCHASE ORDER DETAILS', styles)
         _fields(story, [('Work order reference', order['work_order_reference']), ('Status', document['status']),

@@ -36,7 +36,7 @@
 .commercial-rate-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:1px; padding:1px; background:var(--red); border:1px solid var(--red); }
 .commercial-rate-grid>.field { margin:0; padding:12px; min-width:0; background:var(--paper); }
 @media(min-width:1500px) {
-  .commercial-rate-grid { grid-template-columns:repeat(7,minmax(0,1fr)); }
+  .commercial-rate-grid { grid-template-columns:repeat(6,minmax(0,1fr)); }
   .commercial-rate-grid>.field>span:first-child { min-height:30px; }
 }
 .commercial-estimate-controls { display:grid; grid-template-columns:36px minmax(0,1fr); gap:10px; align-items:start; }
@@ -84,6 +84,12 @@
 .commercial-signature-preview .helper{margin:0;color:#6d6660}
 .commercial-signature-actions>.button{width:42px;min-width:42px;height:42px;padding:8px}
 .commercial-signature-actions>.button>svg{display:block;width:24px;height:24px}
+.commercial-work-tracking{grid-column:1/-1;min-width:0;overflow-x:auto}
+.commercial-work-tracking table{width:100%;min-width:440px;border-collapse:collapse}
+.commercial-work-tracking th,.commercial-work-tracking td{padding:10px;border:1px solid var(--line);text-align:left;vertical-align:top;overflow-wrap:anywhere}
+.commercial-work-tracking td:first-child{width:55%;white-space:pre-wrap}
+.commercial-work-tracking input{min-width:90px}
+.commercial-tracking-legacy{grid-column:1/-1}.commercial-tracking-legacy p{white-space:pre-wrap;overflow-wrap:anywhere}
 @media(max-width:650px){.commercial-signer-row{grid-template-columns:minmax(0,1fr)}.commercial-work-description textarea{height:104px;min-height:104px;flex:none}}
 .commercial-lines .commercial-po-lines td:first-child{width:25%;min-width:175px}
 .commercial-po-lines td:nth-child(6){min-width:180px;width:24%}

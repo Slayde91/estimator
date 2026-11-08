@@ -55,7 +55,7 @@ class AccountRelationsTests(unittest.TestCase):
         return self.store.save(kind, body, link_catalog=catalog)
 
     def test_abn_is_canonical_for_company_and_older_edits_preserve_it(self):
-        lead = self.save("leads", {"name": "Alex", "company": "Company A", "abn_acn": "ABN 12 345 678 901"})
+        lead = self.save("leads", {"name": "Alex", "phone": "0400", "email": "alex@example.test", "site_address": "Site A", "company": "Company A", "abn_acn": "ABN 12 345 678 901"})
         current = self.store.list()
         account = current["accounts"][0]
         self.assertEqual(current["leads"][0]["abn_acn"], account["abn_acn"])

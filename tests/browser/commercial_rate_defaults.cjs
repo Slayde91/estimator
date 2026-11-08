@@ -49,6 +49,8 @@ async function discardQuote(host) {
   await page.locator('#project-estimate-quote').click();
   const quote=page.locator('#commercial-quote-root');
   await expect(quote.getByLabel('Ordinary time',{exact:true})).toHaveValue('130');
+  await expect(quote.getByLabel('Access Equipment Transport',{exact:true})).toHaveCount(0);
+  assert.equal((await rates()).rates.access_equipment_transport,'400');
   await quote.getByLabel('Document title',{exact:true}).fill('Protected original quote');
 
   // The trash icon sits at the right of the editable description, with no new column.
@@ -60,7 +62,7 @@ async function discardQuote(host) {
   await quote.locator('.commercial-estimate-picker summary').click();
   await quote.getByRole('button',{name:'Add custom row',exact:true}).click();
   const custom=rows.last(), remove=custom.getByRole('button',{name:'Remove row',exact:true});
-  await custom.getByRole('textbox').fill('Temporary custom amount');
+  await custom.getByRole('combobox').fill('Temporary custom amount');
   await custom.locator('input').first().fill('2'); await custom.locator('input').last().fill('100');
   await expect(custom.locator('.commercial-line-total')).toHaveText('$200.00');
   await expect(remove.locator('svg')).toHaveCount(1);
@@ -162,9 +164,9 @@ async function discardQuote(host) {
   await expect(quote.getByLabel('Materials',{exact:true})).toHaveValue('20');
   await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
   await quote.getByRole('button',{name:'New Quote',exact:true}).click();
-  for (const [key,value] of Object.entries(finalProfile.rates)) await expect(quote.locator(`[data-rate-key="${key}"]`)).toHaveValue(value);
+  for (const [key,value] of Object.entries(finalProfile.rates).filter(([key])=>key!=='access_equipment_transport')) await expect(quote.locator(`[data-rate-key="${key}"]`)).toHaveValue(value);
   await discardQuote(quote);
-  checks.push('discarded document edits keep shared defaults; existing saved snapshot remains unchanged and new draft uses all seven defaults');
+  checks.push('discarded document edits keep shared defaults; existing saved snapshot remains unchanged and new draft uses all six displayed defaults and retains the legacy transport value');
 
   await openProjectSection(page,'quotes');
   const saveTarget=path.join(info.directory,'save-dialog-target.json'),newProject=path.join(info.directory,'rate-defaults-new-project.cf.json');
@@ -181,12 +183,12 @@ async function discardQuote(host) {
   await page.locator('#discard-dialog').getByRole('button',{name:'Load Project',exact:true}).click();await idle();
   await openProjectSection(page,'quote');
   await quote.getByRole('button',{name:'New Quote',exact:true}).click();
-  for (const [key,value] of Object.entries(finalProfile.rates)) await expect(quote.locator(`[data-rate-key="${key}"]`)).toHaveValue(value);
+  for (const [key,value] of Object.entries(finalProfile.rates).filter(([key])=>key!=='access_equipment_transport')) await expect(quote.locator(`[data-rate-key="${key}"]`)).toHaveValue(value);
   checks.push('new project and browser reload both use persisted app defaults rather than calculator pricing');
   await expect(quote.locator('.commercial-message')).toBeHidden();
   await quote.locator('.commercial-estimate-picker summary').click();
   await quote.getByRole('button',{name:'Add custom row',exact:true}).click();
-  await quote.locator('.commercial-lines tbody tr').last().getByRole('textbox').fill('Custom row with inline trash');
+  await quote.locator('.commercial-lines tbody tr').last().getByRole('combobox').fill('Custom row with inline trash');
   assert.deepEqual(errors,[]);
   await page.screenshot({path:path.join(output,'rates-and-custom-row.png'),fullPage:true});
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,updated,profile:finalProfile,errors},null,2));

@@ -38,6 +38,9 @@ ORDER_FIELDS = ('start_date', 'end_date', 'urgency', 'quote_id', 'work_order_id'
                 'ship_to_address', 'delivery_date', 'expense_type', 'delivery_method', 'requested_by',
                 'requested_date', 'sent_by', 'sent_date', 'verified_by', 'verified_date', 'verification', 'prepared_date')
 FIELD_KEYS = {'title', 'details', 'introduction', 'lines', 'scope', 'scope_tables', 'sources', 'allowances', 'terms', 'order', 'company_reference'}
+WORK_ORDER_OPTIONAL_FIELDS = ('progress_by', 'progress_date', 'closed_date')
+CERTIFICATION_CHOICES = ('Certification issued', 'Certification not issued')
+COMPLETION_CHOICES = ('Completed', 'Ongoing', 'On hold', 'Not completed')
 MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024
 MAX_PDF_BYTES = 64 * 1024 * 1024
 RATE_DEFAULTS = {'ordinary_time': '130', 'time_and_half': '160', 'double_time': '190',
@@ -271,13 +274,13 @@ def default_fields(kind, details=None, company=None, *, rates=None):
     return {'title': KINDS[kind], 'details': {key: supplied.get(key, '') for key in DETAIL_FIELDS},
             'introduction': INTRODUCTION if kind == 'quote' else '', 'lines': [], 'scope': '',
             'scope_tables': [], 'sources': [], 'allowances': '<ul><li>N / A</li></ul>' if kind == 'quote' else '', 'terms': default_terms(company) if kind == 'quote' else '',
-            'order': {key: '' for key in ORDER_FIELDS},
+            'order': {key: '' for key in (*ORDER_FIELDS, *(WORK_ORDER_OPTIONAL_FIELDS if kind=='work_order' else ()))},
             'rate_schedule': schedule,
             'company_reference': {key: company.get(key, '') for key in ('name', 'abn')}}
 
 
 def validate_fields(value, *, kind=None):
-    if not isinstance(value, dict) or set(value) - {'rate_schedule', 'notes', 'signatures', 'files'} != FIELD_KEYS:
+    if not isinstance(value, dict) or set(value) - {'rate_schedule', 'notes', 'signatures', 'files', 'work_tracking'} != FIELD_KEYS:
         raise ValidationError('Commercial document fields use an unsupported format.')
     result = {'title': _text(value['title'], 'Title', 300)}
     result['rate_schedule'] = validate_rate_schedule(value.get('rate_schedule', default_rate_schedule()))
@@ -288,11 +291,20 @@ def validate_fields(value, *, kind=None):
         result['files'] = files
     from .swms import validate_signature
     signatures = value.get('signatures', {})
-    if (not isinstance(signatures, dict) or set(signatures) - {'reviewed_by', 'prepared_by', 'client_approved_by'}
+    if (not isinstance(signatures, dict) or set(signatures) - {'reviewed_by', 'prepared_by', 'client_approved_by', 'progress_by', 'closed_by'}
             or (signatures and kind not in ('work_order', None))):
         raise ValidationError('Invalid work order signatures.')
     if signatures:
         result['signatures'] = {key: validate_signature(signature) for key, signature in signatures.items()}
+    if 'work_tracking' in value:
+        if kind not in ('work_order', None):
+            raise ValidationError('Work tracking belongs to a Work Order.')
+        from .work_order_tracking import validate, has_completion
+        result['work_tracking'] = validate(value['work_tracking'])
+    if signatures.get('progress_by'):
+        from .work_order_tracking import has_completion
+        if not has_completion(result.get('work_tracking')):
+            raise ValidationError('Record a completed percentage before signing work progress.')
     notes = value.get('notes', [])
     if not isinstance(notes, list) or len(notes) > 200 or (notes and kind not in (*KINDS, None)):
         raise ValidationError('Commercial documents support up to 200 notes.')
@@ -319,9 +331,11 @@ def validate_fields(value, *, kind=None):
     result['company_reference'] = {key: _text(company[key], 'Company reference', 120) for key in company}
     for key, keys in (('details', DETAIL_FIELDS), ('order', ORDER_FIELDS)):
         fields = value[key]
-        if not isinstance(fields, dict) or set(fields) - set(keys):
+        optional = WORK_ORDER_OPTIONAL_FIELDS if key=='order' and kind in ('work_order',None) else ()
+        if not isinstance(fields, dict) or set(fields) - set(keys) - set(optional):
             raise ValidationError('Commercial document details contain unsupported fields.')
         result[key] = {name: _text(fields.get(name, ''), name, 6000 if key == 'order' else 1000) for name in keys}
+        result[key].update({name:_text(fields[name], name, 1000) for name in optional if name in fields})
     for name in ('quote_id', 'work_order_id'):
         if result['order'][name]:
             _identity(result['order'][name])
@@ -365,6 +379,9 @@ def validate_fields(value, *, kind=None):
         result['sources'].append({'estimate_id': _text(source['estimate_id'], 'Estimate identity', 100), 'sha256': source['sha256']})
     if kind in ('work_order', 'purchase_order'):
         _normalise_legacy_reference(kind, result)
+    tracking = result.get('work_tracking')
+    if tracking and (tracking['quote_id'],tracking['quote_reference']) != (result['order']['quote_id'],result['order']['quote_reference']):
+        raise ValidationError("Work tracking must use this Work Order's linked issued Quote.")
     return result
 
 
@@ -436,6 +453,8 @@ def validate_commercial_documents(value):
             raise ValidationError('Commercial document kind, status or version is invalid.')
         row = deepcopy(document)
         row['fields'] = validate_fields(document['fields'], kind=row['kind'])
+        if row['fields'].get('work_tracking', {}).get('project_id', value['project_id']) != value['project_id']:
+            raise ValidationError('Work tracking belongs to a different project.')
         for key in ('created_at', 'updated_at', 'last_number'):
             row[key] = _text(row[key], key, 100)
         if row['last_number'] and not valid_reference(row['last_number']):
@@ -667,6 +686,37 @@ class CommercialDocuments:
                              "AND json_extract(data,'$.last_number')=?", (workspace, quote_id, quote_number)).fetchone()
         return totals({'lines': json.loads(row[0])})['grand_total'] if row is not None else ''
 
+    @staticmethod
+    def _quote_tracking(db, project, quote_id, reference, previous=None):
+        from .work_order_tracking import template, baseline
+        issued = db.execute('SELECT document FROM commercial_issued WHERE project_id=? AND document_id=? AND number=?',
+                            (project, quote_id, reference)).fetchone()
+        if issued is not None:
+            document = _stored_document(issued[0])
+            if document['kind'] != 'quote':
+                return None
+            return template(project, quote_id, reference, document['fields']['lines'])
+        # A portable Work Order retains its original issued-row snapshot. Only
+        # the server-owned previous record can supply this cold-cache baseline.
+        stored = previous and previous['fields'].get('work_tracking')
+        if stored and (stored['project_id'],stored['quote_id'],stored['quote_reference']) == (project,quote_id,reference):
+            return baseline(stored)
+        return None
+
+    def _validate_tracking(self, db, project, fields, previous=None):
+        from .work_order_tracking import baseline
+        value = fields.get('work_tracking')
+        if value is None:
+            if previous and previous['fields'].get('work_tracking'):
+                raise ValidationError('Reload this application before editing tracked work.')
+            return
+        order = fields['order']
+        if (value['project_id'],value['quote_id'],value['quote_reference']) != (project,order['quote_id'],order['quote_reference']):
+            raise ValidationError("Work tracking must use this Work Order's linked issued Quote.")
+        expected = self._quote_tracking(db, project, order['quote_id'], order['quote_reference'], previous)
+        if expected is None or baseline(value) != expected:
+            raise ValidationError('The original issued Quote rows are unavailable or changed. Reopen this Work Order.')
+
     def view(self, workspace, *, include_quote_totals=False):
         with self._connect() as db:
             project = self._workspace(db, workspace)
@@ -677,11 +727,14 @@ class CommercialDocuments:
                 links = {(doc['id'], doc['last_number']) for doc in documents if doc['kind'] == 'quote' and doc['last_number']}
                 for doc in documents:
                     order = doc['fields']['order']
-                    if doc['kind'] == 'work_order' and order['quote_id'] and not order['estimated_cost']:
+                    if doc['kind'] == 'work_order' and order['quote_id']:
                         links.add((order['quote_id'], order['quote_reference']))
                 result['quote_totals'] = {}
+                result['quote_rows'] = {}
                 for identity, number in sorted(links):
                     result['quote_totals'].setdefault(identity, {})[number] = self._linked_quote_total(db, workspace, project, identity, number)
+                    tracking = self._quote_tracking(db, project, identity, number)
+                    result['quote_rows'].setdefault(identity,{})[number] = tracking
             return result
 
     def restore(self, workspace, snapshot):
@@ -864,6 +917,11 @@ class CommercialDocuments:
                 if payload.get('version') != 0:
                     self._version(previous, payload.get('version'))
             self._relationships(db, workspace, project, kind, fields, previous, create_retry=payload.get('version') == 0)
+            if kind=='work_order':
+                for key, choices in (('certification',CERTIFICATION_CHOICES),('completion',COMPLETION_CHOICES)):
+                    if fields['order'][key] and fields['order'][key] not in choices and (previous is None or fields['order'][key]!=previous['fields']['order'][key]):
+                        raise ValidationError('Choose a listed certification or completion status.')
+                self._validate_tracking(db, project, fields, previous)
             if payload.get('version') == 0 and previous:
                 if previous['fields'] == fields and previous['status'] == payload['status']:
                     if unfiled_context is not None:
@@ -979,6 +1037,12 @@ class CommercialDocuments:
             kind = document['kind']
             previous = deepcopy(document)
             order = document['fields']['order']
+            if kind=='work_order':
+                if 'work_tracking' not in document['fields'] and order['quote_id']:
+                    tracking = self._quote_tracking(db, project, order['quote_id'],order['quote_reference'],document)
+                    if tracking is not None:
+                        document['fields']['work_tracking'] = tracking
+                self._validate_tracking(db, project, document['fields'], previous)
             if kind == 'work_order' and order['quote_id'] and not order['estimated_cost']:
                 order['estimated_cost'] = self._linked_quote_total(db, workspace, project, order['quote_id'], order['quote_reference'])
             label = (self.numbering.assign(db, kind, project + ':issue:' + request_id) if kind == 'quote' else document['reference'])

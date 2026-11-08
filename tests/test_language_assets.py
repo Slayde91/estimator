@@ -16,6 +16,44 @@ from estimator.server import DEFAULT_CONTENT_SECURITY_POLICY, create_server
 ROOT = Path(__file__).resolve().parents[1]
 
 class LanguageAssetsTests(unittest.TestCase):
+    def test_work_order_tracking_copy_covers_every_offline_language(self):
+        # These dynamic captions, signature controls and server errors do not
+        # all appear in the static HTML-marker coverage below.
+        expected = (
+            '% completed', '% claimed', '% completed {0}', '% claimed {0}',
+            'Progress signed by', 'Progress signed by name',
+            'Sign Progress signed by', 'Change Progress signed by',
+            'Clear Progress signed by', 'Delete Progress signed by',
+            'Closed by name', 'Sign Closed by', 'Change Closed by',
+            'Clear Closed by', 'Delete Closed by', 'Previous notes',
+            'Certification issued', 'Certification not issued', 'Completed',
+            'Ongoing', 'On hold', 'Not completed',
+            'Select an issued Quote to track work.',
+            'The original issued Quote rows are unavailable.',
+            'Record a completed percentage before signing work progress.',
+            'Enter a percentage from 1 to 100, or leave it blank.',
+            'Work tracking uses an unsupported format.',
+            'Choose the issued Quote rows for this Work Order.',
+            'Work tracking rows contain unsupported fields.',
+            'Work tracking row identities are invalid.',
+            'The issued Quote row snapshot changed. Reopen this Work Order.',
+            'Work tracking belongs to a Work Order.',
+            'Work tracking belongs to a different project.',
+            "Work tracking must use this Work Order's linked issued Quote.",
+            'Reload this application before editing tracked work.',
+            'The original issued Quote rows are unavailable or changed. Reopen this Work Order.',
+            'Choose a listed certification or completion status.',
+            'Works in Progress', 'Work Order Claim', 'Work Order Completion',
+            'Certification details', 'Closed by', 'Product / Service', 'Unit price',
+        )
+        builder = runpy.run_path(str(ROOT / 'scripts/build_language_catalog.py'))
+        payload, _ = builder['build']()
+        messages = json.loads(payload.split('Object.freeze(', 1)[1].rsplit(');', 1)[0])
+        for source in expected:
+            with self.subTest(source=source):
+                self.assertIn(source, messages)
+                builder['validate_translations'](Path('tracking copy'), source, messages[source], builder['LANGUAGES'])
+
     def test_catalog_is_complete_deterministic_and_current(self):
         builder = runpy.run_path(str(ROOT / 'scripts/build_language_catalog.py'))
         payload, count = builder['build']()

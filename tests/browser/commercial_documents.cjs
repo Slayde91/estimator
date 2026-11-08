@@ -1,3 +1,4 @@
+const {showEstimateNotes}=require('./estimate_notes.cjs');
 const {chromium, expect: defaultExpect} = require('@playwright/test');
 const expect = defaultExpect.configure({timeout:30000});
 const {spawn,execFileSync} = require('node:child_process');
@@ -139,7 +140,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   checks.push('a delayed commercial state response cannot replace the new project workspace');
   const seeded=JSON.parse(execFileSync(process.env.CEASEFIRE_PYTHON||'python',['-c',seedCode,info.project],{cwd:root,encoding:'utf8',windowsHide:true}));
   await page.getByRole('button',{name:'Estimates',exact:true}).click();
-  await page.locator('#measurements').fill('Discard this replacement Project draft before loading the fixture');
+  await showEstimateNotes(page);await page.locator('#measurements').fill('Discard this replacement Project draft before loading the fixture');
   await page.locator('#measurements').blur();
   await clickProjectControl(page,'Load');
   await page.locator('#discard-dialog').getByRole('button',{name:'Load Project',exact:true}).click();

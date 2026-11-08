@@ -23,8 +23,8 @@ async function themeColors(selector, token) {return page.locator(selector).first
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1146,height:900}});page.setDefaultTimeout(60000);
   page.on('pageerror',error=>errors.push(error.message));
   await page.goto(`http://127.0.0.1:${fixture.port}/`,{waitUntil:'networkidle'});await idle();
-  for(const [name,label] of [['Steel (spray)','STEEL CALCULATOR'],['Steel (board)','STEEL CALCULATOR'],['Duct','DUCT CALCULATOR']]){
-    await chooseCalculator(page,name);await expect(page.locator('#calculator-title')).toHaveText(name,{timeout:60000});await idle();await expect(page.locator('#calculator-workspace .eyebrow')).toHaveText(label);
+  for(const name of ['Steel (spray)','Steel (board)','Duct']){
+    await chooseCalculator(page,name);await expect(page.locator('#calculator-title')).toHaveText(name,{timeout:60000});await idle();await expect(page.locator('#calculator-workspace .eyebrow,.calculator-workspace-heading .workspace-header-art')).toHaveCount(0);
   }
   // Seed a single partial board draft through its public input endpoint, then
   // load that saved calculator into a fresh browser. No real project is touched.

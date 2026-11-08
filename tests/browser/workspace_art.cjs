@@ -1,4 +1,4 @@
-// Decorative banners retain real controls, responsive flow and project drafts.
+// Retained artwork and simplified headers preserve controls, responsive flow and drafts.
 const {chromium,expect}=require('@playwright/test');
 const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),crypto=require('node:crypto');
@@ -84,20 +84,6 @@ async function art(selector,name,header=false){
  }
  evidence.push({name,...value});await page.screenshot({path:path.join(output,name+'.png')});
 }
-async function framing(selector,name,firestopping=false){
- for(const themeId of ['ceasefire','midnight','ocean','forest','slate']){
- await theme(themeId,name);
- for(const width of [1384,825,390]){
-  await page.setViewportSize({width,height:764});await page.evaluate(()=>scrollTo(0,0));
-  const value=await page.locator(selector).evaluate(frame=>{const image=frame.matches('img')?frame:frame.querySelector('img'),crop=frame.matches('img')?frame:frame.querySelector('.workspace-banner-crop'),heading=frame.closest(".workspace-banner-heading,.penetration-banner-heading"),box=el=>{const r=el.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height}},f=box(frame),c=box(crop),b=box(image),s=getComputedStyle(image),scale=(s.objectFit==='cover'?Math.max:Math.min)(b.width/image.naturalWidth,b.height/image.naturalHeight),position=s.objectPosition.split(' ').map(v=>parseFloat(v)/100),paint={x:b.x+(b.width-image.naturalWidth*scale)*position[0],y:b.y+(b.height-image.naturalHeight*scale)*position[1],width:image.naturalWidth*scale,height:image.naturalHeight*scale},left=Math.max(paint.x,f.x,c.x),right=Math.min(paint.x+paint.width,f.right,c.right),top=Math.max(paint.y,f.y,c.y),bottom=Math.min(paint.y+paint.height,f.bottom,c.bottom);let heightWithoutArt;const original=frame.style.getPropertyValue('display'),priority=frame.style.getPropertyPriority('display'),attribute=frame.getAttribute('style');try{frame.style.display='none';heightWithoutArt=heading.getBoundingClientRect().height;}finally{if(original)frame.style.setProperty('display',original,priority);else frame.style.removeProperty('display');if(attribute===null&&frame.style.length===0){frame.getAttribute('style');frame.removeAttribute('style');}}return{src:image.getAttribute('src'),frame:f,crop:c,image:b,paint,visiblePaint:{left,right,top,bottom,width:right-left,height:bottom-top},heading:box(heading),heightWithoutArt,title:box(heading.querySelector('h1,h2')),natural:[image.naturalWidth,image.naturalHeight],fit:s.objectFit,sourceCrop:{left:(left-paint.x)/scale,top:(top-paint.y)/scale,width:(right-left)/scale,height:(bottom-top)/scale,fraction:(right-left)*(bottom-top)/(paint.width*paint.height)},innerMask:getComputedStyle(crop).maskImage,innerComposite:getComputedStyle(crop).maskComposite,pointer:s.pointerEvents,overflow:document.documentElement.scrollWidth-innerWidth};});
-  assert.deepEqual(value.natural,assetContract[value.src].natural);assert.equal(value.pointer,'none');assert.match(value.innerMask,/linear-gradient/);assert.ok(Math.abs(value.visiblePaint.left-value.crop.x)<.25&&Math.abs(value.visiblePaint.right-value.crop.right)<.25&&Math.abs(value.visiblePaint.top-value.crop.y)<.25&&Math.abs(value.visiblePaint.bottom-value.crop.bottom)<.25,'The fade frame follows all four visible painted edges');assert.equal(value.heading.height,value.heightWithoutArt,name+' artwork retains the original header height at every theme and viewport');assert.ok(value.overflow<=1);assert.ok(value.frame.x>=value.heading.x&&value.frame.right<=value.heading.right+.1&&value.frame.y>=value.heading.y&&value.frame.bottom<=value.heading.bottom+.1,'Decorative frame fits the original heading: '+JSON.stringify(value));
-  if(firestopping){const adjacent=await page.locator(selector).evaluate(el=>{const heading=el.closest('.penetration-banner-heading'),slot=heading.querySelector('.calculator-heading-art-slot').getBoundingClientRect(),bolt=heading.querySelector('.calculator-heading-lightning'),art=el.getBoundingClientRect();return{gap:getComputedStyle(heading).direction==='rtl'?slot.right-art.right:art.left-slot.left,boltDisplay:getComputedStyle(bolt).display};});assert.equal(adjacent.boltDisplay,'none');assert.ok(Math.abs(adjacent.gap-18)<.1,'Firestopping art has one compact gap after the copy');assert.equal(value.fit,'cover');assert.ok(value.frame.width<=210.1,'Firestopping art stays compact beside the heading');}
-  evidence.push({name:name+'-framing',theme:themeId,viewport:width,...value});await page.screenshot({path:path.join(output,`${name}-framing-${themeId}-${width}.png`)});
- }
- }
- if(!firestopping)await theme('ceasefire',name);
- await page.setViewportSize({width:1384,height:764});
-}
 async function openProjectsList(){
  const toggle=page.locator('#projects-navigation-toggle');
  await toggle.click();await idle();
@@ -121,72 +107,67 @@ async function followupBanners(themes=['ceasefire','midnight','ocean','forest','
      return{heading:box(el),title:box(title),font:getComputedStyle(title).fontSize,art:frame?box(frame):null,src:image?.getAttribute('src'),loaded:!image||image.complete&&image.naturalWidth>0,direction:getComputedStyle(el).direction,subtitle:el.querySelectorAll('.subtitle').length,overflow:document.documentElement.scrollWidth-innerWidth};
     });
     assert.equal(data.loaded,true);assert.equal(data.subtitle,0);assert.ok(data.overflow<=1,JSON.stringify(data));
-    if(workspace==='estimate')assert.equal(data.art,null,'Estimate artwork remains removed');
+    if(['estimate','projects'].includes(workspace))assert.equal(data.art,null,workspace+' artwork remains removed');
     else if(workspace==='pricing')assert.equal(data.font,'28px');
     else{assert.ok(data.art.width>0&&data.art.height>0);assert.ok(data.direction==='rtl'?data.art.right<=data.title.x:data.art.x>=data.title.right,'Artwork follows the heading without overlap: '+JSON.stringify(data));assert.ok(data.art.x>=data.heading.x&&data.art.right<=data.heading.right+.1);}
     if(workspace==='technical'){assert.ok(data.art.width<=188.6&&data.art.height<=80.1,'Technical artwork fits 188.5 by 80');}if(workspace==='penetration'){assert.ok(data.art.width<=314.1&&data.art.height<=84.1,'Firestopping Library artwork fits 314 by 84');}
     if(workspace==='estimate'){const toggle=page.locator('#view-estimate [data-document-menu-toggle][aria-controls="firestopping-document-actions"]');await toggle.click({trial:true});}
     if(workspace==='projects'){
      for(const id of ['new-quote','load-project','link-project-folder','refresh-quotes'])await page.locator('#'+id).click({trial:true});
-     const banner=await page.locator('.project-evidence-art').evaluate(el=>{const frame=el.querySelector('.project-evidence-crop'),image=el.querySelector('img'),r=el.getBoundingClientRect(),heading=el.closest('.project-banner-heading'),crop=frame.getBoundingClientRect(),height=heading.getBoundingClientRect().height,slot=el.parentElement;slot.style.display='none';const withoutArt=heading.getBoundingClientRect().height;slot.style.removeProperty('display');return{inside:crop.left>=r.left-.1&&crop.right<=r.right+.1,height,withoutArt,withinHeading:r.top>=heading.getBoundingClientRect().top-.1&&r.bottom<=heading.getBoundingClientRect().bottom+.1,src:image.getAttribute('src'),loaded:image.complete&&image.naturalWidth>0,mask:getComputedStyle(frame).maskImage,composite:getComputedStyle(frame).maskComposite,pointer:getComputedStyle(el).pointerEvents};});
-     await expect(page.locator('#view-quotes img[src="/header-projects.png"]')).toHaveCount(0);await expect(page.locator('#view-quotes > .project-evidence-art')).toHaveCount(0);assert.equal(banner.src,'/projects-evidence-banner.png');assert.equal(banner.inside,true);assert.equal(banner.withinHeading,true);assert.equal(banner.height,banner.withoutArt,'Artwork does not stretch the heading row');assert.equal(banner.loaded,true);assert.match(banner.mask,/90deg/);assert.match(banner.composite,/intersect/);assert.equal(banner.pointer,'none');data.banner=banner;
+     await expect(heading.locator('.eyebrow')).toHaveCount(0);await expect(page.locator('.project-evidence-art,.project-heading-art-slot')).toHaveCount(0);
+     const tabs=page.locator('#project-pages');await expect(tabs).toBeVisible();await expect(tabs.locator('button')).toHaveCount(4);
+     const tabBox=await tabs.boundingBox();assert.ok(tabBox.x>=0&&tabBox.x+tabBox.width<=width+1,'Project tabs stay within the viewport');
     }
     evidence.push({name:'header-followup',workspace,theme:themeId,viewport:width,...data});await page.screenshot({path:path.join(output,`followup-${workspace}-${themeId}-${width}.png`)});
    }
   }
  }
- await openProjectsList();await page.emulateMedia({media:'print'});await expect(page.locator('.project-evidence-art')).toBeHidden();await expect(page.locator('.project-heading-art-slot')).toBeHidden();await page.emulateMedia({media:'screen'});
+ await openProjectsList();await page.emulateMedia({media:'print'});await expect(page.locator('.project-evidence-art,.project-heading-art-slot')).toHaveCount(0);await page.emulateMedia({media:'screen'});
  await theme('ceasefire','estimate');await page.setViewportSize({width:1384,height:764});
 }
 async function calculatorFraming(kind,name,themes=['ceasefire','midnight','ocean','forest','slate'],widths=[1384,1146,825,390]){
  const heading=page.locator('.calculator-workspace-heading');
  for(const themeId of themes){
   await theme(themeId,name);
+  if(name==='ductwork')await page.locator('#calculator-pages button').first().click();
   for(const width of widths){
    await page.setViewportSize({width,height:764});await page.evaluate(()=>scrollTo(0,0));
-   const toggle=page.locator('#calculator-document-toggle');await toggle.click({trial:true});
-   await expect(heading.locator('.calculator-heading-lightning')).toBeHidden();
-   if(kind==='intumescent'&&width<=480){
-    await expect(heading.locator('.workspace-header-art--intumescent')).toBeHidden();
-    await toggle.click();const menu=page.locator('#calculator-document-menu');await expect(menu).toBeVisible();await menu.locator('button:visible').first().click({trial:true});await toggle.press('Escape');
-    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth<=1),'Phone title and controls stay within the viewport');
-    evidence.push({name:name+'-adjacent-framing',theme:themeId,viewport:width,decorativeArtHiddenForNarrowTitle:true,documentMenuReachable:true});await page.screenshot({path:path.join(output,`${name}-adjacent-${themeId}-phone-${width}.png`)});continue;
-   }
+   await expect(heading.locator('.eyebrow,.calculator-heading-art-slot,.workspace-header-art')).toHaveCount(0);
+   await expect(page.locator('#calculator-title')).toBeVisible();
    const value=await heading.evaluate(el=>{
     const box=n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};};
-    const copy=el.querySelector('.calculator-heading-copy'),text=el.querySelector('.calculator-heading-text'),slot=el.querySelector('.calculator-heading-art-slot'),bolt=slot.querySelector('svg'),frames=[...slot.querySelectorAll('.workspace-header-art')],frame=frames.find(n=>getComputedStyle(n).display!=='none'),img=frame.querySelector('img'),actions=el.querySelector('.calculator-header-actions'),title=el.querySelector('h2');
-    const framing=()=>{const crop=frame.querySelector('.workspace-banner-crop'),f=box(frame),c=box(crop),b=box(img),s=getComputedStyle(img),scale=(s.objectFit==='cover'?Math.max:Math.min)(b.width/img.naturalWidth,b.height/img.naturalHeight),position=s.objectPosition.split(' ').map(v=>parseFloat(v)/100),paint={x:b.x+(b.width-img.naturalWidth*scale)*position[0],y:b.y+(b.height-img.naturalHeight*scale)*position[1],width:img.naturalWidth*scale,height:img.naturalHeight*scale},left=Math.max(paint.x,f.x,c.x),right=Math.min(paint.x+paint.width,f.right,c.right),top=Math.max(paint.y,f.y,c.y),bottom=Math.min(paint.y+paint.height,f.bottom,c.bottom);return{frame:f,crop:c,image:b,paint,scale,fit:s.objectFit,sourceCrop:{left:(left-paint.x)/scale,top:(top-paint.y)/scale,width:(right-left)/scale,height:(bottom-top)/scale,fraction:(right-left)*(bottom-top)/(paint.width*paint.height)},visiblePaint:{left,right,top,bottom,width:right-left,height:bottom-top}};};
-    const geometry=()=>({heading:box(el),copy:box(text),title:box(title),actions:box(actions)}),layout=()=>({workspace:box(el.parentElement),pages:box(document.querySelector('#calculator-pages')),main:box(document.querySelector('main')),scrollHeight:document.documentElement.scrollHeight,scrollWidth:document.documentElement.scrollWidth});
-    const html=el.outerHTML,actual=geometry(),actualLayout=layout(),art=framing(),copyStyle=copy.getAttribute('style'),textClass=text.getAttribute('class');let baseline;
-    // Recover the shipped direct-child text/art/actions flow using the same
-    // source nodes. Absolute artwork never contributed to the original height.
-    try{copy.before(text);text.removeAttribute('class');for(const f of frames)actions.before(f);copy.style.setProperty('display','none','important');baseline={geometry:geometry(),layout:layout(),art:framing()};}
-    finally{copy.insertBefore(text,slot);if(textClass===null)text.removeAttribute('class');else text.setAttribute('class',textClass);for(const f of frames)slot.append(f);if(copyStyle===null){copy.getAttribute('style');copy.removeAttribute('style');}else copy.setAttribute('style',copyStyle);}
-    const css=getComputedStyle(frame),imageCSS=getComputedStyle(img),r=toggle=>{const b=toggle.getBoundingClientRect(),hit=document.elementFromPoint(b.x+b.width/2,b.y+b.height/2);return!!hit&&(hit===toggle||toggle.contains(hit));};
-    return{actual,actualLayout,baseline,...art,slot:box(slot),bolt:{...box(bolt),display:getComputedStyle(bolt).display,hidden:bolt.getAttribute('aria-hidden'),focusable:bolt.getAttribute('focusable')},src:img.getAttribute('src'),natural:[img.naturalWidth,img.naturalHeight],alt:img.alt,hidden:slot.getAttribute('aria-hidden'),pointer:css.pointerEvents,imagePointer:imageCSS.pointerEvents,mask:css.maskImage,composite:css.maskComposite,position:css.position,aspect:css.aspectRatio,direction:getComputedStyle(el).direction,restored:html===el.outerHTML,documentHit:r(el.querySelector('#calculator-document-toggle')),overflow:document.documentElement.scrollWidth-innerWidth};
+    return{heading:box(el),title:box(el.querySelector('h2')),actions:box(el.querySelector('.calculator-header-actions')),direction:getComputedStyle(el).direction,overflow:document.documentElement.scrollWidth-innerWidth};
    });
-   assert.equal(value.src,'/header-'+(kind==='spray'?'steel-spray':kind==='board'?'steel-board':kind==='intumescent'?'steel-intumescent':'ductwork')+'.png');assert.deepEqual(value.natural,assetContract[value.src].natural);assert.equal(value.alt,'');assert.equal(value.hidden,'true');assert.equal(value.pointer,'none');assert.equal(value.imagePointer,'none');assert.equal(value.position,'absolute');assert.match(value.mask,/linear-gradient/);assert.match(value.composite,/intersect/);assert.equal(value.fit,'cover');assert.equal(value.restored,true,'The shipped layout probe restores exact source nodes and inline markup');
-   for(const part of ['heading','copy','title','actions'])for(const axis of ['x','y','width','height'])assert.ok(Math.abs(value.actual[part][axis]-value.baseline.geometry[part][axis])<.1,`${name}/${themeId}/${width} preserves original ${part}.${axis}: ${JSON.stringify(value)}`);
-   assert.deepEqual(value.actualLayout,value.baseline.layout,'Moving artwork preserves the calculator, worksheet and full page flow');
-   assert.equal(value.documentHit,true,'The real Document toggle receives native pointer input');assert.ok(value.overflow<=1);
-   assert.equal(value.bolt.display,'none');assert.equal(value.bolt.width,0);assert.equal(value.bolt.height,0);assert.equal(value.bolt.hidden,'true');assert.equal(value.bolt.focusable,'false');
-   assert.ok(Math.abs((value.direction==='rtl'?value.slot.right-value.frame.right:value.frame.x-value.slot.x)-18)<.1,'Artwork follows the title with one compact gap and no reserved lightning space');
-   assert.ok(value.frame.width>0&&value.frame.height>0&&value.frame.x>=value.actual.heading.x&&value.frame.right<=value.actual.heading.right+.1&&value.frame.y>=value.actual.heading.y-.1&&value.frame.bottom<=value.actual.heading.bottom+.1,'The art stays inside the original heading');
-   if(value.actual.actions.y<value.actual.title.bottom)assert.ok(value.direction==='rtl'?value.frame.x>=value.actual.actions.right:value.frame.right<=value.actual.actions.x,'The image leaves same-row controls clear');else assert.ok(value.frame.bottom<=value.actual.actions.y+.1,'Phone artwork stays above the original controls');
-   assert.ok(Math.abs(value.visiblePaint.left-value.crop.x)<.25&&Math.abs(value.visiblePaint.right-value.crop.right)<.25&&Math.abs(value.visiblePaint.top-value.crop.y)<.25&&Math.abs(value.visiblePaint.bottom-value.crop.bottom)<.25,'The four-edge mask follows the actual clipped scene');
-   if(kind==='spray'){assert.ok(value.sourceCrop.fraction>=.625-.001,'The square spray scene retains at least62.5percent of its source');assert.ok(value.sourceCrop.top<=400&&value.sourceCrop.top+value.sourceCrop.height>=1100,'Both beam flanges remain visible');}
-   else if(kind==='intumescent'){assert.ok(value.sourceCrop.left>=-.25&&value.sourceCrop.left+value.sourceCrop.width<=value.natural[0]+.25,'New supplied scene stays within its source bounds');if(width>=1384)assert.ok(value.sourceCrop.fraction>.45,'Wide header retains the steel frame and its surroundings');}
-   else{assert.ok(value.sourceCrop.left>=value.natural[0]*.399&&Math.abs(value.sourceCrop.left+value.sourceCrop.width-value.natural[0])<.25,'Only the useful right scene is retained after trimming at least40percent empty left canvas');if(width>760&&value.frame.width>=value.frame.height*2.7-.1)assert.ok(Math.abs(value.scale-value.baseline.art.scale)<.001,'Unconstrained cropping preserves the shipped useful-scene scale');}
-   // Open the real disclosure in every theme/width, including RTL, and hit-test
-   // its first native action above the artwork and later sticky worksheet cells.
-   await toggle.click();const menu=page.locator('#calculator-document-menu');await expect(menu).toBeVisible();const first=menu.locator('button:visible').first();await first.click({trial:true});const menuHit=await first.evaluate(n=>{const box=el=>{const r=el.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};},r=box(n),point={x:r.x+r.width/2,y:r.y+r.height/2},hit=document.elementFromPoint(point.x,point.y);return{reachable:!!hit&&(hit===n||n.contains(hit)),connected:n.isConnected,point,action:r,menu:box(n.closest('.calculator-document-actions')),workspace:box(n.closest('#calculator-workspace')),viewport:{width:innerWidth,clientWidth:document.documentElement.clientWidth,height:innerHeight},hit:hit?{tag:hit.tagName,id:hit.id,class:String(hit.className)}:null};});
-   const diagnostic=JSON.stringify({name,theme:themeId,width,direction:value.direction,...menuHit});
-   assert.ok(menuHit.menu.x>=menuHit.workspace.x-.1&&menuHit.menu.right<=menuHit.workspace.right+.1&&menuHit.menu.x>=0&&menuHit.menu.right<=menuHit.viewport.clientWidth+.1,'The complete native Document menu fits horizontally without card/viewport clipping: '+diagnostic);
-   assert.equal(menuHit.reachable,true,'Native pointer reaches the actual action centre: '+diagnostic);await toggle.press('Escape');await expect(menu).toBeHidden();
-   evidence.push({name:name+'-adjacent-framing',theme:themeId,viewport:width,...value,menuReachable:menuHit.reachable,menuHit});await page.screenshot({path:path.join(output,`${name}-adjacent-${themeId}-${value.direction}-${width}.png`)});
+   assert.ok(value.title.width>0&&value.title.x>=0&&value.title.right<=width+1);assert.ok(value.overflow<=1);
+   const toggle=page.locator('#calculator-document-toggle');await toggle.click();const menu=page.locator('#calculator-document-menu');await expect(menu).toBeVisible();const first=menu.locator('button:visible').first();await first.click({trial:true});
+   const menuHit=await first.evaluate(n=>{const box=el=>{const r=el.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};},r=box(n),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return{reachable:!!hit&&(hit===n||n.contains(hit)),menu:box(n.closest('.calculator-document-actions')),workspace:box(n.closest('#calculator-workspace')),viewport:{width:innerWidth,clientWidth:document.documentElement.clientWidth}};});
+   const diagnostic=JSON.stringify({name,theme:themeId,width,...menuHit});
+   assert.ok(menuHit.menu.x>=menuHit.workspace.x-.1&&menuHit.menu.right<=menuHit.workspace.right+.1&&menuHit.menu.x>=0&&menuHit.menu.right<=menuHit.viewport.clientWidth+.1,'The native Document menu fits horizontally: '+diagnostic);
+   assert.equal(menuHit.reachable,true,'Native pointer reaches the document action: '+diagnostic);await toggle.press('Escape');await expect(menu).toBeHidden();
+   if(name==='ductwork'){
+    const title=page.locator('#calculator-grid h3.calculator-overview-title').first();await expect(title).toBeVisible();
+    value.overview=await title.evaluate(el=>({font:getComputedStyle(el).fontSize,height:el.getBoundingClientRect().height,lineHeight:getComputedStyle(el).lineHeight}));
+    assert.equal(value.overview.font,'14px');assert.ok(value.overview.height>=58&&value.overview.height<=80,'Duct heading remains compact while allowing wrapped translations');
+   }
+   evidence.push({name:name+'-header',theme:themeId,viewport:width,...value,menuHit});await page.screenshot({path:path.join(output,`${name}-header-${themeId}-${value.direction}-${width}.png`)});
   }
  }
- await page.emulateMedia({media:'print'});await expect(heading.locator('.calculator-heading-art-slot')).toBeHidden();await page.emulateMedia({media:'screen'});await page.setViewportSize({width:1384,height:764});
+ await page.setViewportSize({width:1384,height:764});
+}
+async function firestoppingHeader(){
+ for(const themeId of ['ceasefire','midnight','ocean','forest','slate']){
+  await theme(themeId,'firestopping');
+  for(const width of [1384,825,390]){
+   await page.setViewportSize({width,height:764});await page.evaluate(()=>scrollTo(0,0));
+   const heading=page.locator('.penetration-banner-heading');
+   await expect(heading.locator('.eyebrow,.calculator-heading-art-slot,.penetration-workspace-art')).toHaveCount(0);
+   await expect(page.locator('#penetration-heading')).toBeVisible();
+   const toggle=heading.locator('[aria-controls="firestopping-item-document-actions"]');await toggle.click();const menu=page.locator('#firestopping-item-document-actions');await expect(menu).toBeVisible();await menu.locator('button:visible').first().click({trial:true});await toggle.press('Escape');
+   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth<=1));
+   evidence.push({name:'firestopping-header',theme:themeId,viewport:width,documentMenuReachable:true});await page.screenshot({path:path.join(output,`firestopping-header-${themeId}-${width}.png`)});
+  }
+ }
+ await page.setViewportSize({width:1384,height:764});
 }
 async function takeoffHeading(name,route,themes=['ceasefire','midnight','ocean','forest','slate'],widths=[1384,825,390]){
  const heading=page.locator('.takeoff-workspace-heading');
@@ -283,7 +264,7 @@ async function takeoffHeading(name,route,themes=['ceasefire','midnight','ocean',
  if(!takeoffWidthOnly&&!rtlCalculatorMenusOnly){
  for(const [name,id,kind]of [['Steel (spray)','steel_vermiculite','spray'],['Steel (intumescent)','steel_intumescent','intumescent'],['Steel (board)','steel_board','board'],['Ductwork (spray/wrap)','ductwork','ductwork']]){
   await chooseCalculator(page,name);await idle();await expect(page.locator('#calculator-workspace')).toHaveAttribute('data-calculator-kind',id);
-  await expect(page.locator('#calculator-workspace .workspace-header-art:visible')).toHaveCount(1);await art('.workspace-header-art--'+kind,id,true);
+  await expect(page.locator('#calculator-workspace .workspace-header-art')).toHaveCount(0);
   await calculatorFraming(kind,id);
   await documentActions('#calculator-document-toggle',['calculator-excel','calculator-pdf','calculator-summary-pdf','calculator-template'],id);
   if(id==='ductwork'){
@@ -295,8 +276,8 @@ async function takeoffHeading(name,route,themes=['ceasefire','midnight','ocean',
  }
  }
  if(!takeoffWidthOnly&&!rtlCalculatorMenusOnly){
- await chooseCalculator(page,'Firestopping');await idle();await art('.penetration-workspace-art','firestopping',true);await framing('.penetration-workspace-art','firestopping',true);
- const order=await page.locator('.penetration-workspace-art').evaluate(el=>!!el.closest('#penetration-current-item-card > .penetration-banner-heading')&&el.closest('#penetration-current-item-card').firstElementChild.classList.contains('penetration-banner-heading'));assert.equal(order,true,'Artwork is the first row inside the current-item card');
+ await chooseCalculator(page,'Factor Calcs');await idle();await expect(page.locator('#calculator-title')).toHaveText('Factor Calcs');await expect(page.locator('.calculator-workspace-heading .eyebrow,.calculator-workspace-heading .workspace-header-art')).toHaveCount(0);
+ await chooseCalculator(page,'Firestopping');await idle();await firestoppingHeader();
  }
  if(!calculatorBannersOnly){
  for(const [name,route]of [['Steel','/takeoff-header-steel.png'],['Duct','/takeoff-header-ductwork.png'],['Defect Reports','/takeoff-header-physical.png'],['Service Plans','/takeoff-header-service-plans.png']]){await chooseTakeoff(page,name);await takeoffIdle();await takeoffHeading(name,route);}

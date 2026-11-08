@@ -129,7 +129,7 @@ class ContactShortcutTests(unittest.TestCase):
                          ('Canonical Company',account['id'],'ABN-C'))
         orphan=self.save('contacts',{'name':'Independent Person'})['contact']
         self.assertIsNone(orphan['account_id'])
-        self.save('leads',{'name':orphan['name'],'company':'Canonical Company'},contact_id=orphan['id'],account_id=account['id'])
+        self.save('leads',{'name':orphan['name'],'company':'Canonical Company','phone':'0400','email':'independent@example.test','site_address':'Site'},contact_id=orphan['id'],account_id=account['id'])
         lead=self.store.list()['leads'][0]
         self.store.convert({'id':lead['id'],'version':self.store.list()['version']},lambda row:{'project_no':'PN-02','path':'fixture/PN-02.cf.json'})
         self.assertIsNone(next(row for row in self.store.list()['contacts'] if row['id']==orphan['id'])['account_id'])

@@ -69,7 +69,7 @@ class DirectoryTests(unittest.TestCase):
         from estimator.catalog import ValidationError
         from estimator.project_library import ProjectLibrary
         from estimator.storage import Store
-        person = self.request("leads", {"version":0, "fields":{"name":"Alex", "company":"QA Company", "site_address":"QA Site", "description":"Install", "billing_address":"QA HQ"}})
+        person = self.request("leads", {"version":0, "fields":{"name":"Alex", "phone":"0400", "email":"alex@example.test", "company":"QA Company", "site_address":"QA Site", "description":"Install", "billing_address":"QA HQ"}})
         body = {"id":person["id"], "version":1}
         self.request("leads/convert", body, 400)
         self.assertEqual(len(self.request("directory")["leads"]),1)
@@ -103,6 +103,21 @@ class DirectoryTests(unittest.TestCase):
                 break
             catalog = self.request("account-links")
         self.assertTrue(any(saved["project_no"] in row["label"] for row in catalog["choices"]["projects"]))
+
+    def test_incomplete_lead_conversion_has_no_project_or_directory_side_effects(self):
+        from estimator.project_library import ProjectLibrary
+        from estimator.storage import Store
+        folder = Path(self.temp.name) / "Projects"
+        folder.mkdir()
+        Store(Path(self.temp.name) / "test.sqlite3").set_project_folder(folder)
+        lead = self.request("leads", {"version": 0, "fields": {"name": "Partial Lead", "company": "Draft Company"}})
+        before = self.request("directory")
+        with patch.object(ProjectLibrary, "create_from_lead") as create:
+            result = self.request("leads/convert", {"id": lead["id"], "version": before["version"]}, 400)
+        self.assertIn("Complete Name, Phone, Company, Email and Site address", result["error"])
+        create.assert_not_called()
+        self.assertEqual(self.request("directory"), before)
+        self.assertEqual(list(folder.rglob("*.cf.json")), [])
 
     def upload(self, kind, rows, expected=200):
         template = self.request(f"{kind}/template.xlsx")

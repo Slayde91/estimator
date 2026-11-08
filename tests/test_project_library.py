@@ -1041,10 +1041,10 @@ class ProjectLibraryApiTests(unittest.TestCase):
     def test_project_details_routes_validate_settings_and_origin(self):
         status, initial = self.request('GET', '/api/project-details')
         self.assertEqual(status, 200)
-        self.assertEqual(initial['next_reference'], 'PN-00001')
+        self.assertEqual(initial['next_reference'], 'PN-01')
         status, changed = self.request('POST', '/api/project-details', {'prefix': 'test', 'start_number': 25})
         self.assertEqual(status, 200, changed)
-        self.assertEqual(changed['next_reference'], 'TEST-00025')
+        self.assertEqual(changed['next_reference'], 'TEST-25')
         self.assertEqual(self.request('POST', '/api/project-details', {'prefix': '../test', 'start_number': 25})[0], 400)
         self.assertEqual(self.request('POST', '/api/project-details', {'prefix': 'PN', 'start_number': 1}, {'Origin': 'https://evil.example'})[0], 403)
         self.assertEqual(self.request('GET', '/api/project-clients')[1]['clients'], [])
@@ -1066,7 +1066,7 @@ class ProjectLibraryApiTests(unittest.TestCase):
         self.dialogs.selection = SaveSelection(str(self.root / 'New.cf.json'), None)
         status, new = self.request('POST', '/api/project/save-as', {'estimate': {'project_no': 'FORGED'}})
         self.assertEqual(status, 200, new)
-        self.assertEqual(new['project']['estimate']['project_no'], 'PN-00020')
+        self.assertEqual(new['project']['estimate']['project_no'], 'PN-01')
 
     def test_full_native_save_folder_list_and_load_preserve_storage(self):
         target = self.root / "Saved.cf.json"
@@ -1074,7 +1074,7 @@ class ProjectLibraryApiTests(unittest.TestCase):
         before = database_rows(self.store)
         status, saved = self.request("POST", "/api/project/save-as", {"estimate": {"project_no": "Saved native"}})
         self.assertEqual(status, 200, saved)
-        self.assertEqual(saved["project"]["estimate"]["project_no"], "PN-00001")
+        self.assertEqual(saved["project"]["estimate"]["project_no"], "PN-01")
         with patch("estimator.project_library.MAX_SCAN_SECONDS", 0):
             for _ in range(100):
                 status, listing = self.request("GET", "/api/projects")

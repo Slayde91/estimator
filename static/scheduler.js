@@ -827,6 +827,13 @@
     if (!form) return;
     const picker = form.querySelector("select"), save = form.querySelector("button"), status = form.querySelector('[role="status"]');
     let version, saved, busy = false;
+    function settingsNotice(source, error = false) {
+      if (window.CeasefireI18n) window.CeasefireI18n.text(status, source);
+      else status.textContent = source;
+      status.className = error ? "message error" : "message info";
+      window.CeasefireNotifications?.show(status);
+      status.hidden = !source;
+    }
     async function loadSettings() {
       if (busy) return;
       busy = true; picker.disabled = save.disabled = true;
@@ -834,9 +841,9 @@
         const settings = await request("/organization");
         picker.replaceChildren(...settings.zones.map(name => new Option(name, name)));
         saved = picker.value = settings.timezone;
-        version = settings.version; status.textContent = ""; picker.disabled = false;
+        version = settings.version; status.textContent = ""; status.hidden = true; picker.disabled = false;
         setZone(saved);
-      } catch (error) {status.textContent = error.message;}
+      } catch (error) {settingsNotice(error.message, true);}
       finally {busy = false;}
     }
     picker.addEventListener("change", () => {save.disabled = busy || picker.value === saved;});
@@ -847,11 +854,15 @@
       try {
         const result = await request("/organization", {version, timezone: picker.value});
         version = result.version; saved = result.timezone; setZone(saved);
-        if (state.data?.user) await refresh();
-        status.textContent = "Time zone saved.";
+        settingsNotice("Time zone saved. All team members use this time zone. Changing it recalculates overtime and penalties for recorded shifts.");
+        // Organization persistence is confirmed independently of refreshing the
+        // Scheduler view. A later refresh failure must not turn it into a failed save.
+        if (state.data?.user) {
+          try { await refresh(); } catch (error) { notice(error.message, true); }
+        }
       } catch (error) {
-        status.textContent = error.message;
-        if (error.status === 409) {busy = false; await loadSettings(); status.textContent = "Settings changed. Review the current time zone and try again.";}
+        settingsNotice(error.message, true);
+        if (error.status === 409) {busy = false; await loadSettings(); settingsNotice("Settings changed. Review the current time zone and try again.", true);}
       } finally {busy = false; picker.disabled = false; save.disabled = picker.value === saved;}
     });
     const view = form.closest(".view");

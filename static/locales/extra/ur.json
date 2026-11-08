@@ -2934,5 +2934,12 @@
   "Choose an existing Account for this client, or use + to create an Account in Current project details.": "اس کلائنٹ کے لیے موجودہ اکاؤنٹ منتخب کریں، یا موجودہ پروجیکٹ کی تفصیلات میں + سے اکاؤنٹ بنائیں۔",
   "The saved project changed outside this open estimate. Reload the project before editing its details; your current draft has been kept.": "محفوظ شدہ پروجیکٹ اس کھلے تخمینے سے باہر تبدیل ہو گیا ہے۔ تفصیلات میں ترمیم سے پہلے پروجیکٹ دوبارہ لوڈ کریں؛ آپ کا موجودہ مسودہ برقرار ہے۔",
   "Edit Account": "اکاؤنٹ میں ترمیم کریں",
-  "Account Information": "اکاؤنٹ کی معلومات"
+  "Account Information": "اکاؤنٹ کی معلومات",
+  "Time zone": "ٹائم زون",
+  "Organization time zone": "ادارے کا ٹائم زون",
+  "Save time zone": "ٹائم زون محفوظ کریں",
+  "Time zone saved. All team members use this time zone. Changing it recalculates overtime and penalties for recorded shifts.": "ٹائم زون محفوظ ہو گیا۔ ٹیم کے تمام ارکان یہی ٹائم زون استعمال کرتے ہیں۔ اسے بدلنے سے درج شدہ شفٹوں کے اوور ٹائم اور خصوصی الاؤنس دوبارہ شمار ہوتے ہیں۔",
+  "Matching records": "مطابقت رکھنے والے ریکارڈ",
+  "No linked records.": "کوئی منسلک ریکارڈ نہیں۔",
+  "Personal signature": "ذاتی دستخط"
 }

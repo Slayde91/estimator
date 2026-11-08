@@ -129,6 +129,7 @@ jobs:
       - run: node tests/browser/contacts.cjs
       - run: node tests/browser/account_links.cjs
       - run: node tests/browser/project_details_pane.cjs
+      - run: node tests/browser/settings_rows.cjs
       - run: node tests/browser/browser_review.cjs
       - run: node tests/browser/scheduler.cjs
       - run: node tests/browser/scheduler_rules.cjs

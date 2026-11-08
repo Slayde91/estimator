@@ -1,0 +1,37 @@
+{
+  "Time zone": [
+    "시간대",
+    "Time zone",
+    "Múi giờ"
+  ],
+  "Organization time zone": [
+    "조직 시간대",
+    "Time zone ng organisasyon",
+    "Múi giờ của tổ chức"
+  ],
+  "Save time zone": [
+    "시간대 저장",
+    "I-save ang time zone",
+    "Lưu múi giờ"
+  ],
+  "Time zone saved. All team members use this time zone. Changing it recalculates overtime and penalties for recorded shifts.": [
+    "시간대를 저장했습니다. 모든 팀원이 이 시간대를 사용합니다. 변경하면 기록된 근무의 초과근무 수당과 특별 수당을 다시 계산합니다.",
+    "Na-save ang time zone. Ito ang ginagamit ng lahat ng miyembro ng team. Kapag binago ito, muling kakalkulahin ang overtime at dagdag na bayad para sa mga naitalang shift.",
+    "Đã lưu múi giờ. Tất cả thành viên dùng múi giờ này. Thay đổi sẽ tính lại tiền làm thêm và phụ cấp cho các ca đã ghi nhận."
+  ],
+  "Matching records": [
+    "일치하는 기록",
+    "Mga tugmang rekord",
+    "Bản ghi phù hợp"
+  ],
+  "No linked records.": [
+    "연결된 기록이 없습니다.",
+    "Walang naka-link na rekord.",
+    "Chưa có bản ghi được liên kết."
+  ],
+  "Personal signature": [
+    "개인 서명",
+    "Personal na lagda",
+    "Chữ ký cá nhân"
+  ]
+}

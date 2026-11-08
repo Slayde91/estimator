@@ -30,7 +30,8 @@
   }
   function render(value) {
     current = value; prefix.value = value.prefix; start.value = value.start_number;
-    next.textContent = value.next_reference;
+    if (value.exhausted) text(next, 'Sequence exhausted. Choose another prefix.');
+    else next.textContent = value.next_reference;
   }
   function clients() {
     if (scanning) return scanning;

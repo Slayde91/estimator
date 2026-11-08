@@ -48,6 +48,13 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
     return xPositions.map(x => document.elementFromPoint(x, box.y + box.height / 2).closest('button,input,select')?.id);
   });
   assert.deepEqual(hitAreas, ['project-estimate-new', 'project-estimate-current-name', 'project-estimate-select']);
+  const plusGeometry=await nameEditor.evaluate(input=>{
+    const box=input.getBoundingClientRect(),button=document.getElementById('project-estimate-new'),add=button.getBoundingClientRect(),style=getComputedStyle(button);
+    return {left:add.left-box.left,centerDifference:Math.abs(add.top+add.height/2-box.top-box.height/2),background:style.backgroundColor,border:style.borderTopWidth};
+  });
+  assert.ok(plusGeometry.left>=0 && plusGeometry.left<=5,JSON.stringify(plusGeometry));
+  assert.ok(plusGeometry.centerDifference<1,JSON.stringify(plusGeometry));
+  assert.equal(plusGeometry.background,'rgba(0, 0, 0, 0)');assert.equal(plusGeometry.border,'0px');
   await nameEditor.press('ArrowDown');await expect(page.locator('#project-estimate-select')).toBeFocused();
   await page.keyboard.press('Escape');await expect(page.locator('#project-estimate-select')).toHaveValue('estimate-1');
   await nameEditor.fill('Discard my typing');await nameEditor.press('Escape');await expect(nameEditor).toHaveValue('Estimate 1');
@@ -84,20 +91,20 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   await page.setViewportSize({width:1440,height:1000});
   await page.locator('#projects-navigation-toggle').hover();
   await page.locator('#projects-navigation-menu [data-project-section="quotes"]').click();await idle();
-  const card=page.locator('.project-list-row').filter({hasText:'PN-00001'});
+  const card=page.locator('.project-list-row').filter({hasText:'PN-01'});
   await expect(card).toHaveCount(1);await expect(card.locator('.project-card-estimate option')).toHaveCount(3);
   await card.locator('.project-card-estimate select').selectOption(second);await expect(page.locator('#view-quotes')).toBeVisible();
   await card.locator('summary').click();await card.getByRole('button',{name:'Open',exact:true}).click();await idle();
   await expect(page.locator('#measurements')).toHaveValue('Second estimate notes');
   assert.equal(await page.locator('#discard-dialog').isVisible(),false);
   await page.locator('#project-estimate-swms').click();
-  await expect(page.locator('#swms-root').getByLabel('Job Reference',{exact:true})).toHaveValue('PN-00001');
+  await expect(page.locator('#swms-root').getByLabel('Job Reference',{exact:true})).toHaveValue('PN-01');
   await page.locator('#swms-root').getByRole('button',{name:'Back to statements'}).click();
   await page.locator('#discard-dialog [value="confirm"]').click();
   await estimate(); await page.locator('#project-estimate-quote').click();
   await expect(page.locator('#view-quote')).toBeVisible();
   await expect(page.locator('#commercial-quote-root').getByLabel('Document title',{exact:true})).toBeVisible();
-  await expect(page.locator('#commercial-quote-root').getByLabel('Project number',{exact:true})).toHaveValue('PN-00001');
+  await expect(page.locator('#commercial-quote-root').getByLabel('Project number',{exact:true})).toHaveValue('PN-01');
   await expect(page.locator('#measurements')).toHaveValue('Second estimate notes');
   await page.screenshot({path:path.join(output,'multiple-estimates.png'),fullPage:true});assert.deepEqual(errors,[]);
   console.log(JSON.stringify({passed:true,output,checks:['create','rename','switch keeps notes','inactive takeoff session retained','save all estimates','reload restores inactive drawings']}));

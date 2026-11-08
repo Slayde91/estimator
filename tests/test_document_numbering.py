@@ -247,7 +247,7 @@ class CombinedNumberingTests(unittest.TestCase):
         self.assertEqual(self.numbers.combined_settings(self.projects),before)
         values['project']['prefix'] = 'SITE'; values['project']['start_number'] = 42
         saved = self.numbers.save_combined_settings(self.projects,values)
-        self.assertEqual(saved['project']['next_reference'],'SITE-00042')
+        self.assertEqual(saved['project']['next_reference'],'SITE-42')
         self.assertEqual(saved['documents']['quote']['next_reference'],'QT-01')
 
     def test_combined_get_holds_one_snapshot_across_concurrent_save(self):

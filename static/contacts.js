@@ -153,6 +153,16 @@
       window.CeasefireI18n?.attr(find, "placeholder", "Contact, project or document name…");
       find.disabled = readOnly;
       findLabel.append(find);
+      const findBox = el("div", "contacts-link-search");
+      const results = el("div", "contacts-link-search-results");
+      results.id = heading.id + "-link-results";
+      results.hidden = true;
+      results.setAttribute("role", "group");
+      results.setAttribute("aria-label", "Matching records");
+      window.CeasefireI18n?.attr(results, "aria-label", "Matching records");
+      find.setAttribute("aria-controls", results.id);
+      find.setAttribute("aria-expanded", "false");
+      findBox.append(findLabel, results);
       const findControls = el("div", "contacts-link-controls");
       const refresh = button("Refresh linked records", () => loadLinks(true));
       copy(refresh, "Refresh linked records");
@@ -160,21 +170,122 @@
       unavailable.hidden = true;
       const unavailableSummary = el("summary"), unavailableList = el("ul");
       unavailable.append(unavailableSummary, unavailableList);
-      findControls.append(findLabel, refresh);
+      findControls.append(findBox, refresh);
       related.append(ui("h3", "", "Linked records"), findControls, linkStatus, unavailable, groups);
       form.append(related);
-      const knownEntries = {}, initialSelections = {};
-      let linkTicket = 0, searchTimer;
+      const knownEntries = {}, searchEntries = {}, initialSelections = {}, automaticSelections = {}, explicitSelections = {}, explicitDeselections = {};
+      let linkTicket = 0, searchTimer, searchOpen = false;
+      function dismissResults() {
+        searchOpen = false;
+        results.hidden = true;
+        find.setAttribute("aria-expanded", "false");
+      }
+      function selectedEntries(key) {
+        return [...(linkSelections[key] || [])].map(id => knownEntries[key]?.get(id)).filter(Boolean)
+          .sort((a, b) => a.label.localeCompare(b.label));
+      }
+      function selectionChanged(key, item, checked, inSearch) {
+        if (checked) linkSelections[key].add(item.id); else linkSelections[key].delete(item.id);
+        if (checked) { explicitSelections[key].add(item.id); explicitDeselections[key].delete(item.id); }
+        else { explicitSelections[key].delete(item.id); explicitDeselections[key].add(item.id); }
+        renderLinked();
+        renderResults(inSearch ? {key, id:item.id} : null);
+        if (!inSearch) find.focus();
+      }
+      function recordRow(key, item, inSearch = false) {
+        const row = el("li", "contacts-link-row"), label = el("label", "contacts-link-option");
+        const checkbox = el("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = linkSelections[key].has(item.id);
+        checkbox.disabled = readOnly || Boolean(item.automatic);
+        checkbox.dataset.linkKind = key;
+        checkbox.dataset.linkTarget = item.id;
+        checkbox.setAttribute("aria-label", "Link " + item.label);
+        window.CeasefireI18n?.attr(checkbox, "aria-label", "Link {0}", [item.label]);
+        checkbox.addEventListener("change", () => selectionChanged(key, item, checkbox.checked, inSearch));
+        label.append(checkbox);
+        row.append(label);
+        const person = key === "contacts" && directory.contacts.find(contact => contact.id === item.id);
+        if (!inSearch && person && !options.standalone) {
+          row.append(button(person.name, () => {
+            const changed = Object.keys(fields).some(field => fields[field].value !== (record[field] || "")) ||
+              Object.keys(linkTitles).some(linkKey => {
+                const initial = initialSelections[linkKey], current = linkSelections[linkKey];
+                return initial.size !== current.size || [...initial].some(id => !current.has(id));
+              });
+            if (changed && !window.confirm("Discard changes to this account?")) return;
+            dialog.close(); switchPage("contacts"); dialogEditor("contacts", person);
+          }, "text-button"));
+        } else label.append(el("span", "", item.label));
+        if (item.automatic) row.append(ui("p", "helper", "Linked through this account's saved project."));
+        else if (!item.available) row.append(ui("p", "helper", "Unavailable saved record. Clear the selection to remove this link."));
+        else if (key === "contacts" && item.account_id && item.account_id !== record.id)
+          row.append(ui("p", checkbox.checked ? "contacts-reassignment" : "helper", checkbox.checked ?
+            "Saving will move this contact from {0}." : "Currently linked to {0}.", [item.account_label]));
+        return row;
+      }
+      function renderLinked() {
+        const expanded = new Set([...groups.querySelectorAll("details[open]")].map(group => group.dataset.linkGroup));
+        const existing = new Set([...groups.querySelectorAll("details")].map(group => group.dataset.linkGroup));
+        groups.replaceChildren();
+        for (const [key, title] of Object.entries(linkTitles)) {
+          const entries = selectedEntries(key);
+          if (!entries.length) continue;
+          const group = el("details", "contacts-links-group"), summary = el("summary");
+          group.dataset.linkGroup = key;
+          group.open = expanded.has(key) || !existing.has(key);
+          copy(summary, "{0} ({1})", [window.CeasefireI18n?.term(title) || title, entries.length]);
+          const body = el("div", "contacts-links-body"), list = el("ul", "contacts-links-list");
+          list.append(...entries.map(item => recordRow(key, item)));
+          body.append(list); group.append(summary, body); groups.append(group);
+        }
+        if (!groups.children.length) groups.append(ui("p", "helper contacts-links-empty", "No linked records."));
+      }
+      function renderResults(focusEntry = null) {
+        const term = find.value.trim().toLocaleLowerCase();
+        results.hidden = !searchOpen || !term || readOnly;
+        find.setAttribute("aria-expanded", String(!results.hidden));
+        results.replaceChildren();
+        if (results.hidden) return;
+        let count = 0;
+        for (const [key, title] of Object.entries(linkTitles)) {
+          const matching = [...(searchEntries[key]?.values() || [])].filter(item => item.available && item.label.toLocaleLowerCase().includes(term));
+          matching.sort((a, b) => a.label.localeCompare(b.label));
+          if (!matching.length) continue;
+          const section = el("section", "contacts-link-search-group"), list = el("ul", "contacts-links-list");
+          section.append(ui("h4", "", "{0} ({1})", [window.CeasefireI18n?.term(title) || title, matching.length]));
+          list.append(...matching.slice(0, 100).map(item => recordRow(key, item, true)));
+          section.append(list);
+          if (matching.length > 100) section.append(ui("p", "helper", "Showing the first 100 records. Search to find another record."));
+          results.append(section); count += matching.length;
+        }
+        if (!count) results.append(ui("p", "helper", "No matching records."));
+        if (focusEntry) [...results.querySelectorAll("input")].find(input => input.dataset.linkKind === focusEntry.key && input.dataset.linkTarget === focusEntry.id)?.focus();
+      }
       find.addEventListener("input", () => {
+        searchOpen = true;
+        renderResults();
         clearTimeout(searchTimer);
         searchTimer = setTimeout(() => loadLinks(true), 250);
       });
+      find.addEventListener("focus", () => { searchOpen = true; renderResults(); });
       find.addEventListener("keydown", event => {
-        if (event.key !== "Enter") return;
-        event.preventDefault();
-        clearTimeout(searchTimer);
-        loadLinks(true);
+        if (event.key === "Escape" && !results.hidden) { event.preventDefault(); event.stopPropagation(); dismissResults(); }
+        else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault(); searchOpen = true; renderResults();
+          const inputs = [...results.querySelectorAll("input:not(:disabled)")];
+          (event.key === "ArrowDown" ? inputs[0] : inputs.at(-1))?.focus();
+        } else if (event.key === "Enter") { event.preventDefault(); clearTimeout(searchTimer); searchOpen = true; loadLinks(true); }
       });
+      results.addEventListener("keydown", event => {
+        if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); dismissResults(); find.focus(); dismissResults(); return; }
+        const inputs = [...results.querySelectorAll("input:not(:disabled)")], index = inputs.indexOf(event.target);
+        if (index < 0) return;
+        const direction = event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
+        if (direction) { event.preventDefault(); inputs[(index + direction + inputs.length) % inputs.length]?.focus(); }
+      });
+      dialog.addEventListener("focusin", event => { if (!findBox.contains(event.target)) dismissResults(); });
+      dialog.addEventListener("pointerdown", event => { if (!findBox.contains(event.target)) dismissResults(); });
       dialog.addEventListener("close", () => clearTimeout(searchTimer), {once: true});
       form.addEventListener("submit", () => clearTimeout(searchTimer));
       async function loadLinks(preserveSelection = false) {
@@ -189,82 +300,31 @@
           if (find.value.trim()) query.set("search", find.value.trim());
           const catalog = await request("account-links" + (query.size ? "?" + query : ""));
           if (!dialog.open || ticket !== linkTicket) return;
-          const openGroups = new Set([...groups.querySelectorAll("details[open]")].map(group => group.dataset.linkGroup));
-          groups.replaceChildren();
           for (const [key, title] of Object.entries(linkTitles)) {
             const linked = catalog.linked[key] || [], choices = catalog.choices[key] || [];
             const selected = preserveSelection && linkSelections[key] ? linkSelections[key] : new Set(linked.map(item => item.id));
+            if (!explicitSelections[key]) explicitSelections[key] = new Set();
+            if (!explicitDeselections[key]) explicitDeselections[key] = new Set();
+            const currentLinked = new Set(linked.map(item => item.id));
+            const currentAutomatic = new Set(linked.filter(item => item.automatic).map(item => item.id));
+            // A prior automatic-only association is not a manual link request.
+            // If its primary Account changed, retire it without inventing a
+            // supplementary link. User-selected and persisted manual links stay.
+            for (const id of automaticSelections[key] || []) if (!currentLinked.has(id) && !explicitSelections[key].has(id)) selected.delete(id);
+            for (const id of explicitDeselections[key]) if (!currentAutomatic.has(id)) selected.delete(id);
             for (const item of linked) if (item.automatic) selected.add(item.id);
+            automaticSelections[key] = new Set(linked.filter(item => item.automatic && !item.manual && !explicitSelections[key].has(item.id)).map(item => item.id));
             if (!initialSelections[key]) initialSelections[key] = new Set(linked.map(item => item.id));
             linkSelections[key] = selected;
             if (!knownEntries[key]) knownEntries[key] = new Map();
+            for (const [id, item] of knownEntries[key]) if (item.automatic) knownEntries[key].set(id, {...item, automatic:false});
             for (const item of [...choices, ...linked]) knownEntries[key].set(item.id, item);
-            const all = new Map([...choices, ...linked].map(item => [item.id, item]));
-            for (const id of selected) if (!all.has(id) && knownEntries[key].has(id)) all.set(id, knownEntries[key].get(id));
-            const group = el("details", "contacts-links-group");
-            group.dataset.linkGroup = key;
-            group.open = preserveSelection ? openGroups.has(key) || Boolean(find.value.trim() && choices.length) : key === "contacts" || linked.length > 0;
-            const summary = el("summary");
-            const summaryText = () => copy(summary, "{0} ({1})", [window.CeasefireI18n?.term(title) || title, selected.size]);
-            summaryText();
-            const body = el("div", "contacts-links-body");
-            const list = el("ul", "contacts-links-list");
-            function showChoices(focusId) {
-              const term = find.value.trim().toLowerCase();
-              const entries = [...all.values()].filter(item => (selected.has(item.id) || item.available) &&
-                (!term || item.label.toLowerCase().includes(term)));
-              entries.sort((a, b) => Number(selected.has(b.id)) - Number(selected.has(a.id)) || a.label.localeCompare(b.label));
-              list.replaceChildren();
-              let focusTarget;
-              for (const item of entries.slice(0, 100)) {
-                const row = el("li", "contacts-link-row");
-                const label = el("label", "contacts-link-option");
-                const checkbox = el("input");
-                checkbox.type = "checkbox";
-                checkbox.checked = selected.has(item.id);
-                checkbox.disabled = readOnly || Boolean(item.automatic);
-                checkbox.setAttribute("aria-label", "Link " + item.label);
-                window.CeasefireI18n?.attr(checkbox, "aria-label", "Link {0}", [item.label]);
-                checkbox.addEventListener("change", () => {
-                  if (checkbox.checked) selected.add(item.id); else selected.delete(item.id);
-                  summaryText();
-                  showChoices(item.id);
-                });
-                if (item.id === focusId) focusTarget = checkbox;
-                label.append(checkbox);
-                row.append(label);
-                const person = key === "contacts" && directory.contacts.find(contact => contact.id === item.id);
-                if (person && selected.has(item.id) && !options.standalone) {
-                  const openContact = button(person.name, () => {
-                    const changed = Object.keys(fields).some(field => fields[field].value !== (record[field] || "")) ||
-                      Object.keys(linkTitles).some(linkKey => {
-                        const initial = initialSelections[linkKey];
-                        const current = linkSelections[linkKey];
-                        return initial.size !== current.size || [...initial].some(id => !current.has(id));
-                      });
-                    if (changed && !window.confirm("Discard changes to this account?")) return;
-                    dialog.close();
-                    switchPage("contacts");
-                    dialogEditor("contacts", person);
-                  }, "text-button");
-                  row.append(openContact);
-                } else label.append(el("span", "", item.label));
-                if (item.automatic) row.append(ui("p", "helper", "Linked through this account's saved project."));
-                else if (!item.available) row.append(ui("p", "helper", "Unavailable saved record. Clear the selection to remove this link."));
-                else if (key === "contacts" && item.account_id && item.account_id !== record.id)
-                  row.append(ui("p", selected.has(item.id) ? "contacts-reassignment" : "helper", selected.has(item.id) ?
-                    "Saving will move this contact from {0}." : "Currently linked to {0}.", [item.account_label]));
-                list.append(row);
-              }
-              if (!entries.length) list.append(ui("li", "helper", find.value.trim() ? "No matching records." : "No records available to link."));
-              if (entries.length > 100) list.append(ui("li", "helper", "Showing the first 100 records. Search to find another record."));
-              focusTarget?.focus();
-            }
-            showChoices();
-            body.append(list);
-            group.append(summary, body);
-            groups.append(group);
+            searchEntries[key] = new Map([...choices, ...linked].map(item => [item.id, item]));
           }
+          const focused = document.activeElement;
+          const focusEntry = results.contains(focused) && focused.dataset.linkTarget ?
+            {key:focused.dataset.linkKind, id:focused.dataset.linkTarget} : null;
+          renderLinked(); renderResults(focusEntry);
           linksReady = true;
           save.disabled = false;
           unavailable.hidden = !catalog.error_count;

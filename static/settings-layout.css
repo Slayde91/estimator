@@ -1,0 +1,44 @@
+/* Settings share one label column. Narrow screens stack labels above controls. */
+#view-settings{--settings-label-width:240px;--settings-column-gap:24px}
+#view-settings>.card{min-width:0}
+#view-settings .settings-preferences-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;margin:0}
+#view-settings .settings-preferences-grid>section{display:grid;grid-template-columns:var(--settings-label-width) minmax(0,1fr);column-gap:var(--settings-column-gap);align-items:center;min-width:0}
+#view-settings .settings-preferences-grid h3{grid-column:1;margin:0}
+#view-settings .language-field{grid-column:2;display:block;max-width:none;margin:0}
+#view-settings #application-language-label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+#view-settings #theme-toggle{grid-column:2;grid-row:1;justify-self:start}
+#view-settings #company-settings-form{max-width:none}
+#view-settings .fields{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+#view-settings .field,#view-settings .settings-field-row{display:grid;grid-template-columns:var(--settings-label-width) minmax(0,1fr);column-gap:var(--settings-column-gap);align-items:center;min-width:0;margin:0}
+#view-settings .field>span:first-child,#view-settings .settings-field-label{grid-column:1;font-size:12px;font-weight:650;margin:0}
+#view-settings .field>input,#view-settings .field>select,#view-settings .field>textarea,#view-settings .settings-control{grid-column:2;min-width:0;width:100%;margin:0}
+#view-settings .field>input,#view-settings .field>select,#view-settings .field>textarea{max-width:720px}
+#view-settings .field.language-field{display:block}
+#view-settings .language-picker{width:fit-content;max-width:100%}
+#view-settings .company-branding-fields{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;margin:20px 0}
+#view-settings .company-logo-controls,#view-settings .company-cover-controls{grid-column:auto;align-items:start}
+#view-settings .settings-control{max-width:720px}
+#view-settings .company-logo-upload-row{display:flex;align-items:center;gap:12px;min-width:0}
+#view-settings .company-logo-upload-row input[type=file]{flex:1 1 auto;width:0;min-width:0;max-width:none}
+#view-settings .company-logo-upload-row>.icon-only{flex:0 0 48px}
+#view-settings #company-logo-preview{display:block;margin-top:12px;width:200px;height:80px;max-width:100%;object-fit:contain}
+#view-settings .company-cover-controls .helper{margin:10px 0 0}
+#view-settings form>.helper,#view-settings form>.message,#view-settings form>.actions{margin-inline-start:calc(var(--settings-label-width) + var(--settings-column-gap))}
+#view-settings form>.actions{margin-top:16px}
+#view-settings #document-number-settings>.helper,#view-settings #document-number-settings>.actions{margin-inline-start:0}
+#view-settings #document-number-settings th:first-child,#view-settings #document-number-settings td:first-child{width:var(--settings-label-width)}
+#view-settings #document-number-settings th,#view-settings #document-number-settings td{vertical-align:middle}
+#view-settings .settings-timezone-form{margin-top:24px;padding-top:24px;border-top:1px solid var(--line)}
+#view-settings #personal-details-form+.settings-field-row{margin-top:20px}
+#view-settings .settings-signature-control{display:flex;gap:12px;align-items:center}
+#view-settings .play-settings-card{display:grid;grid-template-columns:var(--settings-label-width) minmax(0,1fr);column-gap:var(--settings-column-gap)}
+#view-settings .play-settings-card>button{justify-self:start}
+@media(max-width:600px){
+  #view-settings{--settings-label-width:0px;--settings-column-gap:0px}
+  #view-settings .settings-preferences-grid>section,#view-settings .field,#view-settings .settings-field-row,#view-settings .play-settings-card{grid-template-columns:minmax(0,1fr);row-gap:8px}
+  #view-settings .settings-preferences-grid h3,#view-settings .language-field,#view-settings #theme-toggle,#view-settings .field>span:first-child,#view-settings .settings-field-label,#view-settings .field>input,#view-settings .field>select,#view-settings .field>textarea,#view-settings .settings-control{grid-column:1;grid-row:auto}
+  #view-settings form>.helper,#view-settings form>.message,#view-settings form>.actions{margin-inline-start:0}
+  #view-settings #document-number-settings{font-size:11px}
+  #view-settings #document-number-settings table{min-width:640px}
+  #view-settings #document-number-settings th:first-child,#view-settings #document-number-settings td:first-child{width:auto}
+}

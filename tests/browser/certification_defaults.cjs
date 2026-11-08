@@ -1,4 +1,5 @@
 const {fillProjectDetails}=require('./project_actions.cjs');
+const {generateCertificate}=require('./certification_generation.cjs');
 // Disposable lifecycle coverage. Certificate PDFs are generated only in the private fixture.
 const {chromium,expect:baseExpect}=require('@playwright/test');
 const expect=baseExpect.configure({timeout:30000});
@@ -163,7 +164,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await insertAgain();await expect(page.locator('#certification-name')).toHaveValue('Upgrade signer');
   for(const [key,value] of Object.entries({position:'Fixture position',qualification:'Fixture qualification',accreditation:'Fixture accreditation'}))await page.locator('#certification-'+key).fill(value);
   await page.locator('#certification-approved_design').fill('First design line\nSecond design line');
-  await expect(page.locator('#certification-save')).toHaveCount(0);await page.locator('#certification-generate').click();await expect(page.locator('#certification-status')).toContainText('Revision 1 saved.',{timeout:120000});
+  await expect(page.locator('#certification-save')).toHaveCount(0);await generateCertificate(page,1);
   const id=await page.locator('#certification-document').inputValue();assert.notEqual(id,old.id);assert.notEqual(id,'__draft__');
   const workspaceA=await page.evaluate(()=>window.CeasefireCertification.sessionId());const savedResponse=await fetch(base+'/api/certifications/'+id+'?workspace='+workspaceA);const saved=await savedResponse.json();
   assert.equal(saved.revisions.length,1);assert.equal(saved.options.scopes.length,4);assert.equal(saved.options.cover_pdf,null);assert.ok(saved.options.signature_image.startsWith('data:image/png;base64,'));

@@ -1,4 +1,5 @@
 const {fillProjectDetails}=require('./project_actions.cjs');
+const {generateCertificate}=require('./certification_generation.cjs');
 // Disposable project-only certificate and portable Save/New/Load coverage.
 // Existing global history is a read-only negative control. New revisions remain in the private fixture.
 const {chromium,expect}=require('@playwright/test');
@@ -51,9 +52,9 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   await chooser.getByRole('button',{name:'Insert signature'}).click();await expect(page.locator('#certification-signature-preview')).toBeVisible();
   const preferences=await (await fetch(base+'/api/certifications/defaults')).json();assert.equal(preferences.signature_image,null);
   const signatureHash=digest(await page.locator('#certification-signature-preview').getAttribute('src'));
-  await expect(page.locator('#certification-save')).toHaveCount(0);await page.locator('#certification-generate').click();await expect(page.locator('#certification-status')).toContainText('Revision 1 saved.',{timeout:120000});
+  await expect(page.locator('#certification-save')).toHaveCount(0);await generateCertificate(page,1);
   const documentId=await page.locator('#certification-document').inputValue();assert.ok(documentId&&documentId!==original.id);
-  await page.locator('#certification-location_area').fill('Updated before second generation');await page.locator('#certification-generate').click();await expect(page.locator('#certification-status')).toContainText('Revision 2 saved.',{timeout:120000});
+  await page.locator('#certification-location_area').fill('Updated before second generation');await generateCertificate(page,2);
   const listA=await (await fetch(base+'/api/certifications?workspace='+tokenA)).json();assert.equal(listA.items.length,1);
   const scoped=await (await fetch(base+'/api/certifications/'+documentId+'?workspace='+tokenA)).json();assert.equal(scoped.revisions.length,2);assert.equal(scoped.fields.location_area,'Updated before second generation');assert.equal(digest(scoped.options.signature_image),signatureHash);
   assert.equal(JSON.stringify(await (await fetch(base+'/api/certifications/'+original.id)).json()),sourceStamp);

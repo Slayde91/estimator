@@ -5,7 +5,7 @@ const {spawn}=require('node:child_process'),fs=require('node:fs'),path=require('
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`contact-shortcuts-${Date.now()}`);
 fs.mkdirSync(output,{recursive:true});
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
-let logs='',browser,page;server.stderr.on('data',value=>logs+=value);
+let logs='',browser,page,releaseDirectory;server.stderr.on('data',value=>logs+=value);
 const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()=>reject(Error(logs||'Fixture timeout')),120000);server.stdout.on('data',value=>{data+=value;if(data.includes('\n')){clearTimeout(timer);resolve(JSON.parse(data.split('\n')[0]));}});server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(Error(`Fixture exited ${code}`));});});
 (async()=>{
   const info=await ready;assert.notEqual(info.port,8765);const base=`http://127.0.0.1:${info.port}`;
@@ -45,13 +45,25 @@ const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()
   // The same Contact cannot silently acquire a duplicate active Lead.
   await host.getByRole('button',{name:'New Lead',exact:true}).click();dialog=page.getByRole('dialog',{name:'New Lead',exact:true});await dialog.getByLabel('Company',{exact:true}).fill(second.company);await dialog.getByRole('option',{name:/Second Client/}).click();await dialog.getByLabel('Name',{exact:true}).fill('Alex');await dialog.getByRole('option',{name:new RegExp(first.company)}).click();await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog.locator('[data-contacts-notice]')).toContainText('already has a lead');assert.deepEqual(await directory(),savedDirectory);await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
   // A stale editor cannot overwrite either the Lead or the canonical Contact.
-  await card.locator('summary').click();await card.getByRole('button',{name:'Edit',exact:true}).click();dialog=page.getByRole('dialog',{name:'Edit Lead',exact:true});await save('contacts',{name:original.name,company:original.company,phone:'Explicit canonical edit',email:original.email,title:original.title},{id:original.id});await dialog.getByLabel('Phone',{exact:true}).fill('Stale lead edit');await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog.locator('[data-contacts-notice]')).toContainText('Contacts have changed');await dialog.getByRole('button',{name:'Cancel',exact:true}).click();await expect(card).toContainText('Lead phone override');
+  await card.locator('summary').click();await card.getByRole('button',{name:'Edit',exact:true}).click();dialog=page.getByRole('dialog',{name:'Edit Lead',exact:true});await save('contacts',{name:original.name,company:original.company,phone:'Explicit canonical edit',email:original.email,title:original.title},{id:original.id});await dialog.getByLabel('Phone',{exact:true}).fill('Stale lead edit');await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog.locator('[data-contacts-notice]')).toContainText('Contacts have changed');
+  // Closing a stale editor refreshes the directory asynchronously. The old
+  // card already contains the retained override, so its text cannot prove that
+  // the new directory version has reached the UI before Convert is clicked.
+  let directoryStarted;const refreshing=new Promise(resolve=>directoryStarted=resolve),directoryGate=new Promise(resolve=>releaseDirectory=resolve);
+  await page.route('**/api/contacts/directory',async route=>{const response=await route.fetch();directoryStarted();await directoryGate;await route.fulfill({response});},{times:1});
+  const refreshed=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/contacts/directory'&&response.request().method()==='GET');refreshed.catch(()=>{});
+  await dialog.getByRole('button',{name:'Cancel',exact:true}).click();await refreshing;
+  await expect(host).toHaveAttribute('aria-busy','true');await expect(card).toContainText('Lead phone override');
+  releaseDirectory();const refreshedDirectory=await refreshed;assert.equal(refreshedDirectory.status(),200,await refreshedDirectory.text());
+  const refreshedVersion=(await refreshedDirectory.json()).version;assert.ok(refreshedVersion>savedDirectory.version);
+  await expect(host).not.toHaveAttribute('aria-busy','true');await expect(card).toContainText('Lead phone override');
   checks.push('Duplicate existing-Contact leads and stale dialog versions fail without partial directory writes');
+  checks.push('A held stale-editor refresh leaves the old card visible; Convert starts only after the new directory response and completed render');
   const linked=await page.request.post(base+'/api/projects/link-folder',{data:{}});assert.equal(linked.status(),200);
   let release,started;const held=new Promise(resolve=>started=resolve);let count=0;
   page.on('request',request=>{if(new URL(request.url()).pathname==='/api/contacts/leads/convert')count++;});
   await page.route('**/api/contacts/leads/convert',async route=>{started();await new Promise(resolve=>release=resolve);await route.continue();},{times:1});
-  const reply=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/contacts/leads/convert');await convert.evaluate(button=>{button.click();button.click();});await held;await expect(convert).toBeDisabled();release();const response=await reply;assert.equal(response.status(),200,await response.text());const receipt=await response.json();assert.equal(count,1);
+  const reply=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/contacts/leads/convert');await convert.evaluate(button=>{button.click();button.click();});await held;await expect(convert).toBeDisabled();release();const response=await reply;assert.equal(response.status(),200,await response.text());assert.equal(response.request().postDataJSON().version,refreshedVersion);const receipt=await response.json();assert.equal(count,1);
   await expect(page.locator('#view-estimate')).toBeVisible();await expect(page.locator('#project-no')).toHaveValue(receipt.project_no);
   const project=JSON.parse(fs.readFileSync(receipt.path,'utf8'));assert.equal(project.estimate.client,second.company);assert.equal(project.estimate.contact_id,original.id);assert.equal(project.estimate.contact_phone,'Lead phone override');assert.equal(project.estimate.contact_email,'lead@example.test');
   const current=await directory();assert.equal(current.leads.length,0);assert.equal(current.contacts.find(row=>row.id===original.id).account_id,original.account_id);assert.equal(current.contacts.find(row=>row.id===original.id).phone,'Explicit canonical edit');
@@ -59,4 +71,4 @@ const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()
   checks.push('Explicit Convert icon shares the replayable conversion flow, blocks duplicate clicks and opens the saved Project using the Lead snapshot');
   assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,errors},null,2));console.log('PASS Contact shortcuts. '+output);
 })().catch(async error=>{console.error(error);console.error(logs);process.exitCode=1;await page?.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});})
-  .finally(async()=>{await browser?.close();server.kill();});
+  .finally(async()=>{releaseDirectory?.();await browser?.close();server.kill();});

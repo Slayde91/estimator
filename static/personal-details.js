@@ -62,7 +62,7 @@
     try {
       if (conflicted) {
         const accepted = await window.CeasefireDialogs.confirm('Personal details changed',
-          'Personal details were changed in another window. Use the entered details for future certificates?',
+          'Personal details were changed in another window. Save the entered details in Settings?',
           'Use entered details', 'Keep editing');
         if (!accepted) return;
         // Only the version is refreshed. The user's captured entries remain the
@@ -76,7 +76,7 @@
       // saved signature artwork and every existing certificate snapshot.
       current = saved; conflicted = false;
       if (stamp(fields()) === stamp(desired)) render(saved);
-      message(dirty() ? 'Unsaved changes' : 'Personal details saved for future certificates.');
+      message(dirty() ? 'Unsaved changes' : 'Personal details saved. They are copied to a certificate only when it is signed.');
       if (typeof CustomEvent === 'function') window.dispatchEvent(new CustomEvent('ceasefire:signer-defaults-saved', {detail:saved}));
     } catch (error) {
       if (error.status === 409) conflicted = true;

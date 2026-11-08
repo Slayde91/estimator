@@ -9,7 +9,7 @@ import secrets
 import zlib
 
 from .catalog import ValidationError
-from .commercial_documents import CommercialConflict, commercial_cards
+from .commercial_documents import apply_project_document_details, CommercialConflict, commercial_cards
 
 STALE = 'This document changed or its project was filed. Reopen its board and select the document again.'
 
@@ -208,7 +208,7 @@ class UnfiledCommercial:
             if action == 'save':
                 if not isinstance(body.get('fields'),dict) or not isinstance(body['fields'].get('details'),dict):
                     raise ValidationError('Include the document and its project details.')
-                body['fields']['details'].update(details)
+                apply_project_document_details(body['fields'], details)
                 if (body.get('kind') == 'purchase_order' and isinstance(order,dict) and order.get('work_order_id')
                         and order['work_order_id'] != document['fields']['order'].get('work_order_id')
                         and order['work_order_id'] not in records):

@@ -3149,5 +3149,13 @@
   "Certification details": "সনদের বিবরণ",
   "Closed by": "বন্ধকারী",
   "Product / Service": "পণ্য / পরিষেবা",
-  "Unit price": "একক মূল্য"
+  "Unit price": "একক মূল্য",
+  "New certificates start with blank signer details. Signing fills these details from Settings for that certificate only.": "নতুন সনদে স্বাক্ষরকারীর তথ্য খালি থাকে। স্বাক্ষর করলে সেটিংস থেকে তথ্য শুধু সেই সনদেই পূরণ হয়।",
+  "Personal details saved. They are copied to a certificate only when it is signed.": "ব্যক্তিগত তথ্য সংরক্ষিত হয়েছে। সনদে স্বাক্ষর করলেই কেবল সেখানে তথ্য কপি হয়।",
+  "Personal details were changed in another window. Save the entered details in Settings?": "অন্য উইন্ডোতে ব্যক্তিগত তথ্য পরিবর্তন হয়েছে। লেখা তথ্য সেটিংসে সংরক্ষণ করবেন?",
+  "Choose valid document detail overrides.": "নথির তথ্যের বৈধ প্রতিস্থাপন নির্বাচন করুন।",
+  "Choose Delivery or Pickup for the delivery method.": "বিতরণ পদ্ধতি হিসেবে ডেলিভারি বা সংগ্রহ নির্বাচন করুন।",
+  "Delivery": "ডেলিভারি",
+  "Pickup": "সংগ্রহ",
+  "No supplier price is recorded for this item. Enter its purchase price.": "এই পণ্যের সরবরাহকারীর মূল্য নথিভুক্ত নেই। ক্রয়মূল্য লিখুন।"
 }

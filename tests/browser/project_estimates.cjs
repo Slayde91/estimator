@@ -30,7 +30,9 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   const firstSession=await page.evaluate(()=>window.CeasefireTakeoffs.sessionId());
   const firstDrawing=await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot().documents[0].id);
   await estimate();await save();
-  await page.locator('#project-estimate-new').click();await page.locator('#project-estimate-name').fill('Alternative');
+  await expect(page.locator('#project-estimate-create')).toHaveText('New estimate');
+  assert.equal(await page.locator('#project-estimate-create').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(208, 0, 27)');
+  await page.locator('#project-estimate-create').click();await page.locator('#project-estimate-name').fill('Alternative');
   await page.locator('#project-estimate-dialog').getByRole('button',{name:'Save',exact:true}).click();await idle();
   await expect(page.locator('#project-estimate-select option')).toHaveCount(2);
   const second=await page.locator('#project-estimate-select').inputValue();assert.notEqual(second,'estimate-1');
@@ -90,9 +92,10 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
     const heights=await documentToggle.evaluate(toggle=>({
       document:toggle.getBoundingClientRect().height,
       quote:document.getElementById('project-estimate-quote').getBoundingClientRect().height,
-      swms:document.getElementById('project-estimate-swms').getBoundingClientRect().height
+      swms:document.getElementById('project-estimate-swms').getBoundingClientRect().height,
+      create:document.getElementById('project-estimate-create').getBoundingClientRect().height
     }));
-    assert.ok(heights.document>0&&Math.abs(heights.document-heights.quote)<.5&&Math.abs(heights.document-heights.swms)<.5,
+    assert.ok(heights.document>0&&Math.abs(heights.document-heights.quote)<.5&&Math.abs(heights.document-heights.swms)<.5&&Math.abs(heights.document-heights.create)<.5,
       `Estimate actions should have matching heights at ${width}px: ${JSON.stringify(heights)}`);
     await documentToggle.click();
     const menu=await page.locator('#firestopping-document-actions').boundingBox();

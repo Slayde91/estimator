@@ -58,8 +58,7 @@
     const locked = !state.loaded || !!state.opening || state.busy || !!state.pending || state.readingSignature;
     for (const control of [...Object.values(controls), ...scopeControls, selector]) control.disabled = locked;
     signatureButton.disabled = locked;
-    $('certification-signature-clear').disabled = locked || !state.options.signature_image;
-    $('certification-signer-delete').disabled = locked || !signerNames.some(name=>controls[name].value);
+    $('certification-signature-clear').disabled = locked || (!state.options.signature_image && !signerNames.some(name=>controls[name].value));
     saveButton.disabled = !state.loaded || !!state.opening || state.busy || state.readingSignature || (!!state.pending && state.pending.kind !== 'save');
     generateButton.disabled = !state.loaded || !!state.opening || state.busy || state.readingSignature || (!!state.pending && state.pending.kind !== 'generate');
     form.setAttribute('aria-busy', String(state.busy || !!state.opening || state.readingSignature));
@@ -133,12 +132,8 @@
   $('certification-signature-clear').addEventListener('click',()=>{
     if($('certification-signature-clear').disabled)return;
     state.options.signature_image=null;state.options.signature_name='';state.signatureRevision++;
-    renderSignature();updateControls();message('Unsaved certification details');
-  });
-  $('certification-signer-delete').addEventListener('click',()=>{
-    if($('certification-signer-delete').disabled)return;
     for(const name of signerNames){controls[name].value='';controls[name].setCustomValidity('');state.touched.add(name);}
-    updateControls();message('Unsaved certification details');
+    renderSignature();updateControls();message('Unsaved certification details');
   });
   function presetLines(selected,key) {return [...new Set(scopes.filter(scope=>selected.includes(scope.id)).flatMap(scope=>scope[key]))];}
   function renderScopes() {

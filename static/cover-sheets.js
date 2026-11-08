@@ -121,7 +121,13 @@
     'certification':'certification', 'estimate.summary.pdf':'estimate', 'project.full_schedule.pdf':'full_schedule',
     'project.full_product_summary.pdf':'full_product_summary','firestopping.schedule.pdf':'firestopping_schedule',
     'calculator.steel_vermiculite.schedule.pdf':'steel_vermiculite_schedule','calculator.steel_intumescent.schedule.pdf':'steel_intumescent_schedule',
-    'calculator.steel_board.schedule.pdf':'steel_board_schedule','calculator.ductwork.schedule.pdf':'ductwork_schedule','takeoff.markups.pdf':'takeoff_markups'
+    'calculator.steel_board.schedule.pdf':'steel_board_schedule','calculator.ductwork.schedule.pdf':'ductwork_schedule',
+    'calculator.steel_vermiculite.product_summary.pdf':'steel_vermiculite_product_summary',
+    'calculator.steel_intumescent.product_summary.pdf':'steel_intumescent_product_summary',
+    'calculator.steel_board.product_summary.pdf':'steel_board_product_summary',
+    'calculator.ductwork.product_summary.pdf':'ductwork_product_summary',
+    'swms':'swms','commercial.quote':'quote','commercial.work_order':'work_order',
+    'commercial.purchase_order':'purchase_order','takeoff.markups.pdf':'takeoff_markups'
   };
   function attach(tr, documentKind) {
     const kind=kinds[documentKind], row=state.rows.get(kind);

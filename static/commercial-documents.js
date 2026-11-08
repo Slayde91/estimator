@@ -447,6 +447,18 @@
     return {project_no:details.project_no || "", client:details.client || "", site_address:details.site_address || "",
       contact:details.contact_name || "", phone:details.contact_phone || "", email:details.contact_email || ""};
   }
+  function applyProjectDetails(fields, details) {
+    const overrides=new Set(fields.detail_overrides || []);
+    for(const [key,value] of Object.entries(details))if(!overrides.has(key))fields.details[key]=value;
+  }
+  function editDocumentDetails(fields, values) {
+    const allowed=['client','contact','phone','email','site_address'];
+    const overrides=new Set(fields.detail_overrides || []);
+    for(const [key,value] of Object.entries(values))if(allowed.includes(key)){fields.details[key]=value;overrides.add(key);}
+    fields.detail_overrides=allowed.filter(key=>overrides.has(key));
+    root()?.querySelectorAll('[data-project-detail]').forEach(control=>control.value=fields.details[control.dataset.projectDetail] || '');
+    markDirty();
+  }
   function boundWorkOrderProjectNumber(editor) {
     const doc=editor.document;
     if(doc.kind!=='work_order')return '';
@@ -464,7 +476,7 @@
     {
       const details = commercialProjectDetails();
       const local = state.model.activeFileChanged ? [] : all.map(card => ({
-        ...card, fields: {...card.fields, details: {...card.fields.details, ...details}}
+        ...card, fields: {...card.fields, details: {...card.fields.details, ...Object.fromEntries(Object.entries(details).filter(([key])=>!(card.fields.detail_overrides || []).includes(key)))}}
       }));
       all = local.concat(state.savedCards.filter(card => card.kind === state.kind));
     }
@@ -815,7 +827,7 @@
       fields = state.editor.document.fields;
     const lockedNumber=boundWorkOrderProjectNumber(state.editor);
     if (!source) {
-      Object.assign(fields.details, commercialProjectDetails());
+      applyProjectDetails(fields, commercialProjectDetails());
     }
     if (lockedNumber) fields.details.project_no = lockedNumber;
     const actions = node("div", "commercial-editor-actions");
@@ -956,13 +968,14 @@
     const related = editor.source?.related || state.model.documents;
     const staged = new Map();
     const source = () => ({file_id:editor.source.file_id,revision:editor.source.revision});
-    const current = () => state.editor === editor;
+    const panelWorkspace=state.workspace,panelContext=window.CeasefireProject?.runtimeContext?.();
+    const current = () => state.editor === editor && state.workspace===panelWorkspace && panelWorkspace===currentWorkspace() && panelContext===window.CeasefireProject?.runtimeContext?.();
     const encode = blob => new Promise((resolve,reject)=>{
       const reader=new FileReader(); reader.onerror=()=>reject(new Error("The file could not be read."));
       reader.onload=()=>resolve(reader.result.split(",")[1]); reader.readAsDataURL(blob);
     });
     editor.panels=window.ClassifireWorkOrderPanels.attach(form, {
-      fields, kind:doc.kind, id:doc.id, related, message, richEditor, projectDetails:projectDetailsSnapshot(editor.source), isSaved:()=>Boolean(doc.version),
+      fields, kind:doc.kind, id:doc.id, related, message, richEditor, canEdit:()=>current() && !state.busy, changeDetails:values=>{if(current() && !state.busy)editDocumentDetails(fields,values);}, projectDetails:projectDetailsSnapshot(editor.source), isSaved:()=>Boolean(doc.version),
       async writeNotes(notes) {
         if (!current() || state.busy) throw new Error("Finish the current document operation first.");
         if (!doc.version) { fields.notes=copy(notes); markDirty(); return; }
@@ -1140,6 +1153,7 @@
     ] : [["Purchase order information", [["work_order_reference", "Work order reference"], ["supplier", "Supplier"], ["supplier_email", "Supplier email"], ["supplier_contact", "Supplier contact"], ["payment_terms", "Payment terms"], ["ship_to_name", "Ship to name"], ["ship_to_address", "Ship to address"], ["delivery_date", "Delivery date"], ["expense_type", "Type of expense"], ["delivery_method", "Delivery or pickup"]]], ["Request and approval", [["requested_by", "Requested by"], ["requested_date", "Request date"], ...commonReview]], ["Procurement verification", [["verification", "Verification method, specification, result and actions"], ["sent_by", "Sent by"], ["sent_date", "Sent date"], ["verified_by", "Verified by"], ["verified_date", "Verification date"]]]];
     for (const [title, items] of groups) {
       const section = node("section", "card commercial-order-fields");
+      if(!isWorkOrder && title==='Purchase order information')section.classList.add('commercial-purchase-information');
       if(isWorkOrder && title==='Work order details')section.classList.add('commercial-work-details');
       section.append(node("h2", "", title));
       let dates,personPair,personDate;
@@ -1178,8 +1192,21 @@
           section.append(row);
           continue;
         }
+        if(!isWorkOrder && ['supplier','supplier_contact'].includes(key)) {
+          const owner=state.editor, workspace=state.workspace, context=window.CeasefireProject?.runtimeContext?.();
+          const current=()=>state.editor===owner && workspace===state.workspace && workspace===currentWorkspace() && context===window.CeasefireProject?.runtimeContext?.() && !state.busy;
+          const account=data=>{const rows=(data.accounts || []).filter(item=>window.ClassifireCommercialDirectory.fold(item.company)===window.ClassifireCommercialDirectory.fold(fields.order.supplier));return rows.length===1?rows[0]:null;};
+          function update(values){if(!current())return;Object.assign(fields.order,values);section.querySelectorAll('[data-order-field]').forEach(control=>control.value=fields.order[control.dataset.orderField] || '');markDirty();}
+          const search=window.ClassifireCommercialDirectory.field(label,{kind:key==='supplier'?'accounts':'contacts',value:fields.order[key],read:()=>fields.order[key],isCurrent:current,message,
+            account,filter: key==='supplier_contact' ? (contact,data)=>!fields.order.supplier || !!account(data) && (contact.account_id===account(data).id || contact.account_id===undefined && window.ClassifireCommercialDirectory.fold(contact.company)===window.ClassifireCommercialDirectory.fold(fields.order.supplier)) : undefined,
+            onInput(value){update(key==='supplier' && value!==fields.order.supplier ? {supplier:value,supplier_contact:'',supplier_email:''} : {[key]:value});},onSelect(item,data){
+              if(key==='supplier')update(item.company!==fields.order.supplier ? {supplier:item.company,supplier_contact:'',supplier_email:''} : {supplier:item.company});
+              else {const company=data.accounts?.find(company=>company.id===item.account_id);update({supplier_contact:item.name,supplier_email:item.email || '',supplier:company?.company || item.company || fields.order.supplier});}
+            }});
+          search.input.dataset.orderField=key;section.append(search.element);continue;
+        }
         const choices = isWorkOrder ? (key === "urgency" ? ["High Priority","Medium Priority","Low Priority"] : key === "approval" ? ["Approved","Denied"] : key==='certification' ? ['Certification issued','Certification not issued'] : key==='completion' ? ['Completed','Ongoing','On hold','Not completed'] : null)
-          : key === "expense_type" ? ["Labour", "Materials", "Services", "Other"] : null;
+          : key === "expense_type" ? ["Labour", "Materials", "Services", "Other"] : key === "delivery_method" ? ["Delivery", "Pickup"] : null;
         let control;
         if (choices) {
           const options = ["",...choices];
@@ -1187,6 +1214,7 @@
           control = select(options, fields.order[key], value => fields.order[key] = value);
           for(const option of control.options)if(choices.includes(option.value))window.CeasefireI18n?.text(option,option.value);
         } else control = key.endsWith("_date") ? input(fields.order[key], value => fields.order[key] = value, "date") : textarea(fields.order[key], value => fields.order[key] = value);
+        if(!isWorkOrder && title==='Purchase order information' && control.tagName==='TEXTAREA')control.rows=1;
         control.dataset.orderField=key;
         const item = field(label, control);
         if(isWorkOrder && key==='description')item.classList.add('commercial-work-description');
@@ -1407,19 +1435,7 @@
       table = node("table"),
       head = node("thead"),
       header = node("tr");
-    const products = new Map();
-    if (state.kind === "purchase_order") {
-      const catalog = state.model.products || [], counts = new Map(), list = node("datalist");
-      list.id = "commercial-supplier-products";
-      for (const item of catalog) counts.set(item.label, (counts.get(item.label) || 0) + 1);
-      for (const item of catalog) {
-        const value = counts.get(item.label) > 1 ? `${item.label} · ${item.code}` : item.label;
-        products.set(value, item);
-        const option = node("option"); option.value = value; list.append(option);
-      }
-      host.append(list);
-      table.classList.add("commercial-po-lines");
-    }
+    if(state.kind==='purchase_order')table.classList.add('commercial-po-lines');
     for (const label of ["Product / Service", "Quantity", "Unit price", "Total", ...(state.kind === "purchase_order" ? ["Size", "Comments", "Actions"] : [])]) header.append(node("th", "", label));
     head.append(header);
     table.append(head);
@@ -1430,16 +1446,8 @@
         quantity = node("td"),
         unit = node("td"),
         total = node("td", "commercial-line-total");
-      const descriptionInput = state.kind === "purchase_order" ? input(line.description, value => {
-        line.description = value;
-        const chosen = products.get(value);
-        if (!chosen) return;
-        line.unit_price = String(chosen.supplier_price ?? "");
-        price.value = line.unit_price;
-        if (chosen.supplier_price == null) message("No supplier price is recorded for this item. Enter its purchase price.");
-        renderTotals();
-      }) : textarea(line.description, value => line.description = value);
-      if (state.kind === "purchase_order") descriptionInput.setAttribute("list", "commercial-supplier-products");
+      const descriptionInput = state.kind === "purchase_order" ? input(line.description, value => line.description=value) : textarea(line.description,value=>line.description=value);
+      if(state.kind==='purchase_order')descriptionInput.type='search';
       descriptionInput.rows = 1;
       descriptionInput.classList.add("commercial-line-description");
       descriptionInput.setAttribute("aria-label", `Product / Service ${index + 1}`);
@@ -1463,12 +1471,18 @@
       price.step = "any";
       price.readOnly = state.kind === "quote" && !!line.estimate_id;
       unit.append(price);
-      if(state.kind==='quote' && !line.estimate_id){
+      if(state.kind==='purchase_order' || state.kind==='quote' && !line.estimate_id){
         const cleanup=window.ClassifireCommercialPricing?.attach(descriptionInput,{
+        ...(state.kind==='purchase_order' ? {searchItems:async query=>{
+          const data=await request('supplier-products?workspace='+encodeURIComponent(workspace));
+          const needle=query.trim().toLocaleLowerCase();
+          return data.products.map((item,index)=>({...item,searchId:String(index)})).filter(item=>[item.label,item.code].join(' ').toLocaleLowerCase().includes(needle)).slice(0,30).map(item=>({id:item.searchId,name:item.label,description:item.label,unit_price:Number(item.supplier_price ?? 0),supplierPrice:item.supplier_price}));
+        }} : {}),
         isCurrent:()=>!state.busy && state.editor===owner && workspace===state.workspace && workspace===currentWorkspace()
           && context===window.CeasefireProject?.runtimeContext?.() && row.isConnected && fields.lines.includes(line),
         onSelect(item){
-          line.description=item.description;line.unit_price=String(Number(Number(item.unit_price).toFixed(6)));
+          line.description=item.description;line.unit_price=state.kind==='purchase_order' && item.supplierPrice==null ? '' : String(Number(Number(item.unit_price).toFixed(6)));
+          if(state.kind==='purchase_order' && item.supplierPrice==null)message('No supplier price is recorded for this item. Enter its purchase price.');
           descriptionInput.value=line.description;price.value=line.unit_price;
           resize();markDirty();renderTotals();
         }
@@ -1592,7 +1606,8 @@
     }
   }
   function setDisabled(disabled) {
-    root()?.querySelectorAll(".commercial-editor button,.commercial-editor input,.commercial-editor textarea,.commercial-editor select").forEach(control => control.disabled = disabled);
+    if(disabled)state.editor?.panels?.closeSearches();
+    root()?.querySelectorAll(".commercial-work-layout button,.commercial-work-layout input,.commercial-work-layout textarea,.commercial-work-layout select").forEach(control => control.disabled = disabled);
     root()?.querySelectorAll(".commercial-rich-input").forEach(control => control.contentEditable = String(!disabled));
     if (!disabled && state.kind === "work_order" && (state.editor?.linkedQuote || (state.editor?.document.version > 0 && state.editor.document.fields.order.work_order_reference))) {
       const linked = root()?.querySelector('[data-order-link="quote_id"]');
@@ -1616,7 +1631,7 @@
     assertDocumentOperation(operation);
     const {editor,workspace,projectDetails}=operation, document=editor.document;
     const lockedNumber=boundWorkOrderProjectNumber(editor);
-    if(!editor.source)Object.assign(document.fields.details,commercialProjectDetails());
+    if(!editor.source)applyProjectDetails(document.fields,commercialProjectDetails());
     if(lockedNumber)document.fields.details.project_no=lockedNumber;
     const saved = await documentRequest("save", {
       workspace_id: workspace,

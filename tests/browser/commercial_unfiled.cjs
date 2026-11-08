@@ -66,7 +66,7 @@ async function save(page){
   await expect(card(original)).toHaveCount(1);
   await card(original).getByRole('button',{name:original,exact:true}).click();
   await expect(board(other).getByLabel('Client',{exact:true})).toHaveValue('Unfiled fixture company');
-  await expect(board(other).getByLabel('Site address',{exact:true})).toHaveValue('21 Fixture Street');
+  await expect(board(other).locator('.commercial-details').getByLabel('Site address',{exact:true})).toHaveValue('21 Fixture Street');
   await board(other).getByLabel('Document title',{exact:true}).fill(edited);
   await save(other);
   await board(other).getByRole('button',{name:'Back to Quotes',exact:true}).click();

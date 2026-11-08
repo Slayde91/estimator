@@ -82,29 +82,114 @@
     dialog.addEventListener("cancel",event=>{event.preventDefault();void done();});
     dialog.showModal(); title.focus();
   }
+  // Shared, editable directory searches use the same +/clear pattern as Projects.
+  // Values are copied into this document only; the directory and Project stay unchanged.
+  const fold = value => String(value || "").trim().replace(/\s+/g," ").toLocaleLowerCase();
+  let directoryRequest;
+  function loadDirectory(refresh=false) {
+    if(refresh)directoryRequest=null;
+    if(directoryRequest)return directoryRequest;
+    const pending=fetch("/api/contacts/directory",{cache:"no-store"}).then(async response=>{
+      const data=await response.json();if(!response.ok)throw Error(data.error || "Contacts could not be loaded.");return data;
+    }).finally(()=>{if(directoryRequest===pending)directoryRequest=null;});
+    directoryRequest=pending;return pending;
+  }
+  function directorySearch(label, options) {
+    const wrap=el("div"), caption=el("label",label), search=el("div"), input=el("input"), popup=el("div"), add=el("button");
+    const id="commercial-directory-"+crypto.randomUUID();
+    wrap.className="field project-account-field commercial-directory-field";search.className="project-account-search";
+    caption.htmlFor=id;window.CeasefireI18n?.text(caption,label);input.id=id;input.type="search";input.value=options.value || "";
+    input.setAttribute("role","combobox");input.setAttribute("aria-autocomplete","list");input.setAttribute("aria-controls",id+"-options");input.setAttribute("aria-expanded","false");input.autocomplete="off";
+    const placeholder=options.kind==='accounts' ? 'Search Companies' : 'Search contacts';
+    window.CeasefireI18n?.attr(input,'placeholder',placeholder);input.placeholder ||= placeholder;
+    input.setAttribute('aria-label',label);window.CeasefireI18n?.attr(input,'aria-label',label);
+    popup.id=id+"-options";popup.className="project-account-options commercial-directory-options";popup.setAttribute('role','listbox');popup.hidden=true;
+    add.type='button';add.className='project-account-add';
+    const title=options.kind==='accounts'?'New Company':'New Contact';add.title=title;add.setAttribute('aria-label',title);
+    window.CeasefireI18n?.attr(add,'title',title);window.CeasefireI18n?.attr(add,'aria-label',title);
+    add.innerHTML='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M8 4v8M4 8h8"></path></svg>';
+    search.append(input,add);wrap.append(caption,search,popup);
+    let records={accounts:[],contacts:[]}, matches=[],active=-1,requested=false,sequence=0,creating=false;
+    const current=()=>wrap.isConnected && options.isCurrent() && !input.disabled;
+    function close(){requested=false;active=-1;popup.hidden=true;input.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');}
+    function choose(item){if(!current())return;close();options.onSelect(item,records);input.value=options.read();}
+    function render(){
+      if(!requested || !current() || document.activeElement!==input)return;
+      const query=fold(input.value);
+      matches=(records[options.kind] || []).filter(item=> (!options.filter || options.filter(item,records)) && fold(options.kind==='accounts'?item.company:item.name).includes(query)).slice(0,30);active=-1;
+      popup.replaceChildren(...matches.map((item,index)=>{
+        const option=el('button',options.kind==='accounts'?item.company:item.name);option.type='button';option.tabIndex=-1;option.id=id+'-'+index;
+        option.setAttribute('role','option');option.setAttribute('aria-selected','false');option.setAttribute('aria-posinset',String(index+1));option.setAttribute('aria-setsize',String(matches.length));option.dataset.directoryId=item.id;
+        option.addEventListener('mousedown',event=>event.preventDefault());option.addEventListener('click',()=>choose(item));return option;
+      }));
+      if(!matches.length){const empty=el('p');const source=options.kind==='accounts'?'No matching Companies.':'No matching Contacts.';window.CeasefireI18n?.text(empty,source);empty.textContent ||= source;popup.append(empty);}
+      popup.hidden=false;input.setAttribute('aria-expanded','true');input.removeAttribute('aria-activedescendant');
+    }
+    async function request(){
+      requested=true;const ticket=++sequence;
+      try{const result=await loadDirectory();if(ticket!==sequence || !current())return;records=result;options.onDirectory?.(result);render();}
+      catch(error){if(ticket===sequence && current())options.message(error.message,true);}
+    }
+    input.addEventListener('focus',()=>void request());
+    input.addEventListener('input',()=>{if(!current())return;options.onInput(input.value);requested=true;render();});
+    input.addEventListener('blur',close);
+    input.addEventListener('keydown',event=>{
+      if(event.isComposing)return;
+      if(event.key==='Escape' && !popup.hidden){event.preventDefault();event.stopPropagation();close();}
+      else if(['ArrowDown','ArrowUp'].includes(event.key) && !popup.hidden && matches.length){
+        event.preventDefault();active=Math.max(0,Math.min(matches.length-1,active+(event.key==='ArrowDown'?1:-1)));
+        [...popup.children].forEach((node,index)=>node.setAttribute('aria-selected',String(index===active)));
+        input.setAttribute('aria-activedescendant',popup.children[active].id);popup.children[active].scrollIntoView({block:'nearest'});
+      }else if(event.key==='Enter' && !popup.hidden && active>=0){event.preventDefault();choose(matches[active]);}
+    });
+    add.addEventListener('click',async()=>{
+      if(creating || !current())return;creating=true;add.disabled=true;close();const value=input.value;
+      try {
+        const account=options.account?.(records);
+        const saved=options.kind==='accounts' ? await window.ClassifireContacts.createAccount({company:value}) : await window.ClassifireContacts.createContact({name:value,...(account?{account_id:account.id}:{})});
+        const latest=await loadDirectory(true);
+        if(!current() || input.value!==value || !saved)return;
+        records=latest;options.onDirectory?.(latest);choose(saved);
+      } catch(error){if(current())options.message(error.message,true);}
+      finally{creating=false;if(wrap.isConnected)add.disabled=false;}
+    });
+    return {element:wrap,input,refresh(){if(document.activeElement!==input)input.value=options.read();if(!current())close();},close};
+  }
+  window.ClassifireCommercialDirectory={field:directorySearch,load:loadDirectory,fold};
   function attach(form, options) {
     const owner = form.parentElement, wrapper = el("div"), left = el("aside"), right = el("aside");
     wrapper.className = "commercial-work-layout"; left.className = right.className = "commercial-sidebar";
     owner.insertBefore(wrapper,form); wrapper.append(left,form,right);
     const accountPanel = panel("Company Details"), contactPanel = panel("Contact Details");
     left.append(accountPanel,contactPanel);
-    let directory = {};
+    let directory = {}, controls=[];
+    const projectAccount=()=>{const rows=(directory.accounts || []).filter(account=>fold(account.company)===fold(options.fields.details.client));return rows.length===1?rows[0]:null;};
+    function change(values){options.changeDetails(values);showContact();}
+    function changeCompany(value){change(value!==options.fields.details.client?{client:value,contact:'',phone:'',email:''}:{client:value});}
+    const company=directorySearch('Company',{kind:'accounts',value:options.fields.details.client,read:()=>options.fields.details.client,isCurrent:options.canEdit,message:options.message,
+      onDirectory(data){directory=data;showContact();},onInput(value){changeCompany(value);},onSelect(account){changeCompany(account.company);}});
+    const name=directorySearch('Name',{kind:'contacts',value:options.fields.details.contact,read:()=>options.fields.details.contact,isCurrent:options.canEdit,message:options.message,
+      account:projectAccount,filter(contact,data){const account=projectAccount();return !options.fields.details.client || !!account && (contact.account_id===account.id || contact.account_id===undefined && fold(contact.company)===fold(account.company));},
+      onDirectory(data){directory=data;showContact();},onInput(value){change(value?{contact:value}:{client:'',contact:'',phone:'',email:''});},onSelect(contact,data){
+        const accounts=(data.accounts || []).filter(account=>contact.account_id ? account.id===contact.account_id : fold(account.company)===fold(contact.company));const account=accounts.length===1?accounts[0]:null;
+        change({client:account?.company || contact.company || '',contact:contact.name,phone:contact.phone || '',email:contact.email || ''});}});
+    const site=el('label'),siteCaption=el('span','Site address'),siteInput=el('input');site.className='field commercial-site-address';
+    window.CeasefireI18n?.text(siteCaption,'Site address');siteInput.value=options.fields.details.site_address || '';siteInput.setAttribute('aria-label','Site address');window.CeasefireI18n?.attr(siteInput,'aria-label','Site address');
+    siteInput.addEventListener('input',()=>{if(options.canEdit())change({site_address:siteInput.value});});site.append(siteCaption,siteInput);
+    accountPanel.append(company.element,site);contactPanel.append(name.element);controls=[company,name];
     function showContact() {
-      const details = options.fields.details, project=options.projectDetails || {}, fold = s => (s || "").trim().toLowerCase();
-      const accounts=(directory.accounts || []).filter(a=>project.account_id ? a.id===project.account_id : fold(a.company)===fold(details.client));
-      const account=accounts.length===1 ? accounts[0] : null;
-      const matches=(directory.contacts || []).filter(c=>project.contact_id ? c.id===project.contact_id
-        : account && c.account_id===account.id && ((details.email && fold(c.email)===fold(details.email)) || (details.contact && fold(c.name)===fold(details.contact))));
+      const details=options.fields.details,project=options.projectDetails || {},account=projectAccount();
+      const matches=(directory.contacts || []).filter(contact=>fold(contact.name)===fold(details.contact) && (!details.email || fold(contact.email)===fold(details.email)) && (!details.phone || fold(contact.phone)===fold(details.phone)));
       const contact=matches.length===1 ? matches[0] : null;
-      accountPanel.querySelector("dl")?.remove(); contactPanel.querySelector("dl")?.remove();
-      fieldList(accountPanel,[["Company",details.client],["Billing address",project.billing_address ?? account?.billing_address],["ABN/ACN",project.abn_acn ?? account?.abn_acn],["Site address",details.site_address]]);
-      fieldList(contactPanel,[["Name",details.contact],["Title",contact?.title],["Phone",details.phone],["Email",details.email]]);
+      accountPanel.querySelector('dl')?.remove();contactPanel.querySelector('dl')?.remove();
+      const sameProject=fold(project.client)===fold(details.client);
+      const companyList=el('div');fieldList(companyList,[["Billing address",sameProject ? project.billing_address ?? account?.billing_address : account?.billing_address],["ABN/ACN",sameProject ? project.abn_acn ?? account?.abn_acn : account?.abn_acn]]);
+      accountPanel.insertBefore(companyList.firstChild,site);
+      fieldList(contactPanel,[["Title",contact?.title],["Phone",details.phone],["Email",details.email]]);
+      controls.forEach(control=>control.refresh());if(document.activeElement!==siteInput)siteInput.value=details.site_address || '';
     }
     showContact();
-    fetch("/api/contacts/directory",{cache:"no-store"}).then(r=>r.ok?r.json():{}).then(data=>{
-      if (!wrapper.isConnected) return;
-      directory=data; showContact();
-    }).catch(()=>{});
+    loadDirectory().then(data=>{if(!wrapper.isConnected)return;directory=data;showContact();}).catch(()=>{});
     form.querySelector(".commercial-details")?.addEventListener("input",showContact);
     const notes = panel("Notes",0), files = panel("Files",0);
     right.append(notes, files);
@@ -160,7 +245,7 @@
     }
     relatedPanels.forEach(([,block])=>right.append(block));showRelated();
     form.querySelector("[data-order-link]")?.addEventListener("change",showRelated);
-    return {repaintFiles,refreshProjectDetails(value){options.projectDetails=value;showContact();}};
+    return {repaintFiles,closeSearches(){controls.forEach(control=>control.close());},refreshProjectDetails(value){options.projectDetails=value;showContact();}};
   }
   window.ClassifireWorkOrderPanels = {attach};
 })();

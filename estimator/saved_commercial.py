@@ -2,7 +2,7 @@
 from hashlib import sha256
 import json
 from .catalog import ValidationError
-from .commercial_documents import KINDS, CommercialConflict, commercial_cards, project_document_details
+from .commercial_documents import KINDS, CommercialConflict, commercial_cards, project_document_details, apply_project_document_details
 from .download_files import DownloadDestination
 from .project_file import WORKSPACE_FIELDS, load_project_bytes
 from .quote_details import QUOTE_DETAIL_LIMITS
@@ -88,7 +88,7 @@ class SavedCommercial:
                 if document is None:
                     raise CommercialConflict('This document is no longer available. Reopen its board.')
                 bound_number = document['fields']['details']['project_no'] if document['kind']=='work_order' and (document['fields']['order']['work_order_reference'] or document['fields']['order']['quote_id']) else None
-                document['fields']['details'].update(details)
+                apply_project_document_details(document['fields'], details)
                 if bound_number is not None:
                     document['fields']['details']['project_no'] = bound_number
                 quote_total = model['quote_totals'].get(document['id'], {}).get(document['last_number'], '')

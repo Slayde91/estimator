@@ -5,7 +5,7 @@ import json
 from urllib.parse import parse_qs, urlsplit
 
 from .catalog import ValidationError, effective_catalog
-from .commercial_documents import KINDS, CommercialConflict, default_fields, linked_estimate_ids, project_document_details
+from .commercial_documents import KINDS, CommercialConflict, default_fields, linked_estimate_ids, project_document_details, apply_project_document_details
 from .unfiled_commercial import quote_context
 
 
@@ -175,7 +175,7 @@ class CommercialHTTP:
                 if not isinstance(fields, dict) or not isinstance(fields.get('details'), dict):
                     raise ValidationError('Include the document and its project details.')
                 requested_number = fields['details'].get('project_no', '')
-                fields['details'].update(project_document_details(body['project_details']))
+                apply_project_document_details(fields, project_document_details(body['project_details']))
                 if body.get('kind') == 'work_order':
                     if not isinstance(fields.get('order'), dict):
                         raise ValidationError('Commercial document details contain unsupported fields.')
@@ -201,7 +201,7 @@ class CommercialHTTP:
                     captured_details = project_document_details(active)
                     if 'project_details' in body and captured_details != project_document_details(body['project_details']):
                         raise CommercialConflict('The Project details changed while saving. Reopen this document to use the current Project details.')
-                    fields['details'].update(captured_details)
+                    apply_project_document_details(fields, captured_details)
                 derived = self._derive({**body, 'selected_ids': linked_estimate_ids(fields['lines'])})
                 prices = {line['estimate_id']: line['unit_price'] for line in derived['lines']}
                 seen = set()

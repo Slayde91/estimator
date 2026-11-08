@@ -287,6 +287,7 @@ def validate_swms_snapshot(value):
 class SwmsDocuments:
     def __init__(self, certifications, root=None, renderer=None):
         self.certifications = certifications
+        self.covers = getattr(getattr(certifications, 'legacy', None), 'covers', None)
         self.root = _directory(Path(root) if root else certifications.root.parent / 'swms-documents', create=True)
         self.numbering = getattr(certifications, 'numbering', None) or DocumentNumbers(self.root.parent / 'document-numbers.sqlite3')
         self.path = self.root / 'documents.sqlite3'
@@ -456,7 +457,10 @@ class SwmsDocuments:
             if renderer is None:
                 from .swms_pdf import render_swms_pdf
                 renderer = render_swms_pdf
+            cover = self.covers.get('swms') if self.covers else None
             pdf = renderer(document, company=company)
+            from .pdf_cover import prepend_cover_pdf
+            pdf = prepend_cover_pdf(pdf, company, cover)
             if not isinstance(pdf, bytes) or not pdf.startswith(b'%PDF-') or len(pdf) > MAX_PDF_BYTES:
                 raise ValidationError('The generated SWMS PDF is invalid or exceeds 64 MiB.')
             issued_id = str(uuid.uuid4())

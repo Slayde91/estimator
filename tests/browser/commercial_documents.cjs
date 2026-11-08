@@ -330,7 +330,9 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   fs.writeFileSync(otherPath, JSON.stringify(clone));
   await open('quotes');
   await page.locator('#refresh-quotes').click();
-  await expect(page.locator('#project-list')).toContainText('other-project.cf.json');
+  // Project rows show readable titles; relative filenames were intentionally
+  // removed from this list. Both independently saved files must be present.
+  await expect(page.locator('#project-list .project-list-row')).toHaveCount(2);
   await open('quote');
   await expect(quote.locator('.commercial-card')).toHaveCount(2);
   const otherCard = quote.locator('.commercial-card').filter({hasText:'Other project quote'});

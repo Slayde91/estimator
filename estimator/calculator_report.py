@@ -442,7 +442,10 @@ class _ScheduleReport(_Report):
         data = self.data
         if quote_scope:
             from .quote_schedule import append_scope_schedule_heading
-            self.story.append(CondPageBreak(90))
+            # Each quoted schedule already starts in its own PDF/page. A
+            # conditional break here separates the estimate's keep-with-next
+            # chain from the schedule heading. For a multi-page table that
+            # strands the scope/estimate intro on an otherwise empty page.
             append_scope_schedule_heading(self, data['id'])
             return
         elif project_report_title:

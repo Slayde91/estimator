@@ -240,7 +240,7 @@ class StorageTests(unittest.TestCase):
     def test_long_generated_title_and_invalid_metadata_are_bounded_and_atomic(self):
         quote = self.store.save_quote({"project_no": "P" * 100, "client": "C" * 200, "site_address": "S" * 400})
         self.assertEqual(len(quote["title"]), 704)
-        for invalid in ({"project_no": "x" * 101}, {"client": None}, {"site_address": "bad\naddress"}):
+        for invalid in ({"project_no": "x" * 101}, {"client": None}, {"site_address": "bad\x00address"}):
             with self.subTest(invalid=invalid), self.assertRaises(ValidationError):
                 self.store.save_quote(invalid, quote["id"])
         self.assertEqual(self.store.quote(quote["id"]), quote)

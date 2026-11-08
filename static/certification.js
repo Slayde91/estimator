@@ -59,7 +59,9 @@
     for (const control of [...Object.values(controls), ...scopeControls, selector]) control.disabled = locked;
     signatureButton.disabled = locked;
     $('certification-signature-clear').disabled = locked || (!state.options.signature_image && !signerNames.some(name=>controls[name].value));
-    saveButton.disabled = !state.loaded || !!state.opening || state.busy || state.readingSignature || (!!state.pending && state.pending.kind !== 'save');
+    // A still-open older page may retain the former Save control. New pages
+    // expose generation as the one certificate action; keep old windows safe.
+    if(saveButton)saveButton.disabled = !state.loaded || !!state.opening || state.busy || state.readingSignature || (!!state.pending && state.pending.kind !== 'save');
     generateButton.disabled = !state.loaded || !!state.opening || state.busy || state.readingSignature || (!!state.pending && state.pending.kind !== 'generate');
     form.setAttribute('aria-busy', String(state.busy || !!state.opening || state.readingSignature));
   }
@@ -383,7 +385,7 @@
   });
   for(const id of ['client','site-address','project-no'])$(id)?.addEventListener('input',refreshInheritedFields);
   form.addEventListener('submit',event=>event.preventDefault());
-  saveButton.addEventListener('click',()=>perform('save'));
+  saveButton?.addEventListener('click',()=>perform('save'));
   generateButton.addEventListener('click',event=>{if(!(event.detail>1))return perform('generate');});
   selector.addEventListener('change',()=>{if(selector.value==='__draft__')return;return loadDocument(selector.value==='__reload__'?state.id:selector.value);});
   window.addEventListener('ceasefire:company-settings-saved',event=>{if(typeof event.detail?.name==='string')companyText(event.detail.name);});

@@ -361,7 +361,7 @@ def render_swms_pdf(document, *, company):
         c.drawImage(logo, MARGIN, PAGE[1] - 47, width=98, height=32, preserveAspectRatio=True, anchor='sw', mask='auto')
         if document.page == 1:
             c.setFont(FONT_BOLD, 11.5)
-            c.setFillColor(colors.black)
+            c.setFillColor(RED)
             c.drawCentredString(PAGE[0] / 2, PAGE[1] - 34, 'SAFE WORK METHOD STATEMENT')
         paragraph, company_width, company_height = company_layout(document.page == 1)
         paragraph.drawOn(c, PAGE[0] - MARGIN - company_width, PAGE[1] - 12 - company_height)

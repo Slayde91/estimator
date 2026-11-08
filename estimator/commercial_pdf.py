@@ -13,7 +13,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
 from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Frame, HRFlowable, KeepTogether, LongTable,
-                               PageTemplate, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle)
+                               PageBreak, PageTemplate, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle)
 
 from .commercial_documents import KINDS, format_terms, totals, validate_fields
 from .company_settings import company_logo, contact_lines
@@ -143,7 +143,18 @@ def _section(story, title, styles, *, splittable=False):
 def _fields(story, pairs, styles, *, keep_together=False):
     rows = [(label, value or '—') for label, value in pairs]
     table = _table(None if styles['red_tables'] else ('Field', 'Details'), rows, styles, [125, WIDTH - 125])
-    story.append(KeepTogether([table]) if keep_together else table)
+    if keep_together:
+        content = [table]
+        if story and isinstance(story[-1], Paragraph) and story[-1].style is styles['section']:
+            # A heading's keepWithNext wrapped around another KeepTogether
+            # can release the heading before discovering the panel will not
+            # fit. One group keeps the section and its signer details intact.
+            heading = story.pop()
+            heading.keepWithNext = False
+            content.insert(0, heading)
+        story.append(KeepTogether(content))
+    else:
+        story.append(table)
 
 
 def _money(value):
@@ -343,12 +354,19 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
             story = []
         else:
             _section(story, 'SCOPE OF WORKS', styles)
-            story.extend(_rich(fields['scope'], styles['body']))
+            scope = _rich(fields['scope'], styles['body'])
+            if scope:
+                scope[-1].keepWithNext = True
+            story.extend(scope)
+            first_schedule = True
             for table in fields['scope_tables']:
                 columns = [index for index, header in enumerate(table['headers'])
                            if header.strip().casefold() not in {'calculation notes', 'status / estimating basis'}]
                 if not columns:
                     continue
+                if not first_schedule:
+                    story.append(PageBreak())
+                first_schedule = False
                 _section(story, table['title'], styles)
                 story.append(_table([table['headers'][index] for index in columns],
                                     [[row[index] for index in columns] for row in table['rows']], styles))
@@ -381,7 +399,7 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
             ('OHS DOCUMENTATION', [('Prepared by', 'prepared_by'), ('Name', 'prepared_by'), ('Date', 'prepared_date')]),
             ('CLIENT APPROVAL', [('Approved by', 'client_approved_by'), ('Name', 'client_approved_by'), ('Approval date', 'client_approval_date')]),
             ('WORKS IN PROGRESS', [('Progress signed by', 'progress_by'), ('Name', 'progress_by'), ('Date', 'progress_date')]),
-            ('WORK ORDER CLAIM', []),
+            ('WORK ORDER CLAIM', [('Claim signed by', 'claimed_by'), ('Name', 'claimed_by'), ('Date', 'claim_date')]),
             ('WORK ORDER COMPLETION', [('Certification details', 'certification'), ('Completion', 'completion'), ('Closed by', 'closed_by'), ('Name', 'closed_by'), ('Date', 'closed_date')]),
         ]:
             _section(story, title, styles, splittable=title in {'WORKS IN PROGRESS', 'WORK ORDER CLAIM'})
@@ -401,7 +419,7 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
                     _fields(story,[('Previous notes',legacy)],styles)
             if pairs:
                 _fields(story, [(label, (Signature(signatures[key], 160, 52) if signatures.get(key) else '')
-                                if label in ('Reviewed by', 'Prepared by', 'Approved by','Progress signed by','Closed by') else order.get(key, ''))
+                                if label in ('Reviewed by', 'Prepared by', 'Approved by','Progress signed by','Claim signed by','Closed by') else order.get(key, ''))
                                for label, key in pairs], styles, keep_together=True)
     else:
         _section(story, 'PURCHASE ORDER DETAILS', styles)
@@ -417,7 +435,8 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
         for title, pairs in [
             ('REQUESTED BY', [('Name', 'requested_by'), ('Date', 'requested_date')]),
             ('PURCHASE ORDER APPROVAL', [('Approval', 'approval'), ('Reviewed by', 'reviewed_by'), ('Review date', 'review_date')]),
-            ('PROCUREMENT VERIFICATION', [('Verification method, specification, result and actions', 'verification'), ('Sent by', 'sent_by'), ('Sent date', 'sent_date'), ('Verified by', 'verified_by'), ('Verification date', 'verified_date')]),
+            ('SENT BY', [('Name', 'sent_by'), ('Date', 'sent_date')]),
+            ('PROCUREMENT VERIFICATION', [('Verification method, specification, result and actions', 'verification'), ('Verified by', 'verified_by'), ('Verification date', 'verified_date')]),
         ]:
             _section(story, title, styles)
             _fields(story, [(label, order[key]) for label, key in pairs], styles)

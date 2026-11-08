@@ -111,7 +111,13 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   const information=purchase.locator('.commercial-order-fields').filter({has:page.getByRole('heading',{name:'Purchase order information',exact:true})});
   assert.equal(await information.evaluate(section=>section.nextElementSibling.className),'commercial-lines');
   const expense=purchase.getByLabel('Type of expense',{exact:true});assert.equal(await expense.evaluate(control=>control.tagName),'SELECT');
-  await expect(expense.locator('option')).toHaveText(['','Labour','Materials','Services','Other']);await expense.selectOption('Materials');
+  await expect(expense.locator('option')).toHaveText(['','Labour','Materials','Services','Hire','Other']);await expense.selectOption('Hire');
+  const sections=purchase.locator('.commercial-order-fields');
+  await expect(sections.locator('h2')).toHaveText(['Purchase order information','Request','Approval','Sent by','Procurement verification']);
+  for(const [title,fields] of [['Request',['requested_by','requested_date']],['Approval',['approval','reviewed_by','review_date']],['Sent by',['sent_by','sent_date']],['Procurement verification',['verification','verified_by','verified_date']]]) {
+    const section=sections.filter({has:page.getByRole('heading',{name:title,exact:true})});
+    assert.deepEqual(await section.locator('[data-order-field]').evaluateAll(controls=>controls.map(control=>control.dataset.orderField)),fields);
+  }
   const item=purchase.locator('.commercial-lines tbody tr');await expect(item).toHaveCount(1);
   await expect(item.locator('.commercial-line-description')).toHaveValue('Copied supplier equipment');await expect(item.locator('input[type="number"]').first()).toHaveValue('3');
   await expect(item.locator('input[type="number"]').last()).toHaveValue('0');await expect(purchase.locator('.commercial-message')).toContainText('Enter supplier prices');
@@ -119,7 +125,7 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   for(const width of [1600,390]){await page.setViewportSize({width,height:1000});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
     await page.screenshot({path:path.join(output,`purchase-draft-${width}.png`),fullPage:true});}
   await page.setViewportSize({width:1600,height:1000});await save(purchase);
-  const persisted=await state(),po=persisted.documents.find(doc=>doc.kind==='purchase_order');assert.equal(po.reference,'PO-01');assert.equal(po.last_number,'');assert.equal(po.fields.order.work_order_id,source.id);assert.equal(po.fields.order.work_order_reference,source.reference);assert.equal(po.fields.order.expense_type,'Materials');
+  const persisted=await state(),po=persisted.documents.find(doc=>doc.kind==='purchase_order');assert.equal(po.reference,'PO-01');assert.equal(po.last_number,'');assert.equal(po.fields.order.work_order_id,source.id);assert.equal(po.fields.order.work_order_reference,source.reference);assert.equal(po.fields.order.expense_type,'Hire');
   await purchase.getByRole('button',{name:'New note',exact:true}).click();const note=page.getByRole('dialog',{name:'Purchase Order note',exact:true});
   await note.getByLabel('Note title',{exact:true}).fill('Owned PO note');await note.locator('[contenteditable=true]').fill('PO-specific note content');
   await note.getByRole('button',{name:'Done',exact:true}).click();await expect(note).toBeHidden();await idle();

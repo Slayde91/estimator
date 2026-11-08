@@ -2,6 +2,7 @@
 const {chromium,expect}=require('@playwright/test');
 const {spawn}=require('node:child_process'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {openProjectSection,clickProjectControl}=require('./project_actions.cjs');
+const {generateCertificate}=require('./certification_generation.cjs');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`personal-details-${Date.now()}`);
 fs.mkdirSync(output,{recursive:true});
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
@@ -32,7 +33,7 @@ async function settings(){await page.getByRole('button',{name:'Settings',exact:t
   assert.equal(profileWrites.length,1,'Signing reads Settings but never writes them');
   await page.locator('#certification-form textarea[required]').evaluateAll(controls=>{for(const control of controls)if(!control.value.trim()){control.value='Synthetic certificate evidence';control.dispatchEvent(new Event('input',{bubbles:true}));}});
   const creation=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/certifications'&&r.request().method()==='POST');
-  await page.locator('#certification-save').click();const document=await (await creation).json();await idle();
+  await expect(page.locator('#certification-save')).toHaveCount(0);await generateCertificate(page,1);const document=await (await creation).json();await idle();
   assert.ok(document.id);checks.push('New certificate starts blank; explicit signing fills empty fields from saved Personal Details');
   await settings();await page.locator('#personal-name').fill('Updated future signer');await page.locator('#personal-details-save').click();await expect(page.locator('#personal-details-status')).toContainText('copied to a certificate only when it is signed');await idle();
   await openProjectSection(page,'certification');await idle();await expect(page.locator('#certification-name')).toHaveValue(first.name);

@@ -420,6 +420,7 @@
     const details = section("Project Details", true), grid = element("div", "swms-grid"), detailInputs = {};
     for (const [key, label] of Object.entries(detailLabels)) {
       const input=control(fields.details[key], value => { fields.details[key] = value; }, key === "date" ? "date" : "text");
+      if(key === 'job_reference')input.readOnly=true;
       detailInputs[key]=input;
       const item=field(label,input);
       if(key === 'contact_person') {

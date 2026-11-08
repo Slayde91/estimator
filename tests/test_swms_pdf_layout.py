@@ -7,7 +7,7 @@ import pdfplumber
 
 from estimator.company_settings import DEFAULTS, validate_company_settings
 from estimator.swms import default_fields, template_options
-from estimator.swms_pdf import render_swms_pdf
+from estimator.swms_pdf import RED, render_swms_pdf
 
 INK = {'version': 1, 'ratio': 3, 'strokes': [[[.1, .4], [.5, .2], [.8, .7]]]}
 PAGE_RIGHT = 802.8897637795277
@@ -42,6 +42,9 @@ class SwmsPdfLayoutTests(unittest.TestCase):
             self.assertLess(ink['x1'], position['x0'])
             title = page.search('SAFE WORK METHOD STATEMENT', regex=False)[0]
             self.assertAlmostEqual((title['x0'] + title['x1']) / 2, page.width / 2, places=2)
+            self.assertTrue(all(all(abs(actual-expected)<.00001
+                                     for actual,expected in zip(char['non_stroking_color'],RED.rgb()))
+                                for char in title['chars']))
             self.assertFalse(any('SAFE WORK METHOD STATEMENT' in (p.extract_text() or '') for p in document.pages[1:]))
 
     def test_communication_is_two_columns_with_the_principal_contractor_label_width(self):

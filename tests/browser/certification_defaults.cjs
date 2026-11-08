@@ -1,10 +1,12 @@
 const {fillProjectDetails}=require('./project_actions.cjs');
-// Disposable lifecycle coverage. This fixture never generates a certificate PDF.
+const {generateCertificate}=require('./certification_generation.cjs');
+// Disposable lifecycle coverage. Certificate PDFs are generated only in the private fixture.
 const {chromium,expect:baseExpect}=require('@playwright/test');
 const expect=baseExpect.configure({timeout:30000});
 const {openProjectSection,clickProjectControl,createNewProject}=require('./project_actions.cjs');
 const {spawn,spawnSync}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const {createHash}=require('node:crypto');
 const root=path.resolve(__dirname,'../..');
 const output=path.join(root,'.runtime/browser-qa',`certification-defaults-${Date.now()}`);fs.mkdirSync(output,{recursive:true});
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
@@ -36,7 +38,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   page=await browser.newPage({viewport:{width:1084,height:900}});page.on('pageerror',error=>errors.push(error.message));
   page.on('request',request=>{if(request.url().includes('/api/'))pendingRequests.set(request,Date.now());if(new URL(request.url()).pathname==='/api/certifications/defaults'&&request.method()==='POST')profileWrites.push(request.postDataJSON());});
   for(const name of ['requestfinished','requestfailed'])page.on(name,request=>pendingRequests.delete(request));
-  await page.route('**/api/certifications/*/revisions',async route=>{generationRequests.push(route.request().url());await route.abort();});
+  page.on('request',request=>{if(new URL(request.url()).pathname.endsWith('/revisions')&&request.method()==='POST')generationRequests.push(request.url());});
   await page.goto(base+'/');await idle();
   await page.locator('#estimate-navigation-toggle').click();
   await fillProjectDetails(page,{'client':'Current estimate client'});await fillProjectDetails(page,{'site-address':'Current estimate address'});await expect(page.locator('#project-no')).toHaveAttribute('readonly','');const firstSave=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/save-as');await clickProjectControl(page,'Save');assert.equal((await firstSave).status(),200);await idle();await expect(page.locator('#project-no')).toHaveValue('PN-01');
@@ -137,7 +139,7 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await expect(page.locator('#certification-scopes summary')).toBeFocused();
   const required=await page.locator('#certification-form textarea').evaluateAll(items=>items.map(item=>({id:item.id,required:item.required})));
   assert.equal(required.length,17);assert.ok(required.every(item=>item.required));
-  await page.locator('#certification-save').click();
+  await expect(page.locator('#certification-save')).toHaveCount(0);await page.locator('#certification-generate').click();
   assert.equal(await page.evaluate(()=>document.querySelector('#certification-form').checkValidity()),false);
   for(const [key,value] of Object.entries({location_area:'Ground floor fixture',materials_manufacturers:'Example manufacturer',fire_resistance_level:'-/120/120',position:'Fixture position',qualification:'Fixture qualification',accreditation:'Fixture accreditation'}))await page.locator('#certification-'+key).fill(value);
   await page.locator('#certification-signature-use').click();
@@ -162,12 +164,12 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   await insertAgain();await expect(page.locator('#certification-name')).toHaveValue('Upgrade signer');
   for(const [key,value] of Object.entries({position:'Fixture position',qualification:'Fixture qualification',accreditation:'Fixture accreditation'}))await page.locator('#certification-'+key).fill(value);
   await page.locator('#certification-approved_design').fill('First design line\nSecond design line');
-  await page.locator('#certification-save').click();await expect(page.locator('#certification-status')).toContainText('Certification details saved.');
+  await expect(page.locator('#certification-save')).toHaveCount(0);await generateCertificate(page,1);
   const id=await page.locator('#certification-document').inputValue();assert.notEqual(id,old.id);assert.notEqual(id,'__draft__');
   const workspaceA=await page.evaluate(()=>window.CeasefireCertification.sessionId());const savedResponse=await fetch(base+'/api/certifications/'+id+'?workspace='+workspaceA);const saved=await savedResponse.json();
-  assert.equal(saved.revisions.length,0);assert.equal(saved.options.scopes.length,4);assert.equal(saved.options.cover_pdf,null);assert.ok(saved.options.signature_image.startsWith('data:image/png;base64,'));
+  assert.equal(saved.revisions.length,1);assert.equal(saved.options.scopes.length,4);assert.equal(saved.options.cover_pdf,null);assert.ok(saved.options.signature_image.startsWith('data:image/png;base64,'));
   assert.equal(saved.fields.approved_design,'First design line\nSecond design line');
-  evidence.checks.push('only untouched defaults refresh','collapsible keyboard scope choices','literal deduplicated scope union','manual paragraph layout retained','signature defaults and document snapshot saved','single-row textarea retains multiline input','draft saved without a revision');
+  evidence.checks.push('only untouched defaults refresh','collapsible keyboard scope choices','literal deduplicated scope union','manual paragraph layout retained','signature defaults and document snapshot saved','single-row textarea retains multiline input','Generate persists current details and creates one immutable revision');
 
   await page.locator('#certification-name').fill('Future certificate signer');
   await page.locator('#certification-position').fill('Project manager');
@@ -217,10 +219,15 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   const afterTrash=await (await fetch(base+'/api/pdf-covers')).json();assert.equal(afterTrash.items.find(item=>item.kind==='certification').has_cover,false);assert.equal(afterTrash.items.find(item=>item.kind==='takeoff_markups').has_cover,true);
   const companyAfter=await (await fetch(base+'/api/company-settings')).json();assert.ok(companyAfter.cover_pdf);assert.equal(companyAfter.cover_pdf_name,'synthetic-drawings.pdf');
   evidence.checks.push('signer image and all cover defaults survive actual New project','Settings cover table fits desktop/mobile','main Save persists only the staged cover removal','main cover retained independently');
-  assert.deepEqual(generationRequests,[]);assert.deepEqual(errors,[]);assert.deepEqual(profileWrites,[]);
+  assert.equal(generationRequests.length,1);assert.deepEqual(errors,[]);assert.deepEqual(profileWrites,[]);
   const legacyAfter=await (await fetch(base+'/api/certifications/'+old.id)).json();assert.deepEqual(legacyAfter.revisions,[]);const listResponse=await fetch(base+'/api/certifications?workspace='+workspaceA),list=await listResponse.json();
-  for(const item of list.items){const response=await fetch(base+'/api/certifications/'+item.id+'?workspace='+workspaceA),doc=await response.json();assert.deepEqual(doc.revisions,[]);}
-  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({...evidence,passed:true,generatedCertificateRevisions:0,errors},null,2));
+  for(const item of list.items){
+    const response=await fetch(base+'/api/certifications/'+item.id+'?workspace='+workspaceA),doc=await response.json();
+    assert.equal(doc.revisions.length,1);
+    const frozen=await fetch(base+doc.revisions[0].pdf_url);assert.equal(frozen.status,200);
+    assert.equal(createHash('sha256').update(Buffer.from(await frozen.arrayBuffer())).digest('hex'),saved.revisions[0].sha256,'Clearing cover settings and changing projects retain the original generated PDF');
+  }
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({...evidence,passed:true,generatedCertificateRevisions:generationRequests.length,errors},null,2));
   console.log('PASS: Certification defaults, signature, scope union, Settings covers, New project preservation and viewport fit. '+output);
 })().catch(async error=>{console.error(error);console.error(logs);console.error(JSON.stringify([...pendingRequests].map(([request,start])=>({url:request.url(),elapsedMs:Date.now()-start}))));if(page){console.error(await page.locator('#app-message').textContent().catch(()=>''));console.error(JSON.stringify(errors));await page.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});}process.exitCode=1;})
   .finally(async()=>{await browser?.close();server.kill();});

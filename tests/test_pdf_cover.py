@@ -66,6 +66,22 @@ class PdfCoverTests(unittest.TestCase):
         self.assertEqual(reader.pages[0].rotation, 90)
         self.assertEqual(tuple(reader.pages[1].mediabox), (0, 0, 842, 595))
 
+    def test_company_and_specific_multi_page_covers_keep_each_position_and_originals(self):
+        company = {'cover_pdf': data_url(pdf_pages('Company main 1', 'Company main 2'))}
+        specific = {'cover_pdf': data_url(pdf_pages('Assigned document 1', 'Assigned document 2'))}
+        body = pdf_pages('Content first', 'Content second')
+        before = deepcopy((company, specific, body))
+        combined = prepend_cover_pdf(body, company, specific)
+        self.assertEqual([p.extract_text().strip() for p in PdfReader(BytesIO(combined)).pages],
+                         ['Company main 1', 'Company main 2', 'Assigned document 1',
+                          'Assigned document 2', 'Content first', 'Content second'])
+        self.assertEqual((company, specific, body), before)
+        # The two assigned positions are explicit even with identical artwork.
+        repeated = prepend_cover_pdf(body, company, company)
+        self.assertEqual([p.extract_text().strip() for p in PdfReader(BytesIO(repeated)).pages],
+                         ['Company main 1', 'Company main 2', 'Company main 1',
+                          'Company main 2', 'Content first', 'Content second'])
+
     def test_cover_clear_does_not_change_previously_frozen_pdf(self):
         body = pdf_pages('Body')
         settings = {'cover_pdf': data_url(pdf_pages('Original cover'))}

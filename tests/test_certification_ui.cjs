@@ -8,7 +8,7 @@ const coverData = 'data:application/pdf;base64,JVBERi0x';
 const blank = () => Object.fromEntries(fieldNames.map(key => [key, '']));
 const deferred = () => { let resolve, reject; const promise = new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject}; };
 const flush = async () => { for(let n=0;n<20;n++) await Promise.resolve(); };
-function harness() {
+function harness({legacySave=true}={}) {
   const elements = new Map(), events = {}, calls = [], documents = new Map(), workspaces=new Map(), createKeys = new Map(), revisionKeys = new Map(), timers = new Map();
   let project={}, defaults={fields:Object.fromEntries(['name','position','qualification','accreditation'].map(key=>[key,''])),signature_image:null,signature_name:'',version:1};
   let serial = 0, creates = 0, approve = true, routeOverride = null, loseGeneratedReply = false, loseCreatedReply = false;
@@ -74,7 +74,7 @@ function harness() {
     addEventListener(k,fn){(events[k]||=[]).push(fn);},CeasefireProject:{details:()=>copy(project),requireCreatedProject:()=>true},
     dispatchEvent(event){for(const fn of events[event.type]||[])fn(event);return true;},
     CeasefireDialogs:{confirm:async()=>approve},CeasefireActivity:{begin:()=>()=>{}}};
-  const context={setTimeout:fn=>{const id=++serial;timers.set(id,fn);return id;},clearTimeout:id=>timers.delete(id),window,document:{getElementById:byId,createElement:element},fetch,console,Date,JSON,Object,Array,Number,Error,encodeURIComponent,CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}}};
+  const context={setTimeout:fn=>{const id=++serial;timers.set(id,fn);return id;},clearTimeout:id=>timers.delete(id),window,document:{getElementById:id=>id==='certification-save'&&!legacySave?null:byId(id),createElement:element},fetch,console,Date,JSON,Object,Array,Number,Error,encodeURIComponent,CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}}};
   vm.createContext(context);vm.runInContext(fs.readFileSync('static/certification.js','utf8'),context);
   const api=window.CeasefireCertification;
   const fillRequired=()=>fieldNames.forEach(key=>{const field=byId('certification-'+key);if(!field.value.trim()){field.value='Required fixture '+key;void field.emit('input');}});
@@ -88,8 +88,18 @@ function harness() {
     approve:value=>{approve=value;},override:fn=>{routeOverride=fn;},loseNextGeneratedReply:()=>{loseGeneratedReply=true;},loseNextCreatedReply:()=>{loseCreatedReply=true;},serverError,response};
 }
 let passed=0;
-async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.api.open();await fn(h);assert.equal(h.calls.filter(call=>call.path==='/api/certifications/defaults'&&call.body).length,0,'Certificate editors never write shared Personal Details');passed++;console.log('ok - '+name);}
+async function check(name,fn,{open=true,legacySave=true}={}){const h=harness({legacySave});if(open)await h.api.open();await fn(h);assert.equal(h.calls.filter(call=>call.path==='/api/certifications/defaults'&&call.body).length,0,'Certificate editors never write shared Personal Details');passed++;console.log('ok - '+name);}
 (async()=>{
+  await check('Generate without the removed Save control persists current fields and options and recovers an uncertain revision',async h=>{
+    h.field('client','Current generated client');await h.scope(['ductwork']);await h.saveSignature();
+    h.loseNextGeneratedReply();await h.generate();
+    const created=[...h.documents.values()][0];assert.equal(created.fields.client,'Current generated client');
+    assert.deepEqual(created.options.scopes,['ductwork']);assert.equal(created.options.signature_image,signature);
+    assert.equal(created.revisions.length,1);assert.equal(h.api.hasPendingOperation(),true);
+    await h.generate();assert.equal(created.revisions.length,1);assert.equal(h.api.hasPendingOperation(),false);
+    assert.equal(h.api.hasUnsavedChanges(),false);
+    const revisions=h.calls.filter(call=>call.path.endsWith('/revisions'));assert.equal(revisions.length,2);assert.deepEqual(revisions[0].body,revisions[1].body);
+  },{legacySave:false});
   await check('Project guard blocks new certificate creation before validation or writes and keeps fields',async h=>{
     await h.api.open();h.field('client','Keep this unsaved draft');
     h.window.CeasefireProject.requireCreatedProject=()=>false;
@@ -545,6 +555,7 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
   }
   for(const key of fieldNames)assert.ok(html.includes('id="certification-'+key+'"'));
   assert.ok(!html.includes('id="certification-new"'));assert.ok(!html.includes('id="certification-reload"'));
+  assert.ok(!html.includes('id="certification-save"'),'Generate Certificate is the only certificate save action in the current page');
   assert.ok(!html.includes('id="certification-legacy-open"'));assert.ok(!html.includes('id="certification-legacy-dialog"'));
   assert.ok(html.includes('<details id="certification-scopes"'));assert.ok(!html.includes('id="certification-cover-pdf"'));
   assert.ok(!html.includes('id="certification-signature-image"'));assert.ok(!html.includes('id="certification-signature-canvas"'));assert.ok(html.includes('id="certification-signature-use"'));assert.ok(!html.includes('id="certification-signer-delete"'));assert.ok(html.includes('id="cover-sheets-settings"'));

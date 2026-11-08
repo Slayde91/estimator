@@ -95,7 +95,9 @@
       const icon = doc.querySelector("#penetration-clear svg").cloneNode(true);
       icon.setAttribute("aria-hidden","true"); clear.replaceChildren(icon);
     }
-    const cancel = make("Cancel", () => dialog.close("cancel")); actions.append(clear, insert, cancel); insert.disabled = true;
+    const cancel = make("Cancel", () => dialog.close("cancel")), footer = doc.createElement("div");
+    footer.className = "actions takeoff-signature-footer"; footer.append(clear, cancel);
+    actions.append(insert); insert.disabled = true;
     if (prior) {
       const preview = doc.createElementNS("http://www.w3.org/2000/svg", "svg"); preview.setAttribute("viewBox", `0 0 ${200 * prior.ratio} 200`); preview.setAttribute("width", "200"); preview.setAttribute("height", "70"); preview.setAttribute("role", "img"); preview.setAttribute("aria-label", "Saved signature preview"); preview.classList.add("takeoff-signature-preview");
       for (const stroke of prior.strokes) {
@@ -123,7 +125,7 @@
     pad.addEventListener("pointerup", release); pad.addEventListener("pointercancel", release); pad.addEventListener("lostpointercapture", release);
     dialog.addEventListener("cancel", event => { event.preventDefault(); dialog.close("cancel"); });
     name.addEventListener("input", paint);
-    dialog.prepend(title, intro); if (initialPages) { const signatureLabel = doc.createElement("p"); signatureLabel.textContent = "Signature"; dialog.append(nameLabel, signatureLabel); } dialog.append(pad, status); if (mode === "takeoff" || mode === "settings") dialog.append(rememberLabel); dialog.append(actions); doc.body.append(dialog);
+    dialog.prepend(title, intro); if (initialPages) { const signatureLabel = doc.createElement("p"); signatureLabel.textContent = "Signature"; dialog.append(nameLabel, signatureLabel); } dialog.append(pad, status); if (mode === "takeoff" || mode === "settings") dialog.append(rememberLabel); dialog.append(actions, footer); doc.body.append(dialog);
     try { dialog.showModal(); await new Promise(resolve => dialog.addEventListener("close", resolve, { once: true })); return result; } finally { dialog.remove(); }
   }
   const api = Object.freeze({ validateStrokes, template, project, crop, choose, chooseInitial: () => choose(null, true) });

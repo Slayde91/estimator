@@ -47,6 +47,9 @@
 .commercial-lines th,.commercial-lines td,.commercial-scope th,.commercial-scope td { padding:10px; border:1px solid var(--line); vertical-align:top; }
 .commercial-lines td:first-child { width:50%; min-width:240px; }
 .commercial-lines input { min-width:85px; }
+.commercial-line-description-controls { display:flex; align-items:flex-start; gap:10px; }
+.commercial-line-description-controls > .commercial-line-description { flex:1 1 auto; min-width:0; }
+.commercial-line-description-controls > .commercial-remove-row { flex:0 0 42px; width:42px; height:42px; margin-left:auto; }
 .commercial-line-total { min-width:110px; white-space:nowrap; }
 .commercial-card-info{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.35rem .55rem;margin:.4rem 0 0;font-size:.75rem;overflow-wrap:anywhere}
 .commercial-card-info dt{font-weight:650}.commercial-card-info dd{margin:0}

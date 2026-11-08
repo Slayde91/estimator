@@ -31,9 +31,7 @@
     items:[], listRevision:0, companyName:'', opening:null, conflicted:false,
     workspaceId:null, projectId:null, workspaceOpening:null, workspaceEpoch:0, projectBaseline:null,
     options:emptyOptions(), signatureRevision:0, readingSignature:false, touched:new Set(),
-    managed:{australian_standards:[], ncc_clauses:[]}, managedByDocument:new Map(),
-    defaults:{fields:Object.fromEntries(signerNames.map(name=>[name,''])),signature_image:null,signature_name:'',version:1},
-    defaultsDesired:null, defaultsSaving:null, defaultsTimer:null, defaultsError:null};
+    managed:{australian_standards:[], ncc_clauses:[]}, managedByDocument:new Map()};
   const fields = () => Object.fromEntries(fieldNames.map(name => [name, controls[name].value]));
   const options = () => ({...state.options, scopes:[...state.options.scopes]});
   const snapshot = () => ({fields:fields(), options:options()});
@@ -50,13 +48,8 @@
     $('certification-status').className = error ? 'message error certification-save-status' : 'helper certification-save-status';
     window.CeasefireNotifications?.show($('certification-status'));
   }
-  function signerMessage(source, error=false) {
-    text($('certification-signer-status'), source);
-    $('certification-signer-status').className = error ? 'message error' : 'helper';
-    window.CeasefireNotifications?.show($('certification-signer-status'));
-  }
   function dirty() {
-    return state.conflicted || !!state.defaultsDesired || !equal(fields(),state.baseline.fields) ||
+    return state.conflicted || !equal(fields(),state.baseline.fields) ||
       state.options.cover_pdf !== state.baseline.options.cover_pdf || state.options.cover_pdf_name !== state.baseline.options.cover_pdf_name ||
       state.options.signature_image !== state.baseline.options.signature_image || state.options.signature_name !== state.baseline.options.signature_name ||
       !equal(state.options.scopes,state.baseline.options.scopes);
@@ -65,6 +58,8 @@
     const locked = !state.loaded || !!state.opening || state.busy || !!state.pending || state.readingSignature;
     for (const control of [...Object.values(controls), ...scopeControls, selector]) control.disabled = locked;
     signatureButton.disabled = locked;
+    $('certification-signature-clear').disabled = locked || !state.options.signature_image;
+    $('certification-signer-delete').disabled = locked || !signerNames.some(name=>controls[name].value);
     saveButton.disabled = !state.loaded || !!state.opening || state.busy || state.readingSignature || (!!state.pending && state.pending.kind !== 'save');
     generateButton.disabled = !state.loaded || !!state.opening || state.busy || state.readingSignature || (!!state.pending && state.pending.kind !== 'generate');
     form.setAttribute('aria-busy', String(state.busy || !!state.opening || state.readingSignature));
@@ -92,45 +87,10 @@
     return path+'?workspace='+encodeURIComponent(workspace);
   };
   const uuid = () => window.crypto.randomUUID();
-  const signerFields = () => Object.fromEntries(signerNames.map(name=>[name,controls[name].value]));
-  // Opening an older unsigned certificate must not clear the separately saved
-  // signature when the user only edits a name or qualification. Image changes
-  // enter the shared defaults only after an explicit save or removal.
-  const signerSnapshot = () => ({fields:signerFields()});
-  async function flushSignerDefaults({interactive=false}={}) {
-    if (state.defaultsTimer) { clearTimeout(state.defaultsTimer); state.defaultsTimer=null; }
-    if (state.defaultsSaving) { const succeeded=await state.defaultsSaving; return succeeded && state.defaultsDesired ? flushSignerDefaults({interactive}) : succeeded; }
-    if (!state.defaultsDesired) return true;
-    if (state.defaultsError?.status===409) {
-      if (!interactive) return false;
-      const accepted = await window.CeasefireDialogs.confirm('Signer details changed',
-        'Signer details were changed in another window. Use the entered details for future certificates?', 'Use entered details', 'Keep editing');
-      if (!accepted) return false;
-      try { state.defaults=await request('/api/certifications/defaults'); }
-      catch(error) { signerMessage(error.message,true); return false; }
-    }
-    const desired={...state.defaultsDesired}, version=state.defaults.version;
-    state.defaultsSaving=(async()=>{
-      try {
-        const saved=await post('/api/certifications/defaults',{...desired,expected_version:version});
-        state.defaults=saved;state.defaultsError=null;
-        if(equal(desired,state.defaultsDesired))state.defaultsDesired=null;
-        if(typeof CustomEvent==='function')window.dispatchEvent(new CustomEvent('ceasefire:signer-defaults-saved',{detail:saved}));
-        signerMessage('Signer details saved for future certificates.');return true;
-      } catch(error) {
-        state.defaultsError=error;
-        signerMessage(error.status===409 ? 'Signer details changed in another window. Your entries are kept. Save again to review and retry.' : 'Signer details could not be saved. Your entries are kept; save again to retry.',true);
-        return false;
-      }
-    })();
-    const succeeded=await state.defaultsSaving;state.defaultsSaving=null;
-    return succeeded && state.defaultsDesired ? flushSignerDefaults({interactive}) : succeeded;
-  }
-  function queueSignerDefaults() {
-    state.defaultsDesired=signerSnapshot();
-    signerMessage('Saving signer details…');
-    if(state.defaultsTimer)clearTimeout(state.defaultsTimer);
-    state.defaultsTimer=setTimeout(()=>{state.defaultsTimer=null;void flushSignerDefaults();},450);
+  async function personalDetails() {
+    const saved=await request('/api/certifications/defaults');
+    if(!saved?.fields || signerNames.some(name=>typeof saved.fields[name]!=='string')) throw new Error('Personal details could not be loaded. Try again.');
+    return saved.fields;
   }
   function label(item) {
     const value=item.fields||item;
@@ -151,18 +111,34 @@
   }
   signatureButton.addEventListener('click', async()=>{
     if(signatureButton.disabled)return;
-    const stamp=state.signatureRevision, workspaceId=state.workspaceId;
+    const stamp=state.signatureRevision, workspaceId=state.workspaceId, before=fields();
     state.readingSignature=true;updateControls();
     try {
       // An existing certificate image remains valid until the user applies a replacement.
       const signature=await window.ClassifirePersonalSignature.choose(Boolean(state.options.signature_image));
       if(!signature || stamp!==state.signatureRevision || workspaceId!==state.workspaceId)return;
-      state.options.signature_image=window.ClassifirePersonalSignature.png(signature);
+      const saved=await personalDetails();
+      if(stamp!==state.signatureRevision || workspaceId!==state.workspaceId)return;
+      const image=window.ClassifirePersonalSignature.png(signature);
+      for(const name of signerNames)if(!controls[name].value.trim() && controls[name].value===before[name]) {
+        controls[name].value=saved[name];controls[name].setCustomValidity('');state.touched.add(name);
+      }
+      state.options.signature_image=image;
       state.options.signature_name='Personal signature.png';
       state.signatureRevision++;
       renderSignature();message('Unsaved certification details');
-    }catch(error){message(error.message,true);}
+    }catch(error){if(stamp===state.signatureRevision && workspaceId===state.workspaceId)message(error.message,true);}
     finally{state.readingSignature=false;updateControls();}
+  });
+  $('certification-signature-clear').addEventListener('click',()=>{
+    if($('certification-signature-clear').disabled)return;
+    state.options.signature_image=null;state.options.signature_name='';state.signatureRevision++;
+    renderSignature();updateControls();message('Unsaved certification details');
+  });
+  $('certification-signer-delete').addEventListener('click',()=>{
+    if($('certification-signer-delete').disabled)return;
+    for(const name of signerNames){controls[name].value='';controls[name].setCustomValidity('');state.touched.add(name);}
+    updateControls();message('Unsaved certification details');
   });
   function presetLines(selected,key) {return [...new Set(scopes.filter(scope=>selected.includes(scope.id)).flatMap(scope=>scope[key]))];}
   function renderScopes() {
@@ -235,7 +211,7 @@
     const project=window.CeasefireProject?.details?.()||{};
     return {client:project.client||'',project:project.project_no||'',address:project.site_address||'',
       exclusions:'Project No.: '+(project.project_no||''),statement_of_compliance:statement,
-      approved_design:'N/A',additional_standards:'N/A',other_references:'N/A',...state.defaults.fields};
+      approved_design:'N/A',additional_standards:'N/A',other_references:'N/A'};
   }
   function refreshInheritedFields() {
     if(state.id||!state.loaded||state.busy||state.pending||state.readingSignature)return;
@@ -268,8 +244,7 @@
     if(state.busy||state.pending||state.opening||state.readingSignature){selector.value=state.id||'__draft__';return;}
     state.busy=true;updateControls();
     try{
-      if(!await flushSignerDefaults({interactive:true})){selector.value=state.id||'__draft__';message('Signer details are still unsaved. Your certification details are kept.',true);return;}
-      if(!id){state.defaults=await request('/api/certifications/defaults');freshFields();return;}
+      if(!id){freshFields();return;}
       message('Loading certification…');applyDocument(await request(scoped('/api/certifications/'+encodeURIComponent(id))));message('Saved certification details');
     }catch(error){selector.value=state.id||'__draft__';message(error.message,true);}
     finally{state.busy=false;updateControls();}
@@ -315,7 +290,6 @@
   async function completeProjectSnapshot() {
     if(state.busy||state.pending||state.opening||state.workspaceOpening||state.readingSignature)throw new Error('Finish the current certificate operation before saving the project.');
     if(!state.loaded)await open();
-    if(!await flushSignerDefaults({interactive:true}))throw new Error('Signer details are still unsaved. Your certification details are kept.');
     if(state.busy||state.pending||state.opening||state.readingSignature)throw new Error('Finish the current certificate operation before saving the project.');
     const capture={workspace_id:state.workspaceId,draft:{id:state.id,version:state.version,...snapshot()}};
     projectCaptures.set(capture,projectFingerprint());return capture;
@@ -329,7 +303,7 @@
     return prepared;
   }
   function applyProject(prepared) {
-    if(state.busy||state.pending||state.opening||state.defaultsSaving)throw new Error('Finish the current certificate operation before changing projects.');
+    if(state.busy||state.pending||state.opening)throw new Error('Finish the current certificate operation before changing projects.');
     workspaceIdentity(prepared);
     ++state.listRevision;++state.workspaceEpoch;state.workspaceId=prepared.workspace_id;state.projectId=prepared.project_id;
     state.items=prepared.items||[];state.id=state.version=null;state.conflicted=false;state.pending=null;state.managedByDocument.clear();state.loaded=true;
@@ -358,9 +332,8 @@
     if(state.opening)return state.opening;
     message('Loading certification…');
     state.opening=(async()=>{
-      const [company,defaults]=await Promise.all([request('/api/company-settings'),request('/api/certifications/defaults')]);
+      const company=await request('/api/company-settings');
       companyText(company.name);
-      if(!state.defaultsDesired&&!state.defaultsSaving)state.defaults=defaults;
       await ensureWorkspace();
       await loadList();
       if(!state.loaded){state.loaded=true;freshFields();state.projectBaseline=projectFingerprint();}
@@ -379,9 +352,6 @@
     message(kind==='generate'?'Generating and saving certificate revision…':'Saving certification details…');
     const endActivity=window.CeasefireActivity?.begin();
     try{
-      if(!await flushSignerDefaults({interactive:true})){
-        state.pending=null;message('Signer details are still unsaved. Your certification details are kept.',true);return;
-      }
       if(!action.id){
         const created=await post(scoped('/api/certifications',action.workspaceId),{fields:action.fields,options:action.options,request_id:action.createRequestId});
         action.id=created.id;action.version=created.version;applyDocument(created,{preserveManaged:acknowledgesAction(created,action,1)});
@@ -412,7 +382,7 @@
   for(const [name,control]of Object.entries(controls))control.addEventListener('input',()=>{
     if(state.busy||state.pending||state.opening||state.readingSignature)return;state.touched.add(name);
     control.setCustomValidity('');
-    if(signerNames.includes(name))queueSignerDefaults();message(dirty()?'Unsaved certification details':'Saved certification details');
+    updateControls();message(dirty()?'Unsaved certification details':'Saved certification details');
   });
   for(const id of ['client','site-address','project-no'])$(id)?.addEventListener('input',refreshInheritedFields);
   form.addEventListener('submit',event=>event.preventDefault());
@@ -420,20 +390,12 @@
   generateButton.addEventListener('click',event=>{if(!(event.detail>1))return perform('generate');});
   selector.addEventListener('change',()=>{if(selector.value==='__draft__')return;return loadDocument(selector.value==='__reload__'?state.id:selector.value);});
   window.addEventListener('ceasefire:company-settings-saved',event=>{if(typeof event.detail?.name==='string')companyText(event.detail.name);});
-  window.addEventListener('ceasefire:signer-defaults-saved',event=>{
-    const saved=event.detail;
-    if(state.defaultsDesired||state.defaultsSaving||!saved||!Number.isInteger(saved.version)||saved.version<state.defaults.version||
-        !saved.fields||signerNames.some(name=>typeof saved.fields[name]!=='string'))return;
-    // Only future defaults change here. Existing certificate controls retain
-    // their captured signer, including unsaved local edits.
-    state.defaults=saved;
-  });
   window.addEventListener('ceasefire:languagechange',renderScopes);
   window.CeasefireCertification={open,projectWorkspace,completeProjectSnapshot,prepareProject,applyProject,markProjectSaved,discardPreparedSession,
     sessionId:()=>state.workspaceId,projectFingerprint,hasProjectChanges:()=>state.loaded&&state.projectBaseline!==null&&state.projectBaseline!==projectFingerprint(),
     hasUnsavedChanges:()=>dirty()||!!state.pending,
-    hasPendingOperation:()=>!!state.opening||!!state.workspaceOpening||state.busy||state.readingSignature||!!state.pending||!!state.defaultsSaving||!!state.defaultsTimer,
-    fingerprint:()=>JSON.stringify({workspace_id:state.workspaceId,id:state.id,version:state.version,fields:fields(),options:{scopes:state.options.scopes,cover_pdf_name:state.options.cover_pdf_name,signature_name:state.options.signature_name,signature_revision:state.signatureRevision},pending:state.pending&&{kind:state.pending.kind,id:state.pending.id,version:state.pending.version,createRequestId:state.pending.createRequestId,generationRequestId:state.pending.generationRequestId},signerDefaultsPending:state.defaultsDesired&&{fields:state.defaultsDesired.fields,signature_name:state.defaultsDesired.signature_name,signature_revision:state.signatureRevision}})};
+    hasPendingOperation:()=>!!state.opening||!!state.workspaceOpening||state.busy||state.readingSignature||!!state.pending,
+    fingerprint:()=>JSON.stringify({workspace_id:state.workspaceId,id:state.id,version:state.version,fields:fields(),options:{scopes:state.options.scopes,cover_pdf_name:state.options.cover_pdf_name,signature_name:state.options.signature_name,signature_revision:state.signatureRevision},pending:state.pending&&{kind:state.pending.kind,id:state.pending.id,version:state.pending.version,createRequestId:state.pending.createRequestId,generationRequestId:state.pending.generationRequestId}})};
   requiredNames.forEach(name=>{controls[name].required=true;});
   renderRevisions([]);renderScopes();renderSignature();updateControls();
 })();

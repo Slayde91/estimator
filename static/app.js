@@ -226,7 +226,7 @@
   const formatMoney = (value) => isNumber(value) ? money.format(value) : "—";
   const fieldByCell = (cell) => state.fields.find((field) => field.cell === cell);
 
-  const projectDetailControls = {project_no:"project-no", client:"client", site_address:"site-address", contact_name:"project-contact-name", contact_phone:"project-contact-phone", contact_email:"project-contact-email", account_id:"project-account-id"};
+  const projectDetailControls = {project_no:"project-no", client:"client", site_address:"site-address", contact_name:"project-contact-name", contact_phone:"project-contact-phone", contact_email:"project-contact-email", account_id:"project-account-id", contact_id:"project-contact-id"};
   function quoteDetails() {
     return Object.fromEntries(Object.entries(projectDetailControls).map(([key, id]) => [key, $(id).value.trim()]));
   }
@@ -1047,7 +1047,7 @@
     state.currentView = view;
     if (["quotes", "quote", "work-orders", "purchase-orders"].includes(view)) state.lastProjectSection = view;
     if (["certification", "documentation", "swms"].includes(view)) state.lastDocumentSection = view;
-    $("project-tools").hidden = view !== "quotes";
+    $("project-tools").hidden = true;
     closeNavigationMenus({ estimate: "estimate-navigation", calculators: "calculator-navigation", pricing: "library-navigation", takeoffs: "takeoff-navigation", contacts: "contacts-navigation" }[view]);
     document.body.classList.toggle("takeoffs-active", view === "takeoffs");
     clearTimeout(state.projectsTimer); ++state.projectsRevision;
@@ -2475,7 +2475,7 @@
       const details = node("div", "project-row-details");
       details.append(heading,
         node("p", "helper", [file.project_no, file.client, file.site_address].filter(Boolean).join(" · ")),
-        uiNode("p", "helper", "Updated {0}", [new Date(file.modified_at).toLocaleString("en-AU")]));
+        uiNode("p", "helper", "Updated {0}", [new Date(file.modified_at).toLocaleString("en-AU", {year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false})]));
       const estimateLabel = uiNode("label", "field project-card-estimate", "Estimate"), estimateSelect = node("select");
       estimateSelect.setAttribute("aria-label", `Estimate for ${file.title || file.name}`);
       const prompt = uiNode("option", "", "Select estimate"); prompt.value = ""; estimateSelect.append(prompt);

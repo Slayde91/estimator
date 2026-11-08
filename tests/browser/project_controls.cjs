@@ -119,7 +119,7 @@ function contrast(a,b) {
     for (const name of ['Projects','Home','Estimates','Calculators','Takeoffs','Libraries','Help']) {
       await enter(name); await idle();
       if (name === 'Projects') {
-        await expect(tools).toBeVisible(); await expect(button).toBeVisible();
+        await expect(tools).toBeHidden(); await expect(button).toBeVisible();
         await expect(button).toHaveAccessibleName('Project files'); await expect(button).toHaveAccessibleDescription('Files save beside the current project.');
         const geometry = await button.evaluate(element => {
           const button = element.getBoundingClientRect(), svg = element.querySelector('svg').getBoundingClientRect(), status = document.getElementById('project-attachment-status');

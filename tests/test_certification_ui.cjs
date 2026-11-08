@@ -88,7 +88,7 @@ function harness() {
     approve:value=>{approve=value;},override:fn=>{routeOverride=fn;},loseNextGeneratedReply:()=>{loseGeneratedReply=true;},loseNextCreatedReply:()=>{loseCreatedReply=true;},serverError,response};
 }
 let passed=0;
-async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.api.open();await fn(h);passed++;console.log('ok - '+name);}
+async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.api.open();await fn(h);assert.equal(h.calls.filter(call=>call.path==='/api/certifications/defaults'&&call.body).length,0,'Certificate editors never write shared Personal Details');passed++;console.log('ok - '+name);}
 (async()=>{
   await check('Blank certificate does not invent standards or qualifications; company wording remains literal text',async h=>{
     await h.api.open();assert.equal(h.byId('certification-australian_standards').value,'');
@@ -212,7 +212,7 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
   });
   const exactStatement="This is to certify that the fire rated materials have been installed according to the manufacturer's specifications to provide the nominated fire resistance level for the items listed in the relevant schedule.\n\nAll materials have been installed at the above location and comply with:";
   const as1530='AS 1530.4: 2014 Methods for fire tests on building materials, components & structures';
-  await check('Fresh form uses Estimates and global signer defaults without auto-loading a recent certificate',async h=>{
+  await check('Fresh form uses Estimates but waits for explicit signing before reading Personal Details',async h=>{
     h.project({client:'Current estimate client',site_address:'Current estimate address',project_no:'CF-2042'});
     h.setDefaults({version:3,fields:{name:'Global signer',position:'Director',qualification:'Qualification as entered',accreditation:'Accreditation as entered'}});
     h.documents.set('old-document',{id:'old-document',version:1,fields:{...blank(),client:'Old saved client',statement_of_compliance:'Old saved statement'},revisions:[]});
@@ -220,7 +220,8 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
     assert.equal(h.byId('certification-address').value,'Current estimate address');
     assert.equal(h.byId('certification-exclusions').value,'Project No.: CF-2042');
     assert.equal(h.byId('certification-statement_of_compliance').value,exactStatement);
-    assert.equal(h.byId('certification-name').value,'Global signer');assert.equal(h.byId('certification-document').value,'__draft__');
+    for(const key of ['name','position','qualification','accreditation'])assert.equal(h.byId('certification-'+key).value,'');assert.equal(h.byId('certification-document').value,'__draft__');
+    assert.equal(h.calls.filter(c=>c.path==='/api/certifications/defaults').length,0);
     assert.equal(h.calls.filter(c=>c.path==='/api/certifications/old-document').length,0);assert.equal(h.api.hasUnsavedChanges(),false);
   },{open:false});
   await check('Reopening after Estimates changes refreshes only untouched defaults; saved fields remain literal',async h=>{
@@ -233,28 +234,62 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
     await h.save();h.project({client:'Third',site_address:'Third address',project_no:'THREE'});await h.api.open();
     assert.equal(h.byId('certification-address').value,'Address two');assert.equal(h.byId('certification-exclusions').value,'Project No.: TWO');
   },{open:false});
-  await check('Edited signer details auto-save globally and are inherited on New certificate',async h=>{
+  await check('Signer edits stay in their certificate and New starts blank without changing Settings',async h=>{
+    const before=h.defaults();
     for(const key of ['name','position','qualification','accreditation'])h.field(key,'Literal '+key);
-    await h.autoSave();assert.deepEqual(h.defaults().fields,{name:'Literal name',position:'Literal position',qualification:'Literal qualification',accreditation:'Literal accreditation'});
+    await h.autoSave();assert.deepEqual(h.defaults(),before);
     assert.equal(h.documents.size,0);await h.select('');
-    assert.equal(h.byId('certification-name').value,'Literal name');assert.equal(h.byId('certification-accreditation').value,'Literal accreditation');
+    assert.equal(h.byId('certification-name').value,'');assert.equal(h.byId('certification-accreditation').value,'');
     assert.equal(h.api.hasUnsavedChanges(),false);
   });
-  await check('Failed signer persistence retains editable fields and defers Save/New until shared defaults are safe',async h=>{
-    h.field('name','Signer kept');h.field('project','Draft kept');
-    h.override(async(path,body)=>path==='/api/certifications/defaults'&&body?h.serverError(400,'Preference validation'):undefined);
-    await h.autoSave();assert.equal(h.byId('certification-name').disabled,false);assert.equal(h.api.hasPendingOperation(),false);
-    assert.match(h.byId('certification-signer-status').textContent,/entries are kept/);await h.select('');
-    assert.equal(h.byId('certification-project').value,'Draft kept');await h.save();
-    assert.equal(h.documents.size,0);assert.equal(h.byId('certification-name').value,'Signer kept');assert.equal(h.api.hasUnsavedChanges(),true);assert.equal(h.byId('certification-name').disabled,false);
-    h.override(null);await h.save();assert.equal(h.defaults().fields.name,'Signer kept');assert.equal(h.api.hasUnsavedChanges(),false);
+  await check('Successful signing fills only empty signer details from the latest saved Settings',async h=>{
+    h.setDefaults({fields:{name:'Current profile',position:'Director',qualification:'',accreditation:'ACC-1'},version:2});
+    h.field('name','Manual name');h.field('qualification','Manual qualification');
+    await h.saveSignature();
+    for(const [key,value] of Object.entries({name:'Manual name',position:'Director',qualification:'Manual qualification',accreditation:'ACC-1'}))assert.equal(h.byId('certification-'+key).value,value);
+    assert.equal(h.byId('certification-signature-preview').src,signature);
+    h.setDefaults({fields:{name:'New profile',position:'Changed role',qualification:'',accreditation:''},version:3});
+    await h.select('');await h.saveSignature();
+    assert.equal(h.byId('certification-name').value,'New profile');assert.equal(h.byId('certification-qualification').value,'');
   });
-  await check('Conflicting signer defaults require a fresh version and explicit approval without losing certificate edits',async h=>{
-    h.setDefaults({fields:{name:'Other window',position:'',qualification:'',accreditation:''},version:2});
-    h.field('name','My signer');await h.autoSave();assert.match(h.byId('certification-signer-status').textContent,/another window/);
-    h.approve(false);await h.save();assert.equal(h.defaults().fields.name,'Other window');assert.equal(h.byId('certification-name').value,'My signer');
-    h.approve(true);await h.save();assert.equal(h.defaults().fields.name,'My signer');
-    const posts=h.calls.filter(c=>c.path==='/api/certifications/defaults'&&c.body);assert.equal(posts.at(-1).body.expected_version,2);
+  await check('Cancelled signing never reads Settings or fills fields',async h=>{
+    h.setDefaults({fields:{name:'Profile',position:'Role',qualification:'Qualification',accreditation:'ACC'},version:2});
+    h.window.ClassifirePersonalSignature.choose=async()=>null;await h.saveSignature();
+    assert.equal(h.calls.filter(call=>call.path==='/api/certifications/defaults').length,0);
+    assert.equal(h.byId('certification-name').value,'');assert.equal(h.byId('certification-signature-preview').hidden,true);
+  });
+  await check('Delayed Settings cannot overwrite a manual value or apply to a replaced project',async h=>{
+    const held=deferred();h.override(async(path,body)=>path==='/api/certifications/defaults'&&!body?held.promise:undefined);
+    const signing=h.saveSignature();await flush();assert.equal(h.api.hasPendingOperation(),true);
+    h.field('name','A value entered while waiting');
+    held.resolve(h.response({fields:{name:'Profile',position:'Role',qualification:'',accreditation:''}}));await signing;
+    assert.equal(h.byId('certification-name').value,'A value entered while waiting');assert.equal(h.byId('certification-position').value,'Role');
+    await h.select('');const heldAgain=deferred();h.override(async(path,body)=>path==='/api/certifications/defaults'&&!body?heldAgain.promise:undefined);
+    const pending=h.saveSignature();await flush();h.api.applyProject(await h.api.prepareProject(null));
+    heldAgain.resolve(h.response({fields:{name:'Old project profile',position:'Role',qualification:'',accreditation:''}}));await pending;
+    assert.equal(h.byId('certification-name').value,'');assert.equal(h.byId('certification-signature-preview').hidden,true);
+  });
+  await check('Failed or malformed Settings reads retain all document fields and leave signing retryable',async h=>{
+    h.field('name','Manual name');h.override(async(path)=>path==='/api/certifications/defaults'?h.serverError(503,'Unavailable'):undefined);
+    await h.saveSignature();assert.equal(h.byId('certification-name').value,'Manual name');assert.equal(h.byId('certification-signature-preview').hidden,true);assert.equal(h.api.hasPendingOperation(),false);
+    h.override(async(path)=>path==='/api/certifications/defaults'?h.response({fields:{name:'Incomplete'}}):undefined);
+    await h.saveSignature();assert.equal(h.byId('certification-position').value,'');assert.equal(h.byId('certification-signature-preview').hidden,true);
+    h.override(null);await h.saveSignature();assert.equal(h.byId('certification-signature-preview').hidden,false);
+  });
+  await check('A failed Settings read for a replaced project cannot display an old error on the new form',async h=>{
+    const held=deferred();h.override(async(path,body)=>path==='/api/certifications/defaults'&&!body?held.promise:undefined);
+    const signing=h.saveSignature();await flush();h.api.applyProject(await h.api.prepareProject(null));const status=h.byId('certification-status').textContent;
+    held.resolve(h.serverError(503,'Old project settings failure'));await signing;
+    assert.equal(h.byId('certification-status').textContent,status);assert.equal(h.byId('certification-name').value,'');assert.equal(h.byId('certification-signature-preview').hidden,true);
+  });
+  await check('Clear signature and Delete signer details act independently without editing Settings',async h=>{
+    h.setDefaults({fields:{name:'Profile',position:'Role',qualification:'Qualification',accreditation:'ACC'},version:2});const profile=h.defaults();
+    await h.saveSignature();await h.byId('certification-signature-clear').emit('click');
+    assert.equal(h.byId('certification-signature-preview').hidden,true);assert.equal(h.byId('certification-name').value,'Profile');
+    await h.saveSignature();await h.byId('certification-signer-delete').emit('click');
+    assert.equal(h.byId('certification-signature-preview').hidden,false);
+    for(const key of ['name','position','qualification','accreditation'])assert.equal(h.byId('certification-'+key).value,'');
+    assert.deepEqual(h.defaults(),profile);
   });
   await check('Scope presets use exact literal lines, stable deduplicated unions and preserve manual additions',async h=>{
     h.field('australian_standards','My additional standard');h.field('ncc_clauses','My additional clause');
@@ -291,8 +326,7 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
     const doc=[...h.documents.values()][0];
     assert.deepEqual(doc.options,{cover_pdf:null,cover_pdf_name:'',scopes:['ductwork'],signature_image:signature,signature_name:'Personal signature.png'});
     h.field('name','Changed signer');await h.autoSave();
-    const post=h.calls.filter(c=>c.path==='/api/certifications/defaults'&&c.body).at(-1);
-    assert.ok(!Object.hasOwn(post.body,'signature_image'));
+    assert.equal(h.calls.filter(c=>c.path==='/api/certifications/defaults'&&c.body).length,0);
     h.window.ClassifirePersonalSignature.choose=async existing=>{assert.equal(existing,true);return null;};
     await h.saveSignature();
     assert.equal(h.byId('certification-signature-preview').src,signature);
@@ -325,7 +359,7 @@ async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.a
     const old={id:'older-unsigned',version:1,fields:{...blank(),name:'Old signer'},revisions:[]};h.documents.set(old.id,old);await h.select(old.id);
     assert.equal(h.byId('certification-signature-preview').hidden,true);h.field('name','Updated old signer');await h.autoSave();
     assert.equal(h.defaults().signature_image,signature);assert.equal(h.defaults().signature_name,'Shared.png');
-    const post=h.calls.filter(call=>call.path==='/api/certifications/defaults'&&call.body).at(-1);assert.equal(Object.hasOwn(post.body,'signature_image'),false);
+    assert.equal(h.calls.filter(call=>call.path==='/api/certifications/defaults'&&call.body).length,0);
     await h.select('');assert.equal(h.byId('certification-signature-preview').hidden,true);
   });
   await check('Document conflict recovery works through the Saved certification reload option and respects cancellation',async h=>{

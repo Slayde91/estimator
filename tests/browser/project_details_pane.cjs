@@ -49,6 +49,32 @@ const ready = new Promise((resolve,reject)=>{
   }));
   assert.deepEqual(plusStyles[0],plusStyles[1]);
   assert.equal(plusStyles[0].backgroundColor,'rgba(0, 0, 0, 0)');
+  await expect(page.locator('#project-tools')).toBeHidden();
+  const symbols=await page.locator('#project-estimate-new .project-add-symbol,#project-account-new .project-add-symbol').evaluateAll(nodes=>nodes.map(node=>node.innerHTML.trim()));
+  assert.equal(symbols.length,2);assert.equal(symbols[0],symbols[1]);
+  await toggle(first).locator('..').locator('.project-title-button').click();await idle();
+  await expect(page.locator('#project-browser')).toBeVisible();await expect(page.locator('#project-details-pane')).toBeVisible();
+  for(const width of [1915,1101,800,390]){
+    await page.setViewportSize({width,height:884});
+    const boxes=await page.evaluate(()=>({pane:document.querySelector('#project-details-pane').getBoundingClientRect().toJSON(),browser:document.querySelector('#project-browser').getBoundingClientRect().toJSON(),heading:document.querySelector('#project-browser>.section-heading').getBoundingClientRect().toJSON(),back:document.querySelector('#project-browser-close').getBoundingClientRect().toJSON(),inside:!!document.querySelector('.project-workspace-main>#project-browser'),width:document.documentElement.scrollWidth,viewport:innerWidth}));
+    assert.ok(boxes.inside);assert.ok(boxes.width<=boxes.viewport,JSON.stringify(boxes));
+    if(width>900)assert.ok(boxes.pane.right<=boxes.browser.left,JSON.stringify(boxes));
+    else assert.ok(boxes.pane.bottom<=boxes.browser.top,JSON.stringify(boxes));
+    assert.ok(boxes.back.top>=boxes.heading.bottom);assert.ok(boxes.back.left<boxes.browser.left+35);
+    await page.screenshot({path:path.join(output,`browser-pane-${width}.png`),fullPage:true});
+  }
+  await expect(page.locator('#project-browser-close')).toHaveText('←');
+  await expect(page.locator('#project-browser-close')).toHaveAttribute('aria-label','Back to Projects');
+  await page.setViewportSize({width:1915,height:884});await page.locator('#project-browser-close').click();
+  await expect(page.locator('#project-list-card')).toBeVisible();await expect(page.locator('#project-details-pane')).toBeVisible();assert.equal(calls.length,0);
+  await page.locator('.nav-button[data-view="estimate"]').click();
+  await expect(page.locator('#project-tools')).toBeHidden();await expect(page.locator('.estimate-heading-art-slot')).toHaveCount(0);
+  const estimateControls=page.locator('.project-estimate-controls');
+  await expect(estimateControls.locator('#project-estimate-swms + .calculator-document-menu')).toHaveCount(1);
+  const plusBox=await page.locator('#project-estimate-new').evaluate(button=>{const b=button.getBoundingClientRect(),s=button.querySelector('svg').getBoundingClientRect();return {offset:Math.abs((b.top+b.bottom)/2-(s.top+s.bottom)/2),left:b.left,select:document.querySelector('#project-estimate-select').getBoundingClientRect().left};});
+  assert.ok(plusBox.offset<=1.1,JSON.stringify(plusBox));assert.ok(plusBox.left<plusBox.select+5);
+  await openProjectSection(page,'quotes');
+  await toggle(first).click();await idle();
   await page.locator('#project-pane-contact-name').fill('Updated Alpha Person');
   response=saved();await page.locator('#project-details-save').click();assert.equal((await response).status(),200);await idle();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');

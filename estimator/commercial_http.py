@@ -1,4 +1,4 @@
-"""Capability-bound HTTP routes for project commercial documents."""
+"""Project commercial routes and explicitly versioned future-document rate defaults."""
 from copy import deepcopy
 from hashlib import sha256
 import json
@@ -10,12 +10,13 @@ from .unfiled_commercial import quote_context
 
 
 class CommercialHTTP:
-    def __init__(self, service, derive=None, company=None, saved=None, pricing=None):
+    def __init__(self, service, derive=None, company=None, saved=None, pricing=None, rate_defaults=None):
         self.service = service
         self.saved = saved
         self.derive = derive
         self.company = company
         self.pricing = pricing
+        self.rate_defaults = rate_defaults
 
     def _company(self):
         return self.company() if callable(self.company) else self.company
@@ -34,6 +35,20 @@ class CommercialHTTP:
             query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
             if any(len(values) != 1 for values in query.values()):
                 raise ValidationError('Use one value for each commercial document filter.')
+            if action == 'rate-defaults' and self.rate_defaults is not None:
+                if query:
+                    raise ValidationError('Rate defaults do not accept document or project filters.')
+                if handler.command == 'GET':
+                    result = self.rate_defaults.read()
+                elif handler.command == 'POST':
+                    if handler.headers.get('Sec-Fetch-Site') == 'cross-site':
+                        raise ValidationError('Open rate defaults in the CLASSIFIRE application.')
+                    result = self.rate_defaults.save(handler.read_json())
+                else:
+                    handler.send_payload(405, {'error': 'Use GET or POST for rate defaults.'})
+                    return True
+                handler.send_payload(200, result)
+                return True
             if handler.command == 'GET':
                 if action.startswith('attachment/') and set(query) == {'workspace', 'document'}:
                     from urllib.parse import quote
@@ -115,7 +130,11 @@ class CommercialHTTP:
         workspace = body.get('workspace_id')
         model = self.service.view(workspace)
         if action == 'defaults':
-            result = {'fields': default_fields(body.get('kind'), body.get('details'), self._company())}
+            profile = self.rate_defaults.read() if self.rate_defaults is not None else None
+            result = {'fields': default_fields(body.get('kind'), body.get('details'), self._company(),
+                                               rates=profile['rates'] if profile else None)}
+            if profile is not None:
+                result['rate_defaults'] = profile
         elif action == 'derive':
             result = self._derive(body)
             result = {key: value for key, value in result.items() if key != 'scope_documents'}

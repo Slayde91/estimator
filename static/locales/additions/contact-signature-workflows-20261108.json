@@ -1,0 +1,152 @@
+{
+  "Search contacts": [
+    "연락처 검색",
+    "Maghanap ng mga contact",
+    "Tìm người liên hệ"
+  ],
+  "Loading Contacts…": [
+    "연락처 불러오는 중…",
+    "Nilo-load ang mga contact…",
+    "Đang tải người liên hệ…"
+  ],
+  "No matching Contacts.": [
+    "일치하는 연락처가 없습니다.",
+    "Walang tumutugmang contact.",
+    "Không có người liên hệ phù hợp."
+  ],
+  "Choose a valid Contact.": [
+    "유효한 연락처를 선택하세요.",
+    "Pumili ng wastong contact.",
+    "Chọn người liên hệ hợp lệ."
+  ],
+  "Choose an existing Contact for this name, or enter the name without a Contact link.": [
+    "이 이름에 해당하는 기존 연락처를 선택하거나 연락처 연결 없이 이름을 입력하세요.",
+    "Pumili ng kasalukuyang contact para sa pangalang ito, o ilagay ang pangalan nang walang link sa contact.",
+    "Chọn người liên hệ hiện có cho tên này hoặc nhập tên mà không liên kết người liên hệ."
+  ],
+  "Rate defaults could not be confirmed.": [
+    "기본 요율을 확인할 수 없습니다.",
+    "Hindi makumpirma ang mga default na rate.",
+    "Không thể xác nhận các mức giá mặc định."
+  ],
+  "Rate defaults changed while loading. Retry your changes.": [
+    "불러오는 동안 기본 요율이 변경되었습니다. 변경 사항을 다시 적용하세요.",
+    "Nagbago ang mga default na rate habang naglo-load. Subukang muli ang iyong mga pagbabago.",
+    "Các mức giá mặc định đã thay đổi trong khi tải. Hãy thử áp dụng lại các thay đổi."
+  ],
+  "Enter a rate between zero and one billion with at most six decimal places.": [
+    "0에서 10억 사이의 요율을 소수점 이하 여섯 자리까지 입력하세요.",
+    "Maglagay ng rate mula zero hanggang isang bilyon na may hindi hihigit sa anim na decimal place.",
+    "Nhập mức giá từ không đến một tỷ với tối đa sáu chữ số thập phân."
+  ],
+  "Rate defaults changed in another window. Retry to use your entered rates for new documents.": [
+    "다른 창에서 기본 요율이 변경되었습니다. 입력한 요율을 새 문서에 사용하려면 다시 시도하세요.",
+    "Nagbago ang mga default na rate sa ibang window. Subukang muli upang magamit ang inilagay mong mga rate sa mga bagong dokumento.",
+    "Các mức giá mặc định đã thay đổi trong cửa sổ khác. Thử lại để dùng các mức giá bạn đã nhập cho tài liệu mới."
+  ],
+  "Rate defaults could not be saved. Your values are kept; retry to remember them.": [
+    "기본 요율을 저장할 수 없습니다. 입력값은 유지됩니다. 기억해 두려면 다시 시도하세요.",
+    "Hindi mai-save ang mga default na rate. Nananatili ang iyong mga halaga; subukang muli upang matandaan ang mga ito.",
+    "Không thể lưu các mức giá mặc định. Các giá trị của bạn vẫn được giữ; thử lại để ghi nhớ chúng."
+  ],
+  "Remembering rates…": [
+    "요율 기억하는 중…",
+    "Tinatandaan ang mga rate…",
+    "Đang ghi nhớ các mức giá…"
+  ],
+  "Rates remembered for new documents.": [
+    "새 문서에 사용할 요율을 기억했습니다.",
+    "Natandaan ang mga rate para sa mga bagong dokumento.",
+    "Đã ghi nhớ các mức giá cho tài liệu mới."
+  ],
+  "Rate changes are remembered for new documents.": [
+    "요율 변경 사항은 새 문서에 사용하도록 기억됩니다.",
+    "Tinatandaan ang mga pagbabago sa rate para sa mga bagong dokumento.",
+    "Các thay đổi mức giá được ghi nhớ cho tài liệu mới."
+  ],
+  "Retry remembering rates": [
+    "요율 기억 다시 시도",
+    "Subukang tandaan muli ang mga rate",
+    "Thử ghi nhớ các mức giá lại"
+  ],
+  "Include supported Schedule of Rates amounts only.": [
+    "지원되는 요율표 금액만 포함하세요.",
+    "Isama lamang ang mga suportadong halaga sa Talaan ng mga Rate.",
+    "Chỉ bao gồm các số tiền được hỗ trợ trong Bảng giá."
+  ],
+  "Enter a supported Schedule of Rates amount.": [
+    "지원되는 요율표 금액을 입력하세요.",
+    "Maglagay ng suportadong halaga sa Talaan ng mga Rate.",
+    "Nhập số tiền được hỗ trợ trong Bảng giá."
+  ],
+  "Enter rates with at most six decimal places.": [
+    "요율을 소수점 이하 여섯 자리까지 입력하세요.",
+    "Maglagay ng mga rate na may hindi hihigit sa anim na decimal place.",
+    "Nhập các mức giá với tối đa sáu chữ số thập phân."
+  ],
+  "Saved rate defaults could not be read. The stored values were retained.": [
+    "저장된 기본 요율을 읽을 수 없습니다. 저장된 값은 유지되었습니다.",
+    "Hindi mabasa ang naka-save na mga default na rate. Napanatili ang mga nakaimbak na halaga.",
+    "Không thể đọc các mức giá mặc định đã lưu. Các giá trị đã lưu trữ vẫn được giữ."
+  ],
+  "Include the rate changes and their current version only.": [
+    "요율 변경 사항과 현재 버전만 포함하세요.",
+    "Isama lamang ang mga pagbabago sa rate at ang kasalukuyang bersyon ng mga ito.",
+    "Chỉ bao gồm các thay đổi mức giá và phiên bản hiện tại của chúng."
+  ],
+  "Rate defaults changed in another window. Review your entries and retry.": [
+    "다른 창에서 기본 요율이 변경되었습니다. 입력 내용을 확인하고 다시 시도하세요.",
+    "Nagbago ang mga default na rate sa ibang window. Suriin ang iyong mga inilagay at subukang muli.",
+    "Các mức giá mặc định đã thay đổi trong cửa sổ khác. Kiểm tra các mục bạn đã nhập và thử lại."
+  ],
+  "Rate defaults do not accept document or project filters.": [
+    "기본 요율에는 문서 또는 프로젝트 필터를 사용할 수 없습니다.",
+    "Hindi tumatanggap ang mga default na rate ng mga filter ng dokumento o proyekto.",
+    "Các mức giá mặc định không chấp nhận bộ lọc tài liệu hoặc dự án."
+  ],
+  "Open rate defaults in the CLASSIFIRE application.": [
+    "CLASSIFIRE 애플리케이션에서 기본 요율을 여세요.",
+    "Buksan ang mga default na rate sa CLASSIFIRE application.",
+    "Mở các mức giá mặc định trong ứng dụng CLASSIFIRE."
+  ],
+  "Use GET or POST for rate defaults.": [
+    "기본 요율에는 GET 또는 POST를 사용하세요.",
+    "Gamitin ang GET o POST para sa mga default na rate.",
+    "Sử dụng GET hoặc POST cho các mức giá mặc định."
+  ],
+  "Delete signer details": [
+    "서명자 정보 삭제",
+    "Burahin ang mga detalye ng lumagda",
+    "Xóa thông tin người ký"
+  ],
+  "Personal details could not be loaded. Try again.": [
+    "개인 정보를 불러올 수 없습니다. 다시 시도하세요.",
+    "Hindi ma-load ang mga personal na detalye. Subukang muli.",
+    "Không thể tải thông tin cá nhân. Hãy thử lại."
+  ],
+  "Clear signature": [
+    "서명 지우기",
+    "I-clear ang lagda",
+    "Xóa chữ ký"
+  ],
+  "Insert signature": [
+    "서명 삽입",
+    "Ilagay ang lagda",
+    "Chèn chữ ký"
+  ],
+  "View Revisions ({0})": [
+    "수정 이력 보기 ({0})",
+    "Tingnan ang mga rebisyon ({0})",
+    "Xem các bản sửa đổi ({0})"
+  ],
+  "Revision history": [
+    "수정 이력",
+    "Kasaysayan ng mga rebisyon",
+    "Lịch sử sửa đổi"
+  ],
+  "Close revision history": [
+    "수정 이력 닫기",
+    "Isara ang kasaysayan ng mga rebisyon",
+    "Đóng lịch sử sửa đổi"
+  ]
+}

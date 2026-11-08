@@ -231,16 +231,19 @@ def default_terms(company=None):
     return format_terms(''.join(result))
 
 
-def default_fields(kind, details=None, company=None):
+def default_fields(kind, details=None, company=None, *, rates=None):
     if kind not in KINDS:
         raise ValidationError('Choose Quote, Work Order or Purchase Order.')
     supplied = details or {}
     company = company or COMPANY_DEFAULTS
+    schedule = default_rate_schedule()
+    if rates is not None:
+        schedule = validate_rate_schedule({**schedule, 'rates': rates})
     return {'title': KINDS[kind], 'details': {key: supplied.get(key, '') for key in DETAIL_FIELDS},
             'introduction': INTRODUCTION if kind == 'quote' else '', 'lines': [], 'scope': '',
             'scope_tables': [], 'sources': [], 'allowances': '<ul><li>N / A</li></ul>' if kind == 'quote' else '', 'terms': default_terms(company) if kind == 'quote' else '',
             'order': {key: '' for key in ORDER_FIELDS},
-            'rate_schedule': default_rate_schedule(),
+            'rate_schedule': schedule,
             'company_reference': {key: company.get(key, '') for key in ('name', 'abn')}}
 
 

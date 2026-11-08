@@ -24,7 +24,7 @@ class ProjectPaneTests(unittest.TestCase):
                 "estimate": {"project_no": "PN-00001", "client": "Legacy Company", "site_address": "Old Site",
                              "measurements": "Keep quantities and notes", "inputs": {"B8": 21.23456789}}}))
         # A historical multi-estimate project has none of the new optional keys.
-        for key in ("contact_name", "contact_phone", "contact_email", "account_id"):
+        for key in ("contact_name", "contact_phone", "contact_email", "account_id", "contact_id"):
             cls.base["estimate"].pop(key, None)
         workspace = {key: deepcopy(cls.base[key]) for key in ("estimate", "calculators")}
         cls.base.update(estimates=[{"id": "estimate-1", "name": "Estimate 1", "workspace": workspace},
@@ -89,6 +89,64 @@ class ProjectPaneTests(unittest.TestCase):
         result = self.save(self.request(client=account["company"], account_id=account["id"]))
         self.assertEqual(result["file"]["account_id"], account["id"])
 
+    def contact(self, name="Alex Same", phone="111", email="alex@example.test", company="External Company"):
+        saved = self.accounts.save("contacts", {"version": self.accounts.list()["version"],
+            "fields": {"name": name, "phone": phone, "email": email, "company": company}})
+        return next(row for row in self.accounts.list()["contacts"] if row["id"] == saved["id"])
+
+    def test_contact_link_uses_id_and_keeps_overrides_without_changing_directory_or_client(self):
+        first = self.contact()
+        second = self.contact(phone="222", email="second@example.test", company="Another Company")
+        directory = self.accounts.list()
+        original = self.read()["details"]
+        result = self.save(self.request(contact_id=second["id"], contact_name=second["name"],
+            contact_phone="Project override", contact_email="override@example.test"))
+        self.assertNotEqual(first["id"], result["details"]["contact_id"])
+        self.assertEqual(result["file"]["contact_id"], second["id"])
+        self.assertEqual({key: result["details"][key] for key in ("client", "account_id")},
+                         {key: original[key] for key in ("client", "account_id")})
+        self.assertEqual(self.accounts.list(), directory)
+        loaded = load_project_bytes(self.store, self.path.read_bytes())
+        self.assertEqual(loaded["estimate"]["contact_id"], second["id"])
+        self.assertEqual(loaded["estimate"]["contact_phone"], "Project override")
+        self.assertEqual(loaded["estimate"]["contact_email"], "override@example.test")
+        self.assertTrue(all(entry["workspace"]["estimate"]["contact_id"] == second["id"] for entry in loaded["estimates"]))
+
+    def test_contact_selection_checks_identity_but_manual_names_remain_supported(self):
+        contact = self.contact()
+        for changes in ({"contact_id": str(uuid4()), "contact_name": contact["name"]},
+                        {"contact_id": contact["id"], "contact_name": "A different person"}):
+            with self.subTest(changes=changes), self.assertRaisesRegex(ValidationError, "existing Contact"):
+                self.save(self.request(**changes))
+        saved = self.save(self.request(contact_id=contact["id"], contact_name=contact["name"]))
+        self.assertEqual(saved["details"]["contact_id"], contact["id"])
+        manual = self.save(self.request(contact_id="", contact_name="Manual contact", contact_phone="Manual phone"))
+        self.assertEqual(manual["details"]["contact_phone"], "Manual phone")
+
+    def test_unknown_imported_contact_can_be_retained_or_explicitly_unlinked(self):
+        snapshot = json.loads(self.path.read_bytes())
+        snapshot["estimate"].update(contact_id=str(uuid4()), contact_name="Portable Contact", contact_phone="Portable phone")
+        self.path.write_text(json.dumps(snapshot), encoding="utf-8")
+        saved = self.save(self.request(site_address="New address"))
+        self.assertEqual(saved["details"]["contact_id"], snapshot["estimate"]["contact_id"])
+        self.assertEqual(saved["details"]["contact_phone"], "Portable phone")
+        with self.assertRaisesRegex(ValidationError, "existing Contact"):
+            self.save(self.request(contact_name="Changed Contact"))
+        self.assertEqual(self.save(self.request(contact_id="", contact_name="Manual Contact"))["details"]["contact_id"], "")
+
+    def test_later_directory_edits_do_not_rewrite_saved_contact_snapshots(self):
+        contact = self.contact()
+        saved = self.save(self.request(contact_id=contact["id"], contact_name=contact["name"],
+            contact_phone="Snapshot phone", contact_email="snapshot@example.test"))
+        self.accounts.save("contacts", {"id": contact["id"], "version": self.accounts.list()["version"],
+            "fields": {"name": "New directory name", "phone": "New directory phone", "email": "new@example.test",
+                       "company": contact["company"]}})
+        directory = self.accounts.list()
+        result = self.save(self.request(site_address="Only the site changed"))
+        for key in ("contact_id", "contact_name", "contact_phone", "contact_email"):
+            self.assertEqual(result["details"][key], saved["details"][key])
+        self.assertEqual(self.accounts.list(), directory)
+
     def test_revision_conflicts_and_retries_never_clobber_later_edits(self):
         request = self.request(contact_name="First")
         stale = deepcopy(request)
@@ -136,13 +194,14 @@ class ProjectPaneTests(unittest.TestCase):
             self.save(request)
 
     def test_older_browser_cannot_drop_new_contact_fields_but_explicit_clear_is_valid(self):
-        self.save(self.request(contact_name="Saved Person", contact_email="person@example.com"))
+        contact = self.contact(name="Saved Person", email="person@example.com")
+        self.save(self.request(contact_id=contact["id"], contact_name=contact["name"], contact_email=contact["email"]))
         before = self.path.read_bytes()
         saved = json.loads(before)
         loaded = self.library.load(self.file["id"])
         def workspace(value, *, omit=False):
             estimate = deepcopy(value["estimate"])
-            for key in ("contact_name", "contact_email"):
+            for key in ("contact_name", "contact_email", "contact_id"):
                 if omit:
                     estimate.pop(key, None)
                 else:
@@ -156,5 +215,13 @@ class ProjectPaneTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "Reload this application"):
             self.library.save(request(True))
         self.assertEqual(self.path.read_bytes(), before)
+        id_only = request(False)
+        for value in [id_only, *[entry["workspace"] for entry in id_only["estimates"]]]:
+            value["estimate"].update(contact_name=contact["name"], contact_email=contact["email"])
+            value["estimate"].pop("contact_id")
+        with self.assertRaisesRegex(ValidationError, "Reload this application"):
+            self.library.save(id_only)
+        self.assertEqual(self.path.read_bytes(), before)
         result = self.library.save(request(False))
         self.assertEqual(result["project"]["estimate"]["contact_name"], "")
+        self.assertEqual(result["project"]["estimate"]["contact_id"], "")

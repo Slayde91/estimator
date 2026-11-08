@@ -11,15 +11,15 @@ from estimator.storage import WORKFLOWS
 
 
 class QuoteIdentityTests(unittest.TestCase):
-    empty_contacts = {"contact_name": "", "contact_phone": "", "contact_email": "", "account_id": ""}
+    empty_contacts = {"contact_name": "", "contact_phone": "", "contact_email": "", "account_id": "", "contact_id": ""}
 
     def test_contact_metadata_is_bounded_and_account_ids_are_portable(self):
         details = {"contact_name": "Pat", "contact_phone": "+61 123", "contact_email": "pat@example.com",
-                   "account_id": "12345678-1234-1234-1234-123456789012"}
+                   "account_id": "12345678-1234-1234-1234-123456789012", "contact_id": "12345678-1234-1234-1234-123456789013"}
         self.assertEqual(validate_quote_details(details, {"client": "Original"}),
                          {"client": "Original", "project_no": "", "site_address": "", **details})
         for key, value in (("contact_name", "x" * 161), ("contact_phone", "x" * 61),
-                           ("contact_email", "invalid"), ("account_id", "not-an-account")):
+                           ("contact_email", "invalid"), ("account_id", "not-an-account"), ("contact_id", "not-a-contact")):
             with self.subTest(key=key), self.assertRaises(ValidationError):
                 validate_quote_details({key: value})
 

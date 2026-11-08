@@ -26,6 +26,8 @@
     revision: 0
   };
   const copy = value => JSON.parse(JSON.stringify(value));
+  const rateKeys = ["ordinary_time", "time_and_half", "double_time", "site_remobilisation", "access_equipment_transport", "equipment", "materials"];
+  const rateDefaults = {version:null, rates:null, pending:new Map(), saving:null, loading:null, timer:null, error:null, remembered:false};
   const currentWorkspace = () => window.CeasefireCertification?.sessionId?.();
   const root = () => document.getElementById(roots[state.kind]);
   function node(tag, className, text) {
@@ -128,8 +130,71 @@
       body: JSON.stringify(body)
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "The commercial document request failed.");
+    if (!response.ok) {
+      const error = new Error(result.error || "The commercial document request failed.");
+      error.status = response.status; throw error;
+    }
     return result;
+  }
+  function acceptRateDefaults(value) {
+    if (!value || !Number.isInteger(value.version) || value.version < 1 || !value.rates ||
+        rateKeys.some(key => typeof value.rates[key] !== "string")) throw new Error("Rate defaults could not be confirmed.");
+    if (rateDefaults.version !== null && value.version < rateDefaults.version) throw new Error("Rate defaults changed while loading. Retry your changes.");
+    rateDefaults.version = value.version; rateDefaults.rates = {...value.rates};
+  }
+  function rateDefaultsNotice() {
+    for (const status of document.querySelectorAll(".commercial-rate-defaults-status")) {
+      const invalid = status.closest(".commercial-rate-schedule")?.querySelector('[data-rate-invalid="true"]');
+      const failed = Boolean(rateDefaults.error && rateDefaults.pending.size);
+      const source = invalid ? "Enter a rate between zero and one billion with at most six decimal places."
+        : failed ? (rateDefaults.error.status === 409
+          ? "Rate defaults changed in another window. Retry to use your entered rates for new documents."
+          : "Rate defaults could not be saved. Your values are kept; retry to remember them.")
+        : rateDefaults.pending.size || rateDefaults.saving ? "Remembering rates…"
+        : rateDefaults.remembered ? "Rates remembered for new documents." : "Rate changes are remembered for new documents.";
+      status.classList.toggle("error", Boolean(invalid || failed));
+      if (window.CeasefireI18n) window.CeasefireI18n.text(status, source); else status.textContent = source;
+      const retry = status.parentElement.querySelector(".commercial-rate-defaults-retry");
+      if (retry) { retry.hidden = !failed; retry.disabled = Boolean(rateDefaults.saving || rateDefaults.loading); }
+    }
+  }
+  async function loadRateDefaults(force = false) {
+    if (rateDefaults.loading) await rateDefaults.loading;
+    if (!force && rateDefaults.version !== null) return;
+    rateDefaults.loading = request("rate-defaults").then(acceptRateDefaults);
+    try { await rateDefaults.loading; } finally { rateDefaults.loading = null; rateDefaultsNotice(); }
+  }
+  async function flushRateDefaults({retry = false} = {}) {
+    if (rateDefaults.timer) { clearTimeout(rateDefaults.timer); rateDefaults.timer = null; }
+    if (rateDefaults.saving) { await rateDefaults.saving; return flushRateDefaults({retry}); }
+    if (!rateDefaults.pending.size) return;
+    if (rateDefaults.error && !retry) throw rateDefaults.error;
+    rateDefaults.saving = (async () => {
+      try {
+        await loadRateDefaults(retry);
+        const changes = Object.fromEntries(rateDefaults.pending);
+        if (!Object.keys(changes).length) return;
+        const saved = await request("rate-defaults", {expected_version:rateDefaults.version, rates:changes});
+        acceptRateDefaults(saved); rateDefaults.error = null;
+        for (const [key, value] of Object.entries(changes)) if (rateDefaults.pending.get(key) === value) rateDefaults.pending.delete(key);
+        rateDefaults.remembered = !rateDefaults.pending.size;
+      } catch (error) { rateDefaults.error = error; throw error; }
+      finally { rateDefaults.saving = null; rateDefaultsNotice(); }
+    })();
+    rateDefaultsNotice();
+    await rateDefaults.saving;
+    if (rateDefaults.pending.size) await flushRateDefaults();
+  }
+  function rememberRate(key, value, control) {
+    const match = value.trim().match(/^([+-]?)(\d*)(?:\.(\d*))?(?:e([+-]?\d+))?$/i), number = Number(value);
+    const exponent = match ? Number(match[4] || 0) - (match[3] || "").length : -Infinity;
+    const valid = value.trim() !== "" && match && (match[2] || match[3]) && Number.isFinite(number) && number >= 0 && number <= 1e9 && exponent >= -6 && exponent <= 9;
+    control.dataset.rateInvalid = String(!valid);
+    if (!valid) { rateDefaults.pending.delete(key); rateDefaultsNotice(); return; }
+    rateDefaults.pending.set(key, value); rateDefaults.remembered = false;
+    if (rateDefaults.timer) clearTimeout(rateDefaults.timer);
+    rateDefaults.timer = setTimeout(() => { rateDefaults.timer = null; void flushRateDefaults().catch(() => {}); }, 300);
+    rateDefaultsNotice();
   }
   const linkedIds = lines => lines.map(line => line.estimate_id).filter(Boolean);
   const sourceFor = card => card.source_file ? {file_id: card.source_file, revision: card.source_revision} : null;
@@ -234,6 +299,12 @@
           window.CeasefireDialogs.message("Save or discard the current commercial document edit before changing views.", true);
           return false;
         }
+      }
+      if (rateDefaults.pending.size || rateDefaults.saving) {
+        state.busy = true; setDisabled(true);
+        try { await flushRateDefaults(); }
+        catch (error) { message(error.message, true); return false; }
+        finally { state.busy = false; setDisabled(false); }
       }
       renderBoard();
       window.CeasefireProject?.changed?.();
@@ -380,7 +451,7 @@
         ["Contact", po ? order.supplier_contact : details.contact],
         ["Address", details.site_address],
         [po ? "PO No." : wo ? "WO No." : "Quote No.", number], ["Total", grand],
-        ["Updated", new Date(doc.updated_at).toLocaleString("en-AU")]
+        ["Updated", new Intl.DateTimeFormat("en-AU", {year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", hour12:false}).format(new Date(doc.updated_at))]
       ];
     };
     const documents = all.filter(doc => [doc.fields.title, doc.fields.details.project_no, ...cardInfo(doc).map(pair=>pair[1])].join(" ").toLowerCase().includes(state.search.toLowerCase()));
@@ -543,6 +614,7 @@
     if (state.busy) return;
     state.busy = true;
     try {
+      await flushRateDefaults();
       const details = {
         ...commercialProjectDetails(true),
         date: today()
@@ -552,6 +624,7 @@
         kind: state.kind,
         details
       });
+      if (result.rate_defaults) acceptRateDefaults(result.rate_defaults);
       const document = {
         id: crypto.randomUUID(),
         version: 0,
@@ -833,15 +906,27 @@
       ["equipment", "Equipment", "% added to Hire Rate"],
       ["materials", "Materials", "% added to Cost Rate"]
     ]) {
-      const control = input(schedule.rates[key], value => fields.rate_schedule.rates[key] = value, "number");
+      const control = input(schedule.rates[key], value => { fields.rate_schedule.rates[key] = value; rememberRate(key, value, control); }, "number");
+      control.dataset.rateKey = key;
       control.min = "0";
+      control.max = "1000000000";
       control.step = "any";
+      control.addEventListener("change", () => { if (control.dataset.rateInvalid !== "true") void flushRateDefaults().catch(() => {}); });
       const row = field(label, control);
       row.append(node("span", "helper", (key === "equipment" || key === "materials" ? "" : "AUD ") + unit));
       rates.append(row);
     }
     // Acceptance remains in the saved document and PDF, not the quote editor.
     section.append(rates);
+    const remembered = node("div", "commercial-rate-defaults-notice"), status = node("p", "helper commercial-rate-defaults-status");
+    status.setAttribute("role", "status");
+    const retry = button("Retry remembering rates", () => void flushRateDefaults({retry:true}).catch(() => {}));
+    retry.classList.add("commercial-rate-defaults-retry"); retry.hidden = true;
+    window.CeasefireI18n?.text(retry, "Retry remembering rates");
+    remembered.append(status, retry); section.append(remembered);
+    // Reading defaults never replaces a saved document's own rate snapshot.
+    void loadRateDefaults().catch(error => { rateDefaults.error = error; rateDefaultsNotice(); });
+    queueMicrotask(rateDefaultsNotice);
     section.querySelectorAll("h2,.field>span").forEach(element => window.CeasefireI18n?.text(element, element.textContent));
     section.querySelectorAll("input,textarea").forEach(element => window.CeasefireI18n?.attr(element, "aria-label", element.getAttribute("aria-label")));
     return section;
@@ -1125,7 +1210,9 @@
       descriptionInput.setAttribute("aria-label", `Product / Service ${index + 1}`);
       const resize = () => { if (descriptionInput.tagName === "TEXTAREA") resizeDescription(descriptionInput); };
       descriptionInput.addEventListener("input", resize);
-      description.append(descriptionInput);
+      const descriptionControls = node("div", "commercial-line-description-controls");
+      descriptionControls.append(descriptionInput);
+      description.append(descriptionControls);
       requestAnimationFrame(resize);
       quantity.append(input(line.quantity, value => {
         line.quantity = value;
@@ -1143,11 +1230,17 @@
       unit.append(price);
       row.append(description, quantity, unit, total);
       if (state.kind === "quote" && !line.estimate_id) {
-        description.append(button("Remove row", () => {
+        const remove = button("", () => {
           fields.lines.splice(index, 1);
           markDirty();
           renderLines();
-        }));
+        });
+        remove.classList.add("icon-only", "commercial-remove-row");
+        remove.setAttribute("aria-label", "Remove row"); remove.title = "Remove row";
+        window.CeasefireI18n?.attr(remove, "aria-label", "Remove row");
+        window.CeasefireI18n?.attr(remove, "title", "Remove row");
+        remove.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 6h18M8 6V3h8v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg>';
+        descriptionControls.append(remove);
       }
       if (state.kind === "purchase_order") {
         const size = node("td"),
@@ -1281,6 +1374,7 @@
     state.busy = true;
     setDisabled(true);
     try {
+      await flushRateDefaults();
       const captured = state.kind === "quote" ? await capturedEstimates() : {};
       await persist(captured, true);
       const source = state.editor.source;
@@ -1299,6 +1393,7 @@
     state.busy = true;
     setDisabled(true);
     try {
+      await flushRateDefaults();
       if (!state.editor.pendingIssue) {
         const captured = state.kind === "quote" ? await capturedEstimates() : {},
           saved = await persist(captured);
@@ -1386,7 +1481,7 @@
       });
     },
     hasPendingOperation() {
-      return state.busy || state.dirty;
+      return state.busy || state.dirty || Boolean(rateDefaults.saving || rateDefaults.pending.size);
     },
     hasProjectChanges() {
       return state.changed || state.dirty;
@@ -1395,6 +1490,9 @@
       if (!captured || JSON.stringify(state.model?.snapshot) === JSON.stringify(captured)) state.changed = false;
     }
   };
+  window.addEventListener("beforeunload", event => {
+    if (rateDefaults.saving || rateDefaults.pending.size) { event.preventDefault(); event.returnValue = ""; }
+  });
   document.addEventListener("click", event => {
     for (const menu of document.querySelectorAll(".commercial-columns-menu[open],.commercial-card-menu[open]")) {
       if (!menu.contains(event.target)) menu.open = false;

@@ -100,10 +100,10 @@ def default_fields(details=None, company=None, people_defaults=None):
     options = template_options()
     fields.pop('works_type')
     fields.update(title='Safe Work Method Statement', details=dict.fromkeys(DETAIL_FIELDS, ''), manager_signature=None,
-                  reviewers=[{'name': '', 'position': 'Health & Safety Representative', 'signature': None},
-                             {'name': '', 'position': 'General Manager', 'signature': None}],
-                  consultation=[{'name': '', 'position': 'Health & Safety Representative', 'signature': None},
-                                {'name': '', 'position': 'General Manager', 'signature': None}],
+                  reviewers=[{'name': '', 'position': '', 'signature': None},
+                             {'name': '', 'position': '', 'signature': None}],
+                  consultation=[{'name': '', 'position': '', 'signature': None},
+                                {'name': '', 'position': '', 'signature': None}],
                   additional_steps=False, additional_rows=[], signoffs=[], manual_signature=None, site_signoffs=[], reviews=[''] * 10,
                   emergency_contacts='', work_types=['Passive Firestopping'], steps=options['works'],
                   high_risk_steps=options['high_risk_tables'], attachments=[])
@@ -111,9 +111,9 @@ def default_fields(details=None, company=None, people_defaults=None):
     fields['details'].update(job_reference=details.get('project_no', ''), principal_contractor=details.get('client', ''),
                              project_name=details.get('client', ''), project_address=details.get('site_address', ''),
                              date=datetime.now(ZoneInfo('Australia/Sydney')).date().isoformat())
-    if people_defaults is not None:
-        for key in PEOPLE_DEFAULT_KEYS:
-            fields[key] = validate_default_people(people_defaults[key]['rows'])
+    # Saved people defaults are retained for old-client compatibility, but each
+    # new statement starts with unsigned, blank people. Profile details enter a
+    # document only after an explicit signature action.
     return validate_fields(fields)
 
 
@@ -298,8 +298,8 @@ class SwmsDocuments:
                 CREATE TABLE IF NOT EXISTS swms_issued (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, request_id TEXT UNIQUE NOT NULL, fingerprint TEXT NOT NULL, filename TEXT NOT NULL, pdf BLOB NOT NULL);
                 CREATE TABLE IF NOT EXISTS swms_people_defaults (section TEXT PRIMARY KEY, version INTEGER NOT NULL, data TEXT NOT NULL);
             ''')
-            seed = [{'name': '', 'position': 'Health & Safety Representative', 'signature': None},
-                    {'name': '', 'position': 'General Manager', 'signature': None}]
+            seed = [{'name': '', 'position': '', 'signature': None},
+                    {'name': '', 'position': '', 'signature': None}]
             for section in PEOPLE_DEFAULT_KEYS:
                 db.execute('INSERT OR IGNORE INTO swms_people_defaults VALUES(?,1,?)', (section, _json(seed)))
 

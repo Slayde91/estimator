@@ -1,4 +1,16 @@
 .projects-section-cards{grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))}
+.documentation-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:start;margin-top:24px}
+.documentation-layout.has-revisions{grid-template-columns:minmax(250px,320px) minmax(0,1fr)}
+.documentation-tables{min-width:0}
+.documentation-tables>.documentation-section:first-child{margin-top:0}
+.documentation-revisions-pane{min-width:0;margin:0}
+.documentation-revisions-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.documentation-revisions-heading h2{margin:0}
+.documentation-revisions-heading button{flex:none;width:40px;height:40px;padding:0}
+.documentation-revisions-document{font-weight:700;overflow-wrap:anywhere}
+.documentation-revisions-pane .documentation-revision{display:grid;gap:4px;padding:12px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+.documentation-view-revisions{font-size:13px;white-space:normal;text-align:start}
+@media(max-width:900px){.documentation-layout.has-revisions{grid-template-columns:minmax(0,1fr)}}
 .documentation-section{margin-top:24px}
 .documentation-table{width:100%;table-layout:fixed}
 .documentation-table thead th:first-child{width:34%}

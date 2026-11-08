@@ -6,12 +6,13 @@
   const translate = source => window.CeasefireI18n?.translate?.(source) || source;
   const text = (element,source) => window.CeasefireI18n ? window.CeasefireI18n.text(element,source) : (element.textContent=source);
   const fields = {project_no:"project-pane-number", client:"project-pane-client", site_address:"project-pane-address", contact_name:"project-pane-contact-name", contact_phone:"project-pane-contact-phone", contact_email:"project-pane-contact-email"};
-  const normalize = details => Object.fromEntries([...Object.keys(fields), "account_id"].map(key => [key, String(details?.[key] || "").trim()]));
+  const normalize = details => Object.fromEntries([...Object.keys(fields), "account_id", "contact_id"].map(key => [key, String(details?.[key] || "").trim()]));
   const stamp = details => JSON.stringify(normalize(details));
   const sharedStamp = details => { const value = normalize(details); delete value.project_no; return JSON.stringify(value); };
   const snapshot = () => window.CeasefireProject.projectPaneSnapshot();
   let selected = null, ticket = 0, pending = false, accounts = [], accountId = "", accountName = "", optionIndex = -1, options = [], directoryTicket = 0, currentRule = null;
-  function details() { return {...Object.fromEntries(Object.entries(fields).map(([key,id]) => [key,$(id).value.trim()])), account_id:accountId}; }
+  let contacts = [], contactId = "", contactName = "", contactOptions = [], contactOptionIndex = -1, contactLoading = false, contactPopupRequested = false, returningContactFocus = false;
+  function details() { return {...Object.fromEntries(Object.entries(fields).map(([key,id]) => [key,$(id).value.trim()])), account_id:accountId, contact_id:contactId}; }
   function dirty() { return !!selected && selected.kind === "saved" && stamp(details()) !== stamp(selected.baseline); }
   function notice(value = "", error = false) {
     text($("project-details-status"), value);
@@ -35,11 +36,18 @@
     $("project-pane-client").removeAttribute("aria-activedescendant");
     optionIndex = -1;
   }
+  function dismissContactOptions() {
+    contactPopupRequested = false;
+    $("project-contact-options").hidden = true;
+    $("project-pane-contact-name").setAttribute("aria-expanded", "false");
+    $("project-pane-contact-name").removeAttribute("aria-activedescendant");
+    contactOptionIndex = -1;
+  }
   function hide() {
     ++ticket; selected = null; pane.hidden = true;
     busy(false);
     $("project-workspace-layout").classList.remove("project-pane-open");
-    dismissOptions(); refreshToggles();
+    dismissOptions(); dismissContactOptions(); refreshToggles();
   }
   async function leave() {
     if (pending) { notice("Finish the current project details action first.", true); return false; }
@@ -49,11 +57,12 @@
   function show(values, target) {
     for (const [key,id] of Object.entries(fields)) $(id).value = values[key] || "";
     accountId = values.account_id || ""; accountName = values.client || "";
+    contactId = values.contact_id || ""; contactName = values.contact_name || ""; contactLoading = false;
     $("project-details-target").textContent = target;
     $("project-details-save").hidden = selected.kind === "current";
     pane.hidden = false; $("project-workspace-layout").classList.add("project-pane-open");
     notice(selected.kind === "current" ? "Use the main Save button to save this project's details and estimate." : "");
-    dismissOptions(); refreshToggles();
+    dismissOptions(); dismissContactOptions(); refreshToggles();
   }
   async function request(url, body) {
     const response = await fetch(url, body === undefined ? undefined : {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
@@ -113,7 +122,7 @@
     if (active.file?.path === target.file.path && (active.file.revision !== target.revision || active.context !== target.activeAtOpen.context || stamp(active.details) !== stamp(target.activeAtOpen.details))) throw new Error("The open project's details changed. Close and reopen this pane before saving.");
     if (target.requestPayload && target.requestPayload !== stamp(value)) target.requestId = crypto.randomUUID();
     target.requestPayload = stamp(value);
-    busy(true); dismissOptions(); notice("Saving project details…");
+    busy(true); dismissOptions(); dismissContactOptions(); notice("Saving project details…");
     try {
       const result = await request("/api/projects/details/save", {id:target.file.id,revision:target.revision,details:value,request_id:target.requestId});
       if (window.CeasefireProject.applyProjectPaneSaved(active, result, target.revision)) rebaseCurrentRule(result.details);
@@ -131,6 +140,37 @@
     $("project-pane-client").value = account.company;
     dismissOptions(); notice(); applyCurrentDraft();
   }
+  function chooseContact(contact) {
+    if (!selected || pending) return;
+    contactId = contact.id; contactName = contact.name;
+    $("project-pane-contact-name").value = contact.name;
+    // Defaults are copied once when the user explicitly chooses a Contact.
+    // Reopening the pane never replaces project-specific phone/email overrides.
+    $("project-pane-contact-phone").value = contact.phone || "";
+    $("project-pane-contact-email").value = contact.email || "";
+    dismissContactOptions(); notice(); applyCurrentDraft();
+    returningContactFocus = true; $("project-pane-contact-name").focus(); returningContactFocus = false;
+    dismissContactOptions();
+  }
+  function renderContacts() {
+    if (!contactPopupRequested || !selected || pending || selected.blocked || document.activeElement !== $("project-pane-contact-name")) return;
+    const query = $("project-pane-contact-name").value.trim().toLocaleLowerCase();
+    contactOptions = contactLoading ? [] : contacts.filter(contact => [contact.name,contact.company,contact.phone,contact.email].join(" ").toLocaleLowerCase().includes(query)).slice(0,30);
+    const host = $("project-contact-options");
+    host.replaceChildren(...contactOptions.map((contact,index) => {
+      const option = document.createElement("button"); option.type = "button"; option.tabIndex = -1; option.id = `project-contact-option-${index}`;
+      option.setAttribute("role","option"); option.setAttribute("aria-selected","false");
+      option.textContent = [contact.name,contact.company,contact.phone,contact.email].filter(Boolean).join(" · ");
+      option.addEventListener("mousedown", event => event.preventDefault());
+      option.addEventListener("click", () => chooseContact(contact));
+      return option;
+    }));
+    if (!contactOptions.length) {
+      const empty = document.createElement("p"); text(empty,contactLoading ? "Loading Contacts…" : "No matching Contacts."); host.append(empty);
+    }
+    host.hidden = false; $("project-pane-contact-name").setAttribute("aria-expanded","true");
+    $("project-pane-contact-name").removeAttribute("aria-activedescendant"); contactOptionIndex = -1;
+  }
   function renderAccounts() {
     if (!selected || pending || document.activeElement !== $("project-pane-client")) return;
     const query = $("project-pane-client").value.trim().toLocaleLowerCase();
@@ -147,11 +187,17 @@
   }
   async function loadAccounts() {
     const generation = ++directoryTicket;
+    const target = selected, opening = ticket;
     try {
       const directory = await request("/api/contacts/directory");
-      if (generation !== directoryTicket) return;
-      accounts = directory.accounts || []; renderAccounts();
-    } catch (error) { if (generation === directoryTicket) notice(error.message, true); }
+      if (generation !== directoryTicket || selected !== target || ticket !== opening || !selected) return;
+      accounts = directory.accounts || []; contacts = directory.contacts || []; contactLoading = false;
+      renderAccounts(); renderContacts();
+    } catch (error) {
+      if (generation === directoryTicket && selected === target && ticket === opening && selected) {
+        contactLoading = false; contacts = []; renderContacts(); notice(error.message, true);
+      }
+    }
   }
   $("project-current-details").addEventListener("click", openCurrent);
   $("project-details-close").addEventListener("click", leave);
@@ -163,9 +209,32 @@
       if (value !== accountName) { accountId = value === selected.baseline.client ? selected.baseline.account_id : ""; if (accountId) accountName = value; }
       renderAccounts();
     }
+    if (key === "contact_name") {
+      if ($(id).value.trim() !== contactName) contactId = "";
+      contactPopupRequested = true;
+      renderContacts();
+    }
     applyCurrentDraft();
   });
-  $("project-pane-client").addEventListener("focus", () => { renderAccounts(); void loadAccounts(); });
+  $("project-pane-client").addEventListener("focus", () => { dismissContactOptions(); renderAccounts(); void loadAccounts(); });
+  $("project-pane-contact-name").addEventListener("focus", () => { if (returningContactFocus) return; dismissOptions(); contactPopupRequested = true; contactLoading = true; renderContacts(); void loadAccounts(); });
+  for (const type of ["pointerdown","focusin"]) document.addEventListener(type, event => {
+    if (!$("project-pane-contact-name").closest(".project-contact-field").contains(event.target)) dismissContactOptions();
+  });
+  $("project-pane-contact-name").addEventListener("keydown", event => {
+    if (event.key === "Escape") { dismissContactOptions(); event.preventDefault(); event.stopPropagation(); return; }
+    if (!["ArrowDown","ArrowUp","Enter"].includes(event.key)) return;
+    if ($("project-contact-options").hidden && event.key !== "Enter") { contactPopupRequested = true; renderContacts(); }
+    if (event.key === "Enter") {
+      if (!$("project-contact-options").hidden) { if (contactOptionIndex >= 0) chooseContact(contactOptions[contactOptionIndex]); event.preventDefault(); }
+      return;
+    }
+    if (!contactOptions.length) return;
+    event.preventDefault();
+    contactOptionIndex = contactOptionIndex < 0 ? (event.key === "ArrowDown" ? 0 : contactOptions.length-1) : (contactOptionIndex + (event.key === "ArrowDown" ? 1 : -1) + contactOptions.length) % contactOptions.length;
+    for (const [index,option] of [...$("project-contact-options").children].entries()) option.setAttribute("aria-selected",String(index === contactOptionIndex));
+    $("project-pane-contact-name").setAttribute("aria-activedescendant", `project-contact-option-${contactOptionIndex}`);
+  });
   $("project-pane-client").addEventListener("blur", () => { if (!$("project-account-options").contains(document.activeElement)) dismissOptions(); });
   $("project-pane-client").addEventListener("keydown", event => {
     if (event.key === "Escape") { dismissOptions(); event.preventDefault(); return; }
@@ -178,7 +247,7 @@
   $("project-account-new").addEventListener("click", async () => {
     if (!selected || pending) return;
     const target = selected;
-    busy(true); dismissOptions();
+    busy(true); dismissOptions(); dismissContactOptions();
     try {
       if (!window.ClassifireContacts?.createAccount) throw new Error("Refresh the application before creating an Account.");
       const account = await window.ClassifireContacts.createAccount({company:$("project-pane-client").value.trim()});

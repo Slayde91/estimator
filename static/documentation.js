@@ -7,7 +7,8 @@
   // saved history, but do not have rows in the Documentation PDF list.
   const omittedRows = new Set(['firestopping.current_item.pdf','library.technical.item.pdf','takeoff.pdf_tools.pdf']);
   const state = { epoch:0, scope:null, model:null, baseline:0, opening:null, catalog:null, catalogLoading:null,
-    refreshRevision:0, action:null, uncertain:false, pending:new Map(), sources:new Map() };
+    refreshRevision:0, action:null, uncertain:false, pending:new Map(), sources:new Map(), revisions:null };
+  const revisionButtons = new Map();
   const captures = new WeakMap();
   function text(element, value, args = []) {
     if (window.CeasefireI18n) return window.CeasefireI18n.text(element,value,args);
@@ -93,8 +94,36 @@
     const section=(label,items)=>items.length?[{groupHeading:label},...items]:[];
     return [...primary,...section('Schedules',schedules),...section('Product summaries',summaries),...section('Other documents',other)];
   }
+  function closeRevisions(restoreFocus=false) {
+    const kind=state.revisions?.id;state.revisions=null;render();
+    if(restoreFocus)revisionButtons.get(kind)?.focus();
+  }
+  function renderRevisions() {
+    const pane=$("documentation-revisions-pane"),layout=$("documentation-layout"),list=$("documentation-revisions-list");
+    if(!pane||!layout||!list)return;
+    const selected=state.revisions;
+    const visible=!!selected&&!!state.scope&&current(state.scope);
+    pane.hidden=!visible;layout.classList.toggle('has-revisions',visible);
+    list.replaceChildren();
+    text($("documentation-revisions-document"),visible?selected.label:"");
+    if(!visible)return;
+    const items=(state.model?.items||[]).filter(item=>item.kind===selected.id);
+    if(!items.length){list.append(node('li','documentation-empty',"No revisions generated in this project."));return;}
+    for(const item of items) {
+      const line=node('li','documentation-revision'),link=node('a','',"Revision {0}",[item.revision]);
+      link.href=item.url;link.target='_blank';link.rel='noopener';link.title=item.filename;
+      const name=node('small');name.textContent=item.filename;line.append(link,name);
+      const date=new Date(item.created_at);
+      if(!Number.isNaN(date.getTime())) {
+        const time=node('time');time.dateTime=date.toISOString();
+        time.textContent=date.toLocaleString('en-AU',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});line.append(time);
+      }
+      list.append(line);
+    }
+  }
   function render() {
     if(!state.catalog)return;
+    revisionButtons.clear();
     const rows=[...state.catalog], known=new Set(rows.map(row=>row.id));
     for(const item of state.model?.items||[])if(!known.has(item.kind)) {
       known.add(item.kind);rows.push({id:item.kind,label:item.label,format:item.media_type===PDF?'pdf':'xlsx',historyOnly:true});
@@ -128,22 +157,19 @@
         action.append(controls);
         if(row.historyOnly)action.append(node('p','helper',"This download is not available in this edition."));
         const items=(state.model?.items||[]).filter(item=>item.kind===row.id);
-        if(!items.length)history.append(node('p','documentation-empty',"No revisions generated in this project."));
-        else {
-          const list=node('ul','documentation-revisions');
-          for(const item of items) {
-            const line=node('li','documentation-revision'), link=node('a','',"Revision {0}",[item.revision]);
-            link.href=item.url;link.target='_blank';link.rel='noopener';link.title=item.filename;
-            const name=node('small');name.textContent=item.filename;line.append(link,name);
-            const date=new Date(item.created_at);
-            if(!Number.isNaN(date.getTime())) { const time=node('time');time.dateTime=date.toISOString();time.textContent=date.toLocaleString('en-AU');line.append(time); }
-            list.append(line);
-          }
-          history.append(list);
-        }
+        const view=node('button','button secondary documentation-view-revisions','View Revisions ({0})',[items.length]);
+        view.type='button';view.dataset.revisionsKind=row.id;view.setAttribute('aria-controls','documentation-revisions-pane');
+        view.setAttribute('aria-expanded',String(state.revisions?.id===row.id));view.title=row.label;
+        const scope=state.scope,epoch=state.epoch;
+        view.addEventListener('click',()=>{
+          if(!scope||!current(scope,epoch))return;
+          state.revisions={id:row.id,label:row.label};render();$("documentation-revisions-heading")?.focus();
+        });
+        revisionButtons.set(row.id,view);history.append(view);
         tr.append(name,history,action);if(format==='pdf')window.CeasefireCoverSheets?.attach(tr,row.id);return tr;
       }));
     }
+    renderRevisions();
   }
   async function run(row,button) {
     if(state.action||hasPendingOperation())return;
@@ -180,7 +206,7 @@
     state.epoch++;state.scope=prepared?checkedScope(prepared.scope):null;
     state.model=prepared?checkedModel(prepared.model,state.scope):null;
     state.baseline=state.model?.workspace_revision||0;state.opening=null;state.refreshRevision++;
-    state.action=null;state.uncertain=false;state.sources.clear();status("");render();
+    state.action=null;state.uncertain=false;state.sources.clear();state.revisions=null;status("");render();
   }
   function projectFingerprint() {return JSON.stringify({project_id:state.scope?.project_id||null,revision:state.model?.workspace_revision||0,uncertain:state.uncertain});}
   async function completeProjectSnapshot() {
@@ -220,6 +246,10 @@
   window.addEventListener('ceasefire:certification-revision-saved',event=>{
     if(state.scope&&event.detail?.workspace_id===state.scope.workspace_id&&event.detail?.project_id===state.scope.project_id)
       void refresh(state.scope).catch(error=>status(error.message,true));
+  });
+  $("documentation-revisions-close")?.addEventListener('click',()=>closeRevisions(true));
+  $("documentation-revisions-pane")?.addEventListener('keydown',event=>{
+    if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closeRevisions(true);}
   });
   window.CeasefireDocumentation={open,prepareProject,applyProject,completeProjectSnapshot,markProjectSaved,projectFingerprint,
     hasProjectChanges:()=>state.uncertain||!!state.model&&state.model.workspace_revision!==state.baseline,hasPendingOperation,downloadHeaders,downloadCompleted};

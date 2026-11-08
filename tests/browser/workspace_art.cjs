@@ -121,10 +121,11 @@ async function followupBanners(themes=['ceasefire','midnight','ocean','forest','
      return{heading:box(el),title:box(title),font:getComputedStyle(title).fontSize,art:frame?box(frame):null,src:image?.getAttribute('src'),loaded:!image||image.complete&&image.naturalWidth>0,direction:getComputedStyle(el).direction,subtitle:el.querySelectorAll('.subtitle').length,overflow:document.documentElement.scrollWidth-innerWidth};
     });
     assert.equal(data.loaded,true);assert.equal(data.subtitle,0);assert.ok(data.overflow<=1,JSON.stringify(data));
-    if(workspace==='pricing')assert.equal(data.font,'28px');
+    if(workspace==='estimate')assert.equal(data.art,null,'Estimate artwork remains removed');
+    else if(workspace==='pricing')assert.equal(data.font,'28px');
     else{assert.ok(data.art.width>0&&data.art.height>0);assert.ok(data.direction==='rtl'?data.art.right<=data.title.x:data.art.x>=data.title.right,'Artwork follows the heading without overlap: '+JSON.stringify(data));assert.ok(data.art.x>=data.heading.x&&data.art.right<=data.heading.right+.1);}
     if(workspace==='technical'){assert.ok(data.art.width<=188.6&&data.art.height<=80.1,'Technical artwork fits 188.5 by 80');}if(workspace==='penetration'){assert.ok(data.art.width<=314.1&&data.art.height<=84.1,'Firestopping Library artwork fits 314 by 84');}
-    if(workspace==='estimate'){const toggle=heading.locator('[data-document-menu-toggle][aria-controls="firestopping-document-actions"]');await toggle.click({trial:true});}
+    if(workspace==='estimate'){const toggle=page.locator('#view-estimate [data-document-menu-toggle][aria-controls="firestopping-document-actions"]');await toggle.click({trial:true});}
     if(workspace==='projects'){
      for(const id of ['new-quote','load-project','link-project-folder','refresh-quotes'])await page.locator('#'+id).click({trial:true});
      const banner=await page.locator('.project-evidence-art').evaluate(el=>{const frame=el.querySelector('.project-evidence-crop'),image=el.querySelector('img'),r=el.getBoundingClientRect(),heading=el.closest('.project-banner-heading'),crop=frame.getBoundingClientRect(),height=heading.getBoundingClientRect().height,slot=el.parentElement;slot.style.display='none';const withoutArt=heading.getBoundingClientRect().height;slot.style.removeProperty('display');return{inside:crop.left>=r.left-.1&&crop.right<=r.right+.1,height,withoutArt,withinHeading:r.top>=heading.getBoundingClientRect().top-.1&&r.bottom<=heading.getBoundingClientRect().bottom+.1,src:image.getAttribute('src'),loaded:image.complete&&image.naturalWidth>0,mask:getComputedStyle(frame).maskImage,composite:getComputedStyle(frame).maskComposite,pointer:getComputedStyle(el).pointerEvents};});
@@ -275,7 +276,7 @@ async function takeoffHeading(name,route,themes=['ceasefire','midnight','ocean',
  if(!takeoffWidthOnly&&!calculatorBannersOnly){
  await page.locator('nav [data-view="home"]').click();await idle();
  await art('.home-laser-art','home');
- await chooseEstimate();await art('.workspace-header-art--estimate','estimate',true);
+ await chooseEstimate();await expect(page.locator('.workspace-header-art--estimate')).toHaveCount(0);
  await followupBanners();
  await documentActions('[aria-controls="firestopping-document-actions"]',['download-full-schedule','download-full-product-summary'],'estimate');
  }
@@ -311,6 +312,6 @@ async function takeoffHeading(name,route,themes=['ceasefire','midnight','ocean',
  await page.locator('nav [data-view="settings"]').click();await idle();await page.locator('#application-language').selectOption('en');await expect(page.locator('html')).toHaveAttribute('dir','ltr');
  for(const width of [906,390]){await page.setViewportSize({width,height:764});await page.locator('nav [data-view="home"]').click();await idle();await expect(page.locator('.home-laser-art')).toBeVisible();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)<=1);await page.screenshot({path:path.join(output,'home-'+width+'.png')});}
  assert.deepEqual(await snapshot(),before,'Decorative images and navigation preserve project data');
- await page.emulateMedia({media:'print'});await expect(page.locator('.home-laser-art')).toBeHidden();await expect(page.locator('.workspace-header-art--estimate')).toHaveCSS('display','none');await page.emulateMedia({media:'screen'});
+ await page.emulateMedia({media:'print'});await expect(page.locator('.home-laser-art')).toBeHidden();await expect(page.locator('.workspace-header-art--estimate')).toHaveCount(0);await page.emulateMedia({media:'screen'});
  assert.deepEqual(errors,[]);assert.deepEqual(csp,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,mode:runMode,assets:assetEvidence,evidence,draftsUnchanged:true,errors,csp},null,2));console.log('PASS workspace artwork: '+output);
 })().catch(async error=>{console.error(error);process.exitCode=1;await page?.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:false,mode:runMode,error:String(error),evidence,errors,csp},null,2));}).finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);await browser?.close();server.kill();});

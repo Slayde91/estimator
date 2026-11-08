@@ -28,7 +28,7 @@ async function openProjectSection(page, section) {
 async function openProjectTools(page) {
   const previous = await page.locator('#view-quotes').isVisible() ? 'quotes' : await page.locator('#view-certification').isVisible() ? 'certification' : await page.locator('#view-documentation').isVisible() ? 'documentation' : await page.locator('.nav-button[aria-current="page"]').getAttribute('data-view');
   if (previous !== 'quotes') await openProjectSection(page, 'quotes');
-  await expect(page.locator('#project-tools')).toBeVisible();
+  await expect(page.locator('#quotes-heading')).toBeVisible();
   return previous;
 }
 

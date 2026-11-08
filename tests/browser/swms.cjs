@@ -32,7 +32,7 @@ async function run(edition) {
     await fillProjectDetails(page,{'client':'Example builder'}); await fillProjectDetails(page,{'site-address':'10 Test Street'});
     await openProjectSection(page, 'documentation');
     const documentRow = page.locator('#documentation-pdf-rows tr').filter({hasText:'Safe Work Method Statement'});
-    await documentRow.getByRole('button').first().click();
+    await documentRow.locator('.documentation-download-button').click();
     const host = page.locator('#swms-root'); await expect(host).toBeVisible();
     await host.getByRole('button',{name:'New SWMS',exact:true}).click();
     await expect(host.getByLabel('Job Reference',{exact:true})).toHaveValue(projectNumber);

@@ -22,7 +22,7 @@ function project() {
     workflow: 'Imported workflow', measurements: 'Imported notes', inputs: { D15: 'Imported product', B15: 234 },
     configuration: { inventory: {}, rates: { imported: { price: 98.76543 } }, catalog: { name: 'Frozen imported pricing' } }, result: { summary: { total: 456 } } },
     fields: [{ cell: 'D15', label: 'Product', type: 'select', options: ['Imported product'], default: 'Imported product' }],
-    project_details: { project_no: 'CF-2000', client: 'Imported client', site_address: '20 Imported Road', contact_name:'', contact_phone:'', contact_email:'', account_id:'' },
+    project_details: { project_no: 'CF-2000', client: 'Imported client', site_address: '20 Imported Road', contact_name:'', contact_phone:'', contact_email:'', account_id:'', contact_id:'' },
     calculators: Object.fromEntries(ids.map(id => [id, { source_sha256: 'matching-source', inputs: { CALCULATOR: { A9: `Imported ${id}` } } }])) };
 }
 
@@ -43,7 +43,7 @@ function harness({ penetration = false } = {}) {
   }
   const byId = id => { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); };
   const windowListeners = {};
-  const context = { document: { getElementById: byId, querySelector: selector => selector.startsWith('dialog[open]') ? [...elements.values()].find(item => item.open || item.getAttribute('aria-busy') === 'true') || null : byId(selector), querySelectorAll: () => [], createElement: element, createTextNode: text => text, body: element(), activeElement: null },
+  const context = { document: { getElementById: byId, querySelector: selector => selector.startsWith('dialog[open]') ? [...elements.values()].find(item => item.open || item.getAttribute('aria-busy') === 'true') || null : byId(selector), querySelectorAll: () => [], createElement: element, createTextNode: text => text, body: element(), activeElement: null, addEventListener() {} },
     window: { addEventListener(name, fn) { (windowListeners[name] ||= []).push(fn); }, scrollTo() {}, location: { origin: 'http://127.0.0.1:8765' } },
     Intl, Number, String, JSON, Object, Set, Map, WeakMap, Array, Promise, Error, AbortController, console,
     URL: { createObjectURL: () => 'blob:project-audit', revokeObjectURL() {} }, setTimeout: () => 1, clearTimeout() {},
@@ -181,7 +181,7 @@ async function penetrationCheck(name, fn) {
     const cert=projectCertificates(h);h.app.state.initialized=true;const signer={name:'Shared signer'},cover={name:'Shared cover'};
     h.context.window.CeasefireCoverSheets={hasPendingOperation:()=>false,fingerprint:()=>JSON.stringify(cover)};
     const creating=h.app.newQuote();await flush();await h.byId('discard-dialog').close('confirm');await creating;
-    assert.equal(cert.state.workspace,'fresh-1');assert.deepEqual(cert.state.fields,{});assert.deepEqual(cert.state.applied[0].details,{project_no:'',client:'',site_address:'',contact_name:'',contact_phone:'',contact_email:'',account_id:''});assert.deepEqual(signer,{name:'Shared signer'});assert.deepEqual(cover,{name:'Shared cover'});assert.equal(h.app.state.projectFile,null);
+    assert.equal(cert.state.workspace,'fresh-1');assert.deepEqual(cert.state.fields,{});assert.deepEqual(cert.state.applied[0].details,{project_no:'',client:'',site_address:'',contact_name:'',contact_phone:'',contact_email:'',account_id:'',contact_id:''});assert.deepEqual(signer,{name:'Shared signer'});assert.deepEqual(cover,{name:'Shared cover'});assert.equal(h.app.state.projectFile,null);
   });
   await check('Failed New-project preparation discards its prepared certificate workspace and keeps current drafts',async h=>{
     const cert=projectCertificates(h);h.app.state.initialized=true;const before=h.snapshot();h.bridgeApi.prepareDefaults=async()=>{throw new Error('Calculator preparation failed');};
@@ -273,7 +273,7 @@ async function penetrationCheck(name, fn) {
     h.app.showView('takeoffs'); assert.equal(h.app.state.currentView,view);
     assert.match(h.byId('app-message').textContent,/not included/);
   });
-  await check('Project controls appear only on Projects without changing any draft', async h => {
+  await check('The redundant project summary card stays hidden without changing any draft', async h => {
     const names = ['home','estimate','calculators','takeoffs','pricing','quotes','help'];
     const views = names.map(name => Object.assign(h.element(), { id: `view-${name}` }));
     const buttons = names.map(name => Object.assign(h.element('button'), { dataset: { view: name } }));
@@ -285,12 +285,12 @@ async function penetrationCheck(name, fn) {
     const before = h.snapshot();
     for (const name of ['quotes',...names.filter(name => name !== 'quotes'),'quotes']) {
       await h.app.showView(name); await flush();
-      assert.equal(h.byId('project-tools').hidden,name !== 'quotes');
+      assert.equal(h.byId('project-tools').hidden,true);
       assert.deepEqual(views.filter(view => !view.hidden).map(view => view.id),[`view-${name}`]);
       assert.deepEqual(buttons.filter(button => button.getAttribute('aria-current') === 'page').map(button => button.dataset.view),[name]);
     }
     h.app.state.takeoffsEnabled = false; h.app.showView('takeoffs');
-    assert.equal(h.app.state.currentView,'quotes'); assert.equal(h.byId('project-tools').hidden,false);
+    assert.equal(h.app.state.currentView,'quotes'); assert.equal(h.byId('project-tools').hidden,true);
     assert.deepEqual(h.snapshot(),before);
   });
   await check('Project files is an icon button with a separate live status and retained file input', async () => {

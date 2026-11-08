@@ -39,3 +39,7 @@
 .cover-sheets-table input[type="file"]{width:100%;min-width:0;max-width:100%;box-sizing:border-box}.cover-sheets-table .helper{margin-block:.65rem 0;overflow-wrap:anywhere}
 .cover-sheet-actions{display:flex;gap:.5rem;flex-wrap:wrap}.cover-sheet-actions .button{min-height:44px;padding:.65rem .8rem}.cover-sheet-actions .icon-only{width:44px;min-width:44px;padding:.6rem}
 @media(max-width:650px){.cover-sheets-kind-col{width:28%}.cover-sheets-file-col{width:45%}.cover-sheets-action-col{width:27%}.cover-sheets-table th,.cover-sheets-table td{padding:.8rem .35rem;font-size:.84rem}.cover-sheet-actions{flex-direction:column;align-items:flex-start}.cover-sheets-table input[type="file"]{font-size:.78rem}}
+
+.certification-signature-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-width:0}
+.certification-signature-row .certification-signature-preview{flex:0 1 200px;width:200px;height:80px;max-width:100%;margin:0;padding:8px}
+.certification-signature-row .certification-signature-actions{display:flex;gap:8px;margin:0;flex:0 0 auto}

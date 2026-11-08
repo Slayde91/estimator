@@ -249,7 +249,7 @@ def _preserve_project_contacts(request, previous):
     """Old browser windows must not silently erase newly stored identity fields."""
     incoming = request.get("estimate", {})
     saved = previous.get("estimate", {})
-    if any(saved.get(key) and key not in incoming for key in ("contact_name", "contact_phone", "contact_email", "account_id")):
+    if any(saved.get(key) and key not in incoming for key in ("contact_name", "contact_phone", "contact_email", "account_id", "contact_id")):
         raise ValidationError("Reload this application before saving so the project's Contact and Account details are retained.")
 
 
@@ -264,7 +264,7 @@ def _metadata(path, info, project, folder, payload):
             "relative_folder": str(Path(relative).parent).replace("\\", "/") if inside else "",
             "title": estimate["title"], "project_no": estimate.get("project_no", ""),
             "client": estimate.get("client", ""), "site_address": estimate.get("site_address", ""),
-            "account_id": estimate.get("account_id", ""),
+            "account_id": estimate.get("account_id", ""), "contact_id": estimate.get("contact_id", ""),
             "source_project_id": project.get("source_project_id") or (project.get("certifications") or {}).get("project_id"),
             "commercial_cards": cards, "quote_cards": [card for card in cards if card['kind'] == 'quote'],
             "clients": project.get("clients", [estimate.get("client", "")]),
@@ -807,10 +807,14 @@ class ProjectLibrary:
         details = validate_quote_details(request["details"])
         # Account directory access happens outside the project lock; lead conversion
         # can hold the directory transaction while creating a project.
-        account_valid = True
+        directory = accounts.list() if details["account_id"] or details["contact_id"] else None
+        account_valid = contact_valid = True
         if details["account_id"]:
-            account = next((row for row in accounts.list()["accounts"] if row["id"] == details["account_id"]), None)
+            account = next((row for row in directory["accounts"] if row["id"] == details["account_id"]), None)
             account_valid = account is not None and company_key(account["company"]) == company_key(details["client"])
+        if details["contact_id"]:
+            contact = next((row for row in directory["contacts"] if row["id"] == details["contact_id"]), None)
+            contact_valid = contact is not None and contact["name"] == details["contact_name"]
         digest = hashlib.sha256(json.dumps(request, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
         with self._lock:
             _, path = self._project_path(request["id"])
@@ -826,6 +830,8 @@ class ProjectLibrary:
             previous = validate_quote_details(summary["estimate"])
             if not account_valid and any(details[key] != previous[key] for key in ("account_id", "client")):
                 raise ValidationError("Choose an existing Account for this Client, or add a new Account.")
+            if not contact_valid and any(details[key] != previous[key] for key in ("contact_id", "contact_name")):
+                raise ValidationError("Choose an existing Contact for this name, or enter the name without a Contact link.")
             if details["project_no"] != previous["project_no"]:
                 raise ValidationError("Project numbers are assigned automatically and cannot be changed here.")
             if not details["account_id"] and details["client"] != previous["client"] and details["client"]:
@@ -1494,7 +1500,8 @@ class ProjectLibrary:
         request = {'project_save_request': lead['id'],
                    'estimate': {'client': lead['company'], 'site_address': lead['site_address'], 'measurements': notes,
                                 'contact_name': lead['name'], 'contact_phone': lead['phone'],
-                                'contact_email': lead['email'], 'account_id': lead.get('account_id') or ''},
+                                'contact_email': lead['email'], 'account_id': lead.get('account_id') or '',
+                                'contact_id': lead.get('contact_id') or ''},
                    'calculators': {key: {'inputs': empty_schedule_inputs(key)} for key in CALCULATOR_IDS}}
         result = self.save_as(request, linked_folder=True)
         return {'project_no': result['file']['project_no'], 'path': result['file']['path']}

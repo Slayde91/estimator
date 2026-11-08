@@ -73,8 +73,10 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     projects.documentation = documentation
     from .commercial_documents import CommercialDocuments
     from .commercial_http import CommercialHTTP
+    from .commercial_rate_defaults import CommercialRateDefaults
     from .commercial_estimates import derive_estimates
     commercial = CommercialDocuments(certification_projects)
+    commercial_rate_defaults = CommercialRateDefaults(store)
     projects.commercial = commercial
     from .saved_commercial import SavedCommercial
     saved_commercial = SavedCommercial(projects)
@@ -318,7 +320,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             commercial_http = CommercialHTTP(commercial,
                 derive=lambda body, include_pdfs=False: derive_estimates(store, body, edition=edition,
                     company=self.company_details(), library=libraries, include_pdfs=include_pdfs),
-                company=self.company_details, saved=saved_commercial, pricing=store.configuration)
+                company=self.company_details, saved=saved_commercial, pricing=store.configuration,
+                rate_defaults=commercial_rate_defaults)
             if commercial_http.dispatch(self, route):
                 return
             if SwmsHTTP(swms, company=self.company_details).dispatch(self, route):

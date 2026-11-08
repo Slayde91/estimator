@@ -354,6 +354,9 @@ dialog .actions{justify-content:flex-end}
 .project-relative-path { overflow-wrap: anywhere; }
 .project-pagination { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1rem; }
 .project-browser{min-width:0}
+.project-browser>.section-heading{margin-bottom:12px}
+.project-browser-back{display:inline-grid;place-items:center;width:42px;height:42px;padding:0;margin:0 0 16px}
+.project-browser-back .button-symbol{font-size:24px;line-height:1}
 .project-browser-breadcrumbs{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:4px 0 18px}
 .project-browser-breadcrumbs button{padding:5px 7px;border:0;background:none;color:var(--accent);font:inherit;font-size:12px;font-weight:650;text-decoration:underline;text-underline-offset:3px}
 .project-browser-breadcrumbs button[aria-current="page"]{color:var(--ink);text-decoration:none;cursor:default}
@@ -492,6 +495,8 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .project-estimate-picker:has(select:focus-visible) input{outline:2px solid var(--accent);outline-offset:2px}
 #project-estimate-new{grid-area:1/1;z-index:2;align-self:center;justify-self:start;margin-inline-start:4px;width:30px;min-width:30px;height:30px;min-height:30px;padding:0}
 #project-estimate-new .button-symbol{font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;width:100%;height:100%}
+.project-add-symbol{display:flex;align-items:center;justify-content:center;width:100%;height:100%;line-height:1}
+.project-add-symbol svg{display:block;width:16px;height:16px;transform:translateY(1px)}
 .kanban-card-details{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:7px 10px;margin:12px 0 0;font-size:11px;line-height:1.5}
 .kanban-card-details dt{font-weight:700}.kanban-card-details dd{margin:0;min-width:0;overflow-wrap:anywhere}
 

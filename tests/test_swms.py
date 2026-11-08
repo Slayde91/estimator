@@ -80,7 +80,8 @@ class SwmsTests(unittest.TestCase):
         self.assertEqual(len(template_options()['activities']), 2)
         self.assertEqual(fields['details']['job_reference'], 'CF-SWMS')
         for key in ['reviewers', 'consultation']:
-            self.assertTrue(all(row['signature'] is None and row['name'] == '' for row in fields[key]))
+            self.assertTrue(all(row['signature'] is None and row['name'] == '' and row['position'] == '' for row in fields[key]))
+        self.assertEqual(fields['details']['project_manager'], '')
         self.assertEqual(fields['signoffs'], [])
         self.assertIsNone(fields['manual_signature'])
         self.assertNotIn('Slayde', json.dumps(fields))
@@ -98,7 +99,7 @@ class SwmsTests(unittest.TestCase):
         with self.assertRaises(SwmsConflict):
             self.service.save(self.workspace, payload)
 
-    def test_people_defaults_persist_across_projects_without_rewriting_saved_statements(self):
+    def test_legacy_people_defaults_remain_stored_but_new_statements_are_blank(self):
         original = self.payload()
         self.service.save(self.workspace, original)
         snapshot = self.service.capture(self.workspace)
@@ -114,7 +115,10 @@ class SwmsTests(unittest.TestCase):
         handler.path = '/api/swms/defaults'
         adapter.dispatch(handler, handler.path)
         self.assertEqual(handler.result[0], 200)
-        self.assertEqual(handler.result[1]['fields']['reviewers'], people)
+        self.assertEqual(handler.result[1]['fields']['reviewers'],
+                         [{'name': '', 'position': '', 'signature': None}] * 2)
+        self.assertEqual(handler.result[1]['fields']['consultation'],
+                         [{'name': '', 'position': '', 'signature': None}] * 2)
         self.assertEqual(handler.result[1]['fields']['details']['job_reference'], 'NEW-PROJECT')
         self.assertEqual(restarted.capture(self.workspace), snapshot)
         restored = self.projects.add(snapshot['project_id'])

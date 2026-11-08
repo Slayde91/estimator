@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const state = { workspace: null, model: null, editor: null, options: null, busy: false, dirty: false, changed: false, revision: 0, search: "", peopleDefaults: null, peopleDesired: {}, peopleSaving: null, peopleTimer: null, peopleError: null, peopleSeedEligible: true };
+  const state = { workspace: null, model: null, editor: null, options: null, busy: false, dirty: false, changed: false, revision: 0, search: "" };
   const copy = value => JSON.parse(JSON.stringify(value));
   const root = () => document.getElementById("swms-root");
   const workspace = () => window.CeasefireCertification?.sessionId?.();
@@ -15,7 +15,6 @@
     const target = root()?.querySelector(".swms-message");
     if (target) {
       target.textContent = text; target.hidden = !text; target.classList.toggle("error", error);
-      if (error && state.peopleError?.status === 409) target.append(document.createTextNode(" "), button("Keep saved defaults", keepPeopleDefaults));
     }
   }
   function changed() { state.changed = true; window.CeasefireProject?.changed?.(); }
@@ -139,8 +138,6 @@
           return false;
         }
       }
-      // Reviewer and consultation defaults are saved independently of this statement.
-      if (peoplePending()) await flushPeopleDefaults();
       if (!current() || state.editor !== editor || state.busy) return false;
       renderList();
       window.CeasefireProject?.changed?.();
@@ -153,7 +150,6 @@
     }
   }
   function renderList() {
-    clearTimeout(state.peopleTimer); state.peopleTimer = null; state.peopleDesired = {}; state.peopleError = null;
     state.editor = null; state.dirty = false;
     const host = shell("SWMS"), bar = element("div", "swms-toolbar");
     const search = element("input"); search.type = "search"; search.value = state.search;
@@ -176,51 +172,12 @@
     const details = window.CeasefireProject?.details?.() || {};
     return request("defaults", { workspace_id: state.workspace, details: { project_no: details.project_no || "", client: details.client || "", site_address: details.site_address || "" } });
   }
-  function queuePeople(key) {
-    if (!["reviewers", "consultation"].includes(key)) return;
-    state.peopleDesired[key] = copy(state.editor.fields[key]);
-    clearTimeout(state.peopleTimer);
-    state.peopleTimer = setTimeout(() => flushPeopleDefaults().catch(error => notice(error.message, true)), 350);
-  }
-  function peoplePending() { return !!state.peopleSaving || !!state.peopleError || !!Object.keys(state.peopleDesired).length; }
-  async function keepPeopleDefaults() {
-    if (state.busy || !state.editor) return;
-    const current = guard(), editor = state.editor; lock(true);
-    try {
-      const result = await defaults();
-      if (!current() || editor !== state.editor) return;
-      clearTimeout(state.peopleTimer); state.peopleTimer = null;
-      state.peopleDefaults = result.people_defaults; state.peopleDesired = {}; state.peopleError = null;
-      state.peopleSeedEligible = false;
-      notice("Saved defaults retained. Your statement edits are unchanged; choose Save to save this statement.");
-    } finally { if (current()) lock(false); }
-  }
-  async function flushPeopleDefaults() {
-    clearTimeout(state.peopleTimer); state.peopleTimer = null;
-    if (state.peopleSaving) return state.peopleSaving;
-    if (state.peopleError?.status === 409) throw state.peopleError;
-    const current = guard();
-    state.peopleSaving = (async () => {
-      while (Object.keys(state.peopleDesired).length) {
-          const key = Object.keys(state.peopleDesired)[0];
-          const rows = copy(state.peopleDesired[key]);
-          const saved = await request("people-defaults", {workspace_id: state.workspace, section:key, rows, expected_version:state.peopleDefaults[key].version});
-          if (!current()) return false;
-          state.peopleDefaults[key] = saved; state.peopleError = null;
-          if (JSON.stringify(state.peopleDesired[key]) === JSON.stringify(rows)) delete state.peopleDesired[key];
-      }
-      return true;
-    })();
-    try { return await state.peopleSaving; }
-    catch (error) { state.peopleError = error; throw error; }
-    finally { state.peopleSaving = null; }
-  }
   async function openNew() {
     if (state.busy) return;
     const current = guard(); lock(true);
     try {
       const result = await defaults(); if (!current()) return;
-      state.options = result.options; state.peopleDefaults = result.people_defaults; state.peopleSeedEligible = true; state.editor = { id: crypto.randomUUID(), version: 0, status: "Draft", fields: result.fields };
+      state.options = result.options; state.editor = { id: crypto.randomUUID(), version: 0, status: "Draft", fields: result.fields };
       state.dirty = true; renderEditor(); window.CeasefireProject?.changed?.();
     } finally { if (current()) lock(false); }
   }
@@ -228,7 +185,7 @@
     if (state.busy) return;
     const current = guard(); lock(true);
     try {
-      const result = await defaults(); if (!current()) return; state.options = result.options; state.peopleDefaults = result.people_defaults; state.peopleSeedEligible = true;
+      const result = await defaults(); if (!current()) return; state.options = result.options;
       state.editor = copy(row); state.dirty = false; renderEditor();
     } finally { if (current()) lock(false); }
   }
@@ -238,14 +195,11 @@
     try { await request("delete", { workspace_id: state.workspace, id: row.id, version: row.version }); if (!current()) return; changed(); if (await load()) renderList(); }
     finally { if (current()) lock(false); }
   }
-  async function save({seedDefaults = false} = {}) {
+  async function save() {
     if (state.busy || !state.editor) return false;
     const current = guard(), editor = state.editor; lock(true);
     try {
-      if (seedDefaults && state.peopleSeedEligible) for (const key of ["reviewers", "consultation"]) {
-        if (state.peopleDefaults?.[key]?.version === 1) queuePeople(key);
-      }
-      if (!await flushPeopleDefaults() || !current() || editor !== state.editor) return false;
+      if (!current() || editor !== state.editor) return false;
       if (!state.dirty && editor.version) return true;
       const saved = await request("save", { workspace_id: state.workspace, id: editor.id, version: editor.version, status: editor.status, fields: editor.fields });
       if (!current() || editor !== state.editor) return false;
@@ -266,7 +220,13 @@
       }
     } finally { if (current()) lock(false); }
   }
-  function signature(value, update, label, removePerson) {
+  async function personalDetails() {
+    const response=await fetch('/api/certifications/defaults',{cache:'no-store'});
+    const saved=await response.json();
+    if(!response.ok || !saved?.fields || ['name','position','qualification','accreditation'].some(key=>typeof saved.fields[key]!=='string')) throw new Error('Personal details could not be loaded. Try again.');
+    return saved.fields;
+  }
+  function signature(value, update, label, removePerson, onSigned) {
     const host = element("div", "swms-signature"), actions = element("div", "swms-signature-actions");
     if (value) {
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -280,15 +240,22 @@
     function setSignature(next) {
       update(next);
       dirty();
-      const replacement = signature(next, update, label, removePerson);
+      const replacement = signature(next, update, label, removePerson, onSigned);
       host.replaceWith(replacement);
       replacement.querySelector("button").focus({preventScroll:true});
     }
     actions.append(iconAction(value ? "Replace signature" : "Draw signature", async () => {
       if (state.busy) return;
       const current = guard(), editor = state.editor;
-      const result = await window.ClassifirePersonalSignature.choose(value, "swms");
-      if (result && current() && editor === state.editor) setSignature(result);
+      lock(true);
+      try {
+        const result = await window.ClassifirePersonalSignature.choose(value, "swms");
+        if (!result || !current() || editor !== state.editor) return;
+        const saved=await personalDetails();
+        if (!current() || editor !== state.editor || onSigned?.(saved) === false) return;
+        setSignature(result); notice("");
+      } catch(error) { if(current() && editor === state.editor)throw error; }
+      finally { if(current() && editor === state.editor)lock(false); }
     }, "signature"));
     if (value) actions.append(iconAction("Clear signature", () => setSignature(null), "clear"));
     if (removePerson) actions.append(iconAction("Remove person", removePerson, "remove"));
@@ -303,14 +270,18 @@
     function render() {
       list.replaceChildren();
       fields[key].forEach((person, index) => {
-        const row = element("div", "swms-person"), grid = element("div", "swms-grid");
+        const row = element("div", "swms-person"), grid = element("div", "swms-grid"), inputs = {};
         Object.keys(person).filter(name => name !== "signature").forEach(name => {
           const title = name[0].toUpperCase() + name.slice(1);
-          const input = control(person[name], value => { person[name] = value; queuePeople(key); }, name === "date" ? "date" : name === "time" ? "time" : "text");
-          grid.append(field(title, input));
+          const input = control(person[name], value => { person[name] = value; }, name === "date" ? "date" : name === "time" ? "time" : "text");
+          inputs[name]=input;grid.append(field(title, input));
         });
-        const removePerson = () => { fields[key].splice(index, 1); dirty(); queuePeople(key); render(); };
-        row.append(grid, signature(person.signature, value => { person.signature = value; queuePeople(key); }, `${heading} ${index + 1}`, removePerson));
+        const removePerson = () => { fields[key].splice(index, 1); dirty(); render(); };
+        row.append(grid, signature(person.signature, value => { person.signature = value; }, `${heading} ${index + 1}`, removePerson, saved=>{
+          if(!fields[key].includes(person))return false;
+          for(const name of ['name','position'])if(inputs[name] && !person[name].trim()) { person[name]=saved[name];inputs[name].value=saved[name]; }
+          return true;
+        }));
         if (key === "signoffs" && person.latitude && person.longitude && Number.isFinite(Number(person.latitude)) && Number.isFinite(Number(person.longitude))) {
           const link = element("a", "button secondary", "View map"); link.href = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(person.latitude)}&mlon=${encodeURIComponent(person.longitude)}#map=17/${encodeURIComponent(person.latitude)}/${encodeURIComponent(person.longitude)}`; link.target = "_blank"; link.rel = "noopener noreferrer"; row.append(link);
         }
@@ -319,7 +290,7 @@
     }
     box.append(list, iconAction("Add person", () => {
       if (fields[key].length >= 100) throw new Error("This section supports up to 100 people.");
-      fields[key].push(key === "signoffs" ? { name: "", company: "", signature: null, date: "", time: "", latitude: "", longitude: "" } : key === "site_signoffs" ? { name: "", signature: null } : { name: "", position: "", signature: null }); dirty(); queuePeople(key); render();
+      fields[key].push(key === "signoffs" ? { name: "", company: "", signature: null, date: "", time: "", latitude: "", longitude: "" } : key === "site_signoffs" ? { name: "", signature: null } : { name: "", position: "", signature: null }); dirty(); render();
     }, "add"));
     if (key === "signoffs") box.append(element("p", "muted", "Record sign-offs here using the signature pad. A location map opens only when you select View map."));
     render(); host.append(box);
@@ -418,17 +389,20 @@
     back.classList.add("icon-only"); back.title = "Back to statements"; back.setAttribute("aria-label", "Back to statements");
     window.CeasefireI18n?.attr(back, "title", "Back to statements"); window.CeasefireI18n?.attr(back, "aria-label", "Back to statements");
     const arrow = element("span", "button-symbol", "←"); arrow.setAttribute("aria-hidden", "true"); back.append(arrow);
-    actions.append(back, button("Save", () => save({seedDefaults:true}), true), downloadButton, element("span", "muted", editor.version ? `Revision ${editor.version}` : "New statement")); host.append(actions);
+    actions.append(back, button("Save", () => save(), true), downloadButton, element("span", "muted", editor.version ? `Revision ${editor.version}` : "New statement")); host.append(actions);
     const identity = element("div", "swms-grid"); identity.append(field("Document title", control(fields.title, value => { fields.title = value; })), field("Status", select(state.model?.statuses || ["Draft", "Review", "Approved", "Archived"], editor.status, value => { editor.status = value; }))); host.append(identity);
-    const details = section("Project Details", true), grid = element("div", "swms-grid");
+    const details = section("Project Details", true), grid = element("div", "swms-grid"), detailInputs = {};
     for (const [key, label] of Object.entries(detailLabels)) {
-      grid.append(field(label, control(fields.details[key], value => { fields.details[key] = value; }, key === "date" ? "date" : "text")));
+      const input=control(fields.details[key], value => { fields.details[key] = value; }, key === "date" ? "date" : "text");
+      detailInputs[key]=input;grid.append(field(label,input));
       if (key === "job_reference") {
         const ref = element("input"); ref.readOnly = true; ref.value = editor.reference || ""; ref.placeholder = "Assigned on first save";
         grid.append(field("SWMS Reference", ref));
       }
     }
-    details.append(grid, element("h3", "", "Project Manager Signature"), signature(fields.manager_signature, value => { fields.manager_signature = value; }, "Project manager")); host.append(details);
+    details.append(grid, element("h3", "", "Project Manager Signature"), signature(fields.manager_signature, value => { fields.manager_signature = value; }, "Project manager", null, saved=>{
+      if(!fields.details.project_manager.trim()){fields.details.project_manager=saved.name;detailInputs.project_manager.value=saved.name;}
+    })); host.append(details);
     const communication = section("Communication and responsibilities"); textFields(communication, fields, ["communication", "toolbox", "compliance"]); host.append(communication);
     people(host, "reviewers", "Person/s responsible for reviewing SWMS"); people(host, "consultation", "This SWMS has been developed in consultation with");
     const qualifications = section("Qualifications, duties and training"); textFields(qualifications, fields, ["qualifications", "duties", "training"]); host.append(qualifications);
@@ -469,7 +443,7 @@
       try { await openNew(); } catch (error) { notice(error.message, true); }
     },
     async completeProjectSnapshot() {
-      if (state.busy || state.dirty || peoplePending()) throw new Error("Save or discard SWMS edits before saving the project.");
+      if (state.busy || state.dirty) throw new Error("Save or discard SWMS edits before saving the project.");
       if (!workspace()) return null;
       const captured = workspace(), capturedContext = context();
       const result = await request(`state?workspace=${encodeURIComponent(captured)}`);
@@ -478,13 +452,12 @@
     },
     async prepareProject(value, workspace_id) { return { value: copy(value || null), workspace_id }; },
     applyProject(prepared) {
-      clearTimeout(state.peopleTimer); state.peopleTimer = null; state.peopleDesired = {}; state.peopleDefaults = null; state.peopleError = null;
       state.workspace = prepared?.workspace_id || null; state.model = null; state.editor = null; state.options = null;
       state.dirty = false; state.changed = false; state.busy = false; state.revision++;
     },
-    projectFingerprint() { return JSON.stringify({ workspace: state.workspace, snapshot: state.model?.snapshot, editor: state.editor, dirty: state.dirty, peopleDesired: state.peopleDesired, peopleError: state.peopleError?.message }); },
-    hasPendingOperation() { return state.busy || state.dirty || peoplePending(); },
-    hasProjectChanges() { return state.changed || state.dirty || peoplePending(); },
+    projectFingerprint() { return JSON.stringify({ workspace: state.workspace, snapshot: state.model?.snapshot, editor: state.editor, dirty: state.dirty }); },
+    hasPendingOperation() { return state.busy || state.dirty; },
+    hasProjectChanges() { return state.changed || state.dirty; },
     markProjectSaved(saved, captured) { if (!captured || JSON.stringify(state.model?.snapshot) === JSON.stringify(captured)) state.changed = false; }
   };
 })();

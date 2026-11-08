@@ -24,7 +24,7 @@ function harness(){
     classList:{values:new Set(),toggle(name,on){if(on)this.values.add(name);else this.values.delete(name);}},
     append(...children){this.children.push(...children);},replaceChildren(...children){this.children=children;},
     setAttribute(name,value){this.attributes[name]=value;},removeAttribute(name){delete this.attributes[name];},
-    addEventListener(name,fn){(this.listeners[name]||=[]).push(fn);},async emit(name,event={}){for(const fn of this.listeners[name]||[])await fn(event);await flush();}};}
+    focus(){this.focused=true;},addEventListener(name,fn){(this.listeners[name]||=[]).push(fn);},async emit(name,event={}){for(const fn of this.listeners[name]||[])await fn(event);await flush();}};}
   const byId=id=>{if(!elements.has(id))elements.set(id,element('div'));return elements.get(id);};
   const response=(value,status=200)=>({ok:status===200,status,json:async()=>copy(value)});
   const fetch=async(path,options={})=>{calls.push({path,options});if(override){const value=await override(path,options);if(value!==undefined)return value;}
@@ -45,8 +45,10 @@ function harness(){
   const descendants=(host,predicate)=>host.children.flatMap(child=>[...(predicate(child)?[child]:[]),...descendants(child,predicate)]);
   return {api:window.CeasefireDocumentation,window,calls,adapters,models,byId,response,events,
     override:fn=>{override=fn;},adapterOverride:fn=>{adapterOverride=fn;},scope:n=>{selected=n;},changed:()=>changed,
-    links:()=>['pdf','xlsx'].flatMap(fmt=>descendants(byId('documentation-'+fmt+'-rows'),e=>e.tagName==='A')),
-    buttons:()=>['pdf','xlsx'].flatMap(fmt=>descendants(byId('documentation-'+fmt+'-rows'),e=>e.tagName==='BUTTON')),
+    links:()=>descendants(byId('documentation-revisions-list'),e=>e.tagName==='A'),
+    tableLinks:()=>['pdf','xlsx'].flatMap(fmt=>descendants(byId('documentation-'+fmt+'-rows'),e=>e.tagName==='A')),
+    buttons:()=>['pdf','xlsx'].flatMap(fmt=>descendants(byId('documentation-'+fmt+'-rows'),e=>e.tagName==='BUTTON'&&!!e.dataset.documentKind)),
+    revisions:kind=>['pdf','xlsx'].flatMap(fmt=>descendants(byId('documentation-'+fmt+'-rows'),e=>e.tagName==='BUTTON'&&e.dataset.revisionsKind===kind))[0],
     select:()=>descendants(byId('documentation-xlsx-rows'),e=>e.tagName==='SELECT')[0],
     adopt:n=>{selected=n;window.CeasefireDocumentation.applyProject({scope:{workspace_id:token(n),project_id:project(n)},model:copy(models.get(token(n)))});}};
 }
@@ -75,9 +77,10 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const rendered=h.byId('documentation-pdf-rows').children;
     assert.deepEqual(rendered.filter(row=>row.children[0].tagName==='TH').map(row=>row.children[0].children[0].textContent),['Schedules','Product summaries','Other documents']);
     assert.deepEqual(rendered.filter(row=>row.dataset.documentKind).map(row=>row.dataset.documentKind),['estimate.summary.pdf','project.full_schedule.pdf','firestopping.schedule.pdf','calculator.legacy.schedule.pdf','calculator.ductwork.product_summary.pdf','project.full_product_summary.pdf','certification']);
-    assert.deepEqual(h.links().map(link=>link.href),[legacy.url]);assert.equal(h.buttons()[0].attributes['aria-label'],'Download Breakdown');
+    assert.deepEqual(h.links(),[]);assert.deepEqual(h.tableLinks(),[]);
+    await h.revisions(legacy.kind).emit('click');assert.deepEqual(h.links().map(link=>link.href),[legacy.url]);assert.equal(h.buttons()[0].attributes['aria-label'],'Download Breakdown');
     const first=rendered[0];assert.equal(first.children.length,3);assert.equal(first.children[0].textContent,'Breakdown');
-    assert.equal(first.children[1].children[0].textContent,'No revisions generated in this project.');
+    assert.equal(first.children[1].children[0].textContent,'View Revisions (0)');
     assert.equal(first.children[2].className,'documentation-action');
     assert.equal(h.buttons()[0].children[0].textContent,'⇩');
     assert.ok(rendered.filter(row=>row.children[0].tagName==='TH').every(row=>row.children[0].colSpan===5));
@@ -88,7 +91,8 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   await check('Catalog separates PDF and XLSX and displays exact project-scoped immutable revision links',async h=>{
     h.models.set(token(1),model(1,[item(1),item(2,1,{kind:'calculator.ductwork.register.xlsx',media_type:XLSX,filename:'Ductwork.xlsx'})]));
     await h.api.open();assert.equal(h.byId('documentation-pdf-rows').children.length,1);assert.equal(h.byId('documentation-xlsx-rows').children.length,3);
-    assert.deepEqual(h.links().map(link=>link.href),[item(1).url,item(2).url]);assert.ok(h.links().every(link=>link.target==='_blank'&&link.rel==='noopener'));
+    assert.deepEqual(h.tableLinks(),[]);await h.revisions('estimate.summary.pdf').emit('click');assert.deepEqual(h.links().map(link=>link.href),[item(1).url]);
+    await h.revisions('calculator.ductwork.register.xlsx').emit('click');assert.deepEqual(h.links().map(link=>link.href),[item(2).url]);assert.ok(h.links().every(link=>link.target==='_blank'&&link.rel==='noopener'));
     assert.equal(h.api.hasProjectChanges(),false);assert.equal(h.api.hasPendingOperation(),false);
   });
   await check('Removed PDF rows stay absent with saved revisions while XLSX choices and project history survive',async h=>{
@@ -134,7 +138,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     await h.api.open();const older=deferred(),newer=deferred();let count=0;
     h.override(path=>path==='/api/documentation?workspace='+token(1)?(++count===1?older.promise:newer.promise):undefined);
     const first=h.api.open();await flush();const second=h.api.open();await flush();newer.resolve(h.response(model(1,[item(2)])));await second;
-    older.resolve(h.response(model(1,[item(1)])));await first;assert.deepEqual(h.links().map(link=>link.href),[item(2).url]);assert.equal(h.api.hasProjectChanges(),true);
+    older.resolve(h.response(model(1,[item(1)])));await first;await h.revisions('estimate.summary.pdf').emit('click');assert.deepEqual(h.links().map(link=>link.href),[item(2).url]);assert.equal(h.api.hasProjectChanges(),true);
   });
   await check('Only actual supported export paths acquire project recording headers',async h=>{
     for(const path of ['/api/calculars/invalid','/api/quote-report?foreign=1','https://foreign.invalid/api/quote-report','/api/documentation/catalog','/api/calculators/unknown/report.pdf','/api/takeoffs/sessions/a/export/csv']){
@@ -184,8 +188,25 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   });
   await check('Reviewing old revisions only renders frozen links and performs no generation or mutation requests',async h=>{
     h.models.set(token(1),model(1,[item(1)]));await h.api.open();const before=h.api.projectFingerprint();await h.api.open();
-    const link=h.links()[0];assert.equal(link.href,item(1).url);assert.equal(Object.keys(link.listeners).length,0);
+    await h.revisions('estimate.summary.pdf').emit('click');const link=h.links()[0];assert.equal(link.href,item(1).url);assert.equal(Object.keys(link.listeners).length,0);
     assert.equal(h.adapters.length,0);assert.ok(h.calls.every(call=>!call.options.method||call.options.method==='GET'));assert.equal(h.api.projectFingerprint(),before);
+  });
+  await check('Revision counts use actual stored documents, update in the open pane, and reset on project replacement',async h=>{
+    h.models.set(token(1),model(1,[item(3),item(9)]));await h.api.open();
+    assert.equal(h.revisions('estimate.summary.pdf').textContent,'View Revisions (2)');
+    const stale=h.revisions('estimate.summary.pdf');await stale.emit('click');
+    assert.equal(h.byId('documentation-revisions-pane').hidden,false);assert.equal(h.links().length,2);
+    assert.equal(h.revisions('estimate.summary.pdf').attributes['aria-expanded'],'true');
+    assert.equal(h.byId('documentation-revisions-heading').focused,true);
+    h.models.set(token(1),model(1,[item(3),item(9),item(12)]));await h.api.open();
+    assert.equal(h.revisions('estimate.summary.pdf').textContent,'View Revisions (3)');assert.equal(h.links().length,3);
+    await h.byId('documentation-revisions-close').emit('click');assert.equal(h.byId('documentation-revisions-pane').hidden,true);
+    assert.equal(h.revisions('estimate.summary.pdf').focused,true);assert.deepEqual(h.links(),[]);
+    await h.revisions('calculator.ductwork.register.xlsx').emit('click');assert.equal(h.links().length,0);
+    assert.match(h.byId('documentation-revisions-list').children[0].textContent,/No revisions/);
+    h.adopt(2);assert.equal(h.byId('documentation-revisions-pane').hidden,true);await stale.emit('click');
+    assert.equal(h.byId('documentation-revisions-pane').hidden,true);assert.deepEqual(h.links(),[]);
+    assert.equal(h.revisions('estimate.summary.pdf').textContent,'View Revisions (0)');
   });
   await check('Documentation uses the selected existing adapter and retains explicit source preparation',async h=>{
     await h.api.open();h.adapterOverride(()=>({selectionRequired:true}));const select=h.select();select.value='library';await select.emit('change');

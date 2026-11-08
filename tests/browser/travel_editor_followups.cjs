@@ -51,7 +51,20 @@ async function mapsSettingsHidden(){await expect(page.locator('#view-settings [a
  await page.screenshot({path:path.join(output,'firestopping-first-row.png')});
  await page.locator('nav [data-view="settings"]').click();await idle();
  await mapsSettingsHidden();
- for(const width of [1384,1020,390]){await page.setViewportSize({width,height:900});const cards=await page.locator('.settings-preferences-grid > section').all(),a=await cards[0].boundingBox(),b=await cards[1].boundingBox();if(width>=800){assert.ok(Math.abs(a.y-b.y)<1);assert.ok(a.x+a.width<=b.x);}else assert.ok(a.y+a.height<=b.y);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)<=1);await page.screenshot({path:path.join(output,`settings-${width}.png`)});}
+ for(const width of [1384,1020,390]){
+  await page.setViewportSize({width,height:900});
+  const rows=await page.locator('.settings-preferences-grid > section').evaluateAll(sections=>sections.map(section=>{
+   const box=element=>{const r=element.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,height:r.height};};
+   return{row:box(section),heading:box(section.querySelector('h3')),control:box(section.querySelector('button:not([hidden])'))};
+  }));
+  assert.equal(rows.length,2);assert.ok(rows[0].row.bottom<=rows[1].row.y,'Settings preferences remain separate heading/control rows');
+  if(width>600){
+   assert.ok(Math.abs(rows[0].heading.x-rows[1].heading.x)<1);
+   assert.ok(Math.abs(rows[0].control.x-rows[1].control.x)<1);
+   for(const {heading,control} of rows){assert.ok(heading.right<=control.x);assert.ok(Math.abs(heading.y+heading.height/2-control.y-control.height/2)<1);}
+  }else for(const {heading,control} of rows)assert.ok(heading.bottom<=control.y,'Mobile settings labels stack above their controls');
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)<=1);await page.screenshot({path:path.join(output,`settings-${width}.png`)});
+ }
  await page.setViewportSize({width:1384,height:900});
  await page.getByRole('button',{name:'Estimates',exact:true}).click();await idle();await fillProjectDetails(page,{'site-address':'Fixture Project Road, Sydney NSW'});
  await expect(page.locator('#project-travel')).toHaveCount(0);

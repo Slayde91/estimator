@@ -1,0 +1,212 @@
+{
+  "Search contacts": [
+    "搜索联系人",
+    "संपर्क खोजें",
+    "Buscar contactos",
+    "البحث عن جهات الاتصال",
+    "ค้นหาผู้ติดต่อ"
+  ],
+  "Loading Contacts…": [
+    "正在加载联系人…",
+    "संपर्क लोड हो रहे हैं…",
+    "Cargando contactos…",
+    "جارٍ تحميل جهات الاتصال…",
+    "กำลังโหลดผู้ติดต่อ…"
+  ],
+  "No matching Contacts.": [
+    "没有匹配的联系人。",
+    "कोई मेल खाता संपर्क नहीं।",
+    "No hay contactos coincidentes.",
+    "لا توجد جهات اتصال مطابقة.",
+    "ไม่พบผู้ติดต่อที่ตรงกัน"
+  ],
+  "Choose a valid Contact.": [
+    "请选择有效的联系人。",
+    "एक मान्य संपर्क चुनें।",
+    "Seleccione un contacto válido.",
+    "اختر جهة اتصال صالحة.",
+    "เลือกผู้ติดต่อที่ถูกต้อง"
+  ],
+  "Choose an existing Contact for this name, or enter the name without a Contact link.": [
+    "请选择与此姓名对应的现有联系人，或输入不关联联系人的姓名。",
+    "इस नाम के लिए मौजूदा संपर्क चुनें, या संपर्क से लिंक किए बिना नाम दर्ज करें।",
+    "Seleccione un contacto existente para este nombre o introduzca el nombre sin vincular un contacto.",
+    "اختر جهة اتصال موجودة لهذا الاسم، أو أدخل الاسم دون ربطه بجهة اتصال.",
+    "เลือกผู้ติดต่อที่มีอยู่สำหรับชื่อนี้ หรือกรอกชื่อโดยไม่เชื่อมโยงผู้ติดต่อ"
+  ],
+  "Rate defaults could not be confirmed.": [
+    "无法确认默认费率。",
+    "डिफ़ॉल्ट दरों की पुष्टि नहीं हो सकी।",
+    "No se pudieron confirmar las tarifas predeterminadas.",
+    "تعذر تأكيد الأسعار الافتراضية.",
+    "ไม่สามารถยืนยันอัตราเริ่มต้นได้"
+  ],
+  "Rate defaults changed while loading. Retry your changes.": [
+    "默认费率在加载时发生了变化。请重试您的更改。",
+    "लोड करते समय डिफ़ॉल्ट दरें बदल गईं। अपने बदलाव फिर से आज़माएँ।",
+    "Las tarifas predeterminadas cambiaron durante la carga. Vuelva a intentar sus cambios.",
+    "تغيرت الأسعار الافتراضية أثناء التحميل. أعد محاولة تطبيق تغييراتك.",
+    "อัตราเริ่มต้นเปลี่ยนไประหว่างโหลด ลองบันทึกการเปลี่ยนแปลงอีกครั้ง"
+  ],
+  "Enter a rate between zero and one billion with at most six decimal places.": [
+    "请输入零到十亿之间且小数位不超过六位的费率。",
+    "शून्य से एक अरब के बीच अधिकतम छह दशमलव स्थानों वाली दर दर्ज करें।",
+    "Introduzca una tarifa entre cero y mil millones con un máximo de seis decimales.",
+    "أدخل سعرًا بين صفر ومليار بما لا يتجاوز ست منازل عشرية.",
+    "กรอกอัตราตั้งแต่ศูนย์ถึงหนึ่งพันล้าน โดยมีทศนิยมไม่เกินหกตำแหน่ง"
+  ],
+  "Rate defaults changed in another window. Retry to use your entered rates for new documents.": [
+    "默认费率已在另一个窗口中更改。请重试，以便新文档使用您输入的费率。",
+    "दूसरी विंडो में डिफ़ॉल्ट दरें बदल गईं। नए दस्तावेज़ों में अपनी दर्ज की गई दरें उपयोग करने के लिए फिर कोशिश करें।",
+    "Las tarifas predeterminadas cambiaron en otra ventana. Vuelva a intentarlo para usar las tarifas introducidas en documentos nuevos.",
+    "تغيرت الأسعار الافتراضية في نافذة أخرى. أعد المحاولة لاستخدام الأسعار التي أدخلتها للمستندات الجديدة.",
+    "อัตราเริ่มต้นเปลี่ยนไปในหน้าต่างอื่น ลองอีกครั้งเพื่อใช้อัตราที่คุณกรอกกับเอกสารใหม่"
+  ],
+  "Rate defaults could not be saved. Your values are kept; retry to remember them.": [
+    "无法保存默认费率。您输入的值已保留；请重试以保存它们。",
+    "डिफ़ॉल्ट दरें सहेजी नहीं जा सकीं। आपकी दर्ज की गई दरें रखी गई हैं; उन्हें याद रखने के लिए फिर कोशिश करें।",
+    "No se pudieron guardar las tarifas predeterminadas. Sus valores se conservan; vuelva a intentarlo para recordarlos.",
+    "تعذر حفظ الأسعار الافتراضية. تم الاحتفاظ بقيمك؛ أعد المحاولة لحفظها للاستخدام لاحقًا.",
+    "ไม่สามารถบันทึกอัตราเริ่มต้นได้ ค่าของคุณยังคงอยู่ ลองอีกครั้งเพื่อจดจำค่าเหล่านี้"
+  ],
+  "Remembering rates…": [
+    "正在保存费率…",
+    "दरें याद रखी जा रही हैं…",
+    "Recordando tarifas…",
+    "جارٍ حفظ الأسعار للاستخدام لاحقًا…",
+    "กำลังจดจำอัตรา…"
+  ],
+  "Rates remembered for new documents.": [
+    "费率已保存，供新文档使用。",
+    "नए दस्तावेज़ों के लिए दरें याद रखी गईं।",
+    "Tarifas recordadas para documentos nuevos.",
+    "تم حفظ الأسعار للمستندات الجديدة.",
+    "จดจำอัตราสำหรับเอกสารใหม่แล้ว"
+  ],
+  "Rate changes are remembered for new documents.": [
+    "费率更改会被保存，供新文档使用。",
+    "दर में बदलाव नए दस्तावेज़ों के लिए याद रखे जाते हैं।",
+    "Los cambios de tarifas se recuerdan para documentos nuevos.",
+    "تُحفظ تغييرات الأسعار للمستندات الجديدة.",
+    "การเปลี่ยนแปลงอัตราจะถูกจดจำสำหรับเอกสารใหม่"
+  ],
+  "Retry remembering rates": [
+    "重试保存费率",
+    "दरें याद रखने का फिर प्रयास करें",
+    "Reintentar recordar tarifas",
+    "إعادة محاولة حفظ الأسعار",
+    "ลองจดจำอัตราอีกครั้ง"
+  ],
+  "Include supported Schedule of Rates amounts only.": [
+    "请仅包含受支持的费率表金额。",
+    "केवल समर्थित दर-सूची की राशियाँ शामिल करें।",
+    "Incluya solo importes admitidos de la tabla de tarifas.",
+    "أدرج مبالغ جدول الأسعار المدعومة فقط.",
+    "ใส่เฉพาะจำนวนเงินในตารางอัตราที่รองรับเท่านั้น"
+  ],
+  "Enter a supported Schedule of Rates amount.": [
+    "请输入受支持的费率表金额。",
+    "दर-सूची की एक समर्थित राशि दर्ज करें।",
+    "Introduzca un importe admitido de la tabla de tarifas.",
+    "أدخل مبلغًا مدعومًا في جدول الأسعار.",
+    "กรอกจำนวนเงินในตารางอัตราที่รองรับ"
+  ],
+  "Enter rates with at most six decimal places.": [
+    "请输入小数位不超过六位的费率。",
+    "अधिकतम छह दशमलव स्थानों वाली दरें दर्ज करें।",
+    "Introduzca tarifas con un máximo de seis decimales.",
+    "أدخل الأسعار بما لا يتجاوز ست منازل عشرية.",
+    "กรอกอัตราที่มีทศนิยมไม่เกินหกตำแหน่ง"
+  ],
+  "Saved rate defaults could not be read. The stored values were retained.": [
+    "无法读取已保存的默认费率。存储的值已保留。",
+    "सहेजी गई डिफ़ॉल्ट दरें पढ़ी नहीं जा सकीं। संग्रहित मान रखे गए हैं।",
+    "No se pudieron leer las tarifas predeterminadas guardadas. Se conservaron los valores almacenados.",
+    "تعذرت قراءة الأسعار الافتراضية المحفوظة. تم الاحتفاظ بالقيم المخزنة.",
+    "ไม่สามารถอ่านอัตราเริ่มต้นที่บันทึกไว้ได้ ค่าที่จัดเก็บไว้ยังคงอยู่"
+  ],
+  "Include the rate changes and their current version only.": [
+    "请仅包含费率更改及其当前版本。",
+    "केवल दरों में बदलाव और उनका वर्तमान संस्करण शामिल करें।",
+    "Incluya solo los cambios de tarifas y su versión actual.",
+    "أدرج تغييرات الأسعار وإصدارها الحالي فقط.",
+    "ใส่เฉพาะการเปลี่ยนแปลงอัตราและเวอร์ชันปัจจุบันเท่านั้น"
+  ],
+  "Rate defaults changed in another window. Review your entries and retry.": [
+    "默认费率已在另一个窗口中更改。请检查您输入的值后重试。",
+    "दूसरी विंडो में डिफ़ॉल्ट दरें बदल गईं। अपनी प्रविष्टियाँ जाँचें और फिर कोशिश करें।",
+    "Las tarifas predeterminadas cambiaron en otra ventana. Revise sus datos y vuelva a intentarlo.",
+    "تغيرت الأسعار الافتراضية في نافذة أخرى. راجع إدخالاتك وأعد المحاولة.",
+    "อัตราเริ่มต้นเปลี่ยนไปในหน้าต่างอื่น ตรวจสอบค่าที่กรอกแล้วลองอีกครั้ง"
+  ],
+  "Rate defaults do not accept document or project filters.": [
+    "默认费率不接受文档或项目筛选条件。",
+    "डिफ़ॉल्ट दरों में दस्तावेज़ या प्रोजेक्ट फ़िल्टर स्वीकार नहीं किए जाते।",
+    "Las tarifas predeterminadas no admiten filtros de documento ni de proyecto.",
+    "لا تقبل الأسعار الافتراضية عوامل تصفية المستندات أو المشاريع.",
+    "อัตราเริ่มต้นไม่รองรับตัวกรองเอกสารหรือโครงการ"
+  ],
+  "Open rate defaults in the CLASSIFIRE application.": [
+    "请在 CLASSIFIRE 应用中打开默认费率。",
+    "CLASSIFIRE ऐप्लिकेशन में डिफ़ॉल्ट दरें खोलें।",
+    "Abra las tarifas predeterminadas en la aplicación CLASSIFIRE.",
+    "افتح الأسعار الافتراضية في تطبيق CLASSIFIRE.",
+    "เปิดอัตราเริ่มต้นในแอปพลิเคชัน CLASSIFIRE"
+  ],
+  "Use GET or POST for rate defaults.": [
+    "请使用 GET 或 POST 访问默认费率。",
+    "डिफ़ॉल्ट दरों के लिए GET या POST का उपयोग करें।",
+    "Use GET o POST para las tarifas predeterminadas.",
+    "استخدم GET أو POST للأسعار الافتراضية.",
+    "ใช้ GET หรือ POST สำหรับอัตราเริ่มต้น"
+  ],
+  "Delete signer details": [
+    "删除签署人详细信息",
+    "हस्ताक्षरकर्ता का विवरण हटाएँ",
+    "Eliminar datos del firmante",
+    "حذف بيانات الموقّع",
+    "ลบรายละเอียดผู้ลงนาม"
+  ],
+  "Personal details could not be loaded. Try again.": [
+    "无法加载个人详细信息。请重试。",
+    "व्यक्तिगत विवरण लोड नहीं हो सके। फिर कोशिश करें।",
+    "No se pudieron cargar los datos personales. Vuelva a intentarlo.",
+    "تعذر تحميل البيانات الشخصية. حاول مرة أخرى.",
+    "ไม่สามารถโหลดรายละเอียดส่วนบุคคลได้ ลองอีกครั้ง"
+  ],
+  "Clear signature": [
+    "清除签名",
+    "हस्ताक्षर साफ़ करें",
+    "Borrar firma",
+    "مسح التوقيع",
+    "ล้างลายเซ็น"
+  ],
+  "Insert signature": [
+    "插入签名",
+    "हस्ताक्षर डालें",
+    "Insertar firma",
+    "إدراج التوقيع",
+    "แทรกลายเซ็น"
+  ],
+  "View Revisions ({0})": [
+    "查看修订版本（{0}）",
+    "संशोधन देखें ({0})",
+    "Ver revisiones ({0})",
+    "عرض المراجعات ({0})",
+    "ดูฉบับแก้ไข ({0})"
+  ],
+  "Revision history": [
+    "修订历史",
+    "संशोधन इतिहास",
+    "Historial de revisiones",
+    "سجل المراجعات",
+    "ประวัติการแก้ไข"
+  ],
+  "Close revision history": [
+    "关闭修订历史",
+    "संशोधन इतिहास बंद करें",
+    "Cerrar historial de revisiones",
+    "إغلاق سجل المراجعات",
+    "ปิดประวัติการแก้ไข"
+  ]
+}

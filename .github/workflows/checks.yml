@@ -129,6 +129,7 @@ jobs:
       - run: node tests/browser/contacts.cjs
       - run: node tests/browser/account_links.cjs
       - run: node tests/browser/project_details_pane.cjs
+      - run: node tests/browser/project_contact_picker.cjs
       - run: node tests/browser/settings_rows.cjs
       - run: node tests/browser/browser_review.cjs
       - run: node tests/browser/scheduler.cjs
@@ -138,10 +139,12 @@ jobs:
       - run: node tests/browser/project_estimates.cjs
       - run: node tests/browser/project_details.cjs
       - run: node tests/browser/commercial_documents.cjs
+      - run: node tests/browser/commercial_rate_defaults.cjs
       - run: node tests/browser/commercial_unfiled.cjs
       - run: node tests/browser/commercial_scope_preview.cjs
       - run: node tests/browser/commercial_estimate_performance.cjs
       - run: node tests/browser/swms.cjs
+      - run: node tests/browser/swms_people_defaults.cjs
       - run: node tests/browser/project_documentation.cjs
       - run: node tests/browser/pricing_manufacturers.cjs
       - run: node tests/browser/certification_defaults.cjs

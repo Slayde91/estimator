@@ -20,6 +20,7 @@ from estimator.project_file import (
 )
 from estimator.server import create_server
 from estimator.storage import Store
+from estimator.quote_details import validate_quote_details
 from estimator.workbook_calculators import source_model
 
 
@@ -82,7 +83,7 @@ class ProjectFileTests(unittest.TestCase):
         loaded = self.load(payload)
         self.assertEqual(stored_rows(self.sender), before_sender)
         self.assertEqual(stored_rows(self.receiver), before_receiver)
-        self.assertEqual(loaded["project_details"], {"project_no": "CF-1000", "client": "Client & Co", "site_address": "1 Main Street"})
+        self.assertEqual(loaded["project_details"], validate_quote_details({"project_no": "CF-1000", "client": "Client & Co", "site_address": "1 Main Street"}))
         self.assertIsNone(loaded["estimate"]["id"])
         self.assertEqual(loaded["estimate"]["configuration"]["rates"][rate]["price"], 876.5432109876543)
         self.assertEqual(loaded["estimate"]["result"], self.sender.prepare_quote(estimate)["result"])
@@ -503,7 +504,7 @@ class ProjectFileApiTests(unittest.TestCase):
             for identity in CALCULATOR_IDS:
                 with self.subTest(action=action, identity=identity), patch(f"estimator.calculator_report.{builder}", return_value=b"%PDF-test") as build:
                     self.assertEqual(self.request(f"/api/calculators/{identity}/{action}", {"inputs": {}, "project_details": details})[0], 200)
-                    self.assertEqual(build.call_args.kwargs["project_details"], {**details, "project_no": "P-1"})
+                    self.assertEqual(build.call_args.kwargs["project_details"], validate_quote_details({**details, "project_no": "P-1"}))
                     for invalid in ({"client": "x" * 201}, {"client": "x\ny"}, {"fake": "value"}, []):
                         self.assertEqual(self.request(f"/api/calculators/{identity}/{action}", {"project_details": invalid})[0], 400)
 

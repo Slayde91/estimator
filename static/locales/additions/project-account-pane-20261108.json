@@ -1,0 +1,262 @@
+{
+  "ABN/ACN": [
+    "ABN/ACN",
+    "ABN/ACN",
+    "ABN/ACN"
+  ],
+  "Linked records": [
+    "연결된 기록",
+    "Mga naka-link na tala",
+    "Bản ghi đã liên kết"
+  ],
+  "Loading linked records…": [
+    "연결된 기록 불러오는 중…",
+    "Nilo-load ang mga naka-link na tala…",
+    "Đang tải bản ghi đã liên kết…"
+  ],
+  "Find records to link": [
+    "연결할 기록 찾기",
+    "Maghanap ng mga talang ili-link",
+    "Tìm bản ghi để liên kết"
+  ],
+  "Contact, project or document name…": [
+    "연락처, 프로젝트 또는 문서 이름…",
+    "Pangalan ng contact, proyekto o dokumento…",
+    "Tên người liên hệ, dự án hoặc tài liệu…"
+  ],
+  "Refresh linked records": [
+    "연결된 기록 새로 고침",
+    "I-refresh ang mga naka-link na tala",
+    "Làm mới bản ghi đã liên kết"
+  ],
+  "{0} ({1})": [
+    "{0} ({1})",
+    "{0} ({1})",
+    "{0} ({1})"
+  ],
+  "Link {0}": [
+    "{0} 연결",
+    "I-link ang {0}",
+    "Liên kết {0}"
+  ],
+  "Linked through this account's saved project.": [
+    "이 계정의 저장된 프로젝트를 통해 연결되었습니다.",
+    "Naka-link sa pamamagitan ng naka-save na proyekto ng account na ito.",
+    "Được liên kết qua dự án đã lưu của tài khoản này."
+  ],
+  "Unavailable saved record. Clear the selection to remove this link.": [
+    "저장된 기록을 사용할 수 없습니다. 선택을 해제하면 연결이 제거됩니다.",
+    "Hindi available ang naka-save na tala. Alisin ang pagkakapili para alisin ang link na ito.",
+    "Bản ghi đã lưu không khả dụng. Bỏ chọn để xóa liên kết này."
+  ],
+  "Saving will move this contact from {0}.": [
+    "저장하면 이 연락처가 {0}에서 이 계정으로 이동합니다.",
+    "Ililipat ang contact na ito mula sa {0} kapag nag-save.",
+    "Khi lưu, người liên hệ này sẽ được chuyển từ {0}."
+  ],
+  "Currently linked to {0}.": [
+    "현재 {0}에 연결되어 있습니다.",
+    "Kasalukuyang naka-link sa {0}.",
+    "Hiện được liên kết với {0}."
+  ],
+  "No records available to link.": [
+    "연결할 수 있는 기록이 없습니다.",
+    "Walang available na talang ili-link.",
+    "Không có bản ghi khả dụng để liên kết."
+  ],
+  "Showing the first 100 records. Search to find another record.": [
+    "처음 100개 기록을 표시합니다. 다른 기록은 검색하세요.",
+    "Ipinapakita ang unang 100 tala. Maghanap para makita ang ibang tala.",
+    "Đang hiển thị 100 bản ghi đầu tiên. Tìm kiếm để tìm bản ghi khác."
+  ],
+  "Unavailable project records ({0})": [
+    "사용할 수 없는 프로젝트 기록 ({0})",
+    "Mga hindi available na tala ng proyekto ({0})",
+    "Bản ghi dự án không khả dụng ({0})"
+  ],
+  "Some project records are unavailable. Current links are retained.": [
+    "일부 프로젝트 기록을 사용할 수 없습니다. 현재 연결은 유지됩니다.",
+    "Hindi available ang ilang tala ng proyekto. Pinananatili ang kasalukuyang mga link.",
+    "Một số bản ghi dự án không khả dụng. Các liên kết hiện tại được giữ lại."
+  ],
+  "Project records are still loading. Refresh to list more records.": [
+    "프로젝트 기록을 불러오는 중입니다. 더 보려면 새로 고침하세요.",
+    "Nilo-load pa ang mga tala ng proyekto. I-refresh para makita ang higit pang tala.",
+    "Bản ghi dự án vẫn đang tải. Làm mới để xem thêm bản ghi."
+  ],
+  "Search by name to find more records. Current links are retained.": [
+    "이름으로 검색하여 더 많은 기록을 찾으세요. 현재 연결은 유지됩니다.",
+    "Maghanap ayon sa pangalan para makita ang higit pang tala. Pinananatili ang kasalukuyang mga link.",
+    "Tìm theo tên để tìm thêm bản ghi. Các liên kết hiện tại được giữ lại."
+  ],
+  "Select existing records to link to this account. Project links do not change the project details.": [
+    "이 계정에 연결할 기존 기록을 선택하세요. 프로젝트 연결은 프로젝트 세부 정보를 변경하지 않습니다.",
+    "Pumili ng mga kasalukuyang tala na ili-link sa account na ito. Hindi binabago ng mga link ng proyekto ang detalye nito.",
+    "Chọn bản ghi hiện có để liên kết với tài khoản này. Liên kết dự án không thay đổi chi tiết dự án."
+  ],
+  "Current project details": [
+    "현재 프로젝트 세부 정보",
+    "Mga detalye ng kasalukuyang proyekto",
+    "Chi tiết dự án hiện tại"
+  ],
+  "Close project details": [
+    "프로젝트 세부 정보 닫기",
+    "Isara ang mga detalye ng proyekto",
+    "Đóng chi tiết dự án"
+  ],
+  "Assigned when saved": [
+    "저장 시 지정됨",
+    "Itatalaga kapag na-save",
+    "Được gán khi lưu"
+  ],
+  "New Account": [
+    "새 계정",
+    "Bagong Account",
+    "Tài khoản mới"
+  ],
+  "Edit Account": [
+    "계정 편집",
+    "I-edit ang Account",
+    "Sửa tài khoản"
+  ],
+  "Account Information": [
+    "계정 정보",
+    "Impormasyon ng Account",
+    "Thông tin tài khoản"
+  ],
+  "Search Accounts": [
+    "계정 검색",
+    "Maghanap ng mga Account",
+    "Tìm tài khoản"
+  ],
+  "Contact name": [
+    "연락처 이름",
+    "Pangalan ng contact",
+    "Tên người liên hệ"
+  ],
+  "Contact phone": [
+    "연락처 전화번호",
+    "Telepono ng contact",
+    "Điện thoại người liên hệ"
+  ],
+  "Contact email": [
+    "연락처 이메일",
+    "Email ng contact",
+    "Email người liên hệ"
+  ],
+  "Save project details": [
+    "프로젝트 세부 정보 저장",
+    "I-save ang mga detalye ng proyekto",
+    "Lưu chi tiết dự án"
+  ],
+  "Project details for {0}": [
+    "{0}의 프로젝트 세부 정보",
+    "Mga detalye ng proyekto para sa {0}",
+    "Chi tiết dự án cho {0}"
+  ],
+  "Contact": [
+    "연락처",
+    "Contact",
+    "Người liên hệ"
+  ],
+  "WO No.": [
+    "작업 지시서 번호",
+    "Blg. ng WO",
+    "Số lệnh công việc"
+  ],
+  "Quote No.": [
+    "견적 번호",
+    "Blg. ng Quote",
+    "Số báo giá"
+  ],
+  "PO No.": [
+    "구매 주문 번호",
+    "Blg. ng PO",
+    "Số đơn mua hàng"
+  ],
+  "Updated": [
+    "업데이트됨",
+    "Na-update",
+    "Đã cập nhật"
+  ],
+  "Finish the current project details action first.": [
+    "현재 프로젝트 세부 정보 작업을 먼저 완료하세요.",
+    "Tapusin muna ang kasalukuyang aksyon sa mga detalye ng proyekto.",
+    "Hoàn tất thao tác chi tiết dự án hiện tại trước."
+  ],
+  "Discard unsaved project details?": [
+    "저장하지 않은 프로젝트 세부 정보를 버릴까요?",
+    "Itapon ang hindi na-save na mga detalye ng proyekto?",
+    "Bỏ chi tiết dự án chưa lưu?"
+  ],
+  "The changes in this Project Details pane have not been saved. Discard them?": [
+    "이 프로젝트 세부 정보 창의 변경 사항이 저장되지 않았습니다. 버릴까요?",
+    "Hindi pa na-save ang mga pagbabago sa panel na ito ng Mga Detalye ng Proyekto. Itapon ang mga ito?",
+    "Các thay đổi trong ngăn Chi tiết dự án này chưa được lưu. Bỏ chúng?"
+  ],
+  "Use the main Save button to save this project's details and estimate.": [
+    "이 프로젝트의 세부 정보와 견적을 저장하려면 기본 저장 버튼을 사용하세요.",
+    "Gamitin ang pangunahing Save button para i-save ang mga detalye at estimate ng proyektong ito.",
+    "Dùng nút Lưu chính để lưu chi tiết và dự toán của dự án này."
+  ],
+  "Project details could not be updated.": [
+    "프로젝트 세부 정보를 업데이트할 수 없습니다.",
+    "Hindi ma-update ang mga detalye ng proyekto.",
+    "Không thể cập nhật chi tiết dự án."
+  ],
+  "Loading project details…": [
+    "프로젝트 세부 정보 불러오는 중…",
+    "Nilo-load ang mga detalye ng proyekto…",
+    "Đang tải chi tiết dự án…"
+  ],
+  "Choose an existing Account for this client, or use + to create an Account.": [
+    "이 고객의 기존 계정을 선택하거나 +를 사용하여 계정을 만드세요.",
+    "Pumili ng kasalukuyang Account para sa kliyenteng ito, o gamitin ang + para gumawa ng Account.",
+    "Chọn tài khoản hiện có cho khách hàng này, hoặc dùng + để tạo tài khoản."
+  ],
+  "Finish the current project operation first.": [
+    "현재 프로젝트 작업을 먼저 완료하세요.",
+    "Tapusin muna ang kasalukuyang operasyon sa proyekto.",
+    "Hoàn tất thao tác dự án hiện tại trước."
+  ],
+  "The open project's details changed. Close and reopen this pane before saving.": [
+    "열린 프로젝트의 세부 정보가 변경되었습니다. 저장하기 전에 이 창을 닫았다가 다시 여세요.",
+    "Nagbago ang mga detalye ng bukas na proyekto. Isara at buksang muli ang panel bago mag-save.",
+    "Chi tiết dự án đang mở đã thay đổi. Đóng rồi mở lại ngăn này trước khi lưu."
+  ],
+  "Saving project details…": [
+    "프로젝트 세부 정보 저장 중…",
+    "Sine-save ang mga detalye ng proyekto…",
+    "Đang lưu chi tiết dự án…"
+  ],
+  "Project details saved.": [
+    "프로젝트 세부 정보가 저장되었습니다.",
+    "Na-save ang mga detalye ng proyekto.",
+    "Đã lưu chi tiết dự án."
+  ],
+  "No matching Accounts. Use + to create one.": [
+    "일치하는 계정이 없습니다. +를 사용하여 만드세요.",
+    "Walang tumutugmang Account. Gamitin ang + para gumawa.",
+    "Không có tài khoản phù hợp. Dùng + để tạo mới."
+  ],
+  "Refresh the application before creating an Account.": [
+    "계정을 만들기 전에 앱을 새로 고침하세요.",
+    "I-refresh ang application bago gumawa ng Account.",
+    "Làm mới ứng dụng trước khi tạo tài khoản."
+  ],
+  "Finish the current project details action before saving.": [
+    "저장하기 전에 현재 프로젝트 세부 정보 작업을 완료하세요.",
+    "Tapusin ang kasalukuyang aksyon sa mga detalye ng proyekto bago mag-save.",
+    "Hoàn tất thao tác chi tiết dự án hiện tại trước khi lưu."
+  ],
+  "Choose an existing Account for this client, or use + to create an Account in Current project details.": [
+    "이 고객의 기존 계정을 선택하거나 현재 프로젝트 세부 정보에서 +로 계정을 만드세요.",
+    "Pumili ng kasalukuyang Account para sa kliyenteng ito, o gamitin ang + sa Mga detalye ng kasalukuyang proyekto para gumawa.",
+    "Chọn tài khoản hiện có cho khách hàng này, hoặc dùng + để tạo trong Chi tiết dự án hiện tại."
+  ],
+  "The saved project changed outside this open estimate. Reload the project before editing its details; your current draft has been kept.": [
+    "저장된 프로젝트가 이 열린 견적 밖에서 변경되었습니다. 세부 정보를 편집하기 전에 프로젝트를 다시 불러오세요. 현재 초안은 보존되었습니다.",
+    "Nagbago ang naka-save na proyekto sa labas ng bukas na estimate na ito. I-load muli ang proyekto bago i-edit ang mga detalye; pinanatili ang kasalukuyan mong draft.",
+    "Dự án đã lưu đã thay đổi bên ngoài dự toán đang mở này. Tải lại dự án trước khi sửa chi tiết; bản nháp hiện tại đã được giữ lại."
+  ]
+}

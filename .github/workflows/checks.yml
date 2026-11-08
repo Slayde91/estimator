@@ -22,7 +22,7 @@ jobs:
       - run: node --check static/company-settings.js
       - run: node --check static/project-details.js
       - run: node --check static/commercial-documents.js && node --check static/scheduler.js && node --check static/swms.js
-      - run: node --check static/app.js && node --check static/project-details.js
+      - run: node --check static/app.js && node --check static/project-details.js && node --check static/project-pane.js
       - run: node --check static/games/play.js && node --test tests/test_play_host.cjs tests/test_fireline_game.cjs
       - run: node --check static/pointer-effects.js
       - run: node --check static/activity.js && node --check static/searchable-choice.js && node --check static/penetration-presentation.js
@@ -127,6 +127,8 @@ jobs:
       - run: npm run test:project-library-drafts
       - run: node tests/browser/projects_navigation.cjs
       - run: node tests/browser/contacts.cjs
+      - run: node tests/browser/account_links.cjs
+      - run: node tests/browser/project_details_pane.cjs
       - run: node tests/browser/browser_review.cjs
       - run: node tests/browser/scheduler.cjs
       - run: node tests/browser/scheduler_rules.cjs

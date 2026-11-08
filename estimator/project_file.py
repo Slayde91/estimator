@@ -33,8 +33,9 @@ OPTIONAL_CALCULATOR_IDS = ("steel_intumescent",)
 PROJECT_STATUSES = ("Draft", "Review", "Presented", "Accepted", "Lost")
 WORKSPACE_FIELDS = {"estimate", "calculators", "penetration", "takeoffs", "library_drafts"}
 MAX_PROJECT_ESTIMATES = 50
-ESTIMATE_REQUIRED_FIELDS = {"title", "workflow", "measurements", "inputs", "configuration", *QUOTE_DETAIL_LIMITS}
-ESTIMATE_FIELDS = {*ESTIMATE_REQUIRED_FIELDS, "work_items"}
+# Contact/account metadata is optional in historical portable files.
+ESTIMATE_REQUIRED_FIELDS = {"title", "workflow", "measurements", "inputs", "configuration", "client", "site_address", "project_no"}
+ESTIMATE_FIELDS = {*ESTIMATE_REQUIRED_FIELDS, *QUOTE_DETAIL_LIMITS, "work_items"}
 
 
 def validate_project_status(value):
@@ -184,7 +185,7 @@ def project_details(value=None):
     if value is None:
         value = {}
     if not isinstance(value, dict) or set(value) - set(QUOTE_DETAIL_LIMITS):
-        raise ValidationError("Project details must contain Project No., Client and Site Address only.")
+        raise ValidationError("Project details contain unsupported fields.")
     return validate_quote_details(value)
 
 

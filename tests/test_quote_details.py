@@ -11,6 +11,18 @@ from estimator.storage import WORKFLOWS
 
 
 class QuoteIdentityTests(unittest.TestCase):
+    empty_contacts = {"contact_name": "", "contact_phone": "", "contact_email": "", "account_id": ""}
+
+    def test_contact_metadata_is_bounded_and_account_ids_are_portable(self):
+        details = {"contact_name": "Pat", "contact_phone": "+61 123", "contact_email": "pat@example.com",
+                   "account_id": "12345678-1234-1234-1234-123456789012"}
+        self.assertEqual(validate_quote_details(details, {"client": "Original"}),
+                         {"client": "Original", "project_no": "", "site_address": "", **details})
+        for key, value in (("contact_name", "x" * 161), ("contact_phone", "x" * 61),
+                           ("contact_email", "invalid"), ("account_id", "not-an-account")):
+            with self.subTest(key=key), self.assertRaises(ValidationError):
+                validate_quote_details({key: value})
+
     def test_complete_partial_and_empty_titles_use_requested_order_and_separator(self):
         self.assertEqual(compose_quote_title(" P-123 ", " Client Ltd ", " 8 Road "), "P-123- Client Ltd- 8 Road")
         self.assertEqual(compose_quote_title(client="Client Ltd", site_address="8 Road"), "Client Ltd- 8 Road")
@@ -23,10 +35,10 @@ class QuoteIdentityTests(unittest.TestCase):
     def test_metadata_preserves_omitted_fields_and_explicit_empty_clears(self):
         previous = {"client": "Original client", "site_address": "Original site", "project_no": "P-1", "title": "Old"}
         self.assertEqual(validate_quote_details({"client": " New client "}, previous),
-                         {"client": "New client", "site_address": "Original site", "project_no": "P-1"})
+                         {"client": "New client", "site_address": "Original site", "project_no": "P-1", **self.empty_contacts})
         self.assertEqual(validate_quote_details({"site_address": " "}, previous),
-                         {"client": "Original client", "site_address": "", "project_no": "P-1"})
-        self.assertEqual(validate_quote_details({}), {"client": "", "site_address": "", "project_no": ""})
+                         {"client": "Original client", "site_address": "", "project_no": "P-1", **self.empty_contacts})
+        self.assertEqual(validate_quote_details({}), {"client": "", "site_address": "", "project_no": "", **self.empty_contacts})
         self.assertEqual(previous["site_address"], "Original site")
 
     def test_bounds_unicode_and_invalid_metadata(self):

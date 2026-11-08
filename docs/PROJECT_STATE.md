@@ -1,5 +1,34 @@
 # Project state
 
+## Current: project details pane and Account links
+
+Each Projects row has a red details toggle. It opens that saved project's identity
+in a left pane with two field columns, separate from the open estimate. At widths
+up to 900px the pane sits above the list; below 420px its fields stack. The Current
+project details action also keeps new, unsaved project identity accessible.
+
+Project details include Contact name, Contact phone and Contact email. Client
+search selects an existing Contacts Account or creates one through its inline
+plus action. Legacy company text and unresolved imported Account IDs survive
+unrelated edits. Project numbers remain assigned by the existing numbering service.
+
+The selected-file endpoints accept opaque linked-folder IDs and revision hashes,
+not paths. Saving details updates shared identity in all named estimates using an
+atomic conditional write. It preserves pricing, calculations, attachments, issued
+documents and physical filenames. A stale revision requires reopening the pane.
+Repeated identical requests are safe while their bounded server receipt remains
+available; after a server restart a lost-response retry requires reopening.
+
+ABN/ACN belongs to the Account and is also shown on Leads. Account forms can link
+existing Contacts, Projects, Quotes, Work Orders and Purchase Orders. Contact links
+change the Contact's Account explicitly; project/document links are supplementary
+directory associations and never rewrite project files or issued snapshots.
+Existing automatic project associations are displayed, and missing saved targets
+remain visible until explicitly unlinked. Old spreadsheet templates still import.
+
+These changes affect interface and metadata persistence, not passive-fire or
+pricing rules. Git, CI and live activation evidence belongs to release receipts.
+
 ## 11 October 2026: dedicated project filenames
 
 Project Save As names, native file dialogs, browser import and linked-folder

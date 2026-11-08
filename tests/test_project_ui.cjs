@@ -22,7 +22,7 @@ function project() {
     workflow: 'Imported workflow', measurements: 'Imported notes', inputs: { D15: 'Imported product', B15: 234 },
     configuration: { inventory: {}, rates: { imported: { price: 98.76543 } }, catalog: { name: 'Frozen imported pricing' } }, result: { summary: { total: 456 } } },
     fields: [{ cell: 'D15', label: 'Product', type: 'select', options: ['Imported product'], default: 'Imported product' }],
-    project_details: { project_no: 'CF-2000', client: 'Imported client', site_address: '20 Imported Road' },
+    project_details: { project_no: 'CF-2000', client: 'Imported client', site_address: '20 Imported Road', contact_name:'', contact_phone:'', contact_email:'', account_id:'' },
     calculators: Object.fromEntries(ids.map(id => [id, { source_sha256: 'matching-source', inputs: { CALCULATOR: { A9: `Imported ${id}` } } }])) };
 }
 
@@ -181,7 +181,7 @@ async function penetrationCheck(name, fn) {
     const cert=projectCertificates(h);h.app.state.initialized=true;const signer={name:'Shared signer'},cover={name:'Shared cover'};
     h.context.window.CeasefireCoverSheets={hasPendingOperation:()=>false,fingerprint:()=>JSON.stringify(cover)};
     const creating=h.app.newQuote();await flush();await h.byId('discard-dialog').close('confirm');await creating;
-    assert.equal(cert.state.workspace,'fresh-1');assert.deepEqual(cert.state.fields,{});assert.deepEqual(cert.state.applied[0].details,{project_no:'',client:'',site_address:''});assert.deepEqual(signer,{name:'Shared signer'});assert.deepEqual(cover,{name:'Shared cover'});assert.equal(h.app.state.projectFile,null);
+    assert.equal(cert.state.workspace,'fresh-1');assert.deepEqual(cert.state.fields,{});assert.deepEqual(cert.state.applied[0].details,{project_no:'',client:'',site_address:'',contact_name:'',contact_phone:'',contact_email:'',account_id:''});assert.deepEqual(signer,{name:'Shared signer'});assert.deepEqual(cover,{name:'Shared cover'});assert.equal(h.app.state.projectFile,null);
   });
   await check('Failed New-project preparation discards its prepared certificate workspace and keeps current drafts',async h=>{
     const cert=projectCertificates(h);h.app.state.initialized=true;const before=h.snapshot();h.bridgeApi.prepareDefaults=async()=>{throw new Error('Calculator preparation failed');};
@@ -841,7 +841,8 @@ async function penetrationCheck(name, fn) {
       if(path==='/api/projects/open-file')return {opened:true,name:'site.jpg',relative_path:'Photos/site.jpg'};
       throw new Error(`Unexpected ${path}`);
     });
-    await h.app.loadProjects();const title=h.byId('project-list').children[0].children[0].children[0].children[0];
+    await h.app.loadProjects();const heading=h.byId('project-list').children[0].children[0].children[0],title=heading.children[1];
+    assert.equal(heading.children[0].textContent,'<');assert.equal(heading.children[0].getAttribute('aria-expanded'),'false');
     assert.equal(title.textContent,'Quote files');assert.match(title.getAttribute('aria-label'),/Browse files/);await title.emit('click');
     assert.equal(h.byId('project-list-card').hidden,true);assert.equal(h.byId('project-browser').hidden,false);assert.equal(h.byId('project-browser-list').children.length,2);
     await h.byId('project-browser-list').children[0].emit('click');assert.equal(h.app.state.projectBrowserPath,'Photos');
@@ -1312,6 +1313,38 @@ async function penetrationCheck(name, fn) {
     assert.match(h.byId('discard-dialog').querySelector('p').textContent,/unsaved changes/);revision++;
     await h.byId('discard-dialog').close('confirm');assert.equal(await closing,false);assert.equal(h.app.projectStamp(),stamp);
     pending=true;assert.equal(h.context.window.CeasefireDesktop.status().busy,true);assert.equal(await h.app.reviewDesktopClose(),false);
+  });
+  await check('Metadata saves rebase a clean active project without marking unrelated work dirty',async h=>{
+    h.app.state.initialized=true;h.app.state.dirty=false;h.app.state.estimatesDirty=false;
+    h.app.state.configuration={inventory:{},rates:{}};h.app.state.draft=copy(h.app.state.configuration);
+    h.app.state.quoteConfiguration=null;h.app.state.projectPricingDraft=null;h.context.window.CeasefireCalculators.hasUnsavedChanges=()=>false;
+    h.app.state.projectFile={path:'C:/Project/A.cf.json',revision:'old',save_token:'old-token',project_status:'Draft'};
+    h.app.state.projectEstimates=[{id:'estimate-1',workspace:{estimate:{...copy(h.context.window.CeasefireProject.details()),inputs:{B15:123}}}},{id:'legacy-estimate',workspace:{estimate:{project_no:'PN-LEGACY',inputs:{B15:456}}}}];
+    const before=h.context.window.CeasefireProject.projectPaneSnapshot(),inputs=copy(h.app.state.inputs);
+    const result={file:{...before.file,revision:'new',save_token:'new-token'},details:{...before.details,contact_name:'Robin Sample',contact_phone:'0400000000'}};
+    assert.equal(h.context.window.CeasefireProject.applyProjectPaneSaved(before,result,'old'),true);
+    assert.equal(h.app.state.projectFile.save_token,'new-token');assert.equal(h.byId('project-contact-name').value,'Robin Sample');
+    assert.deepEqual(copy(h.app.state.inputs),inputs);assert.equal(h.context.window.CeasefireDesktop.status().dirty,false);
+    assert.equal(h.app.state.projectEstimates[0].workspace.estimate.contact_phone,'0400000000');
+    assert.equal(h.app.state.projectEstimates[1].workspace.estimate.project_no,'PN-LEGACY');assert.equal(h.app.state.projectEstimates[1].workspace.estimate.inputs.B15,456);
+  });
+  await check('Metadata saves preserve dirty estimates and later identity edits and ignore another active file',async h=>{
+    h.app.state.projectFile={path:'C:/Project/A.cf.json',revision:'old',save_token:'old-token',project_status:'Draft'};
+    const before=h.context.window.CeasefireProject.projectPaneSnapshot(),inputs=copy(h.app.state.inputs);
+    h.byId('client').value='Later client edit';
+    const result={file:{...before.file,revision:'new',save_token:'new-token'},details:{...before.details,client:'Saved client',contact_name:'Robin Sample'}};
+    assert.equal(h.context.window.CeasefireProject.applyProjectPaneSaved(before,result,'old'),true);
+    assert.equal(h.byId('client').value,'Later client edit');assert.equal(h.app.state.dirty,true);assert.deepEqual(copy(h.app.state.inputs),inputs);
+    const active=copy(h.app.state.projectFile);
+    assert.equal(h.context.window.CeasefireProject.applyProjectPaneSaved(before,{...result,file:{...result.file,path:'C:/Other/B.cf.json'}},'old'),false);
+    assert.deepEqual(copy(h.app.state.projectFile),active);
+  });
+  await check('Metadata cannot grant a refreshed file capability to a stale open workspace',async h=>{
+    h.app.state.projectFile={path:'C:/Project/A.cf.json',revision:'open-revision',save_token:'open-token',project_status:'Draft'};
+    const before=h.context.window.CeasefireProject.projectPaneSnapshot();
+    const result={file:{...before.file,revision:'new-revision',save_token:'fresh-token'},details:{...before.details,contact_name:'Saved person'}};
+    assert.equal(h.context.window.CeasefireProject.applyProjectPaneSaved(before,result,'different-disk-revision'),false);
+    assert.equal(h.app.state.projectFile.save_token,'open-token');assert.equal(h.byId('project-contact-name').value,'');
   });
   console.log(`${passed} project UI regression checks passed.`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

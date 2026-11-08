@@ -84,6 +84,26 @@ class SavedQuoteTests(unittest.TestCase):
         self.assertEqual(result['error_count'], 1)
         self.assertEqual([card['id'] for card in result['documents']], [self.document['id']])
 
+    def test_account_links_follow_saved_file_identity_without_rewriting_documents(self):
+        from estimator.account_relations import AccountRelations
+        from estimator.contacts import ContactsStore, LINK_KINDS
+        contacts = ContactsStore(self.root / 'contacts.sqlite3')
+        account = contacts.save('accounts', {'version': 0, 'fields': {'company': 'Fixture Company'}})
+        relations = AccountRelations(contacts, self.library)
+        catalog = relations.view(account['id'])
+        self.assertEqual(len(catalog['linked']['projects']), 1)
+        self.assertEqual(len(catalog['linked']['quotes']), 1)
+        self.assertTrue(catalog['linked']['projects'][0]['automatic'])
+        self.assertTrue(catalog['linked']['quotes'][0]['automatic'])
+        self.assertNotEqual(catalog['linked']['projects'][0]['id'], self.card['project_id'])
+        self.assertEqual(catalog['linked']['quotes'][0]['id'], self.card['project_id'] + ':' + self.card['id'])
+        before = self.path.read_bytes()
+        contacts.save('accounts', {'id': account['id'], 'version': 1, 'fields': {'company': 'Fixture Company', 'abn_acn': 'ABN 123'},
+                                  'links': {kind: [entry['id'] for entry in catalog['linked'][kind]] for kind in LINK_KINDS}},
+                      link_catalog=catalog)
+        self.assertEqual(self.path.read_bytes(), before)
+        self.assertFalse(contacts.saved_links(account['id']))
+
     def test_fresh_register_and_purchase_status_use_the_owning_file(self):
         original = self.path.read_bytes()
         snapshot = json.loads(original)
@@ -181,6 +201,12 @@ class SavedQuoteTests(unittest.TestCase):
             self.library.ignore_commercial_source(token)
             self.assertEqual(self.register()['unavailable_sources'], [])
             self.assertEqual(self.register()['documents'], [])
+            from estimator.account_relations import AccountRelations
+            from estimator.contacts import ContactsStore
+            links = AccountRelations(ContactsStore(self.root / 'contacts.sqlite3'), self.library).view()
+            self.assertFalse(links['choices']['projects'])
+            self.assertFalse(links['choices']['quotes'])
+            self.assertEqual(links['error_count'], 0)
         self.assertTrue(self.library.commercial_source_metadata()['sources'][0]['ignored'])
         owner = self.library._commercial_sources.records()[0][2]
         self.assertIn(owner, CommercialSources(self.store, None).ignored_owners())

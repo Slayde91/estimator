@@ -44,6 +44,7 @@ const ready = new Promise((resolve, reject) => {
   const dlg=page.getByRole('dialog');
   await dlg.getByLabel('Name',{exact:true}).fill('Robin Sample');
   await dlg.getByLabel('Company',{exact:true}).fill('Sample Company');
+  await dlg.getByLabel('ABN/ACN',{exact:true}).fill('12 345 678 901');
   await dlg.getByLabel('Site address').fill('QA Site Street');
   await dlg.getByLabel('Billing address').fill('Demo Billing Street');
   await dlg.getByRole('button',{name:'Save',exact:true}).click();
@@ -54,6 +55,8 @@ const ready = new Promise((resolve, reject) => {
   await root.getByRole('button',{name:'Accounts',exact:true}).click();
   await root.getByRole('button',{name:'Sample Company',exact:true}).click();
   await expect(dlg.getByLabel('Billing address')).toHaveValue('Demo Billing Street');
+  await expect(dlg.getByLabel('ABN/ACN',{exact:true})).toHaveValue('12 345 678 901');
+  await expect(dlg.locator('.contacts-links-group > summary')).toHaveText(['Contacts (1)','Projects (0)','Quotes (0)','Work Orders (0)','Purchase Orders (0)']);
   await dlg.getByRole('button',{name:'Robin Sample'}).click();
   await expect(dlg.getByLabel('Name',{exact:true})).toHaveValue('Robin Sample');
   await dlg.getByRole('button',{name:'Cancel'}).click();

@@ -11,11 +11,12 @@ from .catalog import ValidationError
 
 LEAD_STATUSES = ("New", "Assisting", "Interstate", "Qualified", "Disqualified", "Not Applicable")
 PERSON_FIELDS = ("name", "phone", "company", "title", "email")
-ACCOUNT_FIELDS = ("company", "billing_address")
-LEAD_FIELDS = (*PERSON_FIELDS, "site_address", "billing_address", "description", "status")
+ACCOUNT_FIELDS = ("company", "billing_address", "abn_acn")
+LEAD_FIELDS = (*PERSON_FIELDS, "site_address", "billing_address", "description", "status", "abn_acn")
+LINK_KINDS = ("contacts", "projects", "quotes", "work_orders", "purchase_orders")
 FIELDS = {"leads": LEAD_FIELDS, "contacts": PERSON_FIELDS, "accounts": ACCOUNT_FIELDS}
 LIMITS = {"name": 160, "phone": 60, "company": 240, "title": 160, "email": 254,
-          "site_address": 1200, "billing_address": 1200, "description": 8000, "status": 100}
+          "site_address": 1200, "billing_address": 1200, "description": 8000, "status": 100, "abn_acn": 80}
 
 
 def checked_fields(kind, values):
@@ -58,7 +59,7 @@ class ContactsStore:
                 INSERT OR IGNORE INTO revision VALUES (1,0);
                 CREATE TABLE IF NOT EXISTS accounts (
                     id TEXT PRIMARY KEY, company TEXT NOT NULL, lookup_key TEXT NOT NULL UNIQUE,
-                    billing_address TEXT NOT NULL);
+                    billing_address TEXT NOT NULL, abn_acn TEXT NOT NULL DEFAULT '');
                 CREATE TABLE IF NOT EXISTS contacts (
                     id TEXT PRIMARY KEY, name TEXT NOT NULL, phone TEXT NOT NULL, title TEXT NOT NULL,
                     email TEXT NOT NULL, account_id TEXT REFERENCES accounts(id));
@@ -71,7 +72,13 @@ class ContactsStore:
                 CREATE TABLE IF NOT EXISTS converted_leads (
                     lead_id TEXT PRIMARY KEY, contact_id TEXT NOT NULL REFERENCES contacts(id),
                     account_id TEXT NOT NULL REFERENCES accounts(id), project_no TEXT NOT NULL, path TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS account_links (
+                    account_id TEXT NOT NULL REFERENCES accounts(id), kind TEXT NOT NULL,
+                    target_id TEXT NOT NULL, label TEXT NOT NULL,
+                    PRIMARY KEY(account_id,kind,target_id));
             """)
+            if "abn_acn" not in {row[1] for row in db.execute("PRAGMA table_info(accounts)")}:
+                db.execute("ALTER TABLE accounts ADD COLUMN abn_acn TEXT NOT NULL DEFAULT ''")
 
     @contextmanager
     def connection(self):
@@ -86,15 +93,15 @@ class ContactsStore:
             db.execute("BEGIN")
             contacts = """
                 SELECT c.id, c.name, c.phone, c.title, c.email, c.account_id,
-                       coalesce(a.company,'') AS company
+                       coalesce(a.company,'') AS company, coalesce(a.abn_acn,'') AS abn_acn
                 FROM contacts c LEFT JOIN accounts a ON a.id=c.account_id
             """
             return {
                 "version": self._version(db), "statuses": LEAD_STATUSES,
-                "accounts": [dict(row) for row in db.execute("SELECT id,company,billing_address FROM accounts ORDER BY lookup_key")],
+                "accounts": [dict(row) for row in db.execute("SELECT id,company,billing_address,abn_acn FROM accounts ORDER BY lookup_key")],
                 "contacts": [dict(row) for row in db.execute(contacts + " ORDER BY c.name COLLATE NOCASE,c.id")],
                 "leads": [dict(row) for row in db.execute(f"""
-                    SELECT l.*, p.name, p.phone, p.title, p.email, p.company, p.account_id
+                    SELECT l.*, p.name, p.phone, p.title, p.email, p.company, p.account_id, p.abn_acn
                     FROM leads l JOIN ({contacts}) p ON p.id=l.contact_id
                     ORDER BY p.name COLLATE NOCASE,l.id
                 """)],
@@ -114,21 +121,26 @@ class ContactsStore:
             db.execute("UPDATE revision SET version=version+1 WHERE id=1")
 
     @staticmethod
-    def _account(db, company, billing_address=""):
+    def _account(db, company, billing_address="", abn_acn=""):
         if not company:
             return None
         key = company_key(company)
-        found = db.execute("SELECT id,billing_address FROM accounts WHERE lookup_key=?", (key,)).fetchone()
+        found = db.execute("SELECT id,billing_address,abn_acn FROM accounts WHERE lookup_key=?", (key,)).fetchone()
         if found:
+            if abn_acn and found["abn_acn"] and abn_acn != found["abn_acn"]:
+                raise ValidationError("Company already has a different ABN/ACN. Edit its account first.")
             if billing_address and not found["billing_address"]:
                 db.execute("UPDATE accounts SET billing_address=? WHERE id=?", (billing_address, found["id"]))
+            if abn_acn and not found["abn_acn"]:
+                db.execute("UPDATE accounts SET abn_acn=? WHERE id=?", (abn_acn, found["id"]))
             return found["id"]
         ident = str(uuid4())
-        db.execute("INSERT INTO accounts VALUES (?,?,?,?)", (ident, company, key, billing_address))
+        db.execute("INSERT INTO accounts(id,company,lookup_key,billing_address,abn_acn) VALUES (?,?,?,?,?)",
+                   (ident, company, key, billing_address, abn_acn))
         return ident
 
     def _person(self, db, person_id, data):
-        account = self._account(db, data["company"], data.get("billing_address", ""))
+        account = self._account(db, data["company"], data.get("billing_address", ""), data.get("abn_acn", ""))
         db.execute("""INSERT INTO contacts(id,name,phone,title,email,account_id) VALUES(?,?,?,?,?,?)
                       ON CONFLICT(id) DO UPDATE SET name=excluded.name,phone=excluded.phone,
                       title=excluded.title,email=excluded.email,account_id=excluded.account_id""",
@@ -143,11 +155,70 @@ class ContactsStore:
             raise ValidationError("This record could not be found. Reload the directory.")
         return ident
 
-    def save(self, kind, body):
+    def saved_links(self, account_id):
+        with self.connection() as db:
+            return [dict(row) for row in db.execute(
+                "SELECT kind,target_id,label FROM account_links WHERE account_id=? ORDER BY kind,label,target_id", (account_id,))]
+
+    @staticmethod
+    def _checked_links(db, ident, raw, catalog):
+        if (not isinstance(raw, dict) or set(raw) != set(LINK_KINDS)
+                or not isinstance(catalog, dict)):
+            raise ValidationError("Choose related records from the account form.")
+        checked = {}
+        prior = {(row["kind"], row["target_id"]): row["label"] for row in db.execute(
+            "SELECT kind,target_id,label FROM account_links WHERE account_id=?", (ident,))}
+        for kind in LINK_KINDS:
+            values = raw[kind]
+            if (not isinstance(values, list) or len(values) > 1000
+                    or any(not isinstance(value, str) or len(value) > 80 for value in values)
+                    or len(set(values)) != len(values)):
+                raise ValidationError("Choose each related record once (maximum 1,000 per section).")
+            if kind == "contacts":
+                known = {row[0] for row in db.execute("SELECT id FROM contacts")}
+                if any(value not in known for value in values):
+                    raise ValidationError("A selected contact is no longer available. Reopen the account.")
+                selected = set(values)
+                omitted_lead = db.execute("""SELECT c.id FROM contacts c JOIN leads l ON l.contact_id=c.id
+                    WHERE c.account_id=?""", (ident,)).fetchall()
+                if any(row[0] not in selected for row in omitted_lead):
+                    raise ValidationError("A contact linked to a lead must keep a company. Reassign it to another account instead.")
+                checked[kind] = values
+                continue
+            choices = {entry["id"]: entry for entry in catalog["choices"][kind]}
+            automatic = {entry["id"] for entry in catalog["linked"][kind] if entry.get("automatic")}
+            entries = []
+            for value in values:
+                entry = choices.get(value)
+                if entry is None and (kind, value) not in prior:
+                    raise ValidationError("A selected related record is no longer available. Reload the list before linking it.")
+                if value not in automatic or (kind, value) in prior:
+                    entries.append((value, entry["label"] if entry else prior[kind, value]))
+            checked[kind] = entries
+        return checked
+
+    @staticmethod
+    def _replace_links(db, ident, links):
+        selected = set(links["contacts"])
+        for row in db.execute("SELECT id FROM contacts WHERE account_id=?", (ident,)).fetchall():
+            if row[0] not in selected:
+                db.execute("UPDATE contacts SET account_id=NULL WHERE id=?", (row[0],))
+        db.executemany("UPDATE contacts SET account_id=? WHERE id=?", ((ident, person) for person in selected))
+        db.execute("DELETE FROM account_links WHERE account_id=?", (ident,))
+        db.executemany("INSERT INTO account_links(account_id,kind,target_id,label) VALUES(?,?,?,?)",
+                       ((ident, kind, target, label) for kind in LINK_KINDS if kind != "contacts"
+                        for target, label in links[kind]))
+
+    def save(self, kind, body, *, link_catalog=None):
+        if not isinstance(body, dict):
+            raise ValidationError("Use the fields provided on this form.")
         data = checked_fields(kind, body.get("fields"))
+        if "links" in body and kind != "accounts":
+            raise ValidationError("Related records can only be changed from an account.")
         with self.writing(body.get("version")) as db:
             prior_id = body.get("id")
             ident = self._id(db, kind, prior_id)
+            links = self._checked_links(db, ident, body["links"], link_catalog) if "links" in body else None
             if kind == "leads":
                 person_id = db.execute("SELECT contact_id FROM leads WHERE id=?", (ident,)).fetchone()[0] if prior_id else str(uuid4())
                 self._person(db, person_id, data)
@@ -164,10 +235,19 @@ class ContactsStore:
                 conflict = db.execute("SELECT id FROM accounts WHERE lookup_key=? AND id<>?", (key, ident)).fetchone()
                 if conflict:
                     raise ValidationError("An account with this company name already exists.")
-                db.execute("""INSERT INTO accounts VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET
-                              company=excluded.company,lookup_key=excluded.lookup_key,billing_address=excluded.billing_address""",
-                           (ident, data["company"], key, data["billing_address"]))
-        return {"id": ident}
+                if prior_id and "abn_acn" not in body["fields"]:
+                    data["abn_acn"] = db.execute("SELECT abn_acn FROM accounts WHERE id=?", (ident,)).fetchone()[0]
+                db.execute("""INSERT INTO accounts(id,company,lookup_key,billing_address,abn_acn) VALUES(?,?,?,?,?)
+                              ON CONFLICT(id) DO UPDATE SET company=excluded.company,lookup_key=excluded.lookup_key,
+                              billing_address=excluded.billing_address,abn_acn=excluded.abn_acn""",
+                           (ident, data["company"], key, data["billing_address"], data["abn_acn"]))
+                if links is not None:
+                    self._replace_links(db, ident, links)
+            version = self._version(db) + 1
+        result = {"id": ident, "version": version}
+        if kind == "accounts":
+            result["account"] = {"id": ident, **data}
+        return result
 
     def convert(self, body, create_project):
         if not isinstance(body, dict) or set(body) != {'id', 'version'} or not isinstance(body['id'], str):
@@ -179,7 +259,7 @@ class ContactsStore:
                 return dict(receipt)
             if type(body['version']) is not int or self._version(db) != body['version']:
                 raise ContactsConflict('The lead changed. Reopen the directory before converting it.')
-            lead = db.execute('''SELECT l.*,c.name,c.phone,c.title,c.email,c.account_id,a.company
+            lead = db.execute('''SELECT l.*,c.name,c.phone,c.title,c.email,c.account_id,a.company,a.abn_acn
                 FROM leads l JOIN contacts c ON l.contact_id=c.id JOIN accounts a ON a.id=c.account_id
                 WHERE l.id=?''', (body['id'],)).fetchone()
             if lead is None:
@@ -206,7 +286,7 @@ class ContactsStore:
                                               (company_key(data["company"]),)).fetchone()
                         if existing and existing[0] and data["billing_address"] and existing[0] != data["billing_address"]:
                             raise ValidationError("Company already has a different billing address. Edit its account first.")
-                        self._account(db, data["company"], data["billing_address"])
+                        self._account(db, data["company"], data["billing_address"], data["abn_acn"])
                         duplicate = existing is not None
                     else:
                         account = self._account(db, data["company"])

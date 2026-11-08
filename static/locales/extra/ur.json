@@ -3174,5 +3174,14 @@
   "Notes {0}": "نوٹس {0}",
   "Site contact number must be text of at most 60 characters.": "سائٹ کے رابطے کا فون نمبر زیادہ سے زیادہ 60 حروف پر مشتمل متن ہونا چاہیے۔",
   "Notes must be text of at most 2000 characters.": "نوٹس زیادہ سے زیادہ 2000 حروف پر مشتمل متن ہونے چاہئیں۔",
-  "Mobilisation": "سائٹ پر تعیناتی"
+  "Mobilisation": "سائٹ پر تعیناتی",
+  "Claim signed by": "دعوے پر دستخط کرنے والا",
+  "Sign Claim signed by": "دعوے پر دستخط کریں",
+  "Change Claim signed by": "دعوے کے دستخط تبدیل کریں",
+  "Clear Claim signed by": "دعوے کے دستخط صاف کریں",
+  "Claim signed by name": "دعوے پر دستخط کرنے والے کا نام",
+  "Request": "درخواست",
+  "Hire": "کرایہ",
+  "Choose Labour, Materials, Services, Hire or Other for the type of expense.": "خرچ کی قسم کے لیے محنت، مواد، خدمات، کرایہ یا دیگر منتخب کریں۔",
+  "Prepended to every new PDF export, before any cover assigned to that document. Existing saved revisions keep their original covers.": "ہر نئے PDF برآمد کے آغاز میں، اس دستاویز کے لیے مقرر کسی بھی سرورق سے پہلے شامل کیا جاتا ہے۔ پہلے سے محفوظ شدہ نظرثانیوں کے اصل سرورق برقرار رہتے ہیں۔"
 }

@@ -38,6 +38,7 @@ async function run(edition) {
     const host = page.locator('#swms-root'); await expect(host).toBeVisible();
     await host.getByRole('button',{name:'New SWMS',exact:true}).click();
     await expect(host.getByLabel('Job Reference',{exact:true})).toHaveValue(projectNumber);
+    await expect(host.getByLabel('Job Reference',{exact:true})).toHaveAttribute('readonly','');
     await expect(host.getByLabel('Project Address',{exact:true})).toHaveValue('10 Test Street');
     await host.getByLabel('Document title',{exact:true}).fill(`SWMS ${edition}`);
     await expect(host.getByLabel('Status',{exact:true})).toHaveCount(0);

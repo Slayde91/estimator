@@ -107,6 +107,53 @@ class CommercialPaneSignerTests(unittest.TestCase):
         purchase = default_fields('purchase_order'); purchase.update(notes=fields['notes'], files=fields['files'])
         self.assertEqual(validate_fields(purchase, kind='purchase_order')['notes'], fields['notes'])
 
+    def test_claim_signature_is_optional_portable_and_old_windows_cannot_erase_it(self):
+        fields = default_fields('work_order')
+        for key in ('claimed_by', 'claim_date'):
+            self.assertEqual(fields['order'][key], '')
+        legacy = deepcopy(fields)
+        for key in ('claimed_by', 'claim_date'):
+            legacy['order'].pop(key)
+        self.assertFalse(any(key in validate_fields(legacy, kind='work_order')['order']
+                             for key in ('claimed_by', 'claim_date')))
+        quote_fields = default_fields('quote'); quote_fields['terms'] = ''
+        quote = self.save('quote', quote_fields)
+        quote = self.store.issue(self.workspace, quote['id'], quote['version'], str(uuid4()))['document']
+        fields['order'].update(quote_id=quote['id'], claimed_by='Claim Person', claim_date='2026-11-09')
+        ink = {'version':1, 'ratio':3, 'strokes':[[[0,0],[.5,1],[1,0]]]}
+        fields['signatures'] = {'claimed_by':ink}
+        work = self.save('work_order', fields)
+        issued = self.store.issue(self.workspace, work['id'], work['version'], str(uuid4()))
+        work = issued['document']
+        target = self.projects.add(self.project)
+        self.store.restore(target, self.store.capture(self.workspace))
+        restored = next(item for item in self.store.view(target)['documents'] if item['id']==work['id'])
+        self.assertEqual(restored['fields']['signatures']['claimed_by'], ink)
+        self.assertEqual(restored['fields']['order']['claimed_by'], 'Claim Person')
+        self.assertEqual(restored['fields']['order']['claim_date'], '2026-11-09')
+        old_window = deepcopy(work['fields'])
+        for key in ('claimed_by','claim_date'):
+            old_window['order'].pop(key)
+        old_window['signatures'].pop('claimed_by')
+        old_window['title'] = 'Unrelated old-window edit'
+        updated = self.save('work_order', old_window, work)
+        self.assertEqual(updated['fields']['signatures']['claimed_by'], ink)
+        self.assertEqual(updated['fields']['order']['claimed_by'], 'Claim Person')
+        self.assertEqual(updated['fields']['order']['claim_date'], '2026-11-09')
+        with self.assertRaises(CommercialConflict):
+            self.save('work_order', old_window, work)
+        cleared = deepcopy(updated['fields'])
+        cleared['signatures'].pop('claimed_by')
+        cleared['order'].update(claimed_by='',claim_date='')
+        result = self.save('work_order', cleared, updated)
+        self.assertNotIn('signatures', result['fields'])
+        self.assertEqual(result['fields']['order']['claimed_by'], '')
+        self.assertEqual(result['fields']['order']['claim_date'], '')
+        self.assertEqual(self.store.read_pdf(self.workspace, issued['id'])[1], issued['pdf'])
+        bad = deepcopy(fields); bad['order']['claimed_by'] = 'x' * 1001
+        with self.assertRaises(ValidationError):
+            validate_fields(bad, kind='work_order')
+
     def test_purchase_notes_and_files_keep_cas_owner_caps_and_portable_evidence(self):
         attachment = self.store.files.add(self.project, 'purchase-source.txt', base64.b64encode(b'Original PO source').decode())
         fields = default_fields('purchase_order'); fields['files'] = [attachment]

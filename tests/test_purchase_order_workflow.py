@@ -110,6 +110,18 @@ class PurchaseOrderWorkflowTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             self.service.save(self.workspace, {'kind':'purchase_order', 'status':'Draft', 'fields':fields})
 
+    def test_hire_is_a_supported_expense_without_changing_supplier_prices(self):
+        fields = self.defaults()
+        fields['order']['expense_type'] = 'Hire'
+        before = deepcopy(fields['lines'])
+        saved = self.service.save(self.workspace, {'kind':'purchase_order', 'status':'Draft', 'fields':fields})
+        self.assertEqual(saved['fields']['order']['expense_type'], 'Hire')
+        self.assertEqual(saved['fields']['lines'], before)
+        target = self.projects.add(self.projects.project_id(self.workspace))
+        self.service.restore(target, self.service.capture(self.workspace))
+        restored = next(item for item in self.service.view(target)['documents'] if item['id']==saved['id'])
+        self.assertEqual(restored['fields']['order']['expense_type'], 'Hire')
+
     def test_uncreated_project_rejects_new_defaults_and_new_save_before_derivation(self):
         def reject(_workspace):
             raise ValidationError('Create or load a project before creating documents.')

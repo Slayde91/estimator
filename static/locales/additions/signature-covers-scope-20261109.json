@@ -1,0 +1,47 @@
+{
+  "Claim signed by": [
+    "청구 서명자",
+    "Lumagda sa claim",
+    "Người ký yêu cầu thanh toán"
+  ],
+  "Sign Claim signed by": [
+    "청구 서명",
+    "Lagdaan ang claim",
+    "Ký yêu cầu thanh toán"
+  ],
+  "Change Claim signed by": [
+    "청구 서명 변경",
+    "Palitan ang lagda sa claim",
+    "Đổi chữ ký yêu cầu thanh toán"
+  ],
+  "Clear Claim signed by": [
+    "청구 서명 지우기",
+    "Burahin ang lagda sa claim",
+    "Xóa chữ ký yêu cầu thanh toán"
+  ],
+  "Claim signed by name": [
+    "청구 서명자 이름",
+    "Pangalan ng lumagda sa claim",
+    "Tên người ký yêu cầu thanh toán"
+  ],
+  "Request": [
+    "요청",
+    "Kahilingan",
+    "Yêu cầu"
+  ],
+  "Hire": [
+    "임대",
+    "Pag-upa",
+    "Thuê"
+  ],
+  "Choose Labour, Materials, Services, Hire or Other for the type of expense.": [
+    "비용 유형으로 인건비, 자재, 서비스, 임대 또는 기타를 선택하세요.",
+    "Piliin ang Paggawa, Materyales, Serbisyo, Pag-upa o Iba pa bilang uri ng gastos.",
+    "Chọn Nhân công, Vật liệu, Dịch vụ, Thuê hoặc Khác cho loại chi phí."
+  ],
+  "Prepended to every new PDF export, before any cover assigned to that document. Existing saved revisions keep their original covers.": [
+    "새 PDF를 내보낼 때마다 해당 문서에 지정된 표지 앞에 추가됩니다. 기존 저장 버전은 원래 표지를 유지합니다.",
+    "Idinadagdag sa unahan ng bawat bagong PDF export, bago ang anumang cover na nakatalaga sa dokumento. Pinananatili ng mga naka-save na rebisyon ang kanilang orihinal na cover.",
+    "Được thêm vào đầu mỗi bản xuất PDF mới, trước trang bìa được gán cho tài liệu đó. Các phiên bản đã lưu vẫn giữ trang bìa ban đầu."
+  ]
+}

@@ -13,7 +13,10 @@ const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()
   server.stdout.on('data',chunk=>{data+=chunk;if(data.includes('\n')){clearTimeout(timer);resolve(JSON.parse(data.split('\n')[0]));}});
   server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(Error(`Fixture exited ${code}`));});});
 const errors=[],checks=[];
-const labels=['Certification','Breakdown','Full Schedule','Full Product Summary','Firestopping Schedule','Steel Schedule | Spray','Steel Schedule | Paint','Steel Schedule | Board','Duct Schedule','Markups'];
+const labels=['Certification','Breakdown','Full Schedule','Full Product Summary','Firestopping Schedule',
+  'Steel Schedule | Spray','Steel spray product summary','Steel Schedule | Paint','Steel intumescent product summary',
+  'Steel Schedule | Board','Steel board product summary','Duct Schedule','Ductwork product summary',
+  'Safe Work Method Statement','Quote','Work Order','Purchase Order','Markups'];
 async function idle(){await page.waitForFunction(()=>{const status=window.CeasefireDesktop?.status();return status?.ready&&!status.busy;});}
 (async()=>{
   const info=await ready;assert.notEqual(info.port,8765);
@@ -43,7 +46,7 @@ async function idle(){await page.waitForFunction(()=>{const status=window.Ceasef
     assert.ok(geometry.overflow<=1);await expect(page.locator('#company-cover-delete svg')).toHaveCount(1);
     await page.locator('#company-settings-form').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,`company-${width}.png`)});
   }
-  checks.push('Ten cover rows with exact labels; Play last; aligned uploads, adjacent trash and below-upload preview at desktop/mobile');
+  checks.push('Eighteen cover rows with exact labels; Play last; aligned uploads, adjacent trash and below-upload preview at desktop/mobile');
   await page.setViewportSize({width:1254,height:831});await page.locator('#theme-toggle').click();await expect(page.locator('html')).toHaveAttribute('data-theme','midnight');
   const logo=path.join(output,'midnight-logo.png');await page.locator('.app-header .brand').screenshot({path:logo});
   const pixels=spawnSync(python,['-c',"from PIL import Image; import sys; im=Image.open(sys.argv[1]).convert('RGB'); w,h=im.size; white=im.getpixel((round(w*205/2172),round(h*225/724))); red=im.getpixel((round(w*340/2172),round(h*225/724))); assert min(white)>230,white; assert red[0]>150 and red[1]<100 and red[2]<100,red; print('White mark and retained red square verified')",logo],{encoding:'utf8',windowsHide:true});

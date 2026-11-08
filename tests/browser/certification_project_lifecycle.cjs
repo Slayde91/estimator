@@ -1,6 +1,6 @@
 const {fillProjectDetails}=require('./project_actions.cjs');
 // Disposable project-only certificate and portable Save/New/Load coverage.
-// Existing global history is a read-only negative control. No PDF is generated.
+// Existing global history is a read-only negative control. New revisions remain in the private fixture.
 const {chromium,expect}=require('@playwright/test');
 const {openProjectSection,createNewProject}=require('./project_actions.cjs');
 const {spawn,spawnSync}=require('node:child_process'),{createHash}=require('node:crypto');
@@ -28,7 +28,7 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   assert.equal(seeded.status,0,seeded.stderr);const original=JSON.parse(seeded.stdout),sourceStamp=JSON.stringify(original);
   browser=await chromium.launch({headless:true,...(process.env.CEASEFIRE_BROWSER_EXECUTABLE?{executablePath:process.env.CEASEFIRE_BROWSER_EXECUTABLE}:{})});
   page=await browser.newPage({viewport:{width:1084,height:900},hasTouch:true,deviceScaleFactor:2});page.on('pageerror',error=>errors.push(error.message));
-  await page.route('**/api/certifications/*/revisions*',async route=>{generations.push(route.request().url());await route.abort();});
+  page.on('request',request=>{if(new URL(request.url()).pathname.endsWith('/revisions')&&request.method()==='POST')generations.push(request.url());});
   await page.goto(base+'/');await idle();await page.locator('#estimate-navigation-toggle').click();
   await fillProjectDetails(page,{'client':'PROJECT A CLIENT'});await expect(page.locator('#project-no')).toHaveAttribute('readonly','');await fillProjectDetails(page,{'site-address':'Project A example address'});
   await page.locator('#save-current-project').click();await expect(page.locator('#project-save-state')).toHaveText('Saved project',{timeout:120000});await idle();await certification();
@@ -51,16 +51,16 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   await chooser.getByRole('button',{name:'Insert signature'}).click();await expect(page.locator('#certification-signature-preview')).toBeVisible();
   const preferences=await (await fetch(base+'/api/certifications/defaults')).json();assert.equal(preferences.signature_image,null);
   const signatureHash=digest(await page.locator('#certification-signature-preview').getAttribute('src'));
-  await page.locator('#certification-save').click();await expect(page.locator('#certification-status')).toContainText('Certification details saved.');
+  await expect(page.locator('#certification-save')).toHaveCount(0);await page.locator('#certification-generate').click();await expect(page.locator('#certification-status')).toContainText('Revision 1 saved.',{timeout:120000});
   const documentId=await page.locator('#certification-document').inputValue();assert.ok(documentId&&documentId!==original.id);
-  await page.locator('#certification-save').click();await expect(page.locator('#certification-status')).toContainText('Certification details saved.');
+  await page.locator('#certification-location_area').fill('Updated before second generation');await page.locator('#certification-generate').click();await expect(page.locator('#certification-status')).toContainText('Revision 2 saved.',{timeout:120000});
   const listA=await (await fetch(base+'/api/certifications?workspace='+tokenA)).json();assert.equal(listA.items.length,1);
-  const scoped=await (await fetch(base+'/api/certifications/'+documentId+'?workspace='+tokenA)).json();assert.deepEqual(scoped.revisions,[]);assert.equal(digest(scoped.options.signature_image),signatureHash);
+  const scoped=await (await fetch(base+'/api/certifications/'+documentId+'?workspace='+tokenA)).json();assert.equal(scoped.revisions.length,2);assert.equal(scoped.fields.location_area,'Updated before second generation');assert.equal(digest(scoped.options.signature_image),signatureHash);
   assert.equal(JSON.stringify(await (await fetch(base+'/api/certifications/'+original.id)).json()),sourceStamp);
-  checks.push('native touch drawing requires explicit Save','drawn PNG accepted by server validation','repeat Save retains one project document','global history remains byte-for-byte equal as JSON');
+  checks.push('native touch drawing requires explicit generation','drawn PNG accepted by server validation','two Generate actions retain one document and two immutable revisions','global history remains byte-for-byte equal as JSON');
 
   await page.locator('#save-current-project').click();await expect(page.locator('#project-save-state')).toHaveText('Saved project',{timeout:120000});await idle();
-  const projectBytes=fs.readFileSync(info.project),project=JSON.parse(projectBytes);assert.equal(project.certifications.document_count,1);assert.equal(project.certifications.revision_count,0);
+  const projectBytes=fs.readFileSync(info.project),project=JSON.parse(projectBytes);assert.equal(project.certifications.document_count,1);assert.equal(project.certifications.revision_count,2);
   const companion=path.join(path.dirname(info.project),project.certifications.companion_folder,project.certifications.archive_sha256+'.zip');assert.ok(fs.existsSync(companion));assert.equal(digest(fs.readFileSync(companion)),project.certifications.archive_sha256);
   await projects();
   const directory=await(await page.request.get(base+'/api/contacts/directory')).json();
@@ -78,12 +78,19 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   const restoredToken=await page.evaluate(()=>window.CeasefireCertification.sessionId());assert.notEqual(restoredToken,tokenA);
   await expect(page.locator('#certification-document')).toHaveValue(documentId);await expect(page.locator('#certification-client')).toHaveValue('PROJECT A CLIENT');
   await expect(page.locator('#certification-signature-preview')).toBeVisible();assert.equal(digest(await page.locator('#certification-signature-preview').getAttribute('src')),signatureHash);
-  const restored=await (await fetch(base+'/api/certifications/'+documentId+'?workspace='+restoredToken)).json();assert.deepEqual(restored,scoped);
+  const restored=await (await fetch(base+'/api/certifications/'+documentId+'?workspace='+restoredToken)).json();
+  const portable=value=>({...value,revisions:value.revisions.map(({pdf_url,...revision})=>revision)});
+  assert.deepEqual(portable(restored),portable(scoped));
+  for(const revision of restored.revisions){
+    assert.equal(new URL(base+revision.pdf_url).searchParams.get('workspace'),restoredToken);
+    const frozen=await fetch(base+revision.pdf_url);assert.equal(frozen.status,200);
+    assert.equal(digest(Buffer.from(await frozen.arrayBuffer())),revision.sha256,'Native Load restores the exact frozen revision PDF bytes');
+  }
   assert.equal(digest(fs.readFileSync(info.project)),digest(projectBytes));
   checks.push('native project Save writes bounded manifest plus verified companion','New project has an isolated empty certificate list','new certificate stays unsigned until explicit insertion','native Load restores project-specific document and its frozen signer artwork');
-  assert.deepEqual(generations,[]);assert.deepEqual(errors,[]);
+  assert.equal(generations.length,2);assert.deepEqual(errors,[]);
   const screenshot=path.join(output,'restored-project-certificate.png');await page.screenshot({path:screenshot,fullPage:true});
-  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,generatedCertificateRevisions:0,errors,project:info.project,screenshot},null,2));
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,generatedCertificateRevisions:generations.length,errors,project:info.project,screenshot},null,2));
   console.log('PASS: Certification touch signature, current-project-only picker and native Save/New/Load project isolation. '+output);
 })().catch(async error=>{console.error(error);console.error(logs);if(page){console.error(await page.locator('#app-message').textContent().catch(()=>''));console.error(JSON.stringify(errors));await page.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});}process.exitCode=1;})
   .finally(async()=>{await browser?.close();server.kill();});

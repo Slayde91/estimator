@@ -197,8 +197,8 @@ class WorkOrderTrackingTests(unittest.TestCase):
     def test_project_export_import_cold_cache_keeps_baseline_percentages_and_can_issue_new_pdf(self):
         fields=self.fields();fields['work_tracking']['rows'][0].update(completed_percent='40',claimed_percent='80',notes='Portable paid progress note')
         fields['work_tracking']['rows'][1]['notes']='Portable free progress note';fields['work_tracking']['rows'][2]['notes']='Portable credit progress note'
-        fields['order'].update(progress='Legacy progress stays stored',claim='Legacy claim stays stored',progress_by='Progress Signer',progress_date='2026-11-09',closed_by='Closed Signer',closed_date='2026-11-10',certification='Certification issued',completion='Completed')
-        fields['signatures']={'progress_by':INK,'closed_by':INK}
+        fields['order'].update(progress='Legacy progress stays stored',claim='Legacy claim stays stored',progress_by='Progress Signer',progress_date='2026-11-09',claimed_by='Claim Signer',claim_date='2026-11-11',closed_by='Closed Signer',closed_date='2026-11-10',certification='Certification issued',completion='Completed')
+        fields['signatures']={'progress_by':INK,'closed_by':INK,'claimed_by':INK}
         saved=self.save('work_order',fields)
         self.store.renderer=render_commercial_pdf
         historic=self.store.issue(self.workspace,saved['id'],saved['version'],str(uuid4()),company=DEFAULTS)
@@ -220,7 +220,7 @@ class WorkOrderTrackingTests(unittest.TestCase):
         request=str(uuid4());issued=target.issue(workspace,updated['id'],updated['version'],request,company=DEFAULTS)
         text='\n'.join(page.extract_text() for page in PdfReader(BytesIO(issued['pdf'])).pages)
         normalized=' '.join(text.split())
-        for value in ('Free item','Credit item','40','80','100','Progress Signer','Closed Signer','2026-11-10','Certification issued','Completed','Legacy progress stays stored','Portable paid progress note','Portable free progress note','Portable credit progress note'):self.assertIn(value,normalized)
+        for value in ('Free item','Credit item','40','80','100','Progress Signer','Claim Signer','Closed Signer','2026-11-10','2026-11-11','Certification issued','Completed','Legacy progress stays stored','Portable paid progress note','Portable free progress note','Portable credit progress note'):self.assertIn(value,normalized)
         self.assertEqual(target.issue(workspace,updated['id'],updated['version'],request,company=DEFAULTS)['pdf'],issued['pdf'])
         self.assertEqual(self.store.read_pdf(self.workspace,historic['id'])[1],historic['pdf'])
         import os

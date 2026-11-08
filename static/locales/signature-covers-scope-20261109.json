@@ -1,0 +1,65 @@
+{
+  "Claim signed by": [
+    "索赔签署人",
+    "दावे पर हस्ताक्षरकर्ता",
+    "Reclamación firmada por",
+    "موقّع المطالبة",
+    "ผู้ลงนามคำขอเบิก"
+  ],
+  "Sign Claim signed by": [
+    "签署索赔",
+    "दावे पर हस्ताक्षर करें",
+    "Firmar reclamación",
+    "توقيع المطالبة",
+    "ลงนามคำขอเบิก"
+  ],
+  "Change Claim signed by": [
+    "更改索赔签名",
+    "दावे का हस्ताक्षर बदलें",
+    "Cambiar firma de reclamación",
+    "تغيير توقيع المطالبة",
+    "เปลี่ยนลายเซ็นคำขอเบิก"
+  ],
+  "Clear Claim signed by": [
+    "清除索赔签名",
+    "दावे का हस्ताक्षर साफ़ करें",
+    "Borrar firma de reclamación",
+    "مسح توقيع المطالبة",
+    "ล้างลายเซ็นคำขอเบิก"
+  ],
+  "Claim signed by name": [
+    "索赔签署人姓名",
+    "दावे पर हस्ताक्षरकर्ता का नाम",
+    "Nombre del firmante de reclamación",
+    "اسم موقّع المطالبة",
+    "ชื่อผู้ลงนามคำขอเบิก"
+  ],
+  "Request": [
+    "申请",
+    "अनुरोध",
+    "Solicitud",
+    "الطلب",
+    "คำขอ"
+  ],
+  "Hire": [
+    "租赁",
+    "किराया",
+    "Alquiler",
+    "تأجير",
+    "เช่า"
+  ],
+  "Choose Labour, Materials, Services, Hire or Other for the type of expense.": [
+    "费用类型请选择人工、材料、服务、租赁或其他。",
+    "खर्च के प्रकार में श्रम, सामग्री, सेवाएँ, किराया या अन्य चुनें।",
+    "Elija Mano de obra, Materiales, Servicios, Alquiler u Otro como tipo de gasto.",
+    "اختر العمالة أو المواد أو الخدمات أو التأجير أو أخرى لنوع المصروف.",
+    "เลือกประเภทค่าใช้จ่ายเป็นค่าแรง วัสดุ บริการ เช่า หรืออื่น ๆ"
+  ],
+  "Prepended to every new PDF export, before any cover assigned to that document. Existing saved revisions keep their original covers.": [
+    "添加在每次新导出的PDF最前面，位于文档指定封面之前。已保存的历史版本保留原有封面。",
+    "हर नए PDF निर्यात में, दस्तावेज़ को सौंपे गए किसी भी आवरण से पहले जोड़ा जाता है। पहले से सहेजे गए संशोधनों के मूल आवरण बने रहते हैं।",
+    "Se añade al principio de cada nueva exportación PDF, antes de la portada asignada al documento. Las revisiones guardadas conservan sus portadas originales.",
+    "تُضاف في بداية كل تصدير PDF جديد، قبل أي غلاف مخصص لذلك المستند. تحتفظ المراجعات المحفوظة بأغلفتها الأصلية.",
+    "เพิ่มไว้หน้าสุดของการส่งออก PDF ใหม่ทุกครั้ง ก่อนใบปะหน้าที่กำหนดให้เอกสารนั้น ฉบับแก้ไขที่บันทึกไว้แล้วจะคงใบปะหน้าเดิม"
+  ]
+}

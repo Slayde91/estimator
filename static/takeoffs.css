@@ -476,6 +476,6 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
   }
 }
 
-#takeoffs-workspace .button.takeoff-preview-transfer{background:#ffdd53;border-color:#bc0022;color:#ad001d}
-#takeoffs-workspace .button.takeoff-preview-transfer:hover:not(:disabled){background:#ffe886;border-color:#970020}
-#takeoffs-workspace .takeoff-preview-transfer .takeoff-transfer-icon{filter:brightness(0) saturate(100%) invert(10%) sepia(97%) saturate(4000%) hue-rotate(338deg)}
+#takeoffs-workspace .button.takeoff-preview-transfer{background:#ad001d;border-color:#ffdd53;color:#ffdd53}
+#takeoffs-workspace .button.takeoff-preview-transfer:hover:not(:disabled){background:#970020;border-color:#ffe886;color:#ffe886}
+#takeoffs-workspace .takeoff-preview-transfer .takeoff-transfer-icon{filter:brightness(0) saturate(100%) invert(86%) sepia(77%) saturate(548%) hue-rotate(332deg) brightness(105%) contrast(102%)}

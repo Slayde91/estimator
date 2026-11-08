@@ -55,6 +55,23 @@ def work_order_fields(*, long_notes=False):
 
 
 class OrderQuotePdfPresentationTests(unittest.TestCase):
+    def test_work_order_claim_signer_name_date_and_vector_signature_are_rendered_together(self):
+        fields = work_order_fields()
+        fields['order'].update(claimed_by='Claim signer fixture', claim_date='2026-11-10')
+        fields['signatures']['claimed_by'] = deepcopy(INK)
+        payload = render_commercial_pdf({'kind': 'work_order', 'fields': fields}, 'WO-CLAIM', company=DEFAULTS)
+        with pdfplumber.open(BytesIO(payload)) as pdf:
+            page = next(page for page in pdf.pages if 'Claim signer fixture' in page.extract_text())
+            for retained in ('Claim signed by', 'Claim signer fixture', '2026-11-10'):
+                self.assertIn(retained, page.extract_text())
+            label = page.search('Claim signed by', regex=False)[0]
+            signer = page.search('Claim signer fixture', regex=False)[0]
+            date = page.search('2026-11-10', regex=False)[0]
+            self.assertTrue(any(label['top'] - 1 <= ink['top'] and ink['bottom'] <= signer['top']
+                                for ink in page.curves + page.lines if ink['stroking_color'] == (0, 0, 0)))
+            self.assertLess(label['top'], signer['top'])
+            self.assertLess(signer['top'], date['top'])
+
     def test_work_order_centered_header_and_consistent_red_key_value_tables(self):
         fields = work_order_fields()
         before = deepcopy(fields)

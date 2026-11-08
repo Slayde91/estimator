@@ -3174,5 +3174,14 @@
   "Notes {0}": "Notes {0}",
   "Site contact number must be text of at most 60 characters.": "Le téléphone du contact du chantier doit contenir au maximum 60 caractères.",
   "Notes must be text of at most 2000 characters.": "Les notes doivent contenir au maximum 2000 caractères.",
-  "Mobilisation": "Mobilisation"
+  "Mobilisation": "Mobilisation",
+  "Claim signed by": "Demande signée par",
+  "Sign Claim signed by": "Signer la demande",
+  "Change Claim signed by": "Modifier la signature de la demande",
+  "Clear Claim signed by": "Effacer la signature de la demande",
+  "Claim signed by name": "Nom du signataire de la demande",
+  "Request": "Demande",
+  "Hire": "Location",
+  "Choose Labour, Materials, Services, Hire or Other for the type of expense.": "Choisissez Main-d’œuvre, Matériaux, Services, Location ou Autre comme type de dépense.",
+  "Prepended to every new PDF export, before any cover assigned to that document. Existing saved revisions keep their original covers.": "Ajoutée au début de chaque nouvel export PDF, avant toute couverture affectée au document. Les révisions déjà enregistrées conservent leur couverture d’origine."
 }

@@ -38,7 +38,7 @@ ORDER_FIELDS = ('start_date', 'end_date', 'urgency', 'quote_id', 'work_order_id'
                 'ship_to_address', 'delivery_date', 'expense_type', 'delivery_method', 'requested_by',
                 'requested_date', 'sent_by', 'sent_date', 'verified_by', 'verified_date', 'verification', 'prepared_date')
 FIELD_KEYS = {'title', 'details', 'introduction', 'lines', 'scope', 'scope_tables', 'sources', 'allowances', 'terms', 'order', 'company_reference'}
-WORK_ORDER_OPTIONAL_FIELDS = ('progress_by', 'progress_date', 'closed_date')
+WORK_ORDER_OPTIONAL_FIELDS = ('progress_by', 'progress_date', 'closed_date', 'claimed_by', 'claim_date')
 PURCHASE_ORDER_OPTIONAL_FIELDS = ('site_contact_number',)
 CERTIFICATION_CHOICES = ('Certification issued', 'Certification not issued')
 COMPLETION_CHOICES = ('Completed', 'Ongoing', 'On hold', 'Not completed')
@@ -47,7 +47,7 @@ MAX_PDF_BYTES = 64 * 1024 * 1024
 RATE_DEFAULTS = {'ordinary_time': '130', 'time_and_half': '160', 'double_time': '190',
                  'site_remobilisation': '1000', 'access_equipment_transport': '400',
                  'equipment': '20', 'materials': '20'}
-PURCHASE_EXPENSE_TYPES = ('Labour', 'Materials', 'Services', 'Other')
+PURCHASE_EXPENSE_TYPES = ('Labour', 'Materials', 'Services', 'Hire', 'Other')
 PURCHASE_DELIVERY_METHODS = ('Delivery', 'Pickup')
 DETAIL_OVERRIDE_KEYS = ('client', 'contact', 'phone', 'email', 'site_address')
 RATE_INTRODUCTION = ('If additional work, or rectification work that is not the result of defective workmanship, '
@@ -313,7 +313,7 @@ def validate_fields(value, *, kind=None):
         result['files'] = files
     from .swms import validate_signature
     signatures = value.get('signatures', {})
-    if (not isinstance(signatures, dict) or set(signatures) - {'reviewed_by', 'prepared_by', 'client_approved_by', 'progress_by', 'closed_by'}
+    if (not isinstance(signatures, dict) or set(signatures) - {'reviewed_by', 'prepared_by', 'client_approved_by', 'progress_by', 'closed_by', 'claimed_by'}
             or (signatures and kind not in ('work_order', None))):
         raise ValidationError('Invalid work order signatures.')
     if signatures:
@@ -882,7 +882,7 @@ class CommercialDocuments:
                 raise ValidationError('Choose Delivery or Pickup for the delivery method.')
             expense = order['expense_type']
             if expense and expense not in PURCHASE_EXPENSE_TYPES and (not prior or expense != prior['expense_type']):
-                raise ValidationError('Choose Labour, Materials, Services or Other for the type of expense.')
+                raise ValidationError('Choose Labour, Materials, Services, Hire or Other for the type of expense.')
             work_order_id = order['work_order_id']
             if not work_order_id:
                 # Preserve historical unlinked references, but never allow a new
@@ -950,6 +950,12 @@ class CommercialDocuments:
                 # unless the current client deliberately sends an empty clear.
                 if kind=='purchase_order' and 'site_contact_number' not in fields['order'] and 'site_contact_number' in previous['fields']['order']:
                     fields['order']['site_contact_number']=previous['fields']['order']['site_contact_number']
+                if kind=='work_order' and not any(key in payload['fields']['order'] for key in ('claimed_by','claim_date')):
+                    for key in ('claimed_by','claim_date'):
+                        if key in previous['fields']['order']:
+                            fields['order'][key]=previous['fields']['order'][key]
+                    if previous['fields'].get('signatures',{}).get('claimed_by'):
+                        fields.setdefault('signatures',{})['claimed_by']=deepcopy(previous['fields']['signatures']['claimed_by'])
                 if kind=='work_order' and fields.get('work_tracking') and previous['fields'].get('work_tracking'):
                     previous_rows={row['line_id']:row for row in previous['fields']['work_tracking']['rows']}
                     for raw, row in zip(payload['fields']['work_tracking']['rows'],fields['work_tracking']['rows']):

@@ -919,7 +919,7 @@
     window.CeasefireProject?.refreshPages?.();
     if (state.kind === "quote" && document.version > 0) void refreshScopePreview();
   }
-  const signatureDates = {reviewed_by:"review_date",prepared_by:"prepared_date",client_approved_by:"client_approval_date",progress_by:"progress_date",closed_by:"closed_date"};
+  const signatureDates = {reviewed_by:"review_date",prepared_by:"prepared_date",client_approved_by:"client_approval_date",progress_by:"progress_date",closed_by:"closed_date",claimed_by:"claim_date"};
   async function signatureProfile() {
     const response = await fetch('/api/scheduler/bootstrap',{cache:'no-store'}), value = await response.json();
     if(!response.ok || typeof value.timezone !== 'string')throw new Error('Personal details could not be loaded. Try again.');
@@ -994,7 +994,7 @@
       const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('viewBox','0 0 24 24');icon.setAttribute('width','24');icon.setAttribute('height','24');icon.setAttribute('fill','none');icon.setAttribute('stroke','currentColor');icon.setAttribute('stroke-width','1.8');icon.setAttribute('stroke-linecap','round');icon.setAttribute('stroke-linejoin','round');icon.setAttribute('aria-hidden','true');
       for(const d of path){const stroke=document.createElementNS(icon.namespaceURI,'path');stroke.setAttribute('d',d);icon.append(stroke);}control.append(icon);return control;
     }
-    buttonRow.append(preview,sign,resetButton('Clear',['M20 7v5h-5','M4 17v-5h5','M6.1 8.4A7.5 7.5 0 0 1 19.2 10L20 12','M17.9 15.6A7.5 7.5 0 0 1 4.8 14L4 12']),resetButton('Delete',['M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7']));
+    buttonRow.append(preview,sign,resetButton('Clear',['M20 7v5h-5','M4 17v-5h5','M6.1 8.4A7.5 7.5 0 0 1 19.2 10L20 12','M17.9 15.6A7.5 7.5 0 0 1 4.8 14L4 12']));
     const heading=node('span','',label);window.CeasefireI18n?.text(heading,label);
     wrap.append(heading,buttonRow);return wrap;
   }
@@ -1158,13 +1158,17 @@
       if (isWorkOrder) {
         fields.order.quote_reference = selected?.last_number || "";
         delete fields.work_tracking;
-        if(fields.signatures)delete fields.signatures.progress_by;
-        fields.order.progress_by='';fields.order.progress_date='';
+        for(const key of ['progress_by','claimed_by']) {
+          if(fields.signatures)delete fields.signatures[key];
+          fields.order[key]='';fields.order[signatureDates[key]]='';
+        }
         initializeTracking();
         trackingHosts.forEach(([host,key,label])=>renderTracking(host,key,label));
-        const signature=form.querySelector('[data-signature-field="progress_by"]');
-        if(signature)signature.replaceWith(signatureField(fields,'progress_by','Progress signed by'));
-        form.querySelectorAll('[data-order-field="progress_by"],[data-order-field="progress_date"]').forEach(control=>control.value='');
+        for(const [key,label] of [['progress_by','Progress signed by'],['claimed_by','Claim signed by']]) {
+          const signature=form.querySelector(`[data-signature-field="${key}"]`);
+          if(signature)signature.replaceWith(signatureField(fields,key,label));
+        }
+        form.querySelectorAll('[data-order-field="progress_by"],[data-order-field="progress_date"],[data-order-field="claimed_by"],[data-order-field="claim_date"]').forEach(control=>control.value='');
         const linkedNumber=boundWorkOrderProjectNumber(state.editor) || commercialProjectDetails(state.editor.source).project_no;
         fields.details.project_no=linkedNumber;
         const number=root()?.querySelector('[data-project-detail="project_no"]');if(number)number.value=linkedNumber;
@@ -1183,9 +1187,9 @@
       ["OHS documentation", [["prepared_by","Prepared by"],["prepared_date","Date"]]],
       ["Client approval", [["client_approved_by","Approved by"],["client_approval_date","Approval date"]]],
       ["Works in Progress", [["completed_percent","% completed"],["progress_by","Progress signed by"],["progress_date","Date"]]],
-      ["Work Order Claim", [["claimed_percent","% claimed"]]],
+      ["Work Order Claim", [["claimed_percent","% claimed"],["claimed_by","Claim signed by"],["claim_date","Date"]]],
       ["Work Order Completion", [["certification","Certification details"],["completion","Completion"],["closed_by","Closed by"],["closed_date","Date"]]]
-    ] : [["Purchase order information", [["work_order_reference", "Work order reference"], ["supplier", "Supplier"], ["supplier_email", "Supplier email"], ["supplier_contact", "Supplier contact"], ["payment_terms", "Payment terms"], ["ship_to_name", "Site contact"], ["site_contact_number", "Site contact number"], ["delivery_date", "Delivery date"], ["ship_to_address", "Ship to address"], ["delivery_method", "Delivery or pickup"], ["expense_type", "Type of expense"]]], ["Request and approval", [["requested_by", "Requested by"], ["requested_date", "Request date"], ...commonReview]], ["Procurement verification", [["verification", "Verification method, specification, result and actions"], ["sent_by", "Sent by"], ["sent_date", "Sent date"], ["verified_by", "Verified by"], ["verified_date", "Verification date"]]]];
+    ] : [["Purchase order information", [["work_order_reference", "Work order reference"], ["supplier", "Supplier"], ["supplier_email", "Supplier email"], ["supplier_contact", "Supplier contact"], ["payment_terms", "Payment terms"], ["ship_to_name", "Site contact"], ["site_contact_number", "Site contact number"], ["delivery_date", "Delivery date"], ["ship_to_address", "Ship to address"], ["delivery_method", "Delivery or pickup"], ["expense_type", "Type of expense"]]], ["Request", [["requested_by", "Requested by"], ["requested_date", "Request date"]]], ["Approval", commonReview], ["Sent by", [["sent_by", "Sent by"], ["sent_date", "Sent date"]]], ["Procurement verification", [["verification", "Verification method, specification, result and actions"], ["verified_by", "Verified by"], ["verified_date", "Verification date"]]]];
     for (const [title, items] of groups) {
       const section = node("section", "card commercial-order-fields");
       if(!isWorkOrder && title==='Purchase order information')section.classList.add('commercial-purchase-information');
@@ -1242,7 +1246,7 @@
           search.input.dataset.orderField=key;section.append(search.element);continue;
         }
         const choices = isWorkOrder ? (key === "urgency" ? ["High Priority","Medium Priority","Low Priority"] : key === "approval" ? ["Approved","Denied"] : key==='certification' ? ['Certification issued','Certification not issued'] : key==='completion' ? ['Completed','Ongoing','On hold','Not completed'] : null)
-          : key === "expense_type" ? ["Labour", "Materials", "Services", "Other"] : key === "delivery_method" ? ["Delivery", "Pickup"] : null;
+          : key === "expense_type" ? ["Labour", "Materials", "Services", "Hire", "Other"] : key === "delivery_method" ? ["Delivery", "Pickup"] : null;
         let control;
         if (choices) {
           const options = ["",...choices];
@@ -1252,10 +1256,12 @@
         } else control = key.endsWith("_date") ? input(fields.order[key], value => fields.order[key] = value, "date")
           : key==='site_contact_number' ? input(fields.order[key], value => fields.order[key]=value, 'tel') : textarea(fields.order[key], value => fields.order[key] = value);
         if(key==='site_contact_number')control.maxLength=60;
+        if(isWorkOrder && key==='justification')control.rows=1;
         if(!isWorkOrder && title==='Purchase order information' && control.tagName==='TEXTAREA')control.rows=1;
         control.dataset.orderField=key;
         const item = field(label, control);
         if(isWorkOrder && key==='description')item.classList.add('commercial-work-description');
+        if(isWorkOrder && key==='justification')item.classList.add('commercial-work-justification');
         if (isWorkOrder && ["start_date","end_date"].includes(key)) {
           if (!dates) { dates = node("div", "commercial-field-pair commercial-proposed-dates"); section.append(dates); }
           dates.append(item);

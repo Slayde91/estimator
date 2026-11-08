@@ -3174,5 +3174,14 @@
   "Notes {0}": "নোট {0}",
   "Site contact number must be text of at most 60 characters.": "কাজের স্থানের যোগাযোগের ফোন নম্বর সর্বোচ্চ ৬০ অক্ষরের পাঠ্য হতে হবে।",
   "Notes must be text of at most 2000 characters.": "নোট সর্বোচ্চ ২০০০ অক্ষরের পাঠ্য হতে হবে।",
-  "Mobilisation": "কাজে মোতায়েন"
+  "Mobilisation": "কাজে মোতায়েন",
+  "Claim signed by": "দাবিতে স্বাক্ষরকারী",
+  "Sign Claim signed by": "দাবিতে স্বাক্ষর করুন",
+  "Change Claim signed by": "দাবির স্বাক্ষর পরিবর্তন করুন",
+  "Clear Claim signed by": "দাবির স্বাক্ষর মুছুন",
+  "Claim signed by name": "দাবিতে স্বাক্ষরকারীর নাম",
+  "Request": "অনুরোধ",
+  "Hire": "ভাড়া",
+  "Choose Labour, Materials, Services, Hire or Other for the type of expense.": "ব্যয়ের ধরন হিসেবে শ্রম, উপকরণ, পরিষেবা, ভাড়া বা অন্য নির্বাচন করুন।",
+  "Prepended to every new PDF export, before any cover assigned to that document. Existing saved revisions keep their original covers.": "প্রতিটি নতুন PDF রপ্তানির শুরুতে, সেই নথির নির্ধারিত প্রচ্ছদের আগে যোগ করা হয়। আগে সংরক্ষিত সংশোধনগুলির মূল প্রচ্ছদ অপরিবর্তিত থাকে।"
 }

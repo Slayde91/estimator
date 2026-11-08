@@ -1,9 +1,9 @@
 const fs = require('node:fs'), vm = require('node:vm'), assert = require('node:assert/strict');
-function harness({blocked=false, type='application/pdf', ok=true, size=100}={}) {
+function harness({blocked=false, type='application/pdf', ok=true, size=100, projectToken=null}={}) {
   const calls=[], urls=[], revoked=[], downloads=[], intervals=[], timers=[];
   const viewer={closed:false,opener:{},location:{replace:value=>calls.push(['view',value])},close(){this.closed=true;}};
   const context={window:{open:()=>{calls.push(['open']);return blocked?null:viewer;},
-    CeasefireProject:{downloadTarget(){return {project_token:null};}},
+    CeasefireProject:{downloadTarget(){return {project_token:projectToken};}},
     CeasefireDocumentation:{downloadHeaders(){throw Error('Must not create project history');}},
     CeasefireActivity:{begin:()=>()=>calls.push(['end'])}},
     document:{activeElement:null,body:{append(){}},createElement:()=>({click(){downloads.push(this.download);},remove(){}})},
@@ -37,7 +37,7 @@ function harness({blocked=false, type='application/pdf', ok=true, size=100}={}) 
   for(const options of [{ok:false},{type:'text/html'},{size:0}]){
     const h=harness(options);await assert.rejects(h.api.save('/api/technical/item.pdf',{}));assert.equal(h.viewer.closed,true);
   }
-  const ordinary=harness();await assert.rejects(ordinary.api.save('/api/calculators/ductwork/report.pdf',{}),/Must not create project history/);
+  const ordinary=harness({projectToken:'saved-project'});await assert.rejects(ordinary.api.save('/api/calculators/ductwork/report.pdf',{}),/Must not create project history/);
   assert.equal(ordinary.calls.some(call=>call[0]==='open'),false,'Ordinary exports retain the shared history/save path');
   console.log('Reference exports passed: temporary PDF viewing, native Excel receipts, cleanup and failure paths.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

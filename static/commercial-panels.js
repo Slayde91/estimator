@@ -158,11 +158,14 @@
   window.ClassifireCommercialDirectory={field:directorySearch,load:loadDirectory,fold};
   function attach(form, options) {
     const owner = form.parentElement, wrapper = el("div"), left = el("aside"), right = el("aside");
-    wrapper.className = "commercial-work-layout"; left.className = right.className = "commercial-sidebar";
-    owner.insertBefore(wrapper,form); wrapper.append(left,form,right);
+    const isPurchaseOrder=options.kind==='purchase_order';
+    wrapper.className = "commercial-work-layout"+(isPurchaseOrder?' commercial-purchase-layout':''); left.className = right.className = "commercial-sidebar";
+    owner.insertBefore(wrapper,form); wrapper.append(...(isPurchaseOrder?[form,right]:[left,form,right]));
+    let controls=[],refreshDetails=()=>{};
+    if(!isPurchaseOrder) {
     const accountPanel = panel("Company Details"), contactPanel = panel("Contact Details");
     left.append(accountPanel,contactPanel);
-    let directory = {}, controls=[];
+    let directory = {};
     const projectAccount=()=>{const rows=(directory.accounts || []).filter(account=>options.projectDetails?.account_id
       ? account.id===options.projectDetails.account_id && fold(account.company)===fold(options.fields.details.client)
       : fold(account.company)===fold(options.fields.details.client));return rows.length===1?rows[0]:null;};
@@ -202,6 +205,8 @@
     showContact();
     loadDirectory().then(data=>{if(!wrapper.isConnected)return;directory=data;showContact();}).catch(()=>{});
     form.querySelector(".commercial-details")?.addEventListener("input",showContact);
+    refreshDetails=showContact;
+    }
     const notes = panel("Notes",0), files = panel("Files",0);
     right.append(notes, files);
     let showAllNotes=false;
@@ -256,7 +261,7 @@
     }
     relatedPanels.forEach(([,block])=>right.append(block));showRelated();
     form.querySelector("[data-order-link]")?.addEventListener("change",showRelated);
-    return {repaintFiles,closeSearches(){controls.forEach(control=>control.close());},refreshProjectDetails(value){options.projectDetails=value;showContact();}};
+    return {repaintFiles,closeSearches(){controls.forEach(control=>control.close());},refreshProjectDetails(value){options.projectDetails=value;refreshDetails();}};
   }
   window.ClassifireWorkOrderPanels = {attach};
 })();

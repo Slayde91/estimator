@@ -93,9 +93,16 @@ const ready = new Promise((resolve, reject) => {
   await foundPerson.click();
   await expect(foundPerson).toBeChecked();
   await foundPerson.press('Escape');
+  // The immediate cached results render before the debounced directory request.
+  // Await that request so Save cannot race the link-refresh submit guard on CI.
+  const noMatchRefresh = page.waitForResponse(reply => {
+    const url = new URL(reply.url());
+    return url.pathname === '/api/contacts/account-links' && url.searchParams.get('search') === 'Does not match either selected record';
+  });
   await search.fill('Does not match either selected record');
   await expect(matching).toContainText('No matching records.');
   await search.press('Escape');
+  assert.equal((await noMatchRefresh).status(), 200);
   await expect(dialog.locator('.contacts-link-controls button')).toBeEnabled();
   await expect(contactLink).toBeChecked();
   await expect(dialog.locator('[data-link-group="projects"] > summary')).toHaveText('Projects (1)');

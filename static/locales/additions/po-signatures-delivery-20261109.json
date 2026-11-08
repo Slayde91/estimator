@@ -1,0 +1,102 @@
+{
+  "Invalid commercial document signatures.": [
+    "상업 문서 서명이 잘못되었습니다.",
+    "Hindi wasto ang mga lagda sa dokumentong pangnegosyo.",
+    "Chữ ký tài liệu thương mại không hợp lệ."
+  ],
+  "Use a delivery time in HH:MM format.": [
+    "배송 시간을 HH:MM 형식으로 입력하세요.",
+    "Gamitin ang HH:MM na format para sa oras ng paghahatid.",
+    "Nhập giờ giao hàng theo định dạng HH:MM."
+  ],
+  "Choose Approved or Rejected for the purchase order approval.": [
+    "구매 주문 승인에서 승인 또는 거절을 선택하세요.",
+    "Piliin ang Inaprubahan o Tinanggihan para sa pag-apruba ng purchase order.",
+    "Chọn Đã duyệt hoặc Bị từ chối cho việc phê duyệt đơn đặt hàng."
+  ],
+  "Delivery date and time": [
+    "배송 날짜 및 시간",
+    "Petsa at oras ng paghahatid",
+    "Ngày và giờ giao hàng"
+  ],
+  "Delivery date": [
+    "배송 날짜",
+    "Petsa ng paghahatid",
+    "Ngày giao hàng"
+  ],
+  "Delivery time": [
+    "배송 시간",
+    "Oras ng paghahatid",
+    "Giờ giao hàng"
+  ],
+  "Rejected": [
+    "거절됨",
+    "Tinanggihan",
+    "Bị từ chối"
+  ],
+  "Rejection reason": [
+    "거절 사유",
+    "Dahilan ng pagtanggi",
+    "Lý do từ chối"
+  ],
+  "Sign Requested by": [
+    "요청자 서명",
+    "Lagdaan bilang humiling",
+    "Ký người yêu cầu"
+  ],
+  "Change Requested by": [
+    "요청자 서명 변경",
+    "Palitan ang lagda ng humiling",
+    "Đổi chữ ký người yêu cầu"
+  ],
+  "Clear Requested by": [
+    "요청자 서명 지우기",
+    "Burahin ang lagda ng humiling",
+    "Xóa chữ ký người yêu cầu"
+  ],
+  "Requested by name": [
+    "요청자 이름",
+    "Pangalan ng humiling",
+    "Tên người yêu cầu"
+  ],
+  "Sign Sent by": [
+    "발송자 서명",
+    "Lagdaan bilang nagpadala",
+    "Ký người gửi"
+  ],
+  "Change Sent by": [
+    "발송자 서명 변경",
+    "Palitan ang lagda ng nagpadala",
+    "Đổi chữ ký người gửi"
+  ],
+  "Clear Sent by": [
+    "발송자 서명 지우기",
+    "Burahin ang lagda ng nagpadala",
+    "Xóa chữ ký người gửi"
+  ],
+  "Sent by name": [
+    "발송자 이름",
+    "Pangalan ng nagpadala",
+    "Tên người gửi"
+  ],
+  "Sign Verified by": [
+    "검증자 서명",
+    "Lagdaan bilang nagpatunay",
+    "Ký người xác minh"
+  ],
+  "Change Verified by": [
+    "검증자 서명 변경",
+    "Palitan ang lagda ng nagpatunay",
+    "Đổi chữ ký người xác minh"
+  ],
+  "Clear Verified by": [
+    "검증자 서명 지우기",
+    "Burahin ang lagda ng nagpatunay",
+    "Xóa chữ ký người xác minh"
+  ],
+  "Verified by name": [
+    "검증자 이름",
+    "Pangalan ng nagpatunay",
+    "Tên người xác minh"
+  ]
+}

@@ -833,6 +833,8 @@
       if (!await window.CeasefireProject.openCommercial("purchase_order")) return;
       if (context !== window.CeasefireProject?.runtimeContext?.() || workspace !== state.workspace || state.kind !== "purchase_order") return;
       result.fields.details.date = today();
+      // A new PO starts at its linked Project's current site; later edits belong to the PO.
+      result.fields.order.ship_to_address = commercialProjectDetails(editor.source).site_address || "";
       openEditor({id: crypto.randomUUID(), version: 0, kind: "purchase_order", status: "Draft", fields: result.fields, last_number: ""}, editor.source);
       markDirty();
       if (result.fields.lines.length) message("Enter supplier prices before issuing this Purchase Order.");
@@ -886,8 +888,8 @@
     };
     details.append(detailPair([["date", "Document date"], ["project_no", "Project number"]]));
     if (state.kind !== "purchase_order") details.append(detailPair([["client", "Client"], ["contact", "Client contact"]]));
-    details.append(detailField("site_address", "Site address"));
     if (state.kind !== "purchase_order") {
+      details.append(detailField("site_address", "Site address"));
       details.append(detailPair([["phone", "Client phone"], ["email", "Client email"]]));
     }
     form.append(details);
@@ -919,7 +921,7 @@
     window.CeasefireProject?.refreshPages?.();
     if (state.kind === "quote" && document.version > 0) void refreshScopePreview();
   }
-  const signatureDates = {reviewed_by:"review_date",prepared_by:"prepared_date",client_approved_by:"client_approval_date",progress_by:"progress_date",closed_by:"closed_date",claimed_by:"claim_date"};
+  const signatureDates = {requested_by:"requested_date",reviewed_by:"review_date",prepared_by:"prepared_date",client_approved_by:"client_approval_date",progress_by:"progress_date",closed_by:"closed_date",claimed_by:"claim_date",sent_by:"sent_date",verified_by:"verified_date"};
   async function signatureProfile() {
     const response = await fetch('/api/scheduler/bootstrap',{cache:'no-store'}), value = await response.json();
     if(!response.ok || typeof value.timezone !== 'string')throw new Error('Personal details could not be loaded. Try again.');
@@ -985,7 +987,7 @@
     }
     function reset() {
       if(state.busy || state.editor!==selected)return;
-      if(fields.signatures)delete fields.signatures[key];fields.order[key]='';fields.order[signatureDates[key]]='';
+      delete (fields.signatures ||= {})[key];fields.order[key]='';fields.order[signatureDates[key]]='';
       updateControls();markDirty();wrap.replaceWith(signatureField(fields,key,label));
     }
     function resetButton(action,path) {
@@ -1180,7 +1182,6 @@
     });
     references.append(field(isWorkOrder ? "Linked Quote" : "Linked Work Order", linked), field(isWorkOrder ? "Work order reference" : "Purchase Order No.", reference));
     form.append(references);
-    const commonReview = [["approval", "Approval"], ["reviewed_by", "Reviewed by"], ["review_date", "Review date"]];
     const groups = isWorkOrder ? [
       ["Work order details", [["start_date","Proposed start date"],["end_date","Proposed end date"],["urgency","Category / urgency"],["description","Description of works"],["estimated_cost","Estimated cost (AUD)"]]],
       ["Work order review", [["approval","Approval"],["justification","Justification"],["reviewed_by","Reviewed by"],["review_date","Review date"]]],
@@ -1189,13 +1190,13 @@
       ["Works in Progress", [["completed_percent","% completed"],["progress_by","Progress signed by"],["progress_date","Date"]]],
       ["Work Order Claim", [["claimed_percent","% claimed"],["claimed_by","Claim signed by"],["claim_date","Date"]]],
       ["Work Order Completion", [["certification","Certification details"],["completion","Completion"],["closed_by","Closed by"],["closed_date","Date"]]]
-    ] : [["Purchase order information", [["work_order_reference", "Work order reference"], ["supplier", "Supplier"], ["supplier_email", "Supplier email"], ["supplier_contact", "Supplier contact"], ["payment_terms", "Payment terms"], ["ship_to_name", "Site contact"], ["site_contact_number", "Site contact number"], ["delivery_date", "Delivery date"], ["ship_to_address", "Ship to address"], ["delivery_method", "Delivery or pickup"], ["expense_type", "Type of expense"]]], ["Request", [["requested_by", "Requested by"], ["requested_date", "Request date"]]], ["Approval", commonReview], ["Sent by", [["sent_by", "Sent by"], ["sent_date", "Sent date"]]], ["Procurement verification", [["verification", "Verification method, specification, result and actions"], ["verified_by", "Verified by"], ["verified_date", "Verification date"]]]];
+    ] : [["Purchase order information", [["work_order_reference", "Work order reference"], ["supplier", "Supplier"], ["payment_terms", "Payment terms"], ["supplier_contact", "Supplier contact"], ["supplier_email", "Supplier email"], ["ship_to_name", "Site contact"], ["site_contact_number", "Site contact number"], ["delivery_date", "Delivery date and time"], ["ship_to_address", "Ship to address"], ["delivery_method", "Delivery or pickup"], ["expense_type", "Type of expense"]]], ["Request", [["requested_by", "Requested by"], ["requested_date", "Request date"]]], ["Approval", [["approval", "Approval"], ["rejection_reason", "Rejection reason"], ["reviewed_by", "Approved by"], ["review_date", "Approval date"]]], ["Sent by", [["sent_by", "Sent by"], ["sent_date", "Sent date"]]], ["Procurement verification", [["verification", "Verification method, specification, result and actions"], ["verified_by", "Verified by"], ["verified_date", "Verification date"]]]];
     for (const [title, items] of groups) {
       const section = node("section", "card commercial-order-fields");
       if(!isWorkOrder && title==='Purchase order information')section.classList.add('commercial-purchase-information');
       if(isWorkOrder && title==='Work order details')section.classList.add('commercial-work-details');
       section.append(node("h2", "", title));
-      let dates,personPair,personDate;
+      let dates,personPair,personDate,rejectionField;
       for (const [key, label] of items) {
         if(['completed_percent','claimed_percent'].includes(key)) {
           const tracking=node('div','commercial-work-tracking');tracking.dataset.trackingField=key;
@@ -1220,7 +1221,7 @@
           const costFiles=node('div','commercial-work-cost-files');costFiles.append(field(label,costControl));section.append(costFiles);
           continue;
         }
-        if (isWorkOrder && Object.hasOwn(signatureDates,key)) {
+        if (Object.hasOwn(signatureDates,key)) {
           const row=node('div','commercial-signer-row'),name=input(fields.order[key],value=>fields.order[key]=value);
           name.dataset.orderField=key;
           const nameField=field('Name',name);name.setAttribute('aria-label',label+' name');
@@ -1230,6 +1231,17 @@
           row.append(signatureField(fields,key,label),personPair);
           section.append(row);
           continue;
+        }
+        if(!isWorkOrder && key==='delivery_date') {
+          const group=node('div','field commercial-delivery-field'),caption=node('span','',label),controls=node('div','commercial-delivery-datetime');
+          const id='commercial-delivery-'+state.editor.document.id;
+          caption.id=id;group.setAttribute('role','group');group.setAttribute('aria-labelledby',id);
+          const date=input(fields.order.delivery_date,value=>fields.order.delivery_date=value,'date');
+          const time=input(fields.order.delivery_time,value=>fields.order.delivery_time=value,'time');
+          date.dataset.orderField='delivery_date';time.dataset.orderField='delivery_time';
+          date.setAttribute('aria-label','Delivery date');time.setAttribute('aria-label','Delivery time');time.step='60';
+          for(const control of [date,time])window.CeasefireI18n?.attr(control,'aria-label',control.getAttribute('aria-label'));
+          controls.append(date,time);group.append(caption,controls);section.append(group);continue;
         }
         if(!isWorkOrder && ['supplier','supplier_contact','ship_to_name'].includes(key)) {
           const owner=state.editor, workspace=state.workspace, context=window.CeasefireProject?.runtimeContext?.();
@@ -1246,26 +1258,31 @@
           search.input.dataset.orderField=key;section.append(search.element);continue;
         }
         const choices = isWorkOrder ? (key === "urgency" ? ["High Priority","Medium Priority","Low Priority"] : key === "approval" ? ["Approved","Denied"] : key==='certification' ? ['Certification issued','Certification not issued'] : key==='completion' ? ['Completed','Ongoing','On hold','Not completed'] : null)
-          : key === "expense_type" ? ["Labour", "Materials", "Services", "Hire", "Other"] : key === "delivery_method" ? ["Delivery", "Pickup"] : null;
+          : key === "approval" ? ["Approved", "Rejected"] : key === "expense_type" ? ["Labour", "Materials", "Services", "Hire", "Other"] : key === "delivery_method" ? ["Delivery", "Pickup"] : null;
         let control;
         if (choices) {
           const options = ["",...choices];
           if (fields.order[key] && !options.includes(fields.order[key])) options.push(fields.order[key]);
-          control = select(options, fields.order[key], value => fields.order[key] = value);
+          control = select(options, fields.order[key], value => {
+            fields.order[key] = value;
+            if(!isWorkOrder && key==='approval' && rejectionField)rejectionField.hidden=value!=='Rejected';
+          });
           for(const option of control.options)if(choices.includes(option.value))window.CeasefireI18n?.text(option,option.value);
         } else control = key.endsWith("_date") ? input(fields.order[key], value => fields.order[key] = value, "date")
           : key==='site_contact_number' ? input(fields.order[key], value => fields.order[key]=value, 'tel') : textarea(fields.order[key], value => fields.order[key] = value);
         if(key==='site_contact_number')control.maxLength=60;
+        if(!isWorkOrder && key==='rejection_reason')control.maxLength=1000;
         if(isWorkOrder && key==='justification')control.rows=1;
         if(!isWorkOrder && title==='Purchase order information' && control.tagName==='TEXTAREA')control.rows=1;
         control.dataset.orderField=key;
         const item = field(label, control);
+        if(!isWorkOrder && key==='rejection_reason'){rejectionField=item;item.hidden=fields.order.approval!=='Rejected';}
         if(isWorkOrder && key==='description')item.classList.add('commercial-work-description');
         if(isWorkOrder && key==='justification')item.classList.add('commercial-work-justification');
         if (isWorkOrder && ["start_date","end_date"].includes(key)) {
           if (!dates) { dates = node("div", "commercial-field-pair commercial-proposed-dates"); section.append(dates); }
           dates.append(item);
-        } else if(isWorkOrder && key===personDate && personPair)personPair.append(item);
+        } else if(key===personDate && personPair)personPair.append(item);
         else section.append(item);
       }
       form.append(section);

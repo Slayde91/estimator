@@ -2999,5 +2999,6 @@
   "No matching Accounts. You can enter a company name.": "Aucun compte client ne correspond. Vous pouvez saisir un nom d’entreprise.",
   "No matching Contacts. You can enter a name.": "Aucun contact ne correspond. Vous pouvez saisir un nom.",
   "This Contact already has a lead. Open that lead instead.": "Ce contact a déjà une fiche prospect. Ouvrez plutôt cette fiche.",
-  "Choose the Account matching this company.": "Sélectionnez le compte client correspondant à cette entreprise."
+  "Choose the Account matching this company.": "Sélectionnez le compte client correspondant à cette entreprise.",
+  "New Contact": "Nouveau contact"
 }

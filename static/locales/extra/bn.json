@@ -2999,5 +2999,6 @@
   "No matching Accounts. You can enter a company name.": "কোনো মিলে যাওয়া গ্রাহক অ্যাকাউন্ট নেই। আপনি কোম্পানির নাম লিখতে পারেন।",
   "No matching Contacts. You can enter a name.": "কোনো মিলে যাওয়া যোগাযোগ নেই। আপনি একটি নাম লিখতে পারেন।",
   "This Contact already has a lead. Open that lead instead.": "এই যোগাযোগের জন্য ইতিমধ্যে একটি সম্ভাব্য গ্রাহকের রেকর্ড আছে। সেই রেকর্ডটি খুলুন।",
-  "Choose the Account matching this company.": "এই কোম্পানির সঙ্গে মিলে যাওয়া গ্রাহক অ্যাকাউন্টটি বেছে নিন।"
+  "Choose the Account matching this company.": "এই কোম্পানির সঙ্গে মিলে যাওয়া গ্রাহক অ্যাকাউন্টটি বেছে নিন।",
+  "New Contact": "নতুন যোগাযোগ"
 }

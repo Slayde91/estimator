@@ -100,19 +100,16 @@ def default_fields(details=None, company=None, people_defaults=None):
     options = template_options()
     fields.pop('works_type')
     fields.update(title='Safe Work Method Statement', details=dict.fromkeys(DETAIL_FIELDS, ''), manager_signature=None, contact_signature=None,
-                  reviewers=[{'name': '', 'position': '', 'signature': None},
-                             {'name': '', 'position': '', 'signature': None}],
-                  consultation=[{'name': '', 'position': '', 'signature': None},
-                                {'name': '', 'position': '', 'signature': None}],
+                  reviewers=[], consultation=[],
                   additional_steps=False, additional_rows=[], signoffs=[], manual_signature=None, site_signoffs=[], reviews=[''] * 10,
-                  emergency_contacts='', work_types=['Passive Firestopping'], steps=options['works'],
+                  emergency_contacts='', work_types=[], steps=options['works'],
                   high_risk_steps=options['high_risk_tables'], attachments=[])
     fields['resources'] = fields['resources'].replace('{company}', company.get('name', ''))
     fields['details'].update(job_reference=details.get('project_no', ''), principal_contractor=details.get('client', ''),
                              project_name=details.get('client', ''), project_address=details.get('site_address', ''),
                              date=datetime.now(ZoneInfo('Australia/Sydney')).date().isoformat())
     # Saved people defaults are retained for old-client compatibility, but each
-    # new statement starts with unsigned, blank people. Profile details enter a
+    # new statement starts with no people or selected work types. Profile details enter a
     # document only after an explicit signature action.
     return validate_fields(fields)
 
@@ -194,9 +191,9 @@ def validate_fields(fields):
                         except ValueError as error:
                             raise ValidationError('Sign-off coordinates are invalid.') from error
             result[key].append(clean)
-    if (not isinstance(fields['work_types'], list) or not fields['work_types']
+    if (not isinstance(fields['work_types'], list)
             or any(value not in WORK_TYPES for value in fields['work_types']) or len(set(fields['work_types'])) != len(fields['work_types'])):
-        raise ValidationError('Choose at least one work type once.')
+        raise ValidationError('Choose valid work types without duplicates.')
     result['work_types'] = list(fields['work_types'])
     if not isinstance(fields['steps'], dict) or set(fields['steps']) != set(WORK_TYPES):
         raise ValidationError('SWMS work type tables are incomplete.')

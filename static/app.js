@@ -402,6 +402,7 @@
 
   const projectStatuses = ["Draft", "Review", "Presented", "Accepted", "Lost"];
   const projectPages = $("project-pages");
+  const documentPages = $("document-pages");
 
   function refreshProjectPages() {
     const active = ["quotes", "quote", "work-orders", "purchase-orders"].includes(state.currentView);
@@ -414,6 +415,24 @@
     else section?.insertBefore?.(projectPages, section.firstChild);
     for (const button of projectPages.querySelectorAll("[data-project-section]")) {
       const selected = button.dataset.projectSection === state.currentView;
+      button.classList.toggle("active", selected);
+      button.setAttribute("aria-pressed", String(selected));
+      if (selected) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
+    }
+  }
+
+  function refreshDocumentPages() {
+    if (!documentPages) return;
+    const active = ["documentation", "swms", "certification"].includes(state.currentView);
+    documentPages.hidden = !active;
+    if (!active) return;
+    const section = $("view-" + state.currentView), heading = section?.querySelector(":scope > .page-heading");
+    // SWMS rebuilds its root when opening a statement. Keep navigation outside
+    // that root so the same tabs survive both list and editor rendering.
+    if (heading?.parentNode) heading.parentNode.insertBefore(documentPages, heading.nextSibling);
+    else section?.insertBefore?.(documentPages, section.firstChild);
+    for (const button of documentPages.querySelectorAll("[data-document-section]")) {
+      const selected = button.dataset.documentSection === state.currentView;
       button.classList.toggle("active", selected);
       button.setAttribute("aria-pressed", String(selected));
       if (selected) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
@@ -1078,6 +1097,7 @@
     if (view !== state.currentView && $("app-message").hidden) releaseMessageSpace();
     state.currentView = view;
     refreshProjectPages();
+    refreshDocumentPages();
     if (["quotes", "quote", "work-orders", "purchase-orders"].includes(view)) state.lastProjectSection = view;
     if (["certification", "documentation", "swms"].includes(view)) state.lastDocumentSection = view;
     $("project-tools").hidden = true;
@@ -2872,6 +2892,7 @@
   for (const card of document.querySelectorAll(".projects-section-card[data-project-section]")) card.addEventListener("click", () => requestViewNavigation(card.dataset.projectSection));
   for (const button of projectPages?.querySelectorAll("[data-project-section]") || []) button.addEventListener("click", () => requestViewNavigation(button.dataset.projectSection));
   for (const card of document.querySelectorAll(".projects-section-card[data-document-section]")) card.addEventListener("click", () => requestViewNavigation(card.dataset.documentSection));
+  for (const button of documentPages?.querySelectorAll("[data-document-section]") || []) button.addEventListener("click", () => requestViewNavigation(button.dataset.documentSection));
   for (const card of document.querySelectorAll("[data-steel-calculator]")) card.addEventListener("click", () => requestCalculatorNavigation(card.dataset.steelCalculator));
   setupCalculatorNavigation();
   for (const button of document.querySelectorAll("[data-home-view]")) button.addEventListener("click", () => requestViewNavigation(button.dataset.homeView));

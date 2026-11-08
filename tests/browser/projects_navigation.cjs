@@ -118,6 +118,34 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   await expect(page.locator('#projects-navigation-menu [data-project-section="scheduler"]')).toHaveCount(0);
   await headerDestination('documentation');await headerDestination('quotes');
   assert.deepEqual(await snapshot(),draftBefore);
+  const documentTabs=page.locator('#document-pages'),documentSections=['documentation','swms','certification'];
+  for(const section of documentSections){
+    await openProjectSection(page,section);await idle();
+    await expect(documentTabs).toBeVisible();
+    assert.deepEqual(await documentTabs.locator('button').allTextContents(),['Documentation','SWMS','Certification']);
+    await expect(documentTabs.locator('[aria-current="page"]')).toHaveAttribute('data-document-section',section);
+    assert.equal(await documentTabs.count(),1,'Only one document navigation element is retained');
+    assert.equal(await documentTabs.evaluate(nav=>Boolean(nav.closest('#swms-root'))),false,'SWMS cannot replace its navigation when rendering');
+    await expect(page.locator('#view-'+section+' .eyebrow').filter({hasText:'DOCUMENTS'})).toHaveCount(0);
+    const next=documentSections[(documentSections.indexOf(section)+1)%documentSections.length];
+    const button=documentTabs.locator(`[data-document-section="${next}"]`);await button.focus();await button.press('Enter');
+    await expect(page.locator('#view-'+next)).toBeVisible();
+    await expect(documentTabs.locator('[aria-current="page"]')).toHaveAttribute('data-document-section',next);
+  }
+  await documentTabs.locator('[data-document-section="swms"]').click();
+  const swms=page.locator('#swms-root');await swms.getByRole('button',{name:'New SWMS',exact:true}).click();
+  await swms.getByLabel('Document title',{exact:true}).fill('Document tab guard QA');
+  await documentTabs.locator('[data-document-section="documentation"]').click();
+  await page.locator('#discard-dialog').getByRole('button',{name:'Cancel',exact:true}).click();
+  await expect(page.locator('#view-swms')).toBeVisible();await expect(documentTabs).toBeVisible();
+  await expect(documentTabs.locator('[aria-current="page"]')).toHaveAttribute('data-document-section','swms');
+  await expect(swms.getByLabel('Document title',{exact:true})).toHaveValue('Document tab guard QA');
+  await documentTabs.locator('[data-document-section="documentation"]').click();
+  await page.locator('#discard-dialog').getByRole('button',{name:'Yes',exact:true}).click();
+  await expect(page.locator('#view-documentation')).toBeVisible();await expect(documentTabs).toBeVisible();
+  await expect(documentTabs.locator('[aria-current="page"]')).toHaveAttribute('data-document-section','documentation');
+  await openProjectSection(page,'quotes');assert.deepEqual(await snapshot(),draftBefore);
+  evidence.checks.push('Three shared Document tabs retain active state through real keyboard navigation and SWMS list/editor rebuilds; Cancel preserves an unsaved statement and Yes discards only after confirmation');
   evidence.checks.push('independent first-visit hubs and remembered destinations','Contacts beside Home and Documents beside Projects','explicit Home and Documents hub choices retain remembered destination','Certification draft survives all navigation','Cover sheets live only in Documentation','standalone Scheduler clock navigation','keyboard navigation and Escape');
   for (const width of [390,671,825,1084,1864]) {
     await page.setViewportSize({width,height:900});
@@ -133,6 +161,18 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
     evidence.widths.push({owner:'project-tabs',width,...tabGeometry});
     await openProjectSection(page,'certification');await headerDestination('certification');
     await openProjectSection(page,'documentation');await idle();await headerDestination('documentation');await idle();
+    const documentGeometry=await documentTabs.evaluate(nav=>({width:nav.getBoundingClientRect().width,left:nav.getBoundingClientRect().left,viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth,buttons:[...nav.children].map(button=>({height:button.getBoundingClientRect().height}))}));
+    assert.ok(documentGeometry.left>=0&&documentGeometry.width<=width&&documentGeometry.scrollWidth<=width,JSON.stringify(documentGeometry));
+    assert.ok(documentGeometry.buttons.every(button=>button.height===40),JSON.stringify(documentGeometry));
+    evidence.widths.push({owner:'document-tabs',width,...documentGeometry});
+    if([390,1864].includes(width)){
+      await page.screenshot({path:path.join(output,`documentation-tabs-${width}.png`)});
+      await documentTabs.locator('[data-document-section="swms"]').click();
+      await expect(page.locator('#swms-root').getByRole('button',{name:'New SWMS',exact:true})).toBeVisible();
+      assert.equal(await documentTabs.evaluate(nav=>nav.previousElementSibling?.classList.contains('page-heading')),true,'Document tabs consistently follow the page heading');
+      await page.screenshot({path:path.join(output,`swms-tabs-${width}.png`)});
+      await documentTabs.locator('[data-document-section="documentation"]').click();await idle();
+    }
     assert.deepEqual(await snapshot(),draftBefore,'Responsive navigation retains certificate draft, estimate details and pricing');
   }
   await page.reload();await idle();await page.locator('#projects-navigation-toggle').click();await expectHub();

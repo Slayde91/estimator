@@ -461,7 +461,7 @@ SOFTWARE. -->
     </section>
     <!-- TAKEOFFS:END -->
     <section id="view-contacts" class="view" aria-label="Contacts" data-i18n-aria-label="Contacts" hidden><div id="contacts-root"></div></section>
-    <section id="view-swms" class="view" aria-label="SWMS" hidden><div id="swms-root"></div></section>
+    <section id="view-swms" class="view" aria-label="SWMS" hidden><div class="page-heading"><div><h1 id="swms-heading">SWMS</h1></div></div><div id="swms-root"></div></section>
     <section id="view-quote" class="view" aria-label="Quotes" hidden><div id="commercial-quote-root"></div></section>
     <section id="view-work-orders" class="view" aria-label="Work Orders" hidden><div id="commercial-work-order-root"></div></section>
     <section id="view-purchase-orders" class="view" aria-label="Purchase Orders" hidden><div id="commercial-purchase-order-root"></div></section>
@@ -521,7 +521,7 @@ SOFTWARE. -->
 
     </section>
     <section id="view-certification" class="view" aria-labelledby="certification-heading" hidden>
-      <div class="page-heading"><div><p class="eyebrow" data-i18n="DOCUMENTS">DOCUMENTS</p><h1 id="certification-heading" data-i18n="Certification">Certification</h1></div></div>
+      <div class="page-heading"><div><h1 id="certification-heading" data-i18n="Certification">Certification</h1></div></div>
 
       <section class="card"><div class="certification-document-actions"><label class="field certification-document-select"><span data-i18n="Saved certification">Saved certification</span><select id="certification-document"><option value="" data-i18n="New certificate">New certificate</option></select></label></div>
         <div class="field certification-scope-field"><span id="certification-scopes-label" data-i18n="Certification scope">Certification scope</span><details id="certification-scopes" class="certification-scope-dropdown"><summary aria-labelledby="certification-scopes-label certification-scopes-summary"><span id="certification-scopes-summary">Choose…</span></summary><div class="certification-scope-choices" role="group" aria-labelledby="certification-scopes-label">
@@ -540,7 +540,8 @@ SOFTWARE. -->
       </form>
     </section>
     <section id="view-documentation" class="view" aria-labelledby="documentation-heading" hidden>
-      <div class="page-heading"><div><p class="eyebrow" data-i18n="DOCUMENTS">DOCUMENTS</p><h1 id="documentation-heading" data-i18n="Documentation">Documentation</h1></div></div>
+      <div class="page-heading"><div><h1 id="documentation-heading" data-i18n="Documentation">Documentation</h1></div></div>
+      <nav id="document-pages" class="calculator-pages document-tabs" aria-label="Documents" data-i18n-aria-label="Documents" hidden><button type="button" class="calculator-page" data-document-section="documentation" aria-pressed="false" data-i18n="Documentation">Documentation</button><button type="button" class="calculator-page" data-document-section="swms" aria-pressed="false">SWMS</button><button type="button" class="calculator-page" data-document-section="certification" aria-pressed="false" data-i18n="Certification">Certification</button></nav>
       <p class="helper" data-i18n="Only documents generated in the current project appear here. Save the project to retain its revision history with the project file.">Only documents generated in the current project appear here. Save the project to retain its revision history with the project file.</p>
       <p id="documentation-status" class="helper" role="status" aria-live="polite"></p>
       <div id="documentation-layout" class="documentation-layout">

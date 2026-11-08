@@ -40,7 +40,12 @@ async function run(edition) {
     await expect(host.getByLabel('Job Reference',{exact:true})).toHaveValue(projectNumber);
     await expect(host.getByLabel('Project Address',{exact:true})).toHaveValue('10 Test Street');
     await host.getByLabel('Document title',{exact:true}).fill(`SWMS ${edition}`);
+    await expect(host.getByLabel('Status',{exact:true})).toHaveCount(0);
+    await expect(host.locator('.swms-people .swms-person')).toHaveCount(0);
+    await expect(host.locator('.swms-step-table tbody tr')).toHaveCount(0);
+    for (const kind of ['Protective Coatings','Passive Firestopping','Installation of Passive Fire Protection Works']) await expect(host.getByLabel(kind,{exact:true})).not.toBeChecked();
     await host.getByLabel('Protective Coatings',{exact:true}).check();
+    await host.getByLabel('Passive Firestopping',{exact:true}).check();
     await host.getByLabel('Installation of Passive Fire Protection Works',{exact:true}).check();
     await expect(host.locator('.swms-step-table tbody tr')).toHaveCount(45);
     const reviewerSection=host.locator(':scope > details').filter({has:page.locator(':scope > summary').filter({hasText:/^Person\/s responsible for reviewing SWMS$/})});

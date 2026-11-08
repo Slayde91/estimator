@@ -3157,5 +3157,6 @@
   "Choose Delivery or Pickup for the delivery method.": "বিতরণ পদ্ধতি হিসেবে ডেলিভারি বা সংগ্রহ নির্বাচন করুন।",
   "Delivery": "ডেলিভারি",
   "Pickup": "সংগ্রহ",
-  "No supplier price is recorded for this item. Enter its purchase price.": "এই পণ্যের সরবরাহকারীর মূল্য নথিভুক্ত নেই। ক্রয়মূল্য লিখুন।"
+  "No supplier price is recorded for this item. Enter its purchase price.": "এই পণ্যের সরবরাহকারীর মূল্য নথিভুক্ত নেই। ক্রয়মূল্য লিখুন।",
+  "Choose valid work types without duplicates.": "পুনরাবৃত্তি ছাড়া বৈধ কাজের ধরন নির্বাচন করুন।"
 }

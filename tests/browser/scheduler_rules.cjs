@@ -45,10 +45,19 @@ async function submit(name) {await page.locator('dialog[open]').getByRole('butto
   let modal = page.locator('dialog[open]');
   await expect(modal.getByLabel('Job / project reference').locator('option')).toHaveCount(2);
   await modal.getByLabel('Title',{exact:true}).fill('Accepted job');
+  // The payroll assertions below use a fixed week. A new shift otherwise
+  // defaults to today's date and falls outside that week as the clock advances.
+  await modal.getByLabel('Start',{exact:true}).fill('2026-11-02T07:00');
+  await modal.getByLabel('End',{exact:true}).fill('2026-11-02T15:00');
   await modal.getByLabel('Job / project reference').selectOption(accepted.id);
   await expect(modal.getByLabel('Location',{exact:true})).toHaveValue('12 Site Street');
   await modal.getByLabel('Location',{exact:true}).fill('12 Site Street, gate B');
+  const savingShift=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/scheduler/shifts/save'&&response.request().method()==='POST');
   await submit('Save shift');
+  const shiftResponse=await savingShift;assert.equal(shiftResponse.status(),200,await shiftResponse.text());
+  const createdShift=await shiftResponse.json();
+  assert.ok(createdShift.id);assert.equal(createdShift.project_id,accepted.id);
+  assert.equal(createdShift.location,'12 Site Street, gate B');
   const denied = await api('scheduler/shifts/save',{title:'Blocked draft',project_id:draft.id,start:'2026-11-02T07:00',end:'2026-11-02T15:00'});
   assert.equal(denied.status,400);
   const worker = (await api('scheduler/members/save',{name:'Worker',email:'worker@example.test',password:'Worker-password-2026',base_rate:'40'})).body;
@@ -95,13 +104,17 @@ async function submit(name) {await page.locator('dialog[open]').getByRole('butto
   await expect(page.locator('.scheduler-payroll')).toContainText('Custom double time');
   await page.getByText('Break details',{exact:true}).first().click();
   await expect(page.locator('.scheduler-break-summary').first()).toContainText('automatic');
-  const saved = (await api('scheduler/state?start=2026-11-02&end=2026-11-09')).body;
+  const savedResponse=await api('scheduler/state?start=2026-11-02&end=2026-11-09');assert.equal(savedResponse.status,200);
+  const saved=savedResponse.body;
   assert.equal(saved.entries[0].effective_breaks.length,2);
   assert.equal(saved.entries[0].breaks.length,0);
-  assert.equal(saved.shifts[0].location,'12 Site Street, gate B');
+  assert.equal(saved.shifts.length,1);
+  const savedShift=saved.shifts.find(shift=>shift.id===createdShift.id);
+  assert.ok(savedShift,'The explicitly dated shift must be present in the fixed payroll week');
+  for(const key of ['start','end','project_id','location'])assert.equal(savedShift[key],createdShift[key]);
   await page.screenshot({path:path.join(output,'automatic-breaks-pay.png'),fullPage:true});
   assert.deepEqual(errors,[]);
-  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks:['Accepted-only project selection','site address default and custom location','custom overtime editor','automatic recurring break editor','minimum and auto-end settings','responsive rules','effective breaks and pay-item breakdown']},null,2));
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks:['Accepted-only project selection','site address default and custom location','explicit fixed-week dates and persisted shift receipt identity','custom overtime editor','automatic recurring break editor','minimum and auto-end settings','responsive rules','effective breaks and pay-item breakdown']},null,2));
   console.log(`PASS Scheduler custom rules and project choices. ${output}`);
 })().catch(async error => {console.error(error); if(page) await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(() => {}); fs.writeFileSync(path.join(output,'failure.txt'),`${error.stack}\n${logs}`); process.exitCode = 1;})
   .finally(async () => {if(browser) await browser.close(); server.kill();});

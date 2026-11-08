@@ -3168,5 +3168,11 @@
   "The workbook could not be opened. Check its default application.": "ورک بک نہیں کھولی جا سکی۔ اس کی ڈیفالٹ ایپلی کیشن چیک کریں۔",
   "Open the saved file using its link only.": "محفوظ فائل صرف اس کے لنک سے کھولیں۔",
   "The saved-file link could not be registered. Download the file again.": "محفوظ فائل کا لنک رجسٹر نہیں ہو سکا۔ فائل دوبارہ ڈاؤن لوڈ کریں۔",
-  "Site address contains unsupported control characters.": "سائٹ کے پتے میں غیر معاون کنٹرول حروف موجود ہیں۔"
+  "Site address contains unsupported control characters.": "سائٹ کے پتے میں غیر معاون کنٹرول حروف موجود ہیں۔",
+  "Site contact": "سائٹ کا رابطہ",
+  "Site contact number": "سائٹ کے رابطے کا فون نمبر",
+  "Notes {0}": "نوٹس {0}",
+  "Site contact number must be text of at most 60 characters.": "سائٹ کے رابطے کا فون نمبر زیادہ سے زیادہ 60 حروف پر مشتمل متن ہونا چاہیے۔",
+  "Notes must be text of at most 2000 characters.": "نوٹس زیادہ سے زیادہ 2000 حروف پر مشتمل متن ہونے چاہئیں۔",
+  "Mobilisation": "سائٹ پر تعیناتی"
 }

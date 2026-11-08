@@ -23,6 +23,21 @@ from .project_reports import TITLES, build_project_report
 from .schedule_rows import empty_schedule_inputs, populated_schedule_rows
 
 
+def _scope_preamble(source, names):
+    """Keep custom scope prose while removing obsolete generated name blocks.
+
+    A saved Quote can contain the old names from an earlier selection. Testing
+    the whole block against today's selected sequence misses that case and
+    prints the hidden preamble again above the actual estimate heading.
+    """
+    names = [re.escape(validate_rich_text('<p><b>' + escape(name) + '</b></p>', 'Scope'))
+             for name in names]
+    # Default estimate names may have since been renamed in the project.
+    names.append(r'<p><b>Estimate [1-9]\d*</b></p>')
+    generated = '(?:' + '|'.join(names) + r')(?:<p>No calculator schedule rows have been entered for this estimate\.</p>)?'
+    return re.sub(generated, '', source)
+
+
 def _scope_tables(project, name, library=None, *, pending=False, estimate_id=None):
     tables = []
     for calculator_id in CALCULATOR_IDS:
@@ -86,14 +101,7 @@ def derive_estimates(store, body, *, edition='full', company=None, library=None,
         if not isinstance(fields, dict):
             raise ValidationError('Include the Quote Summary fields.')
         scope_source = validate_rich_text(fields.get('scope', ''), 'Scope')
-        # The historical default repeats the selected estimate names. Keep
-        # custom exclusions and qualifications, but do not print those names
-        # twice now that each schedule has its own estimate heading.
-        generated = ''.join(re.escape(validate_rich_text('<p><b>' + escape(available[identity]['name']) + '</b></p>', 'Scope')) +
-            '(?:<p>No calculator schedule rows have been entered for this estimate\\.</p>)?'
-            for identity in selected)
-        if scope_source and re.fullmatch(generated, scope_source) is None:
-            preamble = scope_source
+        preamble = _scope_preamble(scope_source, (item['name'] for item in available.values()))
     output = {'lines': [], 'scope': '', 'scope_tables': [], 'scope_groups': [], 'sources': [], 'scope_documents': []}
     paragraphs = []
     for identity in selected:

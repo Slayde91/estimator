@@ -7,6 +7,22 @@ from reportlab.lib import colors
 from reportlab.platypus import HRFlowable, Image, LongTable, Paragraph, TableStyle
 
 
+SCOPE_SCHEDULE_TITLES = {
+    'steel_vermiculite': 'STEEL | SPRAY',
+    'steel_board': 'STEEL | BOARD',
+    'ductwork': 'DUCT | SPRAY / WRAP',
+    'steel_intumescent': 'STEEL | INTUMESCENT PAINT',
+    'penetration': 'FIRESTOPPING SCHEDULE',
+}
+
+
+def append_scope_schedule_heading(report, calculator_id):
+    """Give a schedule the same text size as its containing estimate name."""
+    style = report.styles['subheading'].clone(
+        'CommercialScheduleHeading', spaceBefore=6, spaceAfter=8, keepWithNext=True)
+    report.story.append(Paragraph(SCOPE_SCHEDULE_TITLES[calculator_id], style))
+
+
 def append_project_report_title(report, title):
     """Brand the full schedule title without changing other report headings."""
     if title.upper() == 'FIRE PROTECTION SCHEDULE':
@@ -26,9 +42,6 @@ def append_scope_intro(report, intro):
         rule = HRFlowable(width='100%', thickness=1, color=colors.HexColor('#bd0018'), spaceAfter=8)
         rule.keepWithNext = True
         report.story.append(rule)
-        note = report.p('The following Full Schedules form the Scope of Works for this quotation.')
-        note.keepWithNext = True
-        report.story.append(note)
     if intro.get('preamble'):
         # Reuse the commercial renderer's safe, validated rich-text conversion
         # so legacy exclusions retain their emphasis and list structure.

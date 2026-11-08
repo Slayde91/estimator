@@ -12,7 +12,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
-from reportlab.platypus import (BaseDocTemplate, Frame, HRFlowable, KeepTogether, LongTable,
+from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Frame, HRFlowable, KeepTogether, LongTable,
                                PageTemplate, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle)
 
 from .commercial_documents import KINDS, format_terms, totals, validate_fields
@@ -73,18 +73,19 @@ class _Paragraphs(HTMLParser):
         self.current.append(escape(data, quote=False))
 
 
-def _styles(*, quote=False):
+def _styles(*, quote=False, work_order=False):
     return {
         'quote': quote,
+        'red_tables': quote or work_order,
         'body': ParagraphStyle('CommercialBody', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=8.5, leading=12, spaceAfter=6),
         'small': ParagraphStyle('CommercialSmall', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=7, leading=10, spaceAfter=3),
         'title': ParagraphStyle('CommercialTitle', fontName=FONT_BOLD, bulletFontName=FONT_BOLD, fontSize=18, leading=22, textColor=RED, spaceAfter=14),
         'section': ParagraphStyle('CommercialSection', fontName=FONT_BOLD, bulletFontName=FONT_BOLD, fontSize=11, leading=15, textColor=RED, spaceBefore=14, spaceAfter=8, keepWithNext=True),
         'terms': ParagraphStyle('CommercialTerms', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=8, leading=11.5, spaceAfter=5),
         'head': ParagraphStyle('CommercialHead', fontName=FONT_BOLD, bulletFontName=FONT_BOLD, fontSize=8, leading=11,
-                               textColor=colors.white if quote else colors.black),
+                               textColor=colors.white if quote or work_order else colors.black),
         'field': ParagraphStyle('CommercialField', fontName=FONT_BOLD, bulletFontName=FONT_BOLD, fontSize=7, leading=10,
-                                textColor=colors.white if quote else colors.black),
+                                textColor=colors.white if quote or work_order else colors.black),
     }
 
 
@@ -112,34 +113,42 @@ def _table(headers, rows, styles, widths=None):
     count = len(headers) if headers else len(rows[0])
     result = LongTable(data, colWidths=widths or [WIDTH / count] * count, repeatRows=1 if headers else 0, hAlign='LEFT')
     commands = [
-        ('GRID', (0, 0), (-1, -1), .4, RED if styles['quote'] else colors.HexColor('#cccccc')),
+        ('GRID', (0, 0), (-1, -1), .4, RED if styles['red_tables'] else colors.HexColor('#cccccc')),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('LEFTPADDING', (0, 0), (-1, -1), 7), ('RIGHTPADDING', (0, 0), (-1, -1), 7),
         ('TOPPADDING', (0, 0), (-1, -1), 6), ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
     ]
     if headers:
-        commands.append(('BACKGROUND', (0, 0), (-1, 0), RED if styles['quote'] else colors.HexColor('#eeeeee')))
-    elif styles['quote']:
+        commands.append(('BACKGROUND', (0, 0), (-1, 0), RED if styles['red_tables'] else colors.HexColor('#eeeeee')))
+    elif styles['red_tables']:
         commands.append(('BACKGROUND', (0, 0), (0, -1), RED))
     result.setStyle(TableStyle(commands))
     return result
 
 
-def _section(story, title, styles):
-    story.append(_paragraph(title, styles['section']))
+def _section(story, title, styles, *, splittable=False):
+    style = styles['section']
+    if splittable:
+        # Keep room for the heading, column labels and first text line rather
+        # than keeping an entire multi-page tracking table with its heading.
+        story.append(CondPageBreak(90))
+        style = style.clone('CommercialTrackingSection', keepWithNext=False)
+    story.append(_paragraph(title, style))
     if styles['quote'] and title in {'QUOTE SUMMARY', 'SCHEDULE OF RATES', 'SCOPE OF WORKS', 'ALLOWANCES'}:
         rule = HRFlowable(width=WIDTH, thickness=1, color=RED, spaceAfter=8)
         rule.keepWithNext = True
         story.append(rule)
 
 
-def _fields(story, pairs, styles):
+def _fields(story, pairs, styles, *, keep_together=False):
     rows = [(label, value or '—') for label, value in pairs]
-    story.append(_table(None if styles['quote'] else ('Field', 'Details'), rows, styles, [125, WIDTH - 125]))
+    table = _table(None if styles['red_tables'] else ('Field', 'Details'), rows, styles, [125, WIDTH - 125])
+    story.append(KeepTogether([table]) if keep_together else table)
 
 
 def _money(value):
-    return f'${Decimal(value):,.2f}'
+    amount = Decimal(value)
+    return ('-' if amount < 0 else '') + f'${abs(amount):,.2f}'
 
 
 def _summary(story, fields, styles):
@@ -163,7 +172,7 @@ def _rates(story, schedule, styles):
         ('ordinary_time', 'Ordinary time', 'per hour (7:00am to 3:30pm)'),
         ('time_and_half', 'Time and a half', 'per hour (3:30pm to 5:30pm and night shifts)'),
         ('double_time', 'Double time', 'per hour (After 5:30pm and weekends)'),
-        ('site_remobilisation', 'Site Remobilisation', 'per occasion'),
+        ('site_remobilisation', 'Mobilisation', 'per occasion'),
         ('equipment', 'Equipment', ''), ('materials', 'Materials', '')
     ]:
         amount = (_money(rates[key]) + ' ' + suffix if suffix else
@@ -186,15 +195,15 @@ def _rates(story, schedule, styles):
 
 
 def _terms_pdf(text, document, number, company):
-    """The supplied quote's two-column, 9pt Montserrat terms layout.
+    """The supplied quote's compact two-column Montserrat terms layout.
 
     Only presentation changes: the validated editor wording and inline emphasis
     remain authoritative, including custom terms. Clause labels occupy their
     own hanging gutter and paragraphs can continue into the next column.
     """
     register_pdf_fonts()
-    base = ParagraphStyle('TradeTerms', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=9,
-                          leading=11, spaceAfter=5, allowWidows=0, allowOrphans=0)
+    base = ParagraphStyle('TradeTerms', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=8,
+                          leading=10, spaceAfter=4, allowWidows=0, allowOrphans=0)
     parser = _Paragraphs()
     parser.feed(format_terms(text))
     parser.flush()
@@ -224,7 +233,7 @@ def _terms_pdf(text, document, number, company):
                 markup = re.sub(r'^(\s*(?:<(?:b|i|u)>\s*)*)' + re.escape(label) + r'\s*', r'\1', markup, count=1)
                 level = 3 if re.fullmatch(r'\(\d+\)', label) else 2 if label.startswith('(') else 1
                 style.leftIndent, style.bulletIndent = 28.3 * level, 28.3 * (level - 1)
-                style.bulletFontName, style.bulletFontSize = FONT_BOLD, 9
+                style.bulletFontName, style.bulletFontSize = FONT_BOLD, base.fontSize
                 bullet = label
                 if heading:
                     style.textColor = RED
@@ -233,7 +242,7 @@ def _terms_pdf(text, document, number, company):
                     style.spaceBefore = 4
             elif disclosure and plain.startswith(('subject to your', 'additional charges')):
                 style.leftIndent, style.bulletIndent = 14, 0
-                style.bulletFontName, style.bulletFontSize = FONT_REGULAR, 9
+                style.bulletFontName, style.bulletFontSize = FONT_REGULAR, base.fontSize
                 bullet = '\u2022'
         if disclosure_heading:
             markup = '<font color="#bd0018"><b>Our Disclosures:</b></font> ' + markup
@@ -257,8 +266,8 @@ def _terms_pdf(text, document, number, company):
     return output.getvalue()
 
 
-def _quotation_header(page, logo, company):
-    """Reserve a true centre column for the first-page quotation heading."""
+def _quotation_header(page, logo, company, title='QUOTATION'):
+    """Reserve a true centre column for the first-page document heading."""
     width, height, margin = A4[0], A4[1], 36
     image_width, image_height = logo.getSize()
     scale = min(146 / image_width, 35 / image_height)
@@ -273,7 +282,7 @@ def _quotation_header(page, logo, company):
         page.drawRightString(width - margin, height - offset, value)
     page.setFont(FONT_BOLD, 16)
     page.setFillColor(RED)
-    page.drawCentredString(width / 2, height - 43, 'QUOTATION')
+    page.drawCentredString(width / 2, height - 43, title)
     page.setStrokeColor(RED)
     page.setLineWidth(1.1)
     page.line(margin, height - 78, width - margin, height - 78)
@@ -281,7 +290,7 @@ def _quotation_header(page, logo, company):
 
 def _build(story, document, number, company, *, first_part=False):
     output = BytesIO()
-    frame_margin = 30 if document['kind'] == 'quote' else 36
+    frame_margin = 30 if document['kind'] in {'quote', 'work_order'} else 36
     pdf = SimpleDocTemplate(output, pagesize=A4, leftMargin=frame_margin, rightMargin=frame_margin, topMargin=90, bottomMargin=32,
                             title=KINDS[document['kind']] + ' ' + number, author=company.get('name', ''))
     logo = company_logo(company)
@@ -291,6 +300,8 @@ def _build(story, document, number, company, *, first_part=False):
                 _quotation_header(page, logo, company)
             else:
                 _company_header(page, logo, A4[0], A4[1], 36, '', company=company)
+        elif document['kind'] == 'work_order' and first_part and doc.page == 1:
+            _quotation_header(page, logo, company, 'WORK ORDER')
         else:
             _company_header(page, logo, A4[0], A4[1], 36, KINDS[document['kind']].upper() + ' ' + number, company=company)
     pdf.build(story, onFirstPage=decorate, onLaterPages=decorate)
@@ -301,9 +312,9 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
     register_pdf_fonts()
     fields = validate_fields(document['fields'])
     kind = document['kind']
-    styles = _styles(quote=kind == 'quote')
+    styles = _styles(quote=kind == 'quote', work_order=kind == 'work_order')
     details, order = fields['details'], fields['order']
-    story = [] if kind == 'quote' else [_paragraph(KINDS[kind].upper(), styles['title'])]
+    story = [] if kind in {'quote', 'work_order'} else [_paragraph(KINDS[kind].upper(), styles['title'])]
     number_label = {'work_order':'Work order reference', 'purchase_order':'Purchase Order No.'}.get(kind, 'Document number')
     _fields(story, [(number_label, number), ('Date', details['date']), ('Customer', details['client']),
                    ('Contact', details['contact']), ('Site address', details['site_address']), ('Project number', details['project_no'])], styles)
@@ -373,15 +384,16 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
             ('WORK ORDER CLAIM', []),
             ('WORK ORDER COMPLETION', [('Certification details', 'certification'), ('Completion', 'completion'), ('Closed by', 'closed_by'), ('Name', 'closed_by'), ('Date', 'closed_date')]),
         ]:
-            _section(story, title, styles)
+            _section(story, title, styles, splittable=title in {'WORKS IN PROGRESS', 'WORK ORDER CLAIM'})
             if title in ('WORKS IN PROGRESS','WORK ORDER CLAIM'):
                 tracking = fields.get('work_tracking')
                 key = 'completed_percent' if title=='WORKS IN PROGRESS' else 'claimed_percent'
                 label = '% completed' if title=='WORKS IN PROGRESS' else '% claimed'
                 if tracking is not None:
-                    table = _table(('Product / Service','Quantity','Unit price',label),
-                                   [(row['description'],row['quantity'],_money(row['unit_price']),row[key]) for row in tracking['rows']],
-                                   styles,[WIDTH*.55,WIDTH*.14,WIDTH*.16,WIDTH*.15])
+                    progress = key == 'completed_percent'
+                    table = _table(('Product / Service','Quantity','Notes' if progress else 'Unit price',label),
+                                   [(row['description'],row['quantity'],row.get('notes', '') if progress else _money(row['unit_price']),row[key]) for row in tracking['rows']],
+                                   styles,[WIDTH*.55,WIDTH*.15,WIDTH*.15,WIDTH*.15])
                     table.splitInRow = 1
                     story.append(table)
                 legacy = order['progress' if key=='completed_percent' else 'claim']
@@ -390,12 +402,13 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
             if pairs:
                 _fields(story, [(label, (Signature(signatures[key], 160, 52) if signatures.get(key) else '')
                                 if label in ('Reviewed by', 'Prepared by', 'Approved by','Progress signed by','Closed by') else order.get(key, ''))
-                               for label, key in pairs], styles)
+                               for label, key in pairs], styles, keep_together=True)
     else:
         _section(story, 'PURCHASE ORDER DETAILS', styles)
         _fields(story, [('Work order reference', order['work_order_reference']), ('Status', document['status']),
                        ('Supplier', order['supplier']), ('Supplier email', order['supplier_email']), ('Supplier contact', order['supplier_contact']),
-                       ('Payment terms', order['payment_terms']), ('Ship to', order['ship_to_name']), ('Delivery address', order['ship_to_address']),
+                       ('Payment terms', order['payment_terms']), ('Site contact', order['ship_to_name']),
+                       ('Site contact number', order.get('site_contact_number', '')), ('Delivery address', order['ship_to_address']),
                        ('Delivery date', order['delivery_date']), ('Type of expense', order['expense_type']), ('Delivery or pickup', order['delivery_method'])], styles)
         _section(story, 'REQUEST SUMMARY', styles)
         rows = [(line['description'], line['quantity'], line['size'], line['comments'], _money(line['unit_price'])) for line in fields['lines']]

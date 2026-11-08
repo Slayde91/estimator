@@ -26,6 +26,7 @@
     revision: 0
   };
   const copy = value => JSON.parse(JSON.stringify(value));
+  const trackingMoney = new Intl.NumberFormat('en-AU', {style:'currency',currency:'AUD'});
   const rateKeys = ["ordinary_time", "time_and_half", "double_time", "site_remobilisation", "access_equipment_transport", "equipment", "materials"];
   const rateDefaults = {version:null, rates:null, pending:new Map(), saving:null, loading:null, timer:null, error:null, remembered:false};
   const currentWorkspace = () => window.CeasefireCertification?.sessionId?.();
@@ -1074,7 +1075,7 @@
       ["ordinary_time", "Ordinary time", "per hour · 7:00am to 3:30pm"],
       ["time_and_half", "Time and a half", "per hour · 3:30pm to 5:30pm and night shifts"],
       ["double_time", "Double time", "per hour · after 5:30pm and weekends"],
-      ["site_remobilisation", "Site Remobilisation", "per occasion"],
+      ["site_remobilisation", "Mobilisation", "per occasion"],
       ["equipment", "Equipment", "% added to Hire Rate"],
       ["materials", "Materials", "% added to Cost Rate"]
     ]) {
@@ -1184,7 +1185,7 @@
       ["Works in Progress", [["completed_percent","% completed"],["progress_by","Progress signed by"],["progress_date","Date"]]],
       ["Work Order Claim", [["claimed_percent","% claimed"]]],
       ["Work Order Completion", [["certification","Certification details"],["completion","Completion"],["closed_by","Closed by"],["closed_date","Date"]]]
-    ] : [["Purchase order information", [["work_order_reference", "Work order reference"], ["supplier", "Supplier"], ["supplier_email", "Supplier email"], ["supplier_contact", "Supplier contact"], ["payment_terms", "Payment terms"], ["ship_to_name", "Ship to name"], ["ship_to_address", "Ship to address"], ["delivery_date", "Delivery date"], ["expense_type", "Type of expense"], ["delivery_method", "Delivery or pickup"]]], ["Request and approval", [["requested_by", "Requested by"], ["requested_date", "Request date"], ...commonReview]], ["Procurement verification", [["verification", "Verification method, specification, result and actions"], ["sent_by", "Sent by"], ["sent_date", "Sent date"], ["verified_by", "Verified by"], ["verified_date", "Verification date"]]]];
+    ] : [["Purchase order information", [["work_order_reference", "Work order reference"], ["supplier", "Supplier"], ["supplier_email", "Supplier email"], ["supplier_contact", "Supplier contact"], ["payment_terms", "Payment terms"], ["ship_to_name", "Site contact"], ["site_contact_number", "Site contact number"], ["delivery_date", "Delivery date"], ["ship_to_address", "Ship to address"], ["delivery_method", "Delivery or pickup"], ["expense_type", "Type of expense"]]], ["Request and approval", [["requested_by", "Requested by"], ["requested_date", "Request date"], ...commonReview]], ["Procurement verification", [["verification", "Verification method, specification, result and actions"], ["sent_by", "Sent by"], ["sent_date", "Sent date"], ["verified_by", "Verified by"], ["verified_date", "Verification date"]]]];
     for (const [title, items] of groups) {
       const section = node("section", "card commercial-order-fields");
       if(!isWorkOrder && title==='Purchase order information')section.classList.add('commercial-purchase-information');
@@ -1226,15 +1227,16 @@
           section.append(row);
           continue;
         }
-        if(!isWorkOrder && ['supplier','supplier_contact'].includes(key)) {
+        if(!isWorkOrder && ['supplier','supplier_contact','ship_to_name'].includes(key)) {
           const owner=state.editor, workspace=state.workspace, context=window.CeasefireProject?.runtimeContext?.();
           const current=()=>state.editor===owner && workspace===state.workspace && workspace===currentWorkspace() && context===window.CeasefireProject?.runtimeContext?.() && !state.busy;
           const account=data=>{const rows=(data.accounts || []).filter(item=>window.ClassifireCommercialDirectory.fold(item.company)===window.ClassifireCommercialDirectory.fold(fields.order.supplier));return rows.length===1?rows[0]:null;};
           function update(values){if(!current())return;Object.assign(fields.order,values);section.querySelectorAll('[data-order-field]').forEach(control=>control.value=fields.order[control.dataset.orderField] || '');markDirty();}
           const search=window.ClassifireCommercialDirectory.field(label,{kind:key==='supplier'?'accounts':'contacts',value:fields.order[key],read:()=>fields.order[key],isCurrent:current,message,
-            account,filter: key==='supplier_contact' ? (contact,data)=>!fields.order.supplier || !!account(data) && (contact.account_id===account(data).id || contact.account_id===undefined && window.ClassifireCommercialDirectory.fold(contact.company)===window.ClassifireCommercialDirectory.fold(fields.order.supplier)) : undefined,
-            onInput(value){update(key==='supplier' && value!==fields.order.supplier ? {supplier:value,supplier_contact:'',supplier_email:''} : {[key]:value});},onSelect(item,data){
+            account:key==='ship_to_name' ? undefined : account,filter: key==='supplier_contact' ? (contact,data)=>!fields.order.supplier || !!account(data) && (contact.account_id===account(data).id || contact.account_id===undefined && window.ClassifireCommercialDirectory.fold(contact.company)===window.ClassifireCommercialDirectory.fold(fields.order.supplier)) : undefined,
+            onInput(value){update(key==='supplier' && value!==fields.order.supplier ? {supplier:value,supplier_contact:'',supplier_email:''} : key==='ship_to_name' && !value ? {ship_to_name:'',site_contact_number:''} : {[key]:value});},onSelect(item,data){
               if(key==='supplier')update(item.company!==fields.order.supplier ? {supplier:item.company,supplier_contact:'',supplier_email:''} : {supplier:item.company});
+              else if(key==='ship_to_name')update({ship_to_name:item.name,site_contact_number:item.phone || ''});
               else {const company=data.accounts?.find(company=>company.id===item.account_id);update({supplier_contact:item.name,supplier_email:item.email || '',supplier:company?.company || item.company || fields.order.supplier});}
             }});
           search.input.dataset.orderField=key;section.append(search.element);continue;
@@ -1247,7 +1249,9 @@
           if (fields.order[key] && !options.includes(fields.order[key])) options.push(fields.order[key]);
           control = select(options, fields.order[key], value => fields.order[key] = value);
           for(const option of control.options)if(choices.includes(option.value))window.CeasefireI18n?.text(option,option.value);
-        } else control = key.endsWith("_date") ? input(fields.order[key], value => fields.order[key] = value, "date") : textarea(fields.order[key], value => fields.order[key] = value);
+        } else control = key.endsWith("_date") ? input(fields.order[key], value => fields.order[key] = value, "date")
+          : key==='site_contact_number' ? input(fields.order[key], value => fields.order[key]=value, 'tel') : textarea(fields.order[key], value => fields.order[key] = value);
+        if(key==='site_contact_number')control.maxLength=60;
         if(!isWorkOrder && title==='Purchase order information' && control.tagName==='TEXTAREA')control.rows=1;
         control.dataset.orderField=key;
         const item = field(label, control);
@@ -1274,11 +1278,22 @@
         const notice=node('p','helper',text);window.CeasefireI18n?.text(notice,text);host.append(notice);return;
       }
       const table=node('table'),head=node('thead'),headers=node('tr'),body=node('tbody');
-      ['Product / Service','Quantity','Unit price',label].forEach(text=>{const header=node('th','',text);window.CeasefireI18n?.text(header,text);headers.append(header);});
+      const progress=key==='completed_percent';
+      ['Product / Service','Quantity',progress?'Notes':'Unit price',label].forEach(text=>{const header=node('th','',text);window.CeasefireI18n?.text(header,text);headers.append(header);});
       head.append(headers);
       fields.work_tracking.rows.forEach((row,index)=>{
         const tr=node('tr');tr.dataset.trackingLine=row.line_id;
-        [row.description,row.quantity,row.unit_price].forEach(text=>tr.append(node('td','',text)));
+        [row.description,row.quantity].forEach(text=>tr.append(node('td','',text)));
+        const noteCell=node('td');
+        if(progress) {
+          const note=textarea(row.notes || '',value=>{
+            const current=fields.work_tracking?.rows.find(item=>item.line_id===row.line_id);
+            if(current)current.notes=value;
+          });
+          note.rows=1;note.maxLength=2000;note.dataset.trackingNotes=row.line_id;
+          note.setAttribute('aria-label',`Notes ${index+1}`);window.CeasefireI18n?.attr(note,'aria-label','Notes {0}',[index+1]);noteCell.append(note);
+        } else noteCell.textContent=trackingMoney.format(Number(row.unit_price));
+        tr.append(noteCell);
         const cell=node('td'),lineId=row.line_id;
         // Saving replaces the returned row objects. Resolve the current owned
         // row on each edit so a second Save cannot lose later percentage edits.

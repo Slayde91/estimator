@@ -85,9 +85,13 @@
 .commercial-signature-actions>.button{width:42px;min-width:42px;height:42px;padding:8px}
 .commercial-signature-actions>.button>svg{display:block;width:24px;height:24px}
 .commercial-work-tracking{grid-column:1/-1;min-width:0;overflow-x:auto}
-.commercial-work-tracking table{width:100%;min-width:440px;border-collapse:collapse}
+.commercial-work-tracking table{width:100%;min-width:560px;border-collapse:collapse;table-layout:fixed}
 .commercial-work-tracking th,.commercial-work-tracking td{padding:10px;border:1px solid var(--line);text-align:left;vertical-align:top;overflow-wrap:anywhere}
-.commercial-work-tracking td:first-child{width:55%;white-space:pre-wrap}
+.commercial-work-tracking th:first-child,.commercial-work-tracking td:first-child{width:50%;white-space:pre-wrap}
+.commercial-work-tracking th:nth-child(2){width:10%}
+.commercial-work-tracking th:nth-child(3),.commercial-work-tracking th:nth-child(4){width:20%}
+.commercial-work-tracking textarea{width:100%;min-width:0;min-height:42px;resize:vertical}
+.commercial-work-tracking[data-tracking-field="claimed_percent"] td:nth-child(3){white-space:nowrap}
 .commercial-work-tracking input{min-width:90px}
 .commercial-tracking-legacy{grid-column:1/-1}.commercial-tracking-legacy p{white-space:pre-wrap;overflow-wrap:anywhere}
 @media(max-width:650px){.commercial-signer-row{grid-template-columns:minmax(0,1fr)}.commercial-work-description textarea{height:104px;min-height:104px;flex:none}}

@@ -21,7 +21,7 @@ def template(project_id, quote_id, reference, lines):
     source_hash = sha256(_encoded(source)).hexdigest()
     return {**{key:source[key] for key in ('project_id','quote_id','quote_reference')}, 'source_hash':source_hash,
             'rows':[{**row, 'line_id':sha256((source_hash+':'+str(index)).encode()).hexdigest(),
-                     'completed_percent':'', 'claimed_percent':''} for index,row in enumerate(source['rows'])]}
+                     'completed_percent':'', 'claimed_percent':'', 'notes':''} for index,row in enumerate(source['rows'])]}
 
 
 def percentage(value):
@@ -46,9 +46,9 @@ def validate(value):
     reference = _text(value['quote_reference'], 'Quote reference', 100)
     if not valid_reference(reference) or not isinstance(value['rows'], list) or len(value['rows']) > 500:
         raise ValidationError('Choose the issued Quote rows for this Work Order.')
-    lines, percentages, ids = [], [], []
+    lines, percentages, notes, ids = [], [], [], []
     for row in value['rows']:
-        if not isinstance(row, dict) or set(row) != {*LINE_KEYS, *PERCENT_KEYS, 'line_id'}:
+        if not isinstance(row, dict) or set(row) - {'notes'} != {*LINE_KEYS, *PERCENT_KEYS, 'line_id'}:
             raise ValidationError('Work tracking rows contain unsupported fields.')
         if not isinstance(row['line_id'], str) or not re.fullmatch('[0-9a-f]{64}', row['line_id']):
             raise ValidationError('Work tracking row identities are invalid.')
@@ -58,12 +58,13 @@ def validate(value):
                       'unit_price':_number(row['unit_price'],'Unit price',-1000000000),
                       'size':_text(row['size'],'Size',1000), 'comments':_text(row['comments'],'Comments',2000)})
         percentages.append({key:percentage(row[key]) for key in PERCENT_KEYS})
+        notes.append(_text(row.get('notes', ''), 'Notes', 2000))
         ids.append(row['line_id'])
     result = template(project, quote, reference, lines)
     if value['source_hash'] != result['source_hash'] or ids != [row['line_id'] for row in result['rows']]:
         raise ValidationError('The issued Quote row snapshot changed. Reopen this Work Order.')
-    for row, amounts in zip(result['rows'], percentages):
-        row.update(amounts)
+    for row, amounts, note in zip(result['rows'], percentages, notes):
+        row.update(amounts, notes=note)
     return result
 
 
@@ -71,6 +72,7 @@ def baseline(value):
     result = deepcopy(value)
     for row in result['rows']:
         row.update(dict.fromkeys(PERCENT_KEYS, ''))
+        row['notes'] = ''
     return result
 
 

@@ -203,7 +203,11 @@ const ready = new Promise((resolve, reject) => {
   await expect(dialog).toBeVisible();
   await dialog.getByLabel('ABN/ACN', {exact: true}).fill('Keep this draft');
   await expect(dialog.getByRole('button', {name: 'Save', exact: true})).toBeEnabled();
+  const conflictLinksLoaded=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/contacts/account-links'
+    && new URL(reply.url()).searchParams.get('search')==='Link Person');
   await search.fill('Link Person');
+  await conflictLinksLoaded;
+  await expect(dialog.getByRole('button', {name: 'Save', exact: true})).toBeEnabled();
   await foundPerson.click();
   await expect(foundPerson).toBeChecked();
   await foundPerson.press('Escape');

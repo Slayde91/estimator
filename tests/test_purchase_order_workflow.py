@@ -49,7 +49,8 @@ class PurchaseOrderWorkflowTests(unittest.TestCase):
         self.assertEqual(fields['details'], self.work['fields']['details'])
         self.assertEqual(fields['order']['work_order_id'], self.work['id'])
         self.assertEqual(fields['order']['work_order_reference'], self.work['reference'])
-        self.assertEqual(fields['order']['ship_to_name'], 'Receiving client')
+        self.assertEqual(fields['order']['ship_to_name'], 'Site contact')
+        self.assertEqual(fields['order']['site_contact_number'], '123')
         self.assertEqual(fields['order']['ship_to_address'], '7 Site Road')
         for key in ('supplier', 'supplier_contact', 'supplier_email', 'payment_terms', 'requested_by', 'estimated_cost'):
             self.assertEqual(fields['order'][key], '')

@@ -265,6 +265,7 @@ def _metadata(path, info, project, folder, payload):
             "title": estimate["title"], "project_no": estimate.get("project_no", ""),
             "client": estimate.get("client", ""), "site_address": estimate.get("site_address", ""),
             "account_id": estimate.get("account_id", ""), "contact_id": estimate.get("contact_id", ""),
+            "contact_name": estimate.get("contact_name", ""), "contact_phone": estimate.get("contact_phone", ""), "contact_email": estimate.get("contact_email", ""),
             "source_project_id": project.get("source_project_id") or (project.get("certifications") or {}).get("project_id"),
             "commercial_cards": cards, "quote_cards": [card for card in cards if card['kind'] == 'quote'],
             "clients": project.get("clients", [estimate.get("client", "")]),
@@ -353,6 +354,8 @@ class ProjectLibrary:
         self._commercial_sources = CommercialSources(store, project_details)
         self._commercial_walk = None
         self._outside_file_cache = {}
+        from .download_files import SavedDownloadFiles
+        self.download_files = SavedDownloadFiles()
 
     def _capture_takeoffs(self, request):
         prepared = self._capture_workspace(request)
@@ -1156,7 +1159,8 @@ class ProjectLibrary:
         with self._lock:
             # The captured authorization remains valid for this one download
             # even if Save rotates the token while the report is rendering.
-            return write_download_file(destination, filename, payload)
+            receipt = write_download_file(destination, filename, payload)
+            return self.download_files.register(receipt, payload)
 
     def open_file(self):
         with _dialog():
@@ -1386,7 +1390,8 @@ class ProjectLibrary:
             documents = []
             for identifier, file in files.items():
                 for card in file['commercial_cards']:
-                    details = {key: file[key] for key in ('project_no', 'client', 'site_address') if key not in card['fields'].get('detail_overrides', [])}
+                    from .commercial_documents import project_document_details
+                    details = project_document_details(file)
                     documents.append({**card, 'fields': {**card['fields'], 'details': {**card['fields']['details'], **details}},
                                       'source_file': file['id'] or identifier, 'source_revision': file['revision'], 'source_path': file['path']})
             if self.commercial:
@@ -1451,8 +1456,7 @@ class ProjectLibrary:
                     raise ValidationError('The updated project exceeds the 16 MB file limit.')
                 selection = SaveSelection(str(path), {'size': info.st_size, 'mtime_ns': info.st_mtime_ns, 'sha256': revision})
                 _, after = _atomic_write(selection, updated)
-                from .commercial_documents import commercial_cards
-                summary['commercial_cards'] = commercial_cards(snapshot['commercial_documents'])
+                summary = project_summary(updated, edition=self.edition)
                 folder = self._scan['folder'] if self._scan else None
                 metadata = _metadata(path, after, summary, folder, updated)
                 if folder is not None and metadata['id']:

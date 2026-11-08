@@ -8,6 +8,7 @@
   const messages = window.CeasefireMessages || {};
   const bindings = new Map();
   const accessories = new WeakSet();
+  const textDecorators = new WeakMap();
   const termToken = Symbol('owned UI term');
   let language = 'en';
   try { const saved = localStorage.getItem(key); if (languages.includes(saved)) language = saved; } catch (_) {}
@@ -35,6 +36,7 @@
     if (!attribute && binding.original && language === 'en') element.replaceChildren(...binding.original.map(node => node.cloneNode(true)));
     else if (attribute) element.setAttribute(attribute, value);
     else if (element.textContent !== value) element.textContent = value;
+    if (!attribute) textDecorators.get(element)?.();
     binding.last = read(element, attribute);
     binding.children = [...element.childNodes];
   }
@@ -106,6 +108,13 @@
   }
   window.CeasefireI18n = Object.freeze({
     text: (element, text, args) => bind(element, null, text, args),
+    decorateText: (element, decorate) => {
+      const binding = bindings.get(element)?.get('');
+      const owned = binding && current(binding);
+      textDecorators.set(element, decorate); decorate();
+      // Inline links preserve the exact message text and its language binding.
+      if (owned) { binding.last = read(element, null); binding.children = [...element.childNodes]; }
+    },
     accessory: (element, control) => {
       const binding = bindings.get(element)?.get('');
       const owned = binding && current(binding);

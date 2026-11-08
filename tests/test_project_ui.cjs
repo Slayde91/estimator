@@ -1519,5 +1519,28 @@ async function penetrationCheck(name, fn) {
     for(const key of ['client','billing_address','abn_acn'])assert.equal(h.context.window.CeasefireProject.details()[key],'');
     assert.deepEqual(directory,before);
   });
+  await check('Commercial metadata rollback restores legacy custom titles and per-estimate identities exactly',async h=>{
+    const api=h.context.window.CeasefireProject;
+    for(const id of ['project-no','client','site-address','project-contact-name','project-contact-phone','project-contact-email','project-account-id','project-contact-id','project-billing-address','project-abn-acn'])h.byId(id).value='';
+    h.app.state.legacyTitle='Legacy custom project';h.app.state.dirty=false;
+    h.app.state.projectEstimates=[{id:'estimate-1',name:'Legacy',workspace:{estimate:{title:'Legacy custom project',project_no:'',client:'',site_address:'',inputs:{B15:123}}}},
+      {id:'legacy-other',name:'Imported',workspace:{estimate:{title:'Imported custom title',project_no:'PN-HISTORICAL',client:'Historical Company',inputs:{B15:456}}}}];
+    const before=copy(h.app.state.projectEstimates),baseline=api.captureCommercialDetailsEdit(),context=api.runtimeContext();
+    api.applyCommercialDetails({client:'Temporary Company',account_id:'linked-company',site_address:'Temporary site'},context);
+    assert.equal(h.app.state.dirty,true);
+    api.applyCommercialDetails({client:'',account_id:'',site_address:''},context,baseline);
+    assert.deepEqual(copy(h.app.state.projectEstimates),before);
+    assert.equal(h.app.state.dirty,false);assert.equal(h.byId('quote-title').value,'Legacy custom project');
+    assert.equal(api.details().project_no,'');
+  });
+  await check('Commercial metadata rollback keeps independent input edits and an existing dirty Project',async h=>{
+    const api=h.context.window.CeasefireProject,context=api.runtimeContext(),before=copy(api.details());h.app.state.dirty=false;
+    const baseline=api.captureCommercialDetailsEdit();api.applyCommercialDetails({site_address:'Temporary site'},context);
+    h.app.state.inputs.B15=999;
+    api.applyCommercialDetails({site_address:before.site_address},context,baseline);
+    assert.equal(api.details().site_address,before.site_address);assert.equal(h.app.state.inputs.B15,999);assert.equal(h.app.state.dirty,true);
+    const dirtyBaseline=api.captureCommercialDetailsEdit();api.applyCommercialDetails({site_address:'Another temporary site'},context);
+    api.applyCommercialDetails({site_address:before.site_address},context,dirtyBaseline);assert.equal(h.app.state.dirty,true);
+  });
   console.log(`${passed} project UI regression checks passed.`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

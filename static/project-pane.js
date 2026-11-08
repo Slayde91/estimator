@@ -129,6 +129,19 @@
     currentRule = {context:active.context,baseline:normalize({...savedDetails,project_no:active.details.project_no})};
     if (account?.id === active.details.account_id && account?.company === active.details.client) currentRule.account = account;
   }
+  function projectDetailsChanged() {
+    const active = snapshot();
+    if (currentRule?.context === active.context) currentRule.account = active.details.account_id && active.details.client ? {id:active.details.account_id,company:active.details.client} : null;
+    if (!selected || pending || selected.blocked || pane.hidden) return;
+    if (selected.kind === "current" && selected.context === active.context) {
+      if (stamp(details()) !== stamp(active.details)) show(normalize(active.details),active.file?.title || translate("Project"));
+    } else if (selected.kind === "saved" && selected.file.path === active.file?.path && !dirty()) {
+      // Keep the saved baseline/revision until a real save succeeds. External
+      // edits are now this pane's unsaved draft; never replace a separate draft.
+      selected.activeAtOpen = active;
+      if (stamp(details()) !== stamp(active.details)) show(normalize(active.details),active.file.title || translate("Project"));
+    }
+  }
   async function save() {
     if (!selected || pending || selected.blocked) return;
     if (selected.kind === "current") { validateClient(); return; }
@@ -348,7 +361,7 @@
     finally { busy(false); }
   });
   window.CeasefireProjectPane = Object.freeze({
-    openCurrent,openNew, toggle: file => !pane.hidden && selected?.file?.id === file.id ? leave() : open(file), refreshToggles, leave,
+    openCurrent,openNew, toggle: file => !pane.hidden && selected?.file?.id === file.id ? leave() : open(file), refreshToggles, leave, projectDetailsChanged,
     hasUnsavedChanges:dirty, hasPendingOperation:() => pending || !!selected?.creation?.uncertain, fingerprint:() => selected ? JSON.stringify({id:selected.file?.id,context:selected.context,values:details()}) : "",
     async beforeProjectSave() {
       if (pending) throw new Error("Finish the current project details action before saving.");

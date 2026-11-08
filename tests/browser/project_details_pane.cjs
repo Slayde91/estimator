@@ -25,6 +25,9 @@ const ready = new Promise((resolve,reject)=>{
   await page.goto(`http://127.0.0.1:${info.port}/`);await idle();
   await fillProjectDetails(page,{client:'Pane Alpha Account','site-address':'10 Synthetic Street'});
   await openProjectSection(page,'quotes');await page.locator('#project-current-details').click();
+  const address=page.locator('#project-pane-address');await expect(address).toHaveJSProperty('tagName','TEXTAREA');
+  await expect(address).toHaveAttribute('rows','2');await expect(address).toHaveAttribute('maxlength','400');await expect(address).toHaveCSS('resize','vertical');
+  await address.fill('10 Synthetic Street\nLevel 2');
   await page.locator('#project-pane-contact-name').fill('Alpha Person');
   await page.locator('#project-pane-contact-phone').fill('0400000001');
   await page.locator('#project-pane-contact-email').fill('alpha@example.test');
@@ -35,6 +38,7 @@ const ready = new Promise((resolve,reject)=>{
   await page.locator('#save-current-project').click();const initialSave=await response;assert.equal(initialSave.status(),200,await initialSave.text());await idle();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   assert.equal(JSON.parse(fs.readFileSync(info.project,'utf8')).estimate.billing_address,'Project accounts\nPO Box 42');
+  assert.equal(JSON.parse(fs.readFileSync(info.project,'utf8')).estimate.site_address,'10 Synthetic Street\nLevel 2');
   assert.equal(JSON.parse(fs.readFileSync(info.project,'utf8')).estimate.abn_acn,'Project ABN');
   await page.locator('#link-project-folder').click();await idle();
   fs.copyFileSync(info.project,path.join(output,'second-project.cf.json'));

@@ -44,6 +44,14 @@ class QuoteIdentityTests(unittest.TestCase):
         self.assertEqual(compose_quote_title(fallback=" Legacy title "), "Legacy title")
         self.assertEqual(compose_quote_title(fallback=" "), "Untitled quote")
 
+    def test_site_address_keeps_bounded_multiline_text_and_title_stays_one_line(self):
+        previous = {"client": "Client", "site_address": "Previous site"}
+        details = validate_quote_details({"site_address": "  Level 2\r\n10 Site Road\rSydney\tNSW  "}, previous)
+        self.assertEqual(details["site_address"], "Level 2\n10 Site Road\nSydney\tNSW")
+        self.assertEqual(compose_quote_title("PN-01", details["client"], details["site_address"]), "PN-01- Client- Level 2 10 Site Road Sydney NSW")
+        self.assertEqual(validate_quote_details({"site_address": ""}, previous)["site_address"], "")
+        self.assertEqual(previous["site_address"], "Previous site")
+
     def test_metadata_preserves_omitted_fields_and_explicit_empty_clears(self):
         previous = {"client": "Original client", "site_address": "Original site", "project_no": "P-1", "title": "Old"}
         self.assertEqual(validate_quote_details({"client": " New client "}, previous),
@@ -57,7 +65,10 @@ class QuoteIdentityTests(unittest.TestCase):
         self.assertEqual(len(compose_quote_title("P" * 100, "C" * 200, "S" * 400)), 704)
         self.assertEqual(validate_quote_details({"client": "Café 中文"})["client"], "Café 中文")
         for field, limit in (("project_no", 100), ("client", 200), ("site_address", 400)):
-            for invalid in (None, True, 12, {}, "x" * (limit + 1), "line\nbreak", "tab\tstop", "null\0", "delete\x7f", "c1\x85", "\ud800"):
+            invalid_values = (None, True, 12, {}, "x" * (limit + 1), "null\0", "delete\x7f", "c1\x85", "\ud800")
+            if field != "site_address":
+                invalid_values += ("line\nbreak", "tab\tstop")
+            for invalid in invalid_values:
                 with self.subTest(field=field, invalid=repr(invalid)), self.assertRaises(ValidationError):
                     validate_quote_details({field: invalid})
         with self.assertRaises(ValidationError):

@@ -236,7 +236,7 @@
 
   function updateQuoteTitle() {
     const details = quoteDetails();
-    $("quote-title").value = [details.project_no, details.client, details.site_address].filter(Boolean).join("- ") || state.legacyTitle || "Untitled quote";
+    $("quote-title").value = [details.project_no, details.client, details.site_address.replace(/\s+/g," ")].filter(Boolean).join("- ") || state.legacyTitle || "Untitled quote";
     $("project-name").textContent = $("quote-title").value;
   }
 
@@ -2224,6 +2224,13 @@
       calculators: window.CeasefireCalculators.projectFingerprint(), penetration: window.CeasefirePenetrations?.projectFingerprint(), takeoffs: window.CeasefireTakeoffs?.projectFingerprint(), libraryDrafts: window.CeasefireLibraryEditor?.projectFingerprint?.(), certifications: window.CeasefireCertification?.projectFingerprint?.(), documentation:window.CeasefireDocumentation?.projectFingerprint?.() });
   }
 
+  function commercialDetailsGuard() {
+    // Exclude only the commercial editor being discarded. Keep every other
+    // Project workspace, calculator, pricing and input revision in this guard.
+    const value=JSON.parse(projectStamp());delete value.commercial;
+    return JSON.stringify(value);
+  }
+
   // Cover defaults remain global Settings. Their independent stamp protects
   // replacement races; the main Save persists their drafts after the project
   // file succeeds, without embedding cover defaults in that project file.
@@ -2347,7 +2354,7 @@
           const projectNo = assigned.get(entry.id) ?? saved.project.estimate.project_no ?? "";
           if (estimate.project_no !== projectNo) {
             estimate.project_no = projectNo;
-            estimate.title = [estimate.project_no, estimate.client, estimate.site_address].filter(Boolean).join("- ") || estimate.title;
+            estimate.title = [estimate.project_no, estimate.client, (estimate.site_address || "").replace(/\s+/g," ")].filter(Boolean).join("- ") || estimate.title;
           }
         }
         $("project-no").value = assigned.get(state.activeEstimateId) ?? saved.project.estimate.project_no ?? "";
@@ -2897,7 +2904,7 @@
   setupCalculatorNavigation();
   for (const button of document.querySelectorAll("[data-home-view]")) button.addEventListener("click", () => requestViewNavigation(button.dataset.homeView));
   document.querySelector(".brand")?.addEventListener("click", (event) => { event.preventDefault(); requestViewNavigation("home"); });
-  for (const id of Object.values(projectDetailControls)) $(id).addEventListener("input", () => { updateQuoteTitle(); updateDirty(); });
+  for (const id of Object.values(projectDetailControls)) $(id).addEventListener("input", () => { updateQuoteTitle(); updateDirty(); window.CeasefireCommercial?.projectDetailsChanged?.(); });
   $("measurements").addEventListener("input", () => updateDirty());
   $("new-quote").addEventListener("click", async () => { if (!state.projectBusy && !coverReplacementPending()) await window.CeasefireProjectPane?.openNew?.(); });
   $("download-quote-pdf").addEventListener("click", () => downloadQuotePdf());
@@ -3058,7 +3065,39 @@
     projectPaneSnapshot: () => ({details:quoteDetails(), context:state.quoteContext, file:state.projectFile ? clone(state.projectFile) : null, busy:state.projectBusy}),
     applyProjectPaneDraft(details, context) {
       if (context !== state.quoteContext) throw new Error("The current project changed. Open its details again.");
-      applyQuoteDetails(details); updateQuoteTitle(); updateDirty();
+      applyQuoteDetails(details);
+      for(const entry of state.projectEstimates)if(entry.workspace?.estimate) {
+        const number=entry.workspace.estimate.project_no;
+        Object.assign(entry.workspace.estimate,details,{project_no:number});
+        entry.workspace.estimate.title=[number,details.client,(details.site_address || '').replace(/\s+/g,' ')].filter(Boolean).join('- ') || entry.workspace.estimate.title;
+      }
+      updateQuoteTitle(); updateDirty();
+      window.CeasefireCommercial?.projectDetailsChanged?.();
+    },
+    captureCommercialDetailsEdit() {
+      return {context:state.quoteContext,dirty:state.dirty,guard:commercialDetailsGuard(),estimates:Object.fromEntries(state.projectEstimates.filter(entry=>entry.workspace?.estimate).map(entry=>
+        [entry.id,Object.fromEntries(['title',...Object.keys(projectDetailControls)].filter(key=>Object.hasOwn(entry.workspace.estimate,key)).map(key=>[key,entry.workspace.estimate[key]]))]))};
+    },
+    applyCommercialDetails(patch, context, baseline=null) {
+      if(context!==state.quoteContext || state.projectBusy)throw new Error("The current project changed. Open its details again.");
+      const details={...quoteDetails()};
+      for(const key of Object.keys(projectDetailControls))if(key!=='project_no' && Object.hasOwn(patch,key))details[key]=String(patch[key] ?? '').trim();
+      applyQuoteDetails(details);
+      for(const entry of state.projectEstimates)if(entry.workspace?.estimate) {
+        const estimate=entry.workspace.estimate,number=estimate.project_no,original=baseline?.context===state.quoteContext ? baseline.estimates?.[entry.id] : null;
+        for(const key of Object.keys(patch))if(key!=='project_no' && Object.hasOwn(projectDetailControls,key)) {
+          if(original && !Object.hasOwn(original,key))delete estimate[key];
+          else estimate[key]=original ? original[key] : details[key];
+        }
+        // A legacy workspace can have a custom title and distinct imported
+        // identity. Restore those exact values only when its identity matches.
+        const restored=original && Object.keys(projectDetailControls).every(key=>estimate[key]===original[key]);
+        estimate.title=restored ? original.title : [number,estimate.client,(estimate.site_address || '').replace(/\s+/g,' ')].filter(Boolean).join('- ') || estimate.title;
+      }
+      updateQuoteTitle();
+      const unchanged=baseline?.context===state.quoteContext && baseline.guard===commercialDetailsGuard();
+      updateDirty(unchanged ? baseline.dirty : true);
+      window.CeasefireProjectPane?.projectDetailsChanged?.();
     },
     applyProjectPaneSaved(snapshot, result, expectedRevision) {
       const current = state.projectFile;
@@ -3070,10 +3109,11 @@
         const estimate = entry.workspace.estimate;
         const projectNo = estimate.project_no;
         Object.assign(estimate, result.details, {project_no:projectNo});
-        estimate.title = [estimate.project_no, estimate.client, estimate.site_address].filter(Boolean).join("- ") || estimate.title;
+        estimate.title = [estimate.project_no, estimate.client, (estimate.site_address || "").replace(/\s+/g," ")].filter(Boolean).join("- ") || estimate.title;
       }
       if (JSON.stringify(quoteDetails()) === JSON.stringify(snapshot.details)) applyQuoteDetails({...result.details,project_no:snapshot.details.project_no});
       updateQuoteTitle(); updateProjectStatus();
+      window.CeasefireCommercial?.projectDetailsChanged?.();
       return true;
     },
     refreshProjectCards: () => loadProjects(),

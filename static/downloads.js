@@ -137,32 +137,36 @@
     try {
       view.update(0, 'preparing');
       const { download, ...snapshot } = payload;
-      const response = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(snapshot) });
+      // Reference PDFs stay temporary. Excel needs an actual saved-file
+      // receipt so its notification can open the workbook in the desktop app.
+      const target = pdf ? null : window.CeasefireProject?.downloadTarget?.();
+      const request = pdf ? snapshot : {...snapshot, download:{project_token:target?.project_token ?? null}};
+      const response = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) });
       if (!response.ok) {
         const error = await response.json().catch(() => null);
         throw new Error(error?.error || window.CeasefireI18n?.translate('The file could not be prepared ({0}).', [response.status]) || `The file could not be prepared (${response.status}).`);
+      }
+      if (!pdf) {
+        const saved = await response.json();
+        if (saved?.saved !== true || !['project','downloads'].includes(saved.destination) || typeof saved.path !== 'string' || typeof saved.filename !== 'string')
+          throw new Error('The server did not confirm that the file was saved.');
+        window.CeasefireNotifications?.rememberDownload?.(saved);
+        view.update(100, 'saved');
+        return saved;
       }
       if (String(response.headers.get('Content-Type') || '').split(';')[0].trim().toLowerCase() !== mediaType)
         throw new Error('The server returned an unexpected file type.');
       const blob = await response.blob();
       if (!blob.size) throw new Error('The prepared file is empty.');
       url = URL.createObjectURL(blob);
-      if (pdf) {
-        if (viewer.closed) throw new Error('The PDF tab was closed before the file was ready. Open Item Details again.');
-        viewer.location.replace(url);
-        const retainedUrl = url;
-        const release = setInterval(() => {
-          if (viewer.closed) { clearInterval(release); URL.revokeObjectURL(retainedUrl); }
-        }, 1000);
-      } else {
-        const link = document.createElement('a');
-        link.href = url; link.download = filename;
-        document.body.append(link); link.click(); link.remove();
-        const retainedUrl = url;
-        setTimeout(() => URL.revokeObjectURL(retainedUrl), 60000);
-      }
+      if (viewer.closed) throw new Error('The PDF tab was closed before the file was ready. Open Item Details again.');
+      viewer.location.replace(url);
+      const retainedUrl = url;
+      const release = setInterval(() => {
+        if (viewer.closed) { clearInterval(release); URL.revokeObjectURL(retainedUrl); }
+      }, 1000);
       url = null;
-      return { preview: pdf, filename, destination: pdf ? 'temporary' : 'browser' };
+      return { preview: true, filename, destination: 'temporary' };
     } catch (error) {
       if (url) URL.revokeObjectURL(url);
       viewer?.close();
@@ -215,6 +219,7 @@
     }
     finished = true; clearTimeout(poll);
     savedResult = result;
+    window.CeasefireNotifications?.rememberDownload?.(result);
     view.update(100, 'saved');
     // Show the confirmed completion briefly, then retire even in a hidden tab.
     setTimeout(() => view.remove(), 500);

@@ -78,8 +78,11 @@ def detail_override_keys(value):
 
 
 def apply_project_document_details(fields, details):
-    overrides = detail_override_keys(fields.get('detail_overrides', []))
-    fields['details'].update({key: value for key, value in details.items() if key not in overrides})
+    # Validate legacy override metadata before retiring it from the editable
+    # draft. Historical snapshots and already issued PDFs are never rewritten.
+    detail_override_keys(fields.get('detail_overrides', []))
+    fields['details'].update(details)
+    fields.pop('detail_overrides', None)
 
 
 def validate_rate_schedule(value):

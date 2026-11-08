@@ -2,7 +2,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
 const {copy,definition,result,allowanceDefinition,allowanceResult,harness}=require('./helpers/penetration_ui.cjs');
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return{promise,resolve,reject};};
 const flush=async()=>{for(let i=0;i<30;i++)await Promise.resolve();};
-const referenceFileResponse=kind=>({ok:true,status:200,headers:{get:()=>kind==='pdf'?'application/pdf':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'},blob:async()=>({size:100})});
+const referenceFileResponse=kind=>({ok:true,status:200,headers:{get:()=>kind==='pdf'?'application/pdf':'application/json'},blob:async()=>({size:100}),json:async()=>({saved:true,path:'C:/Fixture/CLASSIFIRE-Firestopping-Item.xlsx',filename:'CLASSIFIRE-Firestopping-Item.xlsx',destination:'project'})});
 const entryFields=[['J','Category','HVAC'],['K','Service Type','Copper Pipes'],['L','Penetration Type','Core Hole'],['M','Substrate Orientation','Vertical'],['N','FRL','-/120/120'],['P','Substrate','Concrete/masonry wall']];
 function entryPolicy(h){
   const metadata=definition();metadata.required_item_fields=entryFields.map(([column,label])=>({column,label}));
@@ -743,16 +743,17 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     h.context.fetch=async(path,options)=>{captured={path,body:JSON.parse(options.body)};return pending.promise;};
     const saving=h.audit.downloadItem(kind);await flush();
     assert.equal(captured.path,`/api/penetration/item.${kind}`);assert.equal(captured.body.item.inputs.T,'CURRENT UNSAVED ONLY');
-    assert.equal(captured.body.download,undefined,'Viewing a current item does not need a saved project destination');
+    if(kind==='pdf')assert.equal(captured.body.download,undefined,'Viewing a current PDF item does not need a saved project destination');
+    else assert.deepEqual(captured.body.download,{project_token:'original-token'},'Excel captures the native destination before later edits');
     assert.equal(captured.body.draft,undefined);assert.equal(captured.body.rows,undefined);assert.equal(captured.body.item.id,before.composer.rows[0].id);
     assert.deepEqual(captured.body.diagram,{filename:'current.png',content_base64:'aW1hZ2U='});
     assert.deepEqual(copy(h.api.projectSnapshot()),before,'Export launch does not alter composer/Schedule/project state');
     h.audit.state.draft.rows[0].inputs.T='LATER ITEM';h.pricing.rates.original.price=2;
     pending.resolve(referenceFileResponse(kind));
-    const receipt=await saving;assert.equal(receipt.path,undefined);assert.equal(receipt.destination,kind==='pdf'?'temporary':'browser');
-    const notice=h.byId('penetration-message').textContent;assert.match(notice,/later changes are not included/);assert.doesNotMatch(notice,/saved to|undefined/);
+    const receipt=await saving;assert.equal(receipt.destination,kind==='pdf'?'temporary':'project');
+    const notice=h.byId('penetration-message').textContent;assert.match(notice,/later changes are not included/);assert.doesNotMatch(notice,/undefined/);
     if(kind==='pdf'){assert.match(notice,/opened for viewing/);assert.equal(h.temporary.viewers[0].url,'blob:current-item');assert.equal(h.temporary.downloads.length,0);}
-    else {assert.match(notice,/download prepared/);assert.equal(h.temporary.viewers.length,0);assert.equal(h.temporary.downloads[0].filename,'CLASSIFIRE-Firestopping-Item.xlsx');}
+    else {assert.match(notice,/File saved to C:\/Fixture\/CLASSIFIRE-Firestopping-Item.xlsx/);assert.equal(h.temporary.viewers.length,0);assert.equal(h.temporary.downloads.length,0);}
     assert.equal(h.audit.state.schedule.draft.rows[0].inputs.T,'SCHEDULE ONLY');assert.equal(h.audit.state.diagramChange.filename,'current.png');
   });
   await check('Current-item export validity is independent of Schedule invalid fields',async h=>{

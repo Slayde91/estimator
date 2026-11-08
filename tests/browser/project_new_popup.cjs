@@ -17,6 +17,7 @@ async function oldDraft(){return page.evaluate(()=>({context:window.CeasefirePro
   await page.getByRole('button',{name:'Estimates',exact:true}).click();await page.locator('#input-B4').fill('3');await page.locator('#input-B4').press('Tab');await idle();
   const before=await oldDraft();await openProjectSection(page,'quotes');
   await page.locator('#new-quote').click();const modal=page.locator('#project-new-dialog');await expect(modal).toBeVisible();
+  await expect(modal.locator('#project-pane-address')).toHaveJSProperty('tagName','TEXTAREA');await expect(modal.locator('#project-pane-address')).toHaveCSS('resize','vertical');
   await expect(page.locator('#view-quotes')).toBeVisible();assert.equal(await page.locator('#project-pane-client').count(),1);
   await page.locator('#project-pane-address').fill('Cancelled modal draft');await page.locator('#project-new-cancel').click();
   await page.locator('#discard-dialog').getByRole('button',{name:'Yes',exact:true}).click();await expect(modal).toBeHidden();assert.deepEqual(await oldDraft(),before);

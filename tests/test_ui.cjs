@@ -194,7 +194,7 @@ let passed=0;
   audit.setFetch((path,options)=>{exportBody=JSON.parse(options.body);return exported.promise;});
   const exportRun=audit.exportPricing();
   audit.state.draft.rates.concurrent={price:45};
-  exported.resolve({ok:true,headers:{get:()=> 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'},blob:async()=>({size:20})});
+  exported.resolve(savedResponse('CLASSIFIRE-Pricing.xlsx'));
   await exportRun;
   assert.equal(exportBody.configuration.rates.concurrent,undefined);
   assert.equal(audit.state.draft.rates.concurrent.price,45);
@@ -554,7 +554,7 @@ let passed=0;
   // Export includes every product and use, irrespective of current search; the saved configuration is untouched.
   productInput('manual','supplier_price').value='450';await productInput('manual','supplier_price').emit('input');productInput('team','supplier_price').value='1050';await productInput('team','supplier_price').emit('input');
   byId('pricing-search').value='Topcoat;';await byId('pricing-search').emit('input');let unifiedExport;
-  audit.setFetch(async(path,options)=>{unifiedExport=JSON.parse(options.body).configuration;return {ok:true,headers:{get:()=> 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'},blob:async()=>({size:20})};});await audit.exportPricing();
+  audit.setFetch(async(path,options)=>{unifiedExport=JSON.parse(options.body).configuration;return savedResponse('CLASSIFIRE-Pricing.xlsx');});await audit.exportPricing();
   assert.equal(unifiedExport.inventory.manual.supplier_price,450);assert.equal(unifiedExport.rates.team.supplier_price,1050);
   assert.equal(unifiedExport.catalog.rate_groups.topcoats[0].yield_unit,undefined);assert.equal(audit.state.configuration.inventory.manual,undefined);
   assert.equal(JSON.stringify(pricingFixture),originalPricing);assert.match(byId('app-message').textContent,/all inventory and rate groups/);passed++;

@@ -3158,5 +3158,15 @@
   "Delivery": "ڈیلیوری",
   "Pickup": "پک اپ",
   "No supplier price is recorded for this item. Enter its purchase price.": "اس آئٹم کے لیے سپلائر کی قیمت درج نہیں ہے۔ اس کی خریداری کی قیمت درج کریں۔",
-  "Choose valid work types without duplicates.": "کام کی درست اقسام بغیر تکرار کے منتخب کریں۔"
+  "Choose valid work types without duplicates.": "کام کی درست اقسام بغیر تکرار کے منتخب کریں۔",
+  "Include editable Project details only.": "صرف قابلِ ترمیم پروجیکٹ کی تفصیلات شامل کریں۔",
+  "Choose an existing Contact linked to this Company.": "اس کمپنی سے منسلک موجودہ رابطہ منتخب کریں۔",
+  "Project details can only change while saving a linked document.": "پروجیکٹ کی تفصیلات صرف منسلک دستاویز محفوظ کرتے وقت تبدیل کی جا سکتی ہیں۔",
+  "This saved-file link has expired. Download the file again.": "محفوظ فائل کے اس لنک کی میعاد ختم ہو گئی ہے۔ فائل دوبارہ ڈاؤن لوڈ کریں۔",
+  "The saved file changed, moved or was removed. Download it again.": "محفوظ فائل تبدیل، منتقل یا حذف ہو گئی ہے۔ اسے دوبارہ ڈاؤن لوڈ کریں۔",
+  "Only saved Excel workbooks can be opened in the default application.": "صرف محفوظ شدہ Excel ورک بکس ڈیفالٹ ایپلی کیشن میں کھولی جا سکتی ہیں۔",
+  "The workbook could not be opened. Check its default application.": "ورک بک نہیں کھولی جا سکی۔ اس کی ڈیفالٹ ایپلی کیشن چیک کریں۔",
+  "Open the saved file using its link only.": "محفوظ فائل صرف اس کے لنک سے کھولیں۔",
+  "The saved-file link could not be registered. Download the file again.": "محفوظ فائل کا لنک رجسٹر نہیں ہو سکا۔ فائل دوبارہ ڈاؤن لوڈ کریں۔",
+  "Site address contains unsupported control characters.": "سائٹ کے پتے میں غیر معاون کنٹرول حروف موجود ہیں۔"
 }

@@ -3158,5 +3158,15 @@
   "Delivery": "Livraison",
   "Pickup": "Retrait",
   "No supplier price is recorded for this item. Enter its purchase price.": "Aucun prix fournisseur n’est enregistré pour cet article. Saisissez son prix d’achat.",
-  "Choose valid work types without duplicates.": "Choisissez des types de travaux valides sans doublons."
+  "Choose valid work types without duplicates.": "Choisissez des types de travaux valides sans doublons.",
+  "Include editable Project details only.": "Incluez uniquement les informations modifiables du projet.",
+  "Choose an existing Contact linked to this Company.": "Choisissez un contact existant lié à cette entreprise.",
+  "Project details can only change while saving a linked document.": "Les informations du projet ne peuvent être modifiées que lors de l’enregistrement d’un document lié.",
+  "This saved-file link has expired. Download the file again.": "Ce lien vers le fichier enregistré a expiré. Téléchargez à nouveau le fichier.",
+  "The saved file changed, moved or was removed. Download it again.": "Le fichier enregistré a été modifié, déplacé ou supprimé. Téléchargez-le à nouveau.",
+  "Only saved Excel workbooks can be opened in the default application.": "Seuls les classeurs Excel enregistrés peuvent être ouverts dans l’application par défaut.",
+  "The workbook could not be opened. Check its default application.": "Impossible d’ouvrir le classeur. Vérifiez son application par défaut.",
+  "Open the saved file using its link only.": "Ouvrez le fichier enregistré uniquement à l’aide de son lien.",
+  "The saved-file link could not be registered. Download the file again.": "Impossible d’enregistrer le lien vers le fichier enregistré. Téléchargez à nouveau le fichier.",
+  "Site address contains unsupported control characters.": "L’adresse du chantier contient des caractères de contrôle non pris en charge."
 }

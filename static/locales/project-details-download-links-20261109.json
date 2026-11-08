@@ -1,0 +1,72 @@
+{
+  "Include editable Project details only.": [
+    "仅包含可编辑的项目详细信息。",
+    "केवल संपादन योग्य परियोजना विवरण शामिल करें।",
+    "Incluye solo datos editables del proyecto.",
+    "أدرج تفاصيل المشروع القابلة للتعديل فقط.",
+    "ระบุเฉพาะรายละเอียดโครงการที่แก้ไขได้"
+  ],
+  "Choose an existing Contact linked to this Company.": [
+    "请选择与此公司关联的现有联系人。",
+    "इस कंपनी से जुड़ा कोई मौजूदा संपर्क चुनें।",
+    "Elige un contacto existente vinculado a esta empresa.",
+    "اختر جهة اتصال موجودة مرتبطة بهذه الشركة.",
+    "เลือกผู้ติดต่อที่มีอยู่ซึ่งเชื่อมโยงกับบริษัทนี้"
+  ],
+  "Project details can only change while saving a linked document.": [
+    "只能在保存关联文档时更改项目详细信息。",
+    "परियोजना विवरण केवल किसी जुड़े दस्तावेज़ को सहेजते समय बदले जा सकते हैं।",
+    "Los datos del proyecto solo pueden cambiar al guardar un documento vinculado.",
+    "لا يمكن تغيير تفاصيل المشروع إلا عند حفظ مستند مرتبط.",
+    "เปลี่ยนรายละเอียดโครงการได้เฉพาะเมื่อบันทึกเอกสารที่เชื่อมโยง"
+  ],
+  "This saved-file link has expired. Download the file again.": [
+    "此已保存文件链接已过期。请重新下载文件。",
+    "इस सहेजी गई फ़ाइल के लिंक की समय-सीमा समाप्त हो गई है। फ़ाइल दोबारा डाउनलोड करें।",
+    "Este enlace al archivo guardado ha caducado. Descarga el archivo de nuevo.",
+    "انتهت صلاحية رابط الملف المحفوظ. نزّل الملف مرة أخرى.",
+    "ลิงก์ไฟล์ที่บันทึกไว้นี้หมดอายุแล้ว โปรดดาวน์โหลดไฟล์อีกครั้ง"
+  ],
+  "The saved file changed, moved or was removed. Download it again.": [
+    "已保存的文件已更改、移动或删除。请重新下载。",
+    "सहेजी गई फ़ाइल बदल गई, स्थानांतरित कर दी गई या हटा दी गई है। इसे दोबारा डाउनलोड करें।",
+    "El archivo guardado se ha modificado, movido o eliminado. Descárgalo de nuevo.",
+    "تم تغيير الملف المحفوظ أو نقله أو حذفه. نزّله مرة أخرى.",
+    "ไฟล์ที่บันทึกไว้ถูกเปลี่ยนแปลง ย้าย หรือลบแล้ว โปรดดาวน์โหลดอีกครั้ง"
+  ],
+  "Only saved Excel workbooks can be opened in the default application.": [
+    "只能在默认应用程序中打开已保存的 Excel 工作簿。",
+    "केवल सहेजी गई Excel कार्यपुस्तिकाएँ ही डिफ़ॉल्ट ऐप में खोली जा सकती हैं।",
+    "Solo se pueden abrir libros de Excel guardados en la aplicación predeterminada.",
+    "يمكن فتح مصنفات Excel المحفوظة فقط في التطبيق الافتراضي.",
+    "เปิดได้เฉพาะเวิร์กบุ๊ก Excel ที่บันทึกไว้ในแอปเริ่มต้น"
+  ],
+  "The workbook could not be opened. Check its default application.": [
+    "无法打开工作簿。请检查其默认应用程序。",
+    "कार्यपुस्तिका नहीं खोली जा सकी। इसका डिफ़ॉल्ट ऐप जाँचें।",
+    "No se pudo abrir el libro. Comprueba su aplicación predeterminada.",
+    "تعذّر فتح المصنف. تحقق من التطبيق الافتراضي له.",
+    "เปิดเวิร์กบุ๊กไม่ได้ โปรดตรวจสอบแอปเริ่มต้น"
+  ],
+  "Open the saved file using its link only.": [
+    "请仅使用已保存文件的链接打开它。",
+    "सहेजी गई फ़ाइल को केवल उसके लिंक से खोलें।",
+    "Abre el archivo guardado únicamente mediante su enlace.",
+    "افتح الملف المحفوظ باستخدام رابطه فقط.",
+    "เปิดไฟล์ที่บันทึกไว้ผ่านลิงก์ของไฟล์เท่านั้น"
+  ],
+  "The saved-file link could not be registered. Download the file again.": [
+    "无法注册已保存文件的链接。请重新下载文件。",
+    "सहेजी गई फ़ाइल का लिंक दर्ज नहीं किया जा सका। फ़ाइल दोबारा डाउनलोड करें।",
+    "No se pudo registrar el enlace al archivo guardado. Descarga el archivo de nuevo.",
+    "تعذّر تسجيل رابط الملف المحفوظ. نزّل الملف مرة أخرى.",
+    "ลงทะเบียนลิงก์ไฟล์ที่บันทึกไว้ไม่ได้ โปรดดาวน์โหลดไฟล์อีกครั้ง"
+  ],
+  "Site address contains unsupported control characters.": [
+    "现场地址包含不支持的控制字符。",
+    "साइट के पते में असमर्थित नियंत्रण वर्ण हैं।",
+    "La dirección de la obra contiene caracteres de control no admitidos.",
+    "يحتوي عنوان الموقع على أحرف تحكم غير مدعومة.",
+    "ที่อยู่ไซต์มีอักขระควบคุมที่ไม่รองรับ"
+  ]
+}

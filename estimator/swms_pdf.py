@@ -250,8 +250,10 @@ def render_swms_pdf(document, *, company):
     fields = validate_fields(document['fields'])
     styles, details = _styles(), fields['details']
     story = []
+    contact = ([_p(details['contact_person'], styles['body']), Signature(fields['contact_signature'], 90, 24)]
+               if fields.get('contact_signature') else details['contact_person'])
     story.append(_table(['Job Reference', 'SWMS Reference', 'Contact Person', 'Position', 'Phone:'],
-                        [[details['job_reference'], document.get('reference', ''), details['contact_person'], details['position'], details['phone']]],
+                        [[details['job_reference'], document.get('reference', ''), contact, details['position'], details['phone']]],
                         [WIDTH * fraction for fraction in (.21, .18, .23, .21, .17)], styles))
     story.append(Spacer(1, 10))
     story.append(_table(['Principal Contractor (PC)', 'Project Name', 'Date:', 'Project Address', 'Project Manager (PM)', 'Signature:', 'Contact'],

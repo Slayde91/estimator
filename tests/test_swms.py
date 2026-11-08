@@ -88,7 +88,46 @@ class SwmsTests(unittest.TestCase):
         self.assertEqual(fields['details']['project_manager'], '')
         self.assertEqual(fields['signoffs'], [])
         self.assertIsNone(fields['manual_signature'])
+        self.assertIsNone(fields['contact_signature'])
         self.assertNotIn('Slayde', json.dumps(fields))
+
+    def test_contact_signature_is_optional_bounded_and_does_not_rewrite_legacy_fields(self):
+        legacy = self.payload()['fields']
+        legacy.pop('contact_signature')
+        self.assertEqual(validate_fields(legacy), legacy)
+        self.assertNotIn('contact_signature', validate_fields(legacy))
+        signature = {'version': 1, 'ratio': 3, 'strokes': [[[.1, .4], [.5, .2], [.8, .7]]]}
+        signed = {**legacy, 'contact_signature': signature}
+        self.assertEqual(validate_fields(signed), signed)
+        for invalid in ({'version': 1, 'ratio': 3, 'strokes': [[[1.1, 0]]]},
+                        {'version': 1, 'ratio': 3, 'strokes': [[[0, 0]] * 4001]},
+                        {**signature, 'html': '<svg onload=alert(1)>'}):
+            with self.subTest(invalid=invalid), self.assertRaises(ValidationError):
+                validate_fields({**legacy, 'contact_signature': invalid})
+
+    def test_contact_signature_survives_portable_capture_without_changing_old_revisions(self):
+        legacy = self.payload()
+        legacy['fields'].pop('contact_signature')
+        old = self.service.save(self.workspace, legacy)
+        request = str(uuid.uuid4())
+        issued = self.service.issue(self.workspace, old['id'], old['version'], request)
+        signed = self.payload()
+        signed['fields']['details'].update(contact_person='Contact signer', position='Supervisor', phone='0400 123 456')
+        signed['fields']['contact_signature'] = {'version': 1, 'ratio': 3, 'strokes': [[[.1, .4], [.5, .2], [.8, .7]]]}
+        document = self.service.save(self.workspace, signed)
+        snapshot = self.service.capture(self.workspace)
+        self.assertEqual(next(row for row in snapshot['documents'] if row['id'] == old['id']), old)
+        self.assertEqual(validate_swms_snapshot(json.loads(json.dumps(snapshot))), snapshot)
+        manifest = dict(version=1, project_id=snapshot['project_id'], archive_sha256='a' * 64, archive_size=1,
+                        document_count=0, revision_count=0, companion_folder=f".ceasefire-evidence/{snapshot['project_id']}/certifications")
+        store = Store(self.root / 'contact-portable.sqlite3')
+        portable = export_project(store, {'estimate': {}, 'certifications': manifest, 'swms': snapshot})
+        restored = self.projects.add(snapshot['project_id'])
+        self.service.restore(restored, load_project_bytes(store, portable)['swms'])
+        self.assertEqual(self.service.capture(restored), snapshot)
+        self.assertEqual(next(row for row in self.service.view(restored)['documents'] if row['id'] == document['id']), document)
+        self.assertEqual(self.service.issue(self.workspace, old['id'], old['version'], request)['pdf'], issued['pdf'])
+        self.assertEqual(len(self.calls), 1, 'Replaying an old issue keeps its original rendered bytes.')
 
     def test_create_retry_stale_update_delete_and_resurrection(self):
         payload = self.payload()
@@ -315,6 +354,27 @@ class SwmsTests(unittest.TestCase):
 
 
 class SwmsPdfTests(unittest.TestCase):
+    def test_contact_signature_and_details_render_together_in_the_first_table(self):
+        fields = default_fields()
+        fields['details'].update(contact_person='Contact signer', position='Site supervisor', phone='0400 123 456')
+        fields['contact_signature'] = {'version': 1, 'ratio': 3, 'strokes': [[[.1, .4], [.5, .2], [.8, .7]]]}
+        reader = PdfReader(BytesIO(render_swms_pdf({'version': 1, 'fields': fields}, company=DEFAULTS)))
+        first = reader.pages[0]
+        text = first.extract_text()
+        for value in ('Contact Person', 'Contact signer', 'Site supervisor', '0400 123 456'):
+            self.assertIn(value, text)
+        operations = first.get_contents().operations
+        paths = [(tuple(float(value) for value in operands), operator) for operands, operator in operations
+                 if operator in (b'm', b'l')]
+        expected = [((16.2, 14.4), b'm'), ((45.0, 19.2), b'l'), ((66.6, 7.2), b'l')]
+        self.assertTrue(any(paths[index:index + 3] == expected for index in range(len(paths) - 2)),
+                        'The saved bounded Contact Person signature must produce real vector ink in the PDF.')
+        positions = []
+        first.extract_text(visitor_text=lambda value, cm, tm, font, size:
+                           positions.append(cm[5] + tm[5]) if 'Contact signer' in value else None)
+        self.assertEqual(len(positions), 1)
+        self.assertTrue(49 < positions[0] < 520, 'The contact stays within the first page content frame.')
+
     def test_template_page_geometry_repeated_headers_numbering_and_actual_content(self):
         fields = default_fields({'project_no': 'CF-PDF', 'site_address': '<script>literal</script>'})
         pdf = render_swms_pdf({'version': 3, 'fields': fields}, company=DEFAULTS)

@@ -33,7 +33,7 @@ class AccountRelations:
         directory = self.store.list()
         accounts = {row["id"]: row for row in directory["accounts"]}
         if account_id is not None and (not _identity(account_id) or account_id not in accounts):
-            raise ValidationError("This account could not be found. Reload the directory.")
+            raise ValidationError("This company could not be found. Reload the directory.")
         account = accounts.get(account_id)
         records = {kind: {} for kind in LINK_KINDS}
         automatic = {kind: set() for kind in LINK_KINDS}

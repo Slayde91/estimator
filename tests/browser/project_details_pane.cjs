@@ -82,7 +82,7 @@ const ready = new Promise((resolve,reject)=>{
   // A confirmed Account change in the active saved pane rebases the Current
   // opener's old validation baseline and remains valid for the next main Save.
   await page.locator('#project-pane-client').fill('Pane Gamma Account');await page.locator('#project-account-new').click();
-  const activeAccount=page.getByRole('dialog',{name:'New Account',exact:true});
+  const activeAccount=page.getByRole('dialog',{name:'New Company',exact:true});
   await activeAccount.getByRole('button',{name:'Save',exact:true}).click();await expect(activeAccount).not.toBeVisible();
   response=saved();await page.locator('#project-details-save').click();const activeMetadata=await response;assert.equal(activeMetadata.status(),200,await activeMetadata.text());await idle();
   assert.equal((await page.evaluate(()=>window.CeasefireProject.details())).client,'Pane Gamma Account');
@@ -111,7 +111,7 @@ const ready = new Promise((resolve,reject)=>{
   await expect(page.locator('#project-account-options').getByRole('option',{name:'Pane Alpha Account',exact:true})).toBeVisible();
   await page.locator('#project-account-options').getByRole('option',{name:'Pane Alpha Account',exact:true}).click();
   await client.fill('Pane Beta Account');await page.locator('#project-account-new').click();
-  const account=page.getByRole('dialog',{name:'New Account',exact:true});await expect(account).toBeVisible();
+  const account=page.getByRole('dialog',{name:'New Company',exact:true});await expect(account).toBeVisible();
   await expect(account.getByLabel('Company',{exact:true})).toHaveValue('Pane Beta Account');
   await account.getByLabel('ABN/ACN',{exact:true}).fill('12 345 678 901');
   await account.getByRole('button',{name:'Save',exact:true}).click();await expect(account).not.toBeVisible();

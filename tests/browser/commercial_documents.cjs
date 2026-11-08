@@ -229,7 +229,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   }
   await work.getByRole('button',{name:'Change Reviewed by',exact:true}).click();
   await page.getByRole('dialog').getByRole('button',{name:'Cancel',exact:true}).click();
-  for(const panel of ['Account Details','Contact Details','Notes','Files','Linked Quotes','Linked Purchase Orders']) await expect(work.locator('.commercial-side-panel summary').filter({hasText:panel})).toBeVisible();
+  for(const panel of ['Company Details','Contact Details','Notes','Files','Linked Quotes','Linked Purchase Orders']) await expect(work.locator('.commercial-side-panel summary').filter({hasText:panel})).toBeVisible();
   const startBounds=await work.getByLabel('Proposed start date').boundingBox(), endBounds=await work.getByLabel('Proposed end date').boundingBox();
   assert.ok(endBounds.x>startBounds.x && Math.abs(startBounds.y-endBounds.y)<2,'Proposed dates share a row within one column');
   await work.getByRole('button',{name:'New note'}).click();

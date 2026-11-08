@@ -99,7 +99,7 @@ def default_fields(details=None, company=None, people_defaults=None):
     details, company = details or {}, company or DEFAULTS
     options = template_options()
     fields.pop('works_type')
-    fields.update(title='Safe Work Method Statement', details=dict.fromkeys(DETAIL_FIELDS, ''), manager_signature=None,
+    fields.update(title='Safe Work Method Statement', details=dict.fromkeys(DETAIL_FIELDS, ''), manager_signature=None, contact_signature=None,
                   reviewers=[{'name': '', 'position': '', 'signature': None},
                              {'name': '', 'position': '', 'signature': None}],
                   consultation=[{'name': '', 'position': '', 'signature': None},
@@ -154,9 +154,9 @@ def _steps(rows, minimum=0):
 
 
 def validate_fields(fields):
-    # Keep old saved drafts byte-for-byte compatible with capture and immutable
-    # receipt fingerprints. Conditional tables are added only when edited/saved.
-    if not isinstance(fields, dict) or set(fields) not in (FIELD_KEYS, FIELD_KEYS | {'high_risk_steps'}):
+    # Keep old saved drafts compatible with capture and immutable receipts.
+    # Optional tables and contact ink stay absent unless present in the input.
+    if not isinstance(fields, dict) or set(fields) - {'high_risk_steps', 'contact_signature'} != FIELD_KEYS:
         raise ValidationError('SWMS fields use an unsupported format.')
     result = {key: _text(fields[key], key, 300 if key in {'title', 'template_id', 'template_version'} else 30000) for key in TEXT_FIELDS}
     if not isinstance(fields['details'], dict) or set(fields['details']) != set(DETAIL_FIELDS):
@@ -165,6 +165,8 @@ def validate_fields(fields):
     result['details']['date'] = _date(result['details']['date'], 'Project date')
     for key in ('manager_signature', 'manual_signature'):
         result[key] = validate_signature(fields[key])
+    if 'contact_signature' in fields:
+        result['contact_signature'] = validate_signature(fields['contact_signature'])
     for key in ('reviewers', 'consultation', 'site_signoffs', 'signoffs'):
         rows = fields[key]
         if not isinstance(rows, list) or len(rows) > 100:

@@ -22,7 +22,7 @@ async function oldDraft(){return page.evaluate(()=>({context:window.CeasefirePro
   await page.locator('#discard-dialog').getByRole('button',{name:'Yes',exact:true}).click();await expect(modal).toBeHidden();assert.deepEqual(await oldDraft(),before);
   checks.push('New opens a reusable modal in Projects; Cancel keeps every active input and context');
   await page.locator('#new-quote').click();await expect(modal).toBeVisible();await page.locator('#project-account-new').click();
-  const account=page.getByRole('dialog',{name:'New Account',exact:true});await account.getByLabel('Company',{exact:true}).fill('Popup Account');await account.getByRole('button',{name:'Save',exact:true}).click();await expect(account).toBeHidden();
+  const account=page.getByRole('dialog',{name:'New Company',exact:true});await account.getByLabel('Company',{exact:true}).fill('Popup Account');await account.getByRole('button',{name:'Save',exact:true}).click();await expect(account).toBeHidden();
   await expect(page.locator('#project-pane-client')).toHaveValue('Popup Account');await page.locator('#project-pane-address').fill('12 Popup Road');
   assert.equal(await page.locator('#project-contact-new .button-symbol svg').innerHTML(),await page.locator('#project-account-new .button-symbol svg').innerHTML());
   await page.locator('#project-contact-new').click();const contact=page.getByRole('dialog',{name:'New Contact',exact:true});
@@ -33,9 +33,11 @@ async function oldDraft(){return page.evaluate(()=>({context:window.CeasefirePro
   await page.locator('#project-pane-contact-phone').fill('Manual phone');await page.locator('#project-pane-contact-email').fill('manual@example.test');
   await page.locator('#project-pane-contact-name').focus();const box=await page.locator('#project-pane-contact-name').boundingBox();await page.mouse.click(box.x+box.width-24,box.y+box.height/2);
   await expect(page.locator('#project-pane-contact-name')).toHaveValue('');await expect(page.locator('#project-pane-contact-phone')).toHaveValue('');await expect(page.locator('#project-pane-contact-email')).toHaveValue('');
+  await expect(page.locator('#project-pane-client')).toHaveValue('');assert.equal((await page.evaluate(()=>window.CeasefireProjectPane.fingerprint())).includes('Popup Account'),false);
   await page.locator('#project-pane-contact-name').fill('Popup');await page.locator('#project-contact-options').getByRole('option',{name:/Popup Contact/}).click();
   await expect(page.locator('#project-pane-contact-email')).toHaveValue('popup@example.test');
-  checks.push('Inline Contact + matches Account glyph, creates canonical linked defaults, and native clear removes overrides');
+  await expect(page.locator('#project-pane-client')).toHaveValue('Popup Account');
+  checks.push('Inline Contact + matches Company glyph, creates canonical linked defaults, native clear removes Client/overrides and reselection restores the linked Client');
   for(const width of [1915,1101,390]){
     await page.setViewportSize({width,height:1000});const geometry=await modal.evaluate(dialog=>({columns:getComputedStyle(dialog.querySelector('.project-pane-fields')).gridTemplateColumns.split(' ').length,width:document.documentElement.scrollWidth,viewport:innerWidth}));
     assert.equal(geometry.columns,2);assert.ok(geometry.width<=geometry.viewport);await page.screenshot({path:path.join(output,'modal-'+width+'.png')});

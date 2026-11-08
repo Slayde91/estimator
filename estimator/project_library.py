@@ -250,7 +250,7 @@ def _preserve_project_contacts(request, previous):
     incoming = request.get("estimate", {})
     saved = previous.get("estimate", {})
     if any(saved.get(key) and key not in incoming for key in ("contact_name", "contact_phone", "contact_email", "account_id", "contact_id")):
-        raise ValidationError("Reload this application before saving so the project's Contact and Account details are retained.")
+        raise ValidationError("Reload this application before saving so the project's Contact and Company details are retained.")
 
 
 def _metadata(path, info, project, folder, payload):
@@ -849,13 +849,13 @@ class ProjectLibrary:
                 raise ProjectDetailsConflict("The project changed. Reopen its details before saving.")
             previous = validate_quote_details(summary["estimate"])
             if not account_valid and any(details[key] != previous[key] for key in ("account_id", "client")):
-                raise ValidationError("Choose an existing Account for this Client, or add a new Account.")
+                raise ValidationError("Choose an existing Company for this Client, or add a new Company.")
             if not contact_valid and any(details[key] != previous[key] for key in ("contact_id", "contact_name")):
                 raise ValidationError("Choose an existing Contact for this name, or enter the name without a Contact link.")
             if details["project_no"] != previous["project_no"]:
                 raise ValidationError("Project numbers are assigned automatically and cannot be changed here.")
             if not details["account_id"] and details["client"] != previous["client"] and details["client"]:
-                raise ValidationError("Choose an existing Account for this Client, or add a new Account.")
+                raise ValidationError("Choose an existing Company for this Client, or add a new Company.")
             if receipt is None:
                 snapshot = json.loads(payload.decode("utf-8-sig"))
                 estimates = [snapshot["estimate"], *[entry["workspace"]["estimate"] for entry in snapshot.get("estimates", [])]]

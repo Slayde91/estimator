@@ -58,11 +58,14 @@ module.exports=async function peopleDefaults(root,output){
     await sign(firstReviewer);await expect(host.locator('.swms-message')).toContainText('Personal details could not be loaded');await expect(firstReviewer.getByRole('img')).toHaveCount(0);await expect(firstReviewer.getByLabel('Name',{exact:true})).toHaveValue('');
     await firstReviewer.getByLabel('Position',{exact:true}).fill('Manual role');await sign(firstReviewer);
     await expect(firstReviewer.getByLabel('Name',{exact:true})).toHaveValue(savedProfile.name);await expect(firstReviewer.getByLabel('Position',{exact:true})).toHaveValue('Manual role');await expect(host.locator('.swms-message')).toBeHidden();
-    await firstReviewer.getByRole('button',{name:'Clear signature',exact:true}).click();await expect(firstReviewer.getByRole('img')).toHaveCount(0);await expect(firstReviewer.getByLabel('Name',{exact:true})).toHaveValue(savedProfile.name);
+    await firstReviewer.getByRole('button',{name:'Clear signature',exact:true}).click();await expect(firstReviewer.getByRole('img')).toHaveCount(0);await expect(firstReviewer.getByLabel('Name',{exact:true})).toHaveValue('');await expect(firstReviewer.getByLabel('Position',{exact:true})).toHaveValue('');
     // Each signature reads current saved Settings, and missing values stay blank.
     await profile({...savedProfile,name:'Updated Settings person',position:''});
     const firstConsultant=consultation.locator('.swms-person').first();await sign(firstConsultant);
     await expect(firstConsultant.getByLabel('Name',{exact:true})).toHaveValue('Updated Settings person');await expect(firstConsultant.getByLabel('Position',{exact:true})).toHaveValue('');
+    await firstConsultant.getByRole('button',{name:'Clear signature',exact:true}).click();
+    await expect(firstConsultant.getByLabel('Name',{exact:true})).toHaveValue('');await expect(firstConsultant.getByLabel('Position',{exact:true})).toHaveValue('');
+    await sign(firstConsultant);
     // Settings loading is part of the guarded signature operation. A newer manual
     // field value must not be replaced when the delayed response arrives.
     let release,intercepted;const held=new Promise(resolve=>intercepted=resolve);
@@ -71,8 +74,13 @@ module.exports=async function peopleDefaults(root,output){
     await expect(host.getByRole('button',{name:'Save',exact:true})).toBeDisabled();
     await second.getByLabel('Name',{exact:true}).evaluate(input=>{input.value='New manual value';input.dispatchEvent(new Event('input',{bubbles:true}));});
     release();await expect(second.getByRole('img')).toBeVisible();await expect(second.getByLabel('Name',{exact:true})).toHaveValue('New manual value');
-    const details=group('Project Details');await sign(details);await expect(host.getByLabel('Project Manager (PM)',{exact:true})).toHaveValue('Updated Settings person');await expect(host.getByLabel('Position',{exact:true}).first()).toHaveValue('');
+    const details=group('Project Details');await sign(details.locator(':scope > .swms-signature'));await expect(host.getByLabel('Project Manager (PM)',{exact:true})).toHaveValue('Updated Settings person');await expect(host.getByLabel('Position',{exact:true}).first()).toHaveValue('');
+    await host.getByLabel('Contact',{exact:true}).fill('Unrelated manager contact');
+    await details.locator(':scope > .swms-signature').getByRole('button',{name:'Clear signature',exact:true}).click();
+    await expect(host.getByLabel('Project Manager (PM)',{exact:true})).toHaveValue('');await expect(host.getByLabel('Contact',{exact:true})).toHaveValue('Unrelated manager contact');
+    await expect(second.getByLabel('Name',{exact:true})).toHaveValue('New manual value');await expect(second.getByRole('img')).toBeVisible();
     await site.locator(':scope > summary').click();await site.getByRole('button',{name:'Add person',exact:true}).click();await sign(site.locator('.swms-person').first());await expect(site.getByLabel('Name',{exact:true})).toHaveValue('Updated Settings person');
+    await site.getByRole('button',{name:'Clear signature',exact:true}).click();await expect(site.getByLabel('Name',{exact:true})).toHaveValue('');await sign(site.locator('.swms-person').first());
     // Existing shared people rows and the Personal Details profile are untouched
     // by editing, signing, clearing, adding people, and saving this statement.
     await host.getByRole('button',{name:'Save',exact:true}).click();await expect(host.locator('.swms-message')).toContainText('Saved.');
@@ -96,7 +104,7 @@ module.exports=async function peopleDefaults(root,output){
     await host.getByRole('button',{name:'New SWMS',exact:true}).click();await expect(host.getByLabel('Document title',{exact:true})).toBeVisible();
     assert.equal(await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.fields.reviewers[0].name),'');
     assert.deepEqual(writes,[]);assert.deepEqual(errors,[]);
-    return 'SWMS people: new fields blank, cancel leaves blank, successful signatures read latest saved Personal Details into empty applicable fields only, manual values preserved across delayed profile reads, independent Clear, manager and site signoff fill, no shared profile/people writes, and old signed statement snapshots unchanged';
+    return 'SWMS people: new fields blank, cancel leaves blank, successful signatures read latest saved Personal Details into empty applicable fields only, manual values preserved across delayed profile reads, Clear resets associated name/position, manager and site signoff fill, no shared profile/people writes, and old signed statement snapshots unchanged';
   }catch(error){fs.mkdirSync(directory,{recursive:true});fs.writeFileSync(path.join(directory,'server.log'),logs);throw error;}
   finally{await browser?.close();server.kill();}
 };

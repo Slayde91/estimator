@@ -118,7 +118,7 @@ class ContactsHTTP:
             elif handler.command == "GET" and action == "account-links":
                 query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
                 if set(query) - {"id", "search"} or any(len(values) != 1 for values in query.values()):
-                    raise ValidationError("Choose one account and related-record search.")
+                    raise ValidationError("Choose one company and related-record search.")
                 handler.send_payload(200, self.relations.view(query.get("id", [None])[0], search=query.get("search", [""])[0]))
             elif handler.command == "GET" and workbook and workbook[2] == "template.xlsx":
                 kind = workbook[1]

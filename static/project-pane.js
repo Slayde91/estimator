@@ -115,7 +115,7 @@
     const value = details();
     if (value.client && value.client !== selected.baseline.client && (!value.account_id || value.client !== accountName)) {
       $("project-pane-client").focus();
-      throw new Error("Choose an existing Account for this client, or use + to create an Account.");
+      throw new Error("Choose an existing Company for this client, or use + to create a Company.");
     }
     return value;
   }
@@ -167,14 +167,46 @@
     } catch (error) { notice(error.message, true); throw error; }
     finally { busy(false); }
   }
+  const companyKey = value => String(value || "").trim().replace(/\s+/g," ").toLocaleLowerCase();
+  function companyNamed(name) {
+    const matching = accounts.filter(account => companyKey(account.company) === companyKey(name));
+    return matching.length === 1 ? matching[0] : null;
+  }
+  function contactCompany(contact) {
+    if (contact.account_id) return accounts.find(account => account.id === contact.account_id) || null;
+    // Older directory fixtures may not carry IDs. An explicit null means this
+    // Contact has no Company, so only a missing ID may use the legacy name.
+    return Object.hasOwn(contact,"account_id") ? null : companyNamed(contact.company);
+  }
+  function contactMatchesClient(contact) {
+    const name = $("project-pane-client").value.trim();
+    if (!name) return true;
+    const client = accountId ? accounts.find(account => account.id === accountId) : companyNamed(name);
+    return Boolean(client && contactCompany(contact)?.id === client.id);
+  }
+  function setAccount(account) {
+    accountId = account?.id || ""; accountName = account?.company || "";
+    if (selected?.kind === "current" && currentRule) currentRule.account = account ? {id:account.id,company:account.company} : null;
+    $("project-pane-client").value = accountName;
+  }
+  function clearContact(clearClient = false) {
+    contactId = ""; contactName = "";
+    $("project-pane-contact-name").value = "";
+    $("project-pane-contact-phone").value = ""; $("project-pane-contact-email").value = "";
+    if (clearClient) setAccount(null);
+  }
+  function invalidateLinkedContact() {
+    if (!contactId) return;
+    const contact = contacts.find(contact => contact.id === contactId);
+    if (!contact || !contactMatchesClient(contact) || (!$("project-pane-client").value.trim() && contactCompany(contact))) clearContact();
+  }
   function chooseAccount(account) {
-    accountId = account.id; accountName = account.company;
-    if (selected?.kind === "current" && currentRule) currentRule.account = {id:account.id,company:account.company};
-    $("project-pane-client").value = account.company;
+    setAccount(account); invalidateLinkedContact(); dismissContactOptions();
     dismissOptions(); notice(); applyCurrentDraft();
   }
   function chooseContact(contact) {
     if (!selected || pending) return;
+    setAccount(contactCompany(contact));
     contactId = contact.id; contactName = contact.name;
     $("project-pane-contact-name").value = contact.name;
     // Defaults are copied once when the user explicitly chooses a Contact.
@@ -188,12 +220,13 @@
   function renderContacts() {
     if (!contactPopupRequested || !selected || pending || selected.blocked || document.activeElement !== $("project-pane-contact-name")) return;
     const query = $("project-pane-contact-name").value.trim().toLocaleLowerCase();
-    contactOptions = contactLoading ? [] : contacts.filter(contact => [contact.name,contact.company,contact.phone,contact.email].join(" ").toLocaleLowerCase().includes(query)).slice(0,30);
+    contactOptions = contactLoading ? [] : contacts.filter(contact => contactMatchesClient(contact) && [contact.name,contact.company,contact.phone,contact.email].join(" ").toLocaleLowerCase().includes(query)).slice(0,30);
     const host = $("project-contact-options");
     host.replaceChildren(...contactOptions.map((contact,index) => {
       const option = document.createElement("button"); option.type = "button"; option.tabIndex = -1; option.id = `project-contact-option-${index}`;
       option.setAttribute("role","option"); option.setAttribute("aria-selected","false");
-      option.textContent = [contact.name,contact.company,contact.phone,contact.email].filter(Boolean).join(" · ");
+      option.setAttribute("aria-posinset",String(index + 1)); option.setAttribute("aria-setsize",String(contactOptions.length));
+      option.dataset.contactId = contact.id; option.textContent = contact.name;
       option.addEventListener("mousedown", event => event.preventDefault());
       option.addEventListener("click", () => chooseContact(contact));
       return option;
@@ -215,7 +248,7 @@
       option.addEventListener("mousedown", event => event.preventDefault());
       option.addEventListener("click", () => chooseAccount(account)); return option;
     }));
-    if (!options.length) { const empty = document.createElement("p"); text(empty,"No matching Accounts. Use + to create one."); host.append(empty); }
+    if (!options.length) { const empty = document.createElement("p"); text(empty,"No matching Companies. Use + to create one."); host.append(empty); }
     host.hidden = false; $("project-pane-client").setAttribute("aria-expanded","true"); optionIndex = -1;
   }
   async function loadAccounts() {
@@ -242,14 +275,13 @@
     if (key === "client") {
       const value = $(id).value.trim();
       if (value !== accountName) { accountId = value === selected.baseline.client ? selected.baseline.account_id : ""; if (accountId) accountName = value; }
+      if (!value) setAccount(null);
+      invalidateLinkedContact(); dismissContactOptions();
       renderAccounts();
     }
     if (key === "contact_name") {
       if ($(id).value.trim() !== contactName) contactId = "";
-      if (!$(id).value.trim()) {
-        contactId = ""; contactName = "";
-        $("project-pane-contact-phone").value = ""; $("project-pane-contact-email").value = "";
-      }
+      if (!$(id).value.trim()) clearContact(true);
       contactPopupRequested = true;
       renderContacts();
     }
@@ -288,7 +320,7 @@
     const target = selected;
     busy(true); dismissOptions(); dismissContactOptions();
     try {
-      if (!window.ClassifireContacts?.createAccount) throw new Error("Refresh the application before creating an Account.");
+      if (!window.ClassifireContacts?.createAccount) throw new Error("Refresh the application before creating a Company.");
       const account = await window.ClassifireContacts.createAccount({company:$("project-pane-client").value.trim()});
       if (account && selected === target) { accounts = [...accounts.filter(value => value.id !== account.id),account]; chooseAccount(account); }
     } catch (error) { notice(error.message, true); }
@@ -301,6 +333,10 @@
       if (!window.ClassifireContacts?.createContact) throw new Error("Refresh the application before creating a Contact.");
       const contact = await window.ClassifireContacts.createContact({name:$("project-pane-contact-name").value.trim(),...(accountId ? {account_id:accountId} : {})});
       if (contact && selected === target) {
+        if (contact.account_id && contact.company) {
+          const account = accounts.find(account => account.id === contact.account_id);
+          accounts = [...accounts.filter(account => account.id !== contact.account_id),{...account,id:contact.account_id,company:contact.company}];
+        }
         contacts = [...contacts.filter(value=>value.id !== contact.id),contact]; busy(false); chooseContact(contact);
       }
     } catch(error) { if(selected === target) notice(error.message,true); }
@@ -313,7 +349,7 @@
       if (pending) throw new Error("Finish the current project details action before saving.");
       if (selected?.kind === "new") throw new Error("Save or cancel the new project details first.");
       const active = snapshot();
-      if (currentRule?.context === active.context && active.details.client && active.details.client !== currentRule.baseline.client && (active.details.account_id !== currentRule.account?.id || active.details.client !== currentRule.account?.company)) throw new Error("Choose an existing Account for this client, or use + to create an Account in Current project details.");
+      if (currentRule?.context === active.context && active.details.client && active.details.client !== currentRule.baseline.client && (active.details.account_id !== currentRule.account?.id || active.details.client !== currentRule.account?.company)) throw new Error("Choose an existing Company for this client, or use + to create a Company in Current project details.");
       if (selected?.kind === "current") validateClient();
       else if (dirty() && snapshot().file?.path === selected.file.path) await save();
     },

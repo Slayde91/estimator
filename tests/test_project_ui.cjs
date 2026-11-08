@@ -1398,7 +1398,7 @@ async function penetrationCheck(name, fn) {
     h.byId('project-pane-client').value='Later unlinked client';await h.byId('project-pane-client').emit('input');
     pane.projectSaved(captured);
     assert.equal(h.byId('client').value,'Later unlinked client');assert.equal(h.byId('project-pane-client').value,'Later unlinked client');
-    await assert.rejects(()=>pane.beforeProjectSave(),/Choose an existing Account/);
+    await assert.rejects(()=>pane.beforeProjectSave(),/Choose an existing Company/);
     h.context.window.ClassifireContacts={createAccount:async()=>({id:'10000000-0000-0000-0000-000000000001',company:'Later canonical client'})};
     await h.byId('project-account-new').emit('click');
     pane.projectSaved(captured);
@@ -1415,7 +1415,7 @@ async function penetrationCheck(name, fn) {
     assert.match(h.byId('discard-dialog').querySelector('p').textContent,/unsaved changes/);revision++;
     await h.byId('discard-dialog').close('confirm');assert.equal(await closing,false);assert.equal(h.app.projectStamp(),stamp);
     pending=true;assert.equal(h.context.window.CeasefireDesktop.status().busy,true);assert.equal(await h.app.reviewDesktopClose(),false);
-    const calls=h.calls.length;await h.app.loadProject();assert.equal(h.calls.length,calls);assert.match(h.byId('app-message').textContent,/Account action/);
+    const calls=h.calls.length;await h.app.loadProject();assert.equal(h.calls.length,calls);assert.match(h.byId('app-message').textContent,/Company action/);
   });
   await check('All view changes review the Account pane while the current Contacts header preserves it',async h=>{
     h.app.state.currentView='contacts';let allow=false,leaves=0,activations=0;
@@ -1423,6 +1423,51 @@ async function penetrationCheck(name, fn) {
     await h.app.showView('home');assert.equal(h.app.state.currentView,'contacts');assert.equal(leaves,1);
     assert.equal(await h.app.requestViewNavigation('contacts'),true);assert.equal(activations,0);assert.equal(leaves,1);
     allow=true;await h.app.showView('home');assert.equal(h.app.state.currentView,'home');assert.equal(leaves,2);
+  });
+  await check('Project Contact selection links its Company, filters by that Company and clears dependent identity together',async h=>{
+    h.byId('client').value='';
+    const directory={accounts:[{id:'alpha',company:'Alpha Company'},{id:'beta',company:'Beta Company'}],contacts:[
+      {id:'person-a',name:'Alex Same',account_id:'alpha',company:'Alpha Company',phone:'111',email:'alpha@example.test'},
+      {id:'person-b',name:'Alex Same',account_id:'beta',company:'Stale Company label',phone:'222',email:'beta@example.test'},
+      {id:'orphan',name:'Unlinked Person',account_id:null,company:'Alpha Company',phone:'333',email:''}]};
+    const before=copy(directory);h.context.fetch=async path=>{assert.equal(path,'/api/contacts/directory');return{ok:true,json:async()=>copy(directory)};};
+    vm.runInContext(fs.readFileSync('static/project-pane.js','utf8'),h.context);
+    const pane=h.context.window.CeasefireProjectPane,name=h.byId('project-pane-contact-name'),client=h.byId('project-pane-client'),options=h.byId('project-contact-options');
+    const focus=async control=>{control.focus();await control.emit('focus');await flush();};
+    const choices=()=>options.children.filter(item=>item.getAttribute('role')==='option');
+    await pane.openCurrent();await focus(name);name.value='Alex';await name.emit('input');
+    assert.deepEqual(choices().map(item=>item.textContent),['Alex Same','Alex Same']);
+    await choices().find(item=>item.dataset.contactId==='person-b').emit('click');
+    let details=h.context.window.CeasefireProject.details();assert.equal(details.account_id,'beta');assert.equal(details.client,'Beta Company');assert.equal(details.contact_id,'person-b');assert.equal(details.contact_phone,'222');
+    h.byId('project-pane-contact-phone').value='Project override';await h.byId('project-pane-contact-phone').emit('input');
+    await focus(name);assert.equal(choices().length,1);assert.equal(choices()[0].dataset.contactId,'person-b');assert.equal(h.byId('project-pane-contact-phone').value,'Project override');
+    await pane.beforeProjectSave();
+    await focus(client);client.value='Alpha Company';await client.emit('input');
+    assert.equal(name.value,'');assert.equal(h.byId('project-pane-contact-phone').value,'');assert.equal(h.context.window.CeasefireProject.details().contact_id,'');
+    await h.byId('project-account-options').children.find(item=>item.textContent==='Alpha Company').emit('click');
+    await focus(name);name.value='Alex';await name.emit('input');await choices()[0].emit('click');
+    await focus(client);client.value='';await client.emit('input');
+    assert.equal(name.value,'');assert.equal(h.byId('project-pane-contact-phone').value,'');assert.equal(h.context.window.CeasefireProject.details().contact_id,'');
+    client.value='Alpha';await client.emit('input');await h.byId('project-account-options').children.find(item=>item.textContent==='Alpha Company').emit('click');
+    name.value='Manual person';await name.emit('input');h.byId('project-pane-contact-phone').value='Manual phone';await h.byId('project-pane-contact-phone').emit('input');
+    await focus(client);client.value='Beta Company';await client.emit('input');await h.byId('project-account-options').children.find(item=>item.textContent==='Beta Company').emit('click');
+    assert.equal(name.value,'Manual person');assert.equal(h.byId('project-pane-contact-phone').value,'Manual phone');
+    name.value='';await name.emit('input');details=h.context.window.CeasefireProject.details();
+    for(const key of ['client','account_id','contact_id','contact_name','contact_phone','contact_email'])assert.equal(details[key],'',key);
+    await focus(name);name.value='Unlinked';await name.emit('input');await choices()[0].emit('click');details=h.context.window.CeasefireProject.details();
+    assert.equal(details.client,'');assert.equal(details.account_id,'');assert.equal(details.contact_id,'orphan');assert.equal(details.contact_phone,'333');assert.deepEqual(directory,before);
+  });
+  await check('Legacy Client names filter Contact choices without silently rebasing the saved draft',async h=>{
+    h.byId('client').value='  ALPHA   COMPANY  ';
+    const directory={accounts:[{id:'alpha',company:'Alpha Company'},{id:'beta',company:'Beta Company'}],contacts:[
+      {id:'legacy',name:'Legacy Contact',company:'Alpha Company',phone:'111'},
+      {id:'other',name:'Other Contact',account_id:'beta',company:'Beta Company',phone:'222'}]};
+    h.context.fetch=async()=>({ok:true,json:async()=>copy(directory)});
+    vm.runInContext(fs.readFileSync('static/project-pane.js','utf8'),h.context);await h.context.window.CeasefireProjectPane.openCurrent();
+    const before=copy(h.context.window.CeasefireProject.details()),name=h.byId('project-pane-contact-name');name.focus();await name.emit('focus');await flush();
+    const options=h.byId('project-contact-options').children.filter(item=>item.getAttribute('role')==='option');assert.equal(options.length,1);assert.equal(options[0].textContent,'Legacy Contact');
+    assert.deepEqual(h.context.window.CeasefireProject.details(),before);await options[0].emit('click');
+    const after=h.context.window.CeasefireProject.details();assert.equal(after.account_id,'alpha');assert.equal(after.client,'Alpha Company');assert.equal(after.contact_id,'legacy');
   });
   console.log(`${passed} project UI regression checks passed.`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

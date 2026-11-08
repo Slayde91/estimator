@@ -85,7 +85,7 @@
     const owner = form.parentElement, wrapper = el("div"), left = el("aside"), right = el("aside");
     wrapper.className = "commercial-work-layout"; left.className = right.className = "commercial-sidebar";
     owner.insertBefore(wrapper,form); wrapper.append(left,form,right);
-    const accountPanel = panel("Account Details"), contactPanel = panel("Contact Details");
+    const accountPanel = panel("Company Details"), contactPanel = panel("Contact Details");
     left.append(accountPanel,contactPanel);
     let directory = {};
     function showContact() {

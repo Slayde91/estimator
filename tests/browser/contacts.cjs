@@ -34,6 +34,26 @@ const ready = new Promise((resolve, reject) => {
   const root=page.locator('#contacts-root');
   await expect(root.getByRole('heading',{name:'Leads',exact:true})).toBeVisible();
   await expect(page.locator('#contacts-navigation-menu [data-contacts-section]')).toHaveCount(3);
+  await expect(page.locator('#contacts-navigation-menu [data-contacts-section="accounts"]')).toHaveText('Companies');
+  await expect(root.locator('.contacts-tabs button')).toHaveText(['Leads','Contacts','Companies']);
+  await root.getByRole('button',{name:'Companies',exact:true}).click();await expect(root.getByRole('heading',{name:'Companies',exact:true})).toBeVisible();
+  await expect(root.getByRole('searchbox',{name:'Search companies',exact:true})).toBeVisible();
+  await expect(root.getByText('No matching companies.',{exact:true})).toBeVisible();
+  const directoryBeforeLanguages=await page.evaluate(async()=>await (await fetch('/api/contacts/directory')).json());
+  for(const [locale,heading,newCompany] of [['zh-Hans','公司','新建公司'],['hi','कंपनियाँ','नई कंपनी'],['es','Empresas','Nueva empresa'],['ar','الشركات','شركة جديدة'],['th','บริษัท','บริษัทใหม่'],['ko','회사','새 회사'],['tl','Mga kumpanya','Bagong kumpanya'],['vi','Công ty','Công ty mới'],['fr','Entreprises','Nouvelle entreprise'],['bn','কোম্পানিসমূহ','নতুন কোম্পানি'],['ur','کمپنیاں','نئی کمپنی']]){
+    await page.evaluate(locale=>window.CeasefireI18n.setLanguage(locale,false),locale);
+    await expect(root.getByRole('heading',{name:heading,exact:true})).toBeVisible();
+    await expect(root.locator('.contacts-tabs button').nth(2)).toHaveText(heading);
+    await expect(page.locator('#contacts-navigation-menu [data-contacts-section="accounts"]')).toHaveText(heading);
+    await expect(root.getByRole('button',{name:newCompany,exact:true})).toBeVisible();
+    const labels=await page.evaluate(()=>['Search companies','No matching companies.'].map(source=>window.CeasefireI18n.translate(source)));
+    await expect(root.getByRole('searchbox',{name:labels[0],exact:true})).toBeVisible();
+    await expect(root.getByText(labels[1],{exact:true})).toBeVisible();
+  }
+  await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));
+  assert.deepEqual(await page.evaluate(async()=>await (await fetch('/api/contacts/directory')).json()),directoryBeforeLanguages,'Language changes retain canonical directory records');
+  await root.getByRole('button',{name:'New Company',exact:true}).click();const companyDialog=page.getByRole('dialog',{name:'New Company',exact:true});await expect(companyDialog.getByRole('group',{name:'Company Information',exact:true})).toBeVisible();await companyDialog.getByRole('button',{name:'Cancel',exact:true}).click();
+  await root.getByRole('button',{name:'Leads',exact:true}).click();
   const tabsBox=await root.locator('.contacts-tabs').boundingBox();
   assert.ok(Math.abs(tabsBox.width-350)<1 && Math.abs(tabsBox.height-40)<1,JSON.stringify(tabsBox));
   assert.equal(await root.locator('.contacts-tabs').evaluate(node=>getComputedStyle(node).backgroundColor),'rgb(12, 11, 14)');
@@ -58,9 +78,9 @@ const ready = new Promise((resolve, reject) => {
   await expect(card).toBeVisible();
   await card.dragTo(root.locator('.project-kanban-column[data-status="Qualified"]'));
   await expect(root.locator('.project-kanban-column[data-status="Qualified"]')).toContainText('Robin Sample');
-  await root.getByRole('button',{name:'Accounts',exact:true}).click();
+  await root.getByRole('button',{name:'Companies',exact:true}).click();
   await root.getByRole('button',{name:'Sample Company',exact:true}).click();
-  const accountPane=page.getByRole('complementary',{name:'Edit Account',exact:true});
+  const accountPane=page.getByRole('complementary',{name:'Edit Company',exact:true});
   await expect(accountPane.getByLabel('Billing address')).toHaveValue('Demo Billing Street');
   await expect(accountPane.getByLabel('ABN/ACN',{exact:true})).toHaveValue('12 345 678 901');
   await expect(accountPane.locator('.contacts-links-group > summary')).toHaveText(['Contacts (1)']);
@@ -81,7 +101,7 @@ const ready = new Promise((resolve, reject) => {
   await doc.getByRole('button',{name:'Import Template'}).click();
   await (await fileChooser).setFiles(template);
   await expect(root.getByRole('button',{name:'Imported Sample',exact:true})).toBeVisible();
-  await root.getByRole('button',{name:'Accounts',exact:true}).click();
+  await root.getByRole('button',{name:'Companies',exact:true}).click();
   await root.getByRole('button',{name:'Sample Company',exact:true}).click();
   await expect(accountPane.getByRole('button',{name:'Imported Sample'})).toBeVisible();
   await accountPane.getByRole('button',{name:'Cancel'}).click();

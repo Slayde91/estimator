@@ -221,17 +221,29 @@
       }
     } finally { if (current()) lock(false); }
   }
-  async function personalDetails() {
+  async function signatureProfile() {
+    const response=await fetch('/api/scheduler/bootstrap',{cache:'no-store'}), saved=await response.json();
+    if(!response.ok || !saved || !Object.hasOwn(saved,'user') || saved.user !== null && typeof saved.user?.id !== 'string') throw new Error('Personal details could not be loaded. Try again.');
+    return saved.user?.id || null;
+  }
+  async function personalDetails(withCompanyPhone = false) {
     const response=await fetch('/api/certifications/defaults',{cache:'no-store'});
     const saved=await response.json();
     if(!response.ok || !saved?.fields || ['name','position','qualification','accreditation'].some(key=>typeof saved.fields[key]!=='string')) throw new Error('Personal details could not be loaded. Try again.');
-    return saved.fields;
+    if(!withCompanyPhone)return saved.fields;
+    const companyResponse=await fetch('/api/company-settings',{cache:'no-store'}), company=await companyResponse.json();
+    if(!companyResponse.ok || typeof company.phone !== 'string')throw new Error('Company details could not be loaded. Try again.');
+    return {...saved.fields,phone:company.phone};
   }
-  function signature(value, update, label, removePerson, onSigned) {
+  function signature(value, update, label, removePerson, onSigned, options = {}) {
     const host = element("div", "swms-signature"), actions = element("div", "swms-signature-actions");
+    const currentOwner = guard(), owner = state.editor;
+    const attached = () => currentOwner() && owner === state.editor && host.isConnected;
+    if(options.contact)host.classList.add('swms-contact-signature');
     if (value) {
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("viewBox", `0 0 ${Math.round(value.ratio * 100)} 100`); svg.setAttribute("role", "img"); svg.setAttribute("aria-label", label + " drawn signature");
+      if(options.contact)window.CeasefireI18n?.attr(svg, 'aria-label', 'Contact person drawn signature');
       value.strokes.forEach(stroke => {
         const path = document.createElementNS(svg.namespaceURI, "polyline");
         path.setAttribute("points", stroke.map(point => `${point[0] * value.ratio * 100},${point[1] * 100}`).join(" "));
@@ -239,9 +251,11 @@
       }); host.append(svg);
     } else host.append(element("span", "muted", "Not signed"));
     function setSignature(next) {
+      if (!attached()) return;
+      if(next === null && options.clear?.() === false)return;
       update(next);
       dirty();
-      const replacement = signature(next, update, label, removePerson, onSigned);
+      const replacement = signature(next, update, label, removePerson, onSigned, options);
       host.replaceWith(replacement);
       replacement.querySelector("button").focus({preventScroll:true});
     }
@@ -250,15 +264,18 @@
       const current = guard(), editor = state.editor;
       lock(true);
       try {
+        const profile=await signatureProfile();
+        if(!current() || editor !== state.editor)return;
         const result = await window.ClassifirePersonalSignature.choose(value, "swms");
         if (!result || !current() || editor !== state.editor) return;
-        const saved=await personalDetails();
-        if (!current() || editor !== state.editor || onSigned?.(saved) === false) return;
+        const saved=await personalDetails(options.contact), after=await signatureProfile();
+        if(profile !== after)throw new Error('Your signature profile changed. Reopen the signature pad.');
+        if (!current() || editor !== state.editor || !attached() || onSigned?.(saved) === false) return;
         setSignature(result); notice("");
       } catch(error) { if(current() && editor === state.editor)throw error; }
       finally { if(current() && editor === state.editor)lock(false); }
     }, "signature"));
-    if (value) actions.append(iconAction("Clear signature", () => setSignature(null), "clear"));
+    if (value) actions.append(iconAction("Clear signature", () => {if(!state.busy)setSignature(null);}, "clear"));
     if (removePerson) actions.append(iconAction("Remove person", removePerson, "remove"));
     host.append(actions);
     return host;
@@ -282,7 +299,11 @@
           if(!fields[key].includes(person))return false;
           for(const name of ['name','position'])if(inputs[name] && !person[name].trim()) { person[name]=saved[name];inputs[name].value=saved[name]; }
           return true;
-        }));
+        },{clear:()=>{
+          if(!fields[key].includes(person))return false;
+          for(const name of ['name','position'])if(inputs[name]){person[name]='';inputs[name].value='';}
+          return true;
+        }}));
         if (key === "signoffs" && person.latitude && person.longitude && Number.isFinite(Number(person.latitude)) && Number.isFinite(Number(person.longitude))) {
           const link = element("a", "button secondary", "View map"); link.href = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(person.latitude)}&mlon=${encodeURIComponent(person.longitude)}#map=17/${encodeURIComponent(person.latitude)}/${encodeURIComponent(person.longitude)}`; link.target = "_blank"; link.rel = "noopener noreferrer"; row.append(link);
         }
@@ -387,15 +408,25 @@
     const editor = state.editor, fields = editor.fields, host = shell("Safe Work Method Statement"), actions = element("div", "swms-toolbar");
     const downloadButton = button("Download PDF", download, true); downloadButton.classList.add("swms-download");
     const back = button("", leaveEditor);
-    back.classList.add("icon-only"); back.title = "Back to statements"; back.setAttribute("aria-label", "Back to statements");
+    back.classList.add("icon-only", "swms-back-action"); back.title = "Back to statements"; back.setAttribute("aria-label", "Back to statements");
     window.CeasefireI18n?.attr(back, "title", "Back to statements"); window.CeasefireI18n?.attr(back, "aria-label", "Back to statements");
-    const arrow = element("span", "button-symbol", "←"); arrow.setAttribute("aria-hidden", "true"); back.append(arrow);
+    back.innerHTML='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 5l-7 7 7 7"></path></svg>';
     actions.append(back, button("Save", () => save(), true), downloadButton, element("span", "muted", editor.version ? `Revision ${editor.version}` : "New statement")); host.append(actions);
     const identity = element("div", "swms-grid"); identity.append(field("Document title", control(fields.title, value => { fields.title = value; })), field("Status", select(state.model?.statuses || ["Draft", "Review", "Approved", "Archived"], editor.status, value => { editor.status = value; }))); host.append(identity);
     const details = section("Project Details", true), grid = element("div", "swms-grid"), detailInputs = {};
     for (const [key, label] of Object.entries(detailLabels)) {
       const input=control(fields.details[key], value => { fields.details[key] = value; }, key === "date" ? "date" : "text");
-      detailInputs[key]=input;grid.append(field(label,input));
+      detailInputs[key]=input;
+      const item=field(label,input);
+      if(key === 'contact_person') {
+        item.classList.add('swms-contact-field');
+        const entry=element('div','swms-contact-entry');input.replaceWith(entry);
+        const fill=values=>{for(const name of ['contact_person','position','phone']){fields.details[name]=values[name];detailInputs[name].value=values[name];}};
+        entry.append(input,signature(fields.contact_signature || null,value=>{fields.contact_signature=value;},'Contact person',null,saved=>{
+          fill({contact_person:saved.name,position:saved.position,phone:saved.phone});
+        },{contact:true,clear:()=>fill({contact_person:'',position:'',phone:''})}));
+      }
+      grid.append(item);
       if (key === "job_reference") {
         const ref = element("input"); ref.readOnly = true; ref.value = editor.reference || ""; ref.placeholder = "Assigned on first save";
         grid.append(field("SWMS Reference", ref));
@@ -403,7 +434,7 @@
     }
     details.append(grid, element("h3", "", "Project Manager Signature"), signature(fields.manager_signature, value => { fields.manager_signature = value; }, "Project manager", null, saved=>{
       if(!fields.details.project_manager.trim()){fields.details.project_manager=saved.name;detailInputs.project_manager.value=saved.name;}
-    })); host.append(details);
+    },{clear:()=>{fields.details.project_manager='';detailInputs.project_manager.value='';}})); host.append(details);
     const communication = section("Communication and responsibilities"); textFields(communication, fields, ["communication", "toolbox", "compliance"]); host.append(communication);
     people(host, "reviewers", "Person/s responsible for reviewing SWMS"); people(host, "consultation", "This SWMS has been developed in consultation with");
     const qualifications = section("Qualifications, duties and training"); textFields(qualifications, fields, ["qualifications", "duties", "training"]); host.append(qualifications);

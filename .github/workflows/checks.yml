@@ -303,6 +303,7 @@ jobs:
           $arguments = @('--self-test', '--data-dir', ('"' + $data + '"'), '--output-report', ('"' + $report + '"'))
           $process = Start-Process -FilePath $app -ArgumentList $arguments -WindowStyle Hidden -PassThru
           if (-not $process.WaitForExit(240000)) { Stop-Process -InputObject $process -Force; throw 'Native desktop smoke test timed out.' }
+          if (Test-Path -LiteralPath $report) { Get-Content -LiteralPath $report -Raw }
           if ($process.ExitCode -ne 0) { throw "Native desktop smoke failed: $($process.ExitCode)" }
           if (-not (Test-Path -LiteralPath $report)) { throw 'Native desktop smoke report is missing.' }
           Get-Content -LiteralPath $report

@@ -481,6 +481,24 @@ class ProjectLibrary:
             return 'The project was saved, but its evidence session could not be rebound. Reopen the saved project before continuing takeoff work.'
         return None
 
+    def _activate_saved_documents(self, request, project):
+        """A completed file save grants creation only to its captured workspace."""
+        incoming = request.get('certifications')
+        if self.certifications is None or not isinstance(incoming, dict):
+            return
+        token = incoming.get('workspace_id')
+        if not token:
+            return
+        expected = (project.get('certifications') or {}).get('project_id')
+        try:
+            if expected != self.certifications.project_id(token):
+                raise ValidationError('The saved project document workspace changed.')
+            self.certifications.activate_created_project(token, project['estimate'].get('project_no', ''))
+        except ValidationError:
+            # The file is already committed. A concurrently discarded capability
+            # must not be revived or turn this receipt into a false save failure.
+            return 'The project was saved, but its document workspace changed. Reload the saved project before creating documents.'
+
     def _restore_takeoffs(self, project, path):
         require_project_edition(project, self.edition)
         workspace = None
@@ -505,6 +523,8 @@ class ProjectLibrary:
                         self.commercial.unfiled.bind_file(db, workspace['workspace_id'])
             elif 'commercial_documents' in project:
                 raise ValidationError('Open this project with its commercial document workspace available.')
+            if workspace is not None and path is not None:
+                self.certifications.activate_created_project(workspace['workspace_id'], project['estimate'].get('project_no', ''))
             if 'estimates' in project:
                 entries = []
                 for entry in project['estimates']:
@@ -1213,6 +1233,9 @@ class ProjectLibrary:
             with self._commercial_publication(request, captured, selection, payload):
                 path, info = _atomic_write(selection, payload)
             warning = self._saved_takeoff_source(request, captured, path)
+            document_warning = self._activate_saved_documents(request, project)
+            if document_warning:
+                warning = (warning + ' ' if warning else '') + document_warning
             del self._save_targets[token]
             try:
                 folder = _directory(selected_folder) if selected_folder else None
@@ -1473,7 +1496,7 @@ class ProjectLibrary:
             apply(captured['estimate'], values['estimate-1'])
         return captured
 
-    def _saved_number_result(self, ticket):
+    def _saved_number_result(self, ticket, request=None):
         self.recover_commercial_publications()
         path = Path(ticket['path'])
         payload, info = _read_file(path)
@@ -1487,8 +1510,12 @@ class ProjectLibrary:
             folder = None
         metadata = _metadata(path, info, project, folder, payload)
         metadata['in_linked_folder'] = folder is not None and path.is_relative_to(folder)
-        return {'cancelled': False, 'file': self._authorize_save(path, info, payload, metadata),
-                'folder': selected, 'project': project, 'replayed': True}
+        result = {'cancelled': False, 'file': self._authorize_save(path, info, payload, metadata),
+                  'folder': selected, 'project': project, 'replayed': True}
+        warning = self._activate_saved_documents(request or {}, project)
+        if warning:
+            result['warning'] = warning
+        return result
 
     def create_from_lead(self, lead):
         from .schedule_rows import empty_schedule_inputs
@@ -1536,7 +1563,7 @@ class ProjectLibrary:
                 raise ValidationError('Resolve unreadable project files in the linked folder before assigning a new project number.')
         ticket = self.project_details.begin(identifier, captured)
         if ticket['replay']:
-            return self._saved_number_result(ticket)
+            return self._saved_number_result(ticket, request)
         prepared = self._apply_project_numbers(captured, json.loads(ticket['numbers_json']))
         try:
             result = self._save_as(request, captured=prepared, ticket=ticket, linked_folder=linked_folder)
@@ -1546,7 +1573,7 @@ class ProjectLibrary:
         except Exception:
             recovered = self.project_details.recover_request(identifier, _read_file)
             if recovered:
-                return self._saved_number_result(recovered)
+                return self._saved_number_result(recovered, request)
             self.project_details.cancel(identifier)
             raise
 
@@ -1596,6 +1623,9 @@ class ProjectLibrary:
                 if ticket:
                     self.project_details.finish(ticket['id'])
                 warning = self._saved_takeoff_source(request, captured, path)
+                document_warning = self._activate_saved_documents(request, project)
+                if document_warning:
+                    warning = (warning + ' ' if warning else '') + document_warning
             if selected_folder is None:
                 try:
                     self.store.set_project_folder(path.parent)

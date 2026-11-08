@@ -23,11 +23,18 @@ from .project_reports import TITLES, build_project_report
 from .schedule_rows import empty_schedule_inputs, populated_schedule_rows
 
 
-def _scope_tables(project, name, library=None):
+def _scope_tables(project, name, library=None, *, pending=False, estimate_id=None):
     tables = []
     for calculator_id in CALCULATOR_IDS:
         inputs = project['calculators'][calculator_id]['inputs']
         if not populated_schedule_rows(calculator_id, inputs):
+            continue
+        if pending:
+            # Selecting a Quote's estimates needs trusted totals immediately;
+            # the original schedule projection is evaluated on explicit expand.
+            # These descriptors are editor previews, never persisted schedules.
+            tables.append({'title': name + ' — ' + TITLES[calculator_id], 'headers': [], 'rows': [],
+                           'pending': True, 'estimate_id': estimate_id})
             continue
         table = calculator_schedule_table(project_calculator_report(calculator_id, inputs))
         if not table['rows']:
@@ -45,6 +52,9 @@ def derive_estimates(store, body, *, edition='full', company=None, library=None,
     """Return trusted linked prices, visible scope and optional original PDFs."""
     if not isinstance(body, dict):
         raise ValidationError('Include the captured project estimates.')
+    include_scope_tables = body.get('include_scope_tables', True)
+    if type(include_scope_tables) is not bool or include_pdfs and not include_scope_tables:
+        raise ValidationError('Choose a valid linked estimate preview.')
     estimates = body.get('estimates')
     if not isinstance(estimates, list) or len(estimates) > 100:
         raise ValidationError('Include up to 100 captured estimates for this project.')
@@ -111,7 +121,7 @@ def derive_estimates(store, body, *, edition='full', company=None, library=None,
         source = json.dumps({'name': item['name'], 'workspace': json.loads(payload)},
                             sort_keys=True, ensure_ascii=False, allow_nan=False, separators=(',', ':')).encode('utf-8')
         output['sources'].append({'estimate_id': identity, 'sha256': sha256(source).hexdigest()})
-        tables = _scope_tables(project, item['name'], library)
+        tables = _scope_tables(project, item['name'], library, pending=not include_scope_tables, estimate_id=identity)
         start = len(output['scope_tables'])
         output['scope_tables'].extend(tables)
         scope = '<p><b>' + escape(item['name']) + '</b></p>'

@@ -60,6 +60,20 @@
     control.append(icon);
     return control;
   }
+  function addButton(label, action) {
+    const control = button("", action, true);
+    control.classList.add("icon-only", "penetration-new-item-action");
+    control.title = label; control.setAttribute("aria-label", label);
+    window.CeasefireI18n?.attr(control, "title", label); window.CeasefireI18n?.attr(control, "aria-label", label);
+    const symbol = node("span", "button-symbol", "+"); symbol.setAttribute("aria-hidden", "true");
+    control.append(symbol); return control;
+  }
+  function requireProject(source = null) {
+    if (source?.createdProject === true) return true;
+    if (source) { message("Create or load a project before creating documents.", true); return false; }
+    if (window.CeasefireProject?.requireCreatedProject) return window.CeasefireProject.requireCreatedProject();
+    message("Create or load a project before creating documents.", true); return false;
+  }
   function input(value, changed, type = "text") {
     const element = node("input");
     element.type = type;
@@ -204,7 +218,7 @@
     const {workspace_id, estimates, active_estimate_id, ...fields} = body;
     if (source.file_id.startsWith("local-") && source.documentId) fields.context_id = source.documentId;
     const response = await request("saved-" + action, {...fields, source: {file_id: source.file_id, revision: source.revision}});
-    if (action !== "derive" && action !== "defaults") source.revision = response.revision;
+    if (!["derive", "defaults", "purchase-order-defaults"].includes(action)) source.revision = response.revision;
     return response.result;
   }
   function today() {
@@ -538,9 +552,11 @@
         source.estimates = opened.estimates;
         source.quoteTotals = opened.quote_totals;
         source.related = opened.related;
+        source.createdProject = opened.created_project === true;
         state.busy = false;
       }
       if (!createWorkOrder) { openEditor(document, source); return; }
+      if (!requireProject(source)) return;
       if (!document.last_number) {
         message("Download the Quote PDF to assign its number before creating a Work Order.", true);
         return;
@@ -611,7 +627,7 @@
     }
   }
   async function openNew(fromEstimate = false) {
-    if (state.busy) return;
+    if (state.busy || !requireProject()) return;
     state.busy = true;
     try {
       await flushRateDefaults();
@@ -714,6 +730,43 @@
     section.append(node(collapsed ? "summary" : "h2", "", label), toolbar, editor);
     return section;
   }
+  function displayTerms(value) {
+    const parsed = document.createElement("div"); parsed.innerHTML = value;
+    const canonical = /^These terms and conditions are between .+, \(we, us or our\) and you, the person or entity stated in the Quote \(you or your\), together the Parties and each a Party\. Together, these terms and conditions and the Quote \(attached to these Terms or the Quote\) form the entire agreement under which we will provide the Goods and Services to you \(Terms\)\.$/;
+    for (const block of parsed.querySelectorAll("p,div,li")) {
+      if (!canonical.test(block.textContent.replace(/\s+/g, " ").trim()) || block.querySelector("p,div,li")) continue;
+      if (block.children.length === 1 && ["B", "STRONG"].includes(block.firstElementChild.tagName) && block.textContent === block.firstElementChild.textContent) continue;
+      const bold = document.createElement("b");
+      while (block.firstChild) bold.append(block.firstChild);
+      block.append(bold);
+    }
+    return parsed.innerHTML;
+  }
+  async function createPurchaseOrder() {
+    if (state.busy || state.kind !== "work_order") return;
+    const editor = state.editor;
+    if (!requireProject(editor?.source)) return;
+    if (!editor || state.dirty || !editor.document.version || !editor.document.fields.order.work_order_reference) {
+      message("Save this Work Order before creating a Purchase Order.", true); return;
+    }
+    const workspace = state.workspace, context = window.CeasefireProject?.runtimeContext?.();
+    const current = () => state.editor === editor && state.workspace === workspace && workspace === currentWorkspace()
+      && context === window.CeasefireProject?.runtimeContext?.();
+    state.busy = true; setDisabled(true);
+    try {
+      const result = await documentRequest("purchase-order-defaults", {workspace_id: workspace,
+        work_order_id: editor.document.id, work_order_version: editor.document.version}, editor.source);
+      if (!current()) return;
+      state.busy = false; setDisabled(false);
+      if (!await window.CeasefireProject.openCommercial("purchase_order")) return;
+      if (context !== window.CeasefireProject?.runtimeContext?.() || workspace !== state.workspace || state.kind !== "purchase_order") return;
+      result.fields.details.date = today();
+      openEditor({id: crypto.randomUUID(), version: 0, kind: "purchase_order", status: "Draft", fields: result.fields, last_number: ""}, editor.source);
+      markDirty();
+      if (result.fields.lines.length) message("Enter supplier prices before issuing this Purchase Order.");
+    } catch (error) { if (current()) message(error.message, true); }
+    finally { if (state.editor === editor) { state.busy = false; setDisabled(false); } }
+  }
   function openEditor(document, source = null, linkedQuote = null) {
     if (state.dirty) return;
     state.editor = {
@@ -737,6 +790,7 @@
     }
     const actions = node("div", "commercial-editor-actions");
     actions.append(backButton("Back to " + names[state.kind] + "s", () => void leaveEditor()), button("Save", () => void saveEditor(), true), button("Download PDF", () => void downloadEditor(), true));
+    if (state.kind === "work_order") actions.append(button("Create PO", () => void createPurchaseOrder()));
     const titleRow = node("div", "commercial-title-row");
     titleRow.append(field("Document title", input(fields.title, value => fields.title = value)), field("Status", select(state.model.statuses[state.kind], state.editor.document.status, value => state.editor.document.status = value)));
     form.append(actions, titleRow);
@@ -763,28 +817,16 @@
       form.append(field("Introduction", textarea(fields.introduction, value => fields.introduction = value)));
       const chooser = node("details", "commercial-estimate-picker");
       chooser.append(node("summary", "button secondary", "Select estimates"), node("div", "commercial-estimate-options"));
-      chooser.append(button("Add custom row", () => {
+      chooser.append(addButton("Add custom row", () => {
         fields.lines.push({estimate_id: "", description: "", quantity: "1", unit_price: "0", size: "", comments: ""});
         markDirty();
         renderLines();
         form.querySelector(".commercial-lines tbody tr:last-child textarea")?.focus();
       }));
       form.append(chooser);
-      form.append(node("section", "commercial-lines"), node("div", "commercial-totals"), rateSchedule(fields), node("section", "commercial-scope"), richEditor("Allowances", fields.allowances, value => fields.allowances = value, markDirty, true), richEditor("Terms & Conditions", fields.terms, value => fields.terms = value, markDirty, true));
+      form.append(node("section", "commercial-lines"), node("div", "commercial-totals"), rateSchedule(fields), node("section", "commercial-scope"), richEditor("Allowances", fields.allowances, value => fields.allowances = value, markDirty, true), richEditor("Terms & Conditions", displayTerms(fields.terms), value => fields.terms = value, markDirty, true));
     } else {
       renderOrderFields(form, fields);
-      if (state.kind === "purchase_order") form.append(node("section", "commercial-lines"), button("Add line item", () => {
-        fields.lines.push({
-          estimate_id: "",
-          description: "",
-          quantity: "1",
-          unit_price: "0",
-          size: "",
-          comments: ""
-        });
-        markDirty();
-        renderLines();
-      }), node("div", "commercial-totals"));
     }
     host.append(form);
     if (state.kind === "work_order") attachWorkPanels(form);
@@ -1018,7 +1060,8 @@
           section.append(signatureField(fields, key, label));
           continue;
         }
-        const choices = isWorkOrder && (key === "urgency" ? ["High Priority","Medium Priority","Low Priority"] : key === "approval" ? ["Approved","Denied"] : null);
+        const choices = isWorkOrder ? (key === "urgency" ? ["High Priority","Medium Priority","Low Priority"] : key === "approval" ? ["Approved","Denied"] : null)
+          : key === "expense_type" ? ["Labour", "Materials", "Services", "Other"] : null;
         let control;
         if (choices) {
           const options = ["",...choices];
@@ -1032,6 +1075,12 @@
         } else section.append(item);
       }
       form.append(section);
+      if (!isWorkOrder && title === "Purchase order information") {
+        form.append(node("section", "commercial-lines"), button("Add line item", () => {
+          fields.lines.push({estimate_id: "", description: "", quantity: "1", unit_price: "0", size: "", comments: ""});
+          markDirty(); renderLines();
+        }), node("div", "commercial-totals"));
+      }
     }
   }
   function renderEstimateOptions() {
@@ -1060,7 +1109,7 @@
     if (!window.CeasefireEstimates?.capture) throw new Error("The project estimate workspace is unavailable.");
     return window.CeasefireEstimates.capture(options);
   }
-  async function deriveCaptured(editor, workspace, captured, selectedIds) {
+  async function deriveCaptured(editor, workspace, captured, selectedIds, full = false) {
     // One result per exact captured estimate, confined to this editor. Sharing
     // in-flight work also prevents the read-only preview and a selection change
     // recalculating the same large schedule. Save and issue always revalidate.
@@ -1070,30 +1119,66 @@
       const item = available.get(id);
       if (!item) throw new Error("Choose estimates from the current project.");
       const fingerprint = JSON.stringify(item);
-      if (editor.derivedEstimates.get(id)?.fingerprint !== fingerprint) missing.push({id, fingerprint});
+      let cached = editor.derivedEstimates.get(id);
+      if (cached?.fingerprint !== fingerprint) {
+        cached = {fingerprint, captured}; editor.derivedEstimates.set(id, cached);
+      }
+      if (!(full ? cached.full : cached.fullValue || cached.preview)) missing.push({id, cached});
     }
     if (missing.length) {
-      const pending = documentRequest("derive", {workspace_id: workspace, ...captured, selected_ids: missing.map(item => item.id)}, editor.source);
-      for (const {id, fingerprint} of missing) {
-        const cached = {fingerprint};
-        cached.result = pending.then(result => {
+      const needed = new Set(missing.map(item => item.id));
+      const pending = documentRequest("derive", {workspace_id: workspace, ...captured,
+        estimates:captured.estimates.filter(item => needed.has(item.id)), selected_ids: [...needed],
+        ...(!full ? {include_scope_tables:false} : {})}, editor.source);
+      for (const {id, cached} of missing) {
+        const key = full ? "full" : "preview";
+        cached[key] = pending.then(result => {
           const group = result.scope_groups.find(item => item.estimate_id === id);
-          return {
+          const value = {
             line: result.lines.find(item => item.estimate_id === id),
             source: result.sources.find(item => item.estimate_id === id),
             scope: group.scope,
             tables: result.scope_tables.slice(group.table_start, group.table_start + group.table_count)
           };
+          cached[full ? "fullValue" : "previewValue"] = value;
+          if (full) cached.fullError = null;
+          return value;
         }).catch(error => {
-          if (editor.derivedEstimates.get(id) === cached) editor.derivedEstimates.delete(id);
+          if (editor.derivedEstimates.get(id) === cached) {
+            delete cached[key];
+            if (full) cached.fullError = error;
+            else if (!cached.full) editor.derivedEstimates.delete(id);
+          }
           throw error;
         });
-        editor.derivedEstimates.set(id, cached);
       }
     }
-    const selected = await Promise.all(selectedIds.map(id => editor.derivedEstimates.get(id).result));
+    const selected = await Promise.all(selectedIds.map(id => {
+      const cached = editor.derivedEstimates.get(id);
+      return full ? cached.full : cached.fullValue || cached.preview;
+    }));
     return {lines: selected.map(item => item.line), sources: selected.map(item => item.source),
-      scope: selected.map(item => item.scope).join(""), scope_tables: selected.flatMap(item => item.tables)};
+      scope: selected.map(item => item.scope).join(""), scope_tables: selected.flatMap(item => item.tables),
+      preview_tables:selected.flatMap((item,index) => item.tables.map((table,tableIndex) => ({...table,previewKey:`${selectedIds[index]}/${tableIndex}`})))};
+  }
+  async function loadScopeTables(estimateId, editor) {
+    const cached = editor.derivedEstimates.get(estimateId), workspace = state.workspace;
+    const context = window.CeasefireProject?.runtimeContext?.();
+    const current = () => state.editor === editor && workspace === state.workspace && workspace === currentWorkspace()
+      && context === window.CeasefireProject?.runtimeContext?.() && editor.derivedEstimates.get(estimateId) === cached;
+    if (!cached) throw new Error("The selected estimate changed. Select it again to refresh its schedule.");
+    try {
+      await deriveCaptured(editor, workspace, cached.captured, [estimateId], true);
+      if (!current()) return;
+      editor.scopeTables = linkedIds(editor.document.fields.lines).flatMap(id => {
+        const entry = editor.derivedEstimates.get(id);
+        return ((entry?.fullValue || entry?.previewValue)?.tables || []).map((table,index)=>({...table,previewKey:`${id}/${index}`}));
+      });
+      renderScope();
+    } catch (error) {
+      if (current()) renderScope();
+      throw error;
+    }
   }
   async function refreshScopePreview() {
     const editor = state.editor;
@@ -1104,11 +1189,11 @@
       && workspace === state.workspace && workspace === currentWorkspace()
       && context === window.CeasefireProject?.runtimeContext?.();
     try {
-      const captured = await capturedEstimates({readOnly:true});
+      const captured = await capturedEstimates({readOnly:true, commercial:true});
       if (!current()) return;
       const derived = await deriveCaptured(editor, workspace, captured, linkedIds(editor.document.fields.lines));
       if (!current()) return;
-      editor.scopeTables = derived.scope_tables;
+      editor.scopeTables = derived.preview_tables;
       renderScope();
     } catch (error) {
       if (current()) message("The scope preview could not be refreshed. " + error.message, true);
@@ -1124,7 +1209,7 @@
     setDisabled(true);
     message("Updating linked estimates…");
     try {
-      const captured = await capturedEstimates();
+      const captured = await capturedEstimates({commercial:true});
       if (editor !== state.editor || workspace !== state.workspace || context !== window.CeasefireProject?.runtimeContext?.()) return;
       const derived = await deriveCaptured(editor, workspace, captured, selectedIds);
       if (editor !== state.editor || workspace !== state.workspace || workspace !== currentWorkspace() || context !== window.CeasefireProject?.runtimeContext?.()) return;
@@ -1141,7 +1226,7 @@
         } : {})
       })).concat(customLines);
       fields.scope_tables = derived.scope_tables;
-      editor.scopeTables = derived.scope_tables;
+      editor.scopeTables = derived.preview_tables;
       fields.sources = derived.sources;
       if (!fields.scope || fields.scope === editor.generatedScope) fields.scope = derived.scope;
       editor.generatedScope = derived.scope;
@@ -1293,14 +1378,33 @@
   function renderScope() {
     const host = root()?.querySelector(".commercial-scope");
     if (!host) return;
+    const opened = new Set([...host.querySelectorAll("details[open]")].map(item => item.dataset.scopeKey));
     host.replaceChildren(node("h2", "", "Scope of Works"));
     host.append(node("p", "helper", "The PDF includes the complete Full Schedule for every selected estimate."));
-    for (const scope of state.editor.scopeTables) {
+    for (const [index, scope] of state.editor.scopeTables.entries()) {
       const details = node("details"),
         table = node("table"),
         head = node("thead"),
         header = node("tr");
+      const scopeKey = scope.previewKey || `saved/${index}`;
+      details.dataset.scopeKey = scopeKey;
       details.append(node("summary", "", scope.title));
+      if (scope.pending) {
+        const editor = state.editor, cached = editor.derivedEstimates.get(scope.estimate_id);
+        const notice = node("p", "helper", cached?.fullError ? "The schedule could not be loaded. Retry to view its rows." : "Expand to load the complete schedule.");
+        const retry = button("Retry loading schedule", () => void load()); retry.hidden = !cached?.fullError;
+        let loading = false;
+        const load = async () => {
+          if (loading) return; loading = true; retry.disabled = true; details.setAttribute("aria-busy", "true");
+          notice.textContent = "Loading schedule…";
+          try { await loadScopeTables(scope.estimate_id, editor); }
+          catch { /* The current editor renders its retry state after failure. */ }
+          finally { loading = false; details.removeAttribute("aria-busy"); }
+        };
+        details.append(notice, retry);
+        details.addEventListener("toggle", () => { if (details.open && !cached?.fullError) void load(); });
+        details.open = opened.has(scopeKey); host.append(details); continue;
+      }
       scope.headers.forEach(text => header.append(node("th", "", text)));
       head.append(header);
       table.append(head);
@@ -1321,6 +1425,7 @@
       const scroll = node("div", "table-scroll");
       scroll.append(table);
       details.append(scroll);
+      details.open = opened.has(scopeKey);
       host.append(details);
     }
   }
@@ -1450,7 +1555,7 @@
     },
     async openFromEstimate(kind = "quote") {
       if (!names[kind]) return;
-      if (state.busy || state.dirty) return;
+      if (state.busy || state.dirty || !requireProject()) return;
       const context = window.CeasefireProject?.runtimeContext?.();
       if (state.kind !== kind || state.model?.workspace_id !== currentWorkspace()) await activate(kind);
       const workspace = currentWorkspace();

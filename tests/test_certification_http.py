@@ -12,7 +12,8 @@ from unittest.mock import patch
 from pypdf import PdfReader
 from reportlab.pdfgen.canvas import Canvas
 
-from estimator.certification import FIELDS, SIGNER_FIELDS
+from estimator.certification import CertificationService, FIELDS, SIGNER_FIELDS
+from estimator.native_dialogs import SaveSelection
 from estimator.company_settings import DEFAULTS
 from estimator.server import create_server
 from estimator.storage import Store
@@ -38,7 +39,9 @@ class CertificationHTTPTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.database = Path(self.temp.name)/'state.sqlite3'
-        self.server = create_server(0, self.database, library_directory=Path(self.temp.name)/'library')
+        from test_project_library import Chooser
+        self.chooser = Chooser()
+        self.server = create_server(0, self.database, project_dialogs=self.chooser, library_directory=Path(self.temp.name)/'library')
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         self.fields = {name: '' for name in FIELDS}
@@ -68,10 +71,28 @@ class CertificationHTTPTests(unittest.TestCase):
         self.assertEqual(status, expected, payload)
         return json.loads(payload)
 
+    def legacy_certificate(self, fields, **options):
+        """Seed pre-existing global history; the API no longer creates it."""
+        return CertificationService(Store(self.database)).create(fields, **options)
+
+    def created_workspace(self):
+        workspace = self.json('POST', '/api/certifications/workspaces', {}, expected=201)
+        folder = Path(self.temp.name) / 'created-fixtures' / workspace['workspace_id']
+        folder.mkdir(parents=True)
+        previous = self.chooser.selection
+        self.chooser.selection = SaveSelection(str(folder / 'Project.cf.json'), None)
+        try:
+            self.json('POST', '/api/project/save-as', {'estimate': {'title': 'Fixture project'},
+                'certifications': {'workspace_id': workspace['workspace_id'], 'draft': None}})
+        finally:
+            self.chooser.selection = previous
+        return self.json('GET', '/api/certifications/workspaces/' + workspace['workspace_id'])
+
     def test_each_required_field_blocks_save_and_generation_without_mutation(self):
         import uuid
-        for suffix in ('', '?workspace=' + self.json('POST', '/api/certifications/workspaces', {}, expected=201)['workspace_id']):
-            document = self.json('POST', '/api/certifications' + suffix, {'fields': self.fields}, expected=201)
+        for suffix in ('', '?workspace=' + self.created_workspace()['workspace_id']):
+            document = (self.json('POST', '/api/certifications' + suffix, {'fields': self.fields}, expected=201)
+                        if suffix else self.legacy_certificate(self.fields))
             path = '/api/certifications/' + document['id']
             for name in FIELDS:
                 with self.subTest(field=name, scope=suffix):
@@ -114,8 +135,7 @@ class CertificationHTTPTests(unittest.TestCase):
     def test_revision_pdf_is_frozen_and_generation_retries_do_not_duplicate(self):
         self.json('POST','/api/company-settings',{**DEFAULTS,'name':'Original company',
                   'cover_pdf':cover('ORIGINAL COVER'),'cover_pdf_name':'Original.pdf'})
-        doc = self.json('POST','/api/certifications',{'fields':self.fields,
-                'request_id':'36a7dfcb-d73e-4536-aa24-df04827c63f3'}, expected=201)
+        doc = self.legacy_certificate(self.fields, request_id='36a7dfcb-d73e-4536-aa24-df04827c63f3')
         path = '/api/certifications/'+doc['id']
         operation = {'fields':self.fields,'expected_version':doc['version'],
                      'request_id':'f00f8afe-b53b-4a8a-bb12-ef3ca677bdb4'}
@@ -177,8 +197,7 @@ class CertificationHTTPTests(unittest.TestCase):
                     'scopes': ['service_penetrations', 'ductwork']}
         self.json('POST', '/api/pdf-covers/certification', {'cover_pdf': cover('SETTINGS COVER'),
                   'cover_pdf_name': 'Settings.pdf', 'expected_version': 1})
-        doc = self.json('POST', '/api/certifications', {'fields': self.fields, 'options': selected,
-                        'request_id': '3bad93f1-a4bb-4d95-98e1-bdfd0331ad52'}, expected=201)
+        doc = self.legacy_certificate(self.fields, options=selected, request_id='3bad93f1-a4bb-4d95-98e1-bdfd0331ad52')
         path = '/api/certifications/' + doc['id']
         self.assertEqual(doc['options'], selected)
         self.assertEqual(self.json('GET', path)['options'], selected)
@@ -209,7 +228,7 @@ class CertificationHTTPTests(unittest.TestCase):
     def test_signer_defaults_endpoint_cas_validation_and_document_isolation(self):
         initial = self.json('GET', '/api/certifications/defaults')
         self.assertEqual(initial, {'fields': dict.fromkeys(SIGNER_FIELDS, ''), 'version': 1, 'signature_image': None, 'signature_name': ''})
-        doc = self.json('POST', '/api/certifications', {'fields': self.fields}, expected=201)
+        doc = self.legacy_certificate(self.fields)
         entered = {'name': 'Saved signer', 'position': 'Entered position',
                    'qualification': 'Entered qualification', 'accreditation': 'Entered accreditation'}
         saved = self.json('POST', '/api/certifications/defaults', {'fields': entered, 'expected_version': 1})

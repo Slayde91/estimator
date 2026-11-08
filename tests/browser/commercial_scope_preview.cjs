@@ -53,16 +53,26 @@ async function saveProject() {
 async function editorFields() {
   return page.evaluate(() => JSON.parse(window.CeasefireCommercial.projectFingerprint()).editor.fields);
 }
+async function showScope(quote) {
+  // A historical frozen table remains untouched in fields. Its live preview
+  // first shows a lightweight descriptor, then loads canonical rows on expand.
+  await page.waitForFunction(()=>[...document.querySelectorAll('.commercial-scope details summary')].some(item=>item.textContent!=='Old workbook columns'));
+  const details=quote.locator('.commercial-scope details').first();
+  if(!await details.evaluate(item=>item.open))await details.locator('summary').click();
+  await expect(quote.locator('.commercial-scope th')).toHaveText(headers);
+}
 (async () => {
   const info = await ready;
   assert.notEqual(info.port, 8765);
   execFileSync(python, ['-c', `from pathlib import Path
-import sys
+import json, sys
 from estimator.storage import Store
 from estimator.project_file import export_project
 path = Path(sys.argv[1])
 store = Store(path.parent / 'preview-seed.sqlite3')
-path.write_bytes(export_project(store, {'estimate': {'title': 'Scope preview fixture'}, 'calculators': {'steel_board': {'inputs': {'CALCULATOR': {'A9': 'SCOPE-PREVIEW-1'}}}}}))`, info.project], {cwd:root, windowsHide:true});
+snapshot=json.loads(export_project(store, {'estimate': {'title': 'Scope preview fixture','project_no':'PN-901'}, 'calculators': {'steel_board': {'inputs': {'CALCULATOR': {'A9': 'SCOPE-PREVIEW-1'}}}}}))
+workspace={'estimate':snapshot['estimate'],'calculators':{key:{'inputs':value['inputs'],'schedule_rows':value['schedule_rows']} for key,value in snapshot['calculators'].items()}}
+path.write_bytes(export_project(store,{**workspace,'estimates':[{'id':'estimate-1','name':'Duplicate estimate','workspace':workspace},{'id':'estimate-22222222222222222222222222222222','name':'Duplicate estimate','workspace':workspace}],'active_estimate_id':'estimate-1'}))`, info.project], {cwd:root, windowsHide:true});
   browser = await chromium.launch({headless:true});
   page = await browser.newPage({viewport:{width:1440, height:1000}});
   page.setDefaultTimeout(60000);
@@ -73,7 +83,7 @@ path.write_bytes(export_project(store, {'estimate': {'title': 'Scope preview fix
   await openQuotes();
   const quote = page.locator('#commercial-quote-root');
   await quote.getByRole('button', {name:'New Quote', exact:true}).click();
-  await expect(quote.locator('.commercial-scope th')).toHaveText(headers);
+  await showScope(quote);
   await quote.getByLabel('Document title', {exact:true}).fill('Historical quote');
   await quote.locator('.commercial-editor-actions').getByRole('button', {name:'Save', exact:true}).click();
   await expect(quote.locator('.commercial-message')).toContainText('Document saved.');
@@ -93,7 +103,7 @@ path.write_bytes(export_project(store, {'estimate': {'title': 'Scope preview fix
   await openQuotes();
   await quote.locator('.commercial-card-menu summary').click();
   await quote.getByRole('button', {name:'Open', exact:true}).click();
-  await expect(quote.locator('.commercial-scope th')).toHaveText(headers);
+  await showScope(quote);
   assert.deepEqual(await editorFields(), historical.fields);
   assert.deepEqual(await page.evaluate(() => ({changed:window.CeasefireCommercial.hasProjectChanges(), pending:window.CeasefireCommercial.hasPendingOperation()})), {changed:false, pending:false});
   await saveProject();
@@ -137,7 +147,7 @@ path.write_bytes(export_project(store, {'estimate': {'title': 'Scope preview fix
     pricingChoice.waitFor({state:'visible'}).then(() => 'pricing-choice')
   ]);
   assert.equal(previewOutcome, 'preview', 'Opening a scope preview must not ask which pricing draft to save');
-  await expect(quote.locator('.commercial-scope th')).toHaveText(headers);
+  await showScope(quote);
   await expect(pricingChoice).toBeHidden();
   assert.deepEqual(await editorFields(), refreshed);
   assert.deepEqual(await page.evaluate(() => window.CeasefireProject.configuration()), appliedPricing);
@@ -161,7 +171,7 @@ path.write_bytes(export_project(store, {'estimate': {'title': 'Scope preview fix
   await openQuotes();
   await quote.locator('.commercial-card-menu summary').click();
   await quote.getByRole('button', {name:'Open', exact:true}).click();
-  await expect(quote.locator('.commercial-scope th')).toHaveText(headers);
+  await showScope(quote);
   checks.push('scope preview skips pricing choices and preserves both conflicting drafts; explicit Save retains its pricing-choice guard');
 
   await quote.getByRole('button', {name:'Back to Quotes', exact:true}).click();
@@ -186,7 +196,7 @@ path.write_bytes(export_project(store, {'estimate': {'title': 'Scope preview fix
   await held;
   await quote.getByRole('button', {name:'Back to Quotes', exact:true}).click();
   await quote.getByRole('button', {name:'New Quote', exact:true}).click();
-  await expect(quote.locator('.commercial-scope th')).toHaveText(headers);
+  await showScope(quote);
   const replacement = await editorFields();
   release();
   await delivered;
@@ -195,6 +205,14 @@ path.write_bytes(export_project(store, {'estimate': {'title': 'Scope preview fix
   await expect(quote.locator('.commercial-scope th')).toHaveText(headers);
   assert.deepEqual(await editorFields(), replacement);
   checks.push('a delayed scope preview cannot overwrite a different editor or its full refresh');
+  await quote.locator('.commercial-estimate-picker summary').click();
+  await quote.getByRole('checkbox',{name:'Duplicate estimate',exact:true}).nth(1).check();
+  await expect(quote.locator('.commercial-lines tbody tr')).toHaveCount(2);
+  const duplicateScopes=quote.locator('.commercial-scope details');await expect(duplicateScopes).toHaveCount(2);
+  assert.equal(await duplicateScopes.first().evaluate(item=>item.open),true);
+  assert.equal(await duplicateScopes.nth(1).evaluate(item=>item.open),false,'Identical estimate names must not open another pending schedule');
+  await expect(duplicateScopes.nth(1).locator('th')).toHaveCount(0);
+  checks.push('duplicate estimate names retain independent preview expansion by estimate identity and table index');
   assert.deepEqual(errors, []);
   await page.screenshot({path:path.join(output, 'canonical-scope.png'), fullPage:true});
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({passed:true, checks, errors}, null, 2));

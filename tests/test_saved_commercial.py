@@ -285,16 +285,20 @@ class SavedQuoteTests(unittest.TestCase):
         self.assertEqual(result['documents'],[])
         self.assertEqual(result['unavailable_sources'],[])
 
-    def test_only_explicitly_saved_unfiled_documents_survive_restart_with_their_estimates(self):
+    def test_legacy_explicitly_saved_unfiled_documents_survive_restart_with_their_estimates(self):
         original = self.library.commercial
         workspace = original.certifications.new()['workspace_id']
         held = {'id':'steel', 'name':'Steel allowance', 'workspace':{'estimate':{'project_no':'T-1',
                 'client':'Held client', 'site_address':'Held site'}, 'takeoffs_session_id':'never expose'}}
-        quote = self.http.execute('save', {'workspace_id':workspace, 'kind':'quote', 'status':'Draft',
-               'fields':default_fields('quote'), 'retain_unfiled':True, 'estimates':[held], 'active_estimate_id':'steel'})
+        # These records predate the Project creation requirement. Seed their
+        # historical service representation; new HTTP creation is now rejected.
+        from estimator.unfiled_commercial import quote_context
+        quote = original.save(workspace, {'kind':'quote', 'status':'Draft',
+            'fields':default_fields('quote', held['workspace']['estimate'])},
+            unfiled_context=quote_context({'estimates':[held], 'active_estimate_id':'steel'}))
         transient = original.save(workspace, {'kind':'purchase_order','status':'Draft','fields':default_fields('purchase_order')})
-        purchase = self.http.execute('save', {'workspace_id':workspace,'kind':'purchase_order','status':'Draft',
-                                              'fields':default_fields('purchase_order'),'retain_unfiled':True})
+        purchase = original.save(workspace, {'kind':'purchase_order','status':'Draft',
+                                            'fields':default_fields('purchase_order')}, unfiled_context={})
         original.certifications.discard(workspace)
         certs = CertificationProjects(CertificationService(self.store))
         service = CommercialDocuments(certs, renderer=lambda *args, **kwargs: pdf('Local'))

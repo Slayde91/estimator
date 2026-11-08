@@ -240,6 +240,7 @@
     renderDocuments();renderScopes();renderSignature();renderRevisions([]);updateControls();message('Enter the certification details.');
   }
   async function loadDocument(id) {
+    if(!id && !window.CeasefireProject?.requireCreatedProject?.()){selector.value=state.id||'__draft__';return;}
     if(state.busy||state.pending||state.opening||state.readingSignature||!await confirmDiscard()){selector.value=state.id||'__draft__';return;}
     if(state.busy||state.pending||state.opening||state.readingSignature){selector.value=state.id||'__draft__';return;}
     state.busy=true;updateControls();
@@ -343,6 +344,7 @@
   }
   async function perform(kind) {
     if(!state.loaded||state.opening||state.busy||state.readingSignature||(state.pending&&state.pending.kind!==kind))return;
+    if(!state.id && !state.pending && !window.CeasefireProject?.requireCreatedProject?.())return;
     if(!state.pending){
       for(const name of requiredNames)controls[name].setCustomValidity(controls[name].value.trim()?'':window.CeasefireI18n?.translate?.('Complete all required certificate fields.')||'Complete all required certificate fields.');
       if(!form.reportValidity())return;

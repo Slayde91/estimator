@@ -29,6 +29,7 @@ MAX_ARCHIVE_BYTES = 256 * 1024 * 1024
 MAX_METADATA_BYTES = 64 * 1024 * 1024
 MAX_DOCUMENTS = 100
 MAX_REVISIONS = 1000
+PROJECT_REQUIRED = 'Create or load a project before creating documents.'
 HASH = re.compile(r'[0-9a-f]{64}\Z')
 DOCUMENT_COLUMNS = ('id', 'fields', 'version', 'created_at', 'updated_at',
                     'create_request_id', 'create_request_fingerprint', 'options', 'create_options', 'reference')
@@ -180,6 +181,23 @@ class CertificationProjects:
         """Return the portable identity only for a verified project capability."""
         return self._workspace(token)['project_id']
 
+    def activate_created_project(self, token, project_no):
+        """Bind a verified native Load/Save result, never browser-supplied labels.
+
+        Trusted project adapters call this after reading or committing the selected
+        project file. The flag is runtime-only and cannot be imported in JSON.
+        Historical files without an assigned number remain readable.
+        """
+        with self._lock:
+            current = self._workspace(token)
+            current['created_project'] = isinstance(project_no, str) and bool(project_no.strip())
+
+    def require_created_project(self, token):
+        current = self._workspace(token)
+        if not current['created_project']:
+            raise ValidationError(PROJECT_REQUIRED)
+        return current['project_id']
+
     def response(self, token, value):
         self._workspace(token)
         return _scope_links(value, token)
@@ -187,11 +205,12 @@ class CertificationProjects:
     def _new(self, project_id=None):
         token = str(uuid.uuid4())
         project_id = project_id or str(uuid.uuid4())
-        current = {'service': None, 'project_id': project_id, 'draft': None, 'snapshot': None, 'imports': {}}
+        current = {'service': None, 'project_id': project_id, 'draft': None, 'snapshot': None, 'imports': {}, 'created_project': False}
         service = CertificationService(Store(self.root / 'workspaces' / token / 'certificates.sqlite3'),
                                        numbering=self.numbering,
                                        renderer=self.legacy.renderer, coverer=self.legacy.coverer, covers=self.legacy.covers,
-                                       precommit=lambda db, identity: self._guard(current, db, identity))
+                                       precommit=lambda db, identity: self._guard(current, db, identity),
+                                       creation_guard=lambda: self.require_created_project(token))
         current['service'] = service
         with self._lock:
             self._workspaces[token] = current
@@ -199,7 +218,7 @@ class CertificationProjects:
 
     def view(self, token):
         current = self._workspace(token)
-        return {'workspace_id': token, 'project_id': current['project_id'],
+        return {'workspace_id': token, 'project_id': current['project_id'], 'created_project': current['created_project'],
                 'draft': deepcopy(current['draft']), 'snapshot': deepcopy(current['snapshot']),
                 **current['service'].list_documents()}
 

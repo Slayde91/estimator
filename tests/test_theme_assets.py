@@ -76,7 +76,7 @@ class ThemeAssetTests(unittest.TestCase):
                 self.assertIn(b'src="/header-steel-board.png"', html)
                 self.assertIn(b'src="/header-ductwork.png"', html)
                 self.assertIn(b'src="/header-firestopping.png"', html)
-                self.assertIn(b'src="/header-estimate.png"', html)
+                self.assertNotIn(b'src="/header-estimate.png"', html)
                 self.assertIn(b'src="/theme.js" defer', html)
                 if edition == 'standard':
                     self.assertNotIn(b'/takeoffs.js', html)

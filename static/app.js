@@ -2047,7 +2047,7 @@
     for (const id of ["project-estimate-current-name", "project-estimate-select", "project-estimate-new", "project-estimate-quote", "project-estimate-swms"]) $(id).disabled = state.projectBusy;
   }
 
-  async function captureCurrentEstimate({ readOnly = false } = {}) {
+  async function captureCurrentEstimate({ readOnly = false, commercial = false } = {}) {
     document.activeElement?.blur?.();
     if (inputProblem()) throw new Error(inputProblem());
     const context = state.quoteContext, target = state.projectFile;
@@ -2060,7 +2060,9 @@
     const workspace = {estimate:projectEstimate(), calculators, ...(penetration ? {penetration} : {}), ...(libraryDrafts ? {library_drafts:libraryDrafts} : {}), ...(takeoffs ? {takeoffs, takeoffs_session_id:window.CeasefireTakeoffs.sessionId()} : {})};
     if (pricing) workspace.estimate.configuration = clone(pricing.configuration);
     const stamp = projectStamp();
-    const prepared = await request("/api/project/estimate/prepare", {method:"POST", body:JSON.stringify(workspace)});
+    // Commercial linking sends this same captured workspace to /commercial/derive,
+    // which performs canonical validation. Full Save/Issue keeps preparation here.
+    const prepared = commercial ? {} : await request("/api/project/estimate/prepare", {method:"POST", body:JSON.stringify(workspace)});
     if (stamp !== projectStamp()) throw new Error("The estimate changed during validation. Try again.");
     return {...prepared, ...workspace};
   }
@@ -2368,6 +2370,15 @@
     if (state.projectFile?.save_token) return true;
     const text = 'There is no saved project. Please click "Save" and select a project folder.';
     projectAttachmentNotice(uiCopy(text)); message(uiCopy(text), true); return false;
+  }
+
+  function hasCreatedProject() {
+    return Boolean(state.projectFile?.save_token && state.projectFile.project_no?.trim());
+  }
+  function requireCreatedProject() {
+    if (hasCreatedProject()) return true;
+    message(uiCopy("Create or load a project before creating documents."), true);
+    return false;
   }
 
   async function uploadProjectFiles(selectedFiles) {
@@ -2786,6 +2797,7 @@
   $("new-quote").addEventListener("click", async () => { if (await confirmLeavePricingLibrary()) newQuote(); });
   $("download-quote-pdf").addEventListener("click", () => downloadQuotePdf());
   for (const id of ["estimate-open-quote", "project-estimate-quote"]) $(id).addEventListener("click", async () => {
+    if (!requireCreatedProject()) return;
     const context = state.quoteContext;
     if (await requestViewNavigation("quote") && state.currentView === "quote" && context === state.quoteContext) await window.CeasefireCommercial?.openFromEstimate?.();
   });
@@ -2838,6 +2850,7 @@
   $("project-estimate-select").addEventListener("change", () => selectEstimate($("project-estimate-select").value));
   $("project-estimate-new").addEventListener("click", addProjectEstimate);
   $("project-estimate-swms").addEventListener("click", async () => {
+    if (!requireCreatedProject()) return;
     const context = state.quoteContext;
     if (await requestViewNavigation("swms") && context === state.quoteContext) await window.CeasefireSWMS?.openFromEstimate?.();
   });
@@ -2935,7 +2948,7 @@
     }
     throw new Error("The project was saved, but could not be opened automatically. Open it from Projects.");
   }
-  window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus, scheduleChanged,
+  window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus, scheduleChanged, hasCreatedProject, requireCreatedProject,
     projectPaneSnapshot: () => ({details:quoteDetails(), context:state.quoteContext, file:state.projectFile ? clone(state.projectFile) : null, busy:state.projectBusy}),
     applyProjectPaneDraft(details, context) {
       if (context !== state.quoteContext) throw new Error("The current project changed. Open its details again.");

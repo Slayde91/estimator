@@ -41,6 +41,7 @@ MAX_PDF_BYTES = 64 * 1024 * 1024
 RATE_DEFAULTS = {'ordinary_time': '130', 'time_and_half': '160', 'double_time': '190',
                  'site_remobilisation': '1000', 'access_equipment_transport': '400',
                  'equipment': '20', 'materials': '20'}
+PURCHASE_EXPENSE_TYPES = ('Labour', 'Materials', 'Services', 'Other')
 RATE_INTRODUCTION = ('If additional work, or rectification work that is not the result of defective workmanship, '
                      'is directed by the client or their representatives, either verbally or in writing, the '
                      'following rates shall apply when calculating the value of such work:')
@@ -137,6 +138,20 @@ def validate_rich_text(value, label='Rich text'):
     return ''.join(parser.output)
 
 
+_TERMS_OPENING_PREFIX = 'These terms and conditions are between '
+_TERMS_OPENING_SUFFIX = (', (we, us or our) and you, the person or entity stated in the Quote (you or your), '
+                         'together the Parties and each a Party. Together, these terms and conditions and the Quote '
+                         '(attached to these Terms or the Quote) form the entire agreement under which we will provide '
+                         'the Goods and Services to you (Terms).')
+
+
+def _is_terms_opening(text):
+    """Recognise only the unchanged opening boilerplate, with a variable company."""
+    plain = ' '.join(text.split())
+    return (plain.startswith(_TERMS_OPENING_PREFIX) and plain.endswith(_TERMS_OPENING_SUFFIX)
+            and len(plain) > len(_TERMS_OPENING_PREFIX) + len(_TERMS_OPENING_SUFFIX))
+
+
 class _TermsFormatting(HTMLParser):
     """Emphasise clause labels and definition names without changing the wording."""
 
@@ -153,13 +168,16 @@ class _TermsFormatting(HTMLParser):
         if heading:
             self.definitions = heading[1] == 'Definitions'
         ranges = []
-        label = re.match(r'^\s*(\d+(?:\.\d+)*\.?)(?=\s)', text)
-        if label:
-            ranges.append(label.span(1))
-        ranges.extend(match.span() for match in re.finditer(r'(?<!\S)\((?:[a-z]|\d+)\)(?=\s)', text))
-        if self.definitions:
-            ranges.extend(match.span(1) for match in re.finditer(
-                r'(?:^|(?<=\. ))([A-Z][A-Za-z ]+?) (?=means\b|has the meaning\b|refers to\b)', text))
+        if _is_terms_opening(text):
+            ranges.append((0, len(text)))
+        else:
+            label = re.match(r'^\s*(\d+(?:\.\d+)*\.?)(?=\s)', text)
+            if label:
+                ranges.append(label.span(1))
+            ranges.extend(match.span() for match in re.finditer(r'(?<!\S)\((?:[a-z]|\d+)\)(?=\s)', text))
+            if self.definitions:
+                ranges.extend(match.span(1) for match in re.finditer(
+                    r'(?:^|(?<=\. ))([A-Z][A-Za-z ]+?) (?=means\b|has the meaning\b|refers to\b)', text))
         ranges.sort()
         offset = 0
         for kind, value, bold in self.block:
@@ -709,6 +727,26 @@ class CommercialDocuments:
         db.execute('INSERT INTO commercial_audit(workspace,document_id,action,before_data,after_data,created_at) VALUES(?,?,?,?,?,?)',
                    (workspace, identity, action, _json(before) if before else None, _json(after) if after else None, datetime.now(timezone.utc).isoformat()))
 
+    def purchase_order_defaults(self, workspace, work_order_id, version, *, company=None, rates=None):
+        """Prepare a linked draft from a saved Work Order without saving or numbering it."""
+        with self._connect() as db:
+            self._workspace(db, workspace)
+            work_order = self._record(db, workspace, _identity(work_order_id))
+            self._version(work_order, version)
+            if work_order['kind'] != 'work_order':
+                raise ValidationError('Select a saved Work Order from this project.')
+            reference = work_order['fields']['order']['work_order_reference']
+            if not reference:
+                raise ValidationError('Save this Work Order before creating a Purchase Order.')
+            fields = default_fields('purchase_order', work_order['fields']['details'], company, rates=rates)
+            fields['order'].update(work_order_id=work_order['id'], work_order_reference=reference,
+                                   ship_to_name=fields['details']['client'], ship_to_address=fields['details']['site_address'])
+            # A customer's sale price is not a supplier purchase price. Carry
+            # procurement descriptions/quantities forward, leaving prices for entry.
+            fields['lines'] = [{**deepcopy(line), 'estimate_id': '', 'unit_price': '0'}
+                               for line in work_order['fields']['lines']]
+            return fields
+
     def _relationships(self, db, workspace, project, kind, fields, previous, *, create_retry=False):
         order = fields['order']
         prior = previous['fields']['order'] if previous else None
@@ -748,6 +786,9 @@ class CommercialDocuments:
             if not order['estimated_cost']:
                 order['estimated_cost'] = self._linked_quote_total(db, workspace, project, quote['id'], quote_number)
         elif kind == 'purchase_order':
+            expense = order['expense_type']
+            if expense and expense not in PURCHASE_EXPENSE_TYPES and (not prior or expense != prior['expense_type']):
+                raise ValidationError('Choose Labour, Materials, Services or Other for the type of expense.')
             work_order_id = order['work_order_id']
             if not work_order_id:
                 # Preserve historical unlinked references, but never allow a new

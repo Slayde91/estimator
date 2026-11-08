@@ -46,6 +46,7 @@ class SavedCommercial:
         try:
             self.projects.commercial.files.transfer(commercial, path, restore=True)
             self.projects.commercial.restore(workspace, commercial)
+            self.projects.certifications.activate_created_project(workspace, snapshot['estimate'].get('project_no', ''))
         except Exception:
             self.projects.certifications.discard(workspace)
             raise
@@ -88,6 +89,7 @@ class SavedCommercial:
                 document['fields']['details'].update(details)
                 quote_total = model['quote_totals'].get(document['id'], {}).get(document['last_number'], '')
                 return {'document': document, 'details': details, 'quote_total': quote_total,
+                        'created_project': self.projects.certifications.view(workspace)['created_project'],
                         'related': commercial_cards(model['snapshot']), 'quote_totals': model['quote_totals'],
                         'estimates': [{'id': item['id'], 'name': item['name']} for item in captured['estimates']]}
             if action == 'save':

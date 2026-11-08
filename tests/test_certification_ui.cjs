@@ -71,7 +71,7 @@ function harness() {
     return response(doc);
   };
   const window = {ClassifirePersonalSignature:{choose:async()=>({version:1,strokes:[[[0,0],[1,1]]],ratio:3}),png:()=>canvasData},crypto:{randomUUID:()=> '00000000-0000-4000-8000-'+String(++serial).padStart(12,'0')},
-    addEventListener(k,fn){(events[k]||=[]).push(fn);},CeasefireProject:{details:()=>copy(project)},
+    addEventListener(k,fn){(events[k]||=[]).push(fn);},CeasefireProject:{details:()=>copy(project),requireCreatedProject:()=>true},
     dispatchEvent(event){for(const fn of events[event.type]||[])fn(event);return true;},
     CeasefireDialogs:{confirm:async()=>approve},CeasefireActivity:{begin:()=>()=>{}}};
   const context={setTimeout:fn=>{const id=++serial;timers.set(id,fn);return id;},clearTimeout:id=>timers.delete(id),window,document:{getElementById:byId,createElement:element},fetch,console,Date,JSON,Object,Array,Number,Error,encodeURIComponent,CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}}};
@@ -90,6 +90,14 @@ function harness() {
 let passed=0;
 async function check(name,fn,{open=true}={}){const h=harness();if(open)await h.api.open();await fn(h);assert.equal(h.calls.filter(call=>call.path==='/api/certifications/defaults'&&call.body).length,0,'Certificate editors never write shared Personal Details');passed++;console.log('ok - '+name);}
 (async()=>{
+  await check('Project guard blocks new certificate creation before validation or writes and keeps fields',async h=>{
+    await h.api.open();h.field('client','Keep this unsaved draft');
+    h.window.CeasefireProject.requireCreatedProject=()=>false;
+    const before=h.byId('certification-client').value;
+    await h.select('');await h.save();await h.generate();
+    assert.equal(h.byId('certification-client').value,before);
+    assert.equal(h.documents.size,0);assert.equal(h.calls.filter(call=>call.path==='/api/certifications'&&call.body).length,0);
+  });
   await check('Blank certificate does not invent standards or qualifications; company wording remains literal text',async h=>{
     await h.api.open();assert.equal(h.byId('certification-australian_standards').value,'');
     assert.equal(h.byId('certification-qualification').value,'');

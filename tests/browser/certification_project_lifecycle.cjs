@@ -3,7 +3,7 @@ const {fillProjectDetails}=require('./project_actions.cjs');
 // Existing global history is a read-only negative control. No PDF is generated.
 const {chromium,expect}=require('@playwright/test');
 const {openProjectSection}=require('./project_actions.cjs');
-const {spawn}=require('node:child_process'),{randomUUID,createHash}=require('node:crypto');
+const {spawn,spawnSync}=require('node:child_process'),{createHash}=require('node:crypto');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`certification-project-${Date.now()}`);
 fs.mkdirSync(output,{recursive:true});
@@ -22,13 +22,16 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   const info=await ready;assert.notEqual(info.port,8765);const base=`http://127.0.0.1:${info.port}`;
   const names=['client','project','address','location_area','statement_of_compliance','australian_standards','ncc_clauses','approved_design','additional_standards','other_references','exclusions','materials_manufacturers','fire_resistance_level','name','position','qualification','accreditation'];
   const fields={...Object.fromEntries(names.map(key=>[key,'N/A'])),client:'Older explicit client',project:'Older explicit project',address:'Example older address'};
-  const created=await fetch(base+'/api/certifications',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields,request_id:randomUUID()})});
-  assert.equal(created.status,201);const original=await created.json(),sourceStamp=JSON.stringify(original);
+  const seeded=spawnSync(process.env.CEASEFIRE_PYTHON||'python',['-c',
+    'import json,sys; from pathlib import Path; from estimator.storage import Store; from estimator.certification import CertificationService; print(json.dumps(CertificationService(Store(Path(sys.argv[1]))).create(json.loads(sys.argv[2]))))',
+    path.join(info.directory,'qa.sqlite3'),JSON.stringify(fields)],{cwd:root,windowsHide:true,encoding:'utf8'});
+  assert.equal(seeded.status,0,seeded.stderr);const original=JSON.parse(seeded.stdout),sourceStamp=JSON.stringify(original);
   browser=await chromium.launch({headless:true,...(process.env.CEASEFIRE_BROWSER_EXECUTABLE?{executablePath:process.env.CEASEFIRE_BROWSER_EXECUTABLE}:{})});
   page=await browser.newPage({viewport:{width:1084,height:900},hasTouch:true,deviceScaleFactor:2});page.on('pageerror',error=>errors.push(error.message));
   await page.route('**/api/certifications/*/revisions*',async route=>{generations.push(route.request().url());await route.abort();});
   await page.goto(base+'/');await idle();await page.locator('#estimate-navigation-toggle').click();
-  await fillProjectDetails(page,{'client':'PROJECT A CLIENT'});await expect(page.locator('#project-no')).toHaveAttribute('readonly','');await fillProjectDetails(page,{'site-address':'Project A example address'});await certification();
+  await fillProjectDetails(page,{'client':'PROJECT A CLIENT'});await expect(page.locator('#project-no')).toHaveAttribute('readonly','');await fillProjectDetails(page,{'site-address':'Project A example address'});
+  await page.locator('#save-current-project').click();await expect(page.locator('#project-save-state')).toHaveText('Saved project',{timeout:120000});await idle();await certification();
   const tokenA=await page.evaluate(()=>window.CeasefireCertification.sessionId());
   await expect(page.locator(`#certification-document option[value="${original.id}"]`)).toHaveCount(0);
   await expect(page.locator('#certification-legacy-open')).toHaveCount(0);await expect(page.locator('#certification-legacy-dialog')).toHaveCount(0);

@@ -485,6 +485,8 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 
 .project-estimate-controls{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin:0 0 20px}.project-estimate-controls>.field{min-width:110px;max-width:100%;flex:0 0 220px}.project-card-estimate{margin-top:12px;font-size:11px}.project-card-estimate select{margin-top:5px;font-size:12px}#project-estimate-dialog .actions{margin-top:20px}
 .project-estimate-controls .field>label{display:block;font-size:12px;font-weight:650;margin-bottom:7px}
+.project-estimate-controls>.calculator-document-menu>.calculator-document-toggle{height:calc(1.5em + 24px);min-height:0;padding-block:0}
+@media(max-width:570px){.project-estimate-controls>.calculator-document-menu>.calculator-document-toggle{height:calc(1.5em + 22px)}}
 .project-estimate-picker{display:grid;grid-template-columns:minmax(0,1fr) 38px;align-items:stretch}
 .project-estimate-picker input,.project-estimate-picker select{grid-area:1/1/2/-1}
 .project-estimate-picker input{padding-inline:42px 40px}

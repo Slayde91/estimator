@@ -1,0 +1,8 @@
+.project-new-dialog{width:min(760px,calc(100vw - 32px));max-width:none;max-height:calc(100dvh - 32px);padding:0;background:var(--paper);overflow:visible}
+.project-new-dialog .project-details-pane{width:100%;margin:0;border:0;box-shadow:none;max-height:calc(100dvh - 40px);overflow:auto}
+.project-new-dialog .project-pane-fields{grid-template-columns:repeat(2,minmax(0,1fr))}
+.project-new-dialog #project-details-target{margin:4px 0 18px}
+.project-new-dialog #project-details-status{margin:16px 0;font-size:12px}
+.project-new-dialog .project-account-options{max-height:180px}
+.project-new-dialog .actions{margin-top:18px}
+@media(max-width:520px){.project-new-dialog{width:calc(100vw - 24px)}.project-new-dialog .project-pane-fields{gap:14px 10px}.project-new-dialog .field>label,.project-new-dialog .field>span{font-size:11px}.project-new-dialog input{font-size:12px;padding-inline:10px}.project-new-dialog .project-account-search input{padding-inline-start:32px}}

@@ -386,7 +386,8 @@
     catch { throw new Error(`The server returned an unreadable response (${response.status}).`); }
     if (!response.ok) {
       const detail = data.error || data.message || `Request failed (${response.status}).`;
-      throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+      const error = new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+      error.status = response.status; throw error;
     }
     return data;
     } finally { state.desktopRequests--; }
@@ -1115,6 +1116,7 @@
     return true;
   }
   async function requestViewNavigation(view, librarySelection) {
+    if (view === "documentation" && !requireCreatedProject()) return false;
     if (view !== state.currentView && !await confirmLeavePricingLibrary()) return false;
     await showView(view, librarySelection);
     if (state.currentView === view) window.CeasefireHeaderTagline?.next();
@@ -2174,8 +2176,8 @@
   function projectReplacementStamp() {
     return JSON.stringify({project:projectStamp(),coverSheets:window.CeasefireCoverSheets?.fingerprint?.(),projectPane:window.CeasefireProjectPane?.fingerprint?.()});
   }
-  function coverReplacementPending() {
-    if (window.CeasefireProjectPane?.hasPendingOperation?.()) { message("Finish the current project details action first.", true); return true; }
+  function coverReplacementPending(skipProjectPane = false) {
+    if (!skipProjectPane && window.CeasefireProjectPane?.hasPendingOperation?.()) { message("Finish the current project details action first.", true); return true; }
     if (window.CeasefireSWMS?.hasPendingOperation?.()) { message("Finish the current SWMS edit first.", true); return true; }
     if (window.CeasefireCommercial?.hasPendingOperation?.()) { message("Finish the current commercial document edit first.", true); return true; }
     if (window.CeasefireDownloads?.hasPendingOperation?.()) {
@@ -2381,6 +2383,51 @@
     return false;
   }
 
+  async function discardNewProject(operation) {
+    if (!operation?.saved && operation?.certification?.workspace_id) {
+      await window.CeasefireCertification?.discardPreparedSession?.(operation.certification.workspace_id);
+      operation.certification = null; operation.request = null;
+    }
+  }
+  async function createProject(details, operation) {
+    if (state.projectBusy || coverReplacementPending(true)) return {saved:false};
+    if (operation.context !== state.quoteContext) throw new Error("The current project changed. Open New Project again.");
+    const captured = projectReplacementStamp();
+    if (operation.reviewStamp !== captured && projectHasChanges() && !await confirmReplace(uiCopy("Start a new project?"), uiCopy("The Quote, Firestopping items, {0}project library drafts, project pricing and all three specialist calculator drafts will be replaced with defaults using your saved pricing library. Shared libraries stay unchanged.", [window.CeasefireI18n.term(takeoffContents())]), uiCopy("New project"))) return {saved:false};
+    if (captured !== projectReplacementStamp()) throw new Error("Your draft changed during review. Your current project was kept.");
+    operation.reviewStamp = captured;
+    projectBusy(true, "new-quote");
+    try {
+      if (!operation.request) {
+        if (!operation.certification) operation.certification = await window.CeasefireCertification.prepareProject();
+        const saveRequest = await window.CeasefireProjectDetails.prepareSave(operation.id);
+        const configuration = clone(state.configuration);
+        operation.request = {project_status:"Draft", estimate:{...details, configuration, workflow:state.defaultWorkflow, measurements:"", work_items:[],
+          inputs:Object.fromEntries(state.currentFields.map(field=>[field.cell,field.cell === "B12" ? "" : field.default ?? ""]))}, calculators:{},
+          certifications:{workspace_id:operation.certification.workspace_id,draft:null}};
+        operation.request.project_save_request = saveRequest;
+      }
+      if (captured !== projectReplacementStamp() || coverReplacementPending(true)) throw new Error("Your draft changed while preparing the new project. Your current project was kept.");
+      operation.submitted = true;
+      const saved = await request("/api/project/save-as", {method:"POST",body:JSON.stringify(operation.request)});
+      operation.uncertain = false;
+      if (saved.cancelled) return {saved:false,cancelled:true};
+      operation.saved = true;
+      const project = {...saved.project,certification_workspace_id:operation.certification.workspace_id};
+      const adopted = await reviewAndLoadProject(project,saved.file,captured,{confirmedReplacement:true,landingView:"quotes"});
+      window.CeasefireProjectDetails.saved(operation.id);
+      if (!adopted) message(uiCopy("The new project was saved. Your current draft was kept; open the saved project from Projects."),true);
+      return {saved:true,adopted:!!adopted,file:saved.file};
+    } catch (error) {
+      if (operation.saved) {
+        message(uiCopy("The new project was saved. Your current draft was kept; open the saved project from Projects."),true);
+        return {saved:true,adopted:false};
+      }
+      operation.uncertain = operation.submitted && (!error.status || error.status >= 500);
+      throw error;
+    } finally { projectBusy(false); }
+  }
+
   async function uploadProjectFiles(selectedFiles) {
     const files = Array.from(selectedFiles || []);
     if (!files.length || state.projectBusy || !requireSavedProjectForFiles()) return;
@@ -2410,22 +2457,22 @@
     if (!state.projectBusy && requireSavedProjectForFiles()) $("project-attachment-input").click();
   }
 
-  async function reviewAndLoadProject(project, file, captured, {convertedLead = false} = {}) {
+  async function reviewAndLoadProject(project, file, captured, {convertedLead = false,confirmedReplacement = false,landingView = "estimate"} = {}) {
     let takeoffsAdopted = false, certificationAdopted = false, preparedCertification = null;
     try {
-      if (coverReplacementPending()) return;
+      if (coverReplacementPending(confirmedReplacement)) return;
       if (!state.takeoffsEnabled && (project.takeoffs || project.takeoffs_session_id)) throw new Error("This project contains TAKEOFFS data. Open it in the full edition; this edition cannot remove or overwrite that evidence.");
       const [prepared, penetration, takeoffs, libraryDrafts, certification] = await Promise.all([window.CeasefireCalculators.prepareProject(project.calculators), window.CeasefirePenetrations?.prepareProject(project.penetration, project.estimate.configuration), window.CeasefireTakeoffs?.prepareProject(project.takeoffs, project.takeoffs_session_id), window.CeasefireLibraryEditor?.prepareProject?.(project.library_drafts), window.CeasefireCertification?.prepareProject?.(project.certifications, project.certification_workspace_id)]);
       preparedCertification = certification;
       const documentation = await window.CeasefireDocumentation?.prepareProject?.(project.documentation, certification?.workspace_id || project.certification_workspace_id);
       const commercial = await window.CeasefireCommercial?.prepareProject?.(project.commercial_documents, certification?.workspace_id || project.certification_workspace_id);
       const swms = await window.CeasefireSWMS?.prepareProject?.(project.swms, certification?.workspace_id || project.certification_workspace_id);
-      if (coverReplacementPending()) return;
+      if (coverReplacementPending(confirmedReplacement)) return;
       if (captured !== projectReplacementStamp()) throw new Error("Your draft changed while reading the file. Load it again when ready.");
       const detail = project.project_details || {};
-      const accepted = convertedLead && !projectHasChanges() || await confirmReplace(uiCopy("Load this project?"), uiCopy("{0}\nProject No.: {1}\nClient: {2}\nSite Address: {3}\n\nThis replaces the Quote, Firestopping items, {4}project library drafts, their pricing and all three specialist calculator drafts. Shared libraries stay unchanged.", [file.name, detail.project_no || "Not recorded", detail.client || "Not recorded", detail.site_address || "Not recorded", window.CeasefireI18n.term(takeoffContents())]), uiCopy("Load Project"));
+      const accepted = confirmedReplacement || convertedLead && !projectHasChanges() || await confirmReplace(uiCopy("Load this project?"), uiCopy("{0}\nProject No.: {1}\nClient: {2}\nSite Address: {3}\n\nThis replaces the Quote, Firestopping items, {4}project library drafts, their pricing and all three specialist calculator drafts. Shared libraries stay unchanged.", [file.name, detail.project_no || "Not recorded", detail.client || "Not recorded", detail.site_address || "Not recorded", window.CeasefireI18n.term(takeoffContents())]), uiCopy("Load Project"));
       if (!accepted) { message(uiCopy("Project load cancelled. Your current drafts were kept.")); return; }
-      if (coverReplacementPending()) return;
+      if (coverReplacementPending(confirmedReplacement)) return;
       if (captured !== projectReplacementStamp()) throw new Error("Your draft changed during review. Load the file again to keep your latest edits safe.");
       const estimate = project.estimate;
       // All validation and definition loading finish before either workspace changes.
@@ -2455,9 +2502,10 @@
       state.workflow = estimate.workflow; $("measurements").value = estimate.measurements || "";
       updateQuoteTitle(); renderInputs(); updateDirty(false);
       $("snapshot-message").hidden = false; window.CeasefireI18n.text($("snapshot-message").querySelector("span"), "This project uses the pricing snapshot from its file.");
-      selectEstimator("estimate"); showView("estimate"); scheduleCalculation();
+      selectEstimator("estimate"); showView(landingView); scheduleCalculation();
       window.CeasefirePenetrations?.pricingChanged();
       message(file.save_token ? uiCopy("Project loaded with the Quote, Firestopping items, {0}original pricing and all three specialist calculators. Save updates this project file.", [window.CeasefireI18n.term(takeoffContents())]) : uiCopy("Project imported with the Quote, Firestopping items, {0}original pricing and all three specialist calculators. Use Save to choose its project file.", [window.CeasefireI18n.term(takeoffContents())]));
+      return true;
     } finally {
       if (!takeoffsAdopted) {
         await window.CeasefireTakeoffs?.discardPreparedSession?.(project.takeoffs_session_id);
@@ -2794,7 +2842,7 @@
   document.querySelector(".brand")?.addEventListener("click", (event) => { event.preventDefault(); requestViewNavigation("home"); });
   for (const id of Object.values(projectDetailControls)) $(id).addEventListener("input", () => { updateQuoteTitle(); updateDirty(); });
   $("measurements").addEventListener("input", () => updateDirty());
-  $("new-quote").addEventListener("click", async () => { if (await confirmLeavePricingLibrary()) newQuote(); });
+  $("new-quote").addEventListener("click", async () => { if (!state.projectBusy && !coverReplacementPending()) await window.CeasefireProjectPane?.openNew?.(); });
   $("download-quote-pdf").addEventListener("click", () => downloadQuotePdf());
   for (const id of ["estimate-open-quote", "project-estimate-quote"]) $(id).addEventListener("click", async () => {
     if (!requireCreatedProject()) return;
@@ -2948,7 +2996,7 @@
     }
     throw new Error("The project was saved, but could not be opened automatically. Open it from Projects.");
   }
-  window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus, scheduleChanged, hasCreatedProject, requireCreatedProject,
+  window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus, scheduleChanged, hasCreatedProject, requireCreatedProject, createProject, discardNewProject,
     projectPaneSnapshot: () => ({details:quoteDetails(), context:state.quoteContext, file:state.projectFile ? clone(state.projectFile) : null, busy:state.projectBusy}),
     applyProjectPaneDraft(details, context) {
       if (context !== state.quoteContext) throw new Error("The current project changed. Open its details again.");

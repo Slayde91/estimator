@@ -2,7 +2,7 @@
 const {chromium,expect}=require('@playwright/test');
 const {spawn,spawnSync}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-const {clickProjectControl,fillProjectDetails}=require('./project_actions.cjs');
+const {clickProjectControl,fillProjectDetails,createNewProject}=require('./project_actions.cjs');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`project-details-${Date.now()}`);
 fs.mkdirSync(output,{recursive:true});
 const python=process.env.CEASEFIRE_PYTHON||'python';
@@ -29,9 +29,8 @@ async function settings(prefix,start){await page.locator('nav [data-view="settin
  assert.equal(JSON.parse(fs.readFileSync(info.project)).estimate.project_no,'PN-01');await expect(page.locator('#previous-project-clients option')).toHaveCount(3);
  await settings('PK',42);await expect(page.locator('#project-number-next')).toContainText('PK-42');await estimate();await expect(page.locator('#project-no')).toHaveValue('PN-01');
  await page.locator('#measurements').fill('An existing project retains its number');await page.locator('#measurements').blur();await idle();assert.equal((await save()).project.estimate.project_no,'PN-01');
- await clickProjectControl(page,'New');const discard=page.locator('#discard-dialog');if(await discard.isVisible())await discard.getByRole('button',{name:'Continue without saving',exact:true}).click();await idle();await estimate();await expect(page.locator('#project-no')).toHaveValue('');
  fs.renameSync(info.project,path.join(output,'first-saved-project.cf.json'));
- await fillProjectDetails(page, {client:'Beta'});const second=await save();assert.equal(second.project.estimate.project_no,'PK-42');await expect(page.locator('#project-no')).toHaveValue('PK-42');
+ const second=await createNewProject(page,{client:'Beta'});assert.equal(second.project.estimate.project_no,'PK-42');await expect(page.locator('#project-no')).toHaveValue('PK-42');
  await settings('PK',1);await expect(page.locator('#project-number-next')).toContainText('PK-43');
  const series=page.locator('#document-number-settings');
  await expect(series.locator('tbody tr')).toHaveCount(6);

@@ -41,6 +41,10 @@ async function discard(root,label){
   await page.locator('#certification-document').selectOption('');await notified();
   await expect(page.locator('#certification-client')).toHaveValue('Keep incomplete certificate draft');
   await page.locator('#certification-save').click();await notified();
+  await page.locator('#documents-navigation-toggle').hover();
+  await page.locator('#documents-navigation-menu [data-document-section="documentation"]').click();await notified();
+  await expect(page.locator('#view-documentation')).toBeHidden();
+  assert.equal(await page.evaluate(async()=>{try{await window.CeasefireDocumentation.open();return false;}catch(error){return error.message==='Create or load a project before creating documents.';}}),true);
   assert.deepEqual(writes,[],'New without a Project must not save or request document defaults');assert.equal(fs.existsSync(info.project),false);
   assert.deepEqual(await page.evaluate(()=>({details:window.CeasefireProject.details(),inputs:window.CeasefireProject.configuration()})),before);
   // Explicit Settings operations remain available independently of a Project.
@@ -51,6 +55,7 @@ async function discard(root,label){
   assert.equal(await page.evaluate(()=>window.CeasefireProject.hasCreatedProject()),true);
   const token=await page.evaluate(()=>window.CeasefireCertification.sessionId());
   const workspace=await(await page.request.get(new URL('/api/certifications/workspaces/'+token,page.url()).href)).json();assert.equal(workspace.created_project,true);
+  await openProjectSection(page,'documentation');await expect(page.locator('#documentation-pdf-rows [data-document-kind]')).not.toHaveCount(0);await idle();
   for(const [section,id,label,back]of commercial){
     await openProjectSection(page,section);const host=page.locator('#'+id);await host.getByRole('button',{name:label,exact:true}).click();
     await expect(host.locator('.commercial-editor')).toBeVisible();await discard(host,back);await expect(host.getByRole('button',{name:label,exact:true})).toBeVisible();

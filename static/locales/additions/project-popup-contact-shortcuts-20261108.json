@@ -1,0 +1,77 @@
+{
+  "Save project": [
+    "프로젝트 저장",
+    "I-save ang proyekto",
+    "Lưu dự án"
+  ],
+  "Refresh the application before creating a Contact.": [
+    "연락처를 만들기 전에 앱을 새로 고치세요.",
+    "I-refresh ang app bago gumawa ng Contact.",
+    "Làm mới ứng dụng trước khi tạo người liên hệ."
+  ],
+  "Save or cancel the new project details first.": [
+    "먼저 새 프로젝트 세부 정보를 저장하거나 취소하세요.",
+    "I-save o kanselahin muna ang mga detalye ng bagong proyekto.",
+    "Lưu hoặc hủy chi tiết dự án mới trước."
+  ],
+  "The current project changed. Open New Project again.": [
+    "현재 프로젝트가 변경되었습니다. 새 프로젝트를 다시 여세요.",
+    "Nagbago ang kasalukuyang proyekto. Buksang muli ang Bagong proyekto.",
+    "Dự án hiện tại đã thay đổi. Mở lại Dự án mới."
+  ],
+  "Your draft changed during review. Your current project was kept.": [
+    "검토 중 초안이 변경되었습니다. 현재 프로젝트는 유지되었습니다.",
+    "Nagbago ang iyong draft habang sinusuri. Napanatili ang kasalukuyan mong proyekto.",
+    "Bản nháp đã thay đổi trong khi xem xét. Dự án hiện tại của bạn được giữ nguyên."
+  ],
+  "Your draft changed while preparing the new project. Your current project was kept.": [
+    "새 프로젝트를 준비하는 동안 초안이 변경되었습니다. 현재 프로젝트는 유지되었습니다.",
+    "Nagbago ang iyong draft habang inihahanda ang bagong proyekto. Napanatili ang kasalukuyan mong proyekto.",
+    "Bản nháp đã thay đổi khi chuẩn bị dự án mới. Dự án hiện tại của bạn được giữ nguyên."
+  ],
+  "The new project was saved. Your current draft was kept; open the saved project from Projects.": [
+    "새 프로젝트가 저장되었습니다. 현재 초안은 유지되었습니다. 프로젝트에서 저장된 프로젝트를 여세요.",
+    "Na-save ang bagong proyekto. Napanatili ang kasalukuyan mong draft; buksan ang na-save na proyekto mula sa Mga Proyekto.",
+    "Dự án mới đã được lưu. Bản nháp hiện tại được giữ nguyên; mở dự án đã lưu từ Dự án."
+  ],
+  "The project save result could not be confirmed. Retry Save to recover it.": [
+    "프로젝트 저장 결과를 확인할 수 없습니다. 저장을 다시 눌러 결과를 확인하세요.",
+    "Hindi makumpirma ang resulta ng pag-save ng proyekto. Subukang muli ang I-save upang mabawi ang resulta.",
+    "Không thể xác nhận kết quả lưu dự án. Nhấn Lưu lần nữa để khôi phục kết quả."
+  ],
+  "Choose a valid Account.": [
+    "유효한 고객 계정을 선택하세요.",
+    "Pumili ng wastong account ng kliyente.",
+    "Chọn tài khoản khách hàng hợp lệ."
+  ],
+  "Convert lead {0}": [
+    "잠재 고객 {0} 전환",
+    "I-convert ang potensyal na kliyenteng {0}",
+    "Chuyển đổi khách hàng tiềm năng {0}"
+  ],
+  "No matching Accounts. You can enter a company name.": [
+    "일치하는 고객 계정이 없습니다. 회사명을 입력할 수 있습니다.",
+    "Walang katugmang account ng kliyente. Maaari kang maglagay ng pangalan ng kumpanya.",
+    "Không có tài khoản khách hàng phù hợp. Bạn có thể nhập tên công ty."
+  ],
+  "No matching Contacts. You can enter a name.": [
+    "일치하는 연락처가 없습니다. 이름을 입력할 수 있습니다.",
+    "Walang katugmang Contact. Maaari kang maglagay ng pangalan.",
+    "Không có người liên hệ phù hợp. Bạn có thể nhập tên."
+  ],
+  "This Contact already has a lead. Open that lead instead.": [
+    "이 연락처에는 이미 잠재 고객 기록이 있습니다. 해당 기록을 여세요.",
+    "May potensyal na kliyenteng nakaugnay na sa Contact na ito. Buksan na lang ang rekord na iyon.",
+    "Người liên hệ này đã có hồ sơ khách hàng tiềm năng. Hãy mở hồ sơ đó."
+  ],
+  "Choose the Account matching this company.": [
+    "이 회사에 해당하는 고객 계정을 선택하세요.",
+    "Piliin ang account ng kliyente na tumutugma sa kumpanyang ito.",
+    "Chọn tài khoản khách hàng khớp với công ty này."
+  ],
+  "New Contact": [
+    "새 연락처",
+    "Bagong contact",
+    "Liên hệ mới"
+  ]
+}

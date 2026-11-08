@@ -76,6 +76,15 @@ class DocumentNumberingTests(unittest.TestCase):
         self.assertEqual((po['reference'], first['number'],second['number']),('BUY-08','BUY-08','BUY-08'))
         self.assertNotEqual(first['filename'],second['filename'])
         self.assertIn('BUY-08',PdfReader(BytesIO(second['pdf'])).pages[0].extract_text())
+        from estimator.native_dialogs import SaveSelection
+        from test_project_library import Chooser
+        chooser = Chooser(); chooser.selection = SaveSelection(str(self.root/'Numbered project.cf.json'), None)
+        library = ProjectLibrary(self.store, chooser, certifications=self.certs)
+        try:
+            library.save_as({'estimate': {'project_no':'PN-FIXTURE'},
+                'certifications': {'workspace_id':self.workspace,'draft':None}})
+        finally:
+            library.close()
         p = {'id':uid(),'version':0, 'status':'Draft', 'fields':swms_fields()}
         swms = self.swms.save(self.workspace,p)
         self.assertEqual(swms['reference'],'SAFE-09')

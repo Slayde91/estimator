@@ -2,7 +2,7 @@ const {fillProjectDetails}=require('./project_actions.cjs');
 // Disposable lifecycle coverage. This fixture never generates a certificate PDF.
 const {chromium,expect:baseExpect}=require('@playwright/test');
 const expect=baseExpect.configure({timeout:30000});
-const {openProjectSection,clickProjectControl}=require('./project_actions.cjs');
+const {openProjectSection,clickProjectControl,createNewProject}=require('./project_actions.cjs');
 const {spawn,spawnSync}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'../..');
@@ -186,8 +186,13 @@ async function fresh(){await page.locator('#certification-document').selectOptio
   }
   await page.setViewportSize({width:1084,height:900});
   await openProjectSection(page,'quotes');
-  await page.locator('#new-quote').click();await page.getByRole('dialog').getByRole('button',{name:'New project',exact:true}).click();
-  await expect(page.locator('#client')).toHaveValue('',{timeout:90000});await page.waitForFunction(token=>window.CeasefireCertification.sessionId()!==token,workspaceA);await idle();
+  const directory=await(await page.request.get(base+'/api/contacts/directory')).json();
+  const account=await page.request.post(base+'/api/contacts/accounts',{data:{version:directory.version,fields:{company:'Second certification project'}}});assert.equal(account.status(),200);
+  const originalProject=fs.readFileSync(info.project),saveTarget=path.join(info.directory,'save-dialog-target.json');
+  fs.writeFileSync(saveTarget,JSON.stringify({file:'second-certification-project.cf.json'}));
+  try{await createNewProject(page,{client:'Second certification project','site-address':'Second fixture site'});}finally{fs.unlinkSync(saveTarget);}
+  assert.deepEqual(fs.readFileSync(info.project),originalProject,'Creating the second Project keeps the original saved file unchanged');
+  await expect(page.locator('#client')).toHaveValue('Second certification project',{timeout:90000});await page.waitForFunction(token=>window.CeasefireCertification.sessionId()!==token,workspaceA);await idle();
   await certification();assert.notEqual(await page.evaluate(()=>window.CeasefireCertification.sessionId()),workspaceA);await expect(page.locator('#certification-document option[value="'+id+'"]')).toHaveCount(0);await fresh();await expect(page.locator('#certification-signature-preview')).toBeHidden();await expect(page.locator('#certification-name')).toHaveValue('');
   await openProjectSection(page,'documentation');await expect(coverRow('certification')).toContainText('synthetic-drawings.pdf');await expect(coverRow('takeoff_markups')).toContainText('synthetic-board.pdf');
   for(const width of [1084,390]){

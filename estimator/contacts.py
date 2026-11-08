@@ -1,6 +1,7 @@
 """Company-wide leads, people and accounts in the local application database."""
 
 from contextlib import closing, contextmanager
+import json
 from pathlib import Path
 import re
 import sqlite3
@@ -79,6 +80,9 @@ class ContactsStore:
             """)
             if "abn_acn" not in {row[1] for row in db.execute("PRAGMA table_info(accounts)")}:
                 db.execute("ALTER TABLE accounts ADD COLUMN abn_acn TEXT NOT NULL DEFAULT ''")
+            if "person_snapshot" not in {row[1] for row in db.execute("PRAGMA table_info(leads)")}:
+                # Old leads retain their exact join-based behaviour until edited.
+                db.execute("ALTER TABLE leads ADD COLUMN person_snapshot TEXT")
 
     @contextmanager
     def connection(self):
@@ -100,12 +104,20 @@ class ContactsStore:
                 "version": self._version(db), "statuses": LEAD_STATUSES,
                 "accounts": [dict(row) for row in db.execute("SELECT id,company,billing_address,abn_acn FROM accounts ORDER BY lookup_key")],
                 "contacts": [dict(row) for row in db.execute(contacts + " ORDER BY c.name COLLATE NOCASE,c.id")],
-                "leads": [dict(row) for row in db.execute(f"""
+                "leads": [self._lead_record(row) for row in db.execute(f"""
                     SELECT l.*, p.name, p.phone, p.title, p.email, p.company, p.account_id, p.abn_acn
                     FROM leads l JOIN ({contacts}) p ON p.id=l.contact_id
                     ORDER BY p.name COLLATE NOCASE,l.id
                 """)],
             }
+
+    @staticmethod
+    def _lead_record(row):
+        value = dict(row)
+        snapshot = value.pop('person_snapshot', None)
+        if snapshot is not None:
+            value.update(json.loads(snapshot))
+        return value
 
     @staticmethod
     def _version(db):
@@ -220,12 +232,36 @@ class ContactsStore:
             ident = self._id(db, kind, prior_id)
             links = self._checked_links(db, ident, body["links"], link_catalog) if "links" in body else None
             if kind == "leads":
-                person_id = db.execute("SELECT contact_id FROM leads WHERE id=?", (ident,)).fetchone()[0] if prior_id else str(uuid4())
-                self._person(db, person_id, data)
-                db.execute("""INSERT INTO leads VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+                previous = db.execute("SELECT contact_id FROM leads WHERE id=?", (ident,)).fetchone() if prior_id else None
+                person_id = body.get('contact_id', previous['contact_id'] if previous else '')
+                if person_id:
+                    self._id(db, 'contacts', person_id)
+                    if db.execute('SELECT 1 FROM leads WHERE contact_id=? AND id<>?', (person_id, ident)).fetchone():
+                        raise ValidationError('This Contact already has a lead. Open that lead instead.')
+                elif person_id != '' and person_id is not None:
+                    raise ValidationError('Choose a valid Contact.')
+                else:
+                    person_id = str(uuid4())
+                    self._person(db, person_id, data)
+                account = body.get('account_id')
+                if account:
+                    self._id(db, 'accounts', account)
+                    company = db.execute('SELECT company FROM accounts WHERE id=?', (account,)).fetchone()['company']
+                    if company_key(company) != company_key(data['company']):
+                        raise ValidationError('Choose the Account matching this company.')
+                elif account != '' and account is not None:
+                    raise ValidationError('Choose a valid Account.')
+                account = self._account(db, data['company'], data['billing_address'], data['abn_acn'])
+                snapshot = {key: data[key] for key in (*PERSON_FIELDS, 'abn_acn')}
+                account_values = db.execute('SELECT company,abn_acn FROM accounts WHERE id=?', (account,)).fetchone()
+                snapshot.update(company=account_values['company'], abn_acn=account_values['abn_acn'])
+                snapshot['account_id'] = account
+                db.execute("""INSERT INTO leads(id,contact_id,site_address,billing_address,description,status,person_snapshot)
+                              VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET contact_id=excluded.contact_id,
                               site_address=excluded.site_address,billing_address=excluded.billing_address,
-                              description=excluded.description,status=excluded.status""",
-                           (ident, person_id, data["site_address"], data["billing_address"], data["description"], data["status"]))
+                              description=excluded.description,status=excluded.status,person_snapshot=excluded.person_snapshot""",
+                           (ident, person_id, data["site_address"], data["billing_address"], data["description"], data["status"],
+                            json.dumps(snapshot, ensure_ascii=False, separators=(',', ':'))))
             elif kind == "contacts":
                 if not data["company"] and db.execute("SELECT 1 FROM leads WHERE contact_id=?", (ident,)).fetchone():
                     raise ValidationError("A contact linked to a lead must have a company.")
@@ -244,9 +280,16 @@ class ContactsStore:
                 if links is not None:
                     self._replace_links(db, ident, links)
             version = self._version(db) + 1
+            contact = None
+            if kind == 'contacts':
+                contact = dict(db.execute('''SELECT c.id,c.name,c.phone,c.title,c.email,c.account_id,
+                    coalesce(a.company,'') AS company,coalesce(a.abn_acn,'') AS abn_acn
+                    FROM contacts c LEFT JOIN accounts a ON a.id=c.account_id WHERE c.id=?''', (ident,)).fetchone())
         result = {"id": ident, "version": version}
         if kind == "accounts":
             result["account"] = {"id": ident, **data}
+        if contact is not None:
+            result['contact'] = contact
         return result
 
     def convert(self, body, create_project):
@@ -260,13 +303,14 @@ class ContactsStore:
             if type(body['version']) is not int or self._version(db) != body['version']:
                 raise ContactsConflict('The lead changed. Reopen the directory before converting it.')
             lead = db.execute('''SELECT l.*,c.name,c.phone,c.title,c.email,c.account_id,a.company,a.abn_acn
-                FROM leads l JOIN contacts c ON l.contact_id=c.id JOIN accounts a ON a.id=c.account_id
+                FROM leads l JOIN contacts c ON l.contact_id=c.id LEFT JOIN accounts a ON a.id=c.account_id
                 WHERE l.id=?''', (body['id'],)).fetchone()
             if lead is None:
                 raise ValidationError('This lead could not be found.')
+            lead = self._lead_record(lead)
             # The numbered file save uses this lead's stable ID as its replay
             # key. A retry after a lost response or DB rollback reuses the file.
-            result = create_project(dict(lead))
+            result = create_project(lead)
             db.execute('INSERT INTO converted_leads VALUES (?,?,?,?,?)',
                        (lead['id'], lead['contact_id'], lead['account_id'], result['project_no'], result['path']))
             db.execute('DELETE FROM leads WHERE id=?', (lead['id'],))

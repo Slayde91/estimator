@@ -3,6 +3,7 @@
   const $ = id => document.getElementById(id);
   const pane = $("project-details-pane");
   if (!pane) return;
+  const dialog = $("project-new-dialog"), home = pane.parentNode, homeNext = pane.nextSibling;
   const translate = source => window.CeasefireI18n?.translate?.(source) || source;
   const text = (element,source) => window.CeasefireI18n ? window.CeasefireI18n.text(element,source) : (element.textContent=source);
   const fields = {project_no:"project-pane-number", client:"project-pane-client", site_address:"project-pane-address", contact_name:"project-pane-contact-name", contact_phone:"project-pane-contact-phone", contact_email:"project-pane-contact-email"};
@@ -13,14 +14,15 @@
   let selected = null, ticket = 0, pending = false, accounts = [], accountId = "", accountName = "", optionIndex = -1, options = [], directoryTicket = 0, currentRule = null;
   let contacts = [], contactId = "", contactName = "", contactOptions = [], contactOptionIndex = -1, contactLoading = false, contactPopupRequested = false, returningContactFocus = false;
   function details() { return {...Object.fromEntries(Object.entries(fields).map(([key,id]) => [key,$(id).value.trim()])), account_id:accountId, contact_id:contactId}; }
-  function dirty() { return !!selected && selected.kind === "saved" && stamp(details()) !== stamp(selected.baseline); }
+  function dirty() { return !!selected && ["saved","new"].includes(selected.kind) && stamp(details()) !== stamp(selected.baseline); }
   function notice(value = "", error = false) {
     text($("project-details-status"), value);
     $("project-details-status").classList.toggle("error", error);
   }
   function busy(value) {
     pending = value; pane.setAttribute("aria-busy", String(value));
-    for (const control of pane.querySelectorAll("input,button")) control.disabled = value || !!selected?.blocked && control.id !== "project-details-close";
+    const recovering = selected?.kind === "new" && selected.creation?.uncertain;
+    for (const control of pane.querySelectorAll("input,button")) control.disabled = value || recovering && control.id !== "project-details-save" || !!selected?.blocked && control.id !== "project-details-close";
     $("project-current-details").disabled = value;
   }
   function refreshToggles() {
@@ -44,13 +46,17 @@
     contactOptionIndex = -1;
   }
   function hide() {
+    const previous = selected;
     ++ticket; selected = null; pane.hidden = true;
+    if (dialog?.open) dialog.close();
+    if (pane.parentNode !== home) home.insertBefore(pane, homeNext);
+    if (previous?.kind === "new") void window.CeasefireProject.discardNewProject(previous.creation).catch(()=>{});
     busy(false);
     $("project-workspace-layout").classList.remove("project-pane-open");
     dismissOptions(); dismissContactOptions(); refreshToggles();
   }
   async function leave() {
-    if (pending) { notice("Finish the current project details action first.", true); return false; }
+    if (pending || selected?.creation?.uncertain) { notice("Finish the current project details action first.", true); return false; }
     if (dirty() && !await window.CeasefireDialogs.confirm(translate("Discard unsaved project details?"), translate("The changes in this Project Details pane have not been saved. Discard them?"), translate("Yes"), translate("Cancel"))) return false;
     hide(); return true;
   }
@@ -60,7 +66,9 @@
     contactId = values.contact_id || ""; contactName = values.contact_name || ""; contactLoading = false;
     $("project-details-target").textContent = target;
     $("project-details-save").hidden = selected.kind === "current";
-    pane.hidden = false; $("project-workspace-layout").classList.add("project-pane-open");
+    text($("project-details-save"),selected.kind === "new" ? "Save project" : "Save project details");
+    $("project-new-cancel").hidden = selected.kind !== "new";
+    pane.hidden = false; $("project-workspace-layout").classList.toggle("project-pane-open",selected.kind !== "new");
     notice(selected.kind === "current" ? "Use the main Save button to save this project's details and estimate." : "");
     dismissOptions(); dismissContactOptions(); refreshToggles();
   }
@@ -96,6 +104,13 @@
     show(normalize(active.details), active.file?.title || translate("New project"));
     $("project-pane-client").focus();
   }
+  async function openNew() {
+    if (snapshot().busy || !await leave()) return;
+    const active = snapshot();
+    selected = {kind:"new",context:active.context,baseline:normalize({}),creation:{id:crypto.randomUUID(),context:active.context}};
+    dialog.append(pane); show(normalize({}),translate("New project"));
+    dialog.showModal(); $("project-pane-client").focus();
+  }
   function validateClient() {
     const value = details();
     if (value.client && value.client !== selected.baseline.client && (!value.account_id || value.client !== accountName)) {
@@ -118,6 +133,24 @@
     if (!selected || pending || selected.blocked) return;
     if (selected.kind === "current") { validateClient(); return; }
     if (snapshot().busy) throw new Error("Finish the current project operation first.");
+    if (selected.kind === "new") {
+      const target = selected, value = validateClient();
+      if (target.creation.details && target.creation.details !== stamp(value)) {
+        await window.CeasefireProject.discardNewProject(target.creation);
+        target.creation = {id:crypto.randomUUID(),context:target.context};
+      }
+      target.creation.details = stamp(value);
+      busy(true); dismissOptions(); dismissContactOptions(); notice("Saving project details…");
+      try {
+        const result = await window.CeasefireProject.createProject(value,target.creation);
+        if (selected !== target) return;
+        if (result?.saved) { hide(); return; }
+        notice(result?.cancelled ? "Save cancelled. Your current project remains open." : "");
+      } catch (error) {
+        notice(target.creation.uncertain ? "The project save result could not be confirmed. Retry Save to recover it." : error.message,true);
+      } finally { busy(false); }
+      return;
+    }
     const value = validateClient(), active = snapshot(), target = selected;
     if (active.file?.path === target.file.path && (active.file.revision !== target.revision || active.context !== target.activeAtOpen.context || stamp(active.details) !== stamp(target.activeAtOpen.details))) throw new Error("The open project's details changed. Close and reopen this pane before saving.");
     if (target.requestPayload && target.requestPayload !== stamp(value)) target.requestId = crypto.randomUUID();
@@ -201,6 +234,8 @@
   }
   $("project-current-details").addEventListener("click", openCurrent);
   $("project-details-close").addEventListener("click", leave);
+  $("project-new-cancel").addEventListener("click", leave);
+  dialog.addEventListener("cancel",event=>{event.preventDefault();void leave();});
   $("project-details-form").addEventListener("submit", event => { event.preventDefault(); void save().catch(error => notice(error.message,true)); });
   for (const [key,id] of Object.entries(fields)) $(id).addEventListener("input", () => {
     if (!selected || pending) return;
@@ -211,6 +246,10 @@
     }
     if (key === "contact_name") {
       if ($(id).value.trim() !== contactName) contactId = "";
+      if (!$(id).value.trim()) {
+        contactId = ""; contactName = "";
+        $("project-pane-contact-phone").value = ""; $("project-pane-contact-email").value = "";
+      }
       contactPopupRequested = true;
       renderContacts();
     }
@@ -255,11 +294,24 @@
     } catch (error) { notice(error.message, true); }
     finally { busy(false); }
   });
+  $("project-contact-new").addEventListener("click",async()=>{
+    if (!selected || pending) return;
+    const target = selected; busy(true); dismissOptions(); dismissContactOptions();
+    try {
+      if (!window.ClassifireContacts?.createContact) throw new Error("Refresh the application before creating a Contact.");
+      const contact = await window.ClassifireContacts.createContact({name:$("project-pane-contact-name").value.trim(),...(accountId ? {account_id:accountId} : {})});
+      if (contact && selected === target) {
+        contacts = [...contacts.filter(value=>value.id !== contact.id),contact]; busy(false); chooseContact(contact);
+      }
+    } catch(error) { if(selected === target) notice(error.message,true); }
+    finally { busy(false); }
+  });
   window.CeasefireProjectPane = Object.freeze({
-    openCurrent, toggle: file => !pane.hidden && selected?.file?.id === file.id ? leave() : open(file), refreshToggles, leave,
-    hasUnsavedChanges:dirty, hasPendingOperation:() => pending, fingerprint:() => selected ? JSON.stringify({id:selected.file?.id,context:selected.context,values:details()}) : "",
+    openCurrent,openNew, toggle: file => !pane.hidden && selected?.file?.id === file.id ? leave() : open(file), refreshToggles, leave,
+    hasUnsavedChanges:dirty, hasPendingOperation:() => pending || !!selected?.creation?.uncertain, fingerprint:() => selected ? JSON.stringify({id:selected.file?.id,context:selected.context,values:details()}) : "",
     async beforeProjectSave() {
       if (pending) throw new Error("Finish the current project details action before saving.");
+      if (selected?.kind === "new") throw new Error("Save or cancel the new project details first.");
       const active = snapshot();
       if (currentRule?.context === active.context && active.details.client && active.details.client !== currentRule.baseline.client && (active.details.account_id !== currentRule.account?.id || active.details.client !== currentRule.account?.company)) throw new Error("Choose an existing Account for this client, or use + to create an Account in Current project details.");
       if (selected?.kind === "current") validateClient();

@@ -2985,5 +2985,20 @@
   "Choose whether to include the complete scope tables.": "منتخب کریں کہ آیا کام کے دائرے کی مکمل جدولیں شامل کرنی ہیں۔",
   "Create or load a project before creating documents.": "دستاویزات بنانے سے پہلے منصوبہ بنائیں یا لوڈ کریں۔",
   "The project was saved, but its document workspace changed. Reload the saved project before creating documents.": "منصوبہ محفوظ ہو گیا، لیکن اس کی دستاویزات کی ورک اسپیس تبدیل ہو گئی۔ دستاویزات بنانے سے پہلے محفوظ شدہ منصوبہ دوبارہ لوڈ کریں۔",
-  "Choose a valid linked estimate preview.": "منسلک تخمینے کا درست پیش منظر منتخب کریں۔"
+  "Choose a valid linked estimate preview.": "منسلک تخمینے کا درست پیش منظر منتخب کریں۔",
+  "Save project": "منصوبہ محفوظ کریں",
+  "Refresh the application before creating a Contact.": "رابطہ بنانے سے پہلے ایپ کو تازہ کریں۔",
+  "Save or cancel the new project details first.": "پہلے نئے منصوبے کی تفصیلات محفوظ یا منسوخ کریں۔",
+  "The current project changed. Open New Project again.": "موجودہ منصوبہ بدل گیا ہے۔ نیا منصوبہ دوبارہ کھولیں۔",
+  "Your draft changed during review. Your current project was kept.": "جائزے کے دوران آپ کا مسودہ بدل گیا۔ آپ کا موجودہ منصوبہ برقرار رکھا گیا ہے۔",
+  "Your draft changed while preparing the new project. Your current project was kept.": "نیا منصوبہ تیار کرتے وقت آپ کا مسودہ بدل گیا۔ آپ کا موجودہ منصوبہ برقرار رکھا گیا ہے۔",
+  "The new project was saved. Your current draft was kept; open the saved project from Projects.": "نیا منصوبہ محفوظ ہو گیا۔ آپ کا موجودہ مسودہ برقرار رکھا گیا ہے؛ محفوظ منصوبہ منصوبوں سے کھولیں۔",
+  "The project save result could not be confirmed. Retry Save to recover it.": "منصوبہ محفوظ ہونے کے نتیجے کی تصدیق نہیں ہو سکی۔ نتیجہ حاصل کرنے کے لیے دوبارہ محفوظ کریں۔",
+  "Choose a valid Account.": "گاہک کا درست کھاتہ منتخب کریں۔",
+  "Convert lead {0}": "ممکنہ گاہک {0} کو تبدیل کریں",
+  "No matching Accounts. You can enter a company name.": "گاہک کا کوئی مماثل کھاتہ نہیں ملا۔ آپ کمپنی کا نام درج کر سکتے ہیں۔",
+  "No matching Contacts. You can enter a name.": "کوئی مماثل رابطہ نہیں ملا۔ آپ نام درج کر سکتے ہیں۔",
+  "This Contact already has a lead. Open that lead instead.": "اس رابطے کا ممکنہ گاہک کا ریکارڈ پہلے سے موجود ہے۔ وہی ریکارڈ کھولیں۔",
+  "Choose the Account matching this company.": "اس کمپنی سے ملتا ہوا گاہک کا کھاتہ منتخب کریں۔",
+  "New Contact": "نیا رابطہ"
 }

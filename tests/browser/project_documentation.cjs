@@ -1,7 +1,7 @@
 const {fillProjectDetails}=require('./project_actions.cjs');
 // Real authored exports and portable current-project history on private storage.
 const {chromium,expect}=require('@playwright/test');
-const {openProjectSection,clickProjectControl}=require('./project_actions.cjs');
+const {openProjectSection,clickProjectControl,createNewProject}=require('./project_actions.cjs');
 const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),{createHash}=require('node:crypto');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`project-documentation-${Date.now()}`);
@@ -121,12 +121,13 @@ function checkCompanions(project,folder){
   const copiedHash=digest(fs.readFileSync(copyPath));const moved=path.join(output,'moved');fs.renameSync(path.join(output,'portable'),moved);checkCompanions(copied,moved);assert.equal(digest(fs.readFileSync(info.project)),originalHash);
   checks.push('Native Save and Save As publish exact hash-verified document/certificate companions, portable together to another folder');
 
-  await openProjectSection(page,'quotes');await page.locator('#new-quote').click();await confirmIfNeeded();await expect(page.locator('#client')).toHaveValue('',{timeout:180000});await idle();await documentation();
+  choose('project-b.cf.json');await createNewProject(page);await expect(page.locator('#client')).toHaveValue('',{timeout:180000});await idle();await documentation();
   const b=await page.evaluate(()=>window.CeasefireCertification.sessionId());assert.notEqual(b,a);await expect(page.locator('#documentation-pdf-rows a,#documentation-xlsx-rows a')).toHaveCount(0);
   await expect(page.locator('#documentation-revisions-pane')).toBeHidden();await expect(page.locator('#documentation-revisions-list a')).toHaveCount(0);
   assert.deepEqual((await api('/api/documentation?workspace='+b)).items,[]);
   for(const item of historyA.items){const foreign=await page.request.get(base+'/api/documentation/'+item.id+'?workspace='+b);assert.equal(foreign.status(),404);}
   await openProjectSection(page,'certification');await expect(page.locator(`#certification-document option[value="${certificateId}"]`)).toHaveCount(0);
+  await page.locator('#certification-client').fill('Unsaved synthetic Project B certificate draft');
   checks.push('New Project B starts empty and cannot read any Project A document or certificate through its own scope');
   await load('moved/project-copy.cf.json');await expect(page.locator('#client')).toHaveValue('SYNTHETIC DOCUMENTATION QA');await documentation();
   const restored=await page.evaluate(()=>window.CeasefireCertification.sessionId());assert.notEqual(restored,a);assert.notEqual(restored,b);

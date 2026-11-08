@@ -39,8 +39,13 @@
   .commercial-rate-grid { grid-template-columns:repeat(7,minmax(0,1fr)); }
   .commercial-rate-grid>.field>span:first-child { min-height:30px; }
 }
-.commercial-estimate-picker { border:1px solid var(--line); border-radius:10px; padding:12px; }
-.commercial-estimate-options { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin-top:14px; }
+.commercial-estimate-controls { display:grid; grid-template-columns:36px minmax(0,1fr); gap:10px; align-items:start; }
+.commercial-estimate-controls>.commercial-add-custom-row { width:36px; min-width:36px; height:36px; min-height:36px; margin-top:3px; padding:0; border-radius:8px; }
+.commercial-add-custom-row .button-symbol { font-size:20px; line-height:1; }
+.commercial-estimate-picker { min-width:0; }
+.commercial-estimate-picker>summary { width:261px; max-width:100%; box-sizing:border-box; min-height:42px; padding:10px 12px; line-height:20px; cursor:pointer; list-style-position:inside; }
+.commercial-estimate-options { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:12px; margin-top:12px; padding:12px; border:1px solid var(--line); border-radius:10px; }
+.commercial-estimate-options .commercial-check,.commercial-estimate-options .commercial-check>span { min-width:0; overflow-wrap:anywhere; }
 .commercial-lines table,.commercial-scope table { width:100%; border-collapse:collapse; }
 .commercial-lines table { min-width:720px; }
 .commercial-lines th,.commercial-scope th { text-align:left; }

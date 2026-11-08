@@ -1,0 +1,107 @@
+{
+  "Save project": [
+    "保存项目",
+    "परियोजना सहेजें",
+    "Guardar proyecto",
+    "حفظ المشروع",
+    "บันทึกโครงการ"
+  ],
+  "Refresh the application before creating a Contact.": [
+    "请先刷新应用，再创建联系人。",
+    "संपर्क बनाने से पहले ऐप रीफ़्रेश करें।",
+    "Actualice la aplicación antes de crear un contacto.",
+    "حدّث التطبيق قبل إنشاء جهة اتصال.",
+    "รีเฟรชแอปก่อนสร้างผู้ติดต่อ"
+  ],
+  "Save or cancel the new project details first.": [
+    "请先保存或取消新项目详情。",
+    "पहले नई परियोजना का विवरण सहेजें या रद्द करें।",
+    "Primero guarde o cancele los datos del nuevo proyecto.",
+    "احفظ تفاصيل المشروع الجديد أو ألغها أولاً.",
+    "บันทึกหรือยกเลิกรายละเอียดโครงการใหม่ก่อน"
+  ],
+  "The current project changed. Open New Project again.": [
+    "当前项目已更改。请重新打开“新项目”。",
+    "वर्तमान परियोजना बदल गई है। नई परियोजना फिर खोलें।",
+    "El proyecto actual ha cambiado. Abra Nuevo proyecto de nuevo.",
+    "تغيّر المشروع الحالي. افتح «مشروع جديد» مرة أخرى.",
+    "โครงการปัจจุบันเปลี่ยนแปลงแล้ว เปิดโครงการใหม่อีกครั้ง"
+  ],
+  "Your draft changed during review. Your current project was kept.": [
+    "审核期间草稿已更改。已保留当前项目。",
+    "समीक्षा के दौरान आपका मसौदा बदल गया। आपकी वर्तमान परियोजना सुरक्षित रखी गई है।",
+    "Su borrador cambió durante la revisión. Se conservó el proyecto actual.",
+    "تغيّرت مسودتك أثناء المراجعة. تم الاحتفاظ بمشروعك الحالي.",
+    "ฉบับร่างเปลี่ยนแปลงระหว่างการตรวจทาน โครงการปัจจุบันของคุณยังคงอยู่"
+  ],
+  "Your draft changed while preparing the new project. Your current project was kept.": [
+    "准备新项目时草稿已更改。已保留当前项目。",
+    "नई परियोजना तैयार करते समय आपका मसौदा बदल गया। आपकी वर्तमान परियोजना सुरक्षित रखी गई है।",
+    "Su borrador cambió mientras se preparaba el nuevo proyecto. Se conservó el proyecto actual.",
+    "تغيّرت مسودتك أثناء إعداد المشروع الجديد. تم الاحتفاظ بمشروعك الحالي.",
+    "ฉบับร่างเปลี่ยนแปลงขณะเตรียมโครงการใหม่ โครงการปัจจุบันของคุณยังคงอยู่"
+  ],
+  "The new project was saved. Your current draft was kept; open the saved project from Projects.": [
+    "新项目已保存。已保留当前草稿；请从“项目”打开已保存的项目。",
+    "नई परियोजना सहेज दी गई। आपका वर्तमान मसौदा सुरक्षित रखा गया है; सहेजी गई परियोजना को परियोजनाएँ से खोलें।",
+    "El nuevo proyecto se guardó. Se conservó su borrador actual; abra el proyecto guardado desde Proyectos.",
+    "تم حفظ المشروع الجديد. تم الاحتفاظ بمسودتك الحالية؛ افتح المشروع المحفوظ من «المشاريع».",
+    "บันทึกโครงการใหม่แล้ว ฉบับร่างปัจจุบันของคุณยังคงอยู่ เปิดโครงการที่บันทึกไว้จากโครงการ"
+  ],
+  "The project save result could not be confirmed. Retry Save to recover it.": [
+    "无法确认项目保存结果。请重试“保存”以恢复结果。",
+    "परियोजना सहेजने के परिणाम की पुष्टि नहीं हो सकी। परिणाम प्राप्त करने के लिए सहेजें फिर आज़माएँ।",
+    "No se pudo confirmar el resultado de guardar el proyecto. Pulse Guardar de nuevo para recuperar el resultado.",
+    "تعذّر تأكيد نتيجة حفظ المشروع. أعد محاولة الحفظ لاستعادة النتيجة.",
+    "ไม่สามารถยืนยันผลการบันทึกโครงการได้ กดบันทึกอีกครั้งเพื่อกู้คืนผลลัพธ์"
+  ],
+  "Choose a valid Account.": [
+    "请选择有效的客户账户。",
+    "मान्य ग्राहक खाता चुनें।",
+    "Seleccione una cuenta de cliente válida.",
+    "اختر حساب عميل صالحاً.",
+    "เลือกบัญชีลูกค้าที่ถูกต้อง"
+  ],
+  "Convert lead {0}": [
+    "转换潜在客户{0}",
+    "संभावित ग्राहक {0} को बदलें",
+    "Convertir cliente potencial {0}",
+    "تحويل العميل المحتمل {0}",
+    "แปลงลูกค้ามุ่งหวัง {0}"
+  ],
+  "No matching Accounts. You can enter a company name.": [
+    "没有匹配的客户账户。您可以输入公司名称。",
+    "कोई मेल खाता ग्राहक खाता नहीं मिला। आप कंपनी का नाम दर्ज कर सकते हैं।",
+    "No hay cuentas de clientes coincidentes. Puede introducir un nombre de empresa.",
+    "لا توجد حسابات عملاء مطابقة. يمكنك إدخال اسم شركة.",
+    "ไม่มีบัญชีลูกค้าที่ตรงกัน คุณสามารถป้อนชื่อบริษัทได้"
+  ],
+  "No matching Contacts. You can enter a name.": [
+    "没有匹配的联系人。您可以输入姓名。",
+    "कोई मेल खाता संपर्क नहीं मिला। आप नाम दर्ज कर सकते हैं।",
+    "No hay contactos coincidentes. Puede introducir un nombre.",
+    "لا توجد جهات اتصال مطابقة. يمكنك إدخال اسم.",
+    "ไม่มีผู้ติดต่อที่ตรงกัน คุณสามารถป้อนชื่อได้"
+  ],
+  "This Contact already has a lead. Open that lead instead.": [
+    "此联系人已有潜在客户记录。请打开该记录。",
+    "इस संपर्क के लिए पहले से संभावित ग्राहक रिकॉर्ड है। उसी रिकॉर्ड को खोलें।",
+    "Este contacto ya tiene un registro de cliente potencial. Abra ese registro.",
+    "يوجد عميل محتمل مرتبط بجهة الاتصال هذه بالفعل. افتح سجله الحالي بدلاً من ذلك.",
+    "ผู้ติดต่อนี้มีข้อมูลลูกค้ามุ่งหวังอยู่แล้ว ให้เปิดข้อมูลนั้นแทน"
+  ],
+  "Choose the Account matching this company.": [
+    "请选择与此公司匹配的客户账户。",
+    "इस कंपनी से मेल खाने वाला ग्राहक खाता चुनें।",
+    "Seleccione la cuenta de cliente correspondiente a esta empresa.",
+    "اختر حساب العميل المطابق لهذه الشركة.",
+    "เลือกบัญชีลูกค้าที่ตรงกับบริษัทนี้"
+  ],
+  "New Contact": [
+    "新建联系人",
+    "नया संपर्क",
+    "Nuevo contacto",
+    "جهة اتصال جديدة",
+    "ผู้ติดต่อใหม่"
+  ]
+}

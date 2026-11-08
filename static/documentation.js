@@ -10,6 +10,10 @@
     refreshRevision:0, action:null, uncertain:false, pending:new Map(), sources:new Map(), revisions:null };
   const revisionButtons = new Map();
   const captures = new WeakMap();
+  const projectAvailable = () => Boolean(window.CeasefireProject?.hasCreatedProject?.());
+  function requireProject() {
+    if(!projectAvailable())throw new Error('Create or load a project before creating documents.');
+  }
   function text(element, value, args = []) {
     if (window.CeasefireI18n) return window.CeasefireI18n.text(element,value,args);
     element.textContent=String(value).replace(/\{(\d+)\}/g,(match,index)=>args[index] ?? match); return element;
@@ -172,6 +176,7 @@
     renderRevisions();
   }
   async function run(row,button) {
+    try{requireProject();}catch(error){status(error.message,true);return;}
     if(state.action||hasPendingOperation())return;
     const scope=await ensureWorkspace(),epoch=state.epoch;
     if(state.action||state.pending.size||!current(scope,epoch))return;
@@ -193,7 +198,7 @@
     } catch(error) {if(current(scope,epoch))status(error.message,true);}
     finally {if(epoch===state.epoch){state.action=null;button.removeAttribute('aria-busy');render();}}
   }
-  async function open() {await catalog();await ensureWorkspace();await refresh();render();}
+  async function open() {requireProject();await catalog();await ensureWorkspace();await refresh();requireProject();render();}
   async function prepareProject(manifest,workspaceId) {
     if(!workspaceId) return null;
     if(!UUID.test(workspaceId))throw new Error("The current project document workspace is invalid.");
@@ -228,7 +233,9 @@
       ||/^\/api\/takeoffs\/sessions\/[a-z0-9-]+\/(?:physical\/export\/(?:pdf|xlsx|register-xlsx)|export\/(?:xlsx|register-xlsx|schedule-xlsx|markup-pdf|marked-pdf)|pdf-tools)$/.test(path);
   }
   async function downloadHeaders(path) {
-    if(!supported(path))return {};
+    // Standalone tools can export without adding a revision to an unsaved
+    // project. Documentation and its history require an actual saved owner.
+    if(!supported(path)||!projectAvailable())return {};
     const epoch=state.epoch,scope=await ensureWorkspace();
     if(!current(scope,epoch))throw new Error("The project changed while preparing the document.");
     const id=crypto.randomUUID();state.pending.set(id,{scope,epoch});

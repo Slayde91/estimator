@@ -13,6 +13,7 @@ from openpyxl import load_workbook
 
 from estimator.company_settings import DEFAULTS
 from estimator.documentation_catalog import document_catalog, export_identity
+from estimator.native_dialogs import SaveSelection
 import test_certification_http as helpers
 from test_certification_http import cover, pdf, texts
 from estimator.pricing_workbook import COMBINED_SHEET
@@ -27,7 +28,7 @@ class DocumentationHTTPTests(unittest.TestCase):
     created_workspace = helpers.CertificationHTTPTests.created_workspace
 
     def workspace(self):
-        return self.json('POST','/api/certifications/workspaces',{},expected=201)['workspace_id']
+        return self.created_workspace()['workspace_id']
 
     def headers(self, workspace, operation=None):
         return {'X-Estimator-Documentation-Workspace':workspace,
@@ -35,6 +36,25 @@ class DocumentationHTTPTests(unittest.TestCase):
 
     def retained(self, workspace):
         return self.json('GET','/api/documentation?workspace='+workspace)
+
+    def test_new_history_requires_a_native_saved_project_without_blocking_initial_capture(self):
+        workspace = self.json('POST', '/api/certifications/workspaces', {}, expected=201)['workspace_id']
+        self.assertEqual(self.retained(workspace)['items'], [])
+        operation = str(uuid.uuid4())
+        body = {'inputs': {}}
+        with patch('estimator.report.render_quote_pdf') as render:
+            status, _, payload = self.request('POST', '/api/quote-report', body, self.headers(workspace, operation))
+            self.assertEqual(status, 400, payload)
+            self.assertIn('Create or load a project', json.loads(payload)['error'])
+            render.assert_not_called()
+        self.assertEqual(self.retained(workspace)['workspace_revision'], 0)
+        self.chooser.selection = SaveSelection(str(Path(self.temp.name) / 'Created project.cf.json'), None)
+        self.json('POST', '/api/project/save-as', {'estimate': {'title': 'Created project'},
+            'certifications': {'workspace_id': workspace, 'draft': None}})
+        with patch('estimator.report.render_quote_pdf', return_value=pdf('SAVED PROJECT')):
+            status, _, content = self.request('POST', '/api/quote-report', body, self.headers(workspace, operation))
+            self.assertEqual(status, 200, content)
+        self.assertEqual(self.retained(workspace)['workspace_revision'], 1)
 
     def test_catalog_and_explicit_scope_exclude_unrelated_global_certificates(self):
         self.legacy_certificate(self.fields)
@@ -86,7 +106,9 @@ class DocumentationHTTPTests(unittest.TestCase):
         self.assertEqual([value.strip() for value in texts(payload)],['ORIGINAL MAIN','ORIGINAL SPECIFIC','ORIGINAL BODY'])
         first=self.retained(workspace)['items'][0]
         self.json('POST','/api/company-settings',{**DEFAULTS,'cover_pdf':cover('CHANGED MAIN'),'cover_pdf_name':'New.pdf'})
-        with patch('estimator.report.render_quote_pdf',side_effect=AssertionError('An exact replay must not render again.')):
+        with patch('estimator.report.render_quote_pdf',side_effect=AssertionError('An exact replay must not render again.')), \
+                patch('estimator.certification_projects.CertificationProjects.require_created_project',
+                      side_effect=AssertionError('A retained receipt must be recoverable without a new creation.')):
             status,_,replayed=self.request('POST','/api/quote-report',body,self.headers(workspace,operation))
         self.assertEqual(status,200,replayed)
         self.assertEqual(replayed,payload)

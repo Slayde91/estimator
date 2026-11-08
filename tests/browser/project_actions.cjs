@@ -41,7 +41,7 @@ async function clickProjectControl(page, name) {
   await page.locator('.project-workspace-actions').getByRole('button', { name, exact: true }).click();
   // Do not wait for a save response here: failure/held-response tests deliberately
   // test the UI before a response exists. Load keeps its review dialog in place.
-  if (name !== 'Load' && previous && previous !== 'quotes') {
+  if (!['Load','New'].includes(name) && previous && previous !== 'quotes') {
     if (['certification', 'documentation'].includes(previous)) {
       await openProjectSection(page, previous);
     } else if (previous === 'projects') {
@@ -50,6 +50,33 @@ async function clickProjectControl(page, name) {
       await expect(page.locator('#view-projects')).toBeVisible();
     } else await page.locator('.nav-button[data-view="' + previous + '"]').click();
   }
+}
+
+// This helper explicitly creates a real numbered Project. Callers testing
+// cancellation use clickProjectControl('New') and operate its modal directly.
+async function createNewProject(page, values = {}) {
+  await clickProjectControl(page,'New');
+  const modal=page.locator('#project-new-dialog');await expect(modal).toBeVisible();
+  if(values.client){
+    const input=page.locator('#project-pane-client');await input.fill(values.client);
+    const directory=await(await page.request.get(new URL('/api/contacts/directory',page.url()).href)).json();
+    if(directory.accounts.some(account=>account.company===values.client)){
+      await input.blur();await input.focus();await page.locator('#project-account-options').getByRole('option',{name:values.client,exact:true}).click();
+    }else{
+      await page.locator('#project-account-new').click();const account=page.getByRole('dialog',{name:'New Account',exact:true});
+      await account.getByLabel('Company',{exact:true}).fill(values.client);await account.getByRole('button',{name:'Save',exact:true}).click();await expect(account).toBeHidden();
+    }
+  }
+  if(values['site-address'])await page.locator('#project-pane-address').fill(values['site-address']);
+  const response=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/project/save-as');
+  await page.locator('#project-details-save').click();
+  const review=page.locator('#discard-dialog');
+  await Promise.race([review.waitFor({state:'visible'}),response]);
+  if(await review.isVisible())await review.getByRole('button',{name:'New project',exact:true}).click();
+  const reply=await response;if(reply.status()!==200)throw Error(await reply.text());
+  const result=await reply.json();if(result.cancelled)throw Error('Fixture Project creation was cancelled');
+  await expect(modal).toBeHidden();await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready&&!window.CeasefireDesktop.status().busy);
+  return result;
 }
 
 async function fillProjectDetails(page, values, {waitForIdle = true} = {}) {
@@ -87,4 +114,4 @@ async function fillProjectDetails(page, values, {waitForIdle = true} = {}) {
   if (waitForIdle) await page.waitForFunction(() => { const state = window.CeasefireDesktop?.status(); return state?.ready && !state.busy; });
 }
 
-module.exports = { clickProjectControl, openProjectTools, openProjectSection, fillProjectDetails };
+module.exports = { clickProjectControl, openProjectTools, openProjectSection, fillProjectDetails,createNewProject };

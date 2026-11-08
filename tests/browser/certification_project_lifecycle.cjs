@@ -2,7 +2,7 @@ const {fillProjectDetails}=require('./project_actions.cjs');
 // Disposable project-only certificate and portable Save/New/Load coverage.
 // Existing global history is a read-only negative control. No PDF is generated.
 const {chromium,expect}=require('@playwright/test');
-const {openProjectSection}=require('./project_actions.cjs');
+const {openProjectSection,createNewProject}=require('./project_actions.cjs');
 const {spawn,spawnSync}=require('node:child_process'),{createHash}=require('node:crypto');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`certification-project-${Date.now()}`);
@@ -62,11 +62,17 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   await page.locator('#save-current-project').click();await expect(page.locator('#project-save-state')).toHaveText('Saved project',{timeout:120000});await idle();
   const projectBytes=fs.readFileSync(info.project),project=JSON.parse(projectBytes);assert.equal(project.certifications.document_count,1);assert.equal(project.certifications.revision_count,0);
   const companion=path.join(path.dirname(info.project),project.certifications.companion_folder,project.certifications.archive_sha256+'.zip');assert.ok(fs.existsSync(companion));assert.equal(digest(fs.readFileSync(companion)),project.certifications.archive_sha256);
-  await projects();await page.locator('#new-quote').click();const confirm=page.locator('#discard-dialog');if(await confirm.isVisible())await continueDiscard();
-  await expect(page.locator('#client')).toHaveValue('',{timeout:120000});await idle();await certification();
+  await projects();
+  const directory=await(await page.request.get(base+'/api/contacts/directory')).json();
+  const account=await page.request.post(base+'/api/contacts/accounts',{data:{version:directory.version,fields:{company:'PROJECT B CLIENT'}}});assert.equal(account.status(),200);
+  const saveTarget=path.join(info.directory,'save-dialog-target.json');fs.writeFileSync(saveTarget,JSON.stringify({file:'project-b.cf.json'}));
+  try{await createNewProject(page,{client:'PROJECT B CLIENT','site-address':'Project B fixture address'});}finally{fs.unlinkSync(saveTarget);}
+  assert.deepEqual(fs.readFileSync(info.project),projectBytes,'New Project saves to a distinct fixture destination');
+  await expect(page.locator('#client')).toHaveValue('PROJECT B CLIENT',{timeout:120000});await idle();await certification();
   assert.notEqual(await page.evaluate(()=>window.CeasefireCertification.sessionId()),tokenA);await expect(page.locator(`#certification-document option[value="${documentId}"]`)).toHaveCount(0);await expect(page.locator(`#certification-document option[value="${original.id}"]`)).toHaveCount(0);
   await expect(page.locator('#certification-signature-preview')).toBeHidden();
   assert.equal((await (await fetch(base+'/api/certifications/defaults')).json()).signature_image,null);
+  await page.locator('#certification-location_area').fill('Discard this Project B draft before loading Project A');
   await projects();await page.locator('#load-project').click();await expect(page.locator('#discard-dialog')).toBeVisible({timeout:120000});await continueDiscard();
   await expect(page.locator('#client')).toHaveValue('PROJECT A CLIENT',{timeout:120000});await idle();await certification();
   const restoredToken=await page.evaluate(()=>window.CeasefireCertification.sessionId());assert.notEqual(restoredToken,tokenA);

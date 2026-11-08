@@ -3,7 +3,7 @@
 const {chromium,expect}=require('@playwright/test');
 const {spawn,spawnSync}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-const {openProjectSection}=require('./project_actions.cjs');
+const {openProjectSection,createNewProject}=require('./project_actions.cjs');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`settings-polish-${Date.now()}`);
 fs.mkdirSync(output,{recursive:true});
 const python=process.env.CEASEFIRE_PYTHON||'python';
@@ -55,6 +55,8 @@ async function idle(){await page.waitForFunction(()=>{const status=window.Ceasef
     await page.locator('#theme-toggle').click();
   }
   checks.push('Red Save button in all five themes');
+  await createNewProject(page,{client:'SYNTHETIC SETTINGS REVIEW'});
+  assert.equal(await page.evaluate(()=>window.CeasefireProject.hasCreatedProject()),true);
   await openProjectSection(page,'documentation');
   const covered=page.locator('#documentation-pdf-rows tr[data-cover-kind]');
   await expect(covered).toHaveCount(labels.length);

@@ -5,7 +5,7 @@ const {spawn} = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
-const {clickProjectControl, fillProjectDetails, openProjectSection} = require('./project_actions.cjs');
+const {clickProjectControl, fillProjectDetails, openProjectSection, createNewProject} = require('./project_actions.cjs');
 const root = path.resolve(__dirname, '../..');
 const output = path.join(root, '.runtime/browser-qa', `commercial-rate-defaults-${Date.now()}`);
 fs.mkdirSync(output, {recursive:true});
@@ -167,14 +167,11 @@ async function discardQuote(host) {
   checks.push('discarded document edits keep shared defaults; existing saved snapshot remains unchanged and new draft uses all seven defaults');
 
   await openProjectSection(page,'quotes');
-  await page.locator('.project-workspace-actions').getByRole('button',{name:'New',exact:true}).click();
-  const prompt=page.locator('#discard-dialog');
-  await page.waitForFunction(() => document.querySelector('#discard-dialog').open || window.CeasefireProject.context().project_path===null);
-  if (await prompt.isVisible()) await prompt.getByRole('button',{name:'New project',exact:true}).click();
-  await idle();
-  assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),null);
-  const newSaved=page.waitForResponse(response=>response.url().endsWith('/api/project/save-as'));
-  await clickProjectControl(page,'Save'); assert.equal((await newSaved).status(),200); await idle();
+  const saveTarget=path.join(info.directory,'save-dialog-target.json'),newProject=path.join(info.directory,'rate-defaults-new-project.cf.json');
+  fs.writeFileSync(saveTarget,JSON.stringify({file:path.basename(newProject)}));
+  try{await createNewProject(page);}finally{fs.unlinkSync(saveTarget);}
+  assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),newProject);
+  assert.equal(fs.readFileSync(info.project,'utf8'),originalFile,'New Project preserves the original protected quote file');
   await page.getByRole('button',{name:'Estimates',exact:true}).click();
   await page.locator('#project-estimate-quote').click();
   await expect(ordinary).toHaveValue('142'); await expect(quote.getByLabel('Time and a half',{exact:true})).toHaveValue('177');

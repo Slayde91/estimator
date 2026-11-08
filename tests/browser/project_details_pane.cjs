@@ -45,6 +45,16 @@ const ready = new Promise((resolve,reject)=>{
   response=saved();await page.locator('#project-details-save').click();assert.equal((await response).status(),200);await idle();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   assert.equal((await page.evaluate(()=>window.CeasefireProject.details())).contact_name,'Updated Alpha Person');
+  // A confirmed Account change in the active saved pane rebases the Current
+  // opener's old validation baseline and remains valid for the next main Save.
+  await page.locator('#project-pane-client').fill('Pane Gamma Account');await page.locator('#project-account-new').click();
+  const activeAccount=page.getByRole('dialog',{name:'New Account',exact:true});
+  await activeAccount.getByRole('button',{name:'Save',exact:true}).click();await expect(activeAccount).not.toBeVisible();
+  response=saved();await page.locator('#project-details-save').click();const activeMetadata=await response;assert.equal(activeMetadata.status(),200,await activeMetadata.text());await idle();
+  assert.equal((await page.evaluate(()=>window.CeasefireProject.details())).client,'Pane Gamma Account');
+  response=page.waitForResponse(r=>r.url().endsWith('/api/project/save'));
+  await page.locator('#save-current-project').click();const afterMetadataSave=await response;assert.equal(afterMetadataSave.status(),200,await afterMetadataSave.text());await idle();
+  await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   await toggle(first).click();await expect(page.locator('#project-details-pane')).toBeHidden();await expect(toggle(first)).toHaveText('<');
   // Editing another file cannot replace the open estimate or its unsaved notes.
   await page.locator('.nav-button[data-view="estimate"]').click();await page.locator('#measurements').fill('Unsaved active estimate note');
@@ -115,6 +125,6 @@ const ready = new Promise((resolve,reject)=>{
   assert.deepEqual(fs.readFileSync(info.project),externalBytes);
   assert.equal((await page.evaluate(()=>window.CeasefireProject.projectPaneSnapshot())).file.save_token,active.file.save_token);
   assert.equal(calls.length,0);assert.deepEqual(errors,[]);
-  fs.writeFileSync(path.join(output,'evidence.json'),JSON.stringify({checks:['clean active metadata save','dirty active draft preserved','other file only updated','canonical account search and popup','conditional failure retains edit','Cancel and Yes discard review','desktop and mobile geometry','stale active workspace cannot acquire capability or overwrite external edits','blocked pane recovers current inputs'],geometry,errors},null,2));
+  fs.writeFileSync(path.join(output,'evidence.json'),JSON.stringify({checks:['clean active metadata save','active metadata Account change remains valid for main Save','dirty active draft preserved','other file only updated','canonical account search and popup','conditional failure retains edit','Cancel and Yes discard review','desktop and mobile geometry','stale active workspace cannot acquire capability or overwrite external edits','blocked pane recovers current inputs'],geometry,errors},null,2));
   console.log('Project details pane browser checks passed: '+output);
 })().catch(error=>{console.error(error);console.error(logs);process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

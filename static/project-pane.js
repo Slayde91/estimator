@@ -100,6 +100,11 @@
     try { window.CeasefireProject.applyProjectPaneDraft(details(), selected.context); }
     catch (error) { notice(error.message, true); }
   }
+  function rebaseCurrentRule(savedDetails) {
+    const active = snapshot(), account = currentRule?.context === active.context ? currentRule.account : null;
+    currentRule = {context:active.context,baseline:normalize({...savedDetails,project_no:active.details.project_no})};
+    if (account?.id === active.details.account_id && account?.company === active.details.client) currentRule.account = account;
+  }
   async function save() {
     if (!selected || pending || selected.blocked) return;
     if (selected.kind === "current") { validateClient(); return; }
@@ -111,7 +116,7 @@
     busy(true); dismissOptions(); notice("Saving project details…");
     try {
       const result = await request("/api/projects/details/save", {id:target.file.id,revision:target.revision,details:value,request_id:target.requestId});
-      window.CeasefireProject.applyProjectPaneSaved(active, result, target.revision);
+      if (window.CeasefireProject.applyProjectPaneSaved(active, result, target.revision)) rebaseCurrentRule(result.details);
       target.file = {...target.file,...result.file,id:result.id || target.file.id};
       target.revision = result.revision; target.baseline = normalize(result.details); target.activeAtOpen = sharedStamp(snapshot().details) === sharedStamp(value) ? snapshot() : active; target.requestId = crypto.randomUUID(); target.requestPayload = null;
       show(target.baseline, result.file?.title || target.file.title || translate("Project"));
@@ -192,9 +197,7 @@
       else if (dirty() && snapshot().file?.path === selected.file.path) await save();
     },
     projectSaved(savedDetails) {
-      const active = snapshot(), account = currentRule?.context === active.context ? currentRule.account : null;
-      currentRule = {context:active.context,baseline:normalize(savedDetails || active.details)};
-      if (account?.id === active.details.account_id && account?.company === active.details.client) currentRule.account = account;
+      const active = snapshot(); rebaseCurrentRule(savedDetails || active.details);
       if (selected?.kind === "current" && selected.context === active.context) { selected.baseline = currentRule.baseline; show(normalize(active.details),active.file?.title || translate("Project")); }
       else if (selected?.kind === "saved" && selected.file.path === active.file?.path) {
         selected.file = {...selected.file,...active.file}; selected.revision = active.file.revision;

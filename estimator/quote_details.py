@@ -36,11 +36,12 @@ def validate_quote_details(data, previous=None):
         value = data[key] if key in data else previous.get(key, "")
         if not isinstance(value, str) or len(value) > maximum:
             raise ValidationError(f"{_DETAIL_LABELS[key]} must be text of at most {maximum} characters.")
-        if any(unicodedata.category(character) in {"Cc", "Cs"} and not (key == "billing_address" and character in "\r\n\t") for character in value):
-            if key == "billing_address":
-                raise ValidationError("Billing address contains unsupported control characters.")
+        multiline = key in {"billing_address", "site_address"}
+        if any(unicodedata.category(character) in {"Cc", "Cs"} and not (multiline and character in "\r\n\t") for character in value):
+            if multiline:
+                raise ValidationError(f"{_DETAIL_LABELS[key]} contains unsupported control characters.")
             raise ValidationError(f"{_DETAIL_LABELS[key]} cannot contain control characters or line breaks.")
-        details[key] = value.replace("\r\n", "\n").replace("\r", "\n").strip() if key == "billing_address" else value.strip()
+        details[key] = value.replace("\r\n", "\n").replace("\r", "\n").strip() if multiline else value.strip()
     if details["contact_email"] and not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", details["contact_email"]):
         raise ValidationError("Enter a valid contact email address.")
     for key, label in (("account_id", "Company"), ("contact_id", "Contact")):
@@ -57,7 +58,8 @@ def validate_quote_details(data, previous=None):
 def compose_quote_title(project_no="", client="", site_address="", fallback="Untitled quote"):
     """Join populated project/client/site fields using the requested '- ' format."""
     details = validate_quote_details({"project_no": project_no, "client": client, "site_address": site_address})
-    parts = [details[key] for key in ("project_no", "client", "site_address") if details[key]]
+    parts = [" ".join(details[key].split()) if key == "site_address" else details[key]
+             for key in ("project_no", "client", "site_address") if details[key]]
     if parts:
         return "- ".join(parts)
     return fallback.strip() if isinstance(fallback, str) and fallback.strip() else "Untitled quote"

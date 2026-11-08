@@ -321,6 +321,7 @@
         catch (error) { message(error.message, true); return false; }
         finally { state.busy = false; setDisabled(false); }
       }
+      if(state.dirty)discardProjectDetailEdits(editor);
       renderBoard();
       window.CeasefireProject?.changed?.();
       return true;
@@ -447,17 +448,47 @@
     return {project_no:details.project_no || "", client:details.client || "", site_address:details.site_address || "",
       contact:details.contact_name || "", phone:details.contact_phone || "", email:details.contact_email || ""};
   }
+  const projectDetailKeys={client:'client',contact:'contact_name',phone:'contact_phone',email:'contact_email',site_address:'site_address',
+    account_id:'account_id',contact_id:'contact_id',billing_address:'billing_address',abn_acn:'abn_acn'};
   function applyProjectDetails(fields, details) {
-    const overrides=new Set(fields.detail_overrides || []);
-    for(const [key,value] of Object.entries(details))if(!overrides.has(key))fields.details[key]=value;
+    // Legacy document-only overrides remain readable in saved snapshots. The
+    // editable document now follows its Project; issued PDF bytes stay intact.
+    Object.assign(fields.details,details);
+    delete fields.detail_overrides;
+  }
+  function refreshEditorProjectDetails() {
+    const editor=state.editor;if(!editor)return;
+    const lockedNumber=boundWorkOrderProjectNumber(editor);
+    applyProjectDetails(editor.document.fields,commercialProjectDetails(editor.source));
+    if(lockedNumber)editor.document.fields.details.project_no=lockedNumber;
+    root()?.querySelectorAll('[data-project-detail]').forEach(control=>control.value=editor.document.fields.details[control.dataset.projectDetail] || '');
+    editor.panels?.refreshProjectDetails(projectDetailsSnapshot(editor.source));
   }
   function editDocumentDetails(fields, values) {
-    const allowed=['client','contact','phone','email','site_address'];
-    const overrides=new Set(fields.detail_overrides || []);
-    for(const [key,value] of Object.entries(values))if(allowed.includes(key)){fields.details[key]=value;overrides.add(key);}
-    fields.detail_overrides=allowed.filter(key=>overrides.has(key));
-    root()?.querySelectorAll('[data-project-detail]').forEach(control=>control.value=fields.details[control.dataset.projectDetail] || '');
-    markDirty();
+    const editor=state.editor,previous=projectDetailsSnapshot(editor.source),patch={};
+    for(const [key,value] of Object.entries(values))if(projectDetailKeys[key])patch[projectDetailKeys[key]]=String(value ?? '').trim();
+    if(editor.source && !editor.source.file_id.startsWith('local-')) {
+      editor.source.projectDetails={...previous,...patch};
+      editor.source.projectUpdates={...editor.source.projectUpdates,...patch};
+    } else if(!editor.source) {
+      editor.projectBaseline ||= window.CeasefireProject.captureCommercialDetailsEdit();
+      editor.projectOriginal ||= {};
+      editor.projectApplied ||= {};
+      for(const key of Object.keys(patch))if(!Object.hasOwn(editor.projectOriginal,key))editor.projectOriginal[key]=previous[key] || '';
+      window.CeasefireProject.applyCommercialDetails(patch,editor.projectContext);
+      Object.assign(editor.projectApplied,patch);
+    } else {
+      // Historical unfiled records have no Project to edit.
+      for(const [key,value] of Object.entries(values))if(Object.hasOwn(fields.details,key))fields.details[key]=String(value ?? '').trim();
+      markDirty();return;
+    }
+    refreshEditorProjectDetails();markDirty();
+  }
+  function discardProjectDetailEdits(editor) {
+    if(editor?.source || !editor?.projectOriginal)return;
+    const current=projectDetailsSnapshot(),patch={};
+    for(const [key,value] of Object.entries(editor.projectOriginal))if(current[key]===editor.projectApplied[key])patch[key]=value;
+    if(Object.keys(patch).length)window.CeasefireProject.applyCommercialDetails(patch,editor.projectContext,editor.projectBaseline);
   }
   function boundWorkOrderProjectNumber(editor) {
     const doc=editor.document;
@@ -476,7 +507,7 @@
     {
       const details = commercialProjectDetails();
       const local = state.model.activeFileChanged ? [] : all.map(card => ({
-        ...card, fields: {...card.fields, details: {...card.fields.details, ...Object.fromEntries(Object.entries(details).filter(([key])=>!(card.fields.detail_overrides || []).includes(key)))}}
+        ...card, fields: {...card.fields, details: {...card.fields.details, ...details}}
       }));
       all = local.concat(state.savedCards.filter(card => card.kind === state.kind));
     }
@@ -812,6 +843,7 @@
     clearPricingPickers();
     state.editor = {
       document: copy(document),
+      projectContext:window.CeasefireProject?.runtimeContext?.(),
       source,
       linkedQuote,
       pendingIssue: null,
@@ -826,8 +858,8 @@
       form = node("div", "commercial-editor"),
       fields = state.editor.document.fields;
     const lockedNumber=boundWorkOrderProjectNumber(state.editor);
-    if (!source) {
-      applyProjectDetails(fields, commercialProjectDetails());
+    if (!source || !source.file_id.startsWith('local-')) {
+      applyProjectDetails(fields, commercialProjectDetails(source));
     }
     if (lockedNumber) fields.details.project_no = lockedNumber;
     const actions = node("div", "commercial-editor-actions");
@@ -839,7 +871,9 @@
     const details = node("section", "card commercial-details");
     details.append(node("h2", "", "Project details"));
     const detailField = (key, label) => {
-      const control = input(fields.details[key], value => fields.details[key] = value, key === "date" ? "date" : "text");
+      const control = key === 'site_address' ? textarea(fields.details[key],value=>fields.details[key]=value)
+        : input(fields.details[key], value => fields.details[key] = value, key === "date" ? "date" : "text");
+      if(key==='site_address'){control.rows=1;control.classList.add('commercial-project-address');}
       control.dataset.projectDetail=key;
       if (key !== "date") control.readOnly = true;
       return field(label, control);
@@ -1627,8 +1661,17 @@
       || operation.projectFingerprint!==JSON.stringify(projectDetailsSnapshot(operation.editor.source)))
       throw new Error("The Project details changed while saving. Reopen this document to use the current Project details.");
   }
+  function validateProjectDetailEdit(operation) {
+    if(operation.editor.source)return;
+    const details=operation.projectDetails,previous=operation.editor.projectOriginal;
+    const changed=previous && (Object.hasOwn(previous,'client') && details.client!==previous.client
+      || previous.account_id && !details.account_id);
+    if(changed && details.client && !details.account_id)
+      throw new Error("Choose an existing Company for this Client, or add a new Company.");
+  }
   async function persist(captured, explicitlySaved, operation) {
     assertDocumentOperation(operation);
+    validateProjectDetailEdit(operation);
     const {editor,workspace,projectDetails}=operation, document=editor.document;
     const lockedNumber=boundWorkOrderProjectNumber(editor);
     if(!editor.source)applyProjectDetails(document.fields,commercialProjectDetails());
@@ -1640,13 +1683,14 @@
       kind: document.kind,
       status: document.status,
       fields: document.fields,
-      ...(!editor.source ? {project_details:projectDetails} : {}),
+      ...(!editor.source ? {project_details:projectDetails} : editor.source.projectUpdates ? {project_updates:editor.source.projectUpdates} : {}),
       ...(explicitlySaved && !state.editor.source && !window.CeasefireProject.context().project_token ? {retain_unfiled:true} : {}),
       ...captured
     }, state.editor.source);
     assertDocumentOperation(operation);
     adoptSaved(saved);
-    if (state.editor.source) state.editor.source.documentId = saved.id;
+    if (state.editor.source) {state.editor.source.documentId = saved.id;delete state.editor.source.projectUpdates;}
+    delete editor.projectOriginal;delete editor.projectApplied;delete editor.projectBaseline;
     state.dirty = false;
     if (!state.editor.source) changed();
     await load();
@@ -1677,6 +1721,10 @@
     state.busy = true;
     setDisabled(true);
     try {
+      if(!operation.editor.source) {
+        validateProjectDetailEdit(operation);
+        await window.CeasefireProjectPane?.beforeProjectSave?.();
+      }
       await flushRateDefaults();
       assertDocumentOperation(operation);
       const captured = state.kind === "quote" ? await capturedEstimates() : {};
@@ -1698,6 +1746,10 @@
     state.busy = true;
     setDisabled(true);
     try {
+      if(!operation.editor.source) {
+        validateProjectDetailEdit(operation);
+        await window.CeasefireProjectPane?.beforeProjectSave?.();
+      }
       await flushRateDefaults();
       assertDocumentOperation(operation);
       if(state.editor.pendingIssue && state.editor.pendingProjectDetails!==JSON.stringify(projectDetailsSnapshot(state.editor.source))) {
@@ -1731,6 +1783,7 @@
       const latest = source ? result.document : state.model.documents.find(document => document.id === state.editor.document.id);
       if (latest) adoptSaved(copy(latest));
       else renderBoard();
+      window.CeasefireNotifications?.rememberDownload?.(result);
       message(`PDF saved as ${result?.filename || latest?.last_number || "the numbered document"}.`);
     } catch (error) {
       const text = error.message.includes("document workspace belongs to a different project")
@@ -1755,6 +1808,10 @@
   }
   window.CeasefireCommercial = {
     activate, leaveEditor,
+    projectDetailsChanged() {
+      if(state.editor && !state.editor.source)refreshEditorProjectDetails();
+      else if(!state.editor && state.model)renderCards();
+    },
     projectNumberAssigned(details) {
       const document = state.editor?.document;
       if (!document || state.editor.source || document.fields.details.project_no || !details?.project_no) return;

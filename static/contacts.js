@@ -202,10 +202,12 @@
       });
       dialog.addEventListener('pointerdown',event=>{if(!box.contains(event.target))hide();});
     }
-    if(!readOnly && kind==='leads') {
+    if(!readOnly && ['leads','contacts'].includes(kind)) {
       const selectedAccount=directory.accounts.find(item=>item.id===accountId);if(selectedAccount)accountDefaults={abn_acn:selectedAccount.abn_acn||'',billing_address:selectedAccount.billing_address||''};
-      fields.company.addEventListener('input',()=>{const account=directory.accounts.find(item=>item.id===accountId);if(!account || fields.company.value.trim()!==account.company){accountId='';for(const key of ['abn_acn','billing_address'])if(fields[key]?.value===accountDefaults[key])fields[key].value='';accountDefaults={};}});
+      fields.company.addEventListener('input',()=>{const account=directory.accounts.find(item=>item.id===accountId);if(!account || fields.company.value.trim()!==account.company){accountId='';for(const key of ['abn_acn','billing_address'])if(fields[key] && fields[key].value===accountDefaults[key])fields[key].value='';accountDefaults={};}});
       lookup(fields.company,directory.accounts,item=>[item.company,item.abn_acn].join(' '),item=>item.company,account=>accountSelection(account),'No matching Companies. You can enter a company name.');
+    }
+    if(!readOnly && kind==='leads') {
       fields.name.addEventListener('input',()=>{if(fields.name.value.trim()!==contactName)contactId='';});
       lookup(fields.name,directory.contacts,item=>[item.name,item.company,item.email,item.phone].join(' '),item=>item.name,contact=>{
         contactId=contact.id;contactName=contact.name;

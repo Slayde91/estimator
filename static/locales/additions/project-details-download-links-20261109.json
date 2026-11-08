@@ -1,0 +1,52 @@
+{
+  "Include editable Project details only.": [
+    "편집 가능한 프로젝트 세부 정보만 포함하세요.",
+    "Isama lamang ang mae-edit na detalye ng Proyekto.",
+    "Chỉ bao gồm thông tin Dự án có thể chỉnh sửa."
+  ],
+  "Choose an existing Contact linked to this Company.": [
+    "이 회사에 연결된 기존 연락처를 선택하세요.",
+    "Pumili ng kasalukuyang Contact na naka-link sa Kompanyang ito.",
+    "Chọn Liên hệ hiện có được liên kết với Công ty này."
+  ],
+  "Project details can only change while saving a linked document.": [
+    "연결된 문서를 저장할 때만 프로젝트 세부 정보를 변경할 수 있습니다.",
+    "Mababago lamang ang mga detalye ng Proyekto habang sine-save ang naka-link na dokumento.",
+    "Chỉ có thể thay đổi thông tin Dự án khi lưu tài liệu được liên kết."
+  ],
+  "This saved-file link has expired. Download the file again.": [
+    "저장된 파일 링크가 만료되었습니다. 파일을 다시 다운로드하세요.",
+    "Nag-expire na ang link sa naka-save na file na ito. I-download muli ang file.",
+    "Liên kết đến tệp đã lưu này đã hết hạn. Hãy tải lại tệp."
+  ],
+  "The saved file changed, moved or was removed. Download it again.": [
+    "저장된 파일이 변경되었거나 이동 또는 삭제되었습니다. 다시 다운로드하세요.",
+    "Nabago, nailipat o naalis ang naka-save na file. I-download itong muli.",
+    "Tệp đã lưu đã bị thay đổi, di chuyển hoặc xóa. Hãy tải lại."
+  ],
+  "Only saved Excel workbooks can be opened in the default application.": [
+    "저장된 Excel 통합 문서만 기본 앱에서 열 수 있습니다.",
+    "Mga naka-save na Excel workbook lamang ang maaaring buksan sa default na application.",
+    "Chỉ có thể mở sổ làm việc Excel đã lưu trong ứng dụng mặc định."
+  ],
+  "The workbook could not be opened. Check its default application.": [
+    "통합 문서를 열 수 없습니다. 기본 앱을 확인하세요.",
+    "Hindi mabuksan ang workbook. Suriin ang default na application nito.",
+    "Không thể mở sổ làm việc. Hãy kiểm tra ứng dụng mặc định."
+  ],
+  "Open the saved file using its link only.": [
+    "저장된 파일은 해당 링크로만 여세요.",
+    "Buksan lamang ang naka-save na file gamit ang link nito.",
+    "Chỉ mở tệp đã lưu bằng liên kết của tệp."
+  ],
+  "The saved-file link could not be registered. Download the file again.": [
+    "저장된 파일 링크를 등록할 수 없습니다. 파일을 다시 다운로드하세요.",
+    "Hindi mairehistro ang link sa naka-save na file. I-download muli ang file.",
+    "Không thể đăng ký liên kết đến tệp đã lưu. Hãy tải lại tệp."
+  ],
+  "Site address contains unsupported control characters.": [
+    "현장 주소에 지원되지 않는 제어 문자가 포함되어 있습니다.",
+    "May mga hindi suportadong control character ang address ng site.",
+    "Địa chỉ công trường chứa ký tự điều khiển không được hỗ trợ."
+  ]
+}

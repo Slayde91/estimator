@@ -8,8 +8,87 @@ import re
 import shlex
 import sys
 import uuid
+import secrets
+import stat
+import subprocess
+from hashlib import sha256
+from threading import Lock
+from time import monotonic
 
 from .catalog import ValidationError
+
+
+class SavedDownloadFiles:
+    """Session-only capabilities for files actually written by this application."""
+
+    def __init__(self, *, clock=monotonic, limit=256, ttl=8 * 60 * 60):
+        self._clock, self._limit, self._ttl = clock, limit, ttl
+        self._entries, self._lock = {}, Lock()
+
+    def register(self, receipt, payload):
+        path = Path(receipt['path'])
+        if path.suffix.lower() not in {'.pdf', '.xlsx'}:
+            return receipt
+        try:
+            info = path.lstat()
+        except OSError as error:
+            raise ValidationError('The saved-file link could not be registered. Download the file again.') from error
+        with self._lock:
+            self._prune()
+            while len(self._entries) >= self._limit:
+                del self._entries[next(iter(self._entries))]
+            token = secrets.token_urlsafe(24)
+            self._entries[token] = (path, self._identity(info), sha256(payload).digest(), self._clock())
+        url = f'/api/download-files/{token}'
+        return {**receipt, 'download_url': url, 'open_url': url + '/open' if path.suffix.lower() == '.xlsx' else None}
+
+    def _prune(self):
+        now = self._clock()
+        self._entries = {key: entry for key, entry in self._entries.items() if now - entry[3] < self._ttl}
+
+    @staticmethod
+    def _identity(info):
+        return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns
+
+    def read(self, token):
+        from .project_library import _directory, _linked
+        with self._lock:
+            self._prune()
+            entry = self._entries.get(token) if isinstance(token, str) else None
+        if entry is None:
+            raise ValidationError('This saved-file link has expired. Download the file again.')
+        path, identity, digest, _ = entry
+        try:
+            _directory(path.parent)
+            before = path.lstat()
+            if _linked(before) or not stat.S_ISREG(before.st_mode) or self._identity(before) != identity:
+                raise OSError('File was replaced.')
+            flags = os.O_RDONLY | getattr(os, 'O_BINARY', 0) | getattr(os, 'O_NOFOLLOW', 0)
+            with os.fdopen(os.open(path, flags), 'rb') as stream:
+                if self._identity(os.fstat(stream.fileno())) != identity:
+                    raise OSError('File was replaced while opening.')
+                payload = stream.read()
+                if self._identity(os.fstat(stream.fileno())) != identity:
+                    raise OSError('File changed while reading.')
+            if self._identity(path.lstat()) != identity or sha256(payload).digest() != digest:
+                raise OSError('File changed.')
+            return path, payload
+        except (OSError, ValidationError) as error:
+            raise ValidationError('The saved file changed, moved or was removed. Download it again.') from error
+
+    def open_workbook(self, token):
+        path, _ = self.read(token)
+        if path.suffix.lower() != '.xlsx':
+            raise ValidationError('Only saved Excel workbooks can be opened in the default application.')
+        try:
+            if sys.platform == 'win32':
+                os.startfile(str(path))
+            else:
+                subprocess.Popen(['open' if sys.platform == 'darwin' else 'xdg-open', str(path)],
+                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError as error:
+            raise ValidationError('The workbook could not be opened. Check its default application.') from error
+        return {'opened': True}
 
 
 @dataclass(frozen=True)

@@ -400,6 +400,7 @@ async function check(name,fn){const h=harness();h.projectApi.applyProject(await 
     assert.deepEqual(copy(h.audit.state.draft),before.draft);assert.deepEqual(copy(h.audit.state.record),before.record);
     assert.deepEqual(copy(h.audit.state.diagramChange),before.diagram);assert.equal(h.audit.state.baseline,before.baseline);
     assert.deepEqual(copy(h.projectApi.projectSnapshot()),before.project);assert.equal(h.calls.length,0);assert.equal(h.invalidations(),0);
+    if(kind==='xlsx')assert.match(h.byId('library-editor-message').textContent,/File saved to C:\/Fixture\/editor.xlsx/,'Native Excel notification names the saved file for its open link');
     assert.equal(h.api.hasUnsavedChanges(),true);assert.equal(h.audit.state.busy,false);assert.equal(h.byId('library-editor-item-pdf').disabled,false);
   });
   await check('Library exports bind retained shared images and portable project images independently',async h=>{

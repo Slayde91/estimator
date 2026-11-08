@@ -81,7 +81,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     commercial_rate_defaults = CommercialRateDefaults(store)
     projects.commercial = commercial
     from .saved_commercial import SavedCommercial
-    saved_commercial = SavedCommercial(projects)
+    saved_commercial = SavedCommercial(projects, directory=contacts_http.store.list)
     from .swms import SwmsDocuments
     from .swms_http import SwmsHTTP
     swms = SwmsDocuments(certification_projects)
@@ -205,6 +205,15 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
         def capture_download(self, request):
             return projects.capture_download(request)
 
+        def capture_reference_workbook(self, request):
+            # These existing reference-library exports work without a Project.
+            # The exception is owned by these routes, never by a client flag.
+            if (urlsplit(self.path).path in {'/api/pricing/export', '/api/technical/item.xlsx', '/api/penetration/item.xlsx'}
+                    and isinstance(request, dict) and set(request) == {'project_token'} and request['project_token'] is None):
+                from .download_files import DownloadDestination, standard_downloads_directory
+                return DownloadDestination(standard_downloads_directory(), 'downloads')
+            return self.capture_download(request)
+
         def capture_commercial_download(self, request, workspace):
             return projects.capture_download(request, project_id=certification_projects.project_id(workspace))
 
@@ -317,6 +326,24 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 self._documentation_context = workspace, request_id
             if excluded_route(route, edition):
                 self.send_payload(404, {'error': 'Not found.'})
+                return
+            download_link = re.fullmatch(r'/api/download-files/([A-Za-z0-9_-]{32})(/open)?', route)
+            if download_link:
+                token, opening = download_link.groups()
+                if opening and self.command == 'POST':
+                    if self.read_json():
+                        raise ValidationError('Open the saved file using its link only.')
+                    self.send_payload(200, projects.download_files.open_workbook(token))
+                elif not opening and self.command == 'GET':
+                    path, payload = projects.download_files.read(token)
+                    from .project_file import project_download_header
+                    disposition = project_download_header(path.name)
+                    media_type = PDF if path.suffix.lower() == '.pdf' else XLSX
+                    if media_type == PDF:
+                        disposition = disposition.replace('attachment;', 'inline;', 1)
+                    self.send_payload(200, payload, media_type, {'Content-Disposition': disposition})
+                else:
+                    self.send_payload(405, {'error': 'Method not allowed.'})
                 return
             if scheduler_http.dispatch(self, route):
                 return
@@ -614,7 +641,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         raise ValidationError('Technical item downloads do not accept query parameters.')
                     from .technical_item_exports import prepare_technical_item, render_technical_item_pdf, build_technical_item_xlsx
                     snapshot = prepare_technical_item(body, library=libraries)
-                    destination = self.capture_download(body['download']) if 'download' in body else None
+                    destination = self.capture_reference_workbook(body['download']) if 'download' in body else None
                     if route.endswith('.pdf'):
                         self.send_download(render_technical_item_pdf(snapshot, company=self.pdf_company_details('technical_library_item')), 'application/pdf', 'CEASEFIRE-Technical-Item.pdf', destination, pdf_kind='technical_library_item')
                     else:
@@ -626,7 +653,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     from .penetration_item_exports import prepare_item_snapshot, render_item_pdf, build_item_xlsx
                     body = reference_download_body(body, 'item')
                     snapshot = prepare_item_snapshot(body, library=libraries, default_configuration=store.configuration(), require_diagram=route.endswith('.pdf'))
-                    destination = self.capture_download(body['download']) if 'download' in body else None
+                    destination = self.capture_reference_workbook(body['download']) if 'download' in body else None
                     if route.endswith('.pdf'):
                         self.send_download(render_item_pdf(snapshot, company=self.pdf_company_details('firestopping_library_item')), 'application/pdf', 'CEASEFIRE-Firestopping-Item.pdf', destination, pdf_kind='firestopping_library_item')
                     else:
@@ -801,7 +828,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     from .pricing_workbook import export_pricing_workbook
                     if set(body) - {"configuration", "download"}:
                         raise ValidationError("Unknown pricing export fields.")
-                    destination = self.capture_download(body['download']) if 'download' in body else None
+                    destination = self.capture_reference_workbook(body['download']) if 'download' in body else None
                     workbook = export_pricing_workbook(body['configuration'] if 'configuration' in body else store.shared_configuration())
                     self.send_download(workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 'ceasefire-pricing.xlsx', destination)
                 elif route == "/api/pricing/import" and self.command == "POST":

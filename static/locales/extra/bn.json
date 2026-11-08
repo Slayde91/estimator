@@ -3158,5 +3158,15 @@
   "Delivery": "ডেলিভারি",
   "Pickup": "সংগ্রহ",
   "No supplier price is recorded for this item. Enter its purchase price.": "এই পণ্যের সরবরাহকারীর মূল্য নথিভুক্ত নেই। ক্রয়মূল্য লিখুন।",
-  "Choose valid work types without duplicates.": "পুনরাবৃত্তি ছাড়া বৈধ কাজের ধরন নির্বাচন করুন।"
+  "Choose valid work types without duplicates.": "পুনরাবৃত্তি ছাড়া বৈধ কাজের ধরন নির্বাচন করুন।",
+  "Include editable Project details only.": "শুধু সম্পাদনাযোগ্য প্রকল্পের বিবরণ অন্তর্ভুক্ত করুন।",
+  "Choose an existing Contact linked to this Company.": "এই কোম্পানির সঙ্গে যুক্ত একটি বিদ্যমান পরিচিতি বেছে নিন।",
+  "Project details can only change while saving a linked document.": "সংযুক্ত নথি সংরক্ষণের সময়ই শুধু প্রকল্পের বিবরণ পরিবর্তন করা যায়।",
+  "This saved-file link has expired. Download the file again.": "সংরক্ষিত ফাইলের এই লিংকের মেয়াদ শেষ হয়েছে। ফাইলটি আবার ডাউনলোড করুন।",
+  "The saved file changed, moved or was removed. Download it again.": "সংরক্ষিত ফাইলটি পরিবর্তন, স্থানান্তর বা মুছে ফেলা হয়েছে। এটি আবার ডাউনলোড করুন।",
+  "Only saved Excel workbooks can be opened in the default application.": "শুধু সংরক্ষিত Excel ওয়ার্কবুক ডিফল্ট অ্যাপ্লিকেশনে খোলা যায়।",
+  "The workbook could not be opened. Check its default application.": "ওয়ার্কবুকটি খোলা যায়নি। এর ডিফল্ট অ্যাপ্লিকেশন পরীক্ষা করুন।",
+  "Open the saved file using its link only.": "শুধু নিজস্ব লিংক ব্যবহার করে সংরক্ষিত ফাইলটি খুলুন।",
+  "The saved-file link could not be registered. Download the file again.": "সংরক্ষিত ফাইলের লিংক নিবন্ধন করা যায়নি। ফাইলটি আবার ডাউনলোড করুন।",
+  "Site address contains unsupported control characters.": "কাজের স্থানের ঠিকানায় অসমর্থিত নিয়ন্ত্রণ অক্ষর রয়েছে।"
 }

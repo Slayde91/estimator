@@ -678,8 +678,9 @@
       if (!current(captured)) return saved;
       const later = state.version !== captured.version || JSON.stringify(state.record.configuration) !== JSON.stringify(payload.configuration)
         || state.invalid.size > 0 || stamp() !== capturedStamp || JSON.stringify(state.diagramChange) !== capturedDiagram;
-      message(saved.preview ? "Item Details {0} opened for viewing. Use the viewer's Save button to keep a copy.{1}" : "Item Details {0} download prepared.{1}", false,
-        [kind.toUpperCase(), later ? " Your later edits are still here and are not included." : ""]);
+      const note = later ? " Your later edits are still here and are not included." : "";
+      message(saved.preview ? "Item Details {0} opened for viewing. Use the viewer's Save button to keep a copy.{1}" : "File saved to {0}.{1}", false,
+        [saved.preview ? kind.toUpperCase() : saved.path, note]);
       return saved;
     } catch (error) {
       if (current(captured)) message("Item Details were not downloaded. {0}", true, [() => window.CeasefireI18n?.translate(error.message) || error.message]);

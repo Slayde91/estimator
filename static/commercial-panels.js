@@ -163,23 +163,34 @@
     const accountPanel = panel("Company Details"), contactPanel = panel("Contact Details");
     left.append(accountPanel,contactPanel);
     let directory = {}, controls=[];
-    const projectAccount=()=>{const rows=(directory.accounts || []).filter(account=>fold(account.company)===fold(options.fields.details.client));return rows.length===1?rows[0]:null;};
+    const projectAccount=()=>{const rows=(directory.accounts || []).filter(account=>options.projectDetails?.account_id
+      ? account.id===options.projectDetails.account_id && fold(account.company)===fold(options.fields.details.client)
+      : fold(account.company)===fold(options.fields.details.client));return rows.length===1?rows[0]:null;};
     function change(values){options.changeDetails(values);showContact();}
-    function changeCompany(value){change(value!==options.fields.details.client?{client:value,contact:'',phone:'',email:''}:{client:value});}
+    function companyValues(account,value='') {
+      const project=options.projectDetails || {},same=account?.id && (!project.account_id || account.id===project.account_id) && fold(account.company)===fold(project.client);
+      return {client:account?.company || value,account_id:account?.id || '',
+        billing_address:same ? project.billing_address || '' : account?.billing_address || '',abn_acn:same ? project.abn_acn || '' : account?.abn_acn || ''};
+    }
+    function changeCompany(value,account=null){const changed=value!==options.fields.details.client;
+      if(!changed && !account)return;
+      change({...companyValues(account,value),...(changed?{contact:'',contact_id:'',phone:'',email:''}:{})});}
     const company=directorySearch('Company',{kind:'accounts',value:options.fields.details.client,read:()=>options.fields.details.client,isCurrent:options.canEdit,message:options.message,
-      onDirectory(data){directory=data;showContact();},onInput(value){changeCompany(value);},onSelect(account){changeCompany(account.company);}});
+      onDirectory(data){directory=data;showContact();},onInput(value){changeCompany(value);},onSelect(account){changeCompany(account.company,account);}});
     const name=directorySearch('Name',{kind:'contacts',value:options.fields.details.contact,read:()=>options.fields.details.contact,isCurrent:options.canEdit,message:options.message,
       account:projectAccount,filter(contact,data){const account=projectAccount();return !options.fields.details.client || !!account && (contact.account_id===account.id || contact.account_id===undefined && fold(contact.company)===fold(account.company));},
-      onDirectory(data){directory=data;showContact();},onInput(value){change(value?{contact:value}:{client:'',contact:'',phone:'',email:''});},onSelect(contact,data){
+      onDirectory(data){directory=data;showContact();},onInput(value){if(value===options.fields.details.contact)return;change(value?{contact:value,contact_id:''}:{...companyValues(null),contact:'',contact_id:'',phone:'',email:''});},onSelect(contact,data){
         const accounts=(data.accounts || []).filter(account=>contact.account_id ? account.id===contact.account_id : fold(account.company)===fold(contact.company));const account=accounts.length===1?accounts[0]:null;
-        change({client:account?.company || contact.company || '',contact:contact.name,phone:contact.phone || '',email:contact.email || ''});}});
-    const site=el('label'),siteCaption=el('span','Site address'),siteInput=el('input');site.className='field commercial-site-address';
+        change({...companyValues(account,contact.company || ''),contact:contact.name,contact_id:contact.id,phone:contact.phone || '',email:contact.email || ''});}});
+    const site=el('label'),siteCaption=el('span','Site address'),siteInput=el('textarea');siteInput.rows=2;siteInput.maxLength=400;site.className='field commercial-site-address';
     window.CeasefireI18n?.text(siteCaption,'Site address');siteInput.value=options.fields.details.site_address || '';siteInput.setAttribute('aria-label','Site address');window.CeasefireI18n?.attr(siteInput,'aria-label','Site address');
     siteInput.addEventListener('input',()=>{if(options.canEdit())change({site_address:siteInput.value});});site.append(siteCaption,siteInput);
     accountPanel.append(company.element,site);contactPanel.append(name.element);controls=[company,name];
     function showContact() {
       const details=options.fields.details,project=options.projectDetails || {},account=projectAccount();
-      const matches=(directory.contacts || []).filter(contact=>fold(contact.name)===fold(details.contact) && (!details.email || fold(contact.email)===fold(details.email)) && (!details.phone || fold(contact.phone)===fold(details.phone)));
+      const matches=(directory.contacts || []).filter(contact=>project.contact_id
+        ? contact.id===project.contact_id && fold(contact.name)===fold(details.contact)
+        : fold(contact.name)===fold(details.contact) && (!details.email || fold(contact.email)===fold(details.email)) && (!details.phone || fold(contact.phone)===fold(details.phone)));
       const contact=matches.length===1 ? matches[0] : null;
       accountPanel.querySelector('dl')?.remove();contactPanel.querySelector('dl')?.remove();
       const sameProject=fold(project.client)===fold(details.client);

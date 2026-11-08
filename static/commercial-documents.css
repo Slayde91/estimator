@@ -131,3 +131,6 @@
 .commercial-site-address>span { display:block; margin-bottom:7px; font-size:12px; font-weight:650; }
 .commercial-purchase-information textarea { min-height:42px; height:42px; line-height:20px; resize:vertical; }
 .commercial-purchase-information .commercial-directory-field { margin-top:0; }
+
+.commercial-site-address textarea { resize:vertical; min-height:42px; }
+.commercial-editor textarea.commercial-project-address { min-height:42px; height:42px; resize:vertical; }

@@ -1405,5 +1405,24 @@ async function penetrationCheck(name, fn) {
     assert.equal(h.byId('client').value,'Later canonical client');assert.equal(h.byId('project-pane-client').value,'Later canonical client');
     await pane.beforeProjectSave();assert.equal(h.app.state.dirty,true);
   });
+  await check('Account pane drafts protect unload and close without becoming Project data',async h=>{
+    h.app.state.initialized=true;h.app.state.dirty=false;h.app.state.configuration={inventory:{},rates:{}};h.app.state.draft=copy(h.app.state.configuration);
+    h.app.state.quoteConfiguration=null;h.app.state.projectPricingDraft=null;h.context.window.CeasefireCalculators.hasUnsavedChanges=()=>false;
+    let revision=1,pending=false;h.context.window.ClassifireContacts={hasUnsavedChanges:()=>true,hasPendingOperation:()=>pending,fingerprint:()=>String(revision)};
+    const stamp=h.app.projectStamp();assert.equal(h.context.window.CeasefireDesktop.status().dirty,true);
+    let prevented=false;h.windowListeners.beforeunload[0]({preventDefault(){prevented=true;}});assert.equal(prevented,true);
+    const closing=h.app.reviewDesktopClose();await flush();assert.equal(h.byId('discard-dialog').open,true);
+    assert.match(h.byId('discard-dialog').querySelector('p').textContent,/unsaved changes/);revision++;
+    await h.byId('discard-dialog').close('confirm');assert.equal(await closing,false);assert.equal(h.app.projectStamp(),stamp);
+    pending=true;assert.equal(h.context.window.CeasefireDesktop.status().busy,true);assert.equal(await h.app.reviewDesktopClose(),false);
+    const calls=h.calls.length;await h.app.loadProject();assert.equal(h.calls.length,calls);assert.match(h.byId('app-message').textContent,/Account action/);
+  });
+  await check('All view changes review the Account pane while the current Contacts header preserves it',async h=>{
+    h.app.state.currentView='contacts';let allow=false,leaves=0,activations=0;
+    h.context.window.ClassifireContacts={leave:async()=>{leaves++;return allow;},activate:async()=>{activations++;}};
+    await h.app.showView('home');assert.equal(h.app.state.currentView,'contacts');assert.equal(leaves,1);
+    assert.equal(await h.app.requestViewNavigation('contacts'),true);assert.equal(activations,0);assert.equal(leaves,1);
+    allow=true;await h.app.showView('home');assert.equal(h.app.state.currentView,'home');assert.equal(leaves,2);
+  });
   console.log(`${passed} project UI regression checks passed.`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

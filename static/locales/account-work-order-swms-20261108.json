@@ -1,0 +1,198 @@
+{
+  "Finish the current Account action first.": [
+    "请先完成当前账户操作。",
+    "पहले मौजूदा खाता कार्रवाई पूरी करें।",
+    "Complete primero la operación actual de la cuenta.",
+    "أكمل إجراء الحساب الحالي أولاً.",
+    "ดำเนินการกับบัญชีปัจจุบันให้เสร็จก่อน"
+  ],
+  "Discard changes to this account?": [
+    "放弃对此账户的更改吗？",
+    "इस खाते के बदलाव त्यागें?",
+    "¿Descartar los cambios en esta cuenta?",
+    "هل تريد تجاهل التغييرات على هذا الحساب؟",
+    "ละทิ้งการเปลี่ยนแปลงบัญชีนี้หรือไม่"
+  ],
+  "The Account changed during review. Check the current changes and try again.": [
+    "账户在确认期间发生了变化。请检查当前更改后重试。",
+    "समीक्षा के दौरान खाता बदल गया। मौजूदा बदलाव जाँचें और फिर कोशिश करें।",
+    "La cuenta cambió durante la revisión. Compruebe los cambios actuales e inténtelo de nuevo.",
+    "تغيّر الحساب أثناء المراجعة. تحقّق من التغييرات الحالية وحاول مجدداً.",
+    "บัญชีเปลี่ยนแปลงระหว่างการตรวจสอบ โปรดตรวจสอบการเปลี่ยนแปลงปัจจุบันแล้วลองอีกครั้ง"
+  ],
+  "Quote note": [
+    "报价单备注",
+    "कोटेशन नोट",
+    "Nota del presupuesto",
+    "ملاحظة عرض السعر",
+    "หมายเหตุใบเสนอราคา"
+  ],
+  "Linked Work Orders": [
+    "关联工作订单",
+    "लिंक किए गए कार्य आदेश",
+    "Órdenes de trabajo vinculadas",
+    "أوامر العمل المرتبطة",
+    "ใบสั่งงานที่เชื่อมโยง"
+  ],
+  "Reviewed by name": [
+    "审核人姓名",
+    "समीक्षक का नाम",
+    "Nombre del revisor",
+    "اسم المراجع",
+    "ชื่อผู้ตรวจทาน"
+  ],
+  "Prepared by name": [
+    "编制人姓名",
+    "तैयार करने वाले का नाम",
+    "Nombre del preparador",
+    "اسم المُعِدّ",
+    "ชื่อผู้จัดทำ"
+  ],
+  "Approved by name": [
+    "批准人姓名",
+    "अनुमोदक का नाम",
+    "Nombre del aprobador",
+    "اسم المعتمِد",
+    "ชื่อผู้อนุมัติ"
+  ],
+  "Finish the current document operation first.": [
+    "请先完成当前文档操作。",
+    "पहले मौजूदा दस्तावेज़ कार्रवाई पूरी करें।",
+    "Complete primero la operación actual del documento.",
+    "أكمل إجراء المستند الحالي أولاً.",
+    "ดำเนินการกับเอกสารปัจจุบันให้เสร็จก่อน"
+  ],
+  "Choose up to 16 files, 12 MiB per file and 32 MiB per document.": [
+    "最多选择16个文件，每个文件不超过12 MiB，每份文档的文件总量不超过32 MiB。",
+    "अधिकतम 16 फ़ाइलें चुनें; हर फ़ाइल 12 MiB और हर दस्तावेज़ का कुल आकार 32 MiB तक हो।",
+    "Seleccione hasta 16 archivos, con un máximo de 12 MiB por archivo y 32 MiB por documento.",
+    "اختر حتى 16 ملفاً، بحد أقصى 12 MiB لكل ملف و32 MiB لكل مستند.",
+    "เลือกได้สูงสุด 16 ไฟล์ ขนาดไม่เกิน 12 MiB ต่อไฟล์ และรวมไม่เกิน 32 MiB ต่อเอกสาร"
+  ],
+  "Only Quotes and Work Orders support file attachments.": [
+    "只有报价单和工作订单支持文件附件。",
+    "केवल कोटेशन और कार्य आदेश फ़ाइल अटैचमेंट का समर्थन करते हैं।",
+    "Solo los presupuestos y las órdenes de trabajo admiten archivos adjuntos.",
+    "عروض الأسعار وأوامر العمل فقط تدعم مرفقات الملفات.",
+    "เฉพาะใบเสนอราคาและใบสั่งงานเท่านั้นที่รองรับไฟล์แนบ"
+  ],
+  "A Quote or Work Order supports up to 200 notes.": [
+    "每份报价单或工作订单最多可添加200条备注。",
+    "एक कोटेशन या कार्य आदेश में अधिकतम 200 नोट हो सकते हैं।",
+    "Un presupuesto o una orden de trabajo admite hasta 200 notas.",
+    "يدعم عرض السعر أو أمر العمل حتى 200 ملاحظة.",
+    "ใบเสนอราคาหรือใบสั่งงานรองรับหมายเหตุได้สูงสุด 200 รายการ"
+  ],
+  "Choose a Quote or Work Order attachment.": [
+    "请选择报价单或工作订单的附件。",
+    "कोटेशन या कार्य आदेश का अटैचमेंट चुनें।",
+    "Seleccione un archivo adjunto de un presupuesto o una orden de trabajo.",
+    "اختر مرفق عرض سعر أو أمر عمل.",
+    "เลือกไฟล์แนบของใบเสนอราคาหรือใบสั่งงาน"
+  ],
+  "Attachment not found on this document.": [
+    "此文档中找不到该附件。",
+    "इस दस्तावेज़ में अटैचमेंट नहीं मिला।",
+    "No se encontró el archivo adjunto en este documento.",
+    "لم يتم العثور على المرفق في هذا المستند.",
+    "ไม่พบไฟล์แนบในเอกสารนี้"
+  ],
+  "Open the Quote or Work Order before adding a note.": [
+    "请先打开报价单或工作订单，再添加备注。",
+    "नोट जोड़ने से पहले कोटेशन या कार्य आदेश खोलें।",
+    "Abra el presupuesto o la orden de trabajo antes de añadir una nota.",
+    "افتح عرض السعر أو أمر العمل قبل إضافة ملاحظة.",
+    "เปิดใบเสนอราคาหรือใบสั่งงานก่อนเพิ่มหมายเหตุ"
+  ],
+  "Your signature profile changed. Reopen the signature pad.": [
+    "您的签名资料已更改。请重新打开签名面板。",
+    "आपकी हस्ताक्षर प्रोफ़ाइल बदल गई। हस्ताक्षर पैड फिर खोलें।",
+    "Su perfil de firma cambió. Vuelva a abrir el panel de firma.",
+    "تغيّر ملف توقيعك. أعد فتح لوحة التوقيع.",
+    "โปรไฟล์ลายเซ็นของคุณเปลี่ยนไป โปรดเปิดแผ่นลงลายเซ็นอีกครั้ง"
+  ],
+  "Sign Reviewed by": [
+    "审核人签名",
+    "हस्ताक्षर करें: समीक्षक",
+    "Firmar: Revisor",
+    "توقيع: المراجع",
+    "ลงนาม: ผู้ตรวจทาน"
+  ],
+  "Change Reviewed by": [
+    "更改审核人签名",
+    "हस्ताक्षर बदलें: समीक्षक",
+    "Cambiar firma: Revisor",
+    "تغيير التوقيع: المراجع",
+    "เปลี่ยนลายเซ็น: ผู้ตรวจทาน"
+  ],
+  "Clear Reviewed by": [
+    "清除审核人签名及资料",
+    "हस्ताक्षर और विवरण साफ़ करें: समीक्षक",
+    "Borrar firma y datos: Revisor",
+    "مسح التوقيع والبيانات: المراجع",
+    "ล้างลายเซ็นและข้อมูล: ผู้ตรวจทาน"
+  ],
+  "Delete Reviewed by": [
+    "删除审核人签名及资料",
+    "हस्ताक्षर और विवरण हटाएँ: समीक्षक",
+    "Eliminar firma y datos: Revisor",
+    "حذف التوقيع والبيانات: المراجع",
+    "ลบลายเซ็นและข้อมูล: ผู้ตรวจทาน"
+  ],
+  "Sign Prepared by": [
+    "编制人签名",
+    "हस्ताक्षर करें: तैयार करने वाला",
+    "Firmar: Preparador",
+    "توقيع: المُعِدّ",
+    "ลงนาม: ผู้จัดทำ"
+  ],
+  "Change Prepared by": [
+    "更改编制人签名",
+    "हस्ताक्षर बदलें: तैयार करने वाला",
+    "Cambiar firma: Preparador",
+    "تغيير التوقيع: المُعِدّ",
+    "เปลี่ยนลายเซ็น: ผู้จัดทำ"
+  ],
+  "Clear Prepared by": [
+    "清除编制人签名及资料",
+    "हस्ताक्षर और विवरण साफ़ करें: तैयार करने वाला",
+    "Borrar firma y datos: Preparador",
+    "مسح التوقيع والبيانات: المُعِدّ",
+    "ล้างลายเซ็นและข้อมูล: ผู้จัดทำ"
+  ],
+  "Delete Prepared by": [
+    "删除编制人签名及资料",
+    "हस्ताक्षर और विवरण हटाएँ: तैयार करने वाला",
+    "Eliminar firma y datos: Preparador",
+    "حذف التوقيع والبيانات: المُعِدّ",
+    "ลบลายเซ็นและข้อมูล: ผู้จัดทำ"
+  ],
+  "Sign Approved by": [
+    "批准人签名",
+    "हस्ताक्षर करें: अनुमोदक",
+    "Firmar: Aprobador",
+    "توقيع: المعتمِد",
+    "ลงนาม: ผู้อนุมัติ"
+  ],
+  "Change Approved by": [
+    "更改批准人签名",
+    "हस्ताक्षर बदलें: अनुमोदक",
+    "Cambiar firma: Aprobador",
+    "تغيير التوقيع: المعتمِد",
+    "เปลี่ยนลายเซ็น: ผู้อนุมัติ"
+  ],
+  "Clear Approved by": [
+    "清除批准人签名及资料",
+    "हस्ताक्षर और विवरण साफ़ करें: अनुमोदक",
+    "Borrar firma y datos: Aprobador",
+    "مسح التوقيع والبيانات: المعتمِد",
+    "ล้างลายเซ็นและข้อมูล: ผู้อนุมัติ"
+  ],
+  "Delete Approved by": [
+    "删除批准人签名及资料",
+    "हस्ताक्षर और विवरण हटाएँ: अनुमोदक",
+    "Eliminar firma y datos: Aprobador",
+    "حذف التوقيع والبيانات: المعتمِد",
+    "ลบลายเซ็นและข้อมูล: ผู้อนุมัติ"
+  ]
+}

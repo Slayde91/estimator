@@ -135,7 +135,7 @@ const ready = new Promise((resolve, reject) => {
   await page.locator('#contacts-navigation-toggle').click();
   await page.locator('#contacts-root .contacts-tabs').getByRole('button',{name:'Accounts',exact:true}).click();
   await page.locator('#contacts-root').getByRole('button',{name:'Source Company',exact:true}).click();
-  const sourceEditor=page.getByRole('dialog',{name:'Edit Account',exact:true});
+  const sourceEditor=page.getByRole('complementary',{name:'Edit Account',exact:true});
   await expect(sourceEditor.locator('.contacts-links [data-link-group="projects"] input')).toBeDisabled();
   const projectFile=(await api('/api/projects')).files.find(item=>path.resolve(item.path)===path.resolve(project.path));
   async function primaryAccount(target) {
@@ -177,7 +177,7 @@ const ready = new Promise((resolve, reject) => {
     await route.fulfill({response, json:catalog});
   });
   await page.locator('#contacts-root').getByRole('button',{name:'New Company',exact:true}).click();
-  const edit = page.getByRole('dialog',{name:'Edit Account',exact:true});
+  const edit = page.getByRole('complementary',{name:'Edit Account',exact:true});
   await expect(edit).toBeVisible();
   await expect(edit).toContainText('Unavailable saved record. Clear the selection to remove this link.');
   await expect(edit.locator('.contacts-links-group > summary')).toHaveText(['Contacts (1)','Projects (1)']);

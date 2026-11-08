@@ -148,9 +148,9 @@ class CommercialHTTP:
             result = self._derive(body)
             result = {key: value for key, value in result.items() if key != 'scope_documents'}
         elif action == 'notes':
-            doc = next((d for d in model['documents'] if d['id'] == body.get('id') and d['kind'] == 'work_order'), None)
+            doc = next((d for d in model['documents'] if d['id'] == body.get('id') and d['kind'] in ('quote', 'work_order')), None)
             if doc is None:
-                raise ValidationError('Open the Work Order before adding a note.')
+                raise ValidationError('Open the Quote or Work Order before adding a note.')
             result = self.service.save(workspace, {'id': doc['id'], 'version': body.get('version'), 'kind': doc['kind'],
                 'status': doc['status'], 'fields': {**doc['fields'], 'notes': body.get('notes')}})
         elif action == 'save':

@@ -5,7 +5,7 @@
   const labels = {name: "Name", phone: "Phone", company: "Company", title: "Title", email: "Email", abn_acn: "ABN/ACN",
     site_address: "Site address", billing_address: "Billing address", description: "Description", status: "Status"};
   const personFields = ["name", "phone", "company", "title", "email"];
-  let page = "leads", data, search = "", generation = 0, saving = false, editorSequence = 0, converting = null;
+  let page = "leads", data, search = "", generation = 0, saving = false, editorSequence = 0, editorRequest = 0, converting = null, accountEditor = null;
   const linkTitles = {contacts: "Contacts", projects: "Projects", quotes: "Quotes", work_orders: "Work Orders", purchase_orders: "Purchase Orders"};
   const root = () => document.getElementById("contacts-root");
   const el = (tag, cls, text) => {
@@ -28,7 +28,7 @@
   }
   function feedback(container, message, error = false) {
     const msg = container.querySelector("[data-contacts-notice]");
-    msg.textContent = message;
+    copy(msg, message);
     msg.hidden = !message;
     msg.classList.toggle("error", error);
   }
@@ -51,6 +51,7 @@
     return value;
   }
   async function activate(kind) {
+    if (!await leaveAccount()) return false;
     const ticket = ++generation;
     if (Object.hasOwn(titles, kind)) page = kind;
     search = "";
@@ -80,9 +81,37 @@
       return result;
     } finally { saving = false; conversionBusy(); }
   }
-  function dialogEditor(kind, record = {}, readOnly = false, options = {}) {
-    const dialog = el("dialog", "contacts-dialog");
+  async function leaveAccount() {
+    const target = accountEditor;
+    if (!target) return true;
+    if (target.pending()) { target.notice("Finish the current Account action first.", true); return false; }
+    if (target.dirty()) {
+      const captured = target.fingerprint();
+      const translate = value => window.CeasefireI18n?.translate?.(value) || value;
+      if (!await window.CeasefireDialogs.confirm(translate("Discard changes"), translate("Discard changes to this account?"), translate("Yes"), translate("Cancel"))) return false;
+      if (accountEditor !== target || target.pending()) return false;
+      if (target.fingerprint() !== captured) { target.notice("The Account changed during review. Check the current changes and try again.", true); return false; }
+    }
+    target.close();
+    return true;
+  }
+  async function dialogEditor(kind, record = {}, readOnly = false, options = {}) {
+    const requestId = ++editorRequest;
+    if (!accountEditor && (saving || root()?.getAttribute("aria-busy") === "true")) return null;
+    if (!await leaveAccount()) return null;
+    if (requestId !== editorRequest || saving || root()?.getAttribute("aria-busy") === "true") return null;
+    const inPane = kind === "accounts" && Boolean(record.id) && !options.standalone;
+    const dialog = el(inPane ? "aside" : "dialog", inPane ? "card contacts-account-pane" : "contacts-dialog");
     const form = el("form", "contacts-form");
+    const returnFocus = document.activeElement;
+    let finished = false;
+    const isOpen = () => inPane ? accountEditor?.element === dialog && dialog.isConnected && !finished : dialog.open;
+    function closeEditor() {
+      if (!inPane) { dialog.close(); return; }
+      if (finished) return;
+      finished = true;
+      dialog.dispatchEvent(new Event("close"));
+    }
     const directory = options.directory || data;
     const version = directory.version;
     let contactId = record.contact_id || "", contactName = record.name || "", accountId = record.account_id || "";
@@ -132,6 +161,7 @@
     } else {
       group("Contact Information", personFields);
     }
+    const initialValues = Object.fromEntries(Object.entries(fields).map(([key,input]) => [key,input.value]));
     function accountSelection(account, setCompany = true) {
       accountId = account.id;
       if (setCompany) fields.company.value = account.company;
@@ -187,11 +217,12 @@
     const save = ui("button", "button primary", "Save");
     save.type = "submit";
     save.disabled = !linksReady;
-    const cancel = button("Cancel", () => dialog.close());
+    const cancel = button("Cancel", () => inPane ? leaveAccount() : closeEditor());
     copy(cancel, "Cancel");
-    if (readOnly) actions.append(button("Close", () => dialog.close()), button("Edit", () => {dialog.close(); dialogEditor(kind, record);}, "button primary"));
+    if (readOnly) actions.append(button("Close", closeEditor), button("Edit", () => {closeEditor(); dialogEditor(kind, record);}, "button primary"));
     else actions.append(cancel, save);
     const linkSelections = {};
+    let linksChanged = () => false;
     if (kind === "accounts") {
       const related = el("section", "contacts-related");
       const linkStatus = ui("p", "helper", "Loading linked records…");
@@ -227,6 +258,10 @@
       related.append(ui("h3", "", "Linked records"), findControls, linkStatus, unavailable, groups);
       form.append(related);
       const knownEntries = {}, searchEntries = {}, initialSelections = {}, automaticSelections = {}, explicitSelections = {}, explicitDeselections = {};
+      linksChanged = () => Object.keys(linkSelections).some(key => {
+        const initial = initialSelections[key], current = linkSelections[key];
+        return initial && (initial.size !== current.size || [...initial].some(id => !current.has(id)));
+      });
       let linkTicket = 0, searchTimer, searchOpen = false;
       function dismissResults() {
         searchOpen = false;
@@ -260,14 +295,9 @@
         row.append(label);
         const person = key === "contacts" && directory.contacts.find(contact => contact.id === item.id);
         if (!inSearch && person && !options.standalone) {
-          row.append(button(person.name, () => {
-            const changed = Object.keys(fields).some(field => fields[field].value !== (record[field] || "")) ||
-              Object.keys(linkTitles).some(linkKey => {
-                const initial = initialSelections[linkKey], current = linkSelections[linkKey];
-                return initial.size !== current.size || [...initial].some(id => !current.has(id));
-              });
-            if (changed && !window.confirm("Discard changes to this account?")) return;
-            dialog.close(); switchPage("contacts"); dialogEditor("contacts", person);
+          row.append(button(person.name, async () => {
+            if (!await leaveAccount()) return;
+            closeEditor(); await switchPage("contacts"); dialogEditor("contacts", person);
           }, "text-button"));
         } else label.append(el("span", "", item.label));
         if (item.automatic) row.append(ui("p", "helper", "Linked through this account's saved project."));
@@ -352,7 +382,7 @@
           if (record.id) query.set("id", record.id);
           if (find.value.trim()) query.set("search", find.value.trim());
           const catalog = await request("account-links" + (query.size ? "?" + query : ""));
-          if (!dialog.open || ticket !== linkTicket) return;
+          if (!isOpen() || ticket !== linkTicket) return;
           for (const [key, title] of Object.entries(linkTitles)) {
             const linked = catalog.linked[key] || [], choices = catalog.choices[key] || [];
             const selected = preserveSelection && linkSelections[key] ? linkSelections[key] : new Set(linked.map(item => item.id));
@@ -388,7 +418,7 @@
             catalog.truncated ? "Search by name to find more records. Current links are retained." :
               "Select existing records to link to this account. Project links do not change the project details.");
         } catch (error) {
-          if (!dialog.open || ticket !== linkTicket) return;
+          if (!isOpen() || ticket !== linkTicket) return;
           linkStatus.textContent = error.message;
         } finally {
           if (ticket === linkTicket) {
@@ -415,7 +445,7 @@
       try {
         const result = await request(kind, {id: record.id, fields: values, version, ...(kind==='leads'?{contact_id:contactId,account_id:accountId}:{}), ...(links ? {links} : {})});
         savedRecord = kind === "accounts" ? result.account : kind === 'contacts' ? result.contact : null;
-        dialog.close();
+        closeEditor();
         if (!options.standalone) await activate(page);
       }
       catch (error) {
@@ -432,9 +462,35 @@
     });
     dialog.append(form);
     dialog.addEventListener("cancel", event => { if (submitting) event.preventDefault(); });
-    dialog.addEventListener("close", () => { dialog.remove(); resolveClosed(savedRecord); }, {once: true});
-    (options.standalone ? document.body : root()).append(dialog);
-    dialog.showModal();
+    dialog.addEventListener("close", () => {
+      if (inPane && accountEditor?.element === dialog) {
+        accountEditor = null;
+        dialog.parentNode?.classList.remove("contacts-account-open");
+      }
+      dialog.remove(); resolveClosed(savedRecord);
+      if (inPane && returnFocus?.isConnected) returnFocus.focus();
+    }, {once: true});
+    if (inPane) {
+      const close = button("×", () => leaveAccount(), "button secondary icon-only contacts-account-close");
+      close.setAttribute("aria-label", "Close"); close.title = "Close";
+      window.CeasefireI18n?.attr(close, "aria-label", "Close"); window.CeasefireI18n?.attr(close, "title", "Close");
+      const headingRow = el("div", "contacts-account-heading");
+      headingRow.append(heading, close); form.prepend(headingRow);
+      accountEditor = {element:dialog, close:closeEditor, pending:()=>submitting,
+        dirty:()=>Object.keys(fields).some(key=>fields[key].value !== initialValues[key]) || linksChanged(),
+        fingerprint:()=>JSON.stringify({id:record.id,version,fields:Object.fromEntries(Object.entries(fields).map(([key,input])=>[key,input.value])),links:Object.fromEntries(Object.entries(linkSelections).map(([key,selected])=>[key,[...selected].sort()]))}),
+        notice:(message,error)=>feedback(form,message,error)};
+      const layout = root().querySelector(".contacts-directory-layout");
+      layout.classList.add("contacts-account-open"); layout.prepend(dialog);
+      dialog.addEventListener("keydown", event => {
+        if (event.key !== "Escape" || event.defaultPrevented || event.target.closest("details[open]")) return;
+        event.preventDefault(); event.stopPropagation(); void leaveAccount();
+      });
+      fields.company.focus();
+    } else {
+      (options.standalone ? document.body : root()).append(dialog);
+      dialog.showModal();
+    }
     return closed;
   }
   async function createAccount(options = {}) {
@@ -592,7 +648,8 @@
     menu.append(options, file);
     return menu;
   }
-  function switchPage(kind) {
+  async function switchPage(kind) {
+    if (!await leaveAccount()) return false;
     page = kind;
     search = "";
     render();
@@ -626,7 +683,9 @@
     if (page !== "leads") controls.append(documentMenu(page));
     controls.append(button("New " + singular[page], () => dialogEditor(page), "button primary"));
     section.append(controls, el("div", "contacts-results"));
-    container.append(heading, tabs, notice(), section);
+    const layout = el("div", "contacts-directory-layout");
+    layout.append(section);
+    container.append(heading, tabs, notice(), layout);
     displayRows();
     conversionBusy();
   }
@@ -638,5 +697,7 @@
     const menu = event.target.closest?.("#contacts-root details[open]");
     if (menu) {menu.open = false; menu.querySelector("summary").focus();}
   });
-  window.ClassifireContacts = {activate, createAccount, createContact};
+  window.ClassifireContacts = {activate, createAccount, createContact, leave:leaveAccount,
+    hasUnsavedChanges:()=>Boolean(accountEditor?.dirty()), hasPendingOperation:()=>Boolean(accountEditor?.pending()),
+    fingerprint:()=>accountEditor?.fingerprint() || ""};
 })();

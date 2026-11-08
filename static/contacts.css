@@ -10,6 +10,17 @@
 .contacts-controls { align-items:end; margin-bottom:18px; }
 .contacts-controls>.field { flex:1 1 220px; }
 .contacts-workspace,.contacts-results { min-width:0; }
+.contacts-directory-layout { min-width:0; display:grid; gap:20px; align-items:start; }
+.contacts-directory-layout.contacts-account-open { grid-template-columns:minmax(330px,420px) minmax(0,1fr); }
+.contacts-account-pane { min-width:0; width:100%; margin:0; padding:0; }
+.contacts-account-pane .contacts-form { padding:18px; gap:16px; }
+.contacts-account-heading { display:flex; align-items:start; justify-content:space-between; gap:12px; }
+.contacts-account-heading h2 { min-width:0; overflow-wrap:anywhere; }
+.contacts-account-close { flex:none; width:36px; min-width:36px; height:36px; min-height:36px; padding:0; font-size:22px; line-height:1; }
+.contacts-account-pane .contacts-group { grid-template-columns:1fr; }
+.contacts-account-pane .contacts-link-controls .button { width:100%; }
+.contacts-account-pane .contacts-form input,.contacts-account-pane .contacts-form textarea { min-width:0; }
+@media(max-width:1000px) { .contacts-directory-layout.contacts-account-open { grid-template-columns:minmax(0,1fr); } }
 .contacts-board { display:flex; overflow-x:auto; gap:12px; padding-bottom:14px; }
 .contacts-board .project-kanban-card { cursor:grab; }
 .contacts-board .project-title-button,.contacts-table .text-button { text-align:left; }

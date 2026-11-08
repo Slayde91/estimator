@@ -34,7 +34,7 @@ ORDER_FIELDS = ('start_date', 'end_date', 'urgency', 'quote_id', 'work_order_id'
                 'client_approved_by', 'client_approval_date', 'progress', 'claim', 'certification', 'completion',
                 'closed_by', 'supplier', 'supplier_email', 'supplier_contact', 'payment_terms', 'ship_to_name',
                 'ship_to_address', 'delivery_date', 'expense_type', 'delivery_method', 'requested_by',
-                'requested_date', 'sent_by', 'sent_date', 'verified_by', 'verified_date', 'verification')
+                'requested_date', 'sent_by', 'sent_date', 'verified_by', 'verified_date', 'verification', 'prepared_date')
 FIELD_KEYS = {'title', 'details', 'introduction', 'lines', 'scope', 'scope_tables', 'sources', 'allowances', 'terms', 'order', 'company_reference'}
 MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024
 MAX_PDF_BYTES = 64 * 1024 * 1024
@@ -272,8 +272,8 @@ def validate_fields(value, *, kind=None):
     result['rate_schedule'] = validate_rate_schedule(value.get('rate_schedule', default_rate_schedule()))
     files = validate_files(value.get('files', []))
     if files:
-        if kind not in ('work_order', None):
-            raise ValidationError('Only Work Orders support file attachments.')
+        if kind not in ('quote', 'work_order', None):
+            raise ValidationError('Only Quotes and Work Orders support file attachments.')
         result['files'] = files
     from .swms import validate_signature
     signatures = value.get('signatures', {})
@@ -283,8 +283,8 @@ def validate_fields(value, *, kind=None):
     if signatures:
         result['signatures'] = {key: validate_signature(signature) for key, signature in signatures.items()}
     notes = value.get('notes', [])
-    if not isinstance(notes, list) or len(notes) > 200 or (notes and kind not in ('work_order', None)):
-        raise ValidationError('A Work Order supports up to 200 notes.')
+    if not isinstance(notes, list) or len(notes) > 200 or (notes and kind not in ('quote', 'work_order', None)):
+        raise ValidationError('A Quote or Work Order supports up to 200 notes.')
     if notes:
         result['notes'] = []
         seen = set()
@@ -818,11 +818,11 @@ class CommercialDocuments:
         with self._connect() as db:
             project = self._workspace(db, workspace)
             document = self._record(db, workspace, document_id)
-            if document['kind'] != 'work_order':
-                raise ValidationError('Choose a work order attachment.')
+            if document['kind'] not in ('quote', 'work_order'):
+                raise ValidationError('Choose a Quote or Work Order attachment.')
             item = next((item for item in document['fields'].get('files', []) if item['id'] == file_id), None)
             if item is None:
-                raise ValidationError('Attachment not found on this work order.')
+                raise ValidationError('Attachment not found on this document.')
             return item, self.files.read(project, item)
 
     def save(self, workspace, payload, *, unfiled_context=None):

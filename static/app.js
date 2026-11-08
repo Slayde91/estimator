@@ -1034,6 +1034,8 @@
   }
 
   async function showView(view, librarySelection, calculatorId) {
+    const previousView = state.currentView;
+    if (view !== previousView && previousView === "contacts" && window.ClassifireContacts?.leave && !await window.ClassifireContacts.leave()) return;
     if (view !== state.currentView && state.currentView === "quotes" && window.CeasefireProjectPane && !await window.CeasefireProjectPane.leave()) return;
     if (view !== state.currentView && window.CeasefireCommercial?.hasPendingOperation?.() && !await window.CeasefireCommercial.leaveEditor()) return;
     if (view !== state.currentView && window.CeasefireScheduler?.hasPendingOperation?.()) { message("Finish or cancel the current Scheduler edit before changing views.", true); return; }
@@ -1065,7 +1067,7 @@
     if (view === "quotes") loadProjects();
     if (view === "scheduler") window.CeasefireScheduler?.activate().catch(error => message(error.message, true));
     let estimatorReady;
-    if (view === "contacts") estimatorReady = window.ClassifireContacts?.activate().catch(error => message(error.message, true));
+    if (view === "contacts" && previousView !== "contacts") estimatorReady = window.ClassifireContacts?.activate().catch(error => message(error.message, true));
     if (view === "swms") estimatorReady = window.CeasefireSWMS?.activate().catch(error => message(error.message, true));
     if (["quote", "work-orders", "purchase-orders"].includes(view)) estimatorReady = window.CeasefireCommercial?.activate({quote:"quote", "work-orders":"work_order", "purchase-orders":"purchase_order"}[view]).catch(error => message(error.message, true));
     if (view === "pricing") selectLibrary(state.libraryKind, librarySelection);
@@ -2177,6 +2179,7 @@
     return JSON.stringify({project:projectStamp(),coverSheets:window.CeasefireCoverSheets?.fingerprint?.(),projectPane:window.CeasefireProjectPane?.fingerprint?.()});
   }
   function coverReplacementPending(skipProjectPane = false) {
+    if (window.ClassifireContacts?.hasPendingOperation?.()) { message(uiCopy("Finish the current Account action first."), true); return true; }
     if (!skipProjectPane && window.CeasefireProjectPane?.hasPendingOperation?.()) { message("Finish the current project details action first.", true); return true; }
     if (window.CeasefireSWMS?.hasPendingOperation?.()) { message("Finish the current SWMS edit first.", true); return true; }
     if (window.CeasefireCommercial?.hasPendingOperation?.()) { message("Finish the current commercial document edit first.", true); return true; }
@@ -2936,7 +2939,7 @@
   });
   window.addEventListener("beforeunload", (event) => {
     const pricingChanged = sharedPricingChanged();
-    if (projectHasChanges() || pricingChanged || window.CeasefireScheduler?.hasPendingOperation?.() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.() || window.CeasefireCoverSheets?.hasUnsavedChanges?.() || window.CeasefirePersonalDetails?.hasUnsavedChanges?.() || window.CeasefireProjectPane?.hasUnsavedChanges?.()) {
+    if (projectHasChanges() || pricingChanged || window.CeasefireScheduler?.hasPendingOperation?.() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.() || window.CeasefireCoverSheets?.hasUnsavedChanges?.() || window.CeasefirePersonalDetails?.hasUnsavedChanges?.() || window.CeasefireProjectPane?.hasUnsavedChanges?.() || window.ClassifireContacts?.hasUnsavedChanges?.() || window.ClassifireContacts?.hasPendingOperation?.()) {
       event.preventDefault(); event.returnValue = pricingChanged ? pricingUnsavedPrompt : "";
     }
   });
@@ -2945,21 +2948,21 @@
   let desktopInputRevision = 0, desktopClosePending = false;
   window.addEventListener("input", () => { desktopInputRevision++; }, true);
   window.addEventListener("change", () => { desktopInputRevision++; }, true);
-  function desktopCloseStamp() { return JSON.stringify({ project: projectStamp(), input: desktopInputRevision, pricing: sharedPricingDraft(), pricingRevision: state.pricingRevision, libraryDirty: !!window.CeasefireLibraryEditor?.hasUnsavedChanges(), certification: window.CeasefireCertification?.fingerprint?.(), coverSheets:window.CeasefireCoverSheets?.fingerprint?.(), personalDetails:window.CeasefirePersonalDetails?.fingerprint?.(), projectPane:window.CeasefireProjectPane?.fingerprint?.() }); }
-  function desktopBusy() { return state.projectBusy || state.desktopRequests > 0 || !!window.CeasefireSWMS?.hasPendingOperation?.() || !!window.CeasefireCommercial?.hasPendingOperation?.() || !!window.CeasefireDownloads?.hasPendingOperation?.() || !!document.querySelector('dialog[open], [aria-busy="true"]') || !state.initialized || !!window.CeasefireCalculators?.hasPendingOperation?.() || !!window.CeasefirePenetrations?.hasPendingOperation?.() || !!window.CeasefireTakeoffs?.hasPendingOperation?.() || !!window.CeasefireLibraryEditor?.hasPendingOperation?.() || !!window.CeasefireCertification?.hasPendingOperation?.() || !!window.CeasefireCoverSheets?.hasPendingOperation?.() || !!window.CeasefireDocumentation?.hasPendingOperation?.() || !!window.CeasefirePersonalDetails?.hasPendingOperation?.() || !!window.CeasefireProjectPane?.hasPendingOperation?.(); }
+  function desktopCloseStamp() { return JSON.stringify({ project: projectStamp(), input: desktopInputRevision, pricing: sharedPricingDraft(), pricingRevision: state.pricingRevision, libraryDirty: !!window.CeasefireLibraryEditor?.hasUnsavedChanges(), certification: window.CeasefireCertification?.fingerprint?.(), coverSheets:window.CeasefireCoverSheets?.fingerprint?.(), personalDetails:window.CeasefirePersonalDetails?.fingerprint?.(), projectPane:window.CeasefireProjectPane?.fingerprint?.(), contacts:window.ClassifireContacts?.fingerprint?.() }); }
+  function desktopBusy() { return state.projectBusy || state.desktopRequests > 0 || !!window.CeasefireSWMS?.hasPendingOperation?.() || !!window.CeasefireCommercial?.hasPendingOperation?.() || !!window.CeasefireDownloads?.hasPendingOperation?.() || !!document.querySelector('dialog[open], [aria-busy="true"]') || !state.initialized || !!window.CeasefireCalculators?.hasPendingOperation?.() || !!window.CeasefirePenetrations?.hasPendingOperation?.() || !!window.CeasefireTakeoffs?.hasPendingOperation?.() || !!window.CeasefireLibraryEditor?.hasPendingOperation?.() || !!window.CeasefireCertification?.hasPendingOperation?.() || !!window.CeasefireCoverSheets?.hasPendingOperation?.() || !!window.CeasefireDocumentation?.hasPendingOperation?.() || !!window.CeasefirePersonalDetails?.hasPendingOperation?.() || !!window.CeasefireProjectPane?.hasPendingOperation?.() || !!window.ClassifireContacts?.hasPendingOperation?.(); }
   async function reviewDesktopClose() {
     if (desktopBusy()) { message(uiCopy("Finish the current operation or dialog before closing ESTIMATOR."), true); return false; }
     finishEstimateName();
     const captured = desktopCloseStamp();
-    if (projectHasChanges() || sharedPricingChanged() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.() || window.CeasefireCoverSheets?.hasUnsavedChanges?.() || window.CeasefirePersonalDetails?.hasUnsavedChanges?.() || window.CeasefireProjectPane?.hasUnsavedChanges?.()) {
-      if (!await confirmReplace(uiCopy("Close ESTIMATOR?"), uiCopy(window.CeasefirePersonalDetails?.hasUnsavedChanges?.() ? "There are unsaved changes. Close without saving discards them. Keep editing to save them first." : "There are unsaved project, calculator, library, certification or cover-sheet edits. Close without saving discards these edits. Keep editing to save them first."), uiCopy("Close without saving"))) return false;
+    if (projectHasChanges() || sharedPricingChanged() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.() || window.CeasefireCoverSheets?.hasUnsavedChanges?.() || window.CeasefirePersonalDetails?.hasUnsavedChanges?.() || window.CeasefireProjectPane?.hasUnsavedChanges?.() || window.ClassifireContacts?.hasUnsavedChanges?.()) {
+      if (!await confirmReplace(uiCopy("Close ESTIMATOR?"), uiCopy(window.CeasefirePersonalDetails?.hasUnsavedChanges?.() || window.ClassifireContacts?.hasUnsavedChanges?.() ? "There are unsaved changes. Close without saving discards them. Keep editing to save them first." : "There are unsaved project, calculator, library, certification or cover-sheet edits. Close without saving discards these edits. Keep editing to save them first."), uiCopy("Close without saving"))) return false;
     }
     if (desktopBusy() || captured !== desktopCloseStamp()) { message(uiCopy("Your draft changed during the close review. Close again when ready to keep your latest edits safe."), true); return false; }
     return true;
   }
   window.CeasefireDesktop = {
     showHome() { showView("home"); },
-    status() { return { ready: state.initialized, takeoffs: state.takeoffsEnabled, dirty: !!(projectHasChanges() || sharedPricingChanged() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.() || window.CeasefireCoverSheets?.hasUnsavedChanges?.() || window.CeasefirePersonalDetails?.hasUnsavedChanges?.() || window.CeasefireProjectPane?.hasUnsavedChanges?.()), busy: desktopBusy() }; },
+    status() { return { ready: state.initialized, takeoffs: state.takeoffsEnabled, dirty: !!(projectHasChanges() || sharedPricingChanged() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.() || window.CeasefireCoverSheets?.hasUnsavedChanges?.() || window.CeasefirePersonalDetails?.hasUnsavedChanges?.() || window.CeasefireProjectPane?.hasUnsavedChanges?.() || window.ClassifireContacts?.hasUnsavedChanges?.()), busy: desktopBusy() }; },
     async requestClose(nonce) {
       const host = window.chrome?.webview;
       if (!host || !/^[a-f0-9]{64}$/.test(nonce || "")) return;

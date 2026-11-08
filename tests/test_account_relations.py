@@ -72,7 +72,9 @@ class AccountRelationsTests(unittest.TestCase):
 
     def test_new_account_reassigns_existing_contact_and_links_all_record_types_atomically(self):
         self.save("leads", {"name": "Alex", "company": "Previous company"})
-        person = self.store.list()["contacts"][0]
+        before = self.store.list()
+        person = before["contacts"][0]
+        captured_lead = before["leads"][0]
         self.projects.documents.extend({**self.projects.documents[0], "id": str(uuid4()), "kind": kind}
                                        for kind in ("work_order", "purchase_order"))
         choices = self.relations.view()["choices"]
@@ -81,7 +83,8 @@ class AccountRelationsTests(unittest.TestCase):
         saved = self.save("accounts", {"company": "New company", "abn_acn": "ACN 123"}, links=links)
         current = self.store.list()
         self.assertEqual(current["contacts"][0]["account_id"], saved["id"])
-        self.assertEqual(current["leads"][0]["company"], "New company")
+        self.assertEqual(current["contacts"][0]["company"], "New company")
+        self.assertEqual(current["leads"][0], captured_lead)
         related = self.relations.view(saved["id"])
         self.assertEqual({kind: [entry["id"] for entry in entries] for kind, entries in related["linked"].items()}, links)
         self.assertEqual(len(self.store.saved_links(saved["id"])), 4)

@@ -63,7 +63,7 @@ async function createNewProject(page, values = {}) {
     if(directory.accounts.some(account=>account.company===values.client)){
       await input.blur();await input.focus();await page.locator('#project-account-options').getByRole('option',{name:values.client,exact:true}).click();
     }else{
-      await page.locator('#project-account-new').click();const account=page.getByRole('dialog',{name:'New Account',exact:true});
+      await page.locator('#project-account-new').click();const account=page.getByRole('dialog',{name:'New Company',exact:true});
       await account.getByLabel('Company',{exact:true}).fill(values.client);await account.getByRole('button',{name:'Save',exact:true}).click();await expect(account).toBeHidden();
     }
   }
@@ -99,7 +99,7 @@ async function fillProjectDetails(page, values, {waitForIdle = true} = {}) {
         await page.locator('#project-account-options').getByRole('option', {name:value,exact:true}).click();
       } else {
         await page.locator('#project-account-new').click();
-        const account = page.getByRole('dialog', {name:'New Account',exact:true});
+        const account = page.getByRole('dialog', {name:'New Company',exact:true});
         await account.getByLabel('Company',{exact:true}).fill(value);
         await account.getByRole('button',{name:'Save',exact:true}).click();
         await expect(account).not.toBeVisible();

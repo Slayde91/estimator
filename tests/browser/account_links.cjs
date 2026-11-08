@@ -53,7 +53,7 @@ const ready = new Promise((resolve, reject) => {
   await page.waitForFunction(() => window.CeasefireDesktop?.status()?.ready);
   const context = await page.evaluate(() => window.CeasefireProject.context());
   await page.evaluate(() => { window.accountResult = window.ClassifireContacts.createAccount({company: 'New Company'}); });
-  const dialog = page.getByRole('dialog', {name: 'New Account', exact: true});
+  const dialog = page.getByRole('dialog', {name: 'New Company', exact: true});
   await expect(dialog).toBeVisible();
   await expect(dialog.getByLabel('Company', {exact: true})).toHaveValue('New Company');
   await dialog.getByLabel('ABN/ACN', {exact: true}).fill('12 345 678 901');
@@ -133,9 +133,9 @@ const ready = new Promise((resolve, reject) => {
   state = await directory();
   const sourceAccount=state.accounts.find(item=>item.company==='Source Company');
   await page.locator('#contacts-navigation-toggle').click();
-  await page.locator('#contacts-root .contacts-tabs').getByRole('button',{name:'Accounts',exact:true}).click();
+  await page.locator('#contacts-root .contacts-tabs').getByRole('button',{name:'Companies',exact:true}).click();
   await page.locator('#contacts-root').getByRole('button',{name:'Source Company',exact:true}).click();
-  const sourceEditor=page.getByRole('complementary',{name:'Edit Account',exact:true});
+  const sourceEditor=page.getByRole('complementary',{name:'Edit Company',exact:true});
   await expect(sourceEditor.locator('.contacts-links [data-link-group="projects"] input')).toBeDisabled();
   const projectFile=(await api('/api/projects')).files.find(item=>path.resolve(item.path)===path.resolve(project.path));
   async function primaryAccount(target) {
@@ -176,8 +176,8 @@ const ready = new Promise((resolve, reject) => {
     catalog.errors = [{name:'Unavailable fixture project'}];
     await route.fulfill({response, json:catalog});
   });
-  await page.locator('#contacts-root').getByRole('button',{name:'New Company',exact:true}).click();
-  const edit = page.getByRole('complementary',{name:'Edit Account',exact:true});
+  await page.locator('#contacts-root .contacts-results').getByRole('button',{name:'New Company',exact:true}).click();
+  const edit = page.getByRole('complementary',{name:'Edit Company',exact:true});
   await expect(edit).toBeVisible();
   await expect(edit).toContainText('Unavailable saved record. Clear the selection to remove this link.');
   await expect(edit.locator('.contacts-links-group > summary')).toHaveText(['Contacts (1)','Projects (1)']);
@@ -233,7 +233,7 @@ const ready = new Promise((resolve, reject) => {
   assert.ok(popupBounds.x>=0 && popupBounds.x+popupBounds.width<=390,JSON.stringify(popupBounds));
   await page.screenshot({path: path.join(output, 'account-dialog-mobile.png')});
   await page.evaluate(() => window.CeasefireI18n.setLanguage('es', false));
-  const translatedDialog = page.getByRole('dialog', {name: 'Nueva cuenta', exact: true});
+  const translatedDialog = page.getByRole('dialog', {name: 'Nueva empresa', exact: true});
   await expect(translatedDialog).toBeVisible();
   await expect(translatedDialog.getByRole('heading', {name: 'Registros vinculados'})).toBeVisible();
   await expect(translatedDialog.locator('input[name="company"]')).toHaveValue('Mobile Company');

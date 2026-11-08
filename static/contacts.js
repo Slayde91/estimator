@@ -1,7 +1,7 @@
 (() => {
   "use strict";
-  const titles = {leads: "Leads", contacts: "Contacts", accounts: "Accounts"};
-  const singular = {leads: "Lead", contacts: "Contact", accounts: "Account"};
+  const titles = {leads: "Leads", contacts: "Contacts", accounts: "Companies"};
+  const singular = {leads: "Lead", contacts: "Contact", accounts: "Company"};
   const labels = {name: "Name", phone: "Phone", company: "Company", title: "Title", email: "Email", abn_acn: "ABN/ACN",
     site_address: "Site address", billing_address: "Billing address", description: "Description", status: "Status"};
   const personFields = ["name", "phone", "company", "title", "email"];
@@ -84,13 +84,13 @@
   async function leaveAccount() {
     const target = accountEditor;
     if (!target) return true;
-    if (target.pending()) { target.notice("Finish the current Account action first.", true); return false; }
+    if (target.pending()) { target.notice("Finish the current Company action first.", true); return false; }
     if (target.dirty()) {
       const captured = target.fingerprint();
       const translate = value => window.CeasefireI18n?.translate?.(value) || value;
-      if (!await window.CeasefireDialogs.confirm(translate("Discard changes"), translate("Discard changes to this account?"), translate("Yes"), translate("Cancel"))) return false;
+      if (!await window.CeasefireDialogs.confirm(translate("Discard changes"), translate("Discard changes to this company?"), translate("Yes"), translate("Cancel"))) return false;
       if (accountEditor !== target || target.pending()) return false;
-      if (target.fingerprint() !== captured) { target.notice("The Account changed during review. Check the current changes and try again.", true); return false; }
+      if (target.fingerprint() !== captured) { target.notice("The Company changed during review. Check the current changes and try again.", true); return false; }
     }
     target.close();
     return true;
@@ -157,7 +157,7 @@
       group("Address Information", ["site_address", "billing_address"]);
       group("Description", ["description"]);
     } else if (kind === "accounts") {
-      group("Account Information", ["company", "abn_acn", "billing_address"]);
+      group("Company Information", ["company", "abn_acn", "billing_address"]);
     } else {
       group("Contact Information", personFields);
     }
@@ -177,14 +177,13 @@
       input.setAttribute('role','combobox');input.setAttribute('aria-autocomplete','list');input.setAttribute('aria-expanded','false');input.setAttribute('aria-controls',list.id);input.autocomplete='off';
       label.replaceChild(box,input);box.append(input,list);
       let choices=[],active=-1;
-      const captions=records.map(caption),counts=new Map();captions.forEach(value=>counts.set(value,(counts.get(value)||0)+1));
       function hide(){list.hidden=true;input.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');active=-1;}
       function select(index){if(!choices[index]||submitting)return;choose(choices[index]);hide();input.focus();hide();}
       function render(){
         if(submitting||readOnly)return;
         const query=input.value.trim().toLocaleLowerCase();
         choices=records.filter(item=>searchable(item).toLocaleLowerCase().includes(query)).slice(0,30);active=-1;
-        list.replaceChildren(...choices.map((item,index)=>{const option=el('button','contacts-lookup-option');option.type='button';option.tabIndex=-1;option.id=list.id+'-'+index;option.setAttribute('role','option');option.setAttribute('aria-selected','false');const text=caption(item);option.textContent=text+(counts.get(text)>1?' · '+item.id.slice(-8):'');option.addEventListener('mousedown',event=>event.preventDefault());option.addEventListener('click',()=>select(index));return option;}));
+        list.replaceChildren(...choices.map((item,index)=>{const option=el('button','contacts-lookup-option');option.type='button';option.tabIndex=-1;option.id=list.id+'-'+index;option.dataset.recordId=item.id;option.setAttribute('role','option');option.setAttribute('aria-selected','false');option.setAttribute('aria-posinset',String(index+1));option.setAttribute('aria-setsize',String(choices.length));option.textContent=caption(item);option.addEventListener('mousedown',event=>event.preventDefault());option.addEventListener('click',()=>select(index));return option;}));
         if(!choices.length){const empty=ui('p','helper',emptyText);empty.setAttribute('role','status');list.append(empty);}
         list.hidden=false;input.setAttribute('aria-expanded','true');input.removeAttribute('aria-activedescendant');
       }
@@ -205,9 +204,9 @@
     if(!readOnly && kind==='leads') {
       const selectedAccount=directory.accounts.find(item=>item.id===accountId);if(selectedAccount)accountDefaults={abn_acn:selectedAccount.abn_acn||'',billing_address:selectedAccount.billing_address||''};
       fields.company.addEventListener('input',()=>{const account=directory.accounts.find(item=>item.id===accountId);if(!account || fields.company.value.trim()!==account.company){accountId='';for(const key of ['abn_acn','billing_address'])if(fields[key]?.value===accountDefaults[key])fields[key].value='';accountDefaults={};}});
-      lookup(fields.company,directory.accounts,item=>[item.company,item.abn_acn].join(' '),item=>[item.company,item.abn_acn].filter(Boolean).join(' · '),account=>accountSelection(account),'No matching Accounts. You can enter a company name.');
+      lookup(fields.company,directory.accounts,item=>[item.company,item.abn_acn].join(' '),item=>item.company,account=>accountSelection(account),'No matching Companies. You can enter a company name.');
       fields.name.addEventListener('input',()=>{if(fields.name.value.trim()!==contactName)contactId='';});
-      lookup(fields.name,directory.contacts,item=>[item.name,item.company,item.email,item.phone].join(' '),item=>[item.name,item.company,item.email,item.phone].filter(Boolean).join(' · '),contact=>{
+      lookup(fields.name,directory.contacts,item=>[item.name,item.company,item.email,item.phone].join(' '),item=>item.name,contact=>{
         contactId=contact.id;contactName=contact.name;
         for(const key of ['name','phone','email','title'])fields[key].value=contact[key]||'';
         if(!fields.company.value.trim()){const account=directory.accounts.find(item=>item.id===contact.account_id);if(account)accountSelection(account);}
@@ -300,7 +299,7 @@
             closeEditor(); await switchPage("contacts"); dialogEditor("contacts", person);
           }, "text-button"));
         } else label.append(el("span", "", item.label));
-        if (item.automatic) row.append(ui("p", "helper", "Linked through this account's saved project."));
+        if (item.automatic) row.append(ui("p", "helper", "Linked through this company's saved project."));
         else if (!item.available) row.append(ui("p", "helper", "Unavailable saved record. Clear the selection to remove this link."));
         else if (key === "contacts" && item.account_id && item.account_id !== record.id)
           row.append(ui("p", checkbox.checked ? "contacts-reassignment" : "helper", checkbox.checked ?
@@ -416,7 +415,7 @@
           copy(linkStatus, catalog.error_count ? "Some project records are unavailable. Current links are retained." :
             catalog.scan_pending ? "Project records are still loading. Refresh to list more records." :
             catalog.truncated ? "Search by name to find more records. Current links are retained." :
-              "Select existing records to link to this account. Project links do not change the project details.");
+              "Select existing records to link to this company. Project links do not change the project details.");
         } catch (error) {
           if (!isOpen() || ticket !== linkTicket) return;
           linkStatus.textContent = error.message;
@@ -500,7 +499,7 @@
   async function createContact(initial = {}) {
     const directory = await request('directory');
     const account = initial.account_id ? directory.accounts.find(item=>item.id===initial.account_id) : null;
-    if(initial.account_id && !account)throw new Error('Choose a valid Account.');
+    if(initial.account_id && !account)throw new Error('Choose a valid Company.');
     return dialogEditor('contacts',{name:typeof initial.name==='string'?initial.name:'',...(account?{company:account.company,account_id:account.id}:{})},false,{directory,standalone:true});
   }
   function matches(row) {
@@ -597,7 +596,7 @@
       }
     }
     wrapper.append(table);
-    if (!rows.length) wrapper.append(el("p", "helper", "No matching " + page + "."));
+    if (!rows.length) wrapper.append(page === "accounts" ? ui("p", "helper", "No matching companies.") : el("p", "helper", "No matching " + titles[page].toLowerCase() + "."));
     return wrapper;
   }
   function displayRows() {
@@ -659,12 +658,13 @@
     container.replaceChildren();
     const heading = el("div", "page-heading");
     const title = el("div");
-    title.append(el("p", "eyebrow", "CONTACTS"), el("h1", "", titles[page]));
+    title.append(el("p", "eyebrow", "CONTACTS"), page === "accounts" ? ui("h1", "", titles[page]) : el("h1", "", titles[page]));
     heading.append(title);
     const tabs = el("nav", "calculator-pages contacts-tabs");
     tabs.setAttribute("aria-label", "Contacts pages");
     for (const [key, label] of Object.entries(titles)) {
       const tab = button(label, () => switchPage(key), "calculator-page");
+      if (key === "accounts") copy(tab, label);
       tab.setAttribute("aria-pressed", String(key === page));
       if (key === page) tab.setAttribute("aria-current", "page");
       tabs.append(tab);
@@ -674,14 +674,19 @@
     }
     const section = el("section", "card contacts-workspace");
     const controls = el("div", "contacts-controls");
-    const searchLabel = el("label", "field", "Search " + page);
+    const searchLabel = el("label", "field");
+    const searchTitle = "Search " + titles[page].toLowerCase();
+    if (page === "accounts" && window.CeasefireI18n) window.CeasefireI18n.nodeText(searchLabel, searchTitle);
+    else searchLabel.textContent = searchTitle;
     const input = el("input");
     input.type = "search"; input.value = search;
     input.addEventListener("input", () => { search = input.value; displayRows(); });
     searchLabel.append(input);
     controls.append(searchLabel);
     if (page !== "leads") controls.append(documentMenu(page));
-    controls.append(button("New " + singular[page], () => dialogEditor(page), "button primary"));
+    const create = button("New " + singular[page], () => dialogEditor(page), "button primary");
+    if (page === "accounts") copy(create, "New Company");
+    controls.append(create);
     section.append(controls, el("div", "contacts-results"));
     const layout = el("div", "contacts-directory-layout");
     layout.append(section);

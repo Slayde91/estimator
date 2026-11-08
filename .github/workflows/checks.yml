@@ -152,6 +152,7 @@ jobs:
       - run: node tests/browser/commercial_terms.cjs
       - run: node tests/browser/swms.cjs
       - run: node tests/browser/swms_people_defaults.cjs
+      - run: node tests/browser/swms_contact_signature.cjs
       - run: node tests/browser/project_documentation.cjs
       - run: node tests/browser/control_layout_polish.cjs
       - run: node tests/browser/pricing_manufacturers.cjs

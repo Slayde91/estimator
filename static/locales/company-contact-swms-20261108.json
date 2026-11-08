@@ -1,0 +1,233 @@
+{
+  "Companies": [
+    "公司",
+    "कंपनियाँ",
+    "Empresas",
+    "الشركات",
+    "บริษัท"
+  ],
+  "New Company": [
+    "新建公司",
+    "नई कंपनी",
+    "Nueva empresa",
+    "شركة جديدة",
+    "บริษัทใหม่"
+  ],
+  "Edit Company": [
+    "编辑公司",
+    "कंपनी संपादित करें",
+    "Editar empresa",
+    "تعديل الشركة",
+    "แก้ไขบริษัท"
+  ],
+  "Company Information": [
+    "公司信息",
+    "कंपनी की जानकारी",
+    "Información de la empresa",
+    "معلومات الشركة",
+    "ข้อมูลบริษัท"
+  ],
+  "Search companies": [
+    "搜索公司",
+    "कंपनियाँ खोजें",
+    "Buscar empresas",
+    "البحث عن شركات",
+    "ค้นหาบริษัท"
+  ],
+  "No matching companies.": [
+    "没有匹配的公司。",
+    "कोई मेल खाती कंपनी नहीं मिली।",
+    "No hay empresas coincidentes.",
+    "لا توجد شركات مطابقة.",
+    "ไม่พบบริษัทที่ตรงกัน"
+  ],
+  "Search Companies": [
+    "搜索公司",
+    "कंपनियाँ खोजें",
+    "Buscar empresas",
+    "البحث عن شركات",
+    "ค้นหาบริษัท"
+  ],
+  "Finish the current Company action first.": [
+    "请先完成当前公司操作。",
+    "पहले कंपनी की वर्तमान कार्रवाई पूरी करें।",
+    "Primero termine la acción actual de la empresa.",
+    "أكمل إجراء الشركة الحالي أولاً.",
+    "ดำเนินการบริษัทปัจจุบันให้เสร็จก่อน"
+  ],
+  "Discard changes to this company?": [
+    "放弃对此公司的更改？",
+    "इस कंपनी में किए गए बदलाव छोड़ दें?",
+    "¿Descartar los cambios de esta empresa?",
+    "هل تريد تجاهل التغييرات على هذه الشركة؟",
+    "ละทิ้งการเปลี่ยนแปลงของบริษัทนี้หรือไม่"
+  ],
+  "The Company changed during review. Check the current changes and try again.": [
+    "审核期间公司已更改。请检查当前更改后重试。",
+    "समीक्षा के दौरान कंपनी बदल गई। वर्तमान बदलाव जाँचें और फिर प्रयास करें।",
+    "La empresa cambió durante la revisión. Compruebe los cambios actuales e inténtelo de nuevo.",
+    "تغيّرت الشركة أثناء المراجعة. تحقق من التغييرات الحالية وحاول مرة أخرى.",
+    "บริษัทเปลี่ยนแปลงระหว่างการตรวจทาน ตรวจสอบการเปลี่ยนแปลงปัจจุบันแล้วลองอีกครั้ง"
+  ],
+  "No matching Companies. You can enter a company name.": [
+    "没有匹配的公司。您可以输入公司名称。",
+    "कोई मेल खाती कंपनी नहीं मिली। आप कंपनी का नाम दर्ज कर सकते हैं।",
+    "No hay empresas coincidentes. Puede escribir el nombre de una empresa.",
+    "لا توجد شركات مطابقة. يمكنك إدخال اسم شركة.",
+    "ไม่พบบริษัทที่ตรงกัน คุณสามารถป้อนชื่อบริษัทได้"
+  ],
+  "Linked through this company's saved project.": [
+    "通过此公司已保存的项目关联。",
+    "इस कंपनी की सहेजी गई परियोजना के माध्यम से जुड़ा है।",
+    "Vinculado a través del proyecto guardado de esta empresa.",
+    "مرتبط عبر مشروع هذه الشركة المحفوظ.",
+    "เชื่อมโยงผ่านโครงการที่บันทึกไว้ของบริษัทนี้"
+  ],
+  "Select existing records to link to this company. Project links do not change the project details.": [
+    "选择要关联到此公司的现有记录。项目关联不会更改项目详情。",
+    "इस कंपनी से जोड़ने के लिए मौजूदा रिकॉर्ड चुनें। परियोजना लिंक से परियोजना का विवरण नहीं बदलता।",
+    "Seleccione registros existentes para vincularlos a esta empresa. Los enlaces de proyectos no cambian los datos del proyecto.",
+    "حدد سجلات موجودة لربطها بهذه الشركة. روابط المشاريع لا تغيّر تفاصيل المشروع.",
+    "เลือกระเบียนที่มีอยู่เพื่อเชื่อมโยงกับบริษัทนี้ การเชื่อมโยงโครงการจะไม่เปลี่ยนรายละเอียดโครงการ"
+  ],
+  "Choose a valid Company.": [
+    "请选择有效的公司。",
+    "मान्य कंपनी चुनें।",
+    "Seleccione una empresa válida.",
+    "اختر شركة صالحة.",
+    "เลือกบริษัทที่ถูกต้อง"
+  ],
+  "Choose an existing Company for this client, or use + to create a Company.": [
+    "请为此客户选择现有公司，或使用 + 创建公司。",
+    "इस ग्राहक के लिए मौजूदा कंपनी चुनें, या + से कंपनी बनाएँ।",
+    "Seleccione una empresa existente para este cliente o use + para crear una empresa.",
+    "اختر شركة موجودة لهذا العميل، أو استخدم + لإنشاء شركة.",
+    "เลือกบริษัทที่มีอยู่สำหรับลูกค้านี้ หรือใช้ + เพื่อสร้างบริษัท"
+  ],
+  "Choose an existing Company for this client, or use + to create a Company in Current project details.": [
+    "请为此客户选择现有公司，或在“当前项目详情”中使用 + 创建公司。",
+    "इस ग्राहक के लिए मौजूदा कंपनी चुनें, या वर्तमान परियोजना विवरण में + से कंपनी बनाएँ।",
+    "Seleccione una empresa existente para este cliente o use + para crear una empresa en los datos del proyecto actual.",
+    "اختر شركة موجودة لهذا العميل، أو استخدم + لإنشاء شركة في تفاصيل المشروع الحالي.",
+    "เลือกบริษัทที่มีอยู่สำหรับลูกค้านี้ หรือใช้ + เพื่อสร้างบริษัทในรายละเอียดโครงการปัจจุบัน"
+  ],
+  "No matching Companies. Use + to create one.": [
+    "没有匹配的公司。使用 + 创建公司。",
+    "कोई मेल खाती कंपनी नहीं मिली। + से नई कंपनी बनाएँ।",
+    "No hay empresas coincidentes. Use + para crear una.",
+    "لا توجد شركات مطابقة. استخدم + لإنشاء شركة.",
+    "ไม่พบบริษัทที่ตรงกัน ใช้ + เพื่อสร้างบริษัท"
+  ],
+  "Refresh the application before creating a Company.": [
+    "请先刷新应用，再创建公司。",
+    "कंपनी बनाने से पहले ऐप रीफ़्रेश करें।",
+    "Actualice la aplicación antes de crear una empresa.",
+    "حدّث التطبيق قبل إنشاء شركة.",
+    "รีเฟรชแอปก่อนสร้างบริษัท"
+  ],
+  "This company could not be found. Reload the directory.": [
+    "找不到此公司。请重新加载名录。",
+    "यह कंपनी नहीं मिली। निर्देशिका फिर लोड करें।",
+    "No se encontró esta empresa. Vuelva a cargar el directorio.",
+    "تعذّر العثور على هذه الشركة. أعد تحميل الدليل.",
+    "ไม่พบบริษัทนี้ โหลดไดเรกทอรีใหม่"
+  ],
+  "Company already has a different ABN/ACN. Edit its company details first.": [
+    "公司已有不同的 ABN/ACN。请先编辑公司详情。",
+    "कंपनी का ABN/ACN पहले से अलग है। पहले कंपनी का विवरण संपादित करें।",
+    "La empresa ya tiene un ABN/ACN diferente. Edite primero los datos de la empresa.",
+    "للشركة رقم ABN/ACN مختلف بالفعل. عدّل تفاصيل الشركة أولاً.",
+    "บริษัทมี ABN/ACN ที่ต่างกันอยู่แล้ว แก้ไขรายละเอียดบริษัทก่อน"
+  ],
+  "Choose related records from the company form.": [
+    "请在公司表单中选择相关记录。",
+    "कंपनी फ़ॉर्म से संबंधित रिकॉर्ड चुनें।",
+    "Seleccione los registros relacionados desde el formulario de la empresa.",
+    "اختر السجلات ذات الصلة من نموذج الشركة.",
+    "เลือกระเบียนที่เกี่ยวข้องจากแบบฟอร์มบริษัท"
+  ],
+  "A selected contact is no longer available. Reopen the company.": [
+    "所选联系人已不可用。请重新打开公司。",
+    "चुना गया संपर्क अब उपलब्ध नहीं है। कंपनी फिर खोलें।",
+    "Un contacto seleccionado ya no está disponible. Vuelva a abrir la empresa.",
+    "لم تعد جهة اتصال محددة متاحة. أعد فتح الشركة.",
+    "ผู้ติดต่อที่เลือกไม่พร้อมใช้งานแล้ว เปิดบริษัทอีกครั้ง"
+  ],
+  "A contact linked to a lead must keep a company. Reassign it to another company instead.": [
+    "关联到潜在客户的联系人必须保留所属公司。请将其重新分配给另一家公司。",
+    "लीड से जुड़े संपर्क की कंपनी बनी रहनी चाहिए। इसके बजाय उसे दूसरी कंपनी से जोड़ें।",
+    "Un contacto vinculado a un cliente potencial debe conservar una empresa. Reasígnelo a otra empresa.",
+    "يجب أن تحتفظ جهة الاتصال المرتبطة بعميل محتمل بشركة. أعد إسنادها إلى شركة أخرى بدلاً من ذلك.",
+    "ผู้ติดต่อที่เชื่อมโยงกับลูกค้าเป้าหมายต้องมีบริษัท ให้ย้ายไปบริษัทอื่นแทน"
+  ],
+  "Related records can only be changed from a company.": [
+    "只能从公司中更改相关记录。",
+    "संबंधित रिकॉर्ड केवल कंपनी से बदले जा सकते हैं।",
+    "Los registros relacionados solo se pueden cambiar desde una empresa.",
+    "لا يمكن تغيير السجلات ذات الصلة إلا من خلال شركة.",
+    "เปลี่ยนระเบียนที่เกี่ยวข้องได้จากบริษัทเท่านั้น"
+  ],
+  "Choose the matching Company.": [
+    "请选择匹配的公司。",
+    "मेल खाती कंपनी चुनें।",
+    "Seleccione la empresa coincidente.",
+    "اختر الشركة المطابقة.",
+    "เลือกบริษัทที่ตรงกัน"
+  ],
+  "A company with this name already exists.": [
+    "此名称的公司已存在。",
+    "इस नाम की कंपनी पहले से मौजूद है।",
+    "Ya existe una empresa con este nombre.",
+    "توجد شركة بهذا الاسم بالفعل.",
+    "มีบริษัทชื่อนี้อยู่แล้ว"
+  ],
+  "Select the Contacts or Companies template.": [
+    "请选择联系人或公司模板。",
+    "संपर्क या कंपनी टेम्पलेट चुनें।",
+    "Seleccione la plantilla de Contactos o Empresas.",
+    "حدد قالب جهات الاتصال أو الشركات.",
+    "เลือกเทมเพลตผู้ติดต่อหรือบริษัท"
+  ],
+  "Company already has a different billing address. Edit its company details first.": [
+    "公司已有不同的账单地址。请先编辑公司详情。",
+    "कंपनी का बिलिंग पता पहले से अलग है। पहले कंपनी का विवरण संपादित करें।",
+    "La empresa ya tiene otra dirección de facturación. Edite primero los datos de la empresa.",
+    "للشركة عنوان فوترة مختلف بالفعل. عدّل تفاصيل الشركة أولاً.",
+    "บริษัทมีที่อยู่เรียกเก็บเงินที่ต่างกันอยู่แล้ว แก้ไขรายละเอียดบริษัทก่อน"
+  ],
+  "Choose one company and related-record search.": [
+    "请选择一家公司和相关记录搜索。",
+    "एक कंपनी और संबंधित रिकॉर्ड की खोज चुनें।",
+    "Seleccione una empresa y una búsqueda de registros relacionados.",
+    "اختر شركة واحدة وبحثاً عن السجلات ذات الصلة.",
+    "เลือกหนึ่งบริษัทและการค้นหาระเบียนที่เกี่ยวข้อง"
+  ],
+  "Reload this application before saving so the project's Contact and Company details are retained.": [
+    "请在保存前重新加载此应用，以保留项目的联系人和公司详情。",
+    "सहेजने से पहले ऐप फिर लोड करें ताकि परियोजना के संपर्क और कंपनी का विवरण बना रहे।",
+    "Vuelva a cargar esta aplicación antes de guardar para conservar los datos de contacto y empresa del proyecto.",
+    "أعد تحميل هذا التطبيق قبل الحفظ للاحتفاظ بتفاصيل جهة الاتصال والشركة الخاصة بالمشروع.",
+    "โหลดแอปนี้ใหม่ก่อนบันทึกเพื่อเก็บรายละเอียดผู้ติดต่อและบริษัทของโครงการไว้"
+  ],
+  "Choose an existing Company for this Client, or add a new Company.": [
+    "请为此客户选择现有公司，或添加新公司。",
+    "इस ग्राहक के लिए मौजूदा कंपनी चुनें, या नई कंपनी जोड़ें।",
+    "Seleccione una empresa existente para este cliente o añada una nueva empresa.",
+    "اختر شركة موجودة لهذا العميل، أو أضف شركة جديدة.",
+    "เลือกบริษัทที่มีอยู่สำหรับลูกค้านี้ หรือเพิ่มบริษัทใหม่"
+  ],
+  "Company details could not be loaded. Try again.": [
+    "无法加载公司详情。请重试。",
+    "कंपनी का विवरण लोड नहीं हो सका। फिर प्रयास करें।",
+    "No se pudieron cargar los datos de la empresa. Inténtelo de nuevo.",
+    "تعذّر تحميل تفاصيل الشركة. حاول مرة أخرى.",
+    "ไม่สามารถโหลดรายละเอียดบริษัทได้ ลองอีกครั้ง"
+  ],
+  "Contact person drawn signature": [
+    "联系人的手绘签名",
+    "संपर्क व्यक्ति के हाथ से बनाए हस्ताक्षर",
+    "Firma dibujada de la persona de contacto",
+    "توقيع مرسوم لجهة الاتصال",
+    "ลายเซ็นที่วาดของผู้ติดต่อ"
+  ]
+}

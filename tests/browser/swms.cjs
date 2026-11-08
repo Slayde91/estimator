@@ -107,7 +107,7 @@ async function run(edition) {
     assert.ok((await additionalControl.boundingBox()).height <= 45);
     await additionalControl.fill('Saved additional control\nLine two\nLine three\nLine four\nLine five');
     await additionalSection.locator(':scope > summary').click();
-    await host.getByRole('button',{name:'Draw signature',exact:true}).first().click();
+    await host.locator('.swms-signature:not(.swms-contact-signature)').first().getByRole('button',{name:'Draw signature',exact:true}).click();
     const pad = page.getByLabel('Signature drawing pad'), rect = await pad.boundingBox();
     const padClear = page.getByRole('dialog').getByRole('button',{name:'Clear pad',exact:true});
     const artwork = locator => locator.locator('svg path').evaluateAll(paths=>paths.map(p=>p.getAttribute('d')));
@@ -211,4 +211,4 @@ async function run(edition) {
   } catch(error) { fs.mkdirSync(directory,{recursive:true});fs.writeFileSync(path.join(directory,'server.log'),logs);throw error; }
   finally { await browser?.close(); server.kill(); }
 }
-(async()=>{ await run('full'); await run('standard'); checks.push(await require('./swms_people_defaults.cjs')(root,output)); fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({checks},null,2)); console.log(JSON.stringify({checks,output})); })().catch(error=>{console.error(error);process.exitCode=1;});
+(async()=>{ await run('full'); await run('standard'); checks.push(await require('./swms_people_defaults.cjs')(root,output)); checks.push(await require('./swms_contact_signature.cjs')(root,output)); fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({checks},null,2)); console.log(JSON.stringify({checks,output})); })().catch(error=>{console.error(error);process.exitCode=1;});

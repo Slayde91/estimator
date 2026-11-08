@@ -27,7 +27,7 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  await openProjectSection(page,'quote');const quote=page.locator('#commercial-quote-root');await quote.getByRole('button',{name:'New Quote',exact:true}).click();await idle();
  await quote.getByLabel('Document title',{exact:true}).fill('Quote with side panes');
  await expect(quote.locator('.commercial-work-layout>.commercial-sidebar')).toHaveCount(2);
- for(const label of ['Account Details','Contact Details','Notes (0)','Files (0)','Linked Work Orders (0)'])await expect(quote.locator('.commercial-sidebar summary').filter({hasText:label})).toHaveCount(1);
+ for(const label of ['Company Details','Contact Details','Notes (0)','Files (0)','Linked Work Orders (0)'])await expect(quote.locator('.commercial-sidebar summary').filter({hasText:label})).toHaveCount(1);
  await quote.locator('input[type=file]').setInputFiles(info.fixture);await expect(quote.locator('.commercial-sidebar summary').filter({hasText:'Files (1)'})).toHaveCount(1);await save(quote);
  await quote.getByRole('button',{name:'New note',exact:true}).click();const note=page.getByRole('dialog',{name:'Quote note',exact:true});await note.getByLabel('Note title',{exact:true}).fill('Quote note proof');await note.locator('[contenteditable=true]').fill('Preserved Quote note body');await note.getByRole('button',{name:'Done',exact:true}).click();await expect(note).toBeHidden();await idle();
  let model=await current(),savedQuote=model.documents.find(document=>document.kind==='quote');assert.equal(savedQuote.fields.notes[0].title,'Quote note proof');assert.equal(savedQuote.fields.files.length,1);

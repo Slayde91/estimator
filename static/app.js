@@ -2179,7 +2179,7 @@
     return JSON.stringify({project:projectStamp(),coverSheets:window.CeasefireCoverSheets?.fingerprint?.(),projectPane:window.CeasefireProjectPane?.fingerprint?.()});
   }
   function coverReplacementPending(skipProjectPane = false) {
-    if (window.ClassifireContacts?.hasPendingOperation?.()) { message(uiCopy("Finish the current Account action first."), true); return true; }
+    if (window.ClassifireContacts?.hasPendingOperation?.()) { message(uiCopy("Finish the current Company action first."), true); return true; }
     if (!skipProjectPane && window.CeasefireProjectPane?.hasPendingOperation?.()) { message("Finish the current project details action first.", true); return true; }
     if (window.CeasefireSWMS?.hasPendingOperation?.()) { message("Finish the current SWMS edit first.", true); return true; }
     if (window.CeasefireCommercial?.hasPendingOperation?.()) { message("Finish the current commercial document edit first.", true); return true; }

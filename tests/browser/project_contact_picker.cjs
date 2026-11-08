@@ -30,20 +30,37 @@ const ready=new Promise((resolve,reject)=>{
   const first=await create({name:'Alex Same',company:'Alpha Contact Company',phone:'111',email:'alpha@example.test'});
   const second=await create({name:'Alex Same',company:'Beta Contact Company',phone:'222',email:'beta@example.test'});
   const empty=await create({name:'Empty Details',company:'Empty Contact Company',phone:'',email:''});
+  const orphan=await create({name:'Unlinked Person',company:'',phone:'333',email:'orphan@example.test'});
   const idle=()=>page.waitForFunction(()=>window.CeasefireDesktop?.status().ready&&!window.CeasefireDesktop.status().busy);
   await page.goto(base+'/');await idle();
-  await fillProjectDetails(page,{client:'Project Account', 'site-address':'1 Project Street'});
+  await fillProjectDetails(page,{client:'', 'site-address':'1 Project Street'});
   await openProjectSection(page,'quotes');await page.locator('#project-current-details').click();
-  const original=await page.evaluate(()=>window.CeasefireProject.details()), baselineDirectory=await directory();
+  const baselineDirectory=await directory();
   const name=page.locator('#project-pane-contact-name'), phone=page.locator('#project-pane-contact-phone'), email=page.locator('#project-pane-contact-email');
   const options=page.locator('#project-contact-options');
   await name.focus();await name.fill('Alex');
   await expect(options.getByRole('option')).toHaveCount(2);
-  await expect(options).toContainText('Alpha Contact Company');await expect(options).toContainText('Beta Contact Company');
-  await options.getByRole('option',{name:'Alex Same · Beta Contact Company · 222 · beta@example.test',exact:true}).click();
+  assert.deepEqual(await options.getByRole('option').allTextContents(),['Alex Same','Alex Same']);
+  await options.locator(`[data-contact-id="${second.id}"]`).click();
   await expect(options).toBeHidden();await expect(phone).toHaveValue('222');await expect(email).toHaveValue('beta@example.test');
   let details=await page.evaluate(()=>window.CeasefireProject.details());
-  assert.equal(details.contact_id,second.id);assert.equal(details.client,original.client);assert.equal(details.account_id,original.account_id);
+  assert.equal(details.contact_id,second.id);assert.equal(details.client,'Beta Contact Company');assert.equal(details.account_id,second.contact.account_id);
+  await name.blur();await name.focus();await expect(options.getByRole('option')).toHaveCount(1);
+  await expect(options.getByRole('option')).toHaveText('Alex Same');assert.equal(await options.getByRole('option').getAttribute('data-contact-id'),second.id);
+  const client=page.locator('#project-pane-client');await client.fill('Alpha');await client.focus();
+  await page.locator('#project-account-options').getByRole('option',{name:'Alpha Contact Company',exact:true}).click();
+  await expect(name).toHaveValue('');await expect(phone).toHaveValue('');await expect(email).toHaveValue('');
+  assert.equal((await page.evaluate(()=>window.CeasefireProject.details())).contact_id,'');
+  await name.fill('Alex');await name.focus();await expect(options.getByRole('option')).toHaveCount(1);
+  assert.equal(await options.getByRole('option').getAttribute('data-contact-id'),first.id);await options.getByRole('option').click();
+  await expect(client).toHaveValue('Alpha Contact Company');
+  await phone.fill('Clear this override');await email.fill('clear@example.test');await name.focus();
+  const clearBounds=await name.boundingBox();await page.mouse.click(clearBounds.x+clearBounds.width-24,clearBounds.y+clearBounds.height/2);
+  await expect(name).toHaveValue('');await expect(client).toHaveValue('');await expect(phone).toHaveValue('');await expect(email).toHaveValue('');
+  details=await page.evaluate(()=>window.CeasefireProject.details());assert.equal(details.account_id,'');assert.equal(details.contact_id,'');
+  await name.fill('Unlinked');await name.focus();await options.locator(`[data-contact-id="${orphan.id}"]`).click();
+  await expect(client).toHaveValue('');await expect(phone).toHaveValue('333');assert.equal((await page.evaluate(()=>window.CeasefireProject.details())).account_id,'');
+  await name.fill('');await name.fill('Alex');await expect(options.getByRole('option')).toHaveCount(2);await options.locator(`[data-contact-id="${second.id}"]`).click();
   await phone.fill('Manual project phone');await email.fill('override@example.test');
   await page.locator('#project-details-close').click();
   let response=page.waitForResponse(r=>r.url().endsWith('/api/project/save-as'));
@@ -55,7 +72,7 @@ const ready=new Promise((resolve,reject)=>{
   await openProjectSection(page,'quotes');await page.locator('#project-current-details').click();
   await expect(name).toHaveValue('Alex Same');await expect(phone).toHaveValue('Manual project phone');await expect(email).toHaveValue('override@example.test');
   response=page.waitForResponse(r=>r.url().endsWith('/api/contacts/directory'));
-  await name.focus();await response;await expect(options.getByRole('option')).toHaveCount(2);
+  await name.focus();await response;await expect(options.getByRole('option')).toHaveCount(1);
   await name.press('Escape');await expect(options).toBeHidden();
   await expect(phone).toHaveValue('Manual project phone');assert.equal((await page.evaluate(()=>window.CeasefireProject.details())).contact_id,second.id);
   // Escape also cancels a popup whose directory lookup has not returned yet.
@@ -70,10 +87,11 @@ const ready=new Promise((resolve,reject)=>{
   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   await expect(options).toBeHidden();await expect(phone).toHaveValue('Manual project phone');
   // Keyboard selection with empty source values clears the previous person's data.
-  await name.fill('Empty');await name.focus();await expect(options.getByRole('option')).toHaveCount(1);
+  await name.fill('');await name.fill('Empty');await name.focus();await expect(options.getByRole('option')).toHaveCount(1);
   await name.press('ArrowDown');await name.press('Enter');await expect(options).toBeHidden();
   await expect(name).toHaveValue('Empty Details');await expect(phone).toHaveValue('');await expect(email).toHaveValue('');
   assert.equal((await page.evaluate(()=>window.CeasefireProject.details())).contact_id,empty.id);
+  await expect(client).toHaveValue('Empty Contact Company');
   await name.fill('Unlisted manual person');await phone.fill('Manual 9');
   assert.equal((await page.evaluate(()=>window.CeasefireProject.details())).contact_id,'');
   await page.locator('#project-details-close').click();
@@ -87,8 +105,9 @@ const ready=new Promise((resolve,reject)=>{
   const listing=await api('/api/projects'), other=listing.files.find(file=>path.resolve(file.path)===path.resolve(secondPath));assert.ok(other);
   const before=fs.readFileSync(info.project), active=await page.evaluate(()=>window.CeasefireProject.details());
   const toggle=page.locator(`[data-project-details-id="${other.id}"]`);await toggle.click();await idle();
+  await client.fill('');
   await name.focus();await name.fill('Alex');await expect(options.getByRole('option')).toHaveCount(2);
-  await options.getByRole('option',{name:'Alex Same · Alpha Contact Company · 111 · alpha@example.test',exact:true}).click();
+  await options.locator(`[data-contact-id="${first.id}"]`).click();
   response=page.waitForResponse(r=>r.url().endsWith('/api/projects/details/save'));
   await page.locator('#project-details-save').click();const otherSaved=await response;assert.equal(otherSaved.status(),200,await otherSaved.text());await idle();
   assert.equal(JSON.parse(fs.readFileSync(secondPath)).estimate.contact_id,first.id);assert.deepEqual(fs.readFileSync(info.project),before);
@@ -107,13 +126,13 @@ const ready=new Promise((resolve,reject)=>{
   const held=new Promise(resolve=>{release=resolve;}), started=new Promise(resolve=>{entered=resolve;}), completed=new Promise(resolve=>{finished=resolve;});let requestCount=0;
   await page.route('**/api/contacts/directory',async route=>{
     if(++requestCount!==1){await route.continue();return;}
-    const value=await route.fetch();const stale=await value.json();stale.contacts.push({id:'10000000-0000-0000-0000-000000000099',name:'Alex Stale Ghost',phone:'999',email:'ghost@example.test',company:'Stale Company'});
+    const value=await route.fetch();const stale=await value.json();stale.contacts.push({id:'10000000-0000-0000-0000-000000000099',name:'Alex Stale Ghost',phone:'999',email:'ghost@example.test',company:'Alpha Contact Company',account_id:first.contact.account_id});
     entered();await held;
     try { await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(stale)}); }
     finally { finished(); }
   });
   await name.focus();await started;await page.locator('#project-details-close').click();
-  await page.locator('#project-current-details').click();await name.focus();await name.fill('Alex');
+  await page.locator('#project-current-details').click();await client.fill('');await name.focus();await name.fill('Alex');
   await expect(options.getByRole('option')).toHaveCount(2);release();await completed;
   await page.unroute('**/api/contacts/directory');await expect(options).not.toContainText('Stale Ghost');await expect(phone).toHaveValue('Manual 9');
   await page.setViewportSize({width:390,height:844});
@@ -122,6 +141,6 @@ const ready=new Promise((resolve,reject)=>{
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.screenshot({path:path.join(output,'contact-picker-mobile.png')});
   assert.deepEqual(await directory(),baselineDirectory);assert.deepEqual(errors,[]);
-  fs.writeFileSync(path.join(output,'evidence.json'),JSON.stringify({passed:true,checks:['duplicate names by stable ID','mouse and keyboard selection','phone/email defaults including blanks','manual overrides and legacy names','save/reload identity','other saved file isolation','revision failure and discard','closed-pane async isolation','directory unchanged','mobile bounds'],errors},null,2));
+  fs.writeFileSync(path.join(output,'evidence.json'),JSON.stringify({passed:true,checks:['names-only duplicate results keep stable IDs','Company-filtered suggestions and Contact-to-Client autofill','native Contact clear resets Client and all dependent fields','unlinked Contacts do not invent Companies','mouse and keyboard selection','phone/email defaults including blanks','manual overrides and legacy names','save/reload identity','other saved file isolation','revision failure and discard','closed-pane async isolation','directory unchanged','mobile bounds'],errors},null,2));
   console.log('Project Contact picker browser passed: '+output);
 })().catch(error=>{console.error(error);console.error(logs);process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

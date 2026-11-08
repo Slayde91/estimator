@@ -140,7 +140,7 @@ class ContactsStore:
         found = db.execute("SELECT id,billing_address,abn_acn FROM accounts WHERE lookup_key=?", (key,)).fetchone()
         if found:
             if abn_acn and found["abn_acn"] and abn_acn != found["abn_acn"]:
-                raise ValidationError("Company already has a different ABN/ACN. Edit its account first.")
+                raise ValidationError("Company already has a different ABN/ACN. Edit its company details first.")
             if billing_address and not found["billing_address"]:
                 db.execute("UPDATE accounts SET billing_address=? WHERE id=?", (billing_address, found["id"]))
             if abn_acn and not found["abn_acn"]:
@@ -176,7 +176,7 @@ class ContactsStore:
     def _checked_links(db, ident, raw, catalog):
         if (not isinstance(raw, dict) or set(raw) != set(LINK_KINDS)
                 or not isinstance(catalog, dict)):
-            raise ValidationError("Choose related records from the account form.")
+            raise ValidationError("Choose related records from the company form.")
         checked = {}
         prior = {(row["kind"], row["target_id"]): row["label"] for row in db.execute(
             "SELECT kind,target_id,label FROM account_links WHERE account_id=?", (ident,))}
@@ -189,12 +189,12 @@ class ContactsStore:
             if kind == "contacts":
                 known = {row[0] for row in db.execute("SELECT id FROM contacts")}
                 if any(value not in known for value in values):
-                    raise ValidationError("A selected contact is no longer available. Reopen the account.")
+                    raise ValidationError("A selected contact is no longer available. Reopen the company.")
                 selected = set(values)
                 omitted_lead = db.execute("""SELECT c.id FROM contacts c JOIN leads l ON l.contact_id=c.id
                     WHERE c.account_id=?""", (ident,)).fetchall()
                 if any(row[0] not in selected for row in omitted_lead):
-                    raise ValidationError("A contact linked to a lead must keep a company. Reassign it to another account instead.")
+                    raise ValidationError("A contact linked to a lead must keep a company. Reassign it to another company instead.")
                 checked[kind] = values
                 continue
             choices = {entry["id"]: entry for entry in catalog["choices"][kind]}
@@ -226,7 +226,7 @@ class ContactsStore:
             raise ValidationError("Use the fields provided on this form.")
         data = checked_fields(kind, body.get("fields"))
         if "links" in body and kind != "accounts":
-            raise ValidationError("Related records can only be changed from an account.")
+            raise ValidationError("Related records can only be changed from a company.")
         with self.writing(body.get("version")) as db:
             prior_id = body.get("id")
             ident = self._id(db, kind, prior_id)
@@ -248,9 +248,9 @@ class ContactsStore:
                     self._id(db, 'accounts', account)
                     company = db.execute('SELECT company FROM accounts WHERE id=?', (account,)).fetchone()['company']
                     if company_key(company) != company_key(data['company']):
-                        raise ValidationError('Choose the Account matching this company.')
+                        raise ValidationError('Choose the matching Company.')
                 elif account != '' and account is not None:
-                    raise ValidationError('Choose a valid Account.')
+                    raise ValidationError('Choose a valid Company.')
                 account = self._account(db, data['company'], data['billing_address'], data['abn_acn'])
                 snapshot = {key: data[key] for key in (*PERSON_FIELDS, 'abn_acn')}
                 account_values = db.execute('SELECT company,abn_acn FROM accounts WHERE id=?', (account,)).fetchone()
@@ -270,7 +270,7 @@ class ContactsStore:
                 key = company_key(data["company"])
                 conflict = db.execute("SELECT id FROM accounts WHERE lookup_key=? AND id<>?", (key, ident)).fetchone()
                 if conflict:
-                    raise ValidationError("An account with this company name already exists.")
+                    raise ValidationError("A company with this name already exists.")
                 if prior_id and "abn_acn" not in body["fields"]:
                     data["abn_acn"] = db.execute("SELECT abn_acn FROM accounts WHERE id=?", (ident,)).fetchone()[0]
                 db.execute("""INSERT INTO accounts(id,company,lookup_key,billing_address,abn_acn) VALUES(?,?,?,?,?)
@@ -319,7 +319,7 @@ class ContactsStore:
 
     def import_rows(self, kind, records, version):
         if kind not in {"accounts", "contacts"}:
-            raise ValidationError("Select the Contacts or Accounts template.")
+            raise ValidationError("Select the Contacts or Companies template.")
         added = skipped = 0
         with self.writing(version) as db:
             for row_number, raw in records:
@@ -329,7 +329,7 @@ class ContactsStore:
                         existing = db.execute("SELECT billing_address FROM accounts WHERE lookup_key=?",
                                               (company_key(data["company"]),)).fetchone()
                         if existing and existing[0] and data["billing_address"] and existing[0] != data["billing_address"]:
-                            raise ValidationError("Company already has a different billing address. Edit its account first.")
+                            raise ValidationError("Company already has a different billing address. Edit its company details first.")
                         self._account(db, data["company"], data["billing_address"], data["abn_acn"])
                         duplicate = existing is not None
                     else:

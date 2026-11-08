@@ -1,0 +1,167 @@
+{
+  "Companies": [
+    "회사",
+    "Mga kumpanya",
+    "Công ty"
+  ],
+  "New Company": [
+    "새 회사",
+    "Bagong kumpanya",
+    "Công ty mới"
+  ],
+  "Edit Company": [
+    "회사 편집",
+    "I-edit ang kumpanya",
+    "Sửa công ty"
+  ],
+  "Company Information": [
+    "회사 정보",
+    "Impormasyon ng kumpanya",
+    "Thông tin công ty"
+  ],
+  "Search companies": [
+    "회사 검색",
+    "Maghanap ng mga kumpanya",
+    "Tìm công ty"
+  ],
+  "No matching companies.": [
+    "일치하는 회사가 없습니다.",
+    "Walang tumutugmang kumpanya.",
+    "Không có công ty phù hợp."
+  ],
+  "Search Companies": [
+    "회사 검색",
+    "Maghanap ng mga kumpanya",
+    "Tìm công ty"
+  ],
+  "Finish the current Company action first.": [
+    "먼저 현재 회사 작업을 완료하세요.",
+    "Tapusin muna ang kasalukuyang aksyon sa kumpanya.",
+    "Hoàn tất thao tác công ty hiện tại trước."
+  ],
+  "Discard changes to this company?": [
+    "이 회사의 변경 사항을 취소할까요?",
+    "Itapon ang mga pagbabago sa kumpanyang ito?",
+    "Hủy các thay đổi của công ty này?"
+  ],
+  "The Company changed during review. Check the current changes and try again.": [
+    "검토 중 회사 정보가 변경되었습니다. 현재 변경 사항을 확인하고 다시 시도하세요.",
+    "Nagbago ang kumpanya habang sinusuri. Suriin ang kasalukuyang mga pagbabago at subukang muli.",
+    "Công ty đã thay đổi trong khi xem xét. Kiểm tra các thay đổi hiện tại rồi thử lại."
+  ],
+  "No matching Companies. You can enter a company name.": [
+    "일치하는 회사가 없습니다. 회사 이름을 직접 입력할 수 있습니다.",
+    "Walang tumutugmang kumpanya. Maaari kang maglagay ng pangalan ng kumpanya.",
+    "Không có công ty phù hợp. Bạn có thể nhập tên công ty."
+  ],
+  "Linked through this company's saved project.": [
+    "이 회사의 저장된 프로젝트를 통해 연결되었습니다.",
+    "Naka-link sa pamamagitan ng naka-save na proyekto ng kumpanyang ito.",
+    "Được liên kết qua dự án đã lưu của công ty này."
+  ],
+  "Select existing records to link to this company. Project links do not change the project details.": [
+    "이 회사에 연결할 기존 기록을 선택하세요. 프로젝트 연결은 프로젝트 세부 정보를 변경하지 않습니다.",
+    "Pumili ng mga kasalukuyang tala na ili-link sa kumpanyang ito. Hindi binabago ng mga link ang mga detalye ng proyekto.",
+    "Chọn bản ghi hiện có để liên kết với công ty này. Liên kết dự án không thay đổi chi tiết dự án."
+  ],
+  "Choose a valid Company.": [
+    "유효한 회사를 선택하세요.",
+    "Pumili ng wastong kumpanya.",
+    "Chọn công ty hợp lệ."
+  ],
+  "Choose an existing Company for this client, or use + to create a Company.": [
+    "이 고객의 기존 회사를 선택하거나 +를 사용하여 회사를 만드세요.",
+    "Pumili ng kasalukuyang kumpanya para sa kliyenteng ito, o gamitin ang + upang gumawa ng kumpanya.",
+    "Chọn công ty hiện có cho khách hàng này, hoặc dùng + để tạo công ty."
+  ],
+  "Choose an existing Company for this client, or use + to create a Company in Current project details.": [
+    "이 고객의 기존 회사를 선택하거나 현재 프로젝트 세부 정보에서 +를 사용하여 회사를 만드세요.",
+    "Pumili ng kasalukuyang kumpanya para sa kliyenteng ito, o gamitin ang + sa mga detalye ng kasalukuyang proyekto upang gumawa ng kumpanya.",
+    "Chọn công ty hiện có cho khách hàng này, hoặc dùng + để tạo công ty trong chi tiết dự án hiện tại."
+  ],
+  "No matching Companies. Use + to create one.": [
+    "일치하는 회사가 없습니다. +를 사용하여 회사를 만드세요.",
+    "Walang tumutugmang kumpanya. Gamitin ang + upang gumawa ng isa.",
+    "Không có công ty phù hợp. Dùng + để tạo công ty."
+  ],
+  "Refresh the application before creating a Company.": [
+    "회사를 만들기 전에 앱을 새로 고치세요.",
+    "I-refresh ang app bago gumawa ng kumpanya.",
+    "Làm mới ứng dụng trước khi tạo công ty."
+  ],
+  "This company could not be found. Reload the directory.": [
+    "이 회사를 찾을 수 없습니다. 디렉터리를 다시 불러오세요.",
+    "Hindi makita ang kumpanyang ito. I-reload ang direktoryo.",
+    "Không tìm thấy công ty này. Tải lại danh bạ."
+  ],
+  "Company already has a different ABN/ACN. Edit its company details first.": [
+    "회사에 이미 다른 ABN/ACN이 있습니다. 먼저 회사 세부 정보를 편집하세요.",
+    "May ibang ABN/ACN na ang kumpanya. I-edit muna ang mga detalye nito.",
+    "Công ty đã có ABN/ACN khác. Sửa chi tiết công ty trước."
+  ],
+  "Choose related records from the company form.": [
+    "회사 양식에서 관련 기록을 선택하세요.",
+    "Pumili ng mga kaugnay na tala mula sa form ng kumpanya.",
+    "Chọn bản ghi liên quan từ biểu mẫu công ty."
+  ],
+  "A selected contact is no longer available. Reopen the company.": [
+    "선택한 연락처를 더 이상 사용할 수 없습니다. 회사를 다시 여세요.",
+    "Hindi na available ang napiling contact. Buksang muli ang kumpanya.",
+    "Người liên hệ đã chọn không còn khả dụng. Mở lại công ty."
+  ],
+  "A contact linked to a lead must keep a company. Reassign it to another company instead.": [
+    "리드에 연결된 연락처에는 회사가 있어야 합니다. 다른 회사로 재지정하세요.",
+    "Dapat may kumpanya pa rin ang contact na naka-link sa lead. Ilipat ito sa ibang kumpanya.",
+    "Người liên hệ gắn với khách hàng tiềm năng phải có công ty. Hãy chuyển sang công ty khác."
+  ],
+  "Related records can only be changed from a company.": [
+    "관련 기록은 회사에서만 변경할 수 있습니다.",
+    "Mababago lamang ang mga kaugnay na tala mula sa kumpanya.",
+    "Chỉ có thể đổi bản ghi liên quan từ công ty."
+  ],
+  "Choose the matching Company.": [
+    "일치하는 회사를 선택하세요.",
+    "Piliin ang tumutugmang kumpanya.",
+    "Chọn công ty phù hợp."
+  ],
+  "A company with this name already exists.": [
+    "이 이름의 회사가 이미 있습니다.",
+    "May kumpanya nang may ganitong pangalan.",
+    "Đã có công ty mang tên này."
+  ],
+  "Select the Contacts or Companies template.": [
+    "연락처 또는 회사 템플릿을 선택하세요.",
+    "Piliin ang template ng Mga Contact o Mga Kumpanya.",
+    "Chọn mẫu Người liên hệ hoặc Công ty."
+  ],
+  "Company already has a different billing address. Edit its company details first.": [
+    "회사에 이미 다른 청구 주소가 있습니다. 먼저 회사 세부 정보를 편집하세요.",
+    "May ibang billing address na ang kumpanya. I-edit muna ang mga detalye nito.",
+    "Công ty đã có địa chỉ thanh toán khác. Sửa chi tiết công ty trước."
+  ],
+  "Choose one company and related-record search.": [
+    "회사 하나와 관련 기록 검색을 선택하세요.",
+    "Pumili ng isang kumpanya at paghahanap ng kaugnay na tala.",
+    "Chọn một công ty và tìm kiếm bản ghi liên quan."
+  ],
+  "Reload this application before saving so the project's Contact and Company details are retained.": [
+    "프로젝트의 연락처와 회사 세부 정보를 유지하려면 저장하기 전에 앱을 다시 불러오세요.",
+    "I-reload ang app bago mag-save upang mapanatili ang mga detalye ng Contact at Kumpanya ng proyekto.",
+    "Tải lại ứng dụng trước khi lưu để giữ chi tiết người liên hệ và công ty của dự án."
+  ],
+  "Choose an existing Company for this Client, or add a new Company.": [
+    "이 고객의 기존 회사를 선택하거나 새 회사를 추가하세요.",
+    "Pumili ng kasalukuyang kumpanya para sa kliyenteng ito, o magdagdag ng bagong kumpanya.",
+    "Chọn công ty hiện có cho khách hàng này, hoặc thêm công ty mới."
+  ],
+  "Company details could not be loaded. Try again.": [
+    "회사 세부 정보를 불러오지 못했습니다. 다시 시도하세요.",
+    "Hindi ma-load ang mga detalye ng kumpanya. Subukang muli.",
+    "Không tải được chi tiết công ty. Thử lại."
+  ],
+  "Contact person drawn signature": [
+    "담당자의 직접 그린 서명",
+    "Iginuhit na lagda ng contact person",
+    "Chữ ký vẽ của người liên hệ"
+  ]
+}

@@ -36,11 +36,12 @@ module.exports = async function signatureProfiles(page, edition) {
   const swms = page.locator('#swms-root');
   await swms.getByRole('button',{name:'New SWMS',exact:true}).click();
   const manager = swms.getByRole('img',{name:'Project manager drawn signature'});
+  const managerControls = swms.locator('.swms-signature:not(.swms-contact-signature)').first();
   await expect(manager).toHaveCount(0);
-  await swms.getByRole('button',{name:'Draw signature',exact:true}).first().click();
+  await managerControls.getByRole('button',{name:'Draw signature',exact:true}).click();
   await expect(manager).toBeVisible();
   assert.deepEqual(await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.fields.manager_signature),personal);
-  await swms.getByRole('button',{name:'Replace signature',exact:true}).first().click();
+  await managerControls.getByRole('button',{name:'Replace signature',exact:true}).click();
   await page.getByRole('dialog').getByRole('button',{name:'Cancel'}).click();
   await swms.getByRole('button',{name:'Save',exact:true}).click();
   await expect(swms.locator('.swms-message')).toContainText('Saved.');

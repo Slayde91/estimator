@@ -11,7 +11,7 @@ import threading
 import unittest
 from unittest.mock import patch
 
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 
 from estimator.server import create_server
 
@@ -94,6 +94,15 @@ class DirectoryTests(unittest.TestCase):
         current = self.request("directory")
         self.assertFalse(current["leads"])
         self.assertEqual(current["contacts"][0]["account_id"],current["accounts"][0]["id"])
+        # Lead conversion intentionally has no certificate/commercial workspace;
+        # its saved file must still be a valid existing Project link target.
+        self.assertNotIn("certifications", project)
+        catalog = self.request("account-links")
+        for _ in range(20):
+            if not catalog["scan_pending"]:
+                break
+            catalog = self.request("account-links")
+        self.assertTrue(any(saved["project_no"] in row["label"] for row in catalog["choices"]["projects"]))
 
     def upload(self, kind, rows, expected=200):
         template = self.request(f"{kind}/template.xlsx")
@@ -154,3 +163,33 @@ class DirectoryTests(unittest.TestCase):
         self.assertEqual(data["contacts"][0]["account_id"], account_id)
         self.assertEqual(data["contacts"][0]["phone"], valid[1])
         self.assertIn("formulas", self.upload("accounts", [["=NOW()", ""]], 400)["error"])
+
+    def test_account_links_http_validates_queries_and_all_link_targets(self):
+        choices = self.request("account-links")
+        self.assertEqual(set(choices["linked"]), {"contacts", "projects", "quotes", "work_orders", "purchase_orders"})
+        account = self.request("accounts", {"fields": {"company": "Account", "abn_acn": "ABN 12"}, "version": 0})
+        self.assertEqual(account["account"]["abn_acn"], "ABN 12")
+        self.assertEqual(self.request("account-links?id=" + account["id"])["version"], 1)
+        self.request("account-links?id=unknown", expected=400)
+        self.request("account-links?search=one&search=two", expected=400)
+        bad_links = {kind: [] for kind in choices["linked"]}
+        bad_links["projects"] = ["C:/not-an-authorized-project.cf.json"]
+        self.request("accounts", {"id": account["id"], "fields": {"company": "Changed"}, "version": 1, "links": bad_links}, 400)
+        self.assertEqual(self.request("directory")["accounts"][0]["company"], "Account")
+        bad_links["projects"] = None
+        self.request("accounts", {"id": account["id"], "fields": {"company": "Changed"}, "version": 1, "links": bad_links}, 400)
+
+    def test_account_template_supports_abn_and_original_two_column_template(self):
+        self.assertEqual(self.upload("accounts", [["ABN Company", "HQ", "12 345 678 901"]])["added"], 1)
+        self.assertEqual(self.request("directory")["accounts"][0]["abn_acn"], "12 345 678 901")
+        book = Workbook()
+        book.active.title = "Accounts"
+        book.active.append(["Company", "Billing Address"])
+        book.active.append(["Legacy Company", "Legacy HQ"])
+        output = BytesIO()
+        book.save(output)
+        book.close()
+        self.request("accounts/import", {"version": 1, "filename": "old-template.xlsx",
+                                         "file": base64.b64encode(output.getvalue()).decode()})
+        companies = {row["company"]: row for row in self.request("directory")["accounts"]}
+        self.assertEqual(companies["Legacy Company"]["abn_acn"], "")

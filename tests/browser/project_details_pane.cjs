@@ -1,0 +1,130 @@
+// Project metadata editing runs against disposable project files and directory data.
+const {chromium, expect} = require('@playwright/test');
+const {spawn} = require('node:child_process');
+const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
+const {openProjectSection,fillProjectDetails} = require('./project_actions.cjs');
+const root = path.resolve(__dirname,'../..'), output = path.join(root,'.runtime/browser-qa','project-pane-'+Date.now());
+fs.mkdirSync(output,{recursive:true});
+const server = spawn(process.env.CEASEFIRE_PYTHON || 'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
+let logs='',stdout='',browser;
+server.stderr.on('data',chunk=>{logs+=chunk;});
+const ready = new Promise((resolve,reject)=>{
+  const timer=setTimeout(()=>reject(Error(logs || 'Fixture startup timed out')),120000);
+  server.on('error',error=>{clearTimeout(timer);reject(error);});
+  server.on('exit',code=>{clearTimeout(timer);reject(Error(`Fixture exited ${code}: ${logs}`));});
+  server.stdout.on('data',chunk=>{stdout+=chunk;if(stdout.includes('\n')){clearTimeout(timer);resolve(JSON.parse(stdout.split('\n')[0]));}});
+});
+(async()=>{
+  const info=await ready;assert.notEqual(info.port,8765);
+  browser=await chromium.launch({headless:true});
+  const page=await browser.newPage({viewport:{width:1915,height:884}});page.setDefaultTimeout(30000);
+  const errors=[],calls=[];page.on('pageerror',error=>errors.push(error.message));
+  page.on('request',request=>{if(request.url().endsWith('/api/projects/load'))calls.push(request.postDataJSON());});
+  const idle=()=>page.waitForFunction(()=>window.CeasefireDesktop?.status().ready&&!window.CeasefireDesktop.status().busy);
+  await page.goto(`http://127.0.0.1:${info.port}/`);await idle();
+  await fillProjectDetails(page,{client:'Pane Alpha Account','site-address':'10 Synthetic Street'});
+  await openProjectSection(page,'quotes');await page.locator('#project-current-details').click();
+  await page.locator('#project-pane-contact-name').fill('Alpha Person');
+  await page.locator('#project-pane-contact-phone').fill('0400000001');
+  await page.locator('#project-pane-contact-email').fill('alpha@example.test');
+  await page.locator('#project-details-close').click();
+  let response=page.waitForResponse(r=>r.url().endsWith('/api/project/save-as'));
+  await page.locator('#save-current-project').click();const initialSave=await response;assert.equal(initialSave.status(),200,await initialSave.text());await idle();
+  await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  await page.locator('#link-project-folder').click();await idle();
+  fs.copyFileSync(info.project,path.join(output,'second-project.cf.json'));
+  await page.locator('#refresh-quotes').click();await idle();
+  const listing=await (await page.request.get(new URL('/api/projects',page.url()).href)).json();assert.equal(listing.files.length,2);
+  const first=listing.files.find(file=>path.resolve(file.path)===path.resolve(info.project));
+  const second=listing.files.find(file=>file.id!==first.id);
+  const toggle=file=>page.locator(`[data-project-details-id="${file.id}"]`);
+  const saved=()=>page.waitForResponse(r=>r.url().endsWith('/api/projects/details/save'));
+  // Clean active-project metadata saves stay clean and rotate its writable target.
+  await toggle(first).click();await idle();await expect(toggle(first)).toHaveText('>');
+  await page.locator('#project-pane-contact-name').fill('Updated Alpha Person');
+  response=saved();await page.locator('#project-details-save').click();assert.equal((await response).status(),200);await idle();
+  await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  assert.equal((await page.evaluate(()=>window.CeasefireProject.details())).contact_name,'Updated Alpha Person');
+  // A confirmed Account change in the active saved pane rebases the Current
+  // opener's old validation baseline and remains valid for the next main Save.
+  await page.locator('#project-pane-client').fill('Pane Gamma Account');await page.locator('#project-account-new').click();
+  const activeAccount=page.getByRole('dialog',{name:'New Account',exact:true});
+  await activeAccount.getByRole('button',{name:'Save',exact:true}).click();await expect(activeAccount).not.toBeVisible();
+  response=saved();await page.locator('#project-details-save').click();const activeMetadata=await response;assert.equal(activeMetadata.status(),200,await activeMetadata.text());await idle();
+  assert.equal((await page.evaluate(()=>window.CeasefireProject.details())).client,'Pane Gamma Account');
+  response=page.waitForResponse(r=>r.url().endsWith('/api/project/save'));
+  await page.locator('#save-current-project').click();const afterMetadataSave=await response;assert.equal(afterMetadataSave.status(),200,await afterMetadataSave.text());await idle();
+  await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  await toggle(first).click();await expect(page.locator('#project-details-pane')).toBeHidden();await expect(toggle(first)).toHaveText('<');
+  // Editing another file cannot replace the open estimate or its unsaved notes.
+  await page.locator('.nav-button[data-view="estimate"]').click();await page.locator('#measurements').fill('Unsaved active estimate note');
+  await openProjectSection(page,'quotes');await idle();
+  const active=await page.evaluate(()=>window.CeasefireProject.projectPaneSnapshot());
+  const original=fs.readFileSync(info.project);
+  await toggle(second).click();await idle();
+  const geometry=await page.evaluate(()=>({columns:getComputedStyle(document.querySelector('.project-pane-fields')).gridTemplateColumns.split(' ').length,pane:document.querySelector('#project-details-pane').getBoundingClientRect().toJSON(),list:document.querySelector('#project-list-card').getBoundingClientRect().toJSON(),number:document.querySelector('#project-pane-number').getBoundingClientRect().toJSON(),client:document.querySelector('#project-pane-client').getBoundingClientRect().toJSON()}));
+  assert.equal(geometry.columns,2);assert.ok(geometry.pane.right<=geometry.list.left);assert.ok(Math.abs(geometry.number.top-geometry.client.top)<2,JSON.stringify(geometry));
+  await page.locator('#project-pane-address').fill('20 Other Project Road');
+  await page.locator('#project-pane-contact-name').fill('Other Project Person');
+  response=saved();await page.locator('#project-details-save').click();assert.equal((await response).status(),200);await idle();
+  assert.deepEqual(fs.readFileSync(info.project),original);
+  assert.deepEqual(await page.evaluate(()=>window.CeasefireProject.details()),active.details);
+  assert.equal(await page.locator('#measurements').inputValue(),'Unsaved active estimate note');
+  await expect(page.locator('#project-save-state')).toHaveText('Unsaved changes');assert.equal(calls.length,0);
+  // Account search is canonical; the inline plus opens a real Accounts popup.
+  const client=page.locator('#project-pane-client');await client.fill('Alpha');await client.focus();
+  await expect(page.locator('#project-account-options').getByRole('option',{name:'Pane Alpha Account',exact:true})).toBeVisible();
+  await page.locator('#project-account-options').getByRole('option',{name:'Pane Alpha Account',exact:true}).click();
+  await client.fill('Pane Beta Account');await page.locator('#project-account-new').click();
+  const account=page.getByRole('dialog',{name:'New Account',exact:true});await expect(account).toBeVisible();
+  await expect(account.getByLabel('Company',{exact:true})).toHaveValue('Pane Beta Account');
+  await account.getByLabel('ABN/ACN',{exact:true}).fill('12 345 678 901');
+  await account.getByRole('button',{name:'Save',exact:true}).click();await expect(account).not.toBeVisible();
+  response=saved();await page.locator('#project-details-save').click();assert.equal((await response).status(),200);await idle();
+  const detail=(await (await page.request.post(new URL('/api/projects/details',page.url()).href,{data:{id:second.id}})).json()).details;
+  assert.equal(detail.client,'Pane Beta Account');assert.match(detail.account_id,/^[0-9a-f-]{36}$/);
+  assert.deepEqual(fs.readFileSync(info.project),original);assert.deepEqual(await page.evaluate(()=>window.CeasefireProject.details()),active.details);
+  await page.screenshot({path:path.join(output,'pane-desktop.png'),fullPage:true});
+  // A failed conditional save keeps edits and review on navigation is cancellable.
+  const secondBefore=fs.readFileSync(second.path);
+  await page.route('**/api/projects/details/save',route=>route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({error:'The project changed. Refresh and open its details again.'})}));
+  await page.locator('#project-pane-contact-name').fill('Unsaved conflict person');
+  response=saved();await page.locator('#project-details-save').click();assert.equal((await response).status(),409);await idle();
+  await expect(page.locator('#project-details-status')).toContainText('project changed');
+  assert.deepEqual(fs.readFileSync(second.path),secondBefore);
+  await page.locator('.nav-button[data-view="home"]').click();
+  const discard=page.getByRole('dialog',{name:'Discard unsaved project details?',exact:true});await expect(discard).toBeVisible();
+  await discard.getByRole('button',{name:'Cancel',exact:true}).click();await expect(page.locator('#view-quotes')).toBeVisible();
+  await page.locator('#project-details-close').click();await discard.getByRole('button',{name:'Yes',exact:true}).click();
+  await page.unroute('**/api/projects/details/save');
+  await toggle(second).click();await idle();
+  for(const width of [1101,800,390]){
+    await page.setViewportSize({width,height:884});
+    const box=await page.evaluate(()=>({width:document.documentElement.scrollWidth,viewport:innerWidth,columns:getComputedStyle(document.querySelector('.project-pane-fields')).gridTemplateColumns.split(' ').length,pane:document.querySelector('#project-details-pane').getBoundingClientRect().toJSON(),list:document.querySelector('#project-list-card').getBoundingClientRect().toJSON()}));
+    assert.ok(box.width<=box.viewport,JSON.stringify(box));assert.equal(box.columns,width===390?1:2);
+    if(width===800)assert.ok(box.pane.bottom<=box.list.top);
+    await page.screenshot({path:path.join(output,`pane-${width}.png`),fullPage:true});
+  }
+  await expect(toggle(second)).toHaveAttribute('aria-expanded','true');
+  // Fresh metadata must not grant write access to a stale open workspace.
+  await page.setViewportSize({width:1915,height:884});await page.locator('#project-details-close').click();
+  const external=JSON.parse(fs.readFileSync(info.project,'utf8'));
+  external.estimate.measurements='External saved estimate note';
+  external.estimates.find(entry=>entry.id===external.active_estimate_id).workspace.estimate.measurements='External saved estimate note';
+  fs.writeFileSync(info.project,JSON.stringify(external,null,2));
+  const externalBytes=fs.readFileSync(info.project);
+  await toggle(first).click();await idle();
+  await expect(page.locator('#project-details-status')).toContainText('changed outside this open estimate');
+  await expect(page.locator('#project-details-save')).toBeDisabled();
+  assert.equal((await page.evaluate(()=>window.CeasefireProject.projectPaneSnapshot())).file.save_token,active.file.save_token);
+  await page.locator('#project-details-close').click();await page.locator('#project-current-details').click();
+  await expect(page.locator('#project-pane-client')).toBeEnabled();await expect(page.locator('#project-pane-contact-name')).toBeEnabled();
+  await page.locator('#project-details-close').click();
+  response=page.waitForResponse(r=>r.url().endsWith('/api/project/save'));
+  await page.locator('#save-current-project').click();assert.ok((await response).status()>=400);await idle();
+  assert.deepEqual(fs.readFileSync(info.project),externalBytes);
+  assert.equal((await page.evaluate(()=>window.CeasefireProject.projectPaneSnapshot())).file.save_token,active.file.save_token);
+  assert.equal(calls.length,0);assert.deepEqual(errors,[]);
+  fs.writeFileSync(path.join(output,'evidence.json'),JSON.stringify({checks:['clean active metadata save','active metadata Account change remains valid for main Save','dirty active draft preserved','other file only updated','canonical account search and popup','conditional failure retains edit','Cancel and Yes discard review','desktop and mobile geometry','stale active workspace cannot acquire capability or overwrite external edits','blocked pane recovers current inputs'],geometry,errors},null,2));
+  console.log('Project details pane browser checks passed: '+output);
+})().catch(error=>{console.error(error);console.error(logs);process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

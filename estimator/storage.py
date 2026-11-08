@@ -146,11 +146,11 @@ class Store:
         previous = self.quote(quote_id) if quote_id else None
         details = validate_quote_details(data, previous)
         prior = previous or {}
-        legacy_title = prior.get("title", "Untitled quote") if not any(prior.get(key) for key in QUOTE_DETAIL_LIMITS) else "Untitled quote"
+        legacy_title = prior.get("title", "Untitled quote") if not any(prior.get(key) for key in ("project_no", "client", "site_address")) else "Untitled quote"
         fallback = data.get("title", legacy_title)
-        if not any(details.values()) and (not isinstance(fallback, str) or not fallback.strip() or len(fallback) > 200):
+        if not any(details[key] for key in ("project_no", "client", "site_address")) and (not isinstance(fallback, str) or not fallback.strip() or len(fallback) > 200):
             raise ValidationError("Quote title must contain 1 to 200 characters.")
-        title = compose_quote_title(**details, fallback=fallback)
+        title = compose_quote_title(**{key: details[key] for key in ("project_no", "client", "site_address")}, fallback=fallback)
         workflow = data.get("workflow", prior.get("workflow", WORKFLOWS[0]))
         if not isinstance(workflow, str) or len(workflow) > 200:
             raise ValidationError("Workflow must be text of at most 200 characters.")

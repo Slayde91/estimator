@@ -1,0 +1,366 @@
+{
+  "ABN/ACN": [
+    "ABN/ACN",
+    "ABN/ACN",
+    "ABN/ACN",
+    "ABN/ACN",
+    "ABN/ACN"
+  ],
+  "Linked records": [
+    "关联记录",
+    "लिंक किए गए रिकॉर्ड",
+    "Registros vinculados",
+    "السجلات المرتبطة",
+    "รายการที่เชื่อมโยง"
+  ],
+  "Loading linked records…": [
+    "正在加载关联记录…",
+    "लिंक किए गए रिकॉर्ड लोड हो रहे हैं…",
+    "Cargando registros vinculados…",
+    "جارٍ تحميل السجلات المرتبطة…",
+    "กำลังโหลดรายการที่เชื่อมโยง…"
+  ],
+  "Find records to link": [
+    "查找要关联的记录",
+    "लिंक करने के लिए रिकॉर्ड खोजें",
+    "Buscar registros para vincular",
+    "البحث عن سجلات لربطها",
+    "ค้นหารายการที่จะเชื่อมโยง"
+  ],
+  "Contact, project or document name…": [
+    "联系人、项目或文档名称…",
+    "संपर्क, प्रोजेक्ट या दस्तावेज़ का नाम…",
+    "Nombre de contacto, proyecto o documento…",
+    "اسم جهة الاتصال أو المشروع أو المستند…",
+    "ชื่อผู้ติดต่อ โครงการ หรือเอกสาร…"
+  ],
+  "Refresh linked records": [
+    "刷新关联记录",
+    "लिंक किए गए रिकॉर्ड रीफ़्रेश करें",
+    "Actualizar registros vinculados",
+    "تحديث السجلات المرتبطة",
+    "รีเฟรชรายการที่เชื่อมโยง"
+  ],
+  "{0} ({1})": [
+    "{0}（{1}）",
+    "{0} ({1})",
+    "{0} ({1})",
+    "{0} ({1})",
+    "{0} ({1})"
+  ],
+  "Link {0}": [
+    "关联 {0}",
+    "{0} को लिंक करें",
+    "Vincular {0}",
+    "ربط {0}",
+    "เชื่อมโยง {0}"
+  ],
+  "Linked through this account's saved project.": [
+    "通过此客户账户已保存的项目关联。",
+    "इस खाते के सहेजे गए प्रोजेक्ट के माध्यम से लिंक किया गया।",
+    "Vinculado mediante el proyecto guardado de esta cuenta.",
+    "مرتبط عبر المشروع المحفوظ لهذا الحساب.",
+    "เชื่อมโยงผ่านโครงการที่บันทึกไว้ของบัญชีนี้"
+  ],
+  "Unavailable saved record. Clear the selection to remove this link.": [
+    "已保存的记录不可用。取消选择以移除此关联。",
+    "सहेजा गया रिकॉर्ड उपलब्ध नहीं है। यह लिंक हटाने के लिए चयन हटाएँ।",
+    "Registro guardado no disponible. Desmarque la selección para quitar este vínculo.",
+    "السجل المحفوظ غير متاح. ألغِ التحديد لإزالة هذا الارتباط.",
+    "รายการที่บันทึกไว้ไม่พร้อมใช้งาน ยกเลิกการเลือกเพื่อลบการเชื่อมโยงนี้"
+  ],
+  "Saving will move this contact from {0}.": [
+    "保存后，此联系人将从 {0} 移至本客户账户。",
+    "सहेजने पर यह संपर्क {0} से इस खाते में आ जाएगा।",
+    "Al guardar, este contacto se trasladará desde {0}.",
+    "سيؤدي الحفظ إلى نقل جهة الاتصال هذه من {0}.",
+    "เมื่อบันทึก ผู้ติดต่อนี้จะย้ายจาก {0} มายังบัญชีนี้"
+  ],
+  "Currently linked to {0}.": [
+    "当前关联至 {0}。",
+    "वर्तमान में {0} से लिंक है।",
+    "Actualmente vinculado a {0}.",
+    "مرتبط حاليًا بـ {0}.",
+    "ปัจจุบันเชื่อมโยงกับ {0}"
+  ],
+  "No records available to link.": [
+    "没有可关联的记录。",
+    "लिंक करने के लिए कोई रिकॉर्ड उपलब्ध नहीं है।",
+    "No hay registros disponibles para vincular.",
+    "لا توجد سجلات متاحة للربط.",
+    "ไม่มีรายการที่พร้อมให้เชื่อมโยง"
+  ],
+  "Showing the first 100 records. Search to find another record.": [
+    "显示前 100 条记录。请搜索其他记录。",
+    "पहले 100 रिकॉर्ड दिखाए जा रहे हैं। अन्य रिकॉर्ड खोजने के लिए खोज करें।",
+    "Se muestran los primeros 100 registros. Busque para encontrar otro registro.",
+    "يتم عرض أول 100 سجل. استخدم البحث للعثور على سجل آخر.",
+    "แสดง 100 รายการแรก ค้นหาเพื่อดูรายการอื่น"
+  ],
+  "Unavailable project records ({0})": [
+    "不可用的项目记录（{0}）",
+    "अनुपलब्ध प्रोजेक्ट रिकॉर्ड ({0})",
+    "Registros de proyecto no disponibles ({0})",
+    "سجلات مشاريع غير متاحة ({0})",
+    "รายการโครงการที่ไม่พร้อมใช้งาน ({0})"
+  ],
+  "Some project records are unavailable. Current links are retained.": [
+    "部分项目记录不可用。现有关联会保留。",
+    "कुछ प्रोजेक्ट रिकॉर्ड उपलब्ध नहीं हैं। मौजूदा लिंक सुरक्षित रखे गए हैं।",
+    "Algunos registros de proyecto no están disponibles. Se conservan los vínculos actuales.",
+    "بعض سجلات المشاريع غير متاحة. يتم الاحتفاظ بالروابط الحالية.",
+    "รายการโครงการบางรายการไม่พร้อมใช้งาน การเชื่อมโยงปัจจุบันยังคงอยู่"
+  ],
+  "Project records are still loading. Refresh to list more records.": [
+    "项目记录仍在加载。请刷新以列出更多记录。",
+    "प्रोजेक्ट रिकॉर्ड अभी लोड हो रहे हैं। अधिक रिकॉर्ड देखने के लिए रीफ़्रेश करें।",
+    "Los registros de proyecto siguen cargándose. Actualice para ver más registros.",
+    "لا يزال تحميل سجلات المشاريع جاريًا. حدّث لعرض المزيد من السجلات.",
+    "กำลังโหลดรายการโครงการ รีเฟรชเพื่อแสดงรายการเพิ่มเติม"
+  ],
+  "Search by name to find more records. Current links are retained.": [
+    "按名称搜索以查找更多记录。现有关联会保留。",
+    "अधिक रिकॉर्ड खोजने के लिए नाम से खोजें। मौजूदा लिंक सुरक्षित रखे गए हैं।",
+    "Busque por nombre para encontrar más registros. Se conservan los vínculos actuales.",
+    "ابحث بالاسم للعثور على المزيد من السجلات. يتم الاحتفاظ بالروابط الحالية.",
+    "ค้นหาด้วยชื่อเพื่อดูรายการเพิ่มเติม การเชื่อมโยงปัจจุบันยังคงอยู่"
+  ],
+  "Select existing records to link to this account. Project links do not change the project details.": [
+    "选择要关联到此客户账户的现有记录。项目关联不会更改项目详情。",
+    "इस खाते से लिंक करने के लिए मौजूदा रिकॉर्ड चुनें। प्रोजेक्ट लिंक से प्रोजेक्ट विवरण नहीं बदलते।",
+    "Seleccione registros existentes para vincularlos a esta cuenta. Los vínculos de proyecto no cambian sus detalles.",
+    "حدد سجلات موجودة لربطها بهذا الحساب. روابط المشاريع لا تغير تفاصيل المشروع.",
+    "เลือกรายการที่มีอยู่เพื่อเชื่อมโยงกับบัญชีนี้ การเชื่อมโยงโครงการจะไม่เปลี่ยนรายละเอียดโครงการ"
+  ],
+  "Current project details": [
+    "当前项目详情",
+    "वर्तमान प्रोजेक्ट विवरण",
+    "Detalles del proyecto actual",
+    "تفاصيل المشروع الحالي",
+    "รายละเอียดโครงการปัจจุบัน"
+  ],
+  "Close project details": [
+    "关闭项目详情",
+    "प्रोजेक्ट विवरण बंद करें",
+    "Cerrar detalles del proyecto",
+    "إغلاق تفاصيل المشروع",
+    "ปิดรายละเอียดโครงการ"
+  ],
+  "Assigned when saved": [
+    "保存时分配",
+    "सहेजने पर आवंटित होगा",
+    "Se asigna al guardar",
+    "يُعيّن عند الحفظ",
+    "กำหนดเมื่อบันทึก"
+  ],
+  "New Account": [
+    "新客户账户",
+    "नया खाता",
+    "Nueva cuenta",
+    "حساب جديد",
+    "บัญชีใหม่"
+  ],
+  "Edit Account": [
+    "编辑客户账户",
+    "खाता संपादित करें",
+    "Editar cuenta",
+    "تعديل الحساب",
+    "แก้ไขบัญชี"
+  ],
+  "Account Information": [
+    "客户账户信息",
+    "खाते की जानकारी",
+    "Información de la cuenta",
+    "معلومات الحساب",
+    "ข้อมูลบัญชี"
+  ],
+  "Search Accounts": [
+    "搜索客户账户",
+    "खाते खोजें",
+    "Buscar cuentas",
+    "البحث في الحسابات",
+    "ค้นหาบัญชี"
+  ],
+  "Contact name": [
+    "联系人姓名",
+    "संपर्क का नाम",
+    "Nombre del contacto",
+    "اسم جهة الاتصال",
+    "ชื่อผู้ติดต่อ"
+  ],
+  "Contact phone": [
+    "联系人电话",
+    "संपर्क का फ़ोन",
+    "Teléfono del contacto",
+    "هاتف جهة الاتصال",
+    "โทรศัพท์ผู้ติดต่อ"
+  ],
+  "Contact email": [
+    "联系人邮箱",
+    "संपर्क का ईमेल",
+    "Correo del contacto",
+    "البريد الإلكتروني لجهة الاتصال",
+    "อีเมลผู้ติดต่อ"
+  ],
+  "Save project details": [
+    "保存项目详情",
+    "प्रोजेक्ट विवरण सहेजें",
+    "Guardar detalles del proyecto",
+    "حفظ تفاصيل المشروع",
+    "บันทึกรายละเอียดโครงการ"
+  ],
+  "Project details for {0}": [
+    "{0} 的项目详情",
+    "{0} के प्रोजेक्ट विवरण",
+    "Detalles del proyecto de {0}",
+    "تفاصيل المشروع لـ {0}",
+    "รายละเอียดโครงการของ {0}"
+  ],
+  "Contact": [
+    "联系人",
+    "संपर्क",
+    "Contacto",
+    "جهة الاتصال",
+    "ผู้ติดต่อ"
+  ],
+  "WO No.": [
+    "工单号",
+    "कार्य आदेश सं.",
+    "N.º OT",
+    "رقم أمر العمل",
+    "เลขที่ใบสั่งงาน"
+  ],
+  "Quote No.": [
+    "报价单号",
+    "कोटेशन सं.",
+    "N.º de presupuesto",
+    "رقم عرض السعر",
+    "เลขที่ใบเสนอราคา"
+  ],
+  "PO No.": [
+    "采购单号",
+    "खरीद आदेश सं.",
+    "N.º OC",
+    "رقم أمر الشراء",
+    "เลขที่ใบสั่งซื้อ"
+  ],
+  "Updated": [
+    "已更新",
+    "अपडेट किया गया",
+    "Actualizado",
+    "تم التحديث",
+    "อัปเดตแล้ว"
+  ],
+  "Finish the current project details action first.": [
+    "请先完成当前项目详情操作。",
+    "पहले वर्तमान प्रोजेक्ट विवरण की कार्रवाई पूरी करें।",
+    "Primero termine la acción actual de detalles del proyecto.",
+    "أكمل إجراء تفاصيل المشروع الحالي أولًا.",
+    "ดำเนินการรายละเอียดโครงการปัจจุบันให้เสร็จก่อน"
+  ],
+  "Discard unsaved project details?": [
+    "放弃未保存的项目详情？",
+    "बिना सहेजे प्रोजेक्ट विवरण छोड़ दें?",
+    "¿Descartar los detalles del proyecto sin guardar?",
+    "هل تريد تجاهل تفاصيل المشروع غير المحفوظة؟",
+    "ละทิ้งรายละเอียดโครงการที่ยังไม่ได้บันทึกหรือไม่"
+  ],
+  "The changes in this Project Details pane have not been saved. Discard them?": [
+    "此项目详情面板中的更改尚未保存。要放弃吗？",
+    "इस प्रोजेक्ट विवरण पैनल के बदलाव सहेजे नहीं गए हैं। इन्हें छोड़ दें?",
+    "Los cambios en este panel de detalles del proyecto no se han guardado. ¿Descartarlos?",
+    "لم تُحفظ التغييرات في لوحة تفاصيل المشروع هذه. هل تريد تجاهلها؟",
+    "การเปลี่ยนแปลงในแผงรายละเอียดโครงการนี้ยังไม่ได้บันทึก ต้องการละทิ้งหรือไม่"
+  ],
+  "Use the main Save button to save this project's details and estimate.": [
+    "使用主“保存”按钮保存此项目的详情和估算。",
+    "इस प्रोजेक्ट के विवरण और अनुमान को सहेजने के लिए मुख्य सहेजें बटन का उपयोग करें।",
+    "Use el botón Guardar principal para guardar los detalles y la estimación de este proyecto.",
+    "استخدم زر الحفظ الرئيسي لحفظ تفاصيل هذا المشروع وتقديره.",
+    "ใช้ปุ่มบันทึกหลักเพื่อบันทึกรายละเอียดและประมาณการของโครงการนี้"
+  ],
+  "Project details could not be updated.": [
+    "无法更新项目详情。",
+    "प्रोजेक्ट विवरण अपडेट नहीं किए जा सके।",
+    "No se pudieron actualizar los detalles del proyecto.",
+    "تعذر تحديث تفاصيل المشروع.",
+    "ไม่สามารถอัปเดตรายละเอียดโครงการได้"
+  ],
+  "Loading project details…": [
+    "正在加载项目详情…",
+    "प्रोजेक्ट विवरण लोड हो रहे हैं…",
+    "Cargando detalles del proyecto…",
+    "جارٍ تحميل تفاصيل المشروع…",
+    "กำลังโหลดรายละเอียดโครงการ…"
+  ],
+  "Choose an existing Account for this client, or use + to create an Account.": [
+    "请选择此客户的现有客户账户，或使用 + 创建客户账户。",
+    "इस ग्राहक के लिए मौजूदा खाता चुनें, या + का उपयोग करके खाता बनाएँ।",
+    "Elija una cuenta existente para este cliente, o use + para crear una cuenta.",
+    "اختر حسابًا موجودًا لهذا العميل، أو استخدم + لإنشاء حساب.",
+    "เลือกบัญชีที่มีอยู่สำหรับลูกค้านี้ หรือใช้ + เพื่อสร้างบัญชี"
+  ],
+  "Finish the current project operation first.": [
+    "请先完成当前项目操作。",
+    "पहले वर्तमान प्रोजेक्ट की कार्रवाई पूरी करें।",
+    "Primero termine la operación actual del proyecto.",
+    "أكمل عملية المشروع الحالية أولًا.",
+    "ดำเนินการโครงการปัจจุบันให้เสร็จก่อน"
+  ],
+  "The open project's details changed. Close and reopen this pane before saving.": [
+    "已打开项目的详情发生了更改。保存前请关闭并重新打开此面板。",
+    "खुले प्रोजेक्ट के विवरण बदल गए हैं। सहेजने से पहले इस पैनल को बंद करके फिर खोलें।",
+    "Los detalles del proyecto abierto han cambiado. Cierre y vuelva a abrir este panel antes de guardar.",
+    "تغيرت تفاصيل المشروع المفتوح. أغلق هذه اللوحة وأعد فتحها قبل الحفظ.",
+    "รายละเอียดของโครงการที่เปิดอยู่เปลี่ยนแปลงแล้ว ปิดและเปิดแผงนี้ใหม่ก่อนบันทึก"
+  ],
+  "Saving project details…": [
+    "正在保存项目详情…",
+    "प्रोजेक्ट विवरण सहेजे जा रहे हैं…",
+    "Guardando detalles del proyecto…",
+    "جارٍ حفظ تفاصيل المشروع…",
+    "กำลังบันทึกรายละเอียดโครงการ…"
+  ],
+  "Project details saved.": [
+    "项目详情已保存。",
+    "प्रोजेक्ट विवरण सहेजे गए।",
+    "Detalles del proyecto guardados.",
+    "تم حفظ تفاصيل المشروع.",
+    "บันทึกรายละเอียดโครงการแล้ว"
+  ],
+  "No matching Accounts. Use + to create one.": [
+    "没有匹配的客户账户。请使用 + 创建。",
+    "कोई मेल खाता नहीं मिला। नया बनाने के लिए + का उपयोग करें।",
+    "No hay cuentas coincidentes. Use + para crear una.",
+    "لا توجد حسابات مطابقة. استخدم + لإنشاء حساب.",
+    "ไม่พบบัญชีที่ตรงกัน ใช้ + เพื่อสร้างบัญชี"
+  ],
+  "Refresh the application before creating an Account.": [
+    "请先刷新应用，然后创建客户账户。",
+    "खाता बनाने से पहले ऐप्लिकेशन रीफ़्रेश करें।",
+    "Actualice la aplicación antes de crear una cuenta.",
+    "حدّث التطبيق قبل إنشاء حساب.",
+    "รีเฟรชแอปก่อนสร้างบัญชี"
+  ],
+  "Finish the current project details action before saving.": [
+    "请先完成当前项目详情操作，然后保存。",
+    "सहेजने से पहले वर्तमान प्रोजेक्ट विवरण की कार्रवाई पूरी करें।",
+    "Termine la acción actual de detalles del proyecto antes de guardar.",
+    "أكمل إجراء تفاصيل المشروع الحالي قبل الحفظ.",
+    "ดำเนินการรายละเอียดโครงการปัจจุบันให้เสร็จก่อนบันทึก"
+  ],
+  "Choose an existing Account for this client, or use + to create an Account in Current project details.": [
+    "请选择此客户的现有客户账户，或在“当前项目详情”中使用 + 创建客户账户。",
+    "इस ग्राहक का मौजूदा खाता चुनें, या वर्तमान प्रोजेक्ट विवरण में + से खाता बनाएँ।",
+    "Elija una cuenta existente para este cliente, o use + para crear una en Detalles del proyecto actual.",
+    "اختر حسابًا موجودًا لهذا العميل، أو استخدم + لإنشاء حساب في تفاصيل المشروع الحالي.",
+    "เลือกบัญชีที่มีอยู่สำหรับลูกค้านี้ หรือใช้ + เพื่อสร้างบัญชีในรายละเอียดโครงการปัจจุบัน"
+  ],
+  "The saved project changed outside this open estimate. Reload the project before editing its details; your current draft has been kept.": [
+    "已保存的项目在此已打开的估算之外发生了更改。请重新加载项目后再编辑详情；当前草稿已保留。",
+    "सहेजा गया प्रोजेक्ट इस खुले अनुमान के बाहर बदल गया है। विवरण संपादित करने से पहले प्रोजेक्ट फिर लोड करें; आपका मौजूदा ड्राफ़्ट सुरक्षित है।",
+    "El proyecto guardado cambió fuera de esta estimación abierta. Vuelva a cargar el proyecto antes de editar sus detalles; se ha conservado el borrador actual.",
+    "تغير المشروع المحفوظ خارج هذا التقدير المفتوح. أعد تحميل المشروع قبل تعديل تفاصيله؛ تم الاحتفاظ بمسودتك الحالية.",
+    "โครงการที่บันทึกไว้เปลี่ยนแปลงภายนอกประมาณการที่เปิดอยู่นี้ โหลดโครงการใหม่ก่อนแก้ไขรายละเอียด โดยเก็บฉบับร่างปัจจุบันของคุณไว้แล้ว"
+  ]
+}

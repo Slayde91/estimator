@@ -226,8 +226,12 @@
   const formatMoney = (value) => isNumber(value) ? money.format(value) : "—";
   const fieldByCell = (cell) => state.fields.find((field) => field.cell === cell);
 
+  const projectDetailControls = {project_no:"project-no", client:"client", site_address:"site-address", contact_name:"project-contact-name", contact_phone:"project-contact-phone", contact_email:"project-contact-email", account_id:"project-account-id"};
   function quoteDetails() {
-    return { project_no: $("project-no").value.trim(), client: $("client").value.trim(), site_address: $("site-address").value.trim() };
+    return Object.fromEntries(Object.entries(projectDetailControls).map(([key, id]) => [key, $(id).value.trim()]));
+  }
+  function applyQuoteDetails(details = {}) {
+    for (const [key, id] of Object.entries(projectDetailControls)) $(id).value = details[key] || "";
   }
 
   function updateQuoteTitle() {
@@ -856,6 +860,7 @@
 
   async function newQuote() {
     if (state.projectBusy || coverReplacementPending()) return;
+    if (window.CeasefireProjectPane && !await window.CeasefireProjectPane.leave()) return;
     if (projectHasChanges() && !await confirmReplace(uiCopy("Start a new project?"), uiCopy("The Quote, Firestopping items, {0}project library drafts, project pricing and all three specialist calculator drafts will be replaced with defaults using your saved pricing library. Shared libraries stay unchanged.", [window.CeasefireI18n.term(takeoffContents())]), uiCopy("New project"))) return;
     projectBusy(true, "new-quote");
     try {
@@ -884,7 +889,7 @@
     state.inputs = Object.fromEntries(state.fields.map((field) => [field.cell, field.cell === "B12" ? "" : field.default ?? ""]));
     state.workItems = []; state.nextWorkItem = 1;
     state.legacyTitle = "";
-    for (const id of ["client", "site-address", "project-no"]) $(id).value = "";
+    applyQuoteDetails();
     updateQuoteTitle();
     if (preparedCertification) window.CeasefireCertification.applyProject(preparedCertification);
     window.CeasefireDocumentation?.applyProject?.(preparedDocumentation);
@@ -895,6 +900,7 @@
     $("snapshot-message").hidden = true;
     selectEstimator("estimate"); renderInputs(); updateDirty(false); message(uiCopy("")); showView("estimate"); scheduleCalculation();
     window.CeasefirePenetrations?.pricingChanged();
+    if (state.initialized && window.CeasefireProjectPane) { await showView("quotes"); await window.CeasefireProjectPane.openCurrent(); }
     } finally { projectBusy(false); }
   }
 
@@ -953,6 +959,7 @@
 
   async function openQuote(id, button) {
     if (state.projectBusy || coverReplacementPending()) return;
+    if (window.CeasefireProjectPane && !await window.CeasefireProjectPane.leave()) return;
     button.disabled = true;
     const loadRevision = ++state.quoteLoadRevision;
     let preparedCertification = null, preparedDocumentation = null, certificationAdopted = false;
@@ -983,9 +990,7 @@
       state.inputs = { ...Object.fromEntries(state.fields.map((field) => [field.cell, field.default ?? ""])), ...quote.inputs };
       state.workItems = clone(quote.work_items || []); state.nextWorkItem = state.workItems.length + 1;
       state.legacyTitle = [quote.project_no, quote.client, quote.site_address].some((value) => typeof value === "string" && value.trim()) ? "" : quote.title || "";
-      $("client").value = quote.client || "";
-      $("site-address").value = quote.site_address || "";
-      $("project-no").value = quote.project_no || "";
+      applyQuoteDetails(quote);
       updateQuoteTitle();
       if (preparedCertification) { window.CeasefireCertification.applyProject(preparedCertification); certificationAdopted = true; }
       window.CeasefireDocumentation?.applyProject?.(preparedDocumentation);
@@ -1028,6 +1033,7 @@
   }
 
   async function showView(view, librarySelection, calculatorId) {
+    if (view !== state.currentView && state.currentView === "quotes" && window.CeasefireProjectPane && !await window.CeasefireProjectPane.leave()) return;
     if (view !== state.currentView && window.CeasefireCommercial?.hasPendingOperation?.() && !await window.CeasefireCommercial.leaveEditor()) return;
     if (view !== state.currentView && window.CeasefireScheduler?.hasPendingOperation?.()) { message("Finish or cancel the current Scheduler edit before changing views.", true); return; }
     if (view !== state.currentView && window.CeasefireCoverSheets?.hasPendingOperation?.()) { message(uiCopy("Finish or retry the current cover-sheet operation before changing views."), true); return; }
@@ -1999,7 +2005,7 @@
     const result = {};
     for (const key of estimateWorkspaceKeys) if (workspace[key] !== undefined) result[key] = clone(workspace[key]);
     if (result.estimate) {
-      result.estimate = Object.fromEntries(["title", "workflow", "measurements", "inputs", "configuration", "project_no", "client", "site_address", "work_items"].filter(key => workspace.estimate[key] !== undefined).map(key => [key, clone(workspace.estimate[key])]));
+      result.estimate = Object.fromEntries(["title", "workflow", "measurements", "inputs", "configuration", ...Object.keys(projectDetailControls), "work_items"].filter(key => workspace.estimate[key] !== undefined).map(key => [key, clone(workspace.estimate[key])]));
     }
     if (result.penetration) result.penetration = {draft:result.penetration.draft, ...(result.penetration.composer ? {composer:result.penetration.composer} : {}), library_tracking_version:1};
     if (result.calculators) result.calculators = Object.fromEntries(Object.entries(result.calculators).map(([id, value]) => [id, {inputs: value.inputs, ...(value.schedule_rows ? {schedule_rows: value.schedule_rows} : {})}]));
@@ -2076,7 +2082,7 @@
     state.quote = null; state.quoteConfiguration = clone(estimate.configuration); state.fields = clone(workspace.fields || state.currentFields); state.inputs = clone(estimate.inputs);
     state.workItems = clone(estimate.work_items || []); state.nextWorkItem = state.workItems.length + 1;
     state.legacyTitle = [estimate.project_no, estimate.client, estimate.site_address].some(Boolean) ? "" : estimate.title || "";
-    for (const [id, key] of [["project-no","project_no"],["client","client"],["site-address","site_address"]]) $(id).value = estimate[key] || "";
+    applyQuoteDetails(estimate);
     state.workflow = estimate.workflow; $("measurements").value = estimate.measurements || "";
     resetProjectPricing("project"); updateQuoteTitle(); renderInputs(); updateDirty(false); scheduleCalculation();
     window.CeasefirePenetrations?.pricingChanged();
@@ -2164,9 +2170,10 @@
   // replacement races; the main Save persists their drafts after the project
   // file succeeds, without embedding cover defaults in that project file.
   function projectReplacementStamp() {
-    return JSON.stringify({project:projectStamp(),coverSheets:window.CeasefireCoverSheets?.fingerprint?.()});
+    return JSON.stringify({project:projectStamp(),coverSheets:window.CeasefireCoverSheets?.fingerprint?.(),projectPane:window.CeasefireProjectPane?.fingerprint?.()});
   }
   function coverReplacementPending() {
+    if (window.CeasefireProjectPane?.hasPendingOperation?.()) { message("Finish the current project details action first.", true); return true; }
     if (window.CeasefireSWMS?.hasPendingOperation?.()) { message("Finish the current SWMS edit first.", true); return true; }
     if (window.CeasefireCommercial?.hasPendingOperation?.()) { message("Finish the current commercial document edit first.", true); return true; }
     if (window.CeasefireDownloads?.hasPendingOperation?.()) {
@@ -2200,6 +2207,8 @@
   }
 
   async function saveProject({ automatic = false, downloadTarget = null } = {}) {
+    try { await window.CeasefireProjectPane?.beforeProjectSave?.(); }
+    catch (error) { if (automatic) throw error; message(error.message, true); return; }
     if (state.projectBusy || window.CeasefireDownloads?.hasInFlight?.()) {
       if (automatic) throw new Error("Finish the current file operation before saving the project.");
       message(uiCopy("Finish the current file operation before saving the project."),true);
@@ -2284,6 +2293,7 @@
         }
         $("project-no").value = assigned.get(state.activeEstimateId) ?? saved.project.estimate.project_no ?? "";
         updateQuoteTitle();
+        window.CeasefireProjectPane?.projectSaved?.(saved.project.estimate);
         window.CeasefireProjectDetails?.saved(context);
         if (commercial) window.CeasefireCommercial?.markProjectSaved?.(saved.project.commercial_documents, commercial);
         window.CeasefireCommercial?.projectNumberAssigned?.(quoteDetails());
@@ -2323,6 +2333,7 @@
 
   async function openNativeProject() {
     if (state.projectBusy || coverReplacementPending()) return;
+    if (window.CeasefireProjectPane && !await window.CeasefireProjectPane.leave()) return;
     projectBusy(true, "load-project");
     try {
       const captured = projectReplacementStamp();
@@ -2335,6 +2346,7 @@
 
   async function loadProject() {
     if (coverReplacementPending()) return;
+    if (window.CeasefireProjectPane && !await window.CeasefireProjectPane.leave()) return;
     const input = $("project-import-file"), file = input.files?.[0]; input.value = "";
     if (!file || state.projectBusy) return;
     projectBusy(true, "load-project");
@@ -2424,7 +2436,7 @@
       state.projectStatus = project.project_status || "Draft";
       state.projectFile = { ...file, title: estimate.title, project_status: state.projectStatus }; resetProjectPricing("project");
       state.legacyTitle = [estimate.project_no, estimate.client, estimate.site_address].some(Boolean) ? "" : estimate.title || "";
-      $("project-no").value = estimate.project_no || ""; $("client").value = estimate.client || ""; $("site-address").value = estimate.site_address || "";
+      applyQuoteDetails(estimate);
       if (certification) { window.CeasefireCertification.applyProject(certification); certificationAdopted = true; }
       window.CeasefireDocumentation?.applyProject?.(documentation);
       window.CeasefireCommercial?.applyProject?.(commercial);
@@ -2452,11 +2464,18 @@
       window.CeasefireI18n.attr(title, "aria-label", "Browse files for {0}", [file.title || file.name]);
       title.addEventListener("click", () => openProjectBrowser(file));
       const heading = node("div", "project-row-heading");
-      heading.append(title);
+      const detailsToggle = node("button", "project-details-toggle", "<");
+      detailsToggle.type = "button";
+      detailsToggle.dataset.projectDetailsId = file.id;
+      detailsToggle.setAttribute("aria-controls", "project-details-pane");
+      detailsToggle.setAttribute("aria-expanded", "false");
+      window.CeasefireI18n.attr(detailsToggle, "aria-label", "Project details for {0}", [file.title || file.name]);
+      detailsToggle.addEventListener("click", () => window.CeasefireProjectPane?.toggle(file));
+      heading.append(detailsToggle, title);
       const details = node("div", "project-row-details");
       details.append(heading,
         node("p", "helper", [file.project_no, file.client, file.site_address].filter(Boolean).join(" · ")),
-        uiNode("p", "helper", "Last updated {0}", [new Date(file.modified_at).toLocaleString("en-AU")]));
+        uiNode("p", "helper", "Updated {0}", [new Date(file.modified_at).toLocaleString("en-AU")]));
       const estimateLabel = uiNode("label", "field project-card-estimate", "Estimate"), estimateSelect = node("select");
       estimateSelect.setAttribute("aria-label", `Estimate for ${file.title || file.name}`);
       const prompt = uiNode("option", "", "Select estimate"); prompt.value = ""; estimateSelect.append(prompt);
@@ -2488,6 +2507,7 @@
       return row;
     });
     $("project-list").replaceChildren(...(rows.length ? rows : [uiNode("p", "empty-state", "No projects")]));
+    window.CeasefireProjectPane?.refreshToggles();
   }
 
   async function changeProjectStage(file, status) {
@@ -2573,6 +2593,7 @@
 
   async function linkProjectFolder() {
     if (state.projectBusy) return;
+    if (window.CeasefireProjectPane && !await window.CeasefireProjectPane.leave()) return;
     projectBusy(true, "link-project-folder");
     try {
       const data = await request("/api/projects/link-folder", { method: "POST", body: "{}" });
@@ -2585,6 +2606,7 @@
 
   async function openProjectFile(file, button, estimateId = null, options = {}) {
     if (state.projectBusy || coverReplacementPending()) return;
+    if (window.CeasefireProjectPane && !await window.CeasefireProjectPane.leave()) return;
     if (estimateId && state.projectFile?.path === file.path && state.projectEstimates.some(entry => entry.id === estimateId)) {
       await selectEstimate(estimateId);
       if (state.activeEstimateId === estimateId) { selectEstimator("estimate"); showView("estimate"); }
@@ -2759,7 +2781,7 @@
   setupCalculatorNavigation();
   for (const button of document.querySelectorAll("[data-home-view]")) button.addEventListener("click", () => requestViewNavigation(button.dataset.homeView));
   document.querySelector(".brand")?.addEventListener("click", (event) => { event.preventDefault(); requestViewNavigation("home"); });
-  for (const id of ["client", "site-address", "project-no"]) $(id).addEventListener("input", () => { updateQuoteTitle(); updateDirty(); });
+  for (const id of Object.values(projectDetailControls)) $(id).addEventListener("input", () => { updateQuoteTitle(); updateDirty(); });
   $("measurements").addEventListener("input", () => updateDirty());
   $("new-quote").addEventListener("click", async () => { if (await confirmLeavePricingLibrary()) newQuote(); });
   $("download-quote-pdf").addEventListener("click", () => downloadQuotePdf());
@@ -2853,7 +2875,7 @@
   });
   window.addEventListener("beforeunload", (event) => {
     const pricingChanged = sharedPricingChanged();
-    if (projectHasChanges() || pricingChanged || window.CeasefireScheduler?.hasPendingOperation?.() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.() || window.CeasefireCoverSheets?.hasUnsavedChanges?.() || window.CeasefirePersonalDetails?.hasUnsavedChanges?.()) {
+    if (projectHasChanges() || pricingChanged || window.CeasefireScheduler?.hasPendingOperation?.() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.() || window.CeasefireCoverSheets?.hasUnsavedChanges?.() || window.CeasefirePersonalDetails?.hasUnsavedChanges?.() || window.CeasefireProjectPane?.hasUnsavedChanges?.()) {
       event.preventDefault(); event.returnValue = pricingChanged ? pricingUnsavedPrompt : "";
     }
   });
@@ -2862,13 +2884,13 @@
   let desktopInputRevision = 0, desktopClosePending = false;
   window.addEventListener("input", () => { desktopInputRevision++; }, true);
   window.addEventListener("change", () => { desktopInputRevision++; }, true);
-  function desktopCloseStamp() { return JSON.stringify({ project: projectStamp(), input: desktopInputRevision, pricing: sharedPricingDraft(), pricingRevision: state.pricingRevision, libraryDirty: !!window.CeasefireLibraryEditor?.hasUnsavedChanges(), certification: window.CeasefireCertification?.fingerprint?.(), coverSheets:window.CeasefireCoverSheets?.fingerprint?.(), personalDetails:window.CeasefirePersonalDetails?.fingerprint?.() }); }
-  function desktopBusy() { return state.projectBusy || state.desktopRequests > 0 || !!window.CeasefireSWMS?.hasPendingOperation?.() || !!window.CeasefireCommercial?.hasPendingOperation?.() || !!window.CeasefireDownloads?.hasPendingOperation?.() || !!document.querySelector('dialog[open], [aria-busy="true"]') || !state.initialized || !!window.CeasefireCalculators?.hasPendingOperation?.() || !!window.CeasefirePenetrations?.hasPendingOperation?.() || !!window.CeasefireTakeoffs?.hasPendingOperation?.() || !!window.CeasefireLibraryEditor?.hasPendingOperation?.() || !!window.CeasefireCertification?.hasPendingOperation?.() || !!window.CeasefireCoverSheets?.hasPendingOperation?.() || !!window.CeasefireDocumentation?.hasPendingOperation?.() || !!window.CeasefirePersonalDetails?.hasPendingOperation?.(); }
+  function desktopCloseStamp() { return JSON.stringify({ project: projectStamp(), input: desktopInputRevision, pricing: sharedPricingDraft(), pricingRevision: state.pricingRevision, libraryDirty: !!window.CeasefireLibraryEditor?.hasUnsavedChanges(), certification: window.CeasefireCertification?.fingerprint?.(), coverSheets:window.CeasefireCoverSheets?.fingerprint?.(), personalDetails:window.CeasefirePersonalDetails?.fingerprint?.(), projectPane:window.CeasefireProjectPane?.fingerprint?.() }); }
+  function desktopBusy() { return state.projectBusy || state.desktopRequests > 0 || !!window.CeasefireSWMS?.hasPendingOperation?.() || !!window.CeasefireCommercial?.hasPendingOperation?.() || !!window.CeasefireDownloads?.hasPendingOperation?.() || !!document.querySelector('dialog[open], [aria-busy="true"]') || !state.initialized || !!window.CeasefireCalculators?.hasPendingOperation?.() || !!window.CeasefirePenetrations?.hasPendingOperation?.() || !!window.CeasefireTakeoffs?.hasPendingOperation?.() || !!window.CeasefireLibraryEditor?.hasPendingOperation?.() || !!window.CeasefireCertification?.hasPendingOperation?.() || !!window.CeasefireCoverSheets?.hasPendingOperation?.() || !!window.CeasefireDocumentation?.hasPendingOperation?.() || !!window.CeasefirePersonalDetails?.hasPendingOperation?.() || !!window.CeasefireProjectPane?.hasPendingOperation?.(); }
   async function reviewDesktopClose() {
     if (desktopBusy()) { message(uiCopy("Finish the current operation or dialog before closing ESTIMATOR."), true); return false; }
     finishEstimateName();
     const captured = desktopCloseStamp();
-    if (projectHasChanges() || sharedPricingChanged() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.() || window.CeasefireCoverSheets?.hasUnsavedChanges?.() || window.CeasefirePersonalDetails?.hasUnsavedChanges?.()) {
+    if (projectHasChanges() || sharedPricingChanged() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.() || window.CeasefireCoverSheets?.hasUnsavedChanges?.() || window.CeasefirePersonalDetails?.hasUnsavedChanges?.() || window.CeasefireProjectPane?.hasUnsavedChanges?.()) {
       if (!await confirmReplace(uiCopy("Close ESTIMATOR?"), uiCopy(window.CeasefirePersonalDetails?.hasUnsavedChanges?.() ? "There are unsaved changes. Close without saving discards them. Keep editing to save them first." : "There are unsaved project, calculator, library, certification or cover-sheet edits. Close without saving discards these edits. Keep editing to save them first."), uiCopy("Close without saving"))) return false;
     }
     if (desktopBusy() || captured !== desktopCloseStamp()) { message(uiCopy("Your draft changed during the close review. Close again when ready to keep your latest edits safe."), true); return false; }
@@ -2876,7 +2898,7 @@
   }
   window.CeasefireDesktop = {
     showHome() { showView("home"); },
-    status() { return { ready: state.initialized, takeoffs: state.takeoffsEnabled, dirty: !!(projectHasChanges() || sharedPricingChanged() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.() || window.CeasefireCoverSheets?.hasUnsavedChanges?.() || window.CeasefirePersonalDetails?.hasUnsavedChanges?.()), busy: desktopBusy() }; },
+    status() { return { ready: state.initialized, takeoffs: state.takeoffsEnabled, dirty: !!(projectHasChanges() || sharedPricingChanged() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.() || window.CeasefireCoverSheets?.hasUnsavedChanges?.() || window.CeasefirePersonalDetails?.hasUnsavedChanges?.() || window.CeasefireProjectPane?.hasUnsavedChanges?.()), busy: desktopBusy() }; },
     async requestClose(nonce) {
       const host = window.chrome?.webview;
       if (!host || !/^[a-f0-9]{64}$/.test(nonce || "")) return;
@@ -2914,6 +2936,28 @@
     throw new Error("The project was saved, but could not be opened automatically. Open it from Projects.");
   }
   window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus, scheduleChanged,
+    projectPaneSnapshot: () => ({details:quoteDetails(), context:state.quoteContext, file:state.projectFile ? clone(state.projectFile) : null, busy:state.projectBusy}),
+    applyProjectPaneDraft(details, context) {
+      if (context !== state.quoteContext) throw new Error("The current project changed. Open its details again.");
+      applyQuoteDetails(details); updateQuoteTitle(); updateDirty();
+    },
+    applyProjectPaneSaved(snapshot, result, expectedRevision) {
+      const current = state.projectFile;
+      if (!current || snapshot.context !== state.quoteContext || current.path !== result.file?.path || current.path !== snapshot.file?.path || current.revision !== snapshot.file.revision || current.revision !== expectedRevision) return false;
+      // Metadata saves must never mark an estimate, calculator or pricing draft saved.
+      // Rebase only identity fields; every other workspace value stays untouched.
+      state.projectFile = result.file;
+      for (const entry of state.projectEstimates) if (entry.workspace?.estimate) {
+        const estimate = entry.workspace.estimate;
+        const projectNo = estimate.project_no;
+        Object.assign(estimate, result.details, {project_no:projectNo});
+        estimate.title = [estimate.project_no, estimate.client, estimate.site_address].filter(Boolean).join("- ") || estimate.title;
+      }
+      if (JSON.stringify(quoteDetails()) === JSON.stringify(snapshot.details)) applyQuoteDetails({...result.details,project_no:snapshot.details.project_no});
+      updateQuoteTitle(); updateProjectStatus();
+      return true;
+    },
+    refreshProjectCards: () => loadProjects(),
     openConvertedLead,
     openCommercial: kind => requestViewNavigation({quote:"quote", work_order:"work-orders", purchase_order:"purchase-orders"}[kind]),
     configuration: () => clone(state.quoteConfiguration || state.configuration),

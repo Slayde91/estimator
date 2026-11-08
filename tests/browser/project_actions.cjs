@@ -55,10 +55,30 @@ async function clickProjectControl(page, name) {
 async function fillProjectDetails(page, values, {waitForIdle = true} = {}) {
   const previous = await page.locator('.view').evaluateAll(nodes => nodes.find(node => !node.hidden)?.id.replace(/^view-/, ''));
   await openProjectSection(page, 'quotes');
+  await page.locator('#project-current-details').click();
+  await expect(page.locator('#project-details-pane')).toBeVisible();
   for (const [id, value] of Object.entries(values)) {
     if (!['client', 'site-address'].includes(id)) throw new Error('Unknown editable project detail: ' + id);
-    await page.locator('#' + id).fill(value);
-    await page.locator('#' + id).blur();
+    const input = page.locator(id === 'client' ? '#project-pane-client' : '#project-pane-address');
+    const original = await input.inputValue();
+    await input.fill(value);
+    if (id === 'client' && original !== value && value) {
+      // Project identity now links canonical Accounts. Test fixtures create
+      // their own synthetic Account through the same popup used by the app.
+      const response = await page.request.get(new URL('/api/contacts/directory',page.url()).href);
+      const directory = await response.json();
+      if (directory.accounts.some(account => account.company === value)) {
+        await input.blur(); await input.focus();
+        await page.locator('#project-account-options').getByRole('option', {name:value,exact:true}).click();
+      } else {
+        await page.locator('#project-account-new').click();
+        const account = page.getByRole('dialog', {name:'New Account',exact:true});
+        await account.getByLabel('Company',{exact:true}).fill(value);
+        await account.getByRole('button',{name:'Save',exact:true}).click();
+        await expect(account).not.toBeVisible();
+      }
+    }
+    await input.blur();
   }
   if (previous && previous !== 'quotes') {
     if (['quote', 'work-orders', 'purchase-orders', 'scheduler', 'certification', 'documentation', 'swms', 'documents'].includes(previous)) await openProjectSection(page, previous);

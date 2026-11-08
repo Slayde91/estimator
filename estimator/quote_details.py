@@ -6,15 +6,20 @@ choose a technical system, or replace the workbook's calculation results.
 
 from decimal import Decimal, ROUND_HALF_UP, localcontext
 import math
+import re
 import unicodedata
+import uuid
 
 from .calculator import LINES
 from .catalog import ValidationError
 from .presentation import ADDITION_NAMES, MATERIAL_NAMES
 
 
-QUOTE_DETAIL_LIMITS = {"client": 200, "site_address": 400, "project_no": 100}
-_DETAIL_LABELS = {"client": "Client", "site_address": "Site address", "project_no": "Project number"}
+QUOTE_DETAIL_LIMITS = {"client": 200, "site_address": 400, "project_no": 100,
+                       "contact_name": 160, "contact_phone": 60, "contact_email": 254, "account_id": 36}
+_DETAIL_LABELS = {"client": "Client", "site_address": "Site address", "project_no": "Project number",
+                  "contact_name": "Contact name", "contact_phone": "Contact phone",
+                  "contact_email": "Contact email", "account_id": "Account"}
 _ADDITION_SELECTIONS = ("E27", "E28", "B5", "B3", "B2", "B7", "B6", "E26")
 _ADDITION_UNITS = ("mobilisations", "fees", "deliveries", "round trips", "weeks", "round trips", "team nights", "days")
 
@@ -32,6 +37,14 @@ def validate_quote_details(data, previous=None):
         if any(unicodedata.category(character) in {"Cc", "Cs"} for character in value):
             raise ValidationError(f"{_DETAIL_LABELS[key]} cannot contain control characters or line breaks.")
         details[key] = value.strip()
+    if details["contact_email"] and not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", details["contact_email"]):
+        raise ValidationError("Enter a valid contact email address.")
+    if details["account_id"]:
+        try:
+            if str(uuid.UUID(details["account_id"])) != details["account_id"]:
+                raise ValueError
+        except ValueError as error:
+            raise ValidationError("Choose a valid Account.") from error
     return details
 
 

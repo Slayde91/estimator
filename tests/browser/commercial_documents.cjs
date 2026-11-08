@@ -189,6 +189,8 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   assert.notEqual(await quoteTotal(),originalTotal,'The saved quote edit has a different total to the issued PDF');
   await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
   await expect(quote.locator('.commercial-card')).toContainText('QA quotation revised');
+  assert.deepEqual(await quote.locator('.commercial-card').first().locator('.commercial-card-info dt').allTextContents(),
+    ['Client','Contact','Address','Quote No.','Total','Updated']);
   await open('work-orders');
   const work=page.locator('#commercial-work-order-root');
   const boardBefore=await work.locator('.commercial-board').boundingBox();
@@ -244,6 +246,8 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await work.getByRole('button',{name:'Back to Work Orders',exact:true}).click();
   await work.locator('.commercial-card').dragTo(work.getByRole('region',{name:'Review',exact:true}).or(work.locator('.commercial-column[aria-label="Review"]')));
   await expect(work.locator('.commercial-column[aria-label="Review"] .commercial-card')).toHaveCount(1);
+  assert.deepEqual(await work.locator('.commercial-card').first().locator('.commercial-card-info dt').allTextContents(),
+    ['Client','Contact','Address','WO No.','Total','Updated']);
   await page.screenshot({path:path.join(output,'work-order-board.png'),fullPage:true});
   checks.push('work order edits, PDF and persisted Kanban status');
   await open('purchase-orders');
@@ -326,7 +330,9 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   fs.writeFileSync(otherPath, JSON.stringify(clone));
   await open('quotes');
   await page.locator('#refresh-quotes').click();
-  await expect(page.locator('#project-list')).toContainText('other-project.cf.json');
+  // Project rows show readable titles; relative filenames were intentionally
+  // removed from this list. Both independently saved files must be present.
+  await expect(page.locator('#project-list .project-list-row')).toHaveCount(2);
   await open('quote');
   await expect(quote.locator('.commercial-card')).toHaveCount(2);
   const otherCard = quote.locator('.commercial-card').filter({hasText:'Other project quote'});
@@ -382,7 +388,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
     await open(route);
     const card=host.locator('.commercial-card').filter({hasText:title});
     await expect(card).toHaveCount(1);
-    await expect(card.locator('dl')).toContainText('Grand total');
+    await expect(card.locator('dl')).toContainText('Total');
     await card.locator('summary').click();
     await card.getByRole('combobox',{name:'Move to'}).selectOption(target);
     await expect(host.locator(`.commercial-column[aria-label="${target}"] .commercial-card`).filter({hasText:title})).toHaveCount(1);

@@ -23,6 +23,7 @@ from .catalog import ValidationError
 from .commercial_sources import CommercialSources, source_id
 from .edition import require_project_edition, validate_edition
 from .native_dialogs import NativeDialogs, SaveSelection
+from .quote_details import QUOTE_DETAIL_LIMITS, compose_quote_title, validate_quote_details
 from .project_file import CALCULATOR_IDS, LEGACY_CALCULATOR_IDS, OPTIONAL_CALCULATOR_IDS, ESTIMATE_FIELDS, ESTIMATE_REQUIRED_FIELDS, MAX_PROJECT_FILE, PROJECT_EXTENSION, assert_project_overwrite, export_project, has_project_identity, is_project_filename, load_project_bytes, project_filename, project_summary, validate_project_status, estimate_descriptors, WORKSPACE_FIELDS
 
 
@@ -33,6 +34,10 @@ MAX_LIST_BYTES = 64 * 1_048_576
 MAX_PROJECT_ATTACHMENT = 16 * 1_048_576
 SCAN_CACHE_SECONDS = 5
 _DIALOG_LOCK = threading.Lock()
+
+
+class ProjectDetailsConflict(ValidationError):
+    """The pane's saved-file revision no longer matches its selected project."""
 
 
 def _linked(info):
@@ -240,6 +245,14 @@ def _open_default_file(path):
         subprocess.Popen(["xdg-open", str(path)], close_fds=True)
 
 
+def _preserve_project_contacts(request, previous):
+    """Old browser windows must not silently erase newly stored identity fields."""
+    incoming = request.get("estimate", {})
+    saved = previous.get("estimate", {})
+    if any(saved.get(key) and key not in incoming for key in ("contact_name", "contact_phone", "contact_email", "account_id")):
+        raise ValidationError("Reload this application before saving so the project's Contact and Account details are retained.")
+
+
 def _metadata(path, info, project, folder, payload):
     from .commercial_documents import commercial_cards
     estimate = project["estimate"]
@@ -251,6 +264,7 @@ def _metadata(path, info, project, folder, payload):
             "relative_folder": str(Path(relative).parent).replace("\\", "/") if inside else "",
             "title": estimate["title"], "project_no": estimate.get("project_no", ""),
             "client": estimate.get("client", ""), "site_address": estimate.get("site_address", ""),
+            "account_id": estimate.get("account_id", ""),
             "source_project_id": project.get("source_project_id") or (project.get("certifications") or {}).get("project_id"),
             "commercial_cards": cards, "quote_cards": [card for card in cards if card['kind'] == 'quote'],
             "clients": project.get("clients", [estimate.get("client", "")]),
@@ -379,6 +393,8 @@ class ProjectLibrary:
             previous = json.loads(payload)
         except (ValueError, UnicodeDecodeError):
             return request
+        if isinstance(previous, dict):
+            _preserve_project_contacts(request, previous)
         if not isinstance(previous, dict) or ('estimates' not in previous and 'estimates' not in request):
             return request
         incoming = {entry['id']: entry['workspace'] for entry in request.get('estimates', [])}
@@ -393,6 +409,7 @@ class ProjectLibrary:
             if not set(entry['workspace']['calculators']) <= set(workspace['calculators']):
                 raise ValidationError('Reload all calculators for each project estimate before saving.')
             _preserve_penetration_inputs(path, workspace, previous_snapshot=entry['workspace'])
+            _preserve_project_contacts(workspace, entry['workspace'])
         active = incoming[previous.get('active_estimate_id', 'estimate-1')]
         return {**{key: value for key, value in request.items() if key not in WORKSPACE_FIELDS}, **active}
 
@@ -762,6 +779,88 @@ class ProjectLibrary:
             return {"id": identifier, "title": project["estimate"]["title"],
                     "site_address": project["estimate"].get("site_address", ""),
                     "project_status": project["project_status"]}
+
+    def read_details(self, request):
+        """Read only selected project identity; never open or apply its workspace."""
+        if not isinstance(request, dict) or set(request) != {"id"}:
+            raise ValidationError("Choose a project from the linked folder.")
+        with self._lock:
+            _, path = self._project_path(request["id"])
+            payload, info = _read_file(path)
+            summary = project_summary(payload, edition=self.edition)
+            metadata = _metadata(path, info, summary, self._scan["folder"], payload)
+            return {"id": metadata["id"], "revision": metadata["revision"],
+                    "project_id": summary.get("source_project_id"),
+                    "details": validate_quote_details(summary["estimate"]), "file": metadata}
+
+    def save_details(self, request, *, accounts):
+        """Conditionally update shared identity only, preserving all workspace data."""
+        from .contacts import company_key
+        from .project_details import request_id
+        if not isinstance(request, dict) or set(request) != {"id", "revision", "details", "request_id"}:
+            raise ValidationError("Include the selected project, revision, complete details and request ID only.")
+        identifier = request_id(request["request_id"])
+        if not isinstance(request["revision"], str) or not re.fullmatch(r"[0-9a-f]{64}", request["revision"]):
+            raise ValidationError("Reload the selected project's details before saving.")
+        if not isinstance(request["details"], dict) or set(request["details"]) != set(QUOTE_DETAIL_LIMITS):
+            raise ValidationError("Include all project detail fields only.")
+        details = validate_quote_details(request["details"])
+        # Account directory access happens outside the project lock; lead conversion
+        # can hold the directory transaction while creating a project.
+        account_valid = True
+        if details["account_id"]:
+            account = next((row for row in accounts.list()["accounts"] if row["id"] == details["account_id"]), None)
+            account_valid = account is not None and company_key(account["company"]) == company_key(details["client"])
+        digest = hashlib.sha256(json.dumps(request, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+        with self._lock:
+            _, path = self._project_path(request["id"])
+            payload, info = _read_file(path)
+            revision = hashlib.sha256(payload).hexdigest()
+            summary = project_summary(payload, edition=self.edition)
+            receipts = getattr(self, "_details_receipts", {})
+            receipt = receipts.get(identifier)
+            if receipt is not None and receipt != (digest, str(path), revision):
+                raise ProjectDetailsConflict("This project details request has changed or the project was edited again. Reopen its pane.")
+            if receipt is None and revision != request["revision"]:
+                raise ProjectDetailsConflict("The project changed. Reopen its details before saving.")
+            previous = validate_quote_details(summary["estimate"])
+            if not account_valid and any(details[key] != previous[key] for key in ("account_id", "client")):
+                raise ValidationError("Choose an existing Account for this Client, or add a new Account.")
+            if details["project_no"] != previous["project_no"]:
+                raise ValidationError("Project numbers are assigned automatically and cannot be changed here.")
+            if not details["account_id"] and details["client"] != previous["client"] and details["client"]:
+                raise ValidationError("Choose an existing Account for this Client, or add a new Account.")
+            if receipt is None:
+                snapshot = json.loads(payload.decode("utf-8-sig"))
+                estimates = [snapshot["estimate"], *[entry["workspace"]["estimate"] for entry in snapshot.get("estimates", [])]]
+                for estimate in estimates:
+                    number = estimate.get("project_no", "")
+                    estimate.update(details)
+                    # Imported historical collections can retain distinct numbers.
+                    # The pane must not rewrite any estimate's immutable number.
+                    estimate["project_no"] = number
+                    estimate["title"] = compose_quote_title(**{key: estimate[key] for key in ("project_no", "client", "site_address")}, fallback=estimate.get("title"))
+                updated = json.dumps(snapshot, ensure_ascii=False, allow_nan=False, indent=2).encode("utf-8")
+                if len(updated) > MAX_PROJECT_FILE:
+                    raise ValidationError("The updated project exceeds the 16 MB file limit.")
+                # Validate identity/collection structure without recalculating or
+                # re-exporting pricing, attachments, or issued document snapshots.
+                summary = project_summary(updated, edition=self.edition)
+                selection = SaveSelection(str(path), {"size": info.st_size, "mtime_ns": info.st_mtime_ns, "sha256": revision})
+                path, info = _atomic_write(selection, updated)
+                payload = updated
+                revision = hashlib.sha256(payload).hexdigest()
+                receipts[identifier] = (digest, str(path), revision)
+                while len(receipts) > 256:
+                    receipts.pop(next(iter(receipts)))
+                self._details_receipts = receipts
+            folder = self._scan["folder"]
+            metadata = _metadata(path, info, summary, folder, payload)
+            self._scan["files"][metadata["id"]] = metadata
+            self._cache.pop((str(folder), str(path)), None)
+            return {"id": metadata["id"], "revision": revision,
+                    "project_id": summary.get("source_project_id"), "details": details,
+                    "file": self._authorize_save(path, info, payload, metadata)}
 
     def update_status(self, request):
         """Change only the portable status, with a required last-read revision."""
@@ -1272,6 +1371,24 @@ class ProjectLibrary:
             return {'documents': documents, 'revisions': {f['path']: f['revision'] for f in files.values()},
                     'scan_pending': False, 'error_count': walk['errors'], 'unavailable_sources': missing}
 
+    def account_relation_projects(self):
+        """Snapshot current authorized metadata after one bounded scan batch.
+
+        Account links use stable project IDs. No caller-provided path is read,
+        and explicitly ignored sources never enter this related-record catalog.
+        """
+        listing = self.listing(limit=1)
+        with self._lock:
+            ignored = self._commercial_sources.ignored_owners()
+            folder = self.store.project_folder()
+            linked = (list(self._scan['files'].values()) if folder and self._scan
+                      and self._scan['folder'] == Path(folder) else [])
+            registered = {row[0] for row in self._commercial_sources.records() if not row[4] and row[2] not in ignored}
+            outside = [cached[1] for identifier, cached in self._outside_file_cache.items() if identifier in registered]
+            return {**listing, 'files': [{**row, 'account_link_id': str(uuid.uuid5(uuid.NAMESPACE_URL,
+                                            'classifire:account-project-file:' + source_id(row['path'])))} for row in (*linked, *outside)
+                                        if row['source_project_id'] not in ignored]}
+
     def quote_register(self):
         register = self.commercial_register()
         register['documents'] = [doc for doc in register['documents'] if doc['kind'] == 'quote']
@@ -1375,7 +1492,9 @@ class ProjectLibrary:
             ('name', 'Contact'), ('phone', 'Phone'), ('email', 'Email'), ('title', 'Title'),
             ('billing_address', 'Billing address'), ('description', 'Description')) if lead[key])
         request = {'project_save_request': lead['id'],
-                   'estimate': {'client': lead['company'], 'site_address': lead['site_address'], 'measurements': notes},
+                   'estimate': {'client': lead['company'], 'site_address': lead['site_address'], 'measurements': notes,
+                                'contact_name': lead['name'], 'contact_phone': lead['phone'],
+                                'contact_email': lead['email'], 'account_id': lead.get('account_id') or ''},
                    'calculators': {key: {'inputs': empty_schedule_inputs(key)} for key in CALCULATOR_IDS}}
         result = self.save_as(request, linked_folder=True)
         return {'project_no': result['file']['project_no'], 'path': result['file']['path']}

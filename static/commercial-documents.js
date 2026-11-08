@@ -351,13 +351,18 @@
     renderCards();
     if (state.model.unavailableProjects) message("Some linked project files could not be read. See Projects for details.", true);
   }
+  function commercialProjectDetails(includeContact = false) {
+    const details = window.CeasefireProject?.details?.() || {};
+    return {project_no:details.project_no || "", client:details.client || "", site_address:details.site_address || "",
+      ...(includeContact ? {contact:details.contact_name || "", phone:details.contact_phone || "", email:details.contact_email || ""} : {})};
+  }
   function renderCards() {
     const board = root()?.querySelector(".commercial-board");
     if (!board) return;
     board.replaceChildren();
     let all = state.model.documents.filter(document => document.kind === state.kind);
     {
-      const details = window.CeasefireProject?.details?.();
+      const details = commercialProjectDetails();
       const local = state.model.activeFileChanged ? [] : all.map(card => ({
         ...card, fields: {...card.fields, details: {...card.fields.details, ...details}}
       }));
@@ -372,10 +377,10 @@
         : cost && Number.isFinite(Number(cost)) ? new Intl.NumberFormat("en-AU", {style:"currency",currency:"AUD"}).format(Number(cost)) : cost;
       return [
         [po ? "Supplier" : "Client", po ? order.supplier : details.client],
-        ["Contact name", po ? order.supplier_contact : details.contact],
-        ["Site address", details.site_address],
-        [names[doc.kind] + " number", number], ["Grand total", grand],
-        ["Last updated", new Date(doc.updated_at).toLocaleString("en-AU")]
+        ["Contact", po ? order.supplier_contact : details.contact],
+        ["Address", details.site_address],
+        [po ? "PO No." : wo ? "WO No." : "Quote No.", number], ["Total", grand],
+        ["Updated", new Date(doc.updated_at).toLocaleString("en-AU")]
       ];
     };
     const documents = all.filter(doc => [doc.fields.title, doc.fields.details.project_no, ...cardInfo(doc).map(pair=>pair[1])].join(" ").toLowerCase().includes(state.search.toLowerCase()));
@@ -434,7 +439,11 @@
         const heading = node("div", "project-card-heading");
         heading.append(title, menu);
         const information = node("dl", "commercial-card-info");
-        for (const [label, value] of cardInfo(document)) information.append(node("dt","",label), node("dd","",value || "—"));
+        for (const [label, value] of cardInfo(document)) {
+          const heading = node("dt", "", label);
+          window.CeasefireI18n?.text(heading, label);
+          information.append(heading, node("dd", "", value || "—"));
+        }
         card.append(heading, information);
         column.append(card);
       }
@@ -535,7 +544,7 @@
     state.busy = true;
     try {
       const details = {
-        ...window.CeasefireProject?.details?.(),
+        ...commercialProjectDetails(true),
         date: today()
       };
       const result = await request("defaults", {
@@ -650,7 +659,7 @@
       fields = state.editor.document.fields;
     if (!source) {
       const lockedNumber = fields.order.work_order_reference && state.kind === "work_order" ? fields.details.project_no : "";
-      Object.assign(fields.details, window.CeasefireProject?.details?.());
+      Object.assign(fields.details, commercialProjectDetails());
       if (lockedNumber) fields.details.project_no = lockedNumber;
     }
     const actions = node("div", "commercial-editor-actions");

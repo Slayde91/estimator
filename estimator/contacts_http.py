@@ -4,12 +4,14 @@ import base64
 import binascii
 from io import BytesIO
 import re
+from urllib.parse import parse_qs, urlsplit
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from .catalog import ValidationError
+from .account_relations import AccountRelations
 from .contacts import ACCOUNT_FIELDS, PERSON_FIELDS, ContactsConflict, ContactsStore
 from .pricing_workbook import MAX_FILE_BYTES, _preflight
 
@@ -19,7 +21,7 @@ MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 def headers(kind):
-    return [field.replace("_", " ").title() for field in TEMPLATES[kind]]
+    return ["ABN/ACN" if field == "abn_acn" else field.replace("_", " ").title() for field in TEMPLATES[kind]]
 
 
 def template(kind):
@@ -66,10 +68,13 @@ def read_template(kind, filename, encoded):
         sheet = book.active
         sheet.reset_dimensions()
         rows = sheet.iter_rows(values_only=True)
-        if list(next(rows, ())) != headers(kind):
+        actual_headers = list(next(rows, ()))
+        fields = TEMPLATES[kind]
+        if kind == "accounts" and actual_headers == ["Company", "Billing Address"]:
+            fields = ACCOUNT_FIELDS[:2]  # Previously exported workbooks remain importable.
+        elif actual_headers != headers(kind):
             raise ValidationError(f"Use the columns from the {kind.title()} template in their original order.")
         records = []
-        fields = TEMPLATES[kind]
         for number, row in enumerate(rows, 2):
             if all(value is None or value == "" for value in row):
                 continue
@@ -99,6 +104,7 @@ class ContactsHTTP:
     def __init__(self, path, projects):
         self.store = ContactsStore(path)
         self.projects = projects
+        self.relations = AccountRelations(self.store, projects)
 
     def dispatch(self, handler, route):
         prefix = "/api/contacts/"
@@ -109,6 +115,11 @@ class ContactsHTTP:
             workbook = re.fullmatch(r"(accounts|contacts)/(template\.xlsx|import)", action)
             if handler.command == "GET" and action == "directory":
                 handler.send_payload(200, self.store.list())
+            elif handler.command == "GET" and action == "account-links":
+                query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
+                if set(query) - {"id", "search"} or any(len(values) != 1 for values in query.values()):
+                    raise ValidationError("Choose one account and related-record search.")
+                handler.send_payload(200, self.relations.view(query.get("id", [None])[0], search=query.get("search", [""])[0]))
             elif handler.command == "GET" and workbook and workbook[2] == "template.xlsx":
                 kind = workbook[1]
                 handler.send_payload(200, template(kind), MIME,
@@ -116,7 +127,12 @@ class ContactsHTTP:
             elif handler.command == "POST" and handler.headers.get("Sec-Fetch-Site") == "cross-site":
                 handler.send_payload(403, {"error": "Open Contacts in the CLASSIFIRE web app."})
             elif handler.command == "POST" and action in {"leads", "contacts", "accounts"}:
-                handler.send_payload(200, self.store.save(action, handler.read_json()))
+                body = handler.read_json()
+                catalog = None
+                if action == "accounts" and isinstance(body, dict) and "links" in body:
+                    links = body["links"]
+                    catalog = self.relations.view(body.get("id"), include_ids=links if isinstance(links, dict) else None)
+                handler.send_payload(200, self.store.save(action, body, link_catalog=catalog))
             elif handler.command == "POST" and action == "leads/convert":
                 handler.send_payload(200, self.store.convert(handler.read_json(), self.projects.create_from_lead))
             elif handler.command == "POST" and workbook and workbook[2] == "import":

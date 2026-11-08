@@ -506,6 +506,39 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .project-row-details{min-width:0}
 .project-row-heading{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .project-row-heading .project-title-button{font-size:15px;font-weight:700;line-height:1.5;overflow-wrap:anywhere}
+.project-row-heading{flex-wrap:nowrap;align-items:flex-start;gap:8px}
+.project-row-heading .project-title-button{text-align:left;min-width:0}
+.project-details-toggle{flex:0 0 24px;padding:0;border:0;background:transparent;color:var(--accent,#ed0033);font-size:25px;line-height:1.1;font-weight:900;cursor:pointer}
+.project-details-toggle:focus-visible{outline:2px solid var(--theme-focus,var(--accent));outline-offset:3px;border-radius:3px}
+.project-details-access{display:flex;justify-content:flex-start;margin-bottom:16px}
+.project-workspace-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:start}
+.project-workspace-layout.project-pane-open{grid-template-columns:minmax(340px,440px) minmax(0,1fr)}
+.project-workspace-main,.project-details-pane{min-width:0}
+.project-details-pane{margin:0}
+.project-details-pane .section-heading{align-items:center;gap:12px}
+.project-details-pane .section-heading h2{margin:0}
+.project-details-pane .section-heading .button{min-height:32px;width:32px;height:32px;padding:0;font-size:22px}
+.project-details-pane #project-details-target{overflow-wrap:anywhere}
+.project-pane-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 12px}
+.project-pane-fields .field{min-width:0;margin:0}
+.project-pane-fields input{width:100%;min-width:0}
+.project-account-field{position:relative}
+.project-account-field>label{display:block;margin-bottom:7px;font-size:12px;font-weight:650}
+.project-account-search{position:relative;display:flex;align-items:center}
+.project-account-search input{padding-left:37px}
+.project-account-add{position:absolute;left:4px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:5px;background:var(--accent,#ed0033);color:#fff;font-size:23px;line-height:1;font-weight:700;cursor:pointer}
+.project-account-add:disabled{opacity:.5;cursor:wait}
+.project-account-options{position:absolute;top:100%;left:0;right:0;max-height:230px;overflow:auto;z-index:12;padding:4px;border:1px solid var(--line);border-radius:6px;background:var(--paper);box-shadow:0 6px 18px #0005}
+.project-account-options button{display:block;width:100%;padding:9px 7px;text-align:left;border:0;border-radius:3px;color:inherit;background:transparent;font:inherit;font-size:12px;overflow-wrap:anywhere;cursor:pointer}
+.project-account-options button:hover,.project-account-options button[aria-selected="true"]{background:var(--canvas)}
+.project-account-options p{margin:7px;font-size:12px}
+.project-pane-open .project-list-row{grid-template-columns:minmax(0,1fr) auto}
+.project-pane-open .project-row-details{grid-column:1/-1}
+.project-pane-open .project-list-row .project-card-estimate{width:min(100%,220px)}
+.project-pane-open #project-list-card .project-list-controls{grid-template-columns:minmax(0,1fr)}
+.project-pane-open .project-row-actions .project-menu-options{left:auto;right:0}
+@media(max-width:900px){.project-workspace-layout.project-pane-open{grid-template-columns:minmax(0,1fr)}.project-details-pane{width:100%}}
+@media(max-width:420px){.project-pane-fields{grid-template-columns:minmax(0,1fr)}}
 .project-row-details p{margin:7px 0 0;overflow-wrap:anywhere;font-size:11px;line-height:1.5}
 .project-row-actions{display:flex;align-items:flex-end}
 .project-row-actions .project-card-menu summary{display:inline-flex;align-items:center;justify-content:center;gap:10px;height:42px;min-height:42px;padding:0 16px;font-size:12px}

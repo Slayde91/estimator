@@ -90,7 +90,9 @@ def main():
     server = create_server(0, store.path, project_dialogs=Dialogs(), library_directory=library)
     print(json.dumps({'port': server.server_port, 'directory': str(folder), 'project': str(project), 'database': str(store.path), 'library': str(library)}), flush=True)
     try:
-        server.serve_forever()
+        from unittest.mock import patch
+        with patch('estimator.download_files.standard_downloads_directory', return_value=folder / 'native-downloads'):
+            server.serve_forever()
     finally:
         server.server_close()
 

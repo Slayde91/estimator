@@ -84,7 +84,8 @@ class SwmsTests(unittest.TestCase):
         self.assertEqual(len(template_options()['activities']), 2)
         self.assertEqual(fields['details']['job_reference'], 'CF-SWMS')
         for key in ['reviewers', 'consultation']:
-            self.assertTrue(all(row['signature'] is None and row['name'] == '' and row['position'] == '' for row in fields[key]))
+            self.assertEqual(fields[key], [])
+        self.assertEqual(fields['work_types'], [])
         self.assertEqual(fields['details']['project_manager'], '')
         self.assertEqual(fields['signoffs'], [])
         self.assertIsNone(fields['manual_signature'])
@@ -142,6 +143,48 @@ class SwmsTests(unittest.TestCase):
         with self.assertRaises(SwmsConflict):
             self.service.save(self.workspace, payload)
 
+    def test_empty_choices_save_and_legacy_selections_people_and_control_text_are_preserved(self):
+        empty = self.payload()
+        saved_empty = self.service.save(self.workspace, empty)
+        self.assertEqual(saved_empty['fields']['work_types'], [])
+        self.assertEqual(saved_empty['fields']['reviewers'], [])
+        self.assertEqual(saved_empty['fields']['consultation'], [])
+        legacy = self.payload()
+        legacy['status'] = 'Approved'
+        fields = legacy['fields']
+        fields['work_types'] = ['Passive Firestopping']
+        fields['reviewers'] = [{'name': 'Existing Reviewer', 'position': 'Existing role', 'signature': None}]
+        fields['consultation'] = [{'name': 'Existing Consultant', 'position': 'Consultant role', 'signature': None}]
+        old_note = 'Site instruction\nSOP098- Operating a Circular Saw\nUser-supplied additional control'
+        fields['steps']['Passive Firestopping'][6]['controls'] = old_note
+        saved_legacy = self.service.save(self.workspace, legacy)
+        issued = self.service.issue(self.workspace, saved_legacy['id'], saved_legacy['version'], str(uuid.uuid4()))
+        before = self.service.capture(self.workspace)
+        for _ in range(2):
+            self.assertEqual(default_fields()['work_types'], [])
+        self.assertEqual(self.service.capture(self.workspace), before)
+        restored = self.projects.add(before['project_id'])
+        self.service.restore(restored, json.loads(json.dumps(before)))
+        self.assertEqual(self.service.capture(restored), before)
+        retained = next(row for row in self.service.view(restored)['documents'] if row['id'] == saved_legacy['id'])
+        self.assertEqual(retained['status'], 'Approved')
+        self.assertEqual(retained['fields'], fields)
+        self.assertEqual(self.service.read_pdf(restored, issued['id'])[1], issued['pdf'])
+
+    def test_default_control_seeds_remove_only_the_requested_sop_references(self):
+        removed = ('SOP100-', 'SOP098-', 'SOP096-', 'SOP097-', 'SOP099-')
+        fields = default_fields()
+        for kind, rows in fields['steps'].items():
+            for row in rows:
+                with self.subTest(kind=kind, step=row['job_step']):
+                    self.assertFalse(any(value in row['controls'] for value in removed))
+            cutting = next(row for row in rows if row['job_step'] == 'Cutting sheets and angles')
+            fixing = next(row for row in rows if row['job_step'] == 'Fixing sheets and angles')
+            self.assertIn('Cut in an appropriate ventilated area', cutting['controls'])
+            self.assertIn('Follow correct operating procedures', fixing['controls'])
+        template = json.loads((Path(__file__).resolve().parents[1] / 'data/swms-template.json').read_text())
+        self.assertFalse(any(value in json.dumps(template) for value in removed))
+
     def test_legacy_people_defaults_remain_stored_but_new_statements_are_blank(self):
         original = self.payload()
         self.service.save(self.workspace, original)
@@ -158,10 +201,9 @@ class SwmsTests(unittest.TestCase):
         handler.path = '/api/swms/defaults'
         adapter.dispatch(handler, handler.path)
         self.assertEqual(handler.result[0], 200)
-        self.assertEqual(handler.result[1]['fields']['reviewers'],
-                         [{'name': '', 'position': '', 'signature': None}] * 2)
-        self.assertEqual(handler.result[1]['fields']['consultation'],
-                         [{'name': '', 'position': '', 'signature': None}] * 2)
+        self.assertEqual(handler.result[1]['fields']['reviewers'], [])
+        self.assertEqual(handler.result[1]['fields']['consultation'], [])
+        self.assertEqual(handler.result[1]['fields']['work_types'], [])
         self.assertEqual(handler.result[1]['fields']['details']['job_reference'], 'NEW-PROJECT')
         self.assertEqual(restarted.capture(self.workspace), snapshot)
         restored = self.projects.add(snapshot['project_id'])
@@ -269,7 +311,8 @@ class SwmsTests(unittest.TestCase):
 
     def test_bounded_schema_rejects_executable_or_malformed_data(self):
         for mutate in [lambda f: f.update(script='<script>'),
-                       lambda f: f.update(work_types=[]),
+                       lambda f: f.update(work_types=['Unknown work']),
+                       lambda f: f.update(work_types=['Passive Firestopping'] * 2),
                        lambda f: f['steps']['Passive Firestopping'][0].update(initial_risk='4'),
                        lambda f: f['high_risk_steps'].update({'unknown': []}),
                        lambda f: f['high_risk_steps']['Risk of falls from greater than 2 metres'][0].update(initial_risk='4'),
@@ -366,8 +409,11 @@ class SwmsPdfTests(unittest.TestCase):
         operations = first.get_contents().operations
         paths = [(tuple(float(value) for value in operands), operator) for operands, operator in operations
                  if operator in (b'm', b'l')]
-        expected = [((16.2, 14.4), b'm'), ((45.0, 19.2), b'l'), ((66.6, 7.2), b'l')]
-        self.assertTrue(any(paths[index:index + 3] == expected for index in range(len(paths) - 2)),
+        expected = [((6.8389, 14.2796), b'm'), ((34.1945, 18.8389), b'l'), ((54.7112, 7.4407), b'l')]
+        self.assertTrue(any(all(operator == target_operator and len(values) == len(target)
+                               and all(abs(value - expected_value) < .001 for value, expected_value in zip(values, target))
+                               for (values, operator), (target, target_operator) in zip(paths[index:index + 3], expected))
+                            for index in range(len(paths) - 2)),
                         'The saved bounded Contact Person signature must produce real vector ink in the PDF.')
         positions = []
         first.extract_text(visitor_text=lambda value, cm, tm, font, size:
@@ -377,9 +423,10 @@ class SwmsPdfTests(unittest.TestCase):
 
     def test_template_page_geometry_repeated_headers_numbering_and_actual_content(self):
         fields = default_fields({'project_no': 'CF-PDF', 'site_address': '<script>literal</script>'})
+        fields['work_types'] = ['Passive Firestopping']
         pdf = render_swms_pdf({'version': 3, 'fields': fields}, company=DEFAULTS)
         reader = PdfReader(BytesIO(pdf))
-        self.assertEqual(len(reader.pages), 10)
+        self.assertGreater(len(reader.pages), 6)
         self.assertIn('Job Reference', reader.pages[0].extract_text())
         self.assertNotIn('Prepared by:', reader.pages[0].extract_text())
         for index, page in enumerate(reader.pages, 1):
@@ -400,8 +447,12 @@ class SwmsPdfTests(unittest.TestCase):
             page.extract_text(visitor_text=lambda text, cm, tm, font, size: positions.append((text, cm[4] + tm[4])) if text.startswith('Page ') else None)
             self.assertEqual(len(positions), 1)
             self.assertAlmostEqual(positions[0][1], 39, places=1)
-            if 4 <= index <= 7:
-                self.assertIn('Responsible Person', text)
+        step_start = next(index for index, page in enumerate(reader.pages) if 'Access Site' in page.extract_text())
+        step_end = next(index for index, page in enumerate(reader.pages) if 'Site emergency' in page.extract_text())
+        self.assertGreater(step_end, step_start, 'The chosen work type genuinely spans multiple pages.')
+        for page in reader.pages[step_start:step_end + 1]:
+            self.assertIn('Job Steps', page.extract_text())
+            self.assertIn('Responsible Person', page.extract_text())
         text = '\n'.join(page.extract_text() for page in reader.pages)
         self.assertIn('<script>literal</script>', text)
         self.assertIn('Site emergency', text)

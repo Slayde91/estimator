@@ -10,6 +10,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfgen import canvas
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.lib.utils import ImageReader
 from reportlab.platypus import BaseDocTemplate, Flowable, Frame, LongTable, PageBreak, PageTemplate, Paragraph, Spacer, TableStyle
 
@@ -21,6 +22,10 @@ PAGE = landscape(A4)
 MARGIN = 39
 WIDTH = PAGE[0] - MARGIN * 2
 RED = colors.HexColor('#d40000')
+PROJECT_WIDTHS = (.20, .20, .067, .20, .13, .07, .133)
+# The two project rows share the SWMS/Project Name, Contact/Date,
+# Position/Project Manager and Phone/Contact boundaries.
+CONTACT_WIDTHS = (.20, .20, .167, .10, .20, .133)
 
 
 def _styles():
@@ -250,19 +255,22 @@ def render_swms_pdf(document, *, company):
     fields = validate_fields(document['fields'])
     styles, details = _styles(), fields['details']
     story = []
-    contact = ([_p(details['contact_person'], styles['body']), Signature(fields['contact_signature'], 90, 24)]
-               if fields.get('contact_signature') else details['contact_person'])
-    story.append(_table(['Job Reference', 'SWMS Reference', 'Contact Person', 'Position', 'Phone:'],
-                        [[details['job_reference'], document.get('reference', ''), contact, details['position'], details['phone']]],
-                        [WIDTH * fraction for fraction in (.21, .18, .23, .21, .17)], styles))
+    story.append(_table(['Job Reference', 'SWMS Reference', 'Contact Person', 'Signature:', 'Position', 'Phone:'],
+                        [[details['job_reference'], document.get('reference', ''), details['contact_person'],
+                          Signature(fields.get('contact_signature'), WIDTH * CONTACT_WIDTHS[3] - 8, 24),
+                          details['position'], details['phone']]],
+                        [WIDTH * fraction for fraction in CONTACT_WIDTHS], styles))
     story.append(Spacer(1, 10))
     story.append(_table(['Principal Contractor (PC)', 'Project Name', 'Date:', 'Project Address', 'Project Manager (PM)', 'Signature:', 'Contact'],
                         [[details['principal_contractor'], details['project_name'], details['date'], details['project_address'], details['project_manager'], Signature(fields['manager_signature'], 40, 25), details['manager_contact']]],
-                        [WIDTH * fraction for fraction in (.20, .20, .067, .20, .13, .07, .133)], styles))
-    story.extend([Spacer(1, 6), _p(fields['communication'], styles['bold']), Spacer(1, 6), _p(fields['toolbox'], styles['body']), Spacer(1, 6)])
-    story.extend([_p('Person/s responsible for ensuring compliance with SWMS:', styles['bold']), _p(fields['compliance'], styles['body']), Spacer(1, 6)])
+                        [WIDTH * fraction for fraction in PROJECT_WIDTHS], styles))
+    story.extend([Spacer(1, 6), _table(None, [
+        [_p(fields['communication'], styles['bold']), _p(fields['toolbox'], styles['body'])],
+        [_p('Person/s responsible for ensuring compliance with SWMS:', styles['bold']), _p(fields['compliance'], styles['body'])]
+    ], [WIDTH * PROJECT_WIDTHS[0], WIDTH * (1 - PROJECT_WIDTHS[0])], styles), Spacer(1, 7)])
     for label, key in [('Person/s responsible for reviewing SWMS:', 'reviewers'), ('This SWMS has been developed in consultation with:', 'consultation')]:
-        story.extend([_p(label, styles['section']), _people(fields[key], styles), Spacer(1, 7)])
+        if fields[key]:
+            story.extend([_p(label, styles['section']), _people(fields[key], styles), Spacer(1, 7)])
     story.append(_table(['Qualifications/Competency Required to complete tasks', 'Personnel/Duties and Responsibilities (Supervisory Staff and others)', 'Additional training required to complete task'],
                         [[_p(fields[key], styles['body'], bullets=True) for key in ('qualifications', 'duties', 'training')]], [WIDTH / 3] * 3, styles))
     story.extend([PageBreak(), _p(fields['requirements'], styles['body'], bullets=True), Spacer(1, 10)])
@@ -287,9 +295,10 @@ def render_swms_pdf(document, *, company):
         return [heading, table]
     high_risk_tables = fields.get('high_risk_steps', template_options()['high_risk_tables'])
     for choice in fields['high_risk_work'].splitlines():
-        if high_risk_tables.get(choice):
-            story.extend(step_table(choice, high_risk_tables[choice]))
-    story.extend([PageBreak(), _pair('Type of Works', '\n'.join(fields['work_types']), styles)])
+        if choice in high_risk_tables:
+            story.extend([PageBreak(), *step_table(choice, high_risk_tables[choice])])
+    if fields['work_types']:
+        story.extend([PageBreak(), _pair('Type of Works', '\n'.join(fields['work_types']), styles)])
     for index, kind in enumerate(fields['work_types']):
         if index:
             story.append(PageBreak())
@@ -297,7 +306,14 @@ def render_swms_pdf(document, *, company):
     story.append(_pair('Additional Job Steps', 'Are there additional job steps to consider? ' + ('Yes' if fields['additional_steps'] else 'No'), styles))
     if fields['additional_steps'] and fields['additional_rows']:
         story.extend(step_table('Additional Job Steps', fields['additional_rows']))
-    story.extend([PageBreak(), _p(fields['acknowledgement'], styles['large']), _p('Reviews', styles['section'])])
+    acknowledgement = fields['acknowledgement']
+    # Fit the standard sentence on one line. Longer user-entered text keeps a
+    # readable body-sized minimum and wraps without losing any content.
+    acknowledgement_size = min(10.5, max(styles['body'].fontSize,
+        (WIDTH - 1) * 10.5 / max(stringWidth(acknowledgement, FONT_BOLD, 10.5), 1)))
+    acknowledgement_style = ParagraphStyle('SwmsAcknowledgement', parent=styles['large'],
+        fontSize=acknowledgement_size, leading=max(acknowledgement_size * 1.3, styles['body'].leading))
+    story.extend([PageBreak(), _p(acknowledgement, acknowledgement_style), _p('Reviews', styles['section'])])
     story.append(_table(['Review No.', *map(str, range(1, 11))], [['Initials', *fields['reviews']]], [WIDTH / 3, *([WIDTH / 15] * 10)], styles))
     story.extend([Spacer(1, 16), _emergency_table(fields, styles)])
     story.extend([PageBreak(), _p('Site Sign-Off', styles['section'])])
@@ -320,29 +336,50 @@ def render_swms_pdf(document, *, company):
             story.append(_pair(label, fields[key], styles))
     created = datetime.now(ZoneInfo('Australia/Sydney')).strftime('%a, %d %b %Y, %I:%M %p')
     logo = company_logo(company)
+    def company_layout(first_page):
+        text = '\n'.join([company.get('name', ''), *contact_lines(company)])
+        company_width = WIDTH * (.28 if first_page else .72)
+        for size in (7, 6.5, 6, 5.5, 5, 4.5):
+            text_style = ParagraphStyle('SwmsCompany', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR,
+                                       fontSize=size, leading=size * 1.25, alignment=2)
+            paragraph = _p(text, text_style)
+            _, company_height = paragraph.wrap(company_width, PAGE[1])
+            if company_height <= 44:
+                break
+        return paragraph, company_width, company_height
+    # A bounded but unusually long company profile may need more than the
+    # standard header height. Reserve space instead of clipping it or allowing
+    # it to overlap the first-page title and project rows.
+    first_company_height = company_layout(True)[2]
+    first_header_depth = max(60, first_company_height + 20)
+    first_top_margin = first_header_depth + 16
     output = BytesIO()
-    doc = BaseDocTemplate(output, pagesize=PAGE, leftMargin=MARGIN, rightMargin=MARGIN, topMargin=76, bottomMargin=49,
+    doc = BaseDocTemplate(output, pagesize=PAGE, leftMargin=MARGIN, rightMargin=MARGIN, topMargin=first_top_margin, bottomMargin=49,
                             title=fields['title'], author=company.get('name', ''), allowSplitting=True)
     def decorate(c, document):
         c.saveState()
         c.drawImage(logo, MARGIN, PAGE[1] - 47, width=98, height=32, preserveAspectRatio=True, anchor='sw', mask='auto')
-        text = '\n'.join([company.get('name', ''), *contact_lines(company)])
-        for size in (7, 6.5, 6, 5.5, 5, 4.5):
-            text_style = ParagraphStyle('SwmsCompany', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=size, leading=size * 1.25, alignment=2)
-            paragraph = _p(text, text_style)
-            _, company_height = paragraph.wrap(WIDTH * .72, 48)
-            if company_height <= 44:
-                break
-        paragraph.drawOn(c, MARGIN + WIDTH * .28, PAGE[1] - 12 - company_height)
+        if document.page == 1:
+            c.setFont(FONT_BOLD, 11.5)
+            c.setFillColor(colors.black)
+            c.drawCentredString(PAGE[0] / 2, PAGE[1] - 34, 'SAFE WORK METHOD STATEMENT')
+        paragraph, company_width, company_height = company_layout(document.page == 1)
+        paragraph.drawOn(c, PAGE[0] - MARGIN - company_width, PAGE[1] - 12 - company_height)
         c.setStrokeColor(RED); c.setLineWidth(.6)
-        c.line(MARGIN, PAGE[1] - 60, PAGE[0] - MARGIN, PAGE[1] - 60)
+        c.line(MARGIN, PAGE[1] - (first_header_depth if document.page == 1 else 60), PAGE[0] - MARGIN,
+               PAGE[1] - (first_header_depth if document.page == 1 else 60))
         c.line(MARGIN, 39, PAGE[0] - MARGIN, 39)
         c.setFont(FONT_REGULAR, 6.2); c.setFillColor(colors.HexColor('#333333'))
-        c.drawString(MARGIN + WIDTH * .69, 26, 'This PDF was created at')
-        c.drawString(MARGIN + WIDTH * .69, 17, created)
+        c.drawRightString(PAGE[0] - MARGIN, 26, 'This PDF was created at')
+        c.drawRightString(PAGE[0] - MARGIN, 17, created)
         c.restoreState()
-    frame = Frame(MARGIN, 49, WIDTH, PAGE[1] - 76 - 49, leftPadding=0, bottomPadding=0, rightPadding=0, topPadding=0)
-    doc.addPageTemplates(PageTemplate('SWMS', frames=frame, onPage=decorate))
+    def content_frame(top_margin):
+        return Frame(MARGIN, 49, WIDTH, PAGE[1] - top_margin - 49,
+                     leftPadding=0, bottomPadding=0, rightPadding=0, topPadding=0)
+    doc.addPageTemplates([
+        PageTemplate('SWMSFirst', frames=content_frame(first_top_margin), onPage=decorate, autoNextPageTemplate='SWMS'),
+        PageTemplate('SWMS', frames=content_frame(76), onPage=decorate)
+    ])
     doc.build(story)
     reader, writer = PdfReader(BytesIO(output.getvalue())), PdfWriter()
     pages = list(reader.pages)

@@ -3157,5 +3157,6 @@
   "Choose Delivery or Pickup for the delivery method.": "Choisissez Livraison ou Retrait comme mode de livraison.",
   "Delivery": "Livraison",
   "Pickup": "Retrait",
-  "No supplier price is recorded for this item. Enter its purchase price.": "Aucun prix fournisseur n’est enregistré pour cet article. Saisissez son prix d’achat."
+  "No supplier price is recorded for this item. Enter its purchase price.": "Aucun prix fournisseur n’est enregistré pour cet article. Saisissez son prix d’achat.",
+  "Choose valid work types without duplicates.": "Choisissez des types de travaux valides sans doublons."
 }

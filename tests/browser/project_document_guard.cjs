@@ -41,6 +41,11 @@ async function discard(root,label){
   await page.locator('#certification-document').selectOption('');await notified();
   await expect(page.locator('#certification-client')).toHaveValue('Keep incomplete certificate draft');
   await page.locator('#certification-save').click();await notified();
+  const documentTabs=page.locator('#document-pages');await expect(documentTabs).toBeVisible();
+  await documentTabs.locator('[data-document-section="documentation"]').click();await notified();
+  await expect(page.locator('#view-certification')).toBeVisible();await expect(page.locator('#view-documentation')).toBeHidden();
+  await expect(documentTabs.locator('[aria-current="page"]')).toHaveAttribute('data-document-section','certification');
+  await expect(page.locator('#certification-client')).toHaveValue('Keep incomplete certificate draft');
   await page.locator('#documents-navigation-toggle').hover();
   await page.locator('#documents-navigation-menu [data-document-section="documentation"]').click();await notified();
   await expect(page.locator('#view-documentation')).toBeHidden();

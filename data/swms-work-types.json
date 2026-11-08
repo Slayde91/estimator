@@ -79,7 +79,7 @@
         "job_step": "Cutting sheets and angles",
         "hazards": "Hazard: Cutting of lightweight construction materials \nRisk: Manual handling Injuries, amputation, respiratory irritation",
         "initial_risk": "2",
-        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing.\nKeep work area clean and remove offcuts from ground\nUse correct manual handling while moving and cutting materials, do not lift large pieces with one person only\nEnsure all electrical equipment is tagged and is used by competent persons\nObtain hot works permit if using angle grinders\nPlace an exclusion zone and use a spotter as required\nCut in an appropriate ventilated area and follow correct operating procedures\n◦ SOP100- Utility and Retractable Knives\n◦ SOP098- Operating a Circular Saw\n◦ SOP096- Operating of an angle grinder",
+        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing.\nKeep work area clean and remove offcuts from ground\nUse correct manual handling while moving and cutting materials, do not lift large pieces with one person only\nEnsure all electrical equipment is tagged and is used by competent persons\nObtain hot works permit if using angle grinders\nPlace an exclusion zone and use a spotter as required\nCut in an appropriate ventilated area and follow correct operating procedures",
         "residual_risk": "3",
         "responsible": "All personnel"
       },
@@ -87,7 +87,7 @@
         "job_step": "Fixing sheets and angles",
         "hazards": "Hazard: Lifting and fixing lightweight construction material\nRisk: Manual handling injuries, striking personnel/objects, drilling near services",
         "initial_risk": "2",
-        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing.\nKeep work area clean and remove offcuts from ground\nUse correct manual handling while moving and fixing materials, do not lift large pieces with one person only\nEnsure all electrical equipment is tagged and is used by competent persons\nObtain required permits\nPlace a restricted access zone and use a spotter as required\nFollow correct operating procedures \n◦ SOP097- Operating an Impact Driver or Drill\n◦ SOP099- Operating a Hammer Drill",
+        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing.\nKeep work area clean and remove offcuts from ground\nUse correct manual handling while moving and fixing materials, do not lift large pieces with one person only\nEnsure all electrical equipment is tagged and is used by competent persons\nObtain required permits\nPlace a restricted access zone and use a spotter as required\nFollow correct operating procedures ",
         "residual_risk": "3",
         "responsible": "All personnel"
       },
@@ -209,7 +209,7 @@
         "job_step": "Cutting sheets and angles",
         "hazards": "Hazard: Cutting of lightweight construction materials \nRisk: Manual handling Injuries, amputation, respiratory irritation",
         "initial_risk": "2",
-        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing.\nKeep work area clean and remove offcuts from ground\nUse correct manual handling while moving and cutting materials, do not lift large pieces with one person only\nEnsure all electrical equipment is tagged and is used by competent persons\nObtain hot works permit if using angle grinders\nPlace an exclusion zone and use a spotter as required\nCut in an appropriate ventilated area and follow correct operating procedures\n◦ SOP100- Utility and Retractable Knives\n◦ SOP098- Operating a Circular Saw\n◦ SOP096- Operating of an angle grinder",
+        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing.\nKeep work area clean and remove offcuts from ground\nUse correct manual handling while moving and cutting materials, do not lift large pieces with one person only\nEnsure all electrical equipment is tagged and is used by competent persons\nObtain hot works permit if using angle grinders\nPlace an exclusion zone and use a spotter as required\nCut in an appropriate ventilated area and follow correct operating procedures",
         "residual_risk": "3",
         "responsible": "All personnel"
       },
@@ -217,7 +217,7 @@
         "job_step": "Fixing sheets and angles",
         "hazards": "Hazard: Lifting and fixing lightweight construction material\nRisk: Manual handling injuries, striking personnel/objects, drilling near services",
         "initial_risk": "2",
-        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing.\nKeep work area clean and remove offcuts from ground\nUse correct manual handling while moving and fixing materials, do not lift large pieces with one person only\nEnsure all electrical equipment is tagged and is used by competent persons\nObtain required permits\nPlace a restricted access zone and use a spotter as required\nFollow correct operating procedures \n◦ SOP097- Operating an Impact Driver or Drill\n◦ SOP099- Operating a Hammer Drill",
+        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing.\nKeep work area clean and remove offcuts from ground\nUse correct manual handling while moving and fixing materials, do not lift large pieces with one person only\nEnsure all electrical equipment is tagged and is used by competent persons\nObtain required permits\nPlace a restricted access zone and use a spotter as required\nFollow correct operating procedures ",
         "residual_risk": "3",
         "responsible": "All personnel"
       },
@@ -339,7 +339,7 @@
         "job_step": "Cutting sheets and angles",
         "hazards": "Hazard: Cutting of lightweight construction materials \nRisk: Manual handling Injuries, amputation, respiratory irritation",
         "initial_risk": "2",
-        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing.\nKeep work area clean and remove offcuts from ground\nUse correct manual handling while moving and cutting materials, do not lift large pieces with one person only\nEnsure all electrical equipment is tagged and is used by competent persons\nObtain hot works permit if using angle grinders\nPlace an exclusion zone and use a spotter as required\nCut in an appropriate ventilated area and follow correct operating procedures\n◦ SOP100- Utility and Retractable Knives\n◦ SOP098- Operating a Circular Saw\n◦ SOP096- Operating of an angle grinder",
+        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing.\nKeep work area clean and remove offcuts from ground\nUse correct manual handling while moving and cutting materials, do not lift large pieces with one person only\nEnsure all electrical equipment is tagged and is used by competent persons\nObtain hot works permit if using angle grinders\nPlace an exclusion zone and use a spotter as required\nCut in an appropriate ventilated area and follow correct operating procedures",
         "residual_risk": "3",
         "responsible": "All personnel"
       },
@@ -347,7 +347,7 @@
         "job_step": "Fixing sheets and angles",
         "hazards": "Hazard: Lifting and fixing lightweight construction material\nRisk: Manual handling injuries, striking personnel/objects, drilling near services",
         "initial_risk": "2",
-        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing.\nKeep work area clean and remove offcuts from ground\nUse correct manual handling while moving and fixing materials, do not lift large pieces with one person only\nEnsure all electrical equipment is tagged and is used by competent persons\nObtain required permits\nPlace a restricted access zone and use a spotter as required\nFollow correct operating procedures \n◦ SOP097- Operating an Impact Driver or Drill\n◦ SOP099- Operating a Hammer Drill",
+        "controls": "Wear all required PPE including hard hat, gloves, safety glasses, safety boots, high-vis clothing.\nKeep work area clean and remove offcuts from ground\nUse correct manual handling while moving and fixing materials, do not lift large pieces with one person only\nEnsure all electrical equipment is tagged and is used by competent persons\nObtain required permits\nPlace a restricted access zone and use a spotter as required\nFollow correct operating procedures ",
         "residual_risk": "3",
         "responsible": "All personnel"
       },

@@ -66,7 +66,7 @@ const errors = [], checks = [];
   assert.equal(company.name,'Settings Row Company'); assert.ok(company.logo.startsWith('data:image/png;base64,'));
   await page.locator('#personal-name').fill('Settings Row Signer');
   await page.locator('#personal-details-save').click();
-  await expect(page.locator('#personal-details-status')).toContainText('saved for future certificates');
+  await expect(page.locator('#personal-details-status')).toContainText('Personal details saved. They are copied to a certificate only when it is signed.');
   const personal = await (await page.request.get(base+'/api/certifications/defaults')).json();
   assert.equal(personal.fields.name,'Settings Row Signer');
   checks.push('Company and Personal Details retain existing independent save APIs');

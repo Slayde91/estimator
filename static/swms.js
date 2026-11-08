@@ -76,10 +76,14 @@
   }
   function shell(title) {
     const host = root(); host.replaceChildren();
-    const heading = element("div", "page-heading"), titleNode = element("h1", "", title);
-    window.CeasefireI18n?.text(titleNode, title); heading.append(titleNode);
+    const persistentTitle = document.getElementById("swms-heading");
+    if (persistentTitle) window.CeasefireI18n?.text(persistentTitle, title);
+    else {
+      const heading = element("div", "page-heading"), titleNode = element("h1", "", title);
+      window.CeasefireI18n?.text(titleNode, title); heading.append(titleNode); host.append(heading);
+    }
     const message = element("p", "swms-message message"); message.setAttribute("role", "status"); message.hidden = true;
-    host.append(heading, message); return host;
+    host.append(message); return host;
   }
   async function request(action, body) {
     const response = await fetch(`/api/swms/${action}`, body === undefined ? { cache: "no-store" } : {
@@ -412,7 +416,7 @@
     window.CeasefireI18n?.attr(back, "title", "Back to statements"); window.CeasefireI18n?.attr(back, "aria-label", "Back to statements");
     back.innerHTML='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 5l-7 7 7 7"></path></svg>';
     actions.append(back, button("Save", () => save(), true), downloadButton, element("span", "muted", editor.version ? `Revision ${editor.version}` : "New statement")); host.append(actions);
-    const identity = element("div", "swms-grid"); identity.append(field("Document title", control(fields.title, value => { fields.title = value; })), field("Status", select(state.model?.statuses || ["Draft", "Review", "Approved", "Archived"], editor.status, value => { editor.status = value; }))); host.append(identity);
+    const identity = element("div", "swms-grid swms-identity"); identity.append(field("Document title", control(fields.title, value => { fields.title = value; }))); host.append(identity);
     const details = section("Project Details", true), grid = element("div", "swms-grid"), detailInputs = {};
     for (const [key, label] of Object.entries(detailLabels)) {
       const input=control(fields.details[key], value => { fields.details[key] = value; }, key === "date" ? "date" : "text");
@@ -458,7 +462,7 @@
     renderRisks(); risks.append(riskChecks, riskTables); host.append(risks);
     const work = section("Type of Works", true), checks = element("div", "swms-check-grid"), tables = element("div");
     function renderWorks() { tables.replaceChildren(); fields.work_types.forEach(kind => steps(tables, kind, fields.steps[kind])); }
-    Object.keys(fields.steps).forEach(kind => checks.append(check(kind, fields.work_types.includes(kind), enabled => { if (!enabled && fields.work_types.length === 1) { notice("Choose at least one type of works.", true); checks.querySelectorAll("input").forEach((item, index) => { item.checked = fields.work_types.includes(Object.keys(fields.steps)[index]); }); return; } fields.work_types = enabled ? [...fields.work_types, kind] : fields.work_types.filter(value => value !== kind); renderWorks(); })));
+    Object.keys(fields.steps).forEach(kind => checks.append(check(kind, fields.work_types.includes(kind), enabled => { fields.work_types = enabled ? [...fields.work_types, kind] : fields.work_types.filter(value => value !== kind); renderWorks(); })));
     work.append(checks, tables); renderWorks(); host.append(work);
     const additional = section("Additional Job Steps"), extra = element("div");
     function renderExtra() { extra.replaceChildren(); if (fields.additional_steps) steps(extra, "Additional Job Steps", fields.additional_rows, 0); }

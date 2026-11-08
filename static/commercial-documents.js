@@ -1217,7 +1217,13 @@
       fields.work_tracking.rows.forEach((row,index)=>{
         const tr=node('tr');tr.dataset.trackingLine=row.line_id;
         [row.description,row.quantity,row.unit_price].forEach(text=>tr.append(node('td','',text)));
-        const cell=node('td'),control=input(row[key],value=>row[key]=value,'number');
+        const cell=node('td'),lineId=row.line_id;
+        // Saving replaces the returned row objects. Resolve the current owned
+        // row on each edit so a second Save cannot lose later percentage edits.
+        const control=input(row[key],value=>{
+          const current=fields.work_tracking?.rows.find(item=>item.line_id===lineId);
+          if(current)current[key]=value;
+        },'number');
         control.min='1';control.max='100';control.step='any';control.setAttribute('aria-label',`${label} ${index+1}`);
         window.CeasefireI18n?.attr(control,'aria-label',label+' {0}',[index+1]);
         cell.append(control);tr.append(cell);body.append(tr);

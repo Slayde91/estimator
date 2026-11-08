@@ -1,7 +1,7 @@
 const {chromium, expect: defaultExpect} = require('@playwright/test');
 const expect = defaultExpect.configure({timeout:30000});
 const {spawn,execFileSync} = require('node:child_process');
-const {clickProjectControl,fillProjectDetails} = require('./project_actions.cjs');
+const {clickProjectControl,fillProjectDetails,createNewProject} = require('./project_actions.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
@@ -122,7 +122,10 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await stateHeld;
   const previousWorkspace=await page.evaluate(()=>window.CeasefireCertification.sessionId());
   await open('quotes');
-  await page.locator('.project-workspace-actions').getByRole('button',{name:'New',exact:true}).click();
+  const originalProject=fs.readFileSync(info.project),saveTarget=path.join(info.directory,'save-dialog-target.json');
+  fs.writeFileSync(saveTarget,JSON.stringify({file:'replacement-state-project.cf.json'}));
+  try{await createNewProject(page);}finally{fs.unlinkSync(saveTarget);}
+  assert.deepEqual(fs.readFileSync(info.project),originalProject,'The replacement Project has its own saved file');
   await page.waitForFunction(previous=>window.CeasefireCertification.sessionId()!==previous,previousWorkspace);
   await idle();
   releaseState();
@@ -134,6 +137,9 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   assert.equal(replacement.commercial.editor,undefined);
   checks.push('a delayed commercial state response cannot replace the new project workspace');
   const seeded=JSON.parse(execFileSync(process.env.CEASEFIRE_PYTHON||'python',['-c',seedCode,info.project],{cwd:root,encoding:'utf8',windowsHide:true}));
+  await page.getByRole('button',{name:'Estimates',exact:true}).click();
+  await page.locator('#measurements').fill('Discard this replacement Project draft before loading the fixture');
+  await page.locator('#measurements').blur();
   await clickProjectControl(page,'Load');
   await page.locator('#discard-dialog').getByRole('button',{name:'Load Project',exact:true}).click();
   await idle();
@@ -334,8 +340,9 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await open('quotes');
   await page.locator('#refresh-quotes').click();
   // Project rows show readable titles; relative filenames were intentionally
-  // removed from this list. Both independently saved files must be present.
-  await expect(page.locator('#project-list .project-list-row')).toHaveCount(2);
+  // removed from this list. The two document owners and the empty replacement
+  // Project created through the New popup are all real saved files.
+  await expect(page.locator('#project-list .project-list-row')).toHaveCount(3);
   await open('quote');
   await expect(quote.locator('.commercial-card')).toHaveCount(2);
   const otherCard = quote.locator('.commercial-card').filter({hasText:'Other project quote'});

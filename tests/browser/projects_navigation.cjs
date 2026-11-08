@@ -1,6 +1,6 @@
 // Projects hub, pointer and keyboard navigation use an isolated disposable app.
 const {chromium, expect} = require('@playwright/test');
-const {openProjectSection,openProjectTools} = require('./project_actions.cjs');
+const {openProjectSection,openProjectTools,clickProjectControl} = require('./project_actions.cjs');
 const {spawn} = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..');
@@ -53,6 +53,21 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   const before = await page.evaluate(() => ({configuration:window.CeasefireProject.configuration(),details:window.CeasefireProject.details()}));
   await page.locator('#projects-navigation-toggle').click();await expectHub();
   await page.locator('#documents-navigation-toggle').click();await expectDocumentHub();
+  await page.locator('#view-documents [data-document-section="documentation"]').click();
+  await expect(page.locator('#app-message')).toContainText('Create or load a project before creating documents.');
+  await expectDocumentHub();await expect(page.locator('#view-documentation')).toBeHidden();
+  assert.equal(await page.evaluate(()=>window.CeasefireProject.hasCreatedProject()),false);
+  assert.equal(fs.existsSync(info.project),false);
+  assert.deepEqual(await page.evaluate(()=>({configuration:window.CeasefireProject.configuration(),details:window.CeasefireProject.details()})),before);
+  evidence.checks.push('Documentation requires a saved Project and leaves the current workspace unchanged when denied');
+  // Use the real native Save As fixture; client-side identity fields cannot
+  // grant the Project permission needed by subsequent Documentation navigation.
+  const saving=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/project/save-as');
+  await clickProjectControl(page,'Save');const saved=await saving;assert.equal(saved.status(),200,await saved.text());
+  const receipt=await saved.json();assert.equal(receipt.cancelled,false);assert.ok(receipt.file.save_token);await idle();
+  assert.equal(await page.evaluate(()=>window.CeasefireProject.hasCreatedProject()),true);
+  assert.equal(JSON.parse(fs.readFileSync(info.project)).estimate.project_no,receipt.file.project_no);
+  assert.ok(receipt.file.project_no);
   await page.locator('#view-documents [data-document-section="certification"]').click();
   await expect(page.locator('#view-certification')).toBeVisible();
   await expect(page.locator('#certification-client')).toBeEnabled();

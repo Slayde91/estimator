@@ -1,7 +1,7 @@
 'use strict';
 const {chromium,expect}=require('@playwright/test');
 const {spawn}=require('node:child_process'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-const {openProjectSection}=require('./project_actions.cjs');
+const {openProjectSection,createNewProject}=require('./project_actions.cjs');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`browser-review-${Date.now()}`);
 fs.mkdirSync(output,{recursive:true});
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
@@ -20,6 +20,8 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
   const heading=page.locator('#view-home h1');
   for(let i=1;i<=34;i++){await page.evaluate(i=>window.qaClick=i,i);await heading.click();}
   assert.deepEqual(await page.evaluate(()=>window.qaSmoke),[7,15,24,34]);
+  await createNewProject(page,{client:'SYNTHETIC COVER REVIEW'});
+  assert.equal(await page.evaluate(()=>window.CeasefireProject.hasCreatedProject()),true);
   await openProjectSection(page,'documentation');await idle();
   const upload=page.locator('#cover-sheet-full_schedule');await upload.setInputFiles(info.fixture);
   await expect.poll(()=>page.evaluate(()=>window.CeasefireCoverSheets.hasUnsavedChanges())).toBe(true);

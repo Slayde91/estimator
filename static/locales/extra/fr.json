@@ -3168,5 +3168,11 @@
   "The workbook could not be opened. Check its default application.": "Impossible d’ouvrir le classeur. Vérifiez son application par défaut.",
   "Open the saved file using its link only.": "Ouvrez le fichier enregistré uniquement à l’aide de son lien.",
   "The saved-file link could not be registered. Download the file again.": "Impossible d’enregistrer le lien vers le fichier enregistré. Téléchargez à nouveau le fichier.",
-  "Site address contains unsupported control characters.": "L’adresse du chantier contient des caractères de contrôle non pris en charge."
+  "Site address contains unsupported control characters.": "L’adresse du chantier contient des caractères de contrôle non pris en charge.",
+  "Site contact": "Contact du chantier",
+  "Site contact number": "Téléphone du contact du chantier",
+  "Notes {0}": "Notes {0}",
+  "Site contact number must be text of at most 60 characters.": "Le téléphone du contact du chantier doit contenir au maximum 60 caractères.",
+  "Notes must be text of at most 2000 characters.": "Les notes doivent contenir au maximum 2000 caractères.",
+  "Mobilisation": "Mobilisation"
 }

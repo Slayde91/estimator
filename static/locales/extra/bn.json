@@ -3168,5 +3168,11 @@
   "The workbook could not be opened. Check its default application.": "ওয়ার্কবুকটি খোলা যায়নি। এর ডিফল্ট অ্যাপ্লিকেশন পরীক্ষা করুন।",
   "Open the saved file using its link only.": "শুধু নিজস্ব লিংক ব্যবহার করে সংরক্ষিত ফাইলটি খুলুন।",
   "The saved-file link could not be registered. Download the file again.": "সংরক্ষিত ফাইলের লিংক নিবন্ধন করা যায়নি। ফাইলটি আবার ডাউনলোড করুন।",
-  "Site address contains unsupported control characters.": "কাজের স্থানের ঠিকানায় অসমর্থিত নিয়ন্ত্রণ অক্ষর রয়েছে।"
+  "Site address contains unsupported control characters.": "কাজের স্থানের ঠিকানায় অসমর্থিত নিয়ন্ত্রণ অক্ষর রয়েছে।",
+  "Site contact": "কাজের স্থানের যোগাযোগের ব্যক্তি",
+  "Site contact number": "কাজের স্থানের যোগাযোগের ফোন নম্বর",
+  "Notes {0}": "নোট {0}",
+  "Site contact number must be text of at most 60 characters.": "কাজের স্থানের যোগাযোগের ফোন নম্বর সর্বোচ্চ ৬০ অক্ষরের পাঠ্য হতে হবে।",
+  "Notes must be text of at most 2000 characters.": "নোট সর্বোচ্চ ২০০০ অক্ষরের পাঠ্য হতে হবে।",
+  "Mobilisation": "কাজে মোতায়েন"
 }

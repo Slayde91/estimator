@@ -82,10 +82,11 @@ async function assertTracking(host, expected, percentages) {
     const rows = trackingRows(host, key); await expect(rows).toHaveCount(expected.length);
     const values = await rows.evaluateAll(rows => rows.map(row => ({
       id:row.dataset.trackingLine, description:row.cells[0].textContent,
-      quantity:row.cells[1].textContent, price:row.cells[2].textContent,
+      quantity:row.cells[1].textContent, third:row.cells[2].querySelector('textarea')?.value ?? row.cells[2].textContent,
       percent:row.querySelector('input').value
     })));
-    assert.deepEqual(values.map(({description, quantity, price}) => ({description, quantity, price})), expected);
+    assert.deepEqual(values.map(({description, quantity}) => ({description, quantity})), expected.map(({description, quantity})=>({description,quantity})));
+    assert.deepEqual(values.map(value=>value.third), expected.map(value=>key==='completed_percent' ? value.notes || '' : new Intl.NumberFormat('en-AU',{style:'currency',currency:'AUD'}).format(Number(value.price))));
     assert.equal(new Set(values.map(value => value.id)).size, expected.length, 'Duplicate descriptions retain distinct row identities');
     assert.deepEqual(values.map(value => value.percent), percentages[key]);
   }
@@ -133,6 +134,12 @@ async function download(host) {
     const rows = trackingRows(work, key); await expect(rows).toHaveCount(4);
     for (const [index, value] of values.entries()) await rows.nth(index).locator('input').fill(value);
   }
+  for(const [index,row] of expected.entries()) {
+    row.notes=['Paid progress note','Free progress note','Credit progress note','Duplicate progress note'][index];
+    await trackingRows(work,'completed_percent').nth(index).locator('textarea').fill(row.notes);
+  }
+  const noteWidths=await work.locator('[data-tracking-field=completed_percent] th').evaluateAll(headers=>headers.slice(2).map(header=>header.getBoundingClientRect().width));
+  assert.ok(Math.abs(noteWidths[0]-noteWidths[1])<2,'Notes and % completed share equal column widths');
   const certification = work.getByLabel('Certification details', {exact:true}), completion = work.getByLabel('Completion', {exact:true});
   assert.deepEqual(await certification.locator('option').allTextContents(), ['', 'Certification issued', 'Certification not issued']);
   assert.deepEqual(await completion.locator('option').allTextContents(), ['', 'Completed', 'Ongoing', 'On hold', 'Not completed']);
@@ -141,8 +148,11 @@ async function download(host) {
   stage = 'editing another percentage after saving without reopening';
   percentages.claimed_percent[1] = '25';
   await trackingRows(work, 'claimed_percent').nth(1).locator('input').fill('25');
+  expected[2].notes='Credit progress note updated\nSecond line';
+  await trackingRows(work,'completed_percent').nth(2).locator('textarea').fill(expected[2].notes);
   await saveDocument(work); await saveProject();
   assert.equal(ownedWork(info).fields.work_tracking.rows[1].claimed_percent, '25', 'A second percentage edit in the same open editor survives another Save');
+  assert.equal(ownedWork(info).fields.work_tracking.rows[2].notes,expected[2].notes,'A later Notes edit in the same open editor survives another Save');
   const initialWork = ownedWork(info), baseline = initialWork.fields.work_tracking;
   assert.equal(baseline.project_id, stored(info).commercial_documents.project_id);
   assert.equal(baseline.quote_id, originalQuote.id); assert.equal(baseline.quote_reference, originalQuote.last_number);
@@ -168,7 +178,7 @@ async function download(host) {
         action:signature.title, actionSource:window.CeasefireI18n.source(signature, 'title')};
     });
     assert.equal(labels.headingSource, 'Works in Progress'); assert.equal(labels.actionSource, 'Sign Progress signed by');
-    const english = ['Product / Service', 'Quantity', 'Unit price', '% completed'];
+    const english = ['Product / Service', 'Quantity', 'Notes', '% completed'];
     if (language === 'en') {assert.deepEqual(labels.headers, english); assert.equal(labels.heading, 'Works in Progress'); assert.equal(labels.action, labels.actionSource);}
     else {assert.ok(labels.headers.every((value, index) => value !== english[index]), JSON.stringify(labels)); assert.notEqual(labels.heading, 'Works in Progress'); assert.notEqual(labels.action, labels.actionSource);}
     evidence.languages.push({language, ...labels});
@@ -206,7 +216,7 @@ async function download(host) {
   const coldWork = ownedWork(cold); assert.equal(coldWork.id, initialWork.id); assert.equal(coldWork.fields.work_tracking.source_hash, baseline.source_hash);
   assert.equal(coldWork.fields.work_tracking.rows[2].claimed_percent, '100'); assert.equal(coldWork.fields.order.completion, 'On hold');
   const issued = await download(work), text = execFileSync(python, ['-c', 'from pypdf import PdfReader;import sys;print("\\n".join(p.extract_text() for p in PdfReader(sys.argv[1]).pages))', issued.path], {encoding:'utf8', windowsHide:true});
-  for (const value of ['Paid fixture row', 'Free fixture row', 'Credit fixture row', '37.5', '100', 'On hold', 'Certification issued']) assert.ok(text.includes(value), value);
+  for (const value of ['Paid fixture row', 'Free fixture row', 'Credit fixture row', 'Paid progress note', 'Free progress note', 'Credit progress note updated', '37.5', '100', 'On hold', 'Certification issued','$125.25','-$5.00']) assert.ok(text.replace(/\s+/g,' ').includes(value), value);
   await saveProject(); evidence.coldPdf = issued.path; evidence.ownership = {project:baseline.project_id, quote:baseline.quote_id, workOrder:coldWork.id};
   checks.push('A second private server restores the portable baseline with no issued cache, saves new percentages in the same owner, and emits a real PDF containing original rows and updated values');
 

@@ -11,6 +11,7 @@ import json
 import math
 import re
 import unicodedata
+from copy import deepcopy
 from urllib.parse import quote
 
 from .calculator import fields
@@ -189,6 +190,25 @@ def project_details(value=None):
     return validate_quote_details(value)
 
 
+_SURROGATE = re.compile(r'[\ud800-\udfff]')
+
+
+def _same_project_values(left, right):
+    """Compare untrusted JSON without treating booleans as numeric inputs.
+
+    Reuse is request-local and only safe for the same types as well as values:
+    Python's ordinary equality considers True and 1 equal, while calculator
+    input validation deliberately rejects booleans.
+    """
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, dict):
+        return left.keys() == right.keys() and all(_same_project_values(value, right[key]) for key, value in left.items())
+    if isinstance(left, list):
+        return len(left) == len(right) and all(_same_project_values(a, b) for a, b in zip(left, right))
+    return left == right
+
+
 def _check_tree(value, depth=0):
     # Bound nesting independently of Python's JSON decoder recursion limit.
     if depth > 32:
@@ -202,7 +222,7 @@ def _check_tree(value, depth=0):
             _check_tree(child, depth + 1)
     elif isinstance(value, float) and not math.isfinite(value):
         raise ValidationError("Project values must contain finite numbers.")
-    elif isinstance(value, str) and any(unicodedata.category(character) == "Cs" for character in value):
+    elif isinstance(value, str) and _SURROGATE.search(value):
         raise ValidationError("Project text contains an invalid Unicode character.")
 
 
@@ -247,10 +267,20 @@ def _portable_penetration(value, *, saved=False):
 
 def export_project(store, request, *, edition='full'):
     """Return a portable project snapshot with verified evidence manifests."""
+    snapshot = _export_project_snapshot(store, request, edition=edition)
+    payload = json.dumps(snapshot, ensure_ascii=False, allow_nan=False, indent=2).encode("utf-8")
+    if len(payload) > MAX_PROJECT_FILE:
+        raise ValidationError("The complete project, including all estimates, must be at most 16 MB.")
+    return payload
+
+
+def _export_project_snapshot(store, request, *, edition, tree_checked=False):
+    """Normalize nested estimates without separate JSON round trips."""
     require_project_edition(request, edition)
     if not isinstance(request, dict) or set(request) - {"estimate", "calculators", "penetration", "takeoffs", "library_drafts", "certifications", "documentation", "project_status", "estimates", "active_estimate_id", "commercial_documents", "swms"} or "estimate" not in request:
         raise ValidationError("Include the current estimate and optional calculator drafts to save a project.")
-    _check_tree(request)
+    if not tree_checked:
+        _check_tree(request)
     estimate = request["estimate"]
     if not isinstance(estimate, dict) or set(estimate) - ESTIMATE_FIELDS:
         raise ValidationError("Project estimate contains unknown fields; include inputs and pricing, not calculated results.")
@@ -320,8 +350,14 @@ def export_project(store, request, *, edition='full'):
     if "estimates" in request or "active_estimate_id" in request:
         entries = estimate_descriptors(request.get("estimates"), request.get("active_estimate_id"))
         normalized = []
+        source_workspace = {key: request[key] for key in WORKSPACE_FIELDS if key in request}
         for entry in entries:
-            child = json.loads(export_project(store, entry["workspace"], edition=edition))
+            # The active workspace is sent both at the root and in estimates.
+            # Reuse only exact input equality after validating the root; other
+            # estimates still receive their complete independent validation.
+            child = ({key: deepcopy(snapshot[key]) for key in WORKSPACE_FIELDS if key in snapshot}
+                     if _same_project_values(entry['workspace'], source_workspace) else
+                     _export_project_snapshot(store, entry['workspace'], edition=edition, tree_checked=True))
             normalized.append({"id": entry["id"], "name": entry["name"],
                                "workspace": {key: child[key] for key in WORKSPACE_FIELDS if key in child}})
         active = next(entry["workspace"] for entry in normalized if entry["id"] == request["active_estimate_id"])
@@ -329,10 +365,7 @@ def export_project(store, request, *, edition='full'):
             raise ValidationError("The current workspace must match the selected project estimate.")
         snapshot["estimates"] = normalized
         snapshot["active_estimate_id"] = request["active_estimate_id"]
-    payload = json.dumps(snapshot, ensure_ascii=False, allow_nan=False, indent=2).encode("utf-8")
-    if len(payload) > MAX_PROJECT_FILE:
-        raise ValidationError("The complete project, including all estimates, must be at most 16 MB.")
-    return payload
+    return snapshot
 
 
 def import_project(store, filename, content_base64, *, edition='full'):
@@ -362,6 +395,12 @@ def load_project_bytes(store, payload, *, edition='full'):
         raise ValidationError("The project file must contain valid JSON.") from error
     require_project_edition(snapshot, edition)
     _check_tree(snapshot)
+    return _load_project_snapshot(store, snapshot, edition=edition)
+
+
+def _load_project_snapshot(store, snapshot, *, edition):
+    """Validate sub-workspaces within the already decoded, tree-checked file."""
+    require_project_edition(snapshot, edition)
     required = {"format", "version", "estimate", "calculators"}
     if not isinstance(snapshot, dict) or not required <= set(snapshot) or set(snapshot) - required - {"penetration", "takeoffs", "library_drafts", "certifications", "documentation", "project_status", "estimates", "active_estimate_id", "commercial_documents", "swms"}:
         raise ValidationError("The project file contains missing or unsupported fields.")
@@ -439,13 +478,21 @@ def load_project_bytes(store, payload, *, edition='full'):
     if "estimates" in snapshot or "active_estimate_id" in snapshot:
         entries = estimate_descriptors(snapshot.get("estimates"), snapshot.get("active_estimate_id"))
         active = next(entry["workspace"] for entry in entries if entry["id"] == snapshot["active_estimate_id"])
-        if {key: snapshot[key] for key in WORKSPACE_FIELDS if key in snapshot} != active:
+        source_workspace = {key: snapshot[key] for key in WORKSPACE_FIELDS if key in snapshot}
+        if source_workspace != active:
             raise ValidationError("The saved current workspace does not match its active estimate.")
         normalized = []
         for entry in entries:
             workspace = entry["workspace"]
             child = {"format": PROJECT_FORMAT, "version": TAKEOFF_PROJECT_VERSION if "takeoffs" in workspace else PROJECT_VERSION, **workspace}
-            prepared = load_project_bytes(store, json.dumps(child, ensure_ascii=False, allow_nan=False).encode("utf-8"), edition=edition)
+            if workspace is active and _same_project_values(workspace, source_workspace):
+                # Raw root/active equality was checked above. Give each API
+                # location its own mutable data, as a normal JSON decode does.
+                prepared = {key: deepcopy(value) for key, value in result.items()
+                            if key in WORKSPACE_FIELDS | {'fields', 'project_details'}}
+                prepared['project_status'] = 'Draft'
+            else:
+                prepared = _load_project_snapshot(store, child, edition=edition)
             normalized.append({"id": entry["id"], "name": entry["name"], "workspace": prepared})
         result["estimates"] = normalized
         result["active_estimate_id"] = snapshot["active_estimate_id"]

@@ -89,6 +89,9 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  await work.getByLabel('Linked Quote',{exact:true}).selectOption(savedQuote.id);
  for(const host of [completed,claimed])for(const control of await host.locator('input').all())await expect(control).toHaveValue('');
  await completed.locator('input').nth(2).fill('25');await claimed.locator('input').nth(3).fill('100');await groupSign(work,'progress_by','Progress signed by','Progress Person','Date');
+ await completed.locator('textarea').nth(2).fill('Signed progress note for a credit row');await save(work);
+ let noted=(await current()).documents.find(document=>document.kind==='work_order');assert.equal(noted.fields.work_tracking.rows[2].notes,'Signed progress note for a credit row');assert.ok(noted.fields.signatures.progress_by);
+ await work.getByRole('button',{name:'Clear Progress signed by',exact:true}).click();await expect(work.getByLabel('Progress signed by name',{exact:true})).toHaveValue('');await expect(work.locator('[data-order-field=progress_date]')).toHaveValue('');await expect(completed.locator('textarea').nth(2)).toHaveValue('Signed progress note for a credit row');await expect(completed.locator('input').nth(2)).toHaveValue('25');await groupSign(work,'progress_by','Progress signed by','Progress Person','Date');
  await groupSign(work,'closed_by','Closed by','Closure Person','Date');await work.getByRole('button',{name:'Clear Closed by',exact:true}).click();await expect(work.getByLabel('Closed by name',{exact:true})).toHaveValue('');await expect(work.locator('[data-order-field=closed_date]')).toHaveValue('');await expect(work.getByLabel('Reviewed by name',{exact:true})).toHaveValue('Review Person');
  await groupSign(work,'closed_by','Closed by','Closure Person','Date');
  await work.getByLabel('Certification details',{exact:true}).selectOption('Certification issued');await work.getByLabel('Completion',{exact:true}).selectOption('Completed');

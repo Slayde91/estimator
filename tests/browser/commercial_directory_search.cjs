@@ -81,6 +81,13 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
   const information=purchase.locator('.commercial-purchase-information');await expect(information.getByRole('combobox',{name:'Supplier',exact:true})).toBeVisible();
   await information.getByRole('combobox',{name:'Supplier',exact:true}).fill('Beta');await information.getByRole('option',{name:'Beta Company',exact:true}).click();
   await information.getByRole('combobox',{name:'Supplier contact',exact:true}).fill('');await information.getByRole('combobox',{name:'Supplier contact',exact:true}).focus();await expect(information.locator('.commercial-directory-options:visible').getByRole('option')).toHaveText(['Beta Contact']);await information.getByRole('option',{name:'Beta Contact',exact:true}).click();await expect(information.getByLabel('Supplier email',{exact:true})).toHaveValue('beta-later@example.test');
+  const siteContact=information.getByRole('combobox',{name:'Site contact',exact:true}),sitePhone=information.getByLabel('Site contact number',{exact:true});
+  await siteContact.focus();await expect(information.locator('.commercial-directory-options:visible').getByRole('option')).toHaveText(['Beta Contact','Inline Person','Unrelated Contact']);
+  await information.getByRole('option',{name:'Unrelated Contact',exact:true}).click();await expect(siteContact).toHaveValue('Unrelated Contact');await expect(sitePhone).toHaveValue('111');
+  await expect(information.getByRole('combobox',{name:'Supplier',exact:true})).toHaveValue('Beta Company');await expect(information.getByRole('combobox',{name:'Supplier contact',exact:true})).toHaveValue('Beta Contact');
+  const siteGeometry=await Promise.all([siteContact,sitePhone,information.getByLabel('Ship to address',{exact:true})].map(control=>control.boundingBox()));
+  assert.ok(Math.abs(siteGeometry[0].y-siteGeometry[1].y)<2&&siteGeometry[1].x>siteGeometry[0].x&&siteGeometry[2].y>siteGeometry[1].y,'Site contact and number share a row; delivery address follows below');
+  await sitePhone.fill('+61 111 ext 9');
   await expect(information.getByLabel('Delivery or pickup',{exact:true}).locator('option')).toHaveText(['','Delivery','Pickup']);await information.getByLabel('Delivery or pickup',{exact:true}).selectOption('Pickup');
   for(const textarea of await information.locator('textarea').all()){assert.equal(await textarea.getAttribute('rows'),'1');assert.ok((await textarea.boundingBox()).height<=44);}
   await purchase.getByRole('button',{name:'Add line item',exact:true}).click();const row=purchase.locator('.commercial-lines tbody tr').first(),description=row.locator('.commercial-line-description'),unit=row.locator('td').nth(2).locator('input');
@@ -88,7 +95,7 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
   const catalog=await(await page.request.get(base+'/api/commercial/supplier-products?workspace='+await page.evaluate(()=>window.CeasefireCertification.sessionId()))).json();const product=catalog.products.find(item=>item.supplier_price>0&&catalog.products.filter(row=>row.label===item.label).length===1);assert.ok(product);
   await description.fill(product.label);await page.locator('.commercial-pricing-popup:visible').getByRole('option').first().click();await expect(unit).toHaveValue(String(Number(Number(product.supplier_price).toFixed(6))));
   await unit.fill('7.5');await description.fill('Unlisted manual purchase');await description.blur();await expect(unit).toHaveValue('7.5');
-  await save(purchase);file=JSON.parse(fs.readFileSync(info.project,'utf8'));saved=file.commercial_documents.documents.find(item=>item.kind==='purchase_order');assert.equal(saved.fields.order.supplier,'Beta Company');assert.equal(saved.fields.order.supplier_contact,'Beta Contact');assert.equal(saved.fields.order.delivery_method,'Pickup');assert.equal(saved.fields.lines[0].description,'Unlisted manual purchase');assert.equal(saved.fields.lines[0].unit_price,'7.5');
+  await save(purchase);file=JSON.parse(fs.readFileSync(info.project,'utf8'));saved=file.commercial_documents.documents.find(item=>item.kind==='purchase_order');assert.equal(saved.fields.order.supplier,'Beta Company');assert.equal(saved.fields.order.supplier_contact,'Beta Contact');assert.equal(saved.fields.order.ship_to_name,'Unrelated Contact');assert.equal(saved.fields.order.site_contact_number,'+61 111 ext 9');assert.equal(saved.fields.order.delivery_method,'Pickup');assert.equal(saved.fields.lines[0].description,'Unlisted manual purchase');assert.equal(saved.fields.lines[0].unit_price,'7.5');
   checked('Purchase Order supplier/contact searches and delivery dropdown persist; all information boxes start one row; product search only selects on explicit choice and manual no-match descriptions/prices remain editable');
   // Use real Settings navigation: labels translate, document data and canonical enum values do not.
   const beforeLocales=JSON.parse(await page.evaluate(()=>window.CeasefireCommercial.projectFingerprint())).editor;
@@ -108,6 +115,7 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
     ]);
     const supplier=purchase.locator('[data-order-field="supplier"]'),contact=purchase.locator('[data-order-field="supplier_contact"]');
     await expect(supplier).toHaveValue('Beta Company');await expect(contact).toHaveValue('Beta Contact');
+    await expect(purchase.locator('[data-order-field="ship_to_name"]')).toHaveValue('Unrelated Contact');await expect(purchase.locator('[data-order-field="site_contact_number"]')).toHaveValue('+61 111 ext 9');
     await supplier.focus();await expect(information.locator('.commercial-directory-options:visible').getByRole('option')).toHaveText(['Beta Company']);await supplier.blur();
     await contact.focus();await expect(information.locator('.commercial-directory-options:visible').getByRole('option')).toHaveText(['Beta Contact']);await contact.blur();
     const after=JSON.parse(await page.evaluate(()=>window.CeasefireCommercial.projectFingerprint())).editor;

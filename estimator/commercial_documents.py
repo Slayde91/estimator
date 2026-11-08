@@ -39,6 +39,7 @@ ORDER_FIELDS = ('start_date', 'end_date', 'urgency', 'quote_id', 'work_order_id'
                 'requested_date', 'sent_by', 'sent_date', 'verified_by', 'verified_date', 'verification', 'prepared_date')
 FIELD_KEYS = {'title', 'details', 'introduction', 'lines', 'scope', 'scope_tables', 'sources', 'allowances', 'terms', 'order', 'company_reference'}
 WORK_ORDER_OPTIONAL_FIELDS = ('progress_by', 'progress_date', 'closed_date')
+PURCHASE_ORDER_OPTIONAL_FIELDS = ('site_contact_number',)
 CERTIFICATION_CHOICES = ('Certification issued', 'Certification not issued')
 COMPLETION_CHOICES = ('Completed', 'Ongoing', 'On hold', 'Not completed')
 MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024
@@ -293,7 +294,7 @@ def default_fields(kind, details=None, company=None, *, rates=None):
     return {'title': KINDS[kind], 'details': {key: supplied.get(key, '') for key in DETAIL_FIELDS},
             'introduction': INTRODUCTION if kind == 'quote' else '', 'lines': [], 'scope': '',
             'scope_tables': [], 'sources': [], 'allowances': '<ul><li>N / A</li></ul>' if kind == 'quote' else '', 'terms': default_terms(company) if kind == 'quote' else '',
-            'order': {key: '' for key in (*ORDER_FIELDS, *(WORK_ORDER_OPTIONAL_FIELDS if kind=='work_order' else ()))},
+            'order': {key: '' for key in (*ORDER_FIELDS, *(WORK_ORDER_OPTIONAL_FIELDS if kind=='work_order' else PURCHASE_ORDER_OPTIONAL_FIELDS if kind=='purchase_order' else ()))},
             'rate_schedule': schedule,
             'company_reference': {key: company.get(key, '') for key in ('name', 'abn')}}
 
@@ -352,11 +353,13 @@ def validate_fields(value, *, kind=None):
     result['company_reference'] = {key: _text(company[key], 'Company reference', 120) for key in company}
     for key, keys in (('details', DETAIL_FIELDS), ('order', ORDER_FIELDS)):
         fields = value[key]
-        optional = WORK_ORDER_OPTIONAL_FIELDS if key=='order' and kind in ('work_order',None) else ()
+        optional = ((WORK_ORDER_OPTIONAL_FIELDS if kind=='work_order' else PURCHASE_ORDER_OPTIONAL_FIELDS if kind=='purchase_order'
+                     else (*WORK_ORDER_OPTIONAL_FIELDS,*PURCHASE_ORDER_OPTIONAL_FIELDS) if kind is None else ()) if key=='order' else ())
         if not isinstance(fields, dict) or set(fields) - set(keys) - set(optional):
             raise ValidationError('Commercial document details contain unsupported fields.')
         result[key] = {name: _text(fields.get(name, ''), name, 6000 if key == 'order' else 1000) for name in keys}
-        result[key].update({name:_text(fields[name], name, 1000) for name in optional if name in fields})
+        result[key].update({name:_text(fields[name], 'Site contact number' if name=='site_contact_number' else name,
+                                      60 if name=='site_contact_number' else 1000) for name in optional if name in fields})
     for name in ('quote_id', 'work_order_id'):
         if result['order'][name]:
             _identity(result['order'][name])
@@ -827,7 +830,8 @@ class CommercialDocuments:
                 raise ValidationError('Save this Work Order before creating a Purchase Order.')
             fields = default_fields('purchase_order', work_order['fields']['details'], company, rates=rates)
             fields['order'].update(work_order_id=work_order['id'], work_order_reference=reference,
-                                   ship_to_name=fields['details']['client'], ship_to_address=fields['details']['site_address'])
+                                   ship_to_name=fields['details']['contact'], site_contact_number=fields['details']['phone'],
+                                   ship_to_address=fields['details']['site_address'])
             # A customer's sale price is not a supplier purchase price. Carry
             # procurement descriptions/quantities forward, leaving prices for entry.
             fields['lines'] = [{**deepcopy(line), 'estimate_id': '', 'unit_price': '0'}
@@ -942,6 +946,15 @@ class CommercialDocuments:
                     raise ValidationError('A commercial document cannot change its kind.')
                 if payload.get('version') != 0:
                     self._version(previous, payload.get('version'))
+                # Older open windows omit new editable fields. Preserve them
+                # unless the current client deliberately sends an empty clear.
+                if kind=='purchase_order' and 'site_contact_number' not in fields['order'] and 'site_contact_number' in previous['fields']['order']:
+                    fields['order']['site_contact_number']=previous['fields']['order']['site_contact_number']
+                if kind=='work_order' and fields.get('work_tracking') and previous['fields'].get('work_tracking'):
+                    previous_rows={row['line_id']:row for row in previous['fields']['work_tracking']['rows']}
+                    for raw, row in zip(payload['fields']['work_tracking']['rows'],fields['work_tracking']['rows']):
+                        if 'notes' not in raw and row['line_id'] in previous_rows:
+                            row['notes']=previous_rows[row['line_id']].get('notes','')
             self._relationships(db, workspace, project, kind, fields, previous, create_retry=payload.get('version') == 0)
             if kind=='work_order':
                 for key, choices in (('certification',CERTIFICATION_CHOICES),('completion',COMPLETION_CHOICES)):

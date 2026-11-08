@@ -73,7 +73,7 @@ class QuoteRatesTermsTests(unittest.TestCase):
             self.assertTrue(all(bodies))
             body = [char for page_chars in bodies for char in page_chars]
             self.assertTrue(all('Montserrat' in char['fontname'] for char in body))
-            self.assertTrue(all(abs(char['size'] - 9) < .01 for char in body))
+            self.assertTrue(all(abs(char['size'] - 8) < .01 for char in body))
             self.assertTrue(any(char['x0'] < 100 for char in bodies[0]))
             self.assertTrue(any(char['x0'] > 303 for char in bodies[0]))
             self.assertTrue(any('Bold' in char['fontname'] and isinstance(char['non_stroking_color'], tuple)

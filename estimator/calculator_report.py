@@ -441,8 +441,9 @@ class _ScheduleReport(_Report):
     def overview(self, *, materials=False, include_project_details=True, project_report_title=None, include_references=True, quote_scope=False):
         data = self.data
         if quote_scope:
+            from .quote_schedule import append_scope_schedule_heading
             self.story.append(CondPageBreak(90))
-            self.story.append(self.p(data['title'], 'section'))
+            append_scope_schedule_heading(self, data['id'])
             return
         elif project_report_title:
             from .quote_schedule import append_project_report_title

@@ -74,6 +74,65 @@ class WorkOrderTrackingTests(unittest.TestCase):
         fields=self.fields();fields['work_tracking']['rows'][2]['claimed_percent']='100'
         self.assertEqual(self.save('work_order',fields)['fields']['work_tracking']['rows'][2]['claimed_percent'],'100')
 
+    def test_notes_are_editable_without_changing_issued_prices_or_row_provenance(self):
+        fields=self.fields();source=deepcopy(fields['work_tracking'])
+        for row,note in zip(fields['work_tracking']['rows'],['Paid note','Free note','Credit note','Duplicate note']):row['notes']=note
+        fields['work_tracking']['rows'][0]['completed_percent']='1'
+        fields['signatures']={'progress_by':INK};fields['order'].update(progress_by='Progress Signer',progress_date='2026-11-09')
+        saved=self.save('work_order',fields)
+        changed=deepcopy(saved['fields']);changed['work_tracking']['rows'][2]['notes']='Credit note updated\nSecond line'
+        updated=self.save('work_order',changed,saved)
+        actual=updated['fields']['work_tracking']
+        self.assertEqual(actual['source_hash'],source['source_hash'])
+        self.assertEqual([row['line_id'] for row in actual['rows']],[row['line_id'] for row in source['rows']])
+        self.assertEqual([row['unit_price'] for row in actual['rows']],['125.25','0','-5','125.25'])
+        self.assertEqual(actual['rows'][2]['notes'],'Credit note updated\nSecond line')
+        self.assertEqual(updated['fields']['signatures']['progress_by'],INK)
+        # Explicit signature clearing owns only its existing signer/date fields.
+        cleared=deepcopy(updated['fields']);cleared['signatures']={};cleared['order'].update(progress_by='',progress_date='')
+        self.assertEqual(self.save('work_order',cleared,updated)['fields']['work_tracking'],actual)
+        for invalid in [None,{},'x'*2001]:
+            with self.subTest(invalid=type(invalid).__name__):
+                rejected=deepcopy(saved['fields']);rejected['work_tracking']['rows'][0]['notes']=invalid
+                with self.assertRaises(ValidationError):validate_fields(rejected,kind='work_order')
+
+    def test_older_window_omitting_notes_preserves_saved_notes_and_explicit_empty_clears(self):
+        fields=self.fields()
+        for row in fields['work_tracking']['rows']:row.pop('notes')
+        saved=self.save('work_order',fields)
+        self.assertTrue(all(row['notes']=='' for row in saved['fields']['work_tracking']['rows']))
+        changed=deepcopy(saved['fields']);changed['work_tracking']['rows'][0]['notes']='Keep this field from an older window'
+        saved=self.save('work_order',changed,saved)
+        legacy=deepcopy(saved['fields'])
+        for row in legacy['work_tracking']['rows']:row.pop('notes')
+        legacy['order']['description']='Unrelated old-window edit'
+        saved=self.save('work_order',legacy,saved)
+        self.assertEqual(saved['fields']['work_tracking']['rows'][0]['notes'],'Keep this field from an older window')
+        changed=deepcopy(saved['fields']);changed['work_tracking']['rows'][0]['notes']=''
+        self.assertEqual(self.save('work_order',changed,saved)['fields']['work_tracking']['rows'][0]['notes'],'')
+
+    def test_purchase_site_contact_number_keeps_legacy_name_and_manual_phone(self):
+        fields=default_fields('purchase_order');fields['order'].update(ship_to_name='Legacy delivery recipient',site_contact_number='+61 400 123 456 ext 7',ship_to_address='Delivery address')
+        saved=self.save('purchase_order',fields)
+        self.assertEqual(saved['fields']['order']['site_contact_number'],'+61 400 123 456 ext 7')
+        legacy=deepcopy(saved['fields']);legacy['order'].pop('site_contact_number');legacy['order']['payment_terms']='An unrelated old-window edit'
+        saved=self.save('purchase_order',legacy,saved)
+        self.assertEqual(saved['fields']['order']['ship_to_name'],'Legacy delivery recipient')
+        self.assertEqual(saved['fields']['order']['ship_to_address'],'Delivery address')
+        self.assertEqual(saved['fields']['order']['site_contact_number'],'+61 400 123 456 ext 7')
+        portable=self.store.capture(self.workspace);target=self.projects.add(self.project);self.store.restore(target,portable)
+        restored=next(row for row in self.store.view(target)['documents'] if row['id']==saved['id'])
+        self.assertEqual(restored['fields']['order'],saved['fields']['order'])
+        changed=deepcopy(saved['fields']);changed['order']['site_contact_number']=''
+        self.assertEqual(self.save('purchase_order',changed,saved)['fields']['order']['site_contact_number'],'')
+        for invalid in [None,{},'x'*61]:
+            with self.subTest(invalid=type(invalid).__name__):
+                rejected=deepcopy(saved['fields']);rejected['order']['site_contact_number']=invalid
+                with self.assertRaises(ValidationError):validate_fields(rejected,kind='purchase_order')
+        for kind in ['quote','work_order']:
+            rejected=default_fields(kind);rejected['order']['site_contact_number']='123'
+            with self.assertRaises(ValidationError):validate_fields(rejected,kind=kind)
+
     def test_retry_retains_exact_tracking_and_server_rejects_non_quote_receipt(self):
         fields=self.fields();fields['work_tracking']['rows'][0]['completed_percent']='25'
         saved=self.save('work_order',fields)
@@ -136,7 +195,8 @@ class WorkOrderTrackingTests(unittest.TestCase):
         self.assertEqual(result['fields']['order']['completion'],'Old completion narrative')
 
     def test_project_export_import_cold_cache_keeps_baseline_percentages_and_can_issue_new_pdf(self):
-        fields=self.fields();fields['work_tracking']['rows'][0].update(completed_percent='40',claimed_percent='80')
+        fields=self.fields();fields['work_tracking']['rows'][0].update(completed_percent='40',claimed_percent='80',notes='Portable paid progress note')
+        fields['work_tracking']['rows'][1]['notes']='Portable free progress note';fields['work_tracking']['rows'][2]['notes']='Portable credit progress note'
         fields['order'].update(progress='Legacy progress stays stored',claim='Legacy claim stays stored',progress_by='Progress Signer',progress_date='2026-11-09',closed_by='Closed Signer',closed_date='2026-11-10',certification='Certification issued',completion='Completed')
         fields['signatures']={'progress_by':INK,'closed_by':INK}
         saved=self.save('work_order',fields)
@@ -159,7 +219,8 @@ class WorkOrderTrackingTests(unittest.TestCase):
         updated=self.save('work_order',changed,restored,store=target,workspace=workspace)
         request=str(uuid4());issued=target.issue(workspace,updated['id'],updated['version'],request,company=DEFAULTS)
         text='\n'.join(page.extract_text() for page in PdfReader(BytesIO(issued['pdf'])).pages)
-        for value in ('Free item','Credit item','40','80','100','Progress Signer','Closed Signer','2026-11-10','Certification issued','Completed','Legacy progress stays stored'):self.assertIn(value,text)
+        normalized=' '.join(text.split())
+        for value in ('Free item','Credit item','40','80','100','Progress Signer','Closed Signer','2026-11-10','Certification issued','Completed','Legacy progress stays stored','Portable paid progress note','Portable free progress note','Portable credit progress note'):self.assertIn(value,normalized)
         self.assertEqual(target.issue(workspace,updated['id'],updated['version'],request,company=DEFAULTS)['pdf'],issued['pdf'])
         self.assertEqual(self.store.read_pdf(self.workspace,historic['id'])[1],historic['pdf'])
         import os

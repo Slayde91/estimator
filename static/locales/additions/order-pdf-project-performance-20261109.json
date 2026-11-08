@@ -1,0 +1,32 @@
+{
+  "Site contact": [
+    "현장 연락처",
+    "Contact sa site",
+    "Người liên hệ tại công trường"
+  ],
+  "Site contact number": [
+    "현장 연락처 전화번호",
+    "Numero ng contact sa site",
+    "Số điện thoại liên hệ tại công trường"
+  ],
+  "Notes {0}": [
+    "메모 {0}",
+    "Mga tala {0}",
+    "Ghi chú {0}"
+  ],
+  "Site contact number must be text of at most 60 characters.": [
+    "현장 연락처 전화번호는 60자 이하의 텍스트여야 합니다.",
+    "Ang numero ng contact sa site ay dapat text na hindi hihigit sa 60 character.",
+    "Số điện thoại liên hệ tại công trường phải là văn bản không quá 60 ký tự."
+  ],
+  "Notes must be text of at most 2000 characters.": [
+    "메모는 2000자 이하의 텍스트여야 합니다.",
+    "Ang mga tala ay dapat text na hindi hihigit sa 2000 character.",
+    "Ghi chú phải là văn bản không quá 2000 ký tự."
+  ],
+  "Mobilisation": [
+    "현장 투입",
+    "Mobilisasyon",
+    "Huy động"
+  ]
+}

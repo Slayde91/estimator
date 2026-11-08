@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from estimator.catalog import ValidationError
 from estimator.project_file import WORKSPACE_FIELDS, export_project, load_project_bytes
@@ -83,6 +84,56 @@ class ProjectEstimatesTests(unittest.TestCase):
     def test_legacy_file_still_loads_without_a_collection(self):
         legacy = json.dumps(self.snapshot).encode()
         self.assertNotIn('estimates', load_project_bytes(self.store, legacy))
+
+    def test_active_mirror_does_not_repeat_expensive_quote_preparation(self):
+        # Two distinct estimates should be prepared twice, not once again for
+        # the active estimate duplicated at the project root.
+        with patch.object(self.store, 'prepare_quote', wraps=self.store.prepare_quote) as prepare:
+            payload = export_project(self.store, self.request)
+            self.assertEqual(prepare.call_count, 2)
+        with patch.object(self.store, 'prepare_quote', wraps=self.store.prepare_quote) as prepare:
+            loaded = load_project_bytes(self.store, payload)
+            self.assertEqual(prepare.call_count, 2)
+        active = loaded['estimates'][0]['workspace']
+        self.assertEqual(active['estimate']['inputs'], loaded['estimate']['inputs'])
+        active['estimate']['inputs']['B15'] = 123
+        active['calculators']['steel_vermiculite']['inputs'].clear()
+        active['fields'].clear()
+        self.assertNotEqual(active['estimate']['inputs'], loaded['estimate']['inputs'])
+        self.assertTrue(loaded['calculators']['steel_vermiculite']['inputs'])
+        self.assertTrue(loaded['fields'])
+
+    def test_active_mirror_with_equal_boolean_and_number_must_still_be_validated(self):
+        request = copy.deepcopy(self.request)
+        request['estimates'][0]['workspace'] = copy.deepcopy(request['estimates'][0]['workspace'])
+        request['estimate']['inputs']['B15'] = 1
+        request['estimates'][0]['workspace']['estimate']['inputs']['B15'] = True
+        with self.assertRaises(ValidationError):
+            export_project(self.store, request)
+        snapshot = json.loads(export_project(self.store, self.request))
+        snapshot['estimate']['inputs']['B15'] = 1
+        snapshot['estimates'][0]['workspace']['estimate']['inputs']['B15'] = True
+        with self.assertRaises(ValidationError):
+            load_project_bytes(self.store, json.dumps(snapshot).encode())
+
+    def test_changed_or_invalid_inactive_estimate_is_never_reused(self):
+        original = export_project(self.store, self.request)
+        for mutation in ('surrogate', 'source', 'boolean'):
+            snapshot = json.loads(original)
+            other = snapshot['estimates'][1]['workspace']
+            if mutation == 'surrogate':
+                other['estimate']['measurements'] = '\ud800'
+            elif mutation == 'source':
+                other['calculators']['steel_board']['source_sha256'] = '0' * 64
+            else:
+                other['estimate']['inputs']['B15'] = True
+            with self.subTest(mutation=mutation), self.assertRaises(ValidationError):
+                load_project_bytes(self.store, json.dumps(snapshot).encode())
+        # A later request is normalized from its current values, not a cache
+        # of a prior successful load or export.
+        self.request['estimates'][1]['workspace']['estimate']['measurements'] = 'Changed after export'
+        updated = load_project_bytes(self.store, export_project(self.store, self.request))
+        self.assertEqual(updated['estimates'][1]['workspace']['estimate']['measurements'], 'Changed after export')
 
     def test_scheduler_resolver_rechecks_current_file_status(self):
         self.path.write_bytes(export_project(self.store, self.request))

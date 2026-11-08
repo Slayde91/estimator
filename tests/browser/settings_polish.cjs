@@ -38,11 +38,12 @@ async function idle(){await page.waitForFunction(()=>{const status=window.Ceasef
     });
     assert.ok(Math.abs(geometry.logo.x-geometry.cover.x)<1);assert.ok(Math.abs(geometry.logo.width-geometry.cover.width)<1);
     assert.ok(geometry.cover.y>geometry.logo.y);assert.ok(geometry.coverTrash.x>=geometry.cover.right);
-    if(width>650)assert.ok(geometry.preview.x>=geometry.trash.right);
+    assert.ok(geometry.preview.y>=geometry.logo.y+geometry.logo.height,'logo preview is below its upload');
+    assert.ok(Math.abs(geometry.preview.x-geometry.logo.x)<1,'logo preview aligns with its upload');
     assert.ok(geometry.overflow<=1);await expect(page.locator('#company-cover-delete svg')).toHaveCount(1);
     await page.locator('#company-settings-form').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,`company-${width}.png`)});
   }
-  checks.push('Ten cover rows with exact labels; Play last; aligned first-column uploads, adjacent trash and right-hand preview at desktop/mobile');
+  checks.push('Ten cover rows with exact labels; Play last; aligned uploads, adjacent trash and below-upload preview at desktop/mobile');
   await page.setViewportSize({width:1254,height:831});await page.locator('#theme-toggle').click();await expect(page.locator('html')).toHaveAttribute('data-theme','midnight');
   const logo=path.join(output,'midnight-logo.png');await page.locator('.app-header .brand').screenshot({path:logo});
   const pixels=spawnSync(python,['-c',"from PIL import Image; import sys; im=Image.open(sys.argv[1]).convert('RGB'); w,h=im.size; white=im.getpixel((round(w*205/2172),round(h*225/724))); red=im.getpixel((round(w*340/2172),round(h*225/724))); assert min(white)>230,white; assert red[0]>150 and red[1]<100 and red[2]<100,red; print('White mark and retained red square verified')",logo],{encoding:'utf8',windowsHide:true});

@@ -80,7 +80,7 @@
     finally { if (generation === ticket) busy(false); }
   }
   async function openCurrent() {
-    if (snapshot().busy || !await leave()) return;
+    if (!await leave()) return;
     const active = snapshot();
     if (currentRule?.context !== active.context) currentRule = {context:active.context,baseline:normalize(active.details)};
     selected = {kind:"current",context:active.context,baseline:currentRule.baseline};
@@ -191,13 +191,15 @@
       if (selected?.kind === "current") validateClient();
       else if (dirty() && snapshot().file?.path === selected.file.path) await save();
     },
-    projectSaved() {
-      const active = snapshot(); currentRule = {context:active.context,baseline:normalize(active.details)};
-      if (selected?.kind === "current" && selected.context === active.context) { selected.baseline = currentRule.baseline; show(currentRule.baseline,active.file?.title || translate("Project")); }
+    projectSaved(savedDetails) {
+      const active = snapshot(), account = currentRule?.context === active.context ? currentRule.account : null;
+      currentRule = {context:active.context,baseline:normalize(savedDetails || active.details)};
+      if (account?.id === active.details.account_id && account?.company === active.details.client) currentRule.account = account;
+      if (selected?.kind === "current" && selected.context === active.context) { selected.baseline = currentRule.baseline; show(normalize(active.details),active.file?.title || translate("Project")); }
       else if (selected?.kind === "saved" && selected.file.path === active.file?.path) {
         selected.file = {...selected.file,...active.file}; selected.revision = active.file.revision;
         selected.baseline = currentRule.baseline; selected.activeAtOpen = active; selected.requestPayload = null; selected.requestId = crypto.randomUUID();
-        show(currentRule.baseline,active.file.title || translate("Project"));
+        show(normalize(active.details),active.file.title || translate("Project"));
       }
     },
   });

@@ -1346,5 +1346,28 @@ async function penetrationCheck(name, fn) {
     assert.equal(h.context.window.CeasefireProject.applyProjectPaneSaved(before,result,'different-disk-revision'),false);
     assert.equal(h.app.state.projectFile.save_token,'open-token');assert.equal(h.byId('project-contact-name').value,'');
   });
+  await check('Current project identity accepts edits while Save is busy and still rejects replaced contexts',async h=>{
+    const before=h.context.window.CeasefireProject.projectPaneSnapshot();h.app.state.projectBusy=true;
+    const later={...before.details,client:'Later client',contact_name:'Later contact'};
+    h.context.window.CeasefireProject.applyProjectPaneDraft(later,before.context);
+    assert.equal(h.byId('client').value,'Later client');assert.equal(h.byId('project-contact-name').value,'Later contact');assert.equal(h.app.state.dirty,true);
+    h.app.state.quoteContext++;
+    assert.throws(()=>h.context.window.CeasefireProject.applyProjectPaneDraft({...later,client:'Stale client'},before.context),/current project changed/);
+    assert.equal(h.byId('client').value,'Later client');
+  });
+  await check('A held Save receipt keeps later pane edits and rejects unlinked clients without rejecting canonical Accounts',async h=>{
+    vm.runInContext(fs.readFileSync('static/project-pane.js','utf8'),h.context);
+    const pane=h.context.window.CeasefireProjectPane;await pane.openCurrent();
+    const captured=copy(h.context.window.CeasefireProject.details());h.app.state.projectBusy=true;
+    h.byId('project-pane-client').value='Later unlinked client';await h.byId('project-pane-client').emit('input');
+    pane.projectSaved(captured);
+    assert.equal(h.byId('client').value,'Later unlinked client');assert.equal(h.byId('project-pane-client').value,'Later unlinked client');
+    await assert.rejects(()=>pane.beforeProjectSave(),/Choose an existing Account/);
+    h.context.window.ClassifireContacts={createAccount:async()=>({id:'10000000-0000-0000-0000-000000000001',company:'Later canonical client'})};
+    await h.byId('project-account-new').emit('click');
+    pane.projectSaved(captured);
+    assert.equal(h.byId('client').value,'Later canonical client');assert.equal(h.byId('project-pane-client').value,'Later canonical client');
+    await pane.beforeProjectSave();assert.equal(h.app.state.dirty,true);
+  });
   console.log(`${passed} project UI regression checks passed.`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

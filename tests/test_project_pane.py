@@ -134,3 +134,27 @@ class ProjectPaneTests(unittest.TestCase):
         del request["details"]["account_id"]
         with self.assertRaises(ValidationError):
             self.save(request)
+
+    def test_older_browser_cannot_drop_new_contact_fields_but_explicit_clear_is_valid(self):
+        self.save(self.request(contact_name="Saved Person", contact_email="person@example.com"))
+        before = self.path.read_bytes()
+        saved = json.loads(before)
+        loaded = self.library.load(self.file["id"])
+        def workspace(value, *, omit=False):
+            estimate = deepcopy(value["estimate"])
+            for key in ("contact_name", "contact_email"):
+                if omit:
+                    estimate.pop(key, None)
+                else:
+                    estimate[key] = ""
+            return {"estimate": estimate, "calculators": {key: {field: entry[field] for field in ("inputs", "schedule_rows") if field in entry}
+                                                        for key, entry in value["calculators"].items()}}
+        def request(omit):
+            return {**workspace(saved, omit=omit), "save_token": loaded["file"]["save_token"],
+                    "active_estimate_id": saved["active_estimate_id"],
+                    "estimates": [{**entry, "workspace": workspace(entry["workspace"], omit=omit)} for entry in saved["estimates"]]}
+        with self.assertRaisesRegex(ValidationError, "Reload this application"):
+            self.library.save(request(True))
+        self.assertEqual(self.path.read_bytes(), before)
+        result = self.library.save(request(False))
+        self.assertEqual(result["project"]["estimate"]["contact_name"], "")

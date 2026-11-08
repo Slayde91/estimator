@@ -245,6 +245,14 @@ def _open_default_file(path):
         subprocess.Popen(["xdg-open", str(path)], close_fds=True)
 
 
+def _preserve_project_contacts(request, previous):
+    """Old browser windows must not silently erase newly stored identity fields."""
+    incoming = request.get("estimate", {})
+    saved = previous.get("estimate", {})
+    if any(saved.get(key) and key not in incoming for key in ("contact_name", "contact_phone", "contact_email", "account_id")):
+        raise ValidationError("Reload this application before saving so the project's Contact and Account details are retained.")
+
+
 def _metadata(path, info, project, folder, payload):
     from .commercial_documents import commercial_cards
     estimate = project["estimate"]
@@ -385,6 +393,8 @@ class ProjectLibrary:
             previous = json.loads(payload)
         except (ValueError, UnicodeDecodeError):
             return request
+        if isinstance(previous, dict):
+            _preserve_project_contacts(request, previous)
         if not isinstance(previous, dict) or ('estimates' not in previous and 'estimates' not in request):
             return request
         incoming = {entry['id']: entry['workspace'] for entry in request.get('estimates', [])}
@@ -399,6 +409,7 @@ class ProjectLibrary:
             if not set(entry['workspace']['calculators']) <= set(workspace['calculators']):
                 raise ValidationError('Reload all calculators for each project estimate before saving.')
             _preserve_penetration_inputs(path, workspace, previous_snapshot=entry['workspace'])
+            _preserve_project_contacts(workspace, entry['workspace'])
         active = incoming[previous.get('active_estimate_id', 'estimate-1')]
         return {**{key: value for key, value in request.items() if key not in WORKSPACE_FIELDS}, **active}
 

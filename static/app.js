@@ -2293,7 +2293,7 @@
         }
         $("project-no").value = assigned.get(state.activeEstimateId) ?? saved.project.estimate.project_no ?? "";
         updateQuoteTitle();
-        window.CeasefireProjectPane?.projectSaved?.();
+        window.CeasefireProjectPane?.projectSaved?.(saved.project.estimate);
         window.CeasefireProjectDetails?.saved(context);
         if (commercial) window.CeasefireCommercial?.markProjectSaved?.(saved.project.commercial_documents, commercial);
         window.CeasefireCommercial?.projectNumberAssigned?.(quoteDetails());
@@ -2938,7 +2938,7 @@
   window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus, scheduleChanged,
     projectPaneSnapshot: () => ({details:quoteDetails(), context:state.quoteContext, file:state.projectFile ? clone(state.projectFile) : null, busy:state.projectBusy}),
     applyProjectPaneDraft(details, context) {
-      if (context !== state.quoteContext || state.projectBusy) throw new Error("The current project changed. Open its details again.");
+      if (context !== state.quoteContext) throw new Error("The current project changed. Open its details again.");
       applyQuoteDetails(details); updateQuoteTitle(); updateDirty();
     },
     applyProjectPaneSaved(snapshot, result, expectedRevision) {

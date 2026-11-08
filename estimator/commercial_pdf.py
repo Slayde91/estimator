@@ -143,7 +143,18 @@ def _section(story, title, styles, *, splittable=False):
 def _fields(story, pairs, styles, *, keep_together=False):
     rows = [(label, value or '—') for label, value in pairs]
     table = _table(None if styles['red_tables'] else ('Field', 'Details'), rows, styles, [125, WIDTH - 125])
-    story.append(KeepTogether([table]) if keep_together else table)
+    if keep_together:
+        content = [table]
+        if story and isinstance(story[-1], Paragraph) and story[-1].style is styles['section']:
+            # A heading's keepWithNext wrapped around another KeepTogether
+            # can release the heading before discovering the panel will not
+            # fit. One group keeps the section and its signer details intact.
+            heading = story.pop()
+            heading.keepWithNext = False
+            content.insert(0, heading)
+        story.append(KeepTogether(content))
+    else:
+        story.append(table)
 
 
 def _money(value):
@@ -424,7 +435,8 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
         for title, pairs in [
             ('REQUESTED BY', [('Name', 'requested_by'), ('Date', 'requested_date')]),
             ('PURCHASE ORDER APPROVAL', [('Approval', 'approval'), ('Reviewed by', 'reviewed_by'), ('Review date', 'review_date')]),
-            ('PROCUREMENT VERIFICATION', [('Verification method, specification, result and actions', 'verification'), ('Sent by', 'sent_by'), ('Sent date', 'sent_date'), ('Verified by', 'verified_by'), ('Verification date', 'verified_date')]),
+            ('SENT BY', [('Name', 'sent_by'), ('Date', 'sent_date')]),
+            ('PROCUREMENT VERIFICATION', [('Verification method, specification, result and actions', 'verification'), ('Verified by', 'verified_by'), ('Verification date', 'verified_date')]),
         ]:
             _section(story, title, styles)
             _fields(story, [(label, order[key]) for label, key in pairs], styles)

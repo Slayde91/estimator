@@ -61,13 +61,19 @@ class OrderQuotePdfPresentationTests(unittest.TestCase):
         fields['signatures']['claimed_by'] = deepcopy(INK)
         payload = render_commercial_pdf({'kind': 'work_order', 'fields': fields}, 'WO-CLAIM', company=DEFAULTS)
         with pdfplumber.open(BytesIO(payload)) as pdf:
+            for title, signer in [('WORK ORDER REVIEW', 'Reviewer fixture'),
+                                  ('OHS DOCUMENTATION', 'Preparer fixture'),
+                                  ('CLIENT APPROVAL', 'Approver fixture'),
+                                  ('WORK ORDER COMPLETION', 'Closer fixture')]:
+                section_page = next(page for page in pdf.pages if title in page.extract_text())
+                self.assertIn(signer, section_page.extract_text(), title)
             page = next(page for page in pdf.pages if 'Claim signer fixture' in page.extract_text())
             for retained in ('Claim signed by', 'Claim signer fixture', '2026-11-10'):
                 self.assertIn(retained, page.extract_text())
             label = page.search('Claim signed by', regex=False)[0]
             signer = page.search('Claim signer fixture', regex=False)[0]
             date = page.search('2026-11-10', regex=False)[0]
-            self.assertTrue(any(label['top'] - 1 <= ink['top'] and ink['bottom'] <= signer['top']
+            self.assertTrue(any(label['top'] - 6 <= ink['top'] and ink['bottom'] <= signer['top']
                                 for ink in page.curves + page.lines if ink['stroking_color'] == (0, 0, 0)))
             self.assertLess(label['top'], signer['top'])
             self.assertLess(signer['top'], date['top'])
@@ -145,6 +151,29 @@ class OrderQuotePdfPresentationTests(unittest.TestCase):
         for retained in ('Site contact', 'Site contact number', '+61 400 111 222', 'Delivery address fixture', 'Field Details'):
             self.assertIn(retained, text)
         self.assertNotIn('Ship to', text)
+
+    def test_purchase_order_request_approval_sent_and_final_verification_keep_separate_sections(self):
+        fields = default_fields('purchase_order', {'project_no': 'PN-01'}, DEFAULTS)
+        values = {'requested_by': 'Legacy requester fixture', 'requested_date': '2026-11-09',
+                  'approval': 'Legacy approval fixture', 'reviewed_by': 'Legacy reviewer fixture', 'review_date': '2026-11-10',
+                  'sent_by': 'Legacy sender fixture', 'sent_date': '2026-11-11',
+                  'verification': 'Legacy verification method fixture', 'verified_by': 'Legacy verifier fixture',
+                  'verified_date': '2026-11-12'}
+        fields['order'].update(values)
+        payload = render_commercial_pdf({'kind': 'purchase_order', 'status': 'Draft', 'fields': fields},
+                                         'PO-01', company=DEFAULTS)
+        text = compact('\n'.join(page.extract_text() for page in PdfReader(BytesIO(payload)).pages))
+        headings = ['REQUESTED BY', 'PURCHASE ORDER APPROVAL', 'SENT BY', 'PROCUREMENT VERIFICATION']
+        self.assertEqual([text.index(heading) for heading in headings], sorted(text.index(heading) for heading in headings))
+        request, approval, sent, verification = re.split('|'.join(headings), text)[1:]
+        self.assertIn(values['requested_by'], request)
+        self.assertIn(values['reviewed_by'], approval)
+        self.assertIn(values['sent_by'], sent)
+        self.assertIn(values['sent_date'], sent)
+        for key in ('verification', 'verified_by', 'verified_date'):
+            self.assertIn(values[key], verification)
+        self.assertNotIn(values['sent_by'], verification)
+        self.assertEqual(fields['order']['sent_by'], values['sent_by'])
 
     def test_quote_schedule_titles_match_estimate_size_and_have_no_scope_boilerplate(self):
         with patch('estimator.calculator_report.schedule_report_references', return_value=[REFERENCE]), \

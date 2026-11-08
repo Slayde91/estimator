@@ -81,8 +81,11 @@ class ScopePaginationFollowupTests(unittest.TestCase):
             self.assertEqual(combined.count(f'ScopeMember{index:04}'), 1)
         expected = [('Large estimate fixture', 'STEEL | SPRAY', 'ScopeMember0000'),
                     ('Second estimate fixture', 'STEEL | BOARD', 'SecondEstimateBoard')]
+        scope_pages = pages[next(index for index, page in enumerate(pages) if 'SCOPE OF WORKS' in page):]
         for estimate, title, row in expected:
-            matches = [page for page in pages if estimate in page]
+            # Quote Summary also lists each estimate. Only the actual scope
+            # heading must occur once and remain with its first schedule.
+            matches = [page for page in scope_pages if estimate in page]
             self.assertEqual(len(matches), 1)
             self.assertIn(title, matches[0])
             self.assertIn(row, matches[0].replace(' ', ''))

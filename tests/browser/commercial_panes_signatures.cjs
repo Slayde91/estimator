@@ -16,7 +16,7 @@ async function save(host){await host.locator('.commercial-editor-actions').getBy
 async function current(){const workspace=await page.evaluate(()=>window.CeasefireCertification.sessionId());return(await page.request.get(new URL('/api/commercial/state?workspace='+workspace,page.url()).href)).json();}
 async function groupSign(host,key,label,name,dateLabel){await personal(name);const before=mutations.filter(route=>route==='/api/certifications/defaults').length;
  await host.locator(`[data-signature-field="${key}"]`).getByRole('button',{name:'Sign '+label,exact:true}).click();
- await expect(host.getByLabel(label+' name',{exact:true})).toHaveValue(name);await expect(host.getByLabel(dateLabel,{exact:true})).toHaveValue('2026-11-09');await idle();
+ await expect(host.getByLabel(label+' name',{exact:true})).toHaveValue(name);await expect(host.locator(`[data-order-field="${({reviewed_by:'review_date',prepared_by:'prepared_date',client_approved_by:'client_approval_date',progress_by:'progress_date',closed_by:'closed_date'})[key]}"]`)).toHaveValue('2026-11-09');await idle();
  await expect(host.locator(`[data-signature-field="${key}"] .commercial-signature-preview svg`)).toHaveCount(1);
  assert.equal(mutations.filter(route=>route==='/api/certifications/defaults').length,before,'Signing never writes personal defaults');}
 (async()=>{
@@ -26,6 +26,10 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  await page.goto(`http://127.0.0.1:${info.port}`);await idle();await createNewProject(page,{client:'SIGNATURE PANE QA','site-address':'Synthetic site, no design claim'});
  await openProjectSection(page,'quote');const quote=page.locator('#commercial-quote-root');await quote.getByRole('button',{name:'New Quote',exact:true}).click();await idle();
  await quote.getByLabel('Document title',{exact:true}).fill('Quote with side panes');
+ for(const [description,price] of [['Charged service','100'],['Free service','0'],['Credit service','-5']]) {
+  await quote.getByRole('button',{name:'Add custom row',exact:true}).click();const row=quote.locator('.commercial-lines tbody tr').last();
+  await row.getByRole('combobox').fill(description);await row.locator('input').last().fill(price);
+ }
  await expect(quote.locator('.commercial-work-layout>.commercial-sidebar')).toHaveCount(2);
  for(const label of ['Company Details','Contact Details','Notes (0)','Files (0)','Linked Work Orders (0)'])await expect(quote.locator('.commercial-sidebar summary').filter({hasText:label})).toHaveCount(1);
  await quote.locator('input[type=file]').setInputFiles(info.fixture);await expect(quote.locator('.commercial-sidebar summary').filter({hasText:'Files (1)'})).toHaveCount(1);await save(quote);
@@ -37,7 +41,17 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  const quoteIssue=page.waitForResponse(response=>response.url().endsWith('/api/commercial/issue'));await quote.getByRole('button',{name:'Download PDF',exact:true}).click();const quoteIssued=await quoteIssue;assert.equal(quoteIssued.status(),200,await quoteIssued.text());await idle();
  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await openProjectSection(page,'work-orders');const work=page.locator('#commercial-work-order-root');await work.getByRole('button',{name:'New Work Order',exact:true}).click();await idle();
  await work.getByLabel('Linked Quote',{exact:true}).selectOption(savedQuote.id);
- for(const label of ['Reviewed by name','Prepared by name','Approved by name','Review date','Date','Approval date'])await expect(work.getByLabel(label,{exact:true})).toHaveValue('');
+ const completed=work.locator('[data-tracking-field=completed_percent]'),claimed=work.locator('[data-tracking-field=claimed_percent]');
+ await expect(completed.locator('tbody tr')).toHaveCount(savedQuote.fields.lines.length);await expect(claimed.locator('tbody tr')).toHaveCount(savedQuote.fields.lines.length);
+ for(const title of ['Charged service','Free service','Credit service']){await expect(completed).toContainText(title);await expect(claimed).toContainText(title);}
+ for(const control of await completed.locator('input').all())await expect(control).toHaveValue('');
+ await work.getByRole('button',{name:'Sign Progress signed by',exact:true}).click();
+ await expect(work.locator('.commercial-message')).toHaveText('Record a completed percentage before signing work progress.');
+ await expect(work.locator('[data-signature-field=progress_by] svg[role=img]')).toHaveCount(0);
+ await completed.locator('input').first().fill('101');await work.getByRole('button',{name:'Sign Progress signed by',exact:true}).click();
+ await expect(work.locator('.commercial-message')).toHaveText('Enter a percentage from 1 to 100, or leave it blank.');
+ await completed.locator('input').first().fill('');
+ for(const label of ['Reviewed by name','Prepared by name','Approved by name','Review date','Approval date'])await expect(work.getByLabel(label,{exact:true})).toHaveValue('');
  await page.setViewportSize({width:1915,height:1000});const details=work.locator('.commercial-work-details');const sizes=await details.evaluate(section=>{const box=selector=>section.querySelector(selector).getBoundingClientRect().toJSON();return{description:box('.commercial-work-description textarea'),cost:box('[data-order-cost]'),files:box('input[type=file]'),stack:box('.commercial-work-cost-files')};});
  assert.ok(sizes.files.y>sizes.cost.y);assert.equal(Math.round(sizes.files.x),Math.round(sizes.cost.x));assert.ok(Math.abs(sizes.description.bottom-sizes.stack.bottom)<=2,JSON.stringify(sizes));assert.equal(await work.locator('.commercial-currency').count(),0);
  checks.push('Work Order attachment sits directly below estimated cost; the dollar adornment is absent and description fills the adjacent pair height');
@@ -52,10 +66,14 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  assert.ok(Math.abs(reviewGeometry.name.y-reviewGeometry.date.y)<2&&reviewGeometry.date.x>reviewGeometry.name.right);
  assert.ok(reviewGeometry.signer.x<reviewGeometry.pair.x);geometry.push({kind:'review',...reviewGeometry});
  checks.push('Work Order review places Justification beside Approval, then Reviewed by on the left and Name/Review date together in the right column');
+ for(const key of ['prepared_by','client_approved_by','progress_by','closed_by']) {
+  const paired=await work.locator(`[data-signature-field="${key}"]`).evaluate(signature=>{const row=signature.parentElement,controls=row.querySelectorAll('.commercial-field-pair input');const a=controls[0].getBoundingClientRect(),b=controls[1].getBoundingClientRect();return {sameRow:Math.abs(a.y-b.y)<2,separated:b.x>a.right};});
+  assert.ok(paired.sameRow&&paired.separated,key+' Name and Date pair on right');
+ }
  await groupSign(work,'reviewed_by','Reviewed by','Review Person','Review date');await work.locator('[data-signature-field=reviewed_by]').getByRole('button',{name:'Clear Reviewed by',exact:true}).click();
  await expect(work.getByLabel('Reviewed by name',{exact:true})).toHaveValue('');await expect(work.getByLabel('Review date',{exact:true})).toHaveValue('');await expect(work.locator('[data-signature-field=reviewed_by] svg[role=img]')).toHaveCount(0);
  await groupSign(work,'reviewed_by','Reviewed by','Review Person','Review date');await groupSign(work,'prepared_by','Prepared by','','Date');
- await work.locator('[data-signature-field=prepared_by]').getByRole('button',{name:'Delete Prepared by',exact:true}).click();await expect(work.getByLabel('Date',{exact:true})).toHaveValue('');
+ await work.locator('[data-signature-field=prepared_by]').getByRole('button',{name:'Delete Prepared by',exact:true}).click();await expect(work.locator('[data-order-field=prepared_date]')).toHaveValue('');
  await groupSign(work,'prepared_by','Prepared by','Prepare Person','Date');await groupSign(work,'client_approved_by','Approved by','Approve Person','Approval date');
  await work.locator('[data-signature-field=client_approved_by]').getByRole('button',{name:'Clear Approved by',exact:true}).click();await expect(work.getByLabel('Approved by name',{exact:true})).toHaveValue('');await expect(work.getByLabel('Approval date',{exact:true})).toHaveValue('');await groupSign(work,'client_approved_by','Approved by','Approve Person','Approval date');
  checks.push('Deliberate signing uses current Settings name and organization date; blank Settings remain blank; Clear/Delete reset signature/name/date together without changing personal defaults');
@@ -65,11 +83,21 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  await work.getByRole('button',{name:'Change Reviewed by',exact:true}).click();await page.getByRole('dialog',{name:'Signatures',exact:true}).getByRole('button',{name:'Use saved signature',exact:true}).click();
  await expect(work.locator('.commercial-message')).toHaveText('Your signature profile changed. Reopen the signature pad.');await expect(work.getByLabel('Reviewed by name',{exact:true})).toHaveValue(existingName);await expect(work.getByLabel('Review date',{exact:true})).toHaveValue('2026-11-09');assert.equal(await work.locator('[data-signature-field=reviewed_by] svg[role=img]').getAttribute('viewBox'),existingReview);
  await page.unroute('**/api/certifications/defaults');await page.unroute('**/api/scheduler/bootstrap');checks.push('A profile change while personal details are read rejects the replacement and preserves the prior signature/name/date');
+ await completed.locator('input').nth(2).fill('25');await claimed.locator('input').nth(3).fill('100');
+ await groupSign(work,'progress_by','Progress signed by','Progress Person','Date');
+ await work.getByLabel('Linked Quote',{exact:true}).selectOption('');await expect(work.getByLabel('Progress signed by name',{exact:true})).toHaveValue('');await expect(work.locator('[data-order-field=progress_date]')).toHaveValue('');
+ await work.getByLabel('Linked Quote',{exact:true}).selectOption(savedQuote.id);
+ for(const host of [completed,claimed])for(const control of await host.locator('input').all())await expect(control).toHaveValue('');
+ await completed.locator('input').nth(2).fill('25');await claimed.locator('input').nth(3).fill('100');await groupSign(work,'progress_by','Progress signed by','Progress Person','Date');
+ await groupSign(work,'closed_by','Closed by','Closure Person','Date');await work.getByRole('button',{name:'Clear Closed by',exact:true}).click();await expect(work.getByLabel('Closed by name',{exact:true})).toHaveValue('');await expect(work.locator('[data-order-field=closed_date]')).toHaveValue('');await expect(work.getByLabel('Reviewed by name',{exact:true})).toHaveValue('Review Person');
+ await groupSign(work,'closed_by','Closed by','Closure Person','Date');
+ await work.getByLabel('Certification details',{exact:true}).selectOption('Certification issued');await work.getByLabel('Completion',{exact:true}).selectOption('Completed');
+ checks.push('Progress/claim include paid, free and credit rows; invalid or empty progress cannot be signed; changing the draft Quote resets tracking/signature; closure signing and Clear own their Name/Date fields');
  for(const width of [1915,1213,390]){await page.setViewportSize({width,height:1000});const metrics=await work.locator('.commercial-signer-row').first().evaluate(row=>({width:document.documentElement.scrollWidth,viewport:innerWidth,columns:getComputedStyle(row).gridTemplateColumns.split(' ').length,preview:row.querySelector('.commercial-signature-preview').getBoundingClientRect().toJSON(),insert:row.querySelector('button').getBoundingClientRect().toJSON()}));assert.ok(metrics.width<=metrics.viewport,JSON.stringify(metrics));if(width===1915)assert.ok(metrics.preview.right<=metrics.insert.left);geometry.push({kind:'work',width,...metrics});await page.screenshot({path:path.join(output,'work-signatures-'+width+'.png'),fullPage:true});}
  const narrowButtons=await work.locator('.commercial-signature-actions').first().locator('button').evaluateAll(buttons=>buttons.map(button=>Math.round(button.getBoundingClientRect().y)));assert.equal(new Set(narrowButtons).size,1,'Signature insert/clear/delete stay beside the preview on narrow screens');
  await page.setViewportSize({width:1915,height:1000});await save(work);model=await current();const savedWork=model.documents.find(document=>document.kind==='work_order');assert.equal(savedWork.fields.order.prepared_by,'Prepare Person');assert.equal(savedWork.fields.order.prepared_date,'2026-11-09');assert.ok(savedWork.fields.signatures.reviewed_by);
  const generated=page.waitForResponse(response=>response.url().endsWith('/api/commercial/issue'));await work.getByRole('button',{name:'Download PDF',exact:true}).click();const response=await generated;assert.equal(response.status(),200,await response.text());const issued=await response.json();assert.equal(issued.saved,true);await idle();
- const text=execFileSync(python,['-c','from pypdf import PdfReader;import sys;print("\\n".join(p.extract_text() for p in PdfReader(sys.argv[1]).pages))',issued.path],{encoding:'utf8',windowsHide:true});for(const name of ['Review Person','Prepare Person','Approve Person','2026-11-09'])assert.ok(text.includes(name),name);
+ const text=execFileSync(python,['-c','from pypdf import PdfReader;import sys;print("\\n".join(p.extract_text() for p in PdfReader(sys.argv[1]).pages))',issued.path],{encoding:'utf8',windowsHide:true});for(const name of ['Review Person','Prepare Person','Approve Person','Progress Person','Closure Person','Charged service','Free service','Credit service','% completed','% claimed','Certification issued','Completed','2026-11-09'])assert.ok(text.includes(name),name);
  checks.push('All three signature snapshots/names/dates survive Save and appear in the actual newly issued Work Order PDF');
  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,geometry,pdf:issued.path,errors},null,2));console.log('PASS commercial panes and signatures: '+output);
 })().catch(async error=>{console.error(error);console.error(logs);if(page){console.error(await page.locator('.commercial-message').allTextContents().catch(()=>[]));await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});}process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

@@ -14,6 +14,8 @@ LEAD_STATUSES = ("New", "Assisting", "Interstate", "Qualified", "Disqualified", 
 PERSON_FIELDS = ("name", "phone", "company", "title", "email")
 ACCOUNT_FIELDS = ("company", "billing_address", "abn_acn")
 LEAD_FIELDS = (*PERSON_FIELDS, "site_address", "billing_address", "description", "status", "abn_acn")
+CONVERSION_REQUIRED_FIELDS = ("name", "phone", "company", "email", "site_address")
+CONVERSION_REQUIRED_MESSAGE = "Complete Name, Phone, Company, Email and Site address before converting this Lead."
 LINK_KINDS = ("contacts", "projects", "quotes", "work_orders", "purchase_orders")
 FIELDS = {"leads": LEAD_FIELDS, "contacts": PERSON_FIELDS, "accounts": ACCOUNT_FIELDS}
 LIMITS = {"name": 160, "phone": 60, "company": 240, "title": 160, "email": 254,
@@ -308,6 +310,13 @@ class ContactsStore:
             if lead is None:
                 raise ValidationError('This lead could not be found.')
             lead = self._lead_record(lead)
+            # Validate the saved Lead snapshot before the numbered file save can
+            # allocate a Project number or write a conversion replay receipt.
+            # Existing conversion receipts above remain idempotent, including
+            # receipts created before these minimum details were required.
+            if any(not isinstance(lead.get(key), str) or not lead[key].strip()
+                   for key in CONVERSION_REQUIRED_FIELDS):
+                raise ValidationError(CONVERSION_REQUIRED_MESSAGE)
             # The numbered file save uses this lead's stable ID as its replay
             # key. A retry after a lost response or DB rollback reuses the file.
             result = create_project(lead)

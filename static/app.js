@@ -401,9 +401,36 @@
   }
 
   const projectStatuses = ["Draft", "Review", "Presented", "Accepted", "Lost"];
+  const projectPages = $("project-pages");
+
+  function refreshProjectPages() {
+    const active = ["quotes", "quote", "work-orders", "purchase-orders"].includes(state.currentView);
+    if (!projectPages) return;
+    projectPages.hidden = !active;
+    if (!active) return;
+    const section = $("view-" + state.currentView), heading = section?.querySelector(".page-heading");
+    // Keep one navigation element through commercial list/editor rebuilds.
+    if (heading?.parentNode) heading.parentNode.insertBefore(projectPages, heading.nextSibling);
+    else section?.insertBefore?.(projectPages, section.firstChild);
+    for (const button of projectPages.querySelectorAll("[data-project-section]")) {
+      const selected = button.dataset.projectSection === state.currentView;
+      button.classList.toggle("active", selected);
+      button.setAttribute("aria-pressed", String(selected));
+      if (selected) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
+    }
+  }
+
+  function updateProjectPricingContext() {
+    const label = $("project-pricing-context");
+    if (!label) return;
+    // The metadata pane may inspect a different saved file. Pricing always
+    // belongs to the loaded workspace, whose identity lives in projectFile.
+    label.textContent = state.projectFile?.title || $("quote-title").value;
+  }
 
   function updateProjectStatus() {
     renderEstimateControls();
+    updateProjectPricingContext();
     const file = state.projectFile, changed = !!projectHasChanges();
     // A fresh draft updates the save badge; notices remain until dismissal/navigation.
     if (changed && state.projectSavedNotice) {
@@ -679,6 +706,7 @@
     const after = $("adjustment-sections");
     const materials = $("material-inputs");
     const project = $("project-input-fields");
+    const notes = $("estimate-notes-section");
     before.replaceChildren(); postMaterials.replaceChildren(); after.replaceChildren(); materials.replaceChildren(); project.replaceChildren();
     const job = [], labour = [], masking = [], adjustments = [], additions = [], remainder = [];
     for (const field of state.fields) {
@@ -710,6 +738,7 @@
       adjustmentCard.classList.remove("main-section-panel", "card");
       additionCard.append(adjustmentCard);
     }
+    if (additionCard) additionCard.append(notes);
     for (const card of [
       additionCard,
       inputCard("other-inputs", "Other estimate inputs", remainder),
@@ -1048,6 +1077,7 @@
     window.CeasefireNotifications?.navigate(view === "pricing" ? `pricing:${state.libraryKind}` : view === "calculators" ? `calculators:${calculatorId || state.calculatorKind}` : view === "estimate" ? `estimate:${state.estimateKind || "estimate"}` : view);
     if (view !== state.currentView && $("app-message").hidden) releaseMessageSpace();
     state.currentView = view;
+    refreshProjectPages();
     if (["quotes", "quote", "work-orders", "purchase-orders"].includes(view)) state.lastProjectSection = view;
     if (["certification", "documentation", "swms"].includes(view)) state.lastDocumentSection = view;
     $("project-tools").hidden = true;
@@ -1377,7 +1407,9 @@
 
   async function useCurrentPricing() {
     if (state.projectBusy) return;
+    const context = state.quoteContext, target = state.projectFile, pricing = savePricingStamp();
     if (projectPricingChanged() && !await confirmReplace(uiCopy("Use current library prices?"), uiCopy("The project's pricing edits will be replaced with the last saved shared library."), uiCopy("Use current pricing"))) return;
+    if (state.projectBusy || context !== state.quoteContext || target !== state.projectFile || pricing !== savePricingStamp()) return;
     state.quoteConfiguration = clone(state.configuration); state.fields = clone(state.currentFields);
     resetProjectPricing(); renderInputs(); updateDirty(); scheduleCalculation();
     window.CeasefirePenetrations?.pricingChanged();
@@ -2523,8 +2555,8 @@
       const row = node("article", "project-list-row"); row.dataset.projectId = file.id;
       const title = node("button", "project-title-button", file.title || file.name);
       title.type = "button";
-      window.CeasefireI18n.attr(title, "aria-label", "Browse files for {0}", [file.title || file.name]);
-      title.addEventListener("click", () => openProjectBrowser(file));
+      window.CeasefireI18n.attr(title, "aria-label", "Open {0}", [file.title || file.name]);
+      title.addEventListener("click", () => openProjectFile(file, title, null, {landingView:"quotes"}));
       const heading = node("div", "project-row-heading");
       const detailsToggle = node("button", "project-details-toggle", "<");
       detailsToggle.type = "button";
@@ -2553,13 +2585,13 @@
       toggle.append(uiNode("span", "", "Actions"), chevron);
       const actions = node("div", "project-menu-options"), needsEstimate = [];
       for (const [label, action, requiresEstimate] of [
-        ["Open", button => openProjectFile(file, button, estimateSelect.value), true],
+        ["Open", button => openProjectFile(file, button, estimateSelect.value, estimateSelect.value ? {} : {landingView:"quotes"})],
         ["Edit", button => openProjectFile(file, button, estimateSelect.value), true],
         ["Delete", () => deleteProjectCard(file)], ["Browse files", () => openProjectBrowser(file)]
       ]) {
         const button = uiNode("button", "text-button", label); button.type = "button";
         if (requiresEstimate) { button.disabled = true; needsEstimate.push(button); }
-        button.addEventListener("click", () => { if (requiresEstimate && !estimateSelect.value) return; menu.open = false; action(button); });
+        button.addEventListener("click", () => { if (requiresEstimate && !estimateSelect.value) return; menu.open = false; return action(button); });
         actions.append(button);
       }
       estimateSelect.addEventListener("change", () => { for (const button of needsEstimate) button.disabled = !estimateSelect.value; });
@@ -2838,6 +2870,7 @@
     return requestViewNavigation(button.dataset.view);
   });
   for (const card of document.querySelectorAll(".projects-section-card[data-project-section]")) card.addEventListener("click", () => requestViewNavigation(card.dataset.projectSection));
+  for (const button of projectPages?.querySelectorAll("[data-project-section]") || []) button.addEventListener("click", () => requestViewNavigation(button.dataset.projectSection));
   for (const card of document.querySelectorAll(".projects-section-card[data-document-section]")) card.addEventListener("click", () => requestViewNavigation(card.dataset.documentSection));
   for (const card of document.querySelectorAll("[data-steel-calculator]")) card.addEventListener("click", () => requestCalculatorNavigation(card.dataset.steelCalculator));
   setupCalculatorNavigation();
@@ -2999,7 +3032,7 @@
     }
     throw new Error("The project was saved, but could not be opened automatically. Open it from Projects.");
   }
-  window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus, scheduleChanged, hasCreatedProject, requireCreatedProject, createProject, discardNewProject,
+  window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus, scheduleChanged, hasCreatedProject, requireCreatedProject, createProject, discardNewProject, refreshPages: refreshProjectPages,
     projectPaneSnapshot: () => ({details:quoteDetails(), context:state.quoteContext, file:state.projectFile ? clone(state.projectFile) : null, busy:state.projectBusy}),
     applyProjectPaneDraft(details, context) {
       if (context !== state.quoteContext) throw new Error("The current project changed. Open its details again.");

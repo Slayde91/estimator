@@ -1,3 +1,4 @@
+const {showEstimateNotes}=require('./estimate_notes.cjs');
 // Real first-save numbering and client history, using disposable native targets.
 const {chromium,expect}=require('@playwright/test');
 const {spawn,spawnSync}=require('node:child_process');
@@ -28,7 +29,7 @@ async function settings(prefix,start){await page.locator('nav [data-view="settin
  const first=await save();assert.equal(first.project.estimate.project_no,'PN-01');await expect(page.locator('#project-no')).toHaveValue('PN-01');
  assert.equal(JSON.parse(fs.readFileSync(info.project)).estimate.project_no,'PN-01');await expect(page.locator('#previous-project-clients option')).toHaveCount(3);
  await settings('PK',42);await expect(page.locator('#project-number-next')).toContainText('PK-42');await estimate();await expect(page.locator('#project-no')).toHaveValue('PN-01');
- await page.locator('#measurements').fill('An existing project retains its number');await page.locator('#measurements').blur();await idle();assert.equal((await save()).project.estimate.project_no,'PN-01');
+ await showEstimateNotes(page);await page.locator('#measurements').fill('An existing project retains its number');await page.locator('#measurements').blur();await idle();assert.equal((await save()).project.estimate.project_no,'PN-01');
  fs.renameSync(info.project,path.join(output,'first-saved-project.cf.json'));
  const second=await createNewProject(page,{client:'Beta'});assert.equal(second.project.estimate.project_no,'PK-42');await expect(page.locator('#project-no')).toHaveValue('PK-42');
  await settings('PK',1);await expect(page.locator('#project-number-next')).toContainText('PK-43');

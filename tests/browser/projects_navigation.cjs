@@ -80,6 +80,20 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   await menu.locator('[data-project-section="quotes"]').click();
   await expect(page.locator('#view-quotes')).toBeVisible();
   await page.mouse.move(0,0);await expect(menu).toBeHidden();
+  const tabs=page.locator('#project-pages'),sections=['quotes','quote','work-orders','purchase-orders'];
+  assert.deepEqual(await tabs.locator('button').allTextContents(),['Projects','Quotes','Work Orders','Purchase Orders']);
+  const tabStyles=nav=>{const style=getComputedStyle(nav);return Object.fromEntries(['height','minHeight','paddingTop','paddingBottom','alignItems','backgroundColor'].map(key=>[key,style[key]]));};
+  await page.locator('#contacts-navigation-toggle').click();await expect(page.locator('.contacts-tabs')).toBeVisible();
+  const contactsTabStyles=await page.locator('.contacts-tabs').evaluate(tabStyles);
+  await openProjectSection(page,'quotes');assert.deepEqual(await tabs.evaluate(tabStyles),contactsTabStyles,'Project tabs share Contacts tab styling');
+  for(const section of [...sections,'quotes']){
+    await tabs.locator(`[data-project-section="${section}"]`).click();await idle();
+    await expect(page.locator('#view-'+section)).toBeVisible();await expect(tabs).toBeVisible();
+    await expect(tabs.locator('[aria-current="page"]')).toHaveAttribute('data-project-section',section);
+    assert.equal(await tabs.evaluate(nav=>nav.previousElementSibling?.classList.contains('page-heading')),true,'Tabs follow the active page heading');
+    assert.equal(await page.locator('#project-pages').count(),1);assert.deepEqual(await snapshot(),draftBefore);
+  }
+  evidence.checks.push('Projects tabs open all four sections, retain one navigation element after render, and keep the current Project and drafts');
   await headerDestination('quotes');assert.deepEqual(await snapshot(),draftBefore);
   await home();await page.locator('[data-home-view="projects"]').click();await expectHub();
   await headerDestination('quotes');await headerDestination('certification');
@@ -113,6 +127,10 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
       await page.screenshot({path:path.join(output,`${owner}-menu-${width}.png`)});evidence.widths.push({owner,width,bounds});await page.keyboard.press('Escape');
     }
     await openProjectSection(page,'quotes');await headerDestination('quotes');
+    const tabGeometry=await tabs.evaluate(nav=>({width:nav.getBoundingClientRect().width,left:nav.getBoundingClientRect().left,viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth,buttons:[...nav.children].map(button=>({height:button.getBoundingClientRect().height,padding:getComputedStyle(button).padding,font:getComputedStyle(button).font,background:getComputedStyle(button).backgroundColor}))}));
+    assert.ok(tabGeometry.left>=0&&tabGeometry.width<=width&&tabGeometry.scrollWidth<=width,JSON.stringify(tabGeometry));
+    assert.ok(tabGeometry.buttons.every(button=>button.height===tabGeometry.buttons[0].height),JSON.stringify(tabGeometry));
+    evidence.widths.push({owner:'project-tabs',width,...tabGeometry});
     await openProjectSection(page,'certification');await headerDestination('certification');
     await openProjectSection(page,'documentation');await idle();await headerDestination('documentation');await idle();
     assert.deepEqual(await snapshot(),draftBefore,'Responsive navigation retains certificate draft, estimate details and pricing');

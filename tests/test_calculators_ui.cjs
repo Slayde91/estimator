@@ -27,7 +27,6 @@ function element(tag = 'div') {
   };
 }
 const byId = id => { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); };
-byId('calculator-workspace').append(Object.assign(element('p'), {className: 'eyebrow'}));
 const context = {
   document: { getElementById: byId, createElement: element, body: element(), activeElement: null },
   window: { addEventListener() {}, location: { origin: 'http://127.0.0.1:8765' } },
@@ -364,7 +363,8 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.equal(loads,1);firstDefinition.resolve(sourceDefinition);await Promise.all([firstOpen,secondOpen]);
   const retained = audit.current(); audit.setInput(retained, 'CALCULATOR', 'B9', 33);
   assert.equal(firstWorksheets,1);assert.equal(audit.state.definitionRequests.size,0);
-  assert.equal(byId('calculator-workspace').querySelector('.eyebrow').textContent, 'STEEL CALCULATOR');
+  assert.equal(byId('calculator-title').textContent, sourceDefinition.title);
+  assert.equal(byId('calculator-workspace').querySelector('.eyebrow'), null);
   assert.equal(audit.current(), retained);assert.equal(audit.current().inputs.CALCULATOR.B9,33);assert.equal(sourceDefinition.inputs.CALCULATOR.B9,2);passed++;
 
   // Concurrent section opens coalesce list and definition requests; only the newest navigates.

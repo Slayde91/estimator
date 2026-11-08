@@ -146,8 +146,6 @@ main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh -
 .fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
 .two-columns{grid-template-columns:repeat(2,minmax(0,1fr))}
 .project-fields{grid-template-columns:minmax(110px,.65fr) minmax(150px,1fr) minmax(220px,1.7fr)}
-.estimate-project-fields{grid-template-columns:minmax(110px,1fr) minmax(0,2fr)}
-.estimate-project-fields .project-notes{grid-column:auto}
 .field{display:block;min-width:0}
 .field>span:first-child{display:block;font-size:12px;font-weight:650;margin-bottom:7px;color:#574650}
 .optional{font-size:10px;font-weight:400;color:var(--muted);margin-left:5px}
@@ -405,7 +403,6 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .takeoff-pdf-tools-menu .calculator-document-action>svg{flex:none}
 
 .project-fields .project-notes{grid-column:span 2}
-.estimate-project-fields .project-notes{grid-column:auto}
 .project-fields .project-notes textarea{min-height:46px;resize:vertical}
 @media(max-width:1020px){.project-fields .project-notes{grid-column:auto}}
 
@@ -484,6 +481,16 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 @media(max-width:880px){.estimate-banner-heading>.actions{width:100%}#firestopping-document-actions{right:0;left:auto}}
 
 .project-estimate-controls{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin:0 0 20px}.project-estimate-controls>.field{min-width:110px;max-width:100%;flex:0 0 220px}.project-card-estimate{margin-top:12px;font-size:11px}.project-card-estimate select{margin-top:5px;font-size:12px}#project-estimate-dialog .actions{margin-top:20px}
+.project-estimate-controls>.estimate-quantity-controls{flex:0 1 160px;min-width:110px;max-width:100%}
+.estimate-quantity-controls>.field{margin:0}
+.estimate-notes-section{margin-top:20px;padding-top:20px;border-top:1px solid var(--line)}
+.estimate-notes-section .project-notes>span:first-child{font-size:14px;font-weight:700}
+.estimate-notes-section textarea{min-height:76px;resize:vertical}
+#project-pages.project-tabs{width:fit-content;max-width:100%;height:40px;min-height:40px;padding:0;margin:0 0 18px;flex-wrap:nowrap;align-items:stretch;overflow-x:auto;background:#0C0B0E}
+#project-pages .calculator-page{flex:0 0 auto;min-width:0;padding-block:0;display:flex;align-items:center;justify-content:center;white-space:nowrap}
+#project-pages .calculator-page[aria-pressed="false"]:not(:hover){background:transparent;color:#e5e7eb}
+#view-quotes #snapshot-message{margin:0 0 18px;flex-wrap:wrap}
+#project-pricing-context{flex-basis:100%;overflow-wrap:anywhere}
 .project-estimate-controls .field>label{display:block;font-size:12px;font-weight:650;margin-bottom:7px}
 .project-estimate-controls>.calculator-document-menu>.calculator-document-toggle{height:calc(1.5em + 24px);min-height:0;padding-block:0}
 @media(max-width:570px){.project-estimate-controls>.calculator-document-menu>.calculator-document-toggle{height:calc(1.5em + 22px)}}

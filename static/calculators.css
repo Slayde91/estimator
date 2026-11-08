@@ -126,6 +126,7 @@
 .calculator-grid .calculator-form-table input,.calculator-grid .calculator-form-table select{min-width:0;width:100%}
 .calculator-overview{padding:22px 26px;background:linear-gradient(135deg,#fff9f1,#fff);border-top:1px solid #ecdcd3;display:flex;gap:9px 16px;flex-wrap:wrap;align-items:center}
 .calculator-overview h3{width:100%;font-size:19px;background:var(--calculator-section-bg);color:var(--calculator-section-ink);padding:21px 22px;border-bottom:4px solid var(--red);font-weight:750;margin-bottom:6px}
+#calculator-workspace[data-calculator-kind="ductwork"] .calculator-overview h3.calculator-overview-title{font-size:14px;line-height:22px;min-height:58px;padding:16px 22px}
 .calculator-overview p{margin:0;color:#6a505a;font-size:12px;line-height:1.75}
 .calculator-overview .calculator-overview-note,.calculator-overview .calculator-overview-body{width:100%}
 .calculator-overview .calculator-overview-label{font-size:10px;text-transform:uppercase;letter-spacing:.7px;font-weight:750;color:#875c4d}

@@ -2845,7 +2845,6 @@ window.CeasefireScheduleColumns = (() => {
       }
       state.current = id; ++state.requestRevision; clearTimeout(state.timer);
       $("calculator-workspace").hidden = false; $("calculator-workspace").dataset.calculatorKind = entry.definition.id; window.CeasefireI18n.text($("calculator-title"), factorView ? "Factor Calcs" : entry.definition.id === "ductwork" ? "Duct" : entry.definition.title);
-      window.CeasefireI18n.text($("calculator-workspace").querySelector(".eyebrow"), entry.definition.id === "ductwork" ? "DUCT CALCULATOR" : "STEEL CALCULATOR");
       window.CeasefireI18n.text($("calculator-sheet-title"), pageDefinition(entry).label);
       renderChoices(); renderPages(entry); renderDocuments(entry); updateStatus(entry); message();
       await navigateWorksheet(entry);

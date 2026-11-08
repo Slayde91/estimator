@@ -1,3 +1,4 @@
+const {showEstimateNotes}=require('./estimate_notes.cjs');
 // Presentation-only acceptance against a disposable server, never port 8765.
 const { chromium, expect } = require('@playwright/test');
 const { chooseCalculator } = require('./calculator_actions.cjs');
@@ -195,7 +196,7 @@ async function readableMidnightIcon(control, transfer = false) {
   await expect(page.locator('#project-pane-number')).toBeVisible();
   await expect(page.locator('#project-pane-number')).toHaveAttribute('readonly','');
   await estimateView();
-  await expect(page.locator('#project-no')).toHaveAttribute('readonly',''); await page.locator('#measurements').fill('Pending notes are preserved across every theme.');
+  await expect(page.locator('#project-no')).toHaveAttribute('readonly',''); await showEstimateNotes(page);await page.locator('#measurements').fill('Pending notes are preserved across every theme.');
   await page.locator('#measurements').press('Tab'); await idle(); await page.waitForLoadState('networkidle');
   const before=await snapshot(), requestCount=mutationRequests.length, buttonColors=new Set(), footerText=await page.locator('footer').innerText();
   for(const id of ['ceasefire','midnight','ocean','forest','slate']) {

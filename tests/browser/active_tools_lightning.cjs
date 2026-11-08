@@ -36,8 +36,9 @@ const paint=locator=>locator.evaluate(el=>{const c=getComputedStyle(el),r=el.get
   if(name==='Firestopping')await expect(page.locator('#penetration-heading')).toHaveCSS('font-size','23px');
   for(const width of [1384,390]){
    await page.setViewportSize({width,height:900});
-   const value=await page.locator(selector).evaluate(el=>{const bolt=el.querySelector('.calculator-heading-lightning'),r=bolt.getBoundingClientRect(),slot=el.querySelector('.calculator-heading-art-slot').getBoundingClientRect(),art=[...el.querySelectorAll('.workspace-header-art,.penetration-workspace-art')].find(n=>getComputedStyle(n).display!=='none'),a=art?.getBoundingClientRect();return{display:getComputedStyle(bolt).display,width:r.width,height:r.height,artGap:a?getComputedStyle(el).direction==='rtl'?slot.right-a.right:a.left-slot.left:null};});
-   assert.equal(value.display,'none','Calculator lightning is hidden');assert.equal(value.width,0);assert.equal(value.height,0);if(value.artGap!==null)assert.ok(Math.abs(value.artGap-18)<.1,'Artwork follows the copy without the former bolt gap');evidence.push({name,width,...value});
+   await expect(page.locator(selector).locator('.calculator-heading-lightning,.calculator-heading-art-slot,.workspace-header-art,.penetration-workspace-art,.eyebrow')).toHaveCount(0);
+   const value=await page.locator(selector).evaluate(el=>{const title=el.querySelector('h1,h2'),r=title.getBoundingClientRect();return{title:title.textContent,width:r.width,height:r.height,overflow:document.documentElement.scrollWidth-innerWidth};});
+   assert.ok(value.width>0&&value.height>0,'The actual calculator heading remains visible');assert.ok(value.overflow<=1);evidence.push({name,width,...value});
   }
  }
  assert.deepEqual(await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot()),before,'Visual selection and calculator navigation preserve the drawing');assert.deepEqual(errors,[]);

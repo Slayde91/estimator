@@ -859,7 +859,7 @@ async function penetrationCheck(name, fn) {
     assert.match(h.byId('project-list-status').textContent,/120 matching projects/);assert.equal(h.byId('project-continue').hidden,false);
     assert.equal(h.byId('project-previous').disabled,true);assert.equal(h.byId('project-next').disabled,true);
   });
-  await check('Clicking a project name browses folders and opens files through opaque project requests', async h => {
+  await check('Browse files remains an explicit action and opens files through opaque project requests', async h => {
     const calls=[];
     h.app.setRequest(async(path,options)=>{
       const body=options?.body?JSON.parse(options.body):null;calls.push({path,body});
@@ -869,9 +869,10 @@ async function penetrationCheck(name, fn) {
       if(path==='/api/projects/open-file')return {opened:true,name:'site.jpg',relative_path:'Photos/site.jpg'};
       throw new Error(`Unexpected ${path}`);
     });
-    await h.app.loadProjects();const heading=h.byId('project-list').children[0].children[0].children[0],title=heading.children[1];
+    await h.app.loadProjects();const row=h.byId('project-list').children[0],heading=row.children[0].children[0],title=heading.children[1];
     assert.equal(heading.children[0].textContent,'<');assert.equal(heading.children[0].getAttribute('aria-expanded'),'false');
-    assert.equal(title.textContent,'Quote files');assert.match(title.getAttribute('aria-label'),/Browse files/);await title.emit('click');
+    assert.equal(title.textContent,'Quote files');assert.equal(title.getAttribute('aria-label'),'Open Quote files');
+    await row.children[2].children[0].children[1].children.find(button=>button.textContent==='Browse files').emit('click');
     assert.equal(h.byId('project-list-card').hidden,true);assert.equal(h.byId('project-browser').hidden,false);assert.equal(h.byId('project-browser-list').children.length,2);
     await h.byId('project-browser-list').children[0].emit('click');assert.equal(h.app.state.projectBrowserPath,'Photos');
     const file=h.byId('project-browser-list').children[0];assert.equal(file.children[1].textContent,'site.jpg');await file.emit('click');
@@ -879,6 +880,36 @@ async function penetrationCheck(name, fn) {
     assert.deepEqual(calls.at(-1).body,{id:'opaque-project',relative_path:'Photos/site.jpg'});assert.match(h.byId('project-browser-message').textContent,/default application/);
     await h.byId('refresh-quotes').emit('click');assert.equal(calls.at(-1).path,'/api/projects/files');assert.equal(calls.at(-1).body.relative_path,'Photos');
     await h.byId('project-browser-close').emit('click');assert.equal(h.byId('project-browser').hidden,true);assert.equal(h.byId('project-list-card').hidden,false);
+  });
+  for (const control of ['title','Open']) await check(`${control} loads a saved Project without choosing an Estimate or opening its file browser`, async h => {
+    const file={id:'opaque-project',name:'Project.cf.json',title:'Saved Project',path:'C:/Estimates/Project.cf.json',save_token:'receipt',modified_at:'2026-09-17T00:00:00Z'},calls=[];
+    h.app.state.currentView='quotes';h.app.state.projectCards=[file];h.app.renderProjectList();
+    h.app.setRequest(async(path,options)=>{calls.push({path,body:options?.body?JSON.parse(options.body):null});return path==='/api/projects/load'?{...project(),file}:{files:[file],total:1,matched:1,errors:[]};});
+    const row=h.byId('project-list').children[0],actions=row.children[2].children[0].children[1].children;
+    assert.notEqual(actions.find(button=>button.textContent==='Open').disabled,true);
+    assert.equal(actions.find(button=>button.textContent==='Edit').disabled,true);
+    const button=control==='title'?row.children[0].children[0].children[1]:actions.find(button=>button.textContent===control);
+    const opening=button.emit('click');await flush();assert.equal(h.byId('discard-dialog').open,true);await h.byId('discard-dialog').close('confirm');await opening;await flush();
+    assert.deepEqual(calls[0],{path:'/api/projects/load',body:{id:'opaque-project'}});
+    assert.ok(calls.every(call=>!call.path.includes('/files')));assert.equal(h.app.state.currentView,'quotes');
+    assert.equal(h.app.state.projectFile.path,file.path);assert.equal(h.app.state.projectFile.save_token,file.save_token);
+    assert.equal(h.byId('measurements').value,'Imported notes');assert.equal(h.app.state.dirty,false);
+    assert.equal(h.byId('project-pricing-context').textContent,'Imported project');
+  });
+  await check('A cancelled Project pane leave blocks title loading and preserves current pricing identity',async h=>{
+    const file={id:'other-project',title:'Another Project'},loaded={title:'Loaded Project',path:'C:/Loaded.cf.json'};
+    h.app.state.projectFile=loaded;h.app.state.projectCards=[file];h.app.renderProjectList();h.app.updateProjectStatus();
+    h.context.window.CeasefireProjectPane={leave:async()=>false};let reads=0;h.app.setRequest(async()=>{reads++;});
+    const before=h.snapshot();await h.byId('project-list').children[0].children[0].children[0].children[1].emit('click');
+    assert.equal(reads,0);assert.deepEqual(h.snapshot(),before);assert.equal(h.byId('project-pricing-context').textContent,'Loaded Project');
+  });
+  await check('Use current pricing cannot apply a confirmation captured for a different loaded Project',async h=>{
+    h.app.switchPricingScope('project');h.app.state.draft.rates.frozen.price=777;
+    h.app.state.projectFile={title:'First Project',path:'C:/First.cf.json'};h.app.updateProjectStatus();
+    const using=h.app.useCurrentPricing();await flush();assert.equal(h.byId('discard-dialog').open,true);
+    h.app.state.projectFile={title:'Replacement Project',path:'C:/Replacement.cf.json'};h.app.state.quoteContext++;
+    h.app.updateProjectStatus();const before=h.snapshot();await h.byId('discard-dialog').close('confirm');await using;
+    assert.deepEqual(h.snapshot(),before);assert.equal(h.byId('project-pricing-context').textContent,'Replacement Project');
   });
   await check('Late folder search cannot replace a newer search result', async h => {
     const pending=deferred();let count=0;h.app.setRequest(()=>++count===1?pending.promise:Promise.resolve({files:[],folder:'New folder',total:0,matched:0,errors:[]}));

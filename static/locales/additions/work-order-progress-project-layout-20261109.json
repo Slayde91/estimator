@@ -1,0 +1,252 @@
+{
+  "Complete Name, Phone, Company, Email and Site address before converting this Lead.": [
+    "이 잠재 고객을 전환하기 전에 이름, 전화번호, 회사, 이메일 및 현장 주소를 입력하세요.",
+    "Punan ang Pangalan, Telepono, Kumpanya, Email at Address ng lugar bago i-convert ang Lead na ito.",
+    "Điền đầy đủ Tên, Điện thoại, Công ty, Email và Địa chỉ công trường trước khi chuyển đổi khách hàng tiềm năng này."
+  ],
+  "Quotes": [
+    "견적",
+    "Mga quote",
+    "Báo giá"
+  ],
+  "Work Orders": [
+    "작업 지시서",
+    "Mga utos sa trabaho",
+    "Lệnh công việc"
+  ],
+  "Purchase Orders": [
+    "구매 주문서",
+    "Mga purchase order",
+    "Đơn đặt hàng"
+  ],
+  "Open {0}": [
+    "{0} 열기",
+    "Buksan ang {0}",
+    "Mở {0}"
+  ],
+  "Project pages": [
+    "프로젝트 페이지",
+    "Mga pahina ng proyekto",
+    "Các trang dự án"
+  ],
+  "% completed": [
+    "% 완료",
+    "% natapos",
+    "% hoàn thành"
+  ],
+  "% claimed": [
+    "% 청구",
+    "% siningil",
+    "% đã đề nghị thanh toán"
+  ],
+  "% completed {0}": [
+    "% 완료 {0}",
+    "% natapos {0}",
+    "% hoàn thành {0}"
+  ],
+  "% claimed {0}": [
+    "% 청구 {0}",
+    "% siningil {0}",
+    "% đã đề nghị thanh toán {0}"
+  ],
+  "Progress signed by": [
+    "진행 상황 서명자",
+    "Nilagdaan ang progreso ni",
+    "Người ký tiến độ"
+  ],
+  "Progress signed by name": [
+    "진행 상황 서명자 이름",
+    "Pangalan ng lumagda sa progreso",
+    "Tên người ký tiến độ"
+  ],
+  "Sign Progress signed by": [
+    "작업 진행 상황 서명",
+    "Lagdaan ang progreso",
+    "Ký xác nhận tiến độ"
+  ],
+  "Change Progress signed by": [
+    "진행 상황 서명 변경",
+    "Baguhin ang lagda sa progreso",
+    "Thay đổi chữ ký tiến độ"
+  ],
+  "Clear Progress signed by": [
+    "진행 상황 서명 지우기",
+    "I-clear ang lagda sa progreso",
+    "Xóa chữ ký tiến độ"
+  ],
+  "Delete Progress signed by": [
+    "진행 상황 서명 삭제",
+    "Tanggalin ang lagda sa progreso",
+    "Xóa bỏ chữ ký tiến độ"
+  ],
+  "Closed by name": [
+    "종료 담당자 이름",
+    "Pangalan ng nagsara",
+    "Tên người đóng"
+  ],
+  "Sign Closed by": [
+    "종료 서명",
+    "Lagdaan ang pagsasara",
+    "Ký xác nhận đóng"
+  ],
+  "Change Closed by": [
+    "종료 서명 변경",
+    "Baguhin ang lagda sa pagsasara",
+    "Thay đổi chữ ký đóng"
+  ],
+  "Clear Closed by": [
+    "종료 서명 지우기",
+    "I-clear ang lagda sa pagsasara",
+    "Xóa chữ ký đóng"
+  ],
+  "Delete Closed by": [
+    "종료 서명 삭제",
+    "Tanggalin ang lagda sa pagsasara",
+    "Xóa bỏ chữ ký đóng"
+  ],
+  "Previous notes": [
+    "이전 메모",
+    "Mga naunang tala",
+    "Ghi chú trước đây"
+  ],
+  "Certification issued": [
+    "인증서 발급됨",
+    "Naibigay ang sertipikasyon",
+    "Đã cấp chứng nhận"
+  ],
+  "Certification not issued": [
+    "인증서 미발급",
+    "Hindi pa naibibigay ang sertipikasyon",
+    "Chưa cấp chứng nhận"
+  ],
+  "Completed": [
+    "완료",
+    "Natapos",
+    "Đã hoàn thành"
+  ],
+  "Ongoing": [
+    "진행 중",
+    "Kasalukuyan",
+    "Đang thực hiện"
+  ],
+  "On hold": [
+    "보류",
+    "Nakahinto muna",
+    "Tạm dừng"
+  ],
+  "Not completed": [
+    "미완료",
+    "Hindi pa natapos",
+    "Chưa hoàn thành"
+  ],
+  "Select an issued Quote to track work.": [
+    "작업을 추적하려면 발행된 견적을 선택하세요.",
+    "Pumili ng naisyung quote para subaybayan ang trabaho.",
+    "Chọn báo giá đã phát hành để theo dõi công việc."
+  ],
+  "The original issued Quote rows are unavailable.": [
+    "발행된 원본 견적의 항목을 사용할 수 없습니다.",
+    "Hindi available ang mga row ng orihinal na naisyung quote.",
+    "Không có các dòng của báo giá gốc đã phát hành."
+  ],
+  "Record a completed percentage before signing work progress.": [
+    "작업 진행 상황에 서명하기 전에 완료 비율을 입력하세요.",
+    "Ilagay ang porsiyentong natapos bago lagdaan ang progreso ng trabaho.",
+    "Nhập tỷ lệ hoàn thành trước khi ký xác nhận tiến độ công việc."
+  ],
+  "Enter a percentage from 1 to 100, or leave it blank.": [
+    "1에서 100 사이의 비율을 입력하거나 비워 두세요.",
+    "Maglagay ng porsiyento mula 1 hanggang 100, o iwanang blangko.",
+    "Nhập tỷ lệ phần trăm từ 1 đến 100 hoặc để trống."
+  ],
+  "Work tracking uses an unsupported format.": [
+    "작업 추적 형식이 지원되지 않습니다.",
+    "Hindi suportado ang format ng pagsubaybay sa trabaho.",
+    "Định dạng theo dõi công việc không được hỗ trợ."
+  ],
+  "Choose the issued Quote rows for this Work Order.": [
+    "이 작업 지시서에 사용할 발행 견적의 행을 선택하세요.",
+    "Piliin ang mga row ng naisyung quote para sa utos sa trabahong ito.",
+    "Chọn các dòng báo giá đã phát hành cho lệnh công việc này."
+  ],
+  "Work tracking rows contain unsupported fields.": [
+    "작업 추적 행에 지원되지 않는 필드가 있습니다.",
+    "May mga hindi suportadong field ang mga row ng pagsubaybay sa trabaho.",
+    "Các dòng theo dõi công việc chứa trường không được hỗ trợ."
+  ],
+  "Work tracking row identities are invalid.": [
+    "작업 추적 행의 식별자가 올바르지 않습니다.",
+    "Hindi wasto ang mga identifier ng row ng pagsubaybay sa trabaho.",
+    "Mã định danh dòng theo dõi công việc không hợp lệ."
+  ],
+  "The issued Quote row snapshot changed. Reopen this Work Order.": [
+    "발행된 견적 행의 스냅샷이 변경되었습니다. 이 작업 지시서를 다시 여세요.",
+    "Nagbago ang snapshot ng mga row ng naisyung quote. Buksan muli ang utos sa trabahong ito.",
+    "Bản chụp các dòng báo giá đã phát hành đã thay đổi. Hãy mở lại lệnh công việc này."
+  ],
+  "Work tracking belongs to a Work Order.": [
+    "작업 추적은 작업 지시서에 속합니다.",
+    "Ang pagsubaybay sa trabaho ay para sa isang utos sa trabaho.",
+    "Theo dõi công việc thuộc về một lệnh công việc."
+  ],
+  "Work tracking belongs to a different project.": [
+    "작업 추적이 다른 프로젝트에 속합니다.",
+    "Ang pagsubaybay sa trabaho ay kabilang sa ibang proyekto.",
+    "Theo dõi công việc thuộc về một dự án khác."
+  ],
+  "Work tracking must use this Work Order's linked issued Quote.": [
+    "작업 추적에는 이 작업 지시서에 연결된 발행 견적을 사용해야 합니다.",
+    "Dapat gamitin sa pagsubaybay ang naisyung quote na naka-link sa utos sa trabahong ito.",
+    "Theo dõi công việc phải dùng báo giá đã phát hành được liên kết với lệnh công việc này."
+  ],
+  "Reload this application before editing tracked work.": [
+    "추적 중인 작업을 편집하기 전에 이 앱을 다시 로드하세요.",
+    "I-reload ang application bago i-edit ang sinusubaybayang trabaho.",
+    "Tải lại ứng dụng trước khi chỉnh sửa công việc được theo dõi."
+  ],
+  "The original issued Quote rows are unavailable or changed. Reopen this Work Order.": [
+    "원래 발행된 견적의 행을 사용할 수 없거나 변경되었습니다. 이 작업 지시서를 다시 여세요.",
+    "Hindi available o nagbago ang mga row ng orihinal na naisyung quote. Buksan muli ang utos sa trabahong ito.",
+    "Các dòng báo giá gốc đã phát hành không có sẵn hoặc đã thay đổi. Hãy mở lại lệnh công việc này."
+  ],
+  "Choose a listed certification or completion status.": [
+    "목록에서 인증 또는 완료 상태를 선택하세요.",
+    "Pumili ng nakalistang status ng sertipikasyon o pagkumpleto.",
+    "Chọn trạng thái chứng nhận hoặc hoàn thành trong danh sách."
+  ],
+  "Works in Progress": [
+    "진행 중인 작업",
+    "Mga kasalukuyang gawain",
+    "Công việc đang thực hiện"
+  ],
+  "Work Order Claim": [
+    "작업 지시서 청구",
+    "Singil sa utos sa trabaho",
+    "Yêu cầu thanh toán lệnh công việc"
+  ],
+  "Work Order Completion": [
+    "작업 지시서 완료",
+    "Pagkumpleto ng utos sa trabaho",
+    "Hoàn thành lệnh công việc"
+  ],
+  "Certification details": [
+    "인증 세부 정보",
+    "Mga detalye ng sertipikasyon",
+    "Chi tiết chứng nhận"
+  ],
+  "Closed by": [
+    "종료 담당자",
+    "Isinara ni",
+    "Người đóng"
+  ],
+  "Product / Service": [
+    "제품 / 서비스",
+    "Produkto / Serbisyo",
+    "Sản phẩm / Dịch vụ"
+  ],
+  "Unit price": [
+    "단가",
+    "Presyo bawat yunit",
+    "Đơn giá"
+  ]
+}

@@ -41,7 +41,7 @@ const ready = new Promise((resolve, reject) => {
   let state = await directory();
   const person = await api('/api/contacts/contacts', {version: state.version, fields: {name: 'Link Person', company: 'Original Company'}});
   state = await directory();
-  const lead = await api('/api/contacts/leads', {version: state.version, fields: {name: 'Project Contact', company: 'Source Company', site_address: '10 Test Street'}});
+  const lead = await api('/api/contacts/leads', {version: state.version, fields: {name: 'Project Contact', company: 'Source Company', phone: '0400', email: 'project@example.test', site_address: '10 Test Street'}});
   state = await directory();
   const project = await api('/api/contacts/leads/convert', {version: state.version, id: lead.id});
   await expect.poll(async () => {

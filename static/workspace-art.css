@@ -139,10 +139,9 @@
   /* Service Plans has its own landscape scene; Defect Reports keeps its portrait. */
   .takeoff-heading-art--service_plans { aspect-ratio:2.7; max-width:calc(100% - 8px); }
   .takeoff-heading-art--service_plans img { transform:translateY(-50%); }
-  .penetration-banner-heading { position:relative; isolation:isolate; padding-block:12px; min-height:96px; }
+  .penetration-banner-heading { position:relative; isolation:isolate; }
   .penetration-banner-heading > .calculator-heading-copy { max-width:none; }
   .penetration-banner-heading > :not(.penetration-workspace-art) { position:relative; z-index:1; }
-  .penetration-banner-heading > .actions { position:absolute; inset-block-start:0; inset-inline-end:0; }
   .penetration-workspace-art {
     position:absolute; inset-block:-12px; inset-inline:18px auto; width:210px; max-width:calc(100% - 18px); height:calc(100% + 24px);
     margin:0; overflow:hidden; pointer-events:none;

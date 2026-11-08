@@ -1,3 +1,4 @@
+const {showEstimateNotes}=require('./estimate_notes.cjs');
 const {chromium, expect} = require('@playwright/test');
 const {spawn} = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
@@ -24,7 +25,7 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   browser=await chromium.launch({headless:true,...(process.env.CEASEFIRE_BROWSER_PATH?{executablePath:process.env.CEASEFIRE_BROWSER_PATH}:{})});
   page=await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(60000);page.on('pageerror',error=>errors.push(error.message));
   await page.goto(`http://127.0.0.1:${info.port}/`);await idle();await estimate();
-  await expect(page.locator('#project-no')).toHaveAttribute('readonly','');await page.locator('#measurements').fill('First estimate notes');await page.locator('#measurements').blur();await idle();
+  await expect(page.locator('#project-no')).toHaveAttribute('readonly','');await showEstimateNotes(page);await page.locator('#measurements').fill('First estimate notes');await page.locator('#measurements').blur();await idle();
   await chooseTakeoff(page,'Steel');await renderDrawing(page,()=>page.locator('#takeoff-upload').setInputFiles(info.fixture),1);await idle();
   const firstSession=await page.evaluate(()=>window.CeasefireTakeoffs.sessionId());
   const firstDrawing=await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot().documents[0].id);
@@ -34,13 +35,14 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   await expect(page.locator('#project-estimate-select option')).toHaveCount(2);
   const second=await page.locator('#project-estimate-select').inputValue();assert.notEqual(second,'estimate-1');
   await expect(page.locator('#measurements')).toHaveValue('');
-  await page.locator('#measurements').fill('Second estimate notes');await page.locator('#measurements').blur();await idle();
+  await showEstimateNotes(page);await page.locator('#measurements').fill('Second estimate notes');await page.locator('#measurements').blur();await idle();
   await page.locator('#project-estimate-select').selectOption('estimate-1');await idle();
   await expect(page.locator('#measurements')).toHaveValue('First estimate notes');
   assert.equal(await page.evaluate(()=>window.CeasefireTakeoffs.sessionId()),firstSession);
   assert.equal(await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot().documents[0].id),firstDrawing);
   const nameEditor=page.getByRole('textbox',{name:'Estimate name',exact:true});
   await expect(nameEditor).toHaveValue('Estimate 1');await expect(page.locator('#project-estimate-rename')).toHaveCount(0);
+  await nameEditor.scrollIntoViewIfNeeded();
   const hitAreas = await nameEditor.evaluate(input => {
     const box = input.getBoundingClientRect();
     const add = document.getElementById('project-estimate-new').getBoundingClientRect();
@@ -105,6 +107,20 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   await page.locator('#projects-navigation-menu [data-project-section="quotes"]').click();await idle();
   const card=page.locator('.project-list-row').filter({hasText:'PN-01'});
   await expect(card).toHaveCount(1);await expect(card.locator('.project-card-estimate option')).toHaveCount(3);
+  const savedBytes=fs.readFileSync(info.project), loadProject=async click=>{
+    const response=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/projects/load');
+    await click();await page.locator('#discard-dialog').getByRole('button',{name:'Load Project',exact:true}).click();
+    assert.equal((await response).status(),200);await idle();await expect(page.locator('#view-quotes')).toBeVisible();
+    await expect(page.locator('#view-estimate')).toBeHidden();await expect(page.locator('#project-browser')).toBeHidden();
+    assert.equal((await page.evaluate(()=>window.CeasefireProject.context())).project_path,path.resolve(info.project));
+    assert.deepEqual(fs.readFileSync(info.project),savedBytes,'Loading must not rewrite its saved file');
+  };
+  await loadProject(()=>card.locator('.project-title-button').click());
+  await expect(page.locator('#snapshot-message')).toBeVisible();
+  assert.equal(await page.locator('#project-pricing-context').textContent(),await page.locator('#header-project-name').textContent());
+  await expect(page.locator('#view-estimate #snapshot-message')).toHaveCount(0);
+  await card.locator('summary').click();await expect(card.getByRole('button',{name:'Open',exact:true})).toBeEnabled();
+  await loadProject(()=>card.getByRole('button',{name:'Open',exact:true}).click());
   await card.locator('.project-card-estimate select').selectOption(second);await expect(page.locator('#view-quotes')).toBeVisible();
   await card.locator('summary').click();await card.getByRole('button',{name:'Open',exact:true}).click();await idle();
   await expect(page.locator('#measurements')).toHaveValue('Second estimate notes');
@@ -119,5 +135,5 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   await expect(page.locator('#commercial-quote-root').getByLabel('Project number',{exact:true})).toHaveValue('PN-01');
   await expect(page.locator('#measurements')).toHaveValue('Second estimate notes');
   await page.screenshot({path:path.join(output,'multiple-estimates.png'),fullPage:true});assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({passed:true,output,checks:['create','rename','switch keeps notes','inactive takeoff session retained','save all estimates','reload restores inactive drawings','Document matches Create Quote/SWMS heights and its menu fits across desktop and mobile breakpoints'],controlHeights}));
+  console.log(JSON.stringify({passed:true,output,checks:['create','rename','switch keeps notes','inactive takeoff session retained','save all estimates','reload restores inactive drawings','title and unselected Open load the Project in Projects without rewriting its file','selected-Estimate Open retains the selected notes','pricing snapshot notice belongs to the loaded Project in Projects','Document matches Create Quote/SWMS heights and its menu fits across desktop and mobile breakpoints'],controlHeights}));
 })().catch(async error=>{console.error(error);fs.writeFileSync(path.join(output,'failure.txt'),`${error.stack}\n${logs}`);if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();server.kill();});

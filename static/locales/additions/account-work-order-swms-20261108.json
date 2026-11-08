@@ -1,0 +1,142 @@
+{
+  "Finish the current Account action first.": [
+    "현재 계정 작업을 먼저 완료하세요.",
+    "Tapusin muna ang kasalukuyang aksyon sa account.",
+    "Hãy hoàn tất thao tác tài khoản hiện tại trước."
+  ],
+  "Discard changes to this account?": [
+    "이 계정의 변경 사항을 버리시겠습니까?",
+    "Itapon ang mga pagbabago sa account na ito?",
+    "Bỏ các thay đổi đối với tài khoản này?"
+  ],
+  "The Account changed during review. Check the current changes and try again.": [
+    "검토 중 계정이 변경되었습니다. 현재 변경 사항을 확인하고 다시 시도하세요.",
+    "Nagbago ang account habang sinusuri. Tingnan ang kasalukuyang mga pagbabago at subukang muli.",
+    "Tài khoản đã thay đổi trong khi xem xét. Kiểm tra các thay đổi hiện tại rồi thử lại."
+  ],
+  "Quote note": [
+    "견적 메모",
+    "Tala sa quotation",
+    "Ghi chú báo giá"
+  ],
+  "Linked Work Orders": [
+    "연결된 작업 지시서",
+    "Mga naka-link na work order",
+    "Lệnh công việc được liên kết"
+  ],
+  "Reviewed by name": [
+    "검토자 이름",
+    "Pangalan ng tagasuri",
+    "Tên người rà soát"
+  ],
+  "Prepared by name": [
+    "작성자 이름",
+    "Pangalan ng naghanda",
+    "Tên người lập"
+  ],
+  "Approved by name": [
+    "승인자 이름",
+    "Pangalan ng nag-apruba",
+    "Tên người phê duyệt"
+  ],
+  "Finish the current document operation first.": [
+    "현재 문서 작업을 먼저 완료하세요.",
+    "Tapusin muna ang kasalukuyang aksyon sa dokumento.",
+    "Hãy hoàn tất thao tác tài liệu hiện tại trước."
+  ],
+  "Choose up to 16 files, 12 MiB per file and 32 MiB per document.": [
+    "파일은 최대 16개, 파일당 12 MiB, 문서당 총 32 MiB까지 선택하세요.",
+    "Pumili ng hanggang 16 file, 12 MiB bawat file at 32 MiB bawat dokumento.",
+    "Chọn tối đa 16 tệp, mỗi tệp tối đa 12 MiB và mỗi tài liệu tối đa 32 MiB."
+  ],
+  "Only Quotes and Work Orders support file attachments.": [
+    "견적서와 작업 지시서만 파일 첨부를 지원합니다.",
+    "Mga quotation at work order lang ang sumusuporta sa mga attachment.",
+    "Chỉ báo giá và lệnh công việc hỗ trợ tệp đính kèm."
+  ],
+  "A Quote or Work Order supports up to 200 notes.": [
+    "견적서 또는 작업 지시서에는 메모를 최대 200개 추가할 수 있습니다.",
+    "Maaaring magkaroon ng hanggang 200 tala ang isang quotation o work order.",
+    "Một báo giá hoặc lệnh công việc hỗ trợ tối đa 200 ghi chú."
+  ],
+  "Choose a Quote or Work Order attachment.": [
+    "견적서 또는 작업 지시서 첨부 파일을 선택하세요.",
+    "Pumili ng attachment ng quotation o work order.",
+    "Chọn tệp đính kèm của báo giá hoặc lệnh công việc."
+  ],
+  "Attachment not found on this document.": [
+    "이 문서에서 첨부 파일을 찾을 수 없습니다.",
+    "Hindi nakita ang attachment sa dokumentong ito.",
+    "Không tìm thấy tệp đính kèm trong tài liệu này."
+  ],
+  "Open the Quote or Work Order before adding a note.": [
+    "메모를 추가하기 전에 견적서 또는 작업 지시서를 여세요.",
+    "Buksan ang quotation o work order bago magdagdag ng tala.",
+    "Mở báo giá hoặc lệnh công việc trước khi thêm ghi chú."
+  ],
+  "Your signature profile changed. Reopen the signature pad.": [
+    "서명 프로필이 변경되었습니다. 서명 패드를 다시 여세요.",
+    "Nagbago ang iyong profile ng lagda. Buksan muli ang signature pad.",
+    "Hồ sơ chữ ký của bạn đã thay đổi. Hãy mở lại bảng ký."
+  ],
+  "Sign Reviewed by": [
+    "서명: 검토자",
+    "Lumagda: Tagasuri",
+    "Ký: Người rà soát"
+  ],
+  "Change Reviewed by": [
+    "서명 변경: 검토자",
+    "Palitan ang lagda: Tagasuri",
+    "Đổi chữ ký: Người rà soát"
+  ],
+  "Clear Reviewed by": [
+    "서명 및 정보 지우기: 검토자",
+    "Alisin ang lagda at detalye: Tagasuri",
+    "Xóa chữ ký và thông tin: Người rà soát"
+  ],
+  "Delete Reviewed by": [
+    "서명 및 정보 삭제: 검토자",
+    "Tanggalin ang lagda at detalye: Tagasuri",
+    "Xóa chữ ký và thông tin: Người rà soát"
+  ],
+  "Sign Prepared by": [
+    "서명: 작성자",
+    "Lumagda: Naghanda",
+    "Ký: Người lập"
+  ],
+  "Change Prepared by": [
+    "서명 변경: 작성자",
+    "Palitan ang lagda: Naghanda",
+    "Đổi chữ ký: Người lập"
+  ],
+  "Clear Prepared by": [
+    "서명 및 정보 지우기: 작성자",
+    "Alisin ang lagda at detalye: Naghanda",
+    "Xóa chữ ký và thông tin: Người lập"
+  ],
+  "Delete Prepared by": [
+    "서명 및 정보 삭제: 작성자",
+    "Tanggalin ang lagda at detalye: Naghanda",
+    "Xóa chữ ký và thông tin: Người lập"
+  ],
+  "Sign Approved by": [
+    "서명: 승인자",
+    "Lumagda: Nag-apruba",
+    "Ký: Người phê duyệt"
+  ],
+  "Change Approved by": [
+    "서명 변경: 승인자",
+    "Palitan ang lagda: Nag-apruba",
+    "Đổi chữ ký: Người phê duyệt"
+  ],
+  "Clear Approved by": [
+    "서명 및 정보 지우기: 승인자",
+    "Alisin ang lagda at detalye: Nag-apruba",
+    "Xóa chữ ký và thông tin: Người phê duyệt"
+  ],
+  "Delete Approved by": [
+    "서명 및 정보 삭제: 승인자",
+    "Tanggalin ang lagda at detalye: Nag-apruba",
+    "Xóa chữ ký và thông tin: Người phê duyệt"
+  ]
+}

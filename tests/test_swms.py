@@ -319,7 +319,9 @@ class SwmsPdfTests(unittest.TestCase):
         fields = default_fields({'project_no': 'CF-PDF', 'site_address': '<script>literal</script>'})
         pdf = render_swms_pdf({'version': 3, 'fields': fields}, company=DEFAULTS)
         reader = PdfReader(BytesIO(pdf))
-        self.assertEqual(len(reader.pages), 13)
+        self.assertEqual(len(reader.pages), 10)
+        self.assertIn('Job Reference', reader.pages[0].extract_text())
+        self.assertNotIn('Prepared by:', reader.pages[0].extract_text())
         for index, page in enumerate(reader.pages, 1):
             self.assertGreater(float(page.mediabox.width), float(page.mediabox.height))
             text = page.extract_text()
@@ -328,7 +330,7 @@ class SwmsPdfTests(unittest.TestCase):
                               fonts.append(str((font or {}).get('/BaseFont', ''))) if value.strip() else None)
             self.assertTrue(fonts)
             self.assertTrue(all('Montserrat' in font for font in fonts), (index, fonts))
-            self.assertIn(f'Page {index} of 13', text)
+            self.assertIn(f'Page {index} of {len(reader.pages)}', text)
             self.assertNotIn('Printed version is uncontrolled', text)
             self.assertNotIn('Filepath:', text)
             self.assertNotIn('Form Version:', text)
@@ -338,7 +340,7 @@ class SwmsPdfTests(unittest.TestCase):
             page.extract_text(visitor_text=lambda text, cm, tm, font, size: positions.append((text, cm[4] + tm[4])) if text.startswith('Page ') else None)
             self.assertEqual(len(positions), 1)
             self.assertAlmostEqual(positions[0][1], 39, places=1)
-            if 7 <= index <= 10:
+            if 4 <= index <= 7:
                 self.assertIn('Responsible Person', text)
         text = '\n'.join(page.extract_text() for page in reader.pages)
         self.assertIn('<script>literal</script>', text)
@@ -350,6 +352,49 @@ class SwmsPdfTests(unittest.TestCase):
         self.assertNotIn('Template Version', text)
         self.assertNotIn('Employees Sign-Off', text)
         self.assertNotIn('Form Version: 3', text)
+
+    def test_equipment_maintenance_and_matrix_high_risk_follow_without_empty_pages(self):
+        reader = PdfReader(BytesIO(render_swms_pdf({'version': 1, 'fields': default_fields()}, company=DEFAULTS)))
+        labels = ('Equipment/Plant/Materials Used', 'Maintenance Checks Required',
+                  'Risk Matrix', 'May occur only in exceptional circumstances', 'High Risk Work involves')
+        positions = {}
+        for index, page in enumerate(reader.pages):
+            def visit(text, cm, tm, font, size):
+                for label in labels:
+                    if label in text:
+                        positions.setdefault(label, []).append((index, cm[5] + tm[5], size))
+            page.extract_text(visitor_text=visit)
+        self.assertEqual(set(positions), set(labels))
+        self.assertTrue(all(len(values) == 1 for values in positions.values()), positions)
+        equipment, maintenance, matrix, legend, high_risk = (positions[label][0] for label in labels)
+        self.assertEqual(equipment[0], maintenance[0], 'Normal maintenance belongs below the equipment on the same page.')
+        self.assertTrue(0 < equipment[1] - maintenance[1] < 100)
+        self.assertEqual(matrix[0], legend[0])
+        self.assertEqual(legend[0], high_risk[0], 'High-risk work belongs directly after the full matrix and legend.')
+        self.assertTrue(0 < legend[1] - high_risk[1] < 40)
+        for _, y, size in (values[0] for values in positions.values()):
+            self.assertGreater(y, 49, 'Section content must stay above the footer.')
+            self.assertLessEqual(y + size, 520, 'Section content must stay below the company header.')
+
+    def test_long_equipment_maintenance_and_high_risk_content_paginate_without_clipping(self):
+        fields = default_fields()
+        content = {key: [f'{prefix}-{index:03d} retained editable content.' for index in range(count)]
+                   for key, prefix, count in [('equipment', 'EQUIPMENT', 65), ('maintenance', 'MAINTENANCE', 70),
+                                               ('high_risk_work', 'HIGH-RISK', 75)]}
+        for key, lines in content.items():
+            fields[key] = '\n'.join(lines)
+        reader = PdfReader(BytesIO(render_swms_pdf({'version': 1, 'fields': fields}, company=DEFAULTS)))
+        self.assertGreater(len(reader.pages), 10)
+        text = '\n'.join(page.extract_text() for page in reader.pages)
+        for lines in content.values():
+            for line in lines:
+                self.assertEqual(text.count(line), 1, line)
+        # All three fields genuinely overflow a frame. Their final text must
+        # survive on continuation pages, including the short final row tail.
+        for lines in content.values():
+            first = next(index for index, page in enumerate(reader.pages) if lines[0] in page.extract_text())
+            last = next(index for index, page in enumerate(reader.pages) if lines[-1] in page.extract_text())
+            self.assertGreater(last, first)
 
     def test_only_selected_high_risk_tables_export_with_saved_edits(self):
         fields = default_fields()

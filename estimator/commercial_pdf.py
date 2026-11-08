@@ -367,15 +367,17 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
         _fields(story, [('Estimated cost (AUD)', cost)], styles)
         signatures = fields.get('signatures', {})
         for title, pairs in [
-            ('WORK ORDER REVIEW', [('Review date', 'review_date'), ('Approval', 'approval'), ('Justification', 'justification'), ('Reviewed by', 'reviewed_by')]),
-            ('OHS DOCUMENTATION', [('Prepared by', 'prepared_by')]),
-            ('CLIENT APPROVAL', [('Approved by', 'client_approved_by'), ('Approval date', 'client_approval_date')]),
+            ('WORK ORDER REVIEW', [('Review date', 'review_date'), ('Approval', 'approval'), ('Justification', 'justification'), ('Reviewed by', 'reviewed_by'), ('Name', 'reviewed_by')]),
+            ('OHS DOCUMENTATION', [('Prepared by', 'prepared_by'), ('Name', 'prepared_by'), ('Date', 'prepared_date')]),
+            ('CLIENT APPROVAL', [('Approved by', 'client_approved_by'), ('Name', 'client_approved_by'), ('Approval date', 'client_approval_date')]),
             ('WORKS IN PROGRESS', [('Progress', 'progress')]),
             ('WORK ORDER CLAIM', [('Products and services charged', 'claim')]),
             ('WORK ORDER COMPLETION', [('Certification details', 'certification'), ('Completion', 'completion'), ('Closed by', 'closed_by')]),
         ]:
             _section(story, title, styles)
-            _fields(story, [(label, Signature(signatures[key], 110, 30) if signatures.get(key) else order[key]) for label, key in pairs], styles)
+            _fields(story, [(label, (Signature(signatures[key], 160, 52) if signatures.get(key) else '')
+                            if label in ('Reviewed by', 'Prepared by', 'Approved by') else order.get(key, ''))
+                           for label, key in pairs], styles)
     else:
         _section(story, 'PURCHASE ORDER DETAILS', styles)
         _fields(story, [('Work order reference', order['work_order_reference']), ('Status', document['status']),

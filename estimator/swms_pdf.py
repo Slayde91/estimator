@@ -100,62 +100,14 @@ class Signature(Flowable):
             self.canv.drawPath(path)
 
 
-class Cover(Flowable):
-    def __init__(self, company):
-        super().__init__()
-        self.company, self.width, self.height = company, WIDTH, 438
-
-    def draw(self):
-        c, w, h = self.canv, self.width, self.height
-        # Light architectural linework preserves the reference cover's composition
-        # while keeping its company information editable rather than embedded in art.
-        c.saveState()
-        c.setStrokeColor(colors.HexColor('#d1d1d1'))
-        c.setLineWidth(.45)
-        origin = (w * .91, h - 15)
-        for n in range(16):
-            bottom = w * .5 + n * w * .034
-            c.line(origin[0], origin[1], min(bottom, w), 92)
-        for n in range(1, 15):
-            y = 92 + n * (h - 110) / 15
-            left = w * .5 + (y - 92) / (h - 107) * (origin[0] - w * .5)
-            c.line(left, y, w, max(92, y - 28))
-        c.setFillColor(colors.HexColor('#222222'))
-        path = c.beginPath()
-        path.moveTo(w * .82, h)
-        path.lineTo(w, h)
-        path.lineTo(w, h * .51)
-        path.close()
-        c.drawPath(path, fill=1, stroke=0)
-        c.setFont(FONT_BOLD, 53)
-        for title, y, colour in [('SAFE WORK', h - 104, colors.black), ('METHOD', h - 170, colors.black), ('STATEMENT', h - 236, colors.HexColor('#ff2525'))]:
-            c.setFillColor(colour)
-            c.drawString(0, y, title)
-        c.setStrokeColor(colors.black)
-        c.setLineWidth(2)
-        c.line(0, h - 268, w * .53, h - 268)
-        c.setLineWidth(.9)
-        c.setStrokeColor(RED)
-        c.rect(0, 5, w, 80)
-        c.line(w * .61, 5, w * .61, 85)
-        c.setFillColor(colors.black)
-        c.setFont(FONT_BOLD, 11)
-        c.drawString(28, 53, 'Prepared by:')
-        c.setFillColor(RED)
-        company_name = _p(self.company.get('name', ''), ParagraphStyle('CoverCompany', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=14, leading=17))
-        company_name.wrap(w * .53, 40)
-        company_name.drawOn(c, 28, 26)
-        lines = [value for value in [self.company.get('phone'), self.company.get('email'), 'ABN ' + self.company.get('abn', '') if self.company.get('abn') else ''] if value]
-        for index, line in enumerate(lines):
-            paragraph = _p(line, ParagraphStyle('CoverContact', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=10, leading=13))
-            paragraph.wrap(w * .35, 50)
-            paragraph.drawOn(c, w * .65, 56 - index * 18)
-        c.restoreState()
-
-
 class SwmsTable(LongTable):
     def split(self, available_width, available_height):
         parts = super().split(available_width, available_height)
+        if not parts and self.splitInRow and available_height > 2 * self.splitInRow:
+            # ReportLab rejects a row that barely exceeds the frame when its
+            # remaining tail would be shorter than splitInRow. Move the split
+            # up once so the continuation has a readable minimum-sized tail.
+            parts = super().split(available_width, available_height - self.splitInRow)
         headers = getattr(self, '_swms_headers', None)
         if headers:
             for part in parts:
@@ -297,7 +249,7 @@ def render_swms_pdf(document, *, company):
     register_pdf_fonts()
     fields = validate_fields(document['fields'])
     styles, details = _styles(), fields['details']
-    story = [Cover(company), PageBreak()]
+    story = []
     story.append(_table(['Job Reference', 'SWMS Reference', 'Contact Person', 'Position', 'Phone:'],
                         [[details['job_reference'], document.get('reference', ''), details['contact_person'], details['position'], details['phone']]],
                         [WIDTH * fraction for fraction in (.21, .18, .23, .21, .17)], styles))
@@ -314,7 +266,9 @@ def render_swms_pdf(document, *, company):
     story.extend([PageBreak(), _p(fields['requirements'], styles['body'], bullets=True), Spacer(1, 10)])
     for label, key, bullets in [('Activity', 'activity', False), ('OHS/Environmental Legislation', 'legislation', True), ('Codes of Practice', 'codes', True), ('Resources/Trades Involved', 'resources', True), ('Equipment/Plant/Materials Used', 'equipment', False)]:
         story.append(_pair(label, fields[key], styles, bullets=bullets))
-    story.extend([PageBreak(), _pair('Maintenance Checks Required', fields['maintenance'], styles), PageBreak(), _p('Risk Matrix', styles['section']), *_matrix(styles), PageBreak(), _pair('High Risk Work involves', fields['high_risk_work'], styles)])
+    # Continue related content in the same frame when it fits. Long editable
+    # fields still split naturally instead of reserving mostly empty pages.
+    story.extend([_pair('Maintenance Checks Required', fields['maintenance'], styles), PageBreak(), _p('Risk Matrix', styles['section']), *_matrix(styles), _pair('High Risk Work involves', fields['high_risk_work'], styles)])
     def step_table(title, steps):
         rows = []
         for index, row in enumerate(steps, 1):

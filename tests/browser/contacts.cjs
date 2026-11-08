@@ -60,10 +60,11 @@ const ready = new Promise((resolve, reject) => {
   await expect(root.locator('.project-kanban-column[data-status="Qualified"]')).toContainText('Robin Sample');
   await root.getByRole('button',{name:'Accounts',exact:true}).click();
   await root.getByRole('button',{name:'Sample Company',exact:true}).click();
-  await expect(dlg.getByLabel('Billing address')).toHaveValue('Demo Billing Street');
-  await expect(dlg.getByLabel('ABN/ACN',{exact:true})).toHaveValue('12 345 678 901');
-  await expect(dlg.locator('.contacts-links-group > summary')).toHaveText(['Contacts (1)']);
-  await dlg.getByRole('button',{name:'Robin Sample'}).click();
+  const accountPane=page.getByRole('complementary',{name:'Edit Account',exact:true});
+  await expect(accountPane.getByLabel('Billing address')).toHaveValue('Demo Billing Street');
+  await expect(accountPane.getByLabel('ABN/ACN',{exact:true})).toHaveValue('12 345 678 901');
+  await expect(accountPane.locator('.contacts-links-group > summary')).toHaveText(['Contacts (1)']);
+  await accountPane.getByRole('button',{name:'Robin Sample'}).click();
   await expect(dlg.getByLabel('Name',{exact:true})).toHaveValue('Robin Sample');
   await dlg.getByRole('button',{name:'Cancel'}).click();
   const doc=root.locator('.contacts-document');
@@ -82,8 +83,8 @@ const ready = new Promise((resolve, reject) => {
   await expect(root.getByRole('button',{name:'Imported Sample',exact:true})).toBeVisible();
   await root.getByRole('button',{name:'Accounts',exact:true}).click();
   await root.getByRole('button',{name:'Sample Company',exact:true}).click();
-  await expect(dlg.getByRole('button',{name:'Imported Sample'})).toBeVisible();
-  await dlg.getByRole('button',{name:'Cancel'}).click();
+  await expect(accountPane.getByRole('button',{name:'Imported Sample'})).toBeVisible();
+  await accountPane.getByRole('button',{name:'Cancel'}).click();
   await root.getByRole('button',{name:'Leads',exact:true}).click();
   await card.locator('summary').click(); await card.getByRole('button',{name:'Open',exact:true}).click();
   await expect(dlg.getByLabel('Site address')).toHaveAttribute('readonly','');

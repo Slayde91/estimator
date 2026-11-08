@@ -13,8 +13,14 @@
   }
   function panel(label, count) {
     const section = el("details"); section.className = "card commercial-side-panel"; section.open = true;
-    section.append(el("summary", count === undefined ? label : `${label} (${count})`));
+    section.append(panelSummary(label,count));
     return section;
+  }
+  function panelSummary(label,count) {
+    const summary=el('summary'),name=el('span',label);
+    window.CeasefireI18n?.text(name,label);summary.append(name);
+    if(count!==undefined)summary.append(document.createTextNode(` (${count})`));
+    return summary;
   }
   function fieldList(container, values) {
     const list = el("dl"); list.className = "commercial-card-info";
@@ -27,7 +33,8 @@
   }
   function openNote(existing, options, repaint) {
     const dialog = el("dialog"), content = el("form"), title = el("input"), hint = el("span");
-    dialog.className = "commercial-note-dialog"; dialog.setAttribute("aria-label", "Work Order note");
+    dialog.className = "commercial-note-dialog"; dialog.setAttribute("aria-label", options.kind==='quote' ? "Quote note" : "Work Order note");
+    window.CeasefireI18n?.attr(dialog,'aria-label',options.kind==='quote' ? "Quote note" : "Work Order note");
     title.maxLength = 300; title.setAttribute("aria-label", "Note title");
     title.value = existing?.title || "";
     const note = existing ? {...existing} : {id:crypto.randomUUID(),title:"",body:"",author:"Local user",updated_at:""};
@@ -101,7 +108,7 @@
     let showAllNotes=false;
     function repaintNotes() {
       const all=[...(options.fields.notes || [])].sort((a,b)=>b.updated_at.localeCompare(a.updated_at));
-      notes.replaceChildren(el("summary",`Notes (${all.length})`), action("New note",()=>openNote(null,options,repaintNotes),"button secondary"));
+      notes.replaceChildren(panelSummary('Notes',all.length), action("New note",()=>openNote(null,options,repaintNotes),"button secondary"));
       for(const note of showAllNotes ? all : all.slice(0,3)) {
         const card=el("article"); card.className="commercial-note-card";
         card.append(action(note.title,()=>openNote(note,options,repaintNotes)),el("small",new Date(note.updated_at).toLocaleString("en-AU")+" · "+note.author),el("p",plain(note.body).slice(0,180)));
@@ -111,7 +118,7 @@
     }
     function repaintFiles() {
       const attached = options.fields.files || [];
-      files.replaceChildren(el("summary",`Files (${attached.length})`));
+      files.replaceChildren(panelSummary('Files',attached.length));
       files.append(action("Add files",()=>upload.click(),"button secondary"));
       for(const file of attached){
         const row=el("div"); row.className="commercial-attached-file";
@@ -125,20 +132,22 @@
       try {await options.upload([...upload.files]);} catch(e){options.message(e.message,true);} finally {upload.value="";repaintFiles();}
     });
     uploadLabel.append(el("span","Attach files"),upload);
-    form.querySelector(".commercial-order-fields").append(uploadLabel);
+    const inlineFiles=form.querySelector('.commercial-work-cost-files');
+    if(inlineFiles)inlineFiles.append(uploadLabel);
+    else {uploadLabel.hidden=true;form.append(uploadLabel);}
     if(options.fields.order.attachments) uploadLabel.append(el("small","Existing file references: "+options.fields.order.attachments));
     repaintNotes(); repaintFiles();
-    const quotePanel=panel("Linked Quotes",0), purchasePanel=panel("Linked Purchase Orders",0);
+    const quotePanel=panel(options.kind==='quote' ? "Linked Work Orders" : "Linked Quotes",0), purchasePanel=panel("Linked Purchase Orders",0);
     function showRelated() {
       for(const [block,name,rows] of [
-        [quotePanel,"Linked Quotes", options.related.filter(d=>d.kind==="quote" && d.id===options.fields.order.quote_id)],
+        [quotePanel,options.kind==='quote' ? "Linked Work Orders" : "Linked Quotes", options.related.filter(d=>options.kind==='quote' ? d.kind==='work_order' && d.fields.order.quote_id===options.id : d.kind==="quote" && d.id===options.fields.order.quote_id)],
         [purchasePanel,"Linked Purchase Orders",options.related.filter(d=>d.kind==="purchase_order" && d.fields.order.work_order_id===options.id)]
       ]) {
-        block.replaceChildren(el("summary",`${name} (${rows.length})`));
+        block.replaceChildren(panelSummary(name,rows.length));
         for(const doc of rows) block.append(action([doc.reference || doc.last_number,doc.fields.title].filter(Boolean).join(" · "),()=>options.openRelated(doc)));
       }
     }
-    right.append(quotePanel,purchasePanel); showRelated();
+    right.append(quotePanel);if(options.kind!=='quote')right.append(purchasePanel);showRelated();
     form.querySelector("[data-order-link]")?.addEventListener("change",showRelated);
     return {repaintFiles};
   }

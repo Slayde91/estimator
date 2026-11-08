@@ -73,8 +73,18 @@
 .commercial-note-dialog{width:min(480px,100%);max-height:88vh;overflow:auto;margin:auto 18px 18px auto;padding:18px}
 .commercial-note-dialog form{display:grid;gap:12px}.commercial-note-dialog .commercial-rich-input{min-height:135px}
 .commercial-proposed-dates{grid-column:1}
-.commercial-currency{display:flex;align-items:center;gap:6px}.commercial-currency>span{font-weight:700}
-.commercial-signature-actions{display:flex;gap:8px;align-items:center}.commercial-signature-actions svg{background:white;color:#151515;max-height:45px;max-width:115px}
+.commercial-work-cost-files{display:grid;gap:14px;min-width:0;align-content:start}
+.commercial-work-description{display:flex;flex-direction:column;align-self:stretch;gap:7px}
+.commercial-work-description>span{margin:0}
+.commercial-work-description textarea{height:100%;min-height:104px;flex:1;resize:vertical}
+.commercial-signer-row{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:end}
+.commercial-signature-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.commercial-signature-preview{display:grid;place-items:center;flex:1 1 100px;width:180px;max-width:180px;height:64px;min-width:100px;border:1px solid var(--line);border-radius:4px;background:#fff;color:#151515;overflow:hidden}
+.commercial-signature-preview svg{display:block;width:100%;height:100%;padding:5px;box-sizing:border-box}
+.commercial-signature-preview .helper{margin:0;color:#6d6660}
+.commercial-signature-actions>.button{width:42px;min-width:42px;height:42px;padding:8px}
+.commercial-signature-actions>.button>svg{display:block;width:24px;height:24px}
+@media(max-width:650px){.commercial-signer-row{grid-template-columns:minmax(0,1fr)}.commercial-work-description textarea{height:104px;min-height:104px;flex:none}}
 .commercial-lines .commercial-po-lines td:first-child{width:25%;min-width:175px}
 .commercial-po-lines td:nth-child(6){min-width:180px;width:24%}
 .commercial-editor textarea.commercial-line-comments{min-height:42px;height:42px;overflow-y:hidden;resize:vertical;line-height:20px}

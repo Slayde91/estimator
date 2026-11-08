@@ -832,7 +832,7 @@
       renderOrderFields(form, fields);
     }
     host.append(form);
-    if (state.kind === "work_order") attachWorkPanels(form);
+    if (["quote","work_order"].includes(state.kind)) attachWorkPanels(form);
     if (state.kind === "quote") {
       renderEstimateOptions();
       renderScope();
@@ -840,8 +840,24 @@
     renderLines();
     if (state.kind === "quote" && document.version > 0) void refreshScopePreview();
   }
+  const signatureDates = {reviewed_by:"review_date",prepared_by:"prepared_date",client_approved_by:"client_approval_date"};
+  async function signatureProfile() {
+    const response = await fetch('/api/scheduler/bootstrap',{cache:'no-store'}), value = await response.json();
+    if(!response.ok || typeof value.timezone !== 'string')throw new Error('Personal details could not be loaded. Try again.');
+    return value;
+  }
+  async function signerName() {
+    const response = await fetch('/api/certifications/defaults',{cache:'no-store'}), value = await response.json();
+    if(!response.ok || typeof value.fields?.name !== 'string')throw new Error('Personal details could not be loaded. Try again.');
+    return value.fields.name;
+  }
+  function signedDate(timezone) {
+    const parts = new Intl.DateTimeFormat('en-CA',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+    return ['year','month','day'].map(type=>parts.find(part=>part.type===type).value).join('-');
+  }
   function signatureField(fields, key, label) {
-    const wrap = node("div","field commercial-signature"), buttonRow = node("div","commercial-signature-actions");
+    const wrap = node("div","field commercial-signature"), buttonRow = node("div","commercial-signature-actions"), preview=node("div","commercial-signature-preview");
+    wrap.dataset.signatureField=key;
     const value = fields.signatures?.[key];
     if (value) {
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -852,23 +868,47 @@
         path.setAttribute("points",stroke.map(p=>(p[0]*value.ratio*100)+","+(p[1]*100)).join(" "));
         path.setAttribute("fill","none"); path.setAttribute("stroke","currentColor"); path.setAttribute("stroke-width","1.5"); svg.append(path);
       }
-      buttonRow.append(svg);
-    } else if (fields.order[key]) buttonRow.append(node("span","helper",fields.order[key]));
+      preview.append(svg);
+    } else preview.append(node("span","helper","Not signed"));
     const selected = state.editor;
     const sign = button("", async () => {
       if (state.busy) return;
+      state.busy=true;setDisabled(true);
       try {
+        const before=await signatureProfile();
         const result = await window.ClassifirePersonalSignature.choose(fields.signatures?.[key] || null);
         if (state.editor !== selected || !result) return;
+        const name=await signerName(),after=await signatureProfile();
+        if(state.editor !== selected)return;
+        if((before.user?.id||null)!==(after.user?.id||null))throw new Error('Your signature profile changed. Reopen the signature pad.');
+        const date=signedDate(after.timezone);
         (fields.signatures ||= {})[key] = result;
+        fields.order[key]=name;fields.order[signatureDates[key]]=date;
+        updateControls();
         markDirty(); wrap.replaceWith(signatureField(fields,key,label));
       } catch (error) { message(error.message,true); }
+      finally {if(state.editor === selected){state.busy=false;setDisabled(false);}}
     });
-    sign.classList.add("icon-only","takeoff-icon-button","takeoff-signature-button");
-    sign.title = (value ? "Change " : "Sign ") + label;
-    sign.setAttribute("aria-label", sign.title);
-    sign.append(node("span","takeoff-action-icon takeoff-signature-icon"));
-    buttonRow.append(sign); wrap.append(node("span","",label),buttonRow); return wrap;
+    sign.classList.add("icon-only","personal-signature-button");
+    sign.title = (value ? "Change " : "Sign ") + label;sign.setAttribute("aria-label",sign.title);
+    window.CeasefireI18n?.attr(sign,'title',sign.title);window.CeasefireI18n?.attr(sign,'aria-label',sign.title);
+    sign.append(node("span"));
+    function updateControls() {
+      for(const control of root().querySelectorAll('[data-order-field]'))if([key,signatureDates[key]].includes(control.dataset.orderField))control.value=fields.order[control.dataset.orderField]||'';
+    }
+    function reset() {
+      if(state.busy || state.editor!==selected)return;
+      if(fields.signatures)delete fields.signatures[key];fields.order[key]='';fields.order[signatureDates[key]]='';
+      updateControls();markDirty();wrap.replaceWith(signatureField(fields,key,label));
+    }
+    function resetButton(action,path) {
+      const control=button('',reset);control.classList.add('icon-only');control.title=action+' '+label;control.setAttribute('aria-label',control.title);
+      window.CeasefireI18n?.attr(control,'title',control.title);window.CeasefireI18n?.attr(control,'aria-label',control.title);
+      const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('viewBox','0 0 24 24');icon.setAttribute('width','24');icon.setAttribute('height','24');icon.setAttribute('fill','none');icon.setAttribute('stroke','currentColor');icon.setAttribute('stroke-width','1.8');icon.setAttribute('stroke-linecap','round');icon.setAttribute('stroke-linejoin','round');icon.setAttribute('aria-hidden','true');
+      for(const d of path){const stroke=document.createElementNS(icon.namespaceURI,'path');stroke.setAttribute('d',d);icon.append(stroke);}control.append(icon);return control;
+    }
+    buttonRow.append(preview,sign,resetButton('Clear',['M20 7v5h-5','M4 17v-5h5','M6.1 8.4A7.5 7.5 0 0 1 19.2 10L20 12','M17.9 15.6A7.5 7.5 0 0 1 4.8 14L4 12']),resetButton('Delete',['M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7']));
+    wrap.append(node("span","",label),buttonRow);return wrap;
   }
   function attachWorkPanels(form) {
     const editor = state.editor, doc = editor.document, fields = doc.fields;
@@ -881,9 +921,9 @@
       reader.onload=()=>resolve(reader.result.split(",")[1]); reader.readAsDataURL(blob);
     });
     window.ClassifireWorkOrderPanels.attach(form, {
-      fields, id:doc.id, related, message, richEditor, isSaved:()=>Boolean(doc.version),
+      fields, kind:doc.kind, id:doc.id, related, message, richEditor, isSaved:()=>Boolean(doc.version),
       async writeNotes(notes) {
-        if (!current() || state.busy) throw new Error("Finish the current Work Order operation first.");
+        if (!current() || state.busy) throw new Error("Finish the current document operation first.");
         if (!doc.version) { fields.notes=copy(notes); markDirty(); return; }
         state.busy=true;
         try {
@@ -896,12 +936,12 @@
         } finally { state.busy=false; }
       },
       async upload(files) {
-        if (!current() || state.busy) throw new Error("Finish the current Work Order operation first.");
+        if (!current() || state.busy) throw new Error("Finish the current document operation first.");
         state.busy=true;
         try {
           const existing=fields.files || [];
           if(existing.length+files.length>16 || files.some(f=>f.size>12*1024*1024) ||
-              [...existing,...files].reduce((n,f)=>n+f.size,0)>32*1024*1024) throw new Error("Choose up to 16 files, 12 MiB per file and 32 MiB per Work Order.");
+              [...existing,...files].reduce((n,f)=>n+f.size,0)>32*1024*1024) throw new Error("Choose up to 16 files, 12 MiB per file and 32 MiB per document.");
           const incoming=[];
           for (const file of files) {
             const data={name:file.name,content:await encode(file)};
@@ -1034,7 +1074,7 @@
     const groups = isWorkOrder ? [
       ["Work order details", [["start_date","Proposed start date"],["end_date","Proposed end date"],["urgency","Category / urgency"],["description","Description of works"],["estimated_cost","Estimated cost (AUD)"]]],
       ["Work order review", [...commonReview, ["justification","Justification"]]],
-      ["OHS documentation", [["prepared_by","Prepared by"]]],
+      ["OHS documentation", [["prepared_by","Prepared by"],["prepared_date","Date"]]],
       ["Client approval", [["client_approved_by","Approved by"],["client_approval_date","Approval date"]]],
       ["Works in Progress", [["progress","Work progress"]]],
       ["Work Order Claim", [["claim","Products and services charged"]]],
@@ -1042,6 +1082,7 @@
     ] : [["Purchase order information", [["work_order_reference", "Work order reference"], ["supplier", "Supplier"], ["supplier_email", "Supplier email"], ["supplier_contact", "Supplier contact"], ["payment_terms", "Payment terms"], ["ship_to_name", "Ship to name"], ["ship_to_address", "Ship to address"], ["delivery_date", "Delivery date"], ["expense_type", "Type of expense"], ["delivery_method", "Delivery or pickup"]]], ["Request and approval", [["requested_by", "Requested by"], ["requested_date", "Request date"], ...commonReview]], ["Procurement verification", [["verification", "Verification method, specification, result and actions"], ["sent_by", "Sent by"], ["sent_date", "Sent date"], ["verified_by", "Verified by"], ["verified_date", "Verification date"]]]];
     for (const [title, items] of groups) {
       const section = node("section", "card commercial-order-fields");
+      if(isWorkOrder && title==='Work order details')section.classList.add('commercial-work-details');
       section.append(node("h2", "", title));
       let dates;
       for (const [key, label] of items) {
@@ -1053,14 +1094,16 @@
           }, "number");
           costControl.step = "0.01";
           costControl.dataset.orderCost = "true";
-          const group = node("span","commercial-currency"); group.append(node("span","", "$"), costControl);
           costControl.setAttribute("aria-label", label);
-          section.append(field(label, group));
-          group.removeAttribute("aria-label");
+          const costFiles=node('div','commercial-work-cost-files');costFiles.append(field(label,costControl));section.append(costFiles);
           continue;
         }
         if (isWorkOrder && ["reviewed_by","prepared_by","client_approved_by"].includes(key)) {
-          section.append(signatureField(fields, key, label));
+          const row=node('div','commercial-signer-row'),name=input(fields.order[key],value=>fields.order[key]=value);
+          name.dataset.orderField=key;
+          const nameField=field('Name',name);name.setAttribute('aria-label',label+' name');
+          window.CeasefireI18n?.attr(name,'aria-label',label+' name');
+          row.append(signatureField(fields,key,label),nameField);section.append(row);
           continue;
         }
         const choices = isWorkOrder ? (key === "urgency" ? ["High Priority","Medium Priority","Low Priority"] : key === "approval" ? ["Approved","Denied"] : null)
@@ -1071,7 +1114,9 @@
           if (fields.order[key] && !options.includes(fields.order[key])) options.push(fields.order[key]);
           control = select(options, fields.order[key], value => fields.order[key] = value);
         } else control = key.endsWith("_date") ? input(fields.order[key], value => fields.order[key] = value, "date") : textarea(fields.order[key], value => fields.order[key] = value);
+        control.dataset.orderField=key;
         const item = field(label, control);
+        if(isWorkOrder && key==='description')item.classList.add('commercial-work-description');
         if (isWorkOrder && ["start_date","end_date"].includes(key)) {
           if (!dates) { dates = node("div", "commercial-field-pair commercial-proposed-dates"); section.append(dates); }
           dates.append(item);

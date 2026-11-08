@@ -815,15 +815,18 @@
     form.append(details);
     if (state.kind === "quote") {
       form.append(field("Introduction", textarea(fields.introduction, value => fields.introduction = value)));
+      const estimateControls = node("div", "commercial-estimate-controls");
       const chooser = node("details", "commercial-estimate-picker");
       chooser.append(node("summary", "button secondary", "Select estimates"), node("div", "commercial-estimate-options"));
-      chooser.append(addButton("Add custom row", () => {
+      const addCustomRow = addButton("Add custom row", () => {
         fields.lines.push({estimate_id: "", description: "", quantity: "1", unit_price: "0", size: "", comments: ""});
         markDirty();
         renderLines();
         form.querySelector(".commercial-lines tbody tr:last-child textarea")?.focus();
-      }));
-      form.append(chooser);
+      });
+      addCustomRow.classList.add("commercial-add-custom-row");
+      estimateControls.append(addCustomRow, chooser);
+      form.append(estimateControls);
       form.append(node("section", "commercial-lines"), node("div", "commercial-totals"), rateSchedule(fields), node("section", "commercial-scope"), richEditor("Allowances", fields.allowances, value => fields.allowances = value, markDirty, true), richEditor("Terms & Conditions", displayTerms(fields.terms), value => fields.terms = value, markDirty, true));
     } else {
       renderOrderFields(form, fields);

@@ -37,7 +37,7 @@ STATIC_FILES = (
     'cursors/resize-nesw.png', 'cursors/resize-nwse.png', 'cursors/resize-vertical.png',
     'cursors/text.png', 'cursors/unavailable.png',
     'cursors/README.txt', 'cursors/LICENSE.txt', 'cursors/COPYRIGHT.txt',
-    'app.js', 'project-details.js', 'project-pane.js', 'settings-layout.css', 'activity.js', 'calculation-queue.js', 'searchable-choice.js', 'penetration-presentation.js',
+    'app.js', 'project-details.js', 'project-pane.js', 'project-popup.css', 'settings-layout.css', 'activity.js', 'calculation-queue.js', 'searchable-choice.js', 'penetration-presentation.js',
     'calculators.css', 'calculators.js', 'ceasefire-logo.png', 'classifire-logo.png',
     'brand-boot.css', 'brand-boot.js', 'classifire-app.ico', 'classifire-app-icon.png', 'register-references.js',
     'downloads.js', 'downloads.css', 'main-layout.js',

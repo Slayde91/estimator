@@ -90,14 +90,18 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   await work.getByRole('button',{name:'Procurement source work order',exact:true}).click();await expect(work.locator('summary').filter({hasText:'Linked Purchase Orders (1)'})).toHaveCount(1);
   checks.push('PO Request summary follows information, expense categories use a dropdown, and the saved relationship appears in the Work Order reverse list');
   await page.screenshot({path:path.join(output,'work-order-linked-purchase.png'),fullPage:true});
-  await openProjectSection(page,'quotes');await page.locator('#new-quote').click();
-  await page.waitForFunction(()=>document.querySelector('#discard-dialog').open||window.CeasefireProject.context().project_path===null);
-  const prompt=page.locator('#discard-dialog');if(await prompt.isVisible())await prompt.getByRole('button',{name:'New project',exact:true}).click();await idle();
+  // New Project now stages a popup and preserves the active Project on Cancel.
+  // A fresh tab represents a separate user workspace with no active Project.
+  const previousPage=page;
+  page=await browser.newPage({viewport:{width:1600,height:1000}});page.setDefaultTimeout(60000);
+  page.on('pageerror',error=>errors.push(error.message));
+  await page.goto(`http://127.0.0.1:${info.port}/`);await idle();await previousPage.close();
   assert.equal(await page.evaluate(()=>window.CeasefireProject.hasCreatedProject()),false);
-  await openProjectSection(page,'work-orders');await work.getByRole('button',{name:'Procurement source work order',exact:true}).click();
+  const sourceWork=page.locator('#commercial-work-order-root'),sourcePurchase=page.locator('#commercial-purchase-order-root');
+  await openProjectSection(page,'work-orders');await sourceWork.getByRole('button',{name:'Procurement source work order',exact:true}).click();
   const ownerFile=fs.readFileSync(info.project,'utf8'),nativeDefaults=page.waitForResponse(response=>response.url().endsWith('/api/commercial/saved-purchase-order-defaults'));
-  await work.getByRole('button',{name:'Create PO',exact:true}).click();assert.equal((await nativeDefaults).status(),200);
-  await expect(purchase.getByLabel('Linked Work Order',{exact:true})).toHaveValue(source.id);
+  await sourceWork.getByRole('button',{name:'Create PO',exact:true}).click();assert.equal((await nativeDefaults).status(),200);
+  await expect(sourcePurchase.getByLabel('Linked Work Order',{exact:true})).toHaveValue(source.id);
   assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),null,'Native saved-source creation does not replace the active unsaved Project');
   assert.equal(fs.readFileSync(info.project,'utf8'),ownerFile,'Native source creation leaves owner file unchanged until Save');
   checks.push('a verified native saved-source Project can prepare its own PO with no active global Project, without changing owner file or replacing active workspace');

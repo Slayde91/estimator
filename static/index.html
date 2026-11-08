@@ -49,6 +49,7 @@
   <script src="/brand-boot.js" defer></script>
   <link rel="stylesheet" href="/scheduler.css">
   <link rel="stylesheet" href="/settings-layout.css">
+  <link rel="stylesheet" href="/project-popup.css">
   <script src="/scheduler.js" defer></script>
   <link rel="stylesheet" href="/commercial-documents.css">
   <script src="/commercial-panels.js" defer></script>
@@ -492,12 +493,12 @@ SOFTWARE. -->
             <label class="field"><span data-i18n="Project No.">Project No.</span><input id="project-pane-number" type="text" readonly maxlength="100" placeholder="Assigned when saved" data-i18n-placeholder="Assigned when saved"></label>
             <div class="field project-account-field"><label for="project-pane-client" data-i18n="Client">Client</label><div class="project-account-search"><button id="project-account-new" type="button" class="project-account-add" title="New Account" aria-label="New Account" data-i18n-title="New Account" data-i18n-aria-label="New Account"><span class="button-symbol project-add-symbol" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M8 4v8M4 8h8"></path></svg></span></button><input id="project-pane-client" type="search" maxlength="200" autocomplete="off" placeholder="Search Accounts" data-i18n-placeholder="Search Accounts" role="combobox" aria-autocomplete="list" aria-controls="project-account-options" aria-expanded="false"></div><div id="project-account-options" class="project-account-options" role="listbox" aria-label="Accounts" data-i18n-aria-label="Accounts" hidden></div></div>
             <label class="field"><span data-i18n="Site Address">Site Address</span><input id="project-pane-address" type="text" maxlength="400" autocomplete="street-address"></label>
-            <div class="field project-account-field project-contact-field"><label for="project-pane-contact-name" data-i18n="Contact name">Contact name</label><input id="project-pane-contact-name" type="search" maxlength="160" autocomplete="off" placeholder="Search contacts" data-i18n-placeholder="Search contacts" role="combobox" aria-autocomplete="list" aria-controls="project-contact-options" aria-expanded="false"><div id="project-contact-options" class="project-account-options" role="listbox" aria-label="Contacts" data-i18n-aria-label="Contacts" hidden></div></div>
+            <div class="field project-account-field project-contact-field"><label for="project-pane-contact-name" data-i18n="Contact name">Contact name</label><div class="project-account-search"><button id="project-contact-new" type="button" class="project-account-add" title="New Contact" aria-label="New Contact" data-i18n-title="New Contact" data-i18n-aria-label="New Contact"><span class="button-symbol project-add-symbol" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M8 4v8M4 8h8"></path></svg></span></button><input id="project-pane-contact-name" type="search" maxlength="160" autocomplete="off" placeholder="Search contacts" data-i18n-placeholder="Search contacts" role="combobox" aria-autocomplete="list" aria-controls="project-contact-options" aria-expanded="false"></div><div id="project-contact-options" class="project-account-options" role="listbox" aria-label="Contacts" data-i18n-aria-label="Contacts" hidden></div></div>
             <label class="field"><span data-i18n="Contact phone">Contact phone</span><input id="project-pane-contact-phone" type="tel" maxlength="60" autocomplete="tel"></label>
             <label class="field"><span data-i18n="Contact email">Contact email</span><input id="project-pane-contact-email" type="email" maxlength="254" autocomplete="email"></label>
           </div>
           <p id="project-details-status" class="helper" role="status" aria-live="polite"></p>
-          <div class="actions"><button id="project-details-save" type="submit" class="button primary" data-i18n="Save project details">Save project details</button></div>
+          <div class="actions"><button id="project-new-cancel" type="button" class="button secondary" hidden data-i18n="Cancel">Cancel</button><button id="project-details-save" type="submit" class="button primary" data-i18n="Save project details">Save project details</button></div>
         </form>
       </aside>
       <div class="project-workspace-main">
@@ -583,5 +584,6 @@ SOFTWARE. -->
 <script src="/project-details.js"></script>
 <script src="/cover-sheets.js"></script>
 <dialog id="project-estimate-dialog" aria-labelledby="project-estimate-dialog-title"><form method="dialog"><h2 id="project-estimate-dialog-title">Estimate</h2><label class="field"><span>Estimate name</span><input id="project-estimate-name" required maxlength="150" autocomplete="off"></label><div class="actions"><button class="button secondary" value="cancel" formnovalidate>Cancel</button><button class="button primary" value="save">Save</button></div></form></dialog>
+  <dialog id="project-new-dialog" class="project-new-dialog" aria-labelledby="projects-details-heading"></dialog>
 </body>
 </html>

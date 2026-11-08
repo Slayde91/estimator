@@ -127,8 +127,10 @@ jobs:
       - run: npm run test:project-library-drafts
       - run: node tests/browser/projects_navigation.cjs
       - run: node tests/browser/contacts.cjs
+      - run: node tests/browser/contact_shortcuts.cjs
       - run: node tests/browser/account_links.cjs
       - run: node tests/browser/project_details_pane.cjs
+      - run: node tests/browser/project_new_popup.cjs
       - run: node tests/browser/project_document_guard.cjs
       - run: node tests/browser/project_contact_picker.cjs
       - run: node tests/browser/settings_rows.cjs
@@ -149,6 +151,7 @@ jobs:
       - run: node tests/browser/swms.cjs
       - run: node tests/browser/swms_people_defaults.cjs
       - run: node tests/browser/project_documentation.cjs
+      - run: node tests/browser/control_layout_polish.cjs
       - run: node tests/browser/pricing_manufacturers.cjs
       - run: node tests/browser/certification_defaults.cjs
       - run: node tests/browser/settings_polish.cjs

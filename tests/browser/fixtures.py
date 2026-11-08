@@ -282,7 +282,12 @@ if __name__ == '__main__':
         project = folder / 'browser-project.cf.json'
         class Dialogs:
             def choose_save(self, initial_directory, filename):
-                return SaveSelection(str(project), file_fingerprint(project))
+                control = folder / 'save-dialog-target.json'
+                target = (folder / json.loads(control.read_text())['file']).resolve() if control.exists() else project
+                if not target.is_relative_to(folder.resolve()):
+                    raise ValueError('Fixture save target must remain in its private folder.')
+                target.parent.mkdir(parents=True, exist_ok=True)
+                return SaveSelection(str(target), file_fingerprint(target))
             def choose_open(self, initial_directory):
                 return str(project) if project.exists() else None
             def choose_folder(self, initial_directory):

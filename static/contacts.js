@@ -5,7 +5,7 @@
   const labels = {name: "Name", phone: "Phone", company: "Company", title: "Title", email: "Email", abn_acn: "ABN/ACN",
     site_address: "Site address", billing_address: "Billing address", description: "Description", status: "Status"};
   const personFields = ["name", "phone", "company", "title", "email"];
-  let page = "leads", data, search = "", generation = 0, saving = false, editorSequence = 0;
+  let page = "leads", data, search = "", generation = 0, saving = false, editorSequence = 0, converting = null;
   const linkTitles = {contacts: "Contacts", projects: "Projects", quotes: "Quotes", work_orders: "Work Orders", purchase_orders: "Purchase Orders"};
   const root = () => document.getElementById("contacts-root");
   const el = (tag, cls, text) => {
@@ -78,13 +78,15 @@
         feedback(root(), `Imported ${result.added} new records. Matched ${result.matched} existing records.`);
       if (result.project_no) feedback(root(), `Project ${result.project_no} saved.`);
       return result;
-    } finally { saving = false; }
+    } finally { saving = false; conversionBusy(); }
   }
   function dialogEditor(kind, record = {}, readOnly = false, options = {}) {
     const dialog = el("dialog", "contacts-dialog");
     const form = el("form", "contacts-form");
     const directory = options.directory || data;
     const version = directory.version;
+    let contactId = record.contact_id || "", contactName = record.name || "", accountId = record.account_id || "";
+    let accountDefaults = {};
     let resolveClosed, savedRecord = null, submitting = false, loadingLinks = false, linksReady = kind !== "accounts";
     const closed = new Promise(resolve => { resolveClosed = resolve; });
     const heading = el("h2", "", readOnly ? record.name : (record.id ? "Edit " : "New ") + singular[kind]);
@@ -129,6 +131,57 @@
       group("Account Information", ["company", "abn_acn", "billing_address"]);
     } else {
       group("Contact Information", personFields);
+    }
+    function accountSelection(account, setCompany = true) {
+      accountId = account.id;
+      if (setCompany) fields.company.value = account.company;
+      for (const key of ['abn_acn','billing_address']) if(fields[key] && (!fields[key].value.trim() || fields[key].value === accountDefaults[key])) fields[key].value = account[key] || '';
+      accountDefaults = {abn_acn:account.abn_acn || '',billing_address:account.billing_address || ''};
+    }
+    function lookup(input, records, searchable, caption, choose, emptyText) {
+      const label = input.closest('label'), box = el('div','contacts-lookup'), list = el('div','contacts-lookup-options');
+      label.id = heading.id + '-' + input.name + '-label';
+      list.id = heading.id + '-' + input.name + '-options';list.hidden = true;
+      list.setAttribute('role','listbox');list.setAttribute('aria-label','Matching records');
+      input.setAttribute('aria-label',labels[input.name]);window.CeasefireI18n?.attr(input,'aria-label',labels[input.name]);window.CeasefireI18n?.attr(list,'aria-label','Matching records');
+      input.setAttribute('role','combobox');input.setAttribute('aria-autocomplete','list');input.setAttribute('aria-expanded','false');input.setAttribute('aria-controls',list.id);input.autocomplete='off';
+      label.replaceChild(box,input);box.append(input,list);
+      let choices=[],active=-1;
+      const captions=records.map(caption),counts=new Map();captions.forEach(value=>counts.set(value,(counts.get(value)||0)+1));
+      function hide(){list.hidden=true;input.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');active=-1;}
+      function select(index){if(!choices[index]||submitting)return;choose(choices[index]);hide();input.focus();hide();}
+      function render(){
+        if(submitting||readOnly)return;
+        const query=input.value.trim().toLocaleLowerCase();
+        choices=records.filter(item=>searchable(item).toLocaleLowerCase().includes(query)).slice(0,30);active=-1;
+        list.replaceChildren(...choices.map((item,index)=>{const option=el('button','contacts-lookup-option');option.type='button';option.tabIndex=-1;option.id=list.id+'-'+index;option.setAttribute('role','option');option.setAttribute('aria-selected','false');const text=caption(item);option.textContent=text+(counts.get(text)>1?' · '+item.id.slice(-8):'');option.addEventListener('mousedown',event=>event.preventDefault());option.addEventListener('click',()=>select(index));return option;}));
+        if(!choices.length){const empty=ui('p','helper',emptyText);empty.setAttribute('role','status');list.append(empty);}
+        list.hidden=false;input.setAttribute('aria-expanded','true');input.removeAttribute('aria-activedescendant');
+      }
+      input.addEventListener('focus',render);input.addEventListener('input',render);input.addEventListener('blur',hide);
+      input.addEventListener('keydown',event=>{
+        if(event.key==='Escape'&&!list.hidden){hide();event.preventDefault();event.stopPropagation();return;}
+        if(!['ArrowDown','ArrowUp','Enter'].includes(event.key))return;
+        if(list.hidden&&event.key!=='Enter')render();
+        if(list.hidden)return;
+        event.preventDefault();if(event.key==='Enter'){if(active>=0)select(active);return;}
+        if(!choices.length)return;
+        active=active<0?(event.key==='ArrowDown'?0:choices.length-1):(active+(event.key==='ArrowDown'?1:-1)+choices.length)%choices.length;
+        for(const [index,option]of [...list.children].entries())option.setAttribute('aria-selected',String(index===active));
+        input.setAttribute('aria-activedescendant',list.id+'-'+active);list.children[active].scrollIntoView({block:'nearest'});
+      });
+      dialog.addEventListener('pointerdown',event=>{if(!box.contains(event.target))hide();});
+    }
+    if(!readOnly && kind==='leads') {
+      const selectedAccount=directory.accounts.find(item=>item.id===accountId);if(selectedAccount)accountDefaults={abn_acn:selectedAccount.abn_acn||'',billing_address:selectedAccount.billing_address||''};
+      fields.company.addEventListener('input',()=>{const account=directory.accounts.find(item=>item.id===accountId);if(!account || fields.company.value.trim()!==account.company){accountId='';for(const key of ['abn_acn','billing_address'])if(fields[key]?.value===accountDefaults[key])fields[key].value='';accountDefaults={};}});
+      lookup(fields.company,directory.accounts,item=>[item.company,item.abn_acn].join(' '),item=>[item.company,item.abn_acn].filter(Boolean).join(' · '),account=>accountSelection(account),'No matching Accounts. You can enter a company name.');
+      fields.name.addEventListener('input',()=>{if(fields.name.value.trim()!==contactName)contactId='';});
+      lookup(fields.name,directory.contacts,item=>[item.name,item.company,item.email,item.phone].join(' '),item=>[item.name,item.company,item.email,item.phone].filter(Boolean).join(' · '),contact=>{
+        contactId=contact.id;contactName=contact.name;
+        for(const key of ['name','phone','email','title'])fields[key].value=contact[key]||'';
+        if(!fields.company.value.trim()){const account=directory.accounts.find(item=>item.id===contact.account_id);if(account)accountSelection(account);}
+      },'No matching Contacts. You can enter a name.');
     }
     const actions = el("div", "actions contacts-dialog-actions");
     const save = ui("button", "button primary", "Save");
@@ -360,8 +413,8 @@
       const editable = [...form.querySelectorAll("input,textarea,select,button")].filter(input => !input.disabled);
       editable.forEach(input => { input.disabled = true; });
       try {
-        const result = await request(kind, {id: record.id, fields: values, version, ...(links ? {links} : {})});
-        savedRecord = kind === "accounts" ? result.account : null;
+        const result = await request(kind, {id: record.id, fields: values, version, ...(kind==='leads'?{contact_id:contactId,account_id:accountId}:{}), ...(links ? {links} : {})});
+        savedRecord = kind === "accounts" ? result.account : kind === 'contacts' ? result.contact : null;
         dialog.close();
         if (!options.standalone) await activate(page);
       }
@@ -371,6 +424,7 @@
       }
       finally {
         submitting = saving = false;
+        conversionBusy();
         editable.forEach(input => { input.disabled = false; });
         save.disabled = cancel.disabled = false;
         form.removeAttribute("aria-busy");
@@ -387,6 +441,12 @@
     const directory = await request("directory");
     return dialogEditor("accounts", {company: typeof options.company === "string" ? options.company : ""}, false, {directory, standalone: true});
   }
+  async function createContact(initial = {}) {
+    const directory = await request('directory');
+    const account = initial.account_id ? directory.accounts.find(item=>item.id===initial.account_id) : null;
+    if(initial.account_id && !account)throw new Error('Choose a valid Account.');
+    return dialogEditor('contacts',{name:typeof initial.name==='string'?initial.name:'',...(account?{company:account.company,account_id:account.id}:{})},false,{directory,standalone:true});
+  }
   function matches(row) {
     const keys = page === "accounts" ? ["company", "abn_acn", "billing_address"] :
       page === "leads" ? [...personFields, "abn_acn", "status", "site_address", "billing_address", "description"] : personFields;
@@ -395,8 +455,16 @@
   async function moveLead(lead, status) {
     if (lead.status === status || saving) return;
     const fields = Object.fromEntries([...personFields, "abn_acn", "site_address", "billing_address", "description"].map(key => [key, lead[key]]));
-    try { await update("leads", {id: lead.id, version: data.version, fields: {...fields, status}}); }
+    try { await update("leads", {id: lead.id, version: data.version, contact_id:lead.contact_id,account_id:lead.account_id,fields: {...fields, status}}); }
     catch (error) { feedback(root(), error.message, true); }
+  }
+  function conversionBusy(){for(const button of root().querySelectorAll('[data-lead-convert]')){button.disabled=saving||Boolean(converting);button.setAttribute('aria-busy',String(converting===button.dataset.leadConvert));}}
+  async function convertLead(lead){
+    if(saving||converting)return;
+    converting=lead.id;conversionBusy();
+    try{const saved=await update('leads/convert',{id:lead.id,version:data.version});if(saved)await window.CeasefireProject?.openConvertedLead(saved);}
+    catch(error){if(root().querySelector('[data-contacts-notice]'))feedback(root(),error.message,true);}
+    finally{converting=null;conversionBusy();}
   }
   function leadBoard(rows) {
     const board = el("div", "project-kanban contacts-board");
@@ -411,6 +479,7 @@
         const card = el("article", "project-kanban-card");
         card.draggable = true;
         card.addEventListener("dragstart", event => {
+          if(saving||converting||event.target.closest('button,summary,input,select')){event.preventDefault();return;}
           event.dataTransfer.effectAllowed = "move";
           event.dataTransfer.setData("application/x-classifire-lead", lead.id);
         });
@@ -421,14 +490,7 @@
         for (const [name, open] of [["Open", true], ["Edit", false]]) {
           options.append(button(name, () => {menu.open = false; dialogEditor("leads", lead, open);}, "text-button"));
         }
-        options.append(button("Convert", async () => {
-          menu.open = false;
-          try {
-            const saved = await update("leads/convert", {id:lead.id, version:data.version});
-            if (saved) await window.CeasefireProject?.openConvertedLead(saved);
-          }
-          catch (error) {feedback(root(), error.message, true);}
-        }, "text-button"));
+        const convertMenu=button('Convert',()=>{menu.open=false;void convertLead(lead);},'text-button');convertMenu.dataset.leadConvert=lead.id;options.append(convertMenu);
         menu.append(toggle, options);
         menu.addEventListener("toggle", () => {
           if (!menu.open) return;
@@ -444,6 +506,10 @@
           details.append(el("dt", "", labels[key]), el("dd", "", lead[key] || "—"));
         }
         card.append(details);
+        const actions=el('div','contacts-lead-actions'),convert=button('',()=>void convertLead(lead),'button secondary icon-only contacts-lead-convert takeoff-preview-transfer');
+        convert.dataset.leadConvert=lead.id;convert.title='Convert';convert.setAttribute('aria-label','Convert lead '+lead.name);
+        window.CeasefireI18n?.attr(convert,'title','Convert');window.CeasefireI18n?.attr(convert,'aria-label','Convert lead {0}',[lead.name]);
+        const symbol=el('img','takeoff-transfer-icon');symbol.src='/icons/takeoff-transfer.png';symbol.alt='';symbol.width=symbol.height=24;symbol.setAttribute('aria-hidden','true');convert.append(symbol);actions.append(convert);card.append(actions);
         column.append(card);
       }
       if (!group.length) column.append(el("p", "project-column-empty", "No leads"));
@@ -482,6 +548,7 @@
     const host = root().querySelector(".contacts-results");
     const rows = data[page].filter(matches);
     host.replaceChildren(page === "leads" ? leadBoard(rows) : directoryTable(rows));
+    conversionBusy();
   }
   function documentMenu(kind) {
     const menu = el("details", "calculator-document-menu contacts-document");
@@ -561,6 +628,7 @@
     section.append(controls, el("div", "contacts-results"));
     container.append(heading, tabs, notice(), section);
     displayRows();
+    conversionBusy();
   }
   document.addEventListener("click", event => {
     root()?.querySelectorAll("details[open]").forEach(menu => {if (!menu.contains(event.target)) menu.open = false;});
@@ -570,5 +638,5 @@
     const menu = event.target.closest?.("#contacts-root details[open]");
     if (menu) {menu.open = false; menu.querySelector("summary").focus();}
   });
-  window.ClassifireContacts = {activate, createAccount};
+  window.ClassifireContacts = {activate, createAccount, createContact};
 })();

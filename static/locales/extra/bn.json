@@ -2985,5 +2985,19 @@
   "Choose whether to include the complete scope tables.": "কাজের পরিধির সম্পূর্ণ সারণিগুলো অন্তর্ভুক্ত করা হবে কি না নির্বাচন করুন।",
   "Create or load a project before creating documents.": "নথি তৈরি করার আগে একটি প্রকল্প তৈরি বা লোড করুন।",
   "The project was saved, but its document workspace changed. Reload the saved project before creating documents.": "প্রকল্পটি সংরক্ষিত হয়েছে, কিন্তু এর নথির কর্মক্ষেত্র পরিবর্তিত হয়েছে। নথি তৈরি করার আগে সংরক্ষিত প্রকল্পটি আবার লোড করুন।",
-  "Choose a valid linked estimate preview.": "সংযুক্ত প্রাক্কলনের একটি বৈধ পূর্বরূপ নির্বাচন করুন।"
+  "Choose a valid linked estimate preview.": "সংযুক্ত প্রাক্কলনের একটি বৈধ পূর্বরূপ নির্বাচন করুন।",
+  "Save project": "প্রকল্প সংরক্ষণ করুন",
+  "Refresh the application before creating a Contact.": "যোগাযোগ তৈরি করার আগে অ্যাপটি রিফ্রেশ করুন।",
+  "Save or cancel the new project details first.": "আগে নতুন প্রকল্পের বিবরণ সংরক্ষণ বা বাতিল করুন।",
+  "The current project changed. Open New Project again.": "বর্তমান প্রকল্পটি বদলে গেছে। নতুন প্রকল্প আবার খুলুন।",
+  "Your draft changed during review. Your current project was kept.": "পর্যালোচনার সময় আপনার খসড়াটি বদলে গেছে। বর্তমান প্রকল্পটি রাখা হয়েছে।",
+  "Your draft changed while preparing the new project. Your current project was kept.": "নতুন প্রকল্প প্রস্তুত করার সময় আপনার খসড়াটি বদলে গেছে। বর্তমান প্রকল্পটি রাখা হয়েছে।",
+  "The new project was saved. Your current draft was kept; open the saved project from Projects.": "নতুন প্রকল্পটি সংরক্ষিত হয়েছে। বর্তমান খসড়াটি রাখা হয়েছে; প্রকল্পসমূহ থেকে সংরক্ষিত প্রকল্পটি খুলুন।",
+  "The project save result could not be confirmed. Retry Save to recover it.": "প্রকল্প সংরক্ষণের ফল নিশ্চিত করা যায়নি। ফলটি পুনরুদ্ধার করতে আবার সংরক্ষণ করুন।",
+  "Choose a valid Account.": "একটি বৈধ গ্রাহক অ্যাকাউন্ট বেছে নিন।",
+  "Convert lead {0}": "সম্ভাব্য গ্রাহক {0}-কে রূপান্তর করুন",
+  "No matching Accounts. You can enter a company name.": "কোনো মিলে যাওয়া গ্রাহক অ্যাকাউন্ট নেই। আপনি কোম্পানির নাম লিখতে পারেন।",
+  "No matching Contacts. You can enter a name.": "কোনো মিলে যাওয়া যোগাযোগ নেই। আপনি একটি নাম লিখতে পারেন।",
+  "This Contact already has a lead. Open that lead instead.": "এই যোগাযোগের জন্য ইতিমধ্যে একটি সম্ভাব্য গ্রাহকের রেকর্ড আছে। সেই রেকর্ডটি খুলুন।",
+  "Choose the Account matching this company.": "এই কোম্পানির সঙ্গে মিলে যাওয়া গ্রাহক অ্যাকাউন্টটি বেছে নিন।"
 }

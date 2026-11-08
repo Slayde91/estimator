@@ -1296,6 +1296,7 @@ async function penetrationCheck(name, fn) {
     assert.deepEqual(h.snapshot(),before);
   });
   await check('Documentation navigation honours Cancel then discards global cover edits only after approval',async h=>{
+    h.app.state.projectFile={save_token:'native-project',project_no:'PN-01',path:'C:/Project.cf.json'};
     let opens=0,dirty=false,accepted=false,reviews=0;const draft={name:'Entered cover.pdf',revision:7};
     h.context.window.CeasefireCoverSheets={open:async()=>{opens++;},hasPendingOperation:()=>false,hasUnsavedChanges:()=>dirty,fingerprint:()=>JSON.stringify(draft),leave:async()=>{reviews++;if(accepted)dirty=false;return accepted;}};
     const before=h.snapshot();await h.app.requestViewNavigation('settings');assert.equal(opens,0);await h.app.requestViewNavigation('documentation');assert.equal(opens,1);
@@ -1303,6 +1304,13 @@ async function penetrationCheck(name, fn) {
     accepted=true;
     await h.app.requestViewNavigation('home');assert.equal(h.app.state.currentView,'home');
     assert.equal(dirty,false);assert.equal(reviews,2);assert.deepEqual(h.snapshot(),before);
+  });
+  await check('Documentation navigation without a created Project notifies before changing page or initializing history',async h=>{
+    let opens=0;h.app.state.currentView='home';
+    h.context.window.CeasefireCoverSheets={open:async()=>{opens++;}};
+    assert.equal(await h.app.requestViewNavigation('documentation'),false);
+    assert.equal(h.app.state.currentView,'home');assert.equal(opens,0);
+    assert.match(h.byId('app-message').textContent,/Create or load a project/);
   });
   await check('Pending global cover uploads or saves block navigation and every project replacement entry point',async h=>{
     const before=h.snapshot();let calls=0;h.app.state.currentView='settings';h.app.setRequest(async()=>{calls++;return project();});

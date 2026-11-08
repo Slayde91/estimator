@@ -284,6 +284,13 @@ class ProjectDocumentationTests(unittest.TestCase):
 
     def test_certificates_are_derived_from_current_scope_and_never_duplicated_in_docs_blobs(self):
         legacy = self.legacy.create(fields(project='Unassigned global'))
+        chooser = Chooser(); chooser.selection = SaveSelection(str(self.root/'Created project.cf.json'), None)
+        library = ProjectLibrary(self.store, chooser, certifications=self.certificates)
+        try:
+            library.save_as({'estimate': {'project_no':'PN-FIXTURE'},
+                'certifications': {'workspace_id':self.workspace,'draft':None}})
+        finally:
+            library.close()
         service = self.certificates.service(self.workspace)
         document = service.create(fields(project='Current project'))
         generated = service.generate(document['id'], document['fields'], 1, str(uuid.uuid4()), self.store.company_settings())

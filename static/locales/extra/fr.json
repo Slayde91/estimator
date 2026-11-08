@@ -2985,5 +2985,19 @@
   "Choose whether to include the complete scope tables.": "Choisissez d’inclure ou non les tableaux complets du périmètre.",
   "Create or load a project before creating documents.": "Créez ou chargez un projet avant de créer des documents.",
   "The project was saved, but its document workspace changed. Reload the saved project before creating documents.": "Le projet a été enregistré, mais son espace de documents a changé. Rechargez le projet enregistré avant de créer des documents.",
-  "Choose a valid linked estimate preview.": "Choisissez un aperçu valide d’une estimation liée."
+  "Choose a valid linked estimate preview.": "Choisissez un aperçu valide d’une estimation liée.",
+  "Save project": "Enregistrer le projet",
+  "Refresh the application before creating a Contact.": "Actualisez l’application avant de créer un contact.",
+  "Save or cancel the new project details first.": "Enregistrez ou annulez d’abord les détails du nouveau projet.",
+  "The current project changed. Open New Project again.": "Le projet actuel a changé. Ouvrez de nouveau Nouveau projet.",
+  "Your draft changed during review. Your current project was kept.": "Votre brouillon a changé pendant la vérification. Votre projet actuel a été conservé.",
+  "Your draft changed while preparing the new project. Your current project was kept.": "Votre brouillon a changé pendant la préparation du nouveau projet. Votre projet actuel a été conservé.",
+  "The new project was saved. Your current draft was kept; open the saved project from Projects.": "Le nouveau projet a été enregistré. Votre brouillon actuel a été conservé ; ouvrez le projet enregistré depuis Projets.",
+  "The project save result could not be confirmed. Retry Save to recover it.": "Le résultat de l’enregistrement du projet n’a pas pu être confirmé. Réessayez Enregistrer pour récupérer le résultat.",
+  "Choose a valid Account.": "Sélectionnez un compte client valide.",
+  "Convert lead {0}": "Convertir le prospect {0}",
+  "No matching Accounts. You can enter a company name.": "Aucun compte client ne correspond. Vous pouvez saisir un nom d’entreprise.",
+  "No matching Contacts. You can enter a name.": "Aucun contact ne correspond. Vous pouvez saisir un nom.",
+  "This Contact already has a lead. Open that lead instead.": "Ce contact a déjà une fiche prospect. Ouvrez plutôt cette fiche.",
+  "Choose the Account matching this company.": "Sélectionnez le compte client correspondant à cette entreprise."
 }

@@ -18,7 +18,7 @@ const catalog=[{id:'estimate.summary.pdf',label:'Breakdown',format:'pdf',adapter
   {id:'library.technical.item.xlsx',label:'Technical Library item',format:'xlsx',adapter:'library',spec:{source:'technical',format:'xlsx'}},
   {id:'takeoff.pdf_tools.pdf',label:'PDF tools',format:'pdf',adapter:'takeoff',spec:{action:'pdf_tools'}}];
 function harness(){
-  const elements=new Map(),calls=[],events={},adapters=[];let selected=1,serial=20,changed=0,override=null,adapterOverride=null;
+  const elements=new Map(),calls=[],events={},adapters=[];let selected=1,serial=20,changed=0,override=null,adapterOverride=null,created=true;
   const models=new Map([[token(1),model(1)],[token(2),model(2)]]);
   function element(tag){return {tagName:tag.toUpperCase(),children:[],textContent:'',dataset:{},attributes:{},listeners:{},disabled:false,
     classList:{values:new Set(),toggle(name,on){if(on)this.values.add(name);else this.values.delete(name);}},
@@ -35,7 +35,7 @@ function harness(){
   const adapter=(owner)=>async(spec,button)=>{adapters.push({owner,spec:copy(spec),button});return adapterOverride?adapterOverride(owner,spec,button):{saved:true};};
   const window={addEventListener(name,fn){(events[name]||=[]).push(fn);},
     CeasefireCertification:{sessionId:()=>token(selected),projectWorkspace:async()=>({workspace_id:token(selected),project_id:project(selected)})},
-    CeasefireProject:{changed(){changed++;}},CeasefireDocumentationApp:{run:async(owner,spec,button)=>adapter(owner)(spec,button)},
+    CeasefireProject:{changed(){changed++;},hasCreatedProject:()=>created},CeasefireDocumentationApp:{run:async(owner,spec,button)=>adapter(owner)(spec,button)},
     CeasefireCalculators:{documentationExport:adapter('calculator')},CeasefirePenetrations:{documentationExport:adapter('firestopping')},
     CeasefireLibraryEditor:{documentationExport:adapter('library-editor')},CeasefireLibraries:{documentationExport:adapter('library')},
     CeasefireTakeoffs:{documentationExport:adapter('takeoff')}};
@@ -44,7 +44,7 @@ function harness(){
   vm.createContext(context);vm.runInContext(fs.readFileSync('static/documentation.js','utf8'),context);
   const descendants=(host,predicate)=>host.children.flatMap(child=>[...(predicate(child)?[child]:[]),...descendants(child,predicate)]);
   return {api:window.CeasefireDocumentation,window,calls,adapters,models,byId,response,events,
-    override:fn=>{override=fn;},adapterOverride:fn=>{adapterOverride=fn;},scope:n=>{selected=n;},changed:()=>changed,
+    override:fn=>{override=fn;},adapterOverride:fn=>{adapterOverride=fn;},scope:n=>{selected=n;},created:value=>{created=value;},changed:()=>changed,
     links:()=>descendants(byId('documentation-revisions-list'),e=>e.tagName==='A'),
     tableLinks:()=>['pdf','xlsx'].flatMap(fmt=>descendants(byId('documentation-'+fmt+'-rows'),e=>e.tagName==='A')),
     buttons:()=>['pdf','xlsx'].flatMap(fmt=>descendants(byId('documentation-'+fmt+'-rows'),e=>e.tagName==='BUTTON'&&!!e.dataset.documentKind)),
@@ -55,6 +55,13 @@ function harness(){
 let passed=0;
 async function check(name,fn){await fn(harness());passed++;console.log('ok - '+name);}
 (async()=>{
+  await check('Documentation rejects unsaved access while initial project capture remains possible',async h=>{
+    h.created(false);await assert.rejects(h.api.open(),/Create or load a project/);assert.equal(h.calls.length,0);
+    assert.deepEqual(copy(await h.api.downloadHeaders('/api/quote-report')),{});assert.equal(h.calls.length,0);
+    const capture=await h.api.completeProjectSnapshot();assert.equal(capture.expected_revision,0);
+    h.created(true);await h.api.open();const first=h.buttons()[0];h.created(false);await first.emit('click');
+    assert.equal(h.adapters.length,0);assert.match(h.byId('documentation-status').textContent,/Create or load a project/);
+  });
   await check('Both document tables place their download action after names and revision history',async h=>{
     const html=fs.readFileSync('static/index.html','utf8');
     const tables=[...html.matchAll(/<table class="documentation-table([^"]*)"><thead><tr>(.*?)<\/tr><\/thead>/g)];

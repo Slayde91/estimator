@@ -6,7 +6,7 @@
 .documentation-revisions-pane{min-width:0;margin:0}
 .documentation-revisions-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
 .documentation-revisions-heading h2{margin:0}
-.documentation-revisions-heading button{flex:none;width:40px;height:40px;padding:0}
+.documentation-revisions-heading button{flex:none;width:40px;min-width:40px;height:40px;min-height:40px;padding:0;font-size:22px;line-height:1;display:inline-grid;place-items:center}
 .documentation-revisions-document{font-weight:700;overflow-wrap:anywhere}
 .documentation-revisions-pane .documentation-revision{display:grid;gap:4px;padding:12px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
 .documentation-view-revisions{font-size:13px;white-space:normal;text-align:start}
@@ -31,6 +31,7 @@
 @media(max-width:600px){.documentation-table thead th:first-child{width:33%}.documentation-table thead th:last-child{width:62px}.documentation-table th,.documentation-table td{padding:10px 6px}.documentation-revision{display:block}.documentation-revision time,.documentation-revision small{display:block;margin-top:3px}}
 
 .documentation-pdf-table{min-width:850px}
+.documentation-pdf-table thead th:nth-child(3){width:78px;text-align:center}
 .documentation-pdf-table .document-cover-file{width:27%;min-width:180px}
 .documentation-pdf-table .document-cover-actions{width:10%}
 .document-cover-file input{width:100%;min-width:0}

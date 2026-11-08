@@ -28,6 +28,22 @@ async function scheduler() {
 async function tab(name) {await page.locator('.scheduler-tabs').getByRole('button',{name,exact:true}).click();}
 async function submit(name) {await page.locator('dialog[open]').getByRole('button',{name,exact:true}).click(); await expect(page.locator('dialog[open]')).toHaveCount(0);}
 async function api(route) {return page.evaluate(async route => {const response = await fetch('/api/scheduler'+route); return response.json();},route);}
+function readSchedulerClock(clock, timezone) {
+  const timestamp=Date.parse(clock.dateTime);
+  // A hidden Scheduler render can create its <time> before the first visible
+  // tick. Poll that actual readiness state without throwing from Intl.format.
+  if(!Number.isFinite(timestamp))return null;
+  const date=new Date(timestamp);
+  if(date.toISOString()!==clock.dateTime)return null;
+  const display=new Intl.DateTimeFormat('en-AU',{timeZone:timezone,hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).format(date);
+  return clock.textContent===display+' · '+timezone ? {timestamp,text:clock.textContent} : null;
+}
+// Boundary fixtures keep the read guard strict: empty/malformed clocks and
+// incorrect zone text are unready; a real UTC instant remains observable.
+assert.equal(readSchedulerClock({dateTime:'',textContent:''},'UTC'),null);
+assert.equal(readSchedulerClock({dateTime:'invalid',textContent:'00:00:00 · UTC'},'UTC'),null);
+assert.equal(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textContent:'00:00:00 · Asia/Kathmandu'},'UTC'),null);
+assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textContent:'00:00:00 · UTC'},'UTC'),{timestamp:Date.UTC(2026,10,8),text:'00:00:00 · UTC'});
 (async () => {
   const info = await ready; assert.notEqual(info.port,8765);
   browser = await chromium.launch({headless:true});
@@ -170,13 +186,18 @@ async function api(route) {return page.evaluate(async route => {const response =
   await expect(zoneForm.getByRole('status')).toContainText('Time zone saved. All team members use this time zone.');
   await page.unroute('**/api/scheduler/state*');
   await scheduler();
-  await expect.poll(() => page.locator('#scheduler-local-time').evaluate(clock => {
-    const display = new Intl.DateTimeFormat('en-AU',{timeZone:'Asia/Kathmandu',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).format(new Date(clock.dateTime));
-    return clock.textContent === display+' · Asia/Kathmandu';
-  })).toBe(true);
-  const previousClock = await page.locator('#scheduler-local-time').textContent();
-  await expect(page.locator('#scheduler-local-time')).not.toHaveText(previousClock);
+  let previousClock;
+  await expect.poll(async () => {
+    const value=await page.locator('#scheduler-local-time').evaluate(readSchedulerClock,'Asia/Kathmandu');
+    if(value)previousClock=value;
+    return Boolean(value);
+  }).toBe(true);
+  await expect.poll(async () => {
+    const value=await page.locator('#scheduler-local-time').evaluate(readSchedulerClock,'Asia/Kathmandu');
+    return Boolean(value && value.timestamp>previousClock.timestamp && value.text!==previousClock.text);
+  }).toBe(true);
   const localized = await api('/state');
+  assert.equal(localized.settings.timezone,'Asia/Kathmandu');
   assert.ok(localized.members.every(member=>member.timezone==='Asia/Kathmandu'));
   checks.push('Application Settings zone changes every team member and the live local clock with seconds');
   await page.getByRole('button',{name:'Sign out',exact:true}).click();

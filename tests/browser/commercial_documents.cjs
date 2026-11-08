@@ -83,7 +83,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await page.locator('#estimate-open-quote').click();
   const quote=page.locator('#commercial-quote-root');
   await expect(quote.getByLabel('Client',{exact:true})).toHaveValue('Unsaved project client');
-  await expect(quote.getByLabel('Site address',{exact:true})).toHaveValue('25 Current Estimate Street');
+  await expect(quote.locator('.commercial-details').getByLabel('Site address',{exact:true})).toHaveValue('25 Current Estimate Street');
   await expect(quote.getByLabel('Project number',{exact:true})).toHaveValue(projectNumber);
   await expect(quote.locator('.commercial-lines tbody tr')).toHaveCount(1);
   const introBox = await quote.getByLabel('Introduction',{exact:true}).boundingBox();
@@ -155,7 +155,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await expect(quote.locator('.commercial-lines tbody tr')).toHaveCount(1);
   await expect(quote.locator('.commercial-message')).toBeHidden();
   await expect(quote.getByLabel('Client',{exact:true})).toHaveValue('Example construction');
-  await expect(quote.getByLabel('Site address',{exact:true})).toHaveValue('10 Example Street');
+  await expect(quote.locator('.commercial-details').getByLabel('Site address',{exact:true})).toHaveValue('10 Example Street');
   await quote.locator('.commercial-estimate-picker summary').click();
   await quote.getByRole('checkbox',{name:'Additional scope',exact:true}).check();
   await expect(quote.locator('.commercial-lines tbody tr')).toHaveCount(2);
@@ -350,7 +350,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await expect(quote.locator('.commercial-card')).toHaveCount(2);
   const otherCard = quote.locator('.commercial-card').filter({hasText:'Other project quote'});
   await otherCard.getByRole('button',{name:'Other project quote'}).click();
-  for (const label of ['Project number','Site address','Client']) await expect(quote.getByLabel(label,{exact:true})).toHaveAttribute('readonly','');
+  for (const label of ['Project number','Site address','Client']) await expect(quote.locator('.commercial-details').getByLabel(label,{exact:true})).toHaveAttribute('readonly','');
   await quote.locator('.commercial-estimate-picker summary').click();
   await quote.getByRole('button',{name:'Add custom row'}).click();
   const custom = quote.locator('.commercial-lines tbody tr').last();

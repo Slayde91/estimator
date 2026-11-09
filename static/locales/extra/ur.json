@@ -3212,5 +3212,10 @@
   "Complete required {0} fields: {1}.": "{0} کے ضروری خانے مکمل کریں: {1}۔",
   "Saved certificate records are unavailable.": "محفوظ سرٹیفکیٹ کے ریکارڈ دستیاب نہیں ہیں۔",
   "The other pricing draft is still available and was not included.": "قیمتوں کا دوسرا مسودہ اب بھی دستیاب ہے اور اسے شامل نہیں کیا گیا۔",
-  "Later edits are not included and still need saving.": "بعد کی تبدیلیاں شامل نہیں ہیں اور انہیں ابھی محفوظ کرنا ہے۔"
+  "Later edits are not included and still need saving.": "بعد کی تبدیلیاں شامل نہیں ہیں اور انہیں ابھی محفوظ کرنا ہے۔",
+  "This field is required.": "یہ خانہ ضروری ہے۔",
+  "Complete Name, Phone, Company and Email before creating this Contact.": "یہ رابطہ بنانے سے پہلے نام، فون، کمپنی اور ای میل مکمل کریں۔",
+  "Complete required SWMS fields: {0}.": "SWMS کے ضروری خانے مکمل کریں: {0}۔",
+  "High Risk Work": "زیادہ خطرے والا کام",
+  "Type of Works or Additional Job Steps": "کام کی قسم یا اضافی کام کے مراحل"
 }

@@ -4,7 +4,7 @@ const {spawn} = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const {chooseTakeoff} = require('./section_navigation.cjs');
 const {renderDrawing} = require('./viewer_helpers.cjs');
-const {clickProjectControl} = require('./project_actions.cjs');
+const {clickProjectControl,prepareProjectForSave,openProjectSection} = require('./project_actions.cjs');
 const root = path.resolve(__dirname,'../..');
 const output = path.join(root,'.runtime/browser-qa',`project-estimates-${Date.now()}`);
 fs.mkdirSync(output,{recursive:true});
@@ -24,15 +24,14 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   const info=await ready;assert.notEqual(info.port,8765);
   browser=await chromium.launch({headless:true,...(process.env.CEASEFIRE_BROWSER_PATH?{executablePath:process.env.CEASEFIRE_BROWSER_PATH}:{})});
   page=await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(60000);page.on('pageerror',error=>errors.push(error.message));
-  await page.goto(`http://127.0.0.1:${info.port}/`);await idle();await estimate();
+  await page.goto(`http://127.0.0.1:${info.port}/`);await idle();await prepareProjectForSave(page);await estimate();
   await expect(page.locator('#project-no')).toHaveAttribute('readonly','');await showEstimateNotes(page);await page.locator('#measurements').fill('First estimate notes');await page.locator('#measurements').blur();await idle();
   await chooseTakeoff(page,'Steel');await renderDrawing(page,()=>page.locator('#takeoff-upload').setInputFiles(info.fixture),1);await idle();
   const firstSession=await page.evaluate(()=>window.CeasefireTakeoffs.sessionId());
   const firstDrawing=await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot().documents[0].id);
   await estimate();await save();
-  await expect(page.locator('#project-estimate-create')).toHaveText('New estimate');
-  assert.equal(await page.locator('#project-estimate-create').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(208, 0, 27)');
-  await page.locator('#project-estimate-create').click();await page.locator('#project-estimate-name').fill('Alternative');
+  for(const id of ['project-estimate-create','project-estimate-quote','project-estimate-swms'])await expect(page.locator('#'+id)).toHaveCount(0);
+  await page.locator('#project-estimate-new').click();await page.locator('#project-estimate-name').fill('Alternative');
   await page.locator('#project-estimate-dialog').getByRole('button',{name:'Save',exact:true}).click();await idle();
   await expect(page.locator('#project-estimate-select option')).toHaveCount(2);
   const second=await page.locator('#project-estimate-select').inputValue();assert.notEqual(second,'estimate-1');
@@ -86,17 +85,17 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   await expect(page.locator('#project-status')).toHaveCount(0);
   const documentToggle=page.locator('[aria-controls="firestopping-document-actions"]');
   const controlHeights=[];
-  // This Estimate row shares responsive button sizing with Create Quote/SWMS.
+  // The retained Document action aligns with the estimate combo at each breakpoint.
   for(const width of [1440,881,880,571,570,390]){
     await page.setViewportSize({width,height:1000});await expect(documentToggle).toBeVisible();
     const heights=await documentToggle.evaluate(toggle=>({
       document:toggle.getBoundingClientRect().height,
-      quote:document.getElementById('project-estimate-quote').getBoundingClientRect().height,
-      swms:document.getElementById('project-estimate-swms').getBoundingClientRect().height,
-      create:document.getElementById('project-estimate-create').getBoundingClientRect().height
+      bottom:toggle.getBoundingClientRect().bottom,
+      top:toggle.getBoundingClientRect().top,
+      estimateBottom:document.querySelector('.project-estimate-picker').getBoundingClientRect().bottom
     }));
-    assert.ok(heights.document>0&&Math.abs(heights.document-heights.quote)<.5&&Math.abs(heights.document-heights.swms)<.5&&Math.abs(heights.document-heights.create)<.5,
-      `Estimate actions should have matching heights at ${width}px: ${JSON.stringify(heights)}`);
+    assert.ok(heights.document>0&&(width<570?heights.top>=heights.estimateBottom:Math.abs(heights.bottom-heights.estimateBottom)<1),
+      `Document aligns with the estimate row or wraps below it on mobile at ${width}px: ${JSON.stringify(heights)}`);
     await documentToggle.click();
     const menu=await page.locator('#firestopping-document-actions').boundingBox();
     assert.ok(menu.x>=0&&menu.x+menu.width<=width,`Estimate Document menu should fit ${width}px: ${JSON.stringify(menu)}`);
@@ -119,6 +118,8 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
     assert.deepEqual(fs.readFileSync(info.project),savedBytes,'Loading must not rewrite its saved file');
   };
   await loadProject(()=>card.locator('.project-title-button').click());
+  await expect(page.locator('#snapshot-message')).toBeHidden();
+  await page.locator('#project-current-details').click();await expect(page.locator('#project-details-pane')).toBeVisible();
   await expect(page.locator('#snapshot-message')).toBeVisible();
   assert.equal(await page.locator('#project-pricing-context').textContent(),await page.locator('#header-project-name').textContent());
   await expect(page.locator('#view-estimate #snapshot-message')).toHaveCount(0);
@@ -128,15 +129,15 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   await card.locator('summary').click();await card.getByRole('button',{name:'Open',exact:true}).click();await idle();
   await expect(page.locator('#measurements')).toHaveValue('Second estimate notes');
   assert.equal(await page.locator('#discard-dialog').isVisible(),false);
-  await page.locator('#project-estimate-swms').click();
+  await openProjectSection(page,'swms');await page.locator('#swms-root').getByRole('button',{name:'New SWMS',exact:true}).click();
   await expect(page.locator('#swms-root').getByLabel('Job Reference',{exact:true})).toHaveValue('PN-01');
   await page.locator('#swms-root').getByRole('button',{name:'Back to statements'}).click();
   await page.locator('#discard-dialog [value="confirm"]').click();
-  await estimate(); await page.locator('#project-estimate-quote').click();
+  await estimate(); await documentToggle.click();await page.locator('#estimate-open-quote').click();
   await expect(page.locator('#view-quote')).toBeVisible();
   await expect(page.locator('#commercial-quote-root').getByLabel('Document title',{exact:true})).toBeVisible();
   await expect(page.locator('#commercial-quote-root').getByLabel('Project number',{exact:true})).toHaveValue('PN-01');
   await expect(page.locator('#measurements')).toHaveValue('Second estimate notes');
   await page.screenshot({path:path.join(output,'multiple-estimates.png'),fullPage:true});assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({passed:true,output,checks:['create','rename','switch keeps notes','inactive takeoff session retained','save all estimates','reload restores inactive drawings','title and unselected Open load the Project in Projects without rewriting its file','selected-Estimate Open retains the selected notes','pricing snapshot notice belongs to the loaded Project in Projects','Document matches Create Quote/SWMS heights and its menu fits across desktop and mobile breakpoints'],controlHeights}));
+  console.log(JSON.stringify({passed:true,output,checks:['create','rename','switch keeps notes','inactive takeoff session retained','save all estimates','reload restores inactive drawings','title and unselected Open load the Project in Projects without rewriting its file','selected-Estimate Open retains the selected notes','pricing snapshot notice belongs to the loaded Project in Projects','Document aligns with the estimate row and wraps below on mobile; its menu fits across all breakpoints'],controlHeights}));
 })().catch(async error=>{console.error(error);fs.writeFileSync(path.join(output,'failure.txt'),`${error.stack}\n${logs}`);if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();server.kill();});

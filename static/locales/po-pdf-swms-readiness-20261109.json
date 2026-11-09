@@ -1,0 +1,37 @@
+{
+  "This field is required.": [
+    "此字段为必填项。",
+    "यह फ़ील्ड आवश्यक है।",
+    "Este campo es obligatorio.",
+    "هذا الحقل مطلوب.",
+    "จำเป็นต้องกรอกช่องนี้"
+  ],
+  "Complete Name, Phone, Company and Email before creating this Contact.": [
+    "创建此联系人前，请填写姓名、电话、公司和电子邮箱。",
+    "यह संपर्क बनाने से पहले नाम, फ़ोन, कंपनी और ईमेल भरें।",
+    "Complete Nombre, Teléfono, Empresa y Correo electrónico antes de crear este contacto.",
+    "أكمل الاسم والهاتف والشركة والبريد الإلكتروني قبل إنشاء جهة الاتصال هذه.",
+    "กรอกชื่อ โทรศัพท์ บริษัท และอีเมลก่อนสร้างผู้ติดต่อนี้"
+  ],
+  "Complete required SWMS fields: {0}.": [
+    "请填写必需的 SWMS 字段：{0}。",
+    "SWMS के आवश्यक फ़ील्ड भरें: {0}।",
+    "Complete los campos obligatorios del SWMS: {0}.",
+    "أكمل حقول SWMS المطلوبة: {0}.",
+    "กรอกช่อง SWMS ที่จำเป็น: {0}"
+  ],
+  "High Risk Work": [
+    "高风险作业",
+    "उच्च जोखिम वाला कार्य",
+    "Trabajo de alto riesgo",
+    "الأعمال عالية الخطورة",
+    "งานที่มีความเสี่ยงสูง"
+  ],
+  "Type of Works or Additional Job Steps": [
+    "工作类型或其他作业步骤",
+    "कार्य का प्रकार या अतिरिक्त कार्य चरण",
+    "Tipo de trabajo o pasos adicionales",
+    "نوع الأعمال أو خطوات العمل الإضافية",
+    "ประเภทงานหรือขั้นตอนงานเพิ่มเติม"
+  ]
+}

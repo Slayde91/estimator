@@ -7,9 +7,11 @@
     'other_references', 'exclusions', 'materials_manufacturers', 'fire_resistance_level',
     'name', 'position', 'qualification', 'accreditation'];
   const signerNames = ['name', 'position', 'qualification', 'accreditation'];
-  const requiredNames = fieldNames;
+  const requiredNames = fieldNames.filter(name => !['qualification','accreditation'].includes(name));
+  const meaningful = value => Boolean(value.replace(/\p{Cf}/gu, '').trim());
   const controls = Object.fromEntries(fieldNames.map(name => [name, $('certification-' + name)]));
   const selector = $('certification-document'), saveButton = $('certification-save'), generateButton = $('certification-generate');
+  const newButton = $('certification-new');
   const signatureButton = $('certification-signature-use');
   const statement = "This is to certify that the fire rated materials have been installed according to the manufacturer's specifications to provide the nominated fire resistance level for the items listed in the relevant schedule.\n\nAll materials have been installed at the above location and comply with:";
   // These are the user's exact editable presets, not a determination of compliance.
@@ -56,7 +58,9 @@
   }
   function updateControls() {
     const locked = !state.loaded || !!state.opening || state.busy || !!state.pending || state.readingSignature;
-    for (const control of [...Object.values(controls), ...scopeControls, selector]) control.disabled = locked;
+    for (const control of [...Object.values(controls), ...scopeControls]) control.disabled = locked;
+    selector.disabled = locked || !state.items.length;
+    if(newButton)newButton.disabled=locked;
     signatureButton.disabled = locked;
     $('certification-signature-clear').disabled = locked || (!state.options.signature_image && !signerNames.some(name=>controls[name].value));
     // A still-open older page may retain the former Save control. New pages
@@ -98,11 +102,8 @@
     return [item.reference,value.project,value.client,value.address].filter(Boolean).join(' · ') || 'Certificate '+item.id.slice(0,8);
   }
   function renderDocuments() {
-    const fresh=node('option');fresh.value='';text(fresh,'New certificate');
-    const draft=node('option');draft.value='__draft__';text(draft,'Current certificate');
     const saved=state.items.map(item=>{const option=node('option',label(item));option.value=item.id;return option;});
-    if(state.id){const reload=node('option');reload.value='__reload__';text(reload,'Reload saved details');saved.push(reload);}
-    selector.replaceChildren(...(state.id?[fresh]:[draft,fresh]),...saved);selector.value=state.id||'__draft__';
+    selector.replaceChildren(...saved);selector.value=state.id||'';
   }
   function renderSignature() {
     const preview=$('certification-signature-preview');
@@ -182,6 +183,7 @@
     return result;
   }
   function applyDocument(saved, {preserveManaged=false}={}) {
+    clearFieldErrors();
     const cached=state.managedByDocument.get(saved.id);
     const known=preserveManaged?state.managed:cached?.version===saved.version?cached.managed:null;
     ++state.listRevision;state.id=saved.id;state.version=saved.version;state.conflicted=false;state.touched.clear();
@@ -229,6 +231,7 @@
     return true;
   }
   function freshFields() {
+    clearFieldErrors();
     for(const name of fieldNames)controls[name].value='';
     Object.entries(inheritedFields()).forEach(([name,value])=>{controls[name].value=value;});
     state.id=state.version=null;state.conflicted=false;state.touched.clear();
@@ -237,15 +240,15 @@
     renderDocuments();renderScopes();renderSignature();renderRevisions([]);updateControls();message('Enter the certification details.');
   }
   async function loadDocument(id) {
-    if(!id && !window.CeasefireProject?.requireCreatedProject?.()){selector.value=state.id||'__draft__';return;}
-    if(state.busy||state.pending||state.opening||state.readingSignature||!await confirmDiscard()){selector.value=state.id||'__draft__';return;}
-    if(state.busy||state.pending||state.opening||state.readingSignature){selector.value=state.id||'__draft__';return;}
+    if(!id && !window.CeasefireProject?.requireCreatedProject?.()){selector.value=state.id||'';return;}
+    if(state.busy||state.pending||state.opening||state.readingSignature||!await confirmDiscard()){selector.value=state.id||'';return;}
+    if(state.busy||state.pending||state.opening||state.readingSignature){selector.value=state.id||'';return;}
     state.busy=true;updateControls();
     try{
       if(!id){freshFields();return;}
       message('Loading certification…');applyDocument(await request(scoped('/api/certifications/'+encodeURIComponent(id))));message('Saved certification details');
-    }catch(error){selector.value=state.id||'__draft__';message(error.message,true);}
-    finally{state.busy=false;updateControls();}
+    }catch(error){selector.value=state.id||'';message(error.message,true);}
+    finally{state.busy=false;updateControls();if(!id)controls.client.focus?.();}
   }
   async function loadList() {
     const revision=++state.listRevision,data=await request(scoped('/api/certifications'));
@@ -342,10 +345,7 @@
   async function perform(kind) {
     if(!state.loaded||state.opening||state.busy||state.readingSignature||(state.pending&&state.pending.kind!==kind))return;
     if(!state.id && !state.pending && !window.CeasefireProject?.requireCreatedProject?.())return;
-    if(!state.pending){
-      for(const name of requiredNames)controls[name].setCustomValidity(controls[name].value.trim()?'':window.CeasefireI18n?.translate?.('Complete all required certificate fields.')||'Complete all required certificate fields.');
-      if(!form.reportValidity())return;
-    }
+    if(!state.pending && kind==='generate' && !validateGeneration())return;
     const action=state.pending||{kind,...snapshot(),id:state.id,version:state.version,workspaceId:state.workspaceId,createRequestId:uuid(),generationRequestId:uuid()};
     state.pending=action;state.busy=true;updateControls();
     message(kind==='generate'?'Generating and saving certificate revision…':'Saving certification details…');
@@ -381,13 +381,15 @@
   for(const [name,control]of Object.entries(controls))control.addEventListener('input',()=>{
     if(state.busy||state.pending||state.opening||state.readingSignature)return;state.touched.add(name);
     control.setCustomValidity('');
+    control.removeAttribute('aria-invalid');fieldErrors.get(name)?.setAttribute('hidden','');
     updateControls();message(dirty()?'Unsaved certification details':'Saved certification details');
   });
   for(const id of ['client','site-address','project-no'])$(id)?.addEventListener('input',refreshInheritedFields);
   form.addEventListener('submit',event=>event.preventDefault());
   saveButton?.addEventListener('click',()=>perform('save'));
   generateButton.addEventListener('click',event=>{if(!(event.detail>1))return perform('generate');});
-  selector.addEventListener('change',()=>{if(selector.value==='__draft__')return;return loadDocument(selector.value==='__reload__'?state.id:selector.value);});
+  selector.addEventListener('change',()=>{if(selector.value)return loadDocument(selector.value);});
+  newButton?.addEventListener('click',()=>loadDocument(null));
   window.addEventListener('ceasefire:company-settings-saved',event=>{if(typeof event.detail?.name==='string')companyText(event.detail.name);});
   window.addEventListener('ceasefire:languagechange',renderScopes);
   window.CeasefireCertification={open,projectWorkspace,completeProjectSnapshot,prepareProject,applyProject,markProjectSaved,discardPreparedSession,
@@ -395,6 +397,30 @@
     hasUnsavedChanges:()=>dirty()||!!state.pending,
     hasPendingOperation:()=>!!state.opening||!!state.workspaceOpening||state.busy||state.readingSignature||!!state.pending,
     fingerprint:()=>JSON.stringify({workspace_id:state.workspaceId,id:state.id,version:state.version,fields:fields(),options:{scopes:state.options.scopes,cover_pdf_name:state.options.cover_pdf_name,signature_name:state.options.signature_name,signature_revision:state.signatureRevision},pending:state.pending&&{kind:state.pending.kind,id:state.pending.id,version:state.pending.version,createRequestId:state.pending.createRequestId,generationRequestId:state.pending.generationRequestId}})};
-  requiredNames.forEach(name=>{controls[name].required=true;});
+  const fieldErrors = new Map();
+  function clearFieldErrors(){
+    for(const [name,control]of Object.entries(controls)){control.setCustomValidity('');control.removeAttribute('aria-invalid');fieldErrors.get(name)?.setAttribute('hidden','');}
+  }
+  function validateGeneration(){
+    let first;
+    for(const name of requiredNames){
+      const control=controls[name],invalid=!meaningful(control.value);
+      control.setCustomValidity(invalid?(window.CeasefireI18n?.translate?.('This field is required.')||'This field is required.'):'');
+      if(invalid){control.setAttribute('aria-invalid','true');fieldErrors.get(name)?.removeAttribute('hidden');first ||= control;}
+      else{control.removeAttribute('aria-invalid');fieldErrors.get(name)?.setAttribute('hidden','');}
+    }
+    if(!first)return true;
+    for(let section=first.parentElement;section;section=section.parentElement)if(section.tagName==='DETAILS')section.open=true;
+    message('Complete all required certificate fields.',true);first.focus();return false;
+  }
+  for(const [name,control]of Object.entries(controls)){
+    control.required=requiredNames.includes(name);
+    if(!control.required)continue;
+    const label=control.parentElement?.querySelector('span');
+    if(label){label.id='certification-'+name+'-label';control.setAttribute('aria-labelledby',label.id);}
+    control.setAttribute('aria-required','true');
+    const error=node('span');error.className='certification-field-error';error.id='certification-'+name+'-error';error.hidden=true;text(error,'This field is required.');
+    control.setAttribute('aria-describedby',error.id);control.parentElement?.append(error);fieldErrors.set(name,error);
+  }
   renderRevisions([]);renderScopes();renderSignature();updateControls();
 })();

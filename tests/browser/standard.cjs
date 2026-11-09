@@ -63,9 +63,9 @@ async function worksheetReady(title, label) {
   await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click();
   await page.waitForFunction(()=>!window.CeasefireDesktop.status().busy);
   const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
+  await fillProjectDetails(page,{'client':'Offline Windows acceptance'});
   await expect(page.getByLabel('Project No.', {exact:true})).toHaveAttribute('readonly','');
   await expect(page.getByLabel('Project No.', {exact:true})).toHaveValue(original.estimate.project_no);
-  await fillProjectDetails(page,{'client':'Offline Windows acceptance'});
   choose({});
   const savedReply = await reply(() => clickProjectControl(page, 'Save'), '/api/project/save-as');
   assert.equal(savedReply.status,200,JSON.stringify(savedReply.body));

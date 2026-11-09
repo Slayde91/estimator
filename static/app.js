@@ -2102,7 +2102,7 @@
     }
     select.replaceChildren(...state.projectEstimates.map(entry => {const option = node("option", "", entry.name); option.value = entry.id; return option;}));
     select.value = state.activeEstimateId;
-    for (const id of ["project-estimate-current-name", "project-estimate-select", "project-estimate-new", "project-estimate-create", "project-estimate-quote", "project-estimate-swms"]) $(id).disabled = state.projectBusy;
+    for (const id of ["project-estimate-current-name", "project-estimate-select", "project-estimate-new"]) $(id).disabled = state.projectBusy;
   }
 
   async function captureCurrentEstimate({ readOnly = false, commercial = false } = {}) {
@@ -2264,7 +2264,7 @@
   function projectBusy(value, activeId = null) {
     if (value) finishEstimateName();
     state.projectBusy = value;
-    for (const id of ["save-current-project", "load-project", "link-project-folder", "new-quote", "use-current-pricing", "project-estimate-current-name", "project-estimate-select", "project-estimate-new", "project-estimate-create", "project-estimate-quote", "project-estimate-swms"]) {
+    for (const id of ["save-current-project", "load-project", "link-project-folder", "new-quote", "use-current-pricing", "project-estimate-current-name", "project-estimate-select", "project-estimate-new"]) {
       $(id).disabled = value;
       $(id).setAttribute("aria-busy", String(value && id === activeId));
     }
@@ -2917,7 +2917,7 @@
   $("measurements").addEventListener("input", () => updateDirty());
   $("new-quote").addEventListener("click", async () => { if (!state.projectBusy && !coverReplacementPending()) await window.CeasefireProjectPane?.openNew?.(); });
   $("download-quote-pdf").addEventListener("click", () => downloadQuotePdf());
-  for (const id of ["estimate-open-quote", "project-estimate-quote"]) $(id).addEventListener("click", async () => {
+  for (const id of ["estimate-open-quote"]) $(id).addEventListener("click", async () => {
     if (!requireCreatedProject()) return;
     const context = state.quoteContext;
     if (await requestViewNavigation("quote") && state.currentView === "quote" && context === state.quoteContext) await window.CeasefireCommercial?.openFromEstimate?.();
@@ -2970,12 +2970,7 @@
   });
   $("project-estimate-select").addEventListener("change", () => selectEstimate($("project-estimate-select").value));
   $("project-estimate-new").addEventListener("click", addProjectEstimate);
-  $("project-estimate-create").addEventListener("click", addProjectEstimate);
-  $("project-estimate-swms").addEventListener("click", async () => {
-    if (!requireCreatedProject()) return;
-    const context = state.quoteContext;
-    if (await requestViewNavigation("swms") && context === state.quoteContext) await window.CeasefireSWMS?.openFromEstimate?.();
-  });
+
   const estimateWidth = () => {
     const width = $("project-no")?.getBoundingClientRect().width;
     if (width > 0) $("project-estimate-select").closest(".field").style.flexBasis = `${width}px`;

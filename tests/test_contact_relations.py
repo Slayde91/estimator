@@ -37,8 +37,8 @@ class ContactRelationsTests(unittest.TestCase):
         self.store = ContactsStore(self.path)
         self.projects = KnownProjects()
         self.relations = ContactRelations(self.store, self.projects)
-        self.contact = self.save("contacts", {"name": "Same Name", "company": "Same Company", "email": "first@example.test"})["contact"]
-        self.other = self.save("contacts", {"name": "Same Name", "company": "Same Company", "email": "other@example.test"})["contact"]
+        self.contact = self.save("contacts", {"name": "Same Name", "company": "Same Company", "phone": "111", "email": "first@example.test"})["contact"]
+        self.other = self.save("contacts", {"name": "Same Name", "company": "Same Company", "phone": "222", "email": "other@example.test"})["contact"]
 
     def tearDown(self):
         self.temp.cleanup()
@@ -98,7 +98,8 @@ class ContactRelationsTests(unittest.TestCase):
         self.assertEqual(len(result["linked"]["quotes"]), 2, "Only absent-source documents may use the unique-owner fallback")
 
     def test_no_company_and_partial_scan_do_not_invent_or_hide_links(self):
-        orphan = self.save("contacts", {"name": "Orphan"})["contact"]
+        self.store.import_rows("contacts", [(2, {"name": "Orphan"})], self.store.list()["version"])
+        orphan = next(person for person in self.store.list()["contacts"] if person["name"] == "Orphan")
         project = self.project(orphan["id"])
         self.document(project)
         self.projects.pending = True

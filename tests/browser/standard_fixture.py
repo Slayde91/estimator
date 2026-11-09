@@ -30,7 +30,9 @@ def main():
     rate = baseline()['rate_groups']['sprays'][1]['id']
     store.save_configuration({'rates': {rate: {'price': 987.65}}})
     legacy = export_project(store, {'estimate': {'project_no': 'STANDARD-FIXTURE',
-                            'client': 'Synthetic acceptance', 'measurements': 'Frozen legacy project'},
+                            'client': 'Synthetic acceptance', 'site_address': '1 Synthetic Standard Street',
+                            'contact_name': 'Synthetic Standard Contact', 'contact_phone': '0400 000 001',
+                            'contact_email': 'standard@example.test', 'measurements': 'Frozen legacy project'},
                             'calculators': {}}, edition='standard')
     legacy_path.write_bytes(legacy)
     protected = json.loads(legacy)

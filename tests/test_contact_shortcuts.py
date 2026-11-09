@@ -127,7 +127,8 @@ class ContactShortcutTests(unittest.TestCase):
         result=self.save('contacts',{'name':'Inline Contact','company':'canonical company','phone':'123','email':'inline@example.test'})
         self.assertEqual((result['contact']['company'],result['contact']['account_id'],result['contact']['abn_acn']),
                          ('Canonical Company',account['id'],'ABN-C'))
-        orphan=self.save('contacts',{'name':'Independent Person'})['contact']
+        self.store.import_rows('contacts',[(2,{'name':'Independent Person'})],self.store.list()['version'])
+        orphan=next(person for person in self.store.list()['contacts'] if person['name']=='Independent Person')
         self.assertIsNone(orphan['account_id'])
         self.save('leads',{'name':orphan['name'],'company':'Canonical Company','phone':'0400','email':'independent@example.test','site_address':'Site'},contact_id=orphan['id'],account_id=account['id'])
         lead=self.store.list()['leads'][0]

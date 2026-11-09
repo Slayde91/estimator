@@ -2,6 +2,7 @@ const fs = require('node:fs'), vm = require('node:vm'), assert = require('node:a
 const fieldNames = ['client','project','address','location_area','statement_of_compliance','australian_standards',
   'ncc_clauses','approved_design','additional_standards','other_references','exclusions','materials_manufacturers',
   'fire_resistance_level','name','position','qualification','accreditation'];
+const requiredNames=fieldNames.filter(key=>!['qualification','accreditation'].includes(key));
 const copy = value => JSON.parse(JSON.stringify(value));
 const signature = 'data:image/png;base64,c2lnbmF0dXJl';
 const coverData = 'data:application/pdf;base64,JVBERi0x';
@@ -14,7 +15,7 @@ function harness({legacySave=true}={}) {
   let serial = 0, creates = 0, approve = true, routeOverride = null, loseGeneratedReply = false, loseCreatedReply = false;
   let canvasData=signature;
   const element = tag => ({tagName:tag,value:'',textContent:'',children:[],listeners:{},disabled:false,attributes:{},files:[],checked:false,open:false,captures:new Set(),width:900,height:270,
-    contains(target){return target===this;},querySelector(){return {focus(){}};},
+    contains(target){return target===this;},querySelector(){return {focus(){}};},focus(){this.focused=true;},
     append(...items){this.children.push(...items);},replaceChildren(...items){this.children=items;},
     setAttribute(k,v){this.attributes[k]=v;},removeAttribute(k){delete this.attributes[k];delete this[k];},addEventListener(k,fn){(this.listeners[k]||=[]).push(fn);},
     async emit(k,event={}){event.preventDefault??=()=>{};for(const fn of this.listeners[k]||[])await fn(event);},
@@ -84,7 +85,7 @@ function harness({legacySave=true}={}) {
     scope:async(ids)=>{for(const id of ['structural_steel','structural_steel_columns','ductwork','service_penetrations'])byId('certification-scope-'+id).checked=ids.includes(id);await byId('certification-scope-'+(ids[0]||'structural_steel')).emit('change');},
     saveSignature:()=>byId('certification-signature-use').emit('click'),
     generate:()=>{fillRequired();return byId('certification-generate').emit('click');},save:()=>{fillRequired();return byId('certification-save').emit('click');},
-    select:async id=>{byId('certification-document').value=id;await byId('certification-document').emit('change');},
+    select:async id=>{if(!id)return byId('certification-new').emit('click');byId('certification-document').value=id;await byId('certification-document').emit('change');},
     approve:value=>{approve=value;},override:fn=>{routeOverride=fn;},loseNextGeneratedReply:()=>{loseGeneratedReply=true;},loseNextCreatedReply:()=>{loseCreatedReply=true;},serverError,response};
 }
 let passed=0;
@@ -238,7 +239,7 @@ async function check(name,fn,{open=true,legacySave=true}={}){const h=harness({le
     assert.equal(h.byId('certification-address').value,'Current estimate address');
     assert.equal(h.byId('certification-exclusions').value,'Project No.: CF-2042');
     assert.equal(h.byId('certification-statement_of_compliance').value,exactStatement);
-    for(const key of ['name','position','qualification','accreditation'])assert.equal(h.byId('certification-'+key).value,'');assert.equal(h.byId('certification-document').value,'__draft__');
+    for(const key of ['name','position','qualification','accreditation'])assert.equal(h.byId('certification-'+key).value,'');assert.equal(h.byId('certification-document').value,'');
     assert.equal(h.calls.filter(c=>c.path==='/api/certifications/defaults').length,0);
     assert.equal(h.calls.filter(c=>c.path==='/api/certifications/old-document').length,0);assert.equal(h.api.hasUnsavedChanges(),false);
   },{open:false});
@@ -388,15 +389,16 @@ async function check(name,fn,{open=true,legacySave=true}={}){const h=harness({le
   await check('Document conflict recovery works through the Saved certification reload option and respects cancellation',async h=>{
     h.field('project','Saved project');await h.save();h.field('project','Local unsaved project');
     h.override(async path=>path.endsWith('/revisions')?h.serverError(409,'Reload saved details'):undefined);await h.generate();
-    assert.ok(h.byId('certification-document').children.some(option=>option.value==='__reload__'));
-    h.approve(false);await h.select('__reload__');assert.equal(h.byId('certification-project').value,'Local unsaved project');
-    h.approve(true);await h.select('__reload__');assert.equal(h.byId('certification-project').value,'Saved project');assert.equal(h.api.hasUnsavedChanges(),false);
+    const id=[...h.documents.keys()][0];assert.deepEqual(h.byId('certification-document').children.map(option=>option.value),[id]);
+    h.approve(false);await h.select(id);assert.equal(h.byId('certification-project').value,'Local unsaved project');
+    h.approve(true);await h.select(id);assert.equal(h.byId('certification-project').value,'Saved project');assert.equal(h.api.hasUnsavedChanges(),false);
   });
-  await check('A fresh native dropdown keeps New distinct from the current draft so repeated reset remains available',async h=>{
-    assert.equal(h.byId('certification-document').value,'__draft__');
+  await check('The saved-only dropdown stays empty for a draft and the plus can repeatedly start a new certificate',async h=>{
+    assert.equal(h.byId('certification-document').value,'');
     h.field('location_area','First draft');await h.select('');assert.equal(h.byId('certification-location_area').value,'');
-    assert.equal(h.byId('certification-document').value,'__draft__');
-    assert.ok(h.byId('certification-document').children.some(option=>option.value===''));
+    assert.equal(h.byId('certification-document').value,'');
+    assert.equal(h.byId('certification-document').children.length,0);
+    assert.equal(h.byId('certification-document').disabled,true);assert.equal(h.byId('certification-new').disabled,false);
     h.field('location_area','Second draft');await h.select('');assert.equal(h.byId('certification-location_area').value,'');
   });
   await check('Unknown saved standard text is preserved conservatively when clearing a reopened scope',async h=>{
@@ -435,23 +437,24 @@ async function check(name,fn,{open=true,legacySave=true}={}){const h=harness({le
     assert.equal(h.byId('certification-scopes-summary').textContent,'Structural steel, Service penetrations');
     await h.scope([]);assert.equal(h.byId('certification-scopes-summary').textContent,'Choose…');
   });
-  await check('All seventeen fields are required and whitespace cannot Save or Generate',async h=>{
-    for(const key of fieldNames)assert.equal(h.byId('certification-'+key).required,true,key);
-    await h.byId('certification-save').emit('click');assert.equal(h.documents.size,0);
+  await check('Only first-section details and signer name/position are required at generation; incomplete drafts save',async h=>{
+    for(const key of fieldNames)assert.equal(h.byId('certification-'+key).required,requiredNames.includes(key),key);
+    await h.byId('certification-save').emit('click');assert.equal(h.documents.size,1);
     h.fillRequired();h.field('materials_manufacturers',' \n\t');
-    await h.byId('certification-generate').emit('click');assert.equal(h.documents.size,0);
-    assert.match(h.byId('certification-materials_manufacturers').validationMessage,/Complete all required/);
+    await h.byId('certification-generate').emit('click');assert.equal([...h.documents.values()][0].revisions.length,0);
+    assert.match(h.byId('certification-materials_manufacturers').validationMessage,/This field is required/);
     h.field('materials_manufacturers','Explicit manufacturer');await h.byId('certification-save').emit('click');
     assert.equal(h.documents.size,1);assert.equal([...h.documents.values()][0].revisions.length,0);
-    assert.ok(fieldNames.slice(13).every(key=>h.byId('certification-'+key).value.trim()));
+    h.field('qualification','');h.field('accreditation','');await h.byId('certification-generate').emit('click');
+    assert.equal([...h.documents.values()][0].revisions.length,1);
   });
-  await check('Every certificate and signer field blocks both actions when whitespace-only',async h=>{
-    for(const key of fieldNames){
-      for(const action of ['save','generate']){
+  await check('Every required certificate field blocks generation when whitespace-only',async h=>{
+    for(const key of requiredNames){
+      for(const action of ['generate']){
         h.fillRequired();h.field(key,' \n\t');
         await h.byId('certification-'+action).emit('click');
         assert.equal(h.documents.size,0,key+' '+action);
-        assert.match(h.byId('certification-'+key).validationMessage,/Complete all required/,key);
+        assert.match(h.byId('certification-'+key).validationMessage,/This field is required/,key);
       }
     }
   });
@@ -471,7 +474,7 @@ async function check(name,fn,{open=true,legacySave=true}={}){const h=harness({le
     const preparedB=await h.api.prepareProject();h.api.applyProject(preparedB);
     assert.notEqual(h.api.sessionId(),tokenA);assert.equal(h.documents.size,0);assert.equal(h.byId('certification-document').children.some(option=>option.value===id),false);
     assert.equal(h.byId('certification-signature-preview').hidden,true);await h.select(id);
-    assert.equal(h.byId('certification-document').value,'__draft__');assert.match(h.byId('certification-status').textContent,/Not found/);
+    assert.equal(h.byId('certification-document').value,'');assert.match(h.byId('certification-status').textContent,/Not found/);
     h.field('project','PROJECT B');await h.save();assert.equal(h.documents.size,1);
     const restoredA=await h.api.prepareProject({version:1},tokenA);h.api.applyProject(restoredA);await h.api.open();
     assert.equal(h.byId('certification-project').value,'PROJECT A');assert.equal(h.documents.size,1);
@@ -554,13 +557,14 @@ async function check(name,fn,{open=true,legacySave=true}={}){const h=harness({le
       ['quotes','quote','work-orders','purchase-orders'], name+' contains commercial project workspaces');
   }
   for(const key of fieldNames)assert.ok(html.includes('id="certification-'+key+'"'));
-  assert.ok(!html.includes('id="certification-new"'));assert.ok(!html.includes('id="certification-reload"'));
+  assert.ok(html.includes('id="certification-new"'));assert.ok(!html.includes('id="certification-reload"'));
   assert.ok(!html.includes('id="certification-save"'),'Generate Certificate is the only certificate save action in the current page');
   assert.ok(!html.includes('id="certification-legacy-open"'));assert.ok(!html.includes('id="certification-legacy-dialog"'));
   assert.ok(html.includes('<details id="certification-scopes"'));assert.ok(!html.includes('id="certification-cover-pdf"'));
   assert.ok(!html.includes('id="certification-signature-image"'));assert.ok(!html.includes('id="certification-signature-canvas"'));assert.ok(html.includes('id="certification-signature-use"'));assert.ok(!html.includes('id="certification-signer-delete"'));assert.ok(html.includes('id="cover-sheets-settings"'));
   for(const key of ['approved_design','additional_standards','other_references','exclusions','materials_manufacturers','fire_resistance_level','name','position','qualification','accreditation'])assert.match(html,new RegExp('id="certification-'+key+'" name="'+key+'" rows="1"'));
-  for(const key of fieldNames)assert.match(html,new RegExp('<textarea id="certification-'+key+'"[^>]* required>'));
+  for(const key of requiredNames)assert.match(html,new RegExp('<textarea id="certification-'+key+'"[^>]* required>'));
+  for(const key of ['qualification','accreditation'])assert.doesNotMatch(html,new RegExp('<textarea id="certification-'+key+'"[^>]* required>'));
   const form=html.slice(html.indexOf('<form id="certification-form">'),html.indexOf('</form>',html.indexOf('<form id="certification-form">')));
   assert.ok(form.lastIndexOf('<button')===form.indexOf('<button id="certification-generate"'));
   console.log(passed+' Certification UI regression checks passed.');

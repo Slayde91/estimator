@@ -12,7 +12,7 @@ from unittest.mock import patch
 from pypdf import PdfReader
 from reportlab.pdfgen.canvas import Canvas
 
-from estimator.certification import CertificationService, FIELDS, SIGNER_FIELDS
+from estimator.certification import CertificationService, FIELDS, SIGNER_FIELDS, REQUIRED_GENERATION_FIELDS
 from estimator.native_dialogs import SaveSelection
 from estimator.company_settings import DEFAULTS
 from estimator.server import create_server
@@ -89,22 +89,25 @@ class CertificationHTTPTests(unittest.TestCase):
             self.chooser.selection = previous
         return self.json('GET', '/api/certifications/workspaces/' + workspace['workspace_id'])
 
-    def test_each_required_field_blocks_save_and_generation_without_mutation(self):
+    def test_required_generation_fields_block_new_revisions_while_drafts_remain_savable(self):
         import uuid
         for suffix in ('', '?workspace=' + self.created_workspace()['workspace_id']):
             document = (self.json('POST', '/api/certifications' + suffix, {'fields': self.fields}, expected=201)
                         if suffix else self.legacy_certificate(self.fields))
             path = '/api/certifications/' + document['id']
-            for name in FIELDS:
+            for name in REQUIRED_GENERATION_FIELDS:
                 with self.subTest(field=name, scope=suffix):
                     invalid = {**self.fields, name: ' \n\t'}
-                    self.json('POST', '/api/certifications' + suffix, {'fields': invalid}, expected=400)
-                    self.json('POST', path + suffix, {'fields': invalid, 'expected_version': 1}, expected=400)
                     self.json('POST', path + '/revisions' + suffix, {'fields': invalid, 'expected_version': 1,
                               'request_id': str(uuid.uuid4())}, expected=400)
                     self.assertEqual(self.json('GET', path + suffix), document)
-            saved = self.json('POST', path + suffix, {'fields': {**self.fields, 'project': 'Updated'}, 'expected_version': 1})
+            saved = self.json('POST', path + suffix, {'fields': dict.fromkeys(FIELDS, ''), 'expected_version': 1})
             self.assertEqual(saved['version'], 2)
+            self.assertEqual(set(saved['fields'].values()), {''})
+            self.assertEqual(saved['revisions'], [])
+            if suffix:
+                draft = self.json('POST', '/api/certifications' + suffix, {'fields': {}}, expected=201)
+                self.assertEqual(set(draft['fields'].values()), {''})
 
     def test_settings_cover_applies_to_browser_pdf_download_and_native_destination_once(self):
         settings = {**DEFAULTS, 'name':'Cover Company', 'cover_pdf':cover('FIRST COVER'), 'cover_pdf_name':'Cover.pdf'}

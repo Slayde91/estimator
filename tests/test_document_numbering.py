@@ -21,6 +21,7 @@ from estimator.project_file import export_project
 from estimator.project_library import ProjectLibrary
 from estimator.storage import Store
 from estimator.swms import SwmsDocuments, default_fields as swms_fields
+from swms_ready_fixtures import complete_swms
 from commercial_ready_fixtures import complete_quote, complete_work_order
 
 
@@ -91,7 +92,7 @@ class DocumentNumberingTests(unittest.TestCase):
                 'certifications': {'workspace_id':self.workspace,'draft':None}})
         finally:
             library.close()
-        p = {'id':uid(),'version':0, 'status':'Draft', 'fields':swms_fields()}
+        p = {'id':uid(),'version':0, 'status':'Draft', 'fields':complete_swms(swms_fields())}
         swms = self.swms.save(self.workspace,p)
         self.assertEqual(swms['reference'],'SAFE-09')
         self.assertEqual(self.swms.save(self.workspace,p),swms)

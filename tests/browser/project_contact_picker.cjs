@@ -29,8 +29,9 @@ const ready=new Promise((resolve,reject)=>{
   async function create(fields){return api('/api/contacts/contacts',{version:(await directory()).version,fields});}
   const first=await create({name:'Alex Same',company:'Alpha Contact Company',phone:'111',email:'alpha@example.test'});
   const second=await create({name:'Alex Same',company:'Beta Contact Company',phone:'222',email:'beta@example.test'});
-  const empty=await create({name:'Empty Details',company:'Empty Contact Company',phone:'',email:''});
-  const orphan=await create({name:'Unlinked Person',company:'',phone:'333',email:'orphan@example.test'});
+  const [empty,orphan]=await require('./legacy_contacts.cjs').importLegacyContacts(page,base,[
+    {name:'Empty Details',company:'Empty Contact Company',phone:'',email:''},
+    {name:'Unlinked Person',company:'',phone:'333',email:'orphan@example.test'}]);
   const idle=()=>page.waitForFunction(()=>window.CeasefireDesktop?.status().ready&&!window.CeasefireDesktop.status().busy);
   await page.goto(base+'/');await idle();
   await fillProjectDetails(page,{client:'', 'site-address':'1 Project Street'});
@@ -92,6 +93,9 @@ const ready=new Promise((resolve,reject)=>{
   await expect(name).toHaveValue('Empty Details');await expect(phone).toHaveValue('');await expect(email).toHaveValue('');
   assert.equal((await page.evaluate(()=>window.CeasefireProject.details())).contact_id,empty.id);
   await expect(client).toHaveValue('Empty Contact Company');
+  // The legacy Contact's missing email is deliberately asserted above; the
+  // later explicit Project Save needs a user-entered email of its own.
+  await email.fill('manual-project@example.test');
   await name.fill('Unlisted manual person');await phone.fill('Manual 9');
   assert.equal((await page.evaluate(()=>window.CeasefireProject.details())).contact_id,'');
   await page.locator('#project-details-close').click();

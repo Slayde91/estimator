@@ -28,8 +28,8 @@ class DirectoryRelatedDocumentsTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.directory = ContactsStore(self.root/'contacts.sqlite3')
         self.company = self.save('accounts', {'company':'Exact Company'})['account']
-        self.person = self.save('contacts', {'name':'Exact Contact','company':'Exact Company'})['contact']
-        self.other = self.save('contacts', {'name':'Exact Contact','company':'Exact Company'})['contact']
+        self.person = self.save('contacts', {'name':'Exact Contact','company':'Exact Company','phone':'111','email':'first@example.test'})['contact']
+        self.other = self.save('contacts', {'name':'Exact Contact','company':'Exact Company','phone':'222','email':'other@example.test'})['contact']
         self.owner = str(uuid4())
         self.source = 'a'*64
         self.project = {'id':self.source,'path':str(self.root/'saved.cf.json'),'source_project_id':self.owner,

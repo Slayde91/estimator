@@ -2,7 +2,7 @@
 from urllib.parse import parse_qs, urlsplit
 
 from .catalog import ValidationError
-from .swms import SwmsConflict, default_fields, template_options
+from .swms import SwmsConflict, default_fields, template_options, issue_requirements
 
 
 class SwmsHTTP:
@@ -50,7 +50,8 @@ class SwmsHTTP:
                     if not isinstance(details, dict) or set(details) - {'project_no', 'client', 'site_address'}:
                         raise ValidationError('Choose valid SWMS project details.')
                     people_defaults = self.service.people_defaults()
-                    result = {'fields': default_fields(details, company, people_defaults), 'options': template_options(), 'people_defaults': people_defaults}
+                    result = {'fields': default_fields(details, company, people_defaults), 'options': template_options(), 'people_defaults': people_defaults,
+                              'requirements': issue_requirements()}
                 elif action == 'people-defaults':
                     result = self.service.save_people_defaults(workspace, body.get('section'), body.get('rows'), body.get('expected_version'))
                 elif action == 'save':

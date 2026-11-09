@@ -8,6 +8,7 @@ import math
 from pathlib import Path
 import re
 import sqlite3
+import unicodedata
 import uuid
 from zoneinfo import ZoneInfo
 
@@ -31,6 +32,69 @@ MAX_SNAPSHOT_BYTES = 12 * 1024 * 1024
 MAX_PDF_BYTES = 64 * 1024 * 1024
 PEOPLE_DEFAULT_KEYS = ('reviewers', 'consultation')
 MAX_PEOPLE_DEFAULT_BYTES = 1024 * 1024
+
+
+def issue_requirements():
+    """One export contract shared with the editor; drafts keep their legacy schema."""
+    details = {'job_reference': 'Job Reference', 'contact_person': 'Contact Person', 'position': 'Position',
+               'phone': 'Phone', 'principal_contractor': 'Principal Contractor (PC)', 'date': 'Date',
+               'project_address': 'Project Address'}
+    text = {'communication': 'Communication before work commences', 'toolbox': 'Toolbox talks',
+            'compliance': 'Person/s responsible for ensuring compliance with SWMS',
+            'qualifications': 'Qualifications / Competency Required to complete tasks',
+            'duties': 'Personnel / Duties and Responsibilities', 'training': 'Additional training required to complete task',
+            'activity': 'Activity', 'requirements': 'Requirements', 'legislation': 'OHS / Environmental Legislation',
+            'codes': 'Codes of Practice', 'resources': 'Resources / Trades Involved',
+            'equipment': 'Equipment / Plant / Materials Used', 'maintenance': 'Maintenance Checks Required',
+            'acknowledgement': 'Employee acknowledgement'}
+    return ([{'path': 'details.' + key, 'label': label, 'type': 'text'} for key, label in details.items()]
+            + [{'path': key, 'label': label, 'type': 'text'} for key, label in text.items()]
+            + [{'path': 'reviewers', 'label': 'Person/s responsible for reviewing SWMS', 'type': 'people'},
+               {'path': 'consultation', 'label': 'This SWMS has been developed in consultation with', 'type': 'people'},
+               {'path': 'high_risk_work', 'label': 'High Risk Work', 'type': 'high-risk'},
+               {'path': 'work_types', 'label': 'Type of Works or Additional Job Steps', 'type': 'works'}])
+
+
+def _meaningful(value):
+    return isinstance(value, str) and bool(''.join(char for char in value if unicodedata.category(char) != 'Cf').strip())
+
+
+def _signed(value):
+    return bool(value and any(any(point != stroke[0] for point in stroke) for stroke in value['strokes']))
+
+
+def missing_issue_fields(fields):
+    missing = []
+    choices = set(template_options()['high_risk'])
+    for spec in issue_requirements():
+        value = fields
+        for key in spec['path'].split('.'):
+            value = value.get(key) if isinstance(value, dict) else None
+        if spec['type'] == 'people':
+            present = bool(value) and all(_meaningful(person['name']) and _meaningful(person['position'])
+                                          and _signed(person['signature']) for person in value)
+        elif spec['type'] == 'high-risk':
+            selected = value.splitlines()
+            present = bool(selected) and all(choice in choices for choice in selected) and ('NA' not in selected or selected == ['NA'])
+        elif spec['type'] == 'works':
+            present = bool(value) or fields['additional_steps'] and any(_meaningful(row['job_step']) for row in fields['additional_rows'])
+        else:
+            present = _meaningful(value)
+        if not present:
+            missing.append(spec)
+    return missing
+
+
+def require_issue_fields(document):
+    missing = missing_issue_fields(document['fields'])
+    if not _meaningful(document.get('reference')):
+        missing.insert(1, {'label': 'SWMS Reference'})
+    if missing:
+        raise ValidationError('Complete required SWMS fields: ' + ', '.join(spec['label'] for spec in missing) + '.')
+
+
+def review_initials(name):
+    return ''.join(word[0].upper() for word in re.findall(r"[^\W\d_]+(?:['’][^\W\d_]+)*", name, re.UNICODE))[:100]
 
 
 class SwmsConflict(ValidationError):
@@ -104,6 +168,7 @@ def default_fields(details=None, company=None, people_defaults=None):
                   additional_steps=False, additional_rows=[], signoffs=[], manual_signature=None, site_signoffs=[], reviews=[''] * 10,
                   emergency_contacts='', work_types=[], steps=options['works'],
                   high_risk_steps=options['high_risk_tables'], attachments=[])
+    fields['emergency_notify'] = 'Person discovering an incident to immediately alert the appropriate Field Supervisor'
     fields['resources'] = fields['resources'].replace('{company}', company.get('name', ''))
     fields['details'].update(job_reference=details.get('project_no', ''), principal_contractor=details.get('client', ''),
                              project_name=details.get('client', ''), project_address=details.get('site_address', ''),
@@ -256,8 +321,10 @@ def validate_swms_snapshot(value):
         raise ValidationError('A project supports at most 50 SWMS documents.')
     rows, identities = [], set()
     for row in value['documents']:
-        if not isinstance(row, dict) or set(row) - {'reference'} != {'id', 'version', 'status', 'fields', 'created_at', 'updated_at'}:
+        if not isinstance(row, dict) or set(row) - {'reference', 'review_count'} != {'id', 'version', 'status', 'fields', 'created_at', 'updated_at'}:
             raise ValidationError('A saved SWMS has unsupported fields.')
+        if 'review_count' in row and (type(row['review_count']) is not int or not 0 <= row['review_count'] <= 10):
+            raise ValidationError('The SWMS review count must be between zero and ten.')
         if 'reference' in row and not valid_reference(row['reference']):
             raise ValidationError('The saved SWMS reference is invalid.')
         identity = _identity(row['id'])
@@ -355,7 +422,8 @@ class SwmsDocuments:
 
     def view(self, workspace):
         snapshot = self.capture(workspace)
-        return {'workspace_id': workspace, 'project_id': snapshot['project_id'], 'documents': snapshot['documents'], 'snapshot': snapshot, 'statuses': STATUSES}
+        return {'workspace_id': workspace, 'project_id': snapshot['project_id'], 'documents': snapshot['documents'], 'snapshot': snapshot, 'statuses': STATUSES,
+                'requirements': issue_requirements()}
 
     def restore(self, workspace, snapshot):
         snapshot = validate_swms_snapshot(snapshot)
@@ -419,6 +487,10 @@ class SwmsDocuments:
             document = {'id': identity, 'version': previous['version'] + 1 if previous else 1,
                         'reference': self.numbering.assign(db, 'swms', project + ':' + identity, (previous or {}).get('reference', '')),
                         'status': payload['status'], 'fields': fields, 'created_at': previous['created_at'] if previous else now, 'updated_at': now}
+            if previous and 'review_count' in previous:
+                document['review_count'] = previous['review_count']
+            elif previous is None:
+                document['review_count'] = 0
             snapshot = self._snapshot(db, workspace, project)
             snapshot['documents'] = [row for row in snapshot['documents'] if row['id'] != identity] + [document]
             validate_swms_snapshot(snapshot)
@@ -450,12 +522,23 @@ class SwmsDocuments:
                 return {**dict(previous), 'pdf': bytes(previous['pdf'])}
             document = self._record(db, workspace, identity)
             self._version(document, version)
+            require_issue_fields(document)
+            issued_document = deepcopy(document)
+            legacy = getattr(self.certifications, 'legacy', None)
+            profile = legacy.get_defaults()['fields'] if legacy is not None else {}
+            initials = review_initials(profile.get('name', ''))
+            # Legacy manual review entries also reserve their existing slots.
+            used = max((index + 1 for index, value in enumerate(document['fields']['reviews']) if _meaningful(value)), default=0)
+            review_slot = document.get('review_count', used)
+            issued_document['review_count'] = min(10, review_slot + 1)
+            if review_slot < 10:
+                issued_document['fields']['reviews'][review_slot] = initials
             renderer = self.renderer
             if renderer is None:
                 from .swms_pdf import render_swms_pdf
                 renderer = render_swms_pdf
             cover = self.covers.get('swms') if self.covers else None
-            pdf = renderer(document, company=company)
+            pdf = renderer(issued_document, company=company)
             from .pdf_cover import prepend_cover_pdf
             pdf = prepend_cover_pdf(pdf, company, cover)
             if not isinstance(pdf, bytes) or not pdf.startswith(b'%PDF-') or len(pdf) > MAX_PDF_BYTES:
@@ -463,7 +546,13 @@ class SwmsDocuments:
             issued_id = str(uuid.uuid4())
             filename = f"SAFE-WORK-METHOD-STATEMENT-{document.get('reference') or identity[:8]}-R{version}.pdf"
             db.execute('INSERT INTO swms_issued VALUES(?,?,?,?,?,?)', (issued_id, project, request_id, fingerprint, filename, pdf))
-            self._audit(db, workspace, identity, 'issue', document, document)
+            # A successful issue is a real draft mutation. Advance its CAS version
+            # so another window cannot overwrite the newly recorded initials.
+            issued_document['version'] += 1
+            issued_document['updated_at'] = datetime.now(timezone.utc).isoformat()
+            validate_swms_snapshot({'version': 1, 'project_id': project, 'documents': [issued_document]})
+            db.execute('UPDATE swms_drafts SET data=? WHERE workspace=? AND id=?', (_json(issued_document), workspace, identity))
+            self._audit(db, workspace, identity, 'issue', document, issued_document)
         return {'id': issued_id, 'filename': filename, 'pdf': pdf}
 
     def read_pdf(self, workspace, issued_id):

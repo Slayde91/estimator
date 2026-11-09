@@ -43,6 +43,22 @@
     element.addEventListener("click", action);
     return element;
   }
+  function pdfDownloadButton(action) {
+    const control = button("", action, true);
+    control.classList.add("icon-only", "commercial-download-pdf");
+    for (const attribute of ["title", "aria-label"]) {
+      control.setAttribute(attribute, "Download PDF");
+      window.CeasefireI18n?.attr(control, attribute, "Download PDF");
+    }
+    const icon = node("span", "download-format-icon"); icon.setAttribute("aria-hidden", "true");
+    icon.append(node("span", "download-arrow", "⇩"), node("span", "download-format", "PDF"));
+    control.append(icon); return control;
+  }
+  function documentTitle(document) {
+    if (document.kind !== "work_order") return document.fields.title;
+    const number = document.reference || document.fields.order.work_order_reference || document.last_number;
+    return number ? `${number}: ${document.fields.details.client || "—"}` : names.work_order;
+  }
   function field(label, control) {
     const wrapper = node("label", "field");
     control.setAttribute("aria-label", label);
@@ -585,9 +601,9 @@
         ["Updated", new Intl.DateTimeFormat("en-AU", {year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", hour12:false}).format(new Date(doc.updated_at))]
       ];
     };
-    const documents = all.filter(doc => [doc.fields.title, doc.fields.details.project_no, ...cardInfo(doc).map(pair=>pair[1])].join(" ").toLowerCase().includes(state.search.toLowerCase()));
+    const documents = all.filter(doc => [documentTitle(doc), doc.fields.title, doc.fields.details.project_no, ...cardInfo(doc).map(pair=>pair[1])].join(" ").toLowerCase().includes(state.search.toLowerCase()));
     documents.sort((a, b) => state.sort === "Document name A–Z"
-      ? a.fields.title.localeCompare(b.fields.title, "en", {numeric:true}) || a.id.localeCompare(b.id)
+      ? documentTitle(a).localeCompare(documentTitle(b), "en", {numeric:true}) || a.id.localeCompare(b.id)
       : (state.sort === "Oldest saved first" ? 1 : -1) * a.updated_at.localeCompare(b.updated_at) || a.id.localeCompare(b.id));
     root().querySelector(".commercial-match-count").textContent = `${documents.length} matching documents · ${all.length} found`;
     for (const status of state.model.statuses[state.kind]) {
@@ -619,7 +635,7 @@
         });
         const menu = node("details", "commercial-card-menu");
         const toggle = node("summary", "", "▾");
-        toggle.setAttribute("aria-label", `Actions for ${document.fields.title}`);
+        toggle.setAttribute("aria-label", `Actions for ${documentTitle(document)}`);
         const actions = node("div", "commercial-menu-options");
         const options = [["Open", () => openCard(document)], ["Edit", () => openCard(document)], ["Delete", () => remove(document)]];
         if (state.kind === "quote") options.splice(2, 0, ["Create WO", () => openCard(document, true)]);
@@ -636,7 +652,7 @@
         actions.append(field("Move to", statusSelect));
         menu.append(toggle, actions);
         menu.addEventListener("toggle", () => positionCardMenu(menu));
-        const title = button(document.fields.title, () => { if (!state.busy) void openCard(document); });
+        const title = button(documentTitle(document), () => { if (!state.busy) void openCard(document); });
         title.className = "project-title-button";
         const heading = node("div", "project-card-heading");
         heading.append(title, menu);
@@ -926,7 +942,7 @@
     }
     if (lockedNumber) fields.details.project_no = lockedNumber;
     const actions = node("div", "commercial-editor-actions");
-    actions.append(backButton("Back to " + names[state.kind] + "s", () => void leaveEditor()), button("Save", () => void saveEditor(), true), button("Download PDF", () => void downloadEditor(), true));
+    actions.append(backButton("Back to " + names[state.kind] + "s", () => void leaveEditor()), button("Save", () => void saveEditor(), true), pdfDownloadButton(() => void downloadEditor()));
     if (state.kind === "work_order") actions.append(button("Create PO", () => void createPurchaseOrder()));
     const titleRow = node("div", "commercial-title-row");
     const statusControl=select(state.model.statuses[state.kind], state.editor.document.status, value => {
@@ -934,8 +950,13 @@
     });
     statusControl.classList.add('commercial-document-status');statusControl.dataset.status=state.editor.document.status;
     for(const option of statusControl.options)option.dataset.status=option.value;
-    titleRow.append(field("Document title", input(fields.title, value => fields.title = value)), field("Status", statusControl));
-    form.append(actions, titleRow);
+    form.append(actions);
+    if (state.kind === "work_order") {
+      const statusField = field("Status", statusControl); statusField.classList.add("commercial-action-status"); actions.append(statusField);
+    } else {
+      titleRow.append(field("Document title", input(fields.title, value => fields.title = value)), field("Status", statusControl));
+      form.append(titleRow);
+    }
     const details = node("section", "card commercial-details");
     details.append(node("h2", "", "Project details"));
     const detailField = (key, label) => {
@@ -1257,7 +1278,7 @@
       ["Works in Progress", [["completed_percent","% completed"],["progress_by","Progress signed by"],["progress_date","Date"]]],
       ["Work Order Claim", [["claimed_percent","% claimed"],["claimed_by","Claim signed by"],["claim_date","Date"]]],
       ["Work Order Completion", [["certification","Certification details"],["completion","Completion"],["closed_by","Closed by"],["closed_date","Date"]]]
-    ] : [["Purchase order information", [["work_order_reference", "Work order reference"], ["supplier", "Supplier"], ["payment_terms", "Payment terms"], ["supplier_contact", "Supplier contact"], ["supplier_email", "Supplier email"], ["ship_to_name", "Site contact"], ["site_contact_number", "Site contact number"], ["delivery_date", "Delivery date and time"], ["ship_to_address", "Ship to address"], ["delivery_method", "Delivery or pickup"], ["expense_type", "Type of expense"]]], ["Request", [["requested_by", "Requested by"], ["requested_date", "Request date"]]], ["Approval", [["approval", "Approval"], ["rejection_reason", "Rejection reason"], ["reviewed_by", "Approved by"], ["review_date", "Approval date"]]], ["Sent by", [["sent_by", "Sent by"], ["sent_date", "Sent date"]]], ["Procurement verification", [["verification", "Verification method, specification, result and actions"], ["verified_by", "Verified by"], ["verified_date", "Verification date"]]]];
+    ] : [["Purchase order information", [["work_order_reference", "Work order reference"], ["supplier", "Supplier"], ["payment_terms", "Payment terms"], ["supplier_contact", "Supplier contact"], ["supplier_email", "Supplier email"], ["ship_to_name", "Site contact"], ["site_contact_number", "Site contact number"], ["delivery_method", "Delivery or pickup"], ["ship_to_address", "Ship to address"], ["delivery_date", "Delivery date and time"], ["expense_type", "Type of expense"]]], ["Request", [["requested_by", "Requested by"], ["requested_date", "Request date"]]], ["Approval", [["approval", "Approval"], ["rejection_reason", "Rejection reason"], ["reviewed_by", "Approved by"], ["review_date", "Approval date"]]], ["Sent by", [["sent_by", "Sent by"], ["sent_date", "Sent date"]]], ["Procurement verification", [["verification", "Verification method, specification, result and actions"], ["verified_by", "Verified by"], ["verified_date", "Verification date"]]]];
     for (const [title, items] of groups) {
       const section = node("section", "card commercial-order-fields");
       if(!isWorkOrder && title==='Purchase order information')section.classList.add('commercial-purchase-information');
@@ -1308,7 +1329,9 @@
           date.dataset.orderField='delivery_date';time.dataset.orderField='delivery_time';
           date.setAttribute('aria-label','Delivery date');time.setAttribute('aria-label','Delivery time');time.step='60';
           for(const control of [date,time])window.CeasefireI18n?.attr(control,'aria-label',control.getAttribute('aria-label'));
-          controls.append(date,time);group.append(caption,controls);section.append(group);continue;
+          controls.append(date,time);group.append(caption,controls);
+          group.hidden=fields.order.delivery_method!=='Delivery';
+          section.append(group);continue;
         }
         if(!isWorkOrder && ['supplier','supplier_contact','ship_to_name'].includes(key)) {
           const owner=state.editor, workspace=state.workspace, context=window.CeasefireProject?.runtimeContext?.();
@@ -1333,6 +1356,10 @@
           control = select(options, fields.order[key], value => {
             fields.order[key] = value;
             if(!isWorkOrder && key==='approval' && rejectionField)rejectionField.hidden=value!=='Rejected';
+            if(!isWorkOrder && key==='delivery_method') {
+              const delivery=section.querySelector('.commercial-delivery-field');
+              if(delivery)delivery.hidden=value!=='Delivery';
+            }
           });
           for(const option of control.options)if(choices.includes(option.value))window.CeasefireI18n?.text(option,option.value);
         } else control = key.endsWith("_date") ? input(fields.order[key], value => fields.order[key] = value, "date")
@@ -1877,7 +1904,7 @@
       }
       const source = state.editor.source;
       const result = source ? await documentRequest("issue", state.editor.pendingIssue, source) : await window.CeasefireDownloads.save("/api/commercial/issue", state.editor.pendingIssue, {
-        button: root().querySelector(".commercial-editor-actions button:last-child")
+        button: root().querySelector(".commercial-download-pdf")
       });
       if (result?.cancelled) {
         message("Download cancelled.");

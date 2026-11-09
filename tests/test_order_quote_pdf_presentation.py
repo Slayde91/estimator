@@ -141,15 +141,16 @@ class OrderQuotePdfPresentationTests(unittest.TestCase):
                 percent = next(word for word in page.extract_words() if word['text'] == '%')
                 self.assertAlmostEqual(percent['x0'] - notes['x0'], (A4[0] - 72) * .15, delta=1)
 
-    def test_purchase_order_site_contact_fields_keep_existing_table_presentation(self):
+    def test_purchase_order_site_contact_fields_survive_branded_table_presentation(self):
         fields = default_fields('purchase_order', {'project_no': 'PN-01'}, DEFAULTS)
         fields['order'].update(ship_to_name='Site contact fixture', site_contact_number='+61 400 111 222',
                                ship_to_address='Delivery address fixture')
         payload = render_commercial_pdf({'kind': 'purchase_order', 'status': 'Draft', 'fields': fields},
                                          'PO-01', company=DEFAULTS)
         text = compact('\n'.join(page.extract_text() for page in PdfReader(BytesIO(payload)).pages))
-        for retained in ('Site contact', 'Site contact number', '+61 400 111 222', 'Delivery address fixture', 'Field Details'):
+        for retained in ('Site contact', 'Site contact number', '+61 400 111 222', 'Delivery address fixture'):
             self.assertIn(retained, text)
+        self.assertNotIn('Field Details', text)
         self.assertNotIn('Ship to', text)
 
     def test_purchase_order_request_approval_sent_and_final_verification_keep_separate_sections(self):

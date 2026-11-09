@@ -104,8 +104,11 @@ async function download(host) {
   stage = 'creating the issued Quote source';
   await openProjectSection(page, 'quote'); let quote = page.locator('#commercial-quote-root');
   await quote.getByRole('button', {name:'New Quote', exact:true}).click(); await idle();
-  const quoteTitle = 'Immutable issued tracking source';let workTitle;
-  await quote.getByLabel('Document title', {exact:true}).fill(quoteTitle);
+  const quoteTitle = 'Q-01: Portable tracking QA';let workTitle;
+  await expect(quote.getByLabel('Document title', {exact:true})).toHaveCount(0);
+  // New Quote loads the active estimate asynchronously. Wait for that owned
+  // line before clearing the selection for this four-row tracking fixture.
+  await expect(quote.locator('.commercial-lines tbody tr')).toHaveCount(1);
   await quote.locator('.commercial-estimate-picker summary').click();
   for (const checkbox of await quote.locator('.commercial-estimate-options input[type=checkbox]').all()) {
     if (await checkbox.isChecked()) {await checkbox.uncheck(); await idle();}

@@ -31,7 +31,7 @@
 #view-settings #document-number-settings th:first-child,#view-settings #document-number-settings td:first-child{width:var(--settings-label-width)}
 #view-settings #document-number-settings th,#view-settings #document-number-settings td{vertical-align:middle}
 #view-settings .settings-timezone-form{margin-top:24px;padding-top:24px;border-top:1px solid var(--line)}
-#view-settings #personal-details-form+.settings-field-row{margin-top:20px}
+#view-settings #personal-details-form>.settings-field-row{margin-top:20px}
 #view-settings .settings-signature-control{display:flex;gap:12px;align-items:center}
 #view-settings .play-settings-card{display:grid;grid-template-columns:var(--settings-label-width) minmax(0,1fr);column-gap:var(--settings-column-gap)}
 #view-settings .play-settings-card>button{justify-self:start}

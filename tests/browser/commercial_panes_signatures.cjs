@@ -25,7 +25,7 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  page.on('request',request=>{if(request.method()==='POST')mutations.push(new URL(request.url()).pathname);});
  await page.goto(`http://127.0.0.1:${info.port}`);await idle();await createNewProject(page,{client:'SIGNATURE PANE QA','site-address':'Synthetic site, no design claim'});
  await openProjectSection(page,'quote');const quote=page.locator('#commercial-quote-root');await quote.getByRole('button',{name:'New Quote',exact:true}).click();await idle();
- await quote.getByLabel('Document title',{exact:true}).fill('Quote with side panes');
+ await expect(quote.getByLabel('Document title',{exact:true})).toHaveCount(0);
  for(const [description,price] of [['Charged service','100'],['Free service','0'],['Credit service','-5']]) {
   await quote.getByRole('button',{name:'Add custom row',exact:true}).click();const row=quote.locator('.commercial-lines tbody tr').last();
   await row.getByRole('combobox').fill(description);await row.locator('input').last().fill(price);

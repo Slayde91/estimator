@@ -26,6 +26,9 @@ const errors = [], checks = [];
   await expect(page.locator('#company-settings-save')).toBeEnabled();
   await expect(page.locator('#organization-timezone')).toBeEnabled();
   await expect(page.locator('#personal-details-save')).toBeEnabled();
+  for (const form of ['company-settings-form','organization-timezone-form','personal-details-form','document-number-settings'])
+    await expect(page.locator('#'+form).getByRole('button',{name:'Save',exact:true})).toHaveCount(1);
+  await expect(page.locator('#document-number-settings').getByRole('button',{name:'Update existing records',exact:true})).toHaveId('migrate-order-numbers');
   await expect(page.locator('#language-help')).toHaveCount(0);
   await expect(page.locator('[aria-describedby~="language-help"]')).toHaveCount(0);
   assert.equal(await page.locator('#organization-timezone-form').evaluate(form => form.closest('section.card').querySelector('h2').textContent), 'Company Details');
@@ -40,6 +43,10 @@ const errors = [], checks = [];
       return {width:innerWidth,documentWidth:document.documentElement.scrollWidth, language:box('#language-heading'),languageControl:box('#application-language-toggle'),appearance:box('#theme-toggle'),company:pair('#company-name'),personal:pair('#personal-name'),zone:pair('#organization-timezone'),logo:box('#company-logo'),preview:box('#company-logo-preview'),numberPrefix:box('#project-number-prefix')};
     });
     assert.ok(measurements.documentWidth <= width, JSON.stringify(measurements));
+    assert.equal(measurements.languageControl.width, measurements.appearance.width);
+    assert.equal(measurements.languageControl.height, measurements.appearance.height);
+    const signature = await page.locator('#personal-signature-set').boundingBox(), savePersonal = await page.locator('#personal-details-save').boundingBox();
+    assert.ok(savePersonal.y >= signature.y + signature.height, 'Personal Details ends with Save below the signature row');
     assert.ok(measurements.preview.top >= measurements.logo.bottom + 10, JSON.stringify(measurements));
     assert.ok(Math.abs(measurements.preview.left - measurements.logo.left) < 1);
     if (width > 600) {

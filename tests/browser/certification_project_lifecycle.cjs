@@ -52,6 +52,16 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   await chooser.getByRole('button',{name:'Insert signature'}).click();await expect(page.locator('#certification-signature-preview')).toBeVisible();
   const preferences=await (await fetch(base+'/api/certifications/defaults')).json();assert.equal(preferences.signature_image,null);
   const signatureHash=digest(await page.locator('#certification-signature-preview').getAttribute('src'));
+  const board=page.locator('#certification-board');
+  await expect(board.locator('.project-column-heading h2')).toHaveText(['Draft','Review','Approved','Rejected']);
+  await page.getByLabel('Workflow status',{exact:true}).selectOption('Review');
+  await page.locator('#certification-save-draft').click();
+  const reviewCard=board.locator('[data-status="Review"] article');
+  await expect(reviewCard).toContainText('PROJECT A CLIENT');
+  await expect(reviewCard).toContainText('Certificate revisions (0)');
+  await reviewCard.dragTo(board.locator('[data-status="Rejected"]'),{sourcePosition:{x:4,y:4}});
+  await board.locator('[data-status="Rejected"] .project-title-button').click();
+  await expect(page.locator('#certification-workflow')).toHaveValue('Rejected');
   await expect(page.locator('#certification-save')).toHaveCount(0);await generateCertificate(page,1);
   const documentId=await page.locator('#certification-document').inputValue();assert.ok(documentId&&documentId!==original.id);
   await page.locator('#certification-location_area').fill('Updated before second generation');await generateCertificate(page,2);
@@ -78,6 +88,8 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   await expect(page.locator('#client')).toHaveValue('PROJECT A CLIENT',{timeout:120000});await idle();await certification();
   const restoredToken=await page.evaluate(()=>window.CeasefireCertification.sessionId());assert.notEqual(restoredToken,tokenA);
   await expect(page.locator('#certification-document')).toHaveValue(documentId);await expect(page.locator('#certification-client')).toHaveValue('PROJECT A CLIENT');
+  await expect(page.locator('#certification-workflow')).toHaveValue('Rejected');
+  await expect(board.locator('[data-status="Rejected"] article')).toContainText('Certificate revisions (2)');
   await expect(page.locator('#certification-signature-preview')).toBeVisible();assert.equal(digest(await page.locator('#certification-signature-preview').getAttribute('src')),signatureHash);
   const restored=await (await fetch(base+'/api/certifications/'+documentId+'?workspace='+restoredToken)).json();
   const portable=value=>({...value,revisions:value.revisions.map(({pdf_url,...revision})=>revision)});

@@ -54,10 +54,14 @@
     icon.append(node("span", "download-arrow", "⇩"), node("span", "download-format", "PDF"));
     control.append(icon); return control;
   }
+  function documentReference(document) {
+    if (document.kind === "quote") return document.last_number;
+    return document.reference || (document.kind === "work_order" && document.fields.order.work_order_reference) || document.last_number;
+  }
   function documentTitle(document) {
-    if (document.kind !== "work_order") return document.fields.title;
-    const number = document.reference || document.fields.order.work_order_reference || document.last_number;
-    return number ? `${number}: ${document.fields.details.client || "—"}` : names.work_order;
+    const {kind, fields} = document;
+    const party = kind === "purchase_order" ? fields.order.supplier : fields.details.client;
+    return `${documentReference(document) || names[kind]}: ${party || "—"}`;
   }
   function field(label, control) {
     const wrapper = node("label", "field");
@@ -589,7 +593,7 @@
     const cardInfo = doc => {
       const fields = doc.fields, details = fields.details, order = fields.order;
       const po = doc.kind === "purchase_order", wo = doc.kind === "work_order";
-      const number = doc.reference || (wo && order.work_order_reference) || doc.last_number;
+      const number = documentReference(doc);
       const cost = wo ? order.estimated_cost || doc.grand_total || state.model.quote_totals?.[order.quote_id]?.[order.quote_reference] || "" : doc.grand_total;
       const grand = cost === undefined ? summary(fields).money(summary(fields).total)
         : cost && Number.isFinite(Number(cost)) ? new Intl.NumberFormat("en-AU", {style:"currency",currency:"AUD"}).format(Number(cost)) : cost;
@@ -627,6 +631,7 @@
       });
       for (const document of matches) {
         const card = node("article", "commercial-card project-kanban-card");
+        card.dataset.documentId = document.id;
         card.draggable = true;
         card.addEventListener("dragstart", event => {
           if (state.busy || event.target.closest("button,select,summary,input")) { event.preventDefault(); return; }
@@ -747,7 +752,7 @@
     }
   }
   async function remove(document) {
-    if (state.busy || !window.confirm(`Delete “${document.fields.title}”?`)) return;
+    if (state.busy || !window.confirm(`Delete “${documentTitle(document)}”?`)) return;
     state.busy = true;
     try {
       await documentRequest("delete", {
@@ -943,20 +948,16 @@
     if (lockedNumber) fields.details.project_no = lockedNumber;
     const actions = node("div", "commercial-editor-actions");
     actions.append(backButton("Back to " + names[state.kind] + "s", () => void leaveEditor()), button("Save", () => void saveEditor(), true), pdfDownloadButton(() => void downloadEditor()));
-    if (state.kind === "work_order") actions.append(button("Create PO", () => void createPurchaseOrder()));
-    const titleRow = node("div", "commercial-title-row");
     const statusControl=select(state.model.statuses[state.kind], state.editor.document.status, value => {
       state.editor.document.status=value;statusControl.dataset.status=value;
     });
     statusControl.classList.add('commercial-document-status');statusControl.dataset.status=state.editor.document.status;
     for(const option of statusControl.options)option.dataset.status=option.value;
+    const statusField = field("Status", statusControl);
+    statusField.classList.add("commercial-action-status");
+    actions.append(statusField);
+    if (state.kind === "work_order") actions.append(button("Create PO", () => void createPurchaseOrder()));
     form.append(actions);
-    if (state.kind === "work_order") {
-      const statusField = field("Status", statusControl); statusField.classList.add("commercial-action-status"); actions.append(statusField);
-    } else {
-      titleRow.append(field("Document title", input(fields.title, value => fields.title = value)), field("Status", statusControl));
-      form.append(titleRow);
-    }
     const details = node("section", "card commercial-details");
     details.append(node("h2", "", "Project details"));
     const detailField = (key, label) => {
@@ -972,7 +973,8 @@
       pairs.forEach(([key,label]) => pair.append(detailField(key,label)));
       return pair;
     };
-    details.append(detailPair([["date", "Document date"], ["project_no", "Project number"]]));
+    const projectIdentifiers = detailPair([["date", "Document date"], ["project_no", "Project number"]]);
+    details.append(projectIdentifiers);
     if (state.kind !== "purchase_order") details.append(detailPair([["client", "Client"], ["contact", "Client contact"]]));
     if (state.kind !== "purchase_order") {
       details.append(detailField("site_address", "Site address"));
@@ -995,7 +997,18 @@
       form.append(estimateControls);
       form.append(node("section", "commercial-lines"), node("div", "commercial-totals"), rateSchedule(fields), node("section", "commercial-scope"), richEditor("Allowances", fields.allowances, value => fields.allowances = value, markDirty, true), richEditor("Terms & Conditions", displayTerms(fields.terms), value => fields.terms = value, markDirty, true));
     } else {
-      renderOrderFields(form, fields);
+      const [linkedOrder, reference] = renderOrderFields(form, fields);
+      if (state.kind === "purchase_order") {
+        projectIdentifiers.classList.add("commercial-purchase-identifiers");
+        projectIdentifiers.firstElementChild.after(linkedOrder);
+        projectIdentifiers.append(reference);
+      } else {
+        const identifiers = node("div", "commercial-work-identifiers");
+        const references = node("div", "commercial-field-pair");
+        references.append(linkedOrder, reference);
+        projectIdentifiers.replaceWith(identifiers);
+        identifiers.append(projectIdentifiers, references);
+      }
     }
     host.append(form);
     attachWorkPanels(form);
@@ -1194,7 +1207,6 @@
     return section;
   }
   function renderOrderFields(form, fields) {
-    const references = node("section", "commercial-linked-reference");
     const isWorkOrder = state.kind === "work_order";
     const linkKey = isWorkOrder ? "quote_id" : "work_order_id";
     const projectNo=commercialProjectDetails(state.editor.source).project_no.trim();
@@ -1268,8 +1280,6 @@
       }
       markDirty();
     });
-    references.append(field(isWorkOrder ? "Linked Quote" : "Linked Work Order", linked), field(isWorkOrder ? "Work order reference" : "Purchase Order No.", reference));
-    form.append(references);
     const groups = isWorkOrder ? [
       ["Work order details", [["start_date","Proposed start date"],["end_date","Proposed end date"],["urgency","Category / urgency"],["description","Description of works"],["estimated_cost","Estimated cost (AUD)"]]],
       ["Work order review", [["approval","Approval"],["justification","Justification"],["reviewed_by","Reviewed by"],["review_date","Review date"]]],
@@ -1403,6 +1413,9 @@
         }), node("div", "commercial-totals"));
       }
     }
+    return [field(isWorkOrder ? "Linked Quote" : "Linked Work Order", linked),
+            field(isWorkOrder ? "Work order reference" : "Purchase Order No.", reference)];
+
     function renderTracking(host,key,label) {
       host.replaceChildren();
       if(!fields.work_tracking) {

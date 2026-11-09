@@ -1,0 +1,27 @@
+{
+  "Update existing records": [
+    "기존 기록 업데이트",
+    "I-update ang mga kasalukuyang tala",
+    "Cập nhật các bản ghi hiện có"
+  ],
+  "Save draft": [
+    "초안 저장",
+    "I-save ang draft",
+    "Lưu bản nháp"
+  ],
+  "Workflow status": [
+    "작업 흐름 상태",
+    "Katayuan ng daloy ng trabaho",
+    "Trạng thái quy trình"
+  ],
+  "No documents": [
+    "문서 없음",
+    "Walang mga dokumento",
+    "Không có tài liệu"
+  ],
+  "Choose a valid workflow status.": [
+    "올바른 작업 흐름 상태를 선택하세요.",
+    "Pumili ng wastong katayuan ng daloy ng trabaho.",
+    "Chọn trạng thái quy trình hợp lệ."
+  ]
+}

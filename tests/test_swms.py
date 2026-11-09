@@ -83,6 +83,26 @@ class SwmsTests(unittest.TestCase):
         payload['fields'] = complete_swms(payload['fields'])
         return payload
 
+    def test_archived_statement_keeps_title_and_pdf_across_rejection_and_restore(self):
+        payload = self.ready_payload()
+        payload['fields']['title'] = 'Previously authored safety statement'
+        saved = self.service.save(self.workspace, {**payload, 'status':'Archived'})
+        receipt = str(uuid.uuid4())
+        issued = self.service.issue(self.workspace, saved['id'], saved['version'], receipt)
+        row = self.service.capture(self.workspace)['documents'][0]
+        self.assertEqual(row['status'],'Archived')
+        rejected = self.service.save(self.workspace, {'id':row['id'],'fields':row['fields'],'version':row['version'],'status':'Rejected'})
+        self.assertEqual(rejected['fields']['title'], payload['fields']['title'])
+        with self.assertRaises(SwmsConflict):
+            self.service.save(self.workspace, {'id':row['id'],'fields':row['fields'],'version':row['version'],'status':'Approved'})
+        replay = self.service.issue(self.workspace, saved['id'], saved['version'], receipt)
+        self.assertEqual(replay['pdf'], issued['pdf'])
+        snapshot = self.service.capture(self.workspace)
+        token = self.projects.add(snapshot['project_id'])
+        self.service.restore(token, snapshot)
+        self.assertEqual(self.service.capture(token)['documents'], [rejected])
+        self.assertEqual(self.service.read_pdf(token, issued['id'])[1], issued['pdf'])
+
     def test_template_choices_and_blank_real_world_signatures(self):
         fields = self.payload()['fields']
         self.assertEqual({key: len(rows) for key, rows in fields['steps'].items()}, {

@@ -29,7 +29,7 @@ DATA_FILES = (
 )
 STATIC_FILES = (
     'contacts.js', 'contacts.css',
-    'notifications.js', 'notifications.css', 'personal-signature.js', 'personal-details.js', 'icons/signature.svg', 'swms.js', 'swms.css', 'default-company-logo.png',
+    'notifications.js', 'notifications.css', 'personal-signature.js', 'personal-details.js', 'icons/signature.svg', 'document-workflow-board.js', 'swms.js', 'swms.css', 'default-company-logo.png',
     'travel.js', 'travel.css', 'maps-setup.html',
     'pointer-effects.js', 'pointer-effects.css', 'pdf-cursors.css', 'laser-reticle.svg',
     'cursors/busy.png', 'cursors/handwriting.png', 'cursors/link.png', 'cursors/move.png',

@@ -3231,5 +3231,10 @@
   "High Risk Work": "زیادہ خطرے والا کام",
   "Type of Works or Additional Job Steps": "کام کی قسم یا اضافی کام کے مراحل",
   "This Contact already has a lead that may match.": "اس رابطے کی ایک ایسی لیڈ پہلے سے موجود ہے جو اس سے مل سکتی ہے۔",
-  "Keep as a separate Lead": "الگ لیڈ کے طور پر رکھیں"
+  "Keep as a separate Lead": "الگ لیڈ کے طور پر رکھیں",
+  "Update existing records": "موجودہ ریکارڈز اپ ڈیٹ کریں",
+  "Save draft": "مسودہ محفوظ کریں",
+  "Workflow status": "کام کے بہاؤ کی حیثیت",
+  "No documents": "کوئی دستاویزات نہیں",
+  "Choose a valid workflow status.": "کام کے بہاؤ کی درست حیثیت منتخب کریں۔"
 }

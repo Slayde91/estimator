@@ -40,7 +40,7 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
   const linkedBeforePaste=await page.evaluate(()=>window.CeasefireProject.details());await company.fill('Beta Company');await name.fill('Beta Contact');await name.blur();
   assert.deepEqual(await page.evaluate(()=>window.CeasefireProject.details()),linkedBeforePaste,'Pasting the same linked Company/Contact preserves canonical IDs and billing metadata');
   await left.getByLabel('Site address',{exact:true}).fill('Shared Project Site');
-  await quote.getByLabel('Document title',{exact:true}).fill('Override Quote');
+  await expect(quote.getByLabel('Document title',{exact:true})).toHaveCount(0);
   async function save(root){const reply=page.waitForResponse(r=>/\/api\/commercial\/(?:saved-)?save$/.test(new URL(r.url()).pathname));await root.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();const response=await reply;assert.equal(response.status(),200,await response.text());await expect(root.locator('.commercial-message')).toContainText('Document saved.');await page.waitForFunction(()=>!window.CeasefireDesktop.status().busy);return response.json();}
   await save(quote);
   await left.getByLabel('Site address',{exact:true}).fill('Shared Project Site second save');await save(quote);
@@ -48,13 +48,13 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
   assert.equal(projectAfter.client,'Beta Company');assert.equal(projectAfter.account_id,beta.id);assert.equal(projectAfter.contact_id,person.id);assert.equal(projectAfter.contact_phone,'222');assert.equal(projectAfter.contact_email,'beta@example.test');assert.equal(projectAfter.site_address,'Shared Project Site second save');assert.equal(projectAfter.project_no,projectBefore.project_no);
   let file=JSON.parse(fs.readFileSync(info.project,'utf8'));
   assert.equal(file.estimate.client,'Beta Company');assert.equal(file.estimate.site_address,'Shared Project Site second save');
-  let saved=file.commercial_documents.documents.find(item=>item.fields.title==='Override Quote');assert.ok(saved);
+  let saved=file.commercial_documents.documents.find(item=>item.kind==='quote');assert.ok(saved);
   assert.equal(saved.fields.details.client,'Beta Company');assert.equal(saved.fields.details.contact,'Beta Contact');assert.equal(saved.fields.details.site_address,'Shared Project Site second save');assert.equal(saved.fields.detail_overrides,undefined);
   const beforeDiscard=await page.evaluate(()=>window.CeasefireProject.details()),dirtyBeforeDiscard=await page.evaluate(()=>window.CeasefireDesktop.status().dirty);await left.getByLabel('Site address',{exact:true}).fill('Discard this site');
   await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();const discard=page.getByRole('dialog',{name:'Discard the current quote?',exact:true});await expect(discard).toBeVisible();await discard.getByRole('button',{name:'Yes',exact:true}).click();await expect(quote.locator('.commercial-board')).toBeVisible();
   assert.equal(await page.evaluate(()=>window.CeasefireDesktop.status().dirty),dirtyBeforeDiscard,'Discard restores the prior Project dirty state when no other Project data changed');
   assert.deepEqual(await page.evaluate(()=>window.CeasefireProject.details()),beforeDiscard,'Discarding an unsaved sidebar edit restores Project metadata');
-  await expect(quote.locator('.commercial-card')).toContainText('Beta Company');await quote.getByRole('button',{name:'Override Quote',exact:true}).click();
+  await expect(quote.locator('.commercial-card')).toContainText('Beta Company');await quote.locator('.commercial-card .project-title-button').click();
   await expect(quote.locator('.commercial-sidebar').first().getByRole('combobox',{name:'Company',exact:true})).toHaveValue('Beta Company');await expect(quote.locator('.commercial-sidebar').first().getByLabel('Site address',{exact:true})).toHaveValue('Shared Project Site second save');
   checked('Company/contact searches update the linked Project IDs, name, contact details and site through repeated Save; reopening reads the same canonical Project values');
   await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await openProjectSection(page,'quotes');
@@ -63,7 +63,7 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
   await page.locator('#project-pane-address').fill('Project edited site\nLevel 2');
   await page.locator('#project-pane-contact-phone').fill('333');await page.locator('#project-pane-contact-email').fill('project-edit@example.test');
   await page.locator('#project-details-close').click();let projectSave=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/save');await page.locator('#save-current-project').click();assert.equal((await projectSave).status(),200);await page.waitForFunction(()=>!window.CeasefireDesktop.status().busy);
-  await openProjectSection(page,'quote');await quote.getByRole('button',{name:'Override Quote',exact:true}).click();
+  await openProjectSection(page,'quote');await quote.locator('.commercial-card .project-title-button').click();
   await expect(quote.locator('[data-project-detail=site_address]')).toHaveValue('Project edited site\nLevel 2');await expect(quote.locator('[data-project-detail=phone]')).toHaveValue('333');await expect(quote.locator('[data-project-detail=email]')).toHaveValue('project-edit@example.test');
   await expect(quote.locator('.commercial-sidebar').first()).toContainText('Beta Manager');
   checked('Reverse synchronization: Project pane opens with sidebar edits, then Project site/phone/email edits are shown by the reopened document without stale overrides');
@@ -144,14 +144,15 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
   other.commercial_documents.documents.find(row=>row.kind==='purchase_order').fields.title='Other owner purchase';
   fs.writeFileSync(otherPath,JSON.stringify(other));
   await openProjectSection(page,'quotes');await page.locator('#refresh-quotes').click();await page.waitForFunction(()=>!window.CeasefireDesktop.status().busy);
-  await openProjectSection(page,'quote');await quote.getByRole('button',{name:'Other owner quote',exact:true}).click();
+  await openProjectSection(page,'quote');await quote.getByLabel('Search documents',{exact:true}).fill('Other owner quote');await quote.locator('.commercial-card .project-title-button').click();
   const activeDetails=await page.evaluate(()=>window.CeasefireProject.details()),activeBytes=fs.readFileSync(info.project,'utf8');
   const otherLeft=quote.locator('.commercial-sidebar').first();await otherLeft.getByRole('combobox',{name:'Company',exact:true}).fill('Beta');await otherLeft.getByRole('option',{name:'Beta Company',exact:true}).click();
   await otherLeft.getByRole('combobox',{name:'Name',exact:true}).fill('Beta');await otherLeft.getByRole('option',{name:'Beta Contact',exact:true}).click();await otherLeft.getByLabel('Site address',{exact:true}).fill('Other Project site\nLevel 3');
   await save(quote);const otherSaved=JSON.parse(fs.readFileSync(otherPath,'utf8'));
   for(const estimate of [otherSaved.estimate,...otherSaved.estimates.map(row=>row.workspace.estimate)]){assert.equal(estimate.client,'Beta Company');assert.equal(estimate.account_id,beta.id);assert.equal(estimate.contact_id,person.id);assert.equal(estimate.site_address,'Other Project site\nLevel 3');}
+  assert.equal(otherSaved.commercial_documents.documents.find(doc=>doc.kind==='quote').fields.title,'Other owner quote');
   assert.deepEqual(await page.evaluate(()=>window.CeasefireProject.details()),activeDetails);assert.equal(fs.readFileSync(info.project,'utf8'),activeBytes);
-  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await quote.getByRole('button',{name:'Other owner quote',exact:true}).click();await expect(otherLeft.getByLabel('Site address',{exact:true})).toHaveValue('Other Project site\nLevel 3');
+  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await quote.getByLabel('Search documents',{exact:true}).fill('Other owner quote');await quote.locator('.commercial-card .project-title-button').click();await expect(otherLeft.getByLabel('Site address',{exact:true})).toHaveValue('Other Project site\nLevel 3');
   const outside=JSON.parse(fs.readFileSync(otherPath,'utf8'));outside.estimate.site_address='Changed by another tab';fs.writeFileSync(otherPath,JSON.stringify(outside));
   await otherLeft.getByLabel('Site address',{exact:true}).fill('Stale overwrite');const stale=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/commercial/saved-save');await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();assert.equal((await stale).status(),409);
   await expect(quote.locator('.commercial-message')).toContainText('saved project changed');assert.equal(JSON.parse(fs.readFileSync(otherPath,'utf8')).estimate.site_address,'Changed by another tab');assert.equal(fs.readFileSync(info.project,'utf8'),activeBytes);

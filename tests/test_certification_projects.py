@@ -96,6 +96,37 @@ class CertificationProjectTests(unittest.TestCase):
         scoped = fresh.response(reopened['workspace_id'], restored.get(document['id']))
         self.assertTrue(scoped['revisions'][0]['pdf_url'].endswith('?workspace=' + reopened['workspace_id']))
 
+    def test_review_status_survives_old_clients_portable_restore_and_pdf_replay(self):
+        workspace, service = self.prepared()
+        doc = service.create(fields(), str(uuid.uuid4()))
+        self.assertNotIn('workflow_status', doc['options'])
+        options = {**doc['options'], 'workflow_status': 'Review'}
+        reviewed = service.save(doc['id'], doc['fields'], doc['version'], options=options)
+        self.assertEqual(reviewed['revisions'], [])
+        request = str(uuid.uuid4())
+        issued = service.generate(doc['id'], doc['fields'], reviewed['version'], request, DEFAULTS, options=doc['options'])
+        self.assertEqual(issued['document']['options']['workflow_status'], 'Review')
+        frozen = service.revision_pdf(doc['id'], 1)
+        with self.assertRaises(CertificationConflict):
+            service.save(doc['id'], doc['fields'], reviewed['version'], options={**options, 'workflow_status': 'Approved'})
+        for invalid in ('Issued', [], {}):
+            with self.subTest(invalid=invalid), self.assertRaises(ValidationError):
+                service.save(doc['id'], doc['fields'], issued['document']['version'], options={**options, 'workflow_status':invalid})
+        rejected = service.save(doc['id'], doc['fields'], issued['document']['version'], options={**options, 'workflow_status':'Rejected'})
+        legacy_saved = service.save(doc['id'], {**doc['fields'], 'location_area':'Updated draft'}, rejected['version'], options=doc['options'])
+        snap = self.capture(workspace, {**legacy_saved, 'options':doc['options']})
+        file = self.root / 'workflow.cf.json'
+        self.projects.publish(snap, file)
+        restored = self.projects.restore(snap, file)
+        reopened = self.projects.service(restored['workspace_id'])
+        self.assertEqual(restored['draft']['options']['workflow_status'],'Rejected')
+        self.assertEqual(reopened.list_documents()['items'][0]['workflow_status'],'Rejected')
+        self.assertEqual(reopened.revision_pdf(doc['id'], 1), frozen)
+        replay = reopened.generate(doc['id'], doc['fields'], reviewed['version'], request, DEFAULTS, options=doc['options'])
+        self.assertEqual(replay['revision'], issued['revision'])
+        self.assertEqual(replay['document']['options']['workflow_status'], 'Rejected')
+        self.assertEqual(len(replay['document']['revisions']), 1)
+
     def test_missing_and_tampered_companions_and_path_injection_fail_explicitly(self):
         workspace, _ = self.prepared()
         snapshot = self.capture(workspace)

@@ -41,8 +41,11 @@ print(json.dumps({'id':identity,'terms':fields['terms']}))`;
   await clickProjectControl(page,'Load');await page.locator('#discard-dialog').getByRole('button',{name:'Load Project',exact:true}).click();await idle();
   const before=fs.readFileSync(info.project);
   await openProjectSection(page,'quote');const host=page.locator('#commercial-quote-root');
-  const preview=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/commercial/derive');
-  await host.getByRole('button',{name:'Legacy terms presentation',exact:true}).click();assert.equal((await preview).status(),200);
+  const [preview]=await Promise.all([
+    page.waitForResponse(response=>new URL(response.url()).pathname==='/api/commercial/derive'),
+    host.locator(`.commercial-card[data-document-id="${seeded.id}"]`).getByRole('button',{name:'Quote: Synthetic terms Company',exact:true}).click()
+  ]);
+  assert.equal(preview.status(),200);
   await host.locator('details.commercial-rich > summary').filter({hasText:'Terms & Conditions'}).click();
   const editor=host.getByRole('textbox',{name:'Terms & Conditions',exact:true}),opening=editor.locator('p').first();
   const emphasis=await opening.evaluate(block=>{const values=[],walker=document.createTreeWalker(block,NodeFilter.SHOW_TEXT);while(walker.nextNode()){const node=walker.currentNode;if(node.textContent.trim())values.push({text:node.textContent,weight:Number(getComputedStyle(node.parentElement).fontWeight)});}return values;});
@@ -57,7 +60,8 @@ print(json.dumps({'id':identity,'terms':fields['terms']}))`;
   const save=page.waitForResponse(response=>/\/api\/commercial\/(?:save|saved-save)$/.test(new URL(response.url()).pathname));
   await host.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();assert.equal((await save).status(),200);await expect(host.locator('.commercial-message')).toContainText('Document saved.');
   assert.equal(writes.length,1);assert.ok(writes[0].fields.terms.includes('Added by the user.'));assert.ok(writes[0].fields.terms.includes('<i>Goods</i>'));assert.ok(writes[0].fields.terms.includes('<u>Services</u>'));assert.ok(writes[0].fields.terms.includes('<i>custom italic</i>'));assert.ok(writes[0].fields.terms.includes('<strong>authored bold</strong>'));
-  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks:['Older plain Terms opening renders entirely bold','Authored italic/underline/custom paragraph preserved','Read-only opening/scope preview keeps fields, disk and dirty state unchanged','Only explicit user editing plus Save persists display emphasis'],errors},null,2));
+  assert.equal(writes[0].fields.title,'Legacy terms presentation');
+  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks:['Older plain Terms opening renders entirely bold','Authored italic/underline/custom paragraph preserved','Read-only opening/scope preview keeps fields, disk and dirty state unchanged','Only explicit user editing plus Save persists display emphasis and retains the legacy title'],errors},null,2));
   console.log('PASS commercial Terms presentation. '+output);
 })().catch(async error=>{console.error(error);console.error(logs);process.exitCode=1;await page?.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});})
   .finally(async()=>{await browser?.close();server.kill();});

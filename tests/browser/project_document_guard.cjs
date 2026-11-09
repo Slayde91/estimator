@@ -36,7 +36,7 @@ async function discard(root,label){
     await openProjectSection(page,section);const host=page.locator('#'+id);await host.getByRole('button',{name:label,exact:true}).click();await notified();await expect(host.locator('.commercial-editor')).toHaveCount(0);
   }
   await openProjectSection(page,'swms');await page.locator('#swms-root').getByRole('button',{name:'New SWMS',exact:true}).click();await notified();
-  await expect(page.locator('#swms-root').getByLabel('Document title',{exact:true})).toHaveCount(0);
+  await expect(page.locator('#swms-root').getByLabel('Workflow status',{exact:true})).toHaveCount(0);
   await openProjectSection(page,'certification');await expect(page.locator('#certification-document')).toBeDisabled();
   await expect(page.locator('#certification-document option')).toHaveCount(0);await expect(page.locator('#certification-new')).toBeEnabled();
   await page.locator('#certification-client').fill('Keep incomplete certificate draft');
@@ -68,7 +68,7 @@ async function discard(root,label){
     await expect(host.locator('.commercial-editor')).toBeVisible();await discard(host,back);await expect(host.getByRole('button',{name:label,exact:true})).toBeVisible();
   }
   await openProjectSection(page,'swms');await page.locator('#swms-root').getByRole('button',{name:'New SWMS',exact:true}).click();
-  await expect(page.locator('#swms-root').getByLabel('Document title',{exact:true})).toBeVisible();await discard(page.locator('#swms-root'),'Back to statements');
+  await expect(page.locator('#swms-root').getByLabel('Workflow status',{exact:true})).toBeVisible();await discard(page.locator('#swms-root'),'Back to statements');
   await openProjectSection(page,'certification');await page.locator('#certification-new').click();
   await expect(page.locator('#certification-client')).toHaveValue('Project guard account');
   assert.deepEqual(errors,[]);await page.screenshot({path:path.join(output,'created-project-certificate.png')});

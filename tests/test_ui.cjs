@@ -933,7 +933,7 @@ let passed=0;
   for(const [id,format,label] of [['penetration-excel','excel','Download Firestopping Schedule'],['penetration-pdf','pdf','Download Firestopping Schedule'],['penetration-item-excel','excel','Item Details'],['penetration-item-pdf','pdf','Item Details']])assert.match(markup,new RegExp(`id="${id}"[^>]*class="button ${format}-button calculator-document-action"[^>]*aria-label="${label}"[^>]*title="${label}"[\\s\\S]*?<span class="download-arrow">⇩<\\/span>`));
   const estimateControls=markup.match(/<div class="project-estimate-controls">[\s\S]*?<div class="estimate-layout">/)?.[0];
   assert.ok(estimateControls,'Estimate selector row retains the PDF Document control');
-  assert.match(estimateControls,/id="project-estimate-select"[\s\S]*aria-controls="firestopping-document-actions"[\s\S]*id="firestopping-document-actions"[\s\S]*id="download-quote-pdf"/);
+  assert.match(estimateControls,/id="project-estimate-select"[\s\S]*id="project-input-fields"[\s\S]*aria-controls="firestopping-document-actions"[\s\S]*id="firestopping-document-actions"[\s\S]*id="download-quote-pdf"/);
   assert.doesNotMatch(estimateControls,/id="project-estimate-(?:create|quote|swms)"/);
   assert.doesNotMatch(estimateControls,/id="penetration-(excel|pdf)"/);
   const calculatorHeading=markup.match(/<section id="penetration-current-item-card"[^\n]*id="firestopping-item-document-actions"[^\n]*<\/section>/)?.[0];

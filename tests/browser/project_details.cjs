@@ -14,7 +14,7 @@ const errors=[];
 async function idle(){await page.waitForFunction(()=>{const s=window.CeasefireDesktop?.status();return s?.ready&&!s.busy;});}
 async function estimate(){await page.locator('#estimate-navigation-toggle').click();await page.locator('#estimate-navigation-toggle').press('Escape');await idle();}
 async function save(){const reply=page.waitForResponse(r=>/\/api\/project\/save(?:-as)?$/.test(new URL(r.url()).pathname));await clickProjectControl(page,'Save');const response=await reply;assert.equal(response.status(),200,await response.text());await idle();return response.json();}
-async function settings(prefix,start){await page.locator('nav [data-view="settings"]').click();await expect(page.locator('#project-number-prefix')).toBeEnabled();await page.locator('#project-number-prefix').fill(prefix);await page.locator('#project-start-number').fill(String(start));const response=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/numbering-settings');await page.locator('#document-number-settings').getByRole('button',{name:'Save document numbering',exact:true}).click();assert.equal((await response).status(),200);await idle();}
+async function settings(prefix,start){await page.locator('nav [data-view="settings"]').click();await expect(page.locator('#project-number-prefix')).toBeEnabled();await page.locator('#project-number-prefix').fill(prefix);await page.locator('#project-start-number').fill(String(start));const response=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/numbering-settings');await page.locator('#document-number-settings').getByRole('button',{name:'Save',exact:true}).click();assert.equal((await response).status(),200);await idle();}
 (async()=>{
  const info=await ready;assert.notEqual(info.port,8765);const base=`http://127.0.0.1:${info.port}`;
  const seed=spawnSync(python,['-c',`import sys\nfrom pathlib import Path\nfrom estimator.storage import Store\nfrom estimator.project_file import export_project\np=Path(sys.argv[1]);s=Store(p/'qa.sqlite3')\nfor name,number,client in [('legacy','PN-00006','Alpha <literal>'),('other','OLD-12','Beta')]:\n (p/(name+'.cf.json')).write_bytes(export_project(s,{'estimate':{'project_no':number,'client':client}}))`,output],{cwd:root,encoding:'utf8',windowsHide:true});assert.equal(seed.status,0,seed.stderr);
@@ -40,7 +40,7 @@ async function settings(prefix,start){await page.locator('nav [data-view="settin
  await expect(series.locator('tr').filter({hasText:'Quotes'})).toContainText('Q-01');
  await series.getByLabel('Work Orders prefix',{exact:true}).fill('Job');
  await series.getByLabel('Work Orders starting number',{exact:true}).fill('31');
- await series.getByRole('button',{name:'Save document numbering'}).click();
+ await series.getByRole('button',{name:'Save'}).click();
  await expect(series.locator('tr').filter({hasText:'Work Orders'})).toContainText('JOB-31');
  await expect(series.locator('tr').filter({hasText:'Purchase Orders'})).toContainText('PO-01');
  await estimate();await page.locator('nav [data-view="settings"]').click();
@@ -52,7 +52,7 @@ async function settings(prefix,start){await page.locator('nav [data-view="settin
  await expect(series.locator('tr[data-document-kind="quote"]')).toContainText('Sequence exhausted. Choose another prefix.');
  await expect(series.getByLabel('Quotes prefix',{exact:true})).toBeEnabled();
  await series.getByLabel('Quotes prefix',{exact:true}).fill('QT');
- await series.getByRole('button',{name:'Save document numbering',exact:true}).click();
+ await series.getByRole('button',{name:'Save',exact:true}).click();
  await expect(series.locator('tr[data-document-kind="quote"]')).toContainText('QT-01');
  await page.screenshot({path:path.join(output,'project-number-settings.png'),fullPage:true});assert.deepEqual(errors,[]);
  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,first:first.project.estimate.project_no,second:second.project.estimate.project_no,errors},null,2));console.log(`PASS project details: ${output}`);

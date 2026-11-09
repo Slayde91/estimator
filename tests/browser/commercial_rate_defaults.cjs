@@ -51,7 +51,6 @@ async function discardQuote(host) {
   await expect(quote.getByLabel('Ordinary time',{exact:true})).toHaveValue('130');
   await expect(quote.getByLabel('Access Equipment Transport',{exact:true})).toHaveCount(0);
   assert.equal((await rates()).rates.access_equipment_transport,'400');
-  await quote.getByLabel('Document title',{exact:true}).fill('Protected original quote');
 
   // The trash icon sits at the right of the editable description, with no new column.
   const rows=quote.locator('.commercial-lines tbody tr');
@@ -87,10 +86,10 @@ async function discardQuote(host) {
   await clickProjectControl(page,'Save'); assert.equal((await savedResponse).status(),200); await idle();
   const originalFile=fs.readFileSync(info.project,'utf8');
   await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
-  const card=quote.locator('.commercial-card').filter({hasText:'Protected original quote'});
+  const card=quote.locator('.commercial-card[data-document-id="'+JSON.parse(originalFile).commercial_documents.documents.find(doc=>doc.kind==='quote').id+'"]');
   const updated=await card.locator('dt').filter({hasText:/^Updated$/}).locator('xpath=following-sibling::dd[1]').innerText();
   assert.match(updated,/^\d{2}\/\d{2}\/\d{4}, \d{2}:\d{2}$/);
-  await card.getByRole('button',{name:'Protected original quote',exact:true}).click();
+  await card.locator('.project-title-button').click();
   const ordinary=quote.getByLabel('Ordinary time',{exact:true});
 
   // A delayed response must not clear or replace edits made after its request.
@@ -164,7 +163,7 @@ async function discardQuote(host) {
 
   await discardQuote(quote);
   assert.equal(fs.readFileSync(info.project,'utf8'),originalFile,'rate autosave never auto-writes the project file');
-  await card.getByRole('button',{name:'Protected original quote',exact:true}).click();
+  await card.locator('.project-title-button').click();
   await expect(ordinary).toHaveValue('130');
   await expect(quote.getByLabel('Materials',{exact:true})).toHaveValue('20');
   await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();

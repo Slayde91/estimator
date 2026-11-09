@@ -3231,5 +3231,10 @@
   "High Risk Work": "Travaux à haut risque",
   "Type of Works or Additional Job Steps": "Type de travaux ou étapes supplémentaires",
   "This Contact already has a lead that may match.": "Ce contact a déjà un prospect qui pourrait correspondre.",
-  "Keep as a separate Lead": "Conserver comme prospect distinct"
+  "Keep as a separate Lead": "Conserver comme prospect distinct",
+  "Update existing records": "Mettre à jour les enregistrements existants",
+  "Save draft": "Enregistrer le brouillon",
+  "Workflow status": "État du workflow",
+  "No documents": "Aucun document",
+  "Choose a valid workflow status.": "Choisissez un état de workflow valide."
 }

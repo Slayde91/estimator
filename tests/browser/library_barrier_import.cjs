@@ -5,7 +5,7 @@ const { assertParentControls, clickInspectorAdd } = require('./parent_controls_h
 const {chromium,expect}=require('@playwright/test');
 const {spawn,spawnSync}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),{createHash}=require('node:crypto');
-const {chooseTakeoff,chooseLibrary}=require('./section_navigation.cjs'),{clickProjectControl}=require('./project_actions.cjs'),{renderDrawing}=require('./viewer_helpers.cjs');
+const {chooseTakeoff,chooseLibrary}=require('./section_navigation.cjs'),{clickProjectControl, prepareProjectForSave }=require('./project_actions.cjs'),{renderDrawing}=require('./viewer_helpers.cjs');
 const {chooseNewPhysicalItem,startPhysicalItem}=require('./physical_dialogs.cjs');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`library-barrier-import-${Date.now()}`);
 fs.mkdirSync(output,{recursive:true});
@@ -55,7 +55,7 @@ async function facets(locator){return locator.locator('select[data-library-filte
 (async()=>{
   info=await ready;assert.notEqual(info.port,8765);const source=path.join(output,'reference-library/library.json'),sourceHash=hash(source),pdfHash=hash(info.fixture);
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1360,height:1000}});page.setDefaultTimeout(30000);page.on('pageerror',error=>errors.push(error.message));
-  await page.goto(`http://127.0.0.1:${info.port}/`);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready&&!window.CeasefireDesktop.status().busy);
+  await page.goto(`http://127.0.0.1:${info.port}/`); await prepareProjectForSave(page);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready&&!window.CeasefireDesktop.status().busy);
   await chooseLibrary(page,'penetration');
   // The Library browser is a section, not a landmark on older installations.
   const nativeFilters=page.locator('.library-browser').filter({has:page.locator('[data-library-results="penetration"]')});await expect(nativeFilters.locator('select[data-library-filter="substrate"]')).toBeVisible();const expectedFacets=(await facets(nativeFilters)).filter(value=>value.key!=='technical_reference');

@@ -1,7 +1,7 @@
 // Real company-logo deletion/default fallback and download receipts on a disposable app.
 const {chromium, expect} = require('@playwright/test');
 const {chooseCalculator} = require('./calculator_actions.cjs');
-const {clickProjectControl} = require('./project_actions.cjs');
+const {clickProjectControl,fillProjectDetails} = require('./project_actions.cjs');
 const {spawn} = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict'), crypto = require('node:crypto');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `classifire-branding-${Date.now()}`);
@@ -50,15 +50,14 @@ async function reply(action, suffix){const pending=page.waitForResponse(r=>r.req
   await expect(page.locator('#company-logo-preview')).toBeVisible();await expect(page.locator('#company-logo-preview')).toHaveAttribute('src','/classifire-logo.png');
   await page.screenshot({path:path.join(output,'company-logo-fallback.png')});evidence.companyLogoDeletionAndDefaultFallback=true;
   await page.getByRole('button',{name:'Estimates',exact:true}).hover();await page.getByRole('group',{name:'Choose an estimate',exact:true}).getByRole('button',{name:'Estimate',exact:true}).click();await idle();
-  await reply(()=>clickProjectControl(page,'Save'),'/api/project/save-as');await expect(page.locator('#app-message')).toBeVisible();
-  const notice=await page.locator('#app-message').textContent();assert.match(notice,/Project saved/);
-  await page.waitForTimeout(5500);await expect(page.locator('#app-message')).toBeVisible();await expect(page.locator('#app-message')).toHaveText(notice);
-  await page.locator('#app-message').getByRole('button',{name:'Close',exact:true}).click();await expect(page.locator('#app-message')).toBeHidden();
-  await reply(()=>clickProjectControl(page,'Save'),'/api/project/save');await expect(page.locator('#app-message')).toBeVisible();
+  await fillProjectDetails(page,{client:'Synthetic Branding Company','site-address':'1 Synthetic Branding Street'});
+  await reply(()=>clickProjectControl(page,'Save'),'/api/project/save-as');await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  await expect(page.locator('#app-message')).not.toContainText(/Project saved/);
+  await reply(()=>clickProjectControl(page,'Save'),'/api/project/save');await expect(page.locator('#app-message')).not.toContainText(/Project saved/);
   await page.getByRole('button',{name:'Settings',exact:true}).click();
   await page.getByRole('button',{name:'Estimates',exact:true}).hover();await page.getByRole('group',{name:'Choose an estimate',exact:true}).getByRole('button',{name:'Estimate',exact:true}).click();await idle();
   await expect(page.locator('#app-message')).toBeHidden();await expect(page.locator('#project-save-state')).toHaveText('Saved project');
-  evidence.appStatusPersistsUntilDismissalOrNavigationWithoutLosingSavedState=true;
+  evidence.ordinaryProjectSaveUsesHeaderStateWithoutPathToast=true;
   await chooseCalculator(page,'Steel (board)');await idle();
   let release;const held=new Promise(resolve=>release=resolve);
   await page.route('**/api/calculators/steel_board/template',async route=>{await held;await route.continue();});

@@ -121,6 +121,62 @@
     state.dirty = true;
     if (state.editor) {state.editor.pendingIssue = null;state.editor.pendingProjectDetails = null;}
     window.CeasefireProject?.changed?.();
+    if(state.editor) updateRequiredFields();
+  }
+  function readinessSpecs(action) {
+    const document=state.editor?.document;
+    return document ? state.model?.requirements?.[action]?.[document.kind]?.[document.status] || [] : [];
+  }
+  function requirementControl(path) {
+    const [group,key,rate]=path.split('.'),host=root();
+    if(group==='details')return host?.querySelector(`[data-project-detail="${key}"]`);
+    if(group==='order')return host?.querySelector(`[data-order-field="${key}"],[data-order-link="${key}"]`);
+    if(group==='signatures')return host?.querySelector(`[data-signature-field="${key}"]`);
+    if(group==='work_tracking')return host?.querySelector(`[data-tracking-field="${key}"]`);
+    if(group==='rate_schedule')return rate ? host?.querySelector(`[data-rate-key="${rate}"]`) : host?.querySelector('.commercial-rate-schedule textarea');
+    return host?.querySelector(`[data-required-path="${path}"]`);
+  }
+  function requirementPresent(spec) {
+    const fields=state.editor.document.fields;
+    if(spec.type==='completed' || spec.type==='claimed') {
+      const key=spec.type==='completed'?'completed_percent':'claimed_percent';
+      return (fields.work_tracking?.rows || []).some(row=>Number(row[key])>0 && Number(row[key])<=100);
+    }
+    let value=spec.path.split('.').reduce((object,key)=>object?.[key],fields);
+    if(spec.type==='signature')return Boolean(value?.strokes?.some(stroke=>stroke.some(point=>point[0]!==stroke[0][0] || point[1]!==stroke[0][1])));
+    if(spec.type==='rich') {const parsed=document.createElement('div');parsed.innerHTML=value || '';value=parsed.textContent;}
+    const present=typeof value==='string' && value.replace(/\p{Cf}/gu,'').trim().length>0;
+    return present && (spec.type!=='number' || (Number.isFinite(Number(value)) && Number(value)>=0));
+  }
+  function updateRequiredFields() {
+    const specs=readinessSpecs('issue'),host=root();
+    if(!host)return;
+    host.querySelectorAll('.commercial-required-label').forEach(label=>label.classList.remove('commercial-required-label'));
+    const required=new Set(specs.map(spec=>requirementControl(spec.path)));
+    host.querySelectorAll('[data-commercial-required]').forEach(control=>{control.removeAttribute('aria-required');control.removeAttribute('data-commercial-required');if('required' in control)control.required=false;if(!required.has(control)){control.removeAttribute('aria-invalid');control.classList.remove('commercial-requirement-invalid');}});
+    for(const spec of specs) {
+      const control=requirementControl(spec.path);if(!control)continue;
+      control.setAttribute('data-commercial-required','true');
+      if(control.matches('input,textarea,select,[role=textbox]'))control.setAttribute('aria-required','true');
+      if('required' in control)control.required=true;
+      if(requirementPresent(spec)) {control.removeAttribute('aria-invalid');control.classList.remove('commercial-requirement-invalid');}
+      const label=control.closest('.field')?.querySelector(':scope > span') || control.closest('details.commercial-rich')?.querySelector('summary');
+      label?.classList.add('commercial-required-label');
+    }
+  }
+  function validateReadiness(action) {
+    const missing=readinessSpecs(action).filter(spec=>!requirementPresent(spec));
+    if(!missing.length)return;
+    for(const spec of missing) {
+      const control=requirementControl(spec.path);if(!control)continue;
+      control.setAttribute('aria-invalid','true');control.classList.add('commercial-requirement-invalid');
+      const details=control.closest('details');if(details)details.open=true;
+    }
+    const first=requirementControl(missing[0].path),focus=first?.matches('input,textarea,select,[contenteditable=true]')?first:first?.querySelector('button,input,textarea,select');
+    focus?.focus();
+    const args=[window.CeasefireI18n?.translate(names[state.kind]) || names[state.kind],missing.map(spec=>window.CeasefireI18n?.translate(spec.label) || spec.label).join(', ')];
+    const source='Complete required {0} fields: {1}.';
+    throw new Error(window.CeasefireI18n?.translate(source,args) || source.replace(/\{(\d+)\}/g,(_,index)=>args[index]));
   }
   function positionCardMenu(menu) {
     if (!menu.open) return;
@@ -201,6 +257,8 @@
     if (rateDefaults.pending.size) await flushRateDefaults();
   }
   function rememberRate(key, value, control) {
+    // Incomplete document rates do not replace valid remembered defaults.
+    if(value.trim()==='') {control.dataset.rateInvalid='false';rateDefaults.pending.delete(key);rateDefaultsNotice();return;}
     const match = value.trim().match(/^([+-]?)(\d*)(?:\.(\d*))?(?:e([+-]?\d+))?$/i), number = Number(value);
     const exponent = match ? Number(match[4] || 0) - (match[3] || "").length : -Infinity;
     const valid = value.trim() !== "" && match && (match[2] || match[3]) && Number.isFinite(number) && number >= 0 && number <= 1e9 && exponent >= -6 && exponent <= 9;
@@ -759,6 +817,8 @@
     editor.setAttribute("role", "textbox");
     editor.setAttribute("aria-multiline", "true");
     editor.setAttribute("aria-label", label);
+    if(label==='Allowances')editor.dataset.requiredPath='allowances';
+    if(label==='Terms & Conditions')editor.dataset.requiredPath='terms';
     editor.innerHTML = value;
     toolbar.setAttribute("role", "group");
     toolbar.setAttribute("aria-label", `${label} formatting`);
@@ -869,7 +929,12 @@
     actions.append(backButton("Back to " + names[state.kind] + "s", () => void leaveEditor()), button("Save", () => void saveEditor(), true), button("Download PDF", () => void downloadEditor(), true));
     if (state.kind === "work_order") actions.append(button("Create PO", () => void createPurchaseOrder()));
     const titleRow = node("div", "commercial-title-row");
-    titleRow.append(field("Document title", input(fields.title, value => fields.title = value)), field("Status", select(state.model.statuses[state.kind], state.editor.document.status, value => state.editor.document.status = value)));
+    const statusControl=select(state.model.statuses[state.kind], state.editor.document.status, value => {
+      state.editor.document.status=value;statusControl.dataset.status=value;
+    });
+    statusControl.classList.add('commercial-document-status');statusControl.dataset.status=state.editor.document.status;
+    for(const option of statusControl.options)option.dataset.status=option.value;
+    titleRow.append(field("Document title", input(fields.title, value => fields.title = value)), field("Status", statusControl));
     form.append(actions, titleRow);
     const details = node("section", "card commercial-details");
     details.append(node("h2", "", "Project details"));
@@ -918,6 +983,7 @@
       renderScope();
     }
     renderLines();
+    updateRequiredFields();
     window.CeasefireProject?.refreshPages?.();
     if (state.kind === "quote" && document.version > 0) void refreshScopePreview();
   }
@@ -1110,8 +1176,9 @@
     const references = node("section", "commercial-linked-reference");
     const isWorkOrder = state.kind === "work_order";
     const linkKey = isWorkOrder ? "quote_id" : "work_order_id";
+    const projectNo=commercialProjectDetails(state.editor.source).project_no.trim();
     const choices = (state.editor.linkedQuote ? [state.editor.linkedQuote] : state.editor.source?.related || state.model.documents).filter(item => isWorkOrder
-      ? item.kind === "quote" && item.last_number
+      ? item.kind === "quote" && item.last_number && item.fields.details.project_no.trim()===projectNo
       : item.kind === "work_order" && item.fields.order.work_order_reference);
     let costControl;
     let costEdited = Boolean(fields.order.estimated_cost);
@@ -1755,6 +1822,7 @@
   }
   async function saveEditor() {
     if (state.busy || !state.editor) return;
+    try {validateReadiness('save');} catch(error) {message(error.message,true);return;}
     const operation=captureDocumentOperation();
     state.busy = true;
     setDisabled(true);
@@ -1780,6 +1848,7 @@
   }
   async function downloadEditor() {
     if (state.busy || !state.editor) return;
+    try {validateReadiness('issue');} catch(error) {message(error.message,true);return;}
     const operation=captureDocumentOperation();
     state.busy = true;
     setDisabled(true);

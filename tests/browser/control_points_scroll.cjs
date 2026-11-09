@@ -1,5 +1,5 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl, prepareProjectForSave } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real keyboard/control-point editing and nested scroll focus on disposable drawings.
 const { chromium, expect } = require('@playwright/test');
@@ -55,7 +55,7 @@ async function wheel(delta){const box=await page.locator('.takeoff-viewport').bo
   page.on('pageerror',error=>errors.push(error.message));page.on('request',request=>{if(request.url().endsWith('/commands'))requests.push(request.postDataJSON());});
   await page.addInitScript(()=>{window.qaClicks=[];document.addEventListener('pointerdown',e=>{window.qaClicks.push({tag:e.target.tagName,id:e.target.id,label:e.target.getAttribute('aria-label'),text:e.target.textContent?.slice(0,60),x:e.clientX,y:e.clientY});},true);window.qaCsp=[];document.addEventListener('securitypolicyviolation',e=>window.qaCsp.push({directive:e.effectiveDirective,blocked:e.blockedURI}));});
   await page.addInitScript(()=>{window.qaWheel=[];document.addEventListener('wheel',event=>window.qaWheel.push({deltaX:event.deltaX,deltaY:event.deltaY,deltaMode:event.deltaMode}),{capture:true});});
-  const response=await page.goto(`http://127.0.0.1:${info.port}/`);assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
+  const response=await page.goto(`http://127.0.0.1:${info.port}/`); await prepareProjectForSave(page);assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline'));
   // Bootstrap finishes its default quote and Home navigation before publishing
   // project controls. Do not race that navigation with this drawing journey.
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);

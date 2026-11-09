@@ -39,6 +39,7 @@ function harness({ penetration = false } = {}) {
       async emit(name, event) { const callbacks = [...this.listeners[name] || []]; this.listeners[name] = callbacks.filter(item => !item.once); for (const item of callbacks) await item.fn(event); },
       showModal() { assert.ok(!this.open); this.open = true; }, async close(value) { this.returnValue = value; this.open = false; await this.emit('close'); },
       click() { this.clicked = true; }, remove() {}, focus() { context.document.activeElement = this; }, blur() { this.blurred = true; }, setCustomValidity() {},
+      checkValidity() { return !this.validity.badInput; }, reportValidity() { return this.checkValidity(); },
     };
   }
   const byId = id => { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); };
@@ -519,10 +520,10 @@ async function penetrationCheck(name, fn) {
     assert.equal(h.calc.state.entries.size,3);for(const entry of h.calc.state.entries.values())assert.equal(h.calc.dirty(entry),false);
     assert.deepEqual(copy(h.app.state.configuration),shared);assert.deepEqual(copy(h.app.state.quoteConfiguration),captured.estimate.configuration);
   });
-  await check('New calculator input keeps the saved notice and updates the dirty badge without replacing unrelated errors', async h => {
+  await check('Ordinary Save stays quiet and new calculator input updates the dirty badge without replacing unrelated errors', async h => {
     h.app.setRequest(async(path,options)=>{const payload=JSON.parse(options.body);return {file:{path:'C:/estimates/saved.cf.json'},project:{...project(),estimate:payload.estimate,calculators:payload.calculators}};});
-    await h.app.saveProject();const notice=h.byId('app-message');assert.match(notice.textContent,/Project saved/);assert.equal(notice.hidden,false);
-    const entry=h.calc.current();h.calc.setInput(entry,'CALCULATOR','A9','New native input');assert.equal(notice.hidden,false);assert.equal(h.byId('project-save-state').textContent,'Unsaved changes');
+    await h.app.saveProject();const notice=h.byId('app-message');assert.equal(notice.textContent,'');assert.equal(h.byId('project-save-state').textContent,'Saved project');
+    const entry=h.calc.current();h.calc.setInput(entry,'CALCULATOR','A9','New native input');assert.equal(notice.textContent,'');assert.equal(h.byId('project-save-state').textContent,'Unsaved changes');
     notice.textContent='Specific unrelated error';notice.hidden=false;notice.setAttribute('role','alert');h.calc.setInput(entry,'CALCULATOR','A9','Another edit');
     assert.equal(notice.hidden,false);assert.equal(notice.textContent,'Specific unrelated error');assert.equal(notice.getAttribute('role'),'alert');
   });
@@ -1180,7 +1181,7 @@ async function penetrationCheck(name, fn) {
     h.app.state.draft.rates.local.price=67.123456789;h.app.state.projectFile=saveAs?null:{save_token:'target'};const shared=copy(h.app.state.configuration),paths=[];let saved;
     h.app.setRequest(async(path,options)=>{paths.push(path);const body=JSON.parse(options.body);if(path==='/api/configuration/preview')return{configuration:body.configuration,fields:copy(h.app.state.fields)};saved=body;return{file:{path:'C:/estimates/all.cf.json',save_token:'saved'},project:{...project(),estimate:body.estimate,calculators:body.calculators}};});
     await h.app.saveProject(saveAs);assert.deepEqual(paths,['/api/configuration/preview',saveAs?'/api/project/save-as':'/api/project/save']);assert.equal(saved.estimate.configuration.rates.local.price,67.123456789);
-    assert.deepEqual(copy(h.app.state.configuration),shared);assert.deepEqual(copy(h.app.state.libraryDraft),shared);assert.equal(h.app.state.quoteConfiguration.rates.local.price,67.123456789);assert.equal(h.app.state.pricingScope,'project');assert.equal(h.app.projectPricingChanged(),false);assert.match(h.byId('app-message').textContent,/saved for this project only/);
+    assert.deepEqual(copy(h.app.state.configuration),shared);assert.deepEqual(copy(h.app.state.libraryDraft),shared);assert.equal(h.app.state.quoteConfiguration.rates.local.price,67.123456789);assert.equal(h.app.state.pricingScope,'project');assert.equal(h.app.projectPricingChanged(),false);assert.equal(h.byId('app-message').textContent,'');assert.equal(h.byId('project-save-state').textContent,'Saved project');
   });
   await check('Read-only estimate capture uses applied prices without choosing or mutating conflicting pricing drafts', async h => {
     await h.bridgeApi.completeProjectSnapshot();
@@ -1241,7 +1242,7 @@ async function penetrationCheck(name, fn) {
     const library={version:1,source_sha256:'calculator',records:[{id:'record',draft:{rows:[]},diagram:{filename:'source.png',content_base64:'YQ=='}}]};let marked;
     h.context.window.CeasefireLibraryEditor={projectFingerprint:()=> 'captured',completeProjectSnapshot:async()=>copy(library),hasProjectChanges:()=>true,markProjectSaved:(saved,captured)=>{marked={saved,captured};}};
     h.app.setRequest(async(path,options)=>{assert.equal(path,'/api/project/save-as');const body=JSON.parse(options.body);assert.deepEqual(body.library_drafts,library);return{file:{path:'C:/estimates/library.cf.json'},project:{...project(),estimate:body.estimate,calculators:body.calculators,library_drafts:body.library_drafts}};});
-    await h.app.saveProject();assert.deepEqual(copy(marked),{saved:library,captured:library});assert.match(h.byId('app-message').textContent,/project library drafts/);
+    await h.app.saveProject();assert.deepEqual(copy(marked),{saved:library,captured:library});assert.equal(h.byId('app-message').textContent,'');assert.equal(h.app.state.projectFile.path,'C:/estimates/library.cf.json');
   });
   await check('A library draft changed during physical preparation prevents saving mixed project revisions',async h=>{
     let stamp=1,writes=0;const pending=deferred();h.context.window.CeasefireLibraryEditor={hasProjectChanges:()=>true,projectFingerprint:()=>String(stamp),completeProjectSnapshot:async()=>({version:1,records:[]})};
@@ -1425,6 +1426,7 @@ async function penetrationCheck(name, fn) {
     assert.equal(h.byId('client').value,'Later client');
   });
   await check('A held Save receipt keeps later pane edits and rejects unlinked clients without rejecting canonical Accounts',async h=>{
+    h.byId('project-contact-name').value='Synthetic contact';h.byId('project-contact-email').value='contact@example.test';h.byId('project-contact-phone').value='0400000000';
     vm.runInContext(fs.readFileSync('static/project-pane.js','utf8'),h.context);
     const pane=h.context.window.CeasefireProjectPane;await pane.openCurrent();
     const captured=copy(h.context.window.CeasefireProject.details());h.app.state.projectBusy=true;

@@ -2,7 +2,7 @@ const { referenceExport } = require('./reference_export.cjs');
 // Real current-unsaved-item downloads never read the independently retained Schedule.
 const { chromium, expect } = require('@playwright/test');
 const { chooseCalculator } = require('./calculator_actions.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl,prepareProjectForSave} = require('./project_actions.cjs');
 const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `penetration-item-exports-${Date.now()}`);
@@ -31,6 +31,7 @@ async function fill(column, value) { const field = page.locator(`[data-penetrati
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => { if(new URL(request.url()).pathname==='/api/penetration/calculate')calculationRequests.push(request.postDataJSON()); });
   await page.goto(`http://127.0.0.1:${info.port}/`); await idle();
+  await prepareProjectForSave(page);
   const saving = page.waitForResponse(r => new URL(r.url()).pathname === '/api/project/save-as'); await clickProjectControl(page, 'Save'); assert.equal((await saving).status(), 200); await idle();
   const projectBytes = fs.readFileSync(info.project);
   await chooseCalculator(page, 'Firestopping'); await settled();

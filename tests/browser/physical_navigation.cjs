@@ -1,7 +1,7 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { clickInspectorAdd } = require('./parent_controls_helpers.cjs');
 const { chooseNewPhysicalItem, startDefect } = require('./physical_dialogs.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl, prepareProjectForSave } = require('./project_actions.cjs');
 // Physical detail navigation and explicit marker placement use a disposable source/server only.
 const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
@@ -105,7 +105,7 @@ async function layout(width) {
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1600, height: 1100 } }); page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (request.url().endsWith('/physical/preview')) requests.push(request.postDataJSON()); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push(event.effectiveDirective)); });
-  const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
+  const initial = await page.goto(`http://127.0.0.1:${info.port}/`); await prepareProjectForSave(page); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await expect.poll(() => page.evaluate(() => window.CeasefireDesktop?.status().ready)).toBe(true);
   const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical'); await idle();

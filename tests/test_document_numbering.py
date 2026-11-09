@@ -21,6 +21,7 @@ from estimator.project_file import export_project
 from estimator.project_library import ProjectLibrary
 from estimator.storage import Store
 from estimator.swms import SwmsDocuments, default_fields as swms_fields
+from commercial_ready_fixtures import complete_quote, complete_work_order
 
 
 def uid():
@@ -47,7 +48,11 @@ class DocumentNumberingTests(unittest.TestCase):
 
     def order(self, kind, workspace=None, quote=None):
         fields = default_fields(kind, {'project_no':'PN-00001'})
-        fields['terms'] = ''
+        fields['terms'] = '<p>N / A</p>'
+        if kind == 'quote':
+            fields = complete_quote(fields)
+        elif kind == 'work_order':
+            fields = complete_work_order(fields)
         if quote:
             fields['order']['quote_id'] = quote['id']
         return self.commercial.save(workspace or self.workspace, {'id':uid(), 'kind':kind,'status':'Draft','version':0,'fields':fields})
@@ -81,7 +86,8 @@ class DocumentNumberingTests(unittest.TestCase):
         chooser = Chooser(); chooser.selection = SaveSelection(str(self.root/'Numbered project.cf.json'), None)
         library = ProjectLibrary(self.store, chooser, certifications=self.certs)
         try:
-            library.save_as({'estimate': {'project_no':'PN-FIXTURE'},
+            library.save_as({'estimate': {'project_no':'PN-FIXTURE','client':'Synthetic Company','site_address':'Synthetic Site',
+                                         'contact_name':'Synthetic Contact','contact_phone':'0400 000 001','contact_email':'project@example.test'},
                 'certifications': {'workspace_id':self.workspace,'draft':None}})
         finally:
             library.close()

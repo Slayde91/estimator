@@ -1,0 +1,47 @@
+{
+  "Audio": [
+    "오디오",
+    "Audio",
+    "Âm thanh"
+  ],
+  "Enable audio": [
+    "오디오 켜기",
+    "Paganahin ang audio",
+    "Bật âm thanh"
+  ],
+  "Audio enabled": [
+    "오디오 켜짐",
+    "Naka-enable ang audio",
+    "Đã bật âm thanh"
+  ],
+  "Audio disabled": [
+    "오디오 꺼짐",
+    "Naka-disable ang audio",
+    "Đã tắt âm thanh"
+  ],
+  "Complete required Project details: {0}.": [
+    "필수 프로젝트 정보를 입력하세요: {0}.",
+    "Kumpletuhin ang kinakailangang detalye ng Project: {0}.",
+    "Điền đầy đủ thông tin dự án bắt buộc: {0}."
+  ],
+  "Complete required {0} fields: {1}.": [
+    "{0}의 필수 항목을 입력하세요: {1}.",
+    "Kumpletuhin ang kinakailangang field ng {0}: {1}.",
+    "Điền đầy đủ các trường bắt buộc của {0}: {1}."
+  ],
+  "Saved certificate records are unavailable.": [
+    "저장된 인증서 기록을 사용할 수 없습니다.",
+    "Hindi available ang mga naka-save na tala ng sertipiko.",
+    "Không có hồ sơ chứng nhận đã lưu."
+  ],
+  "The other pricing draft is still available and was not included.": [
+    "다른 가격 초안은 계속 사용할 수 있으며 포함되지 않았습니다.",
+    "Magagamit pa rin ang ibang draft ng presyo at hindi ito isinama.",
+    "Bản nháp đơn giá khác vẫn còn và không được bao gồm."
+  ],
+  "Later edits are not included and still need saving.": [
+    "이후 편집 내용은 포함되지 않았으며 여전히 저장해야 합니다.",
+    "Hindi kasama ang mga sumunod na pag-edit at kailangan pa ring i-save.",
+    "Các chỉnh sửa sau đó không được bao gồm và vẫn cần lưu."
+  ]
+}

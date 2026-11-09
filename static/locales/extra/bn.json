@@ -3203,5 +3203,14 @@
   "Verified by name": "যাচাইকারীর নাম",
   "Invalid commercial document signatures.": "বাণিজ্যিক নথির স্বাক্ষর অবৈধ।",
   "Use a delivery time in HH:MM format.": "সরবরাহের সময় HH:MM বিন্যাসে লিখুন।",
-  "Choose Approved or Rejected for the purchase order approval.": "ক্রয়াদেশের অনুমোদনের জন্য অনুমোদিত বা প্রত্যাখ্যাত নির্বাচন করুন।"
+  "Choose Approved or Rejected for the purchase order approval.": "ক্রয়াদেশের অনুমোদনের জন্য অনুমোদিত বা প্রত্যাখ্যাত নির্বাচন করুন।",
+  "Audio": "অডিও",
+  "Enable audio": "অডিও চালু করুন",
+  "Audio enabled": "অডিও চালু আছে",
+  "Audio disabled": "অডিও বন্ধ আছে",
+  "Complete required Project details: {0}.": "প্রকল্পের আবশ্যক তথ্য পূরণ করুন: {0}।",
+  "Complete required {0} fields: {1}.": "{0}-এর আবশ্যক ঘরগুলি পূরণ করুন: {1}।",
+  "Saved certificate records are unavailable.": "সংরক্ষিত শংসাপত্রের রেকর্ড উপলভ্য নয়।",
+  "The other pricing draft is still available and was not included.": "অন্য মূল্যের খসড়াটি এখনও রয়েছে এবং অন্তর্ভুক্ত করা হয়নি।",
+  "Later edits are not included and still need saving.": "পরের সম্পাদনাগুলি অন্তর্ভুক্ত নয় এবং এখনও সংরক্ষণ করতে হবে।"
 }

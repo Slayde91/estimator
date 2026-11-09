@@ -41,6 +41,9 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  const quoteIssue=page.waitForResponse(response=>response.url().endsWith('/api/commercial/issue'));await quote.getByRole('button',{name:'Download PDF',exact:true}).click();const quoteIssued=await quoteIssue;assert.equal(quoteIssued.status(),200,await quoteIssued.text());await idle();
  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await openProjectSection(page,'work-orders');const work=page.locator('#commercial-work-order-root');await work.getByRole('button',{name:'New Work Order',exact:true}).click();await idle();
  await work.getByLabel('Linked Quote',{exact:true}).selectOption(savedQuote.id);
+ await work.getByLabel('Proposed start date',{exact:true}).fill('2026-11-10');
+ await work.getByLabel('Category / urgency',{exact:true}).selectOption('Medium Priority');
+ await work.getByLabel('Description of works',{exact:true}).fill('Synthetic fixture installation work');
  const completed=work.locator('[data-tracking-field=completed_percent]'),claimed=work.locator('[data-tracking-field=claimed_percent]');
  await expect(completed.locator('tbody tr')).toHaveCount(savedQuote.fields.lines.length);await expect(claimed.locator('tbody tr')).toHaveCount(savedQuote.fields.lines.length);
  for(const title of ['Charged service','Free service','Credit service']){await expect(completed).toContainText(title);await expect(claimed).toContainText(title);}

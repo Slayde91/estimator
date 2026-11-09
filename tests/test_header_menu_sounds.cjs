@@ -3,6 +3,7 @@ const { verifiedNativeMediaCancellation } = require("./helpers/media_preload_gua
 const assert = require("node:assert/strict"), { test } = require("node:test");
 const fs = require("node:fs"), path = require("node:path"), { createHash } = require("node:crypto");
 const { create, sources, createFeedback, feedbackSources, createPrinting, printingSource, createDownloadSound } = require("../static/header-menu-sounds.js");
+const {create: createAudioSettings} = require('../static/audio-settings.js');
 
 test("native media cancellation at any stage requires exact delivery and fresh trusted decoding proof", () => {
   const origin = "http://127.0.0.1:54321", source = feedbackSources.select, url = origin + source, sha256 = "a".repeat(64);
@@ -418,6 +419,20 @@ test("printer audio loops only during the active phrase and never starts after i
   audio.readyState = 0; printer.start(); audio.readyState = 4; audio.emit("canplay"); audio.emit("canplay");
   assert.equal(h.plays().length, 2, "A still-printing phrase can start once when decoded");
   printer.stop(); printer.start(); assert.equal(h.plays().length, 3, "A replacement phrase restarts its loop");
+});
+
+test("muting immediately stops header, Takeoff, logo and printing clips without replay after re-enable", () => {
+  const h=audioHarness(),preference=h.host.CeasefireAudioSettings=createAudioSettings(h.host),button=target();
+  const header=create({querySelectorAll:()=>[button]},h.host),feedback=createFeedback(h.document,h.host,header),printer=createPrinting(h.motion,h.host,h.document);
+  button.emit('click');printer.start();assert.ok(h.players.some(audio=>!audio.paused));
+  const count=h.plays().length;preference.setEnabled(false);assert.ok(h.players.every(audio=>audio.paused));
+  button.emit('pointerenter',{pointerType:'mouse'});button.emit('click');printer.start();
+  h.document.emit('click',{target:element(element(null,{zone:'header'}),{brand:true})});
+  h.document.emit('click',{target:element(element(null,{zone:'takeoff'}),{control:true})});
+  for(const audio of h.players)audio.emit('canplay');assert.equal(h.plays().length,count);
+  preference.setEnabled(true);for(const audio of h.players)audio.emit('canplay');assert.equal(h.plays().length,count,'Unmuting cannot replay muted clicks or the old printing phrase');
+  button.emit('click');assert.equal(h.plays().length,count+1);printer.start();assert.equal(h.plays().length,count+2);
+  header.close();feedback.close();printer.close();preference.close();
 });
 
 test("printer blocks stale promises, reduced motion, hidden documents and pagehide without changing typing", async () => {

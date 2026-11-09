@@ -12,6 +12,7 @@ from reportlab.pdfgen.canvas import Canvas
 from estimator.catalog import ValidationError
 from estimator.commercial_documents import CommercialDocuments, default_fields
 from tests.test_commercial_documents import Projects
+from tests.commercial_ready_fixtures import complete_quote, complete_work_order
 
 
 class WorkOrderFileTests(unittest.TestCase):
@@ -30,6 +31,7 @@ class WorkOrderFileTests(unittest.TestCase):
         values = default_fields(kind)
         values.update(fields)
         values['details']['project_no'] = 'PN-00001'
+        values = complete_quote(values) if kind == 'quote' else complete_work_order(values) if kind == 'work_order' else values
         if kind == 'work_order':
             values['order']['quote_id'] = self.quote['id']
         return self.store.save(self.workspace, {

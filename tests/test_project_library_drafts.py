@@ -47,7 +47,8 @@ class ProjectLibraryDraftTests(unittest.TestCase):
                 for path in (self.root / 'library').rglob('*') if path.is_file()}
 
     def request(self, snapshot):
-        portable = json.loads(export_project(self.store, {'estimate': {'project_no': 'Project drafts'},
+        portable = json.loads(export_project(self.store, {'estimate': {'project_no': 'Project drafts','client':'Synthetic Company','site_address':'Synthetic Site',
+                                                                      'contact_name':'Synthetic Contact','contact_phone':'0400 000 001','contact_email':'project@example.test'},
                                                          'library_drafts': snapshot}))
         return {'estimate': portable['estimate'], 'library_drafts': portable['library_drafts'],
                 'calculators': {key: {'inputs': value['inputs'], 'schedule_rows': value['schedule_rows']}

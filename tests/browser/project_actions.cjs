@@ -55,6 +55,8 @@ async function clickProjectControl(page, name) {
 // This helper explicitly creates a real numbered Project. Callers testing
 // cancellation use clickProjectControl('New') and operate its modal directly.
 async function createNewProject(page, values = {}) {
+  values = {client:'Synthetic Project Company','site-address':'1 Synthetic Project Street',
+    contact_name:'Synthetic Project Contact',contact_phone:'0400 000 001',contact_email:'project@example.test',...values};
   await clickProjectControl(page,'New');
   const modal=page.locator('#project-new-dialog');await expect(modal).toBeVisible();
   if(values.client){
@@ -68,6 +70,7 @@ async function createNewProject(page, values = {}) {
     }
   }
   if(values['site-address'])await page.locator('#project-pane-address').fill(values['site-address']);
+  for (const [key,id] of Object.entries({contact_name:'project-pane-contact-name',contact_phone:'project-pane-contact-phone',contact_email:'project-pane-contact-email'})) await page.locator('#'+id).fill(values[key]);
   const response=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/project/save-as');
   await page.locator('#project-details-save').click();
   const review=page.locator('#discard-dialog');
@@ -85,8 +88,9 @@ async function fillProjectDetails(page, values, {waitForIdle = true} = {}) {
   await page.locator('#project-current-details').click();
   await expect(page.locator('#project-details-pane')).toBeVisible();
   for (const [id, value] of Object.entries(values)) {
-    if (!['client', 'site-address'].includes(id)) throw new Error('Unknown editable project detail: ' + id);
-    const input = page.locator(id === 'client' ? '#project-pane-client' : '#project-pane-address');
+    const ids={client:'project-pane-client','site-address':'project-pane-address',contact_name:'project-pane-contact-name',contact_phone:'project-pane-contact-phone',contact_email:'project-pane-contact-email'};
+    if (!Object.hasOwn(ids,id)) throw new Error('Unknown editable project detail: ' + id);
+    const input = page.locator('#'+ids[id]);
     const original = await input.inputValue();
     await input.fill(value);
     if (id === 'client' && original !== value && value) {
@@ -107,6 +111,12 @@ async function fillProjectDetails(page, values, {waitForIdle = true} = {}) {
     }
     await input.blur();
   }
+  // This helper prepares a savable synthetic Project. Missing-field tests edit
+  // controls directly so deliberate empty values are never repaired for them.
+  for (const [key,value] of Object.entries({contact_name:'Synthetic Project Contact',contact_phone:'0400 000 001',contact_email:'project@example.test'})) {
+    const input=page.locator('#project-pane-'+key.replaceAll('_','-'));
+    if (!Object.hasOwn(values,key) && !(await input.inputValue()).trim()) await input.fill(value);
+  }
   if (previous && previous !== 'quotes') {
     if (['quote', 'work-orders', 'purchase-orders', 'scheduler', 'certification', 'documentation', 'swms', 'documents'].includes(previous)) await openProjectSection(page, previous);
     else await page.locator('.nav-button[data-view="' + previous + '"]').click();
@@ -114,4 +124,23 @@ async function fillProjectDetails(page, values, {waitForIdle = true} = {}) {
   if (waitForIdle) await page.waitForFunction(() => { const state = window.CeasefireDesktop?.status(); return state?.ready && !state.busy; });
 }
 
-module.exports = { clickProjectControl, openProjectTools, openProjectSection, fillProjectDetails,createNewProject };
+// Opt in only for fixtures deliberately exercising a successful Project Save.
+// Missing-field and cancellation tests must keep their own explicit setup.
+async function prepareProjectForSave(page) {
+  await page.waitForFunction(() => { const state = window.CeasefireDesktop?.status(); return state?.ready && !state.busy; });
+  const before = await page.evaluate(() => window.CeasefireProject.details());
+  const defaults = {client:'Synthetic Project Company','site-address':'1 Synthetic Project Street',
+    contact_name:'Synthetic Project Contact',contact_phone:'0400 000 001',contact_email:'project@example.test'};
+  const property = key => key === 'site-address' ? 'site_address' : key;
+  const missing = Object.fromEntries(Object.entries(defaults).filter(([key]) => !before[property(key)]?.trim()));
+  if (!Object.keys(missing).length) return before;
+  // Selecting a missing Company can invalidate a previously linked Contact.
+  // Keep any existing contact overrides explicit throughout that public flow.
+  if (missing.client) for (const key of ['contact_name','contact_phone','contact_email']) missing[key] = before[key] || defaults[key];
+  await fillProjectDetails(page, missing);
+  const after = await page.evaluate(() => window.CeasefireProject.details());
+  for (const [key,value] of Object.entries(before)) if (value.trim()) expect(after[key], `Existing Project ${key} stays intact`).toBe(value);
+  return after;
+}
+
+module.exports = { clickProjectControl, openProjectTools, openProjectSection, fillProjectDetails,createNewProject,prepareProjectForSave };

@@ -70,7 +70,7 @@ from estimator.storage import Store
 from estimator.project_file import export_project
 path = Path(sys.argv[1])
 store = Store(path.parent / 'preview-seed.sqlite3')
-snapshot=json.loads(export_project(store, {'estimate': {'title': 'Scope preview fixture','project_no':'PN-901'}, 'calculators': {'steel_board': {'inputs': {'CALCULATOR': {'A9': 'SCOPE-PREVIEW-1'}}}}}))
+snapshot=json.loads(export_project(store, {'estimate': {'title': 'Scope preview fixture','project_no':'PN-901','client':'Scope preview Company','site_address':'10 Scope Preview Road','contact_name':'Scope preview Contact','contact_phone':'0400 000 001','contact_email':'scope@example.test'}, 'calculators': {'steel_board': {'inputs': {'CALCULATOR': {'A9': 'SCOPE-PREVIEW-1'}}}}}))
 workspace={'estimate':snapshot['estimate'],'calculators':{key:{'inputs':value['inputs'],'schedule_rows':value['schedule_rows']} for key,value in snapshot['calculators'].items()}}
 path.write_bytes(export_project(store,{**workspace,'estimates':[{'id':'estimate-1','name':'Duplicate estimate','workspace':workspace},{'id':'estimate-22222222222222222222222222222222','name':'Duplicate estimate','workspace':workspace}],'active_estimate_id':'estimate-1'}))`, info.project], {cwd:root, windowsHide:true});
   browser = await chromium.launch({headless:true});

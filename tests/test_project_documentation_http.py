@@ -49,7 +49,7 @@ class DocumentationHTTPTests(unittest.TestCase):
             render.assert_not_called()
         self.assertEqual(self.retained(workspace)['workspace_revision'], 0)
         self.chooser.selection = SaveSelection(str(Path(self.temp.name) / 'Created project.cf.json'), None)
-        self.json('POST', '/api/project/save-as', {'estimate': {'title': 'Created project'},
+        self.json('POST', '/api/project/save-as', {'estimate': helpers.project_estimate(title='Created project'),
             'certifications': {'workspace_id': workspace, 'draft': None}})
         with patch('estimator.report.render_quote_pdf', return_value=pdf('SAVED PROJECT')):
             status, _, content = self.request('POST', '/api/quote-report', body, self.headers(workspace, operation))

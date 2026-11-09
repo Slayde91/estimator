@@ -3203,5 +3203,14 @@
   "Verified by name": "تصدیق کنندہ کا نام",
   "Invalid commercial document signatures.": "تجارتی دستاویز کے دستخط درست نہیں ہیں۔",
   "Use a delivery time in HH:MM format.": "ترسیل کا وقت HH:MM کی شکل میں درج کریں۔",
-  "Choose Approved or Rejected for the purchase order approval.": "خریداری آرڈر کی منظوری کے لیے منظور شدہ یا مسترد منتخب کریں۔"
+  "Choose Approved or Rejected for the purchase order approval.": "خریداری آرڈر کی منظوری کے لیے منظور شدہ یا مسترد منتخب کریں۔",
+  "Audio": "آڈیو",
+  "Enable audio": "آڈیو فعال کریں",
+  "Audio enabled": "آڈیو فعال ہے",
+  "Audio disabled": "آڈیو بند ہے",
+  "Complete required Project details: {0}.": "پروجیکٹ کی ضروری تفصیلات مکمل کریں: {0}۔",
+  "Complete required {0} fields: {1}.": "{0} کے ضروری خانے مکمل کریں: {1}۔",
+  "Saved certificate records are unavailable.": "محفوظ سرٹیفکیٹ کے ریکارڈ دستیاب نہیں ہیں۔",
+  "The other pricing draft is still available and was not included.": "قیمتوں کا دوسرا مسودہ اب بھی دستیاب ہے اور اسے شامل نہیں کیا گیا۔",
+  "Later edits are not included and still need saving.": "بعد کی تبدیلیاں شامل نہیں ہیں اور انہیں ابھی محفوظ کرنا ہے۔"
 }

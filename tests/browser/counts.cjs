@@ -1,5 +1,5 @@
 const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl, fillProjectDetails } = require('./project_actions.cjs');
 const { checkSteelDialog } = require('./steel_dialog_layout.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Rendered manual Steel counts on original PDF points and a disposable database.
@@ -92,6 +92,7 @@ async function technicalDetails(mark, rows) {
 }
 let savedOnce = false;
 async function saveAndLoad(info) {
+  if (!savedOnce) await fillProjectDetails(page,{client:'Synthetic Counts Company','site-address':'1 Synthetic Counts Street'});
   const save = page.waitForResponse(response => response.url().endsWith(savedOnce ? '/api/project/save' : '/api/project/save-as'));
   await clickProjectControl(page, 'Save'); assert.equal((await save).status(), 200);
   savedOnce = true;
@@ -340,18 +341,17 @@ function pythonJson(script, ...args) {
   reply = await command(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo'); state = reply.snapshot;
   assert.deepEqual(stable(state), stable(multiBaseline));
   await selectMarkers([firstMember, otherMember]);
-  // A saved receipt remains visible while native editing makes the project dirty.
+  // Ordinary Save uses the persistent header badge without a path notification.
   const saveBeforeCrossRowDrag = page.waitForResponse(response => response.url().endsWith('/api/project/save'));
   await clickProjectControl(page, 'Save'); assert.equal((await saveBeforeCrossRowDrag).status(), 200);
-  await expect(page.locator('#app-message')).toContainText(/^Project saved /);
-  await expect(page.locator('#app-message')).toBeVisible();
-  await expect(page.locator('#app-message')).toHaveAttribute('role', 'status');
+  await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  await expect(page.locator('#app-message')).not.toContainText(/^Project saved /);
   const beforeCrossRowRequests = requests.length;
   reply = await command(async () => { movement = await dragMarker(firstMember, [14, 12]); }, 'move_count_markers');
-  await expect(page.locator('#app-message')).toBeVisible();await expect(page.locator('#app-message')).toContainText(/^Project saved /);
+  await expect(page.locator('#app-message')).not.toContainText(/^Project saved /);
   assert.equal(requests.length, beforeCrossRowRequests + 1, 'Moving members across Count rows remains one atomic command after Save');
   assertSubsetMove(multiBaseline, reply.snapshot, [firstMember, otherMember], movement);
-  evidence.savedNoticeGroupDrag = { nativeSaveHTTP200: true, freshSavedReceiptTextAsserted: true, ordinaryNoticeVisibleBeforeAndAfterPointer: true, requestedDelta: [14, 12], deltaPdf: requests.at(-1).delta_pdf, strictSourceDeltaAssertionPassed: true };
+  evidence.savedNoticeGroupDrag = { nativeSaveHTTP200: true, savedHeaderStateAsserted: true, ordinarySavePathNoticeSuppressed: true, requestedDelta: [14, 12], deltaPdf: requests.at(-1).delta_pdf, strictSourceDeltaAssertionPassed: true };
   reply = await command(() => page.getByRole('button', { name: 'Undo last edit', exact: true }).click(), 'undo'); state = reply.snapshot;
   assert.deepEqual(stable(state), stable(multiBaseline));
   // Marquee includes one point of the two-member group, never its entire row.

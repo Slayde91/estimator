@@ -1,5 +1,5 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl, fillProjectDetails } = require('./project_actions.cjs');
 'use strict';
 // Real selection, auto-save and movement on disposable synthetic PDF evidence.
 const { chromium, expect } = require('@playwright/test');
@@ -75,12 +75,18 @@ async function persistentNoticeKeepsDrawing(id, point, globalNotice = false) {
     });
     probe.observer.observe(notice, { attributes: true, childList: true, characterData: true, subtree: true });
   }, noticeId);
-  // A real ordinary status stays visible beyond the former five-second timer.
+  // Actionable warnings still stay visible beyond the former five-second timer;
+  // ordinary Project saves no longer create a path notification.
   // At page top the browser cannot hide drawing movement by anchoring.
   if (globalNotice) {
+    await page.route('**/api/project/save',async route=>{
+      const response=await route.fetch(),body=await response.json();
+      await route.fulfill({response,json:{...body,warning:'Synthetic saved-project warning.'}});
+    });
     const saving = page.waitForResponse(response => response.url().endsWith('/api/project/save'));
     await clickProjectControl(page, 'Save'); assert.equal((await saving).status(), 200);
-    await expect(page.locator('#app-message')).toContainText('Project saved');
+    await page.unroute('**/api/project/save');
+    await expect(page.locator('#app-message')).toContainText('Synthetic saved-project warning.');
   } else {
     await page.locator('.takeoff-viewport').focus(); await expect(page.locator('.takeoff-viewport')).toBeFocused();
     await page.keyboard.press('Control+c');
@@ -224,6 +230,7 @@ async function drawSurface(mode, mark, startX) {
   await page.screenshot({ path: path.join(output, 'mixed-wall-floor-selected-details.png') });
   evidence.combined = { selectedIds: [evidence.wall.firstId, evidence.slab.firstId], nativeModesPreserved: true, mixedBasisNotEditable: true, noMutationOnSelection: true };
   assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), originalCalculators);
+  await fillProjectDetails(page,{client:'Synthetic Surface Company','site-address':'1 Synthetic Surface Street'});
   const beforeSave = await snapshot(), saving = page.waitForResponse(response => response.url().endsWith('/api/project/save-as'));
   await clickProjectControl(page, 'Save'); assert.equal((await saving).status(), 200); await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const opening = page.waitForResponse(response => response.url().endsWith('/api/project/open')); await clickProjectControl(page, 'Load'); assert.equal((await opening).status(), 200); await page.getByRole('dialog').getByRole('button', { name: 'Load Project', exact: true }).click(); await expect(page.locator('#project-save-state')).toHaveText('Saved project');

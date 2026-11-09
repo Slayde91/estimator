@@ -61,9 +61,9 @@ const phrases = [
   "Let me help you spray your load.",
   "CLASSIFIRE: Passive Fire Intelligence",
 ];
-function harness({ random = 0, previous, reduced = false, blocked = false, missing = false, missingCursor = false, missingMotion = false, rejectSound = false } = {}) {
+function harness({ random = 0, previous, reduced = false, blocked = false, missing = false, missingCursor = false, missingMotion = false, rejectSound = false, audioEnabled = true } = {}) {
   const label = { textContent: '' }, sizer = { children: [], get textContent() { return this.children.map(line => line.textContent).join(''); }, replaceChildren(...lines) { this.children = lines; } }, cursor = { hidden: false }, frames = [], timers = new Map(), writes = [];
-  let current = '', last = previous, nextTimer = 0, preference, pagehide, languagechange, visibilitychange, now = 0;
+  let current = '', last = previous, nextTimer = 0, preference, pagehide, languagechange, visibilitychange, now = 0, audioChange;
   const audio = {plays:0,pauses:0,loads:0,currentTime:0,src:'',preload:'',load(){this.loads++;},pause(){this.pauses++;},play(){this.plays++;return {catch(callback){if(rejectSound)callback(Error('Autoplay blocked'));}};}};
   const typed = { get textContent() { return current; }, set textContent(value) { current = value; frames.push(value); } };
   const elements = { 'header-tagline-label': label, 'header-tagline-sizer': sizer, 'header-tagline-typed': typed };
@@ -79,6 +79,7 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
     },
     window: {
       Audio:function(){return audio;},
+      CeasefireAudioSettings:{isEnabled:()=>audioEnabled,subscribe(callback){audioChange=callback;return()=>{audioChange=null;};}},
       CeasefireHeaderTaglineMedia: media,
       CeasefireHeaderTaglineSound: printing,
       CeasefireI18n: require('./english_i18n_fixture.cjs')(),
@@ -118,6 +119,7 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
   const finish = () => { finishTyping(); advance(2000); };
   run();
   return { label, sizer, typed, cursor, media, printing, audio, frames, timers, writes, run, tick, finishTyping, finish, advance, nextPhrase() { context.window.CeasefireHeaderTagline.next(); },
+    mute(){audioEnabled=false;audioChange?.(false);},unmute(){audioEnabled=true;audioChange?.(true);},
     hide(){context.document.hidden=true;visibilitychange();},show(){context.document.hidden=false;visibilitychange();},
     changeLanguage(translation) { context.window.CeasefireI18n = { translate: value => translation[value] || value }; languagechange(); },
     now: () => now, changeMotion(matches = true) { motion.matches = matches; preference({ matches }); }, pagehide() { pagehide(); } };
@@ -253,6 +255,16 @@ for (let index = 0; index < phrases.length-1; index++) {
   assert.equal(h.printing.starts, 4); assert.equal(h.printing.playing, true); h.pagehide(); assert.equal(h.printing.playing, false); passed++;
 }
 const html = fs.readFileSync('static/index.html', 'utf8');
+{
+  const h=harness({random:.999,audioEnabled:false});assert.equal(h.audio.plays,0);
+  h.unmute();h.advance(5050);assert.equal(h.audio.plays,0,'Unmuting does not replay the current brand appearance');
+  assert.equal(h.typed.textContent,phrases.at(-1));passed++;
+}
+{
+  const h=harness({random:.999});assert.equal(h.audio.plays,1);const pauses=h.audio.pauses;
+  h.mute();assert.ok(h.audio.pauses>pauses);assert.equal(h.audio.currentTime,0);
+  h.unmute();h.advance(5050);assert.equal(h.audio.plays,1);passed++;
+}
 {
   const h=harness({random:.999});const phrase=phrases.at(-1);
   assert.equal(h.label.textContent,phrase);assert.equal(h.typed.textContent.length,phrase.length);

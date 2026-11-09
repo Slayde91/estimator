@@ -3203,5 +3203,14 @@
   "Verified by name": "Nom du vérificateur",
   "Invalid commercial document signatures.": "Signatures du document commercial non valides.",
   "Use a delivery time in HH:MM format.": "Utilisez une heure de livraison au format HH:MM.",
-  "Choose Approved or Rejected for the purchase order approval.": "Choisissez Approuvé ou Rejeté pour l’approbation du bon de commande."
+  "Choose Approved or Rejected for the purchase order approval.": "Choisissez Approuvé ou Rejeté pour l’approbation du bon de commande.",
+  "Audio": "Audio",
+  "Enable audio": "Activer le son",
+  "Audio enabled": "Son activé",
+  "Audio disabled": "Son désactivé",
+  "Complete required Project details: {0}.": "Complétez les informations obligatoires du projet : {0}.",
+  "Complete required {0} fields: {1}.": "Complétez les champs obligatoires de {0} : {1}.",
+  "Saved certificate records are unavailable.": "Les certificats enregistrés sont indisponibles.",
+  "The other pricing draft is still available and was not included.": "L’autre brouillon tarifaire reste disponible et n’a pas été inclus.",
+  "Later edits are not included and still need saving.": "Les modifications ultérieures ne sont pas incluses et doivent encore être enregistrées."
 }

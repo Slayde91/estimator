@@ -12,6 +12,7 @@ from pypdf import PdfReader
 
 from estimator.catalog import ValidationError
 from estimator.commercial_documents import CommercialDocuments, default_fields, validate_commercial_documents
+from tests.commercial_ready_fixtures import complete_quote, complete_work_order
 from estimator.commercial_http import CommercialHTTP
 from tests.test_commercial_documents import Projects
 
@@ -26,7 +27,7 @@ class WorkOrderReferences(unittest.TestCase):
         self.quote = self.create_quote()
 
     def payload(self, kind='work_order', quote=None):
-        fields = default_fields(kind)
+        fields = complete_quote(default_fields(kind)) if kind == 'quote' else complete_work_order(default_fields(kind)) if kind == 'work_order' else default_fields(kind)
         fields['details']['project_no'] = 'CF-123'
         if kind == 'work_order':
             fields['order']['quote_id'] = (quote or self.quote)['id']
@@ -34,7 +35,7 @@ class WorkOrderReferences(unittest.TestCase):
 
     def create_quote(self, issue=True):
         payload = self.payload('quote')
-        payload['fields']['terms'] = ''
+        payload['fields']['terms'] = '<p>N / A</p>'
         quote = self.store.save(self.workspace, payload)
         if issue:
             quote = self.store.issue(self.workspace, quote['id'], quote['version'], str(uuid.uuid4()))['document']

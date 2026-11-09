@@ -13,6 +13,7 @@ from estimator.commercial_http import CommercialHTTP
 from estimator.project_file import export_project
 from estimator.project_library import ProjectLibrary
 from estimator.storage import Store
+from tests.commercial_ready_fixtures import complete_quote, complete_work_order
 if __package__:
     from .test_commercial_documents import Projects
 else:
@@ -52,7 +53,7 @@ class CommercialRegressionTests(unittest.TestCase):
         self.service = CommercialDocuments(self.projects, renderer=lambda *args, **kwargs: b'%PDF-1.4 immutable test bytes')
 
     def create(self, kind='work_order'):
-        fields = default_fields(kind)
+        fields = complete_quote(default_fields(kind)) if kind == 'quote' else complete_work_order(default_fields(kind)) if kind == 'work_order' else default_fields(kind)
         fields['details']['project_no'] = 'CF-TEST'
         if kind == 'work_order':
             quote = self.create('quote')
@@ -71,7 +72,7 @@ class CommercialRegressionTests(unittest.TestCase):
         other_workspace = other_projects.add(snapshot['project_id'])
         restored = CommercialDocuments(other_projects, renderer=self.service.renderer)
         restored.restore(other_workspace, snapshot)
-        fields = default_fields('work_order')
+        fields = complete_work_order(default_fields('work_order'))
         fields['details']['project_no'] = 'CF-TEST'
         fields['order']['quote_id'] = next(row['id'] for row in snapshot['documents'] if row['kind'] == 'quote')
         next_document = restored.save(other_workspace, {'kind': 'work_order', 'status': 'Draft', 'fields': fields})

@@ -3,7 +3,7 @@
 // storage and server state belong to a disposable non-production fixture.
 const { chromium, expect } = require("@playwright/test");
 const { chooseTakeoff } = require("./section_navigation.cjs");
-const { clickProjectControl } = require("./project_actions.cjs");
+const { clickProjectControl, prepareProjectForSave } = require("./project_actions.cjs");
 const { renderDrawing, viewRegisterItem } = require("./viewer_helpers.cjs");
 const { editSettings, openItemSettings, settingsSettled } = require("./settings_helpers.cjs");
 const { spawn } = require("node:child_process");
@@ -112,7 +112,7 @@ async function saveLoad(info) {
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1600, height: 1100 }, deviceScaleFactor: 2 }); page.setDefaultTimeout(30000);
   page.on("pageerror", error => errors.push(error.message)); page.on("request", request => { if (request.url().endsWith("/commands")) requests.push(request.postDataJSON()); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener("securitypolicyviolation", event => window.qaCsp.push(event.effectiveDirective)); });
-  const response = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!response.headers()["content-security-policy"].includes("unsafe-inline"));
+  const response = await page.goto(`http://127.0.0.1:${info.port}/`); await prepareProjectForSave(page); assert.ok(!response.headers()["content-security-policy"].includes("unsafe-inline"));
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   await page.getByRole("button", { name: "Takeoffs", exact: true }).click(); await chooseTakeoff(page, "wall");

@@ -280,7 +280,8 @@ class NumberedProjectLibraryTests(unittest.TestCase):
         self.addCleanup(self.details.close)
         self.library = ProjectLibrary(self.store, self.dialogs, project_details=self.details)
         self.addCleanup(self.library.close)
-        self.request = {"estimate": {"project_no": "FORGED", "client": "Client", "site_address": "10 Site Road"},
+        self.request = {"estimate": {"project_no": "FORGED", "client": "Client", "site_address": "10 Site Road",
+                                     "contact_name": "Synthetic Contact", "contact_phone": "0400 000 001", "contact_email": "project@example.test"},
                         "project_save_request": str(uuid4())}
         self.target = self.root / "Saved.cf.json"
         self.dialogs.selection = SaveSelection(str(self.target), None)

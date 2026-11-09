@@ -115,7 +115,12 @@ async function discardQuote(host) {
   checks.push('delayed autosave serializes newer edits without replacing editor values');
 
   const validProfile=await rates();
-  for (const invalid of ['', '-1', '1.0000001']) {
+  // An incomplete Draft may retain a blank document rate while the durable
+  // defaults remain valid. Negative and over-precise amounts are still invalid.
+  await ordinary.fill('');await expect(ordinary).toHaveValue('');
+  await page.waitForTimeout(350);assert.deepEqual(await rates(),validProfile);
+  await expect(quote.locator('.commercial-rate-defaults-status')).not.toContainText('Enter a rate');
+  for (const invalid of ['-1', '1.0000001']) {
     await ordinary.fill(invalid);
     await expect(quote.locator('.commercial-rate-defaults-status')).toContainText('Enter a rate');
     await page.waitForTimeout(350);

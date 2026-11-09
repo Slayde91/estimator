@@ -24,6 +24,7 @@ from .commercial_sources import CommercialSources, source_id
 from .edition import require_project_edition, validate_edition
 from .native_dialogs import NativeDialogs, SaveSelection
 from .quote_details import QUOTE_DETAIL_LIMITS, compose_quote_title, validate_quote_details
+from .project_requirements import require_project_details
 from .project_file import CALCULATOR_IDS, LEGACY_CALCULATOR_IDS, OPTIONAL_CALCULATOR_IDS, ESTIMATE_FIELDS, ESTIMATE_REQUIRED_FIELDS, MAX_PROJECT_FILE, PROJECT_EXTENSION, assert_project_overwrite, export_project, has_project_identity, is_project_filename, load_project_bytes, project_filename, project_summary, validate_project_status, estimate_descriptors, WORKSPACE_FIELDS
 
 
@@ -255,8 +256,10 @@ def _preserve_project_contacts(request, previous):
 
 def _metadata(path, info, project, folder, payload):
     from .commercial_documents import commercial_cards
+    from .directory_documents import snapshot_cards
     estimate = project["estimate"]
     cards = project["commercial_cards"] if "commercial_cards" in project else commercial_cards(project.get("commercial_documents"))
+    directory_cards = project['directory_cards'] if 'directory_cards' in project else snapshot_cards(project, project.get('source_project_id') or (project.get('certifications') or {}).get('project_id'))
     inside = folder is not None and path.is_relative_to(folder)
     relative = path.relative_to(folder).as_posix() if inside else path.name
     return {"id": _file_id(folder, relative) if inside else None, "name": path.name,
@@ -268,6 +271,8 @@ def _metadata(path, info, project, folder, payload):
             "contact_name": estimate.get("contact_name", ""), "contact_phone": estimate.get("contact_phone", ""), "contact_email": estimate.get("contact_email", ""),
             "source_project_id": project.get("source_project_id") or (project.get("certifications") or {}).get("project_id"),
             "commercial_cards": cards, "quote_cards": [card for card in cards if card['kind'] == 'quote'],
+            "directory_cards": directory_cards,
+            "certification_manifest": project.get('certification_manifest', project.get('certifications')),
             "clients": project.get("clients", [estimate.get("client", "")]),
             "project_numbers": project.get("project_numbers", [estimate.get("project_no", "")]),
             "project_status": project.get("project_status", "Draft"),
@@ -354,6 +359,7 @@ class ProjectLibrary:
         self._commercial_sources = CommercialSources(store, project_details)
         self._commercial_walk = None
         self._outside_file_cache = {}
+        self._directory_document_cache = {}
         from .download_files import SavedDownloadFiles
         self.download_files = SavedDownloadFiles()
 
@@ -828,6 +834,7 @@ class ProjectLibrary:
         if not isinstance(request["details"], dict) or set(request["details"]) != set(QUOTE_DETAIL_LIMITS):
             raise ValidationError("Include all project detail fields only.")
         details = validate_quote_details(request["details"])
+        require_project_details(details)
         # Account directory access happens outside the project lock; lead conversion
         # can hold the directory transaction while creating a project.
         directory = accounts.list() if details["account_id"] or details["contact_id"] else None
@@ -1225,6 +1232,7 @@ class ProjectLibrary:
                 if any(value != prior.get(key, value) or key not in prior and value not in set(prior.values()) for key, value in incoming.items()):
                     raise ValidationError('Existing project numbers cannot be edited. Reload this project to restore its saved numbers.')
             preservation = self._preserve_estimates(path, request)
+            require_project_details(captured['estimate'])
             _preserve_penetration_inputs(path, preservation)
             _preserve_library_drafts(path, preservation)
             _preserve_optional_calculators(path, preservation)
@@ -1419,9 +1427,34 @@ class ProjectLibrary:
                       and self._scan['folder'] == Path(folder) else [])
             registered = {row[0] for row in self._commercial_sources.records() if not row[4] and row[2] not in ignored}
             outside = [cached[1] for identifier, cached in self._outside_file_cache.items() if identifier in registered]
-            return {**listing, 'files': [{**row, 'account_link_id': str(uuid.uuid5(uuid.NAMESPACE_URL,
+            files = [{**row, 'account_link_id': str(uuid.uuid5(uuid.NAMESPACE_URL,
                                             'classifire:account-project-file:' + source_id(row['path'])))} for row in (*linked, *outside)
-                                        if row['source_project_id'] not in ignored]}
+                                        if row['source_project_id'] not in ignored]
+            return {**listing, 'files': files}
+
+    def directory_certificate_cards(self, rows):
+        """Enrich only a Company's already-authorized matching Project rows.
+
+        No browser-supplied paths or IDs reach this method. A bounded pass and
+        content-addressed cache avoid reparsing every archive for each refresh.
+        Contact views do not need certificate archives and never call it.
+        """
+        from .directory_documents import certificate_cards
+        documents, errors, pending = [], [], False
+        deadline = time.monotonic() + MAX_SCAN_SECONDS
+        with self._lock:
+            for row in rows:
+                if not row.get('certification_manifest'):
+                    continue
+                if time.monotonic() >= deadline:
+                    pending = True
+                    continue
+                try:
+                    cards = certificate_cards(row['certification_manifest'], row['path'], row['source_project_id'], self._directory_document_cache)
+                    documents.extend({**card, 'source_file':row.get('id') or source_id(row['path'])} for card in cards)
+                except (OSError, ValidationError):
+                    errors.append({'name': row['title'], 'error':'Saved certificate records are unavailable.'})
+        return {'documents':documents, 'errors':errors[:100], 'scan_pending':pending}
 
     def quote_register(self):
         register = self.commercial_register()
@@ -1549,6 +1582,7 @@ class ProjectLibrary:
         identifier = request_id(request.get('project_save_request', str(uuid.uuid4())))
         request = {key: value for key, value in request.items() if key != 'project_save_request'}
         captured = self._capture_takeoffs(request)
+        require_project_details(captured['estimate'], automatic_number=True)
         # Complete validation still precedes reservations and native dialogs.
         load_project_bytes(self.store, export_project(self.store, captured, edition=self.edition), edition=self.edition)
         self.project_details.recover(_read_file)
@@ -1585,6 +1619,7 @@ class ProjectLibrary:
     def _save_as(self, request, *, captured=None, ticket=None, linked_folder=False):
         # No dialog or preference/file writes until the complete captured state is valid.
         captured = self._capture_takeoffs(request) if captured is None else captured
+        require_project_details(captured['estimate'], automatic_number=self.project_details is not None)
         payload = export_project(self.store, captured, edition=self.edition)
         project = load_project_bytes(self.store, payload, edition=self.edition)
         with _dialog():

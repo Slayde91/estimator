@@ -3,7 +3,7 @@ const { cycleTheme } = require('./theme_navigation.cjs');
 const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl,prepareProjectForSave} = require('./project_actions.cjs');
 const root = path.resolve(__dirname, '../..'), standard = process.argv.includes('--standard');
 const output = path.join(root, '.runtime/browser-qa', `help-glossary-${standard ? 'standard' : 'full'}-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
@@ -44,6 +44,7 @@ async function theme(id) { for (let index = 0; index < 5 && await page.locator('
   await page.goto(`http://127.0.0.1:${info.port}/`); await idle();
   await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await idle();
   if (standard) fs.writeFileSync(path.join(output, 'dialog-mode.json'), '{}');
+  await prepareProjectForSave(page);
   const save = page.waitForResponse(response => new URL(response.url()).pathname === '/api/project/save-as');
   await clickProjectControl(page, 'Save'); assert.equal((await save).status(), 200); await idle();
   const projectFile = standard ? info.saved : info.project;

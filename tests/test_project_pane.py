@@ -55,7 +55,8 @@ class ProjectPaneTests(unittest.TestCase):
     def request(self, **changes):
         current = self.read()
         return {"id": current["id"], "revision": current["revision"], "request_id": str(uuid4()),
-                "details": {**current["details"], **changes}}
+                "details": {**current["details"], **{key:current["details"].get(key) or value for key,value in
+                            {"contact_name":"Synthetic Contact", "contact_phone":"0400 000 001", "contact_email":"project@example.test"}.items()}, **changes}}
 
     def save(self, request):
         return self.library.save_details(request, accounts=self.accounts)
@@ -211,7 +212,7 @@ class ProjectPaneTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             self.save(request)
 
-    def test_older_browser_cannot_drop_new_contact_fields_but_explicit_clear_is_valid(self):
+    def test_older_browser_cannot_drop_contact_fields_and_required_values_cannot_be_cleared(self):
         contact = self.contact(name="Saved Person", email="person@example.com")
         self.save(self.request(contact_id=contact["id"], contact_name=contact["name"], contact_email=contact["email"],
                                billing_address="Saved billing address", abn_acn="ABN 123"))
@@ -241,8 +242,14 @@ class ProjectPaneTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "Reload this application"):
             self.library.save(id_only)
         self.assertEqual(self.path.read_bytes(), before)
-        result = self.library.save(request(False))
-        self.assertEqual(result["project"]["estimate"]["contact_name"], "")
+        with self.assertRaisesRegex(ValidationError, "Complete required Project details"):
+            self.library.save(request(False))
+        self.assertEqual(self.path.read_bytes(), before)
+        optional_clear = request(False)
+        for value in [optional_clear, *[entry["workspace"] for entry in optional_clear["estimates"]]]:
+            value["estimate"].update(contact_name=contact["name"], contact_email=contact["email"])
+        result = self.library.save(optional_clear)
+        self.assertEqual(result["project"]["estimate"]["contact_name"], contact["name"])
         self.assertEqual(result["project"]["estimate"]["contact_id"], "")
         self.assertEqual(result["project"]["estimate"]["billing_address"], "")
         self.assertEqual(result["project"]["estimate"]["abn_acn"], "")

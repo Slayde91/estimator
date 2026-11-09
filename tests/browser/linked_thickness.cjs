@@ -4,7 +4,7 @@ const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
 // calculator edits and Save/Load use the rendered controls.
 const { chromium, expect } = require('@playwright/test');
 const { chooseCalculator } = require('./calculator_actions.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl, prepareProjectForSave } = require('./project_actions.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
@@ -90,7 +90,7 @@ async function editSprayLength(binding, value) {
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => { if (/\/(commands|transfer-apply|linked-results)$/.test(request.url())) requests.push({ endpoint: request.url().split('/').pop(), body: request.postDataJSON() }); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
-  const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
+  const initial = await page.goto(`http://127.0.0.1:${info.port}/`); await prepareProjectForSave(page); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await page.locator('#takeoff-upload').setInputFiles(info.fixture);
   await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 }); await idle();

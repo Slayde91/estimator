@@ -4,7 +4,7 @@ const { cycleTheme } = require('./theme_navigation.cjs');
 const {chromium, expect} = require('@playwright/test');
 const {chooseLibrary} = require('./section_navigation.cjs');
 const {chooseCalculator} = require('./calculator_actions.cjs');
-const {clickProjectControl} = require('./project_actions.cjs');
+const {clickProjectControl, prepareProjectForSave } = require('./project_actions.cjs');
 const {spawn, spawnSync} = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict'), crypto = require('node:crypto');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `technical-item-documents-${Date.now()}`);
@@ -43,7 +43,7 @@ async function exported(extension){
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1146,height:900},reducedMotion:'reduce'});
   page.on('pageerror',error=>errors.push(error.message));
   await page.addInitScript(()=>document.addEventListener('securitypolicyviolation',e=>{window.__technicalCsp??=[];window.__technicalCsp.push({directive:e.violatedDirective,blocked:e.blockedURI});}));
-  await page.goto(`http://127.0.0.1:${info.port}/`);await idle();
+  await page.goto(`http://127.0.0.1:${info.port}/`); await prepareProjectForSave(page);await idle();
   await page.evaluate(()=>window.CeasefirePenetrations.completeProjectSnapshot());
   const saved=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/save-as');
   await clickProjectControl(page,'Save');assert.equal((await saved).status(),200);await idle();

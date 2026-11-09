@@ -3,7 +3,7 @@ const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
 // All ink, source PDFs, saved projects and browser storage belong to this
 // disposable fixture. This journey never opens the live application on 8765.
 const { chromium, expect } = require("@playwright/test");
-const { chooseTakeoff } = require("./section_navigation.cjs"), { clickProjectControl } = require("./project_actions.cjs");
+const { chooseTakeoff } = require("./section_navigation.cjs"), { clickProjectControl, prepareProjectForSave } = require("./project_actions.cjs");
 const { renderDrawing } = require("./viewer_helpers.cjs"), { settingsSettled } = require("./settings_helpers.cjs");
 const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs"), path = require("node:path"), crypto = require("node:crypto"), assert = require("node:assert/strict");
@@ -119,7 +119,7 @@ async function unfinishedGuards() {
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1600,height:1100},deviceScaleFactor:2});page.setDefaultTimeout(30000);
   page.on("pageerror",e=>errors.push(e.message));page.on("request",r=>{if(r.url().endsWith("/commands"))requests.push(r.postDataJSON());if(r.method()==="POST"&&/\/api\/project\/save(?:-as)?$/.test(new URL(r.url()).pathname))projectWrites.push(r.url());});
   await page.addInitScript(()=>{window.qaCsp=[];document.addEventListener("securitypolicyviolation",e=>window.qaCsp.push(e.effectiveDirective));});
-  await page.goto(`http://127.0.0.1:${info.port}/`);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);await page.getByRole("button",{name:"Takeoffs",exact:true}).click();await chooseTakeoff(page,"wall");
+  await page.goto(`http://127.0.0.1:${info.port}/`); await prepareProjectForSave(page);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);await page.getByRole("button",{name:"Takeoffs",exact:true}).click();await chooseTakeoff(page,"wall");
   await renderDrawing(page,()=>page.locator("#takeoff-upload").setInputFiles(info.area_fixture),1);await idle();assert.equal((await snapshot()).graphics,undefined);
   const scale=page.getByLabel("Drawing calibration",{exact:true});if(!await scale.isVisible())await page.getByRole("button",{name:"Scale",exact:true}).click();await scale.selectOption("scale:100");
   await command(()=>dialog("Apply drawing scale 1:100?",{},"Apply scale"),"add_calibration");await fit();await page.getByRole("button",{name:"Trace surface",exact:true}).click();

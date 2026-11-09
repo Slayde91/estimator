@@ -153,6 +153,8 @@ class StandardProjectTests(unittest.TestCase):
             store = Store(Path(temporary) / 'source.sqlite3')
             cls.payload = export_project(store, {
                 'estimate': {'project_no': 'CF-legacy', 'client': 'Frozen client',
+                             'site_address':'Synthetic Site','contact_name':'Synthetic Contact',
+                             'contact_phone':'0400 000 001','contact_email':'project@example.test',
                              'inputs': {'B15': 123.456789}, 'measurements': 'Retain exact notes'},
                 'calculators': {'steel_board': {'inputs': {'EXTRA BOARDS': {'A45': 'Legacy allowance'}}}},
             })

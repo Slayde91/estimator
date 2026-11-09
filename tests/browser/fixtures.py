@@ -250,7 +250,10 @@ def make_legacy_physical_project(folder, pdf):
         after['physical'] = prepare_changes(legacy, commands, lambda reference: None)['graph']
         service._commit(sid, {'op': 'apply_physical', 'expected_revision': before['revision'], 'request_id': str(uuid4())}, before, after)
         saved = service.get(sid)
-        library.save_as({'estimate': {'title': 'Synthetic legacy physical browser fixture'},
+        library.save_as({'estimate': {'title': 'Synthetic legacy physical browser fixture',
+                         'project_no': 'PN-LEGACY', 'client': 'Synthetic Company', 'site_address': 'Synthetic Site',
+                         'contact_name': 'Synthetic Contact', 'contact_phone': '0400 000 001',
+                         'contact_email': 'project@example.test'},
                          'takeoffs': saved['snapshot'], 'takeoffs_session_id': sid})
     finally:
         library.close(); documents.close()

@@ -48,12 +48,23 @@ def database_rows(store):
                 for table in ("settings", "quotes", "calculator_states", "app_preferences")}
 
 
+def complete_estimate(value=None):
+    """Synthetic metadata for explicit file-write tests, not legacy load fixtures."""
+    return {'project_no':'Synthetic Project','client':'Synthetic Company','site_address':'Synthetic Site',
+            'contact_name':'Synthetic Contact','contact_phone':'0400 000 001','contact_email':'project@example.test',**(value or {})}
+
+
+def complete_missing_metadata(value):
+    # Explicitly correct an incomplete imported Project before exercising Save.
+    return {**value,**{key:default for key,default in complete_estimate().items() if not value.get(key)}}
+
+
 class ProjectLibraryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         with tempfile.TemporaryDirectory() as temporary:
             cls.payload = export_project(Store(Path(temporary) / "source.sqlite3"), {
-                "estimate": {"project_no": "Project 17", "client": "A client", "measurements": "Keep this note"},
+                "estimate": complete_estimate({"project_no": "Project 17", "client": "A client", "measurements": "Keep this note"}),
                 "calculators": {"steel_vermiculite": {"inputs": {"SCHEDULE": {"AA1009": "Last location", "A1009": "LAST"}}}},
             })
         snapshot = json.loads(cls.payload)
@@ -125,7 +136,7 @@ class ProjectLibraryTests(unittest.TestCase):
         self.assertFalse(result["cancelled"])
         self.assertTrue(result["file"]["in_linked_folder"])
         self.assertEqual(result["folder"], str(self.folder))
-        self.assertEqual(self.dialogs.calls, [("save", None, "Project 17- A client.cf.json")])
+        self.assertEqual(self.dialogs.calls, [("save", None, "Project 17- A client- Synthetic Site.cf.json")])
         self.assertEqual(json.loads(target.read_bytes()), json.loads(self.payload))
         self.assertEqual(result["project"]["estimate"]["id"], None)
         listing = self.library.listing()
@@ -173,18 +184,18 @@ class ProjectLibraryTests(unittest.TestCase):
         self.assertFalse(result["file"]["in_linked_folder"])
         self.assertIsNone(result["file"]["id"])
         self.assertEqual(result["folder"], str(self.folder))
-        self.assertEqual(self.dialogs.calls[-1][1], str(self.folder / "Project 17- A client"))
+        self.assertEqual(self.dialogs.calls[-1][1], str(self.folder / "Project 17- A client- Synthetic Site"))
         self.assertEqual(Store(self.store.path).project_folder(), str(self.folder))
         self.assertEqual(self.library.listing()["files"], [])
 
     def test_save_as_creates_quote_folder_before_dialog_and_reuses_it(self):
         self.store.set_project_folder(self.folder)
-        expected = self.folder / "Project 17- A client"
+        expected = self.folder / "Project 17- A client- Synthetic Site"
         before = database_rows(self.store)
         def choose(initial_directory, filename):
             self.assertEqual(Path(initial_directory), expected)
             self.assertTrue(expected.is_dir())
-            self.assertEqual(filename, "Project 17- A client.cf.json")
+            self.assertEqual(filename, "Project 17- A client- Synthetic Site.cf.json")
             return None
         self.dialogs.choose_save = choose
         self.assertEqual(self.library.save_as(self.request), {"cancelled": True})
@@ -208,8 +219,8 @@ class ProjectLibraryTests(unittest.TestCase):
 
     def test_quote_folder_save_and_later_save_keep_original_file_location(self):
         self.store.set_project_folder(self.folder)
-        quote_folder = self.folder / "Project 17- A client"
-        target = quote_folder / "Project 17- A client.cf.json"
+        quote_folder = self.folder / "Project 17- A client- Synthetic Site"
+        target = quote_folder / "Project 17- A client- Synthetic Site.cf.json"
         def choose(initial_directory, filename):
             self.assertTrue(quote_folder.is_dir())
             self.assertEqual(Path(initial_directory) / filename, target)
@@ -228,7 +239,7 @@ class ProjectLibraryTests(unittest.TestCase):
 
     def test_quote_folder_rejects_file_collision_and_redirected_folder(self):
         self.store.set_project_folder(self.folder)
-        expected = self.folder / "Project 17- A client"
+        expected = self.folder / "Project 17- A client- Synthetic Site"
         expected.write_text("Keep existing file", encoding="utf-8")
         with self.assertRaises(ValidationError):
             self.library.save_as(self.request)
@@ -1020,7 +1031,7 @@ class ProjectLibraryApiTests(unittest.TestCase):
         before = database_rows(self.store)
         self.assertEqual(self.request("GET", "/api/projects")[1]["folder"], None)
         self.assertEqual(self.request("POST", "/api/projects/link-folder", {}), (200, {"cancelled": True}))
-        self.assertEqual(self.request("POST", "/api/project/save-as", {"estimate": {}}), (200, {"cancelled": True}))
+        self.assertEqual(self.request("POST", "/api/project/save-as", {"estimate": complete_estimate()}), (200, {"cancelled": True}))
         self.assertEqual(self.request("POST", "/api/project/open", {}), (200, {"cancelled": True}))
         calls = len(self.dialogs.calls)
         for method, route, body in (("GET", "/api/projects/link-folder", None), ("PUT", "/api/project/save-as", {"estimate": {}}),
@@ -1057,14 +1068,14 @@ class ProjectLibraryApiTests(unittest.TestCase):
             'filename': 'Legacy.cf.json', 'content_base64': base64.b64encode(payload).decode('ascii')})
         self.assertEqual(status, 200, imported)
         self.dialogs.selection = SaveSelection(str(self.root / 'Legacy copy.cf.json'), None)
-        request = {'estimate': snapshot['estimate'],
+        request = {'estimate': complete_missing_metadata(snapshot['estimate']),
                    'calculators': {key: {'inputs': value['inputs']} for key, value in snapshot['calculators'].items()},
                    'certifications': {'workspace_id': imported['certification_workspace_id'], 'draft': None}}
         status, saved = self.request('POST', '/api/project/save-as', request)
         self.assertEqual(status, 200, saved)
         self.assertEqual(saved['project']['estimate']['project_no'], 'PN-00019')
         self.dialogs.selection = SaveSelection(str(self.root / 'New.cf.json'), None)
-        status, new = self.request('POST', '/api/project/save-as', {'estimate': {'project_no': 'FORGED'}})
+        status, new = self.request('POST', '/api/project/save-as', {'estimate': complete_estimate({'project_no': 'FORGED'})})
         self.assertEqual(status, 200, new)
         self.assertEqual(new['project']['estimate']['project_no'], 'PN-01')
 
@@ -1072,7 +1083,7 @@ class ProjectLibraryApiTests(unittest.TestCase):
         target = self.root / "Saved.cf.json"
         self.dialogs.selection = SaveSelection(str(target), None)
         before = database_rows(self.store)
-        status, saved = self.request("POST", "/api/project/save-as", {"estimate": {"project_no": "Saved native"}})
+        status, saved = self.request("POST", "/api/project/save-as", {"estimate": complete_estimate({"project_no": "Saved native"})})
         self.assertEqual(status, 200, saved)
         self.assertEqual(saved["project"]["estimate"]["project_no"], "PN-01")
         with patch("estimator.project_library.MAX_SCAN_SECONDS", 0):
@@ -1091,7 +1102,7 @@ class ProjectLibraryApiTests(unittest.TestCase):
     def test_project_attachment_route_uses_saved_project_capability(self):
         target = self.root / "Saved.cf.json"
         self.dialogs.selection = SaveSelection(str(target), None)
-        status, saved = self.request("POST", "/api/project/save-as", {"estimate": {"project_no": "Attachment target"}})
+        status, saved = self.request("POST", "/api/project/save-as", {"estimate": complete_estimate({"project_no": "Attachment target"})})
         self.assertEqual(status, 200, saved)
         status, attachment = self.request("POST", "/api/project/attachment", {
             "project_token": saved["file"]["save_token"], "filename": "inspection photo.jpg",
@@ -1107,7 +1118,7 @@ class ProjectLibraryApiTests(unittest.TestCase):
     def test_project_file_browser_routes_list_and_open_files_without_accepting_absolute_paths(self):
         target = self.root / "Saved.cf.json"
         self.dialogs.selection = SaveSelection(str(target), None)
-        status, saved = self.request("POST", "/api/project/save-as", {"estimate": {"project_no": "Folder browser"}})
+        status, saved = self.request("POST", "/api/project/save-as", {"estimate": complete_estimate({"project_no": "Folder browser"})})
         self.assertEqual(status, 200, saved)
         project_id = saved["file"]["id"]
         documents = self.root / "Documents"
@@ -1146,7 +1157,7 @@ class ProjectLibraryApiTests(unittest.TestCase):
         self.assertEqual(status, 200, loaded)
         token = loaded["file"]["save_token"]
         snapshot = json.loads(payload)
-        body = {"save_token": token, "estimate": snapshot["estimate"],
+        body = {"save_token": token, "estimate": complete_missing_metadata(snapshot["estimate"]),
                 "calculators": {name: {"inputs": value["inputs"]} for name, value in snapshot["calculators"].items()}}
         body["estimate"]["inputs"]["B15"] = 234.567890123
         status, saved = self.request("POST", "/api/project/save", body)

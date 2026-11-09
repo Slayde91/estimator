@@ -1,5 +1,5 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl, prepareProjectForSave } = require('./project_actions.cjs');
 // Real keyboard/pointer copy and paste. All sources, saves and server state are disposable.
 const { chromium, expect } = require('@playwright/test');
 const { renderDrawing } = require('./viewer_helpers.cjs');
@@ -117,7 +117,7 @@ async function saveLoad(info) {
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1600, height: 1100 }, deviceScaleFactor: 2 }); page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (request.url().endsWith('/commands')) requests.push(request.postDataJSON()); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push(event.effectiveDirective)); });
-  const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
+  const initial = await page.goto(`http://127.0.0.1:${info.port}/`); await prepareProjectForSave(page); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await renderDrawing(page, () => page.locator('#takeoff-upload').setInputFiles(info.fixture), 1);

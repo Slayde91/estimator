@@ -1,0 +1,65 @@
+{
+  "Audio": [
+    "音频",
+    "ऑडियो",
+    "Audio",
+    "الصوت",
+    "เสียง"
+  ],
+  "Enable audio": [
+    "启用音频",
+    "ऑडियो सक्षम करें",
+    "Activar audio",
+    "تمكين الصوت",
+    "เปิดเสียง"
+  ],
+  "Audio enabled": [
+    "音频已启用",
+    "ऑडियो सक्षम है",
+    "Audio activado",
+    "الصوت مفعّل",
+    "เปิดเสียงแล้ว"
+  ],
+  "Audio disabled": [
+    "音频已禁用",
+    "ऑडियो अक्षम है",
+    "Audio desactivado",
+    "الصوت معطّل",
+    "ปิดเสียงแล้ว"
+  ],
+  "Complete required Project details: {0}.": [
+    "请填写必填项目详情：{0}。",
+    "परियोजना के आवश्यक विवरण भरें: {0}।",
+    "Complete los datos obligatorios del proyecto: {0}.",
+    "أكمل تفاصيل المشروع المطلوبة: {0}.",
+    "กรอกรายละเอียดโครงการที่จำเป็นให้ครบ: {0}"
+  ],
+  "Complete required {0} fields: {1}.": [
+    "请填写{0}的必填字段：{1}。",
+    "{0} के आवश्यक फ़ील्ड भरें: {1}।",
+    "Complete los campos obligatorios de {0}: {1}.",
+    "أكمل حقول {0} المطلوبة: {1}.",
+    "กรอกช่องที่จำเป็นของ{0}ให้ครบ: {1}"
+  ],
+  "Saved certificate records are unavailable.": [
+    "已保存的证书记录不可用。",
+    "सहेजे गए प्रमाणपत्र रिकॉर्ड उपलब्ध नहीं हैं।",
+    "Los registros de certificados guardados no están disponibles.",
+    "سجلات الشهادات المحفوظة غير متاحة.",
+    "ไม่พบระเบียนใบรับรองที่บันทึกไว้"
+  ],
+  "The other pricing draft is still available and was not included.": [
+    "另一定价草稿仍可用，且未包含在内。",
+    "दूसरा मूल्य ड्राफ़्ट उपलब्ध है और शामिल नहीं हुआ।",
+    "El otro borrador de precios sigue disponible y no se incluyó.",
+    "لا تزال مسودة التسعير الأخرى متاحة ولم تُدرج.",
+    "ฉบับร่างราคาอีกชุดยังมีอยู่และไม่ได้รวมไว้"
+  ],
+  "Later edits are not included and still need saving.": [
+    "不包含之后的编辑，仍需保存。",
+    "बाद के बदलाव शामिल नहीं हैं और अभी सहेजने हैं।",
+    "No incluye cambios posteriores, que aún deben guardarse.",
+    "لا يشمل التعديلات اللاحقة التي لا تزال بحاجة إلى حفظ.",
+    "ไม่รวมการแก้ไขภายหลังและยังต้องบันทึก"
+  ]
+}

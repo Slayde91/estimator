@@ -3,7 +3,7 @@ const {chromium,expect:baseExpect}=require('@playwright/test');
 const expect=baseExpect.configure({timeout:30000});
 const {spawn,execFileSync}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-const {clickProjectControl,openProjectSection}=require('./project_actions.cjs');
+const {clickProjectControl,openProjectSection,fillProjectDetails}=require('./project_actions.cjs');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`commercial-terms-${Date.now()}`);
 fs.mkdirSync(output,{recursive:true});
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
@@ -16,6 +16,7 @@ const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()
   page.on('request',request=>{if(request.method()==='POST'&&/\/api\/commercial\/(?:save|saved-save|issue|saved-issue)$/.test(new URL(request.url()).pathname))writes.push(request.postDataJSON());});
   const idle=()=>page.waitForFunction(()=>{const value=window.CeasefireDesktop?.status();return value?.ready&&!value.busy;});
   await page.goto(`http://127.0.0.1:${info.port}/`);await idle();
+  await fillProjectDetails(page,{client:'Synthetic terms Company','site-address':'10 Synthetic Terms Road'});
   const firstSave=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/project/save-as');await clickProjectControl(page,'Save');assert.equal((await firstSave).status(),200);await idle();
   // Reuse the real saved certificate manifest/companions, exporting a portable
   // older quote with plain opening text and manually authored inline emphasis.

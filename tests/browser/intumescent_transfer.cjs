@@ -1,7 +1,7 @@
 // Synthetic native DFT exercises the actual transfer/receipt/projection UI.
 // Private table accuracy is tested separately; every saved file is disposable.
 const { chromium, expect } = require('@playwright/test');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl, prepareProjectForSave } = require('./project_actions.cjs');
 const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `intumescent-transfer-${Date.now()}`);
@@ -53,7 +53,7 @@ async function transfer(id) {
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1280, height: 900 } }); page.setDefaultTimeout(45000);
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push(event.effectiveDirective)); });
-  await page.goto(`http://127.0.0.1:${info.port}/`); await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
+  await page.goto(`http://127.0.0.1:${info.port}/`); await prepareProjectForSave(page); await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   // A manual row must survive all subsequent Takeoff appends and Save/Load.
   await calculator();
   const manual = page.locator('[data-calculator-sheet="SCHEDULE"][data-calculator-cell="A10"]');

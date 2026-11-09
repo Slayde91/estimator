@@ -97,7 +97,8 @@ class SavedFileHttpTests(unittest.TestCase):
                 return SaveSelection(str(cls.folder / 'Test.cf.json'), None)
         cls.server = create_server(0, cls.folder / 'state.sqlite3', project_dialogs=Dialogs())
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True); cls.thread.start()
-        data = json.loads(export_project(Store(cls.folder / 'seed.sqlite3'), {'estimate': {'title': 'Test Project', 'client': 'Test Company', 'site_address': 'Test Address'}}))
+        data = json.loads(export_project(Store(cls.folder / 'seed.sqlite3'), {'estimate': {'title': 'Test Project', 'client': 'Test Company', 'site_address': 'Test Address',
+            'contact_name': 'Synthetic Contact', 'contact_phone': '0400 000 001', 'contact_email': 'project@example.test'}}))
         request = {'estimate':data['estimate'], 'calculators':{key:{'inputs':value['inputs'], 'schedule_rows':value['schedule_rows']} for key,value in data['calculators'].items()}}
         connection = http.client.HTTPConnection('127.0.0.1', cls.server.server_port)
         try:

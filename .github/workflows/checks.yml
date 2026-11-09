@@ -18,6 +18,7 @@ jobs:
       - run: python scripts/build_language_catalog.py --check
       - run: node --check static/language.js && node --check static/language-catalog.js
       - run: node --test tests/test_language_ui.cjs
+      - run: node --test tests/test_audio_settings.cjs
       - run: node --check static/theme.js
       - run: node --check static/company-settings.js
       - run: node --check static/project-details.js
@@ -129,6 +130,7 @@ jobs:
       - run: node tests/browser/contacts.cjs
       - run: node tests/browser/contact_shortcuts.cjs
       - run: node tests/browser/account_links.cjs
+      - run: node tests/browser/directory_related_records.cjs
       - run: node tests/browser/account_editor_pane.cjs
       - run: node tests/browser/contact_editor_pane.cjs
       - run: node tests/browser/project_details_pane.cjs
@@ -143,11 +145,15 @@ jobs:
       - run: node tests/browser/project_status.cjs
       - run: node tests/browser/project_estimates.cjs
       - run: node tests/browser/project_details.cjs
+      - run: node tests/browser/project_required_fields.cjs
       - run: node tests/browser/commercial_documents.cjs
       - run: node tests/browser/commercial_pricing_picker.cjs
       - run: node tests/browser/commercial_directory_search.cjs
       - run: node tests/browser/saved_download_links.cjs
       - run: node tests/browser/commercial_panes_signatures.cjs
+      - run: node tests/browser/commercial_status_project_scope.cjs
+      - run: node tests/browser/commercial_required_fields.cjs
+      - run: node tests/browser/audio_settings.cjs
       - run: node tests/browser/purchase_order_signatures_delivery.cjs
       - run: node tests/browser/work_order_tracking.cjs
       - run: node tests/browser/commercial_project_workflows.cjs

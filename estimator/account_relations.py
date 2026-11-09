@@ -9,6 +9,7 @@ from .contacts import LINK_KINDS, company_key
 
 MAX_CHOICES = 1000
 DOCUMENT_GROUPS = {"quote": "quotes", "work_order": "work_orders", "purchase_order": "purchase_orders"}
+SUPPLEMENTAL_GROUPS = {"certification": "certifications", "swms": "swms"}
 
 
 def _identity(value):
@@ -20,6 +21,22 @@ def _identity(value):
 
 def _project_label(row):
     return " · ".join(str(row.get(key, "")) for key in ("project_no", "client", "site_address") if row.get(key)) or row.get("title") or "Project"
+
+
+def project_document_cards(register, projects):
+    """Retain cards already indexed in exact saved files during a bounded scan."""
+    documents = list(register['documents'])
+    seen = {(row.get('source_file'), row.get('project_id'), row.get('id')) for row in documents}
+    for row in projects:
+        owner = row.get('source_project_id')
+        source = row.get('id') or (source_id(row['path']) if row.get('path') else None)
+        for card in (*row.get('commercial_cards', []), *row.get('directory_cards', [])):
+            key = (source, owner, card.get('id'))
+            if not _identity(owner) or card.get('project_id') != owner or key in seen:
+                continue
+            documents.append({**card, 'source_file': source})
+            seen.add(key)
+    return documents
 
 
 class AccountRelations:
@@ -69,21 +86,37 @@ class AccountRelations:
                        and company_key(row.get("client", "")) == company_key(account["company"]))
             if account_id is not None and matches:
                 automatic["projects"].add(token)
-        for document in register["documents"]:
+        certificate_records = {'documents':[], 'errors':[], 'scan_pending':False}
+        if hasattr(self.projects, 'directory_certificate_cards'):
+            certificate_records = self.projects.directory_certificate_cards([row for token,row in project_rows.items() if token in automatic['projects']])
+            register = {**register, 'documents':[*register['documents'], *certificate_records['documents']]}
+        supplemental = {kind: {} for kind in SUPPLEMENTAL_GROUPS.values()}
+        for document in project_document_cards(register, listing['files']):
             owner, document_id = document.get("project_id"), document.get("id")
-            group = DOCUMENT_GROUPS.get(document.get("kind"))
+            group = DOCUMENT_GROUPS.get(document.get("kind")) or SUPPLEMENTAL_GROUPS.get(document.get('kind'))
             if not group or not _identity(owner) or not _identity(document_id):
                 continue
             token = f"{owner}:{document_id}"
             fields = document.get("fields", {})
-            reference = document.get("reference") or document.get("last_number") or fields.get("title") or document["kind"].replace("_", " ").title()
+            reference = document.get("reference") or document.get("last_number") or fields.get("title") or document.get('title') or document["kind"].replace("_", " ").title()
             candidates = owner_links.get(owner, set())
             project_token = source_links.get(document.get("source_file"))
-            if project_token is None and len(candidates) == 1:
+            if not document.get('source_file') and len(candidates) == 1:
                 project_token = next(iter(candidates))
+            if project_token is not None and project_rows[project_token].get('source_project_id') != owner:
+                continue
+            if document.get('source_file') and project_token is None:
+                continue
             project = project_rows.get(project_token, fields.get("details", {}))
             label = " · ".join(filter(None, (reference, _project_label(project))))[:1200]
-            records[group][token] = {"id": token, "label": label, "available": True}
+            entry = {"id": token, "label": label, "available": True}
+            if group in supplemental:
+                if project_token in automatic['projects']:
+                    supplemental[group][token] = entry
+                continue
+            if token in automatic[group] and project_token not in automatic['projects']:
+                continue  # A foreign copy must not relabel this company's exact document.
+            records[group][token] = entry
             details = fields.get("details", {})
             legacy_match = (not candidates and account is not None
                             and company_key(details.get("client", "")) == company_key(account["company"]))
@@ -120,9 +153,11 @@ class AccountRelations:
             choices[kind] = list(chosen.values())
         errors = [{"name": row.get("name", "Project"), "error": row.get("error", "Project could not be read.")}
                   for row in listing.get("errors", [])[:100]]
+        errors.extend(certificate_records['errors'])
         missing = register.get("unavailable_sources", [])
         errors.extend({"name": row.get("title", "Project"), "error": "Saved project source is unavailable."} for row in missing[:100])
         return {"version": directory["version"], "linked": {kind: sorted(rows.values(), key=lambda row: (row["label"].casefold(), row["id"])) for kind, rows in linked.items()},
-                "choices": choices, "scan_pending": bool(listing.get("scan_pending") or register.get("scan_pending")),
-                "truncated": truncated, "error_count": max(listing.get("error_count", 0), register.get("error_count", 0)) + len(missing),
+                "related": {kind: sorted(rows.values(), key=lambda row: (row['label'].casefold(), row['id'])) for kind, rows in supplemental.items()},
+                "choices": choices, "scan_pending": bool(listing.get("scan_pending") or register.get("scan_pending") or certificate_records['scan_pending']),
+                "truncated": truncated, "error_count": max(listing.get("error_count", 0), register.get("error_count", 0)) + len(missing) + len(certificate_records['errors']),
                 "errors": errors}

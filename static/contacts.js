@@ -226,6 +226,7 @@
     const linkSelections = {};
     let linksChanged = () => false;
     if (kind === "accounts") {
+      let supplementalRecords = {};
       const related = el("section", "contacts-related");
       const linkStatus = ui("p", "helper", "Loading linked records…");
       linkStatus.setAttribute("role", "status");
@@ -324,6 +325,15 @@
           list.append(...entries.map(item => recordRow(key, item)));
           body.append(list); group.append(summary, body); groups.append(group);
         }
+        for (const [key, title] of Object.entries({certifications:'Certification',swms:'SWMS'})) {
+          const entries = supplementalRecords[key] || [];
+          if (!entries.length) continue;
+          const group=el('details','contacts-links-group'),summary=el('summary'),body=el('div','contacts-links-body'),list=el('ul','contacts-links-list');
+          group.dataset.linkGroup=key;group.open=expanded.has(key)||!existing.has(key);
+          copy(summary,'{0} ({1})',[window.CeasefireI18n?.term(title)||title,entries.length]);
+          for(const item of entries){const row=el('li','contacts-link-row');row.append(el('span','',item.label));list.append(row);}
+          body.append(list);group.append(summary,body);groups.append(group);
+        }
         if (!groups.children.length) groups.append(ui("p", "helper contacts-links-empty", "No linked records."));
       }
       function renderResults(focusEntry = null) {
@@ -385,6 +395,7 @@
           if (find.value.trim()) query.set("search", find.value.trim());
           const catalog = await request("account-links" + (query.size ? "?" + query : ""));
           if (!isOpen() || ticket !== linkTicket) return;
+          supplementalRecords = catalog.related || {};
           for (const [key, title] of Object.entries(linkTitles)) {
             const linked = catalog.linked[key] || [], choices = catalog.choices[key] || [];
             const selected = preserveSelection && linkSelections[key] ? linkSelections[key] : new Set(linked.map(item => item.id));
@@ -454,7 +465,7 @@
           const expanded = new Set([...groups.querySelectorAll("details[open]")].map(group => group.dataset.linkGroup));
           const existing = new Set([...groups.querySelectorAll("details")].map(group => group.dataset.linkGroup));
           groups.replaceChildren();
-          for (const [key, title] of Object.entries({companies:"Companies", projects:"Projects", quotes:"Quotes", work_orders:"Work Orders", purchase_orders:"Purchase Orders"})) {
+          for (const [key, title] of Object.entries({companies:"Companies", projects:"Projects", leads:"Leads", quotes:"Quotes", work_orders:"Work Orders", purchase_orders:"Purchase Orders"})) {
             const entries = catalog.linked[key] || [];
             if (!entries.length) continue;
             const group = el("details", "contacts-links-group"), summary = el("summary"), list = el("ul", "contacts-links-list");
@@ -467,6 +478,7 @@
                 if (!await leaveAccount()) return;
                 await switchPage("accounts"); dialogEditor("accounts", company);
               }, "text-button"));
+              else if(key==='leads' && item.available){const lead=directory.leads.find(row=>row.id===item.id);if(lead)row.append(button(item.label,async()=>{if(!await leaveAccount())return;await switchPage('leads');dialogEditor('leads',lead);},'text-button'));else row.append(el('span','',item.label));}
               else row.append(el("span", "", item.label));
               list.append(row);
             }

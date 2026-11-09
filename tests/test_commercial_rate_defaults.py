@@ -114,7 +114,8 @@ class RateDefaultsHTTPTests(unittest.TestCase):
                 self.assertEqual(status, 201)
                 body = {'workspace_id': workspace['workspace_id'], 'kind': 'quote'}
                 self.assertEqual(request('/api/commercial/defaults', body)[0], 400)
-                status, saved_project = request('/api/project/save-as', {'estimate': {'client':'Rate defaults fixture'},
+                status, saved_project = request('/api/project/save-as', {'estimate': {'client':'Rate defaults fixture',
+                    'site_address':'Rate fixture site','contact_name':'Rate fixture Contact','contact_phone':'0400 000 000','contact_email':'rates@example.test'},
                     'certifications': {'workspace_id': workspace['workspace_id'], 'draft': None}})
                 self.assertEqual(status, 200)
                 self.assertFalse(saved_project.get('cancelled'))

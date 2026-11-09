@@ -40,7 +40,7 @@ for index in range(1000):
  row=10+index
  cells.update({f'A{row}':f'PerformanceMember{index}',f'AA{row}':'Level 1',f'B{row}':'CAFCO 300',f'C{row}':'Re-entrant - 3 sides',f'D{row}':620,f'E{row}':'Section',f'F{row}':'410UB54',f'H{row}':120,f'I{row}':2,f'J{row}':3})
 def workspace(calculators):
- data=json.loads(export_project(store,{'estimate':{'title':'Performance fixture','project_no':'PN-900'},'calculators':calculators}))
+ data=json.loads(export_project(store,{'estimate':{'title':'Performance fixture','project_no':'PN-900','client':'Performance Company','site_address':'10 Performance Road','contact_name':'Performance Contact','contact_phone':'0400 000 001','contact_email':'performance@example.test'},'calculators':calculators}))
  return {'estimate':data['estimate'],'calculators':{key:{'inputs':value['inputs'],'schedule_rows':value['schedule_rows']} for key,value in data['calculators'].items()}}
 large=workspace({'steel_vermiculite':{'inputs':{'SCHEDULE':cells}}})
 small=workspace({})

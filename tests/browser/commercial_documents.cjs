@@ -55,7 +55,7 @@ from estimator.project_file import export_project
 destination=Path(sys.argv[1])
 store=Store(destination.parent/'commercial-seed.sqlite3')
 def workspace(mark,adjustment):
-    normalized=json.loads(export_project(store,{'estimate':{'title':'Commercial fixture','project_no':'COMM-1','client':'Example construction','site_address':'10 Example Street','inputs':{'B28':adjustment}},'calculators':{'steel_board':{'inputs':{'CALCULATOR':{'A9':mark}}}}}))
+    normalized=json.loads(export_project(store,{'estimate':{'title':'Commercial fixture','project_no':'COMM-1','client':'Example construction','site_address':'10 Example Street','contact_name':'Commercial fixture contact','contact_phone':'0400 000 001','contact_email':'commercial@example.test','inputs':{'B28':adjustment}},'calculators':{'steel_board':{'inputs':{'CALCULATOR':{'A9':mark}}}}}))
     return {'estimate':normalized['estimate'],'calculators':{key:{'inputs':value['inputs'],'schedule_rows':value['schedule_rows']} for key,value in normalized['calculators'].items()}}
 first=workspace('SCOPE-ORIGINAL-123',10)
 second=workspace('SCOPE-ADDITIONAL-456',20)
@@ -221,10 +221,15 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await linkedQuote.selectOption(quoteId);
   await expect(cost).toHaveValue('125.25');
   await work.getByLabel('Description of works',{exact:true}).fill('Install the scheduled passive fire systems.');
+  await work.getByLabel('Proposed start date',{exact:true}).fill('2026-11-10');
   await expect(work.getByLabel('SWMS',{exact:true})).toHaveCount(0);
   await work.getByLabel('Category / urgency',{exact:true}).selectOption('High Priority');
   await work.getByLabel('Approval',{exact:true}).selectOption('Approved');
   await page.evaluate(()=>localStorage.setItem('ceasefire.takeoff-signature.v1',JSON.stringify({version:1,ratio:2,strokes:[[[0,.3],[.5,1],[1,0]]]})));
+  const personalUrl=new URL('/api/certifications/defaults',page.url()).href;
+  const personalDefaults=await(await page.request.get(personalUrl)).json();
+  const savedPersonal=await page.request.post(personalUrl,{data:{expected_version:personalDefaults.version,fields:{...personalDefaults.fields,name:'Commercial fixture signer'}}});
+  assert.equal(savedPersonal.status(),200,await savedPersonal.text());
   for(const label of ['Reviewed by','Prepared by','Approved by']) {
     await work.getByRole('button',{name:'Sign '+label,exact:true}).click();
     await expect(work.getByRole('img',{name:label+' signature',exact:true})).toBeVisible();

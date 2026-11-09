@@ -4,7 +4,7 @@ const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
 const { chromium, expect } = require("@playwright/test");
 const { spawn, spawnSync } = require("node:child_process"), { createHash } = require("node:crypto");
 const fs = require("node:fs"), path = require("node:path"), assert = require("node:assert/strict");
-const { chooseTakeoff } = require("./section_navigation.cjs"), { clickProjectControl } = require("./project_actions.cjs"), { renderDrawing } = require("./viewer_helpers.cjs");
+const { chooseTakeoff } = require("./section_navigation.cjs"), { clickProjectControl, prepareProjectForSave } = require("./project_actions.cjs"), { renderDrawing } = require("./viewer_helpers.cjs");
 const root = path.resolve(__dirname, "../.."), output = path.join(root, ".runtime/browser-qa", `free-callouts-${Date.now()}`), python = process.env.CEASEFIRE_PYTHON || "python";
 fs.mkdirSync(output, { recursive: true });
 const server = spawn(python, [path.join(__dirname, "fixtures.py"), "--directory", output], { cwd: root, windowsHide: true });
@@ -114,7 +114,7 @@ async function saveLoad(info) {
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport, deviceScaleFactor: 2 }); page.setDefaultTimeout(30000);
   page.on("pageerror", error => errors.push(error.message)); page.on("request", value => { if (value.url().endsWith("/commands") || /\/physical\/(preview|apply)$/.test(value.url())) requests.push({ endpoint: new URL(value.url()).pathname, body: value.postDataJSON() }); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener("securitypolicyviolation", event => window.qaCsp.push(event.effectiveDirective)); });
-  const response = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!response.headers()["content-security-policy"].includes("unsafe-inline"));
+  const response = await page.goto(`http://127.0.0.1:${info.port}/`); await prepareProjectForSave(page); assert.ok(!response.headers()["content-security-policy"].includes("unsafe-inline"));
   const iconResponse = await page.request.get(`http://127.0.0.1:${info.port}/icons/takeoff-callout.png`); assert.equal(iconResponse.status(), 200); assert.equal(createHash("sha256").update(await iconResponse.body()).digest("hex"), iconHash);
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready); await page.getByRole("button", { name: "Takeoffs", exact: true }).click();
   await renderDrawing(page, () => page.locator("#takeoff-upload").setInputFiles(info.fixture), 1);

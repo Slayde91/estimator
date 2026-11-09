@@ -9,7 +9,7 @@ const { spawn } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const { renderDrawing } = require('./viewer_helpers.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl, prepareProjectForSave } = require('./project_actions.cjs');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `defect-callouts-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'fixtures.py'), '--directory', output], { cwd: root, windowsHide: true });
@@ -84,7 +84,7 @@ async function physicalThemeLabels(kind) {
   const info = await ready; assert.notEqual(info.port, 8765); const sourceHash = hash(info.fixture);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1146, height: 900 } }); page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (/\/physical\/(preview|apply)$/.test(request.url())) requests.push({ endpoint: new URL(request.url()).pathname, body: request.postDataJSON() }); });
-  await page.goto(`http://127.0.0.1:${info.port}/`); await page.waitForFunction(() => { const value = window.CeasefireDesktop?.status(); return value?.ready && !value.busy; });
+  await page.goto(`http://127.0.0.1:${info.port}/`); await prepareProjectForSave(page); await page.waitForFunction(() => { const value = window.CeasefireDesktop?.status(); return value?.ready && !value.busy; });
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await renderDrawing(page, () => page.locator('#takeoff-upload').setInputFiles(info.fixture), 1);
   await renderDrawing(page, async () => { await page.getByLabel('Page number', { exact: true }).fill('3'); await page.getByLabel('Page number', { exact: true }).press('Tab'); }, 3);
   const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());

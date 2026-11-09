@@ -2,7 +2,7 @@ const { cycleTheme } = require('./theme_navigation.cjs');
 // Real document actions use a disposable server and a synthetic saved project.
 const { chromium, expect } = require('@playwright/test');
 const { chooseCalculator } = require('./calculator_actions.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl,prepareProjectForSave} = require('./project_actions.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `document-menus-${Date.now()}`);
@@ -42,6 +42,7 @@ async function responseTo(action, suffix) {
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
   await page.goto(`http://127.0.0.1:${info.port}/`); await idle();
   await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await idle();
+  await prepareProjectForSave(page);
   await responseTo(() => clickProjectControl(page, 'Save'), '/api/project/save-as');
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   // Open a values-only saved project with a precise per-row waste override.

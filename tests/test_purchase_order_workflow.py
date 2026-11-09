@@ -9,6 +9,7 @@ from pypdf import PdfReader
 
 from estimator.catalog import ValidationError
 from estimator.commercial_documents import CommercialConflict, CommercialDocuments, default_fields
+from tests.commercial_ready_fixtures import complete_quote
 from estimator.commercial_http import CommercialHTTP
 from estimator.commercial_pdf import render_commercial_pdf
 from estimator.company_settings import DEFAULTS
@@ -24,7 +25,8 @@ class PurchaseOrderWorkflowTests(unittest.TestCase):
         self.service = CommercialDocuments(self.projects, renderer=lambda *args, **kwargs: b'%PDF-1.4 fixture')
         quote = default_fields('quote', {'project_no':'PN-01', 'client':'Receiving client', 'site_address':'7 Site Road',
                                          'contact':'Site contact', 'phone':'123', 'email':'site@example.test'})
-        quote['terms'] = ''
+        quote['terms'] = '<p>N / A</p>'
+        quote = complete_quote(quote)
         saved = self.service.save(self.workspace, {'kind':'quote', 'status':'Draft', 'fields':quote})
         self.quote = self.service.issue(self.workspace, saved['id'], saved['version'], str(uuid.uuid4()))['document']
         fields = default_fields('work_order', quote['details'])

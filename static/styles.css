@@ -533,7 +533,9 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .project-details-access{display:flex;justify-content:flex-start;margin-bottom:16px}
 .project-workspace-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:start}
 .project-workspace-layout.project-pane-open{grid-template-columns:minmax(340px,440px) minmax(0,1fr)}
-.project-workspace-main,.project-details-pane{min-width:0}
+.project-workspace-main,.project-workspace-side,.project-details-pane{min-width:0}
+.project-workspace-side{display:grid;gap:16px;align-content:start}
+#view-quotes .project-workspace-side #snapshot-message{margin:0;align-items:flex-start;flex-direction:column}
 .project-details-pane{margin:0}
 .project-details-pane .section-heading{align-items:center;gap:12px}
 .project-details-pane .section-heading h2{margin:0}

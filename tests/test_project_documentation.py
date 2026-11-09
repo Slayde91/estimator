@@ -29,7 +29,7 @@ from estimator.project_file import export_project, load_project_bytes
 from estimator.project_library import ProjectLibrary
 from estimator.storage import Store
 from test_certification import fields, pdf
-from test_project_library import Chooser
+from test_project_library import Chooser, complete_estimate
 
 
 KINDS = {'estimate': 'Estimate', 'schedule': 'Schedule', 'certification': 'Certification'}
@@ -287,7 +287,7 @@ class ProjectDocumentationTests(unittest.TestCase):
         chooser = Chooser(); chooser.selection = SaveSelection(str(self.root/'Created project.cf.json'), None)
         library = ProjectLibrary(self.store, chooser, certifications=self.certificates)
         try:
-            library.save_as({'estimate': {'project_no':'PN-FIXTURE'},
+            library.save_as({'estimate': complete_estimate({'project_no':'PN-FIXTURE'}),
                 'certifications': {'workspace_id':self.workspace,'draft':None}})
         finally:
             library.close()
@@ -330,7 +330,7 @@ class ProjectDocumentationTests(unittest.TestCase):
         library = ProjectLibrary(self.store, chooser, certifications=self.certificates, documentation=self.docs)
         self.addCleanup(library.close)
         captured = {'workspace_id': self.workspace, 'expected_revision': 1}
-        request = {'estimate': {'title': 'Documentation project'},
+        request = {'estimate': complete_estimate({'title': 'Documentation project'}),
                    'certifications': {'workspace_id': self.workspace, 'draft': None}, 'documentation': captured}
         self.assertEqual(library.save_as(request), {'cancelled': True})
         self.assertFalse((self.root / '.ceasefire-evidence').exists())
@@ -467,7 +467,7 @@ class ProjectDocumentationTests(unittest.TestCase):
         chooser.choose_save = choose_save
         library = ProjectLibrary(self.store, chooser, certifications=self.certificates, documentation=self.docs)
         self.addCleanup(library.close)
-        saved = library.save_as({'estimate': {'title': 'Snapshot'},
+        saved = library.save_as({'estimate': complete_estimate({'title': 'Snapshot'}),
             'certifications': {'workspace_id': self.workspace, 'draft': None},
             'documentation': {'workspace_id': self.workspace, 'expected_revision': 1}})
         self.assertEqual(saved['project']['documentation']['revision_count'], 1)

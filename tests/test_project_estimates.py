@@ -9,6 +9,7 @@ from estimator.catalog import ValidationError
 from estimator.project_file import WORKSPACE_FIELDS, export_project, load_project_bytes
 from estimator.project_library import ProjectLibrary
 from estimator.storage import Store
+from test_project_library import complete_missing_metadata
 
 
 def editable(workspace):
@@ -16,6 +17,14 @@ def editable(workspace):
     result['calculators'] = {key: {'inputs': value['inputs'], 'schedule_rows': value['schedule_rows']}
                              for key, value in result['calculators'].items()}
     return result
+
+
+def complete_save_metadata(request):
+    request['estimate'] = complete_missing_metadata(request['estimate'])
+    for entry in request.get('estimates', []):
+        workspace = entry['workspace']
+        workspace['estimate'] = complete_missing_metadata(workspace['estimate'])
+    return request
 
 
 class ProjectEstimatesTests(unittest.TestCase):
@@ -72,7 +81,7 @@ class ProjectEstimatesTests(unittest.TestCase):
         request.update(self.second)
         request['active_estimate_id'] = self.other_id
         request['save_token'] = selected['file']['save_token']
-        result = self.library.save(request)
+        result = self.library.save(complete_save_metadata(request))
         self.assertEqual(result['project']['active_estimate_id'], self.other_id)
         self.assertEqual(result['project']['estimates'][0]['workspace']['estimate']['measurements'], '')
         older = {**self.second, 'save_token':result['file']['save_token']}
@@ -195,7 +204,7 @@ class ProjectEstimatesTests(unittest.TestCase):
         request.pop('penetration', None)
         request['active_estimate_id'] = self.other_id
         request['save_token'] = selected['file']['save_token']
-        saved = self.library.save(request)
+        saved = self.library.save(complete_save_metadata(request))
         self.assertIn('composer', saved['project']['estimates'][0]['workspace']['penetration'])
         self.assertNotIn('penetration', saved['project'])
 

@@ -3,7 +3,7 @@ const {chromium,expect}=require('@playwright/test');
 const {spawn,spawnSync}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),crypto=require('node:crypto');
 const {chooseLibrary}=require('./section_navigation.cjs');
-const {clickProjectControl}=require('./project_actions.cjs');
+const {clickProjectControl,prepareProjectForSave}=require('./project_actions.cjs');
 const {referenceExport}=require('./reference_export.cjs');
 const root=path.resolve(__dirname,'../..'),python=process.env.CEASEFIRE_PYTHON||'python';
 const output=path.join(root,'.runtime/browser-qa',`pricing-manufacturers-${Date.now()}`);fs.mkdirSync(output,{recursive:true});
@@ -83,6 +83,7 @@ async function importWorkbook(file,accept){
   evidence.owner={id:owner.id,name:owner.name,manufacturer:owner.manufacturer,source:owner.source.manufacturer_assignment};
   evidence.disposableSeedCoverage={branded:bootstrap.catalog.inventory.filter(item=>item.manufacturer&&item.manufacturer!=='N/A').length,notApplicable:bootstrap.catalog.inventory.filter(item=>item.manufacturer==='N/A').length,unknown:bootstrap.catalog.inventory.filter(item=>!Object.hasOwn(item,'manufacturer')).length};
   canonicalBefore=analyze(bootstrap.configuration,'initial').canonical;
+  await prepareProjectForSave(page);
   const saving=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/project/save-as');await clickProjectControl(page,'Save');assert.equal((await saving).status(),200);await idle();
   projectBytes=fs.readFileSync(info.project);frozen=await projectState();assert.ok(frozen.configuration.catalog,'Current project owns a frozen catalogue');
   await chooseLibrary(page,'pricing');await expect(page.locator('#pricing-scope')).toHaveValue('library');

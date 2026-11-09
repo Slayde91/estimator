@@ -1,4 +1,4 @@
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl, prepareProjectForSave } = require('./project_actions.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Printed-scale acceptance uses only generated PDFs and a disposable server.
@@ -54,7 +54,7 @@ async function saveAndReopen(info) {
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => { if (request.url().endsWith('/auto-calibrate')) detections.push(request.postDataJSON()); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
-  const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
+  const initial = await page.goto(`http://127.0.0.1:${info.port}/`); await prepareProjectForSave(page); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click();

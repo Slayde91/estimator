@@ -18,6 +18,7 @@ from estimator.project_details import ProjectDetails
 from estimator.project_library import ProjectLibrary, _atomic_write
 from estimator.saved_commercial import SavedCommercial
 from estimator.storage import Store
+from commercial_ready_fixtures import complete_quote
 
 
 def library_at(root):
@@ -48,7 +49,7 @@ def interrupt_first_save(root, after_replace, ready, proceed):
     lib.dialogs = type('Picker', (), {'choose_save': lambda *_: SaveSelection(str(target), None)})()
     workspace = lib.certifications.new()['workspace_id']
     doc = lib.commercial.save(workspace, {'kind': 'quote', 'status': 'Draft',
-                              'fields': default_fields('quote')}, unfiled_context={})
+                              'fields': complete_quote(default_fields('quote'))}, unfiled_context={})
     card, = register(lib)
     (root / 'original-card.json').write_text(json.dumps({
         'source': {'file_id': card['source_file'], 'revision': card['source_revision']},
@@ -65,7 +66,9 @@ def interrupt_first_save(root, after_replace, ready, proceed):
         os._exit(73)  # Power loss: no application finally blocks or cleanup callbacks.
 
     with patch('estimator.project_library._atomic_write', interrupted_write):
-        lib.save_as({'project_save_request': str(uuid.uuid4()), 'estimate': {'client': 'Fixture'},
+        lib.save_as({'project_save_request': str(uuid.uuid4()), 'estimate': {'client': 'Fixture',
+                     'site_address': 'Synthetic Site', 'contact_name': 'Synthetic Contact',
+                     'contact_phone': '0400 000 001', 'contact_email': 'project@example.test'},
                      'certifications': {'workspace_id': workspace, 'draft': None},
                      'commercial_documents': lib.commercial.capture(workspace)})
 

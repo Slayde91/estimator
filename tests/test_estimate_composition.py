@@ -223,7 +223,9 @@ class EstimateCompositionTests(unittest.TestCase):
         self.assertEqual(self.store.list_quotes(), [])
 
     def historical_project(self):
-        payload = export_project(self.store, {'estimate': {'inputs': {'B20': 123.123456789, 'D4': '1 Team - 1x'}},
+        payload = export_project(self.store, {'estimate': {'inputs': {'B20': 123.123456789, 'D4': '1 Team - 1x'},
+            'project_no':'PN-TEAM','client':'Synthetic Company','site_address':'Synthetic Site',
+            'contact_name':'Synthetic Contact','contact_phone':'0400 000 001','contact_email':'project@example.test'},
             'penetration': {'draft': schedule(), 'composer': {'rows': [{'id': 'composer', 'inputs': {'O': 17.25}}]}}})
         snapshot = json.loads(payload)
         snapshot['estimate']['inputs']['D4'] = 'N/A'

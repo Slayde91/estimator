@@ -3,7 +3,7 @@ const { chooseLibrary } = require('./section_navigation.cjs');
 // keyboard and touch must select the existing workspaces without replacing drafts.
 const { chromium, expect } = require('@playwright/test');
 const { chooseCalculator } = require('./calculator_actions.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl,prepareProjectForSave} = require('./project_actions.cjs');
 const { referenceExport } = require('./reference_export.cjs');
 const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');
@@ -40,6 +40,7 @@ async function workbook(title) {
   page = await browser.newPage({ viewport: { width: 1440, height: 1000 } }); await monitor(page);
   const response = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!response.headers()['content-security-policy'].includes('unsafe-inline')); await idle();
   await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await idle();
+  await prepareProjectForSave(page);
   const saveReply = page.waitForResponse(reply => new URL(reply.url()).pathname === '/api/project/save-as' && reply.request().method() === 'POST');
   await clickProjectControl(page, 'Save'); assert.equal((await saveReply).status(), 200); await idle();
   await page.getByRole('button', { name: 'Calculators', exact: true }).click(); await expect(page.locator('#calculator-steel-hub')).toBeVisible(); await expect(page.locator('#calculator-workspace')).toBeHidden(); await expect(page.locator('#calculator-steel-hub [data-steel-calculator]')).toHaveCount(4);

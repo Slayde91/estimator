@@ -121,7 +121,8 @@ function checkCompanions(project,folder){
   const copiedHash=digest(fs.readFileSync(copyPath));const moved=path.join(output,'moved');fs.renameSync(path.join(output,'portable'),moved);checkCompanions(copied,moved);assert.equal(digest(fs.readFileSync(info.project)),originalHash);
   checks.push('Native Save and Save As publish exact hash-verified document/certificate companions, portable together to another folder');
 
-  choose('project-b.cf.json');await createNewProject(page);await expect(page.locator('#client')).toHaveValue('',{timeout:180000});await idle();await documentation();
+  choose('project-b.cf.json');await createNewProject(page,{client:'Documentation Project B'});
+  await expect(page.locator('#client')).toHaveValue('Documentation Project B');await idle();await documentation();
   const b=await page.evaluate(()=>window.CeasefireCertification.sessionId());assert.notEqual(b,a);await expect(page.locator('#documentation-pdf-rows a,#documentation-xlsx-rows a')).toHaveCount(0);
   await expect(page.locator('#documentation-revisions-pane')).toBeHidden();await expect(page.locator('#documentation-revisions-list a')).toHaveCount(0);
   assert.deepEqual((await api('/api/documentation?workspace='+b)).items,[]);

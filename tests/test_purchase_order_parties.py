@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from estimator.account_relations import AccountRelations
 from estimator.catalog import ValidationError
-from estimator.commercial_documents import CommercialDocuments, PURCHASE_PARTY_LABELS, commercial_cards, default_fields
+from estimator.commercial_documents import CommercialConflict, CommercialDocuments, PURCHASE_PARTY_LABELS, commercial_cards, default_fields
 from estimator.contact_relations import ContactRelations
 from estimator.contacts import ContactsStore
 from tests.test_commercial_documents import Projects
@@ -72,9 +72,28 @@ class PurchaseOrderPartiesTests(unittest.TestCase):
         self.assertEqual(changed['fields']['order']['site_contact_id'], self.site['id'])
         fields['order']['site_contact_id'] = ''
         cleared = save(fields, changed['version'])
-        self.assertFalse(cleared['fields']['order'].get('site_contact_id'))
+        self.assertTrue(PURCHASE_PARTY_LABELS.keys().isdisjoint(cleared['fields']['order']))
+        self.assertEqual(cleared['fields']['order']['ship_to_name'], 'Sam')
         self.assertEqual(self.commercial.read_pdf(reopened, issued['id'])[1], issued['pdf'])
         self.assertEqual(self.commercial.capture(self.workspace), source)
+
+    def test_manually_entered_orders_keep_the_legacy_shape_and_replay_original_save(self):
+        fields = default_fields('purchase_order')
+        self.assertTrue(PURCHASE_PARTY_LABELS.keys().isdisjoint(fields['order']))
+        fields['order'].update(supplier='Manual supplier', supplier_contact='Sam', ship_to_name='Delivery contact')
+        # A browser sends explicit empty IDs as the user types over a selection.
+        fields['order'].update(dict.fromkeys(PURCHASE_PARTY_LABELS, ''))
+        payload = {**self.payload, 'fields':fields}
+        saved = self.commercial.save(self.workspace, payload)
+        persisted = self.commercial.capture(self.workspace)['documents'][0]
+        self.assertEqual(persisted, saved)
+        self.assertTrue(PURCHASE_PARTY_LABELS.keys().isdisjoint(persisted['fields']['order']))
+        self.assertEqual(self.commercial.save(self.workspace, payload), saved)
+        # A replay cannot attach people to an already saved manual order.
+        fields['order'].update(supplier='Supplier', supplier_account_id=self.supplier['account_id'])
+        with self.assertRaises(CommercialConflict):
+            self.commercial.save(self.workspace, payload)
+        self.assertEqual(self.commercial.capture(self.workspace)['documents'][0], saved)
 
     def test_links_only_attach_this_order_to_its_selected_parties(self):
         self.commercial.save(self.workspace, self.payload)

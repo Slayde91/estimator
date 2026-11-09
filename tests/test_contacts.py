@@ -31,7 +31,8 @@ class DirectoryTests(unittest.TestCase):
         self.temp.cleanup()
 
     def request(self, route, body=None, expected=200, headers=None):
-        client = HTTPConnection("127.0.0.1", self.server.server_port, timeout=10)
+        # Conversion exercises a real numbered project write and durable recovery.
+        client = HTTPConnection("127.0.0.1", self.server.server_port, timeout=60 if route == "leads/convert" else 10)
         try:
             client.request("POST" if body is not None else "GET", "/api/contacts/" + route,
                            json.dumps(body) if body is not None else None, {"Content-Type": "application/json", **(headers or {})})

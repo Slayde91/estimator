@@ -41,7 +41,8 @@ ORDER_FIELDS = ('start_date', 'end_date', 'urgency', 'quote_id', 'work_order_id'
 FIELD_KEYS = {'title', 'details', 'introduction', 'lines', 'scope', 'scope_tables', 'sources', 'allowances', 'terms', 'order', 'company_reference'}
 WORK_ORDER_OPTIONAL_FIELDS = ('progress_by', 'progress_date', 'closed_date', 'claimed_by', 'claim_date')
 PURCHASE_PARTY_LABELS = {'supplier_account_id':'supplier', 'supplier_contact_id':'supplier_contact', 'site_contact_id':'ship_to_name'}
-PURCHASE_ORDER_OPTIONAL_FIELDS = ('site_contact_number', 'delivery_time', 'rejection_reason', *PURCHASE_PARTY_LABELS)
+PURCHASE_ORDER_OPTIONAL_DEFAULTS = ('site_contact_number', 'delivery_time', 'rejection_reason')
+PURCHASE_ORDER_OPTIONAL_FIELDS = (*PURCHASE_ORDER_OPTIONAL_DEFAULTS, *PURCHASE_PARTY_LABELS)
 WORK_ORDER_SIGNATURE_FIELDS = {'reviewed_by', 'prepared_by', 'client_approved_by', 'progress_by', 'closed_by', 'claimed_by'}
 PURCHASE_ORDER_SIGNATURE_FIELDS = {'requested_by', 'reviewed_by', 'sent_by', 'verified_by'}
 CERTIFICATION_CHOICES = ('Certification issued', 'Certification not issued')
@@ -300,7 +301,7 @@ def default_fields(kind, details=None, company=None, *, rates=None):
     fields = {'title': KINDS[kind], 'details': {key: supplied.get(key, '') for key in DETAIL_FIELDS},
             'introduction': INTRODUCTION if kind == 'quote' else '', 'lines': [], 'scope': '',
             'scope_tables': [], 'sources': [], 'allowances': '<ul><li>N / A</li></ul>' if kind == 'quote' else '', 'terms': default_terms(company) if kind == 'quote' else '',
-            'order': {key: '' for key in (*ORDER_FIELDS, *(WORK_ORDER_OPTIONAL_FIELDS if kind=='work_order' else PURCHASE_ORDER_OPTIONAL_FIELDS if kind=='purchase_order' else ()))},
+            'order': {key: '' for key in (*ORDER_FIELDS, *(WORK_ORDER_OPTIONAL_FIELDS if kind=='work_order' else PURCHASE_ORDER_OPTIONAL_DEFAULTS if kind=='purchase_order' else ()))},
             'rate_schedule': schedule,
             'company_reference': {key: company.get(key, '') for key in ('name', 'abn')}}
     if kind == 'purchase_order':
@@ -875,6 +876,11 @@ class CommercialDocuments:
             if self.validate_purchase_parties is None:
                 raise ValidationError('The contact directory is unavailable. Reopen the purchase order.')
             self.validate_purchase_parties(order, changed)
+        # An explicit empty ID clears a previous link. Once resolved, an
+        # unlinked party uses the same saved format as a manually entered PO.
+        for key in PURCHASE_PARTY_LABELS:
+            if not order.get(key):
+                order.pop(key, None)
 
     def _relationships(self, db, workspace, project, kind, fields, previous, *, create_retry=False):
         order = fields['order']
@@ -991,8 +997,8 @@ class CommercialDocuments:
                 # Older open windows omit new editable fields. Preserve them
                 # unless the current client deliberately sends an empty clear.
                 if kind=='purchase_order':
-                    for key in PURCHASE_ORDER_OPTIONAL_FIELDS:
-                        if key not in PURCHASE_PARTY_LABELS and key not in fields['order'] and key in previous['fields']['order']:
+                    for key in PURCHASE_ORDER_OPTIONAL_DEFAULTS:
+                        if key not in fields['order'] and key in previous['fields']['order']:
                             fields['order'][key]=previous['fields']['order'][key]
                     # Older PO editors do not know vector signatures. Absence
                     # preserves saved ink; an explicit empty map clears it.

@@ -945,6 +945,9 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
         # requests can be split between different code and in-memory state.
         # A local desktop application must have one authoritative process.
         allow_reuse_address = False
+        # Cold browser tabs request scripts, styles and images together. On
+        # Windows the five-slot default can refuse assets before HTTP sees them.
+        request_queue_size = 64
 
         def server_close(self):
             try:

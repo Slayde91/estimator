@@ -11,6 +11,7 @@ from estimator.catalog import ValidationError
 from estimator.certification import CertificationService
 from estimator.certification_projects import CertificationProjects
 from estimator.commercial_documents import CommercialConflict, CommercialDocuments, default_fields
+from tests.commercial_ready_fixtures import complete_quote, complete_work_order
 from estimator.commercial_http import CommercialHTTP
 from estimator.commercial_sources import CommercialSources, source_id
 from estimator.project_documentation import ProjectDocumentation
@@ -54,11 +55,12 @@ class SavedQuoteTests(unittest.TestCase):
         self.addCleanup(self.library.close)
         self.library.commercial = CommercialDocuments(certs, renderer=lambda *args, **kwargs: pdf('Saved scope'))
         workspace = certs.new()['workspace_id']
-        self.document = self.library.commercial.save(workspace, {'kind': 'quote', 'status': 'Draft', 'fields': default_fields('quote')})
+        self.document = self.library.commercial.save(workspace, {'kind': 'quote', 'status': 'Draft', 'fields': complete_quote(default_fields('quote'))})
         self.path = self.folder / 'saved.cf.json'
         certificates = certs.capture({'workspace_id': workspace, 'draft': None})
         certs.publish(certificates, self.path)
-        self.path.write_bytes(export_project(self.store, {'estimate': {'title': 'Fixture', 'client': 'Fixture Company'},
+        self.path.write_bytes(export_project(self.store, {'estimate': {'title': 'Fixture', 'project_no':'PN-01', 'client': 'Fixture Company',
+            'site_address':'Fixture site','contact_name':'Fixture Contact','contact_phone':'0400 000 000','contact_email':'fixture@example.test'},
             'certifications': certificates, 'commercial_documents': self.library.commercial.capture(workspace)}))
         self.saved = SavedCommercial(self.library)
         self.http = CommercialHTTP(self.library.commercial, derive=lambda *_args, **_kwargs: {'lines': [], 'sources': [], 'scope_tables': []})
@@ -289,12 +291,13 @@ class SavedQuoteTests(unittest.TestCase):
         original = self.library.commercial
         workspace = original.certifications.new()['workspace_id']
         held = {'id':'steel', 'name':'Steel allowance', 'workspace':{'estimate':{'project_no':'T-1',
-                'client':'Held client', 'site_address':'Held site'}, 'takeoffs_session_id':'never expose'}}
+                'client':'Held client', 'site_address':'Held site','contact_name':'Held Contact',
+                'contact_phone':'0400 000 000','contact_email':'held@example.test'}, 'takeoffs_session_id':'never expose'}}
         # These records predate the Project creation requirement. Seed their
         # historical service representation; new HTTP creation is now rejected.
         from estimator.unfiled_commercial import quote_context
         quote = original.save(workspace, {'kind':'quote', 'status':'Draft',
-            'fields':default_fields('quote', held['workspace']['estimate'])},
+            'fields':complete_quote(default_fields('quote', held['workspace']['estimate']))},
             unfiled_context=quote_context({'estimates':[held], 'active_estimate_id':'steel'}))
         transient = original.save(workspace, {'kind':'purchase_order','status':'Draft','fields':default_fields('purchase_order')})
         purchase = original.save(workspace, {'kind':'purchase_order','status':'Draft',
@@ -349,9 +352,9 @@ class SavedQuoteTests(unittest.TestCase):
         service = self.library.commercial
         workspace = service.certifications.new()['workspace_id']
         # A portable, issued Quote may be present before this workspace's first native Save.
-        quote = service.save(workspace, {'kind':'quote','status':'Draft','fields':default_fields('quote')}, unfiled_context={})
+        quote = service.save(workspace, {'kind':'quote','status':'Draft','fields':complete_quote(default_fields('quote', {'project_no':'PN-00007'}))}, unfiled_context={})
         quote = service.issue(workspace,quote['id'],quote['version'],str(uuid.uuid4()))['document']
-        fields = default_fields('work_order', {'project_no':'PN-00007'})
+        fields = complete_work_order(default_fields('work_order', {'project_no':'PN-00007'}), 'Review')
         fields['order']['quote_id'] = quote['id']
         work = service.save(workspace, {'kind':'work_order','status':'Draft','fields':fields}, unfiled_context={})
         captured = service.capture(workspace)
@@ -363,7 +366,8 @@ class SavedQuoteTests(unittest.TestCase):
             self.fail('The stale file image was published')
         selected = self.folder / 'first-save.cf.json'
         self.library.dialogs = type('SavePicker', (), {'choose_save':lambda *_:SaveSelection(str(selected),None)})()
-        request = {'estimate':{'project_no':'PN-00007','client':'Local owner'}, 'certifications':{'workspace_id':workspace,'draft':None},
+        request = {'estimate':{'project_no':'PN-00007','client':'Local owner','site_address':'Local owner site',
+                   'contact_name':'Local Contact','contact_phone':'0400 000 000','contact_email':'local@example.test'}, 'certifications':{'workspace_id':workspace,'draft':None},
                    'commercial_documents':service.capture(workspace)}
         with patch('estimator.project_library._atomic_write', side_effect=ValidationError('Disk full')):
             with self.assertRaisesRegex(ValidationError, 'Disk full'):

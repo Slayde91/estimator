@@ -9,6 +9,7 @@ from estimator.commercial_documents import (default_fields, validate_fields, app
                                              commercial_cards, CommercialDocuments)
 from estimator.commercial_http import CommercialHTTP
 from tests import test_commercial_panes_signatures as helpers
+from tests.commercial_ready_fixtures import complete_quote
 
 
 class DocumentOverrideTests(unittest.TestCase):
@@ -35,7 +36,7 @@ class DocumentOverrideTests(unittest.TestCase):
         quote=None
         for kind in ('quote','purchase_order','work_order'):
             with self.subTest(kind=kind):
-                fields=default_fields(kind)
+                fields=complete_quote(default_fields(kind)) if kind=='quote' else default_fields(kind)
                 fields['detail_overrides']=['client','contact','email','site_address']
                 fields['details'].update(project_no='PN-01',client='Document Company',contact='Document Contact',email='document@example.test',site_address='Document site')
                 if kind=='work_order':

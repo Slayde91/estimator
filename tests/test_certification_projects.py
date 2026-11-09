@@ -30,6 +30,13 @@ def fields(**values):
             'client': 'Example client', 'project': 'Project Alpha', 'address': '1 Example Street', **values}
 
 
+def project_estimate(**values):
+    """Complete metadata for explicit native Project Save fixtures only."""
+    return {'project_no': 'PN-FIXTURE', 'client': 'Fixture client', 'site_address': '1 Example Street',
+            'contact_name': 'Fixture contact', 'contact_email': 'fixture@example.test',
+            'contact_phone': '0400 000 000', **values}
+
+
 class CertificationProjectTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -48,7 +55,7 @@ class CertificationProjectTests(unittest.TestCase):
         chooser = Chooser(); chooser.selection = SaveSelection(str(folder / 'Project.cf.json'), None)
         library = ProjectLibrary(self.store, chooser, certifications=self.projects)
         try:
-            library.save_as({'estimate': {'project_no': 'PN-FIXTURE'}, 'calculators': {},
+            library.save_as({'estimate': project_estimate(), 'calculators': {},
                 'certifications': {'workspace_id': workspace['workspace_id'], 'draft': None}})
         finally:
             library.close()
@@ -131,7 +138,7 @@ class CertificationProjectTests(unittest.TestCase):
         chooser = Chooser()
         library = ProjectLibrary(self.store, chooser, certifications=self.projects)
         self.addCleanup(library.close)
-        request = {'estimate': {'title': 'Example'}, 'certifications': {'workspace_id': workspace['workspace_id'],
+        request = {'estimate': project_estimate(title='Example'), 'certifications': {'workspace_id': workspace['workspace_id'],
                    'draft': {'id': document['id'], 'version': 1, 'fields': document['fields'], 'options': document['options']}}}
         self.assertEqual(library.save_as(request), {'cancelled': True})
         self.assertEqual(service.get(document['id']), document)

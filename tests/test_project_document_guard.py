@@ -17,6 +17,7 @@ from estimator.project_file import ESTIMATE_FIELDS, export_project
 from estimator.server import create_server
 from estimator.storage import Store
 from estimator.swms import default_fields as swms_fields
+from test_project_library import complete_missing_metadata
 
 
 class Dialogs:
@@ -71,8 +72,10 @@ class ProjectDocumentGuardTests(unittest.TestCase):
         return self.json('/api/certifications/workspaces/' + workspace)
 
     def request(self, workspace):
-        return {**deepcopy(self.request_template), 'project_save_request': str(uuid4()),
+        request = {**deepcopy(self.request_template), 'project_save_request': str(uuid4()),
                 'certifications': {'workspace_id': workspace, 'draft': None}}
+        request['estimate'] = complete_missing_metadata(request['estimate'])
+        return request
 
     def save_as(self, workspace):
         return self.json('/api/project/save-as', self.request(workspace))

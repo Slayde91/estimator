@@ -93,7 +93,7 @@
     try { intelligenceAudio?.pause(); if (intelligenceAudio) intelligenceAudio.currentTime = 0; } catch { /* Media can be unavailable. */ }
   }
   function playIntelligenceSound() {
-    if (!intelligenceAudio || closed || document.hidden) return;
+    if (!intelligenceAudio || closed || document.hidden || window.CeasefireAudioSettings?.isEnabled() === false) return;
     const attempt = ++soundGeneration;
     try {
       // One attempt for this appearance. Never retry a blocked clip after a
@@ -101,6 +101,7 @@
       intelligenceAudio.play()?.catch?.(() => { if (attempt === soundGeneration) stopIntelligenceSound(); });
     } catch { if (attempt === soundGeneration) stopIntelligenceSound(); }
   }
+  const unsubscribeAudio = window.CeasefireAudioSettings?.subscribe(enabled => { if (!enabled) stopIntelligenceSound(); });
   function stopCursor() {
     clearTimeout(cursorTimer);
     cursorTimer = null;
@@ -137,6 +138,7 @@
   }
   function close() {
     stopIntelligenceSound();
+    unsubscribeAudio?.();
     window.CeasefireHeaderTaglineSound?.close();
     window.CeasefireHeaderTaglineMedia?.close();
     closed = true;
@@ -2387,7 +2389,14 @@
         } else updateDirty();
       }
       if (!automatic) await window.CeasefireCoverSheets?.saveAll?.();
-      if (!changed || $("app-message").getAttribute("role") !== "alert") message(uiCopy("Project saved to {0}. It includes the Quote, Firestopping items, {1}project pricing{2} and all three specialist calculators.{3}{4}{5}{6}", [saved.file.path, window.CeasefireI18n.term(takeoffContents()), window.CeasefireI18n.term(libraryDrafts ? ", project library drafts" : ""), window.CeasefireI18n.term(pricing?.scope === "library" ? " Pricing Library edits were saved for this project only." : ""), window.CeasefireI18n.term(pricing?.conflict ? " The other pricing draft is still available and was not included." : ""), window.CeasefireI18n.term(changed ? " Later edits are not included and still need saving." : ""), saved.warning ? ` ${saved.warning}` : ""]), false, "project-saved");
+      const saveWarnings = [
+        pricing?.conflict ? window.CeasefireI18n.translate("The other pricing draft is still available and was not included.") : "",
+        changed ? window.CeasefireI18n.translate("Later edits are not included and still need saving.") : "",
+        saved.warning || "",
+      ].filter(Boolean).join(" ");
+      // The header's saved state is sufficient for ordinary success. Preserve
+      // actionable warnings and any error already raised by a concurrent edit.
+      if (saveWarnings && (!changed || $("app-message").getAttribute("role") !== "alert")) message(saveWarnings);
       return { saved: true, file: saved.file, changed };
     } catch (error) {
       if (automatic) throw error;

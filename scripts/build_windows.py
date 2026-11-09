@@ -45,7 +45,7 @@ STATIC_FILES = (
     'index.html', 'libraries.css', 'libraries.js', 'library-detail-text.js', 'library-editor.css',
     'library-editor.js', 'penetration-breakdown.js', 'penetration.css', 'penetration.js', 'penetration-references.js', 'styles.css',
     'header-tagline-media.js', 'header-tagline-character.gif', 'header-tagline-character-still.png',
-    'header-menu-sounds.js', 'sounds/mgs1-menu-move.mp3', 'sounds/mgs-confirm2.mp3',
+    'audio-settings.js', 'header-menu-sounds.js', 'sounds/mgs1-menu-move.mp3', 'sounds/mgs-confirm2.mp3',
     'sounds/new-explosion.mp3', 'sounds/flame-whoosh.wav', 'sounds/type.mp3', 'sounds/hover.mp3', 'sounds/select.mp3', 'sounds/select-2.mp3',
     'sounds/mixkit-vintage-dot-printing-1371.wav', 'sounds/checkpoint.ogg', 'sounds/loading.mp3',
     'scheduler.js', 'scheduler.css', 'commercial-panels.js', 'commercial-documents.js', 'commercial-documents.css', 'commercial-pricing-picker.js', 'commercial-pricing-picker.css', 'help-glossary.js', 'help-glossary.css', 'company-settings.js', 'certification.js', 'certification.css', 'cover-sheets.js', 'documentation.js', 'documentation.css', 'theme.js', 'theme.css', 'language.js', 'language-catalog.js', 'language.css', 'laser.css', 'laser-steel.svg', 'home-steel-frame.png',

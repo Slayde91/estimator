@@ -49,7 +49,7 @@ def render_certificate_pdf(fields, *, company, certificate_id, revision, created
                                   leading=14, textColor=_RED, spaceBefore=8, spaceAfter=5, keepWithNext=True),
         'body': ParagraphStyle('CertificateBody', fontName=FONT_REGULAR, fontSize=8.5,
                                leading=11.5, spaceAfter=5, splitLongWords=True),
-        'statement': ParagraphStyle('CertificateStatement', fontName=FONT_BOLD, fontSize=8.5,
+        'statement': ParagraphStyle('CertificateStatement', fontName=FONT_REGULAR, fontSize=8.5,
                                     leading=11.5, spaceAfter=5, splitLongWords=True),
         'attestation': ParagraphStyle('CertificateAttestation', fontName=FONT_REGULAR, fontSize=8.5,
                                       leading=11.5, spaceAfter=5, splitLongWords=True),

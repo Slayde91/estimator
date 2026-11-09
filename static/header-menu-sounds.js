@@ -32,8 +32,9 @@
       } catch { return [kind, null]; }
     }));
     function stop() { ++generation; for (const audio of Object.values(players)) stopAudio(audio); }
+    const unsubscribeAudio = host.CeasefireAudioSettings?.subscribe(enabled => { if (!enabled) stop(); });
     function play(kind) {
-      if (closed) return;
+      if (closed || host.CeasefireAudioSettings?.isEnabled() === false) return;
       const audio = players[kind];
       // Seeking a decoded clip can temporarily lower readyState. Check before
       // rewinding, then start that loaded clip directly in this same event.
@@ -53,7 +54,7 @@
         pending?.catch?.(() => { if (generation === attempt) stopAudio(audio); });
       } catch { stopAudio(audio); }
     }
-    function close() { closed = true; stop(); }
+    function close() { closed = true; stop(); unsubscribeAudio?.(); }
     return Object.freeze({ play, stop, close });
   }
   const silent = Object.freeze({ play() {}, start() {}, stop() {}, close() {} });
@@ -176,15 +177,16 @@
     } catch { return silent; }
     let active = false, closed = false, generation = 0, attempted = -1;
     function stop() { active = false; ++generation; stopAudio(audio); }
+    const unsubscribeAudio = host.CeasefireAudioSettings?.subscribe(enabled => { if (!enabled) stop(); });
     function playCurrent() {
-      if (closed || !active || motion?.matches || document?.hidden || audio.error || audio.readyState < 2 || attempted === generation) return;
+      if (closed || !active || host.CeasefireAudioSettings?.isEnabled() === false || motion?.matches || document?.hidden || audio.error || audio.readyState < 2 || attempted === generation) return;
       const attempt = attempted = generation;
       try { audio.play()?.catch?.(() => { if (attempt === generation) stop(); }); }
       catch { stop(); }
     }
     function start() {
       stop();
-      if (closed || motion?.matches || document?.hidden) return;
+      if (closed || host.CeasefireAudioSettings?.isEnabled() === false || motion?.matches || document?.hidden) return;
       active = true; playCurrent();
     }
     function visibility() { if (document?.hidden) stop(); }
@@ -198,6 +200,7 @@
     host.addEventListener?.("pagehide", close);
     function close() {
       closed = true; stop();
+      unsubscribeAudio?.();
       audio.removeEventListener?.("canplay", playCurrent);
       audio.removeEventListener?.("error", stop);
       document?.removeEventListener?.("visibilitychange", visibility);

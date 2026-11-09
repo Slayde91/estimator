@@ -96,7 +96,8 @@ class PenetrationLibrarySaveGuardTests(unittest.TestCase):
         chooser = _Chooser()
         library = ProjectLibrary(store, chooser)
         self.addCleanup(library.close)
-        request = {'estimate': {'title': 'Library identity'}, 'calculators': {},
+        request = {'estimate': {'title': 'Library identity','project_no':'PN-PENETRATION','client':'Synthetic Company','site_address':'Synthetic Site',
+                                'contact_name':'Synthetic Contact','contact_phone':'0400 000 001','contact_email':'project@example.test'}, 'calculators': {},
                    'penetration': {**deepcopy(self.snapshot), 'library_tracking_version': 1}}
         chooser.selection = SaveSelection(str(self.path), None)
         saved = library.save_as(request)

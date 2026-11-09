@@ -16,6 +16,7 @@ from estimator.commercial_documents import (CommercialConflict, CommercialDocume
     default_fields, default_terms, format_terms, totals, validate_commercial_documents, validate_rich_text)
 from estimator.commercial_pdf import render_commercial_pdf
 from estimator.company_settings import DEFAULTS
+from tests.commercial_ready_fixtures import complete_quote, complete_work_order
 
 
 class Projects:
@@ -48,7 +49,7 @@ class CommercialTests(unittest.TestCase):
         self.store = CommercialDocuments(self.projects)
 
     def payload(self, kind='work_order', workspace=None):
-        fields = default_fields(kind)
+        fields = complete_quote(default_fields(kind)) if kind == 'quote' else complete_work_order(default_fields(kind), 'Review') if kind == 'work_order' else default_fields(kind)
         fields['details'].update(client='Example client', site_address='10 Example Road', project_no='CF-10', date='2026-11-06')
         fields['lines'] = [{'estimate_id':'estimate-1', 'description':'Supply and installation', 'quantity':'2', 'unit_price':'125.25'}]
         if kind == 'work_order':
@@ -56,7 +57,7 @@ class CommercialTests(unittest.TestCase):
             quote = next((row for row in self.store.view(workspace)['documents'] if row['kind'] == 'quote' and row['last_number']), None)
             if quote is None:
                 quote_payload = self.payload('quote')
-                quote_payload['fields']['terms'] = ''
+                quote_payload['fields']['terms'] = '<p>N / A</p>'
                 quote = self.store.save(workspace, quote_payload)
                 quote = self.store.issue(workspace, quote['id'], quote['version'], str(uuid.uuid4()))['document']
             fields['order']['quote_id'] = quote['id']

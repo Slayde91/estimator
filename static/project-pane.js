@@ -4,9 +4,18 @@
   const pane = $("project-details-pane");
   if (!pane) return;
   const dialog = $("project-new-dialog"), home = pane.parentNode, homeNext = pane.nextSibling;
+  const side = $("project-workspace-side"), pricingNotice = $("project-pricing-notice");
   const translate = source => window.CeasefireI18n?.translate?.(source) || source;
   const text = (element,source) => window.CeasefireI18n ? window.CeasefireI18n.text(element,source) : (element.textContent=source);
   const fields = {project_no:"project-pane-number", client:"project-pane-client", site_address:"project-pane-address", contact_name:"project-pane-contact-name", contact_phone:"project-pane-contact-phone", contact_email:"project-pane-contact-email", billing_address:"project-pane-billing-address", abn_acn:"project-pane-abn-acn"};
+  const required = {project_no:"Project No.",client:"Client",site_address:"Site Address",contact_name:"Contact name",contact_email:"Contact email",contact_phone:"Contact phone"};
+  for (const key of Object.keys(required)) {
+    const control = $(fields[key]);
+    control.setAttribute("aria-required","true");
+    // The server owns the number; readonly controls do not participate in the
+    // browser's required constraint before a new Project has been allocated.
+    control.required = true;
+  }
   const normalize = details => Object.fromEntries([...Object.keys(fields), "account_id", "contact_id"].map(key => [key, String(details?.[key] || "").trim()]));
   const stamp = details => JSON.stringify(normalize(details));
   const sharedStamp = details => { const value = normalize(details); delete value.project_no; return JSON.stringify(value); };
@@ -48,6 +57,7 @@
   function hide() {
     const previous = selected;
     ++ticket; selected = null; pane.hidden = true;
+    side.hidden = true; pricingNotice.hidden = true;
     if (dialog?.open) dialog.close();
     if (pane.parentNode !== home) home.insertBefore(pane, homeNext);
     if (previous?.kind === "new") void window.CeasefireProject.discardNewProject(previous.creation).catch(()=>{});
@@ -69,6 +79,9 @@
     text($("project-details-save"),selected.kind === "new" ? "Save project" : "Save project details");
     $("project-new-cancel").hidden = selected.kind !== "new";
     pane.hidden = false; $("project-workspace-layout").classList.toggle("project-pane-open",selected.kind !== "new");
+    side.hidden = selected.kind === "new";
+    // Pricing belongs to the active Project, not an unrelated saved-file pane.
+    pricingNotice.hidden = selected.kind === "new" || selected.kind === "saved" && selected.file.path !== snapshot().file?.path;
     notice(selected.kind === "current" ? "Use the main Save button to save this project's details and estimate." : "");
     dismissOptions(); dismissContactOptions(); refreshToggles();
   }
@@ -119,6 +132,18 @@
     }
     return value;
   }
+  function validateRequired(value, automaticNumber = false, focus = true) {
+    const missing = Object.keys(required).filter(key => !(key === "project_no" && automaticNumber) && !String(value[key] || "").replace(/\p{Cf}/gu,"").trim());
+    if (missing.length) {
+      if (focus && !pane.hidden) $(fields[missing.find(key => key !== "project_no") || missing[0]]).focus();
+      throw new Error(translate("Complete required Project details: {0}.").replace("{0}",missing.map(key=>translate(required[key])).join(", ")));
+    }
+    if (focus && !pane.hidden && !$(fields.contact_email).checkValidity()) {
+      $(fields.contact_email).reportValidity();
+      throw new Error("Enter a valid contact email address.");
+    }
+    return value;
+  }
   function applyCurrentDraft() {
     if (selected?.kind !== "current") return;
     try { window.CeasefireProject.applyProjectPaneDraft(details(), selected.context); }
@@ -147,7 +172,7 @@
     if (selected.kind === "current") { validateClient(); return; }
     if (snapshot().busy) throw new Error("Finish the current project operation first.");
     if (selected.kind === "new") {
-      const target = selected, value = validateClient();
+      const target = selected, value = validateRequired(validateClient(),true);
       if (target.creation.details && target.creation.details !== stamp(value)) {
         await window.CeasefireProject.discardNewProject(target.creation);
         target.creation = {id:crypto.randomUUID(),context:target.context};
@@ -164,7 +189,7 @@
       } finally { busy(false); }
       return;
     }
-    const value = validateClient(), active = snapshot(), target = selected;
+    const value = validateRequired(validateClient()), active = snapshot(), target = selected;
     if (active.file?.path === target.file.path && (active.file.revision !== target.revision || active.context !== target.activeAtOpen.context || stamp(active.details) !== stamp(target.activeAtOpen.details))) throw new Error("The open project's details changed. Close and reopen this pane before saving.");
     if (target.requestPayload && target.requestPayload !== stamp(value)) target.requestId = crypto.randomUUID();
     target.requestPayload = stamp(value);
@@ -368,8 +393,17 @@
       if (selected?.kind === "new") throw new Error("Save or cancel the new project details first.");
       const active = snapshot();
       if (currentRule?.context === active.context && active.details.client && active.details.client !== currentRule.baseline.client && (active.details.account_id !== currentRule.account?.id || active.details.client !== currentRule.account?.company)) throw new Error("Choose an existing Company for this client, or use + to create a Company in Current project details.");
-      if (selected?.kind === "current") validateClient();
+      if (selected?.kind === "current") validateRequired(validateClient(),!active.file?.save_token);
       else if (dirty() && snapshot().file?.path === selected.file.path) await save();
+      const current = snapshot();
+      try { validateRequired(current.details,!current.file?.save_token,false); }
+      catch(error) {
+        if (!$("view-quotes").hidden && (!selected || selected.kind === "current" || selected.file?.path === current.file?.path)) {
+          if (selected?.kind !== "current") await openCurrent();
+          validateRequired(details(),!current.file?.save_token);
+        }
+        throw error;
+      }
     },
     projectSaved(savedDetails) {
       const active = snapshot(); rebaseCurrentRule(savedDetails || active.details);

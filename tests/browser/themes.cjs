@@ -154,16 +154,16 @@ async function readableMidnightIcon(control, transfer = false) {
   for(const appearance of [value,hover]) {
     if(transfer) {
       assert.equal(appearance.image.src,'/icons/takeoff-transfer.png');
-      assert.equal(appearance.background,appearance===hover&&!appearance.disabled?'rgb(255, 232, 134)':'rgb(255, 221, 83)');
-      assert.equal(appearance.color,'rgb(173, 0, 29)');
+      assert.equal(appearance.background,appearance===hover&&!appearance.disabled?'rgb(151, 0, 32)':'rgb(173, 0, 29)');
+      assert.equal(appearance.color,appearance===hover&&!appearance.disabled?'rgb(255, 232, 134)':'rgb(255, 221, 83)');
       // Measure the actual raster ink after applying the displayed filter to its opaque black source.
       const ink=await page.evaluate(filter=>{
         const canvas=document.createElement('canvas');canvas.width=canvas.height=1;
         const context=canvas.getContext('2d');context.filter=filter;context.fillRect(0,0,1,1);
         return Array.from(context.getImageData(0,0,1,1).data).slice(0,3);
       },appearance.image.filter);
-      assert.ok(ink[0]>90 && ink[0]>ink[1]*3 && ink[0]>ink[2]*2,'Transfer icon is red');
-      assert.ok(contrast(`rgb(${ink.join(',')})`,appearance.background)>=3,'Transfer icon contrasts with yellow');
+      assert.ok(ink[0]>200 && ink[1]>150 && ink[2]<150,'Transfer icon is yellow');
+      assert.ok(contrast(`rgb(${ink.join(',')})`,appearance.background)>=3,'Transfer icon contrasts with red');
     } else {
       assert.equal(appearance.image.filter,'brightness(0) invert(1)');
       assert.ok(contrast('rgb(255,255,255)',appearance.background)>=3,'white icon must contrast with its dark control');

@@ -55,6 +55,8 @@ async function clickProjectControl(page, name) {
 // This helper explicitly creates a real numbered Project. Callers testing
 // cancellation use clickProjectControl('New') and operate its modal directly.
 async function createNewProject(page, values = {}) {
+  values = {client:'Synthetic Project Company','site-address':'1 Synthetic Project Street',
+    contact_name:'Synthetic Project Contact',contact_phone:'0400 000 001',contact_email:'project@example.test',...values};
   await clickProjectControl(page,'New');
   const modal=page.locator('#project-new-dialog');await expect(modal).toBeVisible();
   if(values.client){
@@ -68,6 +70,7 @@ async function createNewProject(page, values = {}) {
     }
   }
   if(values['site-address'])await page.locator('#project-pane-address').fill(values['site-address']);
+  for (const [key,id] of Object.entries({contact_name:'project-pane-contact-name',contact_phone:'project-pane-contact-phone',contact_email:'project-pane-contact-email'})) await page.locator('#'+id).fill(values[key]);
   const response=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/project/save-as');
   await page.locator('#project-details-save').click();
   const review=page.locator('#discard-dialog');
@@ -85,8 +88,9 @@ async function fillProjectDetails(page, values, {waitForIdle = true} = {}) {
   await page.locator('#project-current-details').click();
   await expect(page.locator('#project-details-pane')).toBeVisible();
   for (const [id, value] of Object.entries(values)) {
-    if (!['client', 'site-address'].includes(id)) throw new Error('Unknown editable project detail: ' + id);
-    const input = page.locator(id === 'client' ? '#project-pane-client' : '#project-pane-address');
+    const ids={client:'project-pane-client','site-address':'project-pane-address',contact_name:'project-pane-contact-name',contact_phone:'project-pane-contact-phone',contact_email:'project-pane-contact-email'};
+    if (!Object.hasOwn(ids,id)) throw new Error('Unknown editable project detail: ' + id);
+    const input = page.locator('#'+ids[id]);
     const original = await input.inputValue();
     await input.fill(value);
     if (id === 'client' && original !== value && value) {
@@ -106,6 +110,12 @@ async function fillProjectDetails(page, values, {waitForIdle = true} = {}) {
       }
     }
     await input.blur();
+  }
+  // This helper prepares a savable synthetic Project. Missing-field tests edit
+  // controls directly so deliberate empty values are never repaired for them.
+  for (const [key,value] of Object.entries({contact_name:'Synthetic Project Contact',contact_phone:'0400 000 001',contact_email:'project@example.test'})) {
+    const input=page.locator('#project-pane-'+key.replaceAll('_','-'));
+    if (!Object.hasOwn(values,key) && !(await input.inputValue()).trim()) await input.fill(value);
   }
   if (previous && previous !== 'quotes') {
     if (['quote', 'work-orders', 'purchase-orders', 'scheduler', 'certification', 'documentation', 'swms', 'documents'].includes(previous)) await openProjectSection(page, previous);

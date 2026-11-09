@@ -5,7 +5,7 @@ Only canonical Contact IDs and unambiguous saved-file provenance establish a
 project/document relationship here; names and filesystem paths are not inputs.
 """
 
-from .account_relations import DOCUMENT_GROUPS, _identity, _project_label
+from .account_relations import DOCUMENT_GROUPS, _identity, _project_label, project_document_cards
 from .catalog import ValidationError
 from .commercial_sources import source_id
 
@@ -20,10 +20,13 @@ class ContactRelations:
         contact = next((row for row in directory["contacts"] if row["id"] == contact_id), None)
         if not _identity(contact_id) or contact is None:
             raise ValidationError("This contact could not be found. Reload the directory.")
-        linked = {kind: {} for kind in ("companies", "projects", "quotes", "work_orders", "purchase_orders")}
+        linked = {kind: {} for kind in ("companies", "projects", "leads", "quotes", "work_orders", "purchase_orders")}
         company = next((row for row in directory["accounts"] if row["id"] == contact.get("account_id")), None)
         if company:
             linked["companies"][company["id"]] = {"id": company["id"], "label": company["company"], "available": True}
+        for lead in directory['leads']:
+            if lead.get('contact_id') == contact_id:
+                linked['leads'][lead['id']] = {'id': lead['id'], 'label': lead['name'], 'available': True}
 
         # Both snapshots advance only the existing bounded authorized scans.
         # Match document source files before considering a unique-owner fallback:
@@ -45,7 +48,7 @@ class ContactRelations:
             if row.get("contact_id") == contact_id:
                 linked["projects"][token] = {"id": token, "label": _project_label(row), "available": True}
 
-        for document in register["documents"]:
+        for document in project_document_cards(register, listing['files']):
             group = DOCUMENT_GROUPS.get(document.get("kind"))
             owner, identifier = document.get("project_id"), document.get("id")
             if not group or not _identity(owner) or not _identity(identifier):

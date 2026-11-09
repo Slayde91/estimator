@@ -65,7 +65,9 @@ class TakeoffReceiptIntegrationTests(unittest.TestCase):
                 'evidence': [{'document_id': document['id'], 'page': 1, 'note': 'Retained synthetic drawing'}]})
             item_id = state['snapshot']['items'][0]['id']
             command('review_items', item_ids=[item_id]); command('confirm_items', item_ids=[item_id])
-            baseline = json.loads(export_project(store, {'estimate': {'title': 'Synthetic takeoff receipt test'}}))
+            baseline = json.loads(export_project(store, {'estimate': {'title': 'Synthetic takeoff receipt test',
+                'project_no': 'PN-RECEIPT', 'client': 'Synthetic Company', 'site_address': 'Synthetic Site',
+                'contact_name': 'Synthetic Contact', 'contact_phone': '0400 000 001', 'contact_email': 'project@example.test'}}))
             calculators = {key: {field: deepcopy(value[field]) for field in ('inputs', 'schedule_rows')}
                            for key, value in baseline['calculators'].items()}
             original = calculators['steel_vermiculite']

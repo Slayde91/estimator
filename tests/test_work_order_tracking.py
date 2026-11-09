@@ -17,6 +17,7 @@ from estimator.certification import CertificationService
 from estimator.certification_projects import CertificationProjects
 from estimator.work_order_tracking import template
 from tests.test_commercial_documents import Projects
+from tests.commercial_ready_fixtures import complete_quote, complete_work_order
 from test_certification import pdf
 
 INK={'version':1,'ratio':3,'strokes':[[[0,0],[.5,1],[1,0]]]}
@@ -32,7 +33,7 @@ class WorkOrderTrackingTests(unittest.TestCase):
         self.project=self.certifications.project_id(self.cert_workspace)
         self.projects=Projects(self.root); self.workspace=self.projects.add(self.project)
         self.store=CommercialDocuments(self.projects,renderer=lambda *args,**kwargs:pdf('Immutable fixture receipt'))
-        fields=default_fields('quote'); fields['terms']=''
+        fields=complete_quote(default_fields('quote')); fields['terms']='<p>N / A</p>'
         fields['lines']=[{'estimate_id':'same-estimate','description':label,'quantity':'1','unit_price':price,'size':'','comments':''}
                          for label,price in [('Paid item','125.25'),('Free item','0'),('Credit item','-5'),('Paid item','125.25')]]
         self.quote=self.save('quote',fields)
@@ -44,7 +45,7 @@ class WorkOrderTrackingTests(unittest.TestCase):
             'version':previous['version'] if previous else 0,'kind':kind,'status':'Draft','fields':fields})
 
     def fields(self):
-        fields=default_fields('work_order');fields['details']['project_no']='PN-01'
+        fields=complete_work_order(default_fields('work_order'));fields['details']['project_no']='PN-01'
         fields['order'].update(quote_id=self.quote['id'],quote_reference=self.quote['last_number'])
         fields['work_tracking']=self.store.view(self.workspace,include_quote_totals=True)['quote_rows'][self.quote['id']][self.quote['last_number']]
         return fields

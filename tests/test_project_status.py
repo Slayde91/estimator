@@ -12,6 +12,11 @@ from estimator.project_library import ProjectLibrary, file_fingerprint
 from estimator.storage import Store
 
 
+SAVE_DETAILS = {'project_no': 'PN-STATUS', 'client': 'Synthetic Company', 'site_address': 'Synthetic Site',
+                'contact_name': 'Synthetic Contact', 'contact_phone': '0400 000 001',
+                'contact_email': 'project@example.test'}
+
+
 class ProjectStatusTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -69,7 +74,7 @@ class ProjectStatusTests(unittest.TestCase):
         file = self.change("Presented")
         loaded = self.library.load(file["id"])
         snapshot = json.loads(self.path.read_bytes())
-        request = {"save_token": loaded["file"]["save_token"], "estimate": snapshot["estimate"],
+        request = {"save_token": loaded["file"]["save_token"], "estimate": {**snapshot["estimate"], **SAVE_DETAILS},
                    "calculators": {key: {"inputs": value["inputs"], "schedule_rows": value["schedule_rows"]}
                                    for key, value in snapshot["calculators"].items()}}
         saved = self.library.save(request)
@@ -99,7 +104,7 @@ class ProjectStatusTests(unittest.TestCase):
                 return SaveSelection(str(self.path), file_fingerprint(self.path))
 
         self.library.dialogs = Dialogs()
-        request = {"estimate": snapshot["estimate"],
+        request = {"estimate": {**snapshot["estimate"], **SAVE_DETAILS},
                    "calculators": {key: {"inputs": value["inputs"]}
                                    for key, value in snapshot["calculators"].items()}}
         result = self.library.save_as(request)

@@ -129,6 +129,9 @@ async function download(host) {
   let work = page.locator('#commercial-work-order-root'); await work.getByRole('button', {name:'New Work Order', exact:true}).click(); await idle();
   await work.getByLabel('Document title', {exact:true}).fill(workTitle);
   await work.getByLabel('Linked Quote', {exact:true}).selectOption(originalQuote.id);
+  await work.getByLabel('Proposed start date', {exact:true}).fill('2026-11-10');
+  await work.getByLabel('Category / urgency', {exact:true}).selectOption('Medium Priority');
+  await work.getByLabel('Description of works', {exact:true}).fill('Synthetic tracking fixture installation');
   const percentages = {completed_percent:['', '1', '37.5', '100'], claimed_percent:['100', '', '1', '37.5']};
   for (const [key, values] of Object.entries(percentages)) {
     const rows = trackingRows(work, key); await expect(rows).toHaveCount(4);

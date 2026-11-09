@@ -43,7 +43,9 @@ class DownloadDestinationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         with tempfile.TemporaryDirectory() as directory:
-            data = json.loads(export_project(Store(Path(directory) / 'seed.sqlite3'), {'estimate': {'title': 'Exact project'}}))
+            data = json.loads(export_project(Store(Path(directory) / 'seed.sqlite3'), {'estimate': {
+                'title':'Exact project','project_no':'PN-DOWNLOAD','client':'Synthetic Company','site_address':'Synthetic Site',
+                'contact_name':'Synthetic Contact','contact_phone':'0400 000 001','contact_email':'project@example.test'}}))
         cls.project_request = {key: data[key] for key in ('estimate', 'calculators')}
         cls.project_request['calculators'] = {key: {'inputs': value['inputs'], 'schedule_rows': value['schedule_rows']}
                                             for key, value in data['calculators'].items()}
@@ -275,11 +277,13 @@ class DownloadApiTests(unittest.TestCase):
 
     def test_project_folder_is_captured_before_report_render_and_survives_concurrent_save(self):
         self.dialogs.selection = SaveSelection(str(self.folder / 'Captured project.cf.json'), None)
-        status, _, raw = self.request('/api/project/save-as', {'estimate': {'title': 'Capture before rendering'}})
+        status, _, raw = self.request('/api/project/save-as', {'estimate': {
+            'title':'Capture before rendering','client':'Synthetic Company','site_address':'Synthetic Site',
+            'contact_name':'Synthetic Contact','contact_phone':'0400 000 001','contact_email':'project@example.test'}})
         self.assertEqual(status, 200, raw[:500])
         saved = json.loads(raw)
         project = saved['project']
-        request = {'save_token': saved['file']['save_token'], 'estimate': {key: project['estimate'][key] for key in ('title', 'workflow', 'measurements', 'inputs', 'configuration', 'project_no', 'client', 'site_address')},
+        request = {'save_token': saved['file']['save_token'], 'estimate': {key: project['estimate'][key] for key in ('title', 'workflow', 'measurements', 'inputs', 'configuration', 'project_no', 'client', 'site_address','contact_name','contact_phone','contact_email','account_id','contact_id','billing_address','abn_acn')},
                    'calculators': {key: {'inputs': value['inputs'], 'schedule_rows': value['schedule_rows']} for key, value in project['calculators'].items()}}
         def render(_, *, company):
             self.assertEqual(company['email'], DEFAULTS['email'])

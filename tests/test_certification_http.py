@@ -17,6 +17,7 @@ from estimator.native_dialogs import SaveSelection
 from estimator.company_settings import DEFAULTS
 from estimator.server import create_server
 from estimator.storage import Store
+from test_certification_projects import project_estimate
 
 
 def pdf(text, width=400, height=600):
@@ -82,7 +83,7 @@ class CertificationHTTPTests(unittest.TestCase):
         previous = self.chooser.selection
         self.chooser.selection = SaveSelection(str(folder / 'Project.cf.json'), None)
         try:
-            self.json('POST', '/api/project/save-as', {'estimate': {'title': 'Fixture project'},
+            self.json('POST', '/api/project/save-as', {'estimate': project_estimate(title='Fixture project'),
                 'certifications': {'workspace_id': workspace['workspace_id'], 'draft': None}})
         finally:
             self.chooser.selection = previous

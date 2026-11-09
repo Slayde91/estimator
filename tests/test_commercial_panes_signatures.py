@@ -18,6 +18,7 @@ from estimator.catalog import ValidationError
 from estimator.commercial_documents import CommercialConflict, CommercialDocuments, default_fields, validate_fields
 from estimator.commercial_http import CommercialHTTP
 from tests.test_commercial_documents import Projects
+from tests.commercial_ready_fixtures import complete_quote, complete_work_order, INK
 import tests.test_saved_commercial as saved_helpers
 
 
@@ -49,8 +50,8 @@ class CommercialPaneSignerTests(unittest.TestCase):
         self.assertNotIn('signatures', restored)
 
     def test_three_signer_names_dates_and_vector_ink_persist_in_pdf_without_global_defaults(self):
-        fields = default_fields('work_order')
-        quote_fields = default_fields('quote'); quote_fields['terms'] = ''
+        fields = complete_work_order(default_fields('work_order'))
+        quote_fields = complete_quote(default_fields('quote')); quote_fields['terms'] = '<p>N / A</p>'
         quote = self.save('quote', quote_fields)
         issued_quote = self.store.issue(self.workspace, quote['id'], quote['version'], str(uuid4()))
         fields['order']['quote_id'] = issued_quote['document']['id']
@@ -89,7 +90,7 @@ class CommercialPaneSignerTests(unittest.TestCase):
     def test_quote_notes_and_files_use_existing_cas_owner_and_frozen_revision_rules(self):
         data = BytesIO(); canvas = Canvas(data); canvas.drawString(25, 50, 'Original Quote attachment'); canvas.save()
         attachment = self.store.files.add(self.project, 'quote-source.pdf', base64.b64encode(data.getvalue()).decode())
-        fields = default_fields('quote'); fields['terms'] = ''; fields['files'] = [attachment]
+        fields = complete_quote(default_fields('quote')); fields['terms'] = '<p>N / A</p>'; fields['files'] = [attachment]
         fields['notes'] = [{'id':str(uuid4()),'title':'Quote note','body':'<p>Saved note</p>',
                            'author':'Fixture user','updated_at':'2026-11-08T01:00:00Z'}]
         quote = self.save('quote', fields)
@@ -116,9 +117,10 @@ class CommercialPaneSignerTests(unittest.TestCase):
             legacy['order'].pop(key)
         self.assertFalse(any(key in validate_fields(legacy, kind='work_order')['order']
                              for key in ('claimed_by', 'claim_date')))
-        quote_fields = default_fields('quote'); quote_fields['terms'] = ''
+        quote_fields = complete_quote(default_fields('quote')); quote_fields['terms'] = '<p>N / A</p>'
         quote = self.save('quote', quote_fields)
         quote = self.store.issue(self.workspace, quote['id'], quote['version'], str(uuid4()))['document']
+        fields = complete_work_order(fields)
         fields['order'].update(quote_id=quote['id'], claimed_by='Claim Person', claim_date='2026-11-09')
         ink = {'version':1, 'ratio':3, 'strokes':[[[0,0],[.5,1],[1,0]]]}
         fields['signatures'] = {'claimed_by':ink}
@@ -187,18 +189,20 @@ class CommercialPaneSignerTests(unittest.TestCase):
                    'contact_name':'Project Contact','contact_phone':'0400 123 456','contact_email':'project@example.test'}
         expected = {'project_no':'PN-01','client':'Project Company','site_address':'Project site',
                     'contact':'Project Contact','phone':'0400 123 456','email':'project@example.test','date':'2026-11-08'}
+        issued_quote = None
         for kind in ('quote','work_order','purchase_order'):
             with self.subTest(kind=kind):
                 fields = default_fields(kind); fields['details'] = dict.fromkeys(fields['details'], 'Forged document identity')
                 fields['details']['date'] = '2026-11-08'
                 if kind=='work_order':
                     fields['details']['project_no'] = 'PN-01'
-                    quote = next(row for row in self.store.view(self.workspace)['documents'] if row['kind']=='quote')
-                    issued = self.store.issue(self.workspace, quote['id'], quote['version'], str(uuid4()))
-                    fields['order']['quote_id'] = issued['document']['id']
+                    fields['order']['quote_id'] = issued_quote['id']
                 payload = {'workspace_id':self.workspace,'kind':kind,'status':'Draft','fields':fields,'project_details':project}
                 saved = http.execute('save', payload)
                 self.assertEqual(saved['fields']['details'], expected)
+                if kind == 'quote':
+                    issued_quote = self.store.issue(self.workspace, saved['id'], saved['version'], str(uuid4()))['document']
+                    saved = issued_quote
                 blank = {key:('PN-01' if key=='project_no' else '') for key in project}
                 cleared = http.execute('save', {**payload,'fields':saved['fields'],'id':saved['id'],'version':saved['version'],'project_details':blank})
                 self.assertEqual(cleared['fields']['details'], {key:(expected[key] if key in ('date','project_no') else '') for key in expected})
@@ -222,14 +226,15 @@ class CommercialPaneSignerTests(unittest.TestCase):
         derive.assert_not_called()
 
     def test_bound_work_order_retains_owned_number_while_other_project_details_follow_current_project(self):
-        quote = self.save('quote', default_fields('quote'))
+        quote = self.save('quote', complete_quote(default_fields('quote')))
         quote = self.store.issue(self.workspace, quote['id'], quote['version'], str(uuid4()))['document']
-        fields = default_fields('work_order'); fields['order']['quote_id'] = quote['id']
+        fields = complete_work_order(default_fields('work_order')); fields['order']['quote_id'] = quote['id']
         work = self.save('work_order', fields)
         current = {'project_no':'PN-99','client':'Updated Company','site_address':'Updated site',
                    'contact_name':'Updated Contact','contact_phone':'0400 999 888','contact_email':'updated@example.test'}
         http = CommercialHTTP(self.store)
         changed = deepcopy(work['fields']); changed['order'].update(approval='Approved',reviewed_by='Reviewer',review_date='2026-11-08')
+        changed.setdefault('signatures', {})['reviewed_by'] = deepcopy(INK)
         saved = http.execute('save', {'workspace_id':self.workspace,'id':work['id'],'version':work['version'],'kind':'work_order','status':'Review',
                                      'fields':changed,'project_details':current})
         self.assertEqual(saved['fields']['details']['project_no'], 'PN-01')
@@ -268,7 +273,7 @@ class CommercialPaneSignerTests(unittest.TestCase):
         for kind in ('quote','purchase_order','work_order'):
             raw = ('Original '+kind+' evidence').encode()
             attachment = self.store.files.add(self.project, kind+'-source.txt', base64.b64encode(raw).decode())
-            fields = default_fields(kind); fields['files'] = [attachment]
+            fields = complete_quote(default_fields(kind)) if kind == 'quote' else default_fields(kind); fields['files'] = [attachment]
             if kind=='work_order':
                 issued = self.store.issue(self.workspace, quote['id'], quote['version'], str(uuid4()))
                 fields['order']['quote_id'] = issued['document']['id']
@@ -302,7 +307,7 @@ class SavedQuotePaneTests(unittest.TestCase):
         card=self.register()['documents'][0];self.source={'file_id':card['source_file'],'revision':card['source_revision']}
         issued=self.perform('issue',kind='quote',id=self.document['id'],version=self.document['version'],request_id=str(uuid4()))
         self.source['revision']=issued['revision']
-        fields=default_fields('work_order', {'project_no':'PN-01'});fields['order']['quote_id']=self.document['id']
+        fields=complete_work_order(default_fields('work_order', {'project_no':'PN-01'}),'Review');fields['order']['quote_id']=self.document['id']
         created=self.perform('save',kind='work_order',status='Draft',fields=fields);self.source['revision']=created['revision'];work=created['result']
         snapshot=json.loads(self.path.read_bytes());snapshot['estimate'].update(project_no='PN-99',contact_name='Current owner contact',contact_email='current@example.test')
         self.path.write_text(json.dumps(snapshot),encoding='utf-8');self.library.commercial_register(refresh=True)

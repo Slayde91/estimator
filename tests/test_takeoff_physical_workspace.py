@@ -291,7 +291,9 @@ class PhysicalWorkspaceTests(unittest.TestCase):
             dialogs = Dialogs(); library = ProjectLibrary(self.case.store, dialogs, takeoffs=service)
             resources.callback(library.close)
             target = root/'original.cf.json'; dialogs.selection = SaveSelection(str(target), None)
-            baseline = json.loads(export_project(self.case.store, {'estimate': {'title': 'Synthetic portable image test'}}))
+            baseline = json.loads(export_project(self.case.store, {'estimate': {'title': 'Synthetic portable image test',
+                'project_no': 'PN-IMAGE', 'client': 'Synthetic Company', 'site_address': 'Synthetic Site',
+                'contact_name': 'Synthetic Contact', 'contact_phone': '0400 000 001', 'contact_email': 'project@example.test'}}))
             calculators = {key: {field: value[field] for field in ('inputs', 'schedule_rows')} for key, value in baseline['calculators'].items()}
             library.save_as({'estimate': baseline['estimate'], 'calculators': calculators,
                 'takeoffs': state['snapshot'], 'takeoffs_session_id': sid})

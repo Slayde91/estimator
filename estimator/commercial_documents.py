@@ -17,6 +17,7 @@ from .commercial_files import WorkOrderFiles, validate_files
 from .document_numbers import DocumentNumbers, valid_reference, validated_counters
 from .company_settings import DEFAULTS as COMPANY_DEFAULTS
 from .evidence_files import _directory
+from .commercial_requirements import require_ready, requirements
 
 KINDS = {'quote': 'Quote', 'work_order': 'Work Order', 'purchase_order': 'Purchase Order'}
 STATUSES = {
@@ -89,7 +90,7 @@ def apply_project_document_details(fields, details):
     fields.pop('detail_overrides', None)
 
 
-def validate_rate_schedule(value):
+def validate_rate_schedule(value, *, allow_blank=False):
     if not isinstance(value, dict) or set(value) != {'introduction', 'rates', 'acceptance'}:
         raise ValidationError('Schedule of Rates uses an unsupported format.')
     if not isinstance(value['rates'], dict) or set(value['rates']) != set(RATE_DEFAULTS):
@@ -97,7 +98,8 @@ def validate_rate_schedule(value):
     if not isinstance(value['acceptance'], dict) or set(value['acceptance']) != {'accepted_by', 'title', 'signature', 'date'}:
         raise ValidationError('Include the Schedule of Rates acceptance fields.')
     return {'introduction': _text(value['introduction'], 'Schedule of Rates introduction', 20000),
-            'rates': {key: _number(amount, 'Schedule of Rates amount') for key, amount in value['rates'].items()},
+            'rates': {key: '' if allow_blank and amount == '' else _number(amount, 'Schedule of Rates amount')
+                      for key, amount in value['rates'].items()},
             'acceptance': {key: _text(text, 'Acceptance', 1000) for key, text in value['acceptance'].items()}}
 
 
@@ -311,7 +313,7 @@ def validate_fields(value, *, kind=None):
     result = {'title': _text(value['title'], 'Title', 300)}
     if 'detail_overrides' in value:
         result['detail_overrides'] = detail_override_keys(value['detail_overrides'])
-    result['rate_schedule'] = validate_rate_schedule(value.get('rate_schedule', default_rate_schedule()))
+    result['rate_schedule'] = validate_rate_schedule(value.get('rate_schedule', default_rate_schedule()), allow_blank=True)
     files = validate_files(value.get('files', []))
     if files:
         if kind not in (*KINDS, None):
@@ -759,7 +761,8 @@ class CommercialDocuments:
             project = self._workspace(db, workspace)
             snapshot = self._snapshot(db, workspace, project)
             documents = snapshot['documents']
-            result = {'workspace_id': workspace, 'project_id': project, 'documents': documents, 'snapshot': snapshot, 'statuses': STATUSES}
+            result = {'workspace_id': workspace, 'project_id': project, 'documents': documents, 'snapshot': snapshot, 'statuses': STATUSES,
+                      'requirements': requirements(STATUSES)}
             if include_quote_totals:
                 links = {(doc['id'], doc['last_number']) for doc in documents if doc['kind'] == 'quote' and doc['last_number']}
                 for doc in documents:
@@ -993,6 +996,7 @@ class CommercialDocuments:
                         self.unfiled.enroll(db, workspace, previous['id'], unfiled_context)
                     return previous
                 raise CommercialConflict('This new document was already saved with different content. Reopen it before editing.')
+            require_ready(kind, payload['status'], fields)
             now = datetime.now(timezone.utc).isoformat()
             document = {'id': previous['id'] if previous else payload.get('id') or str(uuid.uuid4()), 'kind': kind,
                         'version': previous['version'] + 1 if previous else 1, 'status': payload['status'], 'fields': fields,
@@ -1038,12 +1042,16 @@ class CommercialDocuments:
     def status(self, workspace, identity, version, status):
         with self._connect() as db:
             db.execute('BEGIN IMMEDIATE')
-            self._workspace(db, workspace)
+            project = self._workspace(db, workspace)
             previous = self._record(db, workspace, identity)
             self._version(previous, version)
             if status not in STATUSES[previous['kind']]:
                 raise ValidationError('Choose a valid document status.')
             document = deepcopy(previous)
+            if document['kind'] == 'work_order' and status != 'Draft':
+                self._relationships(db, workspace, project, document['kind'], document['fields'], previous)
+                self._validate_tracking(db, project, document['fields'], previous)
+            require_ready(document['kind'], status, document['fields'])
             document.update(status=status, version=version + 1, updated_at=datetime.now(timezone.utc).isoformat())
             db.execute('UPDATE commercial_drafts SET data=? WHERE workspace=? AND id=?', (_json(document), workspace, identity))
             self._audit(db, workspace, identity, 'status', previous, document)
@@ -1110,6 +1118,7 @@ class CommercialDocuments:
                 self._validate_tracking(db, project, document['fields'], previous)
             if kind == 'work_order' and order['quote_id'] and not order['estimated_cost']:
                 order['estimated_cost'] = self._linked_quote_total(db, workspace, project, order['quote_id'], order['quote_reference'])
+            require_ready(kind, document['status'], document['fields'], operation='issue')
             label = (self.numbering.assign(db, kind, project + ':issue:' + request_id) if kind == 'quote' else document['reference'])
             if self.renderer is None:
                 from .commercial_pdf import render_commercial_pdf

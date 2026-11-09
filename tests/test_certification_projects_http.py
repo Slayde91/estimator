@@ -12,7 +12,7 @@ from estimator.project_file import export_project
 from estimator.server import create_server
 from estimator.storage import Store
 import test_certification_http as helpers
-from test_certification_projects import fields
+from test_certification_projects import fields, project_estimate
 from test_project_library import Chooser
 
 
@@ -72,7 +72,7 @@ class CertificationProjectsHTTPTests(unittest.TestCase):
         frozen = self.request('GET', generated['revision']['pdf_url'])[2]
         capture = {'workspace_id': workspace['workspace_id'], 'draft': {'id': document['id'], 'version': 2,
                    'fields': {**document['fields'], 'location_area': 'Uncommitted current UI field'}, 'options': document['options']}}
-        request = {'estimate': {'title': 'Alpha'}, 'certifications': capture}
+        request = {'estimate': project_estimate(title='Alpha'), 'certifications': capture}
         # A cancelled native save creates neither a project JSON nor companion.
         self.assertEqual(self.json('POST', '/api/project/save-as', request), {'cancelled': True})
         self.assertFalse((self.root / '.ceasefire-evidence').exists())

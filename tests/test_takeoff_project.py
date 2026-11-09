@@ -32,7 +32,9 @@ class TakeoffProjectTests(unittest.TestCase):
     def setUpClass(cls):
         with tempfile.TemporaryDirectory() as directory:
             source = Store(Path(directory) / 'source.sqlite3')
-            cls.legacy = export_project(source, {'estimate': {'title': 'Takeoff QA', 'inputs': {'B15': 1.125}}})
+            cls.legacy = export_project(source, {'estimate': {'title': 'Takeoff QA', 'inputs': {'B15': 1.125},
+                'project_no':'PN-TAKEOFF','client':'Synthetic Company','site_address':'Synthetic Site',
+                'contact_name':'Synthetic Contact','contact_phone':'0400 000 001','contact_email':'project@example.test'}})
             saved = json.loads(cls.legacy)
             cls.base = {'estimate': saved['estimate'], 'calculators': {
                 key: {k: value[k] for k in ('inputs', 'schedule_rows')} for key, value in saved['calculators'].items()}}

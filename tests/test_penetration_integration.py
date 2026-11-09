@@ -105,7 +105,9 @@ class PenetrationIntegrationTests(unittest.TestCase):
                 return SaveSelection(str(target), file_fingerprint(target))
         library = ProjectLibrary(self.store, Dialogs())
         try:
-            saved = library.save_as({'estimate': {}, 'penetration': {'draft': self.draft()}})
+            saved = library.save_as({'estimate': {'project_no':'PN-PENETRATION','client':'Synthetic Company','site_address':'Synthetic Site',
+                                                 'contact_name':'Synthetic Contact','contact_phone':'0400 000 001','contact_email':'project@example.test'},
+                                     'penetration': {'draft': self.draft()}})
             project = saved['project']
             request = {'save_token': saved['file']['save_token'],
                        'estimate': {key: project['estimate'][key] for key in ESTIMATE_FIELDS},
@@ -177,7 +179,8 @@ class PenetrationIntegrationTests(unittest.TestCase):
         thread.start()
         previous, self.server = self.server, server
         try:
-            saved = self.request('POST', '/api/project/save-as', {'estimate': {}, 'penetration': {'draft': self.draft()}})
+            saved = self.request('POST', '/api/project/save-as', {'estimate': {'client':'Synthetic Company','site_address':'Synthetic Site',
+                'contact_name':'Synthetic Contact','contact_phone':'0400 000 001','contact_email':'project@example.test'},'penetration': {'draft': self.draft()}})
             self.assertEqual(saved[0], 200, saved[2])
             token = json.loads(saved[2])['file']['save_token']
             downloads = self.root / 'Downloads'

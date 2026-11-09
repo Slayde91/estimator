@@ -45,7 +45,7 @@ class CertificateLayoutTests(unittest.TestCase):
 
     def test_title_is_centered_uppercase_and_bottom_attestation_stays_regular(self):
         payload = self.render(client='BODYCLIENT', australian_standards='BODYSTANDARD', name='BODYSIGNER',
-                              statement_of_compliance='INTRODUCTIONTOKEN remains bold.')
+                              statement_of_compliance='INTRODUCTIONTOKEN uses regular weight.')
         with pdfplumber.open(BytesIO(payload)) as document:
             words = [word for page in document.pages
                      for word in page.extract_words(extra_attrs=['fontname', 'non_stroking_color'])]
@@ -67,7 +67,7 @@ class CertificateLayoutTests(unittest.TestCase):
             title = [by_text[word] for word in ('INSTALLATION', 'CERTIFICATE')]
             self.assertAlmostEqual((min(w['x0'] for w in title)+max(w['x1'] for w in title))/2, document.pages[0].width/2, delta=.1)
             self.assertTrue(all('Bold' in word['fontname'] for word in title))
-            self.assertIn('Bold', by_text['INTRODUCTIONTOKEN']['fontname'])
+            self.assertNotIn('Bold', by_text['INTRODUCTIONTOKEN']['fontname'])
             for word in words:
                 if word['text'] in ('approved', 'properly', 'knowledge.'):
                     self.assertNotIn('Bold', word['fontname'])

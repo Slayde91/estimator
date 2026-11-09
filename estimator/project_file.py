@@ -162,7 +162,9 @@ def project_summary(payload, *, edition='full'):
     from .commercial_documents import commercial_cards
     certificate = snapshot.get("certifications")
     source_project_id = certificate.get("project_id") if isinstance(certificate,dict) else None
+    from .directory_documents import snapshot_cards
     result = {"source_project_id": source_project_id, "commercial_cards": commercial_cards(snapshot.get("commercial_documents")), "estimate": {"title": title, **details},
+              "directory_cards": snapshot_cards(snapshot, source_project_id), "certification_manifest": certificate,
               "project_status": validate_project_status(snapshot.get("project_status", "Draft")),
               "clients": [details["client"]], "project_numbers": [details["project_no"]]}
     if "estimates" in snapshot or "active_estimate_id" in snapshot:

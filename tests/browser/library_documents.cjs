@@ -71,7 +71,8 @@ async function snapshot() { await idle(); return page.evaluate(() => ({ calculat
   assert.deepEqual(await snapshot(),before,'Menu actions and export preserve pricing, calculator and composer drafts');
   await page.locator('#estimate-navigation-toggle').click(); await expect(page.locator('#view-estimate')).toBeVisible();
   const scheduleMenu=page.locator('#firestopping-document-actions'), scheduleToggle=page.locator('[aria-controls="firestopping-document-actions"]');
-  assert.equal(await scheduleToggle.evaluate(e=>Boolean(e.closest('.project-estimate-controls')?.querySelector('#project-estimate-swms'))),true);
+  assert.equal(await scheduleToggle.evaluate(e=>Boolean(e.closest('.project-estimate-controls')?.querySelector('#project-estimate-new'))),true);
+  await expect(page.locator('#project-estimate-create,#project-estimate-quote,#project-estimate-swms')).toHaveCount(0);
   assert.equal(await scheduleToggle.evaluate(e=>document.querySelector('#download-quote-pdf').parentElement===document.getElementById(e.getAttribute('aria-controls'))),true,'Estimate Summary belongs to the existing Document list');
   await scheduleToggle.click();
   await expect(scheduleMenu.getByRole('button',{name:'Download Firestopping Schedule',exact:true})).toHaveCount(0);

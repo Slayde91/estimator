@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import re
 import sqlite3
+import unicodedata
 from uuid import uuid4
 
 from .catalog import ValidationError
@@ -16,6 +17,8 @@ ACCOUNT_FIELDS = ("company", "billing_address", "abn_acn")
 LEAD_FIELDS = (*PERSON_FIELDS, "site_address", "billing_address", "description", "status", "abn_acn")
 CONVERSION_REQUIRED_FIELDS = ("name", "phone", "company", "email", "site_address")
 CONVERSION_REQUIRED_MESSAGE = "Complete Name, Phone, Company, Email and Site address before converting this Lead."
+CONTACT_CREATION_REQUIRED_FIELDS = ("name", "phone", "company", "email")
+CONTACT_CREATION_REQUIRED_MESSAGE = "Complete Name, Phone, Company and Email before creating this Contact."
 LINK_KINDS = ("contacts", "projects", "quotes", "work_orders", "purchase_orders")
 FIELDS = {"leads": LEAD_FIELDS, "contacts": PERSON_FIELDS, "accounts": ACCOUNT_FIELDS}
 LIMITS = {"name": 160, "phone": 60, "company": 240, "title": 160, "email": 254,
@@ -227,6 +230,12 @@ class ContactsStore:
         if not isinstance(body, dict):
             raise ValidationError("Use the fields provided on this form.")
         data = checked_fields(kind, body.get("fields"))
+        # Explicit New Contact actions have minimum identity details. Legacy
+        # imports and edits retain their existing, more permissive contract.
+        if kind == "contacts" and not body.get("id") and any(
+                not ''.join(char for char in data[key] if unicodedata.category(char) != 'Cf').strip()
+                for key in CONTACT_CREATION_REQUIRED_FIELDS):
+            raise ValidationError(CONTACT_CREATION_REQUIRED_MESSAGE)
         if "links" in body and kind != "accounts":
             raise ValidationError("Related records can only be changed from a company.")
         with self.writing(body.get("version")) as db:

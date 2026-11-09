@@ -73,19 +73,20 @@ class _Paragraphs(HTMLParser):
         self.current.append(escape(data, quote=False))
 
 
-def _styles(*, quote=False, work_order=False):
+def _styles(*, quote=False, work_order=False, purchase_order=False):
+    branded_tables = quote or work_order or purchase_order
     return {
         'quote': quote,
-        'red_tables': quote or work_order,
+        'red_tables': branded_tables,
         'body': ParagraphStyle('CommercialBody', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=8.5, leading=12, spaceAfter=6),
         'small': ParagraphStyle('CommercialSmall', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=7, leading=10, spaceAfter=3),
         'title': ParagraphStyle('CommercialTitle', fontName=FONT_BOLD, bulletFontName=FONT_BOLD, fontSize=18, leading=22, textColor=RED, spaceAfter=14),
         'section': ParagraphStyle('CommercialSection', fontName=FONT_BOLD, bulletFontName=FONT_BOLD, fontSize=11, leading=15, textColor=RED, spaceBefore=14, spaceAfter=8, keepWithNext=True),
         'terms': ParagraphStyle('CommercialTerms', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=8, leading=11.5, spaceAfter=5),
         'head': ParagraphStyle('CommercialHead', fontName=FONT_BOLD, bulletFontName=FONT_BOLD, fontSize=8, leading=11,
-                               textColor=colors.white if quote or work_order else colors.black),
+                               textColor=colors.white if branded_tables else colors.black),
         'field': ParagraphStyle('CommercialField', fontName=FONT_BOLD, bulletFontName=FONT_BOLD, fontSize=7, leading=10,
-                                textColor=colors.white if quote or work_order else colors.black),
+                                textColor=colors.white if branded_tables else colors.black),
     }
 
 
@@ -321,7 +322,7 @@ def _quotation_header(page, logo, company, title='QUOTATION'):
 
 def _build(story, document, number, company, *, first_part=False):
     output = BytesIO()
-    frame_margin = 30 if document['kind'] in {'quote', 'work_order'} else 36
+    frame_margin = 30 if document['kind'] in {'quote', 'work_order', 'purchase_order'} else 36
     pdf = SimpleDocTemplate(output, pagesize=A4, leftMargin=frame_margin, rightMargin=frame_margin, topMargin=90, bottomMargin=32,
                             title=KINDS[document['kind']] + ' ' + number, author=company.get('name', ''))
     logo = company_logo(company)
@@ -333,6 +334,11 @@ def _build(story, document, number, company, *, first_part=False):
                 _company_header(page, logo, A4[0], A4[1], 36, '', company=company)
         elif document['kind'] == 'work_order' and first_part and doc.page == 1:
             _quotation_header(page, logo, company, 'WORK ORDER')
+        elif document['kind'] == 'purchase_order':
+            if first_part and doc.page == 1:
+                _quotation_header(page, logo, company, 'PURCHASE ORDER')
+            else:
+                _company_header(page, logo, A4[0], A4[1], 36, '', company=company)
         else:
             _company_header(page, logo, A4[0], A4[1], 36, KINDS[document['kind']].upper() + ' ' + number, company=company)
     pdf.build(story, onFirstPage=decorate, onLaterPages=decorate)
@@ -343,9 +349,9 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
     register_pdf_fonts()
     fields = validate_fields(document['fields'])
     kind = document['kind']
-    styles = _styles(quote=kind == 'quote', work_order=kind == 'work_order')
+    styles = _styles(quote=kind == 'quote', work_order=kind == 'work_order', purchase_order=kind == 'purchase_order')
     details, order = fields['details'], fields['order']
-    story = [] if kind in {'quote', 'work_order'} else [_paragraph(KINDS[kind].upper(), styles['title'])]
+    story = [] if kind in {'quote', 'work_order', 'purchase_order'} else [_paragraph(KINDS[kind].upper(), styles['title'])]
     number_label = {'work_order':'Work order reference', 'purchase_order':'Purchase Order No.'}.get(kind, 'Document number')
     _fields(story, [(number_label, number), ('Date', details['date']), ('Customer', details['client']),
                    ('Contact', details['contact']), ('Site address', details['site_address']), ('Project number', details['project_no'])], styles)
@@ -466,7 +472,7 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
         ]:
             _section(story, title, styles)
             if pairs:
-                narrative = _table(('Field', 'Details'), pairs, styles, [125, WIDTH - 125])
+                narrative = _table(None, pairs, styles, [125, WIDTH - 125])
                 narrative.splitInRow = 1
                 story.append(narrative)
             _purchase_order_signer(story, label, key, date_label, date_key, order, signatures, styles)

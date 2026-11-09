@@ -58,7 +58,11 @@ def main():
     seed = folder / 'seed.cf.json'
     # A fresh project shares its settings between schedule and composer. Empty
     # historical globals intentionally retain the old zero-waste interpretation.
-    seed.write_bytes(export_project(store, {'estimate': {'project_no': 'PROJECT-LIBRARY-QA', 'client': 'Synthetic client', 'measurements': 'Quote notes retained'}, 'calculators': {}, 'penetration': {'composer': composer, 'draft': {'globals': composer['globals'], 'rows': []}}}))
+    seed.write_bytes(export_project(store, {'estimate': {'project_no': 'PROJECT-LIBRARY-QA', 'client': 'Synthetic client',
+        'site_address': '1 Synthetic Library Street', 'contact_name': 'Synthetic Library Contact',
+        'contact_phone': '0400 000 001', 'contact_email': 'library@example.test',
+        'measurements': 'Quote notes retained'}, 'calculators': {},
+        'penetration': {'composer': composer, 'draft': {'globals': composer['globals'], 'rows': []}}}))
     fixture = folder / 'drawing.pdf'
     make_pdf(fixture)
     control = folder / 'dialog-mode.json'

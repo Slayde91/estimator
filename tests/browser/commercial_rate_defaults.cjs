@@ -46,7 +46,7 @@ async function discardQuote(host) {
   const createdResponse=page.waitForResponse(response=>response.url().endsWith('/api/project/save-as'));
   await clickProjectControl(page,'Save'); assert.equal((await createdResponse).status(),200); await idle();
   await page.getByRole('button',{name:'Estimates',exact:true}).click();
-  await page.locator('#project-estimate-quote').click();
+  await page.locator('[aria-controls="firestopping-document-actions"]').click();await page.locator('#estimate-open-quote').click();
   const quote=page.locator('#commercial-quote-root');
   await expect(quote.getByLabel('Ordinary time',{exact:true})).toHaveValue('130');
   await expect(quote.getByLabel('Access Equipment Transport',{exact:true})).toHaveCount(0);
@@ -180,7 +180,7 @@ async function discardQuote(host) {
   assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),newProject);
   assert.equal(fs.readFileSync(info.project,'utf8'),originalFile,'New Project preserves the original protected quote file');
   await page.getByRole('button',{name:'Estimates',exact:true}).click();
-  await page.locator('#project-estimate-quote').click();
+  await page.locator('[aria-controls="firestopping-document-actions"]').click();await page.locator('#estimate-open-quote').click();
   await expect(ordinary).toHaveValue('142'); await expect(quote.getByLabel('Time and a half',{exact:true})).toHaveValue('177');
   await discardQuote(quote);
   await page.reload(); await idle();

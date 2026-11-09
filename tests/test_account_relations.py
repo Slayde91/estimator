@@ -91,7 +91,7 @@ class AccountRelationsTests(unittest.TestCase):
 
     def test_unknown_targets_and_stale_version_cannot_partially_update_account_or_contacts(self):
         original = self.save("accounts", {"company": "Original"})
-        self.save("contacts", {"name": "Alex", "company": "Elsewhere"})
+        self.save("contacts", {"name": "Alex", "company": "Elsewhere", "phone": "111", "email": "alex@example.test"})
         person = self.store.list()["contacts"][0]
         before = self.store.list()
         links = empty_links(contacts=[person["id"]], projects=["C:/arbitrary/private.cf.json"])

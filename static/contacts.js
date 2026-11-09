@@ -5,6 +5,8 @@
   const labels = {name: "Name", phone: "Phone", company: "Company", title: "Title", email: "Email", abn_acn: "ABN/ACN",
     site_address: "Site address", billing_address: "Billing address", description: "Description", status: "Status"};
   const personFields = ["name", "phone", "company", "title", "email"];
+  const contactRequired = ["name", "phone", "company", "email"];
+  const meaningful = value => Boolean(value.replace(/\p{Cf}/gu, '').trim());
   let page = "leads", data, search = "", generation = 0, saving = false, editorSequence = 0, editorRequest = 0, converting = null, accountEditor = null;
   const linkTitles = {contacts: "Contacts", projects: "Projects", quotes: "Quotes", work_orders: "Work Orders", purchase_orders: "Purchase Orders"};
   const root = () => document.getElementById("contacts-root");
@@ -125,6 +127,11 @@
     dialog.setAttribute("aria-labelledby", heading.id);
     form.append(heading, notice());
     const fields = {};
+    const newContact = kind === 'contacts' && !record.id && !readOnly;
+    const fieldErrors = {};
+    // Collect inline errors together before any directory write; native
+    // validation remains unchanged for legacy edits and other directory forms.
+    if (newContact) form.noValidate = true;
     function group(headingText, keys) {
       const section = el("fieldset", "contacts-group");
       section.append(ui("legend", "", headingText));
@@ -144,11 +151,20 @@
           input.type = key === "email" ? "email" : key === "phone" ? "tel" : "text";
         }
         input.value = record[key] || (key === "status" ? directory.statuses[0] : "");
-        input.required = key === "name" || (key === "company" && kind !== "contacts");
+        input.required = newContact ? contactRequired.includes(key) : key === "name" || (key === "company" && kind !== "contacts");
         input.name = key;
         if (readOnly) { if (input.tagName === "SELECT") input.disabled = true; else input.readOnly = true; }
         fields[key] = input;
         label.append(input);
+        if (newContact && contactRequired.includes(key)) {
+          input.setAttribute('aria-label',labels[key]);window.CeasefireI18n?.attr(input,'aria-label',labels[key]);
+          const error = ui('span', 'contacts-field-error', 'This field is required.');
+          error.id = heading.id + '-' + key + '-error'; error.hidden = true;
+          input.setAttribute('aria-describedby', error.id);
+          input.setAttribute('aria-required', 'true');
+          input.addEventListener('input', () => {input.setCustomValidity('');input.removeAttribute('aria-invalid');error.hidden=true;});
+          fieldErrors[key] = error; label.append(error);
+        }
         section.append(label);
       }
       form.append(section);
@@ -500,6 +516,19 @@
     form.addEventListener("submit", async event => {
       event.preventDefault();
       if (readOnly || submitting || saving || loadingLinks || !linksReady) return;
+      if (newContact) {
+        let first;
+        for (const key of contactRequired) {
+          const input = fields[key], missing = !meaningful(input.value);
+          input.setCustomValidity(missing ? (window.CeasefireI18n?.translate?.('This field is required.') || 'This field is required.') : '');
+          const invalid = !input.checkValidity();
+          fieldErrors[key].hidden = !invalid;
+          copy(fieldErrors[key], missing ? 'This field is required.' : 'Enter a valid email address.');
+          if (invalid) {input.setAttribute('aria-invalid','true');first ||= input;}
+          else input.removeAttribute('aria-invalid');
+        }
+        if (first) {feedback(form,'Complete Name, Phone, Company and Email before creating this Contact.',true);first.focus();return;}
+      }
       submitting = saving = true;
       save.disabled = cancel.disabled = true;
       form.setAttribute("aria-busy", "true");

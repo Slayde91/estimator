@@ -20,7 +20,6 @@ from .quote_details import compile_work_summary
 from .storage import Store, WORKFLOWS
 from .edition import excluded_route, features, render_index, require_project_edition, validate_edition
 from .travel import TravelService, TravelError
-from .certification import validate_complete_fields
 
 MAX_BODY = 24 * 1_048_576
 MAX_PRICING_FILE = 5 * 1_048_576
@@ -547,7 +546,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         raise ValidationError('Unknown certification fields.')
                     options = {'options': body['options']} if 'options' in body else {}
                     service, token = certificate_context(self.path)
-                    self.send_payload(201, certificate_response(token, service.create(validate_complete_fields(body.get('fields', {})), body.get('request_id'), **options)))
+                    self.send_payload(201, certificate_response(token, service.create(body.get('fields', {}), body.get('request_id'), **options)))
                 elif route == '/api/certifications/workspaces':
                     if self.command != 'POST' or body:
                         raise ValidationError('Create a fresh certificate workspace without other fields.')
@@ -587,7 +586,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         raise ValidationError('Include the certificate details and current version.')
                     options = {'options': body['options']} if 'options' in body else {}
                     service, token = certificate_context(self.path)
-                    self.send_payload(200, certificate_response(token, service.save(route.rsplit('/', 1)[1], validate_complete_fields(body['fields']), body['expected_version'], **options)))
+                    self.send_payload(200, certificate_response(token, service.save(route.rsplit('/', 1)[1], body['fields'], body['expected_version'], **options)))
                 elif route == '/api/libraries/penetration':
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})

@@ -3212,5 +3212,10 @@
   "Complete required {0} fields: {1}.": "Complétez les champs obligatoires de {0} : {1}.",
   "Saved certificate records are unavailable.": "Les certificats enregistrés sont indisponibles.",
   "The other pricing draft is still available and was not included.": "L’autre brouillon tarifaire reste disponible et n’a pas été inclus.",
-  "Later edits are not included and still need saving.": "Les modifications ultérieures ne sont pas incluses et doivent encore être enregistrées."
+  "Later edits are not included and still need saving.": "Les modifications ultérieures ne sont pas incluses et doivent encore être enregistrées.",
+  "This field is required.": "Ce champ est obligatoire.",
+  "Complete Name, Phone, Company and Email before creating this Contact.": "Renseignez le nom, le téléphone, la société et l’adresse e-mail avant de créer ce contact.",
+  "Complete required SWMS fields: {0}.": "Renseignez les champs SWMS obligatoires : {0}.",
+  "High Risk Work": "Travaux à haut risque",
+  "Type of Works or Additional Job Steps": "Type de travaux ou étapes supplémentaires"
 }

@@ -40,7 +40,7 @@ async function settings(){await page.getByRole('button',{name:'Settings',exact:t
   await openProjectSection(page,'certification');await idle();await expect(page.locator('#certification-name')).toHaveValue(first.name);
   const workspace=await page.evaluate(()=>window.CeasefireCertification.sessionId());
   const old=await (await page.request.get(base+'/api/certifications/'+document.id+'?workspace='+workspace)).json();assert.equal(old.fields.name,first.name);
-  await page.locator('#certification-document').selectOption('');await idle();for(const name of Object.keys(first))await expect(page.locator('#certification-'+name)).toHaveValue('');
+  await page.getByRole('button',{name:'New certificate',exact:true}).click();await idle();for(const name of Object.keys(first))await expect(page.locator('#certification-'+name)).toHaveValue('');
   await sign();await expect(page.locator('#certification-name')).toHaveValue('Updated future signer');
   checks.push('Existing certificate snapshot retains its signer; New stays blank until signing reads updated Settings');
   const beforeEdit=await defaults(),writesBeforeEdit=profileWrites.length;

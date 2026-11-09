@@ -42,6 +42,17 @@ class DirectoryTests(unittest.TestCase):
         finally:
             client.close()
 
+    def test_new_contact_minimum_fields_are_enforced_before_http_directory_writes(self):
+        before = self.request('directory')
+        complete = {'name': 'Required Contact', 'phone': '0400', 'company': 'Manual Company', 'email': 'person@example.test'}
+        for field in complete:
+            with self.subTest(field=field):
+                self.request('contacts', {'version': before['version'], 'fields': {**complete, field: ''}}, expected=400)
+                self.assertEqual(self.request('directory'), before)
+        saved = self.request('contacts', {'version': before['version'], 'fields': complete})
+        self.assertEqual(saved['contact']['title'], '')
+        self.assertEqual(saved['contact']['company'], 'Manual Company')
+
     def test_lead_is_linked_to_person_and_company_through_updates(self):
         directory = self.request("directory")
         self.assertEqual(directory["statuses"], ["New", "Assisting", "Interstate", "Qualified", "Disqualified", "Not Applicable"])

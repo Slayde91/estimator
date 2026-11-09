@@ -129,6 +129,7 @@ jobs:
       - run: node tests/browser/projects_navigation.cjs
       - run: node tests/browser/contacts.cjs
       - run: node tests/browser/contact_shortcuts.cjs
+      - run: node tests/browser/contact_certificate_readiness.cjs
       - run: node tests/browser/account_links.cjs
       - run: node tests/browser/directory_related_records.cjs
       - run: node tests/browser/account_editor_pane.cjs
@@ -153,6 +154,7 @@ jobs:
       - run: node tests/browser/commercial_panes_signatures.cjs
       - run: node tests/browser/commercial_status_project_scope.cjs
       - run: node tests/browser/commercial_required_fields.cjs
+      - run: node tests/browser/commercial_toolbar_layout.cjs
       - run: node tests/browser/audio_settings.cjs
       - run: node tests/browser/purchase_order_signatures_delivery.cjs
       - run: node tests/browser/work_order_tracking.cjs

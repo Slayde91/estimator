@@ -150,7 +150,7 @@ function contrast(a,b) {
   assert.deepEqual(await snapshot(),beforeUnsaved); assert.equal(fs.existsSync(path.join(output,'unsaved.txt')),false);
   evidence.unsaved = {pickerBlocked:true,dropBlocked:true,noRequests:true,draftsPreserved:true};
 
-  await enter('Estimates'); await fillProjectDetails(page,{client:'Disposable project controls client'});
+  await enter('Estimates'); await fillProjectDetails(page,{client:'Disposable project controls client','site-address':'1 Synthetic Controls Street'});
    await enter('Projects'); await idle();
   const saving = page.waitForResponse(response => new URL(response.url()).pathname === '/api/project/save-as'); saving.catch(() => {});
   await page.locator('#header-project-actions').getByRole('button',{name:'Save',exact:true}).click();

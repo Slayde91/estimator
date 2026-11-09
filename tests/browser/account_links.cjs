@@ -39,7 +39,7 @@ const ready = new Promise((resolve, reject) => {
   const directory = () => api('/api/contacts/directory');
   await api('/api/projects/link-folder', {});
   let state = await directory();
-  const person = await api('/api/contacts/contacts', {version: state.version, fields: {name: 'Link Person', company: 'Original Company'}});
+  const person = await api('/api/contacts/contacts', {version: state.version, fields: {name: 'Link Person', company: 'Original Company', phone:'111', email:'link@example.test'}});
   state = await directory();
   const lead = await api('/api/contacts/leads', {version: state.version, fields: {name: 'Project Contact', company: 'Source Company', phone: '0400', email: 'project@example.test', site_address: '10 Test Street'}});
   state = await directory();
@@ -219,7 +219,7 @@ const ready = new Promise((resolve, reject) => {
   await expect(foundPerson).toBeChecked();
   await foundPerson.press('Escape');
   state = await directory();
-  await api('/api/contacts/contacts', {version: state.version, fields: {name: 'Competing contact'}});
+  await api('/api/contacts/contacts', {version: state.version, fields: {name: 'Competing contact',company:'Competing Company',phone:'333',email:'competing@example.test'}});
   await dialog.getByRole('button', {name: 'Save', exact: true}).click();
   await expect(dialog.locator('[data-contacts-notice]')).toContainText(/changed|reload/i);
   await expect(dialog.getByLabel('Company', {exact: true})).toHaveValue('Conflict Company');

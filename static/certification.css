@@ -13,6 +13,12 @@
 .certification-history a{overflow-wrap:anywhere}.certification-document-select{width:fit-content;max-width:100%;min-width:0}
 .certification-document-select select{width:auto;max-width:100%;min-width:0}
 .certification-document-actions{display:block}
+.certification-document-picker{position:relative;display:flex;align-items:center;max-width:100%;min-width:160px}
+.certification-document-picker .project-account-add{position:absolute;inset-inline-start:4px;top:50%;transform:translateY(-50%);z-index:1;width:28px;height:28px;padding:0;display:grid;place-items:center}
+.certification-document-picker select{padding-inline-start:38px;min-height:42px;min-width:160px}
+.certification-field-error{color:var(--error,#ff6377);font-size:12px;font-weight:500;line-height:1.4}
+.certification-field-error[hidden]{display:none}
+.certification-fields :is(input,textarea)[aria-invalid="true"]{border-color:var(--error,#ff6377);outline:1px solid var(--error,#ff6377)}
 .certification-bottom-actions{justify-content:space-between;align-items:center;gap:1rem;margin-block:1.5rem}
 .certification-bottom-actions .button{min-height:48px}.certification-save-status{min-height:1.6em}
 @media(max-width:700px){.projects-section-cards,.certification-fields{grid-template-columns:1fr}.certification-fields .field.certification-wide{grid-column:auto}.certification-bottom-actions{align-items:stretch;flex-direction:column}}

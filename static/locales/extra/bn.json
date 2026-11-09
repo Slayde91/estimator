@@ -3212,5 +3212,10 @@
   "Complete required {0} fields: {1}.": "{0}-এর আবশ্যক ঘরগুলি পূরণ করুন: {1}।",
   "Saved certificate records are unavailable.": "সংরক্ষিত শংসাপত্রের রেকর্ড উপলভ্য নয়।",
   "The other pricing draft is still available and was not included.": "অন্য মূল্যের খসড়াটি এখনও রয়েছে এবং অন্তর্ভুক্ত করা হয়নি।",
-  "Later edits are not included and still need saving.": "পরের সম্পাদনাগুলি অন্তর্ভুক্ত নয় এবং এখনও সংরক্ষণ করতে হবে।"
+  "Later edits are not included and still need saving.": "পরের সম্পাদনাগুলি অন্তর্ভুক্ত নয় এবং এখনও সংরক্ষণ করতে হবে।",
+  "This field is required.": "এই ঘরটি পূরণ করা আবশ্যক।",
+  "Complete Name, Phone, Company and Email before creating this Contact.": "এই পরিচিতি তৈরি করার আগে নাম, ফোন, কোম্পানি ও ইমেইল পূরণ করুন।",
+  "Complete required SWMS fields: {0}.": "SWMS-এর আবশ্যক ঘরগুলি পূরণ করুন: {0}।",
+  "High Risk Work": "উচ্চ ঝুঁকির কাজ",
+  "Type of Works or Additional Job Steps": "কাজের ধরন অথবা অতিরিক্ত কাজের ধাপ"
 }

@@ -20,6 +20,7 @@ from estimator.storage import Store
 from estimator.swms import SwmsDocuments, SwmsConflict, default_fields, template_options, validate_fields, validate_swms_snapshot
 from estimator.swms_http import SwmsHTTP
 from estimator.swms_pdf import render_swms_pdf
+from swms_ready_fixtures import complete_swms
 
 
 class Projects:
@@ -77,6 +78,11 @@ class SwmsTests(unittest.TestCase):
     def payload(self):
         return dict(id=str(uuid.uuid4()), version=0, status='Draft', fields=default_fields({'project_no': 'CF-SWMS'}))
 
+    def ready_payload(self):
+        payload = self.payload()
+        payload['fields'] = complete_swms(payload['fields'])
+        return payload
+
     def test_template_choices_and_blank_real_world_signatures(self):
         fields = self.payload()['fields']
         self.assertEqual({key: len(rows) for key, rows in fields['steps'].items()}, {
@@ -107,11 +113,12 @@ class SwmsTests(unittest.TestCase):
                 validate_fields({**legacy, 'contact_signature': invalid})
 
     def test_contact_signature_survives_portable_capture_without_changing_old_revisions(self):
-        legacy = self.payload()
+        legacy = self.ready_payload()
         legacy['fields'].pop('contact_signature')
         old = self.service.save(self.workspace, legacy)
         request = str(uuid.uuid4())
         issued = self.service.issue(self.workspace, old['id'], old['version'], request)
+        old = next(row for row in self.service.view(self.workspace)['documents'] if row['id'] == old['id'])
         signed = self.payload()
         signed['fields']['details'].update(contact_person='Contact signer', position='Supervisor', phone='0400 123 456')
         signed['fields']['contact_signature'] = {'version': 1, 'ratio': 3, 'strokes': [[[.1, .4], [.5, .2], [.8, .7]]]}
@@ -127,7 +134,7 @@ class SwmsTests(unittest.TestCase):
         self.service.restore(restored, load_project_bytes(store, portable)['swms'])
         self.assertEqual(self.service.capture(restored), snapshot)
         self.assertEqual(next(row for row in self.service.view(restored)['documents'] if row['id'] == document['id']), document)
-        self.assertEqual(self.service.issue(self.workspace, old['id'], old['version'], request)['pdf'], issued['pdf'])
+        self.assertEqual(self.service.issue(self.workspace, old['id'], old['version'] - 1, request)['pdf'], issued['pdf'])
         self.assertEqual(len(self.calls), 1, 'Replaying an old issue keeps its original rendered bytes.')
 
     def test_create_retry_stale_update_delete_and_resurrection(self):
@@ -158,7 +165,8 @@ class SwmsTests(unittest.TestCase):
         old_note = 'Site instruction\nSOP098- Operating a Circular Saw\nUser-supplied additional control'
         fields['steps']['Passive Firestopping'][6]['controls'] = old_note
         saved_legacy = self.service.save(self.workspace, legacy)
-        issued = self.service.issue(self.workspace, saved_legacy['id'], saved_legacy['version'], str(uuid.uuid4()))
+        with self.assertRaisesRegex(ValidationError, 'Complete required SWMS fields'):
+            self.service.issue(self.workspace, saved_legacy['id'], saved_legacy['version'], str(uuid.uuid4()))
         before = self.service.capture(self.workspace)
         for _ in range(2):
             self.assertEqual(default_fields()['work_types'], [])
@@ -169,7 +177,7 @@ class SwmsTests(unittest.TestCase):
         retained = next(row for row in self.service.view(restored)['documents'] if row['id'] == saved_legacy['id'])
         self.assertEqual(retained['status'], 'Approved')
         self.assertEqual(retained['fields'], fields)
-        self.assertEqual(self.service.read_pdf(restored, issued['id'])[1], issued['pdf'])
+        self.assertFalse(self.calls, 'Legacy drafts remain readable without bypassing the new PDF requirements.')
 
     def test_default_control_seeds_remove_only_the_requested_sop_references(self):
         removed = ('SOP100-', 'SOP098-', 'SOP096-', 'SOP097-', 'SOP099-')
@@ -297,7 +305,7 @@ class SwmsTests(unittest.TestCase):
             self.service.view(str(uuid.uuid4()))
 
     def test_immutable_issue_replay_and_cross_project_denied(self):
-        saved = self.service.save(self.workspace, self.payload())
+        saved = self.service.save(self.workspace, self.ready_payload())
         request = str(uuid.uuid4())
         issued = self.service.issue(self.workspace, saved['id'], 1, request)
         repeated = self.service.issue(self.workspace, saved['id'], 1, request)
@@ -362,7 +370,7 @@ class SwmsTests(unittest.TestCase):
         self.assertEqual(handler.result[0], 409); self.assertFalse(self.calls)
 
     def test_http_unknown_query_and_frozen_pdf(self):
-        saved = self.service.save(self.workspace, self.payload())
+        saved = self.service.save(self.workspace, self.ready_payload())
         adapter = SwmsHTTP(self.service)
         duplicate = Handler({}); duplicate.command = 'GET'; duplicate.path = '/api/swms/state?workspace=a&workspace=b'
         adapter.dispatch(duplicate, '/api/swms/state'); self.assertEqual(duplicate.result[0], 400)

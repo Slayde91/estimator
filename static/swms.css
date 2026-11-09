@@ -49,5 +49,7 @@
 #swms-root .swms-risk-2 { background:#fff25d; color:#111; text-align:center; font-weight:bold; }
 #swms-root .swms-risk-3 { background:#7dd37c; color:#111; text-align:center; font-weight:bold; }
 #swms-root .swms-message.error { color:#ff9c9c; }
+#swms-root .swms-required-label::after { content:' *'; color:var(--accent, #d0001b); }
+#swms-root [aria-invalid="true"] { outline:2px solid var(--accent, #d0001b); outline-offset:2px; }
 @media(max-width:850px) { #swms-root .swms-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:600px) { #swms-root .swms-grid, #swms-root .swms-check-grid { grid-template-columns:1fr; } #swms-root .swms-section { padding:12px; } }

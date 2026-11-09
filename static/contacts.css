@@ -79,3 +79,6 @@
 .contacts-link-row>p { flex-basis:100%; padding-left:25px; }
 .contacts-reassignment { color:#ffbe65; font-size:12px; }
 @media(max-width:560px) { .contacts-group { grid-template-columns:1fr; } .contacts-form { padding:16px; } .contacts-link-controls .button { width:100%; } }
+.contacts-field-error{color:var(--error,#ff6377);font-size:12px;font-weight:500;line-height:1.4}
+.contacts-field-error[hidden]{display:none}
+.contacts-form :is(input,textarea)[aria-invalid="true"]{border-color:var(--error,#ff6377);outline:1px solid var(--error,#ff6377)}

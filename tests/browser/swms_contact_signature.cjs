@@ -109,6 +109,7 @@ async function contactSignature(root,output){
     await clickProjectControl(page,'Save');assert.equal((await save).status(),200);
     const portable=JSON.parse(fs.readFileSync(info.project,'utf8'));
     assert.deepEqual(portable.swms.documents[0].fields.contact_signature,signed.contact_signature);
+    await require('./swms_actions.cjs').prepareSwmsForIssue(page);
     const issue=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/swms/issue');
     await host.getByRole('button',{name:'Download PDF',exact:true}).click();
     const issued=await issue,result=await issued.json();assert.equal(issued.status(),200,JSON.stringify(result));assert.equal(result.saved,true);

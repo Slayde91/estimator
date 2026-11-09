@@ -29,16 +29,18 @@ async function discard(root,label){
   await fillProjectDetails(page,{client:'Project guard account','site-address':'1 Guard Road'});
   const before=await page.evaluate(()=>({details:window.CeasefireProject.details(),inputs:window.CeasefireProject.configuration()}));
   await page.getByRole('button',{name:'Estimates',exact:true}).click();
-  for(const id of ['project-estimate-quote','project-estimate-swms']){await page.locator('#'+id).click();await notified();}
+  for(const id of ['project-estimate-create','project-estimate-quote','project-estimate-swms'])await expect(page.locator('#'+id)).toHaveCount(0);
+  await page.locator('[aria-controls="firestopping-document-actions"]').click();await page.locator('#estimate-open-quote').click();await notified();
   const commercial=[['quote','commercial-quote-root','New Quote','Back to Quotes'],['work-orders','commercial-work-order-root','New Work Order','Back to Work Orders'],['purchase-orders','commercial-purchase-order-root','New Purchase Order','Back to Purchase Orders']];
   for(const [section,id,label]of commercial){
     await openProjectSection(page,section);const host=page.locator('#'+id);await host.getByRole('button',{name:label,exact:true}).click();await notified();await expect(host.locator('.commercial-editor')).toHaveCount(0);
   }
   await openProjectSection(page,'swms');await page.locator('#swms-root').getByRole('button',{name:'New SWMS',exact:true}).click();await notified();
   await expect(page.locator('#swms-root').getByLabel('Document title',{exact:true})).toHaveCount(0);
-  await openProjectSection(page,'certification');await expect(page.locator('#certification-document')).toBeEnabled();
+  await openProjectSection(page,'certification');await expect(page.locator('#certification-document')).toBeDisabled();
+  await expect(page.locator('#certification-document option')).toHaveCount(0);await expect(page.locator('#certification-new')).toBeEnabled();
   await page.locator('#certification-client').fill('Keep incomplete certificate draft');
-  await page.locator('#certification-document').selectOption('');await notified();
+  await page.locator('#certification-new').click();await notified();
   await expect(page.locator('#certification-client')).toHaveValue('Keep incomplete certificate draft');
   await expect(page.locator('#certification-save')).toHaveCount(0);await page.locator('#certification-generate').click();await notified();
   const documentTabs=page.locator('#document-pages');await expect(documentTabs).toBeVisible();
@@ -67,7 +69,7 @@ async function discard(root,label){
   }
   await openProjectSection(page,'swms');await page.locator('#swms-root').getByRole('button',{name:'New SWMS',exact:true}).click();
   await expect(page.locator('#swms-root').getByLabel('Document title',{exact:true})).toBeVisible();await discard(page.locator('#swms-root'),'Back to statements');
-  await openProjectSection(page,'certification');await page.locator('#certification-document').selectOption('');
+  await openProjectSection(page,'certification');await page.locator('#certification-new').click();
   await expect(page.locator('#certification-client')).toHaveValue('Project guard account');
   assert.deepEqual(errors,[]);await page.screenshot({path:path.join(output,'created-project-certificate.png')});
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks:['all five New actions blocked without a saved Project','no automatic saves/default requests','fields and pricing preserved','Settings independent','explicit Save activates exact workspace','all five New actions allowed after Save'],errors},null,2));

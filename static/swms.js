@@ -18,7 +18,40 @@
     }
   }
   function changed() { state.changed = true; window.CeasefireProject?.changed?.(); }
-  function dirty() { state.dirty = true; if (state.editor) state.editor.pendingIssue = null; window.CeasefireProject?.changed?.(); }
+  function dirty() { state.dirty = true; if (state.editor) state.editor.pendingIssue = null; window.CeasefireProject?.changed?.(); if (state.editor) updateRequiredFields(); }
+  function requirementControl(path) { return [...root().querySelectorAll('[data-swms-required-path]')].find(input => input.dataset.swmsRequiredPath === path); }
+  const meaningful = value => typeof value === 'string' && value.replace(/\p{Cf}/gu, '').trim().length > 0;
+  const signed = value => Boolean(value?.strokes?.some(stroke => stroke.some(point => point[0] !== stroke[0][0] || point[1] !== stroke[0][1])));
+  function requirementPresent(spec) {
+    const fields = state.editor.fields, value = spec.path.split('.').reduce((object, key) => object?.[key], fields);
+    if (spec.type === 'people') return value.length > 0 && value.every(person => meaningful(person.name) && meaningful(person.position) && signed(person.signature));
+    if (spec.type === 'high-risk') { const selected = value.split('\n'); return selected.length > 0 && selected.every(choice => state.options.high_risk.includes(choice)) && (!selected.includes('NA') || selected.length === 1); }
+    if (spec.type === 'works') return value.length > 0 || fields.additional_steps && fields.additional_rows.some(row => meaningful(row.job_step));
+    return meaningful(value);
+  }
+  function required(path, input) { input.dataset.swmsRequiredPath = path; return input; }
+  function updateRequiredFields() {
+    for (const spec of state.model?.requirements || []) {
+      const input = requirementControl(spec.path); if (!input) continue;
+      input.setAttribute('aria-required', 'true');
+      const label = input.closest('.field')?.querySelector(':scope > span') || input.querySelector(':scope > summary');
+      label?.classList.add('swms-required-label');
+      if (requirementPresent(spec)) input.removeAttribute('aria-invalid');
+    }
+  }
+  function validateReadiness() {
+    const missing = (state.model?.requirements || []).filter(spec => !requirementPresent(spec));
+    if (!missing.length) return;
+    for (const spec of missing) {
+      const input = requirementControl(spec.path); if (!input) continue;
+      input.setAttribute('aria-invalid', 'true');
+      for (let node = input; node && node !== root(); node = node.parentElement) if (node.tagName === 'DETAILS') node.open = true;
+    }
+    const first = requirementControl(missing[0].path);
+    (first?.matches('input,textarea,select') ? first : first?.querySelector('button,input,textarea,select'))?.focus();
+    const labels = missing.map(spec => window.CeasefireI18n?.translate(spec.label) || spec.label).join(', ');
+    throw new Error(window.CeasefireI18n?.translate('Complete required SWMS fields: {0}.', [labels]) || `Complete required SWMS fields: ${labels}.`);
+  }
   function button(label, action, primary = false) {
     const result = element("button", `button ${primary ? "primary" : "secondary"}`, label);
     result.type = "button";
@@ -214,13 +247,18 @@
     } finally { if (current()) lock(false); }
   }
   async function download() {
+    if (state.busy || !state.editor) return;
+    validateReadiness();
     if (!(await save())) return;
     const current = guard(), editor = state.editor;
     editor.pendingIssue ||= crypto.randomUUID(); lock(true);
     try {
       const result = await window.CeasefireDownloads.save("/api/swms/issue", { workspace_id: state.workspace, id: editor.id, version: editor.version, request_id: editor.pendingIssue }, { button: root().querySelector(".swms-download") });
       if (current() && editor === state.editor) {
-        if (!result?.cancelled) editor.pendingIssue = null;
+        if (!result?.cancelled && await load() && current() && editor === state.editor) {
+          const saved = state.model.documents.find(row => row.id === editor.id);
+          if (saved) { state.editor = copy(saved); state.editor.pendingIssue = null; changed(); renderEditor(); }
+        }
         notice(result?.cancelled ? "PDF download cancelled." : result?.saved ? "SWMS PDF saved." : "SWMS PDF prepared.");
       }
     } finally { if (current()) lock(false); }
@@ -286,9 +324,9 @@
   }
   const detailLabels = { job_reference: "Job Reference", contact_person: "Contact Person", position: "Position", phone: "Phone", principal_contractor: "Principal Contractor (PC)", project_name: "Project Name", date: "Date", project_address: "Project Address", project_manager: "Project Manager (PM)", manager_contact: "Contact" };
   const labels = { communication: "Communication before work commences", toolbox: "Toolbox talks", compliance: "Person/s responsible for ensuring compliance with SWMS", qualifications: "Qualifications / Competency Required to complete tasks", duties: "Personnel / Duties and Responsibilities", training: "Additional training required to complete task", requirements: "Requirements", legislation: "OHS / Environmental Legislation", codes: "Codes of Practice", resources: "Resources / Trades Involved", equipment: "Equipment / Plant / Materials Used", maintenance: "Maintenance Checks Required", acknowledgement: "Employee acknowledgement", emergency_requirements: "Emergency Response — Call 000 Immediately", emergency_access: "Emergency access and site requirements", emergency_notify: "Notify", emergency_contacts: "Contacts", emergency_supervisor: "Notify site supervisor", emergency_call: "Call emergency services", emergency_stop: "Stop work", emergency_follow: "Follow instructions" };
-  function textFields(host, fields, keys) { keys.forEach(key => host.append(field(labels[key], control(fields[key], value => { fields[key] = value; }, "textarea")))); }
+  function textFields(host, fields, keys) { keys.forEach(key => host.append(field(labels[key], required(key, control(fields[key], value => { fields[key] = value; }, "textarea"))))); }
   function people(host, key, heading) {
-    const fields = state.editor.fields, box = section(heading), list = element("div", "swms-people");
+    const fields = state.editor.fields, box = required(key, section(heading)), list = element("div", "swms-people");
     function render() {
       list.replaceChildren();
       fields[key].forEach((person, index) => {
@@ -296,6 +334,7 @@
         Object.keys(person).filter(name => name !== "signature").forEach(name => {
           const title = name[0].toUpperCase() + name.slice(1);
           const input = control(person[name], value => { person[name] = value; }, name === "date" ? "date" : name === "time" ? "time" : "text");
+          if (key === 'reviewers' || key === 'consultation') input.setAttribute('aria-required', 'true');
           inputs[name]=input;grid.append(field(title, input));
         });
         const removePerson = () => { fields[key].splice(index, 1); dirty(); render(); };
@@ -419,7 +458,7 @@
     const identity = element("div", "swms-grid swms-identity"); identity.append(field("Document title", control(fields.title, value => { fields.title = value; }))); host.append(identity);
     const details = section("Project Details", true), grid = element("div", "swms-grid"), detailInputs = {};
     for (const [key, label] of Object.entries(detailLabels)) {
-      const input=control(fields.details[key], value => { fields.details[key] = value; }, key === "date" ? "date" : "text");
+      const input=required('details.' + key, control(fields.details[key], value => { fields.details[key] = value; }, key === "date" ? "date" : "text"));
       if(key === 'job_reference')input.readOnly=true;
       detailInputs[key]=input;
       const item=field(label,input);
@@ -443,8 +482,8 @@
     const communication = section("Communication and responsibilities"); textFields(communication, fields, ["communication", "toolbox", "compliance"]); host.append(communication);
     people(host, "reviewers", "Person/s responsible for reviewing SWMS"); people(host, "consultation", "This SWMS has been developed in consultation with");
     const qualifications = section("Qualifications, duties and training"); textFields(qualifications, fields, ["qualifications", "duties", "training"]); host.append(qualifications);
-    const requirements = section("Activity and work requirements"); requirements.append(field("Activity", select([...new Set([...(state.options?.activities || []), fields.activity])], fields.activity, value => { fields.activity = value; }))); textFields(requirements, fields, ["requirements", "legislation", "codes", "resources", "equipment", "maintenance"]); host.append(requirements);
-    const risks = section("Risk Matrix and High Risk Work"), matrix = element("table", "swms-risk-matrix");
+    const requirements = section("Activity and work requirements"); requirements.append(field("Activity", required('activity', select([...new Set([...(state.options?.activities || []), fields.activity])], fields.activity, value => { fields.activity = value; })))); textFields(requirements, fields, ["requirements", "legislation", "codes", "resources", "equipment", "maintenance"]); host.append(requirements);
+    const risks = required('high_risk_work', section("Risk Matrix and High Risk Work")), matrix = element("table", "swms-risk-matrix");
     const riskRows = [["Consequence / Probability", "Likely", "Moderate", "Unlikely"], ["High — death / permanent disability", "1", "1", "2"], ["Medium — temporary disability / minor structural failure", "1", "2", "3"], ["Low — first aid / minor environmental harm", "2", "3", "3"]];
     riskRows.forEach((row, index) => { const tr = element("tr"); row.forEach(value => { const cell = element(index ? "td" : "th", /^[123]$/.test(value) ? `swms-risk-${value}` : "", value); tr.append(cell); }); matrix.append(tr); });
     risks.append(matrix, element("p", "muted", "1 — High risk: action immediately. 2 — Medium risk: action as soon as practicable. 3 — Low risk: action as required."));
@@ -461,7 +500,7 @@
       selected.forEach(value => { if (fields.high_risk_steps[value]?.length) steps(riskTables, value, fields.high_risk_steps[value]); });
     }
     renderRisks(); risks.append(riskChecks, riskTables); host.append(risks);
-    const work = section("Type of Works", true), checks = element("div", "swms-check-grid"), tables = element("div");
+    const work = required('work_types', section("Type of Works", true)), checks = element("div", "swms-check-grid"), tables = element("div");
     function renderWorks() { tables.replaceChildren(); fields.work_types.forEach(kind => steps(tables, kind, fields.steps[kind])); }
     Object.keys(fields.steps).forEach(kind => checks.append(check(kind, fields.work_types.includes(kind), enabled => { fields.work_types = enabled ? [...fields.work_types, kind] : fields.work_types.filter(value => value !== kind); renderWorks(); })));
     work.append(checks, tables); renderWorks(); host.append(work);
@@ -471,6 +510,7 @@
     const acknowledgment = section("Employee acknowledgement"); textFields(acknowledgment, fields, ["acknowledgement"]); host.append(acknowledgment);
     const reviews = section("Reviews"), reviewGrid = element("div", "swms-review-grid"); fields.reviews.forEach((value, index) => reviewGrid.append(field(`Review ${index + 1} initials`, control(value, text => { fields.reviews[index] = text; })))); reviews.append(reviewGrid); host.append(reviews);
     people(host, "site_signoffs", "Site Sign-Off"); const emergency = section("Emergency Response"); textFields(emergency, fields, ["emergency_requirements", "emergency_access", "emergency_notify", "emergency_contacts", "emergency_supervisor", "emergency_call", "emergency_stop", "emergency_follow"]); host.append(emergency); attachments(host, fields);
+    updateRequiredFields();
   }
   window.CeasefireSWMS = {
     activate,

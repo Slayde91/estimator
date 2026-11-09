@@ -1,0 +1,46 @@
+'use strict';
+// Disposable native Project + directory storage. No live user files or server.
+const {chromium,expect:baseExpect}=require('@playwright/test');
+const {spawn}=require('node:child_process');
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const {createNewProject,openProjectSection}=require('./project_actions.cjs');
+const expect=baseExpect.configure({timeout:30000}),root=path.resolve(__dirname,'../..');
+const output=path.join(root,'.runtime/browser-qa','contact-certificate-readiness-'+Date.now());fs.mkdirSync(output,{recursive:true});
+const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
+let stdout='',logs='',browser,page;server.stderr.on('data',chunk=>logs+=chunk);
+const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error(logs||'Fixture timeout')),120000);server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(Error('Fixture exit '+code));});server.stdout.on('data',chunk=>{stdout+=chunk;if(stdout.includes('\n')){clearTimeout(timer);resolve(JSON.parse(stdout.split('\n')[0]));}});});
+const errors=[],posts=[],checks=[];
+async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready&&!window.CeasefireDesktop.status().busy&&!window.CeasefireProject.hasPendingOperation());}
+(async()=>{
+ const info=await ready;assert.notEqual(info.port,8765);const base='http://127.0.0.1:'+info.port;
+ browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1213,height:1000}});page.setDefaultTimeout(60000);
+ page.on('pageerror',error=>errors.push(error.message));page.on('request',request=>{if(request.method()==='POST'&&/^\/api\/(?:contacts\/contacts|certifications(?:\/[a-z0-9-]+(?:\/revisions)?)?)$/.test(new URL(request.url()).pathname))posts.push(new URL(request.url()).pathname);});
+ await page.goto(base);await idle();
+ await page.locator('#contacts-navigation-toggle').hover();await page.locator('#contacts-navigation-menu [data-contacts-section="contacts"]').click();
+ const directory=()=>page.request.get(base+'/api/contacts/directory').then(response=>response.json());
+ const before=await directory();await page.locator('#contacts-root').getByRole('button',{name:'New Contact',exact:true}).click();
+ const contact=page.locator('.contacts-form').filter({has:page.getByRole('heading',{name:'New Contact',exact:true})});
+ await contact.getByRole('button',{name:'Save',exact:true}).click();
+ await expect(contact.getByLabel('Name',{exact:true})).toBeFocused();assert.equal(posts.length,0);assert.deepEqual(await directory(),before);
+ for(const field of ['Name','Phone','Company','Email'])await expect(contact.getByLabel(field,{exact:true})).toHaveAttribute('aria-invalid','true');
+ await contact.getByLabel('Name',{exact:true}).fill('Required Contact');await contact.getByLabel('Phone',{exact:true}).fill('0400');await contact.getByLabel('Company',{exact:true}).fill('Manual Company');
+ await contact.getByRole('button',{name:'Save',exact:true}).click();await expect(contact.getByLabel('Email',{exact:true})).toBeFocused();assert.equal(posts.length,0);assert.deepEqual(await directory(),before);
+ await contact.getByLabel('Email',{exact:true}).fill('required@example.test');const created=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/contacts/contacts');await contact.getByRole('button',{name:'Save',exact:true}).click();assert.equal((await created).status(),200);await expect(contact).toBeHidden();
+ const saved=await directory();assert.equal(saved.contacts.length,1);assert.equal(saved.contacts[0].title,'');assert.equal(saved.accounts[0].company,'Manual Company');checks.push('New Contact validates four mandatory fields before POST; manual Company is accepted and Title stays optional');
+ await createNewProject(page,{client:'Certificate Requirement Company','site-address':'1 Certificate QA Road'});await openProjectSection(page,'quotes');await page.locator('#project-current-details').click();
+ await page.locator('#project-pane-client').press('Escape');await page.locator('#project-contact-new').click();const inline=page.getByRole('dialog',{name:'New Contact',exact:true});await expect(inline).toBeVisible();const count=posts.length;
+ await inline.getByRole('button',{name:'Save',exact:true}).click();await expect(inline.getByLabel('Phone',{exact:true})).toBeFocused();assert.equal(posts.length,count);await inline.getByRole('button',{name:'Cancel',exact:true}).click();await page.locator('#project-details-close').click();checks.push('The inline plus uses the same required Contact creation preflight and focuses its first missing value after inherited Name/Company');
+ await openProjectSection(page,'certification');await idle();const select=page.locator('#certification-document'),plus=page.getByRole('button',{name:'New certificate',exact:true}),generate=page.getByRole('button',{name:'Generate Certificate',exact:true});
+ await expect(page.getByLabel('Saved certification',{exact:true})).toHaveAttribute('id','certification-document');
+ await expect(select.locator('option')).toHaveCount(0);await expect(select).toBeDisabled();await expect(plus).toBeEnabled();
+ await plus.click();await expect(page.locator('#certification-client')).toBeFocused();await expect(select.locator('option')).toHaveCount(0);
+ const beforeGenerate=posts.length;await generate.click();await expect(page.locator('#certification-location_area')).toBeFocused();assert.equal(posts.length,beforeGenerate);await expect(page.locator('#certification-location_area')).toHaveAttribute('aria-invalid','true');
+ const required=['client','project','address','location_area','statement_of_compliance','australian_standards','ncc_clauses','approved_design','additional_standards','other_references','exclusions','materials_manufacturers','fire_resistance_level','name','position'];
+ for(const name of required)await page.locator('#certification-'+name).fill(name==='fire_resistance_level'?'0':'N/A');
+ await expect(page.locator('#certification-qualification')).toHaveValue('');await expect(page.locator('#certification-accreditation')).toHaveValue('');await expect(page.locator('#certification-signature-preview')).toBeHidden();
+ const generated=page.waitForResponse(response=>/\/api\/certifications\/[a-z0-9-]+\/revisions$/.test(new URL(response.url()).pathname));await generate.click();const receipt=await generated;assert.equal(receipt.status(),201,await receipt.text());const result=await receipt.json();await idle();
+ assert.equal(result.document.fields.qualification,'');assert.equal(result.document.fields.accreditation,'');assert.equal(result.revision.revision,1);await expect(select.locator('option')).toHaveCount(1);await expect(select).toHaveValue(result.document.id);checks.push('Certificate generation requires every first-section field and signer Name/Position; zero text, N/A and absent optional credentials/signature are accepted');
+ await plus.click();await expect(select).toHaveValue('');await expect(select.locator('option')).toHaveCount(1);await expect(page.locator('#certification-name')).toHaveValue('');await select.selectOption(result.document.id);await expect(page.locator('#certification-name')).toHaveValue('N/A');
+ assert.deepEqual(await select.locator('option').evaluateAll(options=>options.map(option=>option.value)),[result.document.id]);checks.push('Plus starts a clean draft; picker contains only existing certificates and reopens the saved record');
+ await page.screenshot({path:path.join(output,'certificate-picker.png'),fullPage:false});assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,posts,errors},null,2));console.log('PASS Contact and Certificate readiness: '+output);
+})().catch(async error=>{console.error(error);if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});fs.writeFileSync(path.join(output,'failure.txt'),String(error.stack||error)+'\n'+logs);process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

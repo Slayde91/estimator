@@ -3,7 +3,7 @@ const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
 // Drawing-only trace/count tools on disposable PDFs; no live app state.
 const { chromium, expect } = require('@playwright/test');
 const { chooseTakeoff } = require('./section_navigation.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl, prepareProjectForSave } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 const { settingsSettled } = require('./settings_helpers.cjs');
 const { spawn, spawnSync } = require('node:child_process');
@@ -35,7 +35,7 @@ async function length(mm,reuse=false){const modal=page.getByRole('dialog');await
 (async()=>{
   const info=await ready;assert.notEqual(info.port,8765);browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1384,height:1000}});page.setDefaultTimeout(30000);
   page.on('pageerror',error=>errors.push(error.message));await page.addInitScript(()=>{window.qaCsp=[];document.addEventListener('securitypolicyviolation',e=>window.qaCsp.push(e.effectiveDirective));});
-  await page.goto(`http://127.0.0.1:${info.port}/`);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
+  await page.goto(`http://127.0.0.1:${info.port}/`);await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);await prepareProjectForSave(page);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click();await renderDrawing(page,()=>page.locator('#takeoff-upload').setInputFiles(info.fixture),1);
   await page.evaluate(async()=>{
     const app=window.CeasefireTakeoffs, value=app.projectSnapshot(),sid=app.sessionId(),doc=value.documents[0];

@@ -104,7 +104,7 @@ async function download(host) {
   stage = 'creating the issued Quote source';
   await openProjectSection(page, 'quote'); let quote = page.locator('#commercial-quote-root');
   await quote.getByRole('button', {name:'New Quote', exact:true}).click(); await idle();
-  const quoteTitle = 'Immutable issued tracking source', workTitle = 'Portable tracking lifecycle';
+  const quoteTitle = 'Immutable issued tracking source';let workTitle;
   await quote.getByLabel('Document title', {exact:true}).fill(quoteTitle);
   await quote.locator('.commercial-estimate-picker summary').click();
   for (const checkbox of await quote.locator('.commercial-estimate-options input[type=checkbox]').all()) {
@@ -127,7 +127,7 @@ async function download(host) {
   const originalQuote = documents(info).find(value => value.kind === 'quote');
   await quote.getByRole('button', {name:'Back to Quotes', exact:true}).click(); await openProjectSection(page, 'work-orders');
   let work = page.locator('#commercial-work-order-root'); await work.getByRole('button', {name:'New Work Order', exact:true}).click(); await idle();
-  await work.getByLabel('Document title', {exact:true}).fill(workTitle);
+  await expect(work.getByLabel('Document title', {exact:true})).toHaveCount(0);
   await work.getByLabel('Linked Quote', {exact:true}).selectOption(originalQuote.id);
   await work.getByLabel('Proposed start date', {exact:true}).fill('2026-11-10');
   await work.getByLabel('Category / urgency', {exact:true}).selectOption('Medium Priority');
@@ -156,7 +156,7 @@ async function download(host) {
   await saveDocument(work); await saveProject();
   assert.equal(ownedWork(info).fields.work_tracking.rows[1].claimed_percent, '25', 'A second percentage edit in the same open editor survives another Save');
   assert.equal(ownedWork(info).fields.work_tracking.rows[2].notes,expected[2].notes,'A later Notes edit in the same open editor survives another Save');
-  const initialWork = ownedWork(info), baseline = initialWork.fields.work_tracking;
+  const initialWork = ownedWork(info), baseline = initialWork.fields.work_tracking;workTitle=initialWork.reference+': '+initialWork.fields.details.client;
   assert.equal(baseline.project_id, stored(info).commercial_documents.project_id);
   assert.equal(baseline.quote_id, originalQuote.id); assert.equal(baseline.quote_reference, originalQuote.last_number);
   checks.push('All issued rows and independent percentages, including free/credit/duplicates, persist with selected certification/completion and their owning Project/Quote IDs');

@@ -2,7 +2,7 @@ const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
 "use strict";
 // PDF-only Area and exclusions against synthetic source files and a disposable server.
 const { chromium, expect } = require("@playwright/test");
-const { chooseTakeoff } = require("./section_navigation.cjs"), { clickProjectControl } = require("./project_actions.cjs");
+const { chooseTakeoff } = require("./section_navigation.cjs"), { clickProjectControl, prepareProjectForSave } = require("./project_actions.cjs");
 const { renderDrawing } = require("./viewer_helpers.cjs"), { settingsSettled } = require("./settings_helpers.cjs");
 const { spawn, spawnSync } = require("node:child_process"), fs = require("node:fs"), path = require("node:path"), crypto = require("node:crypto"), assert = require("node:assert/strict");
 const root = path.resolve(__dirname, "../.."), python = process.env.CEASEFIRE_PYTHON || "python";
@@ -51,7 +51,7 @@ async function tools() {
     window.qaCsp = []; document.addEventListener("securitypolicyviolation", event => window.qaCsp.push(event.effectiveDirective));
     document.addEventListener("click", event => { const overlay = event.target.closest?.(".takeoff-overlay"); if (overlay) { const box = overlay.getBoundingClientRect(); window.qaClickSourcePoint = [(event.clientX-box.left)/box.width*842, (1-(event.clientY-box.top)/box.height)*595]; } }, true);
   });
-  await page.goto(`http://127.0.0.1:${info.port}/`); await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
+  await page.goto(`http://127.0.0.1:${info.port}/`); await page.waitForFunction(() => window.CeasefireDesktop?.status().ready); await prepareProjectForSave(page);
   await page.getByRole("button", { name: "Takeoffs", exact: true }).click(); await renderDrawing(page, () => page.locator("#takeoff-upload").setInputFiles(info.fixture), 1);
   await page.evaluate(async () => {
     const app = window.CeasefireTakeoffs, current = app.projectSnapshot(), sid = app.sessionId(), doc = current.documents[0];

@@ -210,7 +210,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   assert.deepEqual(boardAfter,boardBefore,'Columns menu overlays the unchanged board');
   await page.keyboard.press('Escape');
   await work.getByRole('button',{name:'New Work Order',exact:true}).click();
-  await work.getByLabel('Document title',{exact:true}).fill('QA site installation');
+  await expect(work.getByLabel('Document title',{exact:true})).toHaveCount(0);
   await work.getByLabel('Linked Quote',{exact:true}).selectOption({label:await work.getByLabel('Linked Quote',{exact:true}).locator('option').nth(1).textContent()});
   const cost = work.getByLabel('Estimated cost (AUD)',{exact:true});
   await expect(cost).toHaveValue(originalTotal);
@@ -248,8 +248,8 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await work.getByLabel('Attach files',{exact:true}).setInputFiles({name:'qa-field-record.bin',mimeType:'application/octet-stream',buffer:Buffer.from('QA portable original')});
   await expect(work.locator('.commercial-attached-file')).toContainText('qa-field-record.bin');
   await expect(work.getByLabel('Proposed start date',{exact:true})).toHaveAttribute('type','date');
-  const titleBox=await work.getByLabel('Document title',{exact:true}).boundingBox(),statusBox=await work.getByLabel('Status',{exact:true}).boundingBox();
-  assert.ok(statusBox.x>titleBox.x && Math.abs(statusBox.y-titleBox.y)<2,'Status aligns to the right of title');
+  const pdfBox=await work.getByRole('button',{name:'Download PDF',exact:true}).boundingBox(),statusBox=await work.getByLabel('Status',{exact:true}).boundingBox();
+  assert.ok(statusBox.x>pdfBox.x && Math.abs(statusBox.y-pdfBox.y)<2,'Status aligns with the PDF action in the toolbar');
   await save(work);
   const assignedReference=await work.getByLabel('Work order reference',{exact:true}).inputValue();
   assert.match(assignedReference,/^WO-\d{2,}$/);
@@ -320,7 +320,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await page.locator('#discard-dialog').getByRole('button',{name:'Load Project',exact:true}).click();
   await idle();
   await open('work-orders');
-  await work.getByRole('button',{name:'QA site installation',exact:true}).click();
+  await work.getByRole('button',{name:assignedReference+': '+savedWork.fields.details.client,exact:true}).click();
   await expect(work.getByLabel('Work order reference',{exact:true})).toHaveValue(assignedReference);
   await expect(cost).toHaveValue(originalTotal);
   await work.getByRole('button',{name:'Back to Work Orders',exact:true}).click();
@@ -404,16 +404,17 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
     ['purchase-orders',purchase,'Other purchase order','Requested']
   ]){
     await open(route);
-    const card=host.locator('.commercial-card').filter({hasText:title});
+    await host.getByLabel('Search documents',{exact:true}).fill(title);
+    const card=host.locator('.commercial-card');
     await expect(card).toHaveCount(1);
     await expect(card.locator('dl')).toContainText('Total');
     await card.locator('summary').click();
     await card.getByRole('combobox',{name:'Move to'}).selectOption(target);
-    await expect(host.locator(`.commercial-column[aria-label="${target}"] .commercial-card`).filter({hasText:title})).toHaveCount(1);
+    await expect(host.locator(`.commercial-column[aria-label="${target}"] .commercial-card`)).toHaveCount(1);
     assert.equal(owner().find(d=>d.fields.title===title).status,target);
     assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),null);
-    await card.getByRole('button',{name:title,exact:true}).click();
-    const formTitle=host.getByLabel('Document title',{exact:true});
+    await card.locator('.project-title-button').click();
+    const formTitle=host.getByLabel(route==='work-orders'?'Description of works':'Document title',{exact:true});
     await formTitle.fill('Unsaved text');
     await page.locator('nav [data-view="home"]').click();
     const prompt=page.locator('#discard-dialog');

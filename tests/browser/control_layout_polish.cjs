@@ -41,15 +41,15 @@ target.write_bytes(export_project(store,{**first,'estimates':[{'id':'estimate-1'
     await page.setViewportSize({width,height:1000});
     const metrics=await page.locator('.project-estimate-controls').evaluate(host=>{
       const box=element=>{const b=element.getBoundingClientRect();return{x:b.x,y:b.y,width:b.width,height:b.height};};
-      return{quote:box(host.querySelector('#project-estimate-quote')),swms:box(host.querySelector('#project-estimate-swms')),
+      return{estimate:box(host.querySelector('.project-estimate-picker')),
         document:box(host.querySelector('.calculator-document-toggle')),otherDocumentHeight:getComputedStyle(document.querySelector('#penetration-current-item-card .calculator-document-toggle')).height,
         overflow:document.documentElement.scrollWidth-innerWidth};
     });
-    assert.ok(Math.abs(metrics.document.height-metrics.quote.height)<1,JSON.stringify(metrics));
-    assert.ok(Math.abs(metrics.document.height-metrics.swms.height)<1,JSON.stringify(metrics));assert.equal(metrics.otherDocumentHeight,'48px');assert.ok(metrics.overflow<=1);
+    assert.ok(metrics.document.height>0&&(width<570?metrics.document.y>=metrics.estimate.y+metrics.estimate.height:Math.abs(metrics.document.y+metrics.document.height-metrics.estimate.y-metrics.estimate.height)<1),JSON.stringify(metrics));
+    assert.equal(metrics.otherDocumentHeight,'48px');assert.ok(metrics.overflow<=1);
     evidence.estimate.push({width,...metrics});
   }
-  await page.setViewportSize({width:1915,height:1000});await page.locator('#project-estimate-quote').click();
+  await page.setViewportSize({width:1915,height:1000});await page.locator('[aria-controls="firestopping-document-actions"]').click();await page.locator('#estimate-open-quote').click();
   const quote=page.locator('#commercial-quote-root');await expect(quote.locator('.commercial-lines tbody tr')).toHaveCount(1);
   await expect(quote.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true})).toBeEnabled();
   const add=quote.getByRole('button',{name:'Add custom row',exact:true}),picker=quote.locator('.commercial-estimate-picker'),summary=picker.locator(':scope>summary');

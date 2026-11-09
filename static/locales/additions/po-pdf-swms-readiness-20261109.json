@@ -1,0 +1,27 @@
+{
+  "This field is required.": [
+    "필수 항목입니다.",
+    "Kinakailangan ang field na ito.",
+    "Trường này là bắt buộc."
+  ],
+  "Complete Name, Phone, Company and Email before creating this Contact.": [
+    "연락처를 만들기 전에 이름, 전화번호, 회사 및 이메일을 입력하세요.",
+    "Kumpletuhin ang Pangalan, Telepono, Kumpanya at Email bago gawin ang Contact na ito.",
+    "Điền Tên, Điện thoại, Công ty và Email trước khi tạo liên hệ này."
+  ],
+  "Complete required SWMS fields: {0}.": [
+    "필수 SWMS 항목을 입력하세요: {0}.",
+    "Kumpletuhin ang mga kinakailangang field ng SWMS: {0}.",
+    "Điền các trường SWMS bắt buộc: {0}."
+  ],
+  "High Risk Work": [
+    "고위험 작업",
+    "Trabahong may mataas na panganib",
+    "Công việc có rủi ro cao"
+  ],
+  "Type of Works or Additional Job Steps": [
+    "작업 유형 또는 추가 작업 단계",
+    "Uri ng trabaho o karagdagang hakbang",
+    "Loại công việc hoặc bước công việc bổ sung"
+  ]
+}

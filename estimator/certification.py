@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from hashlib import sha256
 from io import BytesIO
 import json
+import unicodedata
 import uuid
 
 from pypdf import PdfReader
@@ -26,7 +27,7 @@ MAX_FIELD_CHARS = 8_000
 MAX_TOTAL_CHARS = 40_000
 MAX_REVISION_BYTES = 40 * 1024 * 1024
 SIGNER_FIELDS = ('name', 'position', 'qualification', 'accreditation')
-REQUIRED_GENERATION_FIELDS = FIELDS
+REQUIRED_GENERATION_FIELDS = tuple(key for key in FIELDS if key not in ('qualification', 'accreditation'))
 SCOPE_IDS = frozenset(('structural_steel', 'structural_steel_columns', 'ductwork', 'service_penetrations'))
 DEFAULT_OPTIONS = {'cover_pdf': None, 'cover_pdf_name': '', 'scopes': []}
 _MISSING = object()
@@ -80,11 +81,16 @@ def validate_options(value):
 
 
 def validate_complete_fields(value):
-    """Certificate Save/Generate require every detail; project recovery may be partial."""
+    """A new issued revision requires the first section and signer name/position.
+
+    Draft persistence and historical reads use validate_fields instead.
+    Qualification, accreditation and signature artwork remain optional.
+    """
     fields = validate_fields(value, partial=True)
-    missing = [key.replace('_', ' ') for key in FIELDS if not fields[key].strip()]
+    missing = [key.replace('_', ' ') for key in REQUIRED_GENERATION_FIELDS if not ''.join(
+        char for char in fields[key] if unicodedata.category(char) != 'Cf').strip()]
     if missing:
-        raise ValidationError('Complete all required certification fields before saving or generating: ' + ', '.join(missing) + '.')
+        raise ValidationError('Complete all required certification fields before generating: ' + ', '.join(missing) + '.')
     return fields
 
 
@@ -339,9 +345,7 @@ class CertificationService:
             # Historical committed requests remain recoverable even if their
             # older drafts were incomplete. Only a new revision must satisfy
             # today's required certificate details.
-            missing = [key.replace('_', ' ') for key in REQUIRED_GENERATION_FIELDS if not fields[key].strip()]
-            if missing:
-                raise ValidationError('Complete all required certification fields before generating: ' + ', '.join(missing) + '.')
+            validate_complete_fields(fields)
             if current['version'] != expected_version:
                 raise CertificationConflict('This certification changed in another window. Reload it before generating again.')
             revision = max((item['revision'] for item in current['revisions']), default=0) + 1

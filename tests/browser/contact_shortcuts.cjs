@@ -17,7 +17,7 @@ const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()
   const second=(await save('accounts',{company:'Second Client',abn_acn:'ABN-B',billing_address:'Second HQ'})).account;
   const original=(await save('contacts',{name:'Alex Same',company:first.company,phone:'111',email:'first@example.test',title:'Manager'})).contact;
   await save('contacts',{name:'Alex Same',company:second.company,phone:'222',email:'second@example.test'});
-  const twins=[];for(let i=0;i<2;i++)twins.push((await save('contacts',{name:'Twin',company:first.company,phone:'333'})).contact);
+  const twins=[];for(let i=0;i<2;i++)twins.push((await save('contacts',{name:'Twin',company:first.company,phone:'333',email:'twin@example.test'})).contact);
   await page.goto(base);await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready);
   await page.locator('button[data-view="contacts"]').click();const host=page.locator('#contacts-root');await expect(host.getByRole('button',{name:'New Lead',exact:true})).toBeVisible();
   const beforeInline=await directory();
@@ -35,11 +35,13 @@ const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()
   await expect(dialog.getByRole('listbox',{name:'Matching records',exact:true}).getByRole('option')).toHaveText([first.company]);
   await contactCompany.press('ArrowDown');await contactCompany.press('Enter');
   await expect(contactCompany).toHaveValue(first.company);await expect(contactCompany).toHaveAttribute('aria-expanded','false');
+  await dialog.getByLabel('Phone',{exact:true}).fill('555');await dialog.getByLabel('Email',{exact:true}).fill('search-linked@example.test');
   await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog).not.toBeVisible();
   const searchLinked=await page.evaluate(()=>window.contactResult);assert.equal(searchLinked.account_id,first.id);assert.equal((await directory()).accounts.length,beforeCompanyLookup.accounts.length);
   await page.evaluate(()=>{window.contactResult=window.ClassifireContacts.createContact({name:'Manual company contact'});});
   dialog=page.getByRole('dialog',{name:'New Contact',exact:true});await dialog.getByRole('combobox',{name:'Company',exact:true}).fill('Unlisted Manual Company');
   await expect(dialog.getByRole('listbox',{name:'Matching records',exact:true}).getByRole('option')).toHaveCount(0);
+  await dialog.getByLabel('Phone',{exact:true}).fill('666');await dialog.getByLabel('Email',{exact:true}).fill('manual-company@example.test');
   await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog).not.toBeVisible();
   const manualCompany=await page.evaluate(()=>window.contactResult),afterCompanyLookup=await directory();
   assert.equal(manualCompany.company,'Unlisted Manual Company');assert.ok(afterCompanyLookup.accounts.some(account=>account.id===manualCompany.account_id&&account.company===manualCompany.company));

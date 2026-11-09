@@ -42,7 +42,7 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   assert.equal(await quote.getByLabel('Document date',{exact:true}).getAttribute('readonly'),null);
   await expect(quote.locator('.commercial-sidebar').first()).toContainText('Billing floor 2');await expect(quote.locator('.commercial-sidebar').first()).toContainText('ABN 12 345');
   checks.push('Quote Project identity/contact fields follow all saved Project values and are readonly; Document date stays editable and Company pane uses Project billing/ABN');
-  await quote.getByLabel('Document title',{exact:true}).fill('Procurement source quote');
+  await quote.getByLabel('Introduction',{exact:true}).fill('Procurement source quote');
   await quote.locator('.commercial-estimate-picker summary').click();
   const add=quote.getByRole('button',{name:'Add custom row',exact:true});
   for(const token of ['button','primary','icon-only','penetration-new-item-action'])assert.ok((await add.getAttribute('class')).split(/\s+/).includes(token));
@@ -63,7 +63,7 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
     await expect(quote.locator('.commercial-message')).toHaveText('The Project details changed while saving. Reopen this document to use the current Project details.');
     assert.equal(writes.slice(beforeCapture).filter(write=>['/api/commercial/save','/api/commercial/issue'].includes(write.path)).length,0,action+' rejects changed Project data before saving or issuing');
     assert.equal(await page.evaluate(()=>JSON.parse(window.CeasefireCommercial.projectFingerprint()).editor.version),editorVersion);
-    await expect(quote.getByLabel('Document title',{exact:true})).toHaveValue('Procurement source quote');
+    await expect(quote.getByLabel('Introduction',{exact:true})).toHaveValue('Procurement source quote');
     await page.evaluate(()=>{window.CeasefireEstimates.capture=window.__qaOriginalCapture;window.CeasefireProject.details=window.__qaCaptureDetails;delete window.__qaOriginalCapture;delete window.__qaCaptureDetails;});
   }
   checks.push('Save and Download capture Project ownership before asynchronous estimate capture; changes during capture make no Save/Issue request and preserve the document draft');
@@ -71,7 +71,7 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   const issue=page.waitForResponse(response=>response.url().endsWith('/api/commercial/issue'));
   await quote.getByRole('button',{name:'Download PDF',exact:true}).click();assert.equal((await issue).status(),200);await expect(quote.locator('.commercial-message')).toContainText('PDF saved');await idle();
   await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
-  const card=quote.locator('.commercial-card').filter({hasText:'Procurement source quote'});await card.locator('summary').click();await card.getByRole('button',{name:'Create WO',exact:true}).click();
+  const card=quote.locator('.commercial-card');await card.locator('summary').click();await card.getByRole('button',{name:'Create WO',exact:true}).click();
   const work=page.locator('#commercial-work-order-root');await expect(work.getByRole('button',{name:'Create PO',exact:true})).toBeVisible();
   await expect(work.getByLabel('Client contact',{exact:true})).toHaveValue('Project Contact');await expect(work.getByLabel('Client email',{exact:true})).toHaveValue('project-contact@example.test');
   await expect(work.getByLabel('Document title',{exact:true})).toHaveCount(0);
@@ -148,7 +148,7 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   await purchase.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();
   await page.getByRole('dialog',{name:'Discard the current purchase order?',exact:true}).getByRole('button',{name:'Yes',exact:true}).click();
   await openProjectSection(page,'quote');await openProjectSection(page,'purchase-orders');
-  await purchase.getByRole('button',{name:'Purchase Order',exact:true}).click();
+  await purchase.locator(`.commercial-card[data-document-id="${po.id}"] .project-title-button`).click();
   await expect(purchase.getByRole('combobox',{name:'Site contact',exact:true})).toHaveValue('Project Contact');
   checks.push('A changed Project snapshot while Save is in flight leaves the editor unadopted, keeps the project file intact, and recovers after explicit reopen');
   assert.deepEqual(persisted.documents.find(doc=>doc.id===source.id),source);
@@ -167,12 +167,12 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   const unrelated=await page.request.post(new URL('/api/commercial/save',page.url()).href,{data:{workspace_id:await page.evaluate(()=>window.CeasefireCertification.sessionId()),kind:'purchase_order',status:'Draft',fields:unrelatedFields,project_details:projectDetails}});
   assert.equal(unrelated.status(),200);
   await work.getByRole('button',{name:'Back to Work Orders',exact:true}).click();await openProjectSection(page,'quote');
-  await quote.getByRole('button',{name:'Procurement source quote',exact:true}).click();
+  await card.locator('.project-title-button').click();
   const relatedPurchases=quote.locator('.commercial-side-panel').filter({has:page.locator('summary').filter({hasText:'Linked Purchase Orders (2)'})});
   await expect(relatedPurchases).toHaveCount(1);await expect(relatedPurchases.getByRole('button')).toHaveCount(2);await expect(relatedPurchases).not.toContainText('Same Company unrelated PO');
   await relatedPurchases.getByRole('button').filter({hasText:directPurchase.reference}).click();
   await expect(purchase.locator('.commercial-side-panel summary').filter({hasText:'Linked Work Orders (0)'})).toHaveCount(1);await expect(purchase.locator('.commercial-side-panel summary').filter({hasText:'Linked Quotes (1)'})).toHaveCount(1);
-  await purchase.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();await openProjectSection(page,'quote');await quote.getByRole('button',{name:'Procurement source quote',exact:true}).click();
+  await purchase.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();await openProjectSection(page,'quote');await card.locator('.project-title-button').click();
   await relatedPurchases.getByRole('button').filter({hasText:'PO-01'}).click();await expect(purchase.getByLabel('Purchase Order No.',{exact:true})).toHaveValue('PO-01');
   await expect(purchase.locator('.commercial-sidebar summary').filter({hasText:'Notes (1)'})).toHaveCount(1);await expect(purchase.locator('.commercial-sidebar summary').filter({hasText:'Files (1)'})).toHaveCount(1);
   checks.push('Quote Linked Purchase Orders follows the exact Quote→Work Order→Purchase Order chain or explicit direct Quote ID, excludes same-Company unrelated POs, and opens the owner with saved notes/files');

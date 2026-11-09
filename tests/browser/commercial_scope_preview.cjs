@@ -84,13 +84,13 @@ path.write_bytes(export_project(store,{**workspace,'estimates':[{'id':'estimate-
   const quote = page.locator('#commercial-quote-root');
   await quote.getByRole('button', {name:'New Quote', exact:true}).click();
   await showScope(quote);
-  await quote.getByLabel('Document title', {exact:true}).fill('Historical quote');
   await quote.locator('.commercial-editor-actions').getByRole('button', {name:'Save', exact:true}).click();
   await expect(quote.locator('.commercial-message')).toContainText('Document saved.');
   await saveProject();
 
   const saved = JSON.parse(fs.readFileSync(info.project, 'utf8'));
   const historical = saved.commercial_documents.documents.find(document => document.kind === 'quote');
+  historical.fields.title = 'Historical quote';
   historical.fields.scope_tables = [{title:'Old workbook columns', headers:['A', 'B'], rows:[['Legacy', 'Scope']]}];
   historical.fields.lines[0].unit_price = '12.34';
   historical.fields.lines[0].description = 'Historical agreed description';

@@ -345,6 +345,8 @@ class CertificationProjects:
                 saved = service._get(db, draft['id'])
                 if saved['version'] != draft['version']:
                     raise CertificationConflict('This certificate changed while saving the project. Reload the certificate and try again.')
+                if 'workflow_status' in saved['options']:
+                    draft['options'].setdefault('workflow_status', saved['options']['workflow_status'])
             revisions, pdfs = [], {}
             total = 0
             for row in db.execute('SELECT ' + ','.join(REVISION_COLUMNS) + ' FROM certification_revisions ORDER BY document_id,revision'):

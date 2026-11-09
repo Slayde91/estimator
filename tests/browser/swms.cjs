@@ -40,7 +40,8 @@ async function run(edition) {
     await expect(host.getByLabel('Job Reference',{exact:true})).toHaveValue(projectNumber);
     await expect(host.getByLabel('Job Reference',{exact:true})).toHaveAttribute('readonly','');
     await expect(host.getByLabel('Project Address',{exact:true})).toHaveValue('10 Test Street');
-    await host.getByLabel('Document title',{exact:true}).fill(`SWMS ${edition}`);
+    await expect(host.getByLabel('Document title',{exact:true})).toHaveCount(0);
+    await host.getByLabel('Workflow status',{exact:true}).selectOption('Review');
     await expect(host.getByLabel('Status',{exact:true})).toHaveCount(0);
     await expect(host.locator('.swms-people .swms-person')).toHaveCount(0);
     await expect(host.locator('.swms-step-table tbody tr')).toHaveCount(0);
@@ -199,7 +200,7 @@ async function run(edition) {
     assert.ok(await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.pendingIssue));
     await page.evaluate(()=>{window.CeasefireDownloads.save=window.originalSWMSDownload;});
     await host.getByRole('button',{name:'Back to statements',exact:true}).click();
-    await host.getByRole('button',{name:'Open',exact:true}).click();
+    await host.locator('.swms-card .project-title-button').click();
     await expect(host.getByRole('img',{name:'Project manager drawn signature'})).toBeVisible();
     await expect(host.locator('.swms-step-table tbody tr')).toHaveCount(46);
     await additionalSection.locator(':scope > summary').click();
@@ -209,10 +210,10 @@ async function run(edition) {
     assert.ok((await additionalControl.boundingBox()).height > 80,'Saved additional controls expand when their collapsed parent opens');
     await page.screenshot({path:path.join(directory,'swms-editor.png'),fullPage:false});
     // Raw user text is rendered through DOM text/value properties, never HTML.
-    await host.getByLabel('Document title',{exact:true}).fill('<img src=x onerror=alert(1)>');
+    await host.getByLabel('Project Name',{exact:true}).fill('<img src=x onerror=alert(1)>');
     await host.getByRole('button',{name:'Save',exact:true}).click(); await expect(host.locator('.swms-message')).toContainText('Saved.');
     const lastSavedTitle = '<img src=x onerror=alert(1)>';
-    const title = host.getByLabel('Document title',{exact:true});
+    const title = host.getByLabel('Project Name',{exact:true});
     await title.fill('Unsaved site changes');
     const home = page.locator('nav [data-view="home"]');
     await home.click();
@@ -224,11 +225,11 @@ async function run(edition) {
     await discard.getByRole('button',{name:'Yes',exact:true}).click();
     await expect(page.locator('#view-home')).toBeVisible();
     await openProjectSection(page,'swms');
-    await expect(host.getByRole('heading',{name:lastSavedTitle,exact:true})).toBeVisible();
-    await host.getByRole('button',{name:'Open',exact:true}).click();
+    await expect(host.locator('.swms-card h3')).toContainText(lastSavedTitle);
+    await host.locator('.swms-card .project-title-button').click();
     await expect(title).toHaveValue(lastSavedTitle);
     await host.getByRole('button',{name:'Back to statements',exact:true}).click();
-    await expect(host.getByRole('heading',{name:'<img src=x onerror=alert(1)>',exact:true})).toBeVisible();
+    await expect(host.locator('.swms-card h3')).toContainText(lastSavedTitle);
     assert.equal(await host.locator('img').count(),0);
     // Saved ink is selected only by an explicit click in each document.
     const signatureProfiles=require('./personal_signature_profiles.cjs');

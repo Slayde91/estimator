@@ -180,7 +180,7 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await expect(zoneForm.getByLabel('Organization time zone')).toHaveValue('Australia/Sydney');
   await zoneForm.getByLabel('Organization time zone').selectOption('Asia/Kathmandu');
   await page.route('**/api/scheduler/state*', route => route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Synthetic Scheduler refresh failure'})}));
-  await zoneForm.getByRole('button',{name:'Save time zone'}).click();
+  await zoneForm.getByRole('button',{name:'Save'}).click();
   await expect(zoneForm.getByRole('status')).toContainText('Time zone saved. All team members use this time zone.');
   await page.unroute('**/api/scheduler/state*');
   await scheduler();

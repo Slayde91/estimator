@@ -135,12 +135,12 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   }
   await documentTabs.locator('[data-document-section="swms"]').click();
   const swms=page.locator('#swms-root');await swms.getByRole('button',{name:'New SWMS',exact:true}).click();
-  await swms.getByLabel('Document title',{exact:true}).fill('Document tab guard QA');
+  await swms.getByLabel('Project Name',{exact:true}).fill('Document tab guard QA');
   await documentTabs.locator('[data-document-section="documentation"]').click();
   await page.locator('#discard-dialog').getByRole('button',{name:'Cancel',exact:true}).click();
   await expect(page.locator('#view-swms')).toBeVisible();await expect(documentTabs).toBeVisible();
   await expect(documentTabs.locator('[aria-current="page"]')).toHaveAttribute('data-document-section','swms');
-  await expect(swms.getByLabel('Document title',{exact:true})).toHaveValue('Document tab guard QA');
+  await expect(swms.getByLabel('Project Name',{exact:true})).toHaveValue('Document tab guard QA');
   await documentTabs.locator('[data-document-section="documentation"]').click();
   await page.locator('#discard-dialog').getByRole('button',{name:'Yes',exact:true}).click();
   await expect(page.locator('#view-documentation')).toBeVisible();await expect(documentTabs).toBeVisible();

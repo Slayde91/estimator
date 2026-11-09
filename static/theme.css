@@ -5,16 +5,17 @@
   --theme-button: #b90a15;
   --theme-button-hover: #920711;
   --theme-focus: #b90a15;
+  --settings-preference-size:48px;
 }
 .header-tools { display:flex; align-items:flex-start; gap:9px; margin-top:3.5px; }
 .header-tools .header-project-actions { margin-top:0; }
-.button.theme-toggle { display:grid; place-items:center; width:48px; min-width:48px; height:48px; min-height:48px; padding:10px; color:#fff; background:var(--theme-button); border:1px solid var(--theme-button); }
+.button.theme-toggle { display:grid; place-items:center; width:var(--settings-preference-size); min-width:var(--settings-preference-size); height:var(--settings-preference-size); min-height:var(--settings-preference-size); padding:10px; color:#fff; background:var(--theme-button); border:1px solid var(--theme-button); }
 .theme-toggle svg { width:25px; height:25px; }
 .button.theme-toggle:hover { background:var(--theme-button-hover); border-color:var(--theme-button-hover); }
 .button.theme-toggle:focus-visible { outline:3px solid var(--theme-focus); outline-offset:4px; }
 @media(max-width:880px) { .header-tools { flex-direction:column; align-items:flex-end; gap:6px; } }
-@media(max-width:570px) { .button.theme-toggle { width:44px; min-width:44px; height:44px; min-height:44px; padding:9px; } }
-@media(max-width:420px) { .header-tools { margin-top:0; } .button.theme-toggle { width:40px; min-width:40px; height:40px; min-height:40px; padding:7px; } }
+@media(max-width:570px) { :root { --settings-preference-size:44px; } .button.theme-toggle { padding:9px; } }
+@media(max-width:420px) { :root { --settings-preference-size:40px; } .header-tools { margin-top:0; } .button.theme-toggle { padding:7px; } }
 
 /* The default deliberately keeps the existing CLASSIFIRE palette. */
 :root[data-theme="midnight"] {

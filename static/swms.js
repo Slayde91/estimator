@@ -194,15 +194,37 @@
     search.addEventListener("input", () => { state.search = search.value; cards(); });
     bar.append(field("Search statements", search), button("New SWMS", openNew, true)); host.append(bar, element("div", "swms-list")); cards();
   }
+  function cardHeading(row) {
+    const details = row.fields.details, project = window.CeasefireProject?.details?.() || {};
+    const place = [details.project_name || project.client, details.project_address || project.site_address].filter(Boolean).join(' - ');
+    return [row.reference || 'SWMS', place].filter(Boolean).join(': ');
+  }
+  function statementCard(row) {
+    const card = element('article', 'project-kanban-card swms-card'), heading = element('h3'), actions = element('div', 'actions');
+    const title = button(cardHeading(row), () => open(row));
+    title.className = 'text-button project-title-button'; heading.append(title);
+    actions.append(iconAction('Delete', () => remove(row), 'remove'));
+    card.append(heading, element('p', 'muted', `Revision ${row.version} · Updated ${new Date(row.updated_at).toLocaleString('en-AU')}`), actions);
+    return card;
+  }
+  async function moveStatement(row, status) {
+    if (state.busy || state.editor) return;
+    const current = guard(); lock(true);
+    try {
+      await request('save', {workspace_id:state.workspace, id:row.id, version:row.version, fields:row.fields, status});
+      if (current()) {changed(); if (await load()) renderList();}
+    } catch (error) {
+      if (current()) {if (error.status === 409 && await load()) renderList(); notice(error.message, true);}
+    } finally {if (current()) lock(false);}
+  }
   function cards() {
-    const host = root().querySelector(".swms-list"); host.replaceChildren();
-    const rows = (state.model?.documents || []).filter(row => [row.fields.title, ...Object.values(row.fields.details)].join(" ").toLowerCase().includes(state.search.toLowerCase())).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
-    if (!rows.length) host.append(element("p", "muted", "No statements found. Create a SWMS for this project."));
-    rows.forEach(row => {
-      const card = element("article", "card swms-card"), actions = element("div", "actions");
-      card.append(element("h2", "", row.fields.title), element("span", "badge", row.status), element("p", "", [row.fields.details.job_reference, row.fields.details.project_address].filter(Boolean).join(" · ")),
-        element("p", "muted", `Revision ${row.version} · Updated ${new Date(row.updated_at).toLocaleString("en-AU")}`));
-      actions.append(button("Open", () => open(row)), iconAction("Delete", () => remove(row), "remove")); card.append(actions); host.append(card);
+    const needle = state.search.toLowerCase();
+    const rows = (state.model?.documents || []).filter(row =>
+      [cardHeading(row), row.fields.title, ...Object.values(row.fields.details)].join(' ').toLowerCase().includes(needle)
+    ).sort((a,b) => b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id));
+    window.ClassifireDocumentBoard.render(root().querySelector('.swms-list'), {
+      items:rows, stageOf:row => row.status, legacy:['Archived'], cardFor:statementCard,
+      move:moveStatement, onError:error=>notice(error.message,true), locked:() => state.busy || Boolean(state.editor)
     });
   }
   async function defaults() {
@@ -228,7 +250,7 @@
     } finally { if (current()) lock(false); }
   }
   async function remove(row) {
-    if (state.busy || !window.confirm(`Delete “${row.fields.title}” from this project?`)) return;
+    if (state.busy || !window.confirm(`Delete “${cardHeading(row)}” from this project?`)) return;
     const current = guard(); lock(true);
     try { await request("delete", { workspace_id: state.workspace, id: row.id, version: row.version }); if (!current()) return; changed(); if (await load()) renderList(); }
     finally { if (current()) lock(false); }
@@ -455,7 +477,15 @@
     window.CeasefireI18n?.attr(back, "title", "Back to statements"); window.CeasefireI18n?.attr(back, "aria-label", "Back to statements");
     back.innerHTML='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 5l-7 7 7 7"></path></svg>';
     actions.append(back, button("Save", () => save(), true), downloadButton, element("span", "muted", editor.version ? `Revision ${editor.version}` : "New statement")); host.append(actions);
-    const identity = element("div", "swms-grid swms-identity"); identity.append(field("Document title", control(fields.title, value => { fields.title = value; }))); host.append(identity);
+    const stages = [...window.ClassifireDocumentBoard.stages];
+    if (editor.status === 'Archived') stages.push('Archived');
+    const identity = element('div', 'swms-grid swms-identity');
+    const stageInput = select(stages, editor.status, value => { editor.status = value; });
+    const stageField = field('Workflow status', stageInput);
+    window.CeasefireI18n?.text(stageField.firstChild, 'Workflow status');
+    window.CeasefireI18n?.attr(stageInput, 'aria-label', 'Workflow status');
+    for (const option of stageInput.options) window.CeasefireI18n?.text(option, option.value);
+    identity.append(stageField); host.append(identity);
     const details = section("Project Details", true), grid = element("div", "swms-grid"), detailInputs = {};
     for (const [key, label] of Object.entries(detailLabels)) {
       const input=required('details.' + key, control(fields.details[key], value => { fields.details[key] = value; }, key === "date" ? "date" : "text"));

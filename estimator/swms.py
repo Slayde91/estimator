@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 
 from .catalog import ValidationError
 from .company_settings import DEFAULTS
+from .document_workflow import REVIEW_STAGES
 from .evidence_files import _directory
 
 DETAIL_FIELDS = ('job_reference', 'contact_person', 'position', 'phone', 'principal_contractor',
@@ -26,7 +27,8 @@ TEXT_FIELDS = ('title', 'template_id', 'template_version', 'communication', 'too
 FIELD_KEYS = set(TEXT_FIELDS) | {'details', 'manager_signature', 'reviewers', 'consultation', 'steps', 'work_types',
                                'additional_steps', 'additional_rows', 'signoffs', 'manual_signature', 'site_signoffs', 'reviews', 'attachments'}
 STEP_FIELDS = ('job_step', 'hazards', 'initial_risk', 'controls', 'residual_risk', 'responsible')
-STATUSES = ('Draft', 'Review', 'Approved', 'Archived')
+# Archived remains a valid value in historical projects and older clients.
+STATUSES = (*REVIEW_STAGES, 'Archived')
 WORK_TYPES = ('Protective Coatings', 'Passive Firestopping', 'Installation of Passive Fire Protection Works')
 MAX_SNAPSHOT_BYTES = 12 * 1024 * 1024
 MAX_PDF_BYTES = 64 * 1024 * 1024

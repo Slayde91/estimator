@@ -36,7 +36,7 @@ async function save(page){
     assert.equal(await currentFile(page),null);
     return page;
   }
-  const original='Unfiled fixture quote',edited='Changed from another window';
+  const original='Unfiled fixture quote',heading='Quote: Unfiled fixture company',edited='Changed from another window';
   const owner=await newWindow();
   await owner.getByRole('button',{name:'Estimates',exact:true}).click();
   await fillProjectDetails(owner,{'client':'Unfiled fixture company'});
@@ -52,7 +52,7 @@ async function save(page){
   const seeded=spawnSync(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'legacy_unfiled_fixture.py'),directory,workspace,scope.project_id],{cwd:root,windowsHide:true,encoding:'utf8'});
   assert.equal(seeded.status,0,seeded.stderr);assert.equal(JSON.parse(seeded.stdout).title,original);
   await owner.evaluate(()=>window.CeasefireCommercial.activate('quote'));
-  await expect(board(owner).getByRole('button',{name:original,exact:true})).toBeVisible();
+  await expect(board(owner).getByRole('button',{name:heading,exact:true})).toBeVisible();
   await board(owner).getByRole('button',{name:'New Quote',exact:true}).click();
   await expect(owner.locator('#app-message')).toHaveText('Create or load a project before creating documents.');
   await expect(board(owner).locator('.commercial-editor')).toHaveCount(0);
@@ -63,16 +63,16 @@ async function save(page){
   assert.notEqual(await owner.evaluate(()=>window.CeasefireCertification.sessionId()),
     await other.evaluate(()=>window.CeasefireCertification.sessionId()),'Each tab has its own active workspace');
   const card=title=>board(other).locator('.commercial-card').filter({has:other.getByRole('button',{name:title,exact:true})});
-  await expect(card(original)).toHaveCount(1);
-  await card(original).getByRole('button',{name:original,exact:true}).click();
+  await expect(card(heading)).toHaveCount(1);
+  await card(heading).getByRole('button',{name:heading,exact:true}).click();
   await expect(board(other).getByLabel('Client',{exact:true})).toHaveValue('Unfiled fixture company');
   await expect(board(other).locator('.commercial-details').getByLabel('Site address',{exact:true})).toHaveValue('21 Fixture Street');
-  await board(other).getByLabel('Document title',{exact:true}).fill(edited);
+  await board(other).getByLabel('Introduction',{exact:true}).fill(edited);
   await save(other);
   await board(other).getByRole('button',{name:'Back to Quotes',exact:true}).click();
-  await card(edited).locator('.commercial-card-menu summary').click();
-  await card(edited).getByLabel('Move to',{exact:true}).selectOption('Presented');
-  await expect(board(other).locator('.project-kanban-column').filter({has:other.getByRole('heading',{name:'Presented',exact:true})})).toContainText(edited);
+  await card(heading).locator('.commercial-card-menu summary').click();
+  await card(heading).getByLabel('Move to',{exact:true}).selectOption('Presented');
+  await expect(board(other).locator('.project-kanban-column').filter({has:other.getByRole('heading',{name:'Presented',exact:true})})).toContainText(heading);
   assert.equal(await currentFile(other),null);
   assert.equal(fs.existsSync(info.project),false);
 
@@ -81,7 +81,7 @@ async function save(page){
   const published=await firstSave;assert.equal(published.status(),200,await published.text());await idle(owner);
   const file=JSON.parse(fs.readFileSync(info.project,'utf8'));
   const documents=file.commercial_documents.documents.filter(d=>d.kind==='quote');
-  assert.equal(documents.length,1);assert.equal(documents[0].fields.title,edited);assert.equal(documents[0].status,'Presented');
+  assert.equal(documents.length,1);assert.equal(documents[0].fields.title,original);assert.equal(documents[0].fields.introduction,edited);assert.equal(documents[0].status,'Presented');
   await openProjectSection(owner,'quote');
   await board(owner).getByRole('button',{name:'New Quote',exact:true}).click();
   await expect(board(owner).locator('.commercial-editor')).toBeVisible();
@@ -90,7 +90,7 @@ async function save(page){
   assert.equal(JSON.parse(fs.readFileSync(info.project,'utf8')).commercial_documents.documents.length,1,'An unsaved new draft never duplicates the recovered history');
   await other.reload();await idle(other);await openProjectSection(other,'quote');
   await expect(board(other).locator('.commercial-card')).toHaveCount(1);
-  await expect(card(edited)).toBeVisible();
+  await expect(card(heading)).toBeVisible();
   const registry=await other.evaluate(async()=>{
     const workspace=window.CeasefireCertification.sessionId();
     let result;

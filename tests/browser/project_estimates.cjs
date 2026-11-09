@@ -84,24 +84,30 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   saved=JSON.parse(fs.readFileSync(info.project));assert.equal(saved.estimates[1].workspace.estimate.measurements,'Second estimate notes');
   await expect(page.locator('#project-status')).toHaveCount(0);
   const documentToggle=page.locator('[aria-controls="firestopping-document-actions"]');
+  const quantity=page.locator('#project-input-fields');
+  await expect(quantity).toContainText('Sqm/Items',{ignoreCase:true});
+  await expect(quantity.locator('+ .calculator-document-menu')).toContainText('Document');
   const controlHeights=[];
-  // The retained Document action aligns with the estimate combo at each breakpoint.
+  // The quantity follows Estimate and Document follows quantity, including when flex rows wrap.
   for(const width of [1440,881,880,571,570,390]){
     await page.setViewportSize({width,height:1000});await expect(documentToggle).toBeVisible();
-    const heights=await documentToggle.evaluate(toggle=>({
-      document:toggle.getBoundingClientRect().height,
-      bottom:toggle.getBoundingClientRect().bottom,
-      top:toggle.getBoundingClientRect().top,
-      estimateBottom:document.querySelector('.project-estimate-picker').getBoundingClientRect().bottom
-    }));
-    assert.ok(heights.document>0&&(width<570?heights.top>=heights.estimateBottom:Math.abs(heights.bottom-heights.estimateBottom)<1),
-      `Document aligns with the estimate row or wraps below it on mobile at ${width}px: ${JSON.stringify(heights)}`);
+    const controls=await documentToggle.evaluate(toggle=>[
+      document.querySelector('.project-estimate-picker'),document.querySelector('#project-input-fields input'),toggle
+    ].map(element=>element.getBoundingClientRect().toJSON()));
+    for(const [i,control] of controls.entries()){
+      assert.ok(control.width>0&&control.height>0&&control.left>=0&&control.right<=width,`Visible control at ${width}px: ${JSON.stringify(control)}`);
+      if(i===0)continue;
+      const previous=controls[i-1],sameRow=Math.abs(control.bottom-previous.bottom)<1;
+      assert.ok(sameRow ? control.left>=previous.right : control.top>=previous.bottom,`Ordered, non-overlapping controls at ${width}px: ${JSON.stringify(controls)}`);
+      if(width>880)assert.ok(sameRow,`All controls fit the desktop row at ${width}px`);
+    }
+    if(width===390)assert.ok(controls[2].top>=controls[0].bottom,'Document wraps below the estimate on a phone');
     await documentToggle.click();
     const menu=await page.locator('#firestopping-document-actions').boundingBox();
     assert.ok(menu.x>=0&&menu.x+menu.width<=width,`Estimate Document menu should fit ${width}px: ${JSON.stringify(menu)}`);
     if(width===390)await page.screenshot({path:path.join(output,'estimate-document-menu-mobile.png')});
     await documentToggle.press('Escape');
-    controlHeights.push({width,...heights,menu});
+    controlHeights.push({width,controls,menu});
   }
   fs.writeFileSync(path.join(output,'estimate-control-heights.json'),JSON.stringify(controlHeights,null,2));
   await page.setViewportSize({width:1440,height:1000});
@@ -135,7 +141,8 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   await page.locator('#discard-dialog [value="confirm"]').click();
   await estimate(); await documentToggle.click();await page.locator('#estimate-open-quote').click();
   await expect(page.locator('#view-quote')).toBeVisible();
-  await expect(page.locator('#commercial-quote-root').getByLabel('Document title',{exact:true})).toBeVisible();
+  await expect(page.locator('#commercial-quote-root').getByLabel('Document title',{exact:true})).toHaveCount(0);
+  await expect(page.locator('#commercial-quote-root').getByLabel('Document date',{exact:true})).toBeVisible();
   await expect(page.locator('#commercial-quote-root').getByLabel('Project number',{exact:true})).toHaveValue('PN-01');
   await expect(page.locator('#measurements')).toHaveValue('Second estimate notes');
   await page.screenshot({path:path.join(output,'multiple-estimates.png'),fullPage:true});assert.deepEqual(errors,[]);

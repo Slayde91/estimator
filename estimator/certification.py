@@ -15,6 +15,7 @@ from pypdf import PdfReader
 
 from .catalog import ValidationError
 from .document_numbers import DocumentNumbers
+from .document_workflow import REVIEW_STAGES
 
 
 FIELDS = (
@@ -59,7 +60,7 @@ def validate_fields(value, *, partial=False):
 def validate_options(value):
     """Keep legacy option shapes; new clients snapshot signer artwork explicitly."""
     signature_keys = {'signature_image', 'signature_name'}
-    if not isinstance(value, dict) or set(value) not in (set(DEFAULT_OPTIONS), set(DEFAULT_OPTIONS) | signature_keys):
+    if not isinstance(value, dict) or (set(value) - {'workflow_status'}) not in (set(DEFAULT_OPTIONS), set(DEFAULT_OPTIONS) | signature_keys):
         raise ValidationError('Include the certificate cover, cover filename and selected scopes only.')
     name = value['cover_pdf_name']
     if (not isinstance(name, str) or len(name) > 200
@@ -74,10 +75,23 @@ def validate_options(value):
     from .pdf_cover import validate_cover_pdf
     cover, name = validate_cover_pdf(value['cover_pdf'], name)
     result = {'cover_pdf': cover, 'cover_pdf_name': name, 'scopes': scopes[:]}
+    if 'workflow_status' in value:
+        if value['workflow_status'] not in REVIEW_STAGES:
+            raise ValidationError('Choose a valid workflow status.')
+        result['workflow_status'] = value['workflow_status']
     if signature_keys <= set(value):
         from .certification_signature import validate_signature
         result['signature_image'], result['signature_name'] = validate_signature(value['signature_image'], value['signature_name'])
     return result
+
+
+def _draft_options(incoming, previous):
+    """Older editors omit the review stage. Preserve it during save and generation."""
+    if incoming is _MISSING:
+        return previous
+    if 'workflow_status' not in incoming and 'workflow_status' in previous:
+        return {**incoming, 'workflow_status': previous['workflow_status']}
+    return incoming
 
 
 def validate_complete_fields(value):
@@ -207,15 +221,17 @@ class CertificationService:
 
     def list_documents(self):
         with self.store.connect() as db:
-            rows = db.execute('SELECT d.id,d.fields,d.version,d.created_at,d.updated_at,COUNT(r.revision),d.reference '
+            rows = db.execute("SELECT d.id,d.fields,d.version,d.created_at,d.updated_at,COUNT(r.revision),d.reference,"
+                              "json_extract(d.options,'$.workflow_status') "
                               'FROM certification_documents d LEFT JOIN certification_revisions r '
                               'ON r.document_id=d.id GROUP BY d.id ORDER BY d.updated_at DESC,d.id').fetchall()
         items = []
-        for identity, raw, version, created_at, updated_at, count, reference in rows:
+        for identity, raw, version, created_at, updated_at, count, reference, workflow_status in rows:
             fields = json.loads(raw)
             items.append({'id': identity, 'reference': reference, 'client': fields['client'], 'project': fields['project'],
                           'address': fields['address'], 'version': version, 'created_at': created_at,
                           'updated_at': updated_at, 'revision_count': count,
+                          **({'workflow_status': workflow_status} if workflow_status else {}),
                           'label': fields['project'].strip() or fields['client'].strip() or 'Untitled certification'})
         return {'items': items}
 
@@ -272,7 +288,7 @@ class CertificationService:
         with self.store.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             current = self._get(db, document_id)
-            selected_options = current['options'] if options is _MISSING else options
+            selected_options = _draft_options(options, current['options'])
             # An acknowledged or lost-response retry that already matches the
             # latest draft has nothing to overwrite, even if its version aged.
             if current['fields'] == fields and current['options'] == selected_options:
@@ -349,7 +365,7 @@ class CertificationService:
             if current['version'] != expected_version:
                 raise CertificationConflict('This certification changed in another window. Reload it before generating again.')
             revision = max((item['revision'] for item in current['revisions']), default=0) + 1
-            selected_options = deepcopy(current['options'] if options is _MISSING else options)
+            selected_options = deepcopy(_draft_options(options, current['options']))
         from .company_settings import validate_company_settings
         company = deepcopy(company)
         company = validate_company_settings(company)

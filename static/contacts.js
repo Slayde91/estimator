@@ -181,7 +181,10 @@
     const initialValues = Object.fromEntries(Object.entries(fields).map(([key,input]) => [key,input.value]));
     function accountSelection(account, setCompany = true) {
       accountId = account.id;
-      if (setCompany) fields.company.value = account.company;
+      if (setCompany) {
+        fields.company.value = account.company;
+        if (newContact) {fields.company.setCustomValidity('');fields.company.removeAttribute('aria-invalid');fieldErrors.company.hidden=true;}
+      }
       for (const key of ['abn_acn','billing_address']) if(fields[key] && (!fields[key].value.trim() || fields[key].value === accountDefaults[key])) fields[key].value = account[key] || '';
       accountDefaults = {abn_acn:account.abn_acn || '',billing_address:account.billing_address || ''};
     }

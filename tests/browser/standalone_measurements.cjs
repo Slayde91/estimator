@@ -1,5 +1,5 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl, prepareProjectForSave } = require('./project_actions.cjs');
 // Retained legacy count-only and length-only editing; disposable rotated PDF.
 const { chromium, expect } = require('@playwright/test');
 const { renderDrawing } = require('./viewer_helpers.cjs');
@@ -76,7 +76,7 @@ async function assertDeleteFarLeft(mode) {
   const info = await ready; assert.notEqual(info.port, 8765);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1146, height: 764 } }); page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (request.url().endsWith('/commands')) operations.push(request.postDataJSON().op); });
-  await page.goto(`http://127.0.0.1:${info.port}/`);
+  await page.goto(`http://127.0.0.1:${info.port}/`); await prepareProjectForSave(page);
   // Bootstrap selects its initial view; navigate only after it has completed.
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();

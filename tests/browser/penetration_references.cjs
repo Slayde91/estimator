@@ -2,7 +2,7 @@
 // disposable library, database and project. No production port or files.
 const { chromium, expect } = require('@playwright/test');
 const { chooseCalculator } = require('./calculator_actions.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl,prepareProjectForSave} = require('./project_actions.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict'), crypto = require('node:crypto');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `penetration-references-${Date.now()}`);
@@ -40,6 +40,7 @@ async function itemColumn(body, theme, width, entry='calculator') {
   browser = await chromium.launch({ headless: true, ...(process.env.CEASEFIRE_BROWSER_CHANNEL ? { channel: process.env.CEASEFIRE_BROWSER_CHANNEL } : {}) }); evidence.browser = browser.version(); page = await browser.newPage({ viewport: { width: 1450, height: 960 } }); page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (request.url().includes('/api/libraries/technical?')) requests.push(new URL(request.url()).searchParams.toString()); });
   await page.goto(origin); await settled();
+  await prepareProjectForSave(page);
   const initialized = page.waitForResponse(response => response.url().endsWith('/api/project/save-as')); await clickProjectControl(page, 'Save'); assert.equal((await initialized).status(), 200); await settled();
   await chooseCalculator(page, 'Firestopping'); await settled();
   await page.evaluate(async () => {

@@ -281,6 +281,14 @@ def self_test(data_directory, output_report):
                 assert probe.script('document.querySelector("#project-no").readOnly') is True
                 assert probe.script('document.querySelector("#project-no").value') == ''
                 probe.fill('#client', 'Disposable desktop acceptance')
+                # Complete this disposable Project before exercising first-save
+                # numbering; the native save/cancel/load assertions stay intact.
+                for selector, value in (
+                        ('#site-address', '1 Synthetic Desktop Street'),
+                        ('#project-contact-name', 'Synthetic Desktop Contact'),
+                        ('#project-contact-phone', '0400 000 001'),
+                        ('#project-contact-email', 'desktop@example.test')):
+                    probe.fill(selector, value)
                 probe.wait('document.querySelector("#calculation-status").textContent === "Calculated" && window.CeasefireDesktop.status().busy === false && document.querySelector("#sum-total").textContent !== "—"')
                 baseline = probe.script('document.querySelector("#sum-total").textContent')
                 probe.click('#save-current-project')

@@ -4,7 +4,7 @@ const { chooseTakeoff } = require('./section_navigation.cjs');
 const { chromium, expect } = require('@playwright/test');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 const { settingsSettled } = require('./settings_helpers.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl, prepareProjectForSave } = require('./project_actions.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
@@ -91,7 +91,7 @@ async function assertLabels(item, state) {
   const context = await browser.newContext({ viewport: { width: 1600, height: 1100 }, baseURL: `http://127.0.0.1:${info.port}` });
   await context.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push(event.violatedDirective)); });
   page = await context.newPage(); page.setDefaultTimeout(30000); page.on('pageerror',error => errors.push(error.message)); page.on('request',request => { if (request.url().endsWith('/commands')) requests.push(request.postDataJSON()); });
-  const response = await page.goto('/'); assert.equal(response.status(),200); await page.waitForFunction(() => window.CeasefireDesktop?.status().ready,null,{timeout:120000});
+  const response = await page.goto('/'); await prepareProjectForSave(page); assert.equal(response.status(),200); await page.waitForFunction(() => window.CeasefireDesktop?.status().ready,null,{timeout:120000});
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click(); await renderDrawing(page, () => page.locator('#takeoff-upload').setInputFiles(info.fixture),1);
   await page.getByRole('button',{name:'Scale',exact:true}).click(); await page.getByLabel('Drawing calibration',{exact:true}).selectOption('scale:100');
   await command(() => modal('Apply drawing scale 1:100?',{},'Apply scale'),'add_calibration');

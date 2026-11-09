@@ -2,7 +2,7 @@ const { assertParentControls, assertTransferIcon } = require('./parent_controls_
 const { assertPhysicalTools, assertReadableControl } = require('./physical_tools_helpers.cjs');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { chooseNewDefect, startDefect } = require('./physical_dialogs.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl, prepareProjectForSave } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Rendered physical-register acceptance. The fixture owns every record and save target.
 const { chromium, expect } = require('@playwright/test');
@@ -53,7 +53,7 @@ async function restore(id,kind){await select(id);await page.getByRole('button',{
  const info=await ready;assert.notEqual(info.port,8765);origin=`http://127.0.0.1:${info.port}`;
  browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1146,height:764},deviceScaleFactor:1});page.setDefaultTimeout(30000);
  page.on('pageerror',error=>errors.push(error.message));page.on('request',request=>{if(request.url().endsWith('/physical/preview'))previews.push(request.postDataJSON());if(/\/(?:commands|auto-calibrate|physical\/apply|project\/(?:open|save|save-as))$/.test(new URL(request.url()).pathname))network.push({at:Date.now(),event:'request',path:new URL(request.url()).pathname,op:request.postDataJSON()?.op});});page.on('response',response=>{if(/\/(?:commands|auto-calibrate|physical\/apply|project\/(?:open|save|save-as))$/.test(new URL(response.url()).pathname))network.push({at:Date.now(),event:'response',path:new URL(response.url()).pathname,status:response.status()});});
- await page.goto(origin);await expect.poll(()=>page.evaluate(()=>window.CeasefireDesktop?.status().ready)).toBe(true);
+ await page.goto(origin); await prepareProjectForSave(page);await expect.poll(()=>page.evaluate(()=>window.CeasefireDesktop?.status().ready)).toBe(true);
  const calculatorBefore=await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());
  const definitionReply=await page.request.post(`${origin}/api/penetration/definition`,{data:{configuration:await page.evaluate(()=>window.CeasefireProject.configuration())}});assert.equal(definitionReply.status(),200);const definition=await definitionReply.json(),frls=definition.row_fields.find(field=>field.column==='N').options;
  await page.getByRole('button',{name:'Takeoffs',exact:true}).click();await chooseTakeoff(page, 'physical');await idle();

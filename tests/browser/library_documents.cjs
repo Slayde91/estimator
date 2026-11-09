@@ -3,7 +3,7 @@ const { cycleTheme } = require('./theme_navigation.cjs');
 // Document controls exercise real handlers against fixture-owned project/storage.
 const { chromium, expect } = require('@playwright/test');
 const { chooseLibrary } = require('./section_navigation.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl,prepareProjectForSave} = require('./project_actions.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..');
@@ -25,6 +25,7 @@ async function snapshot() { await idle(); return page.evaluate(() => ({ calculat
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1146, height: 900 } });
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(`http://127.0.0.1:${info.port}/`); await idle();
+  await prepareProjectForSave(page);
   const saved = page.waitForResponse(r => new URL(r.url()).pathname === '/api/project/save-as');
   await clickProjectControl(page, 'Save'); assert.equal((await saved).status(), 200); await idle();
   const projectBytes = fs.readFileSync(info.project);

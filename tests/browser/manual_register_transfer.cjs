@@ -5,7 +5,7 @@ const {chooseTakeoff}=require('./section_navigation.cjs');
 const {chooseCalculator}=require('./calculator_actions.cjs');
 const {chooseNewPhysicalItem}=require('./physical_dialogs.cjs');
 const {clickInspectorAdd}=require('./parent_controls_helpers.cjs');
-const {clickProjectControl}=require('./project_actions.cjs');
+const {clickProjectControl, prepareProjectForSave }=require('./project_actions.cjs');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`manual-transfer-${Date.now()}`);
 fs.mkdirSync(output,{recursive:true});
@@ -20,7 +20,7 @@ async function response(action,suffix){const waiting=page.waitForResponse(reply=
 async function create(kind,fields){if(kind==='barrier'){await page.getByRole('button',{name:'Add substrate',exact:true}).click();await chooseNewPhysicalItem(page,kind);}else await clickInspectorAdd(inspector(),'Add service in Item Details');const preview=await response(()=>modal(`Create draft ${kind}`,fields,'Preview new draft'),'/physical/preview');await response(()=>modal(`Create one draft ${kind}?`,{},'Apply draft change'),'/physical/apply');return preview.changed_ids[0];}
 async function snapshot(){return page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot());}
 (async()=>{
- info=await ready;assert.notEqual(info.port,8765);browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1384,height:900}});page.setDefaultTimeout(30000);page.on('pageerror',error=>errors.push(error.message));await page.goto(`http://127.0.0.1:${info.port}/`);await idle();
+ info=await ready;assert.notEqual(info.port,8765);browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1384,height:900}});page.setDefaultTimeout(30000);page.on('pageerror',error=>errors.push(error.message));await page.goto(`http://127.0.0.1:${info.port}/`); await prepareProjectForSave(page);await idle();
  await page.evaluate(()=>window.CeasefirePenetrations.completeProjectSnapshot());
  await page.getByRole('button',{name:'Takeoffs',exact:true}).click();await chooseTakeoff(page,'Service Plans');await idle();
  const barrier=await create('barrier',{'Barrier type':'Oversized core hole','Substrate':'Concrete/masonry wall','Substrate orientation':'Vertical','FRL':'-/120/120','Location':'MANUAL-L02'});

@@ -1,6 +1,6 @@
 // Projects hub, pointer and keyboard navigation use an isolated disposable app.
 const {chromium, expect} = require('@playwright/test');
-const {openProjectSection,openProjectTools,clickProjectControl} = require('./project_actions.cjs');
+const {openProjectSection,openProjectTools,clickProjectControl,prepareProjectForSave} = require('./project_actions.cjs');
 const {spawn} = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..');
@@ -62,6 +62,7 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   evidence.checks.push('Documentation requires a saved Project and leaves the current workspace unchanged when denied');
   // Use the real native Save As fixture; client-side identity fields cannot
   // grant the Project permission needed by subsequent Documentation navigation.
+  await prepareProjectForSave(page);
   const saving=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/project/save-as');
   await clickProjectControl(page,'Save');const saved=await saving;assert.equal(saved.status(),200,await saved.text());
   const receipt=await saved.json();assert.equal(receipt.cancelled,false);assert.ok(receipt.file.save_token);await idle();

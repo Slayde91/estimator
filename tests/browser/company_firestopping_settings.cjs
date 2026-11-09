@@ -1,7 +1,7 @@
 // Full browser interactions against a disposable fixture; never port 8765.
 const {chromium,expect}=require('@playwright/test');
 const {chooseCalculator}=require('./calculator_actions.cjs');
-const {clickProjectControl}=require('./project_actions.cjs');
+const {clickProjectControl,prepareProjectForSave}=require('./project_actions.cjs');
 const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),crypto=require('node:crypto');
 const root=path.resolve(__dirname,'../..'), output=path.join(root,'.runtime/browser-qa',`company-firestopping-${Date.now()}`);
@@ -109,6 +109,7 @@ async function inputGroup(group){await page.locator(`#penetration-input-groups [
   const retained=await page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot());
   for(const scope of ['draft','composer']){assert.deepEqual(retained[scope].globals.detail_options,detailOptionsBefore[scope]);assert.equal(retained[scope].globals.waste_lagged_pipes,.125);}
   assert.deepEqual(retained.composer.rows[0].inputs,retainedInputs);
+  await prepareProjectForSave(page);
   const saving=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/project/save-as');
   await clickProjectControl(page,'Save');const saveReply=await saving;assert.equal(saveReply.status(),200);await saveReply.finished();await idle();
   const savedProject=JSON.parse(fs.readFileSync(fixture.project,'utf8'));

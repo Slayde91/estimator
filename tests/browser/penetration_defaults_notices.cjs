@@ -1,7 +1,7 @@
 // Real Firestopping entry controls, native calculations and disposable Save/Open.
 const { chromium, expect } = require('@playwright/test');
 const { chooseCalculator } = require('./calculator_actions.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl,prepareProjectForSave} = require('./project_actions.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict'), crypto = require('node:crypto');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `penetration-defaults-notices-${Date.now()}`);
@@ -43,6 +43,7 @@ async function clear() {
   await page.goto(`http://127.0.0.1:${info.port}/`); await page.waitForFunction(() => window.CeasefireDesktop?.status().ready);
   // A first save initializes specialist defaults and freezes current prices.
   // Establish that native project baseline before testing later round trips.
+  await prepareProjectForSave(page);
   const initialSave = page.waitForResponse(reply => new URL(reply.url()).pathname === '/api/project/save-as'); initialSave.catch(() => {});
   await clickProjectControl(page, 'Save'); assert.equal((await initialSave).status(), 200);
   const initialOpen = page.waitForResponse(reply => new URL(reply.url()).pathname === '/api/project/open'); initialOpen.catch(() => {});

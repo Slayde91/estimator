@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT))
 
 from estimator.commercial_documents import CommercialDocuments, default_fields
 from estimator.document_numbers import DocumentNumbers
+from tests.commercial_ready_fixtures import complete_quote
 
 
 folder = Path(sys.argv[1]).resolve()
@@ -31,7 +32,7 @@ class LegacyProject:
 
 
 service = CommercialDocuments(LegacyProject())
-fields = default_fields('quote', {'client': 'Unfiled fixture company', 'site_address': '21 Fixture Street'})
+fields = complete_quote(default_fields('quote', {'client': 'Unfiled fixture company', 'site_address': '21 Fixture Street'}))
 fields['title'] = 'Unfiled fixture quote'
 document = service.save(workspace, {'kind': 'quote', 'status': 'Draft', 'fields': fields},
                         unfiled_context={'estimates': [], 'active_estimate_id': 'estimate-1'})

@@ -2,7 +2,7 @@ const { assertParentControls, assertTransferIcon, clickInspectorAdd } = require(
 const { assertPhysicalTools } = require('./physical_tools_helpers.cjs');
 const { chooseTakeoff, takeoffChoice } = require('./section_navigation.cjs');
 const { chooseNewPhysicalItem, startDefect } = require('./physical_dialogs.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl, prepareProjectForSave } = require('./project_actions.cjs');
 // Native browser gestures use synthetic PDFs and disposable projects only.
 const { chromium, expect } = require('@playwright/test');
 const { spawn } = require('node:child_process');
@@ -288,7 +288,7 @@ let currentScope = 'defect_reports';
   await debuggerSession.send('Debugger.enable'); await debuggerSession.send('Debugger.setPauseOnExceptions', { state: 'all' });
   page.on('request', request => { if (/\/physical\/(preview|apply)$/.test(new URL(request.url()).pathname)) requests.push({ path: new URL(request.url()).pathname, body: request.postDataJSON() }); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
-  await page.goto(origin); await expect.poll(() => page.evaluate(() => window.CeasefireDesktop?.status().ready)).toBe(true);
+  await page.goto(origin); await prepareProjectForSave(page); await expect.poll(() => page.evaluate(() => window.CeasefireDesktop?.status().ready)).toBe(true);
   const calculatorsBefore = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'PENETRATIONS');
   await renderDrawing(page, () => page.locator('#takeoff-upload').setInputFiles(info.fixture), 1);

@@ -4,7 +4,7 @@ const { chooseTakeoff } = require('./section_navigation.cjs');
 const { chromium, expect } = require('@playwright/test');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 const { settingsSettled } = require('./settings_helpers.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl, prepareProjectForSave } = require('./project_actions.cjs');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
@@ -56,7 +56,7 @@ async function openDrawingSettings(point) {
 }
 const body = id => page.locator(`.takeoff-hit[data-item-id="${id}"]`).first();
 async function enterWorkspace(info, calibrate = true) {
-  const response = await page.goto(`http://127.0.0.1:${info.port}/`); assert.equal(response.status(), 200); assert.match(response.headers()['content-security-policy'], /script-src 'self'/);
+  const response = await page.goto(`http://127.0.0.1:${info.port}/`); await prepareProjectForSave(page); assert.equal(response.status(), 200); assert.match(response.headers()['content-security-policy'], /script-src 'self'/);
   await page.waitForFunction(() => window.CeasefireDesktop?.status().ready, null, { timeout: 120000 });
   await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
   await renderDrawing(page, () => page.locator('#takeoff-upload').setInputFiles(info.fixture), 1);

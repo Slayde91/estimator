@@ -1,5 +1,5 @@
 const { chooseTakeoff } = require('./section_navigation.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl,prepareProjectForSave} = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Duct creation and settings acceptance at the annotated browser viewport size.
 // All data, native dialog targets and PDFs belong to this disposable fixture.
@@ -163,6 +163,7 @@ async function retainedFixture(id, fields) {
   await page.screenshot({ path: path.join(output, 'duct-settings-item-details.png') });
   console.log('Invalid dimensions remain atomic; retained hidden values and outer View/Edit scrolling passed.');
 
+  await prepareProjectForSave(page);
   await response(() => clickProjectControl(page, 'Save'), '/api/project/save-as');
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const saved = JSON.parse(fs.readFileSync(info.project, 'utf8')), savedItem = saved.takeoffs.items.find(value => value.id === id);

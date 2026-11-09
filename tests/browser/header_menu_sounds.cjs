@@ -110,6 +110,15 @@ async function noDownloadAudio() {
     evidence.assets.push({ url: response.url(), status: response.status(), sha256: digest(bytes), size: bytes.length, content_type: response.headers()["content-type"] });
   }
   await unactivatedProbe("(async () => { await Promise.all([window.CeasefireCalculators.completeProjectSnapshot(), window.CeasefirePenetrations.completeProjectSnapshot()]); return true; })()");
+  // Prepare complete disposable identity before capturing the domain baseline.
+  // Keep this setup unactivated so the first-hover autoplay policy check still
+  // observes a page without a prior user gesture.
+  await unactivatedProbe(`(() => {
+    for (const [id,value] of Object.entries({client:'Synthetic Audio Company','site-address':'1 Synthetic Audio Street','project-contact-name':'Synthetic Audio Contact','project-contact-phone':'0400 000 001','project-contact-email':'audio@example.test'})) {
+      const input=document.getElementById(id);input.value=value;input.dispatchEvent(new Event('input',{bubbles:true}));
+    }
+    return true;
+  })()`);
   const before = await unactivatedProbe("({calculators:window.CeasefireCalculators.projectFingerprint(),penetration:window.CeasefirePenetrations.projectFingerprint(),pricing:window.CeasefireProject.configuration(),details:window.CeasefireProject.details()})"), home = page.locator('.app-header nav [data-view="home"]');
   assert.equal(await unactivatedProbe("navigator.userActivation.hasBeenActive"), false);
   const homeCentre = await unactivatedProbe("(() => { const bounds=document.querySelector('.app-header nav [data-view=home]').getBoundingClientRect(); return {x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2}; })()");

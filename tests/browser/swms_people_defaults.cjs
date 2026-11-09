@@ -1,7 +1,7 @@
 const {chromium,expect:baseExpect}=require('@playwright/test');
 const expect=baseExpect.configure({timeout:30000});
 const {spawn}=require('node:child_process'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-const {openProjectSection,clickProjectControl}=require('./project_actions.cjs');
+const {openProjectSection,clickProjectControl,prepareProjectForSave}=require('./project_actions.cjs');
 
 // Isolated fixture: existing signed documents stay literal; new statements use
 // saved Personal Details only when the user explicitly inserts a signature.
@@ -19,6 +19,7 @@ module.exports=async function peopleDefaults(root,output){
     page.on('pageerror',error=>errors.push(error.message));
     page.on('request',request=>{const route=new URL(request.url()).pathname;if(route==='/api/certifications/defaults'&&request.method()==='GET')reads.push(route);if(['/api/certifications/defaults','/api/swms/people-defaults'].includes(route)&&request.method()==='POST')writes.push(route);});
     await page.goto(base);await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready);
+    await prepareProjectForSave(page);
     const firstSave=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/project/save-as');await clickProjectControl(page,'Save');assert.equal((await firstSave).status(),200);await page.waitForFunction(()=>{const status=window.CeasefireDesktop?.status();return status?.ready&&!status.busy;});
     await openProjectSection(page,'swms');const host=page.locator('#swms-root');await expect(host.getByRole('button',{name:'New SWMS',exact:true})).toBeVisible();
     const workspace=await page.evaluate(()=>window.CeasefireCertification.sessionId());

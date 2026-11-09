@@ -6,7 +6,7 @@ const { chooseTakeoff } = require('./section_navigation.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 const { settingsSettled } = require('./settings_helpers.cjs');
 const { waitForTakeoffDownload } = require('./native_download_helpers.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl, prepareProjectForSave } = require('./project_actions.cjs');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `markup-downloads-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
 const hash = file => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -100,7 +100,7 @@ async function download(kind, label, scope, held=false){
   page.on('requestfinished',request=>pendingRequests.delete(request));
   page.on('requestfailed',request=>pendingRequests.delete(request));
   page.on('pageerror',error=>errors.push(error.message));
-  await page.addInitScript(()=>{window.__markupDownloadCsp=[];document.addEventListener('securitypolicyviolation',event=>window.__markupDownloadCsp.push({directive:event.effectiveDirective,blocked:event.blockedURI}));});await page.goto(origin);
+  await page.addInitScript(()=>{window.__markupDownloadCsp=[];document.addEventListener('securitypolicyviolation',event=>window.__markupDownloadCsp.push({directive:event.effectiveDirective,blocked:event.blockedURI}));});await page.goto(origin); await prepareProjectForSave(page);
   await chooseTakeoff(page,'Steel');await renderDrawing(page,()=>page.locator('#takeoff-upload').setInputFiles(info.fixture),1);await idle();
   const sid=await page.evaluate(()=>window.CeasefireTakeoffs.sessionId());current=await(await page.request.get(`${origin}/api/takeoffs/sessions/${sid}`)).json();
   const doc=current.snapshot.documents[0], originalHash=hash(info.fixture);evidence.original=originalHash;

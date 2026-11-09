@@ -1,5 +1,5 @@
 const { chooseCalculator } = require('./calculator_actions.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const { clickProjectControl, prepareProjectForSave } = require('./project_actions.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 // Real item actions, calculator leases and saved Undo on disposable source data.
 const { chromium, expect } = require('@playwright/test');
@@ -102,7 +102,7 @@ function clearedExpected(original, bindings) {
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => { if (/\/(commands|linked-delete|linked-undo)$/.test(request.url())) requests.push({ endpoint: request.url().split('/').pop(), body: request.postDataJSON() }); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', event => window.qaCsp.push({ directive: event.effectiveDirective, blocked: event.blockedURI })); });
-  const initial = await page.goto(`http://127.0.0.1:${info.port}/`); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
+  const initial = await page.goto(`http://127.0.0.1:${info.port}/`); await prepareProjectForSave(page); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
   await page.getByRole('button',{name:'Takeoffs',exact:true}).click(); await renderDrawing(page, () => page.locator('#takeoff-upload').setInputFiles(info.fixture), 1);
   await expect(page.locator('.takeoff-document')).toHaveCount(1, { timeout: 60000 }); await idle(); await pageNumber(3); await fit();

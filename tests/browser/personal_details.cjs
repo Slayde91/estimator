@@ -1,7 +1,7 @@
 'use strict';
 const {chromium,expect}=require('@playwright/test');
 const {spawn}=require('node:child_process'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-const {openProjectSection,clickProjectControl}=require('./project_actions.cjs');
+const {openProjectSection,clickProjectControl,prepareProjectForSave}=require('./project_actions.cjs');
 const {generateCertificate}=require('./certification_generation.cjs');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`personal-details-${Date.now()}`);
 fs.mkdirSync(output,{recursive:true});
@@ -15,6 +15,7 @@ async function settings(){await page.getByRole('button',{name:'Settings',exact:t
 (async()=>{
   const info=await ready,base=`http://127.0.0.1:${info.port}`;browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1101,height:884}});page.setDefaultTimeout(60000);
   page.on('pageerror',e=>errors.push(e.message));page.on('request',request=>{if(request.method()==='POST'&&new URL(request.url()).pathname==='/api/certifications/defaults')profileWrites.push(request.postDataJSON());});await page.goto(base);await idle();
+  await prepareProjectForSave(page);
   const projectSave=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/project/save-as');await clickProjectControl(page,'Save');assert.equal((await projectSave).status(),200);await idle();
   const defaults=()=>page.request.get(base+'/api/certifications/defaults').then(r=>r.json());
   const signature=await page.evaluate(()=>{const canvas=document.createElement('canvas');canvas.width=40;canvas.height=20;const ink=canvas.getContext('2d');ink.moveTo(2,15);ink.lineTo(32,3);ink.stroke();return canvas.toDataURL('image/png');});

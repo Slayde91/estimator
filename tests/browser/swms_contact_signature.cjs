@@ -2,7 +2,7 @@ const {chromium,expect:baseExpect}=require('@playwright/test');
 const expect=baseExpect.configure({timeout:30000});
 const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-const {openProjectSection,clickProjectControl}=require('./project_actions.cjs');
+const {openProjectSection,clickProjectControl,prepareProjectForSave}=require('./project_actions.cjs');
 
 // Real app and signature pad, backed by a private temporary project. No live
 // project, shared Personal Details profile or signature template is modified.
@@ -28,6 +28,7 @@ async function contactSignature(root,output){
       if(['/api/certifications/defaults','/api/company-settings','/api/scheduler/bootstrap'].includes(route)&&request.method()==='GET')reads.push(route);
     });
     await page.goto(base);await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready);
+    await prepareProjectForSave(page);
     const firstSave=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/project/save-as');
     await clickProjectControl(page,'Save');assert.equal((await firstSave).status(),200);
     await page.waitForFunction(()=>{const status=window.CeasefireDesktop?.status();return status?.ready&&!status.busy;});

@@ -12,6 +12,11 @@ const errors=[],evidence={};
 async function idle(){await page.waitForFunction(()=>{const s=window.CeasefireDesktop?.status();return s?.ready&&!s.busy;});}
 async function snapshot(){return page.evaluate(()=>({details:window.CeasefireProject.details(),pricing:window.CeasefireProject.configuration(),calculators:window.CeasefireCalculators.projectSnapshot(),firestopping:window.CeasefirePenetrations.projectSnapshot()}));}
 async function mapsSettingsHidden(){await expect(page.locator('#view-settings [aria-labelledby="google-maps-heading"]')).toHaveAttribute('hidden','');for(const selector of ['#google-maps-heading','#google-maps-status','#google-maps-refresh','#view-settings a[href="/maps-setup.html"]'])await expect(page.locator(selector)).toBeHidden();}
+async function chooseLanguage(locale){
+ await page.locator('#application-language-toggle').click();
+ await page.locator(`#application-language-menu [data-language-code="${locale}"]`).click();
+ await expect(page.locator('#application-language')).toHaveValue(locale);
+}
 (async()=>{
  const info=await ready;assert.notEqual(info.port,8765);browser=await chromium.launch({headless:true});
  const context=await browser.newContext({viewport:{width:1384,height:900}});page=await context.newPage();page.setDefaultTimeout(60000);page.on('pageerror',e=>errors.push(e.message));
@@ -55,13 +60,17 @@ async function mapsSettingsHidden(){await expect(page.locator('#view-settings [a
   await page.setViewportSize({width,height:900});
   const rows=await page.locator('.settings-preferences-grid > section').evaluateAll(sections=>sections.map(section=>{
    const box=element=>{const r=element.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,height:r.height};};
-   return{row:box(section),heading:box(section.querySelector('h3')),control:box(section.querySelector('button:not([hidden])'))};
+   const heading=section.querySelector('h3'),control=section.querySelector('#application-language-toggle,#theme-toggle,#audio-enabled');
+   return{label:heading.textContent,row:box(section),heading:box(heading),control:box(control)};
   }));
-  assert.equal(rows.length,2);assert.ok(rows[0].row.bottom<=rows[1].row.y,'Settings preferences remain separate heading/control rows');
+  assert.deepEqual(rows.map(row=>row.label),['Language','Appearance','Audio']);
+  for(let index=1;index<rows.length;index++)assert.ok(rows[index-1].row.bottom<=rows[index].row.y,'Settings preferences remain separate heading/control rows');
   if(width>600){
-   assert.ok(Math.abs(rows[0].heading.x-rows[1].heading.x)<1);
-   assert.ok(Math.abs(rows[0].control.x-rows[1].control.x)<1);
-   for(const {heading,control} of rows){assert.ok(heading.right<=control.x);assert.ok(Math.abs(heading.y+heading.height/2-control.y-control.height/2)<1);}
+   for(const {heading,control} of rows){
+    assert.ok(Math.abs(heading.x-rows[0].heading.x)<1);
+    assert.ok(Math.abs(control.x-rows[0].control.x)<1);
+    assert.ok(heading.right<=control.x);assert.ok(Math.abs(heading.y+heading.height/2-control.y-control.height/2)<1);
+   }
   }else for(const {heading,control} of rows)assert.ok(heading.bottom<=control.y,'Mobile settings labels stack above their controls');
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)<=1);await page.screenshot({path:path.join(output,`settings-${width}.png`)});
  }
@@ -94,7 +103,7 @@ async function mapsSettingsHidden(){await expect(page.locator('#view-settings [a
  assert.deepEqual(await snapshot(),before,'Input rerender preserves project details, prices and calculator snapshots');
  await page.locator('#main-panel-access-travel').screenshot({path:path.join(output,'project-travel-removed.png')});
  for(const locale of ['zh-Hans','hi','es','ar','th','ko','tl','vi']){
-  await page.locator('nav [data-view="settings"]').click();await page.locator('#application-language').selectOption(locale);
+  await page.locator('nav [data-view="settings"]').click();await chooseLanguage(locale);
   await mapsSettingsHidden();
   await page.locator('nav [data-view="estimate"]').click();await idle();
   await expect(page.locator('#project-travel')).toHaveCount(0);
@@ -102,7 +111,7 @@ async function mapsSettingsHidden(){await expect(page.locator('#view-settings [a
   assert.deepEqual(await snapshot(),before,'Language changes preserve source addresses, pricing and calculator data');
   assert.deepEqual(routeRequests,[],'Navigation, input rerender and language changes do not send route lookups');
  }
- await page.locator('nav [data-view="settings"]').click();await page.locator('#application-language').selectOption('en');await mapsSettingsHidden();await page.locator('nav [data-view="estimate"]').click();await idle();
+ await page.locator('nav [data-view="settings"]').click();await chooseLanguage('en');await mapsSettingsHidden();await page.locator('nav [data-view="estimate"]').click();await idle();
  await expect(page.locator('#project-travel')).toHaveCount(0);assert.deepEqual(await costInputs(),costsBefore);assert.deepEqual(await snapshot(),before);assert.deepEqual(routeRequests,[]);
  evidence.travelLanguages=8;evidence.googleMapsSettingsHidden=true;evidence.googleMapsStatusApiRetained=true;evidence.projectTravelRemoved=true;evidence.existingTravelCostInputsPreserved=true;evidence.inputRerenderPreserved=true;evidence.routeRequests=routeRequests.length;
  await chooseTakeoff(page,'Steel');await renderDrawing(page,()=>page.locator('#takeoff-upload').setInputFiles(info.fixture));

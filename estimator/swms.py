@@ -510,16 +510,21 @@ class SwmsDocuments:
             self._audit(db, workspace, identity, 'delete', document)
         return {'deleted': True}
 
-    def issue(self, workspace, identity, version, request_id, company=None):
+    def issue(self, workspace, identity, version, request_id, company=None, *, owner_id=None):
         _identity(request_id)
         company = deepcopy(company or DEFAULTS)
-        fingerprint = sha256(_json({'workspace': workspace, 'id': identity, 'version': version, 'company': company}).encode('utf-8')).hexdigest()
+        request = {'workspace': workspace, 'id': identity, 'version': version, 'company': company}
+        legacy_fingerprint = sha256(_json(request).encode('utf-8')).hexdigest()
+        fingerprint = legacy_fingerprint
+        if owner_id is not None:
+            _identity(owner_id)
+            fingerprint = sha256(_json({**request, 'owner_id': owner_id}).encode('utf-8')).hexdigest()
         with self._connect() as db:
             db.execute('BEGIN IMMEDIATE')
             project = self._workspace(db, workspace)
             previous = db.execute('SELECT * FROM swms_issued WHERE request_id=?', (request_id,)).fetchone()
             if previous:
-                if previous['project_id'] != project or previous['fingerprint'] != fingerprint:
+                if previous['project_id'] != project or previous['fingerprint'] not in (fingerprint, legacy_fingerprint):
                     raise SwmsConflict('This PDF request was already used for different SWMS content.')
                 return {**dict(previous), 'pdf': bytes(previous['pdf'])}
             document = self._record(db, workspace, identity)
@@ -527,7 +532,10 @@ class SwmsDocuments:
             require_issue_fields(document)
             issued_document = deepcopy(document)
             legacy = getattr(self.certifications, 'legacy', None)
-            profile = legacy.get_defaults()['fields'] if legacy is not None else {}
+            profile = {}
+            if legacy is not None:
+                defaults = legacy.get_defaults() if owner_id is None else legacy.get_defaults(owner_id=owner_id)
+                profile = defaults['fields']
             initials = review_initials(profile.get('name', ''))
             # Legacy manual review entries also reserve their existing slots.
             used = max((index + 1 for index, value in enumerate(document['fields']['reviews']) if _meaningful(value)), default=0)

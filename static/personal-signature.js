@@ -40,7 +40,41 @@
     const response = await root.fetch("/api/scheduler/bootstrap", {cache:"no-store", credentials:"same-origin"});
     if (!response.ok) throw new Error("Could not load your signature profile. Try again.");
     const profile = await response.json();
+    const access = root.ClassifireAccess;
+    if (access?.ready) await access.ready;
+    if (access?.enabled && (!access.user?.id || profile.user?.id !== access.user.id))
+      throw new Error("Your signature profile changed. Reopen the signature pad.");
     return profile.user ? storageKey + "." + profile.user.id : storageKey;
+  }
+  async function previousLocalSignature(key) {
+    const access = root.ClassifireAccess;
+    if (!access?.can('admin') || access.user?.role !== 'admin' || key !== storageKey+'.'+access.user.id) return null;
+    // Scheduler has a separate cookie in older installations. Confirm the app's
+    // current named administrator as well before exposing the shared local ink.
+    const response = await root.fetch('/api/access/session',{cache:'no-store',credentials:'same-origin'});
+    if (!response.ok) return null;
+    const {user} = await response.json();
+    if (user?.role !== 'admin' || key !== storageKey+'.'+user.id) return null;
+    if (await profileKey() !== key) return null;
+    try {
+      if (root.localStorage.getItem(key) !== null || root.sessionStorage?.getItem(key) != null) return null;
+      return template(JSON.parse(root.localStorage.getItem(storageKey)));
+    } catch { return null; }
+  }
+  function signaturePreview(doc, value) {
+    const preview = doc.createElementNS('http://www.w3.org/2000/svg','svg');
+    preview.setAttribute('viewBox',`0 0 ${200 * value.ratio} 200`);
+    preview.setAttribute('width','200'); preview.setAttribute('height','70');
+    preview.setAttribute('role','img'); preview.setAttribute('aria-label','Saved signature preview');
+    preview.classList.add('takeoff-signature-preview');
+    for (const stroke of value.strokes) {
+      const path = doc.createElementNS(preview.namespaceURI,'path');
+      const points = stroke.map(([x,y],i)=>`${i?'L':'M'}${x*200*value.ratio},${y*200}`).join(' ');
+      path.setAttribute('d',points+(stroke.length===1?' l.01 .01':''));
+      path.setAttribute('fill','none'); path.setAttribute('stroke','currentColor');
+      path.setAttribute('stroke-width','3'); path.setAttribute('stroke-linecap','round'); preview.append(path);
+    }
+    return preview;
   }
   function readSaved(key) {
     try {
@@ -60,13 +94,15 @@
     const make = (label, fn, primary = false) => { const control = doc.createElement("button"); control.type = "button"; control.className = "button " + (primary ? "primary" : "secondary"); control.textContent = label; control.addEventListener("click", fn); return control; };
     const strokes = []; let active = null, pointer = null, invalid = false, result = null;
     const ctx = pad.getContext("2d"), prior = initial ? template(initial) : readSaved(key);
+    let adoption = null, legacyReview = null;
     function paint() {
       ctx.clearRect(0, 0, pad.width, pad.height); ctx.strokeStyle = "#000000"; ctx.fillStyle = "#000000"; ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.lineJoin = "round";
       for (const stroke of strokes) {
         ctx.beginPath(); stroke.forEach(([x, y], index) => index ? ctx.lineTo(x * pad.width, y * pad.height) : ctx.moveTo(x * pad.width, y * pad.height)); ctx.stroke();
         if (stroke.length === 1) { ctx.beginPath(); ctx.arc(stroke[0][0] * pad.width, stroke[0][1] * pad.height, 1, 0, 2 * Math.PI); ctx.fill(); }
       }
-      insert.disabled = invalid || pointer !== null || (!strokes.length && (!initialPages || !name.value.trim()));
+      insert.disabled = invalid || pointer !== null || (!adoption && !strokes.length && (!initialPages || !name.value.trim()));
+      if (legacyReview) legacyReview.disabled = Boolean(adoption) || Boolean(strokes.length) || pointer !== null;
     }
     let finishing = false;
     const finish = async value => {
@@ -74,6 +110,8 @@
       finishing = true;
       try {
         if (await profileKey() !== key) throw new Error("Your signature profile changed. Reopen the signature pad.");
+        if (adoption && JSON.stringify(await previousLocalSignature(key)) !== JSON.stringify(adoption))
+          throw new Error("Your signature profile changed. Reopen the signature pad.");
         if (!dialog.open) return;
         if (value && (mode === "settings" || mode === "takeoff" && remember.checked)) {
           const encoded = JSON.stringify(value);
@@ -87,7 +125,7 @@
       } catch (error) {status.textContent = error.message;}
       finally {finishing = false;}
     };
-    const insert = make(initialPages ? "OK" : "Insert signature", () => { try { if (invalid || pointer !== null) throw new Error("Finish drawing or clear the signature pad."); if (!strokes.length && (!initialPages || !name.value.trim())) throw new Error("Enter a name or initials, or draw a signature."); const rect = pad.getBoundingClientRect(); void finish(strokes.length ? crop(strokes, rect.width, rect.height) : null); } catch (error) { status.textContent = error.message; } }, true);
+    const insert = make(initialPages ? "OK" : "Insert signature", () => { try { if (adoption) {void finish(adoption);return;} if (invalid || pointer !== null) throw new Error("Finish drawing or clear the signature pad."); if (!strokes.length && (!initialPages || !name.value.trim())) throw new Error("Enter a name or initials, or draw a signature."); const rect = pad.getBoundingClientRect(); void finish(strokes.length ? crop(strokes, rect.width, rect.height) : null); } catch (error) { status.textContent = error.message; } }, true);
     const clear = make("Clear pad", () => { if (pointer !== null && pad.hasPointerCapture(pointer)) pad.releasePointerCapture(pointer); pointer = null; active = null; invalid = false; strokes.length = 0; status.textContent = ""; paint(); });
     if (mode === "swms") {
       clear.classList.add("swms-icon-action", "icon-only");
@@ -99,16 +137,40 @@
     footer.className = "actions takeoff-signature-footer"; footer.append(clear, cancel);
     actions.append(insert); insert.disabled = true;
     if (prior) {
-      const preview = doc.createElementNS("http://www.w3.org/2000/svg", "svg"); preview.setAttribute("viewBox", `0 0 ${200 * prior.ratio} 200`); preview.setAttribute("width", "200"); preview.setAttribute("height", "70"); preview.setAttribute("role", "img"); preview.setAttribute("aria-label", "Saved signature preview"); preview.classList.add("takeoff-signature-preview");
-      for (const stroke of prior.strokes) {
-        const path = doc.createElementNS(preview.namespaceURI, "path"); path.setAttribute("d", stroke.map(([x, y], index) => `${index ? "L" : "M"}${x * 200 * prior.ratio},${y * 200}`).join(" ") + (stroke.length === 1 ? " l.01 .01" : "")); path.setAttribute("fill", "none"); path.setAttribute("stroke", "currentColor"); path.setAttribute("stroke-width", "3"); path.setAttribute("stroke-linecap", "round"); preview.append(path);
-      }
-      dialog.append(preview); actions.prepend(make("Use saved signature", () => {
+      dialog.append(signaturePreview(doc, prior)); actions.prepend(make("Use saved signature", () => {
         if (!initialPages) { finish(prior); return; }
         if (pointer !== null) return;
         const width = Math.min(.9, .8 * pad.height * prior.ratio / pad.width), height = width * pad.width / (prior.ratio * pad.height);
         strokes.splice(0, strokes.length, ...prior.strokes.map(stroke => stroke.map(([x,y]) => [(1-width)/2+x*width, (1-height)/2+y*height]))); invalid = false; status.textContent = "Saved signature selected. Click OK to initial all pages."; paint();
       }, true));
+    } else if (mode === "settings" && await previousLocalSignature(key)) {
+      let reviewed = null, checking = false;
+      const caption = (control, text) => {
+        control.textContent = text;
+        root.CeasefireI18n?.text(control,text);
+      };
+      legacyReview = make('Review previous local signature', async () => {
+        if (checking || finishing || pointer !== null || strokes.length) return;
+        checking = true;
+        try {
+          const previous = await previousLocalSignature(key);
+          if (!dialog.open || pointer !== null || strokes.length) return;
+          if (!previous || (reviewed && JSON.stringify(previous) !== JSON.stringify(reviewed)))
+            throw new Error('Your signature profile changed. Reopen the signature pad.');
+          if (!reviewed) {
+            reviewed = previous;
+            pad.before(signaturePreview(doc,reviewed));
+            caption(legacyReview,'Use saved signature');
+          } else {
+            adoption = reviewed;
+            caption(insert,'Save');
+            pad.hidden = true; clear.disabled = true;
+            paint(); insert.focus();
+          }
+        } catch(error) {status.textContent=error.message;}
+        finally {checking=false;}
+      });
+      caption(legacyReview,'Review previous local signature'); actions.prepend(legacyReview);
     } else if (mode === "settings") {
       const usePrior = make("Use saved signature", () => {});
       usePrior.disabled = true; actions.prepend(usePrior);

@@ -1,0 +1,1290 @@
+{
+  "Review previous local signature": [
+    "查看此前保存在本机的签名",
+    "पहले इस कंप्यूटर पर सहेजे गए हस्ताक्षर देखें",
+    "Revisar la firma local anterior",
+    "مراجعة التوقيع المحلي السابق",
+    "ตรวจสอบลายเซ็นเดิมบนเครื่องนี้"
+  ],
+  "Review previous personal details": [
+    "查看以前的个人资料",
+    "पिछले व्यक्तिगत विवरण देखें",
+    "Revisar los datos personales anteriores",
+    "مراجعة البيانات الشخصية السابقة",
+    "ตรวจสอบข้อมูลส่วนบุคคลเดิม"
+  ],
+  "Previous personal details": [
+    "以前的个人资料",
+    "पिछले व्यक्तिगत विवरण",
+    "Datos personales anteriores",
+    "البيانات الشخصية السابقة",
+    "ข้อมูลส่วนบุคคลเดิม"
+  ],
+  "Use these details for my profile": [
+    "在我的个人资料中使用这些信息",
+    "ये विवरण मेरी प्रोफ़ाइल के लिए उपयोग करें",
+    "Usar estos datos en mi perfil",
+    "استخدام هذه البيانات في ملفي الشخصي",
+    "ใช้ข้อมูลเหล่านี้ในโปรไฟล์ของฉัน"
+  ],
+  "Copy the displayed details into your profile? Choose Save to keep them.": [
+    "要将显示的信息复制到您的个人资料中吗？选择“保存”以保留这些信息。",
+    "दिखाए गए विवरण अपनी प्रोफ़ाइल में कॉपी करें? इन्हें रखने के लिए सहेजें चुनें।",
+    "¿Copiar los datos mostrados en su perfil? Seleccione Guardar para conservarlos.",
+    "هل تريد نسخ البيانات المعروضة إلى ملفك الشخصي؟ اختر حفظ للاحتفاظ بها.",
+    "คัดลอกข้อมูลที่แสดงลงในโปรไฟล์ของคุณหรือไม่ เลือกบันทึกเพื่อเก็บข้อมูลไว้"
+  ],
+  "Sign in to review previous personal details.": [
+    "请登录以查看以前的个人资料。",
+    "पिछले व्यक्तिगत विवरण देखने के लिए साइन इन करें।",
+    "Inicie sesión para revisar los datos personales anteriores.",
+    "سجّل الدخول لمراجعة البيانات الشخصية السابقة.",
+    "เข้าสู่ระบบเพื่อตรวจสอบข้อมูลส่วนบุคคลเดิม"
+  ],
+  "Saved project unavailable": [
+    "已保存的项目不可用",
+    "सहेजी गई परियोजना उपलब्ध नहीं",
+    "Proyecto guardado no disponible",
+    "المشروع المحفوظ غير متاح",
+    "โครงการที่บันทึกไว้ไม่พร้อมใช้งาน"
+  ],
+  "Availability not yet verified": [
+    "尚未验证可用性",
+    "उपलब्धता की पुष्टि अभी नहीं हुई",
+    "Disponibilidad sin verificar",
+    "لم يُتحقق من التوفر بعد",
+    "ยังไม่ได้ตรวจสอบความพร้อมใช้งาน"
+  ],
+  "View linked bids": [
+    "查看关联投标",
+    "जुड़ी बोलियाँ देखें",
+    "Ver ofertas vinculadas",
+    "عرض العطاءات المرتبطة",
+    "ดูการเสนอราคาที่เชื่อมโยง"
+  ],
+  "No linked bids.": [
+    "没有关联的投标。",
+    "कोई जुड़ी बोली नहीं है।",
+    "No hay ofertas vinculadas.",
+    "لا توجد عطاءات مرتبطة.",
+    "ไม่มีการเสนอราคาที่เชื่อมโยง"
+  ],
+  "Sign in to manage staff access.": [
+    "请登录以管理员工权限。",
+    "कर्मचारी पहुँच प्रबंधित करने के लिए साइन इन करें।",
+    "Inicie sesión para gestionar los permisos del personal.",
+    "سجّل الدخول لإدارة صلاحيات الموظفين.",
+    "เข้าสู่ระบบเพื่อจัดการสิทธิ์พนักงาน"
+  ],
+  "An administrator account is required.": [
+    "需要管理员帐户。",
+    "प्रशासक खाता आवश्यक है।",
+    "Se necesita una cuenta de administrador.",
+    "يلزم حساب مسؤول.",
+    "ต้องใช้บัญชีผู้ดูแลระบบ"
+  ],
+  "Include the staff member, access role and current version.": [
+    "请提供员工、访问角色和当前版本。",
+    "कर्मचारी, पहुँच भूमिका और वर्तमान संस्करण दें।",
+    "Indique el empleado, el rol y la versión actual.",
+    "أدرج الموظف ودور الوصول والإصدار الحالي.",
+    "ระบุพนักงาน บทบาทสิทธิ์ และรุ่นปัจจุบัน"
+  ],
+  "Choose a valid staff access role and version.": [
+    "请选择有效的员工访问角色和版本。",
+    "मान्य कर्मचारी पहुँच भूमिका और संस्करण चुनें।",
+    "Elija un rol de acceso y una versión válidos.",
+    "اختر دور وصول وإصداراً صالحين للموظف.",
+    "เลือกบทบาทสิทธิ์พนักงานและรุ่นที่ถูกต้อง"
+  ],
+  "Choose an existing staff member.": [
+    "请选择现有员工。",
+    "मौजूदा कर्मचारी चुनें।",
+    "Elija un empleado existente.",
+    "اختر موظفاً موجوداً.",
+    "เลือกพนักงานที่มีอยู่"
+  ],
+  "Team administrators retain administrator access. Manage their team role in Scheduler.": [
+    "团队管理员保留管理权限。请在排班中管理其团队角色。",
+    "टीम प्रशासकों की प्रशासक पहुँच बनी रहती है। उनकी टीम भूमिका शेड्यूलर में प्रबंधित करें।",
+    "Los administradores de equipo conservan sus permisos. Gestione su rol de equipo en Planificación.",
+    "يحتفظ مسؤولو الفريق بصلاحيات الإدارة. أدِر دورهم في المجدول.",
+    "ผู้ดูแลทีมยังคงมีสิทธิ์ผู้ดูแลระบบ จัดการบทบาททีมในตัวจัดกำหนดการ"
+  ],
+  "Staff access changed in another window. Reload before saving.": [
+    "另一窗口已更改员工权限。保存前请重新加载。",
+    "दूसरी विंडो में कर्मचारी पहुँच बदल गई है। सहेजने से पहले फिर लोड करें।",
+    "Los permisos del personal cambiaron en otra ventana. Recargue antes de guardar.",
+    "تغيرت صلاحيات الموظفين في نافذة أخرى. أعد التحميل قبل الحفظ.",
+    "สิทธิ์พนักงานเปลี่ยนในหน้าต่างอื่น โหลดใหม่ก่อนบันทึก"
+  ],
+  "Include the sign-in preference and current version.": [
+    "请提供登录首选项和当前版本。",
+    "साइन इन प्राथमिकता और वर्तमान संस्करण दें।",
+    "Indique la preferencia de inicio de sesión y la versión actual.",
+    "أدرج تفضيل تسجيل الدخول والإصدار الحالي.",
+    "ระบุการตั้งค่าการเข้าสู่ระบบและรุ่นปัจจุบัน"
+  ],
+  "Set up an active team administrator before requiring sign-in.": [
+    "要求登录前请设置有效的团队管理员。",
+    "साइन इन अनिवार्य करने से पहले सक्रिय टीम प्रशासक स्थापित करें।",
+    "Configure un administrador de equipo activo antes de exigir el inicio de sesión.",
+    "عيّن مسؤول فريق نشطاً قبل اشتراط تسجيل الدخول.",
+    "ตั้งค่าผู้ดูแลทีมที่ใช้งานอยู่ก่อนบังคับเข้าสู่ระบบ"
+  ],
+  "Sign in to use CLASSIFIRE.": [
+    "请登录以使用 CLASSIFIRE。",
+    "CLASSIFIRE का उपयोग करने के लिए साइन इन करें।",
+    "Inicie sesión para usar CLASSIFIRE.",
+    "سجّل الدخول لاستخدام CLASSIFIRE.",
+    "เข้าสู่ระบบเพื่อใช้ CLASSIFIRE"
+  ],
+  "Your staff account has Scheduler access only. Ask an administrator for CRM access.": [
+    "您的员工帐户只能使用排班。请向管理员申请 CRM 权限。",
+    "आपके कर्मचारी खाते के पास केवल शेड्यूलर पहुँच है। CRM पहुँच के लिए प्रशासक से कहें।",
+    "Su cuenta solo tiene acceso a Planificación. Solicite acceso al CRM al administrador.",
+    "حساب الموظف الخاص بك متاح للمجدول فقط. اطلب من المسؤول صلاحية CRM.",
+    "บัญชีของคุณเข้าถึงได้เฉพาะตัวจัดกำหนดการ ขอสิทธิ์ CRM จากผู้ดูแล"
+  ],
+  "The signed-in staff account changed. Reload this tab before saving.": [
+    "登录的员工帐户已变更。请刷新此标签页后再保存。",
+    "साइन इन किया हुआ कर्मचारी खाता बदल गया है। सहेजने से पहले इस टैब को फिर लोड करें।",
+    "La cuenta activa ha cambiado. Recargue esta pestaña antes de guardar.",
+    "تغيّر حساب الموظف المسجّل دخوله. أعد تحميل علامة التبويب قبل الحفظ.",
+    "บัญชีพนักงานที่เข้าสู่ระบบเปลี่ยนแล้ว โหลดแท็บนี้ใหม่ก่อนบันทึก"
+  ],
+  "This account has view-only access. An editor is required to make changes.": [
+    "此帐户仅可查看。更改需要编辑权限。",
+    "यह खाता केवल देख सकता है। बदलाव के लिए संपादक आवश्यक है।",
+    "Esta cuenta es de solo lectura. Se necesita un editor para hacer cambios.",
+    "هذا الحساب للعرض فقط. يتطلب التعديل صلاحية محرر.",
+    "บัญชีนี้ดูได้เท่านั้น ต้องมีสิทธิ์แก้ไขจึงจะเปลี่ยนแปลงได้"
+  ],
+  "Open staff access in the local CLASSIFIRE application.": [
+    "请在本机 CLASSIFIRE 应用中打开员工权限。",
+    "स्थानीय CLASSIFIRE ऐप में कर्मचारी पहुँच खोलें।",
+    "Abra los permisos del personal en la aplicación local CLASSIFIRE.",
+    "افتح صلاحيات الموظفين في تطبيق CLASSIFIRE المحلي.",
+    "เปิดสิทธิ์พนักงานในแอป CLASSIFIRE บนเครื่อง"
+  ],
+  "Enter your staff email and password.": [
+    "请输入员工邮箱和密码。",
+    "अपना कर्मचारी ईमेल और पासवर्ड दर्ज करें।",
+    "Introduzca su correo de empleado y contraseña.",
+    "أدخل بريد الموظف وكلمة المرور.",
+    "ป้อนอีเมลพนักงานและรหัสผ่าน"
+  ],
+  "Staff access action not found.": [
+    "未找到员工权限操作。",
+    "कर्मचारी पहुँच कार्रवाई नहीं मिली।",
+    "No se encontró la acción de acceso.",
+    "لم يُعثر على إجراء صلاحيات الموظفين.",
+    "ไม่พบการดำเนินการสิทธิ์พนักงาน"
+  ],
+  "Choose an existing record.": [
+    "请选择现有记录。",
+    "मौजूदा रिकॉर्ड चुनें।",
+    "Elija una ficha existente.",
+    "اختر سجلاً موجوداً.",
+    "เลือกระเบียนที่มีอยู่"
+  ],
+  "Enter a valid site name and address.": [
+    "请输入有效的工地名称和地址。",
+    "स्थल का मान्य नाम और पता दर्ज करें।",
+    "Introduzca un nombre y una dirección de obra válidos.",
+    "أدخل اسماً وعنواناً صالحين للموقع.",
+    "ป้อนชื่อและที่อยู่ไซต์งานที่ถูกต้อง"
+  ],
+  "Include a site name and address.": [
+    "请提供工地名称和地址。",
+    "स्थल का नाम और पता दें।",
+    "Indique el nombre y la dirección de la obra.",
+    "أدرج اسم الموقع وعنوانه.",
+    "ระบุชื่อและที่อยู่ไซต์งาน"
+  ],
+  "This site request was already used. Refresh the list.": [
+    "此工地请求已被使用。请刷新列表。",
+    "यह स्थल अनुरोध पहले इस्तेमाल हो चुका है। सूची रीफ़्रेश करें।",
+    "Esta solicitud de obra ya se ha usado. Actualice la lista.",
+    "استُخدم طلب الموقع من قبل. حدّث القائمة.",
+    "คำขอไซต์งานนี้ถูกใช้แล้ว รีเฟรชรายการ"
+  ],
+  "Choose a valid site page.": [
+    "请选择有效的工地页。",
+    "मान्य स्थल पृष्ठ चुनें।",
+    "Elija una página de obras válida.",
+    "اختر صفحة مواقع صالحة.",
+    "เลือกหน้าไซต์งานที่ถูกต้อง"
+  ],
+  "A different project now occupies this file. Reopen the correct saved project.": [
+    "此文件现在包含其他项目。请重新打开正确的已保存项目。",
+    "इस फ़ाइल में अब अलग परियोजना है। सही सहेजी हुई परियोजना फिर खोलें।",
+    "El archivo contiene ahora otro proyecto. Vuelva a abrir el proyecto guardado correcto.",
+    "يحتوي هذا الملف الآن على مشروع آخر. أعد فتح المشروع المحفوظ الصحيح.",
+    "ไฟล์นี้เป็นโครงการอื่นแล้ว เปิดโครงการที่บันทึกไว้ให้ถูกต้อง"
+  ],
+  "Choose up to 200 participants for the selected project.": [
+    "请为所选项目选择不超过 200 个参与方。",
+    "चुनी हुई परियोजना के लिए अधिकतम 200 प्रतिभागी चुनें।",
+    "Elija hasta 200 participantes para el proyecto seleccionado.",
+    "اختر حتى 200 مشارك للمشروع المحدد.",
+    "เลือกผู้เข้าร่วมได้ไม่เกิน 200 รายสำหรับโครงการที่เลือก"
+  ],
+  "The project changed. Reopen its details before changing participants.": [
+    "项目已更改。更改参与方前请重新打开项目详情。",
+    "परियोजना बदल गई है। प्रतिभागी बदलने से पहले विवरण फिर खोलें।",
+    "El proyecto ha cambiado. Vuelva a abrir sus detalles antes de modificar los participantes.",
+    "تغير المشروع. أعد فتح تفاصيله قبل تغيير المشاركين.",
+    "โครงการเปลี่ยนแล้ว เปิดรายละเอียดใหม่ก่อนเปลี่ยนผู้เข้าร่วม"
+  ],
+  "Participants changed. Reload the project participants before saving.": [
+    "参与方已变更。保存前请重新加载项目参与方。",
+    "प्रतिभागी बदल गए हैं। सहेजने से पहले परियोजना प्रतिभागियों को फिर लोड करें।",
+    "Los participantes cambiaron. Vuelva a cargarlos antes de guardar.",
+    "تغير المشاركون. أعد تحميل مشاركي المشروع قبل الحفظ.",
+    "ผู้เข้าร่วมเปลี่ยนแล้ว โหลดรายชื่อใหม่ก่อนบันทึก"
+  ],
+  "Choose an existing shared site.": [
+    "请选择现有共用工地。",
+    "मौजूदा साझा स्थल चुनें।",
+    "Elija una obra compartida existente.",
+    "اختر موقعاً مشتركاً موجوداً.",
+    "เลือกไซต์งานร่วมที่มีอยู่"
+  ],
+  "Choose a participant role and directory record.": [
+    "请选择参与方角色及名录记录。",
+    "प्रतिभागी भूमिका और निर्देशिका रिकॉर्ड चुनें।",
+    "Elija un rol de participante y una ficha de directorio.",
+    "اختر دور مشارك وسجلاً من الدليل.",
+    "เลือกบทบาทผู้เข้าร่วมและระเบียนในทำเนียบ"
+  ],
+  "Choose each participant and role only once.": [
+    "每个参与方与角色组合只能选择一次。",
+    "हर प्रतिभागी और भूमिका का संयोजन केवल एक बार चुनें।",
+    "Elija cada combinación de participante y rol solo una vez.",
+    "اختر كل مشارك ودور معاً مرة واحدة فقط.",
+    "เลือกผู้เข้าร่วมและบทบาทแต่ละคู่เพียงครั้งเดียว"
+  ],
+  "The selected directory record is unavailable.": [
+    "所选名录记录不可用。",
+    "चुना हुआ निर्देशिका रिकॉर्ड उपलब्ध नहीं है।",
+    "La ficha seleccionada no está disponible.",
+    "سجل الدليل المحدد غير متاح.",
+    "ระเบียนทำเนียบที่เลือกไม่พร้อมใช้งาน"
+  ],
+  "Use one value per field.": [
+    "每个字段请仅填写一个值。",
+    "हर फ़ील्ड में एक मान दें।",
+    "Use un valor por campo.",
+    "استخدم قيمة واحدة لكل حقل.",
+    "ใช้หนึ่งค่าต่อช่อง"
+  ],
+  "Choose a valid project or site request.": [
+    "请指定有效的项目或工地请求。",
+    "मान्य परियोजना या स्थल अनुरोध चुनें।",
+    "Elija una solicitud de proyecto u obra válida.",
+    "اختر طلب مشروع أو موقع صالحاً.",
+    "เลือกคำขอโครงการหรือไซต์งานที่ถูกต้อง"
+  ],
+  "Access history": [
+    "访问历史",
+    "पहुँच इतिहास",
+    "Historial de acceso",
+    "سجل الوصول",
+    "ประวัติการเข้าถึง"
+  ],
+  "Time": [
+    "时间",
+    "समय",
+    "Hora",
+    "الوقت",
+    "เวลา"
+  ],
+  "Result": [
+    "结果",
+    "परिणाम",
+    "Resultado",
+    "النتيجة",
+    "ผลลัพธ์"
+  ],
+  "Outcome unknown": [
+    "结果未知",
+    "परिणाम अज्ञात",
+    "Resultado desconocido",
+    "النتيجة غير معروفة",
+    "ไม่ทราบผลลัพธ์"
+  ],
+  "Owner": [
+    "负责人",
+    "प्रभारी",
+    "Responsable",
+    "المسؤول",
+    "ผู้รับผิดชอบ"
+  ],
+  "Unassigned": [
+    "未分配",
+    "अनिर्दिष्ट",
+    "Sin asignar",
+    "غير مسند",
+    "ยังไม่มอบหมาย"
+  ],
+  "Region": [
+    "区域",
+    "क्षेत्र",
+    "Región",
+    "المنطقة",
+    "ภูมิภาค"
+  ],
+  "Activity history": [
+    "活动历史",
+    "गतिविधि इतिहास",
+    "Historial de actividades",
+    "سجل الأنشطة",
+    "ประวัติกิจกรรม"
+  ],
+  "Log activity": [
+    "记录活动",
+    "गतिविधि दर्ज करें",
+    "Registrar actividad",
+    "تسجيل نشاط",
+    "บันทึกกิจกรรม"
+  ],
+  "Activity type": [
+    "活动类型",
+    "गतिविधि का प्रकार",
+    "Tipo de actividad",
+    "نوع النشاط",
+    "ประเภทกิจกรรม"
+  ],
+  "Activity details": [
+    "活动详情",
+    "गतिविधि का विवरण",
+    "Detalles de la actividad",
+    "تفاصيل النشاط",
+    "รายละเอียดกิจกรรม"
+  ],
+  "Activity owner": [
+    "活动负责人",
+    "गतिविधि प्रभारी",
+    "Responsable de la actividad",
+    "مسؤول النشاط",
+    "ผู้รับผิดชอบกิจกรรม"
+  ],
+  "Due date": [
+    "截止日期",
+    "नियत तिथि",
+    "Fecha de vencimiento",
+    "تاريخ الاستحقاق",
+    "วันครบกำหนด"
+  ],
+  "Complete task": [
+    "完成任务",
+    "कार्य पूरा करें",
+    "Completar tarea",
+    "إكمال المهمة",
+    "ทำงานให้เสร็จ"
+  ],
+  "Load earlier activity": [
+    "加载更早的活动",
+    "पुरानी गतिविधियाँ लोड करें",
+    "Cargar actividades anteriores",
+    "تحميل الأنشطة السابقة",
+    "โหลดกิจกรรมก่อนหน้า"
+  ],
+  "No activity recorded.": [
+    "尚未记录活动。",
+    "कोई गतिविधि दर्ज नहीं है।",
+    "No hay actividades registradas.",
+    "لم تُسجَّل أي أنشطة.",
+    "ยังไม่มีกิจกรรมที่บันทึกไว้"
+  ],
+  "Created": [
+    "已创建",
+    "बनाया गया",
+    "Creado",
+    "تم الإنشاء",
+    "สร้างแล้ว"
+  ],
+  "Stage changed": [
+    "阶段已更改",
+    "चरण बदला गया",
+    "Etapa modificada",
+    "تغيرت المرحلة",
+    "เปลี่ยนขั้นตอนแล้ว"
+  ],
+  "Converted": [
+    "已转换",
+    "परिवर्तित",
+    "Convertido",
+    "تم التحويل",
+    "แปลงแล้ว"
+  ],
+  "Call": [
+    "电话",
+    "फ़ोन कॉल",
+    "Llamada",
+    "مكالمة",
+    "โทรศัพท์"
+  ],
+  "Meeting": [
+    "会议",
+    "बैठक",
+    "Reunión",
+    "اجتماع",
+    "ประชุม"
+  ],
+  "Note": [
+    "备注",
+    "टिप्पणी",
+    "Nota",
+    "ملاحظة",
+    "บันทึก"
+  ],
+  "Task": [
+    "任务",
+    "कार्य",
+    "Tarea",
+    "مهمة",
+    "งาน"
+  ],
+  "Task completed": [
+    "任务已完成",
+    "कार्य पूरा हुआ",
+    "Tarea completada",
+    "اكتملت المهمة",
+    "งานเสร็จแล้ว"
+  ],
+  "Created at": [
+    "创建时间",
+    "बनाने का समय",
+    "Fecha de creación",
+    "وقت الإنشاء",
+    "เวลาที่สร้าง"
+  ],
+  "Updated at": [
+    "更新时间",
+    "अद्यतन का समय",
+    "Fecha de actualización",
+    "وقت التحديث",
+    "เวลาที่อัปเดต"
+  ],
+  "Last interaction": [
+    "上次互动",
+    "पिछला संपर्क",
+    "Última interacción",
+    "آخر تواصل",
+    "การติดต่อครั้งล่าสุด"
+  ],
+  "Logged by": [
+    "记录者",
+    "दर्ज करने वाला",
+    "Registrado por",
+    "سجّله",
+    "บันทึกโดย"
+  ],
+  "Contacted": [
+    "已联系",
+    "संपर्क किया गया",
+    "Contactado",
+    "تم التواصل",
+    "ติดต่อแล้ว"
+  ],
+  "Quoting": [
+    "报价中",
+    "कोटेशन बनाया जा रहा है",
+    "Preparando presupuesto",
+    "جارٍ إعداد عرض السعر",
+    "กำลังเสนอราคา"
+  ],
+  "Negotiating": [
+    "洽谈中",
+    "बातचीत जारी",
+    "En negociación",
+    "قيد التفاوض",
+    "กำลังเจรจา"
+  ],
+  "Won": [
+    "已赢单",
+    "सौदा जीता",
+    "Ganado",
+    "تم الفوز بالصفقة",
+    "ชนะการเสนอราคา"
+  ],
+  "Staff access": [
+    "员工访问权限",
+    "कर्मचारी पहुँच",
+    "Acceso del personal",
+    "صلاحيات الموظفين",
+    "สิทธิ์การเข้าถึงของพนักงาน"
+  ],
+  "Staff sign in": [
+    "员工登录",
+    "कर्मचारी साइन इन",
+    "Inicio de sesión del personal",
+    "تسجيل دخول الموظفين",
+    "เข้าสู่ระบบพนักงาน"
+  ],
+  "Password": [
+    "密码",
+    "पासवर्ड",
+    "Contraseña",
+    "كلمة المرور",
+    "รหัสผ่าน"
+  ],
+  "Sign in": [
+    "登录",
+    "साइन इन करें",
+    "Iniciar sesión",
+    "تسجيل الدخول",
+    "เข้าสู่ระบบ"
+  ],
+  "Sign out": [
+    "退出登录",
+    "साइन आउट करें",
+    "Cerrar sesión",
+    "تسجيل الخروج",
+    "ออกจากระบบ"
+  ],
+  "Signing in…": [
+    "正在登录…",
+    "साइन इन हो रहा है…",
+    "Iniciando sesión…",
+    "جارٍ تسجيل الدخول…",
+    "กำลังเข้าสู่ระบบ…"
+  ],
+  "Staff email": [
+    "员工电子邮件",
+    "कर्मचारी ईमेल",
+    "Correo del empleado",
+    "بريد الموظف الإلكتروني",
+    "อีเมลพนักงาน"
+  ],
+  "Staff password": [
+    "员工密码",
+    "कर्मचारी पासवर्ड",
+    "Contraseña del empleado",
+    "كلمة مرور الموظف",
+    "รหัสผ่านพนักงาน"
+  ],
+  "Require staff sign-in": [
+    "要求员工登录",
+    "कर्मचारी साइन इन अनिवार्य करें",
+    "Exigir inicio de sesión del personal",
+    "اشتراط تسجيل دخول الموظفين",
+    "กำหนดให้พนักงานเข้าสู่ระบบ"
+  ],
+  "Staff access saved.": [
+    "已保存员工权限。",
+    "कर्मचारी पहुँच सहेजी गई।",
+    "Acceso del personal guardado.",
+    "تم حفظ صلاحيات الموظفين.",
+    "บันทึกสิทธิ์พนักงานแล้ว"
+  ],
+  "Administrator": [
+    "管理员",
+    "प्रशासक",
+    "Administrador",
+    "مسؤول النظام",
+    "ผู้ดูแลระบบ"
+  ],
+  "Editor": [
+    "编辑者",
+    "संपादक",
+    "Editor",
+    "محرر",
+    "ผู้แก้ไข"
+  ],
+  "View only": [
+    "仅查看",
+    "केवल देखें",
+    "Solo lectura",
+    "عرض فقط",
+    "ดูเท่านั้น"
+  ],
+  "Scheduler only": [
+    "仅限排班",
+    "केवल शेड्यूलर",
+    "Solo planificación",
+    "المجدول فقط",
+    "เฉพาะตัวจัดกำหนดการ"
+  ],
+  "Staff member": [
+    "员工",
+    "कर्मचारी",
+    "Miembro del personal",
+    "موظف",
+    "พนักงาน"
+  ],
+  "CRM access": [
+    "CRM 访问权限",
+    "CRM पहुँच",
+    "Acceso al CRM",
+    "صلاحية الوصول إلى CRM",
+    "สิทธิ์เข้าถึง CRM"
+  ],
+  "Contact details": [
+    "联系人详情",
+    "संपर्क का विवरण",
+    "Datos del contacto",
+    "تفاصيل جهة الاتصال",
+    "รายละเอียดผู้ติดต่อ"
+  ],
+  "Field": [
+    "字段",
+    "फ़ील्ड",
+    "Campo",
+    "الحقل",
+    "ช่องข้อมูล"
+  ],
+  "This enquiry": [
+    "本次询盘",
+    "यह पूछताछ",
+    "Esta consulta",
+    "هذا الاستفسار",
+    "การสอบถามนี้"
+  ],
+  "Current Contact": [
+    "当前联系人",
+    "वर्तमान संपर्क",
+    "Contacto actual",
+    "جهة الاتصال الحالية",
+    "ผู้ติดต่อปัจจุบัน"
+  ],
+  "Refresh from contact": [
+    "从联系人更新",
+    "संपर्क से अद्यतन करें",
+    "Actualizar desde el contacto",
+    "تحديث من جهة الاتصال",
+    "อัปเดตจากผู้ติดต่อ"
+  ],
+  "Possible duplicates": [
+    "可能重复的记录",
+    "संभावित डुप्लिकेट",
+    "Posibles duplicados",
+    "سجلات مكررة محتملة",
+    "รายการที่อาจซ้ำ"
+  ],
+  "Merge records": [
+    "合并记录",
+    "रिकॉर्ड मिलाएँ",
+    "Combinar registros",
+    "دمج السجلات",
+    "รวมระเบียน"
+  ],
+  "Source record": [
+    "源记录",
+    "स्रोत रिकॉर्ड",
+    "Registro de origen",
+    "السجل المصدر",
+    "ระเบียนต้นทาง"
+  ],
+  "Review merge": [
+    "审查合并",
+    "मिलान की समीक्षा करें",
+    "Revisar combinación",
+    "مراجعة الدمج",
+    "ตรวจสอบการรวม"
+  ],
+  "Surviving record": [
+    "保留的记录",
+    "बनाए रखा गया रिकॉर्ड",
+    "Registro que se conserva",
+    "السجل الذي سيُحتفظ به",
+    "ระเบียนที่จะเก็บไว้"
+  ],
+  "Record ID": [
+    "记录 ID",
+    "रिकॉर्ड आईडी",
+    "ID del registro",
+    "معرّف السجل",
+    "รหัสระเบียน"
+  ],
+  "Reason for merge": [
+    "合并原因",
+    "मिलाने का कारण",
+    "Motivo de la combinación",
+    "سبب الدمج",
+    "เหตุผลที่รวม"
+  ],
+  "Confirm merge": [
+    "确认合并",
+    "मिलाने की पुष्टि करें",
+    "Confirmar combinación",
+    "تأكيد الدمج",
+    "ยืนยันการรวม"
+  ],
+  "Undo merge": [
+    "撤销合并",
+    "मिलाना पूर्ववत करें",
+    "Deshacer combinación",
+    "التراجع عن الدمج",
+    "เลิกทำการรวม"
+  ],
+  "Similar company name": [
+    "相似的公司名称",
+    "मिलता-जुलता कंपनी नाम",
+    "Nombre de empresa similar",
+    "اسم شركة مشابه",
+    "ชื่อบริษัทที่คล้ายกัน"
+  ],
+  "Participants and shared site": [
+    "参与方和共用工地",
+    "प्रतिभागी और साझा स्थल",
+    "Participantes y obra compartida",
+    "المشاركون والموقع المشترك",
+    "ผู้เข้าร่วมและไซต์งานร่วม"
+  ],
+  "Project participants": [
+    "项目参与方",
+    "परियोजना के प्रतिभागी",
+    "Participantes del proyecto",
+    "المشاركون في المشروع",
+    "ผู้เข้าร่วมโครงการ"
+  ],
+  "No additional participants.": [
+    "没有其他参与方。",
+    "कोई अन्य प्रतिभागी नहीं।",
+    "No hay otros participantes.",
+    "لا يوجد مشاركون إضافيون.",
+    "ไม่มีผู้เข้าร่วมเพิ่มเติม"
+  ],
+  "Role": [
+    "角色",
+    "भूमिका",
+    "Rol",
+    "الدور",
+    "บทบาท"
+  ],
+  "Record type": [
+    "记录类型",
+    "रिकॉर्ड का प्रकार",
+    "Tipo de registro",
+    "نوع السجل",
+    "ประเภทระเบียน"
+  ],
+  "Search directory": [
+    "搜索名录",
+    "निर्देशिका खोजें",
+    "Buscar en el directorio",
+    "بحث في الدليل",
+    "ค้นหาในทำเนียบ"
+  ],
+  "Participant": [
+    "参与方",
+    "प्रतिभागी",
+    "Participante",
+    "مشارك",
+    "ผู้เข้าร่วม"
+  ],
+  "Choose a directory record": [
+    "选择名录记录",
+    "निर्देशिका रिकॉर्ड चुनें",
+    "Elegir una ficha del directorio",
+    "اختر سجلاً من الدليل",
+    "เลือกระเบียนจากทำเนียบ"
+  ],
+  "Add participant": [
+    "添加参与方",
+    "प्रतिभागी जोड़ें",
+    "Añadir participante",
+    "إضافة مشارك",
+    "เพิ่มผู้เข้าร่วม"
+  ],
+  "Shared site": [
+    "共用工地",
+    "साझा स्थल",
+    "Obra compartida",
+    "الموقع المشترك",
+    "ไซต์งานร่วม"
+  ],
+  "No shared site linked.": [
+    "未关联共用工地。",
+    "कोई साझा स्थल लिंक नहीं है।",
+    "No hay una obra compartida vinculada.",
+    "لا يوجد موقع مشترك مرتبط.",
+    "ไม่ได้เชื่อมโยงไซต์งานร่วม"
+  ],
+  "Other bids linked to this site": [
+    "与此工地关联的其他投标",
+    "इस स्थल से जुड़ी अन्य बोलियाँ",
+    "Otras ofertas vinculadas a esta obra",
+    "العطاءات الأخرى المرتبطة بهذا الموقع",
+    "การเสนอราคาอื่นที่เชื่อมโยงกับไซต์งานนี้"
+  ],
+  "Search sites": [
+    "搜索工地",
+    "स्थल खोजें",
+    "Buscar obras",
+    "البحث عن مواقع",
+    "ค้นหาไซต์งาน"
+  ],
+  "Choose a shared site": [
+    "选择共用工地",
+    "साझा स्थल चुनें",
+    "Elegir una obra compartida",
+    "اختر موقعاً مشتركاً",
+    "เลือกไซต์งานร่วม"
+  ],
+  "Link site": [
+    "关联工地",
+    "स्थल जोड़ें",
+    "Vincular obra",
+    "ربط الموقع",
+    "เชื่อมโยงไซต์งาน"
+  ],
+  "Unlink site": [
+    "取消关联工地",
+    "स्थल का लिंक हटाएँ",
+    "Desvincular obra",
+    "إلغاء ربط الموقع",
+    "ยกเลิกการเชื่อมโยงไซต์งาน"
+  ],
+  "New site": [
+    "新建工地",
+    "नया स्थल",
+    "Nueva obra",
+    "موقع جديد",
+    "ไซต์งานใหม่"
+  ],
+  "Site name": [
+    "工地名称",
+    "स्थल का नाम",
+    "Nombre de la obra",
+    "اسم الموقع",
+    "ชื่อไซต์งาน"
+  ],
+  "Create and link site": [
+    "创建并关联工地",
+    "स्थल बनाएँ और जोड़ें",
+    "Crear y vincular obra",
+    "إنشاء الموقع وربطه",
+    "สร้างและเชื่อมโยงไซต์งาน"
+  ],
+  "Principal contractor": [
+    "总承包商",
+    "प्रधान ठेकेदार",
+    "Contratista principal",
+    "المقاول الرئيسي",
+    "ผู้รับเหมาหลัก"
+  ],
+  "Project manager": [
+    "项目经理",
+    "परियोजना प्रबंधक",
+    "Jefe de proyecto",
+    "مدير المشروع",
+    "ผู้จัดการโครงการ"
+  ],
+  "Billing contact": [
+    "账单联系人",
+    "बिलिंग संपर्क",
+    "Contacto de facturación",
+    "جهة اتصال الفوترة",
+    "ผู้ติดต่อด้านการเรียกเก็บเงิน"
+  ],
+  "Builder": [
+    "建筑商",
+    "निर्माता",
+    "Constructor",
+    "شركة البناء",
+    "ผู้ก่อสร้าง"
+  ],
+  "Consultant": [
+    "顾问",
+    "सलाहकार",
+    "Consultor",
+    "استشاري",
+    "ที่ปรึกษา"
+  ],
+  "Architect": [
+    "建筑师",
+    "वास्तुकार",
+    "Arquitecto",
+    "مهندس معماري",
+    "สถาปนิก"
+  ],
+  "Subcontractor": [
+    "分包商",
+    "उपठेकेदार",
+    "Subcontratista",
+    "مقاول فرعي",
+    "ผู้รับเหมาช่วง"
+  ],
+  "Work Order": [
+    "工单",
+    "कार्य आदेश",
+    "Orden de trabajo",
+    "أمر العمل",
+    "ใบสั่งงาน"
+  ],
+  "No Work Order assigned": [
+    "未分配工单",
+    "कोई कार्य आदेश निर्दिष्ट नहीं",
+    "Sin orden de trabajo asignada",
+    "لم يتم تعيين أمر عمل",
+    "ยังไม่ได้มอบหมายใบสั่งงาน"
+  ],
+  "Refresh Work Order choices": [
+    "刷新可选工单",
+    "कार्य आदेश विकल्प रीफ़्रेश करें",
+    "Actualizar opciones de órdenes de trabajo",
+    "تحديث خيارات أوامر العمل",
+    "รีเฟรชรายการใบสั่งงาน"
+  ],
+  "Continue loading Work Order choices": [
+    "继续加载可选工单",
+    "कार्य आदेश विकल्प लोड करना जारी रखें",
+    "Seguir cargando órdenes de trabajo",
+    "متابعة تحميل خيارات أوامر العمل",
+    "โหลดรายการใบสั่งงานต่อ"
+  ],
+  "Loading Work Order choices in the background…": [
+    "正在后台加载可选工单…",
+    "पृष्ठभूमि में कार्य आदेश विकल्प लोड हो रहे हैं…",
+    "Cargando las órdenes de trabajo en segundo plano…",
+    "جارٍ تحميل خيارات أوامر العمل في الخلفية…",
+    "กำลังโหลดรายการใบสั่งงานในพื้นหลัง…"
+  ],
+  "{0} Work Orders available": [
+    "有 {0} 张可用工单",
+    "{0} कार्य आदेश उपलब्ध",
+    "{0} órdenes de trabajo disponibles",
+    "يتوفر {0} من أوامر العمل",
+    "มีใบสั่งงาน {0} รายการ"
+  ],
+  "Some saved sources are unavailable.": [
+    "部分已保存的来源不可用。",
+    "कुछ सहेजे गए स्रोत उपलब्ध नहीं हैं।",
+    "Algunas fuentes guardadas no están disponibles.",
+    "بعض المصادر المحفوظة غير متاحة.",
+    "แหล่งข้อมูลที่บันทึกไว้บางแห่งไม่พร้อมใช้งาน"
+  ],
+  "{0} (legacy project)": [
+    "{0}（旧版项目）",
+    "{0} (पुरानी परियोजना)",
+    "{0} (proyecto anterior)",
+    "{0} (مشروع قديم)",
+    "{0} (โครงการรุ่นเก่า)"
+  ],
+  "{0} (saved assignment)": [
+    "{0}（已保存的分配）",
+    "{0} (सहेजा गया आवंटन)",
+    "{0} (asignación guardada)",
+    "{0} (تكليف محفوظ)",
+    "{0} (รายการมอบหมายที่บันทึกไว้)"
+  ],
+  "Recorded project roles": [
+    "已记录的项目角色",
+    "दर्ज परियोजना भूमिकाएँ",
+    "Roles registrados del proyecto",
+    "أدوار المشروع المسجلة",
+    "บทบาทโครงการที่บันทึกไว้"
+  ],
+  "Log or clear the activity first.": [
+    "请先记录或清除活动。",
+    "पहले गतिविधि दर्ज करें या साफ़ करें।",
+    "Guarde o borre primero la actividad.",
+    "سجّل النشاط أو امسحه أولاً.",
+    "บันทึกหรือล้างกิจกรรมก่อน"
+  ],
+  "Enter activity details.": [
+    "请输入活动详情。",
+    "गतिविधि का विवरण दर्ज करें।",
+    "Introduzca los detalles de la actividad.",
+    "أدخل تفاصيل النشاط.",
+    "ป้อนรายละเอียดกิจกรรม"
+  ],
+  "Discard this activity?": [
+    "放弃此活动？",
+    "यह गतिविधि छोड़ें?",
+    "¿Descartar esta actividad?",
+    "هل تريد تجاهل هذا النشاط؟",
+    "ทิ้งกิจกรรมนี้หรือไม่"
+  ],
+  "Choose an active staff member.": [
+    "请选择在职员工。",
+    "सक्रिय कर्मचारी चुनें।",
+    "Seleccione un empleado activo.",
+    "اختر موظفاً نشطاً.",
+    "เลือกพนักงานที่ใช้งานอยู่"
+  ],
+  "Enter a valid region.": [
+    "请输入有效区域。",
+    "मान्य क्षेत्र दर्ज करें।",
+    "Introduzca una región válida.",
+    "أدخل منطقة صالحة.",
+    "ป้อนภูมิภาคที่ถูกต้อง"
+  ],
+  "Choose a saved directory record.": [
+    "请选择已保存的名录记录。",
+    "सहेजा गया निर्देशिका रिकॉर्ड चुनें।",
+    "Seleccione una ficha guardada del directorio.",
+    "اختر سجلاً محفوظاً من الدليل.",
+    "เลือกระเบียนทำเนียบที่บันทึกไว้"
+  ],
+  "Choose a valid activity page.": [
+    "请选择有效的活动页。",
+    "मान्य गतिविधि पृष्ठ चुनें।",
+    "Seleccione una página de actividades válida.",
+    "اختر صفحة نشاط صالحة.",
+    "เลือกหน้ากิจกรรมที่ถูกต้อง"
+  ],
+  "Use the activity form.": [
+    "请使用活动表单。",
+    "गतिविधि फ़ॉर्म का उपयोग करें।",
+    "Utilice el formulario de actividad.",
+    "استخدم نموذج النشاط.",
+    "ใช้แบบฟอร์มกิจกรรม"
+  ],
+  "Choose an activity and enter its details.": [
+    "请选择活动并输入详情。",
+    "गतिविधि चुनें और उसका विवरण दर्ज करें।",
+    "Seleccione una actividad e introduzca sus detalles.",
+    "اختر نشاطاً وأدخل تفاصيله.",
+    "เลือกกิจกรรมและป้อนรายละเอียด"
+  ],
+  "Choose a valid task due date.": [
+    "请选择有效的任务截止日期。",
+    "कार्य की मान्य नियत तिथि चुनें।",
+    "Seleccione una fecha límite válida para la tarea.",
+    "اختر تاريخ استحقاق صالحاً للمهمة.",
+    "เลือกวันครบกำหนดงานที่ถูกต้อง"
+  ],
+  "Choose the task to complete.": [
+    "请选择要完成的任务。",
+    "पूरा करने के लिए कार्य चुनें।",
+    "Seleccione la tarea que desea completar.",
+    "اختر المهمة المراد إكمالها.",
+    "เลือกงานที่ต้องการทำให้เสร็จ"
+  ],
+  "This activity request has changed. Reopen the record.": [
+    "此活动请求已更改。请重新打开记录。",
+    "गतिविधि का अनुरोध बदल गया है। रिकॉर्ड फिर खोलें।",
+    "La solicitud de actividad ha cambiado. Vuelva a abrir la ficha.",
+    "تغيّر طلب النشاط. أعد فتح السجل.",
+    "คำขอกิจกรรมเปลี่ยนแปลงแล้ว เปิดระเบียนใหม่"
+  ],
+  "Choose a task from its original record.": [
+    "请从原始记录中选择任务。",
+    "कार्य उसके मूल रिकॉर्ड से चुनें।",
+    "Seleccione la tarea en su ficha original.",
+    "اختر المهمة من سجلها الأصلي.",
+    "เลือกงานจากระเบียนต้นทาง"
+  ],
+  "This task has already been completed.": [
+    "此任务已完成。",
+    "यह कार्य पहले ही पूरा हो चुका है।",
+    "Esta tarea ya está completada.",
+    "أُكملت هذه المهمة بالفعل.",
+    "งานนี้เสร็จแล้ว"
+  ],
+  "Choose one activity timeline.": [
+    "请选择一条活动时间线。",
+    "एक गतिविधि समयरेखा चुनें।",
+    "Seleccione un historial de actividades.",
+    "اختر تسلسلاً زمنياً واحداً للنشاط.",
+    "เลือกไทม์ไลน์กิจกรรมหนึ่งรายการ"
+  ],
+  "Use your existing Scheduler staff account.": [
+    "请使用现有的排班员工帐户。",
+    "अपना मौजूदा शेड्यूलर कर्मचारी खाता उपयोग करें।",
+    "Use su cuenta de personal de Planificación.",
+    "استخدم حساب الموظف الحالي في المجدول.",
+    "ใช้บัญชีพนักงานตัวจัดกำหนดการที่มีอยู่"
+  ],
+  "Save or cancel your edits before merging records.": [
+    "合并前请保存或取消修改。",
+    "रिकॉर्ड मिलाने से पहले संपादन सहेजें या रद्द करें।",
+    "Guarde o cancele los cambios antes de combinar las fichas.",
+    "احفظ تعديلاتك أو ألغها قبل دمج السجلات.",
+    "บันทึกหรือยกเลิกการแก้ไขก่อนรวมระเบียน"
+  ],
+  "Some project records are still loading or unavailable.": [
+    "部分项目记录仍在加载或不可用。",
+    "कुछ परियोजना रिकॉर्ड अभी लोड हो रहे हैं या उपलब्ध नहीं हैं।",
+    "Algunas fichas de proyecto se siguen cargando o no están disponibles.",
+    "لا تزال بعض سجلات المشاريع قيد التحميل أو غير متاحة.",
+    "ระเบียนโครงการบางรายการยังโหลดอยู่หรือไม่พร้อมใช้งาน"
+  ],
+  "Linked through a merged record.": [
+    "通过合并的记录关联。",
+    "मिलाए गए रिकॉर्ड के माध्यम से जुड़ा है।",
+    "Vinculado mediante una ficha combinada.",
+    "مرتبط عبر سجل مدمج.",
+    "เชื่อมโยงผ่านระเบียนที่รวมแล้ว"
+  ],
+  "Matched by company name only.": [
+    "仅按公司名称匹配。",
+    "केवल कंपनी नाम से मिलान।",
+    "Coincidencia solo por nombre de empresa.",
+    "تطابق باسم الشركة فقط.",
+    "จับคู่ตามชื่อบริษัทเท่านั้น"
+  ],
+  "Use an existing Company": [
+    "使用现有公司",
+    "मौजूदा कंपनी चुनें",
+    "Usar una empresa existente",
+    "استخدام شركة موجودة",
+    "ใช้บริษัทที่มีอยู่"
+  ],
+  "Keep these records separate": [
+    "保持记录独立",
+    "ये रिकॉर्ड अलग रखें",
+    "Mantener las fichas separadas",
+    "إبقاء هذين السجلين منفصلين",
+    "เก็บระเบียนเหล่านี้แยกกัน"
+  ],
+  "Keep as a separate Company": [
+    "保留为独立公司",
+    "अलग कंपनी के रूप में रखें",
+    "Conservar como empresa independiente",
+    "الاحتفاظ بها كشركة منفصلة",
+    "เก็บเป็นบริษัทแยกต่างหาก"
+  ],
+  "Review possible duplicate records before saving.": [
+    "保存前请检查可能重复的记录。",
+    "सहेजने से पहले संभावित डुप्लिकेट रिकॉर्ड जाँचें।",
+    "Revise las posibles fichas duplicadas antes de guardar.",
+    "راجع السجلات المكررة المحتملة قبل الحفظ.",
+    "ตรวจสอบระเบียนที่อาจซ้ำก่อนบันทึก"
+  ],
+  "Choose an existing directory record.": [
+    "请选择现有名录记录。",
+    "मौजूदा निर्देशिका रिकॉर्ड चुनें।",
+    "Seleccione una ficha existente del directorio.",
+    "اختر سجلاً موجوداً في الدليل.",
+    "เลือกระเบียนที่มีอยู่ในทำเนียบ"
+  ],
+  "Choose two active records. Undo earlier merges into the source first.": [
+    "请选择两条有效记录。请先撤销已合并到源记录中的操作。",
+    "दो सक्रिय रिकॉर्ड चुनें। पहले स्रोत में किए गए पिछले विलय पूर्ववत करें।",
+    "Elija dos fichas activas. Deshaga primero las combinaciones previas con la ficha de origen.",
+    "اختر سجلين نشطين. تراجع أولاً عن عمليات الدمج السابقة في السجل المصدر.",
+    "เลือกระเบียนที่ใช้งานสองรายการ เลิกทำการรวมเข้าระเบียนต้นทางก่อน"
+  ],
+  "Choose a valid identity action.": [
+    "请选择有效的身份操作。",
+    "मान्य पहचान कार्रवाई चुनें।",
+    "Seleccione una acción de identidad válida.",
+    "اختر إجراء هوية صالحاً.",
+    "เลือกการดำเนินการด้านข้อมูลประจำตัวที่ถูกต้อง"
+  ],
+  "This request has already been used for another identity decision.": [
+    "此请求已用于另一项身份决定。",
+    "यह अनुरोध पहले ही किसी अन्य पहचान निर्णय में उपयोग हुआ है।",
+    "Esta solicitud ya se usó para otra decisión de identidad.",
+    "استُخدم هذا الطلب بالفعل لقرار هوية آخر.",
+    "คำขอนี้ใช้ในการตัดสินข้อมูลประจำตัวอื่นแล้ว"
+  ],
+  "Enter a reason for merging the records (up to 500 characters).": [
+    "请输入合并原因（最多 500 个字符）。",
+    "रिकॉर्ड मिलाने का कारण दर्ज करें (अधिकतम 500 अक्षर)।",
+    "Indique el motivo de la combinación (hasta 500 caracteres).",
+    "أدخل سبب دمج السجلات (حتى 500 حرف).",
+    "ป้อนเหตุผลที่รวมระเบียน (ไม่เกิน 500 ตัวอักษร)"
+  ],
+  "Review the source and surviving record before merging.": [
+    "合并前请检查源记录和保留的记录。",
+    "मिलाने से पहले स्रोत और बनाए रखे जाने वाले रिकॉर्ड जाँचें।",
+    "Revise la ficha de origen y la que se conservará antes de combinar.",
+    "راجع السجل المصدر والسجل الذي سيُحتفظ به قبل الدمج.",
+    "ตรวจสอบระเบียนต้นทางและระเบียนที่จะเก็บไว้ก่อนรวม"
+  ],
+  "This merge is no longer active.": [
+    "此合并已失效。",
+    "यह विलय अब सक्रिय नहीं है।",
+    "Esta combinación ya no está activa.",
+    "لم يعد هذا الدمج سارياً.",
+    "การรวมนี้ไม่มีผลแล้ว"
+  ],
+  "This company was merged. Select its current directory entry.": [
+    "此公司已合并。请选择当前名录记录。",
+    "यह कंपनी मिला दी गई है। इसकी वर्तमान निर्देशिका प्रविष्टि चुनें।",
+    "Esta empresa se ha combinado. Seleccione su ficha actual en el directorio.",
+    "دُمجت هذه الشركة. اختر سجلها الحالي في الدليل.",
+    "บริษัทนี้ถูกรวมแล้ว เลือกระเบียนปัจจุบันในทำเนียบ"
+  ],
+  "This record was merged. Open its current directory entry.": [
+    "此记录已合并。请打开当前名录记录。",
+    "यह रिकॉर्ड मिला दिया गया है। इसकी वर्तमान निर्देशिका प्रविष्टि खोलें।",
+    "Esta ficha se ha combinado. Abra su entrada actual en el directorio.",
+    "دُمج هذا السجل. افتح سجله الحالي في الدليل.",
+    "ระเบียนนี้ถูกรวมแล้ว เปิดระเบียนปัจจุบันในทำเนียบ"
+  ],
+  "Reopen the company to review links from merged records.": [
+    "请重新打开公司，检查合并记录中的关联。",
+    "मिलाए गए रिकॉर्ड के लिंक जाँचने के लिए कंपनी फिर खोलें।",
+    "Vuelva a abrir la empresa para revisar los vínculos de las fichas combinadas.",
+    "أعد فتح الشركة لمراجعة روابط السجلات المدمجة.",
+    "เปิดบริษัทใหม่เพื่อตรวจสอบลิงก์จากระเบียนที่รวม"
+  ],
+  "This contact was merged. Select its current directory entry.": [
+    "此联系人已合并。请选择当前名录记录。",
+    "यह संपर्क मिला दिया गया है। इसकी वर्तमान निर्देशिका प्रविष्टि चुनें।",
+    "Este contacto se ha combinado. Seleccione su ficha actual en el directorio.",
+    "دُمجت جهة الاتصال هذه. اختر سجلها الحالي في الدليل.",
+    "ผู้ติดต่อนี้ถูกรวมแล้ว เลือกระเบียนปัจจุบันในทำเนียบ"
+  ],
+  "Work Order choices are taking longer to load. Continue loading to retry. You can still use Scheduler.": [
+    "工单加载时间较长。请继续加载以重试。您仍可使用排班功能。",
+    "कार्य आदेश विकल्प लोड होने में समय लग रहा है। फिर प्रयास करने के लिए लोड करना जारी रखें। आप शेड्यूलर का उपयोग कर सकते हैं।",
+    "Las órdenes de trabajo tardan en cargarse. Continúe la carga para reintentarlo. Puede seguir usando Planificación.",
+    "يستغرق تحميل خيارات أوامر العمل وقتاً أطول. تابع التحميل لإعادة المحاولة. ما زال بإمكانك استخدام المجدول.",
+    "รายการใบสั่งงานโหลดช้ากว่าปกติ กดโหลดต่อเพื่อลองใหม่ ยังใช้ตัวจัดกำหนดการได้"
+  ],
+  "{0} Work Order choices available. Continue loading to scan more files.": [
+    "有 {0} 张可用工单。继续加载可扫描更多文件。",
+    "{0} कार्य आदेश विकल्प उपलब्ध हैं। अन्य फ़ाइलों को स्कैन करने के लिए लोड करना जारी रखें।",
+    "Hay {0} órdenes de trabajo disponibles. Continúe la carga para revisar más archivos.",
+    "يتوفر {0} من خيارات أوامر العمل. تابع التحميل لفحص المزيد من الملفات.",
+    "มีใบสั่งงาน {0} รายการ โหลดต่อเพื่อสแกนไฟล์เพิ่มเติม"
+  ],
+  "Interaction time": [
+    "互动时间",
+    "संपर्क का समय",
+    "Hora de la interacción",
+    "وقت التواصل",
+    "เวลาที่ติดต่อ"
+  ],
+  "Enter a valid interaction time in the past or present.": [
+    "请输入过去或当前的有效互动时间。",
+    "संपर्क का मान्य वर्तमान या पिछला समय दर्ज करें।",
+    "Introduzca una fecha y hora de interacción válida, actual o anterior.",
+    "أدخل وقت تواصل صالحاً في الماضي أو الحاضر.",
+    "ป้อนเวลาติดต่อในอดีตหรือปัจจุบันที่ถูกต้อง"
+  ],
+  "Sign in with a Scheduler staff account to manage access on this computer.": [
+    "使用排班员工帐户登录以管理本机访问权限。",
+    "इस कंप्यूटर पर पहुँच प्रबंधित करने के लिए शेड्यूलर कर्मचारी खाते से साइन इन करें।",
+    "Inicie sesión con una cuenta de empleado de Planificación para administrar el acceso en este equipo.",
+    "سجّل الدخول بحساب موظف في المجدول لإدارة الوصول على هذا الحاسوب.",
+    "เข้าสู่ระบบด้วยบัญชีพนักงานตัวจัดกำหนดการเพื่อจัดการสิทธิ์บนคอมพิวเตอร์นี้"
+  ],
+  "Manage staff names, passwords and team administrator roles in Scheduler. Editors can update CRM records; viewers can read records; Scheduler-only staff have no CRM access.": [
+    "在排班中管理员工姓名、密码和团队管理员角色。编辑者可更新 CRM 记录，查看者可读取记录，仅排班员工无 CRM 权限。",
+    "शेड्यूलर में कर्मचारी नाम, पासवर्ड और टीम प्रशासक भूमिकाएँ प्रबंधित करें। संपादक CRM रिकॉर्ड बदल सकते हैं, दर्शक उन्हें पढ़ सकते हैं और केवल शेड्यूलर वाले कर्मचारी CRM नहीं खोल सकते।",
+    "Gestione nombres, contraseñas y roles de administración en Planificación. Los editores pueden actualizar las fichas del CRM, los lectores pueden consultarlas y el personal con acceso solo a Planificación no puede abrir el CRM.",
+    "أدِر أسماء الموظفين وكلمات المرور وأدوار مسؤول الفريق في المجدول. يستطيع المحررون تحديث سجلات CRM والمشاهدون قراءتها، ولا يستطيع موظفو المجدول فقط الوصول إلى CRM.",
+    "จัดการชื่อพนักงาน รหัสผ่าน และบทบาทผู้ดูแลทีมในตัวจัดกำหนดการ ผู้แก้ไขอัปเดตระเบียน CRM ได้ ผู้ดูอ่านได้ และพนักงานที่มีสิทธิ์เฉพาะตัวจัดกำหนดการเข้า CRM ไม่ได้"
+  ],
+  "View-only access. An editor is required to save changes.": [
+    "仅可查看。保存更改需要编辑权限。",
+    "केवल देखने की पहुँच है। बदलाव सहेजने के लिए संपादक होना आवश्यक है।",
+    "Acceso de solo lectura. Se necesita un editor para guardar cambios.",
+    "صلاحية عرض فقط. يتطلب حفظ التغييرات صلاحية محرر.",
+    "ดูได้อย่างเดียว ต้องมีสิทธิ์แก้ไขจึงจะบันทึกการเปลี่ยนแปลงได้"
+  ],
+  "Staff access applies to this computer. Remote hosting is configured separately.": [
+    "员工访问设置适用于本机。远程托管需单独配置。",
+    "कर्मचारी पहुँच इस कंप्यूटर पर लागू होती है। रिमोट होस्टिंग अलग से कॉन्फ़िगर होती है।",
+    "El acceso del personal se aplica a este equipo. El alojamiento remoto se configura por separado.",
+    "تسري صلاحيات الموظفين على هذا الحاسوب. تُضبط الاستضافة البعيدة بشكل منفصل.",
+    "สิทธิ์พนักงานมีผลกับคอมพิวเตอร์นี้ การโฮสต์ระยะไกลต้องตั้งค่าแยก"
+  ],
+  "Staff access could not be updated.": [
+    "无法更新员工权限。",
+    "कर्मचारी पहुँच को अद्यतन नहीं किया जा सका।",
+    "No se pudo actualizar el acceso del personal.",
+    "تعذر تحديث صلاحيات الموظفين.",
+    "ไม่สามารถอัปเดตสิทธิ์พนักงานได้"
+  ]
+}

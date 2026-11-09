@@ -52,6 +52,27 @@ class SchedulerHTTPTests(unittest.TestCase):
         self.cookie = headers['Set-Cookie'].split(';')[0]
         return result['user']
 
+    def test_global_staff_cookie_takes_precedence_and_expired_cookie_falls_back(self):
+        admin=self.setup_account()
+        global_cookie=self.cookie.replace('classifire_scheduler=','classifire_access=',1)
+        details={'name':'Worker','email':'worker@example.test','password':'Worker-password-2026','role':'worker','active':True,'base_rate':'1'}
+        worker=self.request('members/save',details)[2]
+        status,headers,_=self.request('login',{key:details[key] for key in ('email','password')},cookie='')
+        self.assertEqual(status,200)
+        native=headers['Set-Cookie'].split(';')[0]
+        self.assertEqual(self.request('bootstrap',cookie=global_cookie+'; '+native)[2]['user']['id'],admin['id'])
+        self.assertEqual(self.request('bootstrap',cookie='classifire_access=expired; '+native)[2]['user']['id'],worker['id'])
+        conn=HTTPConnection('127.0.0.1',self.server.server_port,timeout=10)
+        try:
+            conn.request('POST','/api/scheduler/logout','{}',{'Content-Type':'application/json','Cookie':global_cookie+'; '+native})
+            response=conn.getresponse()
+            self.assertEqual(response.status,200)
+            self.assertTrue(json.loads(response.read())['global_session'])
+            self.assertEqual({v.split(';')[0] for k,v in response.getheaders() if k.lower()=='set-cookie'},
+                             {'classifire_access=','classifire_scheduler='})
+        finally:
+            conn.close()
+
     def test_cookie_authentication_logout_and_cross_origin_protection(self):
         self.assertTrue(self.request('bootstrap')[2]['setup_required'])
         self.assertEqual(self.request('state')[0], 401)

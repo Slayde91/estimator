@@ -4,7 +4,7 @@
   const singular = {leads: "Lead", contacts: "Contact", accounts: "Company"};
   const labels = {name: "Name", phone: "Phone", company: "Company", title: "Title", email: "Email", abn_acn: "ABN/ACN",
     site_address: "Site address", billing_address: "Billing address", description: "Description", status: "Status",
-    next_action: "Next action", follow_up_date: "Follow-up date"};
+    next_action: "Next action", follow_up_date: "Follow-up date", region:"Region", owner_id:"Owner", owner_name:"Owner", last_interaction_at:"Last interaction"};
   const personFields = ["name", "phone", "company", "title", "email"];
   const contactRequired = ["name", "phone", "company", "email"];
   const meaningful = value => Boolean(value.replace(/\p{Cf}/gu, '').trim());
@@ -44,6 +44,13 @@
     return node;
   }
 
+  function participantProject(entry) {
+    const row=el('span');
+    row.append(ui('strong','',entry.role_label),document.createTextNode(' · '+[entry.project_no,entry.client,entry.site_address].filter(Boolean).join(' · ')));
+    if(entry.availability==='unavailable')row.append(' · ',ui('small','helper','Saved project unavailable'));
+    if(entry.availability==='unverified')row.append(' · ',ui('small','helper','Availability not yet verified'));
+    return row;
+  }
   function appendLeadGroup(groups, key, title, entries, render, expanded, existing) {
     if (!entries.length) return;
     const group = el('details', 'contacts-links-group'), summary = el('summary');
@@ -67,9 +74,10 @@
     const detail = el('details'), fields = el('dl', 'kanban-card-details');
     const when = new Date(receipt.converted_at).toLocaleString(document.documentElement.lang || undefined);
     detail.append(el('summary', '', [receipt.project_no, receipt.snapshot.site_address, when].filter(Boolean).join(' · ')));
+    if(receipt.actor_name)fields.append(ui('dt','','Logged by'),el('dd','',receipt.actor_name));
     for (const [key, label] of Object.entries(labels)) {
       const value = receipt.snapshot[key];
-      if (value) fields.append(ui('dt', '', label), key === 'status' ? ui('dd', '', value) : el('dd', '', value));
+      if (value && key!=='owner_id') fields.append(ui('dt', '', label), key === 'status' ? ui('dd', '', value) : el('dd', '', value));
     }
     detail.append(fields);
     return detail;
@@ -82,6 +90,7 @@
       const error = new Error(value.error || "The directory could not be updated.");
       error.status = response.status;
       error.matchingContacts = value.matching_contacts;
+      error.duplicateReview = value.duplicate_review;
       error.matchingLeads = value.matching_leads;
       throw error;
     }
@@ -157,7 +166,9 @@
       dialog.dispatchEvent(new Event("close"));
     }
     const directory = options.directory || data;
-    const version = directory.version;
+    let version = directory.version;
+    const staff = readOnly ? Promise.resolve([]) : request('staff').then(result=>result.staff);
+    staff.catch(()=>{});
     let contactId = record.contact_id || "", contactName = record.name || "", accountId = record.account_id || "";
     let accountDefaults = {};
     let resolveClosed, savedRecord = null, submitting = false, loadingLinks = false, linksReady = kind !== "accounts", contactLinkRefresh, contactLinkLoading = false;
@@ -183,7 +194,13 @@
         let input;
         if (key === "status") {
           input = el("select");
-          directory.statuses.forEach(value => input.add(new Option(value, value)));
+          const choices=[...(directory.sales_stages || directory.statuses)];
+          if(record.status && !choices.includes(record.status))choices.push(record.status);
+          choices.forEach(value => input.add(new Option(window.CeasefireI18n?.translate(value) || value, value)));
+        } else if(key==='owner_id') {
+          input=window.ClassifireCrmActivity.ownerSelect(record);
+          const ownerInput=input;
+          staff.then(rows=>window.ClassifireCrmActivity.populate(ownerInput,rows)).catch(error=>feedback(form,error.message,true));
         } else if (["description", "billing_address", "site_address"].includes(key)) {
           input = el("textarea");
           input.rows = key === "description" ? 3 : 2;
@@ -195,6 +212,9 @@
         input.value = record[key] || (key === "status" ? directory.statuses[0] : "");
         input.required = newContact ? contactRequired.includes(key) : key === "name" || (key === "company" && kind !== "contacts");
         input.name = key;
+        if (key==='owner_id' || key==='status') {
+          input.setAttribute('aria-label', labels[key]);window.CeasefireI18n?.attr(input,'aria-label',labels[key]);
+        }
         if (readOnly) { if (input.tagName === "SELECT") input.disabled = true; else input.readOnly = true; }
         fields[key] = input;
         label.append(input);
@@ -212,14 +232,14 @@
       form.append(section);
     }
     if (kind === "leads") {
-      group("Lead Information", [...personFields, "abn_acn", "status"]);
+      group("Lead Information", [...personFields, "abn_acn", "status", "owner_id", "region"]);
       group("Address Information", ["site_address", "billing_address"]);
       group("Description", ["description"]);
       group("Follow-up", ["next_action", "follow_up_date"]);
     } else if (kind === "accounts") {
-      group("Company Information", ["company", "abn_acn", "billing_address"]);
+      group("Company Information", ["company", "abn_acn", "billing_address", "owner_id"]);
     } else {
-      group("Contact Information", personFields);
+      group("Contact Information", [...personFields, "owner_id"]);
     }
     const initialValues = Object.fromEntries(Object.entries(fields).map(([key,input]) => [key,input.value]));
     function accountSelection(account, setCompany = true) {
@@ -276,26 +296,43 @@
       fields.company.addEventListener('input',()=>{const account=directory.accounts.find(item=>item.id===accountId);if(!account || fields.company.value.trim()!==account.company){accountId='';for(const key of ['abn_acn','billing_address'])if(fields[key] && fields[key].value===accountDefaults[key])fields[key].value='';accountDefaults={};}});
       lookup(fields.company,directory.accounts,item=>[item.company,item.abn_acn].join(' '),item=>item.company,account=>accountSelection(account),'No matching Companies. You can enter a company name.');
     }
+    let refreshComparison;
     if(!readOnly && kind==='leads') {
       fields.name.addEventListener('input',()=>{if(fields.name.value.trim()!==contactName)contactId='';});
       lookup(fields.name,directory.contacts,item=>[item.name,item.company,item.email,item.phone].join(' '),item=>item.name,contact=>{
         contactId=contact.id;contactName=contact.name;
         for(const key of ['name','phone','email','title'])fields[key].value=contact[key]||'';
         if(!fields.company.value.trim()){const account=directory.accounts.find(item=>item.id===contact.account_id);if(account)accountSelection(account);}
+        refreshComparison?.();
       },'No matching Contacts. You can enter a name.', contact => [contact.company, contact.title, contact.email, contact.phone].filter(Boolean).join(' · '));
     }
+    if (kind === 'leads' && record.id) {
+      refreshComparison = window.ClassifireIdentity?.compare(form, fields, () => {
+        const current = directory.identity_aliases?.contacts?.[contactId] || contactId;
+        return directory.contacts.find(person=>person.id===current);
+      }, () => {contactName=fields.name.value.trim();}, readOnly);
+    }
+    if (!readOnly) window.ClassifireIdentity?.suggestions(form,kind,fields,record,request,()=>contactId);
     const actions = el("div", "actions contacts-dialog-actions");
     const save = ui("button", "button primary", "Save");
     save.type = "submit";
     save.disabled = !linksReady;
-    const cancel = button("Cancel", () => inPane ? leaveAccount() : closeEditor());
+    async function cancelModal() {
+      if (submitting || timeline?.pending?.()) return;
+      if(timeline?.dirty?.()){
+        const before=JSON.stringify(timeline.fingerprint());
+        if (!await window.CeasefireDialogs.confirm('Discard this activity?', '', 'Yes', 'Cancel') || !isOpen() || before!==JSON.stringify(timeline.fingerprint()))return;
+      }
+      closeEditor();
+    }
+    const cancel = button("Cancel", () => inPane ? leaveAccount() : cancelModal());
     copy(cancel, "Cancel");
     if (readOnly) actions.append(button("Close", closeEditor), button("Edit", () => {closeEditor(); dialogEditor(kind, record);}, "button primary"));
     else actions.append(cancel, save);
     const linkSelections = {};
     let linksChanged = () => false;
     if (kind === "accounts") {
-      let supplementalRecords = {}, convertedLeads = [], activeLeads = [];
+      let supplementalRecords = {}, convertedLeads = [], activeLeads = [], participantProjects = [];
       const related = el("section", "contacts-related");
       const linkStatus = ui("p", "helper", "Loading linked records…");
       linkStatus.setAttribute("role", "status");
@@ -372,7 +409,9 @@
             closeEditor(); await switchPage("contacts"); dialogEditor("contacts", person);
           }, "text-button"));
         } else label.append(el("span", "", item.label));
-        if (item.supplier) row.append(ui("p", "helper", "Supplier"));
+        if (item.inherited) row.append(ui('p','helper','Linked through a merged record.'));
+        else if (item.name_only) row.append(ui('p','helper','Matched by company name only.'));
+        else if (item.supplier) row.append(ui("p", "helper", "Supplier"));
         else if (item.automatic) row.append(ui("p", "helper", "Linked through this company's saved project."));
         else if (!item.available) row.append(ui("p", "helper", "Unavailable saved record. Clear the selection to remove this link."));
         else if (key === "contacts" && item.account_id && item.account_id !== record.id)
@@ -409,6 +448,7 @@
           return button(lead.label, () => openDirectoryLead(lead.id), 'text-button');
         }, expanded, existing);
         appendLeadGroup(groups, 'converted_leads', 'Converted leads', convertedLeads, conversionDetails, expanded, existing);
+        appendLeadGroup(groups, 'participant_projects', 'Recorded project roles', participantProjects, participantProject, expanded, existing);
         if (!groups.children.length) groups.append(ui("p", "helper contacts-links-empty", "No linked records."));
       }
       function renderResults(focusEntry = null) {
@@ -472,6 +512,7 @@
           if (!isOpen() || ticket !== linkTicket) return;
           supplementalRecords = catalog.related || {};
           convertedLeads = catalog.converted_leads || [];
+          participantProjects = catalog.participant_projects || [];
           activeLeads = catalog.active_leads || [];
           for (const [key, title] of Object.entries(linkTitles)) {
             const linked = catalog.linked[key] || [], choices = catalog.choices[key] || [];
@@ -563,6 +604,7 @@
             const body = el("div", "contacts-links-body"); body.append(list); group.append(summary, body); groups.append(group);
           }
           appendLeadGroup(groups, 'converted_leads', 'Converted leads', catalog.converted_leads || [], conversionDetails, expanded, existing);
+          appendLeadGroup(groups, 'participant_projects', 'Recorded project roles', catalog.participant_projects || [], participantProject, expanded, existing);
           if (!groups.children.length) groups.append(ui("p", "helper contacts-links-empty", "No linked records."));
           unavailable.hidden = !catalog.error_count;
           copy(unavailableSummary, "Unavailable project records ({0})", [catalog.error_count || 0]);
@@ -575,6 +617,17 @@
       }
       queueMicrotask(loadContactLinks);
     }
+    const timeline = record.id && window.ClassifireCrmActivity.attach(form,{
+      kind,record,request,readOnly,staff,version:()=>version,setVersion:next=>{
+        if(data?.version===version)data.version=next;
+        if(directory.version===version)directory.version=next;
+        version=next;
+      },
+      locked:()=>submitting||saving,isOpen
+    });
+    if (inPane) window.ClassifireIdentity?.management(form,kind,record,directory,request,async () => {
+      closeEditor(); await activate(page);
+    },()=>Object.keys(fields).some(key=>fields[key].value!==initialValues[key]) || linksChanged() || timeline?.dirty?.());
     form.append(actions);
     // Keep Save as the default for Enter, even when a match is under review.
     const review = el('fieldset', 'contacts-group'), separate = ui('button', 'button secondary', 'Create a separate Contact');
@@ -582,34 +635,49 @@
     const separateLead = ui('button', 'button secondary', 'Keep as a separate Lead');
     separateLead.type = 'submit';
     review.hidden = true;
+    let reviewedToken='',reviewedKind='';
+    let identityReviews={};
     form.append(review);
-    form.addEventListener('input', () => { review.hidden = true; });
-    function reviewContacts(ids) {
-      review.replaceChildren(ui('legend', '', 'Use an existing Contact'));
+    form.addEventListener('input', () => { review.hidden = true; identityReviews={}; });
+    function reviewContacts(ids, decision) {
+      const company = decision?.kind === 'accounts';
+      reviewedToken = decision?.review_token || '';
+      reviewedKind = decision?.kind || '';
+      review.replaceChildren(ui('legend', '', company ? 'Use an existing Company' : 'Use an existing Contact'));
       const matchIds = new Set(ids);
-      const candidates = directory.contacts.filter(contact => matchIds.has(contact.id));
+      const candidates = directory[company?'accounts':'contacts'].filter(contact => matchIds.has(contact.id));
       for (const contact of candidates) {
         const label = [contact.name, contact.company, contact.title, contact.email, contact.phone].filter(Boolean).join(' · ');
+        if (decision) {
+          const reasons = decision.matches.find(item=>item.id===contact.id)?.reasons || [];
+          const explanation = el('span','helper');
+          reasons.forEach((reason,i)=>{if(i) explanation.append(', '); explanation.append(ui('span','',reason));});
+          review.append(explanation);
+        }
         review.append(button(label, () => {
           review.hidden = true;
-          if (kind === 'leads') {
+          if (company && kind !== 'accounts') {
+            accountSelection(contact); form.requestSubmit(save);
+          } else if (kind === 'leads') {
             contactId = contact.id;
             contactName = fields.name.value.trim();
             form.requestSubmit(save);
           } else {
             savedRecord = contact;
             closeEditor();
-            if (!options.standalone) void dialogEditor('contacts', contact);
+            if (!options.standalone) void dialogEditor(company?'accounts':'contacts', contact);
           }
         }));
       }
+      copy(separate, record.id ? 'Keep these records separate' : company ? 'Keep as a separate Company' : 'Create a separate Contact');
       review.append(separate);
       review.hidden = false;
       queueMicrotask(() => review.querySelector('button')?.focus());
     }
     form.addEventListener("submit", async event => {
       event.preventDefault();
-      if (readOnly || submitting || saving || loadingLinks || !linksReady) return;
+      if (readOnly || submitting || saving || loadingLinks || !linksReady || timeline?.pending?.()) return;
+      if (timeline?.dirty?.()){feedback(form,'Log or clear the activity first.',true);return;}
       if (newContact) {
         let first;
         for (const key of contactRequired) {
@@ -627,21 +695,25 @@
       save.disabled = cancel.disabled = true;
       form.setAttribute("aria-busy", "true");
       const values = Object.fromEntries(Object.entries(fields).map(([key, input]) => [key, input.value]));
+      const assignment = {owner_id:values.owner_id}; delete values.owner_id;
+      if(kind==='leads'){assignment.region=values.region;delete values.region;}
       const links = kind === "accounts" ? Object.fromEntries(Object.entries(linkSelections).map(([key, selected]) => [key, [...selected]])) : undefined;
       const editable = [...form.querySelectorAll("input,textarea,select,button")].filter(input => !input.disabled);
       editable.forEach(input => { input.disabled = true; });
       const createSeparate = !review.hidden && event.submitter === separate;
+      if (createSeparate && reviewedKind) identityReviews[reviewedKind] = reviewedToken;
       const keepSeparateLead = !review.hidden && event.submitter === separateLead;
       review.hidden = true;
       try {
-        const result = await request(kind, {id: record.id, fields: values, version, ...(kind==='leads'?{contact_id:contactId,account_id:accountId}:{}), ...(createSeparate ? {create_separate_contact:true} : {}), ...(keepSeparateLead ? {keep_separate_lead:true} : {}), ...(links ? {links} : {})});
+        const result = await request(kind, {id: record.id, fields: values, version, ...assignment, ...(kind==='leads'?{contact_id:contactId,account_id:accountId}:{}), ...(Object.keys(identityReviews).length ? {identity_reviews:identityReviews} : {}), ...(keepSeparateLead ? {keep_separate_lead:true} : {}), ...(links ? {links,identity_version:1} : {})});
         savedRecord = kind === "accounts" ? result.account : kind === 'contacts' ? result.contact : null;
         closeEditor();
         if (!options.standalone) await activate(page);
       }
       catch (error) {
         feedback(form, error.message, true);
-        if (Array.isArray(error.matchingContacts)) reviewContacts(error.matchingContacts);
+        if (error.duplicateReview) reviewContacts(error.duplicateReview.matches.filter(item=>item.strong).map(item=>item.id),error.duplicateReview);
+        else if (Array.isArray(error.matchingContacts)) reviewContacts(error.matchingContacts);
         else if (Array.isArray(error.matchingLeads)) {
           review.replaceChildren(ui('legend', '', 'Leads'));
           const ids = new Set(error.matchingLeads);
@@ -663,7 +735,10 @@
       }
     });
     dialog.append(form);
-    dialog.addEventListener("cancel", event => { if (submitting) event.preventDefault(); });
+    dialog.addEventListener("cancel", event => {
+      if(submitting || timeline?.pending?.())event.preventDefault();
+      else if(timeline?.dirty?.()){event.preventDefault();void cancelModal();}
+    });
     dialog.addEventListener("close", () => {
       if (inPane && accountEditor?.element === dialog) {
         accountEditor = null;
@@ -678,10 +753,10 @@
       window.CeasefireI18n?.attr(close, "aria-label", "Close"); window.CeasefireI18n?.attr(close, "title", "Close");
       const headingRow = el("div", "contacts-account-heading");
       headingRow.append(heading, close); form.prepend(headingRow);
-      accountEditor = {element:dialog, kind, close:closeEditor, pending:()=>submitting,
+      accountEditor = {element:dialog, kind, close:closeEditor, pending:()=>submitting || timeline?.pending?.(),
         pendingMessage:()=>kind === "contacts" ? "Finish the current Contact action first." : "Finish the current Company action first.",
-        dirty:()=>Object.keys(fields).some(key=>fields[key].value !== initialValues[key]) || linksChanged(),
-        fingerprint:()=>JSON.stringify({id:record.id,version,fields:Object.fromEntries(Object.entries(fields).map(([key,input])=>[key,input.value])),links:Object.fromEntries(Object.entries(linkSelections).map(([key,selected])=>[key,[...selected].sort()]))}),
+        dirty:()=>Object.keys(fields).some(key=>fields[key].value !== initialValues[key]) || linksChanged() || timeline?.dirty?.(),
+        fingerprint:()=>JSON.stringify({id:record.id,version,fields:Object.fromEntries(Object.entries(fields).map(([key,input])=>[key,input.value])),links:Object.fromEntries(Object.entries(linkSelections).map(([key,selected])=>[key,[...selected].sort()])),activity:timeline?.fingerprint?.()}),
         notice:(message,error)=>feedback(form,message,error)};
       const layout = root().querySelector(".contacts-directory-layout");
       layout.classList.add("contacts-account-open"); layout.prepend(dialog);
@@ -707,8 +782,8 @@
     return dialogEditor('contacts',{name:typeof initial.name==='string'?initial.name:'',...(account?{company:account.company,account_id:account.id}:{})},false,{directory,standalone:true});
   }
   function matches(row) {
-    const keys = page === "accounts" ? ["company", "abn_acn", "billing_address"] :
-      page === "leads" ? [...personFields, "abn_acn", "status", "site_address", "billing_address", "description", "next_action", "follow_up_date"] : personFields;
+    const keys = page === "accounts" ? ["company", "abn_acn", "billing_address", "owner_name"] :
+      page === "leads" ? [...personFields, "abn_acn", "status", "site_address", "billing_address", "description", "next_action", "follow_up_date","owner_name","region"] : [...personFields,"owner_name"];
     if (page === "leads" && followUpBy && (!row.follow_up_date || row.follow_up_date > followUpBy)) return false;
     return keys.some(key => (row[key] || "").toLowerCase().includes(search.trim().toLowerCase()));
   }
@@ -740,7 +815,7 @@
       const group = rows.filter(lead => lead.status === status).sort((a,b) =>
         (a.follow_up_date || "99999").localeCompare(b.follow_up_date || "99999"));
       const heading = el("div", "project-column-heading");
-      heading.append(el("h2", "", status), el("span", "badge", group.length));
+      heading.append(ui("h2", "", status), el("span", "badge", group.length));
       column.append(heading);
       for (const lead of group) {
         const card = el("article", "project-kanban-card");
@@ -768,9 +843,9 @@
         row.append(button(lead.name, () => dialogEditor("leads", lead, true), "text-button project-title-button"), menu);
         card.append(row);
         const details = el("dl", "kanban-card-details");
-        for (const key of ["company", "site_address", "title", "phone", "email", "next_action", "follow_up_date"]) {
+        for (const key of ["company", "site_address", "region", "owner_name", "title", "phone", "email", "next_action", "follow_up_date","last_interaction_at"]) {
           if (!lead[key] && key !== "company") continue;
-          details.append(ui("dt", "", labels[key]), el("dd", "", lead[key] || "—"));
+          details.append(ui("dt", "", labels[key]), el("dd", "", key==='last_interaction_at'?new Date(lead[key]).toLocaleString():lead[key] || "—"));
         }
         card.append(details);
         const actions=el('div','contacts-lead-actions'),convert=button('',()=>void convertLead(lead),'button secondary icon-only contacts-lead-convert takeoff-preview-transfer');

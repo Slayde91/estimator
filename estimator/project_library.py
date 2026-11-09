@@ -809,6 +809,88 @@ class ProjectLibrary:
                     "site_address": project["estimate"].get("site_address", ""),
                     "project_status": project["project_status"]}
 
+    def scheduler_work_orders(self, offset):
+        from .scheduler_orders import listing
+        return listing(self, offset)
+
+    def scheduler_work_order(self, identity, revision):
+        from .scheduler_orders import resolve
+        return resolve(self, identity, revision)
+
+    def participant_project(self, selector):
+        """Resolve an authorized saved file locally; a path is never a request parameter."""
+        if not isinstance(selector, str) or len(selector) > 200:
+            raise ValidationError('Choose a saved project.')
+        with self._lock:
+            if selector.startswith('native:'):
+                selection = self._save_targets.get(selector[7:])
+                if not selection:
+                    raise ValidationError('Reopen the saved project.')
+                path = _project_save_path(selection)
+                if file_fingerprint(path) != selection.fingerprint:
+                    raise ProjectDetailsConflict('The project changed. Reopen its details before changing participants.')
+            else:
+                _, path = self._project_path(selector)
+            payload, _ = _read_file(path)
+            summary = project_summary(payload, edition=self.edition)
+            details = summary['estimate']
+            owner = summary.get('source_project_id') or ''
+            if owner and owner in self._commercial_sources.ignored_owners():
+                raise ValidationError('The selected project is unavailable.')
+            # Save As copies have independent ownership, even with the same
+            # portable project and document IDs.
+            return {'source':source_id(str(path)), 'owner':owner, 'project_no':details.get('project_no',''),
+                    'client':details.get('client',''), 'site_address':details.get('site_address',''),
+                    'revision':hashlib.sha256(payload).hexdigest()}
+
+    def participant_availability(self, rows):
+        """Verify recorded sources without inferring a new path from a name, number or portable ID."""
+        if not rows:
+            return {}
+        listing = self.account_relation_projects()
+        known = {source_id(row['path']):row for row in listing['files']}
+        verified = {}
+        with self._lock:
+            ignored = self._commercial_sources.ignored_owners()
+            native = {source_id(target.path):token for token,target in self._save_targets.items()}
+            for source,owner,number in {(r['source'],r['owner'],r['project_no']) for r in rows}:
+                state = 'unavailable'
+                if owner not in ignored:
+                    try:
+                        record = known.get(source)
+                        if record:
+                            path=Path(record['path'])
+                            info=path.lstat()
+                            if _linked(info) or not stat.S_ISREG(info.st_mode):
+                                raise ValidationError('Source unavailable.')
+                            if (info.st_size==record['size'] and datetime.fromtimestamp(info.st_mtime,timezone.utc).isoformat()==record['modified_at']):
+                                actual_owner=record.get('source_project_id') or ''
+                                actual_number=record['project_no']
+                            else:
+                                payload,_=_read_file(path)
+                                metadata=project_summary(payload,edition=self.edition)
+                                actual_owner=metadata.get('source_project_id') or ''
+                                actual_number=metadata['estimate']['project_no']
+                        elif source in native:
+                            metadata=self.participant_project('native:'+native[source])
+                            actual_owner,actual_number=metadata['owner'],metadata['project_no']
+                        else:
+                            registered=self._commercial_sources.resolve(source)
+                            if not registered:
+                                verified[source,owner,number]='unverified' if listing.get('scan_pending') else state
+                                continue
+                            if registered[1] in ignored:
+                                verified[source,owner,number]=state
+                                continue
+                            record=self._other_commercial_file(source,*registered)
+                            actual_owner,actual_number=record['source_project_id'],record['project_no']
+                        if (owner and owner==actual_owner) or (not owner and number==actual_number):
+                            state='available'
+                    except (OSError,ValidationError):
+                        pass  # The sidecar still owns the last recorded party/site relationship.
+                verified[source,owner,number]=state
+        return verified
+
     def read_details(self, request):
         """Read only selected project identity; never open or apply its workspace."""
         if not isinstance(request, dict) or set(request) != {"id"}:

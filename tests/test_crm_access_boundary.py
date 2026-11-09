@@ -1,0 +1,163 @@
+"""HTTP boundaries for named access, including losing privileges and audit privacy."""
+from http.client import HTTPConnection
+from base64 import b64encode
+from io import BytesIO
+import json
+from pathlib import Path
+import tempfile
+import threading
+import unittest
+from unittest.mock import patch
+from uuid import uuid4
+from PIL import Image
+
+from estimator.crm_access import CRMAccess
+from estimator.certification import CertificationService, SIGNER_FIELDS
+from estimator.storage import Store
+from estimator.scheduler import SchedulerStore
+from estimator.server import create_server
+
+
+class AccessBoundaryTests(unittest.TestCase):
+    def setUp(self):
+        tmp=tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root=Path(tmp.name)
+        self.server=create_server(0,root/'isolated.sqlite3',library_directory=root/'libraries')
+        self.signers=CertificationService(Store(root/'isolated.sqlite3'))
+        thread=threading.Thread(target=self.server.serve_forever,daemon=True)
+        thread.start()
+        self.addCleanup(thread.join)
+        self.addCleanup(self.server.server_close)
+        self.addCleanup(self.server.shutdown)
+        scheduler=SchedulerStore(root/'isolated-scheduler.sqlite3')
+        self.access=CRMAccess(root/'isolated-access.sqlite3',scheduler)
+        self.password='Synthetic-secret-for-boundary-test'
+        admin=scheduler.write('setup',{'name':'Admin','email':'admin@example.test','password':self.password})
+        editor=scheduler.write('members/save',{'name':'Sales','email':'sales@example.test','password':self.password,
+                                               'role':'worker','active':True,'base_rate':'0'},admin['token'])
+        self.access.assign({'member_id':editor['id'],'role':'editor','version':0},admin['token'])
+        self.access.activate_named_access()
+        self.admin_id=admin['user']['id'];self.editor_id=editor['id']
+        self.admin=self.login('admin@example.test');self.editor=self.login('sales@example.test')
+
+    def call(self,path,body=None,*,cookie='',member=None,method=None):
+        conn=HTTPConnection('127.0.0.1',self.server.server_port,timeout=20)
+        headers={'Cookie':cookie,'Content-Type':'application/json'}
+        if member is not None:
+            headers['X-CRM-Member']=member
+        try:
+            conn.request(method or ('GET' if body is None else 'POST'),path,
+                         json.dumps(body) if body is not None else None,headers)
+            response=conn.getresponse()
+            data=response.read()
+            return response.status,dict(response.getheaders()),json.loads(data)
+        finally:
+            conn.close()
+
+    def login(self,email):
+        status,headers,_=self.call('/api/access/login',{'email':email,'password':self.password})
+        self.assertEqual(status,200)
+        return headers['Set-Cookie'].split(';',1)[0]
+
+    def test_editor_cannot_run_native_number_migration_and_switched_tab_cannot_administer_access(self):
+        with patch('estimator.document_numbers.migrate_saved_orders') as migrate:
+            status,_,_=self.call('/api/document-numbering/migrate-orders',{},cookie=self.editor,member=self.editor_id)
+            self.assertEqual(status,403)
+            migrate.assert_not_called()
+        configuration=self.access.settings()
+        role={'member_id':self.editor_id,'role':'viewer','version':1}
+        for header in (None,self.editor_id):
+            for route,body in [('roles',role),('settings',{'enabled':False,'version':configuration['version']})]:
+                with self.subTest(header=header,route=route):
+                    self.assertEqual(self.call('/api/access/'+route,body,cookie=self.admin,member=header)[0],409)
+        self.assertEqual(self.access.settings(),configuration)
+        self.assertEqual(self.call('/api/access/session',cookie=self.editor)[2]['user']['role'],'editor')
+        self.assertEqual(self.call('/api/access/roles',role,cookie=self.admin,member=self.admin_id)[0],200)
+        before=self.call('/api/contacts/directory',cookie=self.editor)[2]
+        status,_,_=self.call('/api/contacts/leads',{'version':before['version'],'fields':{'name':'Blocked','company':'Blocked'}},
+                             cookie=self.editor,member=self.editor_id)
+        self.assertEqual(status,403)
+        self.assertEqual(before,self.call('/api/contacts/directory',cookie=self.editor)[2])
+        # A viewer may read project details; the mutation path next to it must fail before lookup.
+        self.assertEqual(self.call('/api/projects/details',{'id':'missing'},cookie=self.editor)[0],400)
+        self.assertEqual(self.call('/api/projects/details/save',{},cookie=self.editor,member=self.editor_id)[0],403)
+        self.assertEqual(self.call('/api/access/audit',cookie=self.editor)[0],403)
+
+    def test_audit_does_not_persist_payload_query_arbitrary_path_or_bearer_identifiers(self):
+        marker='ConfidentialCustomerAB765'
+        workspace=str(uuid4())
+        version=self.call('/api/contacts/directory',cookie=self.editor)[2]['version']
+        status,_,saved=self.call('/api/contacts/leads?hint='+marker,{'fields':{'name':'Person','company':marker},'version':version},
+                                 cookie=self.editor,member=self.editor_id)
+        self.assertEqual(status,200)
+        for route,body in [
+            ('/api/contacts/leads',{'id':marker,'version':saved['version'],'fields':{'name':marker,'company':'X'}}),
+            ('/api/quotes/'+marker,{'id':marker}),
+            ('/api/certifications/workspaces/'+workspace+'/discard',{}),
+        ]:
+            self.assertGreaterEqual(self.call(route,body,cookie=self.editor,member=self.editor_id)[0],400)
+        status,_,ledger=self.call('/api/access/audit',cookie=self.admin)
+        self.assertEqual(status,200)
+        contents=json.dumps(ledger)
+        for secret in (marker,self.password,self.admin,self.editor,workspace):
+            self.assertNotIn(secret,contents)
+        self.assertTrue(any(row['target_id']==saved['id'] and row['status']==200 and row['actor_name']=='Sales'
+                            for row in ledger['requests']))
+        self.assertTrue(all(row['target_id'] is None for row in ledger['requests'] if row['status']>=400))
+        # Inspect both attempts and responses rather than trusting a sanitized UI projection.
+        with self.access.connect() as db:
+            persisted=json.dumps([tuple(r) for r in db.execute('SELECT * FROM crm_request_events')])
+        for secret in (marker,workspace,self.password,self.editor.split('=',1)[1]):
+            self.assertNotIn(secret,persisted)
+
+    def test_named_profiles_begin_empty_and_only_authenticate_their_own_signer_artwork(self):
+        route='/api/certifications/defaults'
+        empty={'fields':dict.fromkeys(SIGNER_FIELDS,''),'version':1,'signature_image':None,'signature_name':''}
+        def body(name,colour):
+            stream=BytesIO()
+            Image.new('RGB',(8,3),colour).save(stream,format='PNG')
+            image='data:image/png;base64,'+b64encode(stream.getvalue()).decode('ascii')
+            return {'fields':{**empty['fields'],'name':name},'signature_image':image,'signature_name':name+'.png',
+                    'expected_version':1}
+        legacy=self.signers.save_defaults(**body('Historical signer','red'))
+        with self.signers.store.connect() as db:
+            original=tuple(db.execute('SELECT * FROM certification_signer_defaults').fetchone())
+        self.assertEqual(self.call(route+'/legacy',cookie=self.admin)[2],legacy)
+        self.assertEqual(self.call(route+'/legacy',cookie=self.editor)[0],403)
+        self.assertEqual(self.call(route+'/legacy')[0],401)
+        for cookie,stale in ((self.admin,self.editor_id),(self.admin,'anonymous'),(self.editor,self.admin_id)):
+            self.assertEqual(self.call(route,cookie=cookie,member=stale)[0],409)
+        for cookie in (self.admin,self.editor):
+            self.assertEqual(self.call(route,cookie=cookie)[2],empty)
+        with self.signers.store.connect() as db:
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM staff_signer_defaults').fetchone()[0],0)
+        first=body('First staff','blue')
+        second=body('Second staff','green')
+        for cookie,member,profile in ((self.admin,self.admin_id,first),(self.editor,self.editor_id,second)):
+            for attempt in range(2):
+                status,_,saved=self.call(route,profile,cookie=cookie,member=member)
+                self.assertEqual(status,200)
+                self.assertEqual(saved,{**{k:v for k,v in profile.items() if k!='expected_version'},'version':2})
+        for cookie,member in ((self.admin,self.editor_id),(self.editor,self.admin_id)):
+            self.assertEqual(self.call(route,second,cookie=cookie,member=member)[0],409)
+        self.assertEqual(self.call(route,{**first,'owner_id':self.admin_id},cookie=self.editor,member=self.editor_id)[0],400)
+        renamed={'fields':{**second['fields'],'name':'Edited'},'expected_version':1}
+        self.assertEqual(self.call(route,renamed,cookie=self.editor,member=self.editor_id)[0],409)
+        status,_,saved=self.call(route,{**renamed,'expected_version':2},cookie=self.editor,member=self.editor_id)
+        self.assertEqual(status,200)
+        self.assertEqual((saved['version'],saved['signature_image'],saved['signature_name']),
+                         (3,second['signature_image'],second['signature_name']))
+        self.assertEqual(self.call(route,cookie=self.admin)[2]['signature_image'],first['signature_image'])
+        with self.signers.store.connect() as db:
+            self.assertEqual(tuple(db.execute('SELECT * FROM certification_signer_defaults').fetchone()),original)
+        configuration=self.access.settings()
+        self.assertEqual(self.call('/api/access/settings',{'enabled':False,'version':configuration['version']},
+                                   cookie=self.admin,member=self.admin_id)[0],200)
+        self.assertEqual(self.call(route+'/legacy')[0],401)
+        self.assertEqual(self.call(route,member='anonymous')[2],legacy)
+        self.assertEqual(self.call(route,member=self.admin_id)[0],409)
+        self.assertEqual(self.call(route,first,member=self.admin_id)[0],409)
+        self.assertEqual(self.call(route,second,cookie=self.admin,member='anonymous')[0],409)
+        self.assertEqual(self.call(route,first,cookie=self.admin)[0],409)
+        self.assertEqual(self.signers.get_defaults(),legacy)

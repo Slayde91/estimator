@@ -11,9 +11,12 @@ import uuid
 from pypdf import PdfReader
 
 from estimator.catalog import ValidationError
+from estimator.certification import CertificationService, SIGNER_FIELDS
+from estimator.storage import Store
+from estimator.swms_http import SwmsHTTP
 from estimator.swms import (SwmsDocuments, SwmsConflict, default_fields, issue_requirements,
                             missing_issue_fields, review_initials, validate_swms_snapshot)
-from test_swms import Projects
+from test_swms import Handler, Projects
 from swms_ready_fixtures import complete_swms
 
 
@@ -145,6 +148,35 @@ class SwmsReadinessTests(unittest.TestCase):
         result = self.document(saved['id'])
         self.assertEqual(result['fields']['reviews'][:3], ['Manual correction', 'ST', ''])
         self.assertEqual(review_initials('  Anna-Marie O’Neill  '), 'AMO')
+
+    def test_named_http_issues_use_only_current_profile_and_keep_frozen_pdfs(self):
+        signers = self.projects.legacy = CertificationService(Store(self.projects.root.parent/'main.sqlite3'))
+        first, second = uid(), uid()
+        fields = dict.fromkeys(SIGNER_FIELDS, '')
+        signers.save_defaults({**fields, 'name':'Previous global'}, 1)
+        signers.save_defaults({**fields, 'name':'First signer'}, 1, owner_id=first)
+        document = self.save()
+        request = uid()
+        def issue(member, version, operation):
+            handler = Handler({'workspace_id':self.workspace, 'id':document['id'], 'version':version, 'request_id':operation})
+            handler.crm_actor = {'id':member, 'name':'Never used as the signer'}
+            SwmsHTTP(self.service).dispatch(handler, '/api/swms/issue')
+            return handler.result
+        status, issued = issue(first, document['version'], request)
+        self.assertEqual(status,200)
+        pdf = issued['pdf']
+        self.assertIn('FS', '\n'.join(page.extract_text() for page in PdfReader(BytesIO(pdf)).pages))
+        self.assertEqual(self.document(document['id'])['fields']['reviews'][0], 'FS')
+        self.assertEqual(issue(second, document['version'], request)[0],409)
+        latest = self.document(document['id'])
+        self.assertEqual(issue(second, latest['version'], uid())[0],200)
+        self.assertEqual(self.document(document['id'])['fields']['reviews'][:2], ['FS',''])
+        signers.save_defaults({**fields, 'name':'Now updated'}, 2, owner_id=first)
+        self.assertEqual(issue(first, document['version'], request)[1]['pdf'], pdf)
+        self.assertEqual(self.document(document['id'])['review_count'], 2)
+        with self.service._connect() as db:
+            frozen = db.execute('SELECT pdf FROM swms_issued WHERE request_id=?', (request,)).fetchone()
+        self.assertEqual(bytes(frozen['pdf']), pdf)
 
     def test_legacy_review_register_and_full_ten_slots_keep_their_existing_values(self):
         self.service.renderer = lambda document, **kwargs: b'%PDF-1.4 synthetic'

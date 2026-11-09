@@ -37,26 +37,27 @@ async function submit(name) {await page.locator('dialog[open]').getByRole('butto
   await page.getByLabel('Password',{exact:true}).fill('Rules-password-2026');
   await page.getByRole('button',{name:'Create administrator account'}).click();
   await expect(page.locator('.scheduler-grid')).toBeVisible();
-  await expect(page.locator('.scheduler-projects-status')).toContainText('1 Accepted projects available');
+  await expect(page.locator('.scheduler-projects-status')).toContainText('1 Work Orders available');
   const projects = (await api('projects')).body.files;
-  const accepted = projects.find(item => item.project_status === 'Accepted');
+  const [order] = (await api('scheduler/work-orders')).body.orders;
+  assert.equal(order.status,'Draft');assert.equal(order.reference,'WO-02');
   const draft = projects.find(item => item.project_status === 'Draft');
   await page.getByRole('button',{name:'Add shift',exact:true}).click();
   let modal = page.locator('dialog[open]');
-  await expect(modal.getByLabel('Job / project reference').locator('option')).toHaveCount(2);
-  await modal.getByLabel('Title',{exact:true}).fill('Accepted job');
+  await expect(modal.getByLabel('Work Order').locator('option')).toHaveCount(2);
+  await modal.getByLabel('Title',{exact:true}).fill('Draft Work Order job');
   // The payroll assertions below use a fixed week. A new shift otherwise
   // defaults to today's date and falls outside that week as the clock advances.
   await modal.getByLabel('Start',{exact:true}).fill('2026-11-02T07:00');
   await modal.getByLabel('End',{exact:true}).fill('2026-11-02T15:00');
-  await modal.getByLabel('Job / project reference').selectOption(accepted.id);
+  await modal.getByLabel('Work Order').selectOption(order.id+'@'+order.revision);
   await expect(modal.getByLabel('Location',{exact:true})).toHaveValue('12 Site Street');
   await modal.getByLabel('Location',{exact:true}).fill('12 Site Street, gate B');
   const savingShift=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/scheduler/shifts/save'&&response.request().method()==='POST');
   await submit('Save shift');
   const shiftResponse=await savingShift;assert.equal(shiftResponse.status(),200,await shiftResponse.text());
   const createdShift=await shiftResponse.json();
-  assert.ok(createdShift.id);assert.equal(createdShift.project_id,accepted.id);
+  assert.ok(createdShift.id);assert.equal(createdShift.work_order.id,order.id);
   assert.equal(createdShift.location,'12 Site Street, gate B');
   const denied = await api('scheduler/shifts/save',{title:'Blocked draft',project_id:draft.id,start:'2026-11-02T07:00',end:'2026-11-02T15:00'});
   assert.equal(denied.status,400);
@@ -94,7 +95,7 @@ async function submit(name) {await page.locator('dialog[open]').getByRole('butto
   await page.getByLabel('Week containing date').fill('2026-11-02'); await page.getByLabel('Week containing date').press('Tab');
   await page.getByRole('button',{name:'Add time entry',exact:true}).click(); modal = page.locator('dialog[open]');
   const fieldOrder=await modal.locator('.scheduler-form-fields > label > span').allTextContents();
-  assert.deepEqual(fieldOrder.slice(0,4),['Team member','Start','Job / project reference','Finish']);
+  assert.deepEqual(fieldOrder.slice(0,4),['Team member','Start','Work Order','Finish']);
   await modal.getByLabel('Team member',{exact:true}).selectOption(worker.id);
   await modal.getByLabel('Start',{exact:true}).fill('2026-11-02T07:00');
   await modal.getByLabel('Finish',{exact:true}).fill('2026-11-02T15:00');
@@ -114,7 +115,7 @@ async function submit(name) {await page.locator('dialog[open]').getByRole('butto
   for(const key of ['start','end','project_id','location'])assert.equal(savedShift[key],createdShift[key]);
   await page.screenshot({path:path.join(output,'automatic-breaks-pay.png'),fullPage:true});
   assert.deepEqual(errors,[]);
-  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks:['Accepted-only project selection','site address default and custom location','explicit fixed-week dates and persisted shift receipt identity','custom overtime editor','automatic recurring break editor','minimum and auto-end settings','responsive rules','effective breaks and pay-item breakdown']},null,2));
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks:['An unissued Work Order can be assigned from a Draft Project','site address default and custom location','explicit fixed-week dates and persisted shift receipt identity','custom overtime editor','automatic recurring break editor','minimum and auto-end settings','responsive rules','effective breaks and pay-item breakdown']},null,2));
   console.log(`PASS Scheduler custom rules and project choices. ${output}`);
 })().catch(async error => {console.error(error); if(page) await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(() => {}); fs.writeFileSync(path.join(output,'failure.txt'),`${error.stack}\n${logs}`); process.exitCode = 1;})
   .finally(async () => {if(browser) await browser.close(); server.kill();});

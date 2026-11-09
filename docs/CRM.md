@@ -2,7 +2,7 @@
 
 CLASSIFIRE is a project-based CRM. A company is an organisation, a contact is a person, and a lead is one potential job. The numbered Project continues the job when a lead converts. Quotes, work orders and purchase orders have their own identities and revisions within that job. A purchase order can involve both a customer and a different supplier.
 
-## Design review and fixes, in priority order
+## Record identity and historical documents
 
 1. **Identify the person before creating another record.** Creating a contact or typing a person into a lead checks the company, full name and nonempty email together. A person can reuse the suggested record or deliberately create a separate contact. Two people with the same name or a shared inbox remain possible. An import skips exact repeats and reports conflicting details for review without partially importing the workbook. Existing records are never merged automatically.
 2. **Separate the job from the person.** The same person can bring in several jobs, even at the same site. A possible repeat prompts for a decision. Choosing an existing person on a lead does not make edits to that person's directory profile. Company and contact panes show the active leads linked to their IDs.
@@ -10,9 +10,90 @@ CLASSIFIRE is a project-based CRM. A company is an organisation, a contact is a 
 4. **Separate document roles from printed names.** Choosing a supplier, supplier contact or site contact on a PO saves the directory ID as well as the text to print. A supplier can find that PO without being made the customer or being linked to every document on the project. Typed or historic names alone do not identify a party. Saved snapshots and issued PDFs retain their original wording.
 5. **Make the next step visible.** A lead can have a next action and calendar date. The existing board shows both, sorts scheduled leads first in each column, and can show only follow-ups due by a chosen date. An empty cutoff shows all leads, including unscheduled ones. Neither field is required to save a lead or convert it.
 
+## Staff, activities and sales progress
+
+Named owners come from the active staff roster. Next actions, due dates and regions
+belong to the existing record. Staff can log calls, emails, meetings, notes and
+tasks, and complete tasks without erasing the original entry. Recorded time and
+actual interaction time are distinct. Creation, updates, stage changes and lead
+handover are recorded prospectively with the authenticated staff identity.
+Unrecorded historical dates and actors stay unknown.
+
+New sales stages are New, Contacted, Qualified, Quoting, Negotiating, Won and Lost.
+Region is separate. Existing Assisting, Interstate, Disqualified and Not Applicable
+records keep their values and remain visible until deliberately edited. Converting
+a lead records a handover to a Project; it does not silently record a sale as Won.
+
+Company, contact and lead history follows the IDs recorded at the time, including
+an enquiry whose client differs from its contact's employer. A completed task
+retains its original relationships even if the person later changes employer.
+
+## Project parties, sites and scheduling
+
+Project participants have explicit roles and verified directory IDs. Adding a site
+contact or consultant does not change that person's employer. These relationships
+are held in the local CRM sidecar; existing Project files and issued documents are
+not rewritten. The exact saved file and owning Project identity distinguish copied
+bids. An unavailable source retains its last-recorded relationships and is labelled
+unavailable. A moved file must be deliberately relinked rather than guessed from a
+matching name, address or copied UUID.
+
+Staff can explicitly create a Site and link bids from different builders to it.
+Identical addresses do not automatically merge sites or bids.
+
+Scheduler selects saved Work Orders and displays their Project/client/site context.
+New bookings do not depend on the old Project Accepted status and do not require
+an issued or Accepted Quote. Draft Work Orders can be scheduled deliberately.
+Existing Project-only bookings retain their original references. Scheduler's team,
+time, break, location and publication permissions continue to apply. Workers see
+only their own bookings, while their job picker exposes bounded reference/site
+context without commercial prices, documents or notes.
+
+## Reviewed duplicates and current details
+
+Duplicate suggestions distinguish strong identity matches from advisory name,
+email and phone similarities. They apply when relevant identity fields change;
+they do not silently merge people sharing a mailbox or legal/trading-name variant.
+Batch imports remain all-or-nothing and identify conflicting rows.
+
+An administrator can review two originals, choose a survivor and record a reason.
+Merge and undo store versioned, retry-safe alias decisions. Original rows, IDs,
+memberships, snapshots, file bytes and PDFs remain intact. Current directory views
+combine the aliases while retaining the exact original source and document role.
+Undo restores the separate view; it does not roll back other edits. An older client
+that cannot express direct versus inherited links must reopen the updated editor.
+
+The enquiry editor compares This enquiry with Current Contact. Refresh copies only
+the selected name, title, phone or email into the unsaved form. It does not change
+the enquiry client, site, notes, historical snapshots or issued documents. Save is
+the version-checked write.
+
+## Local staff access and signer recovery
+
+Named staff authentication reuses existing Scheduler credentials. Team
+administrators administer CRM access; editors can update records; viewers can read
+records; Scheduler-only accounts receive a separate Scheduler page. Roles and
+requests are audited. Mutations require the tab's expected staff identity, and
+signer/profile reads also detect identity changes in another tab.
+
+Personal signer details and artwork are isolated by authenticated staff ID. Existing
+global details and anonymous browser ink are retained. An administrator can review
+and deliberately copy previous details or ink into their own profile; neither is
+adopted automatically. Copying server details uses a normal versioned Save; copying
+browser ink requires its own signature-dialog Save. Issued signatures and revisions
+are never changed by profile recovery.
+
+The request audit records a safe endpoint template and the staff identity before an
+authorised mutation. A separate response receipt records the HTTP result. A missing
+response means outcome unknown; it is not proof the business operation failed.
+Detailed CRM event and document histories retain their own transaction/version
+checks. Passwords, raw request bodies, file paths and capability tokens are not
+stored in the access ledger.
+
 ## Boundaries
 
-- The board retains the existing business labels. In particular, “Interstate” should not be treated as a probability or a later sales stage when calculating forecasts.
+- Legacy business labels must not be treated as numerical win probabilities or inferred sales outcomes.
 - A follow-up is the next planned action, not a sent email, a calendar booking or evidence that a call took place.
 - Historical names, email addresses and file names are not safe keys for automatic repairs. Existing manual links and external file availability stay distinct from verified directory relationships.
 - Directory writes use a revision check. A stale editor must reload; confirming a possible duplicate is not permission to overwrite a newer edit. Document edits keep their separate project and version checks.
+- This release remains a single-computer application. Application permissions do not replace operating-system access controls. Remote shared hosting, backups and deployment design remain separate work; exposing or synchronising the local database is not a team deployment.

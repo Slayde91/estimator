@@ -1,0 +1,58 @@
+// Explicit project roles and an intentionally shared site; all files are disposable.
+const {chromium,expect}=require('@playwright/test');
+const {spawn}=require('node:child_process'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const {createNewProject,openProjectSection}=require('./project_actions.cjs');
+const root=path.resolve(__dirname,'../..'),folder=path.join(root,'.runtime/browser-qa','crm-participants-'+Date.now());
+fs.mkdirSync(folder,{recursive:true});
+const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',folder],{cwd:root,windowsHide:true});
+let stderr='',browser,page;server.stderr.on('data',d=>stderr+=d);
+const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject);server.on('exit',()=>reject(Error(stderr)));
+  server.stdout.on('data',d=>{text+=d;if(text.includes('\n'))resolve(JSON.parse(text.split('\n')[0]));});});
+(async()=>{
+  const info=await ready;assert.notEqual(info.port,8765);
+  browser=await chromium.launch({headless:true});page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:'+info.port);await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready);
+  await createNewProject(page,{client:'Builder A','site-address':'42 Example Lane'});
+  const original=fs.readFileSync(info.project);
+  const read=async path=>{const res=await page.request.get(new URL(path,page.url()).href);assert.equal(res.status(),200,await res.text());return res.json();};
+  const directory=await read('/api/contacts/directory');
+  const create=await page.request.post(new URL('/api/contacts/accounts',page.url()).href,{data:{version:directory.version,fields:{company:'Consulting team'}}});
+  assert.equal(create.status(),200,await create.text());const consultant=(await create.json()).id;
+  await openProjectSection(page,'quotes');await page.locator('#project-current-details').click();
+  const panel=page.locator('#project-participants-panel');
+  await panel.locator('summary').first().click();await expect(panel.getByRole('heading',{name:'Project participants'})).toBeVisible();
+  await panel.getByLabel('Role',{exact:true}).selectOption('consultant');
+  await panel.getByLabel('Search directory',{exact:true}).fill('Consulting');
+  await panel.getByLabel('Participant',{exact:true}).selectOption(consultant);
+  await panel.getByRole('button',{name:'Add participant',exact:true}).click();
+  await expect(panel.locator('li')).toContainText('Consulting team');
+  await panel.getByText('New site',{exact:true}).click();await panel.getByLabel('Site name',{exact:true}).fill('Shared school refurbishment');
+  await panel.getByLabel('Site address',{exact:true}).fill('42 Example Lane');await panel.getByRole('button',{name:'Create and link site'}).click();
+  await expect(panel.getByText('Shared school refurbishment · 42 Example Lane',{exact:true}).first()).toBeVisible();
+  const linked=await read('/api/contacts/account-links?id='+consultant);
+  assert.ok(linked.participant_projects.some(row=>row.role==='consultant' && row.client==='Builder A'));
+  assert.deepEqual(fs.readFileSync(info.project),original,'Directory relationships never rewrite the saved project');
+  const copy=JSON.parse(original);
+  for(const estimate of [copy.estimate,...(copy.estimates || []).map(e=>e.workspace.estimate)]) {
+    estimate.client='Builder B';estimate.account_id='';estimate.contact_id='';
+  }
+  const copyPath=path.join(path.dirname(info.project),'separate-builder.cf.json');
+  fs.writeFileSync(copyPath,JSON.stringify(copy));const copyBytes=fs.readFileSync(copyPath);
+  await page.locator('#project-details-close').click();await page.locator('#refresh-quotes').click();
+  const selected=(await read('/api/projects')).files.find(row=>row.name==='separate-builder.cf.json');assert.ok(selected);
+  await page.locator(`[data-project-details-id="${selected.id}"]`).click();
+  await panel.locator('summary').first().click();await expect(panel.getByText('No shared site linked.',{exact:true})).toBeVisible();
+  const sites=await read('/api/crm/sites?search=school');assert.equal(sites.sites.length,1);
+  await panel.getByLabel('Site',{exact:true}).selectOption(sites.sites[0].id);
+  await panel.getByRole('button',{name:'Link site',exact:true}).click();
+  await expect(panel.getByRole('heading',{name:'Other bids linked to this site'})).toBeVisible();
+  await expect(panel.locator('li').filter({hasText:'Builder A'})).toHaveCount(1);
+  assert.deepEqual(fs.readFileSync(info.project),original);assert.deepEqual(fs.readFileSync(copyPath),copyBytes);
+  // Removing the saved copy outside CLASSIFIRE must not erase or rebind the recorded site relationship.
+  fs.renameSync(copyPath,copyPath+'.retained');
+  const siteView=await read('/api/crm/sites?id='+sites.sites[0].id);
+  const archived=siteView.linked_bids.find(bid=>bid.client==='Builder B');assert.equal(archived.availability,'unavailable');
+  assert.deepEqual(fs.readFileSync(copyPath+'.retained'),copyBytes);
+  await page.screenshot({path:path.join(folder,'participants.png')});assert.deepEqual(errors,[]);
+  console.log('PASS typed project participants, explicit shared site, directory backlink and saved file preservation');
+})().catch(async error=>{console.error(error,stderr,await page?.locator('#project-participants-panel').innerText().catch(()=>''));await page?.screenshot({path:path.join(folder,'failure.png')}).catch(()=>{});process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

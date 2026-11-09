@@ -45,6 +45,7 @@ const errors=[],checks=[];
     requests.push({action,payload});
     let result;
     if(action==='bootstrap')result={setup_required:false,user:state.user};
+    else if(action==='work-orders' && !payload)result={orders:[],matched:0,scan_pending:false,error_count:0};
     else if(action==='logout')result={signed_out:true};
     else if(action==='state')result=state;
     else if(action==='clock/in'){

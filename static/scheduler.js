@@ -3,7 +3,7 @@
   let zone = "Australia/Sydney";
   const LOCATION_INTERVAL = 30 * 60 * 1000;
   const state = {root:null, data:null, page:"schedule", week:weekStart(today()), member:"", mine:false,
-    loading:0, busy:false, dialog:null, watch:null, lastLocation:0, locationEnabled:false, timer:null, projects:[], settingsDirty:false,
+    loading:0, busy:false, dialog:null, watch:null, lastLocation:0, locationEnabled:false, timer:null, orders:[], settingsDirty:false,
     projectsLoading:false, projectsScan:null, projectsMessage:"", breakNotices:new Set(), noticeTimer:null,
     locationTimer:null, locationEntry:null, locationPending:false, lastPoint:null, locationIssue:"", locationHealth:0, trackingBanner:null,
     entriesSearch:"", entriesMine:false, collapsedDays:new Set(), locationPlayback:null, authGeneration:0, mapRequest:0};
@@ -83,61 +83,80 @@
   function hours(minutes) { const rounded = Math.round(minutes); return `${Math.floor(rounded / 60)}h ${String(rounded % 60).padStart(2,"0") }m`; }
   function memberName(id) { return state.data.members.find(member => member.id === id)?.name || "Unassigned"; }
   function admin() { return state.data?.user?.role === "admin"; }
-  function projectSelect(record = {}) {
-    const accepted = state.projects.filter(project => project.project_status === "Accepted");
-    const options = [["","No project assigned"],...accepted.map(project => [project.id,project.title || project.name])];
-    const retained = record.project_id && !accepted.some(project => project.id === record.project_id);
-    if (retained) options.push([record.project_id,`${record.project_name || record.project_id} (current reference)`]);
-    const control = select(options,record.project_id || "");
-    if (retained) {const option = [...control.options].find(item => item.value === record.project_id); option.disabled = true; option.dataset.projectName = record.project_name || record.project_id;}
+  const translated = (source,args=[])=>window.CeasefireI18n?.translate(source,args) || source.replace(/\{(\d+)\}/g,(_,i)=>args[Number(i)] ?? '');
+  function orderLabel(order) {
+    return [order.reference, order.project_no, order.client, order.site_address, translated(order.status), `v${order.version}`].filter(Boolean).join(' · ');
+  }
+  function assignmentLabel(record) {
+    const legacy=record.project_name || record.project_id;
+    return record.work_order ? orderLabel(record.work_order) : legacy ? translated('{0} (legacy project)',[legacy]) : '';
+  }
+  function orderSelect(record = {}) {
+    const held = record.work_order;
+    const key = order => order.id + '@' + order.revision;
+    const current = held ? key(held) : record.project_id || record.project_name ? 'legacy' : '';
+    const options = [['', translated('No Work Order assigned')], ...state.orders.map(order => [key(order), orderLabel(order)])];
+    const retained = current && !options.some(([value]) => value === current);
+    if (retained) options.push([current, held ? translated('{0} (saved assignment)',[assignmentLabel(record)]) : assignmentLabel(record)]);
+    const control = select(options, current);
+    control.dataset.original = current;
+    if (retained) control.selectedOptions[0].disabled = true;
     return control;
   }
-  function projectName(control) { return control.value ? control.selectedOptions[0]?.dataset.projectName || control.selectedOptions[0]?.textContent || "" : ""; }
-  function projectStatus() {
+  function selectedOrder(control) {
+    if (control.value === control.dataset.original) return {};
+    if (!control.value) return {work_order:null};
+    const [id, revision] = control.value.split('@');
+    return {work_order:{id, revision}};
+  }
+  function orderStatus() {
     const label = state.root?.querySelector(".scheduler-projects-status");
     if (label) label.textContent = state.projectsMessage;
     const action = state.root?.querySelector(".scheduler-projects-refresh");
     if (action) {
       action.disabled = state.projectsLoading;
-      action.textContent = state.projectsScan?.complete ? "Refresh project choices" : "Continue loading project choices";
+      action.textContent = translated(state.projectsScan?.complete ? "Refresh Work Order choices" : "Continue loading Work Order choices");
     }
   }
-  async function loadProjects() {
-    if (state.projectsLoading) return;
+  async function loadOrders() {
+    if (state.projectsLoading || !state.data?.user) return;
+    const current = accountAction();
     state.projectsLoading = true;
     if (!state.projectsScan || state.projectsScan.complete) state.projectsScan = {offset:0,records:new Map(),complete:false};
     const scan = state.projectsScan, deadline = Date.now() + 30000;
-    state.projectsMessage = "Loading saved-project choices in the background…";
-    projectStatus();
+    state.projectsMessage = translated("Loading Work Order choices in the background…");
+    orderStatus();
     try {
       for (let page = 0; page < 20 && Date.now() < deadline; page++) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(),Math.min(5000,deadline-Date.now()));
         let data;
         try {
-          const response = await fetch(`/api/projects?offset=${scan.offset}`,{credentials:"same-origin",cache:"no-store",signal:controller.signal});
-          if (!response.ok) throw new Error("Project list unavailable");
+          const response = await fetch(`/api/scheduler/work-orders?offset=${scan.offset}`,{credentials:"same-origin",cache:"no-store",headers:{"X-Scheduler-Member":state.data.user.id},signal:controller.signal});
+          if (!response.ok) throw new Error("Work Order list unavailable");
           data = await response.json();
         } finally {clearTimeout(timeout);}
-        for (const project of data.files || []) scan.records.set(project.id,project);
+        if (!current()) return;
+        for (const order of data.orders || []) scan.records.set(order.id,order);
         if (!data.scan_pending) {
-          scan.offset += (data.files || []).length;
-          scan.complete = !data.files?.length || scan.offset >= (data.matched ?? scan.offset);
+          scan.offset += (data.orders || []).length;
+          scan.complete = !data.orders?.length || scan.offset >= (data.matched ?? scan.offset);
         }
-        const choices = scan.complete ? new Map() : new Map(state.projects.map(project => [project.id,project]));
+        const choices = scan.complete ? new Map() : new Map(state.orders.map(order => [order.id,order]));
         for (const [id,project] of scan.records) choices.set(id,project);
-        state.projects = [...choices.values()];
-        state.projectsMessage = `${state.projects.filter(project => project.project_status === "Accepted").length} Accepted projects available${scan.complete ? "." : " · loading more…"}`;
-        projectStatus();
+        state.orders = [...choices.values()];
+        state.projectsMessage = translated("{0} Work Orders available",[state.orders.length]);
+        if(data.error_count) state.projectsMessage += ' '+translated('Some saved sources are unavailable.');
+        orderStatus();
         if (scan.complete) break;
         await new Promise(resolve => setTimeout(resolve,500));
       }
-      if (!scan.complete) state.projectsMessage = `${state.projects.length} saved-project choices available. Continue loading to scan more files.`;
+      if (!scan.complete) state.projectsMessage = translated("{0} Work Order choices available. Continue loading to scan more files.",[state.orders.length]);
     } catch (_) {
-      state.projectsMessage = "Saved-project choices are taking longer to load. Continue loading to retry. You can still use Scheduler.";
+      if (!current()) return;
+      state.projectsMessage = translated("Work Order choices are taking longer to load. Continue loading to retry. You can still use Scheduler.");
     } finally {
-      state.projectsLoading = false;
-      projectStatus();
+      if(current()){state.projectsLoading = false;orderStatus();}
     }
   }
   function notice(message, error = false) {
@@ -163,6 +182,7 @@
       if (state.locationEntry && (state.data?.user?.id !== data.user?.id || state.locationEntry !== data.active_entry?.id)) stopLocation();
       if (state.data?.user && (state.data.user.id !== data.user?.id || state.data.user.role !== data.user?.role)) resetAccount();
       state.data = data;
+      if (!state.projectsScan) void loadOrders();
       const previousWeek = state.week;
       setZone(data.settings.timezone);
       if (previousWeek !== state.week) return refresh();
@@ -180,7 +200,7 @@
   function resetAccount() {
     state.authGeneration++; state.loading++; state.mapRequest++;
     closeDialog(true); stopLocation(); state.data = null; state.settingsDirty = false;
-    state.busy = false;
+    state.busy = false; state.orders=[]; state.projectsScan=null; state.projectsLoading=false; state.projectsMessage="";
     state.page = "schedule"; state.member = ""; state.mine = false; state.entriesSearch = ""; state.entriesMine = false;
     updateLocationStatus();
   }
@@ -205,8 +225,8 @@
     state.root.append(status);
     const projects = el("div","scheduler-projects-info helper"), label = el("span","scheduler-projects-status",state.projectsMessage);
     label.setAttribute("role","status");
-    projects.append(label,button("Refresh project choices",() => {void loadProjects();},"text-button scheduler-projects-refresh"));
-    state.root.append(projects); projectStatus();
+    projects.append(label,button("Refresh Work Order choices",() => {void loadOrders();},"text-button scheduler-projects-refresh"));
+    if(state.data?.user){state.root.append(projects); orderStatus();}
   }
   function closeDialog(force = false) { if(state.busy && force !== true)return; clearInterval(state.locationPlayback); state.locationPlayback = null; state.dialog?.close(); state.dialog?.remove(); state.dialog = null; }
   function dialog(title, build, saveLabel, save, submitClass = "button") {
@@ -273,7 +293,7 @@
     const account = el("div", "scheduler-account"); account.append(el("span","",state.data.user.name),button("Sign out",async () => {
       if (state.busy || state.settingsDirty) {notice("Finish saving or discard your settings changes before signing out.",true); return;}
       const logout = request("/logout",{}); resetAccount(); shell(); notice("Signing out…");
-      try { await logout; accountChannel?.postMessage("changed"); auth(false); }
+      try { const result=await logout; accountChannel?.postMessage("changed"); if(result.global_session){location.replace('/');return;} auth(false); }
       catch (error) {await refresh(); notice(error.message,true);}
     })); top.append(tabs,account); state.root.append(top);
     renderClock();
@@ -319,13 +339,13 @@
       bar.append(el("p","helper scheduler-clock-note",openBreak ? "You are on a break. Shift location recording remains active." : "Location recording is required throughout this shift."));
       const tracking = el("p","helper scheduler-location-status"); tracking.setAttribute("role","status"); bar.append(tracking);
     } else bar.append(button("Clock in",() => dialog("Clock in",host => {
-      const project = projectSelect(), notes = el("textarea"); notes.maxLength = 2000;
-      host.append(field("Job / project reference",project),field("Notes",notes),el("p","message scheduler-location-required","Location is required to clock in. Your location is recorded during the shift, including a check every 30 minutes. You and your administrator can view the history."),el("p","helper","Allow location access when your browser asks. Keep CLASSIFIRE open and this computer awake. Missing updates are shown as gaps; they cannot be recovered after the browser was closed or suspended.")); return {project,notes};
+      const project = orderSelect(), notes = el("textarea"); notes.maxLength = 2000;
+      host.append(field(translated("Work Order"),project),field("Notes",notes),el("p","message scheduler-location-required","Location is required to clock in. Your location is recorded during the shift, including a check every 30 minutes. You and your administrator can view the history."),el("p","helper","Allow location access when your browser asks. Keep CLASSIFIRE open and this computer awake. Missing updates are shown as gaps; they cannot be recovered after the browser was closed or suspended.")); return {project,notes};
     },"Clock in",async ({project,notes}) => {
       const current = accountAction();
       const location = await currentPosition();
       if(!current())return;
-      const entry = await request("/clock/in",{project_id:project.value,project_name:projectName(project),notes:notes.value,location_consent:true,location});
+      const entry = await request("/clock/in",{...selectedOrder(project),notes:notes.value,location_consent:true,location});
       if(!current())return;
       state.data.active_entry = entry;
       state.lastLocation = Date.now(); state.lastPoint = location;
@@ -382,7 +402,7 @@
           card.dataset.color = colours.find(([value]) => value === shift.color)?.[1].toLowerCase() || "blue";
           card.classList.toggle("scheduler-draft",!shift.published);
           card.append(el("strong","",`${timeFormatter.format(new Date(shift.start))} – ${timeFormatter.format(new Date(shift.end))}`),el("span","",shift.title));
-          if (shift.project_id) card.append(el("small","",shift.project_name || state.projects.find(project => project.id === shift.project_id)?.title || shift.project_id));
+          if (assignmentLabel(shift)) card.append(el("small","",assignmentLabel(shift)));
           if (!shift.published) card.append(el("small","scheduler-draft-label","Draft")); cell.append(card);
         });
         if (admin()) { const add = button("+",() => editShift(null,date,member.id),"scheduler-add"); add.setAttribute("aria-label",`Add shift for ${member.name} on ${date}`); cell.append(add); }
@@ -403,9 +423,9 @@
       const start = input("datetime-local",shift ? localParts(shift.start) : `${date}T07:00`,{required:true});
       const end = input("datetime-local",shift ? localParts(shift.end) : `${date}T15:30`,{required:true});
       const color = select(colours,shift?.color || "#2196f3");
-      const initialProject = state.projects.find(item => item.id === shift?.project_id);
-      const project = projectSelect(shift || {}), location = input("text",shift?.location || initialProject?.site_address || "",{maxlength:400});
-      project.addEventListener("change",() => {const selected = state.projects.find(item => item.id === project.value); if (selected) location.value = selected.site_address || "";});
+      const initialProject = shift?.work_order;
+      const project = orderSelect(shift || {}), location = input("text",shift?.location || initialProject?.site_address || "",{maxlength:400});
+      project.addEventListener("change",() => {const selected = state.orders.find(item => item.id + "@" + item.revision === project.value); if (selected) location.value = selected.site_address || "";});
       const notes = el("textarea"); notes.value = shift?.notes || ""; notes.maxLength = 2000;
       const members = el("fieldset","scheduler-members"); members.append(el("legend","","Team members"));
       const selected = new Set(shift?.member_ids || (memberId ? [memberId] : []));
@@ -413,7 +433,7 @@
         const item = check(member.name,selected.has(member.id)); members.append(item.label); return {id:member.id,control:item.control};
       });
       const publish = check("Published",shift?.published ?? true);
-      host.append(field("Title",title),field("Colour",color),field("Start",start,zone),field("End",end,zone),members,field("Job / project reference",project),field("Location",location),field("Notes",notes),publish.label);
+      host.append(field("Title",title),field("Colour",color),field("Start",start,zone),field("End",end,zone),members,field(translated("Work Order"),project),field("Location",location),field("Notes",notes),publish.label);
       if (shift) host.append(button("Delete shift",() => {
         deleteRecord("/shifts/delete",{id:shift.id,version:shift.version},`Delete “${shift.title}” from the schedule?`);
       },"button secondary scheduler-danger"));
@@ -421,7 +441,7 @@
     },"Save shift",async controls => {
       await request("/shifts/save",{input_timezone:inputZone,...(shift ? {id:shift.id,version:shift.version} : {request_id:requestId}),title:controls.title.value,
         start:editedTime(controls.start,shift?.start),end:editedTime(controls.end,shift?.end),color:controls.color.value,
-        project_id:controls.project.value,project_name:projectName(controls.project),location:controls.location.value,notes:controls.notes.value,published:controls.publish.control.checked,
+        ...selectedOrder(controls.project),location:controls.location.value,notes:controls.notes.value,published:controls.publish.control.checked,
         member_ids:controls.memberChecks.filter(item => item.control.checked).map(item => item.id)});
     });
     editor.classList.add("scheduler-shift-editor");
@@ -458,7 +478,7 @@
     const drawRows = () => {
       body.replaceChildren();
       const term = state.entriesSearch.trim().toLocaleLowerCase();
-      const entries = state.data.entries.filter(entry => (!state.entriesMine || entry.member_id === state.data.user.id) && (!term || [memberName(entry.member_id),entry.project_name,entry.notes].join(" ").toLocaleLowerCase().includes(term)));
+      const entries = state.data.entries.filter(entry => (!state.entriesMine || entry.member_id === state.data.user.id) && (!term || [memberName(entry.member_id),assignmentLabel(entry),entry.notes].join(" ").toLocaleLowerCase().includes(term)));
       const segments = entries.flatMap(entry => entrySegments(entry).map(segment => ({...segment,entry})));
       segments.sort((a,b) => b.start.localeCompare(a.start) || memberName(a.entry.member_id).localeCompare(memberName(b.entry.member_id)));
       let day = "";
@@ -476,7 +496,7 @@
         if (segment.break) {
           job.append(el("span","scheduler-break-badge",segment.break.name || "Break"),el("small","helper",`${segment.break.paid ? "Paid" : "Unpaid"}${segment.break.automatic ? " · automatic" : ""}`));
           const detail = el("details","scheduler-break-summary"); detail.append(el("summary","","Break details"),el("p","",`${segment.break.name || "Break"} · ${segment.break.paid ? "paid" : "unpaid"}${segment.break.automatic ? " · automatic" : ""}`)); job.append(detail);
-        } else job.textContent = entry.project_name || state.projects.find(project => project.id === entry.project_id)?.title || entry.project_id || "—";
+        } else job.textContent = assignmentLabel(entry) || "—";
         const location = el("td");
         if (!segment.break && (admin() || entry.member_id === state.data.user.id)) {
           const count = entry.location_summary?.count || 0, action = button(count ? `⌖ Web app · ${count} pins` : "⌖ No locations",() => showLocations(entry),"text-button scheduler-location-link");
@@ -524,8 +544,8 @@
       const member = select(state.data.members.map(item => [item.id,item.name]),entry?.member_id || state.data.user.id);
       const start = input("datetime-local",entry ? localParts(entry.start) : `${today()}T07:00`,{required:true});
       const end = input("datetime-local",entry ? localParts(entry.end) : `${today()}T15:30`,{required:true});
-      const project = projectSelect(entry || {}), notes = el("textarea"); notes.value = entry?.notes || ""; notes.maxLength = 2000;
-      host.append(field("Team member",member),field("Start",start,zone),field("Job / project reference",project),field("Finish",end,zone),field("Notes / reason for correction",notes));
+      const project = orderSelect(entry || {}), notes = el("textarea"); notes.value = entry?.notes || ""; notes.maxLength = 2000;
+      host.append(field("Team member",member),field("Start",start,zone),field(translated("Work Order"),project),field("Finish",end,zone),field("Notes / reason for correction",notes));
       const breakList = el("div","scheduler-break-editor"), breakRows = [];
       function addBreak(item = {}) {
         const row = el("div","scheduler-break-row"), from = input("datetime-local",item.start ? localParts(item.start) : "",{required:true}), to = input("datetime-local",item.end ? localParts(item.end) : "",{required:true}), paid = check("Paid",!!item.paid);
@@ -538,7 +558,7 @@
       },"button secondary scheduler-danger"));
       return {member,start,end,project,notes,breakRows};
     },"Save time entry",async controls => request("/entries/save",{input_timezone:inputZone,...(entry ? {id:entry.id,version:entry.version} : {}),member_id:controls.member.value,
-      start:editedTime(controls.start,entry?.start),end:editedTime(controls.end,entry?.end),project_id:controls.project.value,project_name:projectName(controls.project),notes:controls.notes.value,
+      start:editedTime(controls.start,entry?.start),end:editedTime(controls.end,entry?.end),...selectedOrder(controls.project),notes:controls.notes.value,
       breaks:controls.breakRows.map(item => ({start:editedTime(item.from,item.original.start),end:editedTime(item.to,item.original.end),paid:item.paid.control.checked}))}));
   }
   function dayChoices(selected, label) {
@@ -728,7 +748,7 @@
       const shifts = state.data.entries.filter(item => item.member_id === entry.member_id && localParts(item.start).slice(0,10) === localParts(entry.start).slice(0,10));
       const chooser = select(shifts.map(item => [item.id,`${timeFormatter.format(new Date(item.start))} – ${item.end ? timeFormatter.format(new Date(item.end)) : "Clocked in"}`]),entry.id);
       chooser.setAttribute("aria-label","Time entry for location history"); chooser.addEventListener("change",() => {const selected = shifts.find(item => item.id === chooser.value); if(selected) void showLocations(selected);});
-      side.append(el("strong","",memberName(entry.member_id)),chooser,el("p","",dayFormatter.format(new Date(entry.start))),el("p","",hours(duration(entry.start,entry.end))),el("p","",entry.project_name || "No project assigned"),el("h3","","Timesheet timeline"));
+      side.append(el("strong","",memberName(entry.member_id)),chooser,el("p","",dayFormatter.format(new Date(entry.start))),el("p","",hours(duration(entry.start,entry.end))),el("p","",assignmentLabel(entry) || translated("No Work Order assigned")),el("h3","","Timesheet timeline"));
       const list = el("ol","scheduler-location-list"), selectedText = el("p","scheduler-selected-location"); selectedText.setAttribute("aria-live","polite");
       let map, selectedIndex = 0;
       const selectPoint = index => {
@@ -813,7 +833,7 @@
       try { const bootstrap = await request("/bootstrap"); if(generation !== state.authGeneration)return; setZone(bootstrap.timezone); if (bootstrap.user) await refresh(); else auth(bootstrap.setup_required); }
       catch(error) {if(generation === state.authGeneration)notice(error.message,true);}
     }
-    void loadProjects();
+    if (state.data?.user && !state.projectsLoading) void loadOrders();
     beginPolling();
   }
   function beginPolling() {

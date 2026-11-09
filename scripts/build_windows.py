@@ -28,7 +28,8 @@ DATA_FILES = (
     'calculators/steel_board.json.gz', 'calculators/steel_vermiculite.json.gz',
 )
 STATIC_FILES = (
-    'contacts.js', 'contacts.css',
+    'access-login.html', 'scheduler-only.html', 'scheduler-only.js', 'crm-access.css', 'crm-access.js', 'crm-identity.js', 'project-participants.js',
+    'contacts.js', 'crm-activity.js', 'contacts.css',
     'notifications.js', 'notifications.css', 'personal-signature.js', 'personal-details.js', 'icons/signature.svg', 'document-workflow-board.js', 'swms.js', 'swms.css', 'default-company-logo.png',
     'travel.js', 'travel.css', 'maps-setup.html',
     'pointer-effects.js', 'pointer-effects.css', 'pdf-cursors.css', 'laser-reticle.svg',

@@ -30,7 +30,8 @@ async function point(x,y){const overlay=page.locator(".takeoff-overlay");await o
   stage="Estimate quantity and notes layout";await page.locator('nav [data-view="estimate"]').click();await idle();
   const quantity=page.locator('#project-input-fields [data-cell="B8"]'),documentToggle=page.locator('#view-estimate [aria-controls="firestopping-document-actions"]');
   const measure=await quantity.boundingBox(),documentBox=await documentToggle.boundingBox();
-  assert.ok(Math.abs(measure.y-documentBox.y)<35);assert.ok(measure.x>documentBox.x);
+  assert.ok(Math.abs(measure.y-documentBox.y)<35);
+  assert.ok(measure.x+measure.width<=documentBox.x+1,'Quantity precedes Document without overlapping the menu.');
   await expect(page.locator('.estimate-project-metadata')).toBeHidden();await expect(page.locator('#measurements')).toBeHidden();
   await page.locator('#main-tab-additions').click();await expect(page.locator('#measurements')).toBeVisible();
   assert.equal(await page.locator('#estimate-notes-section').evaluate(el=>el.parentElement.id==='main-panel-additions'&&el.previousElementSibling.id==='main-panel-global-adjustments'),true);

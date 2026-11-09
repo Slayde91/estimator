@@ -39,10 +39,20 @@ const checks=[],errors=[];
  const before=refreshes;await pane.getByRole('button',{name:'Refresh linked records',exact:true}).click();await expect.poll(()=>refreshes).toBeGreaterThan(before);await expect(pane.getByRole('button',{name:'Save',exact:true})).toBeEnabled();
  for(const width of [1915,1213,390]){await page.setViewportSize({width,height:1000});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.screenshot({path:path.join(output,'company-related-'+width+'.png'),fullPage:true});}
  checks.push('Company panes display Quote/WO/PO, Certification and SWMS associations; supplemental documents remain read-only and survive refresh at desktop/tablet/mobile widths');
- await pane.getByRole('button',{name:'Cancel',exact:true}).click();await host.locator('.contacts-tabs').getByRole('button',{name:'Contacts',exact:true}).click();await host.locator('.contacts-results').getByRole('button',{name:person.name,exact:true}).click();const contact=page.getByRole('complementary',{name:'Edit Contact',exact:true});
+ const leadLabel = lead.name + ' · ' + lead.site_address;
+ async function openLinkedLead(parent){
+  const group=parent.locator('[data-link-group="leads"]');
+  if (!await group.evaluate(details=>details.open)) await group.locator('summary').click();
+  await group.getByRole('button',{name:leadLabel,exact:true}).click();
+ }
+ await openLinkedLead(pane);
+ const companyLead=page.getByRole('dialog',{name:'Edit Lead',exact:true});
+ await expect(companyLead.getByLabel('Site address',{exact:true})).toHaveValue(lead.site_address);
+ await companyLead.getByRole('button',{name:'Cancel',exact:true}).click();
+ await host.locator('.contacts-tabs').getByRole('button',{name:'Contacts',exact:true}).click();await host.locator('.contacts-results').getByRole('button',{name:person.name,exact:true}).click();const contact=page.getByRole('complementary',{name:'Edit Contact',exact:true});
  await expect(contact.locator('[data-link-group="leads"] > summary')).toHaveText('Leads (1)');
  for(const [key,label]of Object.entries({quotes:'Quotes',work_orders:'Work Orders',purchase_orders:'Purchase Orders'}))await expect(contact.locator(`[data-link-group="${key}"] > summary`)).toHaveText(label+' (1)');
- await contact.locator('[data-link-group="leads"]').getByRole('button',{name:lead.name,exact:true}).click();const editor=page.getByRole('dialog',{name:'Edit Lead',exact:true});await expect(editor).toBeVisible();await expect(editor.getByLabel('Name',{exact:true})).toHaveValue(person.name);await editor.getByRole('button',{name:'Cancel',exact:true}).click();
+ await openLinkedLead(contact);const editor=page.getByRole('dialog',{name:'Edit Lead',exact:true});await expect(editor).toBeVisible();await expect(editor.getByLabel('Name',{exact:true})).toHaveValue(person.name);await editor.getByRole('button',{name:'Cancel',exact:true}).click();
  checks.push('Contact panes display exact linked Lead plus Quote/WO/PO; clicking Lead opens that directory record without creating or changing a document');
  assert.deepEqual(await api('/api/contacts/directory'),directory);assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,errors},null,2));console.log('PASS directory related records: '+output);
 })().catch(async error=>{console.error(error);if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;}).finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);await browser?.close();server.kill();});

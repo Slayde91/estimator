@@ -31,7 +31,8 @@ class DirectoryTests(unittest.TestCase):
         self.temp.cleanup()
 
     def request(self, route, body=None, expected=200, headers=None):
-        client = HTTPConnection("127.0.0.1", self.server.server_port, timeout=10)
+        # Conversion exercises a real numbered project write and durable recovery.
+        client = HTTPConnection("127.0.0.1", self.server.server_port, timeout=60 if route == "leads/convert" else 10)
         try:
             client.request("POST" if body is not None else "GET", "/api/contacts/" + route,
                            json.dumps(body) if body is not None else None, {"Content-Type": "application/json", **(headers or {})})
@@ -76,11 +77,32 @@ class DirectoryTests(unittest.TestCase):
         self.assertEqual({p["account_id"] for p in latest["contacts"]}, {account["id"]})
         self.assertEqual(next(l for l in latest["leads"] if l["id"] == result["id"])["status"], "Assisting")
 
+    def test_possible_contact_duplicate_requires_review_without_partial_writes(self):
+        fields = {"name": "Jo García", "phone": "0400", "company": "Example", "email": "josé@example.test"}
+        saved = self.request("contacts", {"version": 0, "fields": fields})["contact"]
+        before = self.request("directory")
+        changed = {**fields, "name": "JO  GARCÍA", "email": "JOSÉ@example.test", "phone": "0401"}
+        for kind in ("contacts", "leads"):
+            fields_to_save = {**changed, "billing_address": "Do not write"} if kind == "leads" else changed
+            body = {"version": before["version"], "fields": fields_to_save, "create_separate_contact": "true"}
+            self.assertEqual(self.request(kind, body, expected=409)["matching_contacts"], [saved["id"]])
+            self.assertEqual(self.request("directory"), before)
+        lead = self.request("leads", {"version": before["version"], "fields": changed, "contact_id": saved["id"]})
+        self.assertEqual(self.request("directory")["contacts"], before["contacts"])
+        self.request("contacts", {"version": before["version"], "fields": changed, "create_separate_contact": True}, 409)
+        separate = self.request("contacts", {"version": lead["version"], "fields": changed, "create_separate_contact": True})
+        self.assertNotEqual(separate["id"], saved["id"])
+        # A shared mailbox, a shared name or the same person name at another company is insufficient.
+        for override in ({"name": "Pat"}, {"email": "second@example.test"}, {"company": "Other Company"}):
+            self.request("contacts", {"fields": {**fields, **override}, "version": self.request("directory")["version"]})
+
     def test_convert_replays_durable_project_after_interrupted_directory_update(self):
         from estimator.catalog import ValidationError
         from estimator.project_library import ProjectLibrary
         from estimator.storage import Store
-        person = self.request("leads", {"version":0, "fields":{"name":"Alex", "phone":"0400", "email":"alex@example.test", "company":"QA Company", "site_address":"QA Site", "description":"Install", "billing_address":"QA HQ"}})
+        person = self.request("leads", {"version":0, "fields":{"name":"Alex", "phone":"0400", "email":"alex@example.test", "company":"QA Company", "site_address":"QA Site", "description":"Install", "billing_address":"QA HQ",
+            "next_action":"Confirm access with the site manager", "follow_up_date":"2027-02-22"}})
+        lead, = self.request("directory")["leads"]
         body = {"id":person["id"], "version":1}
         self.request("leads/convert", body, 400)
         self.assertEqual(len(self.request("directory")["leads"]),1)
@@ -94,13 +116,16 @@ class DirectoryTests(unittest.TestCase):
         with patch.object(ProjectLibrary, "create_from_lead", interrupt):
             self.request("leads/convert", body, 400)
         self.assertEqual(len(list(folder.rglob("*.cf.json"))),1)
-        self.assertEqual(len(self.request("directory")["leads"]),1)
+        self.assertEqual(self.request("directory")["leads"], [lead])
+        self.assertEqual(self.request("contact-links?id="+lead["contact_id"])["converted_leads"], [])
         saved = self.request("leads/convert", body)
         self.assertEqual(saved,self.request("leads/convert", body))
         self.assertEqual(len(list(folder.rglob("*.cf.json"))),1)
         project = json.loads(Path(saved["path"]).read_bytes())
         self.assertEqual(project["estimate"]["site_address"],"QA Site")
         self.assertEqual(project["estimate"]["client"],"QA Company")
+        for field in ("contact_id", "account_id"):
+            self.assertEqual(project["estimate"][field], lead[field])
         self.assertIn("Description: Install",project["estimate"]["measurements"])
         current = self.request("directory")
         self.assertFalse(current["leads"])
@@ -114,6 +139,11 @@ class DirectoryTests(unittest.TestCase):
                 break
             catalog = self.request("account-links")
         self.assertTrue(any(saved["project_no"] in row["label"] for row in catalog["choices"]["projects"]))
+        for endpoint, key in (("contact-links", "contact_id"), ("account-links", "account_id")):
+            related = self.request(endpoint + "?id=" + lead[key])
+            history, = related["converted_leads"]
+            self.assertEqual((history["lead_id"], history["project_no"], history["snapshot"]), (person["id"], saved["project_no"], lead))
+            self.assertTrue(any(saved["project_no"] in row["label"] for row in related["linked"]["projects"]))
 
     def test_incomplete_lead_conversion_has_no_project_or_directory_side_effects(self):
         from estimator.project_library import ProjectLibrary
@@ -183,6 +213,13 @@ class DirectoryTests(unittest.TestCase):
         self.assertFalse(self.request("directory")["contacts"])
         self.assertEqual(self.upload("contacts", [valid])["added"], 1)
         self.assertEqual(self.upload("contacts", [valid])["matched"], 1)
+        before = self.request("directory")
+        changed = [valid[0], "new phone", valid[2], "new title", valid[4]]
+        with_new_company = ["Other", "123", "Rollback Company", "", "other@example.test"]
+        conflict = self.upload("contacts", [with_new_company, changed], 400)
+        self.assertIn("Row 3", conflict["error"])
+        self.assertIn("already has this name and email", conflict["error"])
+        self.assertEqual(self.request("directory"), before)
         data = self.request("directory")
         self.assertEqual(len(data["accounts"]), 2)
         account_id = next(a["id"] for a in data["accounts"] if a["company"] == "Stage")

@@ -56,6 +56,16 @@ class LeadConversionRequirementsTests(unittest.TestCase):
         self.assertEqual(create.call_args.args[0]["company"], "Saved Company")
         self.assertEqual(self.store.convert({**self.body, "version": -1}, create), result)
         create.assert_called_once()
+        by_person = self.store.list(history_contact_id=lead["contact_id"])["converted_leads"]
+        by_client = self.store.list(history_account_id=lead["account_id"])["converted_leads"]
+        self.assertEqual(by_person, by_client)
+        self.assertEqual(len(by_person), 1)
+        self.assertEqual(by_person[0]["snapshot"], lead)
+        self.assertRegex(by_person[0]["converted_at"], r"^\d{4}-\d\d-\d\dT.*Z$")
+        self.assertEqual(by_person[0]["project_no"], result["project_no"])
+        self.assertNotIn("path", by_person[0])
+        current_account = self.store.list()["contacts"][0]["account_id"]
+        self.assertEqual(self.store.list(history_account_id=current_account)["converted_leads"], [])
 
     def test_old_join_based_lead_is_checked_and_existing_receipt_remains_replayable(self):
         lead = self.store.list()["leads"][0]
@@ -74,6 +84,8 @@ class LeadConversionRequirementsTests(unittest.TestCase):
         self.assertEqual(self.store.convert({**self.body, "version": -1}, create),
                          {"project_no": "PN-LEGACY", "path": "fixture/legacy.cf.json"})
         create.assert_not_called()
+        self.assertEqual(self.store.list(history_contact_id=lead["contact_id"])["converted_leads"],
+                         [{"lead_id": self.ident, "project_no": "PN-LEGACY", "snapshot": None, "converted_at": None}])
 
     def test_stale_version_still_fails_before_callback_and_partial_leads_remain_saveable(self):
         saved = self.store.save("leads", {"version": 1, "fields": {"name": "Partial", "company": "Draft"}})

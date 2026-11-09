@@ -25,7 +25,7 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
   await create('accounts',{company:'Primary Project',billing_address:'Project HQ',abn_acn:'ABN-PRIMARY'});
   const beta=(await create('accounts',{company:'Beta Company',billing_address:'Beta HQ',abn_acn:'ABN-BETA'})).account;
   const person=(await create('contacts',{name:'Beta Contact',company:beta.company,phone:'222',email:'beta@example.test',title:'Beta Manager'})).contact;
-  await create('contacts',{name:'Unrelated Contact',company:'Primary Project',phone:'111',email:'primary@example.test'});
+  const sitePerson=(await create('contacts',{name:'Unrelated Contact',company:'Primary Project',phone:'111',email:'primary@example.test'})).contact;
   await page.goto(base);await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready&&!window.CeasefireDesktop.status().busy);
   await createNewProject(page,{client:'Primary Project','site-address':'Canonical Project Site'});
   const projectBefore=await page.evaluate(()=>window.CeasefireProject.details());
@@ -100,7 +100,13 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
   await description.fill(product.label);await page.locator('.commercial-pricing-popup:visible').getByRole('option').first().click();await expect(unit).toHaveValue(String(Number(Number(product.supplier_price).toFixed(6))));
   await unit.fill('7.5');await description.fill('Unlisted manual purchase');await description.blur();await expect(unit).toHaveValue('7.5');
   await save(purchase);file=JSON.parse(fs.readFileSync(info.project,'utf8'));saved=file.commercial_documents.documents.find(item=>item.kind==='purchase_order');assert.equal(saved.fields.order.supplier,'Beta Company');assert.equal(saved.fields.order.supplier_contact,'Beta Contact');assert.equal(saved.fields.order.ship_to_name,'Unrelated Contact');assert.equal(saved.fields.order.site_contact_number,'+61 111 ext 9');assert.equal(saved.fields.order.delivery_method,'Pickup');assert.equal(saved.fields.lines[0].description,'Unlisted manual purchase');assert.equal(saved.fields.lines[0].unit_price,'7.5');
-  checked('Purchase Order supplier/contact searches and delivery dropdown persist; all information boxes start one row; product search only selects on explicit choice and manual no-match descriptions/prices remain editable');
+  assert.equal(saved.fields.order.supplier_account_id,beta.id);
+  assert.equal(saved.fields.order.supplier_contact_id,person.id);
+  assert.equal(saved.fields.order.site_contact_id,sitePerson.id);
+  const siteLinks=await (await page.request.get(base+'/api/contacts/contact-links?id='+sitePerson.id)).json();
+  assert.ok(siteLinks.linked.purchase_orders.some(row=>row.id.endsWith(':'+saved.id) && row.roles.includes('Site contact')));
+  assert.equal(siteLinks.linked.projects.length,0);
+  checked('Purchase Order links persist for the supplier, its contact and an independent site contact. The site contact sees this order without acquiring the project. Manual pricing and delivery selections persist.');
   // Use real Settings navigation: labels translate, document data and canonical enum values do not.
   const beforeLocales=JSON.parse(await page.evaluate(()=>window.CeasefireCommercial.projectFingerprint())).editor;
   const savedFileBeforeLocales=fs.readFileSync(info.project,'utf8'),localeEvidence=[];

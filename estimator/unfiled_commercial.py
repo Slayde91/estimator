@@ -112,7 +112,7 @@ class UnfiledCommercial:
             for row in rows:
                 card, = commercial_cards({'project_id':row['project_id'], 'documents':[json.loads(row['data'])]})
                 cards.append({**card, 'source_file':row['token'], 'source_revision':_revision(row),
-                              'source_path':None, 'current_workspace':active_workspace == row['workspace']})
+                              'source_path':None, 'unfiled':True, 'current_workspace':active_workspace == row['workspace']})
             return cards
 
     def _owner(self, db, source):

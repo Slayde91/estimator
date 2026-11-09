@@ -76,7 +76,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     from .commercial_http import CommercialHTTP
     from .commercial_rate_defaults import CommercialRateDefaults
     from .commercial_estimates import derive_estimates
-    commercial = CommercialDocuments(certification_projects)
+    commercial = CommercialDocuments(certification_projects, validate_purchase_parties=contacts_http.store.validate_purchase_parties)
     commercial_rate_defaults = CommercialRateDefaults(store)
     projects.commercial = commercial
     from .saved_commercial import SavedCommercial
@@ -945,6 +945,9 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
         # requests can be split between different code and in-memory state.
         # A local desktop application must have one authoritative process.
         allow_reuse_address = False
+        # Cold browser tabs request scripts, styles and images together. On
+        # Windows the five-slot default can refuse assets before HTTP sees them.
+        request_queue_size = 64
 
         def server_close(self):
             try:

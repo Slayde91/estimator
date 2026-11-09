@@ -1336,14 +1336,29 @@
         if(!isWorkOrder && ['supplier','supplier_contact','ship_to_name'].includes(key)) {
           const owner=state.editor, workspace=state.workspace, context=window.CeasefireProject?.runtimeContext?.();
           const current=()=>state.editor===owner && workspace===state.workspace && workspace===currentWorkspace() && context===window.CeasefireProject?.runtimeContext?.() && !state.busy;
-          const account=data=>{const rows=(data.accounts || []).filter(item=>window.ClassifireCommercialDirectory.fold(item.company)===window.ClassifireCommercialDirectory.fold(fields.order.supplier));return rows.length===1?rows[0]:null;};
+          const account=data=>{
+            if(fields.order.supplier_account_id)return data.accounts?.find(item=>item.id===fields.order.supplier_account_id);
+            const fold=window.ClassifireCommercialDirectory.fold;
+            const rows=(data.accounts || []).filter(item=>fold(item.company)===fold(fields.order.supplier));
+            return rows.length===1?rows[0]:null;
+          };
           function update(values){if(!current())return;Object.assign(fields.order,values);section.querySelectorAll('[data-order-field]').forEach(control=>control.value=fields.order[control.dataset.orderField] || '');markDirty();}
           const search=window.ClassifireCommercialDirectory.field(label,{kind:key==='supplier'?'accounts':'contacts',value:fields.order[key],read:()=>fields.order[key],isCurrent:current,message,
             account:key==='ship_to_name' ? undefined : account,filter: key==='supplier_contact' ? (contact,data)=>!fields.order.supplier || !!account(data) && (contact.account_id===account(data).id || contact.account_id===undefined && window.ClassifireCommercialDirectory.fold(contact.company)===window.ClassifireCommercialDirectory.fold(fields.order.supplier)) : undefined,
-            onInput(value){update(key==='supplier' && value!==fields.order.supplier ? {supplier:value,supplier_contact:'',supplier_email:''} : key==='ship_to_name' && !value ? {ship_to_name:'',site_contact_number:''} : {[key]:value});},onSelect(item,data){
-              if(key==='supplier')update(item.company!==fields.order.supplier ? {supplier:item.company,supplier_contact:'',supplier_email:''} : {supplier:item.company});
-              else if(key==='ship_to_name')update({ship_to_name:item.name,site_contact_number:item.phone || ''});
-              else {const company=data.accounts?.find(company=>company.id===item.account_id);update({supplier_contact:item.name,supplier_email:item.email || '',supplier:company?.company || item.company || fields.order.supplier});}
+            onInput(value){
+              if(value===fields.order[key])return;
+              if(key==='supplier')update({supplier:value,supplier_account_id:'',supplier_contact:'',supplier_contact_id:'',supplier_email:''});
+              else if(key==='supplier_contact')update({supplier_contact:value,supplier_contact_id:'',...(fields.order.supplier_contact_id || !value ? {supplier_email:''}:{})});
+              else update({ship_to_name:value,site_contact_id:'',...(fields.order.site_contact_id || !value ? {site_contact_number:''}:{})});
+            },onSelect(item,data){
+              if(key==='supplier'){
+                const different=fields.order.supplier_account_id ? item.id!==fields.order.supplier_account_id : item.company!==fields.order.supplier;
+                update({supplier:item.company,supplier_account_id:item.id,...(different?{supplier_contact:'',supplier_contact_id:'',supplier_email:''}:{})});
+              }else if(key==='ship_to_name')update({ship_to_name:item.name,site_contact_id:item.id,site_contact_number:item.phone || ''});
+              else {
+                const company=data.accounts?.find(company=>company.id===item.account_id);
+                update({supplier_contact:item.name,supplier_contact_id:item.id,supplier_email:item.email || '',supplier_account_id:item.account_id || '',supplier:company?.company || item.company || ''});
+              }
             }});
           search.input.dataset.orderField=key;section.append(search.element);continue;
         }

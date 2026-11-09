@@ -20,8 +20,6 @@ const ready = new Promise((resolve,reject) => {
 const errors = [], csp = [], checks = [];
 const password = 'Disposable-QA-password-2026';
 async function scheduler() {
-  await page.evaluate(() => {void window.CeasefireScheduler.activate();});
-
   await page.locator('#scheduler-navigation').click();
   await expect(page.locator('#scheduler-root')).toBeVisible();
 }

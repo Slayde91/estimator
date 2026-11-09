@@ -1,0 +1,17 @@
+{
+  "A Contact at this Company already has this name and email.": [
+    "이 회사에 이름과 이메일이 같은 연락처가 이미 있습니다.",
+    "May contact na sa kumpanyang ito na may ganitong pangalan at email.",
+    "Công ty này đã có người liên hệ dùng tên và email này."
+  ],
+  "Use an existing Contact": [
+    "기존 연락처 사용",
+    "Gumamit ng kasalukuyang contact",
+    "Dùng người liên hệ hiện có"
+  ],
+  "Create a separate Contact": [
+    "별도의 연락처 만들기",
+    "Gumawa ng hiwalay na contact",
+    "Tạo người liên hệ riêng"
+  ]
+}

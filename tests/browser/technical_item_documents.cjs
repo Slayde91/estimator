@@ -94,8 +94,8 @@ async function exported(extension){
     await add.scrollIntoViewIfNeeded();const box=await add.boundingBox();assert.equal(box.width,48);assert.equal(box.height,48);
     await page.mouse.move(0,0);
     const palette=await add.evaluate(element=>{const style=getComputedStyle(element);return {background:style.backgroundColor,border:style.borderTopColor,color:style.color,icon:getComputedStyle(element.querySelector('img')).filter};});
-    assert.deepEqual({background:palette.background,border:palette.border,color:palette.color},{background:'rgb(173, 0, 29)',border:'rgb(255, 221, 83)',color:'rgb(255, 221, 83)'},`${theme} uses reversed Library transfer colours`);
-    assert.notEqual(palette.icon,'none',`${theme} transfer artwork uses the yellow transfer tint`);
+    assert.deepEqual({background:palette.background,border:palette.border,color:palette.color},{background:'rgb(173, 0, 29)',border:'rgb(255, 255, 255)',color:'rgb(255, 255, 255)'},`${theme} uses the white-on-red Library transfer control`);
+    assert.equal(palette.icon,'brightness(0) invert(1)',`${theme} transfer artwork uses the white icon filter`);
     const colors=await contrast('[data-library-detail="penetration"] .library-add-transfer');assert.ok(colors.ratio>=4.5,`${theme} library schedule control contrast`);
     scheduleContrast.push({theme,control:'library',...colors});
     await page.screenshot({path:path.join(output,`firestopping-library-${theme}.png`)});await cycleTheme(page);

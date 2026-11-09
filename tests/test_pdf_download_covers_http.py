@@ -15,6 +15,22 @@ from estimator.takeoff_workspace import TakeoffService
 import test_certification_http as helpers
 from test_certification_http import pdf,cover,texts
 from test_pdf_download_covers import signature
+from commercial_ready_fixtures import complete_quote, complete_work_order
+from swms_ready_fixtures import complete_swms
+
+
+def issue_fields(kind, quote):
+    from estimator.commercial_documents import default_fields
+    from estimator.swms import default_fields as swms_fields
+    if kind == 'swms':
+        return complete_swms(swms_fields())
+    fields = default_fields(kind, {'project_no':'PN-COVER'})
+    if kind == 'quote':
+        return complete_quote(fields)
+    if kind == 'work_order':
+        fields['order']['quote_id'] = quote['id']
+        return complete_work_order(fields)
+    return fields
 
 
 class PdfDownloadCoversHTTPTests(unittest.TestCase):
@@ -81,15 +97,12 @@ class PdfDownloadCoversHTTPTests(unittest.TestCase):
             generated=self.json('POST','/api/certifications/'+document['id']+'/revisions'+scope,{'fields':self.fields,'expected_version':1,'request_id':str(uuid.uuid4())},expected=201)
             self.assertEqual([t.strip() for t in texts(self.request('GET',generated['revision']['pdf_url'])[2])],['COMPANY MAIN','SPECIFIC certification','BODY CONTENT'])
             covered.add('certification')
-            from estimator.commercial_documents import default_fields as commercial_fields
-            from estimator.swms import default_fields as swms_fields
             workspace=scope.split('=',1)[1]
             stack.enter_context(patch('estimator.commercial_pdf.render_commercial_pdf',return_value=body))
             stack.enter_context(patch('estimator.swms_pdf.render_swms_pdf',return_value=body))
             quote=None
             for kind in ('quote','work_order','purchase_order','swms'):
-                fields=swms_fields() if kind=='swms' else commercial_fields(kind,{'project_no':'PN-COVER'})
-                if kind=='work_order':fields['order']['quote_id']=quote['id']
+                fields=issue_fields(kind,quote)
                 request={'workspace_id':workspace,'id':str(uuid.uuid4()),'version':0,'status':'Draft','fields':fields}
                 if kind!='swms':request.update(kind=kind,estimates=[])
                 prefix='/api/swms' if kind=='swms' else '/api/commercial'
@@ -104,15 +117,12 @@ class PdfDownloadCoversHTTPTests(unittest.TestCase):
         self.assertEqual(covered,{kind for kind,_ in KINDS})
 
     def test_new_document_covers_are_frozen_and_existing_receipts_keep_their_bytes(self):
-        from estimator.commercial_documents import default_fields as commercial_fields
-        from estimator.swms import default_fields as swms_fields
         workspace=self.created_workspace()['workspace_id']
         quote=None
         for kind in ('quote','work_order','purchase_order','swms'):
             with self.subTest(kind=kind):
                 self.json('POST','/api/pdf-covers/'+kind,{'cover_pdf':cover('OLD '+kind),'cover_pdf_name':'Old.pdf','expected_version':1})
-                fields=swms_fields() if kind=='swms' else commercial_fields(kind,{'project_no':'PN-COVER'})
-                if kind=='work_order':fields['order']['quote_id']=quote['id']
+                fields=issue_fields(kind,quote)
                 prefix='/api/swms' if kind=='swms' else '/api/commercial'
                 saved={'workspace_id':workspace,'id':str(uuid.uuid4()),'version':0,'status':'Draft','fields':fields}
                 if kind!='swms':saved.update(kind=kind,estimates=[])

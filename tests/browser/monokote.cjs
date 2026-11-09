@@ -1,5 +1,4 @@
-const {fillProjectDetails}=require('./project_actions.cjs');
-const { clickProjectControl } = require('./project_actions.cjs');
+const {fillProjectDetails, clickProjectControl, prepareProjectForSave}=require('./project_actions.cjs');
 const { chooseCalculator } = require('./calculator_actions.cjs');
 // Rendered manual-input regression. Default evidence is wholly synthetic.
 const {chromium, expect} = require('@playwright/test');
@@ -122,6 +121,7 @@ async function screenshot(name,fixture) {
   // Save the uninjected baseline, then export a genuinely unsaved Injected
   // draft. All files remain in the disposable project's own directory.
   const baseline=await recalculate('SCHEDULE');
+  await prepareProjectForSave(page);
   await apiReply(()=>clickProjectControl(page,'Save'),'/api/project/save-as');
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   const savedPath=info.saved,savedBytes=fs.readFileSync(savedPath),savedRows=savedCalculatorRows();

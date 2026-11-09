@@ -24,4 +24,3 @@ def require_project_details(details, *, automatic_number=False):
                    char for char in details[key] if unicodedata.category(char) != 'Cf').strip())]
     if missing:
         raise ValidationError('Complete required Project details: ' + ', '.join(missing) + '.')
-

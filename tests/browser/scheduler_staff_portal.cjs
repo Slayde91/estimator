@@ -17,7 +17,16 @@ const ready=new Promise((resolve,reject)=>{let buffer='';server.on('exit',()=>re
   const worker={name:'Site worker',email:'worker-test@example.test',password:'Worker QA password'};
   const user=(await post(admin,'/api/scheduler/setup',manager)).user;
   const member=await post(admin,'/api/scheduler/members/save',{...worker,role:'worker',active:true,base_rate:'0'});
-  const order=(await (await admin.request.get(origin+'/api/scheduler/work-orders')).json()).orders[0];
+  let listing;
+  await expect.poll(async()=>{
+    const response=await admin.request.get(origin+'/api/scheduler/work-orders');
+    assert.equal(response.status(),200,await response.text());
+    listing=await response.json();
+    return listing.scan_pending;
+  },{timeout:30000}).toBe(false);
+  assert.equal(listing.error_count,0);
+  assert.deepEqual(listing.orders.map(item=>[item.reference,item.status]),[['WO-02','Draft']]);
+  const [order]=listing.orders;
   const zone=(await (await admin.request.get(origin+'/api/scheduler/bootstrap')).json()).timezone;
   const today=new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   const base={start:today+'T09:00',end:today+'T10:00',work_order:{id:order.id,revision:order.revision}};

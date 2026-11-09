@@ -1,4 +1,16 @@
 {
+  "Supplier": "সরবরাহকারী",
+  "Supplier contact": "সরবরাহকারীর যোগাযোগ ব্যক্তি",
+  "Converted leads": "রূপান্তরিত লিড",
+  "Earlier conversion details were not recorded.": "আগের রূপান্তরের বিবরণ নথিভুক্ত করা হয়নি।",
+  "A Contact at this Company already has this name and email.": "এই কোম্পানিতে এই নাম ও ইমেলের একজন পরিচিতি ইতিমধ্যেই আছেন।",
+  "Use an existing Contact": "বিদ্যমান পরিচিতি ব্যবহার করুন",
+  "Create a separate Contact": "আলাদা পরিচিতি তৈরি করুন",
+  "Next action": "পরবর্তী করণীয়",
+  "Follow-up date": "ফলো-আপের তারিখ",
+  "Follow-up": "ফলো-আপ",
+  "Follow up by": "এই তারিখের মধ্যে ফলো-আপ",
+  "Enter a valid follow-up date.": "ফলো-আপের একটি বৈধ তারিখ দিন।",
   "Estimate name": "প্রাক্কলনের নাম",
   "Give every estimate a name between 1 and 150 characters.": "প্রতিটি প্রাক্কলনের নাম ১ থেকে ১৫০ অক্ষরের মধ্যে রাখুন।",
   "Discard the current SWMS?": "বর্তমান SWMS বাতিল করবেন?",
@@ -3217,5 +3229,7 @@
   "Complete Name, Phone, Company and Email before creating this Contact.": "এই পরিচিতি তৈরি করার আগে নাম, ফোন, কোম্পানি ও ইমেইল পূরণ করুন।",
   "Complete required SWMS fields: {0}.": "SWMS-এর আবশ্যক ঘরগুলি পূরণ করুন: {0}।",
   "High Risk Work": "উচ্চ ঝুঁকির কাজ",
-  "Type of Works or Additional Job Steps": "কাজের ধরন অথবা অতিরিক্ত কাজের ধাপ"
+  "Type of Works or Additional Job Steps": "কাজের ধরন অথবা অতিরিক্ত কাজের ধাপ",
+  "This Contact already has a lead that may match.": "এই পরিচিতির এমন একটি লিড আছে যা এর সঙ্গে মিলে যেতে পারে।",
+  "Keep as a separate Lead": "আলাদা লিড হিসেবে রাখুন"
 }

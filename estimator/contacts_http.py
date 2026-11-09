@@ -13,7 +13,7 @@ from openpyxl.utils import get_column_letter
 from .catalog import ValidationError
 from .account_relations import AccountRelations
 from .contact_relations import ContactRelations
-from .contacts import ACCOUNT_FIELDS, PERSON_FIELDS, ContactsConflict, ContactsStore
+from .contacts import ACCOUNT_FIELDS, PERSON_FIELDS, ContactsConflict, ContactsStore, PossibleDuplicateContact, PossibleDuplicateLead
 from .pricing_workbook import MAX_FILE_BYTES, _preflight
 
 
@@ -148,6 +148,10 @@ class ContactsHTTP:
                 handler.send_payload(200, self.store.import_rows(workbook[1], records, body.get("version")))
             else:
                 handler.send_payload(404, {"error": "Directory action not found."})
+        except PossibleDuplicateContact as exc:
+            handler.send_payload(409, {"error": str(exc), "matching_contacts": exc.contact_ids})
+        except PossibleDuplicateLead as exc:
+            handler.send_payload(409, {"error": str(exc), "matching_leads": exc.lead_ids})
         except ContactsConflict as exc:
             handler.send_payload(409, {"error": str(exc)})
         return True

@@ -1,4 +1,16 @@
 {
+  "Supplier": "Fournisseur",
+  "Supplier contact": "Contact du fournisseur",
+  "Converted leads": "Prospects convertis",
+  "Earlier conversion details were not recorded.": "Les détails de cette conversion antérieure n’ont pas été enregistrés.",
+  "A Contact at this Company already has this name and email.": "Cette société a déjà un contact avec ce nom et cette adresse e-mail.",
+  "Use an existing Contact": "Utiliser un contact existant",
+  "Create a separate Contact": "Créer un contact distinct",
+  "Next action": "Prochaine action",
+  "Follow-up date": "Date de suivi",
+  "Follow-up": "Suivi",
+  "Follow up by": "À suivre d’ici le",
+  "Enter a valid follow-up date.": "Saisissez une date de suivi valide.",
   "Estimate name": "Nom de l’estimation",
   "Give every estimate a name between 1 and 150 characters.": "Donnez à chaque estimation un nom de 1 à 150 caractères.",
   "Discard the current SWMS?": "Abandonner le SWMS en cours ?",
@@ -3217,5 +3229,7 @@
   "Complete Name, Phone, Company and Email before creating this Contact.": "Renseignez le nom, le téléphone, la société et l’adresse e-mail avant de créer ce contact.",
   "Complete required SWMS fields: {0}.": "Renseignez les champs SWMS obligatoires : {0}.",
   "High Risk Work": "Travaux à haut risque",
-  "Type of Works or Additional Job Steps": "Type de travaux ou étapes supplémentaires"
+  "Type of Works or Additional Job Steps": "Type de travaux ou étapes supplémentaires",
+  "This Contact already has a lead that may match.": "Ce contact a déjà un prospect qui pourrait correspondre.",
+  "Keep as a separate Lead": "Conserver comme prospect distinct"
 }

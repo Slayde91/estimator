@@ -212,6 +212,15 @@ class SavedQuoteTests(unittest.TestCase):
         self.assertTrue(self.library.commercial_source_metadata()['sources'][0]['ignored'])
         owner = self.library._commercial_sources.records()[0][2]
         self.assertIn(owner, CommercialSources(self.store, None).ignored_owners())
+        # An older unfiled workspace can share an ignored saved owner's ID.
+        # Keep its cards out of both the boards and the directory register.
+        local = self.library.certifications.new()['workspace_id']
+        pending = self.library.commercial.save(local, {'kind':'purchase_order', 'status':'Draft',
+            'fields':default_fields('purchase_order')}, unfiled_context={})
+        visible, = self.library.commercial.unfiled.cards(None)
+        ignored_copy = {**visible, 'project_id':owner, 'id':str(uuid.uuid4())}
+        with patch.object(self.library.commercial.unfiled, 'cards', return_value=[ignored_copy, visible]):
+            self.assertEqual([card['id'] for card in self.register()['documents']], [pending['id']])
         with self.library.commercial._connect() as db:
             self.assertEqual([tuple(row) for row in db.execute('SELECT * FROM commercial_issued ORDER BY id')], issued_history)
         callbacks = []

@@ -54,12 +54,16 @@ async function oldDraft(){return page.evaluate(()=>({context:window.CeasefirePro
   const file=JSON.parse(fs.readFileSync(info.project));assert.equal(file.estimate.client,'Popup Account');assert.equal(file.estimate.contact_name,'Popup Contact');assert.equal(file.estimate.contact_phone,'12345678');assert.ok(file.estimate.contact_id);assert.match(file.estimate.project_no,/^PN-/);
   await openProjectSection(page,'documentation');await expect(page.locator('#view-documentation')).toBeVisible();
   checks.push('Dirty review and picker Cancel retain modal/draft; confirmed Save assigns a real usable Project before Documentation');
-  // A blank modal starts focused in Client, with its overlay open. Clicking Save
-  // must survive blur without moving the button; a lost reply is recoverable.
+  // A new modal starts focused in Client. Use a complete, distinct project to
+  // reach the file-save boundary and exercise a lost reply.
   const firstNumber=file.estimate.project_no, prior=await oldDraft();
   fs.renameSync(info.project,path.join(output,'first-project.cf.json'));
   await openProjectSection(page,'quotes');await page.locator('#new-quote').click();await expect(modal).toBeVisible();
   await expect(page.locator('#project-pane-client')).toBeFocused();await expect(page.locator('#project-account-options')).toBeVisible();
+  await page.locator('#project-pane-contact-name').fill('Popup');
+  await page.locator('#project-contact-options').getByRole('option',{name:/Popup Contact/}).click();
+  await page.locator('#project-pane-address').fill('Second Popup Site');
+  await page.locator('#project-pane-client').focus();
   let lost=true;
   await page.route('**/api/project/save-as',async route=>{
     if(lost){lost=false;const reply=await route.fetch();assert.equal(reply.status(),200);await route.abort('failed');}
@@ -72,11 +76,12 @@ async function oldDraft(){return page.evaluate(()=>({context:window.CeasefirePro
   await expect(page.locator('#project-details-status')).toContainText('could not be confirmed');
   assert.equal(fs.existsSync(info.project),true);assert.deepEqual(await oldDraft(),prior);
   await expect(page.locator('#project-new-cancel')).toBeDisabled();await expect(page.locator('#project-details-save')).toBeEnabled();
-  const lostFile=JSON.parse(fs.readFileSync(info.project));assert.notEqual(lostFile.estimate.project_no,firstNumber);assert.equal(lostFile.estimate.client,'');
+  const lostFile=JSON.parse(fs.readFileSync(info.project));assert.notEqual(lostFile.estimate.project_no,firstNumber);assert.equal(lostFile.estimate.client,'Popup Account');
+  assert.equal(lostFile.estimate.site_address,'Second Popup Site');
   const recovering=page.waitForResponse(response=>response.url().endsWith('/api/project/save-as'));
   await page.locator('#project-details-save').click();assert.equal((await recovering).status(),200);await expect(modal).toBeHidden();await idle();
-  assert.equal(await page.locator('#project-no').inputValue(),lostFile.estimate.project_no);assert.equal(await page.locator('#client').inputValue(),'');
-  assert.equal(await page.locator('#project-contact-name').inputValue(),'');assert.deepEqual(JSON.parse(fs.readFileSync(info.project)),lostFile);
-  await page.unroute('**/api/project/save-as');checks.push('Blank Save survives Client blur; lost native Save response keeps active Project and exact retry recovers the single committed file');
+  assert.equal(await page.locator('#project-no').inputValue(),lostFile.estimate.project_no);assert.equal(await page.locator('#client').inputValue(),'Popup Account');
+  assert.equal(await page.locator('#project-contact-name').inputValue(),'Popup Contact');assert.deepEqual(JSON.parse(fs.readFileSync(info.project)),lostFile);
+  await page.unroute('**/api/project/save-as');checks.push('Save survives Client blur; lost native Save response keeps active Project and exact retry recovers the single committed file');
   assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,errors},null,2));console.log('PASS New Project popup: '+output);
 })().catch(async error=>{console.error(error);console.error(logs);console.error(errors);if(page)console.error(await page.evaluate(()=>({pending:window.CeasefireProjectPane.hasPendingOperation(),fingerprint:window.CeasefireProjectPane.fingerprint(),status:document.querySelector('#project-details-status').textContent,contacts:typeof window.ClassifireContacts?.createAccount,dialogs:[...document.querySelectorAll('dialog[open]')].map(dialog=>[dialog.id,dialog.textContent.slice(0,150)])})).catch(()=>({})));await page?.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

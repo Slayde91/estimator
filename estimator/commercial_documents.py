@@ -40,7 +40,8 @@ ORDER_FIELDS = ('start_date', 'end_date', 'urgency', 'quote_id', 'work_order_id'
                 'requested_date', 'sent_by', 'sent_date', 'verified_by', 'verified_date', 'verification', 'prepared_date')
 FIELD_KEYS = {'title', 'details', 'introduction', 'lines', 'scope', 'scope_tables', 'sources', 'allowances', 'terms', 'order', 'company_reference'}
 WORK_ORDER_OPTIONAL_FIELDS = ('progress_by', 'progress_date', 'closed_date', 'claimed_by', 'claim_date')
-PURCHASE_ORDER_OPTIONAL_FIELDS = ('site_contact_number', 'delivery_time', 'rejection_reason')
+PURCHASE_PARTY_LABELS = {'supplier_account_id':'supplier', 'supplier_contact_id':'supplier_contact', 'site_contact_id':'ship_to_name'}
+PURCHASE_ORDER_OPTIONAL_FIELDS = ('site_contact_number', 'delivery_time', 'rejection_reason', *PURCHASE_PARTY_LABELS)
 WORK_ORDER_SIGNATURE_FIELDS = {'reviewed_by', 'prepared_by', 'client_approved_by', 'progress_by', 'closed_by', 'claimed_by'}
 PURCHASE_ORDER_SIGNATURE_FIELDS = {'requested_by', 'reviewed_by', 'sent_by', 'verified_by'}
 CERTIFICATION_CHOICES = ('Certification issued', 'Certification not issued')
@@ -373,8 +374,8 @@ def validate_fields(value, *, kind=None):
     delivery_time = result['order'].get('delivery_time', '')
     if delivery_time and not re.fullmatch(r'(?:[01][0-9]|2[0-3]):[0-5][0-9]', delivery_time):
         raise ValidationError('Use a delivery time in HH:MM format.')
-    for name in ('quote_id', 'work_order_id'):
-        if result['order'][name]:
+    for name in ('quote_id', 'work_order_id', *PURCHASE_PARTY_LABELS):
+        if result['order'].get(name):
             _identity(result['order'][name])
     result['introduction'] = _text(value['introduction'], 'Introduction', 20000)
     for key in ('scope', 'allowances', 'terms'):
@@ -542,6 +543,8 @@ def commercial_cards(snapshot):
             details = {key: _text(fields['details'].get(key, ''), key, 1000) for key in ('project_no', 'client', 'site_address', 'contact')}
             order = {key: _text(fields['order'].get(key, ''), key, 6000) for key in
                      ('work_order_reference', 'quote_id', 'quote_reference', 'work_order_id', 'estimated_cost', 'supplier', 'supplier_contact')}
+            if kind == 'purchase_order':
+                order.update({key: _identity(fields['order'][key]) for key in PURCHASE_PARTY_LABELS if fields['order'].get(key)})
             lines = fields['lines']
             if not isinstance(lines, list) or len(lines) > 2000:
                 raise ValidationError('Invalid saved commercial lines.')
@@ -578,7 +581,7 @@ def _stored_document(value):
 
 
 class CommercialDocuments:
-    def __init__(self, certifications, root=None, renderer=None):
+    def __init__(self, certifications, root=None, renderer=None, *, validate_purchase_parties=None):
         self.certifications = certifications
         self.covers = getattr(getattr(certifications, 'legacy', None), 'covers', None)
         self.root = _directory(Path(root) if root else certifications.root.parent / 'commercial-documents', create=True)
@@ -586,6 +589,7 @@ class CommercialDocuments:
         self.path = self.root / 'documents.sqlite3'
         self.files = WorkOrderFiles(self.root / "files")
         self.renderer = renderer
+        self.validate_purchase_parties = validate_purchase_parties
         with self._connect() as db:
             db.executescript('''
                 CREATE TABLE IF NOT EXISTS commercial_workspaces (workspace TEXT PRIMARY KEY, project_id TEXT NOT NULL);
@@ -852,6 +856,26 @@ class CommercialDocuments:
                                for line in work_order['fields']['lines']]
             return fields
 
+    def _purchase_parties(self, order, prior):
+        # Older clients can omit optional IDs. Keep them only if their associated
+        # labels still match. A supplier change also invalidates the old contact.
+        prior = prior or {}
+        for key, label in PURCHASE_PARTY_LABELS.items():
+            if key in order or key not in prior or order[label] != prior[label]:
+                continue
+            if key == 'supplier_contact_id' and (order['supplier'] != prior['supplier']
+                    or order.get('supplier_account_id') != prior.get('supplier_account_id')):
+                continue
+            order[key] = prior[key]
+        changed = {key for key, label in PURCHASE_PARTY_LABELS.items() if order.get(key)
+                   and (order[key] != prior.get(key) or order[label] != prior.get(label))}
+        if order.get('supplier_contact_id') and order.get('supplier_account_id') != prior.get('supplier_account_id'):
+            changed.add('supplier_contact_id')
+        if changed:
+            if self.validate_purchase_parties is None:
+                raise ValidationError('The contact directory is unavailable. Reopen the purchase order.')
+            self.validate_purchase_parties(order, changed)
+
     def _relationships(self, db, workspace, project, kind, fields, previous, *, create_retry=False):
         order = fields['order']
         prior = previous['fields']['order'] if previous else None
@@ -891,6 +915,7 @@ class CommercialDocuments:
             if not order['estimated_cost']:
                 order['estimated_cost'] = self._linked_quote_total(db, workspace, project, quote['id'], quote_number)
         elif kind == 'purchase_order':
+            self._purchase_parties(order, prior)
             approval = order['approval']
             if approval and approval not in PURCHASE_APPROVAL_CHOICES and (not prior or approval != prior['approval']):
                 raise ValidationError('Choose Approved or Rejected for the purchase order approval.')
@@ -967,7 +992,7 @@ class CommercialDocuments:
                 # unless the current client deliberately sends an empty clear.
                 if kind=='purchase_order':
                     for key in PURCHASE_ORDER_OPTIONAL_FIELDS:
-                        if key not in fields['order'] and key in previous['fields']['order']:
+                        if key not in PURCHASE_PARTY_LABELS and key not in fields['order'] and key in previous['fields']['order']:
                             fields['order'][key]=previous['fields']['order'][key]
                     # Older PO editors do not know vector signatures. Absence
                     # preserves saved ink; an explicit empty map clears it.

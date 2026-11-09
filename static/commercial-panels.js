@@ -118,7 +118,11 @@
       const query=fold(input.value);
       matches=(records[options.kind] || []).filter(item=> (!options.filter || options.filter(item,records)) && fold(options.kind==='accounts'?item.company:item.name).includes(query)).slice(0,30);active=-1;
       popup.replaceChildren(...matches.map((item,index)=>{
-        const option=el('button',options.kind==='accounts'?item.company:item.name);option.type='button';option.tabIndex=-1;option.id=id+'-'+index;
+        let label=options.kind==='accounts'?item.company:item.name;
+        if(options.kind==='contacts' && matches.some(other=>other.id!==item.id && fold(other.name)===fold(item.name))){
+          label=[item.name,item.company,item.email,item.phone].filter(Boolean).join(' · ');
+        }
+        const option=el('button',label);option.type='button';option.tabIndex=-1;option.id=id+'-'+index;
         option.setAttribute('role','option');option.setAttribute('aria-selected','false');option.setAttribute('aria-posinset',String(index+1));option.setAttribute('aria-setsize',String(matches.length));option.dataset.directoryId=item.id;
         option.addEventListener('mousedown',event=>event.preventDefault());option.addEventListener('click',()=>choose(item));return option;
       }));

@@ -1,5 +1,6 @@
 """Lead-local copies never silently rewrite selected canonical directory records."""
 from copy import deepcopy
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from pathlib import Path
 import sqlite3
@@ -44,18 +45,25 @@ class ContactShortcutTests(unittest.TestCase):
             db.execute('INSERT INTO contacts VALUES(?,?,?,?,?,?)', (contact, 'Legacy Person', 'Old phone', 'Old title', 'old@example.test', account))
             db.execute('INSERT INTO leads VALUES(?,?,?,?,?,?)', (lead, contact, 'Site', 'Billing', 'Description', 'Qualified'))
             before = {table: db.execute('SELECT * FROM ' + table).fetchall() for table in ('revision','accounts','contacts','leads')}
-        migrated = ContactsStore(path)
+        with ThreadPoolExecutor(2) as clients:
+            migrated, other = list(clients.map(ContactsStore, [path, path]))
+        self.assertEqual(other.list(), migrated.list())
         with closing(sqlite3.connect(path)) as db, db:
             for table in ('revision','accounts','contacts'):
                 self.assertEqual(db.execute('SELECT * FROM ' + table).fetchall(), before[table])
             self.assertEqual(db.execute('SELECT id,contact_id,site_address,billing_address,description,status FROM leads').fetchall(), before['leads'])
             self.assertIsNone(db.execute('SELECT person_snapshot FROM leads').fetchone()[0])
+            self.assertFalse(db.execute('PRAGMA foreign_key_check').fetchall())
+            self.assertIn(('lead_contact', 0), [(row[1], row[2]) for row in db.execute('PRAGMA index_list(leads)')])
         record = migrated.list()['leads'][0]
         self.assertEqual((record['name'],record['phone'],record['company'],record['abn_acn']), ('Legacy Person','Old phone','Legacy Company','ABN-OLD'))
         migrated.save('contacts', {'id':contact,'version':7,'fields':{'name':'Explicit canonical edit','company':'Legacy Company'}})
         self.assertEqual(migrated.list()['leads'][0]['name'], 'Explicit canonical edit')
         with closing(sqlite3.connect(path)) as db, db:
             self.assertIsNone(db.execute('SELECT person_snapshot FROM leads').fetchone()[0])
+        migrated.save('leads', {'version':8, 'contact_id':contact, 'account_id':account,
+                                'fields':{'name':'Legacy Person', 'company':'Legacy Company', 'site_address':'Second site'}})
+        self.assertEqual({row['site_address'] for row in migrated.list()['leads']}, {'Site', 'Second site'})
 
     def test_selected_contact_keeps_identity_and_ownership_while_lead_uses_its_chosen_client(self):
         self.account('Original Company', 'ABN-A')
@@ -102,6 +110,67 @@ class ContactShortcutTests(unittest.TestCase):
         with self.assertRaises(ContactsConflict):
             self.store.save('leads',{'id':saved['id'],'version':before['version']-1,'fields':fields,'contact_id':person['id']})
         self.assertEqual(self.store.list(),before)
+
+    def test_same_contact_can_work_distinct_sites_and_clients_but_not_accidentally_repeat_a_site(self):
+        person = self.contact()
+        fields = {'name': person['name'], 'company': person['company'], 'site_address': '12 North Road'}
+        original = self.save('leads', fields, contact_id=person['id'])
+        self.save('leads', {**fields, 'site_address': '8 South Road'}, contact_id=person['id'])
+        self.save('leads', {**fields, 'company': 'Another Client'}, contact_id=person['id'])
+        before = self.store.list()
+        self.assertEqual(len(before['contacts']), 1)
+        self.assertEqual(len({row['id'] for row in before['leads']}), 3)
+        for duplicate in (' 12  north ROAD ', ''):
+            with self.subTest(site=duplicate), self.assertRaisesRegex(ValidationError, 'already has a lead'):
+                self.save('leads', {**fields, 'site_address': duplicate}, contact_id=person['id'])
+        with self.assertRaisesRegex(ValidationError, 'already has a lead'):
+            self.save('leads', {**fields, 'site_address': '8 South Road'}, id=original['id'])
+        self.assertEqual(self.store.list(), before)
+        second_scope = self.save('leads', {**fields, 'description':'Separate tender'}, contact_id=person['id'], keep_separate_lead=True)
+        self.save('leads', {**fields, 'description':'Separate tender', 'status':'Qualified'}, id=second_scope['id'])
+        self.assertEqual(len(self.store.list()['leads']), 4)
+
+    def test_existing_missing_site_does_not_claim_a_specific_site(self):
+        person = self.contact()
+        fields = {'name':person['name'], 'company':person['company']}
+        self.save('leads', fields, contact_id=person['id'])
+        self.save('leads', {**fields, 'site_address':'A known site', 'description':'North wing'}, contact_id=person['id'])
+        self.save('leads', {**fields, 'site_address':'A known site', 'description':'South wing'}, contact_id=person['id'])
+        self.assertEqual(len(self.store.list()['leads']), 3)
+
+    def test_interrupted_migration_rolls_back_all_schema_and_lead_rows(self):
+        # Simulate a legacy directory with an orphan. Copying it into the new
+        # foreign-key-checked table must fail without altering the old file.
+        path = Path(self.temporary.name) / 'broken-legacy.sqlite3'
+        with closing(sqlite3.connect(path)) as db, db:
+            db.execute("""CREATE TABLE leads(id TEXT PRIMARY KEY, contact_id TEXT UNIQUE NOT NULL,
+                site_address TEXT NOT NULL, billing_address TEXT NOT NULL, description TEXT NOT NULL, status TEXT NOT NULL)""")
+            db.execute("INSERT INTO leads VALUES('legacy','missing','Site','HQ','Keep my notes','New')")
+            schema = db.execute("SELECT type,name,sql FROM sqlite_schema ORDER BY name").fetchall()
+            rows = db.execute("SELECT * FROM leads").fetchall()
+        with self.assertRaises(sqlite3.IntegrityError):
+            ContactsStore(path)
+        with closing(sqlite3.connect(path)) as db:
+            self.assertEqual(db.execute("SELECT type,name,sql FROM sqlite_schema ORDER BY name").fetchall(), schema)
+            self.assertEqual(db.execute("SELECT * FROM leads").fetchall(), rows)
+
+    def test_editing_stage_after_company_rename_keeps_saved_client_and_canonical_id(self):
+        company = self.account('First name', 'ABN-1')
+        lead = self.save('leads', {'name': 'Mia', 'company': company['company'], 'abn_acn': 'ABN-1'})
+        self.save('accounts', {'company': 'New name', 'abn_acn': 'ABN-2'}, id=company['id'])
+        for extra in ({'account_id':company['id']}, {}):
+            self.save('leads', {'name':'Mia', 'company':'First name', 'abn_acn':'ABN-1', 'status':'Qualified'},
+                      id=lead['id'], **extra)
+            directory = self.store.list()
+            row = directory['leads'][0]
+            self.assertEqual((row['account_id'], row['company'], row['abn_acn'], row['status']),
+                             (company['id'], 'First name', 'ABN-1', 'Qualified'))
+            self.assertEqual([a['company'] for a in directory['accounts']], ['New name'])
+        self.save('leads', {'name':'New callback person', 'company':'First name', 'abn_acn':'ABN-1'},
+                  id=lead['id'], account_id=company['id'], contact_id='')
+        directory = self.store.list()
+        self.assertEqual(len(directory['accounts']), 1)
+        self.assertEqual({person['account_id'] for person in directory['contacts']}, {company['id']})
 
     def test_conversion_uses_lead_snapshot_and_replays_one_project_without_canonical_edits(self):
         self.account('Original Company')

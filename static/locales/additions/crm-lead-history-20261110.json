@@ -1,0 +1,22 @@
+{
+  "Converted leads": [
+    "전환된 잠재 고객",
+    "Mga na-convert na lead",
+    "Khách hàng tiềm năng đã chuyển đổi"
+  ],
+  "Earlier conversion details were not recorded.": [
+    "이전 전환의 세부 정보는 기록되지 않았습니다.",
+    "Hindi naitala ang mga detalye ng naunang conversion.",
+    "Chi tiết lần chuyển đổi trước chưa được ghi lại."
+  ],
+  "This Contact already has a lead that may match.": [
+    "이 연락처에 일치할 수 있는 잠재 고객 건이 이미 있습니다.",
+    "May lead na ang contact na ito na maaaring tumugma.",
+    "Liên hệ này đã có một cơ hội có thể trùng khớp."
+  ],
+  "Keep as a separate Lead": [
+    "별도의 잠재 고객 건으로 유지",
+    "Panatilihin bilang hiwalay na lead",
+    "Giữ thành một cơ hội riêng"
+  ]
+}

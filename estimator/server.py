@@ -76,7 +76,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     from .commercial_http import CommercialHTTP
     from .commercial_rate_defaults import CommercialRateDefaults
     from .commercial_estimates import derive_estimates
-    commercial = CommercialDocuments(certification_projects)
+    commercial = CommercialDocuments(certification_projects, validate_purchase_parties=contacts_http.store.validate_purchase_parties)
     commercial_rate_defaults = CommercialRateDefaults(store)
     projects.commercial = commercial
     from .saved_commercial import SavedCommercial

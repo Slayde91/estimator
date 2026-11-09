@@ -1,0 +1,27 @@
+{
+  "Next action": [
+    "다음 할 일",
+    "Susunod na gagawin",
+    "Việc tiếp theo"
+  ],
+  "Follow-up date": [
+    "후속 조치일",
+    "Petsa ng follow-up",
+    "Ngày theo dõi"
+  ],
+  "Follow-up": [
+    "후속 조치",
+    "Follow-up",
+    "Theo dõi"
+  ],
+  "Follow up by": [
+    "후속 조치 기한",
+    "I-follow up bago o sa",
+    "Theo dõi đến ngày"
+  ],
+  "Enter a valid follow-up date.": [
+    "올바른 후속 조치 날짜를 입력하세요.",
+    "Maglagay ng wastong petsa ng follow-up.",
+    "Nhập ngày theo dõi hợp lệ."
+  ]
+}

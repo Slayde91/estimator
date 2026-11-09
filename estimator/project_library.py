@@ -1403,7 +1403,7 @@ class ProjectLibrary:
                     documents.append({**card, 'fields': {**card['fields'], 'details': {**card['fields']['details'], **details}},
                                       'source_file': file['id'] or identifier, 'source_revision': file['revision'], 'source_path': file['path']})
             if self.commercial:
-                local_cards = self.commercial.unfiled.cards(active_workspace)
+                local_cards = [card for card in self.commercial.unfiled.cards(active_workspace) if card['project_id'] not in ignored]
                 documents.extend(local_cards)
                 present.update(card['project_id'] for card in local_cards)
                 self.commercial.apply_register_numbers(documents)

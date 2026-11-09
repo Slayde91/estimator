@@ -1,0 +1,30 @@
+{
+  "Converted leads": [
+    "已转化的潜在客户",
+    "परिवर्तित लीड",
+    "Clientes potenciales convertidos",
+    "العملاء المحتملون الذين تم تحويلهم",
+    "ลูกค้ามุ่งหวังที่แปลงแล้ว"
+  ],
+  "Earlier conversion details were not recorded.": [
+    "此前未记录转化详情。",
+    "पिछले रूपांतरण का विवरण दर्ज नहीं किया गया था।",
+    "No se registraron los detalles de esta conversión anterior.",
+    "لم تُسجّل تفاصيل هذا التحويل السابق.",
+    "ไม่มีการบันทึกรายละเอียดการแปลงครั้งก่อน"
+  ],
+  "This Contact already has a lead that may match.": [
+    "该联系人已有一条可能匹配的潜在业务。",
+    "इस संपर्क की एक लीड पहले से है जो इससे मेल खा सकती है।",
+    "Este contacto ya tiene un cliente potencial que podría coincidir.",
+    "جهة الاتصال هذه لديها فرصة قد تطابق هذه الفرصة.",
+    "ผู้ติดต่อนี้มีรายการลูกค้ามุ่งหวังที่อาจตรงกันอยู่แล้ว"
+  ],
+  "Keep as a separate Lead": [
+    "保留为单独的潜在业务",
+    "अलग लीड के रूप में रखें",
+    "Mantener como cliente potencial independiente",
+    "احتفظ بها كفرصة منفصلة",
+    "เก็บเป็นรายการลูกค้ามุ่งหวังแยกต่างหาก"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "A Contact at this Company already has this name and email.": [
+    "此公司已有姓名和电子邮件相同的联系人。",
+    "इस कंपनी में इस नाम और ईमेल वाला संपर्क पहले से मौजूद है।",
+    "Esta empresa ya tiene un contacto con este nombre y correo electrónico.",
+    "يوجد بالفعل لدى هذه الشركة جهة اتصال بهذا الاسم والبريد الإلكتروني.",
+    "บริษัทนี้มีผู้ติดต่อที่ใช้ชื่อและอีเมลนี้อยู่แล้ว"
+  ],
+  "Use an existing Contact": [
+    "使用现有联系人",
+    "मौजूदा संपर्क चुनें",
+    "Usar un contacto existente",
+    "استخدام جهة اتصال موجودة",
+    "ใช้ผู้ติดต่อที่มีอยู่"
+  ],
+  "Create a separate Contact": [
+    "创建单独的联系人",
+    "अलग संपर्क बनाएँ",
+    "Crear un contacto independiente",
+    "إنشاء جهة اتصال منفصلة",
+    "สร้างผู้ติดต่อแยกต่างหาก"
+  ]
+}

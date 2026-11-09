@@ -47,7 +47,7 @@ class AccountRelations:
     def view(self, account_id=None, *, search="", include_ids=None):
         if not isinstance(search, str) or len(search) > 500:
             raise ValidationError("Search related records using up to 500 characters.")
-        directory = self.store.list()
+        directory = self.store.list(history_account_id=account_id)
         accounts = {row["id"]: row for row in directory["accounts"]}
         if account_id is not None and (not _identity(account_id) or account_id not in accounts):
             raise ValidationError("This company could not be found. Reload the directory.")
@@ -91,6 +91,7 @@ class AccountRelations:
             certificate_records = self.projects.directory_certificate_cards([row for token,row in project_rows.items() if token in automatic['projects']])
             register = {**register, 'documents':[*register['documents'], *certificate_records['documents']]}
         supplemental = {kind: {} for kind in SUPPLEMENTAL_GROUPS.values()}
+        document_rank = {}
         for document in project_document_cards(register, listing['files']):
             owner, document_id = document.get("project_id"), document.get("id")
             group = DOCUMENT_GROUPS.get(document.get("kind")) or SUPPLEMENTAL_GROUPS.get(document.get('kind'))
@@ -105,7 +106,11 @@ class AccountRelations:
                 project_token = next(iter(candidates))
             if project_token is not None and project_rows[project_token].get('source_project_id') != owner:
                 continue
-            if document.get('source_file') and project_token is None:
+            supplier = (group == 'purchase_orders' and account_id is not None
+                        and fields.get('order', {}).get('supplier_account_id') == account_id)
+            if document.get('source_file') and project_token is None and not (supplier and document.get('unfiled')):
+                continue
+            if supplier and not document.get('source_file') and project_token is None:
                 continue
             project = project_rows.get(project_token, fields.get("details", {}))
             label = " · ".join(filter(None, (reference, _project_label(project))))[:1200]
@@ -114,13 +119,21 @@ class AccountRelations:
                 if project_token in automatic['projects']:
                     supplemental[group][token] = entry
                 continue
-            if token in automatic[group] and project_token not in automatic['projects']:
-                continue  # A foreign copy must not relabel this company's exact document.
-            records[group][token] = entry
             details = fields.get("details", {})
             legacy_match = (not candidates and account is not None
                             and company_key(details.get("client", "")) == company_key(account["company"]))
-            if project_token in automatic["projects"] or legacy_match:
+            belongs = project_token in automatic["projects"] or legacy_match or supplier
+            # Saved copies can share both IDs. An explicit supplier selection
+            # outranks a project association, then a stable source breaks ties.
+            rank = (not supplier, not belongs, document.get('source_file') or '', label)
+            key = (group, token)
+            if key in document_rank and document_rank[key] <= rank:
+                continue
+            document_rank[key] = rank
+            if supplier:
+                entry['supplier'] = True
+            records[group][token] = entry
+            if belongs:
                 automatic[group].add(token)
 
         linked = {kind: {} for kind in LINK_KINDS}
@@ -158,6 +171,9 @@ class AccountRelations:
         errors.extend({"name": row.get("title", "Project"), "error": "Saved project source is unavailable."} for row in missing[:100])
         return {"version": directory["version"], "linked": {kind: sorted(rows.values(), key=lambda row: (row["label"].casefold(), row["id"])) for kind, rows in linked.items()},
                 "related": {kind: sorted(rows.values(), key=lambda row: (row['label'].casefold(), row['id'])) for kind, rows in supplemental.items()},
+                "converted_leads": directory.get("converted_leads", []),
+                "active_leads": [{"id": lead["id"], "label": " · ".join(filter(None, (lead["name"], lead["site_address"])))}
+                                 for lead in directory["leads"] if account_id and lead["account_id"] == account_id],
                 "choices": choices, "scan_pending": bool(listing.get("scan_pending") or register.get("scan_pending") or certificate_records['scan_pending']),
                 "truncated": truncated, "error_count": max(listing.get("error_count", 0), register.get("error_count", 0)) + len(missing) + len(certificate_records['errors']),
                 "errors": errors}

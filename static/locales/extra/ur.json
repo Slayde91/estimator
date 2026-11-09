@@ -1,4 +1,16 @@
 {
+  "Supplier": "سپلائر",
+  "Supplier contact": "سپلائر کا رابطہ شخص",
+  "Converted leads": "تبدیل شدہ لیڈز",
+  "Earlier conversion details were not recorded.": "پہلی تبدیلی کی تفصیلات درج نہیں کی گئی تھیں۔",
+  "A Contact at this Company already has this name and email.": "اس کمپنی میں اس نام اور ای میل کا رابطہ پہلے سے موجود ہے۔",
+  "Use an existing Contact": "موجودہ رابطہ استعمال کریں",
+  "Create a separate Contact": "الگ رابطہ بنائیں",
+  "Next action": "اگلا کام",
+  "Follow-up date": "فالو اپ کی تاریخ",
+  "Follow-up": "فالو اپ",
+  "Follow up by": "اس تاریخ تک فالو اپ",
+  "Enter a valid follow-up date.": "فالو اپ کی درست تاریخ درج کریں۔",
   "Estimate name": "تخمینے کا نام",
   "Give every estimate a name between 1 and 150 characters.": "ہر تخمینے کا نام 1 سے 150 حروف کے درمیان رکھیں۔",
   "Discard the current SWMS?": "موجودہ SWMS مسترد کریں؟",
@@ -3217,5 +3229,7 @@
   "Complete Name, Phone, Company and Email before creating this Contact.": "یہ رابطہ بنانے سے پہلے نام، فون، کمپنی اور ای میل مکمل کریں۔",
   "Complete required SWMS fields: {0}.": "SWMS کے ضروری خانے مکمل کریں: {0}۔",
   "High Risk Work": "زیادہ خطرے والا کام",
-  "Type of Works or Additional Job Steps": "کام کی قسم یا اضافی کام کے مراحل"
+  "Type of Works or Additional Job Steps": "کام کی قسم یا اضافی کام کے مراحل",
+  "This Contact already has a lead that may match.": "اس رابطے کی ایک ایسی لیڈ پہلے سے موجود ہے جو اس سے مل سکتی ہے۔",
+  "Keep as a separate Lead": "الگ لیڈ کے طور پر رکھیں"
 }

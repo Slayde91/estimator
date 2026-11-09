@@ -81,6 +81,10 @@ class WorkOrderBillingTests(unittest.TestCase):
         with self.assertRaises(DuplicateReview) as found:self.save(self.values)
         self.assertEqual([item['id'] for item in found.exception.decision['matches'] if item['strong']],[person])
         with self.assertRaisesRegex(ValidationError,'name, email and phone'):self.save({**self.values,'email':''})
+        for field in ('name','phone'):
+            with self.subTest(invisible=field),self.assertRaisesRegex(ValidationError,'name, email and phone'):
+                self.save({**self.values,field:'\u200b\u2060'})
+        self.assertEqual(self.directory.list(),before)
         picked={**self.values,'contact_id':person,'phone':'Claim-only phone'};del picked['new_contact_key']
         doc=self.save(picked)
         self.assertEqual(doc['fields']['billing']['contact_id'],person);self.assertEqual(self.directory.list(),before)

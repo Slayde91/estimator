@@ -7,7 +7,7 @@ from uuid import UUID, uuid5
 
 from .catalog import ValidationError
 from . import crm_activity, crm_identity
-from .contacts import checked_fields, CONTACT_CREATION_REQUIRED_FIELDS
+from .contacts import checked_fields, complete_contact_identity
 
 
 FIELDS = {'address':1200, 'abn_acn':80, 'name':160, 'email':254, 'phone':60}
@@ -128,7 +128,7 @@ class WorkOrderBilling:
             raise ValidationError('Choose an existing Contact linked to this Company.')
         data = checked_fields('contacts',{'name':billing['name'],'title':'','company':company['company'],
                                          'phone':billing['phone'],'email':billing['email']})
-        if not all(data[key] for key in CONTACT_CREATION_REQUIRED_FIELDS):
+        if not complete_contact_identity(data):
             raise ValidationError(PERSON_REQUIRED)
         crm_identity.check_save(db,'contacts',data,None,{'review_token':review},account)
         return account, ident, data, intent

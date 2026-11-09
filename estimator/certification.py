@@ -177,6 +177,11 @@ class CertificationService:
                     id INTEGER PRIMARY KEY CHECK(id=1), fields TEXT NOT NULL,
                     version INTEGER NOT NULL CHECK(version >= 1), updated_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS staff_signer_defaults (
+                    member_id TEXT PRIMARY KEY NOT NULL, fields TEXT NOT NULL,
+                    version INTEGER NOT NULL CHECK(version >= 1), updated_at TEXT NOT NULL,
+                    signature_image TEXT, signature_name TEXT NOT NULL DEFAULT ''
+                );
             ''')
             # Existing fields-only documents/revisions keep their identities,
             # fingerprints and frozen PDFs. New metadata is purely additive.
@@ -302,15 +307,23 @@ class CertificationService:
             return self._get(db, document_id)
 
     @staticmethod
-    def _defaults(db):
-        fields, version, image, name = db.execute('SELECT fields,version,signature_image,signature_name FROM certification_signer_defaults WHERE id=1').fetchone()
+    def _defaults(db, owner_id):
+        if owner_id is None:
+            row = db.execute('SELECT fields,version,signature_image,signature_name FROM certification_signer_defaults WHERE id=1').fetchone()
+        else:
+            _identity(owner_id, 'Staff member ID')
+            row = db.execute('SELECT fields,version,signature_image,signature_name FROM staff_signer_defaults WHERE member_id=?',
+                             (owner_id,)).fetchone()
+            if row is None:
+                return {'fields': dict.fromkeys(SIGNER_FIELDS, ''), 'version': 1, 'signature_image': None, 'signature_name': ''}
+        fields, version, image, name = row
         return {'fields': json.loads(fields), 'version': version, 'signature_image': image, 'signature_name': name}
 
-    def get_defaults(self):
+    def get_defaults(self, *, owner_id=None):
         with self.store.connect() as db:
-            return self._defaults(db)
+            return self._defaults(db, owner_id)
 
-    def save_defaults(self, fields, expected_version, *, signature_image=_MISSING, signature_name=_MISSING):
+    def save_defaults(self, fields, expected_version, *, signature_image=_MISSING, signature_name=_MISSING, owner_id=None):
         fields = validate_signer_fields(fields); _version(expected_version)
         if (signature_image is _MISSING) != (signature_name is _MISSING):
             raise ValidationError('Include both the signature image and filename.')
@@ -319,16 +332,23 @@ class CertificationService:
             signature_image, signature_name = validate_signature(signature_image, signature_name)
         with self.store.connect() as db:
             db.execute('BEGIN IMMEDIATE')
-            current = self._defaults(db)
+            current = self._defaults(db, owner_id)
             image = current['signature_image'] if signature_image is _MISSING else signature_image
             name = current['signature_name'] if signature_name is _MISSING else signature_name
             if current['fields'] == fields and current['signature_image'] == image and current['signature_name'] == name:
                 return current
             if current['version'] != expected_version:
                 raise CertificationConflict('The saved signer details changed in another window. Reload them before saving again.')
-            db.execute('UPDATE certification_signer_defaults SET fields=?,signature_image=?,signature_name=?,version=version+1,updated_at=? WHERE id=1',
-                       (_json(fields), image, name, _now()))
-            return self._defaults(db)
+            if owner_id is None:
+                db.execute('UPDATE certification_signer_defaults SET fields=?,signature_image=?,signature_name=?,version=version+1,updated_at=? WHERE id=1',
+                           (_json(fields), image, name, _now()))
+            else:
+                db.execute('INSERT INTO staff_signer_defaults(member_id,fields,signature_image,signature_name,version,updated_at) '
+                           'VALUES(?,?,?,?,?,?) ON CONFLICT(member_id) DO UPDATE SET fields=excluded.fields,'
+                           'signature_image=excluded.signature_image,signature_name=excluded.signature_name,'
+                           'version=excluded.version,updated_at=excluded.updated_at',
+                           (owner_id, _json(fields), image, name, current['version']+1, _now()))
+            return self._defaults(db, owner_id)
 
     @staticmethod
     def _replay(db, document_id, request_id, fingerprint):

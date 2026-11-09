@@ -60,7 +60,9 @@ class SwmsHTTP:
                     result = self.service.delete(workspace, body.get('id'), body.get('version'))
                 else:
                     destination = handler.capture_commercial_download(body['download'], workspace) if 'download' in body else None
-                    result = self.service.issue(workspace, body.get('id'), body.get('version'), body.get('request_id'), company)
+                    owner_id = (getattr(handler, 'crm_actor', None) or {}).get('id')
+                    result = self.service.issue(workspace, body.get('id'), body.get('version'), body.get('request_id'),
+                                                company, owner_id=owner_id)
                     handler.send_download(result['pdf'], 'application/pdf', result['filename'], destination, frozen_pdf=True)
                     return True
             else:

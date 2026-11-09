@@ -57,7 +57,7 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await page.waitForFunction(() => window.CeasefireDesktop?.status()?.ready);
   let releaseProjects, projectRequests = 0, projectsDelivered = false;
   const projectGate = new Promise(resolve => {releaseProjects = resolve;});
-  await page.route('**/api/projects?offset=*',async route => {
+  await page.route('**/api/scheduler/work-orders?offset=*',async route => {
     projectRequests++;
     const response = await route.fetch();
     await projectGate;
@@ -66,6 +66,7 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   });
   await scheduler();
   await expect(page.getByLabel('Your name',{exact:true})).toBeVisible({timeout:2500});
+  assert.equal(projectRequests,0,'Work Order choices are not requested before staff sign in');
   await page.getByLabel('Your name',{exact:true}).fill('Scheduler Admin');
   await page.locator('#scheduler-root').getByLabel('Email',{exact:true}).fill('scheduler-admin@example.test');
   await page.getByLabel('Password',{exact:true}).fill(password);
@@ -77,12 +78,12 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await page.getByRole('button',{name:'Add team member',exact:true}).click();
   let modal = page.locator('dialog[open]');
   await modal.getByLabel('Name',{exact:true}).fill('Jordan QA');
-  assert.equal(projectRequests,1,'Overlapping Scheduler activation shares one background project request');
+  assert.equal(projectRequests,1,'Overlapping Scheduler activation shares one background Work Order request');
   releaseProjects();
   await expect.poll(() => projectsDelivered).toBe(true);
   await expect(modal.getByLabel('Name',{exact:true})).toHaveValue('Jordan QA');
-  await page.unroute('**/api/projects?offset=*');
-  checks.push('blocked project listing does not delay setup or calendar and late choices preserve the open form');
+  await page.unroute('**/api/scheduler/work-orders?offset=*');
+  checks.push('Work Order listing requires sign-in and does not delay the calendar and late choices preserve the open form');
   await modal.getByLabel('Email / sign-in').fill('jordan@example.test');
   await modal.getByLabel('Password',{exact:true}).fill(password);
   await modal.getByLabel('Base hourly rate (AUD)').fill('40');

@@ -1,0 +1,922 @@
+{
+  "Review previous local signature": [
+    "기존 로컬 서명 검토",
+    "Suriin ang dating lokal na lagda",
+    "Xem lại chữ ký cũ trên máy"
+  ],
+  "Review previous personal details": [
+    "이전 개인 정보 검토",
+    "Suriin ang dating personal na detalye",
+    "Xem lại thông tin cá nhân trước đây"
+  ],
+  "Previous personal details": [
+    "이전 개인 정보",
+    "Dating personal na detalye",
+    "Thông tin cá nhân trước đây"
+  ],
+  "Use these details for my profile": [
+    "내 프로필에 이 정보 사용",
+    "Gamitin ang mga detalyeng ito sa aking profile",
+    "Dùng thông tin này cho hồ sơ của tôi"
+  ],
+  "Copy the displayed details into your profile? Choose Save to keep them.": [
+    "표시된 정보를 내 프로필에 복사할까요? 저장을 선택하면 보관됩니다.",
+    "Kopyahin ang ipinapakitang mga detalye sa iyong profile? Piliin ang I-save upang panatilihin ang mga ito.",
+    "Sao chép thông tin đang hiển thị vào hồ sơ của bạn? Chọn Lưu để giữ lại."
+  ],
+  "Sign in to review previous personal details.": [
+    "이전 개인 정보를 검토하려면 로그인하세요.",
+    "Mag-sign in upang suriin ang dating personal na detalye.",
+    "Đăng nhập để xem lại thông tin cá nhân trước đây."
+  ],
+  "Saved project unavailable": [
+    "저장된 프로젝트를 사용할 수 없음",
+    "Hindi magagamit ang naka-save na proyekto",
+    "Dự án đã lưu không khả dụng"
+  ],
+  "Availability not yet verified": [
+    "가용성 미확인",
+    "Hindi pa nabeberipika ang availability",
+    "Chưa xác minh tình trạng sẵn có"
+  ],
+  "View linked bids": [
+    "연결된 입찰 보기",
+    "Tingnan ang mga naka-link na bid",
+    "Xem hồ sơ dự thầu đã liên kết"
+  ],
+  "No linked bids.": [
+    "연결된 입찰이 없습니다.",
+    "Walang naka-link na bid.",
+    "Không có hồ sơ dự thầu liên kết."
+  ],
+  "Sign in to manage staff access.": [
+    "직원 권한을 관리하려면 로그인하세요.",
+    "Mag-sign in upang pamahalaan ang access ng kawani.",
+    "Đăng nhập để quản lý quyền nhân viên."
+  ],
+  "An administrator account is required.": [
+    "관리자 계정이 필요합니다.",
+    "Kailangan ng administrator account.",
+    "Cần tài khoản quản trị viên."
+  ],
+  "Include the staff member, access role and current version.": [
+    "직원, 권한 역할, 현재 버전을 포함하세요.",
+    "Isama ang kawani, tungkulin sa access at kasalukuyang bersiyon.",
+    "Cung cấp nhân viên, vai trò truy cập và phiên bản hiện tại."
+  ],
+  "Choose a valid staff access role and version.": [
+    "유효한 직원 권한 역할과 버전을 선택하세요.",
+    "Pumili ng wastong tungkulin sa access at bersiyon.",
+    "Chọn vai trò truy cập và phiên bản hợp lệ."
+  ],
+  "Choose an existing staff member.": [
+    "기존 직원을 선택하세요.",
+    "Pumili ng umiiral na kawani.",
+    "Chọn nhân viên hiện có."
+  ],
+  "Team administrators retain administrator access. Manage their team role in Scheduler.": [
+    "팀 관리자는 관리자 권한을 유지합니다. 일정 관리에서 팀 역할을 관리하세요.",
+    "Mananatiling admin ang mga tagapangasiwa ng pangkat. Pamahalaan ang kanilang tungkulin sa Scheduler.",
+    "Quản trị viên nhóm giữ quyền quản trị. Quản lý vai trò nhóm trong lịch điều phối."
+  ],
+  "Staff access changed in another window. Reload before saving.": [
+    "다른 창에서 직원 권한이 변경되었습니다. 저장하기 전에 새로 고치세요.",
+    "Binago sa ibang window ang access ng kawani. I-reload bago i-save.",
+    "Quyền nhân viên đã đổi ở cửa sổ khác. Tải lại trước khi lưu."
+  ],
+  "Include the sign-in preference and current version.": [
+    "로그인 설정 및 현재 버전을 포함하세요.",
+    "Isama ang kagustuhan sa pag-sign in at kasalukuyang bersiyon.",
+    "Cung cấp tùy chọn đăng nhập và phiên bản hiện tại."
+  ],
+  "Set up an active team administrator before requiring sign-in.": [
+    "로그인을 필수로 설정하기 전에 활성 팀 관리자를 지정하세요.",
+    "Magtakda ng aktibong admin ng pangkat bago ipatupad ang pag-sign in.",
+    "Thiết lập quản trị viên nhóm đang hoạt động trước khi yêu cầu đăng nhập."
+  ],
+  "Sign in to use CLASSIFIRE.": [
+    "CLASSIFIRE를 사용하려면 로그인하세요.",
+    "Mag-sign in upang gamitin ang CLASSIFIRE.",
+    "Đăng nhập để dùng CLASSIFIRE."
+  ],
+  "Your staff account has Scheduler access only. Ask an administrator for CRM access.": [
+    "직원 계정은 일정 관리 전용입니다. 관리자에게 CRM 권한을 요청하세요.",
+    "Scheduler lang ang access ng iyong account. Humingi ng CRM access sa admin.",
+    "Tài khoản chỉ dùng được lịch điều phối. Hãy yêu cầu quản trị viên cấp quyền CRM."
+  ],
+  "The signed-in staff account changed. Reload this tab before saving.": [
+    "로그인한 직원 계정이 변경되었습니다. 저장하기 전에 이 탭을 새로 고치세요.",
+    "Nagbago ang naka-sign in na account. I-reload ang tab bago i-save.",
+    "Tài khoản nhân viên đăng nhập đã thay đổi. Tải lại thẻ này trước khi lưu."
+  ],
+  "This account has view-only access. An editor is required to make changes.": [
+    "이 계정은 보기 전용입니다. 변경하려면 편집 권한이 필요합니다.",
+    "Pangtingin lamang ang account na ito. Kailangan ang editor upang gumawa ng pagbabago.",
+    "Tài khoản này chỉ được xem. Cần quyền chỉnh sửa để thay đổi."
+  ],
+  "Open staff access in the local CLASSIFIRE application.": [
+    "로컬 CLASSIFIRE 앱에서 직원 권한을 여세요.",
+    "Buksan ang access ng kawani sa lokal na CLASSIFIRE app.",
+    "Mở quyền nhân viên trong ứng dụng CLASSIFIRE cục bộ."
+  ],
+  "Enter your staff email and password.": [
+    "직원 이메일과 비밀번호를 입력하세요.",
+    "Ilagay ang email at password ng kawani.",
+    "Nhập email nhân viên và mật khẩu."
+  ],
+  "Staff access action not found.": [
+    "직원 권한 작업을 찾을 수 없습니다.",
+    "Hindi nakita ang aksiyon para sa access ng kawani.",
+    "Không tìm thấy thao tác quyền nhân viên."
+  ],
+  "Choose an existing record.": [
+    "기존 기록을 선택하세요.",
+    "Pumili ng umiiral na rekord.",
+    "Chọn bản ghi hiện có."
+  ],
+  "Enter a valid site name and address.": [
+    "유효한 현장명과 주소를 입력하세요.",
+    "Ilagay ang wastong pangalan at address ng lugar.",
+    "Nhập tên và địa chỉ công trường hợp lệ."
+  ],
+  "Include a site name and address.": [
+    "현장명과 주소를 포함하세요.",
+    "Isama ang pangalan at address ng lugar.",
+    "Cung cấp tên và địa chỉ công trường."
+  ],
+  "This site request was already used. Refresh the list.": [
+    "이미 사용한 현장 요청입니다. 목록을 새로 고치세요.",
+    "Nagamit na ang kahilingang ito. I-refresh ang listahan.",
+    "Yêu cầu công trường này đã được dùng. Làm mới danh sách."
+  ],
+  "Choose a valid site page.": [
+    "유효한 현장 페이지를 선택하세요.",
+    "Pumili ng wastong pahina ng lugar.",
+    "Chọn trang công trường hợp lệ."
+  ],
+  "A different project now occupies this file. Reopen the correct saved project.": [
+    "이 파일에 다른 프로젝트가 있습니다. 올바른 저장 프로젝트를 다시 여세요.",
+    "Ibang proyekto na ang nasa file. Buksan muli ang tamang naka-save na proyekto.",
+    "Tệp này hiện chứa dự án khác. Mở lại đúng dự án đã lưu."
+  ],
+  "Choose up to 200 participants for the selected project.": [
+    "선택한 프로젝트에 참여자를 최대 200명까지 선택하세요.",
+    "Pumili ng hanggang 200 kasali para sa napiling proyekto.",
+    "Chọn tối đa 200 bên tham gia cho dự án đã chọn."
+  ],
+  "The project changed. Reopen its details before changing participants.": [
+    "프로젝트가 변경되었습니다. 참여자를 변경하기 전에 세부 정보를 다시 여세요.",
+    "Nagbago ang proyekto. Buksan muli ang mga detalye bago baguhin ang mga kasali.",
+    "Dự án đã thay đổi. Mở lại thông tin dự án trước khi đổi bên tham gia."
+  ],
+  "Participants changed. Reload the project participants before saving.": [
+    "참여자가 변경되었습니다. 저장 전에 프로젝트 참여자를 다시 불러오세요.",
+    "Nagbago ang mga kasali. I-reload sila bago i-save.",
+    "Bên tham gia đã thay đổi. Hãy tải lại danh sách trước khi lưu."
+  ],
+  "Choose an existing shared site.": [
+    "기존 공유 현장을 선택하세요.",
+    "Pumili ng umiiral na pinagsasaluhang lugar.",
+    "Chọn công trường chung hiện có."
+  ],
+  "Choose a participant role and directory record.": [
+    "참여자 역할과 디렉터리 기록을 선택하세요.",
+    "Pumili ng tungkulin ng kasali at rekord sa direktoryo.",
+    "Chọn vai trò tham gia và bản ghi danh bạ."
+  ],
+  "Choose each participant and role only once.": [
+    "각 참여자와 역할 조합을 한 번만 선택하세요.",
+    "Piliin ang bawat pares ng kasali at tungkulin nang isang beses lang.",
+    "Chỉ chọn mỗi cặp bên tham gia và vai trò một lần."
+  ],
+  "The selected directory record is unavailable.": [
+    "선택한 디렉터리 기록을 사용할 수 없습니다.",
+    "Hindi magagamit ang napiling rekord sa direktoryo.",
+    "Bản ghi danh bạ đã chọn không khả dụng."
+  ],
+  "Use one value per field.": [
+    "필드당 하나의 값을 사용하세요.",
+    "Gumamit ng isang halaga bawat field.",
+    "Dùng một giá trị cho mỗi trường."
+  ],
+  "Choose a valid project or site request.": [
+    "유효한 프로젝트 또는 현장 요청을 선택하세요.",
+    "Pumili ng wastong kahilingan sa proyekto o lugar.",
+    "Chọn yêu cầu dự án hoặc công trường hợp lệ."
+  ],
+  "Access history": [
+    "접근 기록",
+    "Kasaysayan ng access",
+    "Lịch sử truy cập"
+  ],
+  "Time": [
+    "시각",
+    "Oras",
+    "Thời gian"
+  ],
+  "Result": [
+    "결과",
+    "Resulta",
+    "Kết quả"
+  ],
+  "Outcome unknown": [
+    "결과 알 수 없음",
+    "Hindi alam ang kinalabasan",
+    "Chưa rõ kết quả"
+  ],
+  "Owner": [
+    "담당자",
+    "Tagapangasiwa",
+    "Người phụ trách"
+  ],
+  "Unassigned": [
+    "미지정",
+    "Walang nakatalaga",
+    "Chưa phân công"
+  ],
+  "Region": [
+    "지역",
+    "Rehiyon",
+    "Khu vực"
+  ],
+  "Activity history": [
+    "활동 내역",
+    "Kasaysayan ng aktibidad",
+    "Lịch sử hoạt động"
+  ],
+  "Log activity": [
+    "활동 기록",
+    "Itala ang aktibidad",
+    "Ghi hoạt động"
+  ],
+  "Activity type": [
+    "활동 유형",
+    "Uri ng aktibidad",
+    "Loại hoạt động"
+  ],
+  "Activity details": [
+    "활동 세부 정보",
+    "Mga detalye ng aktibidad",
+    "Chi tiết hoạt động"
+  ],
+  "Activity owner": [
+    "활동 담당자",
+    "Responsable sa aktibidad",
+    "Người phụ trách hoạt động"
+  ],
+  "Due date": [
+    "기한",
+    "Takdang petsa",
+    "Hạn chót"
+  ],
+  "Complete task": [
+    "작업 완료",
+    "Tapusin ang gawain",
+    "Hoàn thành nhiệm vụ"
+  ],
+  "Load earlier activity": [
+    "이전 활동 불러오기",
+    "I-load ang naunang aktibidad",
+    "Tải hoạt động trước đó"
+  ],
+  "No activity recorded.": [
+    "기록된 활동이 없습니다.",
+    "Wala pang naitalang aktibidad.",
+    "Chưa ghi nhận hoạt động nào."
+  ],
+  "Created": [
+    "생성됨",
+    "Nagawa na",
+    "Đã tạo"
+  ],
+  "Stage changed": [
+    "단계 변경됨",
+    "Nagbago ang yugto",
+    "Đã đổi giai đoạn"
+  ],
+  "Converted": [
+    "전환됨",
+    "Na-convert",
+    "Đã chuyển đổi"
+  ],
+  "Call": [
+    "통화",
+    "Tawag",
+    "Cuộc gọi"
+  ],
+  "Meeting": [
+    "회의",
+    "Pulong",
+    "Cuộc họp"
+  ],
+  "Note": [
+    "메모",
+    "Tala",
+    "Ghi chú"
+  ],
+  "Task": [
+    "작업",
+    "Gawain",
+    "Nhiệm vụ"
+  ],
+  "Task completed": [
+    "작업 완료됨",
+    "Natapos ang gawain",
+    "Đã hoàn thành nhiệm vụ"
+  ],
+  "Created at": [
+    "생성 시각",
+    "Oras ng paggawa",
+    "Thời điểm tạo"
+  ],
+  "Updated at": [
+    "수정 시각",
+    "Oras ng pag-update",
+    "Thời điểm cập nhật"
+  ],
+  "Last interaction": [
+    "최근 연락",
+    "Huling pakikipag-ugnayan",
+    "Lần tương tác cuối"
+  ],
+  "Logged by": [
+    "기록자",
+    "Nagtala",
+    "Người ghi"
+  ],
+  "Contacted": [
+    "연락함",
+    "Nakontak na",
+    "Đã liên hệ"
+  ],
+  "Quoting": [
+    "견적 작성 중",
+    "Gumagawa ng sipi ng presyo",
+    "Đang báo giá"
+  ],
+  "Negotiating": [
+    "협상 중",
+    "Nakikipagkasundo",
+    "Đang đàm phán"
+  ],
+  "Won": [
+    "수주",
+    "Napanalunan",
+    "Đã thắng"
+  ],
+  "Staff access": [
+    "직원 접근 권한",
+    "Access ng kawani",
+    "Quyền truy cập của nhân viên"
+  ],
+  "Staff sign in": [
+    "직원 로그인",
+    "Pag-sign in ng kawani",
+    "Đăng nhập nhân viên"
+  ],
+  "Password": [
+    "비밀번호",
+    "Password",
+    "Mật khẩu"
+  ],
+  "Sign in": [
+    "로그인",
+    "Mag-sign in",
+    "Đăng nhập"
+  ],
+  "Sign out": [
+    "로그아웃",
+    "Mag-sign out",
+    "Đăng xuất"
+  ],
+  "Signing in…": [
+    "로그인 중…",
+    "Nagsa-sign in…",
+    "Đang đăng nhập…"
+  ],
+  "Staff email": [
+    "직원 이메일",
+    "Email ng kawani",
+    "Email nhân viên"
+  ],
+  "Staff password": [
+    "직원 비밀번호",
+    "Password ng kawani",
+    "Mật khẩu nhân viên"
+  ],
+  "Require staff sign-in": [
+    "직원 로그인 요구",
+    "Ipatupad ang pag-sign in ng kawani",
+    "Yêu cầu nhân viên đăng nhập"
+  ],
+  "Staff access saved.": [
+    "직원 권한을 저장했습니다.",
+    "Nai-save ang access ng kawani.",
+    "Đã lưu quyền truy cập nhân viên."
+  ],
+  "Administrator": [
+    "관리자",
+    "Tagapangasiwa ng sistema",
+    "Quản trị viên"
+  ],
+  "Editor": [
+    "편집자",
+    "Patnugot",
+    "Người chỉnh sửa"
+  ],
+  "View only": [
+    "보기 전용",
+    "Tingnan lamang",
+    "Chỉ xem"
+  ],
+  "Scheduler only": [
+    "일정 관리 전용",
+    "Scheduler lang",
+    "Chỉ dùng lịch điều phối"
+  ],
+  "Staff member": [
+    "직원",
+    "Kawani",
+    "Nhân viên"
+  ],
+  "CRM access": [
+    "CRM 접근 권한",
+    "Access sa CRM",
+    "Quyền truy cập CRM"
+  ],
+  "Contact details": [
+    "연락처 정보",
+    "Mga detalye ng contact",
+    "Chi tiết liên hệ"
+  ],
+  "Field": [
+    "필드",
+    "Field",
+    "Trường"
+  ],
+  "This enquiry": [
+    "이 문의",
+    "Ang pagtatanong na ito",
+    "Yêu cầu này"
+  ],
+  "Current Contact": [
+    "현재 연락처",
+    "Kasalukuyang contact",
+    "Liên hệ hiện tại"
+  ],
+  "Refresh from contact": [
+    "연락처에서 갱신",
+    "I-update mula sa contact",
+    "Cập nhật từ liên hệ"
+  ],
+  "Possible duplicates": [
+    "중복 가능성이 있는 기록",
+    "Mga posibleng duplikado",
+    "Bản ghi có thể trùng"
+  ],
+  "Merge records": [
+    "기록 병합",
+    "Pagsamahin ang mga rekord",
+    "Hợp nhất bản ghi"
+  ],
+  "Source record": [
+    "원본 기록",
+    "Pinagmulang rekord",
+    "Bản ghi nguồn"
+  ],
+  "Review merge": [
+    "병합 검토",
+    "Suriin ang pagsasama",
+    "Xem lại việc hợp nhất"
+  ],
+  "Surviving record": [
+    "유지할 기록",
+    "Rekord na pananatilihin",
+    "Bản ghi được giữ lại"
+  ],
+  "Record ID": [
+    "기록 ID",
+    "ID ng rekord",
+    "Mã bản ghi"
+  ],
+  "Reason for merge": [
+    "병합 사유",
+    "Dahilan ng pagsasama",
+    "Lý do hợp nhất"
+  ],
+  "Confirm merge": [
+    "병합 확인",
+    "Kumpirmahin ang pagsasama",
+    "Xác nhận hợp nhất"
+  ],
+  "Undo merge": [
+    "병합 취소",
+    "I-undo ang pagsasama",
+    "Hoàn tác hợp nhất"
+  ],
+  "Similar company name": [
+    "비슷한 회사명",
+    "Katulad na pangalan ng kumpanya",
+    "Tên công ty tương tự"
+  ],
+  "Participants and shared site": [
+    "참여자 및 공유 현장",
+    "Mga kasali at pinagsasaluhang lugar",
+    "Bên tham gia và công trường chung"
+  ],
+  "Project participants": [
+    "프로젝트 참여자",
+    "Mga kasali sa proyekto",
+    "Bên tham gia dự án"
+  ],
+  "No additional participants.": [
+    "추가 참여자가 없습니다.",
+    "Walang karagdagang kasali.",
+    "Không có bên tham gia khác."
+  ],
+  "Role": [
+    "역할",
+    "Tungkulin",
+    "Vai trò"
+  ],
+  "Record type": [
+    "기록 유형",
+    "Uri ng rekord",
+    "Loại bản ghi"
+  ],
+  "Search directory": [
+    "디렉터리 검색",
+    "Maghanap sa direktoryo",
+    "Tìm trong danh bạ"
+  ],
+  "Participant": [
+    "참여자",
+    "Kasali",
+    "Bên tham gia"
+  ],
+  "Choose a directory record": [
+    "디렉터리 기록 선택",
+    "Pumili ng rekord sa direktoryo",
+    "Chọn bản ghi danh bạ"
+  ],
+  "Add participant": [
+    "참여자 추가",
+    "Magdagdag ng kasali",
+    "Thêm bên tham gia"
+  ],
+  "Shared site": [
+    "공유 현장",
+    "Pinagsasaluhang lugar",
+    "Công trường chung"
+  ],
+  "No shared site linked.": [
+    "연결된 공유 현장이 없습니다.",
+    "Walang naka-link na pinagsasaluhang lugar.",
+    "Chưa liên kết công trường chung."
+  ],
+  "Other bids linked to this site": [
+    "이 현장에 연결된 다른 입찰",
+    "Ibang bid na naka-link sa lugar na ito",
+    "Các hồ sơ dự thầu khác tại công trường này"
+  ],
+  "Search sites": [
+    "현장 검색",
+    "Maghanap ng lugar",
+    "Tìm công trường"
+  ],
+  "Choose a shared site": [
+    "공유 현장 선택",
+    "Pumili ng pinagsasaluhang lugar",
+    "Chọn công trường chung"
+  ],
+  "Link site": [
+    "현장 연결",
+    "I-link ang lugar",
+    "Liên kết công trường"
+  ],
+  "Unlink site": [
+    "현장 연결 해제",
+    "Alisin ang link ng lugar",
+    "Bỏ liên kết công trường"
+  ],
+  "New site": [
+    "새 현장",
+    "Bagong lugar",
+    "Công trường mới"
+  ],
+  "Site name": [
+    "현장명",
+    "Pangalan ng lugar",
+    "Tên công trường"
+  ],
+  "Create and link site": [
+    "현장 생성 및 연결",
+    "Gumawa at mag-link ng lugar",
+    "Tạo và liên kết công trường"
+  ],
+  "Principal contractor": [
+    "원도급업체",
+    "Pangunahing kontratista",
+    "Nhà thầu chính"
+  ],
+  "Project manager": [
+    "프로젝트 관리자",
+    "Tagapamahala ng proyekto",
+    "Quản lý dự án"
+  ],
+  "Billing contact": [
+    "청구 담당자",
+    "Contact sa pagsingil",
+    "Liên hệ thanh toán"
+  ],
+  "Builder": [
+    "시공사",
+    "Tagapagtayo",
+    "Đơn vị xây dựng"
+  ],
+  "Consultant": [
+    "자문사",
+    "Tagapayo",
+    "Tư vấn"
+  ],
+  "Architect": [
+    "건축가",
+    "Arkitekto",
+    "Kiến trúc sư"
+  ],
+  "Subcontractor": [
+    "하도급업체",
+    "Subkontratista",
+    "Nhà thầu phụ"
+  ],
+  "Work Order": [
+    "작업 지시서",
+    "Utos sa trabaho",
+    "Lệnh công việc"
+  ],
+  "No Work Order assigned": [
+    "배정된 작업 지시서 없음",
+    "Walang nakatalagang utos sa trabaho",
+    "Chưa giao lệnh công việc"
+  ],
+  "Refresh Work Order choices": [
+    "작업 지시서 목록 새로 고침",
+    "I-refresh ang mga pagpipiliang utos sa trabaho",
+    "Làm mới danh sách lệnh công việc"
+  ],
+  "Continue loading Work Order choices": [
+    "작업 지시서 목록 계속 불러오기",
+    "Ituloy ang pag-load ng mga pagpipiliang utos sa trabaho",
+    "Tiếp tục tải danh sách lệnh công việc"
+  ],
+  "Loading Work Order choices in the background…": [
+    "백그라운드에서 작업 지시서 목록을 불러오는 중…",
+    "Nilo-load ang mga pagpipiliang utos sa trabaho sa background…",
+    "Đang tải danh sách lệnh công việc trong nền…"
+  ],
+  "{0} Work Orders available": [
+    "작업 지시서 {0}건 사용 가능",
+    "May {0} utos sa trabaho",
+    "Có {0} lệnh công việc"
+  ],
+  "Some saved sources are unavailable.": [
+    "일부 저장된 원본을 사용할 수 없습니다.",
+    "Hindi magagamit ang ilang naka-save na pinagmulan.",
+    "Một số nguồn đã lưu không khả dụng."
+  ],
+  "{0} (legacy project)": [
+    "{0} (이전 프로젝트)",
+    "{0} (lumang proyekto)",
+    "{0} (dự án cũ)"
+  ],
+  "{0} (saved assignment)": [
+    "{0} (저장된 배정)",
+    "{0} (naka-save na pagtatalaga)",
+    "{0} (phân công đã lưu)"
+  ],
+  "Recorded project roles": [
+    "기록된 프로젝트 역할",
+    "Mga naitalang tungkulin sa proyekto",
+    "Vai trò dự án đã ghi"
+  ],
+  "Log or clear the activity first.": [
+    "활동을 먼저 기록하거나 지우세요.",
+    "Itala o i-clear muna ang aktibidad.",
+    "Hãy ghi hoặc xóa hoạt động trước."
+  ],
+  "Enter activity details.": [
+    "활동 세부 정보를 입력하세요.",
+    "Ilagay ang mga detalye ng aktibidad.",
+    "Nhập chi tiết hoạt động."
+  ],
+  "Discard this activity?": [
+    "이 활동을 취소할까요?",
+    "Itatapon ang aktibidad na ito?",
+    "Bỏ hoạt động này?"
+  ],
+  "Choose an active staff member.": [
+    "활성 직원을 선택하세요.",
+    "Pumili ng aktibong kawani.",
+    "Chọn nhân viên đang hoạt động."
+  ],
+  "Enter a valid region.": [
+    "유효한 지역을 입력하세요.",
+    "Maglagay ng wastong rehiyon.",
+    "Nhập khu vực hợp lệ."
+  ],
+  "Choose a saved directory record.": [
+    "저장된 디렉터리 기록을 선택하세요.",
+    "Pumili ng naka-save na rekord sa direktoryo.",
+    "Chọn bản ghi danh bạ đã lưu."
+  ],
+  "Choose a valid activity page.": [
+    "유효한 활동 페이지를 선택하세요.",
+    "Pumili ng wastong pahina ng aktibidad.",
+    "Chọn trang hoạt động hợp lệ."
+  ],
+  "Use the activity form.": [
+    "활동 양식을 사용하세요.",
+    "Gamitin ang form ng aktibidad.",
+    "Dùng biểu mẫu hoạt động."
+  ],
+  "Choose an activity and enter its details.": [
+    "활동을 선택하고 세부 정보를 입력하세요.",
+    "Pumili ng aktibidad at ilagay ang mga detalye nito.",
+    "Chọn hoạt động và nhập chi tiết."
+  ],
+  "Choose a valid task due date.": [
+    "유효한 작업 기한을 선택하세요.",
+    "Pumili ng wastong takdang petsa para sa gawain.",
+    "Chọn hạn chót hợp lệ cho nhiệm vụ."
+  ],
+  "Choose the task to complete.": [
+    "완료할 작업을 선택하세요.",
+    "Piliin ang gawaing tatapusin.",
+    "Chọn nhiệm vụ cần hoàn thành."
+  ],
+  "This activity request has changed. Reopen the record.": [
+    "활동 요청이 변경되었습니다. 기록을 다시 여세요.",
+    "Nagbago ang kahilingan sa aktibidad. Buksan muli ang rekord.",
+    "Yêu cầu hoạt động đã thay đổi. Hãy mở lại bản ghi."
+  ],
+  "Choose a task from its original record.": [
+    "원래 기록에서 작업을 선택하세요.",
+    "Pumili ng gawain mula sa orihinal nitong rekord.",
+    "Chọn nhiệm vụ từ bản ghi gốc."
+  ],
+  "This task has already been completed.": [
+    "이미 완료한 작업입니다.",
+    "Natapos na ang gawaing ito.",
+    "Nhiệm vụ này đã hoàn thành."
+  ],
+  "Choose one activity timeline.": [
+    "활동 내역 하나를 선택하세요.",
+    "Pumili ng isang timeline ng aktibidad.",
+    "Chọn một dòng thời gian hoạt động."
+  ],
+  "Use your existing Scheduler staff account.": [
+    "기존 일정 관리 직원 계정을 사용하세요.",
+    "Gamitin ang kasalukuyang Scheduler account ng kawani.",
+    "Dùng tài khoản nhân viên điều phối hiện có."
+  ],
+  "Save or cancel your edits before merging records.": [
+    "기록을 병합하기 전에 변경 사항을 저장하거나 취소하세요.",
+    "I-save o kanselahin ang mga pagbabago bago pagsamahin ang mga rekord.",
+    "Lưu hoặc hủy chỉnh sửa trước khi hợp nhất."
+  ],
+  "Some project records are still loading or unavailable.": [
+    "일부 프로젝트 기록이 로딩 중이거나 사용 불가합니다.",
+    "May mga rekord ng proyekto na nilo-load pa o hindi magagamit.",
+    "Một số bản ghi dự án đang tải hoặc không khả dụng."
+  ],
+  "Linked through a merged record.": [
+    "병합된 기록을 통해 연결되었습니다.",
+    "Naka-link sa pamamagitan ng pinagsamang rekord.",
+    "Liên kết qua bản ghi đã hợp nhất."
+  ],
+  "Matched by company name only.": [
+    "회사명만 일치합니다.",
+    "Pangalan lang ng kumpanya ang tumugma.",
+    "Chỉ khớp theo tên công ty."
+  ],
+  "Use an existing Company": [
+    "기존 회사 사용",
+    "Gumamit ng umiiral na kumpanya",
+    "Dùng công ty hiện có"
+  ],
+  "Keep these records separate": [
+    "기록을 별도로 유지",
+    "Panatilihing magkahiwalay ang mga rekord",
+    "Giữ riêng các bản ghi"
+  ],
+  "Keep as a separate Company": [
+    "별도 회사로 유지",
+    "Panatilihin bilang hiwalay na kumpanya",
+    "Giữ thành công ty riêng"
+  ],
+  "Review possible duplicate records before saving.": [
+    "저장하기 전에 중복 가능성이 있는 기록을 검토하세요.",
+    "Suriin ang mga posibleng duplikadong rekord bago i-save.",
+    "Xem lại các bản ghi có thể trùng trước khi lưu."
+  ],
+  "Choose an existing directory record.": [
+    "기존 디렉터리 기록을 선택하세요.",
+    "Pumili ng umiiral na rekord sa direktoryo.",
+    "Chọn bản ghi danh bạ hiện có."
+  ],
+  "Choose two active records. Undo earlier merges into the source first.": [
+    "활성 기록 두 개를 선택하세요. 원본에 적용한 이전 병합을 먼저 취소하세요.",
+    "Pumili ng dalawang aktibong rekord. I-undo muna ang mga naunang pagsasama sa pinagmulan.",
+    "Chọn hai bản ghi đang hoạt động. Trước tiên hãy hoàn tác các lần hợp nhất vào bản ghi nguồn."
+  ],
+  "Choose a valid identity action.": [
+    "유효한 식별 작업을 선택하세요.",
+    "Pumili ng wastong aksiyon para sa pagkakakilanlan.",
+    "Chọn thao tác định danh hợp lệ."
+  ],
+  "This request has already been used for another identity decision.": [
+    "이 요청은 다른 식별 결정에 이미 사용되었습니다.",
+    "Nagamit na ang kahilingang ito para sa ibang desisyon sa pagkakakilanlan.",
+    "Yêu cầu này đã được dùng cho một quyết định định danh khác."
+  ],
+  "Enter a reason for merging the records (up to 500 characters).": [
+    "기록 병합 사유를 입력하세요(최대 500자).",
+    "Ilagay ang dahilan ng pagsasama ng mga rekord (hanggang 500 character).",
+    "Nhập lý do hợp nhất bản ghi (tối đa 500 ký tự)."
+  ],
+  "Review the source and surviving record before merging.": [
+    "병합 전에 원본 기록과 유지할 기록을 검토하세요.",
+    "Suriin ang pinagmulan at ang rekord na pananatilihin bago pagsamahin.",
+    "Xem lại bản ghi nguồn và bản ghi được giữ trước khi hợp nhất."
+  ],
+  "This merge is no longer active.": [
+    "이 병합은 더 이상 활성 상태가 아닙니다.",
+    "Hindi na aktibo ang pagsasamang ito.",
+    "Việc hợp nhất này không còn hiệu lực."
+  ],
+  "This company was merged. Select its current directory entry.": [
+    "이 회사는 병합되었습니다. 현재 디렉터리 항목을 선택하세요.",
+    "Pinagsama na ang kumpanyang ito. Piliin ang kasalukuyang entry sa direktoryo.",
+    "Công ty này đã được hợp nhất. Chọn mục danh bạ hiện tại."
+  ],
+  "This record was merged. Open its current directory entry.": [
+    "이 기록은 병합되었습니다. 현재 디렉터리 항목을 여세요.",
+    "Pinagsama na ang rekord na ito. Buksan ang kasalukuyang entry nito sa direktoryo.",
+    "Bản ghi này đã được hợp nhất. Mở mục danh bạ hiện tại."
+  ],
+  "Reopen the company to review links from merged records.": [
+    "병합된 기록의 연결을 검토하려면 회사를 다시 여세요.",
+    "Buksan muli ang kumpanya upang suriin ang mga link mula sa pinagsamang rekord.",
+    "Mở lại công ty để xem liên kết từ các bản ghi đã hợp nhất."
+  ],
+  "This contact was merged. Select its current directory entry.": [
+    "이 연락처는 병합되었습니다. 현재 디렉터리 항목을 선택하세요.",
+    "Pinagsama na ang contact na ito. Piliin ang kasalukuyang entry sa direktoryo.",
+    "Liên hệ này đã được hợp nhất. Chọn mục danh bạ hiện tại."
+  ],
+  "Work Order choices are taking longer to load. Continue loading to retry. You can still use Scheduler.": [
+    "작업 지시서를 불러오는 데 시간이 걸립니다. 계속 불러오기를 눌러 다시 시도하세요. 일정 관리는 계속 사용할 수 있습니다.",
+    "Matagal ang pag-load ng mga utos sa trabaho. Ituloy ang pag-load para subukang muli. Maaari pa ring gamitin ang Scheduler.",
+    "Danh sách lệnh công việc tải lâu hơn dự kiến. Chọn tiếp tục tải để thử lại. Bạn vẫn có thể dùng lịch điều phối."
+  ],
+  "{0} Work Order choices available. Continue loading to scan more files.": [
+    "사용 가능한 작업 지시서가 {0}건 있습니다. 다른 파일을 확인하려면 계속 불러오세요.",
+    "May {0} pagpipiliang utos sa trabaho. Ituloy ang pag-load upang suriin ang iba pang file.",
+    "Có {0} lệnh công việc. Tiếp tục tải để quét thêm tệp."
+  ],
+  "Interaction time": [
+    "연락 시각",
+    "Oras ng pakikipag-ugnayan",
+    "Thời điểm tương tác"
+  ],
+  "Enter a valid interaction time in the past or present.": [
+    "현재 또는 과거의 유효한 연락 시각을 입력하세요.",
+    "Maglagay ng wastong oras ng pakikipag-ugnayan ngayon o sa nakaraan.",
+    "Nhập thời điểm tương tác hợp lệ trong quá khứ hoặc hiện tại."
+  ],
+  "Sign in with a Scheduler staff account to manage access on this computer.": [
+    "이 컴퓨터의 접근 권한을 관리하려면 일정 관리 직원 계정으로 로그인하세요.",
+    "Mag-sign in gamit ang Scheduler account ng kawani para pamahalaan ang access sa computer na ito.",
+    "Đăng nhập bằng tài khoản nhân viên điều phối để quản lý quyền truy cập trên máy này."
+  ],
+  "Manage staff names, passwords and team administrator roles in Scheduler. Editors can update CRM records; viewers can read records; Scheduler-only staff have no CRM access.": [
+    "직원 이름, 비밀번호, 팀 관리자 역할은 일정 관리에서 설정합니다. 편집자는 CRM 기록을 수정하고 열람자는 읽을 수 있습니다. 일정 관리 전용 직원은 CRM에 접근할 수 없습니다.",
+    "Pamahalaan sa Scheduler ang pangalan, password at tungkulin ng admin ng pangkat. Maaaring mag-update ng mga rekord ng CRM ang editor at magbasa ang viewer. Walang access sa CRM ang kawani na Scheduler lang.",
+    "Quản lý tên, mật khẩu và vai trò quản trị nhóm trong lịch điều phối. Người chỉnh sửa có thể cập nhật CRM, người xem có thể đọc, nhân viên chỉ có lịch điều phối không thể truy cập CRM."
+  ],
+  "View-only access. An editor is required to save changes.": [
+    "보기 전용입니다. 변경 사항을 저장하려면 편집자 권한이 필요합니다.",
+    "Maaari lamang tumingin. Kailangan ang editor upang mag-save ng mga pagbabago.",
+    "Quyền chỉ xem. Cần người chỉnh sửa để lưu thay đổi."
+  ],
+  "Staff access applies to this computer. Remote hosting is configured separately.": [
+    "직원 권한은 이 컴퓨터에 적용됩니다. 원격 호스팅은 별도로 설정합니다.",
+    "Ang access ng kawani ay para sa computer na ito. Hiwalay ang pagsasaayos ng remote hosting.",
+    "Quyền nhân viên áp dụng trên máy này. Lưu trữ từ xa được cấu hình riêng."
+  ],
+  "Staff access could not be updated.": [
+    "직원 권한을 업데이트할 수 없습니다.",
+    "Hindi ma-update ang access ng kawani.",
+    "Không thể cập nhật quyền truy cập của nhân viên."
+  ]
+}

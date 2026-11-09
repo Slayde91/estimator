@@ -113,9 +113,13 @@ class SchedulerRulePersistence(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.now = datetime(2026, 11, 1, 20, tzinfo=timezone.utc)
-        self.projects = {'accepted': {'id': 'accepted', 'title': 'Accepted quote', 'site_address': '12 Site Street', 'project_status': 'Accepted'},
-                         'draft': {'id': 'draft', 'title': 'Draft quote', 'site_address': 'Other street', 'project_status': 'Draft'}}
-        self.store = SchedulerStore(Path(self.temp.name)/'scheduler.sqlite3', now=lambda: self.now, project_lookup=self.projects.__getitem__)
+        self.order = {'id':'wo-a', 'revision':'revision-a', 'reference':'WO-02', 'client':'Fixture client',
+                      'site_address':'12 Site Street', 'status':'Draft', 'version':1}
+        def lookup(identity, revision):
+            if (identity, revision) != (self.order['id'], self.order['revision']):
+                raise ValueError('Stale')
+            return dict(self.order)
+        self.store = SchedulerStore(Path(self.temp.name)/'scheduler.sqlite3', now=lambda: self.now, work_order_lookup=lookup)
         auth = self.store.write('setup', {'name': 'Admin', 'email': 'admin@example.test', 'password': 'correct password 123'})
         self.token, self.user = auth['token'], auth['user']
 
@@ -127,20 +131,36 @@ class SchedulerRulePersistence(unittest.TestCase):
     def state(self):
         return self.store.read('state', {'start': '2026-11-02', 'end': '2026-11-09'}, self.token)
 
-    def test_accepted_project_location_defaults_customization_and_retained_reference(self):
-        payload = {'title': 'Install', 'start': '2026-11-02T07:00', 'end': '2026-11-02T15:00', 'project_id': 'accepted'}
+    def test_work_order_assignment_and_legacy_snapshot_survive_unrelated_edits(self):
+        selection = {key:self.order[key] for key in ('id','revision')}
+        payload = {'title':'Install', 'start':'2026-11-02T07:00', 'end':'2026-11-02T15:00', 'work_order':selection}
         saved = self.write('shifts/save', payload)
         self.assertEqual(saved['location'], '12 Site Street')
-        self.assertEqual(saved['project_name'], 'Accepted quote')
-        self.projects['accepted']['project_status'] = 'Lost'
-        retained = self.write('shifts/save', {**saved, 'location': 'Custom gate'})
-        self.assertEqual(retained['location'], 'Custom gate')
+        self.assertEqual(saved['work_order'], self.order)
+        self.order.update(status='Completed', revision='revision-b', version=2)
         with self.assertRaises(SchedulerError):
             self.write('shifts/save', payload)
+        edit = {key:value for key,value in saved.items() if key != 'work_order'}
+        retained = self.write('shifts/save', {**edit,'location':'Custom gate'})
+        self.assertEqual(retained['work_order'],saved['work_order'])
+        self.assertEqual(retained['location'],'Custom gate')
+        legacy = self.write('shifts/save', {k:v for k,v in payload.items() if k!='work_order'})
+        with self.store.connect() as db:
+            legacy.update(project_id='old-project', project_name='Historic project')
+            import json
+            db.execute('UPDATE scheduler_records SET data=? WHERE id=?',(json.dumps(legacy),legacy['id']))
+        edited = self.write('shifts/save', {**legacy, 'notes':'New note'})
+        self.assertEqual((edited['project_id'],edited['project_name']),('old-project','Historic project'))
+        self.assertNotIn('work_order', edited)
         with self.assertRaises(SchedulerError):
-            self.write('clock/in', {'project_id': 'draft'})
+            self.write('shifts/save', {**payload,'project_id':'new-project'})
         with self.assertRaises(SchedulerError):
-            self.write('entries/save', {'member_id': self.user['id'], 'start': '2026-11-02T07:00', 'end': '2026-11-02T15:00', 'project_id': 'draft'})
+            self.write('clock/in', {'project_id':'new-project'})
+        current = {key:self.order[key] for key in ('id','revision')}
+        clock = self.write('clock/in', {'work_order':current})
+        self.assertEqual(clock['work_order'],self.order)
+        with self.assertRaises(SchedulerError):
+            self.write('entries/save', {'member_id':self.user['id'],'start':'2026-11-01T07:00','end':'2026-11-01T08:00','project_id':'new-project'})
 
     def test_manual_rule_minimum_auto_end_and_snapshot_survive_settings_change(self):
         policy = self.state()['settings']

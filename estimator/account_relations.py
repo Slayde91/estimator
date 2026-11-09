@@ -5,6 +5,7 @@ from uuid import UUID
 from .catalog import ValidationError
 from .commercial_sources import source_id
 from .contacts import LINK_KINDS, company_key
+from .crm_identity import group_ids
 
 
 MAX_CHOICES = 1000
@@ -47,20 +48,30 @@ class AccountRelations:
     def view(self, account_id=None, *, search="", include_ids=None):
         if not isinstance(search, str) or len(search) > 500:
             raise ValidationError("Search related records using up to 500 characters.")
-        directory = self.store.list(history_account_id=account_id)
+        directory = self.store.list(history_account_id=account_id, raw_identities=True)
+        mappings = directory['identity_aliases']
         accounts = {row["id"]: row for row in directory["accounts"]}
         if account_id is not None and (not _identity(account_id) or account_id not in accounts):
             raise ValidationError("This company could not be found. Reload the directory.")
+        account_id = mappings['accounts'].get(account_id, account_id)
+        members = group_ids(mappings['accounts'], account_id)
         account = accounts.get(account_id)
         records = {kind: {} for kind in LINK_KINDS}
         automatic = {kind: set() for kind in LINK_KINDS}
-        for contact in directory["contacts"]:
+        people = {person['id']:person for person in directory['contacts']}
+        for contact in people.values():
+            if contact['id'] in mappings['contacts']:
+                continue
             owner = accounts.get(contact["account_id"])
             entry = {"id": contact["id"], "label": " · ".join(filter(None, (contact["name"], contact["company"]))),
                      "available": True, "account_id": contact["account_id"], "account_label": owner["company"] if owner else ""}
             records["contacts"][entry["id"]] = entry
-            if account_id is not None and contact["account_id"] == account_id:
-                automatic["contacts"].add(entry["id"])
+        for source in people.values():
+            if source['account_id'] in members:
+                canonical = mappings['contacts'].get(source['id'], source['id'])
+                automatic['contacts'].add(canonical)
+                if people[canonical]['account_id'] != account_id:
+                    records['contacts'][canonical]['inherited'] = True
 
         # Each library call advances only its existing bounded scan. The metadata
         # snapshot contains already authorized IDs, including registered sources;
@@ -82,10 +93,12 @@ class AccountRelations:
         for token, row in project_rows.items():
             records["projects"][token] = {"id": token, "label": _project_label(row), "available": True}
             primary = row.get("account_id", "")
-            matches = (primary == account_id if primary else account is not None
+            matches = (primary in members if primary else account is not None
                        and company_key(row.get("client", "")) == company_key(account["company"]))
             if account_id is not None and matches:
                 automatic["projects"].add(token)
+                if not primary:
+                    records['projects'][token]['name_only'] = True
         certificate_records = {'documents':[], 'errors':[], 'scan_pending':False}
         if hasattr(self.projects, 'directory_certificate_cards'):
             certificate_records = self.projects.directory_certificate_cards([row for token,row in project_rows.items() if token in automatic['projects']])
@@ -107,7 +120,7 @@ class AccountRelations:
             if project_token is not None and project_rows[project_token].get('source_project_id') != owner:
                 continue
             supplier = (group == 'purchase_orders' and account_id is not None
-                        and fields.get('order', {}).get('supplier_account_id') == account_id)
+                        and fields.get('order', {}).get('supplier_account_id') in members)
             if document.get('source_file') and project_token is None and not (supplier and document.get('unfiled')):
                 continue
             if supplier and not document.get('source_file') and project_token is None:
@@ -120,7 +133,7 @@ class AccountRelations:
                     supplemental[group][token] = entry
                 continue
             details = fields.get("details", {})
-            legacy_match = (not candidates and account is not None
+            legacy_match = (not candidates and not details.get('account_id') and account is not None
                             and company_key(details.get("client", "")) == company_key(account["company"]))
             belongs = project_token in automatic["projects"] or legacy_match or supplier
             # Saved copies can share both IDs. An explicit supplier selection
@@ -132,6 +145,8 @@ class AccountRelations:
             document_rank[key] = rank
             if supplier:
                 entry['supplier'] = True
+            if legacy_match or (not supplier and records['projects'].get(project_token, {}).get('name_only')):
+                entry['name_only'] = True
             records[group][token] = entry
             if belongs:
                 automatic[group].add(token)
@@ -141,13 +156,19 @@ class AccountRelations:
             for token in automatic[kind]:
                 # Contact ownership remains editable; an account cannot sever a
                 # project's primary Account association through a secondary link.
-                linked[kind][token] = {**records[kind][token], **({"automatic": True} if kind != "contacts" else {})}
-        for saved in self.store.saved_links(account_id) if account_id is not None else []:
+                entry = records[kind][token]
+                linked[kind][token] = {**entry, **({"automatic": True} if kind != "contacts" or entry.get('inherited') else {})}
+        # Read direct links last so an identical secondary link remains editable
+        # on its owning company. An alias-only link is displayed read-only.
+        saved_rows = ((owner, row) for owner in sorted(members, key=lambda ident: (ident == account_id, ident))
+                      for row in self.store.saved_links(owner))
+        for owner, saved in saved_rows:
             kind, token = saved["kind"], saved["target_id"]
             if kind not in linked or kind == "contacts":
                 continue
             linked[kind][token] = {**records[kind].get(token, {"id": token, "label": saved["label"], "available": False}),
-                                  **({"automatic": True} if token in automatic[kind] else {}), "manual": True}
+                                  **({"automatic": True} if token in automatic[kind] or owner != account_id else {}),
+                                  **({'inherited': True} if owner != account_id else {}), "manual": owner == account_id}
 
         needle = search.strip().casefold()
         choices, truncated = {}, False
@@ -171,9 +192,9 @@ class AccountRelations:
         errors.extend({"name": row.get("title", "Project"), "error": "Saved project source is unavailable."} for row in missing[:100])
         return {"version": directory["version"], "linked": {kind: sorted(rows.values(), key=lambda row: (row["label"].casefold(), row["id"])) for kind, rows in linked.items()},
                 "related": {kind: sorted(rows.values(), key=lambda row: (row['label'].casefold(), row['id'])) for kind, rows in supplemental.items()},
-                "converted_leads": directory.get("converted_leads", []),
+                "converted_leads": directory.get("converted_leads", []), "party_ids":sorted(members),
                 "active_leads": [{"id": lead["id"], "label": " · ".join(filter(None, (lead["name"], lead["site_address"])))}
-                                 for lead in directory["leads"] if account_id and lead["account_id"] == account_id],
+                                 for lead in directory["leads"] if lead["account_id"] in members],
                 "choices": choices, "scan_pending": bool(listing.get("scan_pending") or register.get("scan_pending") or certificate_records['scan_pending']),
                 "truncated": truncated, "error_count": max(listing.get("error_count", 0), register.get("error_count", 0)) + len(missing) + len(certificate_records['errors']),
                 "errors": errors}

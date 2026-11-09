@@ -122,6 +122,23 @@ class UnfiledCommercial:
             raise CommercialConflict(STALE)
         return row
 
+    def scheduler_order(self, source, revision, project, identity):
+        """Verify exactly one explicitly saved board record, including an interrupted file handover."""
+        with self.service._connect() as db:
+            db.execute('BEGIN')
+            owner = self._owner(db, {'file_id':source, 'revision':revision})
+            if owner['project_id'] != project:
+                raise CommercialConflict(STALE)
+            self._check_pending(db, owner['workspace'])
+            row = db.execute('''SELECT d.data FROM local_commercial_documents m
+                JOIN commercial_drafts d USING(workspace,id) WHERE m.workspace=? AND m.id=?''',
+                (owner['workspace'], identity)).fetchone()
+            if row:
+                card, = commercial_cards({'project_id':project, 'documents':[json.loads(row['data'])]})
+                if card['kind'] == 'work_order':
+                    return {**card, 'source_file':source, 'source_revision':revision}
+            return None
+
     def verified_project(self, db, workspace):
         # Only this request's internal adapter may reopen a durable commercial
         # owner after the interactive certificate session expires or restarts.

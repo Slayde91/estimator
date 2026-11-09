@@ -48,19 +48,19 @@ WRITE_FIELDS = {
     'login': {'email', 'password'},
     'logout': set(),
     'members/save': {'timezone', 'id', 'version', 'name', 'email', 'password', 'role', 'active', 'base_rate'},
-    'shifts/save': {'input_timezone', 'id', 'version', 'updated_at', 'title', 'start', 'end', 'member_ids', 'project_id', 'project_name', 'location', 'notes', 'color', 'published', 'request_id'},
-    'entries/save': {'input_timezone', 'id', 'version', 'updated_at', 'member_id', 'start', 'end', 'breaks', 'project_id', 'project_name', 'notes', 'base_rate', 'source', 'location_consent'},
+    'shifts/save': {'input_timezone', 'id', 'version', 'updated_at', 'title', 'start', 'end', 'member_ids', 'project_id', 'project_name', 'work_order', 'location', 'notes', 'color', 'published', 'request_id'},
+    'entries/save': {'input_timezone', 'id', 'version', 'updated_at', 'member_id', 'start', 'end', 'breaks', 'project_id', 'project_name', 'work_order', 'notes', 'base_rate', 'source', 'location_consent'},
     'shifts/delete': {'id', 'version'},
     'entries/delete': {'id', 'version'},
     'settings': set(DEFAULT_SETTINGS),
     'organization': {'timezone', 'version'},
-    'clock/in': {'project_id', 'project_name', 'notes', 'location_consent', 'location'},
+    'clock/in': {'project_id', 'project_name', 'work_order', 'notes', 'location_consent', 'location'},
     'clock/out': {'entry_id', 'version'},
     'clock/break': {'entry_id', 'version', 'action', 'paid', 'rule_id'},
     'locations': {'entry_id', 'latitude', 'longitude', 'accuracy', 'captured_at'},
     'locations/enable': {'entry_id', 'latitude', 'longitude', 'accuracy', 'captured_at'},
 }
-READ_FIELDS = {'bootstrap': set(), 'organization': set(), 'state': {'start', 'end'}, 'locations': {'entry_id'}}
+READ_FIELDS = {'work-orders': {'offset'}, 'bootstrap': set(), 'organization': set(), 'state': {'start', 'end'}, 'locations': {'entry_id'}}
 
 
 class SchedulerError(ValueError):
@@ -262,11 +262,12 @@ def _public_member(row, zone_name):
 
 
 class SchedulerStore:
-    def __init__(self, path, *, now=None, project_lookup=None):
+    def __init__(self, path, *, now=None, work_orders=None, work_order_lookup=None):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.now = now or (lambda: datetime.now(UTC))
-        self.project_lookup = project_lookup
+        self.work_orders = work_orders
+        self.work_order_lookup = work_order_lookup
         with self.connect() as db:
             db.executescript('''
                 CREATE TABLE IF NOT EXISTS scheduler_members (
@@ -372,6 +373,16 @@ class SchedulerStore:
             raise SchedulerError('The Scheduler request contains unknown filters.')
         with self.connect() as db:
             user = self._user(db, token, required=action not in {'bootstrap', 'organization'})
+            if action == 'work-orders':
+                raw = str(query.get('offset', '0'))
+                if not re.fullmatch(r'0|[1-9][0-9]{0,8}', raw):
+                    raise SchedulerError('Use a valid Work Order page.')
+                if self.work_orders is None:
+                    return {'orders': [], 'matched': 0, 'scan_pending': False, 'error_count': 0}
+                try:
+                    return self.work_orders(int(raw))
+                except (ValueError, OSError) as error:
+                    raise SchedulerError('Work Order choices are unavailable. Refresh the list.', 409) from error
             if action == 'organization':
                 settings = self._read_settings(db)
                 return {'timezone': settings['timezone'], 'version': settings['version'], 'zones': organization_zones()}
@@ -467,20 +478,38 @@ class SchedulerStore:
             return True
         return False
 
-    def _project_reference(self, value, previous=None):
-        project_id = value['project_id']
-        if not project_id or previous and project_id == previous.get('project_id'):
+    def _assignment(self, value, payload, previous=None):
+        prior = previous or {}
+        # The old clients submit project id/name, sometimes even on an unrelated
+        # edit. They may keep an existing assignment; only a Work Order can be new.
+        if value['project_id'] and value['project_id'] != prior.get('project_id'):
+            raise SchedulerError('Choose a saved Work Order instead of a project.')
+        if value['project_name'] and value['project_name'] != prior.get('project_name'):
+            raise SchedulerError('Choose a saved Work Order instead of entering a project name.')
+        selected = payload.get('work_order')
+        if 'work_order' not in payload:
+            value.update(project_id=prior.get('project_id',''), project_name=prior.get('project_name',''))
+            if prior.get('work_order'):
+                value['work_order'] = prior['work_order']
             return None
-        if self.project_lookup is None:
-            raise SchedulerError('Project choices are unavailable. Refresh Scheduler before assigning a project.')
+        value.update(project_id='', project_name='')
+        if selected is None:
+            return None
+        saved = prior.get('work_order')
+        if saved and (selected == saved or selected == {key:saved[key] for key in ('id','revision')}):
+            value['work_order'] = saved
+            return None
+        if not isinstance(selected, dict) or set(selected) != {'id','revision'} or self.work_order_lookup is None:
+            raise SchedulerError('Choose a saved Work Order from the list.')
         try:
-            project = self.project_lookup(project_id)
+            identity = _text(selected['id'], 'Work Order', 175, True)
+            revision = _text(selected['revision'], 'Work Order revision', 64, True)
+            choice = self.work_order_lookup(identity, revision)
         except (ValueError, OSError, KeyError) as error:
-            raise SchedulerError('The selected project is unavailable. Refresh the project choices.') from error
-        if project.get('project_status') != 'Accepted':
-            raise SchedulerError('Only Accepted projects can be assigned to Scheduler.')
-        value['project_name'] = project['title']
-        return project
+            raise SchedulerError('This Work Order changed or is unavailable. Refresh the list and select it again.', 409) from error
+        value['work_order'] = choice
+        return choice
+
 
     def write(self, action, payload=None, token=None):
         payload = {} if payload is None else payload
@@ -669,7 +698,7 @@ class SchedulerStore:
                  'project_id': _text(payload.get('project_id', ''), 'Project', 1000),
                  'project_name': _text(payload.get('project_name', ''), 'Project name', 1000),
                  'notes': _text(payload.get('notes', ''), 'Notes', 4000)}
-        selected_project = self._project_reference(value, previous)
+        selected_order = self._assignment(value, payload, previous)
         if kind == 'shift':
             member_ids = payload.get('member_ids', [])
             if not isinstance(member_ids, list) or len(member_ids) > 500 or any(not isinstance(x, str) for x in member_ids):
@@ -683,8 +712,8 @@ class SchedulerStore:
             value.update(title=_text(payload.get('title', ''), 'Title', 250, True), member_ids=member_ids,
                          location=_text(payload.get('location', ''), 'Location', 500), color=color,
                          published=_boolean(payload.get('published', False), 'Published'))
-            if selected_project and not value['location']:
-                value['location'] = _text(selected_project.get('site_address', ''), 'Site address', 500)
+            if selected_order and not value['location']:
+                value['location'] = _text(selected_order.get('site_address', ''), 'Site address', 500)
         else:
             member = self._active_member(db, _text(payload.get('member_id', ''), 'Member', 100, True))
             self._no_overlap(db, member['id'], start, end, value['id'])
@@ -799,7 +828,7 @@ class SchedulerStore:
                      'project_name': _text(payload.get('project_name', ''), 'Project name', 1000),
                      'notes': _text(payload.get('notes', ''), 'Notes', 4000),
                      'location_consent': True}
-            self._project_reference(value)
+            self._assignment(value, payload)
             saved = self._save_record(db, user, 'entry', value)
             # Preserve the actual GPS capture time, including the few seconds
             # spent obtaining the fix before the server creates the clock entry.

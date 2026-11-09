@@ -56,7 +56,7 @@ class DirectoryTests(unittest.TestCase):
 
     def test_lead_is_linked_to_person_and_company_through_updates(self):
         directory = self.request("directory")
-        self.assertEqual(directory["statuses"], ["New", "Assisting", "Interstate", "Qualified", "Disqualified", "Not Applicable"])
+        self.assertEqual(directory["statuses"], ["New", "Contacted", "Qualified", "Quoting", "Negotiating", "Won", "Lost"])
         fields = {"name": "Morgan", "phone": "0401", "title": "Foreman", "email": "morgan@example.test",
                   "company": "ACME", "site_address": "First site", "billing_address": "HQ", "description": "Fitout"}
         result = self.request("leads", {"fields": fields, "version": directory["version"]})
@@ -90,7 +90,9 @@ class DirectoryTests(unittest.TestCase):
         lead = self.request("leads", {"version": before["version"], "fields": changed, "contact_id": saved["id"]})
         self.assertEqual(self.request("directory")["contacts"], before["contacts"])
         self.request("contacts", {"version": before["version"], "fields": changed, "create_separate_contact": True}, 409)
-        separate = self.request("contacts", {"version": lead["version"], "fields": changed, "create_separate_contact": True})
+        review = self.request("contacts", {"version": lead["version"], "fields": changed, "create_separate_contact": True}, 409)
+        separate = self.request("contacts", {"version": lead["version"], "fields": changed,
+            "review_token":review["duplicate_review"]["review_token"]})
         self.assertNotEqual(separate["id"], saved["id"])
         # A shared mailbox, a shared name or the same person name at another company is insufficient.
         for override in ({"name": "Pat"}, {"email": "second@example.test"}, {"company": "Other Company"}):
@@ -218,7 +220,7 @@ class DirectoryTests(unittest.TestCase):
         with_new_company = ["Other", "123", "Rollback Company", "", "other@example.test"]
         conflict = self.upload("contacts", [with_new_company, changed], 400)
         self.assertIn("Row 3", conflict["error"])
-        self.assertIn("already has this name and email", conflict["error"])
+        self.assertIn("possible duplicate (Email, Name)", conflict["error"])
         self.assertEqual(self.request("directory"), before)
         data = self.request("directory")
         self.assertEqual(len(data["accounts"]), 2)

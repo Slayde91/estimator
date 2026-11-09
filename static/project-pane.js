@@ -55,6 +55,7 @@
     contactOptionIndex = -1;
   }
   function hide() {
+    window.ClassifireProjectParticipants?.close();
     const previous = selected;
     ++ticket; selected = null; pane.hidden = true;
     side.hidden = true; pricingNotice.hidden = true;
@@ -66,11 +67,12 @@
     dismissOptions(); dismissContactOptions(); refreshToggles();
   }
   async function leave() {
-    if (pending || selected?.creation?.uncertain) { notice("Finish the current project details action first.", true); return false; }
+    if (pending || selected?.creation?.uncertain || window.ClassifireProjectParticipants?.pending()) { notice("Finish the current project details action first.", true); return false; }
     if (dirty() && !await window.CeasefireDialogs.confirm(translate("Discard unsaved project details?"), translate("The changes in this Project Details pane have not been saved. Discard them?"), translate("Yes"), translate("Cancel"))) return false;
     hide(); return true;
   }
   function show(values, target) {
+    window.ClassifireProjectParticipants?.show(selected.kind==="saved" ? selected.file : selected.kind==="current" ? snapshot().file : null);
     for (const [key,id] of Object.entries(fields)) $(id).value = values[key] || "";
     accountId = values.account_id || ""; accountName = values.client || "";
     contactId = values.contact_id || ""; contactName = values.contact_name || ""; contactLoading = false;

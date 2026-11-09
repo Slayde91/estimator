@@ -9,6 +9,7 @@ from .calculation_work import CalculationBusy
 import json
 import logging
 import re
+import sqlite3
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
@@ -52,8 +53,15 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     document_numbers = DocumentNumbers(store.path.with_name(store.path.stem + '-document-numbers.sqlite3'))
     project_details_settings = ProjectDetails(store.path.with_name(store.path.stem + '-project-details.sqlite3'))
     projects = ProjectLibrary(store, project_dialogs, takeoffs=takeoffs, edition=edition, project_details=project_details_settings)
-    contacts_http = ContactsHTTP(store.path.with_name(store.path.stem + "-contacts.sqlite3"), projects)
     scheduler_http = SchedulerHTTP(store.path.with_name(store.path.stem + "-scheduler.sqlite3"), projects=projects)
+    from .crm_access import CRMAccess, AccessHTTP, AccessError, download_route, audit_route
+    access = CRMAccess(store.path.with_name(store.path.stem + '-access.sqlite3'), scheduler_http.store)
+    access_http = AccessHTTP(access)
+    contacts_http = ContactsHTTP(store.path.with_name(store.path.stem + "-contacts.sqlite3"), projects, staff_provider=access.staff)
+    from .crm_participants import CRMParticipants, ParticipantsHTTP
+    participants = CRMParticipants(store.path.with_name(store.path.stem + '-crm-participants.sqlite3'), projects, contacts_http.store)
+    participants_http = ParticipantsHTTP(participants)
+    contacts_http.participants = participants
     from .download_progress import DownloadProgress
     download_progress = DownloadProgress()
     from .reference_library import ReferenceNotFound
@@ -159,11 +167,19 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             if status >= 400:
                 download_progress.update(getattr(self, '_download_progress_token', None), 0, 'failed')
             body = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8") if content_type.startswith("application/json") else payload
+            try:
+                access.finish_request(self, status, payload)
+            except (OSError, sqlite3.Error):
+                LOGGER.exception('Could not record the staff request response; its attempt remains recorded with unknown outcome.')
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
             for name, value in (headers or {}).items():
-                self.send_header(name, value)
+                if name.lower() == 'set-cookie' and isinstance(value, (list, tuple)):
+                    for cookie in value:
+                        self.send_header(name, cookie)
+                else:
+                    self.send_header(name, value)
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Referrer-Policy", "no-referrer")
@@ -303,13 +319,32 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             if origin and origin not in {f"http://{h}" for h in hosts}:
                 self.send_payload(403, {"error": "Cross-origin requests are not allowed."})
                 return
+            route = urlsplit(self.path).path
+            if access_http.dispatch(self, route):
+                return
+            try:
+                access.authorize(self, route)
+            except AccessError as error:
+                self.send_payload(error.status, {'error': str(error)})
+                return
             progress_token = self.headers.get('X-Estimator-Download-Progress')
             if progress_token is not None:
-                if self.command != 'POST':
-                    raise ValidationError('Document progress requires one download request.')
+                if self.command != 'POST' or not download_route(route):
+                    raise ValidationError('Document progress requires one document generation or export request.')
                 download_progress.claim(progress_token)
                 self._download_progress_token = progress_token
-            route = urlsplit(self.path).path
+            if self.command == 'GET' and route in {'/', '/index.html'} and access.settings()['enabled'] and (
+                    not self.crm_user or self.crm_user['role'] == 'none'):
+                page = 'scheduler-only.html' if self.crm_user else 'access-login.html'
+                self.send_payload(200, (ROOT / 'static' / page).read_bytes(), 'text/html; charset=utf-8')
+                return
+            if self.command == 'GET' and route in {'/crm-access.js', '/crm-access.css', '/crm-identity.js', '/project-participants.js', '/scheduler-only.js'}:
+                path = ROOT / 'static' / route[1:]
+                if not path.is_file():
+                    self.send_payload(404, {'error': 'Not found.'})
+                    return
+                self.send_payload(200, path.read_bytes(), 'text/css' if path.suffix == '.css' else 'application/javascript')
+                return
             workspace = self.headers.get('X-Estimator-Documentation-Workspace')
             request_id = self.headers.get('X-Estimator-Documentation-Request')
             if workspace is not None or request_id is not None:
@@ -347,6 +382,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             if scheduler_http.dispatch(self, route):
                 return
             if contacts_http.dispatch(self, route):
+                return
+            if participants_http.dispatch(self, route):
                 return
             commercial_http = CommercialHTTP(commercial,
                 derive=lambda body, include_pdfs=False: derive_estimates(store, body, edition=edition,
@@ -391,6 +428,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     service, token = certificate_context(self.path)
                     self.send_payload(200, certificate_response(token, service.list_documents()))
                 elif route == '/api/certifications/defaults':
+                    self.send_payload(200, certifications.get_defaults(owner_id=(self.crm_actor or {}).get('id')))
+                elif route == '/api/certifications/defaults/legacy':
                     self.send_payload(200, certifications.get_defaults())
                 elif route == '/api/certifications/legacy':
                     self.send_payload(200, certifications.list_documents())
@@ -476,7 +515,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_report(store.quote(route[len("/api/quotes/"):-len("/report.pdf")]), "Saved quote")
                 elif route.startswith("/api/quotes/"):
                     self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
-                elif route in {'/settings-layout.css', '/contacts.js', '/contacts.css', '/personal-signature.js', '/personal-details.js', '/document-workflow-board.js', '/swms.js', '/swms.css', '/scheduler.js', '/scheduler.css', '/commercial-panels.js', '/commercial-documents.js', '/commercial-documents.css', '/commercial-pricing-picker.js', '/commercial-pricing-picker.css', '/certification.js', '/certification.css', '/cover-sheets.js', '/documentation.js', '/documentation.css', '/notifications.js', '/notifications.css'}:
+                elif route in {'/settings-layout.css', '/contacts.js', '/crm-activity.js', '/contacts.css', '/personal-signature.js', '/personal-details.js', '/document-workflow-board.js', '/swms.js', '/swms.css', '/scheduler.js', '/scheduler.css', '/commercial-panels.js', '/commercial-documents.js', '/commercial-documents.css', '/commercial-pricing-picker.js', '/commercial-pricing-picker.css', '/certification.js', '/certification.css', '/cover-sheets.js', '/documentation.js', '/documentation.css', '/notifications.js', '/notifications.css'}:
                     kind = 'text/javascript; charset=utf-8' if route.endswith('.js') else 'text/css; charset=utf-8'
                     self.send_payload(200, (ROOT / 'static' / route[1:]).read_bytes(), kind)
                 elif route in {'/project-popup.css', '/project-pane.js', '/project-details.js', '/games/play.js', '/games/play.css', '/games/fireline-art.js', '/games/fireline.js', '/penetration-references.js', '/sounds/type.mp3', '/sounds/gameover.mp3', '/sounds/flame-whoosh.wav', '/takeoff-visual-search-icon.png', '/takeoff-ocr-icon.png', '/header-steel-intumescent.png', '/sounds/checkpoint.ogg', '/sounds/loading.mp3', '/sounds/new-explosion.mp3', '/sounds/hover.mp3', '/sounds/select.mp3', '/sounds/select-2.mp3', '/sounds/mixkit-vintage-dot-printing-1371.wav', '/takeoff-visual-search.js', '/takeoff-visual-search.css', '/takeoff-ocr-layer.js', '/takeoff-ocr-layer.css', '/header-menu-sounds.js', '/audio-settings.js', '/sounds/mgs1-menu-move.mp3', '/sounds/mgs-confirm2.mp3', '/brand-boot.js', '/brand-boot.css', '/classifire-app.ico', '/register-references.js', '/travel.js', '/travel.css', '/maps-setup.html', '/pdf-cursors.css', '/cursors/pointer.png', '/cursors/precision.png', '/cursors/move.png', '/cursors/text.png', '/cursors/handwriting.png', '/cursors/link.png', '/cursors/resize-nwse.png', '/cursors/resize-nesw.png', '/cursors/resize-horizontal.png', '/cursors/resize-vertical.png', '/cursors/unavailable.png', '/cursors/busy.png', "/", "/index.html", "/company-settings.js", "/classifire-logo.png", "/main-layout.js", "/downloads.css", "/activity.js", "/calculation-queue.js", "/searchable-choice.js", "/penetration-presentation.js", "/icons/navigation-takeoffs.svg", "/icons/navigation-takeoffs.jpg", "/icons/navigation-help.jpg", "/theme.js", "/language.js", "/language-catalog.js", "/language.css", "/theme.css", "/laser.css", "/laser-steel.svg", "/home-steel-frame.png", "/header-layout.css", "/workspace-art.css", "/pointer-effects.css", "/pointer-effects.js", "/laser-reticle.svg", "/takeoff-header-steel.png", "/takeoff-header-ductwork.png", "/takeoff-header-physical.png", "/takeoff-header-service-plans.png", "/header-steel-spray.png", "/header-steel-board.png", "/header-ductwork.png", "/header-firestopping.png", "/header-estimate.png", "/header-projects.png", "/projects-evidence-banner.png", "/header-firestopping-library.png", "/header-technical-library.png", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/library-detail-text.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/icons/navigation-home.png", "/icons/document.png", "/icons/schedule-add.png", "/icons/navigation-help.png", "/icons/navigation-takeoffs.png", "/icons/takeoff-visibility.jpg", "/icons/takeoff-colour-wheel.png", "/icons/takeoff-legend.png", "/ceasefire-logo.png", "/ceasefire-app.ico", "/fonts/Montserrat-Variable.ttf", "/fonts/Vera.ttf", "/fonts/VeraBd.ttf", "/fonts/Montserrat-Regular.ttf", "/fonts/Montserrat-Bold.ttf", "/fonts/Montserrat-Italic.ttf", "/fonts/Montserrat-BoldItalic.ttf", "/fonts/Montserrat-Italic-Variable.ttf", "/takeoffs.js", "/takeoffs.css", "/takeoff-geometry.js", "/takeoff-physical.js", "/takeoff-annotations.js", "/takeoff-signatures.js", "/takeoff-graphics.js", "/takeoff-graphics-ui.js", "/takeoff-pane-resize.js", "/takeoff-initial-pages.js", "/takeoff-pdf-tools.js", "/takeoff-pdf-tools.css", "/icons/default-memory.svg", "/icons/takeoff-set-default.png", "/icons/signature.svg", "/help-glossary.js", "/help-glossary.css", "/takeoff-search.js", "/takeoff-shortcuts.js", "/icons/takeoff-callout.png", "/takeoff-pdf-worker.mjs", "/takeoff-library-links.js", "/icons/takeoff-visibility.png", "/icons/takeoff-bullet-list.png", "/icons/takeoff-numbered-list.png", "/icons/takeoff-add-service.png", "/icons/takeoff-add-barrier.png", "/icons/takeoff-transfer.png", "/icons/takeoff-measure.png", "/header-tagline-media.js", "/header-tagline-character.gif", "/header-tagline-character-still.png"}:
@@ -566,7 +605,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if set(body) not in ({'fields', 'expected_version'}, {'fields', 'expected_version', 'signature_image', 'signature_name'}):
                         raise ValidationError('Include the signer details and current defaults version.')
                     signature = {key: body[key] for key in ('signature_image', 'signature_name') if key in body}
-                    self.send_payload(200, certifications.save_defaults(body['fields'], body['expected_version'], **signature))
+                    self.send_payload(200, certifications.save_defaults(body['fields'], body['expected_version'],
+                                                                       owner_id=(self.crm_actor or {}).get('id'), **signature))
                 elif re.fullmatch(r'/api/certifications/[a-z0-9-]{1,64}/revisions', route):
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})
@@ -936,8 +976,14 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             # Disabled assets remain absent for metadata probes as well.
             do_HEAD = handle_request
 
+        def log_request(self, code='-', size='-'):
+            LOGGER.info('%s %s %s', self.command, audit_route(urlsplit(self.path).path), code)
+
         def log_message(self, format_string, *args):
-            LOGGER.info("%s", format_string % args)
+            # BaseHTTPRequestHandler error messages can contain raw request
+            # lines. Route/status logs above and application exceptions provide
+            # diagnostics without recording capabilities or private searches.
+            LOGGER.info('HTTP protocol message')
 
     class Server(ThreadingHTTPServer):
         # ThreadingHTTPServer enables SO_REUSEADDR by default. On Windows that

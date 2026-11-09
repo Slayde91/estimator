@@ -10,9 +10,12 @@ import unicodedata
 from uuid import uuid4
 
 from .catalog import ValidationError
+from . import crm_identity
+from . import crm_activity
 
 
-LEAD_STATUSES = ("New", "Assisting", "Interstate", "Qualified", "Disqualified", "Not Applicable")
+LEAD_STATUSES = ("New", "Contacted", "Qualified", "Quoting", "Negotiating", "Won", "Lost")
+LEGACY_LEAD_STATUSES = ("Assisting", "Interstate", "Disqualified", "Not Applicable")
 PERSON_FIELDS = ("name", "phone", "company", "title", "email")
 ACCOUNT_FIELDS = ("company", "billing_address", "abn_acn")
 LEAD_FIELDS = (*PERSON_FIELDS, "site_address", "billing_address", "description", "status", "abn_acn", "next_action", "follow_up_date")
@@ -51,7 +54,7 @@ def checked_fields(kind, values):
             except ValueError:
                 raise ValidationError("Enter a valid follow-up date.") from None
         clean["status"] = clean["status"] or LEAD_STATUSES[0]
-        if clean["status"] not in LEAD_STATUSES:
+        if clean["status"] not in (*LEAD_STATUSES, *LEGACY_LEAD_STATUSES):
             raise ValidationError("Choose a status from the lead board.")
     return clean
 
@@ -111,8 +114,9 @@ def _migrate_lead_contact_index(db):
 
 
 class ContactsStore:
-    def __init__(self, path):
+    def __init__(self, path, staff_provider=None):
         self.path = Path(path)
+        self.staff_provider = staff_provider or (lambda: [])
         with self.connection() as db:
             db.executescript(f"""
                 BEGIN IMMEDIATE;
@@ -151,6 +155,8 @@ class ContactsStore:
             db.execute("""CREATE TABLE IF NOT EXISTS lead_followups (
                 lead_id TEXT PRIMARY KEY REFERENCES leads(id) ON DELETE CASCADE,
                 next_action TEXT NOT NULL, follow_up_date TEXT NOT NULL)""")
+            crm_identity.initialize(db)
+            crm_activity.schema(db)
 
     @contextmanager
     def connection(self):
@@ -166,19 +172,23 @@ class ContactsStore:
             db.execute("BEGIN")
             if 'supplier_account_id' in changed:
                 row = db.execute("SELECT company FROM accounts WHERE id=?", (order['supplier_account_id'],)).fetchone()
-                if not row or row['company'] != order['supplier']:
+                if not row or row['company'] != order['supplier'] or order['supplier_account_id'] in crm_identity.aliases(db)['accounts']:
                     raise ValidationError('Choose the matching Company.')
             if 'supplier_contact_id' in changed:
                 row = db.execute("SELECT name,account_id FROM contacts WHERE id=?", (order['supplier_contact_id'],)).fetchone()
+                mappings = crm_identity.aliases(db)
+                owner = (row['account_id'] or '') if row else ''
+                supplier = order.get('supplier_account_id', '')
                 if (not row or row['name'] != order['supplier_contact']
-                        or (row['account_id'] or '') != order.get('supplier_account_id', '')):
+                        or order['supplier_contact_id'] in mappings['contacts']
+                        or mappings['accounts'].get(owner, owner) != mappings['accounts'].get(supplier, supplier)):
                     raise ValidationError('Choose an existing Contact linked to this Company.')
             if 'site_contact_id' in changed:
                 row = db.execute("SELECT name FROM contacts WHERE id=?", (order['site_contact_id'],)).fetchone()
-                if not row or row['name'] != order['ship_to_name']:
+                if not row or row['name'] != order['ship_to_name'] or order['site_contact_id'] in crm_identity.aliases(db)['contacts']:
                     raise ValidationError('Choose an existing Contact for this name, or enter the name without a Contact link.')
 
-    def list(self, *, history_contact_id=None, history_account_id=None):
+    def list(self, *, history_contact_id=None, history_account_id=None, raw_identities=False):
         with self.connection() as db:
             db.execute("BEGIN")
             contacts = """
@@ -198,8 +208,13 @@ class ContactsStore:
                     ORDER BY p.name COLLATE NOCASE,l.id
                 """)],
             }
+            crm_activity.add_metadata(db,result)
+            used={row['status'] for row in result['leads']}
+            result['statuses']=(*LEAD_STATUSES,*(s for s in LEGACY_LEAD_STATUSES if s in used))
+            result['sales_stages']=LEAD_STATUSES
             if history_contact_id or history_account_id:
                 result['converted_leads'] = self._converted_lead_history(db, history_contact_id, history_account_id)
+            crm_identity.project_directory(db, result, raw_identities)
             return result
 
     @staticmethod
@@ -215,23 +230,33 @@ class ContactsStore:
         return db.execute("SELECT version FROM revision WHERE id=1").fetchone()[0]
 
     @contextmanager
-    def writing(self, version):
+    def writing(self, version, actor=None):
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
             if type(version) is not int or self._version(db) != version:
                 raise ContactsConflict("Contacts have changed. Reopen the form to review the latest values.")
+            crm_activity.begin_tracking(db)
             yield db
+            crm_activity.finish_tracking(db, actor)
+            crm_identity.index_changes(db)
             db.execute("UPDATE revision SET version=version+1 WHERE id=1")
 
     @staticmethod
-    def _account(db, company, billing_address="", abn_acn=""):
+    def _account(db, company, billing_address="", abn_acn="", identity_review=None):
         if not company:
             return None
         key = company_key(company)
-        found = db.execute("SELECT id,billing_address,abn_acn FROM accounts WHERE lookup_key=?", (key,)).fetchone()
+        found = db.execute("SELECT id,company,billing_address,abn_acn FROM accounts WHERE lookup_key=?", (key,)).fetchone()
         if found:
+            if found['id'] in crm_identity.aliases(db)['accounts']:
+                raise crm_identity.IdentityConflict('This company was merged. Select its current directory entry.')
             if abn_acn and found["abn_acn"] and abn_acn != found["abn_acn"]:
-                raise ValidationError("Company already has a different ABN/ACN. Edit its company details first.")
+                prior = crm_identity.keys('accounts',dict(found))['ABN/ACN']
+                if not prior or prior != crm_identity.keys('accounts',{'abn_acn':abn_acn})['ABN/ACN']:
+                    raise ValidationError("Company already has a different ABN/ACN. Edit its company details first.")
+            if abn_acn and not found["abn_acn"]:
+                crm_identity.check_save(db,'accounts',{'company':found['company'],'billing_address':billing_address or found['billing_address'],
+                    'abn_acn':abn_acn},found['id'],identity_review or {})
             if billing_address and not found["billing_address"]:
                 db.execute("UPDATE accounts SET billing_address=? WHERE id=?", (billing_address, found["id"]))
             if abn_acn and not found["abn_acn"]:
@@ -278,10 +303,14 @@ class ContactsStore:
     def _converted_lead_history(db, contact_id, account_id):
         # Read history and active leads from the same directory revision.
         column, value = ('contact_id', contact_id) if contact_id else ('account_id', account_id)
-        rows = db.execute(f"""SELECT r.lead_id,r.project_no,d.converted_at,d.snapshot
+        group = crm_identity.group_ids(crm_identity.aliases(db)['contacts' if contact_id else 'accounts'], value)
+        placeholders = ','.join('?' for _ in group)
+        rows = db.execute(f"""SELECT r.lead_id,r.project_no,d.converted_at,d.snapshot,e.actor_id,e.actor_name
             FROM converted_leads r LEFT JOIN lead_conversion_details d ON d.lead_id=r.lead_id
-            WHERE r.{column}=? ORDER BY d.converted_at DESC,r.project_no,r.lead_id""", (value,))
-        return [{**dict(row), 'snapshot': json.loads(row['snapshot']) if row['snapshot'] else None} for row in rows]
+            LEFT JOIN crm_events e ON e.lead_id=r.lead_id AND e.event_type='Converted'
+            WHERE r.{column} IN ({placeholders}) ORDER BY d.converted_at DESC,r.project_no,r.lead_id""", tuple(group))
+        return [{key:val for key,val in {**dict(row),'snapshot':json.loads(row['snapshot']) if row['snapshot'] else None}.items()
+                 if val is not None or key not in ('actor_id','actor_name')} for row in rows]
 
     @staticmethod
     def _checked_links(db, ident, raw, catalog):
@@ -299,19 +328,25 @@ class ContactsStore:
                 raise ValidationError("Choose each related record once (maximum 1,000 per section).")
             if kind == "contacts":
                 known = {row[0] for row in db.execute("SELECT id FROM contacts")}
-                if any(value not in known for value in values):
+                mappings = crm_identity.aliases(db)
+                if any(value not in known or value in mappings['contacts'] for value in values):
                     raise ValidationError("A selected contact is no longer available. Reopen the company.")
                 selected = set(values)
+                inherited = {row['id'] for row in catalog['linked']['contacts'] if row.get('inherited')}
+                selected -= inherited
                 omitted_lead = db.execute("""SELECT c.id FROM contacts c JOIN leads l ON l.contact_id=c.id
                     WHERE c.account_id=?""", (ident,)).fetchall()
-                if any(row[0] not in selected for row in omitted_lead):
+                if any(row[0] not in selected and row[0] not in mappings['contacts'] for row in omitted_lead):
                     raise ValidationError("A contact linked to a lead must keep a company. Reassign it to another company instead.")
-                checked[kind] = values
+                checked[kind] = sorted(selected)
                 continue
             choices = {entry["id"]: entry for entry in catalog["choices"][kind]}
             automatic = {entry["id"] for entry in catalog["linked"][kind] if entry.get("automatic")}
+            inherited = {entry['id'] for entry in catalog['linked'][kind] if entry.get('inherited')}
             entries = []
             for value in values:
+                if value in inherited:
+                    continue
                 entry = choices.get(value)
                 if entry is None and (kind, value) not in prior:
                     raise ValidationError("A selected related record is no longer available. Reload the list before linking it.")
@@ -323,16 +358,21 @@ class ContactsStore:
     @staticmethod
     def _replace_links(db, ident, links):
         selected = set(links["contacts"])
+        merged_people = crm_identity.aliases(db)['contacts']
         for row in db.execute("SELECT id FROM contacts WHERE account_id=?", (ident,)).fetchall():
-            if row[0] not in selected:
+            if row[0] not in selected and row[0] not in merged_people:
                 db.execute("UPDATE contacts SET account_id=NULL WHERE id=?", (row[0],))
         db.executemany("UPDATE contacts SET account_id=? WHERE id=?", ((ident, person) for person in selected))
-        db.execute("DELETE FROM account_links WHERE account_id=?", (ident,))
-        db.executemany("INSERT INTO account_links(account_id,kind,target_id,label) VALUES(?,?,?,?)",
-                       ((ident, kind, target, label) for kind in LINK_KINDS if kind != "contacts"
-                        for target, label in links[kind]))
+        wanted = {(kind, target):label for kind in LINK_KINDS if kind != 'contacts' for target,label in links[kind]}
+        prior = {(row['kind'],row['target_id']):row['label'] for row in db.execute(
+            'SELECT kind,target_id,label FROM account_links WHERE account_id=?',(ident,))}
+        db.executemany("DELETE FROM account_links WHERE account_id=? AND kind=? AND target_id=?",
+                       ((ident,*key) for key in prior.keys()-wanted.keys()))
+        db.executemany("""INSERT INTO account_links(account_id,kind,target_id,label) VALUES(?,?,?,?)
+            ON CONFLICT(account_id,kind,target_id) DO UPDATE SET label=excluded.label""",
+            ((ident,*key,label) for key,label in wanted.items() if prior.get(key)!=label))
 
-    def save(self, kind, body, *, link_catalog=None):
+    def save(self, kind, body, *, link_catalog=None, actor=None):
         if not isinstance(body, dict):
             raise ValidationError("Use the fields provided on this form.")
         data = checked_fields(kind, body.get("fields"))
@@ -344,19 +384,37 @@ class ContactsStore:
             raise ValidationError(CONTACT_CREATION_REQUIRED_MESSAGE)
         if "links" in body and kind != "accounts":
             raise ValidationError("Related records can only be changed from a company.")
-        with self.writing(body.get("version")) as db:
+        with self.writing(body.get("version"), actor) as db:
             prior_id = body.get("id")
             ident = self._id(db, kind, prior_id)
+            mappings = crm_identity.aliases(db)
+            if ident in mappings.get(kind, {}):
+                raise crm_identity.IdentityConflict('This record was merged. Open its current directory entry.')
+            if kind == 'accounts' and "links" in body and (ident in mappings['accounts'].values()
+                    or any(row.get('inherited') for rows in (link_catalog or {}).get('linked', {}).values() for row in rows)
+                    or db.execute("""SELECT 1 FROM contacts c JOIN crm_contact_merges m ON m.source_id=c.id
+                         WHERE c.account_id=? AND m.undone_at IS NULL LIMIT 1""", (ident,)).fetchone()):
+                if body.get('identity_version') != 1 or (link_catalog or {}).get('version') != body.get('version'):
+                    raise crm_identity.IdentityConflict('Reopen the company to review links from merged records.')
             links = self._checked_links(db, ident, body["links"], link_catalog) if "links" in body else None
             if kind == "leads":
-                previous = db.execute("""SELECT l.contact_id,l.person_snapshot,l.site_address,c.account_id
+                previous = db.execute("""SELECT l.contact_id,l.person_snapshot,l.site_address,l.status,c.account_id
                     FROM leads l JOIN contacts c ON c.id=l.contact_id WHERE l.id=?""", (ident,)).fetchone() if prior_id else None
                 person_id = body.get('contact_id', previous['contact_id'] if previous else '')
+                if previous and 'status' not in body['fields']:
+                    data['status']=previous['status']
                 if person_id:
                     self._id(db, 'contacts', person_id)
+                    if person_id in mappings['contacts'] and not (previous and previous['contact_id'] == person_id):
+                        raise crm_identity.IdentityConflict('This contact was merged. Select its current directory entry.')
                 elif person_id != '' and person_id is not None:
                     raise ValidationError('Choose a valid Contact.')
                 prior_snapshot = json.loads(previous['person_snapshot']) if previous and previous['person_snapshot'] else {}
+                if previous and not prior_snapshot and previous['account_id'] in mappings['accounts']:
+                    # Preserve the raw employer behind a legacy lead's documented
+                    # join fallback when saving an otherwise unchanged enquiry.
+                    old = db.execute('SELECT company,abn_acn FROM accounts WHERE id=?', (previous['account_id'],)).fetchone()
+                    prior_snapshot = {**dict(old), 'account_id':previous['account_id']}
                 # An unchanged lead snapshot stays linked even after the Company is renamed
                 # or its ABN changes. A new selection must match today's directory.
                 same_snapshot = (prior_snapshot and company_key(prior_snapshot['company']) == company_key(data['company'])
@@ -373,22 +431,28 @@ class ContactsStore:
                             raise ValidationError('Choose the matching Company.')
                     elif account != '' and account is not None:
                         raise ValidationError('Choose a valid Company.')
-                    account = self._account(db, data['company'], data['billing_address'], data['abn_acn'])
+                    if not db.execute('SELECT 1 FROM accounts WHERE lookup_key=?', (company_key(data['company']),)).fetchone():
+                        crm_identity.check_save(db, 'accounts', {key:data[key] for key in ACCOUNT_FIELDS}, None, body)
+                    account = self._account(db, data['company'], data['billing_address'], data['abn_acn'], body)
                 if not person_id:
                     person_id = str(uuid4())
-                    self._person(db, person_id, data, account_id=account, check_duplicate=body.get("create_separate_contact") is not True)
+                    crm_identity.check_save(db, 'contacts', data, None, body, account)
+                    self._person(db, person_id, data, account_id=account)
                 site = company_key(data['site_address'])
                 prior_account = prior_snapshot.get('account_id') or (previous['account_id'] if previous else None)
                 same_opportunity = (previous and person_id == previous['contact_id'] and account == prior_account
                                     and site == company_key(previous['site_address']))
                 if not same_opportunity and body.get('keep_separate_lead') is not True:
                     matches = []
-                    related = db.execute("""SELECT l.id,l.site_address,l.description,l.person_snapshot,c.account_id
+                    person_ids = crm_identity.group_ids(mappings['contacts'], person_id)
+                    company_ids = crm_identity.group_ids(mappings['accounts'], account)
+                    placeholders = ','.join('?' for _ in person_ids)
+                    related = db.execute(f"""SELECT l.id,l.site_address,l.description,l.person_snapshot,c.account_id
                         FROM leads l JOIN contacts c ON c.id=l.contact_id
-                        WHERE l.contact_id=? AND l.id<>? ORDER BY l.id""", (person_id, ident))
+                        WHERE l.contact_id IN ({placeholders}) AND l.id<>? ORDER BY l.id""", (*person_ids, ident))
                     for other in related:
                         other_account = json.loads(other['person_snapshot'])['account_id'] if other['person_snapshot'] else other['account_id']
-                        if other_account != account or (site and site != company_key(other['site_address'])):
+                        if other_account not in company_ids or (site and site != company_key(other['site_address'])):
                             continue
                         if data['description'] and other['description'] and company_key(data['description']) != company_key(other['description']):
                             continue
@@ -419,9 +483,18 @@ class ContactsStore:
                     else:
                         db.execute("DELETE FROM lead_followups WHERE lead_id=?", (ident,))
             elif kind == "contacts":
-                if not data["company"] and db.execute("SELECT 1 FROM leads WHERE contact_id=?", (ident,)).fetchone():
-                    raise ValidationError("A contact linked to a lead must have a company.")
-                self._person(db, ident, data, check_duplicate=not prior_id and body.get("create_separate_contact") is not True)
+                if not data['company']:
+                    person_ids = crm_identity.group_ids(mappings['contacts'], ident)
+                    placeholders = ','.join('?' for _ in person_ids)
+                    if db.execute(f'SELECT 1 FROM leads WHERE contact_id IN ({placeholders})', tuple(person_ids)).fetchone():
+                        raise ValidationError("A contact linked to a lead must have a company.")
+                account = self._account(db, data['company'])
+                crm_identity.check_save(db, 'contacts', data, prior_id, body, account)
+                if prior_id:
+                    old_owner = db.execute('SELECT account_id FROM contacts WHERE id=?', (prior_id,)).fetchone()[0]
+                    if old_owner in mappings['accounts'] and mappings['accounts'][old_owner] == account:
+                        account = old_owner
+                self._person(db, ident, data, account_id=account)
             else:
                 key = company_key(data["company"])
                 conflict = db.execute("SELECT id FROM accounts WHERE lookup_key=? AND id<>?", (key, ident)).fetchone()
@@ -429,18 +502,24 @@ class ContactsStore:
                     raise ValidationError("A company with this name already exists.")
                 if prior_id and "abn_acn" not in body["fields"]:
                     data["abn_acn"] = db.execute("SELECT abn_acn FROM accounts WHERE id=?", (ident,)).fetchone()[0]
+                crm_identity.check_save(db, 'accounts', data, prior_id, body)
                 db.execute("""INSERT INTO accounts(id,company,lookup_key,billing_address,abn_acn) VALUES(?,?,?,?,?)
                               ON CONFLICT(id) DO UPDATE SET company=excluded.company,lookup_key=excluded.lookup_key,
                               billing_address=excluded.billing_address,abn_acn=excluded.abn_acn""",
                            (ident, data["company"], key, data["billing_address"], data["abn_acn"]))
                 if links is not None:
                     self._replace_links(db, ident, links)
+            crm_activity.assign(db,kind,ident,body,self.staff_provider)
             version = self._version(db) + 1
             contact = None
             if kind == 'contacts':
                 contact = dict(db.execute('''SELECT c.id,c.name,c.phone,c.title,c.email,c.account_id,
                     coalesce(a.company,'') AS company,coalesce(a.abn_acn,'') AS abn_acn
                     FROM contacts c LEFT JOIN accounts a ON a.id=c.account_id WHERE c.id=?''', (ident,)).fetchone())
+                if contact['account_id'] in mappings['accounts']:
+                    owner = mappings['accounts'][contact['account_id']]
+                    account = db.execute('SELECT company,abn_acn FROM accounts WHERE id=?', (owner,)).fetchone()
+                    contact.update(account_id=owner, **dict(account))
         result = {"id": ident, "version": version}
         if kind == "accounts":
             result["account"] = {"id": ident, **data}
@@ -448,7 +527,7 @@ class ContactsStore:
             result['contact'] = contact
         return result
 
-    def convert(self, body, create_project):
+    def convert(self, body, create_project, *, actor=None):
         if not isinstance(body, dict) or set(body) != {'id', 'version'} or not isinstance(body['id'], str):
             raise ValidationError('Choose a saved lead to convert.')
         with self.connection() as db:
@@ -466,6 +545,7 @@ class ContactsStore:
             if lead is None:
                 raise ValidationError('This lead could not be found.')
             lead = self._lead_record(lead)
+            lead.update(crm_activity.record_metadata(db,'leads',lead['id']))
             # Validate the saved Lead snapshot before the numbered file save can
             # allocate a Project number or write a conversion replay receipt.
             # Existing conversion receipts above remain idempotent, including
@@ -480,15 +560,16 @@ class ContactsStore:
                        (lead['id'], lead['contact_id'], lead['account_id'], result['project_no'], result['path']))
             db.execute('INSERT INTO lead_conversion_details(lead_id,snapshot) VALUES (?,?)',
                        (lead['id'], json.dumps(lead, ensure_ascii=False, separators=(',', ':'))))
+            crm_activity.event(db,'leads',lead['id'],'Converted',{'project_no':result['project_no'],'status':lead['status']},actor)
             db.execute('DELETE FROM leads WHERE id=?', (lead['id'],))
             db.execute('UPDATE revision SET version=version+1 WHERE id=1')
             return result
 
-    def import_rows(self, kind, records, version):
+    def import_rows(self, kind, records, version, *, actor=None):
         if kind not in {"accounts", "contacts"}:
             raise ValidationError("Select the Contacts or Companies template.")
         added = skipped = 0
-        with self.writing(version) as db:
+        with self.writing(version, actor) as db:
             for row_number, raw in records:
                 try:
                     data = checked_fields(kind, raw)
@@ -497,6 +578,8 @@ class ContactsStore:
                                               (company_key(data["company"]),)).fetchone()
                         if existing and existing[0] and data["billing_address"] and existing[0] != data["billing_address"]:
                             raise ValidationError("Company already has a different billing address. Edit its company details first.")
+                        if not existing:
+                            crm_identity.check_save(db, 'accounts', data, None, {})
                         self._account(db, data["company"], data["billing_address"], data["abn_acn"])
                         duplicate = existing is not None
                     else:
@@ -505,9 +588,15 @@ class ContactsStore:
                             AND phone=? AND title=? AND email=? COLLATE NOCASE AND account_id IS ?""",
                             (data["name"], data["phone"], data["title"], data["email"], account)).fetchone() is not None
                         if not duplicate:
+                            crm_identity.check_save(db, 'contacts', data, None, {}, account)
                             self._person(db, str(uuid4()), data, check_duplicate=True)
                     skipped += int(duplicate)
                     added += int(not duplicate)
+                    crm_identity.index_changes(db)
+                except crm_identity.DuplicateReview as exc:
+                    first = exc.decision['matches'][0]
+                    reasons = ', '.join(first['reasons'])
+                    raise ValidationError(f'Row {row_number}: review the possible duplicate ({reasons}) in the directory before importing.') from exc
                 except ValidationError as exc:
                     raise ValidationError(f"Row {row_number}: {exc}") from exc
         return {"added": added, "matched": skipped}

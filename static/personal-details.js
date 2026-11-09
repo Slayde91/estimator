@@ -6,10 +6,13 @@
   const controls = Object.fromEntries(names.map(name => [name, document.getElementById('personal-' + name)]));
   const status = document.getElementById('personal-details-status');
   const button = document.getElementById('personal-details-save');
+  const review = document.getElementById('personal-details-review');
+  const preview = document.getElementById('personal-details-previous');
   let current = null, busy = false, conflicted = false, loading = null, generation = 0;
+  let previous = null, copiedSignature = null;
   const fields = () => Object.fromEntries(names.map(name => [name, controls[name].value]));
   const stamp = value => JSON.stringify(value);
-  const dirty = () => !!current && (conflicted || stamp(fields()) !== stamp(current.fields));
+  const dirty = () => !!current && (conflicted || !!copiedSignature || stamp(fields()) !== stamp(current.fields));
   function valid(value) {
     if (!value || !Number.isInteger(value.version) || value.version < 1 || !value.fields ||
         names.some(name => typeof value.fields[name] !== 'string' || value.fields[name].length > 8000)) {
@@ -26,6 +29,10 @@
   function lock() {
     for (const control of Object.values(controls)) control.disabled = busy || !current;
     button.disabled = busy || !current;
+    if (review) {
+      review.hidden = window.ClassifireAccess?.user?.role !== 'admin';
+      review.disabled = busy || !current;
+    }
     form.setAttribute('aria-busy', String(busy));
   }
   function render(value) {
@@ -33,8 +40,8 @@
     for (const name of names) controls[name].value = value.fields[name];
     lock();
   }
-  async function request(options) {
-    const response = await fetch('/api/certifications/defaults', options);
+  async function request(options, path = '/api/certifications/defaults') {
+    const response = await fetch(path, options);
     let value;
     try { value = await response.json(); }
     catch { throw new Error('Personal details could not be confirmed. Your entries are kept; save again to retry.'); }
@@ -43,6 +50,54 @@
       error.status = response.status; throw error;
     }
     return valid(value);
+  }
+  function closePreview() {
+    previous = null;
+    const image = document.getElementById('personal-details-previous-image');
+    image.removeAttribute('src');
+    document.getElementById('personal-details-previous-fields').replaceChildren();
+    preview.hidden = true;
+  }
+  async function reviewPrevious() {
+    if (busy || !current || window.ClassifireAccess?.user?.role !== 'admin') return;
+    busy = true; lock();
+    try {
+      closePreview();
+      previous = await request({cache:'no-store'}, '/api/certifications/defaults/legacy');
+      const list = document.getElementById('personal-details-previous-fields');
+      for (const name of names) {
+        const title = document.createElement('dt'), value = document.createElement('dd');
+        title.textContent = controls[name].closest('label').querySelector('span').textContent;
+        value.textContent = previous.fields[name] || '—';
+        list.append(title, value);
+      }
+      const image = document.getElementById('personal-details-previous-image');
+      image.hidden = !previous.signature_image;
+      if (previous.signature_image) image.src = previous.signature_image;
+      document.getElementById('personal-details-use').disabled =
+        !previous.signature_image && !Object.values(previous.fields).some(Boolean);
+      preview.hidden = false;
+    } catch (error) { message(error.message, true); }
+    finally { busy = false; lock(); }
+  }
+  async function usePrevious() {
+    if (busy || !previous) return;
+    busy = true; lock();
+    try {
+      const accepted = await window.CeasefireDialogs.confirm('Use these details for my profile',
+        'Copy the displayed details into your profile? Choose Save to keep them.', 'Use entered details', 'Cancel');
+      if (!accepted) return;
+      for (const name of names) controls[name].value = previous.fields[name];
+      copiedSignature = previous.signature_image ? {signature_image:previous.signature_image, signature_name:previous.signature_name} : null;
+      generation++; closePreview(); message(dirty() ? 'Unsaved changes' : 'Saved');
+    } catch (error) { message(error.message, true); }
+    finally { busy = false; lock(); }
+  }
+  if (review && preview) {
+    review.addEventListener('click', reviewPrevious);
+    document.getElementById('personal-details-use').addEventListener('click', usePrevious);
+    document.getElementById('personal-details-close').addEventListener('click', closePreview);
+    window.ClassifireAccess?.ready.then(lock);
   }
   async function refresh() {
     if (busy || dirty()) return;
@@ -71,10 +126,8 @@
       }
       message('Saving…');
       const saved = await request({method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({fields:desired, expected_version:current.version})});
-      // No signature keys are sent. Saving the text must preserve separately
-      // saved signature artwork and every existing certificate snapshot.
-      current = saved; conflicted = false;
+        body:JSON.stringify({fields:desired, expected_version:current.version, ...copiedSignature})});
+      current = saved; conflicted = false; copiedSignature = null;
       if (stamp(fields()) === stamp(desired)) render(saved);
       message(dirty() ? 'Unsaved changes' : 'Personal details saved. They are copied to a certificate only when it is signed.');
       if (typeof CustomEvent === 'function') window.dispatchEvent(new CustomEvent('ceasefire:signer-defaults-saved', {detail:saved}));
@@ -100,7 +153,7 @@
   });
   window.CeasefirePersonalDetails = Object.freeze({
     hasUnsavedChanges:dirty, hasPendingOperation:() => busy || !!loading,
-    fingerprint:() => stamp({fields:fields(), version:current?.version, conflicted, busy}), refresh
+    fingerprint:() => stamp({fields:fields(), version:current?.version, copiedSignature, conflicted, busy}), refresh
   });
   lock(); loading = refresh().finally(() => { loading = null; });
 })();

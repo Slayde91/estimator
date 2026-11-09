@@ -6,3 +6,10 @@
 .project-new-dialog .project-account-options{max-height:180px}
 .project-new-dialog .actions{margin-top:18px}
 @media(max-width:520px){.project-new-dialog{width:calc(100vw - 24px)}.project-new-dialog .project-pane-fields{gap:14px 10px}.project-new-dialog .field>label,.project-new-dialog .field>span{font-size:11px}.project-new-dialog input{font-size:12px;padding-inline:10px}.project-new-dialog .project-account-search input{padding-inline-start:32px}}
+#project-participants-panel{border-top:1px solid var(--line);margin-top:20px;padding-top:14px;min-width:0;overflow-wrap:anywhere}
+#project-participants-panel>summary{font-weight:700;cursor:pointer}
+#project-participants-panel fieldset{border:0;padding:0;margin:10px 0 16px;min-inline-size:0;display:flex;flex-wrap:wrap;gap:10px}
+#project-participants-panel fieldset>.field,#project-participants-panel fieldset>details{flex-basis:100%;min-width:0;margin:0}
+#project-participants-panel select,#project-participants-panel input{min-width:0;max-width:100%}
+#project-participants-panel li{margin-block:6px}
+#project-participants-panel fieldset>details[open]>.field{margin-top:8px}

@@ -181,6 +181,7 @@ const ready = new Promise((resolve, reject) => {
   await page.locator('#estimate-navigation-toggle').click();
   await expect(page.locator('#measurements')).toHaveValue('Keep these unsaved project notes');
   await expect(page.locator('#project-no')).toHaveValue(receipt.project_no);
+  await require('./crm_identity_checks.cjs').checkIdentity(page,port);
   assert.deepEqual(errors, []);
   console.log('Contacts browser acceptance passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; })

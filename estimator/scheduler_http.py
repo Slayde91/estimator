@@ -9,7 +9,8 @@ from .scheduler_map import SchedulerMapTiles
 
 class SchedulerHTTP:
     def __init__(self, path, projects=None):
-        self.store = SchedulerStore(path, project_lookup=projects.scheduler_project if projects is not None else None)
+        self.store = SchedulerStore(path, work_orders=projects.scheduler_work_orders if projects else None,
+                                    work_order_lookup=projects.scheduler_work_order if projects else None)
         self.map_tiles = SchedulerMapTiles(self.store.path.parent / 'scheduler-map-tiles.sqlite3')
 
     def dispatch(self, handler, route):
@@ -23,7 +24,10 @@ class SchedulerHTTP:
                 cookie.load(handler.headers.get('Cookie', ''))
             except CookieError:
                 cookie = SimpleCookie()
-            credential = cookie.get('classifire_scheduler')
+            global_cookie, scheduler_cookie = cookie.get('classifire_access'), cookie.get('classifire_scheduler')
+            credential = global_cookie or scheduler_cookie
+            if global_cookie and scheduler_cookie and not self.store.read('bootstrap', {}, global_cookie.value)['user']:
+                credential = scheduler_cookie
             token = credential.value if credential else None
             query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
             if any(len(values) != 1 for values in query.values()):
@@ -65,7 +69,13 @@ class SchedulerHTTP:
                     # cookie: a delayed response could overwrite a newer login.
                     headers['Set-Cookie'] = f'classifire_scheduler={session}; HttpOnly; SameSite=Strict; Path=/api/scheduler; Max-Age=2592000'
                 elif action == 'logout':
-                    headers['Set-Cookie'] = 'classifire_scheduler=; HttpOnly; SameSite=Strict; Path=/api/scheduler; Max-Age=0'
+                    native_expiry = 'classifire_scheduler=; HttpOnly; SameSite=Strict; Path=/api/scheduler; Max-Age=0'
+                    global_expiry = 'classifire_access=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'
+                    if global_cookie and credential is global_cookie:
+                        headers['Set-Cookie'] = [global_expiry,native_expiry] if scheduler_cookie else global_expiry
+                        result = {**result, 'global_session':True}
+                    else:
+                        headers['Set-Cookie'] = native_expiry
             else:
                 handler.send_payload(405, {'error': 'Use GET or POST for Scheduler.'})
                 return True

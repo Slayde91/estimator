@@ -8,6 +8,7 @@ project/document relationship here; names and filesystem paths are not inputs.
 from .account_relations import DOCUMENT_GROUPS, _identity, _project_label, project_document_cards
 from .catalog import ValidationError
 from .commercial_sources import source_id
+from .crm_identity import group_ids
 
 
 class ContactRelations:
@@ -16,16 +17,20 @@ class ContactRelations:
         self.projects = projects
 
     def view(self, contact_id):
-        directory = self.store.list(history_contact_id=contact_id)
+        directory = self.store.list(history_contact_id=contact_id, raw_identities=True)
+        mappings = directory['identity_aliases']
+        members = group_ids(mappings['contacts'], contact_id)
+        contact_id = mappings['contacts'].get(contact_id, contact_id)
         contact = next((row for row in directory["contacts"] if row["id"] == contact_id), None)
         if not _identity(contact_id) or contact is None:
             raise ValidationError("This contact could not be found. Reload the directory.")
         linked = {kind: {} for kind in ("companies", "projects", "leads", "quotes", "work_orders", "purchase_orders")}
-        company = next((row for row in directory["accounts"] if row["id"] == contact.get("account_id")), None)
+        owner = contact.get('account_id')
+        company = next((row for row in directory["accounts"] if row["id"] == mappings['accounts'].get(owner, owner)), None)
         if company:
             linked["companies"][company["id"]] = {"id": company["id"], "label": company["company"], "available": True}
         for lead in directory['leads']:
-            if lead.get('contact_id') == contact_id:
+            if lead.get('contact_id') in members:
                 linked['leads'][lead['id']] = {'id': lead['id'], 'label': ' · '.join(filter(None, (lead['name'], lead['site_address']))), 'available': True}
 
         # Both snapshots advance only the existing bounded authorized scans.
@@ -45,7 +50,7 @@ class ContactRelations:
             source = row.get("id") or (source_id(row["path"]) if row.get("path") else None)
             if source:
                 sources[source] = token
-            if row.get("contact_id") == contact_id:
+            if row.get("contact_id") in members:
                 linked["projects"][token] = {"id": token, "label": _project_label(row), "available": True}
 
         document_rank = {}
@@ -67,9 +72,9 @@ class ContactRelations:
             roles = []
             if group == 'purchase_orders':
                 order = fields.get('order', {})
-                if order.get('supplier_contact_id') == contact_id:
+                if order.get('supplier_contact_id') in members:
                     roles.append('Supplier contact')
-                if order.get('site_contact_id') == contact_id:
+                if order.get('site_contact_id') in members:
                     roles.append('Site contact')
             if not roles and project_token not in linked["projects"]:
                 continue
@@ -91,6 +96,6 @@ class ContactRelations:
                   for row in listing.get("errors", [])[:100]]
         errors.extend({"name": row.get("title", "Project"), "error": "Saved project source is unavailable."} for row in missing[:100])
         return {"version": directory["version"], "linked": {kind: sorted(rows.values(), key=lambda row: (row["label"].casefold(), row["id"])) for kind, rows in linked.items()},
-                "converted_leads": directory["converted_leads"],
+                "converted_leads": directory["converted_leads"], "party_ids":sorted(members),
                 "scan_pending": bool(listing.get("scan_pending") or register.get("scan_pending")),
                 "error_count": max(listing.get("error_count", 0), register.get("error_count", 0)) + len(missing), "errors": errors}

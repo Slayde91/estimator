@@ -24,6 +24,17 @@ async function scheduler() {
   await expect(page.locator('#scheduler-root')).toBeVisible();
 }
 async function tab(name) {await page.locator('.scheduler-tabs').getByRole('button',{name,exact:true}).click();}
+async function openAdd(label) {
+  const action=page.getByRole('button',{name:label,exact:true});
+  for (const width of [1915,631,390]) {
+    await page.setViewportSize({width,height:970});
+    await expect(action).toHaveText('+'); await expect(action).toHaveAttribute('title',label);
+    const box=await action.boundingBox();
+    assert.ok(box.width>=44 && box.width===box.height && box.x>=0 && box.x+box.width<=width);
+    assert.equal(await action.evaluate(node=>getComputedStyle(node).backgroundColor),'rgb(208, 0, 27)');
+  }
+  await page.setViewportSize({width:1915,height:970}); await action.click();
+}
 async function submit(name) {await page.locator('dialog[open]').getByRole('button',{name,exact:true}).click(); await expect(page.locator('dialog[open]')).toHaveCount(0);}
 async function api(route) {return page.evaluate(async route => {const response = await fetch('/api/scheduler'+route); return response.json();},route);}
 function readSchedulerClock(clock, timezone) {
@@ -75,7 +86,7 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   assert.ok((await context.cookies()).some(cookie => cookie.httpOnly && cookie.sameSite === 'Strict'));
   checks.push('administrator setup through UI with HttpOnly session');
   await tab('Team members');
-  await page.getByRole('button',{name:'Add team member',exact:true}).click();
+  await openAdd('Add team member');
   let modal = page.locator('dialog[open]');
   await modal.getByLabel('Name',{exact:true}).fill('Jordan QA');
   assert.equal(projectRequests,1,'Overlapping Scheduler activation shares one background Work Order request');
@@ -93,35 +104,97 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await tab('Schedule');
   await page.getByLabel('Week containing date').fill('2026-11-02');
   await page.getByLabel('Week containing date').press('Tab');
-  await page.getByRole('button',{name:'Add shift',exact:true}).click();
+  await openAdd('Add shift');
   modal = page.locator('dialog[open]');
+  const palette=modal.getByRole('radiogroup',{name:'Colour'});
+  for(const name of ['Blue','Red','Green','Purple','Grey']) await expect(palette.getByRole('radio',{name,exact:true})).toHaveCount(1);
+  await expect(palette.getByRole('radio',{name:'Blue'})).toBeChecked();
+  await expect(modal.getByRole('checkbox',{name:'Published'})).toHaveCount(0);
+  await modal.getByRole('button',{name:'Create draft',exact:true}).click();
+  assert.equal(await modal.getByLabel('Title',{exact:true}).evaluate(n=>n.validity.valueMissing),true);
+  await expect(modal).toBeVisible();
   await modal.getByLabel('Title',{exact:true}).fill('Site installation');
   await modal.getByLabel('Start',{exact:true}).fill('2026-11-02T07:00');
   await modal.getByLabel('End',{exact:true}).fill('2026-11-02T15:30');
   await modal.getByLabel('Jordan QA',{exact:true}).check();
-  await modal.getByLabel('Colour',{exact:true}).selectOption('#177349');
+  await palette.getByRole('radio',{name:'Blue'}).focus();
+  await page.keyboard.press('ArrowRight'); await page.keyboard.press('ArrowRight');
+  await expect(palette.getByRole('radio',{name:'Green'})).toBeChecked();
+  await expect(palette.locator('input:checked + .scheduler-colour-swatch .scheduler-colour-check')).toBeVisible();
   await modal.getByLabel('Location',{exact:true}).fill('Sydney site');
-  await modal.getByLabel('Published',{exact:true}).uncheck();
+  for(const width of [1915,631,390]) {
+    await page.setViewportSize({width,height:970});
+    const primary=modal.getByRole('button',{name:'Publish shift',exact:true}), draft=modal.getByRole('button',{name:'Create draft',exact:true});
+    const p=await primary.boundingBox(),d=await draft.boundingBox();
+    assert.ok(d.y>=p.y+p.height && Math.abs(d.x-p.x)<1,'Draft is immediately below Publish');
+    assert.equal(await primary.evaluate(node=>getComputedStyle(node).backgroundColor),'rgb(208, 0, 27)');
+    assert.ok(await modal.evaluate(node=>node.scrollWidth<=node.clientWidth+1),'Shift form fits on screen');
+    await page.screenshot({path:path.join(output,`shift-editor-${width}.png`)});
+  }
+  await page.setViewportSize({width:1915,height:970});
   let releaseSave;
   await page.route('**/api/scheduler/shifts/save',async route => {
     const response = await route.fetch();
     await new Promise(resolve => {releaseSave = resolve;});
     await route.fulfill({response});
   });
-  await modal.getByRole('button',{name:'Save shift',exact:true}).click();
+  await modal.getByRole('button',{name:'Create draft',exact:true}).click();
   await expect.poll(() => typeof releaseSave).toBe('function');
   await page.keyboard.press('Escape');
   await expect(modal).toBeVisible();
   await expect(modal.getByRole('button',{name:'Cancel',exact:true})).toBeDisabled();
+  await expect(modal.getByRole('button',{name:'Publish shift',exact:true})).toBeDisabled();
   releaseSave();
   await expect(page.locator('dialog[open]')).toHaveCount(0);
   await page.unroute('**/api/scheduler/shifts/save');
   await expect(page.locator('.scheduler-shift')).toContainText('Draft');
+  const staff=await browser.newContext(), staffApi='http://127.0.0.1:'+info.port+'/api/scheduler';
+  const stateWeek='/state?start=2026-11-02&end=2026-11-09';
+  assert.equal((await staff.request.post(staffApi+'/login',{data:{email:'jordan@example.test',password}})).status(),200);
+  const staffShifts=async()=>(await (await staff.request.get(staffApi+stateWeek)).json()).shifts;
+  assert.deepEqual(await staffShifts(),[]);
+  const [draftShift]=(await api(stateWeek)).shifts;
+  assert.equal(draftShift.published,false);assert.equal(draftShift.color,'#177349');
   await page.locator('.scheduler-shift').click();
-  await page.locator('dialog[open]').getByLabel('Published',{exact:true}).check();
-  await submit('Save shift');
+  await expect(palette.getByRole('radio',{name:'Green'})).toBeChecked();
+  await modal.getByLabel('Title',{exact:true}).press('Enter');
+  await modal.locator('form').evaluate(form=>form.requestSubmit());
+  await expect(modal).toBeVisible();
+  assert.equal((await api(stateWeek)).shifts[0].version,draftShift.version);
+  assert.deepEqual(await staffShifts(),[]);
+  await modal.getByRole('button',{name:'Publish shift',exact:true}).press('Enter');
+  await expect(modal).toHaveCount(0);
   await expect(page.locator('.scheduler-shift')).not.toContainText('Draft');
-  checks.push('create draft shift, assign team member, publish and display on correct day');
+  const [published]=await staffShifts();
+  assert.equal(published.id,draftShift.id);assert.equal(published.version,draftShift.version+1);assert.equal(published.published,true);
+  await page.locator('.scheduler-shift').click(); await submit('Cancel');
+  assert.equal((await staffShifts())[0].version,published.version);
+  await page.locator('.scheduler-shift').click();
+  await modal.getByRole('button',{name:'Create draft',exact:true}).press('Space');
+  await expect(modal).toHaveCount(0);
+  assert.equal((await api(stateWeek)).shifts.length,1);assert.deepEqual(await staffShifts(),[]);
+  await page.locator('.scheduler-shift').click(); await submit('Publish shift');
+  const [republished]=await staffShifts();assert.equal(republished.id,draftShift.id);
+  // A different manager can change this record while the drawer is open. A stale
+  // draft action must not withdraw their published shift or replace its custom colour.
+  await page.locator('.scheduler-shift').click();
+  const {id,version,title,start,end,member_ids,location,notes,published:visible}=republished;
+  const edited=await context.request.post(staffApi+'/shifts/save',{data:{id,version,title,start,end,
+    member_ids,location,notes,published:visible,color:'#648A79'}});
+  assert.equal(edited.status(),200,await edited.text());
+  await modal.getByRole('button',{name:'Create draft',exact:true}).click();
+  await expect(modal.getByRole('alert')).toContainText('changed in another session');
+  assert.equal((await staffShifts())[0].color,'#648A79');
+  await submit('Cancel');
+  await page.evaluate(()=>window.CeasefireScheduler.activate());
+  await page.locator('.scheduler-shift').click();
+  await expect(palette.getByRole('radio',{name:'Current colour'})).toBeChecked();
+  await modal.getByLabel('Notes',{exact:true}).fill('An unrelated note');
+  await submit('Publish shift');
+  const [preserved]=await staffShifts();
+  assert.equal(preserved.id,id);assert.equal(preserved.color,'#648A79');assert.equal(preserved.notes,'An unrelated note');
+  await staff.close();
+  checks.push('draft and published states on the same shift control visibility for assigned staff; cancel preserves the version');
   for (const width of [1575,390]) {
     await page.setViewportSize({width,height:1000});
     await page.screenshot({path:path.join(output,`schedule-${width}.png`),fullPage:true});
@@ -129,7 +202,7 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   }
   await page.setViewportSize({width:1575,height:884});
   await tab('Time entries');
-  await page.getByRole('button',{name:'Add time entry',exact:true}).click();
+  await openAdd('Add time entry');
   modal = page.locator('dialog[open]');
   await modal.getByLabel('Team member',{exact:true}).selectOption({label:'Jordan QA'});
   await modal.getByLabel('Start',{exact:true}).fill('2026-11-02T07:00');

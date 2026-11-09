@@ -26,7 +26,9 @@ async function openProjectSection(page, section) {
 }
 
 async function openProjectTools(page) {
-  const previous = await page.locator('#view-quotes').isVisible() ? 'quotes' : await page.locator('#view-certification').isVisible() ? 'certification' : await page.locator('#view-documentation').isVisible() ? 'documentation' : await page.locator('.nav-button[aria-current="page"]').getAttribute('data-view');
+  const active = page.locator('#project-pages [aria-current="page"], #document-pages [aria-current="page"]').filter({visible:true});
+  const previous = await active.count() ? await active.evaluate(button=>button.dataset.projectSection || button.dataset.documentSection)
+    : await page.locator('.nav-button[aria-current="page"]').getAttribute('data-view');
   if (previous !== 'quotes') await openProjectSection(page, 'quotes');
   await expect(page.locator('#quotes-heading')).toBeVisible();
   return previous;
@@ -42,12 +44,8 @@ async function clickProjectControl(page, name) {
   // Do not wait for a save response here: failure/held-response tests deliberately
   // test the UI before a response exists. Load keeps its review dialog in place.
   if (!['Load','New'].includes(name) && previous && previous !== 'quotes') {
-    if (['certification', 'documentation'].includes(previous)) {
+    if (['certification', 'documentation', 'swms', 'quote', 'work-orders', 'purchase-orders'].includes(previous)) {
       await openProjectSection(page, previous);
-    } else if (previous === 'projects') {
-      await page.locator('.nav-button[data-view="home"]').click();
-      await page.locator('[data-home-view="projects"]').click();
-      await expect(page.locator('#view-projects')).toBeVisible();
     } else await page.locator('.nav-button[data-view="' + previous + '"]').click();
   }
 }

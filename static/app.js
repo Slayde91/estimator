@@ -1083,7 +1083,12 @@
     else window.CeasefireLibraries?.open(kind, selection);
   }
 
+  function resolveView(view) {
+    return view === "projects" ? state.lastProjectSection || "quotes" : view;
+  }
+
   async function showView(view, librarySelection, calculatorId) {
+    view = resolveView(view);
     const previousView = state.currentView;
     if (view !== previousView && previousView === "contacts" && window.ClassifireContacts?.leave && !await window.ClassifireContacts.leave()) return;
     if (view !== state.currentView && state.currentView === "quotes" && window.CeasefireProjectPane && !await window.CeasefireProjectPane.leave()) return;
@@ -1170,14 +1175,17 @@
     return true;
   }
   async function requestViewNavigation(view, librarySelection) {
+    view = resolveView(view);
+    if (view === state.currentView && view === state.lastProjectSection) {
+      closeNavigationMenus();
+      window.CeasefireHeaderTagline?.next();
+      return true;
+    }
     if (view === "documentation" && !requireCreatedProject()) return false;
     if (view !== state.currentView && !await confirmLeavePricingLibrary()) return false;
     await showView(view, librarySelection);
     if (state.currentView === view) window.CeasefireHeaderTagline?.next();
     return state.currentView === view;
-  }
-  function requestProjectsNavigation() {
-    return requestViewNavigation(state.lastProjectSection || "projects");
   }
   function requestDocumentsNavigation() {
     return requestViewNavigation(state.currentView === "documents" && state.lastDocumentSection ? state.lastDocumentSection : "documents");
@@ -2901,11 +2909,9 @@
 
   for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", () => {
     if (button.id === "calculator-navigation-toggle") return requestCalculatorNavigation();
-    if (button.id === "projects-navigation-toggle") return requestProjectsNavigation();
     if (button.id === "documents-navigation-toggle") return requestDocumentsNavigation();
     return requestViewNavigation(button.dataset.view);
   });
-  for (const card of document.querySelectorAll(".projects-section-card[data-project-section]")) card.addEventListener("click", () => requestViewNavigation(card.dataset.projectSection));
   for (const button of projectPages?.querySelectorAll("[data-project-section]") || []) button.addEventListener("click", () => requestViewNavigation(button.dataset.projectSection));
   for (const card of document.querySelectorAll(".projects-section-card[data-document-section]")) card.addEventListener("click", () => requestViewNavigation(card.dataset.documentSection));
   for (const button of documentPages?.querySelectorAll("[data-document-section]") || []) button.addEventListener("click", () => requestViewNavigation(button.dataset.documentSection));

@@ -154,7 +154,7 @@ async function inspectHeader(width) {
       // Menus intentionally overlay the next navigation row. Dismiss the previous
       // focused menu before selecting a destination underneath it.
       await page.keyboard.press('Escape');await page.mouse.move(0,0);
-      await page.locator('nav[aria-label="Main navigation"] .nav-button').filter({hasText:section}).click(); if(section==='Projects'&&await page.locator('#view-projects').isVisible())await page.locator('#view-projects [data-project-section="quotes"]').click(); await idle();
+      await page.locator('nav[aria-label="Main navigation"] .nav-button').filter({hasText:section}).click(); await idle();
       const actions = page.locator('#header-project-actions'); await expect(actions).toBeVisible();
       for (const name of ['Save', 'Project files']) await expect(actions.getByRole('button', { name, exact: true })).toBeVisible();
       const bounds = await box(actions), header = await box(page.locator('.app-header'));

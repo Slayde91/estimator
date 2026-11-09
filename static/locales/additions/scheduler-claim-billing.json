@@ -1,0 +1,147 @@
+{
+  "Publish shift": [
+    "근무 공개",
+    "I-publish ang shift",
+    "Công bố ca làm"
+  ],
+  "Create draft": [
+    "초안 만들기",
+    "Gumawa ng draft",
+    "Tạo bản nháp"
+  ],
+  "Current colour": [
+    "현재 색상",
+    "Kasalukuyang kulay",
+    "Màu hiện tại"
+  ],
+  "Colour": [
+    "색상",
+    "Kulay",
+    "Màu"
+  ],
+  "Blue": [
+    "파란색",
+    "Asul",
+    "Xanh dương"
+  ],
+  "Red": [
+    "빨간색",
+    "Pula",
+    "Đỏ"
+  ],
+  "Green": [
+    "녹색",
+    "Berde",
+    "Xanh lá"
+  ],
+  "Purple": [
+    "보라색",
+    "Lila",
+    "Tím"
+  ],
+  "Grey": [
+    "회색",
+    "Abo",
+    "Xám"
+  ],
+  "Add team member": [
+    "팀원 추가",
+    "Magdagdag ng kasapi ng pangkat",
+    "Thêm thành viên nhóm"
+  ],
+  "Add time entry": [
+    "근무 시간 기록 추가",
+    "Magdagdag ng tala ng oras",
+    "Thêm bản ghi giờ làm"
+  ],
+  "Add shift": [
+    "근무 추가",
+    "Magdagdag ng shift",
+    "Thêm ca làm"
+  ],
+  "Accounts name": [
+    "회계 담당자 이름",
+    "Pangalan ng contact sa pagsingil",
+    "Tên người liên hệ kế toán"
+  ],
+  "Accounts email": [
+    "회계 담당자 이메일",
+    "Email ng contact sa pagsingil",
+    "Email người liên hệ kế toán"
+  ],
+  "Accounts phone": [
+    "회계 담당자 전화번호",
+    "Telepono ng contact sa pagsingil",
+    "Điện thoại người liên hệ kế toán"
+  ],
+  "Accounts contact link pending. Save the Work Order to finish.": [
+    "회계 담당자 연결이 대기 중입니다. 작업 지시서를 저장하여 마치세요.",
+    "Nakabinbin ang pag-link ng contact sa pagsingil. I-save ang utos sa trabaho upang matapos.",
+    "Đang chờ liên kết người phụ trách kế toán. Lưu lệnh công việc để hoàn tất."
+  ],
+  "Save the Work Order to create this contact.": [
+    "이 연락처를 만들려면 작업 지시서를 저장하세요.",
+    "I-save ang utos sa trabaho para gawin ang contact na ito.",
+    "Lưu lệnh công việc để tạo liên hệ này."
+  ],
+  "Save the Work Order before issuing it with a new accounts contact.": [
+    "새 회계 담당자로 작업 지시서를 발행하기 전에 저장하세요.",
+    "I-save ang utos sa trabaho bago ito iisyu na may bagong contact sa pagsingil.",
+    "Lưu lệnh công việc trước khi phát hành với liên hệ kế toán mới."
+  ],
+  "Reopen the saved Work Order to finish linking its accounts contact.": [
+    "저장한 작업 지시서를 다시 열어 회계 담당자 연결을 마치세요.",
+    "Buksan muli ang naka-save na utos sa trabaho upang matapos ang pag-link ng contact sa pagsingil.",
+    "Mở lại lệnh công việc đã lưu để hoàn tất liên kết người phụ trách kế toán."
+  ],
+  "Link this project to a Company before adding an accounts contact.": [
+    "회계 담당자를 추가하기 전에 프로젝트를 회사에 연결하세요.",
+    "I-link ang proyekto sa kumpanya bago magdagdag ng contact sa pagsingil.",
+    "Liên kết dự án với công ty trước khi thêm người phụ trách kế toán."
+  ],
+  "Enter the accounts name, email and phone, or choose an existing Contact.": [
+    "회계 담당자의 이름, 이메일, 전화번호를 입력하거나 기존 연락처를 선택하세요.",
+    "Ilagay ang pangalan, email at telepono ng contact sa pagsingil o pumili ng umiiral na contact.",
+    "Nhập tên, email, điện thoại của người phụ trách kế toán, hoặc chọn liên hệ hiện có."
+  ],
+  "The saved Work Order changed. Reopen it before linking its accounts contact.": [
+    "저장한 작업 지시서가 변경되었습니다. 회계 담당자를 연결하기 전에 다시 여세요.",
+    "Nagbago ang naka-save na utos sa trabaho. Buksan itong muli bago i-link ang contact sa pagsingil.",
+    "Lệnh công việc đã lưu đã thay đổi. Mở lại trước khi liên kết người phụ trách kế toán."
+  ],
+  "Choose a valid billing contact or company.": [
+    "유효한 청구 담당자 또는 회사를 선택하세요.",
+    "Pumili ng wastong contact sa pagsingil o kumpanya.",
+    "Chọn liên hệ thanh toán hoặc công ty hợp lệ."
+  ],
+  "Invalid Work Order billing details.": [
+    "작업 지시서 청구 정보가 유효하지 않습니다.",
+    "Hindi wasto ang mga detalye ng pagsingil sa utos sa trabaho.",
+    "Thông tin thanh toán của lệnh công việc không hợp lệ."
+  ],
+  "Choose one accounts contact.": [
+    "회계 담당자 한 명을 선택하세요.",
+    "Pumili ng isang contact sa pagsingil.",
+    "Chọn một người liên hệ kế toán."
+  ],
+  "The accounts contact request changed. Choose the contact again.": [
+    "회계 담당자 요청이 변경되었습니다. 연락처를 다시 선택하세요.",
+    "Nagbago ang kahilingan para sa contact sa pagsingil. Piliin muli ang contact.",
+    "Yêu cầu liên hệ kế toán đã thay đổi. Chọn lại liên hệ."
+  ],
+  "Billing details belong to a Work Order.": [
+    "청구 정보는 작업 지시서에만 사용할 수 있습니다.",
+    "Para sa utos sa trabaho ang mga detalyeng ito ng pagsingil.",
+    "Thông tin thanh toán thuộc về lệnh công việc."
+  ],
+  "The billing contact directory is unavailable.": [
+    "청구 담당자 디렉터리를 사용할 수 없습니다.",
+    "Hindi magagamit ang direktoryo ng contact sa pagsingil.",
+    "Danh bạ liên hệ thanh toán không khả dụng."
+  ],
+  "The billing Company is unavailable in this directory. Saved claim details are retained.": [
+    "이 디렉터리에 청구 회사가 없습니다. 저장된 청구 내역은 유지됩니다.",
+    "Wala sa direktoryong ito ang kumpanya sa pagsingil. Mananatili ang mga naka-save na detalye ng claim.",
+    "Công ty thanh toán không có trong danh bạ này. Chi tiết yêu cầu đã lưu vẫn được giữ."
+  ]
+}

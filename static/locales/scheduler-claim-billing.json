@@ -1,0 +1,205 @@
+{
+  "Publish shift": [
+    "发布班次",
+    "पाली प्रकाशित करें",
+    "Publicar turno",
+    "نشر الوردية",
+    "เผยแพร่กะ"
+  ],
+  "Create draft": [
+    "创建草稿",
+    "मसौदा बनाएँ",
+    "Crear borrador",
+    "إنشاء مسودة",
+    "สร้างฉบับร่าง"
+  ],
+  "Current colour": [
+    "当前颜色",
+    "वर्तमान रंग",
+    "Color actual",
+    "اللون الحالي",
+    "สีปัจจุบัน"
+  ],
+  "Colour": [
+    "颜色",
+    "रंग",
+    "Color",
+    "اللون",
+    "สี"
+  ],
+  "Blue": [
+    "蓝色",
+    "नीला",
+    "Azul",
+    "أزرق",
+    "สีน้ำเงิน"
+  ],
+  "Red": [
+    "红色",
+    "लाल",
+    "Rojo",
+    "أحمر",
+    "สีแดง"
+  ],
+  "Green": [
+    "绿色",
+    "हरा",
+    "Verde",
+    "أخضر",
+    "สีเขียว"
+  ],
+  "Purple": [
+    "紫色",
+    "बैंगनी",
+    "Morado",
+    "أرجواني",
+    "สีม่วง"
+  ],
+  "Grey": [
+    "灰色",
+    "स्लेटी",
+    "Gris",
+    "رمادي",
+    "สีเทา"
+  ],
+  "Add team member": [
+    "添加团队成员",
+    "टीम सदस्य जोड़ें",
+    "Añadir miembro al equipo",
+    "إضافة عضو للفريق",
+    "เพิ่มสมาชิกทีม"
+  ],
+  "Add time entry": [
+    "添加工时记录",
+    "समय प्रविष्टि जोड़ें",
+    "Añadir registro de horas",
+    "إضافة سجل وقت",
+    "เพิ่มรายการเวลา"
+  ],
+  "Add shift": [
+    "添加班次",
+    "पाली जोड़ें",
+    "Añadir turno",
+    "إضافة وردية",
+    "เพิ่มกะ"
+  ],
+  "Accounts name": [
+    "账务联系人姓名",
+    "लेखा संपर्क का नाम",
+    "Nombre del contacto de facturación",
+    "اسم مسؤول الحسابات",
+    "ชื่อผู้ติดต่อฝ่ายบัญชี"
+  ],
+  "Accounts email": [
+    "账务联系人邮箱",
+    "लेखा संपर्क का ईमेल",
+    "Correo del contacto de facturación",
+    "بريد مسؤول الحسابات",
+    "อีเมลผู้ติดต่อฝ่ายบัญชี"
+  ],
+  "Accounts phone": [
+    "账务联系人电话",
+    "लेखा संपर्क का फ़ोन",
+    "Teléfono del contacto de facturación",
+    "هاتف مسؤول الحسابات",
+    "โทรศัพท์ผู้ติดต่อฝ่ายบัญชี"
+  ],
+  "Accounts contact link pending. Save the Work Order to finish.": [
+    "账务联系人尚未关联。请保存工单以完成关联。",
+    "लेखा संपर्क का लिंक लंबित है। पूरा करने के लिए कार्य आदेश सहेजें।",
+    "Falta vincular el contacto de facturación. Guarde la orden de trabajo para terminar.",
+    "ربط مسؤول الحسابات معلق. احفظ أمر العمل لإكمال الربط.",
+    "ยังเชื่อมโยงผู้ติดต่อฝ่ายบัญชีไม่เสร็จ บันทึกใบสั่งงานเพื่อดำเนินการให้เสร็จ"
+  ],
+  "Save the Work Order to create this contact.": [
+    "保存工单以创建此联系人。",
+    "यह संपर्क बनाने के लिए कार्य आदेश सहेजें।",
+    "Guarde la orden de trabajo para crear este contacto.",
+    "احفظ أمر العمل لإنشاء جهة الاتصال.",
+    "บันทึกใบสั่งงานเพื่อสร้างผู้ติดต่อนี้"
+  ],
+  "Save the Work Order before issuing it with a new accounts contact.": [
+    "使用新账务联系人签发工单前，请先保存工单。",
+    "नए लेखा संपर्क के साथ कार्य आदेश जारी करने से पहले उसे सहेजें।",
+    "Guarde la orden antes de emitirla con un nuevo contacto de facturación.",
+    "احفظ أمر العمل قبل إصداره بمسؤول حسابات جديد.",
+    "บันทึกใบสั่งงานก่อนออกเอกสารด้วยผู้ติดต่อฝ่ายบัญชีใหม่"
+  ],
+  "Reopen the saved Work Order to finish linking its accounts contact.": [
+    "重新打开已保存的工单以完成账务联系人关联。",
+    "लेखा संपर्क जोड़ने के लिए सहेजा गया कार्य आदेश फिर खोलें।",
+    "Vuelva a abrir la orden guardada para terminar de vincular el contacto de facturación.",
+    "أعد فتح أمر العمل المحفوظ لإكمال ربط مسؤول الحسابات.",
+    "เปิดใบสั่งงานที่บันทึกไว้อีกครั้งเพื่อเชื่อมโยงผู้ติดต่อฝ่ายบัญชีให้เสร็จ"
+  ],
+  "Link this project to a Company before adding an accounts contact.": [
+    "添加账务联系人前，请将此项目关联到公司。",
+    "लेखा संपर्क जोड़ने से पहले परियोजना को कंपनी से जोड़ें।",
+    "Vincule el proyecto a una empresa antes de añadir un contacto de facturación.",
+    "اربط المشروع بشركة قبل إضافة مسؤول حسابات.",
+    "เชื่อมโยงโครงการกับบริษัทก่อนเพิ่มผู้ติดต่อฝ่ายบัญชี"
+  ],
+  "Enter the accounts name, email and phone, or choose an existing Contact.": [
+    "输入账务联系人的姓名、邮箱和电话，或选择现有联系人。",
+    "लेखा संपर्क का नाम, ईमेल और फ़ोन दें या मौजूदा संपर्क चुनें।",
+    "Introduzca el nombre, correo y teléfono del contacto de facturación o elija un contacto existente.",
+    "أدخل اسم مسؤول الحسابات وبريده وهاتفه أو اختر جهة اتصال موجودة.",
+    "กรอกชื่อ อีเมล และโทรศัพท์ฝ่ายบัญชี หรือเลือกผู้ติดต่อที่มีอยู่"
+  ],
+  "The saved Work Order changed. Reopen it before linking its accounts contact.": [
+    "已保存的工单已变更。请重新打开后再关联账务联系人。",
+    "सहेजा गया कार्य आदेश बदल गया है। लेखा संपर्क जोड़ने से पहले उसे फिर खोलें।",
+    "La orden guardada ha cambiado. Vuelva a abrirla antes de vincular el contacto de facturación.",
+    "تغير أمر العمل المحفوظ. أعد فتحه قبل ربط مسؤول الحسابات.",
+    "ใบสั่งงานที่บันทึกไว้เปลี่ยนแปลงแล้ว เปิดอีกครั้งก่อนเชื่อมโยงผู้ติดต่อฝ่ายบัญชี"
+  ],
+  "Choose a valid billing contact or company.": [
+    "请选择有效的账务联系人或公司。",
+    "मान्य बिलिंग संपर्क या कंपनी चुनें।",
+    "Elija un contacto de facturación o una empresa válida.",
+    "اختر جهة اتصال فوترة أو شركة صالحة.",
+    "เลือกผู้ติดต่อเรียกเก็บเงินหรือบริษัทที่ถูกต้อง"
+  ],
+  "Invalid Work Order billing details.": [
+    "工单账务信息无效。",
+    "कार्य आदेश का बिलिंग विवरण अमान्य है।",
+    "Los datos de facturación de la orden no son válidos.",
+    "بيانات فوترة أمر العمل غير صالحة.",
+    "ข้อมูลการเรียกเก็บเงินของใบสั่งงานไม่ถูกต้อง"
+  ],
+  "Choose one accounts contact.": [
+    "请选择一位账务联系人。",
+    "एक लेखा संपर्क चुनें।",
+    "Elija un contacto de facturación.",
+    "اختر مسؤول حسابات واحداً.",
+    "เลือกผู้ติดต่อฝ่ายบัญชีหนึ่งราย"
+  ],
+  "The accounts contact request changed. Choose the contact again.": [
+    "账务联系人请求已变更。请重新选择联系人。",
+    "लेखा संपर्क का अनुरोध बदल गया है। संपर्क फिर चुनें।",
+    "La solicitud del contacto de facturación cambió. Vuelva a elegir el contacto.",
+    "تغير طلب مسؤول الحسابات. اختر جهة الاتصال من جديد.",
+    "คำขอผู้ติดต่อฝ่ายบัญชีเปลี่ยนแปลงแล้ว เลือกผู้ติดต่ออีกครั้ง"
+  ],
+  "Billing details belong to a Work Order.": [
+    "账务信息仅用于工单。",
+    "यह बिलिंग विवरण कार्य आदेश के लिए है।",
+    "Los datos de facturación corresponden a una orden de trabajo.",
+    "تخص بيانات الفوترة أمر العمل.",
+    "ข้อมูลการเรียกเก็บเงินนี้เป็นของใบสั่งงาน"
+  ],
+  "The billing contact directory is unavailable.": [
+    "账务联系人名录不可用。",
+    "बिलिंग संपर्क निर्देशिका उपलब्ध नहीं है।",
+    "El directorio de contactos de facturación no está disponible.",
+    "دليل جهات اتصال الفوترة غير متاح.",
+    "ทำเนียบผู้ติดต่อเรียกเก็บเงินไม่พร้อมใช้งาน"
+  ],
+  "The billing Company is unavailable in this directory. Saved claim details are retained.": [
+    "此名录中找不到开票公司。已保存的申报信息将保留。",
+    "बिलिंग कंपनी इस निर्देशिका में उपलब्ध नहीं है। सहेजे गए दावे का विवरण बना रहेगा।",
+    "La empresa de facturación no está disponible en este directorio. Se conservan los datos guardados de la reclamación.",
+    "شركة الفوترة غير متاحة في هذا الدليل. تظل بيانات المطالبة المحفوظة كما هي.",
+    "ไม่พบบริษัทที่เรียกเก็บเงินในทำเนียบนี้ ข้อมูลการเบิกที่บันทึกไว้จะคงอยู่"
+  ]
+}

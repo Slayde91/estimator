@@ -4,6 +4,7 @@
 #scheduler-root .button.scheduler-add-action:hover:not(:disabled) { background:#12558f; border-color:#12558f; }
 #scheduler-root .button.scheduler-primary-action { background:#d0001b; border-color:#a80016; color:#fff; }
 #scheduler-root .button.scheduler-primary-action:hover:not(:disabled) { background:#a80016; border-color:#8d0012; }
+#scheduler-root .scheduler-toolbar-add { display:inline-grid; place-items:center; flex:0 0 48px; width:48px; min-width:48px; height:48px; padding:0; border-radius:10px; font-size:28px; line-height:1; }
 .scheduler-top,.scheduler-account,.scheduler-toolbar,.scheduler-clock,.scheduler-dialog-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
 .scheduler-top { justify-content:space-between; margin-bottom:18px; }
 .scheduler-tabs { min-width:0; flex:1; }
@@ -50,6 +51,19 @@
 .scheduler-dialog::backdrop { background:#070b13a6; }
 .scheduler-shift-editor { margin:0 0 0 auto; width:min(460px,100vw); max-width:100vw; height:100dvh; max-height:100dvh; border-radius:12px 0 0 12px; }
 .scheduler-shift-editor .scheduler-form-fields { grid-template-columns:1fr; }
+.scheduler-colours { margin:0; padding:0; min-width:0; border:0; }
+.scheduler-colours legend { padding:0; margin-bottom:6px; font-size:13px; font-weight:600; }
+.scheduler-colour-choices { display:flex; flex-wrap:wrap; gap:6px; }
+.scheduler-colour-tile { position:relative; display:grid; gap:4px; min-width:44px; min-height:44px; padding:3px; border:2px solid transparent; border-radius:7px; text-align:center; font-size:12px; cursor:pointer; }
+.scheduler-colour-tile:has(input:checked) { border-color:var(--ink); }
+.scheduler-colour-tile:has(input:focus-visible) { outline:2px solid var(--accent); outline-offset:2px; }
+.scheduler-colour-tile input { position:absolute; inset:0; width:100%; height:100%; opacity:0; margin:0; cursor:pointer; }
+.scheduler-colour-swatch { position:relative; display:grid; place-items:center; height:23px; border-radius:3px; overflow:hidden; pointer-events:none; }
+.scheduler-colour-swatch svg { position:absolute; inset:0; width:100%; height:100%; }
+.scheduler-colour-check { position:relative; visibility:hidden; line-height:1; font-size:17px; font-weight:800; color:#fff; text-shadow:0 1px 2px #000; }
+.scheduler-colour-tile input:checked + .scheduler-colour-swatch .scheduler-colour-check { visibility:visible; }
+.scheduler-shift-editor .scheduler-dialog-actions { display:grid; grid-template-columns:auto minmax(0,auto); justify-content:end; }
+.scheduler-shift-editor .scheduler-secondary-submit { grid-column:2; }
 .scheduler-form { display:grid; gap:16px; }
 .scheduler-form-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
 .scheduler-form-fields>.scheduler-members,.scheduler-form-fields>.scheduler-break-editor,.scheduler-form-fields>h3,.scheduler-form-fields>.helper { grid-column:1/-1; }

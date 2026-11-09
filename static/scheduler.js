@@ -40,8 +40,8 @@
     const result = el("button", className, text); result.type = "button";
     result.addEventListener("click", action); return result;
   }
-  function addRuleButton(label, action) {
-    const result = button("", action, "button primary icon-only penetration-new-item-action");
+  function addIconButton(label, action, extraClass = "") {
+    const result = button("", action, "button primary icon-only penetration-new-item-action" + (extraClass ? " " + extraClass : ""));
     result.title = label; result.setAttribute("aria-label", label);
     window.CeasefireI18n?.attr(result, "title", label);
     window.CeasefireI18n?.attr(result, "aria-label", label);
@@ -62,6 +62,31 @@
     const result = el("select");
     options.forEach(([id,label]) => { const option = el("option", "", label); option.value = id; result.append(option); });
     result.value = value; return result;
+  }
+  function shiftColours(current) {
+    const group = el("fieldset","scheduler-colours"), legend = el("legend","",translated("Colour"));
+    legend.id = "scheduler-colour-label";
+    group.setAttribute("role","radiogroup"); group.setAttribute("aria-labelledby",legend.id);
+    group.append(legend);
+    const choices = el("div","scheduler-colour-choices");
+    // Older shifts can hold any valid six-digit colour, including one outside the current palette.
+    const options = colours.some(([value]) => value === current.toLowerCase()) ? colours : [...colours,[current,"Current colour"]];
+    for (const [value,name] of options) {
+      const tile = el("label","scheduler-colour-tile"), label = el("span","",translated(name));
+      const checked = value.toLowerCase() === current.toLowerCase();
+      const radio = input("radio",checked ? current : value,{name:"scheduler-shift-colour"});
+      radio.checked = checked;
+      const swatch = el("span","scheduler-colour-swatch");
+      swatch.setAttribute("aria-hidden","true");
+      const svg = document.createElementNS("http://www.w3.org/2000/svg","svg");
+      const rect = document.createElementNS(svg.namespaceURI,"rect");
+      rect.setAttribute("width","100%"); rect.setAttribute("height","100%"); rect.setAttribute("fill",value);
+      svg.append(rect);
+      swatch.append(svg,el("span","scheduler-colour-check","✓"));
+      tile.append(radio,swatch,label); choices.append(tile);
+    }
+    group.append(choices);
+    return group;
   }
   function check(text, checked = false) {
     const control = input("checkbox"); control.checked = checked;
@@ -229,7 +254,7 @@
     if(state.data?.user){state.root.append(projects); orderStatus();}
   }
   function closeDialog(force = false) { if(state.busy && force !== true)return; clearInterval(state.locationPlayback); state.locationPlayback = null; state.dialog?.close(); state.dialog?.remove(); state.dialog = null; }
-  function dialog(title, build, saveLabel, save, submitClass = "button") {
+  function dialog(title, build, saveLabel, save, submitClass = "button", draftLabel = "") {
     closeDialog();
     const modal = el("dialog", "scheduler-dialog"), form = el("form", "scheduler-form");
     const heading = el("div", "section-heading");
@@ -239,14 +264,27 @@
     const content = el("div", "scheduler-form-fields"), error = el("p", "message error"); error.hidden = true; error.setAttribute("role","alert");
     const controls = build(content), actions = el("div", "actions scheduler-dialog-actions");
     const submit = el("button", submitClass, saveLabel); submit.type = "submit";
-    actions.append(button("Cancel",closeDialog),submit); form.append(heading,content,error,actions); modal.append(form);
+    actions.append(button("Cancel",closeDialog),submit);
+    let draft;
+    if (draftLabel) {
+      submit.value = "publish";
+      draft = el("button","button secondary scheduler-secondary-submit",draftLabel);
+      draft.type = "submit"; draft.value = "draft"; actions.append(draft);
+      // A browser can treat Enter in a text field as a click on the first submit
+      // button. Publishing or withdrawing a shift requires activating its action.
+      form.addEventListener("keydown",event => {
+        if (event.key === "Enter" && !event.isComposing && event.target instanceof HTMLInputElement) event.preventDefault();
+      });
+    }
+    form.append(heading,content,error,actions); modal.append(form);
     modal.addEventListener("close", () => { modal.remove(); if (state.dialog === modal) state.dialog = null; });
     modal.addEventListener("cancel", event => {if(state.busy)event.preventDefault();});
     form.addEventListener("submit",async event => {
       event.preventDefault(); if (state.busy || submit.disabled || state.dialog !== modal) return;
+      if (draft && event.submitter !== submit && event.submitter !== draft) return;
       const current = accountAction(); state.busy = true; error.hidden = true;
       form.querySelectorAll("button").forEach(button => button.disabled = true);
-      try { await save(controls); if(!current() || state.dialog !== modal)return; closeDialog(true); await refresh(); }
+      try { await save(controls,event.submitter?.value); if(!current() || state.dialog !== modal)return; closeDialog(true); await refresh(); }
       catch (failure) { if(current() && state.dialog === modal) {error.textContent = failure.message; error.hidden = false;} }
       finally { if(current()) {state.busy = false; form.querySelectorAll("button").forEach(button => button.disabled = false);} }
     });
@@ -381,7 +419,7 @@
     const filter = select([["","All team members"],...state.data.members.filter(item => item.active).map(item => [item.id,item.name])],state.member);
     filter.setAttribute("aria-label","Filter team members"); filter.addEventListener("change",() => {state.member = filter.value; render();}); controls.append(filter);
     const mine = check("My schedule",state.mine); mine.control.addEventListener("change",() => {state.mine = mine.control.checked; render();}); controls.append(mine.label);
-    if (admin()) controls.append(button("Add shift",() => editShift(),"button scheduler-add-action"));
+    if (admin()) controls.append(addIconButton("Add shift",() => editShift(),"scheduler-primary-action scheduler-toolbar-add"));
     state.root.append(controls,el("p","helper",`Week view · ${zone} · Select a shift for details.`));
     const scroll = el("div", "scheduler-grid-scroll"), table = el("table", "scheduler-grid"); table.append(el("caption", "sr-only","Weekly schedule by team member"));
     const head = el("thead"), row = el("tr"); row.append(el("th","scheduler-person","Team member"));
@@ -422,7 +460,7 @@
       const title = input("text",shift?.title || "",{required:true,maxlength:200});
       const start = input("datetime-local",shift ? localParts(shift.start) : `${date}T07:00`,{required:true});
       const end = input("datetime-local",shift ? localParts(shift.end) : `${date}T15:30`,{required:true});
-      const color = select(colours,shift?.color || "#2196f3");
+      const color = shiftColours(shift?.color || "#2196f3");
       const initialProject = shift?.work_order;
       const project = orderSelect(shift || {}), location = input("text",shift?.location || initialProject?.site_address || "",{maxlength:400});
       project.addEventListener("change",() => {const selected = state.orders.find(item => item.id + "@" + item.revision === project.value); if (selected) location.value = selected.site_address || "";});
@@ -432,22 +470,21 @@
       const memberChecks = state.data.members.filter(item => item.active || selected.has(item.id)).map(member => {
         const item = check(member.name,selected.has(member.id)); members.append(item.label); return {id:member.id,control:item.control};
       });
-      const publish = check("Published",shift?.published ?? true);
-      host.append(field("Title",title),field("Colour",color),field("Start",start,zone),field("End",end,zone),members,field(translated("Work Order"),project),field("Location",location),field("Notes",notes),publish.label);
+      host.append(field("Title",title),color,field("Start",start,zone),field("End",end,zone),members,field(translated("Work Order"),project),field("Location",location),field("Notes",notes));
       if (shift) host.append(button("Delete shift",() => {
         deleteRecord("/shifts/delete",{id:shift.id,version:shift.version},`Delete “${shift.title}” from the schedule?`);
       },"button secondary scheduler-danger"));
-      return {title,start,end,color,project,location,notes,publish,memberChecks};
-    },"Save shift",async controls => {
+      return {title,start,end,color,project,location,notes,memberChecks};
+    },translated("Publish shift"),async (controls,intent) => {
       await request("/shifts/save",{input_timezone:inputZone,...(shift ? {id:shift.id,version:shift.version} : {request_id:requestId}),title:controls.title.value,
-        start:editedTime(controls.start,shift?.start),end:editedTime(controls.end,shift?.end),color:controls.color.value,
-        ...selectedOrder(controls.project),location:controls.location.value,notes:controls.notes.value,published:controls.publish.control.checked,
+        start:editedTime(controls.start,shift?.start),end:editedTime(controls.end,shift?.end),color:controls.color.querySelector("input:checked").value,
+        ...selectedOrder(controls.project),location:controls.location.value,notes:controls.notes.value,published:intent === "publish",
         member_ids:controls.memberChecks.filter(item => item.control.checked).map(item => item.id)});
-    });
+    },"button scheduler-primary-action",translated("Create draft"));
     editor.classList.add("scheduler-shift-editor");
   }
   function renderTeam() {
-    const heading = el("div","section-heading"); heading.append(el("h2","","Team members"),button("Add team member",() => editMember(),"button scheduler-add-action")); state.root.append(heading);
+    const heading = el("div","section-heading"); heading.append(el("h2","","Team members"),addIconButton("Add team member",() => editMember(),"scheduler-primary-action scheduler-toolbar-add")); state.root.append(heading);
     const list = el("div","scheduler-team");
     state.data.members.forEach(member => {const card = el("section","card"); card.append(el("h3","",member.name),el("p","helper",member.email),el("p","helper",`${member.role === "admin" ? "Administrator" : "Team member"} · ${member.active ? "Active" : "Inactive"}`),button("Edit member",() => editMember(member))); list.append(card);});
     state.root.append(list);
@@ -464,7 +501,7 @@
       ...(controls.password.value ? {password:controls.password.value} : {}),base_rate:controls.rate.value,role:controls.role.value,active:controls.active.control.checked}));
   }
   function renderEntries() {
-    const controls = weekControls(); if (admin()) controls.append(button("Add time entry",() => editEntry(),"button scheduler-add-action"));
+    const controls = weekControls(); if (admin()) controls.append(addIconButton("Add time entry",() => editEntry(),"scheduler-primary-action scheduler-toolbar-add"));
     const search = input("search",state.entriesSearch,{"aria-label":"Search time entries",placeholder:"Team member, job or notes"});
     controls.append(search);
     if (admin()) for (const [mine,label] of [[true,"My"],[false,"All"]]) {
@@ -595,7 +632,7 @@
       row.append(grid); overtimeRows.push(record); overtimeList.append(row);
     }
     saved.overtime_rules.forEach(addOvertime);
-    form.append(el("h3","","Overtime and penalty rules"),el("p","helper","The highest matching multiplier applies. All paid hours count toward weekly thresholds. Days and weeks start at midnight, with Monday starting the week."),overtimeList,addRuleButton("Add overtime rule",() => {addOvertime(); state.settingsDirty = true;}));
+    form.append(el("h3","","Overtime and penalty rules"),el("p","helper","The highest matching multiplier applies. All paid hours count toward weekly thresholds. Days and weeks start at midnight, with Monday starting the week."),overtimeList,addIconButton("Add overtime rule",() => {addOvertime(); state.settingsDirty = true;}));
     const breakRows = [], breakList = el("div","scheduler-rule-editors");
     function addBreakRule(item = {id:crypto.randomUUID(),name:"",code:"",minutes:15,paid:false,member_ids:[],automatic:false,after_hours:"4",repeat_hours:null,days:[0,1,2,3,4],placement:"middle",manual:true,auto_end:false,minimum:false,notify_minutes:0}) {
       const row = el("details","scheduler-rule-editor"), summary = el("summary","",item.name || "New break rule"); row.open = !item.name; row.append(summary);
@@ -619,7 +656,7 @@
       sync(); row.append(grid); breakRows.push(record); breakList.append(row);
     }
     saved.breaks.forEach(addBreakRule);
-    form.append(el("h3","","Break rules"),el("p","helper","Automatic breaks are calculated when a time entry is complete. Thresholds use elapsed shift time. Repeated middle breaks are spaced evenly. A matching manual break satisfies one automatic break, and breaks never overlap."),breakList,addRuleButton("Add break rule",() => {addBreakRule(); state.settingsDirty = true;}));
+    form.append(el("h3","","Break rules"),el("p","helper","Automatic breaks are calculated when a time entry is complete. Thresholds use elapsed shift time. Repeated middle breaks are spaced evenly. A matching manual break satisfies one automatic break, and breaks never overlap."),breakList,addIconButton("Add break rule",() => {addBreakRule(); state.settingsDirty = true;}));
     const submit = el("button","button scheduler-primary-action","Save settings"); submit.type = "submit";
     const discard = button("",() => {state.settingsDirty = false; render();},"button secondary icon-only");
     discard.title = "Discard settings changes"; discard.setAttribute("aria-label","Discard settings changes");

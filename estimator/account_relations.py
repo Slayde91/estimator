@@ -121,9 +121,10 @@ class AccountRelations:
                 continue
             supplier = (group == 'purchase_orders' and account_id is not None
                         and fields.get('order', {}).get('supplier_account_id') in members)
-            if document.get('source_file') and project_token is None and not (supplier and document.get('unfiled')):
+            billing = (group == 'work_orders' and account_id is not None and fields.get('order',{}).get('billing_account_id') in members)
+            if document.get('source_file') and project_token is None and not ((supplier or billing) and document.get('unfiled')):
                 continue
-            if supplier and not document.get('source_file') and project_token is None:
+            if (supplier or billing) and not document.get('source_file') and project_token is None:
                 continue
             project = project_rows.get(project_token, fields.get("details", {}))
             label = " · ".join(filter(None, (reference, _project_label(project))))[:1200]
@@ -135,17 +136,19 @@ class AccountRelations:
             details = fields.get("details", {})
             legacy_match = (not candidates and not details.get('account_id') and account is not None
                             and company_key(details.get("client", "")) == company_key(account["company"]))
-            belongs = project_token in automatic["projects"] or legacy_match or supplier
+            belongs = project_token in automatic["projects"] or legacy_match or supplier or billing
             # Saved copies can share both IDs. An explicit supplier selection
             # outranks a project association, then a stable source breaks ties.
-            rank = (not supplier, not belongs, document.get('source_file') or '', label)
+            rank = (not (supplier or billing), not belongs, document.get('source_file') or '', label)
             key = (group, token)
             if key in document_rank and document_rank[key] <= rank:
                 continue
             document_rank[key] = rank
             if supplier:
                 entry['supplier'] = True
-            if legacy_match or (not supplier and records['projects'].get(project_token, {}).get('name_only')):
+            if billing:
+                entry['billing'] = True
+            if not (billing or supplier) and (legacy_match or records['projects'].get(project_token, {}).get('name_only')):
                 entry['name_only'] = True
             records[group][token] = entry
             if belongs:

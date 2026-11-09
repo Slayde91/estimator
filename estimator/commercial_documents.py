@@ -310,9 +310,16 @@ def default_fields(kind, details=None, company=None, *, rates=None):
 
 
 def validate_fields(value, *, kind=None):
-    if not isinstance(value, dict) or set(value) - {'rate_schedule', 'notes', 'signatures', 'files', 'work_tracking', 'detail_overrides'} != FIELD_KEYS:
+    if not isinstance(value, dict) or set(value) - {'rate_schedule', 'notes', 'signatures', 'files', 'work_tracking', 'detail_overrides', 'billing'} != FIELD_KEYS:
         raise ValidationError('Commercial document fields use an unsupported format.')
     result = {'title': _text(value['title'], 'Title', 300)}
+    if 'billing' in value:
+        from .work_order_billing import normalized
+        if kind not in ('work_order',None):
+            raise ValidationError('Billing details belong to a Work Order.')
+        billing = normalized(value['billing'])
+        if billing:
+            result['billing'] = billing
     if 'detail_overrides' in value:
         result['detail_overrides'] = detail_override_keys(value['detail_overrides'])
     result['rate_schedule'] = validate_rate_schedule(value.get('rate_schedule', default_rate_schedule()), allow_blank=True)
@@ -546,6 +553,13 @@ def commercial_cards(snapshot):
                      ('work_order_reference', 'quote_id', 'quote_reference', 'work_order_id', 'estimated_cost', 'supplier', 'supplier_contact')}
             if kind == 'purchase_order':
                 order.update({key: _identity(fields['order'][key]) for key in PURCHASE_PARTY_LABELS if fields['order'].get(key)})
+            if kind == 'work_order' and fields.get('billing'):
+                from .work_order_billing import normalized, contact_id
+                billing = normalized(fields['billing'])
+                if billing.get('account_id'):
+                    order['billing_account_id'] = billing['account_id']
+                if contact_id(billing):
+                    order['billing_contact_id'] = contact_id(billing)
             lines = fields['lines']
             if not isinstance(lines, list) or len(lines) > 2000:
                 raise ValidationError('Invalid saved commercial lines.')
@@ -1010,6 +1024,8 @@ class CommercialDocuments:
                             fields['order'][key]=previous['fields']['order'][key]
                     if previous['fields'].get('signatures',{}).get('claimed_by'):
                         fields.setdefault('signatures',{})['claimed_by']=deepcopy(previous['fields']['signatures']['claimed_by'])
+                if kind=='work_order' and 'billing' not in payload['fields'] and previous['fields'].get('billing'):
+                    fields['billing'] = deepcopy(previous['fields']['billing'])
                 if kind=='work_order' and fields.get('work_tracking') and previous['fields'].get('work_tracking'):
                     previous_rows={row['line_id']:row for row in previous['fields']['work_tracking']['rows']}
                     for raw, row in zip(payload['fields']['work_tracking']['rows'],fields['work_tracking']['rows']):

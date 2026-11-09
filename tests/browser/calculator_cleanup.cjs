@@ -223,7 +223,7 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
  assert.ok(factorStripe.width<=1&&factorStripe.height<=1,'Factor Calcs duplicate stripe takes no visual layout space');
  await expect(page.locator('#calculator-calculation-status')).toHaveAttribute('role','status');
  await expect(page.locator('#calculator-grid')).toBeVisible();
- const factorChoice=page.locator('[data-calculator-settings-section]').first();await expect(factorChoice).toBeVisible();await factorChoice.click();
+ const factorChoice=page.locator('#calculator-settings-steel_vermiculite-FACTOR-CALCS-A341-button');await expect(factorChoice).toHaveAttribute('aria-expanded','true');
  await expect(page.locator('#calculator-grid [data-calculator-cell]').first()).toBeVisible();
  await page.screenshot({path:path.join(output,'factor-without-stripe.png'),fullPage:true});
  await chooseCalculator(page,'Steel (spray)');await idle();

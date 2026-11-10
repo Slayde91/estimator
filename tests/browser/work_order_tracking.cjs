@@ -168,7 +168,24 @@ async function download(host) {
   assert.deepEqual(await certification.locator('option').allTextContents(), ['', 'Certification issued', 'Certification not issued']);
   assert.deepEqual(await completion.locator('option').allTextContents(), ['', 'Completed', 'Ongoing', 'On hold', 'Not completed']);
   await certification.selectOption('Certification issued'); await completion.selectOption('Ongoing');
-  await assertTracking(work, expected, percentages); await saveDocument(work); await saveProject();
+  await assertTracking(work, expected, percentages); await saveDocument(work);
+  const newlySavedBilling=ownedWork(info).fields.billing;
+  const immediateContact=work.locator(`.commercial-linked-contact[data-contact-id="${newlySavedBilling.contact_id}"]`);
+  const immediateButton=immediateContact.getByRole('button',{name:'Accounts Example',exact:true});
+  await expect(immediateButton).toBeVisible();
+  const newDirectoryContact=(await directory()).contacts.find(person=>person.id===newlySavedBilling.contact_id);
+  assert.equal(newDirectoryContact.account_id,newlySavedBilling.account_id);
+  const billingSnapshot=structuredClone(ownedWork(info).fields.billing);
+  await immediateButton.click();
+  const contactDialog=page.getByRole('dialog',{name:'Edit Contact',exact:true});await expect(contactDialog).toBeVisible();
+  await contactDialog.getByLabel('Title',{exact:true}).fill('Accounts coordinator');
+  await contactDialog.getByRole('button',{name:'Save',exact:true}).click();await expect(contactDialog).toBeHidden();
+  await expect(immediateContact).toContainText('Accounts coordinator');
+  const editedDirectoryContact=(await directory()).contacts.find(person=>person.id===newlySavedBilling.contact_id);
+  assert.equal(editedDirectoryContact.title,'Accounts coordinator');assert.equal(editedDirectoryContact.account_id,newlySavedBilling.account_id);
+  assert.deepEqual(ownedWork(info).fields.billing,billingSnapshot,'Editing the linked directory Contact does not rewrite the saved Work Order billing snapshot');
+  await saveProject();
+  checks.push('New billing Contact is clickable immediately after Save without Refresh; exact-ID/company popup Title edit saves and refreshes while the Work Order billing snapshot stays unchanged');
   const linkedBilling=ownedWork(info).fields.billing, afterBilling=await directory();
   const billingPerson=afterBilling.contacts.find(person=>person.id===linkedBilling.contact_id);
   assert.equal(billingPerson.name,'Accounts Example');assert.equal(billingPerson.account_id,linkedBilling.account_id);
@@ -252,6 +269,7 @@ async function download(host) {
   await page.unroute('**/api/commercial/complete-billing');
   await saveDocument(work);
   assert.equal((await directory()).contacts.filter(person=>person.id===staged.contact_id).length,1);
+  await expect(work.locator(`.commercial-linked-contact[data-contact-id="${staged.contact_id}"]`).getByRole('button',{name:'Board accounts',exact:true})).toBeVisible();
   assert.equal(ownedWork(info).fields.billing.new_contact_key,staged.new_contact_key);
   checks.push('A saved-board work order retains its pending billing details through a directory failure, then links exactly one contact on explicit retry');
 

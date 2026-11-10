@@ -2095,7 +2095,9 @@
             ...(operation.editor.billingReview?{review_token:operation.editor.billingReview}:{})});
           if(state.editor!==operation.editor)return;
           operation.editor.billingLinked=result.contact_id;operation.editor.billingPendingKey='';operation.editor.billingNotice?.('');
-          void window.ClassifireCommercialDirectory.load(true).catch(()=>{});
+          void window.ClassifireCommercialDirectory.load(true).then(data=>{
+            if(state.editor===operation.editor)return operation.editor.panels?.refreshDirectory(data);
+          }).catch(()=>{});
         } catch(error) {
           if(state.editor===operation.editor)operation.editor.billingNotice?.('Accounts contact link pending. Save the Work Order to finish.');
           throw error;

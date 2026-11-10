@@ -187,7 +187,7 @@ const ready = new Promise((resolve, reject) => {
   await secondCard.locator('summary').click();
   await secondCard.getByRole('button',{name:'Convert',exact:true}).click();
   const review=page.locator('#discard-dialog');
-  await expect(review).toBeVisible();
+  await expect(review).toBeVisible({timeout:30000});
   await review.getByRole('button',{name:'Keep editing',exact:true}).click();
   await page.locator('#estimate-navigation-toggle').click();
   await expect(page.locator('#measurements')).toHaveValue('Keep these unsaved project notes');

@@ -41,6 +41,8 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   await page.locator('#project-details-close').click();await page.locator('#refresh-quotes').click();
   const selected=(await read('/api/projects')).files.find(row=>row.name==='separate-builder.cf.json');assert.ok(selected);
   await page.locator(`[data-project-details-id="${selected.id}"]`).click();
+  await expect(page.locator('#project-details-pane')).toHaveAttribute('aria-busy','false');
+  await expect(page.locator('#project-pane-client')).toHaveValue('Builder B');
   await panel.locator('summary').first().click();await expect(panel.getByText('No shared site linked.',{exact:true})).toBeVisible();
   const sites=await read('/api/crm/sites?search=school');assert.equal(sites.sites.length,1);
   await panel.getByLabel('Site',{exact:true}).selectOption(sites.sites[0].id);

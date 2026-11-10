@@ -100,7 +100,7 @@ async function homeIcons(theme){
   for(const [view,label] of homeAreas){
     await page.locator('nav [data-view="home"]').click();const card=page.locator(`.home-card[data-home-view="${view}"]`);
     if(view==='help'){await card.focus();await page.keyboard.press('Enter');}else await card.click();
-    await expect(page.locator(`#view-${view}`)).toBeVisible();homeActions.push({view,label,method:view==='help'?'keyboard Enter':'native click'});
+    await expect(page.locator(`#view-${view==='projects'?'quotes':view}`)).toBeVisible();homeActions.push({view,label,method:view==='help'?'keyboard Enter':'native click'});
   }
   csp.push(...await page.evaluate(()=>window.qaIconCsp||[]));
   assert.deepEqual(errors,[]);assert.deepEqual(csp,[]);assert.deepEqual(saveRequests,[]);

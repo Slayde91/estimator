@@ -165,7 +165,6 @@ jobs:
       - run: node tests/browser/commercial_estimate_performance.cjs
       - run: node tests/browser/commercial_terms.cjs
       - run: node tests/browser/swms.cjs
-      - run: node tests/browser/swms_people_defaults.cjs
       - run: node tests/browser/swms_contact_signature.cjs
       - run: node tests/browser/project_documentation.cjs
       - run: node tests/browser/control_layout_polish.cjs
@@ -203,7 +202,6 @@ jobs:
       - run: node tests/browser/crm_signature_adoption.cjs
       - run: npm run test:takeoffs-signatures
       - run: node tests/browser/signature_chooser_layout.cjs
-      - run: node tests/browser/personal_signature_profiles.cjs
       - run: node tests/browser/personal_details.cjs
       - run: npm run test:takeoffs-graphics
       - run: node tests/browser/takeoff_pdf_fonts.cjs

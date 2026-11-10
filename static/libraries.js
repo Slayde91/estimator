@@ -86,7 +86,7 @@
     label.append(uiNode("span", "", "Search {0}", [uiTerm(titles[kind])]), pane.searchInput);
     pane.refresh = symbolButton("↻", "Refresh", () => refresh(pane)); pane.refresh.className += " refresh-button"; pane.refresh.dataset.libraryRefresh = kind;
     controls.append(label, pane.refresh);
-    if (kind === "technical") { const add = symbolButton("+", "Add Technical Library item", () => openTechnicalEditor(pane)); add.dataset.libraryCreate = kind; controls.append(add); }
+    if (kind === "technical") { const add = symbolButton("+", "Add Technical Library item", () => openTechnicalEditor(pane)); add.className = "button primary icon-only penetration-new-item-action library-create-action"; add.dataset.libraryCreate = kind; controls.append(add); }
     pane.filterControls = node("div", "library-filters");
     pane.count = node("p", "helper library-count"); pane.count.setAttribute("role", "status"); pane.count.dataset.libraryCount = kind;
     pane.results = node("div", "library-results"); pane.results.dataset.libraryResults = kind;

@@ -1,4 +1,4 @@
-# Machine launchers dot-source these read-only loopback probes.
+# Repository and machine launchers dot-source these read-only loopback probes.
 function Test-LocalEstimatorPort([int]$Port) {
     $client = New-Object System.Net.Sockets.TcpClient
     $connection = $null
@@ -15,7 +15,7 @@ function Test-LocalEstimatorPort([int]$Port) {
     }
 }
 
-function Get-LocalEstimatorEndpoint([int]$Port, [string]$ExpectedPolicy) {
+function Get-LocalEstimatorEndpoint([int]$Port, [string[]]$ExpectedPolicy) {
     if (-not (Test-LocalEstimatorPort $Port)) { return 'unavailable' }
     foreach ($route in '/api/access/session', '/api/bootstrap') {
         try {
@@ -48,7 +48,7 @@ function Get-LocalEstimatorEndpoint([int]$Port, [string]$ExpectedPolicy) {
                     $keys -cnotcontains 'configuration' -or $keys -cnotcontains 'workflows') { return 'other' }
         }
         catch { return 'other' }
-        if ([string]$response.Headers['Content-Security-Policy'] -cne $ExpectedPolicy) { return 'policy-mismatch' }
+        if ($ExpectedPolicy -cnotcontains [string]$response.Headers['Content-Security-Policy']) { return 'policy-mismatch' }
         return 'estimator'
     }
     return 'other'

@@ -14,6 +14,7 @@ class TakeoffDistributionTests(unittest.TestCase):
             root = Path(directory)
             for name in ('README.md', 'requirements.txt', 'Start-Estimator.cmd', 'Start-Estimator.ps1',
                          'scripts/install_reference_library.py', 'scripts/build_language_catalog.py',
+                         'scripts/local_estimator_health.ps1',
                          'scripts/install_library_replicas.py', 'docs/LIBRARY_REPLICAS.md',
                          'scripts/import_boss_matrix.py', 'docs/BOSS_MATRIX_IMPORT.md',
                          'docs/TAKEOFFS.md', 'docs/LANGUAGES.md', 'docs/PERLIFOC_ASSESSMENT.md', 'docs/NULLIFIRE_SC902.md', 'docs/FIRETEX_ASSESSMENTS.md',
@@ -44,6 +45,7 @@ class TakeoffDistributionTests(unittest.TestCase):
                 self.assertIn('scripts/import_promat_spray_assessments.py', names)
                 self.assertIn('requirements-import.txt', names)
                 self.assertIn('scripts/build_language_catalog.py', names)
+                self.assertIn('scripts/local_estimator_health.ps1', names)
                 self.assertIn('scripts/install_library_replicas.py', names)
                 self.assertIn('docs/LIBRARY_REPLICAS.md', names)
                 self.assertIn('scripts/import_boss_matrix.py', names)

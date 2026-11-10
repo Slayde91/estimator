@@ -225,7 +225,7 @@ async function inspectHeader(width) {
       assert.ok(await page.locator('#library-pricing .table-scroll').evaluate(el=>el.scrollWidth<=el.clientWidth+1),'Pricing columns fit desktop width');
     }
     if(kind==='technical')await expect(page.locator('[data-library-summary="technical"]')).toBeVisible();
-    if(kind==='pricing')await expect(page.locator('#library-pricing > .page-heading .subtitle')).toHaveCount(0);
+    if(kind==='pricing')await expect(page.locator('#pricing-heading-slot > [data-library-heading="pricing"] .subtitle')).toHaveCount(0);
     else {
       const heading=page.locator(`#pricing-heading-slot [data-library-heading="${kind}"]`), image=heading.locator('.library-heading-art-slot img');
       await expect(image).toHaveAttribute('src',`/header-${kind==='penetration'?'firestopping':'technical'}-library.png`);

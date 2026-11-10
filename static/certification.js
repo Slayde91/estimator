@@ -50,7 +50,12 @@
   function message(source, error = false) {
     text($('certification-status'), source);
     $('certification-status').className = error ? 'message error certification-save-status' : 'helper certification-save-status';
-    window.CeasefireNotifications?.show($('certification-status'));
+    const listStatus = $('certification-list-status');
+    if (listStatus) {
+      text(listStatus, source);
+      listStatus.className = $('certification-status').className;
+    }
+    window.CeasefireNotifications?.show(!state.editorVisible && listStatus ? listStatus : $('certification-status'));
   }
   function dirty() {
     return state.conflicted || !equal(fields(),state.baseline.fields) ||

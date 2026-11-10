@@ -475,7 +475,7 @@
     const back = button("", leaveEditor);
     back.classList.add("icon-only", "swms-back-action"); back.title = "Back to statements"; back.setAttribute("aria-label", "Back to statements");
     window.CeasefireI18n?.attr(back, "title", "Back to statements"); window.CeasefireI18n?.attr(back, "aria-label", "Back to statements");
-    back.innerHTML='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 5l-7 7 7 7"></path></svg>';
+    const backIcon = element("span", "button-symbol", "←"); backIcon.setAttribute("aria-hidden", "true"); back.append(backIcon);
     actions.append(back, button("Save", () => save(), true), downloadButton, element("span", "muted", editor.version ? `Revision ${editor.version}` : "New statement")); host.append(actions);
     const stages = [...window.ClassifireDocumentBoard.stages];
     if (editor.status === 'Archived') stages.push('Archived');

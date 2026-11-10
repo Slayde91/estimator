@@ -16,33 +16,11 @@ if ($packagePins.Count -eq 0) {
 $requiredPackages = ($packagePins | ForEach-Object { $_.Matches[0].Value.Trim() }) -join ','
 
 function Get-EndpointState {
-    # Check TCP first so a different service cannot be mistaken for a free port.
-    $client = New-Object System.Net.Sockets.TcpClient
-    $connection = $null
-    try {
-        $connection = $client.BeginConnect('127.0.0.1', $Port, $null, $null)
-        if (-not $connection.AsyncWaitHandle.WaitOne(500)) { return 'unavailable' }
-        $client.EndConnect($connection)
-    }
-    catch { return 'unavailable' }
-    finally {
-        if ($null -ne $connection) { $connection.AsyncWaitHandle.Dispose() }
-        $client.Dispose()
-    }
-
-    try {
-        $response = Invoke-WebRequest -Uri "$applicationUrl/api/bootstrap" -UseBasicParsing -TimeoutSec 2
-        $serverName = [string]$response.Headers['Server']
-        $payload = $response.Content | ConvertFrom-Json
-        $keys = @($payload.PSObject.Properties.Name)
-        if ($serverName.StartsWith('CeasefireEstimator') -and
-            $keys -contains 'fields' -and $keys -contains 'catalog' -and
-            $keys -contains 'configuration' -and $keys -contains 'workflows') {
-            return 'estimator'
-        }
-    }
-    catch { }
-    return 'other'
+    # Reopen either official policy without changing the running app's mode.
+    # New launches below continue to use the strict application default.
+    $strictPolicy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+    $knownPolicies = @($strictPolicy, "$strictPolicy; style-src-elem 'self' 'unsafe-inline'")
+    return Get-LocalEstimatorEndpoint $Port $knownPolicies
 }
 
 function Test-PythonRuntime {
@@ -91,8 +69,9 @@ function Find-PythonRuntime {
 }
 
 try {
+    . (Join-Path $applicationRoot 'scripts/local_estimator_health.ps1')
     $state = Get-EndpointState
-    if ($state -eq 'other') {
+    if ($state -in 'other', 'policy-mismatch') {
         throw "Port $Port is already occupied by another service, or ESTIMATOR is not responding correctly. Nothing was stopped. Use Start-Estimator.cmd -Port 8766 to choose another port."
     }
     if ($state -eq 'unavailable') {
@@ -111,7 +90,7 @@ try {
             }
             $state = Get-EndpointState
             if ($state -eq 'estimator') { break }
-            if ($state -eq 'other') {
+            if ($state -in 'other', 'policy-mismatch') {
                 throw "Port $Port responded unexpectedly during startup. Nothing was stopped. Check $stderrPath"
             }
             Start-Sleep -Milliseconds 200

@@ -17,6 +17,7 @@
     model: null,
     savedCards: [],
     editor: null,
+    cardIntent: null,
     busy: false,
     dirty: false,
     changed: false,
@@ -699,16 +700,26 @@
     if (!board.children.length) board.append(node("p", "empty-state", "Choose a column from Columns to show documents."));
   }
   async function openCard(card, createWorkOrder = false) {
-    if (state.busy) return;
+    if (state.busy || state.cardIntent) return;
     const source = sourceFor(card);
     const revision = state.revision;
-    const workspace=state.workspace,context=window.CeasefireProject?.runtimeContext?.();
+    const workspace=state.workspace,context=window.CeasefireProject?.runtimeContext?.(),kind=state.kind,editor=state.editor;
+    const documentFingerprint=JSON.stringify(editor?.document),projectFingerprint=JSON.stringify(projectDetailsSnapshot(editor?.source));
+    const sourceFingerprint=JSON.stringify(editor?.source && {file_id:editor.source.file_id,revision:editor.source.revision});
+    const intent={};state.cardIntent=intent;
+    const sameScope=()=>state.cardIntent===intent && workspace===state.workspace && workspace===currentWorkspace()
+      && context===window.CeasefireProject?.runtimeContext?.();
+    const current=()=>sameScope() && state.revision===revision && state.kind===kind && state.editor===editor
+      && documentFingerprint===JSON.stringify(editor?.document) && !state.dirty
+      && projectFingerprint===JSON.stringify(projectDetailsSnapshot(editor?.source))
+      && sourceFingerprint===JSON.stringify(editor?.source && {file_id:editor.source.file_id,revision:editor.source.revision});
+    let ownsBusy=true;
+    state.busy=true;setDisabled(true);
     try {
       let document = card;
       if (source) {
-        state.busy = true;
         const opened = await request("saved-open", {source, id: card.id});
-        if (state.revision !== revision || workspace!==state.workspace || workspace!==currentWorkspace() || context!==window.CeasefireProject?.runtimeContext?.()) return;
+        if (!current()) return;
         document = opened.document;
         source.documentId = document.id;
         source.estimates = opened.estimates;
@@ -720,7 +731,6 @@
           contact_name:document.fields.details.contact,contact_phone:document.fields.details.phone,contact_email:document.fields.details.email
         };
         source.createdProject = opened.created_project === true;
-        state.busy = false;
       }
       if (!createWorkOrder) { openEditor(document, source); return; }
       if (!requireProject(source)) return;
@@ -730,16 +740,24 @@
       }
       const details = {...document.fields.details, date: today()};
       const {fields} = await documentRequest("defaults", {workspace_id: state.workspace, kind: "work_order", details}, source);
-      if (state.revision !== revision || !await window.CeasefireProject.openCommercial("work_order")) return;
+      if (!current()) return;
+      // Navigation must be allowed to leave this clean editor. Keep its controls
+      // disabled and the intent reserved until the deliberate transition ends.
+      state.busy=false;ownsBusy=false;
+      if (!await window.CeasefireProject.openCommercial("work_order") || !sameScope()
+          || state.kind!=="work_order" || state.editor) return;
       fields.order.quote_id = document.id;
       fields.order.quote_reference = document.last_number;
       fields.order.description = document.fields.lines.map(line => line.description).join("\n");
       openEditor({id: crypto.randomUUID(), version: 0, kind: "work_order", status: "Draft", fields, last_number: ""}, source, document);
       markDirty();
     } catch (error) {
-      message(error.message, true);
+      if(sameScope() && state.editor===editor)message(error.message, true);
     } finally {
-      state.busy = false;
+      if(state.cardIntent===intent) {
+        const owned=sameScope();state.cardIntent=null;
+        if(owned && (ownsBusy || !state.busy)){state.busy=false;setDisabled(false);}
+      }
     }
   }
   async function saveActiveProject() {
@@ -2234,6 +2252,7 @@
       state.workspace = prepared?.workspace_id || null;
       state.model = null;
       state.editor = null;
+      state.cardIntent = null;
       state.dirty = false;
       state.busy = false;
       state.changed = false;

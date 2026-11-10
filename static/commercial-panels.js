@@ -266,7 +266,9 @@
         card.append(row.account ? action(row.name,()=>void editAccount(row.id),'text-button project-title-button') : el('strong',row.name));
         const roles=el('p');roles.className='helper';
         row.roles.forEach((role,index)=>{if(index)roles.append(' · ');const label=el('span',role);window.CeasefireI18n?.text(label,role);roles.append(label);});card.append(roles);
-        fieldList(card,[["Billing address",row.account?.billing_address],["ABN/ACN",row.account?.abn_acn]]);
+        const project=projectDetails(),projectPrimary=!isPurchaseOrder && row.primary && fold(project.client)===fold(options.fields.details.client);
+        fieldList(card,[["Billing address",projectPrimary ? project.billing_address ?? row.account?.billing_address : row.account?.billing_address],
+          ["ABN/ACN",projectPrimary ? project.abn_acn ?? row.account?.abn_acn : row.account?.abn_acn]]);
         if(row.id && !row.account){const unavailable=el('p','The selected directory record is unavailable.');unavailable.className='helper';window.CeasefireI18n?.text(unavailable,unavailable.textContent);card.append(unavailable);}
         companyList.append(card);
       }

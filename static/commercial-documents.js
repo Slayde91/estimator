@@ -223,7 +223,7 @@
     const result = await response.json();
     if (!response.ok) {
       const error = new Error(result.error || "The commercial document request failed.");
-      error.status = response.status; throw error;
+      error.status = response.status; error.billingReview=result.billing_review; throw error;
     }
     return result;
   }
@@ -373,6 +373,8 @@
       state.savedCards = register.documents.filter(card => card.source_path
         ? card.source_path !== active?.project_path || result.activeFileChanged
         : !card.current_workspace);
+      result.localBillingSources = new Map(register.documents.filter(card=>card.unfiled && card.current_workspace && card.kind==='work_order')
+                                            .map(card=>[card.id,sourceFor(card)]));
       result.unavailableProjects = register.error_count;
       result.unavailableSources = register.unavailable_sources || [];
     }
@@ -1206,6 +1208,83 @@
     section.querySelectorAll("input,textarea").forEach(element => window.CeasefireI18n?.attr(element, "aria-label", element.getAttribute("aria-label")));
     return section;
   }
+  function claimBilling(section, fields) {
+    const editor=state.editor, panel=node('div','commercial-claim-billing'), status=node('p','helper'), review=node('div','actions');
+    panel.dataset.claimBilling=''; status.setAttribute('role','status');status.hidden=true;review.hidden=true;
+    const controls={},project=()=>projectDetailsSnapshot(editor.source);
+    const current=()=>state.editor===editor && !state.busy && panel.isConnected;
+    const defaults=()=>editor.document.version===0 ? {address:project().billing_address || '',abn_acn:project().abn_acn || ''} : {};
+    const value=key=>(fields.billing || defaults())[key] || '';
+    const notice=text=>{status.hidden=!text;status.textContent=text; if(text)window.CeasefireI18n?.text(status,text);};
+    function set(values) {
+      fields.billing={...(fields.billing || defaults()),...values};
+      if(Object.hasOwn(values,'new_contact_key'))editor.billingPendingKey=values.new_contact_key || '';
+      delete editor.billingReview;review.hidden=true; status.hidden=true;markDirty();
+    }
+    function edit(key,text) {
+      if(key==='name') {
+        set({name:text,contact_id:'',new_contact_key:text.trim()?crypto.randomUUID():'',account_id:project().account_id || ''});
+      } else if (['email','phone'].includes(key) && fields.billing?.new_contact_key) {
+        const linked=editor.billingLinked===fields.billing.contact_id && !!editor.billingLinked;
+        set({[key]:text,new_contact_key:linked?'':crypto.randomUUID(),contact_id:linked?editor.billingLinked:''});
+      } else set({[key]:text});
+    }
+    function choose(person) {
+      set({name:person.name,email:person.email || '',phone:person.phone || '',contact_id:person.id,new_contact_key:'',
+        account_id:project().account_id || ''});
+      for(const key of ['name','email','phone'])controls[key].value=value(key);
+    }
+    for(const [key,label,type,max] of [['address','Billing address','text',1200],['abn_acn','ABN/ACN','text',80],
+      ['name','Accounts name','text',160],['email','Accounts email','email',254],['phone','Accounts phone','tel',60]]) {
+      if(key==='name'){
+        const picker=window.ClassifireCommercialDirectory.field(label,{kind:'contacts',allowCreate:false,value:value(key),read:()=>value(key),
+          isCurrent:current,message,filter:(person,dir)=>{const owner=project().account_id;return !!owner && person.account_id===(dir.identity_aliases?.accounts?.[owner] || owner);},
+          onInput:text=>edit(key,text),onSelect:choose});
+        controls[key]=picker.input;panel.append(picker.element);
+      }else{
+        const control=key==='address'?textarea(value(key),text=>edit(key,text)):input(value(key),text=>edit(key,text),type);
+        if(key==='address')control.rows=1;
+        const item=field(label,control);
+        window.CeasefireI18n?.text(item.querySelector('span'),label);window.CeasefireI18n?.attr(control,'aria-label',label);
+        controls[key]=control;panel.append(item);
+      }
+      controls[key].maxLength=max;
+    }
+    if(!fields.billing && editor.document.version===0 && (value('address') || value('abn_acn')))fields.billing=defaults();
+    panel.append(status,review);section.append(panel);
+    editor.showBillingReview=async decision=>{
+      let directory;
+      try{directory=await window.ClassifireCommercialDirectory.load();}catch{directory={};}
+      if(!panel.isConnected || state.editor!==editor)return;
+      review.replaceChildren();review.hidden=false;
+      for(const match of decision.matches.filter(item=>item.strong)){
+        const person=match.fields;
+        const text=[person.name,person.email,person.phone].filter(Boolean).join(' · ');
+        const active=(directory.contacts || []).find(row=>row.id===person.id), owner=project().account_id;
+        if(active && active.account_id===(directory.identity_aliases?.accounts?.[owner] || owner))review.append(button(text,()=>choose(active)));
+        else review.append(node('span','helper',text));
+      }
+      const separate=button('Create a separate Contact',()=>{
+        editor.billingReview=decision.review_token;review.hidden=true;notice('Save the Work Order to create this contact.');
+      });
+      window.CeasefireI18n?.text(separate,'Create a separate Contact');review.append(separate);
+    };
+    editor.billingNotice=notice;
+    if(fields.billing?.new_contact_key){
+      const id=fields.billing.contact_id;
+      notice('Accounts contact link pending. Save the Work Order to finish.');
+      editor.billingDirectory=window.ClassifireCommercialDirectory.load().then(dir=>{
+        if(!panel.isConnected || !id || fields.billing?.contact_id!==id)return;
+        if(dir.contacts.some(person=>person.id===(dir.identity_aliases?.contacts?.[id] || id))){
+          editor.billingLinked=id;editor.billingPendingKey='';notice('');
+        }else if(dir.accounts.some(account=>account.id===(dir.identity_aliases?.accounts?.[fields.billing.account_id] || fields.billing.account_id))){
+          editor.billingPendingKey=fields.billing.new_contact_key;
+        }else{
+          editor.billingPendingKey='';notice('The billing Company is unavailable in this directory. Saved claim details are retained.');
+        }
+      }).catch(()=>{if(panel.isConnected)notice('The billing contact directory is unavailable.');});
+    }
+  }
   function renderOrderFields(form, fields) {
     const isWorkOrder = state.kind === "work_order";
     const linkKey = isWorkOrder ? "quote_id" : "work_order_id";
@@ -1294,6 +1373,7 @@
       if(!isWorkOrder && title==='Purchase order information')section.classList.add('commercial-purchase-information');
       if(isWorkOrder && title==='Work order details')section.classList.add('commercial-work-details');
       section.append(node("h2", "", title));
+      if(isWorkOrder && title==='Work Order Claim')claimBilling(section,fields);
       let dates,personPair,personDate,rejectionField;
       for (const [key, label] of items) {
         if(['completed_percent','claimed_percent'].includes(key)) {
@@ -1833,6 +1913,10 @@
     assertDocumentOperation(operation);
     validateProjectDetailEdit(operation);
     const {editor,workspace,projectDetails}=operation, document=editor.document;
+    if(editor.billingDirectory)await editor.billingDirectory;
+    if(!explicitlySaved && document.kind==='work_order' && document.fields.billing?.new_contact_key &&
+        document.fields.billing.new_contact_key===editor.billingPendingKey)
+      throw new Error('Save the Work Order before issuing it with a new accounts contact.');
     const lockedNumber=boundWorkOrderProjectNumber(editor);
     if(!editor.source)applyProjectDetails(document.fields,commercialProjectDetails());
     if(lockedNumber)document.fields.details.project_no=lockedNumber;
@@ -1843,6 +1927,7 @@
       kind: document.kind,
       status: document.status,
       fields: document.fields,
+      ...(editor.billingReview?{billing_review:editor.billingReview}:{}),
       ...(!editor.source ? {project_details:projectDetails} : editor.source.projectUpdates ? {project_updates:editor.source.projectUpdates} : {}),
       ...(explicitlySaved && !state.editor.source && !window.CeasefireProject.context().project_token ? {retain_unfiled:true} : {}),
       ...captured
@@ -1879,6 +1964,7 @@
     if (state.busy || !state.editor) return;
     try {validateReadiness('save');} catch(error) {message(error.message,true);return;}
     const operation=captureDocumentOperation();
+    let draftSaved=false;
     state.busy = true;
     setDisabled(true);
     try {
@@ -1890,11 +1976,30 @@
       assertDocumentOperation(operation);
       const captured = state.kind === "quote" ? await capturedEstimates() : {};
       await persist(captured, true, operation);
+      draftSaved=true;
       const source = state.editor.source;
       const inFile = source ? !source.file_id.startsWith("local-") : await saveActiveProject();
+      const document=operation.editor.document,billing=document.fields.billing;
+      if(document.kind==='work_order' && billing?.new_contact_key && billing.new_contact_key===operation.editor.billingPendingKey) {
+        const active=window.CeasefireProject.context(),owner=source ? {file_id:source.file_id,revision:source.revision} :
+          inFile ? {project_token:active.project_token,revision:active.project_revision} : state.model.localBillingSources?.get(document.id);
+        try {
+          if(!owner)throw new Error('Reopen the saved Work Order to finish linking its accounts contact.');
+          const result=await request('complete-billing',{source:owner,id:document.id,version:document.version,new_contact_key:billing.new_contact_key,
+            ...(operation.editor.billingReview?{review_token:operation.editor.billingReview}:{})});
+          if(state.editor!==operation.editor)return;
+          operation.editor.billingLinked=result.contact_id;operation.editor.billingPendingKey='';operation.editor.billingNotice?.('');
+          void window.ClassifireCommercialDirectory.load(true).catch(()=>{});
+        } catch(error) {
+          if(state.editor===operation.editor)operation.editor.billingNotice?.('Accounts contact link pending. Save the Work Order to finish.');
+          throw error;
+        }
+      }
       message(inFile
         ? "Document saved. Its linked project file is updated." : "Document saved. It is available on the board.");
     } catch (error) {
+      if(draftSaved && operation.editor.billingPendingKey)operation.editor.billingNotice?.('Accounts contact link pending. Save the Work Order to finish.');
+      if(error.billingReview && state.editor===operation.editor)operation.editor.showBillingReview?.(error.billingReview);
       message(error.message, true);
     } finally {
       state.busy = false;

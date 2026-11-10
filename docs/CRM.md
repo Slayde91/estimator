@@ -49,6 +49,18 @@ time, break, location and publication permissions continue to apply. Workers see
 only their own bookings, while their job picker exposes bounded reference/site
 context without commercial prices, documents or notes.
 
+Shift publication is deliberate: Publish shift and Create draft save the same
+shift identity with the chosen visibility. Typing Enter in a field does not publish
+a draft. Colour tiles retain an older custom colour until another is selected.
+
+Work Order Claim has its own billing address, business identifier and accounts
+person snapshot. A new accounts person is linked to the Project's existing Company
+only after an explicit successful document Save. Completion verifies the exact
+saved source and revision; retries reuse the same creation receipt. A directory
+conflict leaves a visible pending link for review rather than pretending creation
+succeeded. Choosing an existing person does not change their employer or directory
+details. Billing overrides do not update the Company's master data or earlier PDFs.
+
 ## Reviewed duplicates and current details
 
 Duplicate suggestions distinguish strong identity matches from advisory name,

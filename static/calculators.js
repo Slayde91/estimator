@@ -2091,6 +2091,9 @@ window.CeasefireScheduleColumns = (() => {
     const page = currentPage(entry), chooser = node("div", "calculator-settings-chooser"), panels = new Map(), buttons = new Map();
     chooser.setAttribute("role", "group"); window.CeasefireI18n.attr(chooser, "aria-label", "Settings sections");
     entry.settingsSelection ||= {};
+    if (entry.definition.id === "steel_vermiculite" && page === "FACTOR CALCS" && !Object.hasOwn(entry.settingsSelection, page)) {
+      entry.settingsSelection[page] = "A341";
+    }
     const update = () => {
       for (const [id, panel] of panels) {
         const expanded = entry.settingsSelection[page] === id;

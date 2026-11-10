@@ -79,6 +79,11 @@ def company_key(name):
     return " ".join(name.split()).casefold()
 
 
+def complete_contact_identity(data):
+    return all(''.join(char for char in data[key] if unicodedata.category(char) != 'Cf').strip()
+               for key in CONTACT_CREATION_REQUIRED_FIELDS)
+
+
 _LEAD_COLUMNS = """id TEXT PRIMARY KEY, contact_id TEXT NOT NULL REFERENCES contacts(id),
     site_address TEXT NOT NULL, billing_address TEXT NOT NULL, description TEXT NOT NULL,
     status TEXT NOT NULL, person_snapshot TEXT"""
@@ -378,9 +383,7 @@ class ContactsStore:
         data = checked_fields(kind, body.get("fields"))
         # Explicit New Contact actions have minimum identity details. Legacy
         # imports and edits retain their existing, more permissive contract.
-        if kind == "contacts" and not body.get("id") and any(
-                not ''.join(char for char in data[key] if unicodedata.category(char) != 'Cf').strip()
-                for key in CONTACT_CREATION_REQUIRED_FIELDS):
+        if kind == "contacts" and not body.get("id") and not complete_contact_identity(data):
             raise ValidationError(CONTACT_CREATION_REQUIRED_MESSAGE)
         if "links" in body and kind != "accounts":
             raise ValidationError("Related records can only be changed from a company.")

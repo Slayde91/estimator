@@ -90,7 +90,6 @@ async function openProjectsList(){
  // The Projects hover menu overlays the next navigation row on narrow screens.
  // Move off its trigger and dismiss it before using the hub or changing media.
  await page.mouse.move(0,0);await toggle.press('Escape');await expect(page.locator('#projects-navigation-menu')).toBeHidden();
- if(await page.locator('#view-projects').isVisible())await page.locator('#view-projects [data-project-section="quotes"]').click();
  await expect(page.locator('#view-quotes')).toBeVisible();await idle();
 }
 async function followupBanners(themes=['ceasefire','midnight','ocean','forest','slate'],widths=[1384,1020,825,390]){

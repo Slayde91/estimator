@@ -135,6 +135,24 @@ async function download(host) {
   await work.getByLabel('Proposed start date', {exact:true}).fill('2026-11-10');
   await work.getByLabel('Category / urgency', {exact:true}).selectOption('Medium Priority');
   await work.getByLabel('Description of works', {exact:true}).fill('Synthetic tracking fixture installation');
+  const directory=async()=>(await page.request.get(new URL('/api/contacts/directory',page.url()).href)).json();
+  const billing=work.locator('[data-claim-billing]'), initialDirectory=await directory();
+  await expect(billing.locator('input,textarea')).toHaveCount(5);
+  assert.ok(await billing.evaluate(el=>el.getBoundingClientRect().bottom <= el.parentElement.querySelector('[data-tracking-field=claimed_percent]').getBoundingClientRect().top));
+  await billing.getByLabel('Billing address',{exact:true}).fill('Level 2, 40 Claim Street');
+  await billing.getByLabel('ABN/ACN',{exact:true}).fill('ABN 11 111 111 111');
+  await billing.getByLabel('Accounts name',{exact:true}).fill('Accounts Example');
+  await billing.getByLabel('Accounts email',{exact:true}).fill('accounts@example.test');
+  await billing.getByLabel('Accounts phone',{exact:true}).fill('0400 111 222');
+  await billing.getByLabel('Accounts phone',{exact:true}).blur();
+  for(const width of [1515,390]){
+    await page.setViewportSize({width,height:940});
+    // Crop just the claim card; exclude the sticky application chrome from this capture.
+    await billing.locator('..').screenshot({path:path.join(output,'billing-claim-'+width+'.png'),
+      style:'.app-header,.skip-link,.commercial-editor-actions,.commercial-panel-actions,.project-floating-actions{visibility:hidden!important}'});
+  }
+  await page.setViewportSize({width:1515,height:1000});
+  assert.equal((await directory()).version,initialDirectory.version,'Typing never modifies the directory');
   const percentages = {completed_percent:['', '1', '37.5', '100'], claimed_percent:['100', '', '1', '37.5']};
   for (const [key, values] of Object.entries(percentages)) {
     const rows = trackingRows(work, key); await expect(rows).toHaveCount(4);
@@ -151,6 +169,10 @@ async function download(host) {
   assert.deepEqual(await completion.locator('option').allTextContents(), ['', 'Completed', 'Ongoing', 'On hold', 'Not completed']);
   await certification.selectOption('Certification issued'); await completion.selectOption('Ongoing');
   await assertTracking(work, expected, percentages); await saveDocument(work); await saveProject();
+  const linkedBilling=ownedWork(info).fields.billing, afterBilling=await directory();
+  const billingPerson=afterBilling.contacts.find(person=>person.id===linkedBilling.contact_id);
+  assert.equal(billingPerson.name,'Accounts Example');assert.equal(billingPerson.account_id,linkedBilling.account_id);
+  assert.deepEqual(afterBilling.accounts,initialDirectory.accounts,'Claim billing never edits the company');
   stage = 'editing another percentage after saving without reopening';
   percentages.claimed_percent[1] = '25';
   await trackingRows(work, 'claimed_percent').nth(1).locator('input').fill('25');
@@ -158,6 +180,7 @@ async function download(host) {
   await trackingRows(work,'completed_percent').nth(2).locator('textarea').fill(expected[2].notes);
   await saveDocument(work); await saveProject();
   assert.equal(ownedWork(info).fields.work_tracking.rows[1].claimed_percent, '25', 'A second percentage edit in the same open editor survives another Save');
+  assert.equal((await directory()).contacts.filter(person=>person.name==='Accounts Example').length,1,'Resaving the same claim keeps its single billing contact');
   assert.equal(ownedWork(info).fields.work_tracking.rows[2].notes,expected[2].notes,'A later Notes edit in the same open editor survives another Save');
   const initialWork = ownedWork(info), baseline = initialWork.fields.work_tracking;workTitle=initialWork.reference+': '+initialWork.fields.details.client;
   assert.equal(baseline.project_id, stored(info).commercial_documents.project_id);
@@ -208,6 +231,30 @@ async function download(host) {
   await page.screenshot({path:path.join(output, 'reopened-tracking.png'), fullPage:true});
   checks.push('Main Project Save and native Load reopen the exact row percentages and selected enum values');
 
+  stage = 'saved-board billing contact retry';
+  await page.close();await openPage(info);
+  assert.equal((await page.evaluate(()=>window.CeasefireProject.context())).project_token,null);
+  work=await openDocument('work-orders',workTitle);
+  const boardClaim=work.locator('[data-claim-billing]');
+  await boardClaim.getByLabel('Accounts name',{exact:true}).fill('Board accounts');
+  await boardClaim.getByLabel('Accounts email',{exact:true}).fill('board.accounts@example.test');
+  await boardClaim.getByLabel('Accounts phone',{exact:true}).fill('0400 333 444');
+  await page.route('**/api/commercial/complete-billing',route=>route.fulfill({status:503,
+    contentType:'application/json',body:JSON.stringify({error:'Temporary accounts directory failure'})}));
+  const savedBoard=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/commercial/saved-save');
+  await work.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();
+  assert.equal((await savedBoard).status(),200);
+  await expect(work.locator('.commercial-message')).toContainText('Temporary accounts directory failure');
+  await expect(boardClaim).toContainText('Accounts contact link pending');
+  assert.equal((await directory()).contacts.filter(person=>person.name==='Board accounts').length,0);
+  const staged=ownedWork(info).fields.billing;
+  assert.equal(staged.name,'Board accounts');assert.ok(staged.new_contact_key);
+  await page.unroute('**/api/commercial/complete-billing');
+  await saveDocument(work);
+  assert.equal((await directory()).contacts.filter(person=>person.id===staged.contact_id).length,1);
+  assert.equal(ownedWork(info).fields.billing.new_contact_key,staged.new_contact_key);
+  checks.push('A saved-board work order retains its pending billing details through a directory failure, then links exactly one contact on explicit retry');
+
   stage = 'portable cold cache';
   const coldFolder = path.join(output, 'cold'); fs.mkdirSync(coldFolder, {recursive:true});
   fs.copyFileSync(info.project, path.join(coldFolder, 'browser-project.cf.json'));
@@ -217,9 +264,11 @@ async function download(host) {
   const issuedCount = Number(execFileSync(python, ['-c', 'import sqlite3,sys;db=sqlite3.connect("file:"+sys.argv[1]+"?mode=ro",uri=True);print(db.execute("SELECT count(*) FROM commercial_issued").fetchone()[0]);db.close()', database], {encoding:'utf8', windowsHide:true}));
   assert.equal(issuedCount, 0, 'The portable reopen has no warm issued-document cache');
   await assertTracking(work, expected, percentages); assert.deepEqual(ownedWork(cold).fields.work_tracking, baseline);
+  await expect(work.locator('[data-claim-billing]')).toContainText('The billing Company is unavailable in this directory');
   await trackingRows(work, 'claimed_percent').nth(2).locator('input').fill('100');
   await work.getByLabel('Completion', {exact:true}).selectOption('On hold'); await saveDocument(work); await saveProject();
   const coldWork = ownedWork(cold); assert.equal(coldWork.id, initialWork.id); assert.equal(coldWork.fields.work_tracking.source_hash, baseline.source_hash);
+  assert.deepEqual(coldWork.fields.billing,staged);assert.equal((await directory()).contacts.length,0);
   assert.equal(coldWork.fields.work_tracking.rows[2].claimed_percent, '100'); assert.equal(coldWork.fields.order.completion, 'On hold');
   const issued = await download(work), text = execFileSync(python, ['-c', 'from pypdf import PdfReader;import sys;print("\\n".join(p.extract_text() for p in PdfReader(sys.argv[1]).pages))', issued.path], {encoding:'utf8', windowsHide:true});
   for (const value of ['Paid fixture row', 'Free fixture row', 'Credit fixture row', 'Paid progress note', 'Free progress note', 'Credit progress note updated', '37.5', '100', 'On hold', 'Certification issued','$125.25','-$5.00']) assert.ok(text.replace(/\s+/g,' ').includes(value), value);

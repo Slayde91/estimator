@@ -429,6 +429,13 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
             ('WORK ORDER COMPLETION', [('Certification details', 'certification'), ('Completion', 'completion'), ('Closed by', 'closed_by'), ('Name', 'closed_by'), ('Date', 'closed_date')]),
         ]:
             _section(story, title, styles, splittable=title in {'WORKS IN PROGRESS', 'WORK ORDER CLAIM'})
+            if title=='WORK ORDER CLAIM' and fields.get('billing'):
+                billing = fields['billing']
+                displayed = [(label,billing[key]) for key,label in (('address','Billing address'),('abn_acn','ABN/ACN'),
+                    ('name','Accounts name'),('email','Accounts email'),('phone','Accounts phone')) if billing.get(key)]
+                if displayed:
+                    _fields(story,displayed,styles)
+                    story[-1].splitInRow = 1  # A long multiline billing address may span a page.
             if title in ('WORKS IN PROGRESS','WORK ORDER CLAIM'):
                 tracking = fields.get('work_tracking')
                 key = 'completed_percent' if title=='WORKS IN PROGRESS' else 'claimed_percent'

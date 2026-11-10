@@ -350,7 +350,7 @@ def self_test(data_directory, output_report):
                 probe.click('#steel-calculator-navigation-menu button[data-calculator-id="steel_factors"]')
                 probe.wait('document.querySelector("#steel-calculator-navigation-menu button[data-calculator-id=steel_factors]").getAttribute("aria-pressed") === "true" && document.querySelector("#calculator-title").textContent === "Factor Calcs" && document.querySelector("#calculator-workspace").dataset.calculatorKind === "steel_vermiculite" && document.querySelector("#calculator-grid").getAttribute("aria-busy") === "false" && !!document.querySelector("#calculator-grid table")')
                 assert probe.script('document.querySelector("#calculator-pages").hidden') is True
-                probe.click('[data-calculator-settings-section="A341"]')
+                assert probe.script('document.querySelector("[data-calculator-settings-section=A341]").getAttribute("aria-expanded")') == 'true'
                 probe.wait('!!document.querySelector("[data-calculator-cell=D346]")?.getClientRects().length')
                 assert probe.script('window.CeasefireCalculators.projectSnapshot()') == shared_inputs
                 probe.click('#calculator-navigation-toggle')

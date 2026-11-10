@@ -54,10 +54,10 @@ async function submit(name) {await page.locator('dialog[open]').getByRole('butto
   await expect(modal.getByLabel('Location',{exact:true})).toHaveValue('12 Site Street');
   await modal.getByLabel('Location',{exact:true}).fill('12 Site Street, gate B');
   const savingShift=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/scheduler/shifts/save'&&response.request().method()==='POST');
-  await submit('Save shift');
+  await submit('Publish shift');
   const shiftResponse=await savingShift;assert.equal(shiftResponse.status(),200,await shiftResponse.text());
   const createdShift=await shiftResponse.json();
-  assert.ok(createdShift.id);assert.equal(createdShift.work_order.id,order.id);
+  assert.ok(createdShift.id);assert.equal(createdShift.work_order.id,order.id);assert.equal(createdShift.published,true);
   assert.equal(createdShift.location,'12 Site Street, gate B');
   const denied = await api('scheduler/shifts/save',{title:'Blocked draft',project_id:draft.id,start:'2026-11-02T07:00',end:'2026-11-02T15:00'});
   assert.equal(denied.status,400);

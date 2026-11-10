@@ -72,7 +72,7 @@ vm.createContext(context);
   assert.ok(appEnd.test(appSource), 'Estimator test hook must replace bootstrap only');
   appSource = appSource.replace(appEnd, `
     globalThis.appAudit = {state, saveProject, loadProject, openNativeProject, newQuote, projectStamp, saveQuote, openQuote, calculate, reportPayload, projectEstimate, downloadFullReport,
-      applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,openProjectBrowser,loadProjectFiles,openProjectFolderFile,closeProjectBrowser,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,requestViewNavigation,requestProjectsNavigation,requestDocumentsNavigation,requestCalculatorNavigation,uploadProjectFiles,reviewDesktopClose,
+      applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,openProjectBrowser,loadProjectFiles,openProjectFolderFile,closeProjectBrowser,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,requestViewNavigation,requestDocumentsNavigation,requestCalculatorNavigation,uploadProjectFiles,reviewDesktopClose,
       renderInputs, selectMainSection, changeProjectStage, changeCurrentProjectStage, renderProjectList, addProjectEstimate, selectEstimate, setRequest(fn) { request = fn; }};
   })();`);
   vm.runInContext(appSource, context);
@@ -1306,19 +1306,21 @@ async function penetrationCheck(name, fn) {
   });
   await check('Documents header starts at its hub then returns to Certification independently of Projects', async h => {
     const before=h.snapshot();let opened=0;h.context.window.CeasefireCertification={open:async()=>{opened++;},hasPendingOperation:()=>false};
-    await h.app.requestProjectsNavigation();assert.equal(h.app.state.currentView,'projects');
+    await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'quotes');
     await h.app.requestDocumentsNavigation();assert.equal(h.app.state.currentView,'documents');
     await h.app.requestViewNavigation('certification');assert.equal(opened,1);
     await h.app.requestViewNavigation('home');await h.app.requestDocumentsNavigation();assert.equal(h.app.state.currentView,'documents');
     await h.app.requestDocumentsNavigation();assert.equal(h.app.state.currentView,'certification');assert.equal(opened,2);
-    await h.app.requestProjectsNavigation();assert.equal(h.app.state.currentView,'projects');assert.equal(h.app.state.lastProjectSection,null);
+    await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'quotes');assert.equal(h.app.state.lastProjectSection,'quotes');
     await h.app.requestViewNavigation('documents');assert.equal(h.app.state.currentView,'documents');assert.equal(h.app.state.lastDocumentSection,'certification');
     assert.deepEqual(h.snapshot(),before);
   });
-  await check('Projects header returns to saved projects while direct hub navigation remains available', async h => {
-    h.app.setRequest(async()=>({files:[]}));await h.app.requestViewNavigation('quotes');await flush();
-    await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'projects');
-    await h.app.requestViewNavigation('home');await h.app.requestProjectsNavigation();assert.equal(h.app.state.currentView,'quotes');
+  await check('Projects opens saved files first and restores the last visited project section', async h => {
+    h.app.setRequest(async()=>({files:[]}));await h.app.showView('projects');await flush();
+    assert.equal(h.app.state.currentView,'quotes');
+    await h.app.requestViewNavigation('work-orders');await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'work-orders');
+    await h.app.requestViewNavigation('home');await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'work-orders');
+    await h.app.showView('home');await h.app.showView('projects');assert.equal(h.app.state.currentView,'work-orders');
   });
   await check('Pending certification operation blocks navigation without touching project inputs', async h => {
     const before=h.snapshot();h.app.state.currentView='certification';h.app.state.lastDocumentSection='certification';

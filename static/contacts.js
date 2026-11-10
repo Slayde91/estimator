@@ -412,6 +412,7 @@
         if (item.inherited) row.append(ui('p','helper','Linked through a merged record.'));
         else if (item.name_only) row.append(ui('p','helper','Matched by company name only.'));
         else if (item.supplier) row.append(ui("p", "helper", "Supplier"));
+        else if (item.billing) row.append(ui('p','helper','Billing contact'));
         else if (item.automatic) row.append(ui("p", "helper", "Linked through this company's saved project."));
         else if (!item.available) row.append(ui("p", "helper", "Unavailable saved record. Clear the selection to remove this link."));
         else if (key === "contacts" && item.account_id && item.account_id !== record.id)

@@ -206,6 +206,12 @@ class UnfiledCommercial:
             entry = db.execute('SELECT estimates FROM local_commercial_documents WHERE workspace=? AND id=?',(workspace,anchor)).fetchone()
             captured = json.loads(zlib.decompress(entry[0])) if entry[0] else {}
         details = {key:document['fields']['details'][key] for key in ('project_no','client','site_address')}
+        from .work_order_billing import unfiled_context
+        billing_project = unfiled_context(captured)
+        captured.pop('billing_project',None)
+        project_details = {**details, **billing_project,
+            **{project_key:document['fields']['details'].get(doc_key,'') for project_key,doc_key in
+               (('contact_name','contact'),('contact_phone','phone'),('contact_email','email'))}}
         order = body['fields'].get('order') if isinstance(body.get('fields'), dict) else None
         linked_work_order = (action == 'save' and body.get('kind') == 'work_order' and body.get('version') == 0
                              and document['kind'] == 'quote' and document['last_number']
@@ -215,7 +221,7 @@ class UnfiledCommercial:
         with self._authorized(source):
             if action == 'open' and set(body) == {'id'}:
                 totals = self.service.view(workspace, include_quote_totals=True)['quote_totals']
-                return {'document':document, 'details':details, 'related':related,
+                return {'document':document, 'details':details, 'related':related, **({'project_details':project_details} if billing_project else {}),
                         'quote_totals':{k:v for k,v in totals.items() if k in records},
                         'quote_total':totals.get(anchor,{}).get(document['last_number'],''),
                         'estimates':[{'id':item['id'],'name':item['name']} for item in captured.get('estimates',[])]}
@@ -226,6 +232,8 @@ class UnfiledCommercial:
                 if not isinstance(body.get('fields'),dict) or not isinstance(body['fields'].get('details'),dict):
                     raise ValidationError('Include the document and its project details.')
                 apply_project_document_details(body['fields'], details)
+                if billing_project:
+                    body['project_details'] = project_details
                 if (body.get('kind') == 'purchase_order' and isinstance(order,dict) and order.get('work_order_id')
                         and order['work_order_id'] != document['fields']['order'].get('work_order_id')
                         and order['work_order_id'] not in records):

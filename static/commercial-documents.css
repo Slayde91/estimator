@@ -101,6 +101,10 @@
 .commercial-signature-actions>.button{width:42px;min-width:42px;height:42px;padding:8px}
 .commercial-signature-actions>.button>svg{display:block;width:24px;height:24px}
 .commercial-work-tracking{grid-column:1/-1;min-width:0;overflow-x:auto}
+.commercial-claim-billing{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;min-width:0}
+.commercial-claim-billing>.helper,.commercial-claim-billing>.actions{grid-column:1/-1}
+.commercial-claim-billing>[hidden]{display:none}
+@media(max-width:650px){.commercial-claim-billing{grid-template-columns:minmax(0,1fr)}}
 .commercial-work-tracking table{width:100%;min-width:560px;border-collapse:collapse;table-layout:fixed}
 .commercial-work-tracking th,.commercial-work-tracking td{padding:10px;border:1px solid var(--line);text-align:left;vertical-align:top;overflow-wrap:anywhere}
 .commercial-work-tracking th:first-child,.commercial-work-tracking td:first-child{width:50%;white-space:pre-wrap}

@@ -23,7 +23,6 @@ const ready = new Promise((resolve, reject) => {
 const errors = [];
 async function projects() {
   await page.locator('nav[aria-label="Main navigation"] button[data-view="projects"]').click();
-  if (await page.locator('#view-projects').isVisible()) await page.locator('#view-projects [data-project-section="quotes"]').click();
   await expect(page.locator('#project-list')).toHaveAttribute('aria-busy', 'false');
 }
 async function idle() {

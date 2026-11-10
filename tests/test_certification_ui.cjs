@@ -544,18 +544,16 @@ async function check(name,fn,{open=true,legacySave=true}={}){const h=harness({le
     await h.generate();assert.deepEqual(changes,[identity]);
   });
   const html=fs.readFileSync('static/index.html','utf8'),app=fs.readFileSync('static/app.js','utf8');
-  for(const choiceClass of ['section-navigation-choice','projects-section-card']) {
+  for(const choiceClass of ['section-navigation-choice','calculator-page']) {
     const choices=[...html.matchAll(/<button\b[^>]*data-project-section="([^"]+)"[^>]*>/g)].filter(match=>match[0].includes('class="'+choiceClass+'"')).map(match=>match[1]);
     assert.deepEqual(choices,['quotes','quote','work-orders','purchase-orders']);
   }
   assert.ok(html.includes('data-project-section="quotes"'));assert.ok(html.includes('data-document-section="certification"'));
-  const projectsHub=html.match(/<section id="view-projects"[^>]*>[\s\S]*?<\/section>/)?.[0];
+  assert.ok(!html.includes('id="view-projects"'));
   const projectsMenu=html.match(/<div id="projects-navigation-menu"[^>]*>[\s\S]*?<\/div>/)?.[0];
-  for(const [name,markup] of [['Projects hub',projectsHub],['Projects navigation menu',projectsMenu]]){
-    assert.ok(markup, name+' is present');
-    assert.deepEqual([...markup.matchAll(/data-project-section="([^"]+)"/g)].map(match=>match[1]),
-      ['quotes','quote','work-orders','purchase-orders'], name+' contains commercial project workspaces');
-  }
+  assert.ok(projectsMenu);
+  assert.deepEqual([...projectsMenu.matchAll(/data-project-section="([^"]+)"/g)].map(match=>match[1]),
+    ['quotes','quote','work-orders','purchase-orders']);
   for(const key of fieldNames)assert.ok(html.includes('id="certification-'+key+'"'));
   assert.ok(html.includes('id="certification-new"'));assert.ok(!html.includes('id="certification-reload"'));
   assert.ok(!html.includes('id="certification-save"'),'Generate Certificate is the only certificate save action in the current page');

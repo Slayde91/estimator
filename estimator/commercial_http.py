@@ -5,18 +5,20 @@ import json
 from urllib.parse import parse_qs, urlsplit
 
 from .catalog import ValidationError, effective_catalog
+from .crm_identity import DuplicateReview
 from .commercial_documents import KINDS, CommercialConflict, default_fields, linked_estimate_ids, project_document_details, apply_project_document_details
 from .unfiled_commercial import quote_context
 
 
 class CommercialHTTP:
-    def __init__(self, service, derive=None, company=None, saved=None, pricing=None, rate_defaults=None):
+    def __init__(self, service, derive=None, company=None, saved=None, pricing=None, rate_defaults=None, billing=None):
         self.service = service
         self.saved = saved
         self.derive = derive
         self.company = company
         self.pricing = pricing
         self.rate_defaults = rate_defaults
+        self.billing = billing
 
     def _company(self):
         return self.company() if callable(self.company) else self.company
@@ -104,7 +106,9 @@ class CommercialHTTP:
                 expected_workspace = handler.headers.get('X-Estimator-Documentation-Workspace')
                 if expected_workspace and expected_workspace != workspace:
                     raise CommercialConflict('The export belongs to a different project workspace.')
-                if action in {'ignore-source', 'restore-source'} and self.saved and set(body) == {'workspace_id', 'id'} and not expected_workspace:
+                if action == 'complete-billing' and self.billing and not expected_workspace:
+                    result = self.billing.complete(body,getattr(handler,'crm_actor',None))
+                elif action in {'ignore-source', 'restore-source'} and self.saved and set(body) == {'workspace_id', 'id'} and not expected_workspace:
                     self.service.certifications.project_id(workspace)
                     result = self.saved.projects.ignore_commercial_source(body['id'], ignored=action == 'ignore-source')
                 elif action == 'attachment' and set(body) == {'workspace_id', 'name', 'content'} and not expected_workspace:
@@ -121,6 +125,8 @@ class CommercialHTTP:
                 handler.send_payload(405, {'error': 'Use GET or POST for commercial documents.'})
                 return True
             handler.send_payload(200, result)
+        except DuplicateReview as error:
+            handler.send_payload(409, {'error':str(error),'billing_review':error.decision})
         except CommercialConflict as error:
             handler.send_payload(409, {'error': str(error)})
         except (ValidationError, KeyError, TypeError) as error:
@@ -133,7 +139,7 @@ class CommercialHTTP:
         fields_by_action = {
             'defaults': {'kind', 'details', 'project_details'}, 'derive': {'fields', 'selected_ids', 'include_scope_tables'},
             'purchase-order-defaults': {'work_order_id', 'work_order_version'},
-            'save': {'id', 'version', 'kind', 'status', 'fields', 'retain_unfiled', 'project_details'},
+            'save': {'id', 'version', 'kind', 'status', 'fields', 'retain_unfiled', 'project_details', 'billing_review'},
             'delete': {'id', 'version'}, 'status': {'id', 'version', 'status'},
             'notes': {'id', 'version', 'notes'},
             'issue': {'id', 'kind', 'version', 'request_id'},
@@ -173,6 +179,17 @@ class CommercialHTTP:
             if not any(document['id'] == body.get('id') for document in model['documents']):
                 self.service.certifications.require_created_project(workspace)
             fields = deepcopy(body.get('fields'))
+            if isinstance(fields,dict) and 'billing' in fields and body.get('kind')=='work_order':
+                from .work_order_billing import normalized, contact_id
+                billing = normalized(fields['billing'])
+                if contact_id(billing):
+                    if self.billing is None:
+                        raise ValidationError('The billing contact directory is unavailable.')
+                    if 'project_details' in body and not isinstance(body['project_details'],dict):
+                        raise ValidationError('Include the document and its project details.')
+                    prior = next((doc['fields'].get('billing',{}) for doc in model['documents'] if doc['id']==body.get('id')), {})
+                    self.billing.validate_selection(billing,prior,(body.get('project_details') or {}).get('account_id'),
+                                                    body.get('billing_review'),model['snapshot']['project_id'],body.get('id'))
             if 'project_details' in body:
                 if not isinstance(fields, dict) or not isinstance(fields.get('details'), dict):
                     raise ValidationError('Include the document and its project details.')
@@ -223,6 +240,11 @@ class CommercialHTTP:
             captured = None
             if body.get('retain_unfiled'):
                 captured = quote_context(body) if body.get('kind') == 'quote' else {}
+                if body.get('kind') in ('quote','work_order') and isinstance(body.get('project_details'),dict):
+                    from .work_order_billing import project_context
+                    context = project_context(body['project_details'])
+                    if context:
+                        captured['billing_project'] = context
             result = self.service.save(workspace, {**allowed, 'fields': fields}, unfiled_context=captured)
         elif action == 'delete':
             result = self.service.delete(workspace, body.get('id'), body.get('version'))

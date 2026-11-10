@@ -379,7 +379,7 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-signature{cursor:move}.takeoff-signature-resize{cursor:nwse-resize}
 .takeoff-workspace-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
 .takeoff-workspace-heading .takeoff-workspace-title { margin: 0; }
-@media screen { .takeoff-workspace-heading { margin-inline-start:var(--takeoff-heading-inset,66px); } }
+@media screen { .takeoff-workspace-heading { margin-inline-start:0; } }
 .takeoff-pdf-tools-menu > button { display: inline-flex; align-items: center; justify-content: space-between; gap: 24px; }
 .takeoff-pdf-tools-menu .calculator-document-actions { left: auto; right: 0; min-width: 230px; }
 .takeoff-graphic-tool svg { width: 24px; height: 24px; }

@@ -102,7 +102,7 @@ async function followupBanners(themes=['ceasefire','midnight','ocean','forest','
   for(const workspace of ['estimate','projects','technical','penetration','pricing']){
    if(workspace==='projects')await openProjectsList();
    else if(['technical','penetration','pricing'].includes(workspace)){await chooseLibrary(page,workspace);await idle();}
-   const heading=page.locator(workspace==='estimate'?'.estimate-banner-heading':workspace==='projects'?'.project-banner-heading':`#library-${workspace} > .page-heading`);
+   const heading=page.locator(workspace==='estimate'?'.estimate-banner-heading':workspace==='projects'?'.project-banner-heading':`#pricing-heading-slot [data-library-heading="${workspace}"]`);
    for(const width of widths){
     await page.setViewportSize({width,height:764});await page.evaluate(()=>scrollTo(0,0));
     const data=await heading.evaluate(el=>{
@@ -139,7 +139,7 @@ async function calculatorFraming(kind,name,themes=['ceasefire','midnight','ocean
    await expect(page.locator('#calculator-title')).toBeVisible();
    const value=await heading.evaluate(el=>{
     const box=n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};};
-    return{heading:box(el),title:box(el.querySelector('h2')),actions:box(el.parentElement.querySelector('#calculator-toolbar-actions .calculator-header-actions')),direction:getComputedStyle(el).direction,overflow:document.documentElement.scrollWidth-innerWidth};
+    return{heading:box(el),title:box(el.querySelector('h2')),actions:box(el.closest('#view-calculators').querySelector('#calculator-toolbar-actions .calculator-header-actions')),direction:getComputedStyle(el).direction,overflow:document.documentElement.scrollWidth-innerWidth};
    });
    assert.ok(value.title.width>0&&value.title.x>=0&&value.title.right<=width+1);assert.ok(value.overflow<=1);
    assert.ok(value.actions.x>=0&&value.actions.right<=width+1&&value.actions.y>=value.heading.bottom-.1,'Moved calculator actions stay below the heading and inside the viewport');
@@ -222,7 +222,7 @@ async function takeoffHeading(name,route,themes=['ceasefire','midnight','ocean',
    const availableArtWidth=Math.max(0,value.slot.width-8);
    if(width>570){const expectedWidth=Math.min(value.previousArt.frame.width*2,availableArtWidth);assert.ok(Math.abs(value.frame.width-expectedWidth)<.1,'Tablet/desktop artwork doubles its original width up to the available slot: '+JSON.stringify({name,themeId,width,actual:value.frame.width,expected:expectedWidth,availableArtWidth}));}
    assert.ok(value.direction==='rtl'?value.frame.right<=value.slot.right-7.9&&value.frame.x>=value.slot.x-.1:value.frame.x>=value.slot.x+7.9&&value.frame.right<=value.slot.right+.1,'Artwork retains its 8px logical inset inside the available slot: '+JSON.stringify(value));
-   assert.ok(Math.abs(value.direction==='rtl'?value.actual.heading.right-value.actualLayout.viewport.right:value.actual.heading.x-value.actualLayout.viewport.x)<.1,'Heading remains aligned with the PDF viewport edge: '+JSON.stringify(value));
+   assert.ok(Math.abs(value.direction==='rtl'?value.actual.heading.right-value.actualLayout.drawing.right:value.actual.heading.x-value.actualLayout.drawing.x)<.1,'Heading aligns with the section tabs and full drawing workspace edge: '+JSON.stringify(value));
    assert.ok(value.frame.width>0&&value.frame.height>0&&value.frame.x>=value.slot.x-16.1&&value.frame.right<=value.slot.right+16.1&&value.frame.y>=value.actualLayout.main.y&&value.frame.bottom<=value.actualLayout.drawing.y+.1,'Image uses existing whitespace without entering the app header or drawing workspace');
    assert.ok(value.direction==='rtl'?value.frame.right<=value.actual.title.x+.1:value.frame.x>=value.actual.title.right-.1,'Artwork is beside the actual heading text');assert.ok(value.overflow<=1);
    if(value.actual.actions.y<value.actual.title.bottom)assert.ok(value.direction==='rtl'?value.frame.x>=value.actual.actions.right-.1:value.frame.right<=value.actual.actions.x+.1,'Artwork leaves the original controls clear on their shared row');

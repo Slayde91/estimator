@@ -949,7 +949,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.equal(intumescentNavigation.getAttribute('aria-pressed'),'true');assert.equal(steelNavigation.getAttribute('aria-pressed'),'true');
   const markup=englishMarkup(fs.readFileSync('static/index.html','utf8'));
   assert.deepEqual(copy(audit.displayPages({id:'steel_intumescent',pages:['START','SCHEDULE']})).map(page=>page.id),['START','SCHEDULE']);
-  assert.match(markup,/data-calculator-id="steel_intumescent"/);assert.match(markup,/data-steel-calculator="steel_intumescent"/);
+  assert.match(markup,/data-calculator-id="steel_intumescent"/);assert.doesNotMatch(markup,/id="calculator-steel-hub"/);
   assert.match(markup,/id="calculator-basis-dialog" aria-labelledby="calculator-basis-title"/);
   assert.match(fs.readFileSync('static/app.js','utf8'),/\["steel", "steel_vermiculite", "steel_intumescent", "steel_board", "steel_factors", "ductwork", "penetration"\]/);passed++;
 
@@ -1933,7 +1933,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   const choiceHtml=englishMarkup(fs.readFileSync('static/index.html','utf8'));
   assert.ok(!choiceHtml.includes('id="calculator-list"'));
   for(const id of ['steel','ductwork','penetration'])assert.ok(choiceHtml.includes(`data-calculator-id="${id}"`));
-  for(const id of ['steel_vermiculite','steel_board']){assert.ok(choiceHtml.includes(`data-calculator-id="${id}"`));assert.ok(choiceHtml.includes(`data-steel-calculator="${id}"`));}
+  for(const id of ['steel_vermiculite','steel_board']){assert.ok(choiceHtml.includes(`data-calculator-id="${id}"`));assert.ok(choiceHtml.includes(`data-calculator-id="${id}" aria-pressed="false"`));}
   assert.ok(!choiceHtml.includes('data-estimator-kind="penetration"'));passed++;
 
   // Only Exposure input column data is normal weight; headers and diagnostics retain their source emphasis.

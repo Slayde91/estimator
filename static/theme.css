@@ -166,6 +166,10 @@
 
   /* Row identities and product names are body values, not column headings. */
   :root[data-theme] .calculator-grid :is(tbody th[scope=row],tbody .calculator-row-label,.calculator-product-totals tbody th) { background:var(--calculator-body-bg); color:var(--ink); }
+  /* Notes are body content. Their row hover must keep the same surface and
+     contrast instead of exposing the global table's white hover background. */
+  :root[data-theme] .calculator-grid td.calculator-calculation-note,
+  :root[data-theme] .calculator-grid tr:hover>td.calculator-calculation-note { background:var(--calculator-body-bg); color:var(--ink); }
   :root[data-theme] .calculator-grid .calculator-schedule-table tbody :is(td,th).calculator-line-number { background:var(--calculator-input-cell-bg)!important; color:var(--ink)!important; text-align:center!important; text-align-last:center!important; }
   :root[data-theme] .calculator-grid .calculator-schedule-table tbody td.calculator-row-action { background:var(--calculator-body-bg)!important; color:var(--ink); }
 

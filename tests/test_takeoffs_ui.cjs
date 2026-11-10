@@ -46,6 +46,7 @@ function attachMinimalDom(h) {
   function element(tag='div') {
     const el={tagName:tag.toUpperCase(),children:[],dataset:{},attributes:{},events:{},className:'',_text:'',value:'',
       append(...children){for(const child of children){if(child.parentNode){const siblings=child.parentNode.children;siblings.splice(siblings.indexOf(child),1);}child.parentNode=this;child.previousElementSibling=this.children.at(-1)||null;this.children.push(child);}},
+      prepend(...children){for(const child of [...children].reverse()){if(child.parentNode){const siblings=child.parentNode.children;siblings.splice(siblings.indexOf(child),1);}child.parentNode=this;this.children.unshift(child);}this.children.forEach((child,index)=>child.previousElementSibling=this.children[index-1]||null);},
       after(child){const siblings=this.parentNode.children,index=siblings.indexOf(this);child.parentNode=this.parentNode;child.previousElementSibling=this;siblings.splice(index+1,0,child);},
       replaceChildren(...children){this.children=[];this._text='';this.append(...children);},
       setAttribute(key,value){this.attributes[key]=String(value);if(key==='class')this.className=String(value);},
@@ -84,7 +85,9 @@ function attachSettings(h, calculator='steel_vermiculite') {
 function linkedOperationHarness() {
   const h=harness();h.audit.accept(response(blank()));const dom=attachMinimalDom(h);dom.ui.root=dom.element();dom.ui.status=dom.element();
   const controls=[dom.element('input'),dom.element('button')];controls[0].disabled=false;controls[1].disabled=true;dom.ui.root.querySelectorAll=()=>controls;h.audit.setDataRenderer(()=>{});
-  return {...h,controls};
+  const headingControls=[dom.element('button'),dom.element('button')];headingControls[0].disabled=false;headingControls[1].disabled=true;
+  dom.ui.heading=dom.element();dom.ui.heading.querySelectorAll=()=>headingControls;
+  return {...h,controls,headingControls};
 }
 const countItem=(id,countId,length,points)=>({id,count_id:countId,version:1,state:'unconfirmed',mode:'steel',quantity:points.length,fields:{mark:countId},member_ids:points.map((_,index)=>`${id}-member-${index}`),geometry:{kind:'count',document_id:'doc',page:1,points},measurement:{method:'manual',length_m:length},evidence:[]});
 let passed=0;
@@ -453,6 +456,16 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
       if(change==='register')h.audit.state.formDirty=true;else if(change==='settings')h.audit.state.settingsDirty=true;else if(change==='session')h.audit.state.session.session_id='replacement';else if(change==='revision')h.audit.state.session.revision++;
       capture.resolve({fingerprint:'captured',calculators:{steel_board:{inputs:{},schedule_rows:[]}}});await assert.rejects(operation,change==='register'||change==='settings'?/unfinished/:change==='guard'?/visible target changed/:/project changed/);assert.equal(reserved,0);assert.equal(sent,0);assert.equal(h.audit.state.busy,false);assert.deepEqual(h.controls.map(control=>control.disabled),[false,true]);
     }
+  });
+  await check('Relocated Takeoff heading controls share transaction locks and restore their original disabled states',async()=>{
+    const h=linkedOperationHarness(),capture=deferred();let requests=0;
+    h.context.window.CeasefireCalculators={captureTakeoffTargets:()=>capture.promise};
+    h.audit.setApi(async()=>{requests++;});
+    const operation=h.audit.linkedCalculatorOperation('linked-delete',['steel_board'],{item_ids:['a']});
+    await flush();assert.deepEqual(h.headingControls.map(control=>control.disabled),[true,true]);
+    h.audit.state.formDirty=true;capture.resolve({fingerprint:'captured',calculators:{steel_board:{inputs:{},schedule_rows:[]}}});
+    await assert.rejects(operation,/unfinished/);assert.equal(requests,0);
+    assert.deepEqual(h.headingControls.map(control=>control.disabled),[false,true]);assert.equal(h.audit.state.busy,false);
   });
   await check('Linked deletion retries one lost response with the same identity and releases the reservation after success or a definite server refusal',async()=>{
     for(const outcome of ['success','server-error']){

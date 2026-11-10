@@ -161,7 +161,11 @@ async function inspectHeader(width) {
       assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width + 1 && bounds.y > header.y + header.height && bounds.y + bounds.height <= 1000);
       assert.equal(await actions.evaluate(el=>getComputedStyle(el).position),'fixed');
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Page overflow at ${width}/${section}`);
-      if (section === 'Projects') {
+      if (section === 'Projects' || section === 'Documents') {
+        if(section==='Documents'){
+          await expect(page.locator('#view-quotes')).toBeVisible();
+          await expect(page.locator('#app-message')).toContainText('Create or load a project before creating documents.');
+        }
         const controls = page.locator('.project-workspace-actions'), link = await box(controls.getByRole('button', { name: 'Link Project Folder', exact: true }));
         for (const name of ['New', 'Load']) { const b = await box(controls.getByRole('button', { name, exact: true })); assert.ok(b.height >= link.height); }
       } else for (const name of ['New', 'Load']) await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0);
@@ -198,7 +202,7 @@ async function inspectHeader(width) {
   await chooseCalculator(page,'Firestopping'); await idle();
   await expect(page.locator('#penetration-new-item')).toBeHidden(); await expect(page.locator('#penetration-recalculate')).toBeHidden();
   for (const [id, name] of [['penetration-clear','Clear'],['penetration-add-to-schedule','Add to Schedule'],['penetration-add-to-library','Add to Library']]) { await expect(page.locator('#'+id)).toBeVisible(); await expect(page.locator('#'+id)).toHaveAccessibleName(name); }
-  const penetrationBanner=page.locator('#penetration-current-item-card > .penetration-banner-heading'),headingActions=penetrationBanner.locator(':scope > .penetration-heading-actions'),currentItem=page.locator('#penetration-current-item-card > .penetration-item-heading');
+  const penetrationBanner=page.locator('#calculators-heading-slot > .penetration-banner-heading'),headingActions=penetrationBanner.locator(':scope > .penetration-heading-actions'),currentItem=page.locator('#penetration-current-item-card > .penetration-item-heading');
   for(const id of ['penetration-clear','penetration-add-to-library'])await expect(headingActions.locator('#'+id)).toHaveCount(1);
   const penetrationDocument=headingActions.getByRole('button',{name:'Document',exact:true});await expect(penetrationDocument).toHaveCount(1);
   await expect(headingActions.locator('#penetration-add-to-schedule')).toHaveCount(0);await expect(currentItem.locator('#penetration-add-to-schedule')).toBeVisible();
@@ -223,7 +227,7 @@ async function inspectHeader(width) {
     if(kind==='technical')await expect(page.locator('[data-library-summary="technical"]')).toBeVisible();
     if(kind==='pricing')await expect(page.locator('#library-pricing > .page-heading .subtitle')).toHaveCount(0);
     else {
-      const heading=page.locator(`#library-${kind} > .page-heading`), image=heading.locator('.library-heading-art-slot img');
+      const heading=page.locator(`#pricing-heading-slot [data-library-heading="${kind}"]`), image=heading.locator('.library-heading-art-slot img');
       await expect(image).toHaveAttribute('src',`/header-${kind==='penetration'?'firestopping':'technical'}-library.png`);
       assert.ok(await image.evaluate(el=>el.complete&&el.naturalWidth>0));
       for(const width of [1384,825,390]) {

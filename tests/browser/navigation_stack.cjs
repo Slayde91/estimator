@@ -223,7 +223,7 @@ async function checkWorkspaceTabs(info) {
     await enterSubmenu(penetration, page.locator('#penetration-navigation-menu'));
     const service = page.locator('#penetration-navigation-menu [data-physical-scope="service_plans"]');
     await pointerTo(service); await service.click(); await idle();
-    await expect(page.locator('#takeoffs-workspace')).toContainText('Service Plans');
+    await expect(page.locator('#view-takeoffs > .takeoff-workspace-heading')).toContainText('Service Plans');
 
     const libraries = await openMenu('library-navigation', width);
     const pricing = libraries.menu.locator('[data-library-kind="pricing"]');

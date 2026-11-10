@@ -35,6 +35,7 @@ function harness({ penetration = false } = {}) {
       setAttribute(name, value) { attrs.set(name, value); }, getAttribute(name) { return attrs.get(name); }, removeAttribute(name) { attrs.delete(name); },
       append(...nodes) { this.children.push(...nodes); this.options = this.children; }, replaceChildren(...nodes) { this.children = []; this.append(...nodes); },
       querySelector(selector) { if (!this.parts.has(selector)) this.parts.set(selector, element()); return this.parts.get(selector); }, querySelectorAll() { return []; },
+      closest() { return null; },
       addEventListener(name, fn, options = {}) { (this.listeners[name] ||= []).push({ fn, once: options.once }); },
       async emit(name, event) { const callbacks = [...this.listeners[name] || []]; this.listeners[name] = callbacks.filter(item => !item.once); for (const item of callbacks) await item.fn(event); },
       showModal() { assert.ok(!this.open); this.open = true; }, async close(value) { this.returnValue = value; this.open = false; await this.emit('close'); },
@@ -1304,15 +1305,16 @@ async function penetrationCheck(name, fn) {
     h.app.setRequest(async()=>({...project(),takeoffs:{version:1},takeoffs_session_id:'prepared-session'}));h.chooseFile();const loading=h.app.loadProject();await flush();revision++;pending.resolve({session:{session_id:'prepared-session'}});await loading;
     assert.match(h.byId('app-message').textContent,/draft changed/);assert.deepEqual(closed,['prepared-session']);assert.equal(h.app.state.inputs.B15,123);
   });
-  await check('Documents header starts at its hub then returns to Certification independently of Projects', async h => {
+  await check('Documents header opens Documentation then returns to Certification independently of Projects', async h => {
+    h.app.state.projectFile={save_token:'native-receipt',path:'C:/Project.cf.json',project_no:'PN-01'};
     const before=h.snapshot();let opened=0;h.context.window.CeasefireCertification={open:async()=>{opened++;},hasPendingOperation:()=>false};
     await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'quotes');
-    await h.app.requestDocumentsNavigation();assert.equal(h.app.state.currentView,'documents');
+    await h.app.requestDocumentsNavigation();assert.equal(h.app.state.currentView,'documentation');
     await h.app.requestViewNavigation('certification');assert.equal(opened,1);
-    await h.app.requestViewNavigation('home');await h.app.requestDocumentsNavigation();assert.equal(h.app.state.currentView,'documents');
-    await h.app.requestDocumentsNavigation();assert.equal(h.app.state.currentView,'certification');assert.equal(opened,2);
+    await h.app.requestViewNavigation('home');await h.app.requestDocumentsNavigation();assert.equal(h.app.state.currentView,'certification');assert.equal(opened,2);
+    await h.app.requestDocumentsNavigation();assert.equal(h.app.state.currentView,'certification');assert.equal(opened,3);
     await h.app.requestViewNavigation('projects');assert.equal(h.app.state.currentView,'quotes');assert.equal(h.app.state.lastProjectSection,'quotes');
-    await h.app.requestViewNavigation('documents');assert.equal(h.app.state.currentView,'documents');assert.equal(h.app.state.lastDocumentSection,'certification');
+    await h.app.requestViewNavigation('documents');assert.equal(h.app.state.currentView,'documentation');assert.equal(h.app.state.lastDocumentSection,'documentation');
     assert.deepEqual(h.snapshot(),before);
   });
   await check('Projects opens saved files first and restores the last visited project section', async h => {

@@ -43,11 +43,11 @@ async function workbook(title) {
   await prepareProjectForSave(page);
   const saveReply = page.waitForResponse(reply => new URL(reply.url()).pathname === '/api/project/save-as' && reply.request().method() === 'POST');
   await clickProjectControl(page, 'Save'); assert.equal((await saveReply).status(), 200); await idle();
-  await page.getByRole('button', { name: 'Calculators', exact: true }).click(); await expect(page.locator('#calculator-steel-hub')).toBeVisible(); await expect(page.locator('#calculator-workspace')).toBeHidden(); await expect(page.locator('#calculator-steel-hub [data-steel-calculator]')).toHaveCount(4);
+  await page.getByRole('button', { name: 'Calculators', exact: true }).click(); await expect(page.locator('#calculator-steel-hub')).toHaveCount(0); await expect(page.locator('#estimator-penetration')).toBeVisible(); await expect(page.locator('#calculator-workspace')).toBeHidden();
   await expect(page.locator('#calculator-kind-pages')).toBeVisible();
-  await expect(page.locator('#calculator-kind-pages [aria-pressed="true"]')).toHaveCount(0);
+  await expect(page.locator('#calculator-kind-pages [aria-pressed="true"]')).toHaveText('Firestopping');
   await page.getByRole('button', { name: 'Home', exact: true }).click();
-  evidence.initialCalculator = 'Steel landing page';
+  evidence.initialCalculator = 'Firestopping';
   const calculationRequests = () => requests.filter(item => item.path.startsWith('/api/calculators/')).length;
   const before = await snapshots(), beforeRequests = calculationRequests();
   const estimateToggle=page.getByRole('button',{name:'Estimates',exact:true}), estimates=page.getByRole('group',{name:'Choose an estimate',exact:true});
@@ -163,11 +163,11 @@ async function workbook(title) {
   await page.getByRole('button',{name:'Home',exact:true}).click();await page.locator('[data-home-view="takeoffs"]').click();await expect(page.locator('#view-takeoffs')).toBeVisible();
   await chooseCalculator(page,'Firestopping');await idle();
   const settings=page.locator('#penetration-settings'),details=page.locator('#penetration-input-groups [role="tab"]').first();
-  const banner=page.locator('#penetration-current-item-card > .penetration-banner-heading'),gear=await settings.boundingBox(),tab=await details.boundingBox(),clear=await banner.locator('#penetration-clear').boundingBox(),library=await banner.locator('#penetration-add-to-library').boundingBox(),itemDocument=banner.locator('.penetration-library-actions [data-document-menu-toggle]'),documentBox=await itemDocument.boundingBox();
+  const banner=page.locator('#calculators-heading-slot > .penetration-banner-heading'),gear=await settings.boundingBox(),tab=await details.boundingBox(),clear=await banner.locator('#penetration-clear').boundingBox(),library=await banner.locator('#penetration-add-to-library').boundingBox(),itemDocument=banner.locator('.penetration-library-actions [data-document-menu-toggle]'),documentBox=await itemDocument.boundingBox();
   assert.ok(gear.x+gear.width<=tab.x,'Settings icon is left of the first Details tab');assert.ok(documentBox.x+documentBox.width<=clear.x&&clear.x+clear.width<=library.x,'Clear is between Document and Add to Library in the first row');assert.ok(Math.abs(clear.y-documentBox.y)<1&&Math.abs(documentBox.y-library.y)<1&&Math.abs(clear.height-documentBox.height)<1&&Math.abs(documentBox.height-library.height)<1,'Document, Clear and Add to Library share the same height and top alignment');
   await expect(page.locator('#penetration-current-item-card > .penetration-item-heading #penetration-add-to-schedule')).toBeVisible();await expect(banner.locator('#penetration-add-to-schedule')).toHaveCount(0);
   await expect(page.locator('#penetration-new-item')).toBeHidden();await expect(page.locator('#penetration-recalculate')).toBeHidden();
-  for(const id of ['penetration-item-excel','penetration-item-pdf'])assert.equal(await page.locator(`#${id}`).evaluate(el=>!!el.closest('#penetration-current-item-card > .penetration-banner-heading')),true,'Current-item downloads belong to the first row of the current-item card');
+  for(const id of ['penetration-item-excel','penetration-item-pdf'])assert.equal(await page.locator(`#${id}`).evaluate(el=>!!el.closest('#calculators-heading-slot > .penetration-banner-heading')),true,'Current-item downloads retain the Firestopping section heading');
   const clearBefore=await snapshots(),current=clearBefore.penetration.composer.rows[0];
   const description=page.locator('#penetration-row-fields [data-penetration-field="T"]');await description.fill('CLEAR CURRENT ITEM');await description.press('Tab');
   await page.locator('#penetration-item-quantity [data-penetration-field="O"]').fill('3');await page.locator('#penetration-clear').click();
@@ -244,7 +244,10 @@ async function workbook(title) {
         assert.equal(downloaded.draft,undefined);assert.equal(downloaded.rows,undefined);assert.equal(downloaded.diagram,undefined);
       }else{
         const download=page.waitForResponse(reply=>new URL(reply.url()).pathname===endpoint&&reply.request().method()==='POST');
-        await action.click();const reply=await download;assert.equal(reply.status(),200);const file=await reply.json();
+        download.catch(()=>{});
+        await action.click();let reply;
+        try{reply=await download;}catch(error){console.error('Schedule export notices:',await page.locator('#penetration-schedule-message,#penetration-message,#app-message').allTextContents());throw error;}
+        assert.equal(reply.status(),200);const file=await reply.json();
         downloaded=reply.request().postDataJSON();
         assert.deepEqual(downloaded.draft,linkedUpdated.penetration.draft);assert.equal(downloaded.item,undefined);
         assert.equal(file.filename,suffix==='pdf'?'CEASEFIRE-Firestopping-Estimate.pdf':'CEASEFIRE-Firestopping-Schedule.xlsx');
@@ -260,7 +263,7 @@ async function workbook(title) {
   // The persistent strip uses the same guarded navigation as the header menu.
   // Switching all six tabs must retain every calculator, price and item draft.
   const calculatorTabs=page.locator('#calculator-kind-pages'),tabsBefore=await snapshots();
-  const titles=['Duct','Firestopping','Steel (spray)','Steel (intumescent)','Steel (board)','Factor Calcs'];
+  const titles=['Firestopping','Duct','Steel (spray)','Steel (intumescent)','Steel (board)','Factor Calcs'];
   await expect(calculatorTabs.getByRole('button')).toHaveText(titles);
   for(const title of titles){
     await calculatorTabs.getByRole('button',{name:title,exact:true}).click();await idle();
@@ -273,7 +276,7 @@ async function workbook(title) {
   await page.keyboard.press('End');await expect(calculatorTabs.getByRole('button').last()).toBeFocused();
   await page.keyboard.press('Home');await expect(firstTab).toBeFocused();
   await page.keyboard.press('ArrowRight');await expect(calculatorTabs.getByRole('button').nth(1)).toBeFocused();
-  await page.keyboard.press('Enter');await expect(page.locator('#estimator-penetration')).toBeVisible();
+  await page.keyboard.press('Enter');await workbook('Duct');
   await calculatorTabs.getByRole('button',{name:'Steel (spray)',exact:true}).click();await workbook('Steel (spray)');
   await page.locator('#calculator-pages').getByRole('button',{name:'SCHEDULE',exact:true}).click();await idle();
   evidence.calculatorTabs={allSix:true,keyboard:true,allDraftsPreserved:true,layouts:[]};
@@ -300,7 +303,7 @@ async function workbook(title) {
   const touch = await touchContext.newPage(); await monitor(touch); await touch.goto(`http://127.0.0.1:${info.port}/`); await idle(touch);
   await touch.getByRole('button', { name: 'Calculators', exact: true }).tap();
   const touchMenu = touch.getByRole('group', { name: 'Choose a calculator', exact: true }); await expect(touchMenu).toBeVisible();
-  await touchMenu.getByRole('button', { name: 'Steel', exact: true }).tap(); await expect(touch.locator('#steel-calculator-navigation-menu')).toBeVisible();await expect(touch.locator('#calculator-steel-hub')).toBeVisible();await touch.locator('#steel-calculator-navigation-menu').getByRole('button',{name:'Steel (board)',exact:true}).tap(); await expect(touch.locator('#calculator-title')).toHaveText('Steel (board)', { timeout: 60000 }); await expect(touch.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false', { timeout: 60000 }); await expect(touchMenu).toBeHidden();
+  await touchMenu.getByRole('button', { name: 'Steel', exact: true }).tap(); await expect(touch.locator('#steel-calculator-navigation-menu')).toBeVisible();await expect(touch.locator('#calculator-steel-hub')).toHaveCount(0);await touch.locator('#steel-calculator-navigation-menu').getByRole('button',{name:'Steel (board)',exact:true}).tap(); await expect(touch.locator('#calculator-title')).toHaveText('Steel (board)', { timeout: 60000 }); await expect(touch.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false', { timeout: 60000 }); await expect(touchMenu).toBeHidden();
   evidence.touch = { disclosureTap: true, chosenCalculator: 'Steel (board)' };
   await touch.locator('#calculator-kind-pages').getByRole('button',{name:'Factor Calcs',exact:true}).tap();
   await expect(touch.locator('#calculator-title')).toHaveText('Factor Calcs');

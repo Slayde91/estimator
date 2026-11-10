@@ -1,6 +1,7 @@
 // Project and document navigation use an isolated disposable app.
 const {chromium, expect} = require('@playwright/test');
 const {openProjectSection,openProjectTools,clickProjectControl,prepareProjectForSave} = require('./project_actions.cjs');
+const {openCertificateEditor}=require('./certification_generation.cjs');
 const {spawn} = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..');
@@ -70,9 +71,15 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   assert.ok(receipt.file.project_no);
   await page.locator('#view-documents [data-document-section="certification"]').click();
   await expect(page.locator('#view-certification')).toBeVisible();
+  await expect(page.locator('#certification-list')).toBeVisible();await expect(page.locator('#certification-editor')).toBeHidden();
+  await openCertificateEditor(page);
   await expect(page.locator('#certification-client')).toBeEnabled();
   await page.locator('#certification-client').fill('Navigation draft retained');
   const draftBefore=await snapshot();
+  await page.locator('#certification-back').click();await expect(page.locator('#certification-list')).toBeVisible();
+  await expect(page.locator('#certification-editor')).toBeHidden();
+  await openCertificateEditor(page);await expect(page.locator('#certification-client')).toHaveValue('Navigation draft retained');
+  assert.deepEqual(await snapshot(),draftBefore,'Back and Resume preserve the exact certificate draft and project state');
   await headerDestination('certification');
   const menu = page.locator('#projects-navigation-menu'), documentsMenu = page.locator('#documents-navigation-menu');
   await page.locator('#projects-navigation-toggle').hover();await expect(menu).toBeVisible();

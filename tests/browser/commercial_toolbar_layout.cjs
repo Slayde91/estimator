@@ -18,16 +18,18 @@ async function pdfControl(host,kind){const pdf=host.locator('.commercial-editor-
  await expect(pdf).toBeEnabled();
  const status=host.locator('.commercial-download-pdf + .commercial-action-status select');
  await expect(status).toHaveValue('Draft');
+ await expect(status).toHaveAccessibleName('Status');
+ await expect(host.locator('.commercial-action-status>span')).toBeHidden();
  for(const width of [1515,390]){
    await page.setViewportSize({width,height:1000});
    const box=await pdf.boundingBox();assert.equal(box.width,52);assert.equal(box.height,44);
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
    const statusBox=await status.boundingBox();
    if(width===1515){assert.ok(statusBox.x>box.x);assert.equal(statusBox.y,box.y);}
-   if(kind!=='quote'){
-     const labels=kind==='work_order'?['Document date','Project number','Linked Quote','Work order reference']:['Document date','Linked Work Order','Project number','Purchase Order No.'];
+   {
+     const labels=kind==='quote'?['Document date','Project number','Linked Project','Quote No.']:kind==='work_order'?['Document date','Project number','Linked Quote','Work order reference']:['Document date','Linked Work Order','Project number','Purchase Order No.'];
      const [date,second,third,fourth]=await Promise.all(labels.map(label=>host.locator('.commercial-details').getByLabel(label,{exact:true}).locator('..').boundingBox()));
-     if(width===1515 && kind==='work_order'){
+     if(width===1515 && kind!=='purchase_order'){
        assert.equal(date.y,second.y);assert.equal(third.y,fourth.y);assert.ok(third.y>=date.y+date.height);
        assert.equal(date.x,third.x);assert.equal(second.x,fourth.x);
      }else if(width===1515){

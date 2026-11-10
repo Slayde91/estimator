@@ -99,7 +99,7 @@ async function inspectHeader(width) {
   await page.keyboard.press('ArrowDown'); await page.keyboard.press('End');
   await expect(page.locator('#penetration-navigation-toggle')).toBeFocused();
   await page.keyboard.press('ArrowRight');
-  await expect(page.getByRole('button',{name:'Defect Reports',exact:true})).toBeFocused();
+  await expect(page.locator('#penetration-navigation-menu').getByRole('button',{name:'Defect Reports',exact:true})).toBeFocused();
   await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
   await expect(page.locator('#calculators-heading,#libraries-heading,#takeoffs-heading,.library-choices,.takeoff-tab-panel,.takeoff-heading-controls')).toHaveCount(0);
   for (const width of [1600, 1146, 1021, 981, 825, 720, 570, 390, 320]) {
@@ -141,9 +141,9 @@ async function inspectHeader(width) {
       }
       if(id === 'takeoff') {
         await page.keyboard.press('ArrowRight');
-        await expect(page.getByRole('button',{name:'Defect Reports',exact:true})).toBeFocused();
+        await expect(page.locator('#penetration-navigation-menu').getByRole('button',{name:'Defect Reports',exact:true})).toBeFocused();
         await page.keyboard.press('End');
-        await expect(page.getByRole('button',{name:'Service Plans',exact:true})).toBeFocused();
+        await expect(page.locator('#penetration-navigation-menu').getByRole('button',{name:'Service Plans',exact:true})).toBeFocused();
       }
       await page.keyboard.press('ArrowDown'); await expect(menu.getByRole('button').first()).toBeFocused();
       await page.keyboard.press('Escape'); await expect(toggle).toBeFocused(); await expect(menu).toBeHidden();
@@ -174,14 +174,16 @@ async function inspectHeader(width) {
     await expect(page.locator('#calculator-title')).toHaveText(title, { timeout: 60000 });
     await expect(page.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false', { timeout: 60000 });
     const heading = page.locator('.calculator-workspace-heading');
-    for (const id of ['calculator-reset', 'calculator-recalculate']) await expect(heading.locator('#' + id)).toBeVisible();
-    const documents = heading.getByRole('button', { name: 'Document', exact: true });
+    const toolbar = page.locator('#calculator-toolbar-actions');
+    await expect(heading.locator('#calculator-document-toggle,#calculator-reset,#calculator-recalculate')).toHaveCount(0);
+    for (const id of ['calculator-reset', 'calculator-recalculate']) await expect(toolbar.locator('#' + id)).toBeVisible();
+    const documents = toolbar.getByRole('button', { name: 'Document', exact: true });
     await expect(documents).toHaveAttribute('aria-expanded', 'false');
-    for (const id of ['calculator-import', 'calculator-excel', 'calculator-pdf', 'calculator-summary-pdf', 'calculator-template']) await expect(heading.locator('#' + id)).toBeHidden();
+    for (const id of ['calculator-import', 'calculator-excel', 'calculator-pdf', 'calculator-summary-pdf', 'calculator-template']) await expect(toolbar.locator('#' + id)).toBeHidden();
     await documents.click();
-    for (const id of ['calculator-import', 'calculator-excel', 'calculator-pdf', 'calculator-summary-pdf', 'calculator-template']) await expect(heading.locator('#' + id)).toBeVisible();
+    for (const id of ['calculator-import', 'calculator-excel', 'calculator-pdf', 'calculator-summary-pdf', 'calculator-template']) await expect(toolbar.locator('#' + id)).toBeVisible();
     await documents.press('Escape');
-    const schedule = await box(heading.locator('.calculator-tools')), primary = await box(heading.locator('.calculator-primary-actions'));
+    const schedule = await box(toolbar.locator('.calculator-tools')), primary = await box(toolbar.locator('.calculator-primary-actions'));
     assert.ok(schedule.x + schedule.width <= primary.x && Math.abs(schedule.y - primary.y) < 2);
     await expect(page.locator('#calculator-workspace > .calculator-tools')).toHaveCount(0);
     await page.screenshot({ path: path.join(output, `${title.includes('board') ? 'board' : title.startsWith('Steel') ? 'spray' : 'duct'}-header.png`) });

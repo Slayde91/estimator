@@ -1,0 +1,44 @@
+{
+  "Search certificates": [
+    "搜索证书",
+    "प्रमाणपत्र खोजें",
+    "Buscar certificados",
+    "البحث في الشهادات",
+    "ค้นหาใบรับรอง"
+  ],
+  "Reference, client, project or site address…": [
+    "编号、客户、项目或工地地址…",
+    "संदर्भ, ग्राहक, प्रोजेक्ट या साइट का पता…",
+    "Referencia, cliente, proyecto o dirección de obra…",
+    "المرجع أو العميل أو المشروع أو عنوان الموقع…",
+    "เลขอ้างอิง ลูกค้า โครงการ หรือที่อยู่หน้างาน…"
+  ],
+  "Create Certificate": [
+    "创建证书",
+    "प्रमाणपत्र बनाएँ",
+    "Crear certificado",
+    "إنشاء شهادة",
+    "สร้างใบรับรอง"
+  ],
+  "Resume draft": [
+    "继续草稿",
+    "ड्राफ़्ट जारी रखें",
+    "Continuar borrador",
+    "متابعة المسودة",
+    "ทำฉบับร่างต่อ"
+  ],
+  "Back to certificates": [
+    "返回证书列表",
+    "प्रमाणपत्रों पर वापस जाएँ",
+    "Volver a los certificados",
+    "العودة إلى الشهادات",
+    "กลับไปที่ใบรับรอง"
+  ],
+  "Certificate details": [
+    "证书详情",
+    "प्रमाणपत्र का विवरण",
+    "Datos del certificado",
+    "تفاصيل الشهادة",
+    "รายละเอียดใบรับรอง"
+  ]
+}

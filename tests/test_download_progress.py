@@ -2,9 +2,37 @@ import unittest
 
 from estimator.catalog import ValidationError
 from estimator.download_progress import DownloadProgress
+from estimator.crm_access import download_route
 
 
 class DownloadProgressTests(unittest.TestCase):
+    def test_frozen_revision_export_paths_can_claim_one_progress_receipt(self):
+        identity='12345678-1234-4234-8234-123456789abc'
+        for route in [f'/api/certifications/{identity}/revisions/1.pdf',
+                      f'/api/certifications/{identity}/revisions/9999999999.pdf',
+                      f'/api/documentation/{identity}']:
+            with self.subTest(route=route):
+                self.assertTrue(download_route(route))
+                progress=DownloadProgress();token=progress.begin()['token'];progress.claim(token)
+                progress.update(token,100,'saved')
+                self.assertEqual(progress.read(token),{'percent':100,'state':'saved'})
+                with self.assertRaises(ValidationError):progress.claim(token)
+
+    def test_frozen_export_patterns_reject_malformed_and_mutation_paths(self):
+        identity='12345678-1234-4234-8234-123456789abc'
+        roots=[f'/api/certifications/{identity}/revisions/1.pdf',f'/api/documentation/{identity}']
+        invalid=[f'/api/certifications/{identity}', '/api/certifications',
+                 f'/api/certifications/{identity}/delete',f'/api/documentation/{identity}/delete',
+                 f'/api/documentation/{"a"*36}',f'/api/documentation/{identity.upper()}',
+                 f'/api/certifications/{identity.upper()}/revisions/1.pdf',
+                 '/api/certifications/not-a-uuid/revisions/1.pdf']
+        invalid.extend(f'/api/certifications/{identity}/revisions/{revision}.pdf'
+                       for revision in ['0','01','-1','1.0','10000000000','%31','1%2F2'])
+        invalid.extend(path+suffix for path in roots for suffix in ['/','/extra','%2Fextra','?workspace=other','#fragment'])
+        invalid.extend(path.replace(identity,identity.replace('-','%2d',1)) for path in roots)
+        for route in invalid:
+            with self.subTest(route=route):self.assertFalse(download_route(route))
+
     def test_single_use_measured_pages_and_completion_authority(self):
         progress = DownloadProgress()
         token = progress.begin()['token']

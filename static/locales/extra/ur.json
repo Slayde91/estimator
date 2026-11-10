@@ -3449,5 +3449,17 @@
   "Save draft": "مسودہ محفوظ کریں",
   "Workflow status": "کام کے بہاؤ کی حیثیت",
   "No documents": "کوئی دستاویزات نہیں",
-  "Choose a valid workflow status.": "کام کے بہاؤ کی درست حیثیت منتخب کریں۔"
+  "Choose a valid workflow status.": "کام کے بہاؤ کی درست حیثیت منتخب کریں۔",
+  "Search Work Orders": "ورک آرڈرز تلاش کریں",
+  "No matching Work Orders.": "کوئی مماثل ورک آرڈر نہیں ملا۔",
+  "Choose a listed Work Order or clear the search.": "فہرست میں سے ورک آرڈر منتخب کریں یا تلاش صاف کریں۔",
+  "Linked Project": "منسلک منصوبہ",
+  "No linked Project": "کوئی منصوبہ منسلک نہیں",
+  "Assigned when downloaded": "ڈاؤن لوڈ کرتے وقت تفویض ہوگا",
+  "Search certificates": "سرٹیفکیٹس تلاش کریں",
+  "Reference, client, project or site address…": "حوالہ، کلائنٹ، منصوبہ یا سائٹ کا پتہ…",
+  "Create Certificate": "سرٹیفکیٹ بنائیں",
+  "Resume draft": "مسودہ جاری رکھیں",
+  "Back to certificates": "سرٹیفکیٹس پر واپس جائیں",
+  "Certificate details": "سرٹیفکیٹ کی تفصیلات"
 }

@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const {expect} = require('@playwright/test');
 const {openProjectSection} = require('./project_actions.cjs');
+const {openCertificateEditor} = require('./certification_generation.cjs');
 
 module.exports = async function signatureProfiles(page, edition) {
   const base = new URL(page.url()).origin;
@@ -47,6 +48,7 @@ module.exports = async function signatureProfiles(page, edition) {
   await expect(swms.locator('.swms-message')).toContainText('Saved.');
 
   await openProjectSection(page,'certification');
+  await openCertificateEditor(page);
   const preview = page.locator('#certification-signature-preview');
   await expect(preview).toBeHidden();
   await page.locator('#certification-signature-use').click();

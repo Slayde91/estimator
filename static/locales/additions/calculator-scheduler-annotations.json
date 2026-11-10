@@ -1,0 +1,32 @@
+{
+  "Search Work Orders": [
+    "작업 지시서 검색",
+    "Maghanap ng mga Work Order",
+    "Tìm lệnh công việc"
+  ],
+  "No matching Work Orders.": [
+    "일치하는 작업 지시서가 없습니다.",
+    "Walang tumutugmang Work Order.",
+    "Không có lệnh công việc phù hợp."
+  ],
+  "Choose a listed Work Order or clear the search.": [
+    "목록에서 작업 지시서를 선택하거나 검색을 지우세요.",
+    "Pumili ng Work Order sa listahan o i-clear ang paghahanap.",
+    "Chọn một lệnh công việc trong danh sách hoặc xóa nội dung tìm kiếm."
+  ],
+  "Linked Project": [
+    "연결된 프로젝트",
+    "Naka-link na Proyekto",
+    "Dự án được liên kết"
+  ],
+  "No linked Project": [
+    "연결된 프로젝트 없음",
+    "Walang naka-link na Proyekto",
+    "Không có dự án được liên kết"
+  ],
+  "Assigned when downloaded": [
+    "다운로드 시 지정됨",
+    "Itatalaga kapag na-download",
+    "Được cấp khi tải xuống"
+  ]
+}

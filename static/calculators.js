@@ -2622,7 +2622,7 @@ window.CeasefireScheduleColumns = (() => {
       for (const table of $("calculator-grid").querySelectorAll("table")) window.CeasefireScheduleColumns.applyTable(table, hidden);
     };
     const hidden = scheduleColumnChooser.bind(key, entry.scheduleColumnChoices, apply);
-    scheduleColumnChooser.host.hidden = false; $("calculator-pages").append(scheduleColumnChooser.host); apply(hidden);
+    scheduleColumnChooser.host.hidden = false; $("calculator-toolbar-actions").append(scheduleColumnChooser.host); apply(hidden);
   }
 
   function navigationCache(entry, create = false) {
@@ -2798,9 +2798,12 @@ window.CeasefireScheduleColumns = (() => {
 
   function renderChoices() {
     const firestopping = Boolean(window.CeasefireProposalCalculators?.isFirestopping?.());
-    for (const button of $("calculator-navigation-menu")?.querySelectorAll("[data-calculator-id]") || []) {
-      const selected = current()?.factorView ? "steel_factors" : state.current;
-      button.setAttribute("aria-pressed", String(button.dataset.calculatorId === "penetration" ? firestopping : !firestopping && (button.dataset.calculatorId === "steel" ? window.CeasefireProposalCalculators?.isSteelHub?.() || ["steel_vermiculite", "steel_intumescent", "steel_board"].includes(state.current) : button.dataset.calculatorId === selected)));
+    for (const host of [$("calculator-navigation-menu"), $("calculator-kind-pages")]) {
+      for (const button of host?.querySelectorAll("[data-calculator-id]") || []) {
+        const selected = current()?.factorView ? "steel_factors" : state.current;
+        const hubVisible = host === $("calculator-kind-pages") && window.CeasefireProposalCalculators?.isSteelHub?.();
+        button.setAttribute("aria-pressed", String(!hubVisible && (button.dataset.calculatorId === "penetration" ? firestopping : !firestopping && (button.dataset.calculatorId === "steel" ? window.CeasefireProposalCalculators?.isSteelHub?.() || ["steel_vermiculite", "steel_intumescent", "steel_board"].includes(state.current) : button.dataset.calculatorId === selected))));
+      }
     }
   }
 

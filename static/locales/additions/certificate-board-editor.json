@@ -1,0 +1,32 @@
+{
+  "Search certificates": [
+    "인증서 검색",
+    "Maghanap ng mga sertipiko",
+    "Tìm chứng nhận"
+  ],
+  "Reference, client, project or site address…": [
+    "참조 번호, 고객, 프로젝트 또는 현장 주소…",
+    "Reference, kliyente, proyekto o address ng lugar…",
+    "Mã tham chiếu, khách hàng, dự án hoặc địa chỉ công trình…"
+  ],
+  "Create Certificate": [
+    "인증서 만들기",
+    "Gumawa ng Sertipiko",
+    "Tạo chứng nhận"
+  ],
+  "Resume draft": [
+    "초안 계속하기",
+    "Ipagpatuloy ang draft",
+    "Tiếp tục bản nháp"
+  ],
+  "Back to certificates": [
+    "인증서 목록으로 돌아가기",
+    "Bumalik sa mga sertipiko",
+    "Quay lại danh sách chứng nhận"
+  ],
+  "Certificate details": [
+    "인증서 세부 정보",
+    "Mga detalye ng sertipiko",
+    "Chi tiết chứng nhận"
+  ]
+}

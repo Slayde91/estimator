@@ -1329,6 +1329,21 @@ async function penetrationCheck(name, fn) {
     await h.app.requestViewNavigation('quotes');assert.equal(h.app.state.lastDocumentSection,'certification');
     assert.deepEqual(h.snapshot(),before);
   });
+  await check('Background certificate workspace reads allow ordinary navigation but still block project replacement',async h=>{
+    const before=h.snapshot();h.app.state.currentView='work-orders';
+    h.context.window.CeasefireCertification={hasPendingOperation:()=>true,hasPendingNavigationOperation:()=>false};
+    await h.app.requestViewNavigation('home');assert.equal(h.app.state.currentView,'home');
+    assert.doesNotMatch(h.byId('app-message').textContent,/certification operation/);
+    let reads=0;h.app.setRequest(async()=>{reads++;return project();});
+    await h.app.openNativeProject();assert.equal(reads,0);assert.match(h.byId('app-message').textContent,/certification operation/);
+    assert.deepEqual(h.snapshot(),before);
+  });
+  await check('Certificate writes use the navigation guard even when a broad compatibility predicate is absent',async h=>{
+    const before=h.snapshot();h.app.state.currentView='certification';
+    h.context.window.CeasefireCertification={hasPendingNavigationOperation:()=>true};
+    await h.app.requestViewNavigation('home');assert.equal(h.app.state.currentView,'certification');
+    assert.match(h.byId('app-message').textContent,/certification operation/);assert.deepEqual(h.snapshot(),before);
+  });
   await check('Documentation navigation honours Cancel then discards global cover edits only after approval',async h=>{
     h.app.state.projectFile={save_token:'native-project',project_no:'PN-01',path:'C:/Project.cf.json'};
     let opens=0,dirty=false,accepted=false,reviews=0;const draft={name:'Entered cover.pdf',revision:7};

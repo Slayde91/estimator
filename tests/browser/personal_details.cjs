@@ -2,7 +2,7 @@
 const {chromium,expect}=require('@playwright/test');
 const {spawn}=require('node:child_process'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {openProjectSection,clickProjectControl,prepareProjectForSave}=require('./project_actions.cjs');
-const {generateCertificate}=require('./certification_generation.cjs');
+const {generateCertificate,openCertificateEditor}=require('./certification_generation.cjs');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`personal-details-${Date.now()}`);
 fs.mkdirSync(output,{recursive:true});
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
@@ -28,6 +28,8 @@ async function settings(){await page.getByRole('button',{name:'Settings',exact:t
   const saved=await defaults();assert.deepEqual(saved.fields,first);assert.equal(saved.signature_image,signature);assert.equal(saved.signature_name,'Saved signer.png');
   checks.push('Personal text saves through existing signer-default API without changing signature artwork');
   await openProjectSection(page,'certification');await idle();
+  await expect(page.locator('#certification-list')).toBeVisible();await expect(page.locator('#certification-editor')).toBeHidden();
+  await openCertificateEditor(page);
   for(const name of Object.keys(first))await expect(page.locator('#certification-'+name)).toHaveValue('');
   async function sign(){await page.locator('#certification-signature-use').click();const dialog=page.getByRole('dialog',{name:'Signatures',exact:true}),box=await dialog.getByLabel('Signature drawing pad').boundingBox();await page.mouse.move(box.x+25,box.y+50);await page.mouse.down();await page.mouse.move(box.x+120,box.y+15,{steps:5});await page.mouse.up();await dialog.getByRole('button',{name:'Insert signature',exact:true}).click();await expect(page.locator('#certification-signature-preview')).toBeVisible();}
   await sign();for(const [name,value]of Object.entries(first))await expect(page.locator('#certification-'+name)).toHaveValue(value);
@@ -37,10 +39,10 @@ async function settings(){await page.getByRole('button',{name:'Settings',exact:t
   await expect(page.locator('#certification-save')).toHaveCount(0);await generateCertificate(page,1);const document=await (await creation).json();await idle();
   assert.ok(document.id);checks.push('New certificate starts blank; explicit signing fills empty fields from saved Personal Details');
   await settings();await page.locator('#personal-name').fill('Updated future signer');await page.locator('#personal-details-save').click();await expect(page.locator('#personal-details-status')).toContainText('copied to a certificate only when it is signed');await idle();
-  await openProjectSection(page,'certification');await idle();await expect(page.locator('#certification-name')).toHaveValue(first.name);
+  await openProjectSection(page,'certification');await idle();await openCertificateEditor(page);await expect(page.locator('#certification-name')).toHaveValue(first.name);
   const workspace=await page.evaluate(()=>window.CeasefireCertification.sessionId());
   const old=await (await page.request.get(base+'/api/certifications/'+document.id+'?workspace='+workspace)).json();assert.equal(old.fields.name,first.name);
-  await page.getByRole('button',{name:'New certificate',exact:true}).click();await idle();for(const name of Object.keys(first))await expect(page.locator('#certification-'+name)).toHaveValue('');
+  await openCertificateEditor(page,{fresh:true});await idle();for(const name of Object.keys(first))await expect(page.locator('#certification-'+name)).toHaveValue('');
   await sign();await expect(page.locator('#certification-name')).toHaveValue('Updated future signer');
   checks.push('Existing certificate snapshot retains its signer; New stays blank until signing reads updated Settings');
   const beforeEdit=await defaults(),writesBeforeEdit=profileWrites.length;

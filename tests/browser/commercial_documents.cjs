@@ -85,6 +85,11 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await expect(quote.getByLabel('Client',{exact:true})).toHaveValue('Unsaved project client');
   await expect(quote.locator('.commercial-details').getByLabel('Site address',{exact:true})).toHaveValue('25 Current Estimate Street');
   await expect(quote.getByLabel('Project number',{exact:true})).toHaveValue(projectNumber);
+  await expect(quote.getByLabel('Linked Project',{exact:true})).toHaveValue(projectNumber+' · Unsaved project client · 25 Current Estimate Street');
+  await expect(quote.getByLabel('Linked Project',{exact:true})).toHaveAttribute('readonly','');
+  await expect(quote.getByLabel('Quote No.',{exact:true})).toHaveValue('');
+  await expect(quote.getByLabel('Quote No.',{exact:true})).toHaveAttribute('readonly','');
+  await expect(quote.getByLabel('Quote No.',{exact:true})).toHaveAttribute('placeholder','Assigned when downloaded');
   await expect(quote.locator('.commercial-lines tbody tr')).toHaveCount(1);
   const introBox = await quote.getByLabel('Introduction',{exact:true}).boundingBox();
   const detailBox = await quote.locator('.commercial-details').boundingBox();
@@ -107,7 +112,11 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   assert.equal(firstSaved.commercial_documents.documents[0].fields.introduction,'Quote prepared after first project save');
   assert.equal(firstSaved.estimate.client,'Unsaved project client');
   await expect(quote.getByLabel('Project number',{exact:true})).toHaveValue(firstSaved.estimate.project_no);
+  await expect(quote.getByLabel('Quote No.',{exact:true})).toHaveValue('');
   await download(quote);
+  const numberedQuote=JSON.parse(fs.readFileSync(info.project,'utf8')).commercial_documents.documents[0];
+  await expect(quote.getByLabel('Quote No.',{exact:true})).toHaveValue(numberedQuote.last_number);
+  assert.ok(numberedQuote.last_number,'The field adopts the official issued number without allocating one during Save');
   checks.push('unsaved Estimate Document → Quote is blocked until native Project Save; the new quote then inherits details and retains its saved draft and PDF');
   let releaseState, notifyStateHeld, notifyStateCompleted;
   const stateRelease=new Promise(resolve=>releaseState=resolve);
@@ -358,6 +367,9 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   const otherCard = quote.locator('.commercial-card');
   await expect(otherCard).toHaveCount(1);
   await otherCard.locator('.project-title-button').click();
+  await expect(quote.getByLabel('Linked Project',{exact:true})).toHaveValue([clone.estimate.project_no,clone.estimate.client,clone.estimate.site_address.replace(/\s+/g,' ')].filter(Boolean).join(' · '));
+  await expect(quote.getByLabel('Linked Project',{exact:true})).toHaveAttribute('readonly','');
+  await expect(quote.getByLabel('Quote No.',{exact:true})).toHaveValue(clonedQuote.last_number);
   for (const label of ['Project number','Site address','Client']) await expect(quote.locator('.commercial-details').getByLabel(label,{exact:true})).toHaveAttribute('readonly','');
   await quote.locator('.commercial-estimate-picker summary').click();
   await quote.getByRole('button',{name:'Add custom row'}).click();

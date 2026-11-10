@@ -529,6 +529,22 @@
     return {project_no:details.project_no || "", client:details.client || "", site_address:details.site_address || "",
       contact:details.contact_name || "", phone:details.contact_phone || "", email:details.contact_email || ""};
   }
+  function refreshQuoteIdentifiers() {
+    const editor = state.editor;
+    if (editor?.document.kind !== "quote") return;
+    const owner = root()?.querySelector('[data-quote-project]');
+    if (owner) {
+      // The source is already bound by saved-open, or by the active workspace.
+      // A historic unfiled quote must not acquire the current tab's Project.
+      const linked = editor.source ? editor.source.createdProject === true
+        : window.CeasefireProject?.hasCreatedProject?.() === true;
+      const details = linked ? projectDetailsSnapshot(editor.source) : {};
+      owner.value = [details.project_no, details.client, details.site_address?.replace(/\s+/g, ' ')].filter(Boolean).join(' · ');
+      owner.title = owner.value;
+    }
+    const number = root()?.querySelector('[data-quote-reference]');
+    if (number) number.value = documentReference(editor.document) || '';
+  }
   const projectDetailKeys={client:'client',contact:'contact_name',phone:'contact_phone',email:'contact_email',site_address:'site_address',
     account_id:'account_id',contact_id:'contact_id',billing_address:'billing_address',abn_acn:'abn_acn'};
   function applyProjectDetails(fields, details) {
@@ -543,6 +559,7 @@
     applyProjectDetails(editor.document.fields,commercialProjectDetails(editor.source));
     if(lockedNumber)editor.document.fields.details.project_no=lockedNumber;
     root()?.querySelectorAll('[data-project-detail]').forEach(control=>control.value=editor.document.fields.details[control.dataset.projectDetail] || '');
+    refreshQuoteIdentifiers();
     editor.panels?.refreshProjectDetails(projectDetailsSnapshot(editor.source));
   }
   function editDocumentDetails(fields, values) {
@@ -957,6 +974,8 @@
     for(const option of statusControl.options)option.dataset.status=option.value;
     const statusField = field("Status", statusControl);
     statusField.classList.add("commercial-action-status");
+    statusField.firstElementChild.hidden = true;
+    window.CeasefireI18n?.attr(statusControl, 'aria-label', 'Status');
     actions.append(statusField);
     if (state.kind === "work_order") actions.append(button("Create PO", () => void createPurchaseOrder()));
     form.append(actions);
@@ -977,6 +996,25 @@
     };
     const projectIdentifiers = detailPair([["date", "Document date"], ["project_no", "Project number"]]);
     details.append(projectIdentifiers);
+    if (state.kind === "quote") {
+      const identifiers = node("div", "commercial-quote-identifiers");
+      const references = node("div", "commercial-field-pair");
+      const linkedProject = node("input"), quoteNumber = node("input");
+      for (const control of [linkedProject, quoteNumber]) {control.type = 'text';control.readOnly = true;}
+      linkedProject.dataset.quoteProject = 'true';linkedProject.placeholder = 'No linked Project';
+      quoteNumber.dataset.quoteReference = 'true';quoteNumber.placeholder = 'Assigned when downloaded';
+      for (const [control, source] of [[linkedProject, 'No linked Project'], [quoteNumber, 'Assigned when downloaded']]) {
+        window.CeasefireI18n?.attr(control, 'placeholder', source);
+      }
+      for (const [label, control] of [['Linked Project', linkedProject], ['Quote No.', quoteNumber]]) {
+        const wrapper = field(label, control);
+        window.CeasefireI18n?.text(wrapper.firstElementChild, label);
+        window.CeasefireI18n?.attr(control, 'aria-label', label);
+        references.append(wrapper);
+      }
+      projectIdentifiers.replaceWith(identifiers);
+      identifiers.append(projectIdentifiers, references);
+    }
     if (state.kind !== "purchase_order") details.append(detailPair([["client", "Client"], ["contact", "Client contact"]]));
     if (state.kind !== "purchase_order") {
       details.append(detailField("site_address", "Site address"));
@@ -1013,6 +1051,7 @@
       }
     }
     host.append(form);
+    refreshQuoteIdentifiers();
     attachWorkPanels(form);
     if (state.kind === "quote") {
       renderEstimateOptions();
@@ -1958,6 +1997,7 @@
     const cost = root()?.querySelector("[data-order-cost]");
     if (cost) cost.value = fields.order.estimated_cost;
     root()?.querySelectorAll('[data-project-detail]').forEach(control=>{control.value=fields.details[control.dataset.projectDetail] || '';});
+    refreshQuoteIdentifiers();
     state.editor.panels?.refreshProjectDetails(projectDetailsSnapshot(state.editor.source));
   }
   async function saveEditor() {
@@ -2085,6 +2125,7 @@
       document.fields.details.project_no = details.project_no;
       const control = root()?.querySelector('input[aria-label="Project number"]');
       if (control) control.value = details.project_no;
+      refreshQuoteIdentifiers();
       if (!document.version) markDirty();
     },
     async openFromEstimate(kind = "quote") {

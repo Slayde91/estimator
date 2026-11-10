@@ -1,0 +1,44 @@
+{
+  "Search Work Orders": [
+    "搜索工作单",
+    "कार्य आदेश खोजें",
+    "Buscar órdenes de trabajo",
+    "البحث في أوامر العمل",
+    "ค้นหาใบสั่งงาน"
+  ],
+  "No matching Work Orders.": [
+    "没有匹配的工作单。",
+    "कोई मेल खाने वाला कार्य आदेश नहीं है।",
+    "No hay órdenes de trabajo coincidentes.",
+    "لا توجد أوامر عمل مطابقة.",
+    "ไม่พบใบสั่งงานที่ตรงกัน"
+  ],
+  "Choose a listed Work Order or clear the search.": [
+    "请选择列表中的工作单或清空搜索。",
+    "सूची में से कोई कार्य आदेश चुनें या खोज साफ़ करें।",
+    "Seleccione una orden de trabajo de la lista o borre la búsqueda.",
+    "اختر أمر عمل من القائمة أو امسح البحث.",
+    "เลือกใบสั่งงานจากรายการหรือล้างการค้นหา"
+  ],
+  "Linked Project": [
+    "关联项目",
+    "जुड़ा प्रोजेक्ट",
+    "Proyecto vinculado",
+    "المشروع المرتبط",
+    "โครงการที่เชื่อมโยง"
+  ],
+  "No linked Project": [
+    "未关联项目",
+    "कोई जुड़ा प्रोजेक्ट नहीं",
+    "Sin proyecto vinculado",
+    "لا يوجد مشروع مرتبط",
+    "ไม่มีโครงการที่เชื่อมโยง"
+  ],
+  "Assigned when downloaded": [
+    "下载时分配",
+    "डाउनलोड करने पर निर्धारित",
+    "Se asigna al descargar",
+    "يُعيَّن عند التنزيل",
+    "กำหนดเมื่อดาวน์โหลด"
+  ]
+}

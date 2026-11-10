@@ -1,10 +1,10 @@
 const {fillProjectDetails}=require('./project_actions.cjs');
-const {generateCertificate}=require('./certification_generation.cjs');
+const {generateCertificate,openCertificateEditor}=require('./certification_generation.cjs');
 // Disposable project-only certificate and portable Save/New/Load coverage.
 // Existing global history is a read-only negative control. New revisions remain in the private fixture.
 const {chromium,expect}=require('@playwright/test');
 const {openProjectSection,createNewProject}=require('./project_actions.cjs');
-const {spawn,spawnSync}=require('node:child_process'),{createHash}=require('node:crypto');
+const {spawn,spawnSync}=require('node:child_process'),{createHash,randomUUID}=require('node:crypto');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`certification-project-${Date.now()}`);
 fs.mkdirSync(output,{recursive:true});
@@ -16,7 +16,7 @@ const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()
 const errors=[],generations=[],checks=[];
 const digest=value=>createHash('sha256').update(value).digest('hex');
 async function idle(){await page.waitForFunction(()=>{const status=window.CeasefireDesktop?.status();return status?.ready&&!status.busy;},null,{timeout:120000});}
-async function certification(){await openProjectSection(page,'certification');await expect(page.locator('#certification-client')).toBeEnabled({timeout:30000});}
+async function certification(){await openProjectSection(page,'certification');await openCertificateEditor(page);}
 async function projects(){await openProjectSection(page,'quotes');}
 async function continueDiscard(){await page.locator('#discard-dialog [value="confirm"]').click();}
 (async()=>{
@@ -52,10 +52,16 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   await chooser.getByRole('button',{name:'Insert signature'}).click();await expect(page.locator('#certification-signature-preview')).toBeVisible();
   const preferences=await (await fetch(base+'/api/certifications/defaults')).json();assert.equal(preferences.signature_image,null);
   const signatureHash=digest(await page.locator('#certification-signature-preview').getAttribute('src'));
+  const unsavedStamp=await page.evaluate(()=>window.CeasefireCertification.projectFingerprint());
+  await page.locator('#certification-back').click();await expect(page.locator('#certification-list')).toBeVisible();await expect(page.locator('#certification-editor')).toBeHidden();
+  await expect(page.locator('#certification-resume')).toBeVisible();await page.locator('#certification-resume').click();
+  assert.equal(await page.evaluate(()=>window.CeasefireCertification.projectFingerprint()),unsavedStamp);
+  await expect(page.locator('#certification-signature-preview')).toBeVisible();checks.push('Back and Resume preserve every unsaved field, scope and signature without saving');
   const board=page.locator('#certification-board');
   await expect(board.locator('.project-column-heading h2')).toHaveText(['Draft','Review','Approved','Rejected']);
   await page.getByLabel('Workflow status',{exact:true}).selectOption('Review');
   await page.locator('#certification-save-draft').click();
+  await page.locator('#certification-back').click();await expect(page.locator('#certification-list')).toBeVisible();
   const reviewCard=board.locator('[data-status="Review"] article');
   await expect(reviewCard).toContainText('PROJECT A CLIENT');
   await expect(reviewCard).toContainText('Certificate revisions (0)');
@@ -89,7 +95,7 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   const restoredToken=await page.evaluate(()=>window.CeasefireCertification.sessionId());assert.notEqual(restoredToken,tokenA);
   await expect(page.locator('#certification-document')).toHaveValue(documentId);await expect(page.locator('#certification-client')).toHaveValue('PROJECT A CLIENT');
   await expect(page.locator('#certification-workflow')).toHaveValue('Rejected');
-  await expect(board.locator('[data-status="Rejected"] article')).toContainText('Certificate revisions (2)');
+  await page.locator('#certification-back').click();await expect(board.locator('[data-status="Rejected"] article')).toContainText('Certificate revisions (2)');await openCertificateEditor(page);
   await expect(page.locator('#certification-signature-preview')).toBeVisible();assert.equal(digest(await page.locator('#certification-signature-preview').getAttribute('src')),signatureHash);
   const restored=await (await fetch(base+'/api/certifications/'+documentId+'?workspace='+restoredToken)).json();
   const portable=value=>({...value,revisions:value.revisions.map(({pdf_url,...revision})=>revision)});
@@ -101,6 +107,30 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   }
   assert.equal(digest(fs.readFileSync(info.project)),digest(projectBytes));
   checks.push('native project Save writes bounded manifest plus verified companion','New project has an isolated empty certificate list','new certificate stays unsigned until explicit insertion','native Load restores project-specific document and its frozen signer artwork');
+  await page.locator('#certification-back').click();await expect(board).toBeVisible();
+  for(const status of ['Draft','Review','Approved','Rejected']){
+    const seeded=await page.request.post(base+'/api/certifications?workspace='+restoredToken,{data:{
+      fields:{...fields,client:'Search '+status+' client',project:'Search project '+status,address:'Search site '+status},
+      options:{cover_pdf:null,cover_pdf_name:'',scopes:[],workflow_status:status},request_id:randomUUID()}});
+    assert.equal(seeded.status(),201,await seeded.text());
+  }
+  await page.evaluate(()=>window.CeasefireCertification.open());
+  const search=page.locator('#certification-search');await expect(search).toBeVisible();await expect(page.getByRole('button',{name:'Create Certificate',exact:true})).toBeVisible();
+  await expect(board.locator('.project-column-heading .badge')).toHaveText(['1','1','1','2']);
+  for(const needle of ['Search Review client','Search project Review','Search site Review']){
+    await search.fill(needle);await expect(board.locator('.project-column-heading .badge')).toHaveText(['0','1','0','0']);
+    await expect(board.locator('article')).toHaveCount(1);
+  }
+  await search.fill('No matching certificate');await expect(board.locator('article')).toHaveCount(0);await expect(board.locator('.project-column-heading .badge')).toHaveText(['0','0','0','0']);
+  await search.fill('Search Review client');await board.getByRole('button',{name:/Search Review client/}).click();
+  const discardCaptured=page.getByRole('button',{name:'Continue without saving',exact:true});if(await discardCaptured.isVisible())await discardCaptured.click();
+  await expect(page.locator('#certification-editor')).toBeVisible();await expect(page.locator('#certification-list')).toBeHidden();await expect(page.locator('#certification-client')).toHaveValue('Search Review client');
+  await page.locator('#certification-back').click();await expect(search).toHaveValue('Search Review client');
+  await board.locator('[data-status="Review"] article').dragTo(board.locator('[data-status="Approved"]'),{sourcePosition:{x:4,y:4}});
+  await expect(board.locator('.project-column-heading .badge')).toHaveText(['0','0','1','0']);
+  await search.fill('');await expect(board.locator('.project-column-heading .badge')).toHaveText(['1','0','2','2']);
+  for(const width of [1915,390]){await page.setViewportSize({width,height:884});await expect(search).toBeVisible();await expect(page.locator('#certification-editor')).toBeHidden();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.screenshot({path:path.join(output,'certificate-board-'+width+'.png')});}
+  checks.push('first page is searchable four-stage board with Create Certificate','client/project/site queries and empty results update every visible column count','card opens separate editor; Back retains search; stage drag remains functional','desktop and phone board layouts fit');
   assert.equal(generations.length,2);assert.deepEqual(errors,[]);
   const screenshot=path.join(output,'restored-project-certificate.png');await page.screenshot({path:screenshot,fullPage:true});
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,generatedCertificateRevisions:generations.length,errors,project:info.project,screenshot},null,2));

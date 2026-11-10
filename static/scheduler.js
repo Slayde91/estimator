@@ -55,7 +55,9 @@
   }
   function field(label, control, hint) {
     const result = el("label", "field"); result.append(el("span", "", label), control);
-    control.setAttribute("aria-label",label);
+    const labelled = control.querySelector?.(".scheduler-order-search") || control;
+    labelled.setAttribute("aria-label",label);
+    if (labelled.id) result.htmlFor = labelled.id;
     if (hint) {result.append(el("small", "helper", hint)); control.setAttribute("aria-description",hint);} return result;
   }
   function select(options, value) {
@@ -120,18 +122,80 @@
     const held = record.work_order;
     const key = order => order.id + '@' + order.revision;
     const current = held ? key(held) : record.project_id || record.project_name ? 'legacy' : '';
-    const options = [['', translated('No Work Order assigned')], ...state.orders.map(order => [key(order), orderLabel(order)])];
-    const retained = current && !options.some(([value]) => value === current);
-    if (retained) options.push([current, held ? translated('{0} (saved assignment)',[assignmentLabel(record)]) : assignmentLabel(record)]);
-    const control = select(options, current);
-    control.dataset.original = current;
-    if (retained) control.selectedOptions[0].disabled = true;
-    return control;
+    const wrapper = el('div','searchable-choice scheduler-order-choice');
+    const search = input('search','',{autocomplete:'off',spellcheck:'false'});
+    search.id = 'scheduler-order-' + crypto.randomUUID();search.className = 'scheduler-order-search';
+    search.placeholder = translated('Search Work Orders');
+    const list = el('div','searchable-choice-list'), popup = el('div','searchable-choice-popup'), status = el('div','helper');
+    list.id = search.id + '-choices';list.setAttribute('role','listbox');list.setAttribute('aria-label',translated('{0} choices',[translated('Work Order')]));
+    search.setAttribute('role','combobox');search.setAttribute('aria-controls',list.id);
+    search.setAttribute('aria-autocomplete','list');search.setAttribute('aria-expanded','false');
+    const toggle = button('⌄',() => {const wasOpen=!popup.hidden;search.focus();if(wasOpen)close();else open('');},'searchable-choice-toggle');
+    toggle.tabIndex = -1;toggle.setAttribute('aria-label',translated('Show {0} choices',[translated('Work Order')]));
+    toggle.addEventListener('pointerdown',event => event.preventDefault());
+    status.setAttribute('role','status');popup.hidden = true;popup.append(list,status);wrapper.append(search,toggle,popup);
+    let chosen = current, chosenOrder = held || null, committedText = '', matches = [], active = -1;
+    const listeners = [];
+    function options() {
+      const choices = [{value:'',label:translated('No Work Order assigned'),order:null},
+        ...state.orders.map(order => ({value:key(order),label:orderLabel(order),order}))];
+      if(current && !choices.some(item => item.value === current))choices.push({value:current,
+        label:held ? translated('{0} (saved assignment)',[assignmentLabel(record)]) : assignmentLabel(record),order:held || null});
+      return choices;
+    }
+    function close() {popup.hidden=true;search.setAttribute('aria-expanded','false');search.removeAttribute('aria-activedescendant');active=-1;}
+    function commit(item) {
+      chosen=item.value;chosenOrder=item.order;committedText=chosen ? item.label : '';search.value=committedText;
+      search.setCustomValidity('');close();listeners.forEach(run=>run());
+    }
+    function highlight(index) {
+      active=index;
+      [...list.children].forEach((option,i)=>option.setAttribute('aria-selected',String(i===active)));
+      if(active>=0){const item=list.children[active];search.setAttribute('aria-activedescendant',item.id);item.scrollIntoView({block:'nearest'});}
+    }
+    function open(query=search.value) {
+      // Re-read the bounded, permission-filtered server choices when searching;
+      // late background loading never replaces this form or commits a choice.
+      const needle=query.trim().toLocaleLowerCase();
+      const found=options().filter(item=>item.label.toLocaleLowerCase().includes(needle));
+      matches=found.slice(0,80);active=-1;
+      list.replaceChildren(...matches.map((item,index)=>{
+        const option=el('div','',item.label);option.id=list.id+'-'+index;option.tabIndex=-1;
+        option.setAttribute('role','option');option.setAttribute('aria-selected','false');
+        // Mouse keeps combobox focus; touch remains free to scroll the list.
+        // Activation belongs to click, including assistive-technology clicks.
+        option.addEventListener('pointerdown',event=>{if(event.pointerType!=='touch')event.preventDefault();});
+        option.addEventListener('click',()=>{search.focus();commit(item);});return option;
+      }));
+      status.textContent=translated(!found.length ? 'No matching Work Orders.' : found.length>matches.length ? '{0} matches. Type more to narrow the list.' : '{0} choices',[found.length]);
+      popup.hidden=false;search.setAttribute('aria-expanded','true');search.removeAttribute('aria-activedescendant');
+    }
+    search.addEventListener('input',()=>{
+      if(!search.value){chosen='';chosenOrder=null;committedText='';search.setCustomValidity('');listeners.forEach(run=>run());}
+      else search.setCustomValidity(translated('Choose a listed Work Order or clear the search.'));
+      open();
+    });
+    search.addEventListener('focus',()=>open(search.value===committedText ? '' : search.value));
+    search.addEventListener('blur',event=>{if(!wrapper.contains(event.relatedTarget))close();});
+    search.addEventListener('keydown',event=>{
+      if(event.isComposing)return;
+      if(event.key==='ArrowDown'||event.key==='ArrowUp'){
+        event.preventDefault();event.stopPropagation();if(popup.hidden)open(search.value===committedText?'':search.value);
+        if(matches.length)highlight(Math.max(0,Math.min(matches.length-1,active+(event.key==='ArrowDown'?1:-1))));
+      }else if(event.key==='Enter'&&!popup.hidden){
+        event.preventDefault();event.stopPropagation();
+        if(active>=0)commit(matches[active]);else if(matches.length===1)commit(matches[0]);
+      }else if(event.key==='Escape'&&(!popup.hidden||search.value!==committedText)){
+        event.preventDefault();event.stopPropagation();search.value=committedText;search.setCustomValidity('');close();
+      }
+    });
+    const initial=options().find(item=>item.value===current);committedText=current ? initial.label : '';search.value=committedText;
+    return {element:wrapper,original:current,value:()=>chosen,order:()=>chosenOrder,onChange:run=>listeners.push(run)};
   }
   function selectedOrder(control) {
-    if (control.value === control.dataset.original) return {};
-    if (!control.value) return {work_order:null};
-    const [id, revision] = control.value.split('@');
+    if (control.value() === control.original) return {};
+    if (!control.value()) return {work_order:null};
+    const {id, revision} = control.order();
     return {work_order:{id, revision}};
   }
   function orderStatus() {
@@ -264,7 +328,7 @@
     const content = el("div", "scheduler-form-fields"), error = el("p", "message error"); error.hidden = true; error.setAttribute("role","alert");
     const controls = build(content), actions = el("div", "actions scheduler-dialog-actions");
     const submit = el("button", submitClass, saveLabel); submit.type = "submit";
-    actions.append(button("Cancel",closeDialog),submit);
+    actions.append(button("Cancel",closeDialog));
     let draft;
     if (draftLabel) {
       submit.value = "publish";
@@ -276,6 +340,7 @@
         if (event.key === "Enter" && !event.isComposing && event.target instanceof HTMLInputElement) event.preventDefault();
       });
     }
+    actions.append(submit);
     form.append(heading,content,error,actions); modal.append(form);
     modal.addEventListener("close", () => { modal.remove(); if (state.dialog === modal) state.dialog = null; });
     modal.addEventListener("cancel", event => {if(state.busy)event.preventDefault();});
@@ -378,7 +443,7 @@
       const tracking = el("p","helper scheduler-location-status"); tracking.setAttribute("role","status"); bar.append(tracking);
     } else bar.append(button("Clock in",() => dialog("Clock in",host => {
       const project = orderSelect(), notes = el("textarea"); notes.maxLength = 2000;
-      host.append(field(translated("Work Order"),project),field("Notes",notes),el("p","message scheduler-location-required","Location is required to clock in. Your location is recorded during the shift, including a check every 30 minutes. You and your administrator can view the history."),el("p","helper","Allow location access when your browser asks. Keep CLASSIFIRE open and this computer awake. Missing updates are shown as gaps; they cannot be recovered after the browser was closed or suspended.")); return {project,notes};
+      host.append(field(translated("Work Order"),project.element),field("Notes",notes),el("p","message scheduler-location-required","Location is required to clock in. Your location is recorded during the shift, including a check every 30 minutes. You and your administrator can view the history."),el("p","helper","Allow location access when your browser asks. Keep CLASSIFIRE open and this computer awake. Missing updates are shown as gaps; they cannot be recovered after the browser was closed or suspended.")); return {project,notes};
     },"Clock in",async ({project,notes}) => {
       const current = accountAction();
       const location = await currentPosition();
@@ -437,7 +502,9 @@
         const date = addDays(state.week,day), cell = el("td",date === today() ? "scheduler-today" : "");
         shifts.filter(shift => localParts(shift.start).slice(0,10) <= date && localParts(new Date(new Date(shift.end).getTime()-1)).slice(0,10) >= date).forEach(shift => {
           const card = button("",() => editShift(shift),"scheduler-shift");
-          card.dataset.color = colours.find(([value]) => value === shift.color)?.[1].toLowerCase() || "blue";
+          const colour = /^#[0-9a-f]{6}$/i.test(shift.color || '') ? shift.color : '#2196f3';
+          card.dataset.color = colours.find(([value]) => value === shift.color)?.[1].toLowerCase() || 'blue';
+          card.style.setProperty('--scheduler-shift-colour',colour.toLowerCase()==='#2196f3' ? '#1767b2' : colour);
           card.classList.toggle("scheduler-draft",!shift.published);
           card.append(el("strong","",`${timeFormatter.format(new Date(shift.start))} – ${timeFormatter.format(new Date(shift.end))}`),el("span","",shift.title));
           if (assignmentLabel(shift)) card.append(el("small","",assignmentLabel(shift)));
@@ -463,14 +530,14 @@
       const color = shiftColours(shift?.color || "#2196f3");
       const initialProject = shift?.work_order;
       const project = orderSelect(shift || {}), location = input("text",shift?.location || initialProject?.site_address || "",{maxlength:400});
-      project.addEventListener("change",() => {const selected = state.orders.find(item => item.id + "@" + item.revision === project.value); if (selected) location.value = selected.site_address || "";});
+      project.onChange(() => {const selected = project.order(); if (selected) location.value = selected.site_address || "";});
       const notes = el("textarea"); notes.value = shift?.notes || ""; notes.maxLength = 2000;
       const members = el("fieldset","scheduler-members"); members.append(el("legend","","Team members"));
       const selected = new Set(shift?.member_ids || (memberId ? [memberId] : []));
       const memberChecks = state.data.members.filter(item => item.active || selected.has(item.id)).map(member => {
         const item = check(member.name,selected.has(member.id)); members.append(item.label); return {id:member.id,control:item.control};
       });
-      host.append(field("Title",title),color,field("Start",start,zone),field("End",end,zone),members,field(translated("Work Order"),project),field("Location",location),field("Notes",notes));
+      host.append(field("Title",title),color,field("Start",start,zone),field("End",end,zone),members,field(translated("Work Order"),project.element),field("Location",location),field("Notes",notes));
       if (shift) host.append(button("Delete shift",() => {
         deleteRecord("/shifts/delete",{id:shift.id,version:shift.version},`Delete “${shift.title}” from the schedule?`);
       },"button secondary scheduler-danger"));
@@ -582,7 +649,7 @@
       const start = input("datetime-local",entry ? localParts(entry.start) : `${today()}T07:00`,{required:true});
       const end = input("datetime-local",entry ? localParts(entry.end) : `${today()}T15:30`,{required:true});
       const project = orderSelect(entry || {}), notes = el("textarea"); notes.value = entry?.notes || ""; notes.maxLength = 2000;
-      host.append(field("Team member",member),field("Start",start,zone),field(translated("Work Order"),project),field("Finish",end,zone),field("Notes / reason for correction",notes));
+      host.append(field("Team member",member),field("Start",start,zone),field(translated("Work Order"),project.element),field("Finish",end,zone),field("Notes / reason for correction",notes));
       const breakList = el("div","scheduler-break-editor"), breakRows = [];
       function addBreak(item = {}) {
         const row = el("div","scheduler-break-row"), from = input("datetime-local",item.start ? localParts(item.start) : "",{required:true}), to = input("datetime-local",item.end ? localParts(item.end) : "",{required:true}), paid = check("Paid",!!item.paid);

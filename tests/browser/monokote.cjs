@@ -168,7 +168,7 @@ async function screenshot(name,fixture) {
   applicationBasis={placements,choices:['Injected','Uninjected'],mk6Factor:40/27,z106Factor:1,baselineBags:[baseline.T10,baseline.T11],injectedBags:[injected.T10,injected.T11],draftExports:exportedDrafts,savedProjectRoundtrip:true,noImplicitSave:true,restoredUninjected:true};
   console.log('Verified exact basis selectors below Waste, MK6 40/27, independent Z106, unsaved draft PDF/XLSX and saved-project roundtrip.');
   await page.getByRole('button',{name:'Add row',exact:true}).click();
-  const columnsToggle=page.locator('#calculator-pages .schedule-column-toggle');await columnsToggle.click();
+  const columnsToggle=page.locator('#calculator-toolbar-actions .schedule-column-toggle');await columnsToggle.click();
   const columnsPanel=page.locator('#'+await columnsToggle.getAttribute('aria-controls'));await expect(columnsPanel).toBeVisible();
   for(const column of ['G','K']){const choice=columnsPanel.locator(`[data-schedule-column-choice="column:${column}"]`);await expect(choice).not.toBeChecked();await choice.check();}
   await columnsPanel.locator('[data-schedule-column-choice="column:K"]').press('Escape');await expect(columnsPanel).toBeHidden();

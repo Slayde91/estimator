@@ -80,8 +80,13 @@ class TakeoffGeometryEditingTests(unittest.TestCase):
         self.assertNotIn('calculator', self.case.state)
         self.assertEqual(calculator['inputs']['SCHEDULE']['I10'], 3)
         self.assertEqual(calculator['inputs']['SCHEDULE']['J10'], item_result(old, before)['length_m'])
-        with self.assertRaises(ValidationError):
-            self.case.preview(identifier, inputs=calculator['inputs'], rows=calculator['schedule_rows'], update=True)
+        source_before_update = deepcopy(self.case.state['snapshot'])
+        removal = self.case.preview(identifier, inputs=calculator['inputs'], rows=calculator['schedule_rows'], update=True)
+        binding = next(link for link in source_before_update['transfers'] if link['item_id'] == identifier)
+        self.assertEqual(removal['changes'], [{'item_id': identifier, 'row': binding['row'], 'action': 'remove'}])
+        self.assertEqual(removal['bindings'], [])
+        self.assertEqual(removal['removed_bindings'], [binding])
+        self.assertEqual(self.case.service.get(self.case.sid)['snapshot'], source_before_update)
 
     def test_duct_endpoint_move_keeps_centreline_dimensions_and_explicit_drop(self):
         identifier = self.case.create(mode='duct', quantity=1,

@@ -240,7 +240,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   const personalDefaults=await(await page.request.get(personalUrl)).json();
   const savedPersonal=await page.request.post(personalUrl,{data:{expected_version:personalDefaults.version,fields:{...personalDefaults.fields,name:'Commercial fixture signer'}}});
   assert.equal(savedPersonal.status(),200,await savedPersonal.text());
-  for(const label of ['Reviewed by','Prepared by','Approved by']) {
+  for(const label of ['Work order details reviewed by','Reviewed by','Prepared by','Approved by']) {
     await work.getByRole('button',{name:'Sign '+label,exact:true}).click();
     await expect(work.getByRole('img',{name:label+' signature',exact:true})).toBeVisible();
   }

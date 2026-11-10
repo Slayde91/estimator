@@ -233,7 +233,7 @@ class CommercialPaneSignerTests(unittest.TestCase):
         current = {'project_no':'PN-99','client':'Updated Company','site_address':'Updated site',
                    'contact_name':'Updated Contact','contact_phone':'0400 999 888','contact_email':'updated@example.test'}
         http = CommercialHTTP(self.store)
-        changed = deepcopy(work['fields']); changed['order'].update(approval='Approved',reviewed_by='Reviewer',review_date='2026-11-08')
+        changed = complete_work_order(work['fields'], 'Review'); changed['order'].update(approval='Approved',reviewed_by='Reviewer',review_date='2026-11-08')
         changed.setdefault('signatures', {})['reviewed_by'] = deepcopy(INK)
         saved = http.execute('save', {'workspace_id':self.workspace,'id':work['id'],'version':work['version'],'kind':'work_order','status':'Review',
                                      'fields':changed,'project_details':current})

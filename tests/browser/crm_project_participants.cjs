@@ -51,7 +51,18 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   await expect(panel.locator('li').filter({hasText:'Builder A'})).toHaveCount(1);
   const auto=await read('/api/crm/project-participants?project='+encodeURIComponent(selected.id));assert.equal(auto.site_mode,'automatic');assert.equal(auto.site_id,null);
   const sites=await read('/api/crm/sites?search=school');assert.equal(sites.sites.length,1);
+  const linkReceipt=page.waitForResponse(response=>{
+    if(response.request().method()!=='POST' || new URL(response.url()).pathname!=='/api/crm/project-participants')return false;
+    const body=response.request().postDataJSON();return body.project===selected.id && body.site_id===site.id;
+  });
   await panel.locator(`[data-site-id="${site.id}"]`).getByRole('button',{name:/^Link /}).click();
+  const linkedResponse=await linkReceipt;assert.equal(linkedResponse.status(),200,await linkedResponse.text());const manual=await linkedResponse.json();
+  assert.equal(manual.site_id,site.id);assert.equal(manual.site_mode,'manual');assert.equal(manual.version,auto.version+1);
+  await expect(panel.getByText('Shared school refurbishment · 42 Example Lane',{exact:true}).first()).toBeVisible();
+  await expect(panel.getByRole('button',{name:'Use site address',exact:true})).toBeVisible();
+  await expect(panel.getByText('Bids with the same site address are linked automatically.',{exact:true})).toHaveCount(0);
+  const persisted=await read('/api/crm/project-participants?project='+encodeURIComponent(selected.id));
+  assert.equal(persisted.site_id,site.id);assert.equal(persisted.version,manual.version);
   await expect(panel.getByRole('heading',{name:'Other bids linked to this site'})).toBeVisible();
   await expect(panel.locator('li').filter({hasText:'Builder A'})).toHaveCount(1);
   assert.deepEqual(fs.readFileSync(info.project),original);assert.deepEqual(fs.readFileSync(copyPath),copyBytes);

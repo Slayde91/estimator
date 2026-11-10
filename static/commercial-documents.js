@@ -101,6 +101,7 @@
     element.value = value ?? "";
     element.addEventListener("input", () => {
       changed(element.value);
+      recordSigningEdit(element);
       markDirty();
     });
     return element;
@@ -115,6 +116,7 @@
     element.value = value;
     element.addEventListener("change", () => {
       changed(element.value);
+      recordSigningEdit(element);
       if (dirty) markDirty();
     });
     return element;
@@ -125,6 +127,7 @@
     element.rows = 3;
     element.addEventListener("input", () => {
       changed(element.value);
+      recordSigningEdit(element);
       markDirty();
     });
     return element;
@@ -145,7 +148,8 @@
   }
   function readinessSpecs(action) {
     const document=state.editor?.document;
-    return document ? state.model?.requirements?.[action]?.[document.kind]?.[document.status] || [] : [];
+    const specs=document ? state.model?.requirements?.[action]?.[document.kind]?.[document.status] || [] : [];
+    return state.editor?.legacyDetailsSignoff ? specs.filter(spec=>!['signatures.details_by','order.details_by','order.details_date'].includes(spec.path)) : specs;
   }
   function requirementControl(path) {
     const [group,key,rate]=path.split('.'),host=root();
@@ -954,6 +958,8 @@
       generatedScope: null,
       scopeTables: copy(document.fields.scope_tables || []),
       scopeRevision: 0,
+      signatureActions: [],
+      legacyDetailsSignoff: document.kind==='work_order' && document.version>0 && !['details_by','details_date'].some(key=>Object.hasOwn(document.fields.order,key)),
       derivedEstimates: new Map()
     };
     state.dirty = false;
@@ -968,6 +974,8 @@
     const actions = node("div", "commercial-editor-actions");
     actions.append(backButton("Back to " + names[state.kind] + "s", () => void leaveEditor()), button("Save", () => void saveEditor(), true), pdfDownloadButton(() => void downloadEditor()));
     const statusControl=select(state.model.statuses[state.kind], state.editor.document.status, value => {
+      const action=state.editor.signatureActions.at(-1);
+      if(action)action.status_override=value;
       state.editor.document.status=value;statusControl.dataset.status=value;
     });
     statusControl.classList.add('commercial-document-status');statusControl.dataset.status=state.editor.document.status;
@@ -1062,7 +1070,38 @@
     window.CeasefireProject?.refreshPages?.();
     if (state.kind === "quote" && document.version > 0) void refreshScopePreview();
   }
-  const signatureDates = {requested_by:"requested_date",reviewed_by:"review_date",prepared_by:"prepared_date",client_approved_by:"client_approval_date",progress_by:"progress_date",closed_by:"closed_date",claimed_by:"claim_date",sent_by:"sent_date",verified_by:"verified_date"};
+  const signatureDates = {details_by:"details_date",requested_by:"requested_date",reviewed_by:"review_date",prepared_by:"prepared_date",client_approved_by:"client_approval_date",progress_by:"progress_date",closed_by:"closed_date",claimed_by:"claim_date",sent_by:"sent_date",verified_by:"verified_date"};
+  function recordSigningEdit(control) {
+    const key=control.dataset.orderField;
+    if(!['certification','completion','closed_by','closed_date','progress_by','progress_date','claimed_by','claim_date'].includes(key))return;
+    const action=state.editor?.signatureActions?.findLast(item=>item.key==='closed_by' && item.completion==='Ongoing');
+    if(action && !(action.after_signing_edits ||= []).includes(key))action.after_signing_edits.push(key);
+  }
+  function applyWorkOrderSignature(editor, action) {
+    if(editor.document.kind!=='work_order')return;
+    editor.signatureActions.push(copy(action));
+    const targets={details_by:'Review',reviewed_by:'OHS Docs',prepared_by:'Client Approval',client_approved_by:'In progress',progress_by:'Claim',claimed_by:'Certify'};
+    let status=targets[action.key];
+    if(action.key==='closed_by') {
+      if(action.completion==='Completed')status='Completed';
+      else if(action.completion==='Ongoing') {
+        const fields=editor.document.fields;
+        for(const key of ['certification','completion','closed_by','closed_date','progress_by','progress_date','claimed_by','claim_date'])fields.order[key]='';
+        for(const key of ['closed_by','progress_by','claimed_by'])delete (fields.signatures ||= {})[key];
+        root()?.querySelectorAll('[data-order-field]').forEach(control=>control.value=fields.order[control.dataset.orderField] || '');
+        for(const [key,label] of [['progress_by','Progress signed by'],['claimed_by','Claim signed by']]) {
+          const old=root()?.querySelector(`[data-signature-field="${key}"]`);
+          if(old)old.replaceWith(signatureField(fields,key,label));
+        }
+        status='In progress';
+      }
+    }
+    if(status) {
+      editor.document.status=status;
+      const control=root()?.querySelector('.commercial-document-status');
+      if(control){control.value=status;control.dataset.status=status;}
+    }
+  }
   async function signatureProfile() {
     const response = await fetch('/api/scheduler/bootstrap',{cache:'no-store'}), value = await response.json();
     if(!response.ok || typeof value.timezone !== 'string')throw new Error('Personal details could not be loaded. Try again.');
@@ -1094,6 +1133,7 @@
     } else preview.append(node("span","helper","Not signed"));
     const selected = state.editor;
     const checkProgress = () => {
+      if(key==='closed_by' && !['Completed','Ongoing','On hold','Not completed'].includes(fields.order.completion))throw new Error('Choose a completion status before signing Work Order completion.');
       if(key!=='progress_by')return;
       const rows=fields.work_tracking?.rows || [];
       if(rows.some(row=>row.completed_percent!=='' && (!Number.isFinite(Number(row.completed_percent)) || Number(row.completed_percent)<1 || Number(row.completed_percent)>100)))throw new Error('Enter a percentage from 1 to 100, or leave it blank.');
@@ -1114,6 +1154,9 @@
         const date=signedDate(after.timezone);
         (fields.signatures ||= {})[key] = result;
         fields.order[key]=name;fields.order[signatureDates[key]]=date;
+        if(key==='details_by')selected.legacyDetailsSignoff=false;
+        if(selected.document.kind==='work_order')applyWorkOrderSignature(selected,{key,signature:result,name,date,
+          ...(key==='closed_by'?{completion:fields.order.completion,certification:fields.order.certification}:{})});
         updateControls();
         markDirty(); wrap.replaceWith(signatureField(fields,key,label));
       } catch (error) { message(error.message,true); }
@@ -1129,6 +1172,7 @@
     function reset() {
       if(state.busy || state.editor!==selected)return;
       delete (fields.signatures ||= {})[key];fields.order[key]='';fields.order[signatureDates[key]]='';
+      selected.signatureActions=selected.signatureActions.filter(action=>action.key!==key || key==='closed_by' && action.completion==='Ongoing');
       updateControls();markDirty();wrap.replaceWith(signatureField(fields,key,label));
     }
     function resetButton(action,path) {
@@ -1138,7 +1182,8 @@
       for(const d of path){const stroke=document.createElementNS(icon.namespaceURI,'path');stroke.setAttribute('d',d);icon.append(stroke);}control.append(icon);return control;
     }
     buttonRow.append(preview,sign,resetButton('Clear',['M20 7v5h-5','M4 17v-5h5','M6.1 8.4A7.5 7.5 0 0 1 19.2 10L20 12','M17.9 15.6A7.5 7.5 0 0 1 4.8 14L4 12']));
-    const heading=node('span','',label);window.CeasefireI18n?.text(heading,label);
+    const headingLabel=key==='details_by'?'Reviewed by':label;
+    const heading=node('span','',headingLabel);window.CeasefireI18n?.text(heading,headingLabel);
     wrap.append(heading,buttonRow);return wrap;
   }
   function attachWorkPanels(form) {
@@ -1378,6 +1423,7 @@
       if (isWorkOrder) {
         fields.order.quote_reference = selected?.last_number || "";
         delete fields.work_tracking;
+        state.editor.signatureActions=state.editor.signatureActions.filter(action=>!['progress_by','claimed_by'].includes(action.key));
         for(const key of ['progress_by','claimed_by']) {
           if(fields.signatures)delete fields.signatures[key];
           fields.order[key]='';fields.order[signatureDates[key]]='';
@@ -1399,7 +1445,7 @@
       markDirty();
     });
     const groups = isWorkOrder ? [
-      ["Work order details", [["start_date","Proposed start date"],["end_date","Proposed end date"],["urgency","Category / urgency"],["description","Description of works"],["estimated_cost","Estimated cost (AUD)"]]],
+      ["Work order details", [["start_date","Proposed start date"],["end_date","Proposed end date"],["urgency","Category / urgency"],["description","Description of works"],["estimated_cost","Estimated cost (AUD)"],["details_by","Work order details reviewed by"],["details_date","Details review date"]]],
       ["Work order review", [["approval","Approval"],["justification","Justification"],["reviewed_by","Reviewed by"],["review_date","Review date"]]],
       ["OHS documentation", [["prepared_by","Prepared by"],["prepared_date","Date"]]],
       ["Client approval", [["client_approved_by","Approved by"],["client_approval_date","Approval date"]]],
@@ -1966,6 +2012,7 @@
       kind: document.kind,
       status: document.status,
       fields: document.fields,
+      ...(editor.signatureActions.length ? {signature_actions:copy(editor.signatureActions)} : {}),
       ...(editor.billingReview?{billing_review:editor.billingReview}:{}),
       ...(!editor.source ? {project_details:projectDetails} : editor.source.projectUpdates ? {project_updates:editor.source.projectUpdates} : {}),
       ...(explicitlySaved && !state.editor.source && !window.CeasefireProject.context().project_token ? {retain_unfiled:true} : {}),
@@ -1990,6 +2037,10 @@
     Object.assign(state.editor.document, saved, {
       fields
     });
+    state.editor.signatureActions=[];
+    state.editor.legacyDetailsSignoff=saved.kind==='work_order' && !['details_by','details_date'].some(key=>Object.hasOwn(fields.order,key));
+    const status=root()?.querySelector('.commercial-document-status');
+    if(status){status.value=saved.status;status.dataset.status=saved.status;}
     renderLines();
     renderScope();
     const reference = root()?.querySelector("[data-order-reference]");

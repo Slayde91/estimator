@@ -35,21 +35,21 @@ def complete_work_order(fields, stage='Draft'):
             order[key] = value
     stages = ['Draft','Review','OHS Docs','Client Approval','In progress','Claim','Certify','Completed']
     index = stages.index(stage) if stage in stages else 0
-    roles = [('reviewed_by','review_date'),('prepared_by','prepared_date'),('client_approved_by','client_approval_date'),
+    roles = [('details_by','details_date'),('reviewed_by','review_date'),('prepared_by','prepared_date'),('client_approved_by','client_approval_date'),
              ('progress_by','progress_date'),('claimed_by','claim_date'),('closed_by','closed_date')]
-    if index:
+    if index >= 2:
         order['approval'] = order.get('approval') or 'Approved'
-    for name,date in roles[:min(index,6)]:
+    for name,date in roles[:min(index,7)]:
         order[name] = order.get(name) or 'Fixture Signer'
         order[date] = order.get(date) or '2026-11-09'
         result.setdefault('signatures',{}).setdefault(name,deepcopy(INK))
-    if index >= 4:
-        for row in result.get('work_tracking',{}).get('rows',[]):
-            row['completed_percent'] = row.get('completed_percent') or '1'
     if index >= 5:
         for row in result.get('work_tracking',{}).get('rows',[]):
-            row['claimed_percent'] = row.get('claimed_percent') or '1'
+            row['completed_percent'] = row.get('completed_percent') or '1'
     if index >= 6:
+        for row in result.get('work_tracking',{}).get('rows',[]):
+            row['claimed_percent'] = row.get('claimed_percent') or '1'
+    if index >= 7:
         order['certification'] = order.get('certification') or 'Certification issued'
         order['completion'] = order.get('completion') or 'Completed'
     return result

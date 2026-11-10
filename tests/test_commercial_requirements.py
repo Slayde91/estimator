@@ -98,22 +98,23 @@ class CommercialReadinessTests(unittest.TestCase):
         fields, _ = self.work_fields()
         saved = self.save('work_order', fields)
         before = self.store.capture(self.workspace)
-        with self.assertRaisesRegex(ValidationError, 'Approval'):
+        with self.assertRaisesRegex(ValidationError, 'Work order details reviewed by'):
             self.store.status(self.workspace, saved['id'], saved['version'], 'Review')
         self.assertEqual(self.store.capture(self.workspace), before)
         fields = deepcopy(saved['fields'])
-        fields['order']['approval'] = 'Approved'
-        self.sign(fields, 'reviewed_by', 'review_date')
+        self.sign(fields, 'details_by', 'details_date')
         saved = self.save('work_order', fields, saved)
         saved = self.store.status(self.workspace, saved['id'], saved['version'], 'Review')
         self.assertEqual(saved['status'], 'Review')
-        for status, key, date in (('OHS Docs', 'prepared_by', 'prepared_date'),
-                                  ('Client Approval', 'client_approved_by', 'client_approval_date')):
+        for status, key, date in (('OHS Docs', 'reviewed_by', 'review_date'),
+                                  ('Client Approval', 'prepared_by', 'prepared_date'),
+                                  ('In progress', 'client_approved_by', 'client_approval_date')):
             before = self.store.capture(self.workspace)
             with self.subTest(status=status), self.assertRaises(ValidationError):
                 self.store.status(self.workspace, saved['id'], saved['version'], status)
             self.assertEqual(self.store.capture(self.workspace), before)
             fields = deepcopy(saved['fields'])
+            fields['order']['approval'] = 'Approved'
             self.sign(fields, key, date)
             saved = self.save('work_order', fields, saved, saved['status'])
             saved = self.store.status(self.workspace, saved['id'], saved['version'], status)
@@ -126,20 +127,20 @@ class CommercialReadinessTests(unittest.TestCase):
     def test_progress_claim_and_completion_need_their_rows_and_signers(self):
         fields, quote = self.work_fields()
         fields['order']['approval'] = 'Approved'
-        for key, date in (('reviewed_by', 'review_date'), ('prepared_by', 'prepared_date'),
+        for key, date in (('details_by','details_date'), ('reviewed_by', 'review_date'), ('prepared_by', 'prepared_date'),
                           ('client_approved_by', 'client_approval_date')):
             self.sign(fields, key, date)
         fields['work_tracking'] = self.store.view(self.workspace, include_quote_totals=True)['quote_rows'][quote['id']][quote['last_number']]
         # A free Quote row remains eligible for progress and claims.
         fields['work_tracking']['rows'][1]['completed_percent'] = '1'
         self.sign(fields, 'progress_by', 'progress_date')
-        saved = self.save('work_order', fields, status='In progress')
+        saved = self.save('work_order', fields, status='Claim')
         with self.assertRaisesRegex(ValidationError, '% claimed'):
-            self.store.status(self.workspace, saved['id'], saved['version'], 'Claim')
+            self.store.status(self.workspace, saved['id'], saved['version'], 'Certify')
         fields = deepcopy(saved['fields'])
         fields['work_tracking']['rows'][1]['claimed_percent'] = '1'
         self.sign(fields, 'claimed_by', 'claim_date')
-        saved = self.save('work_order', fields, saved, 'Claim')
+        saved = self.save('work_order', fields, saved, 'Certify')
         with self.assertRaisesRegex(ValidationError, 'Certification details'):
             self.store.status(self.workspace, saved['id'], saved['version'], 'Completed')
         fields = deepcopy(saved['fields'])
@@ -162,6 +163,7 @@ class CommercialReadinessTests(unittest.TestCase):
 
     def test_blank_or_identical_signature_points_and_empty_tracking_do_not_meet_stage_readiness(self):
         fields, _ = self.work_fields()
+        self.sign(fields, 'details_by','details_date')
         fields['order']['approval'] = 'Approved'
         self.sign(fields, 'reviewed_by', 'review_date')
         for ink in (None, {}, {'version': 1, 'ratio': 3, 'strokes': []},
@@ -169,10 +171,10 @@ class CommercialReadinessTests(unittest.TestCase):
                     {'version': 1, 'ratio': 3, 'strokes': [[[.1, .2]], [[.7, .8]]]}):
             fields['signatures']['reviewed_by'] = ink
             with self.subTest(ink=ink), self.assertRaisesRegex(ValidationError, 'Reviewed by'):
-                require_ready('work_order', 'Review', fields)
+                require_ready('work_order', 'OHS Docs', fields)
         fields['signatures']['reviewed_by'] = deepcopy(INK)
-        require_ready('work_order', 'Review', fields)
-        self.assertIn('work_tracking.completed_percent', [entry['path'] for entry in missing('work_order', 'In progress', fields)])
+        require_ready('work_order', 'OHS Docs', fields)
+        self.assertIn('work_tracking.completed_percent', [entry['path'] for entry in missing('work_order', 'Claim', fields)])
 
     def test_legacy_snapshot_load_and_exact_issued_receipt_replay_skip_new_readiness(self):
         saved = self.save('quote', default_fields('quote'))

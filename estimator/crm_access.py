@@ -45,6 +45,7 @@ def audit_route(route):
 
 def download_route(route):
     """Only generation/export routes may consume a progress capability."""
+    frozen_id=r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
     if route in {'/api/quote-report','/api/pricing/export','/api/project/export',
             '/api/project/full-schedule.pdf','/api/project/full-product-summary.pdf',
             '/api/technical/item.pdf','/api/technical/item.xlsx','/api/penetration/item.pdf','/api/penetration/item.xlsx',
@@ -53,6 +54,10 @@ def download_route(route):
     return bool(re.fullmatch(r'/api/calculators/[a-z_]+/(?:report\.pdf|summary\.pdf|register\.xlsx|template)',route)
         or re.fullmatch(r'/api/quotes/[^/]+/report\.pdf',route)
         or re.fullmatch(r'/api/certifications/[a-z0-9-]{1,64}/revisions',route)
+        # Native copies of existing immutable revisions are exports too. They
+        # keep the same scoped read, saved destination and single-use receipt.
+        or re.fullmatch(rf'/api/certifications/{frozen_id}/revisions/[1-9][0-9]{{0,9}}\.pdf',route)
+        or re.fullmatch(rf'/api/documentation/{frozen_id}',route)
         or re.fullmatch(r'/api/takeoffs/sessions/[a-z0-9-]+/(?:(?:physical/)?export/(?:csv|xlsx|register-xlsx|schedule-xlsx|pdf|marked-pdf|markup-pdf)|pdf-tools)',route))
 
 def _now():

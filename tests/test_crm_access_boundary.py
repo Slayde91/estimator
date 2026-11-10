@@ -12,7 +12,8 @@ from uuid import uuid4
 from PIL import Image
 
 from estimator.crm_access import CRMAccess
-from estimator.certification import CertificationService, SIGNER_FIELDS
+from estimator.certification import CertificationService, SIGNER_FIELDS, FIELDS
+from estimator.company_settings import DEFAULTS
 from estimator.storage import Store
 from estimator.scheduler import SchedulerStore
 from estimator.server import create_server
@@ -41,9 +42,9 @@ class AccessBoundaryTests(unittest.TestCase):
         self.admin_id=admin['user']['id'];self.editor_id=editor['id']
         self.admin=self.login('admin@example.test');self.editor=self.login('sales@example.test')
 
-    def call(self,path,body=None,*,cookie='',member=None,method=None):
+    def call(self,path,body=None,*,cookie='',member=None,method=None,extra_headers=None,raw=False):
         conn=HTTPConnection('127.0.0.1',self.server.server_port,timeout=20)
-        headers={'Cookie':cookie,'Content-Type':'application/json'}
+        headers={'Cookie':cookie,'Content-Type':'application/json',**(extra_headers or {})}
         if member is not None:
             headers['X-CRM-Member']=member
         try:
@@ -51,7 +52,7 @@ class AccessBoundaryTests(unittest.TestCase):
                          json.dumps(body) if body is not None else None,headers)
             response=conn.getresponse()
             data=response.read()
-            return response.status,dict(response.getheaders()),json.loads(data)
+            return response.status,dict(response.getheaders()),data if raw else json.loads(data)
         finally:
             conn.close()
 
@@ -59,6 +60,26 @@ class AccessBoundaryTests(unittest.TestCase):
         status,headers,_=self.call('/api/access/login',{'email':email,'password':self.password})
         self.assertEqual(status,200)
         return headers['Set-Cookie'].split(';',1)[0]
+
+    def test_frozen_pdf_export_progress_preserves_auth_and_viewer_read_only_policy(self):
+        fields=dict.fromkeys(FIELDS,'N/A')
+        created=self.signers.create(fields)
+        generated=self.signers.generate(created['id'],fields,1,str(uuid4()),DEFAULTS)
+        route=generated['revision']['pdf_url']
+        status,_,receipt=self.call('/api/download-progress',{},cookie=self.editor,member=self.editor_id)
+        self.assertEqual(status,200);token=receipt['token'];headers={'X-Estimator-Download-Progress':token}
+        self.access.assign({'member_id':self.editor_id,'role':'viewer','version':1},
+                           self.access.scheduler.write('login',{'email':'admin@example.test','password':self.password})['token'])
+        before=self.signers.get(created['id'])
+        self.assertEqual(self.call(route,{'download':{}},extra_headers=headers)[0],401)
+        self.assertEqual(self.call(route,{'download':{}},cookie=self.admin,member=self.editor_id,extra_headers=headers)[0],409)
+        self.assertEqual(self.call(route,{'download':{}},cookie=self.editor,member=self.editor_id,extra_headers=headers)[0],403)
+        status,response_headers,payload=self.call(route,cookie=self.editor,raw=True)
+        self.assertEqual(status,200);self.assertTrue(response_headers['Content-Type'].startswith('application/pdf'))
+        self.assertEqual(payload,self.signers.revision_pdf(created['id'],1))
+        self.assertEqual(self.signers.get(created['id']),before)
+        self.assertEqual(self.call('/api/download-progress/'+token,cookie=self.editor)[2],{'percent':0,'state':'waiting'},
+                         'Auth denial must occur before claiming the single-use progress receipt.')
 
     def test_editor_cannot_run_native_number_migration_and_switched_tab_cannot_administer_access(self):
         with patch('estimator.document_numbers.migrate_saved_orders') as migrate:

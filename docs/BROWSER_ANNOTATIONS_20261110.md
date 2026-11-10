@@ -25,6 +25,14 @@ prevents leaving the editor; replacing an edited draft retains the existing
 confirmation. Search filters the recorded reference, client, project and site;
 it changes only visible cards and counts, never the saved workflow stages.
 
+Native copies of existing frozen certificate PDFs and Documentation exports now
+use the same single-use progress receipts as the other existing export routes.
+The classifier recognizes only their canonical UUID paths (and bounded positive
+certificate revision). HTTP methods, staff roles, expected actor, workspace,
+destination validation and receipt ownership stay unchanged. This permits the
+already implemented native file handlers to save the frozen bytes; it does not
+create another revision, loosen viewer POST permissions or rewrite history.
+
 ## Calculator strip and worksheet actions
 
 All six calculators have a persistent strip using the existing Projects tab

@@ -289,6 +289,8 @@ async function workbook(title) {
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth+1),false,'Tabs scroll locally, not the whole page');
     await page.locator('#calculator-document-toggle').click();const menuBox=await page.locator('#calculator-document-menu').boundingBox();
     assert.ok(menuBox.x>=0&&menuBox.x+menuBox.width<=width+1,'Moved document menu stays inside the viewport');
+    const workspaceBox=await page.locator('#calculator-workspace').boundingBox();
+    assert.ok(menuBox.x>=workspaceBox.x-1&&menuBox.x+menuBox.width<=workspaceBox.x+workspaceBox.width+1,'Document menu also stays inside the clipping card');
     await page.keyboard.press('Escape');
     await page.screenshot({path:path.join(output,`calculator-tabs-toolbar-${width}.png`),fullPage:true});
     evidence.calculatorTabs.layouts.push({width,actionBox,columnBox});

@@ -147,7 +147,9 @@ class TakeoffTransferSkipTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, 'linked calculator row'):
             self.preview([linked], edited, update=True)
         self.case.command('update_item', item_id=linked, changes={'quantity': 3})
-        with self.assertRaises(ValidationError): self.preview([linked], draft, update=True)
+        removal = self.preview([linked], draft, update=True)
+        self.assertEqual(removal['changes'][0]['action'], 'remove')
+        self.assertEqual(removal['bindings'], [])
         self.case.confirm(linked)
         update = self.preview([linked], draft, update=True)
         self.assertEqual(update['changes'][0]['action'], 'update')

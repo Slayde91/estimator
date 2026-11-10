@@ -233,13 +233,28 @@ def transfer_preview(snapshot, request):
     by_item = {b['item_id']: b for b in bindings if b['calculator_id'] == calculator_id}
     occupied = populated_schedule_rows(calculator_id, inputs) | {b['row'] for b in bindings if b['calculator_id'] == calculator_id}
     available = iter(row for row in range(schedule['first_row'], schedule['last_row']+1) if row not in occupied)
-    changes, normalizations, selected = [], [], []
+    changes, normalizations, selected, removed = [], [], [], []
     inputs.setdefault(sheet, {})
     for item_id in item_ids:
         item = items[item_id]
+        binding = by_item.get(item_id)
+        if request.get('update_linked') and item['state'] != 'confirmed' and binding:
+            if (binding['status'] not in ('current', 'stale')
+                    or binding['source_sha256'] != model['source']['sha256']
+                    or binding['sheet'] != sheet or binding['row'] not in request['schedule_rows']
+                    or binding['input_hash'] != digest(row_values(inputs, schedule, binding['row']))):
+                raise ValidationError('A linked calculator row was edited, reset, imported or changed source version. Resolve the conflict before transfer.')
+            # The preview/apply transaction removes only this exact retained
+            # contribution. The source item and its audit history stay intact.
+            for field in schedule['columns']:
+                if field.get('editable'):
+                    inputs[sheet][field['column']+str(binding['row'])] = None
+            rows = [row for row in rows if row != binding['row']]
+            bindings.remove(binding); removed.append(deepcopy(binding))
+            changes.append({'item_id': item_id, 'row': binding['row'], 'action': 'remove'})
+            continue
         if item['state'] != 'confirmed' or not item.get('confirmation') or item['confirmation']['digest'] != item_digest(item, snapshot):
             raise ValidationError('Every selected takeoff must have an unchanged confirmation.')
-        binding = by_item.get(item_id)
         if binding:
             if binding['status'] in ('conflict', 'deleted') or binding['source_sha256'] != model['source']['sha256'] or binding['input_hash'] != digest(row_values(inputs, schedule, binding['row'])):
                 raise ValidationError('A linked calculator row was edited, reset, imported or changed source version. Resolve the conflict before transfer.')
@@ -276,7 +291,10 @@ def transfer_preview(snapshot, request):
         rows = sorted(set(rows) | {row})
         changes.append({'item_id': item_id, 'row': row, 'action': action})
     validate_calculator_edits(calculator_id, inputs, original)
+    if not rows:
+        rows = [schedule['first_row']]
     warnings = _board_review(inputs, selected, items) if calculator_id == 'steel_board' else []
     return {**base,
             'inputs': inputs, 'schedule_rows': rows, 'bindings': selected, 'all_bindings': bindings,
-            'changes': changes, 'normalizations': normalizations, 'warnings': warnings}
+            'changes': changes, 'normalizations': normalizations, 'warnings': warnings,
+            'removed_bindings': removed}

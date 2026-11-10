@@ -573,6 +573,89 @@ def confirmed_transfer_preview(snapshot, scope, draft, library_lookup, configura
                              'manual_skipped': manual['skipped']}}
 
 
+def unconfirmed_removal_preview(snapshot, scope, identifiers, draft, configuration):
+    """Remove selected contributions only; physical records remain reusable.
+
+    Library rows can combine several contributions and manual quantity: reuse
+    their existing subtraction rules rather than deleting a shared row. Manual
+    service rows have exact project/graph/service provenance and stable row IDs.
+    """
+    from uuid import uuid5, NAMESPACE_URL
+    from .penetration_calculator import normalize_draft, definition
+    from .takeoff_physical import effective_confirmation, graph_collections
+    if scope not in ('defect_reports', 'service_plans'):
+        raise ValidationError('Choose an existing physical register scope.')
+    if not isinstance(identifiers, list) or not 1 <= len(identifiers) <= MAX_MEMBERS:
+        raise ValidationError('Select one to 100 distinct physical records.')
+    for identifier in identifiers:
+        _id(identifier)
+    if len(set(identifiers)) != len(identifiers):
+        raise ValidationError('Select one to 100 distinct physical records.')
+    graph = snapshot.get('physical' if scope == 'defect_reports' else 'service_plans')
+    if not graph or graph.get('version') != (3 if scope == 'service_plans' else 2):
+        raise ValidationError('Choose an existing physical register.')
+    index = {entity['id']: (kind, entity) for kind, collection in graph_collections(graph).items() for entity in graph[collection]}
+    if any(identifier not in index or index[identifier][1]['deleted'] for identifier in identifiers):
+        raise ValidationError('A selected physical record is unavailable.')
+    selected = set(identifiers)
+    def selected_branch(identifier):
+        if identifier not in index:
+            return False
+        kind, entity = index[identifier]
+        ancestors = {identifier}
+        if kind == 'service':
+            ancestors.add(entity['barrier_id']); kind, entity = index[entity['barrier_id']]
+        if kind == 'barrier' and scope == 'defect_reports':
+            ancestors.add(entity['defect_id'])
+        return bool(ancestors & selected)
+    def unconfirmed(identifier):
+        return effective_confirmation(graph, identifier, _index=index) != 'confirmed'
+    after, output = deepcopy(snapshot), deepcopy(draft)
+    normalize_draft(output)
+    changes = []; calculator_definition = definition(configuration)
+    for record in list(after.get('library_assignments', {}).get('records', [])):
+        if (record['scope'] != scope or not record['schedule_binding']
+                or not any(selected_branch(member['id']) and unconfirmed(member['id']) for member in record['members'])):
+            continue
+        source = record.get('quantity_source', {}).get('kind')
+        member_kind = ('service' if source == 'services' or source is None and any(member['kind'] == 'service' for member in record['members'])
+                       else 'barrier')
+        counted = [member for member in record['members'] if member['kind'] == member_kind] or record['members']
+        # A retained association is one reviewed, potentially combined quantity.
+        # Its members cannot be rewritten or its aggregate split by inference.
+        if (any(not unconfirmed(member['id']) for member in record['members'])
+                or any(not selected_branch(member['id']) for member in counted)):
+            raise ValidationError('This linked group contains other items. Split or relink the group before removing only some items.')
+        library = {**deepcopy(record['library']), 'inputs': {},
+                   'import_fields': {'defect': {}, 'barrier': {}, 'service': None}}
+        result = confirmation_preview(after, record['id'], 0, output, library, configuration, 'unlink',
+                                      _definition=calculator_definition, _batch=True)
+        after['library_assignments']['records'] = [result['assignment'] if value['id'] == record['id'] else value
+            for value in after['library_assignments']['records']]
+        output = result['draft']; changes.append({**result['change'], 'assignment_id': record['id']})
+    removed = set()
+    for row in output['rows']:
+        source = row.get('takeoff_source')
+        if not source or source['scope'] != scope or source['project_id'] != snapshot['project_id'] or source['graph_id'] != graph['id']:
+            continue
+        identifier = source['service_id']
+        if identifier not in index or index[identifier][0] != 'service' or not selected_branch(identifier) or not unconfirmed(identifier):
+            continue
+        service = index[identifier][1]
+        expected = 'physical-' + str(uuid5(NAMESPACE_URL, f"ceasefire/{snapshot['project_id']}/{scope}/{identifier}"))
+        barrier = index[service['barrier_id']][1]
+        if (row['id'] != expected or source['barrier_id'] != barrier['id']
+                or source['service_revision'] > service['revision'] or source['barrier_revision'] > barrier['revision']):
+            raise ValidationError('A manual Takeoff row was moved or its source changed. Resolve that row before updating linked records.')
+        removed.add(row['id']); changes.append({'action': 'remove_manual_draft', 'row_id': row['id'], 'service_id': identifier})
+    output['rows'] = [row for row in output['rows'] if row['id'] not in removed]
+    if not changes:
+        raise ValidationError('No selected unconfirmed records have linked calculator contributions to remove.')
+    normalize_draft(output)
+    return {'snapshot': after, 'penetration': {'draft': output, 'source_sha256': calculator_definition['source_sha256']},
+            'library_link': {'action': 'remove_unconfirmed', 'scope': scope, 'removed': len(changes), 'changes': changes}}
+
+
 def validate_proposal(proposed):
     _object(proposed, ('id', 'scope', 'library_id', 'library_fingerprint', 'member_ids', 'installation')
             + tuple(key for key in ('draft_quantity', 'draft_location', 'quantity_source', 'service_quantities') if isinstance(proposed, dict) and key in proposed))

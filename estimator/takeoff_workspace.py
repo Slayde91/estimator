@@ -677,7 +677,7 @@ class TakeoffService:
             result = prior['payload']
             self._session_evidence(session_id)
             snapshot = self._session(session_id)['snapshot']
-            self._assert_eligible(snapshot, self._items(snapshot, [binding['item_id'] for binding in result['bindings']]),
+            self._assert_eligible(snapshot, [item for item in snapshot['items'] if item['id'] in {binding['item_id'] for binding in result['bindings']}],
                                   confirmed=True, session_id=session_id)
             response['transfer'] = deepcopy(result)
             response['calculator'] = {'id': result['calculator_id'], 'inputs': deepcopy(result['inputs']),
@@ -1961,6 +1961,30 @@ class TakeoffService:
             self._cache_payload(session_id, 'requests', request['request_id'], payload)
             return response
 
+    def remove_unconfirmed_library(self, session_id, request):
+        """Remove selected, source-owned unconfirmed contributions atomically."""
+        from .catalog import validate_configuration
+        from .takeoff_library_links import unconfirmed_removal_preview
+        with self._lock, self._library_lock():
+            fields = {'scope', 'entity_ids', 'expected_revision', 'request_id', 'draft', 'configuration'}
+            object_fields(request, fields, 'Unconfirmed linked register update', fields)
+            actual = {**request, 'op': 'apply_library_link'}
+            session, prior = self._start(session_id, actual)
+            if prior:
+                return prior
+            before = session['snapshot']; self._physical_gate(session_id, before)
+            configuration = validate_configuration(request['configuration'])
+            compiled = unconfirmed_removal_preview(before, request['scope'], request['entity_ids'],
+                request['draft'], configuration)
+            payload = {key: compiled[key] for key in ('penetration', 'library_link')}
+            if len(json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()) > SESSION_CACHE_BYTES:
+                raise ValidationError('This linked register update exceeds the supported response memory limit. Select fewer records; nothing was removed.')
+            response = self._commit(session_id, actual, before, compiled['snapshot'])
+            response.update(deepcopy(payload))
+            session['requests'][request['request_id']].update(applied_library_link=True, applied_revision=response['revision'])
+            self._cache_payload(session_id, 'requests', request['request_id'], payload)
+            return response
+
     def preview_transfer(self, session_id, request):
         with self._lock:
             if not isinstance(request, dict):
@@ -1973,7 +1997,18 @@ class TakeoffService:
             if candidates:
                 self._session_evidence(session_id)
                 candidate_ids = set(candidates)
-                self._assert_eligible(snapshot, [item for item in selected if item['id'] in candidate_ids],
+                removing = {item['id'] for item in selected if item['id'] in candidate_ids
+                            and request.get('update_linked') and item['state'] != 'confirmed'
+                            and any(binding['item_id'] == item['id'] and binding['calculator_id'] == request['calculator_id']
+                                    for binding in snapshot['transfers'])}
+                self._verify_audit_head(snapshot, owner=session_id)
+                with self.store.connect() as db:
+                    for binding in snapshot['transfers']:
+                        if binding['item_id'] in removing and binding['calculator_id'] == request['calculator_id']:
+                            if not db.execute('SELECT 1 FROM takeoff_transfer_receipts WHERE project_id=? AND binding_id=? AND digest=?',
+                                (snapshot['project_id'], binding['id'], self._binding_digest(binding))).fetchone():
+                                raise ValidationError('A linked schedule row has no local transfer receipt. Its inputs were preserved.')
+                self._assert_eligible(snapshot, [item for item in selected if item['id'] in candidate_ids - removing],
                                       confirmed=True, session_id=session_id)
             result = transfer_preview(snapshot, request)
             preview_id = str(uuid4()) if candidates else None
@@ -2001,12 +2036,13 @@ class TakeoffService:
             if preview.get('kind') not in (None, 'calculator_transfer'):
                 raise ValidationError('Choose a calculator transfer preview, not a physical edit preview.')
             before = session['snapshot']; result = preview['result']
-            if not result['bindings'] or not result['changes']:
+            if not result['changes'] or not (result['bindings'] or result.get('removed_bindings')):
                 raise ValidationError('There are no new or explicitly updated rows to apply. Already-linked items were skipped.')
             if digest({'inputs': request['inputs'], 'schedule_rows': request['schedule_rows']}) != result['base_fingerprint']:
                 raise ValidationError('The calculator draft changed during transfer review. Your edits were preserved; preview again.')
             self._session_evidence(session_id)
-            self._assert_eligible(before, self._items(before, preview['item_ids']), confirmed=True, session_id=session_id)
+            removed_ids = {binding['item_id'] for binding in result.get('removed_bindings', [])}
+            self._assert_eligible(before, [item for item in before['items'] if item['id'] in set(preview['item_ids']) - removed_ids], confirmed=True, session_id=session_id)
             after = deepcopy(before); after['transfers'] = deepcopy(result['all_bindings'])
             response = self._commit(session_id, actual, before, after, transfers=result['bindings'])
             response['transfer'] = {k: deepcopy(v) for k, v in result.items() if k != 'all_bindings'}

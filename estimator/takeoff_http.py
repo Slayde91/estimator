@@ -192,6 +192,10 @@ class TakeoffHTTP:
             if query:
                 raise ValidationError('Confirmed register transfer accepts a structured request only.')
             result = self.service.transfer_confirmed_library(session_id, body)
+        elif action == 'library/remove-unconfirmed':
+            if query:
+                raise ValidationError('Linked register updates accept a structured request only.')
+            result = self.service.remove_unconfirmed_library(session_id, body)
         elif action == 'images/extract':
             result = self.service.extract_images(session_id, body)
         elif action in {'physical/export/csv', 'physical/export/xlsx', 'physical/export/register-xlsx', 'physical/export/pdf'}:

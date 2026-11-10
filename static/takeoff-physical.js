@@ -578,7 +578,18 @@
     }
     async function selectedLibraryAction(operation) {
       await completePendingEdits(); ensureAvailable(); ensureEditable();
+      const selected = selectEntries();
+      let removedUnconfirmed = false;
+      if (operation === "update" && selected.some(entry => effectiveConfirmation(entry, state.index) !== "confirmed")) {
+        if (!selected.length || selected.some(entry => entry.entity.deleted)) throw new Error("Select active physical records first.");
+        const key = graphKey(), selection = [...state.selected].sort().join(",");
+        if (!await bridge.confirm("Update linked rows", "Remove selected unconfirmed items from the calculator? You can confirm and add them again.", "Update linked rows")) return;
+        if (graphKey() !== key || selection !== [...state.selected].sort().join(",")) throw new Error("The physical selection changed during schedule review. Review the current selection again.");
+        const reply = await bridge.removeUnconfirmedLibraryRegister(scope(), selected.map(entry => entry.entity.id));
+        displayReply(reply); bridge.notify(root.CeasefireI18n.translate("{0} unconfirmed items removed. You can confirm and add them again.", [reply.library_link.removed]), false); removedUnconfirmed = true;
+      }
       const assignments = selectedLibraryAssignments(operation), title = operation === "transfer" ? "Transfer to Firestopping Schedule" : operation === "update" ? "Update linked rows" : "Unlink from Firestopping Schedule";
+      if (!assignments.length && removedUnconfirmed) return;
       if (!assignments.length) throw new Error(operation === "transfer" ? "No unlinked library association belongs to the selection. Choose a library item for the selected records first, or use Update linked rows for existing contributions." : "No linked library association belongs to the selection.");
       const identity = `${scope()}/${state.snapshot?.project_id || ""}`, selection = [...state.selected].sort().join(","), ids = assignments.map(value => value.id);
       if (assignments.length > 1 && !await ask(title, [], `${assignments.length} retained library associations will be reviewed separately:\n\n${assignments.map(value => `${value.library.library_id}: ${value.library.title}\n${value.members.length} explicitly recorded physical members · ${value.installation.mode === "combined_installation" ? "one combined installation" : "separate repeated installations"}`).join("\n\n")}\n\nEvery association keeps its existing membership. Each schedule change requires its own current preview and confirmation. Cancel stops the remaining reviews; already applied changes remain. Physical record confirmation does not approve technical applicability.`, "Review associations")) return;

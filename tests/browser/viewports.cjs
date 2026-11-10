@@ -301,8 +301,8 @@ function closePoint(actual, expected, tolerance = 0.9) { actual.forEach((n, i) =
   assert.equal(result.length_m, baseline + .5); assert.equal(result.total_length_m, (baseline + .5) * 2);
   await confirm(); await page.getByLabel('Destination schedule', { exact: true }).selectOption('steel_vermiculite');
   let transferred = await transfer(); const mainBinding = transferred.state.snapshot.transfers.find(binding => binding.item_id === mainId);
-  assert.ok(transferred.shownReview.includes(`Per-member length: ${(baseline + .5).toFixed(2)} m`));
-  assert.ok(transferred.shownReview.includes(`Total length: ${((baseline + .5) * 2).toFixed(2)} m`));
+  assert.ok(transferred.shownReview.includes(`Add: ${main.fields.mark}`));
+  assert.doesNotMatch(transferred.shownReview, /Source ID:|Destination inputs:|Per-member length:/);
   assert.equal(transferred.preview.inputs.SCHEDULE['I' + mainBinding.row], 2); assert.equal(transferred.preview.inputs.SCHEDULE['J' + mainBinding.row], baseline + .5);
   const beforeDuplicate = await snapshot(), calculatorBeforeDuplicate = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   let duplicateApplyRequests = 0; const watchDuplicateApply = request => { if (request.url().endsWith('/transfer-apply')) duplicateApplyRequests++; };

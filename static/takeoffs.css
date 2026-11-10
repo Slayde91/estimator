@@ -123,7 +123,7 @@
 :root[data-theme="midnight"] .takeoff-tool-rail .takeoff-icon-button .takeoff-measure-icon{filter:invert(1);mix-blend-mode:screen}
 .takeoff-workspace-title{font-size:28px;margin:0 0 16px}
 .takeoff-drawing-pane{display:flex;flex-direction:column;gap:10px;min-width:0}
-.takeoff-navigation{display:flex;flex:1 1 210px;margin:0;align-items:center;min-width:0}
+.takeoff-navigation{display:flex;flex:.5 1 127px;margin:0;align-items:center;min-width:0}
 .takeoff-navigation-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
 .takeoff-document-controls{flex:1;flex-wrap:nowrap}
 .takeoff-navigation .takeoff-document-controls select{flex:1;min-width:0;max-width:none;width:100%;text-overflow:ellipsis}
@@ -134,7 +134,9 @@
 .takeoff-page-controls .helper{white-space:nowrap}
 .takeoff-page-navigation{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px;min-width:0;max-width:100%}
 .takeoff-page-navigation .takeoff-page-input{flex:0 1 65px;min-width:36px}
-.takeoff-search-controls{flex:1 1 380px;flex-wrap:nowrap;margin:0;padding:0;border:0;gap:6px;min-width:0;background:transparent}
+/* Halve the document group's desktop allocation; give that space to search.
+   Total basis/grow remain unchanged, and the existing mobile rows still wrap. */
+.takeoff-search-controls{flex:1.5 1 463px;flex-wrap:nowrap;margin:0;padding:0;border:0;gap:6px;min-width:0;background:transparent}
 .takeoff-search-controls input{flex:1;min-width:80px;width:0;max-width:none}
 .takeoff-search-controls select{max-width:130px}
 .takeoff-search-controls .takeoff-search-ocr{flex:0 0 78px;font-size:9px;line-height:1.2;white-space:normal}

@@ -124,6 +124,7 @@
   // Only application-owned text is bound. Project names, source evidence and
   // markup content keep their original bytes and are passed to node() directly.
   function uiNode(tag, className, source, args = []) { return window.CeasefireI18n.nodeText(node(tag, className), source, args); }
+  function uiText(source, args = []) { return window.CeasefireI18n.translate(source, args); }
   function uiButton(label, ...args) {
     const control = button(label, ...args);
     for (const attribute of ["title", "aria-label"]) if (control.getAttribute?.(attribute) != null) window.CeasefireI18n.attr(control, attribute, label);
@@ -698,6 +699,7 @@
     ui.split = uiButton("Split", splitSelected); ui.merge = uiButton("Merge", mergeSelected);
     const exports = node("div", "takeoff-register-controls"); ui.target = uiSelect(steelTargets, refreshRegisterOptions); window.CeasefireI18n.attr(ui.target, "aria-label", "Destination schedule");
     ui.transferControls = [ui.target, uiButton("Preview transfer", () => transfer(false)), uiButton("Update linked rows", () => transfer(true)), uiButton("Detach links", detachSelected)];
+    window.CeasefireI18n.attr(ui.transferControls[1], "title", "Calculate quantities");
     ui.areaNotice = uiNode("p", "helper takeoff-area-notice", "Area records export as m². Existing steel and duct calculators do not accept surface areas. Split/merge is unavailable for surfaces; group separate physical surfaces without changing their identities.");
     exports.append(...ui.transferControls, ui.areaNotice);
     ui.tableWrap = node("div", "takeoff-register-table"); ui.pagination = node("div", "takeoff-register-controls"); ui.deletedRecords = node("section", "takeoff-deleted-records"); ui.deletedRecords.hidden = true; register.append(controls, ui.bulk, exports, ui.tableWrap, ui.pagination, ui.deletedRecords);
@@ -994,6 +996,7 @@
       },
       libraryApply: applyLibraryLink,
       transferConfirmedLibraryRegister,
+      removeUnconfirmedLibraryRegister,
       editLibraryRow: async (rowId, libraryId) => {
         await flushSettings(); requireFinishedEdits();
         if (state.busy || state.linkedRecovery) throw new Error("Finish or recover the current Takeoff operation before editing linked pricing.");
@@ -4141,7 +4144,7 @@
     state.ui.bulk.hidden = !selected.length; window.CeasefireI18n.text(state.ui.selectionCount, "{0} selected", [selected.length]);
     const table = node("table"), head = node("thead"), header = node("tr"), body = node("tbody"); window.CeasefireI18n.attr(table, "aria-label", "{0} editable takeoff register", [window.CeasefireI18n.term(labels[state.mode])]);
     const area = isArea(), columns = area ? ["mark", "surface_type", "level", "surface_basis", "substrate", "treatment", "system", "product", "frl", "layers"] : state.mode === "steel" ? ["mark", "level", "member_type", "section", "product", "fire_period_min", "critical_temperature", "exposure", ...(state.ui.target?.value === "steel_board" ? ["sides"] : [])] : ["mark", "level", "duct_size", "frl", "exposure", "wall_penetrations", "floor_penetrations", "orientation", "product"];
-    const headings = ["Select", "Hide", "View/Edit", "Status", ...columns.map(key => area && key === "mark" ? "Surface ID" : key === "surface_type" ? "Surface type" : fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)", "Total (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), ...(state.mode === "duct" ? ["Duct surface (m²)"] : []), ...(["steel", "duct"].includes(state.mode) ? ["Thickness (mm)", "Report"] : []), "Evidence / issues", "Delete"];
+    const headings = ["Select", "Hide", "View/Edit", "Status", ...columns.map(key => area && key === "mark" ? "Surface ID" : key === "surface_type" ? "Surface type" : fields[state.mode].find(field => field[0] === key)?.[1] || key), ...(area ? ["Gross (m²)", "Excluded (m²)", "Net (m²)", "Total (m²)"] : ["Qty", "Length each (m)", "Total (m)"]), ...(state.mode === "duct" ? ["Duct surface (m²)"] : []), ...(["steel", "duct"].includes(state.mode) ? ["Thickness (mm)", "Report"] : []), "Source document", "Delete"];
     for (const title of headings) {
       const cell = uiNode("th", "", title);
       if (usesColumnFilters()) { const filterColumns = registerFilterColumns[state.mode], key = Object.keys(filterColumns).find(key => filterColumns[key] === title); if (key) cell.append(registerColumnFilterButton(key)); }
@@ -4363,6 +4366,7 @@
         reply.item_results.some(result => !result?.id)) throw new Error("The linked edit response is incomplete.");
     if (!pending.calculatorsApplied) {
       if (pending.type === "library") window.CeasefirePenetrations.applyTakeoffSchedule(reply.penetration, pending.reservation);
+      else if (pending.type === "calculator-transfer") window.CeasefireCalculators.applyTakeoffTarget(pending.calculatorId, reply.transfer, pending.reservation);
       else if (pending.type !== "calculator-refresh") window.CeasefireCalculators.applyTakeoffTargets(reply.calculators, pending.reservation);
       pending.calculatorsApplied = true;
     }
@@ -4404,6 +4408,12 @@
     if (scope !== state.physicalScope) throw new Error("Select the current physical register again.");
     const capture = await window.CeasefirePenetrations.captureTakeoffSchedule();
     return applyLibraryOperation({ capture, sessionId, revision, scope }, "library/transfer-confirmed", { scope });
+  }
+  async function removeUnconfirmedLibraryRegister(scope, entity_ids) {
+    const sessionId = state.session?.session_id, revision = state.session?.revision;
+    if (scope !== state.physicalScope) throw new Error("Select the current physical register again.");
+    const capture = await window.CeasefirePenetrations.captureTakeoffSchedule();
+    return applyLibraryOperation({ capture, sessionId, revision, scope }, "library/remove-unconfirmed", { scope, entity_ids });
   }
   function applyLibraryOperation(preview, endpoint, values) {
     const task = state.queue.then(async () => {
@@ -4941,7 +4951,7 @@
     const calculatorId = state.ui.target.value, sessionId = state.session.session_id, revision = state.session.revision;
     const current = () => { requireFinishedEdits(); if (sessionId !== state.session?.session_id || revision !== state.session.revision || calculatorId !== state.ui.target.value) throw new Error("Takeoffs or the destination changed during transfer review. Preview again."); };
     const target = await window.CeasefireCalculators.captureTakeoffTarget(calculatorId); current();
-    if (updateLinked) {
+    if (updateLinked && selected.every(item => item.state === "confirmed")) {
       const refresh = await api(`/sessions/${sessionId}/calculator-refresh-preview`, { expected_revision: revision, calculator_id: calculatorId, inputs: target.inputs, schedule_rows: target.schedule_rows, item_ids: selected.map(item => item.id) }); current();
       if (refresh.changes.length) {
         const details = refresh.changes.map(change => {
@@ -4973,14 +4983,29 @@
     const preview = await api(`/sessions/${sessionId}/transfer-preview`, { expected_revision: revision, calculator_id: calculatorId, inputs: target.inputs, schedule_rows: target.schedule_rows, item_ids: selected.map(item => item.id), update_linked: updateLinked }); current();
     const skipped = preview.skipped?.length || 0, actionable = new Set(preview.changes.map(change => change.item_id)), transferring = selected.filter(item => actionable.has(item.id));
     if (!transferring.length) { message(`All ${skipped} selected item${skipped === 1 ? " is" : "s are"} already linked to ${calculatorName(calculatorId)}. No rows were added or changed.`); return; }
-    const sourceResults = transferring.map(item => clone(itemResult(item)));
+    const sourceResults = transferring.filter(item => item.state === "confirmed").map(item => clone(itemResult(item)));
     const choices = await api(`/options?calculator=${encodeURIComponent(calculatorId)}`);
-    current(); const accepted = await confirm(`${updateLinked ? "Update" : "Transfer"} ${transferring.length} confirmed items?`, transferSummary(preview, selected, sourceResults, choices.columns), updateLinked ? "Update linked rows" : "Add to schedule"); if (!accepted) return;
+    const removed = preview.changes.filter(change => change.action === "remove").length;
+    current(); const accepted = await confirm(removed ? uiText("Update {0} linked items?", [transferring.length]) : `${updateLinked ? "Update" : "Transfer"} ${transferring.length} confirmed items?`, transferSummary(preview, selected, sourceResults, choices.columns), updateLinked ? "Update linked rows" : "Add to schedule"); if (!accepted) return;
     current();
     if (sessionId !== state.session?.session_id || preview.revision !== state.session.revision) throw new Error("Takeoffs changed during transfer review. Preview again.");
     const reservation = window.CeasefireCalculators.reserveTakeoffTarget(calculatorId, target.fingerprint); working(true);
-    try { const result = await api(`/sessions/${sessionId}/transfer-apply`, { expected_revision: state.session.revision, request_id: uuid(), preview_id: preview.preview_id, inputs: target.inputs, schedule_rows: target.schedule_rows }); window.CeasefireCalculators.applyTakeoffTarget(calculatorId, result.transfer, reservation); accept(result); renderData(); message(`Confirmed quantities applied to the calculator draft.${skipped ? ` Skipped ${skipped} already-linked item${skipped === 1 ? "" : "s"}; their rows were unchanged.` : ""} Save the project to retain both the schedule and its source links.`); }
-    finally { window.CeasefireCalculators.releaseTakeoffTarget(reservation); working(false); }
+    const pending = { type: "calculator-transfer", calculatorId, sessionId, endpoint: "transfer-apply", reservation,
+      lockedControls: [...state.ui.root.querySelectorAll("input,select,textarea,button")].map(control => [control, control.disabled]),
+      payload: { expected_revision: revision, request_id: uuid(), preview_id: preview.preview_id, inputs: target.inputs, schedule_rows: target.schedule_rows } };
+    for (const [control] of pending.lockedControls) control.disabled = true;
+    try {
+      let result;
+      try { result = await api(`/sessions/${sessionId}/${pending.endpoint}`, pending.payload); }
+      catch (error) {
+        if (!uncertainLinkedOutcome(error)) throw error;
+        try { result = await api(`/sessions/${sessionId}/${pending.endpoint}`, pending.payload); }
+        catch { state.linkedRecovery = pending; throw new Error("The linked update needs a response. Keep this page open and choose Retry linked change."); }
+      }
+      try { finishLinkedOperation(pending, result); }
+      catch (error) { state.linkedRecovery = pending; throw new Error(`The linked update response needs recovery. Keep this page open and choose Retry linked change. ${error.message}`); }
+      message(`${removed ? uiText("{0} unconfirmed linked items removed from the calculator draft.", [removed]) : "Confirmed quantities applied to the calculator draft."}${skipped ? ` Skipped ${skipped} already-linked item${skipped === 1 ? "" : "s"}; their rows were unchanged.` : ""} Save the project to retain both the schedule and its source links.`);
+    } finally { if (!state.linkedRecovery) releaseLinkedOperation(pending); }
   }
   function calculatorName(id) { return { steel_vermiculite: "Steel Spray", steel_intumescent: "Steel Intumescent", steel_board: "Steel Board", ductwork: "Ductwork" }[id] || id; }
   function boundInputDetails(binding, columns) {
@@ -4990,10 +5015,12 @@
   function transferSummary(preview, selected, results, columns) {
     const objects = new Map(selected.map(item => [item.id, item])), quantities = new Map(results.map(result => [result.id, result]));
     const sections = preview.changes.map(change => {
-      const item = objects.get(change.item_id), result = quantities.get(change.item_id), binding = preview.bindings.find(value => value.item_id === change.item_id);
-      const action = { append: "Add", update: "Update", unchanged: "Keep unchanged" }[change.action] || change.action;
-      return `${action}: ${item.fields.mark || item.id}\nSource ID: ${item.id}\nDestination: ${calculatorName(preview.calculator_id)} · ${binding.sheet} row ${binding.row}\nPhysical quantity: ${item.quantity}\n${item.mode === "steel" ? "Per-member" : "Per-run"} length: ${formatLength(result.length_m)} m\nTotal length: ${formatLength(result.total_length_m)} m\n\nDestination inputs:\n${boundInputDetails(binding, columns)}`;
+      const item = objects.get(change.item_id);
+      const source = { append: "Add: {0}", update: "Update: {0}", unchanged: "Keep unchanged: {0}", remove: "Remove unconfirmed item: {0}" }[change.action] || "Item {0}";
+      return uiText(source, [item?.fields.mark || uiText("Item {0}", [selected.indexOf(item) + 1])]);
     });
+    const removed = preview.changes.filter(change => change.action === "remove").length;
+    if (removed) sections.unshift(uiText("{0} unconfirmed linked item(s) will be removed from {1}. You can confirm and add them again.", [removed, calculatorName(preview.calculator_id)]));
     if (preview.skipped?.length) sections.unshift(`Skipped ${preview.skipped.length} already-linked item${preview.skipped.length === 1 ? "" : "s"} in ${calculatorName(preview.calculator_id)}: ${preview.skipped.map(entry => objects.get(entry.item_id)?.fields.mark || entry.item_id).join(", ")}. Their existing rows will remain unchanged.`);
     for (const change of preview.normalizations || []) {
       const item = objects.get(change.item_id), label = fields[item?.mode]?.find(field => field[0] === change.field)?.[1] || change.field;

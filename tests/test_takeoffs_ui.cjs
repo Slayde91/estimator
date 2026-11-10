@@ -1153,15 +1153,22 @@ async function check(label, test) { await test(); passed++; console.log(`ok - ${
     h.audit.state.mode='duct';h.audit.state.session.snapshot.items[0].mode='duct';dom.ui.bulkField.value='duct_size';dom.ui.bulkValue.value='100.123456789 x 200.987654321';await h.audit.bulkEdit();assert.deepEqual(sent.at(-1).changes,{fields:{width_mm:100.123456789,height_mm:200.987654321}});
     dom.ui.bulkValue.value='100x';const count=sent.length;await assert.rejects(h.audit.bulkEdit(),/WxH/);assert.equal(sent.length,count);
   });
-  await check('Transfer review rounds displayed lengths to two decimals without changing mapped precision or native notes',()=>{
+  await check('Transfer review hides internal IDs and mapped inputs while retaining exact quantities and native warnings',()=>{
     const h=harness(),item={id:'member',mode:'steel',quantity:3,fields:{mark:'B17'}},binding={item_id:'member',sheet:'CALCULATOR',row:9,values:{A9:'B17',F9:.370370367,L9:0,X9:null}};
     const columns=[{column:'A',label:'Member mark'},{column:'F',label:'Lineal metres'},{column:'L',label:'Waste'},{column:'X',label:'Design reference'}];
     const preview={calculator_id:'steel_board',changes:[{item_id:'member',action:'append'}],bindings:[binding],warnings:[{item_id:'member',status:'CLADDING ESTIMATE',message:'Add supports separately.'}]};
     const before=copy({preview,item});
     const summary=h.audit.transferSummary(preview,[item],[{id:'member',length_m:.123456789,total_length_m:.370370367}],columns);
     assert.deepEqual(copy({preview,item}),before);assert.equal(preview.bindings[0].values.F9,.370370367);
-    for(const text of ['Add: B17','Source ID: member','Steel Board · CALCULATOR row 9','Physical quantity: 3','Per-member length: 0.12 m','Total length: 0.37 m','Lineal metres: 0.37','Waste: 0','CLADDING ESTIMATE','Add supports separately.'])assert.ok(summary.includes(text),text);
-    assert.ok(!summary.includes('Design reference:'));assert.ok(!summary.includes('"changes"'));
+    for(const text of ['Add: B17','CLADDING ESTIMATE','Add supports separately.'])assert.ok(summary.includes(text),text);
+    for(const text of ['Source ID:', 'Destination inputs:', 'CALCULATOR row', 'Physical quantity:', 'Lineal metres:', 'Waste:', 'Design reference:', '"changes"'])assert.ok(!summary.includes(text),text);
+  });
+  await check('Unconfirmed linked update explicitly previews removal and can be cancelled without any calculator write',async()=>{
+    const h=harness(),value=blank();value.items=[{id:'a',mode:'steel',quantity:1,fields:{mark:'Retained'},state:'reviewed'}];h.audit.accept(response(value));const dom=attachMinimalDom(h);dom.ui.target={value:'steel_board'};h.audit.state.selected.add('a');
+    h.context.window.CeasefireCalculators={async captureTakeoffTarget(){return{inputs:{},schedule_rows:[9],fingerprint:'f'};},reserveTakeoffTarget(){throw Error('Unexpected reservation');}};
+    h.audit.setApi(async path=>path.endsWith('/transfer-preview')?{revision:0,preview_id:'p',calculator_id:'steel_board',changes:[{item_id:'a',action:'remove',row:9}],bindings:[],removed_bindings:[{item_id:'a',row:9}],skipped:[]}:{columns:[]});
+    h.audit.setAsk(async(title,definitions,detail,action)=>{assert.equal(title,'Update 1 linked items?');assert.equal(action,'Update linked rows');assert.match(detail,/1 unconfirmed linked item\(s\) will be removed/);assert.match(detail,/You can confirm and add them again/);assert.match(detail,/Remove unconfirmed item: Retained/);return null;});
+    await h.audit.transfer(true);assert.deepEqual(copy(h.audit.state.session.snapshot),value);
   });
   await check('Add to schedule skips all linked selections without a review, calculator reservation or apply request',async()=>{
     const h=harness(),value=blank();value.items=[{id:'a',mode:'steel',fields:{mark:'Retained'},state:'unconfirmed'}];h.audit.accept(response(value));const dom=attachMinimalDom(h);dom.ui.target={value:'steel_board'};h.audit.state.selected.add('a');let requests=0;

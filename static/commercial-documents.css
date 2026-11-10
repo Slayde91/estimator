@@ -82,6 +82,10 @@
 .commercial-side-panel>summary{cursor:pointer;font-weight:700;overflow-wrap:anywhere}
 .commercial-side-panel[open]>summary{margin-bottom:12px}
 .commercial-linked-contacts{display:grid;gap:12px;min-width:0;margin-top:12px}
+.commercial-linked-companies{display:grid;gap:12px;min-width:0;margin-top:12px}
+.commercial-linked-company{min-width:0;border-top:1px solid var(--line);padding-top:10px;overflow-wrap:anywhere}
+.commercial-linked-company>.project-title-button{display:block;max-width:100%;text-align:start;white-space:normal;overflow-wrap:anywhere}
+.commercial-linked-company>.helper{margin:4px 0}
 .commercial-linked-contact{min-width:0;border-top:1px solid var(--line);padding-top:10px;overflow-wrap:anywhere}
 .commercial-linked-contact>.project-title-button{display:block;max-width:100%;text-align:start;white-space:normal;overflow-wrap:anywhere}
 .commercial-linked-contact>.helper{margin:4px 0}

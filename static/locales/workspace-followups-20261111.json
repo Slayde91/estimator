@@ -1,0 +1,79 @@
+{
+  "Billing company": [
+    "账单公司",
+    "बिलिंग कंपनी",
+    "Empresa de facturación",
+    "شركة الفوترة",
+    "บริษัทสำหรับเรียกเก็บเงิน"
+  ],
+  "Linked company": [
+    "关联公司",
+    "लिंक की गई कंपनी",
+    "Empresa vinculada",
+    "الشركة المرتبطة",
+    "บริษัทที่เชื่อมโยง"
+  ],
+  "Contact company": [
+    "联系人所属公司",
+    "संपर्क की कंपनी",
+    "Empresa del contacto",
+    "شركة جهة الاتصال",
+    "บริษัทของผู้ติดต่อ"
+  ],
+  "Company unavailable": [
+    "公司不可用",
+    "कंपनी उपलब्ध नहीं है",
+    "Empresa no disponible",
+    "الشركة غير متاحة",
+    "ไม่พบข้อมูลบริษัท"
+  ],
+  "Bids with the same site address are linked automatically.": [
+    "同一工地地址的投标会自动关联。",
+    "एक ही साइट पते वाली बोलियाँ अपने आप जुड़ जाती हैं।",
+    "Las ofertas con la misma dirección de obra se vinculan automáticamente.",
+    "تُربط العطاءات التي تحمل عنوان الموقع نفسه تلقائيًا.",
+    "ข้อเสนอราคาที่มีที่อยู่หน้างานเดียวกันจะเชื่อมโยงกันโดยอัตโนมัติ"
+  ],
+  "Search site addresses": [
+    "搜索工地地址",
+    "साइट पते खोजें",
+    "Buscar direcciones de obra",
+    "البحث في عناوين المواقع",
+    "ค้นหาที่อยู่หน้างาน"
+  ],
+  "Some saved projects are still being checked. Refresh to include more addresses.": [
+    "部分已保存的项目仍在检查中。刷新以显示更多地址。",
+    "कुछ सहेजे गए प्रोजेक्ट की जाँच जारी है। और पते शामिल करने के लिए रीफ़्रेश करें।",
+    "Todavía se están comprobando algunos proyectos guardados. Actualiza para incluir más direcciones.",
+    "لا تزال بعض المشاريع المحفوظة قيد الفحص. حدّث لإظهار المزيد من العناوين.",
+    "กำลังตรวจสอบโครงการที่บันทึกไว้บางส่วน รีเฟรชเพื่อแสดงที่อยู่เพิ่มเติม"
+  ],
+  "No matching site addresses.": [
+    "没有匹配的工地地址。",
+    "कोई मेल खाता साइट पता नहीं मिला।",
+    "No hay direcciones de obra coincidentes.",
+    "لا توجد عناوين مواقع مطابقة.",
+    "ไม่พบที่อยู่หน้างานที่ตรงกัน"
+  ],
+  "Use site address": [
+    "使用工地地址",
+    "साइट पते का उपयोग करें",
+    "Usar la dirección de obra",
+    "استخدام عنوان الموقع",
+    "ใช้ที่อยู่หน้างาน"
+  ],
+  "Link": [
+    "关联",
+    "लिंक करें",
+    "Vincular",
+    "ربط",
+    "เชื่อมโยง"
+  ],
+  "Save this Quote before creating a Work Order.": [
+    "创建工单前，请先保存此报价。",
+    "कार्य आदेश बनाने से पहले यह कोटेशन सहेजें।",
+    "Guarda esta cotización antes de crear una orden de trabajo.",
+    "احفظ عرض السعر هذا قبل إنشاء أمر عمل.",
+    "บันทึกใบเสนอราคานี้ก่อนสร้างใบสั่งงาน"
+  ]
+}

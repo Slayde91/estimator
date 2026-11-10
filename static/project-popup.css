@@ -12,4 +12,9 @@
 #project-participants-panel fieldset>.field,#project-participants-panel fieldset>details{flex-basis:100%;min-width:0;margin:0}
 #project-participants-panel select,#project-participants-panel input{min-width:0;max-width:100%}
 #project-participants-panel li{margin-block:6px}
+#project-participants-panel .project-site-results{display:grid;gap:10px;width:100%;min-width:0}
+#project-participants-panel .project-site-result{display:flex;flex-wrap:wrap;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:10px;min-width:0}
+#project-participants-panel .project-site-result>strong{flex:1 1 180px;overflow-wrap:anywhere}
+#project-participants-panel .project-site-result>p{flex-basis:100%;margin:0;overflow-wrap:anywhere}
+#project-participants-panel .project-site-result>.button{margin-inline-start:auto}
 #project-participants-panel fieldset>details[open]>.field{margin-top:8px}

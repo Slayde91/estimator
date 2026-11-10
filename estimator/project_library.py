@@ -839,9 +839,42 @@ class ProjectLibrary:
                 raise ValidationError('The selected project is unavailable.')
             # Save As copies have independent ownership, even with the same
             # portable project and document IDs.
-            return {'source':source_id(str(path)), 'owner':owner, 'project_no':details.get('project_no',''),
+            from .project_relationships import project_link_id, project_parties
+            source = source_id(str(path))
+            return {'source':source, 'owner':owner, 'project_no':details.get('project_no',''),
                     'client':details.get('client',''), 'site_address':details.get('site_address',''),
-                    'revision':hashlib.sha256(payload).hexdigest()}
+                    'revision':hashlib.sha256(payload).hexdigest(), 'account_link_id':project_link_id(source),
+                    'linked_parties':project_parties(json.loads(payload.decode('utf-8-sig')), details, owner)}
+
+    def participant_sites(self):
+        """Address choices from authorized, current saved metadata, never caller paths.
+
+        Reuse the existing bounded folder scan. Omit changed cached files until
+        the scan catches up, rather than linking a stale address to a new owner.
+        Native saved targets are included only while their fingerprint matches.
+        """
+        listing = self.account_relation_projects()
+        rows, pending = {}, bool(listing.get('scan_pending'))
+        with self._lock:
+            for item in listing['files']:
+                try:
+                    info = Path(item['path']).lstat()
+                    if (_linked(info) or not stat.S_ISREG(info.st_mode) or info.st_size != item['size']
+                            or datetime.fromtimestamp(info.st_mtime, timezone.utc).isoformat() != item['modified_at']):
+                        pending = True
+                        continue
+                    row = {'source':source_id(item['path']), 'owner':item.get('source_project_id') or '',
+                           **{key:item.get(key, '') for key in ('project_no','client','site_address')}}
+                    rows[row['source']] = row
+                except OSError:
+                    pending = True
+            for token in list(self._save_targets):
+                try:
+                    item = self.participant_project('native:' + token)
+                    rows[item['source']] = {key:item[key] for key in ('source','owner','project_no','client','site_address')}
+                except (OSError, ValidationError):
+                    pass  # Expired Save targets do not authorize another file.
+        return {'projects':list(rows.values()), 'scan_pending':pending, 'error_count':listing.get('error_count', 0)}
 
     def participant_availability(self, rows):
         """Verify recorded sources without inferring a new path from a name, number or portable ID."""

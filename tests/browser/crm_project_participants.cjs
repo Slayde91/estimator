@@ -1,4 +1,4 @@
-// Explicit project roles and an intentionally shared site; all files are disposable.
+// Explicit project roles and automatic exact-address bid links; all files are disposable.
 const {chromium,expect}=require('@playwright/test');
 const {spawn}=require('node:child_process'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {createNewProject,openProjectSection}=require('./project_actions.cjs');
@@ -26,8 +26,12 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   await panel.getByLabel('Participant',{exact:true}).selectOption(consultant);
   await panel.getByRole('button',{name:'Add participant',exact:true}).click();
   await expect(panel.locator('li')).toContainText('Consulting team');
-  await panel.getByText('New site',{exact:true}).click();await panel.getByLabel('Site name',{exact:true}).fill('Shared school refurbishment');
-  await panel.getByLabel('Site address',{exact:true}).fill('42 Example Lane');await panel.getByRole('button',{name:'Create and link site'}).click();
+  const siteCreate=await page.request.post(new URL('/api/crm/sites',page.url()).href,{data:{id:require('node:crypto').randomUUID(),name:'Shared school refurbishment',address:'42 Example Lane'}});
+  assert.equal(siteCreate.status(),200,await siteCreate.text());const site=await siteCreate.json();
+  await panel.getByRole('button',{name:'Refresh',exact:true}).click();
+  await expect(panel.getByLabel('Search site addresses',{exact:true})).toHaveValue('42 Example Lane');
+  await expect(panel.getByText('New site',{exact:true})).toHaveCount(0);
+  await panel.locator(`[data-site-id="${site.id}"]`).getByRole('button',{name:/^Link /}).click();
   await expect(panel.getByText('Shared school refurbishment · 42 Example Lane',{exact:true}).first()).toBeVisible();
   const linked=await read('/api/contacts/account-links?id='+consultant);
   assert.ok(linked.participant_projects.some(row=>row.role==='consultant' && row.client==='Builder A'));
@@ -43,10 +47,11 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   await page.locator(`[data-project-details-id="${selected.id}"]`).click();
   await expect(page.locator('#project-details-pane')).toHaveAttribute('aria-busy','false');
   await expect(page.locator('#project-pane-client')).toHaveValue('Builder B');
-  await panel.locator('summary').first().click();await expect(panel.getByText('No shared site linked.',{exact:true})).toBeVisible();
+  await panel.locator('summary').first().click();await expect(panel.getByText('Bids with the same site address are linked automatically.',{exact:true})).toBeVisible();
+  await expect(panel.locator('li').filter({hasText:'Builder A'})).toHaveCount(1);
+  const auto=await read('/api/crm/project-participants?project='+encodeURIComponent(selected.id));assert.equal(auto.site_mode,'automatic');assert.equal(auto.site_id,null);
   const sites=await read('/api/crm/sites?search=school');assert.equal(sites.sites.length,1);
-  await panel.getByLabel('Site',{exact:true}).selectOption(sites.sites[0].id);
-  await panel.getByRole('button',{name:'Link site',exact:true}).click();
+  await panel.locator(`[data-site-id="${site.id}"]`).getByRole('button',{name:/^Link /}).click();
   await expect(panel.getByRole('heading',{name:'Other bids linked to this site'})).toBeVisible();
   await expect(panel.locator('li').filter({hasText:'Builder A'})).toHaveCount(1);
   assert.deepEqual(fs.readFileSync(info.project),original);assert.deepEqual(fs.readFileSync(copyPath),copyBytes);
@@ -55,6 +60,12 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   const siteView=await read('/api/crm/sites?id='+sites.sites[0].id);
   const archived=siteView.linked_bids.find(bid=>bid.client==='Builder B');assert.equal(archived.availability,'unavailable');
   assert.deepEqual(fs.readFileSync(copyPath+'.retained'),copyBytes);
-  await page.screenshot({path:path.join(folder,'participants.png')});assert.deepEqual(errors,[]);
-  console.log('PASS typed project participants, explicit shared site, directory backlink and saved file preservation');
+  await expect(panel.locator(`[data-site-id="${site.id}"]`)).toBeVisible();
+  await panel.locator(`[data-site-id="${site.id}"]`).scrollIntoViewIfNeeded();
+  await page.screenshot({path:path.join(folder,'participants.png')});
+  await page.setViewportSize({width:390,height:884});await panel.locator(`[data-site-id="${site.id}"]`).scrollIntoViewIfNeeded();
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)<=1,'Address search fits the mobile viewport');
+  await page.screenshot({path:path.join(folder,'participants-mobile.png')});assert.deepEqual(errors,[]);
+  fs.writeFileSync(path.join(folder,'result.json'),JSON.stringify({passed:true,checks:['Exact typed participants','Direct address search defaults to the Project address','Existing named-site direct Link','Automatic exact-address peer before persisting site ID','Distinct saved bids and unchanged Project bytes','Unavailable explicit sources remain recorded'],output:folder},null,2));
+  console.log('PASS typed project participants, direct site Link, automatic exact-address bids, directory backlink and saved file preservation: '+folder);
 })().catch(async error=>{console.error(error,stderr,await page?.locator('#project-participants-panel').innerText().catch(()=>''));await page?.screenshot({path:path.join(folder,'failure.png')}).catch(()=>{});process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

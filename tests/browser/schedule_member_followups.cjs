@@ -162,7 +162,7 @@ async function focusSettled(field){
  await page.screenshot({path:path.join(output,'cafco-seven-settings.png'),fullPage:true});
  await chooseCalculator(page,'Steel (intumescent)');await idle();await tab('SCHEDULE');
  await edit('B10','Nullifire SC902','steel_intumescent');
- const columnsButton=page.locator('#calculator-pages .schedule-column-toggle');await columnsButton.click();const columnsPanel=page.locator('#'+await columnsButton.getAttribute('aria-controls'));await expect(columnsPanel).toBeVisible();
+ const columnsButton=page.locator('#calculator-toolbar-actions .schedule-column-toggle');await columnsButton.click();const columnsPanel=page.locator('#'+await columnsButton.getAttribute('aria-controls'));await expect(columnsPanel).toBeVisible();
  const areaChoice=columnsPanel.locator('[data-schedule-column-choice="column:L"]');await expect(areaChoice).not.toBeChecked();await areaChoice.check();await areaChoice.press('Escape');await expect(columnsPanel).toBeHidden();await expect(page.locator('[data-calculator-cell="L10"]')).toBeVisible();await edit('L10',3.5,'steel_intumescent');
  for(const cell of ['I10','J10']){await expect(page.locator(`[data-calculator-cell="${cell}"]`)).toHaveAttribute('aria-required','false');await expect(page.locator(`[data-calculator-cell="${cell}"]`)).not.toHaveClass(/calculator-required-missing/);}
  for(const cell of ['B10','C10','D10','E10','H10'])await expect(page.locator(`[data-calculator-cell="${cell}"]`)).toHaveAttribute('aria-required','true');

@@ -23,7 +23,7 @@ async function fireIdle(){
 }
 async function snapshot(){return page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());}
 async function boot(){await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready&&window.ClassifireBoot?.state==='ready');await page.waitForFunction(()=>!window.CeasefireActivity?.active);}
-async function chooser(){const button=page.locator('#calculator-pages .schedule-column-toggle');await button.click();const panel=page.locator('#'+await button.getAttribute('aria-controls'));await expect(panel).toBeVisible();return panel;}
+async function chooser(){const button=page.locator('#calculator-toolbar-actions .schedule-column-toggle');await button.click();const panel=page.locator('#'+await button.getAttribute('aria-controls'));await expect(panel).toBeVisible();return panel;}
 const nativeCell=(id)=>page.locator(`.calculator-schedule-table thead [data-schedule-column="${id}"]`);
 const removedBoardColumns=[...'MNOPQRSTU','X','AI'],retainedBoardInputs={M9:'Standard',N9:null,O9:'Auto',P9:'Published first',Q9:'Standard box',R9:203.123456789012,S9:203.234567890123,T9:58.1234567890123,U9:46.1234567890123,X9:'Retained original design reference'};
 async function assertBoardColumnsRemoved(panel){
@@ -107,7 +107,7 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
   for(const header of headers){const checkbox=panel.locator(`[data-schedule-column-choice="${header.id}"]`);await checkbox.check();await expect(nativeCell(header.id)).toBeVisible();await checkbox.uncheck();await expect(nativeCell(header.id)).toBeHidden();await checkbox.check();await expect(nativeCell(header.id)).toBeVisible();}
   await selectAll(panel,false);await expect(table).toBeHidden();await expect(page.locator('#calculator-grid .schedule-columns-empty')).toBeVisible();await selectAll(panel,true);await expect(table).toBeVisible();
    if(id==='steel_board')await assertBoardColumnsRemoved(panel);
-  await panel.press('Escape');await expect(panel).toBeHidden();await expect(page.locator('#calculator-pages .schedule-column-toggle')).toBeFocused();
+  await panel.press('Escape');await expect(panel).toBeHidden();await expect(page.locator('#calculator-toolbar-actions .schedule-column-toggle')).toBeFocused();
   assert.deepEqual(await snapshot(),before);assert.equal(calculations,requests,'Column choices must not calculate');
   evidence.registers.push({id,columns:headers,removedDisplaySources:removedSources,initiallyHidden,reportReplacesThicknessSource:['steel_vermiculite','steel_intumescent'].includes(id),allColumnsIndividuallyToggle:true,selectAllAndNone:true,inputsUnchanged:true,noCalculationRequests:true});
   console.log(`PASS column choices: ${id} (${headers.length})`);
@@ -154,7 +154,7 @@ async function screenshot(name){await page.screenshot({path:path.join(output,nam
  for(const language of ['en','zh-Hans','hi','es','ar','th','ko','tl','vi'])for(const width of [1146,390]){
   await page.setViewportSize({width,height:850});await page.evaluate(language=>window.CeasefireI18n.setLanguage(language,false),language);
   const panel=await chooser(),labels=await page.evaluate(()=>['Columns','Visible columns','Select all'].map(label=>window.CeasefireI18n.translate(label)));
-  await expect(page.locator('#calculator-pages .schedule-column-toggle')).toHaveText(labels[0]);assert.equal(await panel.getAttribute('aria-label'),labels[1]);await expect(panel.locator('.schedule-column-all span')).toHaveText(labels[2]);
+  await expect(page.locator('#calculator-toolbar-actions .schedule-column-toggle')).toHaveText(labels[0]);assert.equal(await panel.getAttribute('aria-label'),labels[1]);await expect(panel.locator('.schedule-column-all span')).toHaveText(labels[2]);
    const rect=await panel.boundingBox();assert.ok(rect.x>=0&&rect.x+rect.width<=width&&rect.y>=0);assert.ok(rect.height<=850);await expect(panel.locator('[data-schedule-column-choice="column:V"]')).not.toBeChecked();await assertBoardColumnsRemoved(panel);
   assert.deepEqual(await snapshot(),edited);evidence.locales.push({language,width,labels,rect});if(['en','ar'].includes(language))await screenshot(`columns-${language}-${width}.png`);await panel.press('Escape');
  }

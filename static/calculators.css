@@ -5,6 +5,16 @@
 .calculator-tools{display:flex;align-items:center}
 .calculator-header-actions{display:flex;gap:18px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
 .calculator-primary-actions{flex-wrap:nowrap}
+/* Worksheet pages and their actions share one row; narrow screens wrap the
+   actions below the page scroller without clipping either dropdown popup. */
+.calculator-workspace-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px 16px;padding-inline:25px;background:var(--theme-surface,#1b2028);color:var(--ink)}
+.calculator-workspace-toolbar>#calculator-pages{flex:1 1 auto;min-width:0;padding:0;align-self:stretch;align-items:stretch;background:transparent}
+.calculator-toolbar-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:9px;min-width:0;max-width:100%;margin-inline-start:auto;padding-block:8px}
+.calculator-toolbar-actions>.calculator-header-actions{gap:9px;flex-wrap:nowrap;max-width:100%}
+.calculator-toolbar-actions .calculator-tools{background:transparent}
+.calculator-toolbar-actions .calculator-primary-actions{gap:9px}
+.calculator-toolbar-actions>.schedule-column-chooser{flex:0 0 auto}
+@media(max-width:760px){.calculator-workspace-toolbar{padding-inline:20px}.calculator-workspace-toolbar>#calculator-pages{flex-basis:100%;padding:0}.calculator-toolbar-actions{width:100%;justify-content:flex-end}.calculator-toolbar-actions .calculator-document-toggle{min-width:0;gap:7px;padding-inline:10px}.calculator-toolbar-actions .calculator-document-actions{left:auto;right:auto;inset-inline-start:0;max-width:calc(100vw - 80px)}}
 .calculator-document-menu{position:relative}
 .calculator-document-toggle{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px}
 .calculator-document-icon{display:block;width:24px;height:24px;object-fit:contain;flex:0 0 24px}

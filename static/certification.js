@@ -30,7 +30,7 @@
   ];
   const scopeControls = scopes.map(scope => $('certification-scope-' + scope.id));
   const emptyOptions = () => ({cover_pdf:null, cover_pdf_name:'', scopes:[],signature_image:null,signature_name:''});
-  const state = {id:null, version:null, baseline:null, busy:false, pending:null, loaded:false,
+  const state = {id:null, version:null, baseline:null, busy:false, mutating:false, pending:null, loaded:false,
     items:[], listRevision:0, companyName:'', opening:null, conflicted:false,
     workspaceId:null, projectId:null, workspaceOpening:null, workspaceEpoch:0, projectBaseline:null,
     options:emptyOptions(), signatureRevision:0, readingSignature:false, touched:new Set(),
@@ -123,7 +123,7 @@
   async function moveCertificate(item, status) {
     if (state.busy || state.pending || state.opening || state.readingSignature || dirty()) return;
     const token=state.workspaceId, route=scoped('/api/certifications/'+encodeURIComponent(item.id),token);
-    state.busy=true;updateControls();
+    state.busy=true;state.mutating=true;updateControls();
     try {
       const current=await request(route);
       if (state.workspaceId!==token) return;
@@ -135,7 +135,7 @@
       message('Certification details saved.');
       window.CeasefireProject?.changed?.();
     } catch(error){message(error.message,true);}
-    finally {state.busy=false;updateControls();}
+    finally {state.busy=false;state.mutating=false;updateControls();}
   }
   function renderSignature() {
     const preview=$('certification-signature-preview');
@@ -381,7 +381,7 @@
     if(!state.id && !state.pending && !window.CeasefireProject?.requireCreatedProject?.())return;
     if(!state.pending && kind==='generate' && !validateGeneration())return;
     const action=state.pending||{kind,...snapshot(),id:state.id,version:state.version,workspaceId:state.workspaceId,createRequestId:uuid(),generationRequestId:uuid()};
-    state.pending=action;state.busy=true;updateControls();
+    state.pending=action;state.busy=true;state.mutating=true;updateControls();
     message(kind==='generate'?'Generating and saving certificate revision…':'Saving certification details…');
     const endActivity=window.CeasefireActivity?.begin();
     try{
@@ -405,7 +405,7 @@
       if(error.status&&!error.uncertain)state.pending=null;
       if(error.status===409)state.conflicted=true;
       message(state.pending?'The operation result could not be confirmed. Retry the same button to recover it without creating another revision.':error.message,true);
-    }finally{state.busy=false;updateControls();endActivity?.();}
+    }finally{state.busy=false;state.mutating=false;updateControls();endActivity?.();}
   }
   scopeControls.forEach(control=>control.addEventListener('change',()=>{if(!state.busy&&!state.pending&&!state.opening&&!state.readingSignature)scopeChange();}));
   $('certification-scopes').addEventListener('keydown',event=>{
@@ -434,6 +434,11 @@
     sessionId:()=>state.workspaceId,projectFingerprint,hasProjectChanges:()=>state.loaded&&state.projectBaseline!==null&&state.projectBaseline!==projectFingerprint(),
     hasUnsavedChanges:()=>dirty()||!!state.pending,
     hasPendingOperation:()=>!!state.opening||!!state.workspaceOpening||state.busy||state.readingSignature||!!state.pending,
+    // Other editors share this workspace capability. Background capability/list
+    // reads may finish after a view change: navigation does not replace their
+    // project or discard this form. Keep the broader predicate above for project
+    // replacement/capture and desktop close, and still guard real writes/retries.
+    hasPendingNavigationOperation:()=>state.mutating||state.readingSignature||!!state.pending,
     fingerprint:()=>JSON.stringify({workspace_id:state.workspaceId,id:state.id,version:state.version,fields:fields(),options:{scopes:state.options.scopes,cover_pdf_name:state.options.cover_pdf_name,signature_name:state.options.signature_name,signature_revision:state.signatureRevision,workflow_status:state.options.workflow_status},pending:state.pending&&{kind:state.pending.kind,id:state.pending.id,version:state.pending.version,createRequestId:state.pending.createRequestId,generationRequestId:state.pending.generationRequestId}})};
   const fieldErrors = new Map();
   function clearFieldErrors(){

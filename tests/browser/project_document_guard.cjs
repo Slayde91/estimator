@@ -17,6 +17,11 @@ const guarded=/\/api\/(?:project\/save(?:-as)?|commercial\/(?:defaults|save|purc
 const required='Create or load a project before creating documents.';
 async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready&&!window.CeasefireDesktop.status().busy);}
 async function notified(){await expect(page.locator('#app-message')).toHaveText(required);}
+async function signalWithin(signal,label){
+  let timer;
+  try{return await Promise.race([signal,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error(label+' timed out')),45000);})]);}
+  finally{clearTimeout(timer);}
+}
 async function discard(root,label){
   await root.getByRole('button',{name:label,exact:true}).click();
   await page.locator('#discard-dialog').getByRole('button',{name:'Yes',exact:true}).click();
@@ -26,6 +31,19 @@ async function discard(root,label){
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1384,height:900}});page.setDefaultTimeout(45000);
   page.on('pageerror',error=>errors.push(error.message));page.on('request',request=>{if(request.method()==='POST'&&guarded.test(request.url()))writes.push(request.url());});
   await page.goto(`http://127.0.0.1:${info.port}/`);await idle();
+  // Commercial lists share the certificate workspace capability but are not
+  // certificate creation. Hold the real HTTP request while leaving that view.
+  let workspaceHeld,releaseWorkspace;
+  const workspaceRequested=new Promise(resolve=>workspaceHeld=resolve),workspaceReleased=new Promise(resolve=>releaseWorkspace=resolve);
+  const workspaceRoute=async route=>{workspaceHeld();await workspaceReleased;await route.continue();};
+  await page.route('**/api/certifications/workspaces',workspaceRoute);
+  await openProjectSection(page,'quote');await signalWithin(workspaceRequested,'Shared workspace request');
+  assert.equal(await page.evaluate(()=>window.CeasefireCertification.hasPendingOperation()),true);
+  assert.equal(await page.evaluate(()=>window.CeasefireCertification.hasPendingNavigationOperation()),false);
+  await page.locator('.nav-button[data-view="home"]').click();await expect(page.locator('#view-home')).toBeVisible();
+  assert.doesNotMatch(await page.locator('#app-message').textContent(),/certification operation/);
+  releaseWorkspace();await page.waitForFunction(()=>!window.CeasefireCertification.hasPendingOperation());
+  await page.unroute('**/api/certifications/workspaces',workspaceRoute);await idle();
   await fillProjectDetails(page,{client:'Project guard account','site-address':'1 Guard Road'});
   const before=await page.evaluate(()=>({details:window.CeasefireProject.details(),inputs:window.CeasefireProject.configuration()}));
   await page.getByRole('button',{name:'Estimates',exact:true}).click();
@@ -71,8 +89,32 @@ async function discard(root,label){
   await expect(page.locator('#swms-root').getByLabel('Workflow status',{exact:true})).toBeVisible();await discard(page.locator('#swms-root'),'Back to statements');
   await openProjectSection(page,'certification');await page.locator('#certification-new').click();
   await expect(page.locator('#certification-client')).toHaveValue('Project guard account');
-  assert.deepEqual(errors,[]);await page.screenshot({path:path.join(output,'created-project-certificate.png')});
-  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks:['all five New actions blocked without a saved Project','no automatic saves/default requests','fields and pricing preserved','Settings independent','explicit Save activates exact workspace','all five New actions allowed after Save'],errors},null,2));
+  // A genuinely committed draft with a lost reply must still block navigation;
+  // retrying recovers the original record rather than creating another one.
+  let saveHeld,releaseSave,committedStatus;
+  const saveRequested=new Promise(resolve=>saveHeld=resolve),saveReleased=new Promise(resolve=>releaseSave=resolve);
+  const draftRoute=async route=>{
+    if(route.request().method()!=='POST'){await route.continue();return;}
+    const committed=await route.fetch();committedStatus=committed.status();
+    saveHeld();await saveReleased;
+    await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Fixture lost committed draft response'})});
+  };
+  await page.route('**/api/certifications?*',draftRoute);
+  await page.locator('#certification-location_area').fill('Preserved through committed-response retry');
+  await page.locator('#certification-save-draft').click();await signalWithin(saveRequested,'Committed certificate draft');assert.equal(committedStatus,201);
+  assert.equal(await page.evaluate(()=>window.CeasefireCertification.hasPendingNavigationOperation()),true);
+  await page.locator('.nav-button[data-view="home"]').click();await expect(page.locator('#view-certification')).toBeVisible();
+  await expect(page.locator('#app-message')).toContainText('certification operation');
+  releaseSave();await expect(page.locator('#certification-status')).toContainText('Retry the same button');
+  await page.unroute('**/api/certifications?*',draftRoute);
+  await page.locator('.nav-button[data-view="home"]').click();await expect(page.locator('#view-certification')).toBeVisible();
+  await expect(page.locator('#certification-location_area')).toHaveValue('Preserved through committed-response retry');
+  await page.locator('#certification-save-draft').click();await expect(page.locator('#certification-status')).toContainText('Certification details saved');
+  const recovered=await(await page.request.get(new URL('/api/certifications?workspace='+token,page.url()).href)).json();
+  assert.equal(recovered.items.length,1);assert.equal(recovered.items[0].version,1);assert.equal(recovered.items[0].revision_count,0);
+  await page.locator('.nav-button[data-view="home"]').click();await expect(page.locator('#view-home')).toBeVisible();
+  assert.deepEqual(errors,[]);await page.screenshot({path:path.join(output,'navigation-after-certificate-retry.png')});
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks:['slow shared workspace initialization permits unrelated navigation without certificate warning','all five New actions blocked without a saved Project','no automatic saves/default requests','fields and pricing preserved','Settings independent','explicit Save activates exact workspace','all five New actions allowed after Save','committed lost draft reply blocks navigation and retry recovers one unchanged record'],errors},null,2));
   console.log('PASS Project-required document creation: '+output);
 })().catch(async error=>{console.error(error);console.error(logs);await page?.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;})
 .finally(async()=>{await browser?.close();server.kill();});

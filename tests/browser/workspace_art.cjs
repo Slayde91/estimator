@@ -80,7 +80,11 @@ async function art(selector,name,header=false){
  if(header){
   assert.equal(value.position,'absolute');
   const sizes=await frame.evaluate(el=>{const parent=el.closest('.workspace-banner-heading,.penetration-banner-heading')||el.parentElement,a=parent.getBoundingClientRect().height,original=el.style.getPropertyValue('display'),priority=el.style.getPropertyPriority('display'),attribute=el.getAttribute('style');try{el.style.display='none';if(getComputedStyle(el).display!=='none')throw Error('Artwork was not hidden');return[a,parent.getBoundingClientRect().height];}finally{if(original)el.style.setProperty('display',original,priority);else el.style.removeProperty('display');if(attribute===null&&el.style.length===0){el.getAttribute('style');el.removeAttribute('style');}}});assert.equal(sizes[0],sizes[1],name+' retains existing header height');
-  if(name!=='firestopping'){await page.locator('.workspace-banner-heading:visible :is(.actions,.calculator-header-actions) button').first().click();await page.keyboard.press('Escape');}
+  if(name!=='firestopping'){
+   const calculator=await frame.evaluate(el=>Boolean(el.closest('#calculator-workspace')));
+   const actionHost=page.locator(calculator?'#calculator-toolbar-actions':'.workspace-banner-heading:visible');
+   await actionHost.locator(':is(.actions,.calculator-header-actions) button').first().click();await page.keyboard.press('Escape');
+  }
  }
  evidence.push({name,...value});await page.screenshot({path:path.join(output,name+'.png')});
 }
@@ -135,9 +139,10 @@ async function calculatorFraming(kind,name,themes=['ceasefire','midnight','ocean
    await expect(page.locator('#calculator-title')).toBeVisible();
    const value=await heading.evaluate(el=>{
     const box=n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};};
-    return{heading:box(el),title:box(el.querySelector('h2')),actions:box(el.querySelector('.calculator-header-actions')),direction:getComputedStyle(el).direction,overflow:document.documentElement.scrollWidth-innerWidth};
+    return{heading:box(el),title:box(el.querySelector('h2')),actions:box(el.parentElement.querySelector('#calculator-toolbar-actions .calculator-header-actions')),direction:getComputedStyle(el).direction,overflow:document.documentElement.scrollWidth-innerWidth};
    });
    assert.ok(value.title.width>0&&value.title.x>=0&&value.title.right<=width+1);assert.ok(value.overflow<=1);
+   assert.ok(value.actions.x>=0&&value.actions.right<=width+1&&value.actions.y>=value.heading.bottom-.1,'Moved calculator actions stay below the heading and inside the viewport');
    const toggle=page.locator('#calculator-document-toggle');await toggle.click();const menu=page.locator('#calculator-document-menu');await expect(menu).toBeVisible();const first=menu.locator('button:visible').first();await first.click({trial:true});
    const menuHit=await first.evaluate(n=>{const box=el=>{const r=el.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};},r=box(n),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return{reachable:!!hit&&(hit===n||n.contains(hit)),menu:box(n.closest('.calculator-document-actions')),workspace:box(n.closest('#calculator-workspace')),viewport:{width:innerWidth,clientWidth:document.documentElement.clientWidth}};});
    const diagnostic=JSON.stringify({name,theme:themeId,width,...menuHit});

@@ -3449,5 +3449,11 @@
   "Save draft": "খসড়া সংরক্ষণ করুন",
   "Workflow status": "কর্মপ্রবাহের অবস্থা",
   "No documents": "কোনো নথি নেই",
-  "Choose a valid workflow status.": "একটি বৈধ কর্মপ্রবাহের অবস্থা বেছে নিন।"
+  "Choose a valid workflow status.": "একটি বৈধ কর্মপ্রবাহের অবস্থা বেছে নিন।",
+  "Search Work Orders": "কাজের আদেশ খুঁজুন",
+  "No matching Work Orders.": "কোনো মিলে যাওয়া কাজের আদেশ নেই।",
+  "Choose a listed Work Order or clear the search.": "তালিকা থেকে একটি কাজের আদেশ বেছে নিন অথবা অনুসন্ধান মুছে ফেলুন।",
+  "Linked Project": "সংযুক্ত প্রকল্প",
+  "No linked Project": "কোনো সংযুক্ত প্রকল্প নেই",
+  "Assigned when downloaded": "ডাউনলোড করার সময় নির্ধারিত হবে"
 }

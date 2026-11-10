@@ -489,9 +489,9 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .estimate-notes-section{margin-top:20px;padding-top:20px;border-top:1px solid var(--line)}
 .estimate-notes-section .project-notes>span:first-child{font-size:14px;font-weight:700}
 .estimate-notes-section textarea{min-height:76px;resize:vertical}
-#project-pages.project-tabs,#document-pages.document-tabs{width:fit-content;max-width:100%;height:40px;min-height:40px;padding:0;margin:0 0 18px;flex-wrap:nowrap;align-items:stretch;overflow-x:auto;background:#0C0B0E}
-#project-pages .calculator-page,#document-pages .calculator-page{flex:0 0 auto;min-width:0;padding-block:0;display:flex;align-items:center;justify-content:center;white-space:nowrap}
-#project-pages .calculator-page[aria-pressed="false"]:not(:hover),#document-pages .calculator-page[aria-pressed="false"]:not(:hover){background:transparent;color:#e5e7eb}
+#project-pages.project-tabs,#document-pages.document-tabs,#calculator-kind-pages.calculator-kind-tabs{width:fit-content;max-width:100%;height:40px;min-height:40px;padding:0;margin:0 0 18px;flex-wrap:nowrap;align-items:stretch;overflow-x:auto;background:#0C0B0E}
+#project-pages .calculator-page,#document-pages .calculator-page,#calculator-kind-pages .calculator-page{flex:0 0 auto;min-width:0;padding-block:0;display:flex;align-items:center;justify-content:center;white-space:nowrap}
+#project-pages .calculator-page[aria-pressed="false"]:not(:hover),#document-pages .calculator-page[aria-pressed="false"]:not(:hover),#calculator-kind-pages .calculator-page[aria-pressed="false"]:not(:hover){background:transparent;color:#e5e7eb}
 #view-quotes #snapshot-message{margin:0 0 18px;flex-wrap:wrap}
 #project-pricing-context{flex-basis:100%;overflow-wrap:anywhere}
 .project-estimate-controls .field>label{display:block;font-size:12px;font-weight:650;margin-bottom:7px}

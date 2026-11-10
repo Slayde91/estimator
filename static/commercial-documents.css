@@ -25,6 +25,7 @@
 .commercial-editor-actions { position:sticky; top:10px; z-index:2; background:var(--paper); padding:12px; border:1px solid var(--line); border-radius:10px; }
 .commercial-editor-actions .button.commercial-download-pdf { flex:0 0 52px; width:52px; min-width:52px; height:44px; padding:8px; }
 .commercial-editor-actions .commercial-action-status { display:flex; flex-direction:row; align-items:center; gap:8px; margin:0; min-width:0; }
+.commercial-action-status>span[hidden] { display:none; }
 .commercial-action-status select { width:180px; min-width:0; height:44px; }
 .commercial-delivery-field[hidden] { display:none; }
 .commercial-editor>.field { max-width:none; }
@@ -42,7 +43,7 @@
 .commercial-editor textarea { min-height:72px; resize:vertical; }
 .commercial-editor textarea.commercial-line-description { min-height:42px; height:42px; overflow-y:hidden; resize:none; line-height:20px; }
 .commercial-purchase-identifiers { grid-column:1/-1; grid-template-columns:repeat(4,minmax(0,1fr)); }
-.commercial-work-identifiers { display:grid; gap:12px; min-width:0; }
+.commercial-work-identifiers,.commercial-quote-identifiers { display:grid; gap:12px; min-width:0; }
 .commercial-purchase-identifiers select,.commercial-work-identifiers select { width:100%; min-width:0; }
 .commercial-rate-schedule { display:grid; gap:18px; margin:0; }
 .commercial-rate-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:1px; padding:1px; background:var(--red); border:1px solid var(--red); }
@@ -145,7 +146,7 @@
   .commercial-rich { padding:12px; }
 }
 @media(max-width:440px) {
-  .commercial-purchase-identifiers,.commercial-work-identifiers>.commercial-field-pair { grid-template-columns:1fr; }
+  .commercial-purchase-identifiers,.commercial-work-identifiers>.commercial-field-pair,.commercial-quote-identifiers>.commercial-field-pair { grid-template-columns:1fr; }
 }
 
 /* Directory controls follow the existing Project search geometry inside each pane. */

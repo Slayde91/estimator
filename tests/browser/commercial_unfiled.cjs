@@ -67,6 +67,9 @@ async function save(page){
   await card(heading).getByRole('button',{name:heading,exact:true}).click();
   await expect(board(other).getByLabel('Client',{exact:true})).toHaveValue('Unfiled fixture company');
   await expect(board(other).locator('.commercial-details').getByLabel('Site address',{exact:true})).toHaveValue('21 Fixture Street');
+  await expect(board(other).getByLabel('Linked Project',{exact:true})).toHaveValue('');
+  await expect(board(other).getByLabel('Linked Project',{exact:true})).toHaveAttribute('placeholder','No linked Project');
+  await expect(board(other).getByLabel('Linked Project',{exact:true})).toHaveAttribute('readonly','');
   await board(other).getByLabel('Introduction',{exact:true}).fill(edited);
   await save(other);
   await board(other).getByRole('button',{name:'Back to Quotes',exact:true}).click();
@@ -101,6 +104,10 @@ async function save(page){
   assert.equal(registry[0].id,documents[0].id);
   assert.equal(path.resolve(registry[0].path),path.resolve(info.project));
   assert.equal(await currentFile(other),null);
+  await card(heading).getByRole('button',{name:heading,exact:true}).click();
+  await expect(board(other).getByLabel('Linked Project',{exact:true})).toHaveValue([file.estimate.project_no,file.estimate.client,file.estimate.site_address?.replace(/\s+/g,' ')].filter(Boolean).join(' · '));
+  await expect(board(other).getByLabel('Linked Project',{exact:true})).toHaveAttribute('readonly','');
+  assert.equal(await currentFile(other),null,'Displaying the saved Quote owner does not load it over the active workspace');
   assert.deepEqual(errors,[]);
   console.log('PASS: Existing unfiled history is editable across tabs and filed exactly once; New requires an explicitly saved Project.');
 })().catch(error=>{console.error(error,logs);process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

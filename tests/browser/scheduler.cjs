@@ -83,6 +83,7 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await page.getByLabel('Password',{exact:true}).fill(password);
   await page.getByRole('button',{name:'Create administrator account'}).click();
   await expect(page.locator('.scheduler-grid')).toBeVisible();
+  assert.equal(await page.locator('.scheduler-tabs').evaluate(node=>getComputedStyle(node).backgroundColor),'rgb(9, 11, 14)');
   assert.ok((await context.cookies()).some(cookie => cookie.httpOnly && cookie.sameSite === 'Strict'));
   checks.push('administrator setup through UI with HttpOnly session');
   await tab('Team members');
@@ -125,8 +126,10 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   for(const width of [1915,631,390]) {
     await page.setViewportSize({width,height:970});
     const primary=modal.getByRole('button',{name:'Publish shift',exact:true}), draft=modal.getByRole('button',{name:'Create draft',exact:true});
-    const p=await primary.boundingBox(),d=await draft.boundingBox();
-    assert.ok(d.y>=p.y+p.height && Math.abs(d.x-p.x)<1,'Draft is immediately below Publish');
+    assert.deepEqual(await modal.locator('.scheduler-dialog-actions>button').allTextContents(),['Cancel','Create draft','Publish shift']);
+    const p=await primary.boundingBox(),d=await draft.boundingBox(),c=await modal.getByRole('button',{name:'Cancel',exact:true}).boundingBox();
+    const precedes=(a,b)=>a.y<b.y || Math.abs(a.y-b.y)<1 && a.x<b.x;
+    assert.ok(precedes(c,d)&&precedes(d,p),'Draft lies between Cancel and Publish in responsive reading order');
     assert.equal(await primary.evaluate(node=>getComputedStyle(node).backgroundColor),'rgb(208, 0, 27)');
     assert.ok(await modal.evaluate(node=>node.scrollWidth<=node.clientWidth+1),'Shift form fits on screen');
     await page.screenshot({path:path.join(output,`shift-editor-${width}.png`)});
@@ -148,6 +151,8 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await expect(page.locator('dialog[open]')).toHaveCount(0);
   await page.unroute('**/api/scheduler/shifts/save');
   await expect(page.locator('.scheduler-shift')).toContainText('Draft');
+  const draftStyle=await page.locator('.scheduler-shift').evaluate(node=>{const css=getComputedStyle(node);return {background:css.backgroundColor,border:css.borderTopColor,width:css.borderTopWidth,style:css.borderTopStyle,text:css.color};});
+  assert.deepEqual(draftStyle,{background:'rgb(255, 255, 255)',border:'rgb(23, 115, 73)',width:'4px',style:'solid',text:'rgb(23, 33, 43)'});
   const staff=await browser.newContext(), staffApi='http://127.0.0.1:'+info.port+'/api/scheduler';
   const stateWeek='/state?start=2026-11-02&end=2026-11-09';
   assert.equal((await staff.request.post(staffApi+'/login',{data:{email:'jordan@example.test',password}})).status(),200);
@@ -165,6 +170,7 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await modal.getByRole('button',{name:'Publish shift',exact:true}).press('Enter');
   await expect(modal).toHaveCount(0);
   await expect(page.locator('.scheduler-shift')).not.toContainText('Draft');
+  assert.equal(await page.locator('.scheduler-shift').evaluate(node=>getComputedStyle(node).backgroundColor),'rgb(23, 115, 73)');
   const [published]=await staffShifts();
   assert.equal(published.id,draftShift.id);assert.equal(published.version,draftShift.version+1);assert.equal(published.published,true);
   await page.locator('.scheduler-shift').click(); await submit('Cancel');
@@ -193,6 +199,11 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await submit('Publish shift');
   const [preserved]=await staffShifts();
   assert.equal(preserved.id,id);assert.equal(preserved.color,'#648A79');assert.equal(preserved.notes,'An unrelated note');
+  assert.equal(await page.locator('.scheduler-shift').evaluate(node=>getComputedStyle(node).backgroundColor),'rgb(23, 103, 178)','Published custom colours retain their previous fallback rendering');
+  await page.locator('.scheduler-shift').click();await submit('Create draft');
+  const customDraft=await page.locator('.scheduler-shift').evaluate(node=>{const css=getComputedStyle(node);return [css.backgroundColor,css.borderTopColor,css.borderTopWidth];});
+  assert.deepEqual(customDraft,['rgb(255, 255, 255)','rgb(100, 138, 121)','4px']);
+  await page.locator('.scheduler-shift').click();await submit('Publish shift');
   await staff.close();
   checks.push('draft and published states on the same shift control visibility for assigned staff; cancel preserves the version');
   for (const width of [1575,390]) {

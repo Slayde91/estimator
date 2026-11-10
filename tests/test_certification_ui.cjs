@@ -96,8 +96,8 @@ async function check(name,fn,{open=true,legacySave=true}={}){const h=harness({le
     h.loseNextGeneratedReply();await h.generate();
     const created=[...h.documents.values()][0];assert.equal(created.fields.client,'Current generated client');
     assert.deepEqual(created.options.scopes,['ductwork']);assert.equal(created.options.signature_image,signature);
-    assert.equal(created.revisions.length,1);assert.equal(h.api.hasPendingOperation(),true);
-    await h.generate();assert.equal(created.revisions.length,1);assert.equal(h.api.hasPendingOperation(),false);
+    assert.equal(created.revisions.length,1);assert.equal(h.api.hasPendingOperation(),true);assert.equal(h.api.hasPendingNavigationOperation(),true);
+    await h.generate();assert.equal(created.revisions.length,1);assert.equal(h.api.hasPendingOperation(),false);assert.equal(h.api.hasPendingNavigationOperation(),false);
     assert.equal(h.api.hasUnsavedChanges(),false);
     const revisions=h.calls.filter(call=>call.path.endsWith('/revisions'));assert.equal(revisions.length,2);assert.deepEqual(revisions[0].body,revisions[1].body);
   },{legacySave:false});
@@ -491,13 +491,14 @@ async function check(name,fn,{open=true,legacySave=true}={}){const h=harness({le
   });
   await check('Pending signature choice and document writes guard project snapshots',async h=>{
     const choosing=deferred();h.window.ClassifirePersonalSignature.choose=()=>choosing.promise;
-    const action=h.saveSignature();await flush();assert.equal(h.api.hasPendingOperation(),true);
+    const action=h.saveSignature();await flush();assert.equal(h.api.hasPendingOperation(),true);assert.equal(h.api.hasPendingNavigationOperation(),true);
     await assert.rejects(h.api.completeProjectSnapshot(),/Finish/);
     choosing.resolve(null);await action;
     assert.equal((await h.api.completeProjectSnapshot()).draft.options.signature_image,null);
     const pending=deferred();h.override(async path=>path==='/api/certifications'?pending.promise:undefined);
-    const saving=h.save();await flush();await assert.rejects(h.api.completeProjectSnapshot(),/Finish the current certificate/);
+    const saving=h.save();await flush();assert.equal(h.api.hasPendingNavigationOperation(),true);await assert.rejects(h.api.completeProjectSnapshot(),/Finish the current certificate/);
     pending.resolve(h.serverError(400,'Fixture stopped'));await saving;
+    assert.equal(h.api.hasPendingNavigationOperation(),false);
   });
   await check('Project-only certificate picker never offers or imports global older history',async h=>{
     const legacy={id:'old-global-document',version:2,fields:{...blank(),client:'Legacy recovery client'},options:{cover_pdf:null,cover_pdf_name:'',scopes:[]},revisions:[{revision:1,created_at:'2026-10-29T02:00:00Z',pdf_url:'/api/certifications/old-global-document/revisions/1.pdf'}]};
@@ -529,6 +530,37 @@ async function check(name,fn,{open=true,legacySave=true}={}){const h=harness({le
     assert.equal(h.api.sessionId(),null);assert.equal(h.api.hasPendingOperation(),false);
     h.override(null);const identity=await h.api.projectWorkspace();assert.equal(h.api.sessionId(),identity.workspace_id);
   },{open:false});
+  await check('Shared workspace initialization permits view navigation while project replacement and capture stay guarded',async h=>{
+    const prepared=await h.api.prepareProject(),held=deferred();
+    const before=fieldNames.map(name=>h.byId('certification-'+name).value);
+    h.override(path=>path==='/api/certifications/workspaces'?held.promise:undefined);
+    const initializing=h.api.projectWorkspace();await flush();
+    assert.equal(h.api.hasPendingOperation(),true,'Project replacement and desktop close still see the pending shared capability');
+    assert.equal(h.api.hasPendingNavigationOperation(),false,'Unrelated navigation does not replace the project or cancel shared initialization');
+    await assert.rejects(h.api.completeProjectSnapshot(),/Finish the current certificate/);
+    held.resolve(h.response(prepared));await initializing;
+    assert.equal(h.api.hasPendingOperation(),false);assert.equal(h.api.hasPendingNavigationOperation(),false);
+    assert.deepEqual(fieldNames.map(name=>h.byId('certification-'+name).value),before);
+    assert.equal(h.calls.filter(call=>call.path==='/api/certifications').length,0,'Initialization never creates a certificate');
+  },{open:false});
+  await check('Opening the certificate editor is a read operation that may finish after changing views',async h=>{
+    const held=deferred();h.override(path=>path==='/api/company-settings'?held.promise:undefined);
+    const opening=h.api.open();await flush();
+    assert.equal(h.api.hasPendingOperation(),true);assert.equal(h.api.hasPendingNavigationOperation(),false);
+    held.resolve(h.response({name:'Fixture company'}));await opening;
+    assert.equal(h.api.hasPendingOperation(),false);assert.equal(h.api.hasPendingNavigationOperation(),false);
+    assert.equal(h.documents.size,0);assert.equal(h.api.hasUnsavedChanges(),false);
+  },{open:false});
+  await check('A certificate board status write remains navigation-blocking even before its save request starts',async h=>{
+    await h.save();let board;
+    h.window.ClassifireDocumentBoard={render:(_element,options)=>{board=options;}};
+    await h.api.open();const document=[...h.documents.values()][0],held=deferred();
+    h.override((path,body)=>path==='/api/certifications/'+document.id&&!body?held.promise:undefined);
+    const moving=board.move(document,'Review');await flush();
+    assert.equal(h.api.hasPendingNavigationOperation(),true);
+    held.resolve(h.serverError(400,'Fixture stopped'));await moving;
+    assert.equal(h.api.hasPendingNavigationOperation(),false);assert.equal(document.options.workflow_status,undefined);
+  });
   await check('An older pending workspace response cannot replace an adopted project scope',async h=>{
     const held=deferred();let first=true;h.override(path=>{if(path==='/api/certifications/workspaces'&&first){first=false;return held.promise;}});
     const pending=h.api.projectWorkspace();await flush();const newer=await h.api.prepareProject();h.api.applyProject(newer);

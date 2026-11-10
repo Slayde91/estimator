@@ -44,6 +44,8 @@ async function workbook(title) {
   const saveReply = page.waitForResponse(reply => new URL(reply.url()).pathname === '/api/project/save-as' && reply.request().method() === 'POST');
   await clickProjectControl(page, 'Save'); assert.equal((await saveReply).status(), 200); await idle();
   await page.getByRole('button', { name: 'Calculators', exact: true }).click(); await expect(page.locator('#calculator-steel-hub')).toBeVisible(); await expect(page.locator('#calculator-workspace')).toBeHidden(); await expect(page.locator('#calculator-steel-hub [data-steel-calculator]')).toHaveCount(4);
+  await expect(page.locator('#calculator-kind-pages')).toBeVisible();
+  await expect(page.locator('#calculator-kind-pages [aria-pressed="true"]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Home', exact: true }).click();
   evidence.initialCalculator = 'Steel landing page';
   const calculationRequests = () => requests.filter(item => item.path.startsWith('/api/calculators/')).length;
@@ -255,12 +257,53 @@ async function workbook(title) {
       evidence.firestoppingDocuments.push(`${prefix}-${suffix}`);
     }
   }
+  // The persistent strip uses the same guarded navigation as the header menu.
+  // Switching all six tabs must retain every calculator, price and item draft.
+  const calculatorTabs=page.locator('#calculator-kind-pages'),tabsBefore=await snapshots();
+  const titles=['Duct','Firestopping','Steel (spray)','Steel (intumescent)','Steel (board)','Factor Calcs'];
+  await expect(calculatorTabs.getByRole('button')).toHaveText(titles);
+  for(const title of titles){
+    await calculatorTabs.getByRole('button',{name:title,exact:true}).click();await idle();
+    if(title==='Firestopping')await expect(page.locator('#estimator-penetration')).toBeVisible();
+    else await workbook(title);
+    await expect(calculatorTabs.locator('[aria-pressed="true"]')).toHaveText(title);
+    assert.deepEqual(await snapshots(),tabsBefore,`Tab ${title} preserves all drafts`);
+  }
+  const firstTab=calculatorTabs.getByRole('button').first();await firstTab.focus();
+  await page.keyboard.press('End');await expect(calculatorTabs.getByRole('button').last()).toBeFocused();
+  await page.keyboard.press('Home');await expect(firstTab).toBeFocused();
+  await page.keyboard.press('ArrowRight');await expect(calculatorTabs.getByRole('button').nth(1)).toBeFocused();
+  await page.keyboard.press('Enter');await expect(page.locator('#estimator-penetration')).toBeVisible();
+  await calculatorTabs.getByRole('button',{name:'Steel (spray)',exact:true}).click();await workbook('Steel (spray)');
+  await page.locator('#calculator-pages').getByRole('button',{name:'SCHEDULE',exact:true}).click();await idle();
+  evidence.calculatorTabs={allSix:true,keyboard:true,allDraftsPreserved:true,layouts:[]};
+  for(const width of [1915,1254,631,390]){
+    await page.setViewportSize({width,height:1000});
+    const actions=page.locator('#calculator-toolbar-actions .calculator-header-actions'),columns=page.locator('#calculator-toolbar-actions .schedule-column-toggle');
+    await expect(actions).toBeVisible();await expect(columns).toBeVisible();
+    assert.equal(await page.locator('.calculator-workspace-heading #calculator-document-toggle').count(),0);
+    const actionBox=await actions.boundingBox(),columnBox=await columns.boundingBox();
+    assert.ok(actionBox.x>=0&&actionBox.x+actionBox.width<=width+1,'Actions stay in the viewport');
+    if(width>=631)assert.ok(actionBox.x+actionBox.width<=columnBox.x+1,'Actions sit immediately before Columns');
+    else assert.ok(columnBox.y>=actionBox.y,'Narrow action rows retain logical order');
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth+1),false,'Tabs scroll locally, not the whole page');
+    await page.locator('#calculator-document-toggle').click();const menuBox=await page.locator('#calculator-document-menu').boundingBox();
+    assert.ok(menuBox.x>=0&&menuBox.x+menuBox.width<=width+1,'Moved document menu stays inside the viewport');
+    await page.keyboard.press('Escape');
+    await page.screenshot({path:path.join(output,`calculator-tabs-toolbar-${width}.png`),fullPage:true});
+    evidence.calculatorTabs.layouts.push({width,actionBox,columnBox});
+  }
+  assert.deepEqual(await snapshots(),tabsBefore);await page.setViewportSize({width:1440,height:1000});
   const touchContext = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   const touch = await touchContext.newPage(); await monitor(touch); await touch.goto(`http://127.0.0.1:${info.port}/`); await idle(touch);
   await touch.getByRole('button', { name: 'Calculators', exact: true }).tap();
   const touchMenu = touch.getByRole('group', { name: 'Choose a calculator', exact: true }); await expect(touchMenu).toBeVisible();
   await touchMenu.getByRole('button', { name: 'Steel', exact: true }).tap(); await expect(touch.locator('#steel-calculator-navigation-menu')).toBeVisible();await expect(touch.locator('#calculator-steel-hub')).toBeVisible();await touch.locator('#steel-calculator-navigation-menu').getByRole('button',{name:'Steel (board)',exact:true}).tap(); await expect(touch.locator('#calculator-title')).toHaveText('Steel (board)', { timeout: 60000 }); await expect(touch.locator('#calculator-grid')).toHaveAttribute('aria-busy', 'false', { timeout: 60000 }); await expect(touchMenu).toBeHidden();
   evidence.touch = { disclosureTap: true, chosenCalculator: 'Steel (board)' };
+  await touch.locator('#calculator-kind-pages').getByRole('button',{name:'Factor Calcs',exact:true}).tap();
+  await expect(touch.locator('#calculator-title')).toHaveText('Factor Calcs');
+  await expect(touch.locator('#calculator-kind-pages [aria-pressed="true"]')).toHaveText('Factor Calcs');
+  evidence.touch.calculatorStrip=true;
   assert.deepEqual(await touch.evaluate(() => window.qaCsp), []); await touchContext.close();
   assert.deepEqual(errors, []); assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
   for(const [name,hash] of Object.entries(assetHashes))assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(root,name))).digest('hex'),hash,`Production source remained fixed: ${name}`);

@@ -1096,7 +1096,7 @@
     if (view !== state.currentView && window.CeasefireScheduler?.hasPendingOperation?.()) { message("Finish or cancel the current Scheduler edit before changing views.", true); return; }
     if (view !== state.currentView && window.CeasefireCoverSheets?.hasPendingOperation?.()) { message(uiCopy("Finish or retry the current cover-sheet operation before changing views."), true); return; }
     if (view !== state.currentView && window.CeasefireCoverSheets?.hasUnsavedChanges?.() && !await window.CeasefireCoverSheets.leave()) return;
-    if (view !== state.currentView && window.CeasefireCertification?.hasPendingOperation?.()) { message(uiCopy("Finish or retry the current certification operation before changing views."), true); return; }
+    if (view !== state.currentView && (window.CeasefireCertification?.hasPendingNavigationOperation?.() ?? window.CeasefireCertification?.hasPendingOperation?.())) { message(uiCopy("Finish or retry the current certification operation before changing views."), true); return; }
     if (window.CeasefirePenetrations?.hasTakeoffReservation?.() || window.CeasefireTakeoffs?.hasLinkedRecovery?.()) { message(uiCopy("Finish or recover the confirmed Takeoff library link before changing views."), true); return; }
     if (view === "takeoffs" && !state.takeoffsEnabled) { message(uiCopy("TAKEOFFS is not included in this edition."), true); return; }
     if (view !== state.currentView && window.CeasefireSWMS?.hasPendingOperation?.() && !await window.CeasefireSWMS.leaveEditor()) return;
@@ -2916,6 +2916,15 @@
   for (const card of document.querySelectorAll(".projects-section-card[data-document-section]")) card.addEventListener("click", () => requestViewNavigation(card.dataset.documentSection));
   for (const button of documentPages?.querySelectorAll("[data-document-section]") || []) button.addEventListener("click", () => requestViewNavigation(button.dataset.documentSection));
   for (const card of document.querySelectorAll("[data-steel-calculator]")) card.addEventListener("click", () => requestCalculatorNavigation(card.dataset.steelCalculator));
+  const calculatorTabs = $("calculator-kind-pages");
+  for (const button of calculatorTabs?.querySelectorAll("[data-calculator-id]") || []) button.addEventListener("click", () => requestCalculatorNavigation(button.dataset.calculatorId));
+  calculatorTabs?.addEventListener("keydown", event => {
+    const tabs = [...calculatorTabs.querySelectorAll("[data-calculator-id]")], index = tabs.indexOf(event.target);
+    if (index < 0 || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const forward = document.documentElement.dir === "rtl" ? "ArrowLeft" : "ArrowRight";
+    tabs[event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === forward ? 1 : -1) + tabs.length) % tabs.length]?.focus();
+  });
   setupCalculatorNavigation();
   for (const button of document.querySelectorAll("[data-home-view]")) button.addEventListener("click", () => requestViewNavigation(button.dataset.homeView));
   document.querySelector(".brand")?.addEventListener("click", (event) => { event.preventDefault(); requestViewNavigation("home"); });

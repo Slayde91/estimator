@@ -3449,5 +3449,11 @@
   "Save draft": "Enregistrer le brouillon",
   "Workflow status": "État du workflow",
   "No documents": "Aucun document",
-  "Choose a valid workflow status.": "Choisissez un état de workflow valide."
+  "Choose a valid workflow status.": "Choisissez un état de workflow valide.",
+  "Search Work Orders": "Rechercher des ordres de travail",
+  "No matching Work Orders.": "Aucun ordre de travail correspondant.",
+  "Choose a listed Work Order or clear the search.": "Choisissez un ordre de travail dans la liste ou effacez la recherche.",
+  "Linked Project": "Projet associé",
+  "No linked Project": "Aucun projet associé",
+  "Assigned when downloaded": "Attribué lors du téléchargement"
 }

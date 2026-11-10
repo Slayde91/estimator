@@ -563,7 +563,7 @@ assert.equal(run([notice('Saved '),notice('details'),notice('×',true)]),'Saved 
         selector = next(node.value for node in journey.body if isinstance(node, ast.Assign)
             and any(isinstance(target, ast.Name) and target.id == 'selector' for target in node.targets))
         self.assertEqual(template.controls['calculator-navigation-toggle']['aria-controls'], 'calculator-navigation-menu')
-        self.assertEqual(set(template.cards), {'steel_vermiculite', 'steel_board', 'steel_intumescent', 'steel_factors'})
+        self.assertEqual(template.cards, {}, 'The removed Steel landing page must not reintroduce duplicate calculator cards.')
         self.assertEqual(template.controls['steel-calculator-navigation-toggle']['aria-controls'], 'steel-calculator-navigation-menu')
         self.assertEqual({identifier for identifier, parents in template.parents.items()
                           if 'steel-calculator-navigation-menu' in parents},
@@ -579,8 +579,6 @@ assert.equal(run([notice('Saved '),notice('details'),notice('×',true)]),'Saved 
             self.assertEqual(actual, f'#calculator-navigation-menu button[data-calculator-id="{identifier}"]')
             self.assertEqual(template.controls[identifier]['data-calculator-id'], identifier)
             self.assertIn('calculator-navigation-menu', template.parents[identifier])
-        for identifier in template.cards:
-            self.assertIn('steel-calculator-navigation-menu', template.parents[identifier])
         self.assertNotIn('steel-calculator-navigation-menu', template.parents['ductwork'])
 
     def test_native_smoke_navigation_matches_standard_header_including_document_and_clock_artwork(self):

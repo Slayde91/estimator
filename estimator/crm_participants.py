@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, urlsplit
 from uuid import UUID
 
 from .catalog import ValidationError
+from .project_relationships import address_key, address_site
 
 
 ROLES = {'client':'Client', 'builder':'Builder', 'principal_contractor':'Principal contractor',
@@ -82,13 +83,67 @@ class CRMParticipants:
         return site
 
     def sites(self, search='', offset='0'):
-        needle=text_field(search,500).casefold()
+        needle=address_key(text_field(search,1200))
         if not isinstance(offset,str) or not offset.isascii() or not offset.isdecimal() or len(offset)>8:
             raise ValidationError('Choose a valid site page.')
+        catalog=self._catalog()
         with self.db() as db:
-            rows=db.execute('SELECT id,name,address FROM sites WHERE instr(search,?)>0 ORDER BY search,id LIMIT 101 OFFSET ?',
-                            (needle,int(offset))).fetchall()
-        return {'sites':[dict(row) for row in rows[:100]], 'more':len(rows)>100}
+            choices={row['id']:dict(row) for row in db.execute('SELECT id,name,address FROM sites')}
+        for project in catalog['projects']:
+            site=address_site(project['site_address'])
+            if site and not any(address_key(row['address'])==address_key(site['address']) for row in choices.values()):
+                choices[site['id']]=site
+        rows=sorted((row for row in choices.values() if needle in address_key(row['name']+' '+row['address'])),
+                    key=lambda row:(address_key(row['address']),address_key(row['name']),row['id']))
+        start=int(offset)
+        return {'sites':rows[start:start+100], 'more':len(rows)>start+100,
+                'scan_pending':catalog['scan_pending'], 'error_count':catalog.get('error_count',0)}
+
+    def _catalog(self):
+        try:
+            catalog=self.projects.participant_sites()
+            with self.db() as db:
+                manual={(row['source'],row['owner']):dict(row) for row in db.execute('''SELECT p.source,p.owner,p.project_no,s.address
+                    FROM project_roles p JOIN sites s ON s.id=p.site_id''')}
+            rows=[]
+            for row in catalog['projects']:
+                selected=manual.get((row['source'],row['owner']))
+                legacy=manual.get((row['source'],''))
+                if selected is None and row['owner'] and legacy and legacy['project_no']==row['project_no']:
+                    selected=legacy
+                rows.append({**row,'_site_address':selected['address'] if selected else row['site_address']})
+            catalog['projects']=sorted(rows,key=lambda row:(address_key(row['site_address']),row['site_address'],row['source'],row['owner']))
+            return catalog
+        except (OSError,ValidationError):
+            return {'projects':[], 'scan_pending':True, 'error_count':1}
+
+    def _decorate(self,record,project,catalog):
+        """Derive same-address bids without modifying either file or sidecar."""
+        if not record['site'] and any((row['source'],row['owner'])!=(project['source'],project['owner'])
+                and address_key(row['_site_address'])==address_key(project['site_address']) for row in catalog['projects']):
+            record['site']=address_site(project['site_address'])
+        record['site_mode']='manual' if record['site_id'] else 'automatic' if record['site'] else 'none'
+        key=address_key(record['site']['address']) if record['site'] else ''
+        peers={(row['source'],row['owner']):row for row in record['linked_bids']}
+        current=(project['source'],project['owner'])
+        for row in catalog['projects']:
+            identity=(row['source'],row['owner'])
+            if key and identity!=current and address_key(row['_site_address'])==key:
+                peers[identity]={**{name:value for name,value in row.items() if name!='_site_address'},'automatic':identity not in peers}
+        record['linked_bids']=sorted(peers.values(),key=lambda row:(row['project_no'],row['client'],row['source'],row['owner']))
+        record['scan_pending']=catalog['scan_pending']
+        record['error_count']=catalog.get('error_count',0)
+        record['site_address']=project['site_address']
+        record['linked_parties']=list(project.get('linked_parties',[]))
+        # Company-side manual Project links use the exact file-derived token.
+        # Portable owner IDs alone are ambiguous when Save As copies exist.
+        if project.get('account_link_id'):
+            with self.contacts.connection() as db:
+                record['linked_parties'].extend({'kind':'accounts','id':row[0],'label':row[1],'role':'Linked company'}
+                    for row in db.execute('''SELECT a.id,a.company FROM account_links l JOIN accounts a ON a.id=l.account_id
+                        WHERE l.kind='projects' AND l.target_id=? ORDER BY a.company,a.id''',(project['account_link_id'],)))
+        self._availability(record['linked_bids'])
+        return record
 
     @staticmethod
     def _existing(db, project):
@@ -104,11 +159,11 @@ class CRMParticipants:
 
     def view(self, selector):
         project=self.projects.participant_project(selector)
+        catalog=self._catalog()
         with self.db() as db:
             db.execute('BEGIN')
             record=self._view(db,project)
-        self._availability(record['linked_bids'])
-        return record
+        return self._decorate(record,project,catalog)
 
     def _availability(self, rows):
         try:
@@ -119,15 +174,25 @@ class CRMParticipants:
             row['availability']=states.get((row['source'],row['owner'],row['project_no']),'unverified')
 
     def site(self, site_id):
+        site_id=identity(site_id)
+        catalog=self._catalog()
         with self.db() as db:
             db.execute('BEGIN')
-            site=db.execute('SELECT id,name,address FROM sites WHERE id=?',(identity(site_id),)).fetchone()
+            site=db.execute('SELECT id,name,address FROM sites WHERE id=?',(site_id,)).fetchone()
             if not site:
-                raise ValidationError('Choose an existing shared site.')
+                site=next((candidate for row in catalog['projects'] if (candidate:=address_site(row['site_address'])) and candidate['id']==site_id),None)
+                if not site:
+                    raise ValidationError('Choose an existing shared site.')
             rows=[dict(row) for row in db.execute('''SELECT source,owner,project_no,client,site_address
                 FROM project_roles WHERE site_id=? ORDER BY project_no,client,source,owner''',(site_id,))]
-        self._availability(rows)
-        return {'site':dict(site),'linked_bids':rows}
+        peers={(row['source'],row['owner']):row for row in rows}
+        key=address_key(site['address'])
+        for row in catalog['projects']:
+            if key and address_key(row['_site_address'])==key:
+                pair=(row['source'],row['owner'])
+                peers[pair]={**{name:value for name,value in row.items() if name!='_site_address'},'automatic':pair not in peers}
+        rows=sorted(peers.values(),key=lambda row:(row['project_no'],row['client'],row['source'],row['owner']));self._availability(rows)
+        return {'site':dict(site),'linked_bids':rows,'scan_pending':catalog['scan_pending']}
 
     def _view(self,db,project):
         row=self._existing(db,project)
@@ -139,7 +204,8 @@ class CRMParticipants:
                 WHERE site_id=? AND NOT(source=? AND owner=?) ORDER BY project_no,client,source,owner""",
                 (row['site_id'],row['source'],row['owner']))]
         return {'project_revision':project['revision'],'version':row['version'] if row else 0,
-                'participants':json.loads(row['roles']) if row else [], 'roles':ROLES,'site':site,'linked_bids':peers}
+                'participants':json.loads(row['roles']) if row else [], 'roles':ROLES,'site':site,'linked_bids':peers,
+                'site_id':row['site_id'] if row else None}
 
     def related(self,kind,identities):
         """Follow exact party IDs, including explicitly merged aliases from the directory snapshot."""
@@ -205,6 +271,7 @@ class CRMParticipants:
         if project['revision']!=data['project_revision']:
             raise ParticipantConflict('The project changed. Reopen its details before changing participants.')
         site_id=identity(data['site_id']) if data['site_id'] is not None else None
+        catalog=self._catalog()
         with self.db() as db:
             db.execute('BEGIN IMMEDIATE')
             row=self._existing(db,project)
@@ -212,7 +279,12 @@ class CRMParticipants:
             if version!=data['version']:
                 raise ParticipantConflict('Participants changed. Reload the project participants before saving.')
             if site_id and not db.execute('SELECT 1 FROM sites WHERE id=?',(site_id,)).fetchone():
-                raise ValidationError('Choose an existing shared site.')
+                # Direct Link may select an address from an authorized saved
+                # Project. Materialize its deterministic ID only on this POST.
+                site=next((candidate for item in catalog['projects'] if (candidate:=address_site(item['site_address'])) and candidate['id']==site_id),None)
+                if not site:
+                    raise ValidationError('Choose an existing shared site.')
+                db.execute('INSERT INTO sites VALUES(?,?,?,?)',(site['id'],site['name'],site['address'],(site['name']+' '+site['address']).casefold()))
             prior={(r['role'],r['kind'],r['id']):r for r in json.loads(row['roles'])} if row else {}
             roles=self._validated_rows(data['participants'],prior)
             changed = (row['site_id'] if row else None)!=site_id or roles!=list(prior.values())
@@ -231,8 +303,7 @@ class CRMParticipants:
                     VALUES(?,?,?,?,'participants updated',?)""",(project['source'],project['owner'],version+1,json.dumps(actor),
                     json.dumps({'participants':roles,'site_id':site_id})))
             record=self._view(db,project)
-        self._availability(record['linked_bids'])
-        return record
+        return self._decorate(record,project,catalog)
 
 
 class ParticipantsHTTP:

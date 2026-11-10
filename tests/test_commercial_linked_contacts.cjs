@@ -2,6 +2,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const context={window:{}};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../static/commercial-panels.js'),'utf8'),context);
 const linked=context.window.ClassifireCommercialDirectory.linkedContacts;
+const companies=context.window.ClassifireCommercialDirectory.linkedCompanies;
 const rows=value=>JSON.parse(JSON.stringify(value));
 const directory={contacts:[{id:'primary',name:'Same name',phone:'111'},{id:'other',name:'Same name',phone:'222'},{id:'employee',name:'Not linked',phone:'333'}]};
 test('Primary is first; explicit IDs deduplicate roles without collapsing equal names or including company employees',()=>{
@@ -30,4 +31,19 @@ test('An explicit document Contact differing from the Project primary is retaine
     {contact_id:'primary',contact_name:'Same name'},null,directory));
   assert.deepEqual(result.map(row=>row.id),['primary','other']);
   assert.deepEqual(result[0].roles,['Primary contact']);assert.deepEqual(result[1].roles,['Client contact']);
+});
+test('All exact saved-Project Contact roles join the list, but Company affiliation alone never imports employees',()=>{
+  const result=rows(linked('quote',{details:{}},{contact_id:'primary'},
+    {linked_parties:[{id:'other',kind:'contacts',role:'Supplier contact'},{id:'other',kind:'contacts',role:'Billing contact'},{id:'company',kind:'accounts',role:'Client'}]},directory));
+  assert.deepEqual(result.map(row=>row.id),['primary','other']);
+  assert.deepEqual(result[1].roles,['Supplier contact','Billing contact']);
+});
+test('Companies are primary-first and include explicit Project links and employers of linked Contacts by canonical ID',()=>{
+  const data={accounts:[{id:'builder',company:'Same company'},{id:'supplier',company:'Same company'},{id:'manual',company:'Manual'}],
+    contacts:[{id:'primary',name:'Person',account_id:'builder'},{id:'other',name:'Participant',account_id:'supplier'}],identity_aliases:{accounts:{old:'supplier'}}};
+  const result=rows(companies('quote',{details:{account_id:'builder'},billing:{account_id:'old'}},{account_id:'builder',contact_id:'primary'},
+    {participants:[{kind:'contacts',id:'other',role:'consultant'},{kind:'accounts',id:'supplier',role:'supplier'}],linked_parties:[{kind:'accounts',id:'manual',role:'Linked company'}]},data));
+  assert.deepEqual(result.map(row=>row.id),['builder','supplier','manual']);assert.equal(result[0].primary,true);
+  assert.deepEqual(result[1].roles,['Billing company','supplier','Contact company']);
+  assert.equal(result[0].name,result[1].name,'Equal display names never merge companies');
 });

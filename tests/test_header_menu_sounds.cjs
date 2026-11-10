@@ -412,6 +412,7 @@ test("download compatibility hooks never access audio or register deferred playb
 test("printer audio loops only during the active phrase and never starts after it has finished", () => {
   const h = audioHarness(), printer = createPrinting(h.motion, h.host, h.document), audio = h.players[0];
   assert.equal(audio.src, printingSource); assert.equal(audio.loop, true); assert.equal(audio.preload, "auto"); assert.equal(h.plays().length, 0);
+  assert.equal(audio.volume, 0.75, "Printing plays at 75% of its previous volume");
   printer.start(); assert.equal(h.plays().length, 1); assert.equal(audio.paused, false);
   printer.stop(); assert.equal(audio.paused, true); assert.equal(audio.currentTime, 0);
   audio.readyState = 0; printer.start(); assert.equal(h.plays().length, 1);

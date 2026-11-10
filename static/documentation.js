@@ -142,13 +142,17 @@
         }
         const tr=node('tr'), name=node('td','documentation-name',row.label), action=node('td','documentation-action'), history=node('td'), controls=node('div','documentation-download');
         tr.dataset.documentKind=row.id;
-        const button=node('button','button secondary documentation-download-button');button.type='button';button.dataset.documentKind=row.id;
-        const icon=node('span','documentation-download-icon','⇩');icon.setAttribute('aria-hidden','true');button.append(icon);
+        const breakdown=row.id==='estimate.summary.pdf';
+        const button=node('button',breakdown?'button primary icon-only add-icon-action documentation-download-button':'button secondary documentation-download-button');button.type='button';button.dataset.documentKind=row.id;
+        const icon=node('span',breakdown?'button-symbol':'documentation-download-icon');icon.textContent=breakdown?'+':'⇩';icon.setAttribute('aria-hidden','true');button.append(icon);
         if(window.CeasefireI18n) {
           window.CeasefireI18n.attr(button,'aria-label','Download {0}',[row.label]);
           window.CeasefireI18n.attr(button,'title','Download {0}',[row.label]);
         } else {button.setAttribute('aria-label',`Download ${row.label}`);button.title=`Download ${row.label}`;}
-        button.disabled=!!state.action||row.historyOnly;button.addEventListener('click',()=>run(row,button));controls.append(button);
+        button.disabled=!!state.action||row.historyOnly;
+        const access=window.ClassifireAccess;
+        if(breakdown && access){button.disabled=true;void access.ready.then(()=>{if(button.isConnected)button.disabled=!!state.action||row.historyOnly||!access.can('edit');});}
+        button.addEventListener('click',()=>run(row,button));controls.append(button);
         if(row.adapter==='firestopping'&&row.spec.scope==='current_item') {
           const select=node('select');
           if(window.CeasefireI18n)window.CeasefireI18n.attr(select,'aria-label',"Document source");

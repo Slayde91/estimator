@@ -30,11 +30,22 @@
     node.addEventListener("click", action);
     return node;
   }
+  function creationButton(label, action) {
+    const control=button('',action,'button primary icon-only add-icon-action');
+    control.title=label;control.setAttribute('aria-label',label);
+    window.CeasefireI18n?.attr(control,'title',label);window.CeasefireI18n?.attr(control,'aria-label',label);
+    const symbol=el('span','button-symbol','+');symbol.setAttribute('aria-hidden','true');control.append(symbol);
+    const access=window.ClassifireAccess;
+    if(access){control.disabled=true;void access.ready.then(()=>{if(control.isConnected)control.disabled=!access.can('edit');});}
+    return control;
+  }
   function feedback(container, message, error = false) {
     const msg = container.querySelector("[data-contacts-notice]");
     copy(msg, message);
     msg.hidden = !message;
     msg.classList.toggle("error", error);
+    msg.setAttribute("role", error ? "alert" : "status");
+    if (message && error && msg.isConnected) msg.scrollIntoView({block:"center",inline:"nearest",behavior:"instant"});
   }
   function notice() {
     const node = el("p", "notice");
@@ -174,7 +185,7 @@
     let accountDefaults = {};
     let resolveClosed, savedRecord = null, submitting = false, loadingLinks = false, linksReady = kind !== "accounts", contactLinkRefresh, contactLinkLoading = false;
     const closed = new Promise(resolve => { resolveClosed = resolve; });
-    const heading = el("h2", "", readOnly ? record.name : (record.id ? "Edit " : "New ") + singular[kind]);
+    const heading = el("h2", "", readOnly ? (kind==='accounts' ? record.company : record.name) : (record.id ? "Edit " : "New ") + singular[kind]);
     if (!readOnly) copy(heading, (record.id ? "Edit " : "New ") + singular[kind]);
     heading.id = "contacts-editor-title-" + ++editorSequence;
     dialog.setAttribute("aria-labelledby", heading.id);
@@ -795,6 +806,15 @@
     const readOnly = Boolean(window.ClassifireAccess && !window.ClassifireAccess.can('edit'));
     return dialogEditor('contacts',contact,readOnly,{directory,standalone:true,lockedReadOnly:readOnly,isCurrent:options.isCurrent});
   }
+  async function editAccount(id, options = {}) {
+    await window.ClassifireAccess?.ready;
+    const directory = await request('directory');
+    if (options.isCurrent && !options.isCurrent()) return null;
+    const account = directory.accounts.find(company=>company.id===id);
+    if (!account) throw new Error('The selected directory record is unavailable.');
+    const readOnly = Boolean(window.ClassifireAccess && !window.ClassifireAccess.can('edit'));
+    return dialogEditor('accounts',account,readOnly,{directory,standalone:true,lockedReadOnly:readOnly,isCurrent:options.isCurrent});
+  }
   function matches(row) {
     const keys = page === "accounts" ? ["company", "abn_acn", "billing_address", "owner_name"] :
       page === "leads" ? [...personFields, "abn_acn", "status", "site_address", "billing_address", "description", "next_action", "follow_up_date","owner_name","region"] : [...personFields,"owner_name"];
@@ -993,8 +1013,7 @@
       label.append(cutoff); controls.append(label);
     }
     if (page !== "leads") controls.append(documentMenu(page));
-    const create = button("New " + singular[page], () => dialogEditor(page), "button primary");
-    if (page === "accounts") copy(create, "New Company");
+    const create = creationButton("New " + singular[page], () => dialogEditor(page));
     controls.append(create);
     section.append(controls, el("div", "contacts-results"));
     const layout = el("div", "contacts-directory-layout");
@@ -1011,7 +1030,7 @@
     const menu = event.target.closest?.("#contacts-root details[open]");
     if (menu) {menu.open = false; menu.querySelector("summary").focus();}
   });
-  window.ClassifireContacts = {activate, createAccount, createContact, editContact, leave:leaveAccount,
+  window.ClassifireContacts = {activate, createAccount, createContact, editContact, editAccount, leave:leaveAccount,
     pendingMessage:()=>accountEditor?.pendingMessage() || "Finish the current Company action first.",
     hasUnsavedChanges:()=>Boolean(accountEditor?.dirty()), hasPendingOperation:()=>Boolean(accountEditor?.pending()),
     fingerprint:()=>accountEditor?.fingerprint() || ""};

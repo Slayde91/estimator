@@ -73,7 +73,7 @@
     record.participants.forEach((item,index)=>{
       const row=el('li');row.append(ui('strong',roleText(item.role)),document.createTextNode(' · '+item.label));
       if(editable){
-        const remove=button('Remove',()=>mutate(ticket=>save(compactRows().filter((_,i)=>i!==index),record.site?.id || null,ticket)));
+        const remove=button('Remove',()=>mutate(ticket=>save(compactRows().filter((_,i)=>i!==index),record.site_id,ticket)));
         remove.disabled=busy;row.append(' ',remove);
       }
       parties.append(row);
@@ -94,59 +94,49 @@
       controls.append(field('Role',role),field('Record type',kind),field('Search directory',find),field('Participant',results),
         button('Add participant',()=>{if(!results.value){announce('Choose a directory record');return;}
           const rows=[...compactRows(),{role:role.value,kind:kind.value,id:results.value}];
-          void mutate(ticket=>save(rows,record.site?.id || null,ticket));}));
+          void mutate(ticket=>save(rows,record.site_id,ticket));}));
       body.append(controls);
     }
     body.append(ui('h3','Shared site'));
     if(record.site)body.append(el('p',[record.site.name,record.site.address].filter(Boolean).join(' · ')));
     else body.append(ui('p','No shared site linked.'));
+    if(record.site_mode==='automatic')body.append(ui('p','Bids with the same site address are linked automatically.'));
     if(record.linked_bids.length){
       body.append(ui('h4','Other bids linked to this site'),bidList(record.linked_bids));
     }
     {
-      const controls=el('fieldset'),find=input(240,'search'),results=el('select');controls.disabled=busy;
-      const bids=el('div');
+      const controls=el('fieldset'),find=input(1200,'search'),results=el('div'),scan=el('p');controls.disabled=busy;
+      results.className='project-site-results';scan.className='helper';scan.setAttribute('role','status');
+      find.value=document.getElementById('project-pane-address')?.value || record.site_address || '';
       let ticket=0,offset=0,timer;
       const more=button('Show more',()=>void loadSites(true));more.hidden=true;
       async function loadSites(append=false){
         const request=++ticket;
-        if(!append){offset=0;results.replaceChildren();bids.replaceChildren();option(results,'','Choose a shared site',true);}
+        if(!append){offset=0;results.replaceChildren();}
+        window.CeasefireI18n?.text(scan,'Loading…');scan.textContent ||= 'Loading…';
         const search=find.value;
         try{
           const data=await api('crm/sites?search='+encodeURIComponent(search)+'&offset='+offset);
           if(request!==ticket || !controls.isConnected || search!==find.value)return;
-          for(const site of data.sites)option(results,site.id,[site.name,site.address].filter(Boolean).join(' · '));
+          for(const site of data.sites){
+            const card=el('article');card.className='project-site-result';card.dataset.siteId=site.id;
+            const name=el('strong',site.name);name.id='site-name-'+crypto.randomUUID();card.append(name);
+            let address;if(site.address!==site.name){address=el('p',site.address);address.id='site-address-'+crypto.randomUUID();card.append(address);}
+            if(editable){
+              const link=button('Link',()=>void mutate(ticket=>save(compactRows(),site.id,ticket)));link.disabled=busy;
+              link.id='site-link-'+crypto.randomUUID();link.setAttribute('aria-labelledby',[link.id,name.id,address?.id].filter(Boolean).join(' '));card.append(link);
+            }
+            results.append(card);
+          }
           offset+=data.sites.length;more.hidden=!data.more;
-        }catch(error){if(request===ticket && controls.isConnected)announce(error.message);}
+          scan.textContent='';
+          if(data.scan_pending || data.error_count)window.CeasefireI18n?.text(scan,'Some saved projects are still being checked. Refresh to include more addresses.');
+          if(!offset && !data.scan_pending && !data.error_count)window.CeasefireI18n?.text(scan,'No matching site addresses.');
+        }catch(error){if(request===ticket && controls.isConnected){scan.textContent='';announce(error.message);}}
       }
       find.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(()=>void loadSites(),180);});
-      results.onchange=()=>bids.replaceChildren();
-      controls.append(field('Search sites',find),field('Site',results),more,button('View linked bids',async()=>{
-        const id=results.value;if(!id){announce('Choose a shared site');return;}
-        try{
-          const site=await api('crm/sites?id='+encodeURIComponent(id));
-          if(!controls.isConnected || results.value!==id)return;
-          bids.replaceChildren(site.linked_bids.length?bidList(site.linked_bids):ui('p','No linked bids.'));
-        }catch(error){if(controls.isConnected)announce(error.message);}
-      }),bids);
-      if(editable)controls.append(button('Link site',()=>{
-        if(!results.value){announce('Choose a shared site');return;}
-        const site=results.value;void mutate(ticket=>save(compactRows(),site,ticket));
-      }));
-      if(editable && record.site)controls.append(button('Unlink site',()=>void mutate(ticket=>save(compactRows(),null,ticket))));
-      const add=el('details'),name=input(240),address=input(1200);let requestId=crypto.randomUUID();
-      name.oninput=address.oninput=()=>{requestId=crypto.randomUUID();};
-      add.append(ui('summary','New site'),field('Site name',name),field('Site address',address),button('Create and link site',()=>{
-        if(!name.value.trim()){name.focus();return;}
-        const payload={id:requestId,name:name.value,address:address.value};
-        void mutate(async ticket=>{
-          const site=await api('crm/sites',payload);
-          if(ticket!==generation)return;
-          try{await save(compactRows(),site.id,ticket);}
-          catch(error){throw Error([site.name,error.message].join(' · '));}
-        });
-      }));
-      if(editable)controls.append(add);
+      controls.append(field('Search site addresses',find),results,scan,more);
+      if(editable && record.site_id)controls.append(button('Use site address',()=>void mutate(ticket=>save(compactRows(),null,ticket))));
       body.append(controls);
       if(!busy)void loadSites();
     }

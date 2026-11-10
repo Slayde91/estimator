@@ -192,7 +192,7 @@
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
     projectFile: null, projectEstimates: [{id:"estimate-1", name:"Estimate 1"}], activeEstimateId: "estimate-1", estimatesDirty: false, projectStatus: "Draft", projectCards: [], projectsRevision: 0, initialized: false, currentView: "home", lastProjectSection: null, lastDocumentSection: null, projectsOffset: 0, projectsTimer: null, desktopRequests: 0,
     projectBrowserProject: null, projectBrowserPath: "", projectBrowserRevision: 0,
-    pricingRender: null, estimatorKind: "estimate", calculatorKind: "steel", libraryKind: "pricing",
+    pricingRender: null, estimatorKind: "estimate", calculatorKind: "penetration", libraryKind: "pricing",
     workItems: [], workItemErrors: new Map(), workItemDrafts: new Map(), nextWorkItem: 1,
     pricingUsage: { firestopping: { label: "Firestopping Estimator", keywords: [], groups: [] } }, takeoffsEnabled: true,
   };
@@ -405,6 +405,29 @@
   const projectStatuses = ["Draft", "Review", "Presented", "Accepted", "Lost"];
   const projectPages = $("project-pages");
   const documentPages = $("document-pages");
+
+  // Move the real headings, including their controls, rather than copying them.
+  // Their IDs, pending operations and event listeners keep the same owners.
+  function refreshWorkspaceHeading(kind, selection) {
+    const section = $("view-" + kind), tabs = $(kind === "calculators" ? "calculator-kind-pages" : "library-pages");
+    if (!section || !tabs) return;
+    let slot = $(kind + "-heading-slot");
+    if (!slot) {
+      slot = document.createElement("div"); slot.id = kind + "-heading-slot"; slot.className = "workspace-section-heading";
+      section.insertBefore(slot, tabs);
+    }
+    if (kind === "calculators") {
+      for (const [selector, visible] of [[".calculator-workspace-heading", selection !== "penetration"], [".penetration-banner-heading", selection === "penetration"]]) {
+        const heading = section.querySelector(selector);
+        if (heading) { slot.append(heading); heading.hidden = !visible; }
+      }
+    } else {
+      for (const name of ["pricing", "penetration", "technical"]) {
+        const heading = section.querySelector(`#library-${name} > .page-heading`) || slot.querySelector(`[data-library-heading="${name}"]`);
+        if (heading) { heading.dataset.libraryHeading = name; slot.append(heading); heading.hidden = name !== selection; }
+      }
+    }
+  }
 
   function refreshProjectPages() {
     const active = ["quotes", "quote", "work-orders", "purchase-orders"].includes(state.currentView);
@@ -1065,6 +1088,8 @@
     if (kind === "penetration") $("calculator-workspace").hidden = true;
     const libraryEditor = !!window.CeasefireLibraryEditor?.isOpen();
     $("firestopping-project-workspace").hidden = libraryEditor;
+    const penetrationHeading = $("penetration-heading")?.closest(".penetration-banner-heading");
+    if (penetrationHeading) penetrationHeading.hidden = libraryEditor || state.currentView !== "calculators" || kind !== "penetration";
     $("firestopping-library-editor").hidden = !libraryEditor;
     $("estimator-penetration").setAttribute("aria-labelledby", libraryEditor ? "library-editor-heading" : "penetration-heading");
     window.CeasefireCalculators?.refreshNavigation?.();
@@ -1076,6 +1101,7 @@
     if (!["pricing", "penetration", "technical"].includes(kind)) return;
     document.activeElement?.blur?.();
     state.libraryKind = kind;
+    refreshWorkspaceHeading("pricing", kind);
     for (const child of ["pricing", "penetration", "technical"]) $("library-" + child).hidden = child !== kind;
     for (const button of document.querySelectorAll("[data-library-kind]")) button.setAttribute("aria-pressed", String(button.dataset.libraryKind === kind));
     window.CeasefireNotifications?.navigate(`pricing:${kind}`);
@@ -1084,7 +1110,7 @@
   }
 
   function resolveView(view) {
-    return view === "projects" ? state.lastProjectSection || "quotes" : view;
+    return view === "projects" ? state.lastProjectSection || "quotes" : view === "documents" ? "documentation" : view;
   }
 
   async function showView(view, librarySelection, calculatorId) {
@@ -1132,10 +1158,10 @@
     if (view === "documentation") estimatorReady = Promise.all([window.CeasefireDocumentation?.open(), window.CeasefireCoverSheets?.open?.()]).catch(error => message(error.message, true));
     if (view === "calculators") {
       calculatorId ||= state.calculatorKind;
+      if (calculatorId === "steel") calculatorId = "steel_vermiculite";
       state.calculatorKind = calculatorId;
-      $("calculator-steel-hub").hidden = calculatorId !== "steel";
-      if (calculatorId === "steel") { $("estimator-penetration").hidden = true; state.estimatorKind = "estimate"; window.CeasefireCalculators?.hide?.(); window.CeasefireCalculators?.refreshNavigation?.(); }
-      else if (calculatorId === "penetration") estimatorReady = selectEstimator("penetration");
+      refreshWorkspaceHeading("calculators", calculatorId);
+      if (calculatorId === "penetration") estimatorReady = selectEstimator("penetration");
       else { $("estimator-penetration").hidden = true; state.estimatorKind = "estimate"; estimatorReady = calculatorId ? window.CeasefireCalculators?.select(calculatorId) : window.CeasefireCalculators?.open(); }
     }
     if (view === "estimate") estimatorReady = selectEstimator(state.estimateKind || "estimate");
@@ -1188,7 +1214,7 @@
     return state.currentView === view;
   }
   function requestDocumentsNavigation() {
-    return requestViewNavigation(state.currentView === "documents" && state.lastDocumentSection ? state.lastDocumentSection : "documents");
+    return requestViewNavigation(state.lastDocumentSection || "documentation");
   }
   async function requestCalculatorNavigation(id = state.calculatorKind) {
     if (!["steel", "steel_vermiculite", "steel_intumescent", "steel_board", "steel_factors", "ductwork", "penetration"].includes(id)) return false;
@@ -3205,7 +3231,7 @@
     showFirestopping() { return showView("calculators", undefined, "penetration"); },
     showWorkbook() { state.estimatorKind = "estimate"; $("estimator-penetration").hidden = true; },
     isFirestopping() { return state.estimatorKind === "penetration"; },
-    isSteelHub() { return state.currentView === "calculators" && state.calculatorKind === "steel"; },
+    isSteelHub() { return false; },
   };
   bootstrap();
 })();

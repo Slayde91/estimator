@@ -24,15 +24,15 @@ async function expectSavedProjects() {
   await expect(page.locator('#view-quotes')).toBeVisible();
   await expect(page.locator('#project-pages [aria-current="page"]')).toHaveAttribute('data-project-section','quotes');
 }
-async function expectDocumentHub() {
-  await expect(page.locator('#view-documents')).toBeVisible();
-  const cards=page.locator('#view-documents .projects-section-card');await expect(cards).toHaveCount(3);
-  assert.deepEqual(await cards.evaluateAll(nodes=>nodes.map(node=>node.dataset.documentSection)),['documentation','swms','certification']);
+async function expectDocumentDestination(section='documentation') {
+  await expect(page.locator('#view-documents')).toHaveCount(0);
+  await expect(page.locator('#view-'+section)).toBeVisible();
+  await expect(page.locator('#document-pages [aria-current="page"]')).toHaveAttribute('data-document-section',section);
 }
 async function home() { await idle();await page.locator('nav .nav-button[data-view="home"]').click();await expect(page.locator('#view-home')).toBeVisible(); }
 async function headerDestination(section) {
   await home();await page.locator(['documentation','swms','certification'].includes(section)?'#documents-navigation-toggle':'#projects-navigation-toggle').click();
-  if (['documentation','swms','certification'].includes(section)) { await expectDocumentHub(); await page.locator('#documents-navigation-toggle').click(); }
+  if (['documentation','swms','certification'].includes(section)) await expectDocumentDestination(section);
   await expect(page.locator('#view-'+section)).toBeVisible();
   if(section==='certification')await expect(page.locator('#certification-client')).toHaveValue('Navigation draft retained');
 }
@@ -52,10 +52,9 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   const before = await page.evaluate(() => ({configuration:window.CeasefireProject.configuration(),details:window.CeasefireProject.details()}));
   await page.locator('#projects-navigation-toggle').click();await expectSavedProjects();
   await idle();await page.screenshot({path:path.join(output,'projects-first-saved-files.png')});
-  await page.locator('#documents-navigation-toggle').click();await expectDocumentHub();
-  await page.locator('#view-documents [data-document-section="documentation"]').click();
+  await page.locator('#documents-navigation-toggle').click();
   await expect(page.locator('#app-message')).toContainText('Create or load a project before creating documents.');
-  await expectDocumentHub();await expect(page.locator('#view-documentation')).toBeHidden();
+  await expectSavedProjects();await expect(page.locator('#view-documentation')).toBeHidden();
   assert.equal(await page.evaluate(()=>window.CeasefireProject.hasCreatedProject()),false);
   assert.equal(fs.existsSync(info.project),false);
   assert.deepEqual(await page.evaluate(()=>({configuration:window.CeasefireProject.configuration(),details:window.CeasefireProject.details()})),before);
@@ -69,7 +68,8 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   assert.equal(await page.evaluate(()=>window.CeasefireProject.hasCreatedProject()),true);
   assert.equal(JSON.parse(fs.readFileSync(info.project)).estimate.project_no,receipt.file.project_no);
   assert.ok(receipt.file.project_no);
-  await page.locator('#view-documents [data-document-section="certification"]').click();
+  await page.locator('#documents-navigation-toggle').click();await expectDocumentDestination();
+  await page.locator('#document-pages [data-document-section="certification"]').click();
   await expect(page.locator('#view-certification')).toBeVisible();
   await expect(page.locator('#certification-list')).toBeVisible();await expect(page.locator('#certification-editor')).toBeHidden();
   await openCertificateEditor(page);
@@ -120,7 +120,7 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   await headerDestination('quotes');await headerDestination('certification');
   await page.locator('#documents-navigation-toggle').hover();await expect(documentsMenu).toBeVisible();
   assert.deepEqual(await documentsMenu.locator('button').allTextContents(),['Documentation','SWMS','Certification']);
-  await page.locator('#documents-navigation-toggle').click();await expectDocumentHub();
+  await page.locator('#documents-navigation-toggle').click();await expectDocumentDestination('certification');
   await headerDestination('certification');
   await home();assert.equal(await openProjectTools(page),'home');await expect(page.locator('#view-quotes')).toBeVisible();
   await openProjectSection(page,'certification');await expect(page.locator('#certification-client')).toHaveValue('Navigation draft retained');
@@ -197,9 +197,9 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
     assert.deepEqual(await snapshot(),draftBefore,'Responsive navigation retains certificate draft, estimate details and pricing');
   }
   await page.reload();await idle();await page.locator('#projects-navigation-toggle').click();await expectSavedProjects();
-  await page.locator('#documents-navigation-toggle').click();await expectDocumentHub();
+  await page.locator('#documents-navigation-toggle').click();await expectSavedProjects();await expect(page.locator('#app-message')).toContainText('Create or load a project before creating documents.');
   assert.deepEqual(await page.evaluate(() => ({configuration:window.CeasefireProject.configuration(),details:window.CeasefireProject.details()})), before);
-  evidence.checks.push('Fresh reload opens saved Projects and the separate Documents landing page');
+  evidence.checks.push('Fresh reload opens saved Projects and direct Documentation navigation retains the created-project guard');
   assert.deepEqual(errors, []);
   assert.deepEqual(await page.evaluate(() => window.qaCsp), []);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({...evidence, errors, passed: true}, null, 2));

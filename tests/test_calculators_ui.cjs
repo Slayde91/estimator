@@ -13,6 +13,7 @@ function element(tag = 'div') {
     classList: { add(...items) { items.forEach(item => classes.add(item)); }, contains(item) { return classes.has(item); }, toggle(item, force) { if (force ?? !classes.has(item)) classes.add(item); else classes.delete(item); } },
     setAttribute(name, value) { attributes.set(name, value); }, removeAttribute(name) { attributes.delete(name); }, getAttribute(name) { return attributes.get(name); },
     append(...items) { this.children.push(...items); this.options = this.children;for(const child of items)if(child&&typeof child==='object')child.parent=this; },
+    prepend(...items) { for(const child of items){const parent=child?.parent;if(parent)parent.children=parent.children.filter(item=>item!==child);}this.children.unshift(...items);this.options=this.children;for(const child of items)if(child&&typeof child==='object')child.parent=this; },
     replaceChildren(...items) { this.children = [];this.append(...items); },
     replaceWith(replacement){const parent=this.parent;if(!parent)return;const index=parent.children.indexOf(this);if(index<0)return;parent.children[index]=replacement;replacement.parent=parent;parent.options=parent.children;this.parent=null;},
     querySelector(selector) { return selector === '.eyebrow' ? this.children.find(node => node.className === 'eyebrow') || null : this.querySelectorAll(selector)[0] || null; },
@@ -949,7 +950,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   assert.equal(intumescentNavigation.getAttribute('aria-pressed'),'true');assert.equal(steelNavigation.getAttribute('aria-pressed'),'true');
   const markup=englishMarkup(fs.readFileSync('static/index.html','utf8'));
   assert.deepEqual(copy(audit.displayPages({id:'steel_intumescent',pages:['START','SCHEDULE']})).map(page=>page.id),['START','SCHEDULE']);
-  assert.match(markup,/data-calculator-id="steel_intumescent"/);assert.match(markup,/data-steel-calculator="steel_intumescent"/);
+  assert.match(markup,/data-calculator-id="steel_intumescent"/);assert.doesNotMatch(markup,/id="calculator-steel-hub"/);
   assert.match(markup,/id="calculator-basis-dialog" aria-labelledby="calculator-basis-title"/);
   assert.match(fs.readFileSync('static/app.js','utf8'),/\["steel", "steel_vermiculite", "steel_intumescent", "steel_board", "steel_factors", "ductwork", "penetration"\]/);passed++;
 
@@ -1933,7 +1934,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   const choiceHtml=englishMarkup(fs.readFileSync('static/index.html','utf8'));
   assert.ok(!choiceHtml.includes('id="calculator-list"'));
   for(const id of ['steel','ductwork','penetration'])assert.ok(choiceHtml.includes(`data-calculator-id="${id}"`));
-  for(const id of ['steel_vermiculite','steel_board']){assert.ok(choiceHtml.includes(`data-calculator-id="${id}"`));assert.ok(choiceHtml.includes(`data-steel-calculator="${id}"`));}
+  for(const id of ['steel_vermiculite','steel_board']){assert.ok(choiceHtml.includes(`data-calculator-id="${id}"`));assert.ok(choiceHtml.includes(`data-calculator-id="${id}" aria-pressed="false"`));}
   assert.ok(!choiceHtml.includes('data-estimator-kind="penetration"'));passed++;
 
   // Only Exposure input column data is normal weight; headers and diagnostics retain their source emphasis.

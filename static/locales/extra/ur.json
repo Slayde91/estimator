@@ -3490,5 +3490,16 @@
   "Change Work order details reviewed by": "کام کے آرڈر کی تفصیلات کا جائزہ لینے والا تبدیل کریں",
   "Clear Work order details reviewed by": "کام کے آرڈر کی تفصیلات کا جائزہ لینے والا صاف کریں",
   "This linked group contains other items. Split or relink the group before removing only some items.": "اس منسلک گروپ میں دیگر آئٹمز بھی ہیں۔ صرف کچھ آئٹمز ہٹانے سے پہلے گروپ تقسیم کریں یا دوبارہ منسلک کریں۔",
-  "Client contact": "کلائنٹ کا رابطہ"
+  "Client contact": "کلائنٹ کا رابطہ",
+  "Billing company": "بلنگ کمپنی",
+  "Linked company": "منسلک کمپنی",
+  "Contact company": "رابطے کی کمپنی",
+  "Company unavailable": "کمپنی دستیاب نہیں",
+  "Bids with the same site address are linked automatically.": "ایک ہی سائٹ کے پتے والی بولیاں خود بخود منسلک ہو جاتی ہیں۔",
+  "Search site addresses": "سائٹ کے پتے تلاش کریں",
+  "Some saved projects are still being checked. Refresh to include more addresses.": "کچھ محفوظ پروجیکٹس کی جانچ جاری ہے۔ مزید پتے شامل کرنے کے لیے ریفریش کریں۔",
+  "No matching site addresses.": "سائٹ کا کوئی مماثل پتہ نہیں ملا۔",
+  "Use site address": "سائٹ کا پتہ استعمال کریں",
+  "Link": "منسلک کریں",
+  "Save this Quote before creating a Work Order.": "ورک آرڈر بنانے سے پہلے یہ کوٹیشن محفوظ کریں۔"
 }

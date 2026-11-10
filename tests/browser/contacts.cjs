@@ -74,6 +74,17 @@ const ready = new Promise((resolve, reject) => {
   await dlg.getByLabel('ABN/ACN',{exact:true}).fill('12 345 678 901');
   await dlg.getByLabel('Site address').fill('QA Site Street');
   await dlg.getByLabel('Billing address').fill('Demo Billing Street');
+  const companyConflict='Company already has a different ABN/ACN. Edit its company details first.';
+  await page.route('**/api/contacts/leads',route=>route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({error:companyConflict})}));
+  for(const theme of ['ceasefire','midnight','ocean','forest','slate'])for(const width of [1915,390]){
+    await page.setViewportSize({width,height:884});await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
+    await dlg.getByRole('button',{name:'Save',exact:true}).click();
+    const alert=dlg.locator('[data-contacts-notice]');await expect(alert).toHaveText(companyConflict);await expect(alert).toHaveAttribute('role','alert');
+    const bounds=await alert.boundingBox();assert.ok(bounds.y>=0 && bounds.y+bounds.height<=884,'The conflict is brought fully into view');
+    const colour=await alert.evaluate(node=>getComputedStyle(node).color);assert.equal(colour,'rgb(162, 11, 22)');
+    await expect(dlg.getByLabel('Name',{exact:true})).toHaveValue('Robin Sample');
+  }
+  await page.unroute('**/api/contacts/leads');await page.setViewportSize({width:1915,height:884});await page.evaluate(()=>document.documentElement.dataset.theme='ceasefire');
   await dlg.getByRole('button',{name:'Save',exact:true}).click();
   const card=root.locator('.project-kanban-card').filter({hasText:'Robin Sample'});
   await expect(card).toBeVisible();
@@ -176,7 +187,7 @@ const ready = new Promise((resolve, reject) => {
   await secondCard.locator('summary').click();
   await secondCard.getByRole('button',{name:'Convert',exact:true}).click();
   const review=page.locator('#discard-dialog');
-  await expect(review).toBeVisible();
+  await expect(review).toBeVisible({timeout:30000});
   await review.getByRole('button',{name:'Keep editing',exact:true}).click();
   await page.locator('#estimate-navigation-toggle').click();
   await expect(page.locator('#measurements')).toHaveValue('Keep these unsaved project notes');

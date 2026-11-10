@@ -151,8 +151,8 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await expect(page.locator('dialog[open]')).toHaveCount(0);
   await page.unroute('**/api/scheduler/shifts/save');
   await expect(page.locator('.scheduler-shift')).toContainText('Draft');
-  const draftStyle=await page.locator('.scheduler-shift').evaluate(node=>{const css=getComputedStyle(node);return {background:css.backgroundColor,border:css.borderTopColor,width:css.borderTopWidth,style:css.borderTopStyle,text:css.color};});
-  assert.deepEqual(draftStyle,{background:'rgb(255, 255, 255)',border:'rgb(23, 115, 73)',width:'4px',style:'solid',text:'rgb(23, 33, 43)'});
+  const draftStyle=()=>page.locator('.scheduler-shift').evaluate(node=>{if(!node.isConnected)return null;const css=getComputedStyle(node);return {background:css.backgroundColor,border:css.borderTopColor,width:css.borderTopWidth,style:css.borderTopStyle,text:css.color};});
+  await expect.poll(draftStyle,{timeout:30000}).toEqual({background:'rgb(255, 255, 255)',border:'rgb(23, 115, 73)',width:'4px',style:'solid',text:'rgb(23, 33, 43)'});
   const staff=await browser.newContext(), staffApi='http://127.0.0.1:'+info.port+'/api/scheduler';
   const stateWeek='/state?start=2026-11-02&end=2026-11-09';
   assert.equal((await staff.request.post(staffApi+'/login',{data:{email:'jordan@example.test',password}})).status(),200);
@@ -201,8 +201,8 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   assert.equal(preserved.id,id);assert.equal(preserved.color,'#648A79');assert.equal(preserved.notes,'An unrelated note');
   assert.equal(await page.locator('.scheduler-shift').evaluate(node=>getComputedStyle(node).backgroundColor),'rgb(23, 103, 178)','Published custom colours retain their previous fallback rendering');
   await page.locator('.scheduler-shift').click();await submit('Create draft');
-  const customDraft=await page.locator('.scheduler-shift').evaluate(node=>{const css=getComputedStyle(node);return [css.backgroundColor,css.borderTopColor,css.borderTopWidth];});
-  assert.deepEqual(customDraft,['rgb(255, 255, 255)','rgb(100, 138, 121)','4px']);
+  const customDraft=()=>page.locator('.scheduler-shift').evaluate(node=>{if(!node.isConnected)return null;const css=getComputedStyle(node);return [css.backgroundColor,css.borderTopColor,css.borderTopWidth];});
+  await expect.poll(customDraft,{timeout:30000}).toEqual(['rgb(255, 255, 255)','rgb(100, 138, 121)','4px']);
   await page.locator('.scheduler-shift').click();await submit('Publish shift');
   await staff.close();
   checks.push('draft and published states on the same shift control visibility for assigned staff; cancel preserves the version');

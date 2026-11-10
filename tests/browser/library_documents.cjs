@@ -56,7 +56,7 @@ async function snapshot() { await idle(); return page.evaluate(() => ({ calculat
       if (width<880) assert.ok(layout.search.bottom<=layout.availability.y);
       await page.screenshot({ path:path.join(output, `pricing-${theme}-${width}.png`) });
       evidence.push({theme,width,...layout});
-      await page.locator('#library-pricing .page-heading').click(); await expect(menu).toBeHidden();
+      await page.locator('#pricing-heading-slot > [data-library-heading="pricing"]').click(); await expect(menu).toBeHidden();
     }
     await cycleTheme(page);
   }

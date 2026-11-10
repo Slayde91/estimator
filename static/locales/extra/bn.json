@@ -3490,5 +3490,16 @@
   "Change Work order details reviewed by": "কাজের আদেশের বিস্তারিত পর্যালোচনাকারী পরিবর্তন করুন",
   "Clear Work order details reviewed by": "কাজের আদেশের বিস্তারিত পর্যালোচনাকারী মুছুন",
   "This linked group contains other items. Split or relink the group before removing only some items.": "এই সংযুক্ত গোষ্ঠীতে অন্য আইটেমও আছে। শুধু কিছু আইটেম সরানোর আগে গোষ্ঠী ভাগ করুন বা আবার সংযুক্ত করুন।",
-  "Client contact": "ক্লায়েন্টের যোগাযোগ ব্যক্তি"
+  "Client contact": "ক্লায়েন্টের যোগাযোগ ব্যক্তি",
+  "Billing company": "বিলিং কোম্পানি",
+  "Linked company": "সংযুক্ত কোম্পানি",
+  "Contact company": "যোগাযোগের ব্যক্তির কোম্পানি",
+  "Company unavailable": "কোম্পানি উপলব্ধ নয়",
+  "Bids with the same site address are linked automatically.": "একই সাইটের ঠিকানাযুক্ত দরপত্রগুলো স্বয়ংক্রিয়ভাবে যুক্ত হয়।",
+  "Search site addresses": "সাইটের ঠিকানা খুঁজুন",
+  "Some saved projects are still being checked. Refresh to include more addresses.": "সংরক্ষিত কিছু প্রকল্প এখনও পরীক্ষা করা হচ্ছে। আরও ঠিকানা দেখাতে রিফ্রেশ করুন।",
+  "No matching site addresses.": "কোনো মিল থাকা সাইটের ঠিকানা নেই।",
+  "Use site address": "সাইটের ঠিকানা ব্যবহার করুন",
+  "Link": "যুক্ত করুন",
+  "Save this Quote before creating a Work Order.": "কাজের আদেশ তৈরি করার আগে এই কোটেশনটি সংরক্ষণ করুন।"
 }

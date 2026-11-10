@@ -42,7 +42,7 @@ target.write_bytes(export_project(store,{**first,'estimates':[{'id':'estimate-1'
     const metrics=await page.locator('.project-estimate-controls').evaluate(host=>{
       const box=element=>{const b=element.getBoundingClientRect();return{x:b.x,y:b.y,width:b.width,height:b.height};};
       return{estimate:box(host.querySelector('.project-estimate-picker')),
-        document:box(host.querySelector('.calculator-document-toggle')),otherDocumentHeight:getComputedStyle(document.querySelector('#penetration-current-item-card .calculator-document-toggle')).height,
+        document:box(host.querySelector('.calculator-document-toggle')),otherDocumentHeight:getComputedStyle(document.querySelector('[aria-controls="firestopping-item-document-actions"]')).height,
         overflow:document.documentElement.scrollWidth-innerWidth};
     });
     assert.ok(metrics.document.height>0&&(width<570?metrics.document.y>=metrics.estimate.y+metrics.estimate.height:Math.abs(metrics.document.y+metrics.document.height-metrics.estimate.y-metrics.estimate.height)<1),JSON.stringify(metrics));

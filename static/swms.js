@@ -192,7 +192,10 @@
     const search = element("input"); search.type = "search"; search.value = state.search;
     search.placeholder = "Title, project or site address…";
     search.addEventListener("input", () => { state.search = search.value; cards(); });
-    bar.append(field("Search statements", search), button("New SWMS", openNew, true)); host.append(bar, element("div", "swms-list")); cards();
+    const create=iconAction('New SWMS',openNew,'add');create.classList.add('add-icon-action');
+    const access=window.ClassifireAccess;
+    if(access){create.disabled=true;void access.ready.then(()=>{if(create.isConnected)create.disabled=state.busy || !access.can('edit');});}
+    bar.append(field("Search statements", search), create); host.append(bar, element("div", "swms-list")); cards();
   }
   function cardHeading(row) {
     const details = row.fields.details, project = window.CeasefireProject?.details?.() || {};
@@ -475,7 +478,7 @@
     const back = button("", leaveEditor);
     back.classList.add("icon-only", "swms-back-action"); back.title = "Back to statements"; back.setAttribute("aria-label", "Back to statements");
     window.CeasefireI18n?.attr(back, "title", "Back to statements"); window.CeasefireI18n?.attr(back, "aria-label", "Back to statements");
-    back.innerHTML='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 5l-7 7 7 7"></path></svg>';
+    const backIcon = element("span", "button-symbol", "←"); backIcon.setAttribute("aria-hidden", "true"); back.append(backIcon);
     actions.append(back, button("Save", () => save(), true), downloadButton, element("span", "muted", editor.version ? `Revision ${editor.version}` : "New statement")); host.append(actions);
     const stages = [...window.ClassifireDocumentBoard.stages];
     if (editor.status === 'Archived') stages.push('Archived');

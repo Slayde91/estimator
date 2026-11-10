@@ -89,7 +89,9 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const first=rendered[0];assert.equal(first.children.length,3);assert.equal(first.children[0].textContent,'Breakdown');
     assert.equal(first.children[1].children[0].textContent,'View Revisions (0)');
     assert.equal(first.children[2].className,'documentation-action');
-    assert.equal(h.buttons()[0].children[0].textContent,'⇩');
+    assert.equal(h.buttons()[0].children[0].textContent,'+');
+    assert.match(h.buttons()[0].className,/\badd-icon-action\b/);
+    assert.equal(h.buttons().find(button=>button.dataset.documentKind==='project.full_product_summary.pdf').children[0].textContent,'⇩');
     assert.ok(rendered.filter(row=>row.children[0].tagName==='TH').every(row=>row.children[0].colSpan===5));
     assert.equal(h.buttons().find(button=>button.dataset.documentKind===legacy.kind).disabled,true);
     await h.buttons().find(button=>button.dataset.documentKind==='project.full_product_summary.pdf').emit('click');

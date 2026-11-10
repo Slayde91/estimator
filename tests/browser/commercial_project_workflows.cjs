@@ -32,8 +32,14 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   await page.locator('#project-details-close').click();
   const projectSave=page.waitForResponse(response=>response.url().endsWith('/api/project/save-as'));
   await clickProjectControl(page,'Save');assert.equal((await projectSave).status(),200);await idle();
-  await openProjectSection(page,'quote');const quote=page.locator('#commercial-quote-root');
+  await openProjectSection(page,'quote');const quote=page.locator('#commercial-quote-root'),card=quote.locator('.commercial-card');
   await quote.getByRole('button',{name:'New Quote',exact:true}).click();await expect(quote.locator('.commercial-lines tbody tr')).toHaveCount(1);
+  await quote.getByRole('button',{name:'Create WO',exact:true}).click();
+  await expect(quote.locator('.commercial-message')).toHaveText('Save this Quote before creating a Work Order.');
+  assert.equal((await state()).documents.filter(doc=>doc.kind==='work_order').length,0);
+  const identityBoxes=await Promise.all(['Document date','Site address','Client','Client contact'].map(label=>quote.locator('.commercial-details').getByLabel(label,{exact:true}).boundingBox()));
+  assert.ok(Math.abs(identityBoxes[0].y-identityBoxes[1].y)<2 && identityBoxes[1].x>identityBoxes[0].x);
+  assert.ok(identityBoxes[2].y>identityBoxes[0].y && Math.abs(identityBoxes[2].y-identityBoxes[3].y)<2);
   for(const [label,value] of [['Client','Procurement receiver'],['Client contact','Project Contact'],['Client phone','0400 123 456'],
     ['Client email','project-contact@example.test'],['Site address','17 Procurement Road']]){
     const projectField=quote.locator('.commercial-details').getByLabel(label,{exact:true});
@@ -70,9 +76,48 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   await save(quote);
   const issue=page.waitForResponse(response=>response.url().endsWith('/api/commercial/issue'));
   await quote.getByRole('button',{name:'Download PDF',exact:true}).click();assert.equal((await issue).status(),200);await expect(quote.locator('.commercial-message')).toContainText('PDF saved');await idle();
-  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
-  const card=quote.locator('.commercial-card');await card.locator('summary').click();await card.getByRole('button',{name:'Create WO',exact:true}).click();
+  const sourceQuote=(await state()).documents.find(doc=>doc.kind==='quote');
+  async function deferWorkOrderDefaults(){
+    let resolveHeld,held;const ready=new Promise(resolve=>resolveHeld=resolve);
+    await page.route('**/api/commercial/defaults',async route=>{
+      if(route.request().postDataJSON()?.kind!=='work_order'){await route.continue();return;}
+      const response=await route.fetch();held={route,response};resolveHeld();
+    });
+    return {ready,async reject(){await held.route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Synthetic Work Order defaults failure.'})});await page.unroute('**/api/commercial/defaults');}};
+  }
+  let deferred=await deferWorkOrderDefaults(),intentWrites=writes.length;
+  await quote.getByRole('button',{name:'Create WO',exact:true}).click();await deferred.ready;
+  for(const label of ['Create WO','Save','Back to Quotes'])await expect(quote.getByRole('button',{name:label,exact:true})).toBeDisabled();
+  await expect(quote.getByLabel('Introduction',{exact:true})).toBeDisabled();
+  await quote.getByRole('button',{name:'Create WO',exact:true}).evaluate(button=>{button.click();button.click();});
+  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).evaluate(button=>button.click());
+  await page.evaluate(()=>window.CeasefireCommercial.activate('work_order'));
+  await expect(quote.getByLabel('Introduction',{exact:true})).toHaveValue('Procurement source quote');
+  assert.equal(writes.slice(intentWrites).filter(write=>write.path==='/api/commercial/defaults'&&write.body.kind==='work_order').length,1);
+  await deferred.reject();await expect(quote.locator('.commercial-message')).toHaveText('Synthetic Work Order defaults failure.');
+  await expect(quote.getByRole('button',{name:'Save',exact:true})).toBeEnabled();await expect(quote.getByLabel('Introduction',{exact:true})).toBeEnabled();
+  await expect(quote.getByLabel('Introduction',{exact:true})).toHaveValue('Procurement source quote');assert.equal((await state()).documents.filter(doc=>doc.kind==='work_order').length,0);
+  checks.push('Deferred toolbar Create WO holds its editor and disables editing/Back; repeated clicks/navigation make one defaults request, rejection preserves entered text and releases controls');
+  // A second real saved Quote makes the board ownership check meaningful.
+  const workspace=await page.evaluate(()=>window.CeasefireCertification.sessionId());
+  const capturedForOther=await page.evaluate(()=>window.CeasefireEstimates.capture({readOnly:true,commercial:true}));
+  const otherQuoteResponse=await page.request.post(new URL('/api/commercial/save',page.url()).href,{data:{...capturedForOther,workspace_id:workspace,id:require('node:crypto').randomUUID(),version:0,kind:'quote',status:'Draft',fields:{...sourceQuote.fields,introduction:'Another saved Quote'}}});
+  assert.equal(otherQuoteResponse.status(),200,await otherQuoteResponse.text());const otherQuote=await otherQuoteResponse.json();
+  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await page.evaluate(()=>window.CeasefireCommercial.activate('quote'));
+  const sourceCard=quote.locator(`[data-document-id="${sourceQuote.id}"]`),otherCard=quote.locator(`[data-document-id="${otherQuote.id}"]`);
+  await expect(otherCard).toBeVisible();deferred=await deferWorkOrderDefaults();intentWrites=writes.length;
+  await sourceCard.locator('.commercial-card-menu>summary').click();await sourceCard.getByRole('button',{name:'Create WO',exact:true}).click();await deferred.ready;
+  await otherCard.locator('.project-title-button').click();await sourceCard.locator('.commercial-menu-options button').filter({hasText:/^Create WO$/}).evaluate(button=>button.click());
+  await expect(quote.locator('.commercial-editor')).toHaveCount(0);assert.equal(writes.slice(intentWrites).filter(write=>write.path==='/api/commercial/defaults'&&write.body.kind==='work_order').length,1);
+  await deferred.reject();await expect(quote.locator('.commercial-message')).toHaveText('Synthetic Work Order defaults failure.');
+  assert.equal((await state()).documents.filter(doc=>doc.kind==='work_order').length,0);
+  const deleted=await page.request.post(new URL('/api/commercial/delete',page.url()).href,{data:{workspace_id:workspace,id:otherQuote.id,version:otherQuote.version}});assert.equal(deleted.status(),200,await deleted.text());
+  await page.evaluate(()=>window.CeasefireCommercial.activate('quote'));await quote.locator(`[data-document-id="${sourceQuote.id}"] .project-title-button`).click();
+  await expect(quote.getByLabel('Introduction',{exact:true})).toHaveValue('Procurement source quote');
+  checks.push('Deferred board Create WO reserves the original Quote; another saved Quote and repeated derivation cannot steal the target; failed read creates no Work Order');
+  await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Create WO',exact:true}).click();
   const work=page.locator('#commercial-work-order-root');await expect(work.getByRole('button',{name:'Create PO',exact:true})).toBeVisible();
+  await expect(work.getByLabel('Linked Quote',{exact:true})).toHaveValue(sourceQuote.id);
   await expect(work.getByLabel('Client contact',{exact:true})).toHaveValue('Project Contact');await expect(work.getByLabel('Client email',{exact:true})).toHaveValue('project-contact@example.test');
   await expect(work.getByLabel('Document title',{exact:true})).toHaveCount(0);
   await work.getByLabel('Description of works',{exact:true}).fill('Manual works description');await work.getByLabel('Estimated cost (AUD)',{exact:true}).fill('987');
@@ -114,6 +159,14 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   const expense=purchase.getByLabel('Type of expense',{exact:true});assert.equal(await expense.evaluate(control=>control.tagName),'SELECT');
   await expect(expense.locator('option')).toHaveText(['','Labour','Materials','Services','Hire','Other']);await expense.selectOption('Hire');
   const sections=purchase.locator('.commercial-order-fields');
+  for(const width of [1915,1011]){
+    await page.setViewportSize({width,height:1000});
+    const requestBox=await purchase.locator('.commercial-purchase-request').boundingBox(),totalBox=await purchase.locator('.commercial-totals').boundingBox();
+    assert.ok(Math.abs(requestBox.y-totalBox.y)<2 && requestBox.x+requestBox.width<=totalBox.x,'Request signature remains left of totals in the same row');
+    const projectBox=await purchase.getByLabel('Project number',{exact:true}).boundingBox(),linkedBox=await purchase.getByLabel('Linked Work Order',{exact:true}).boundingBox();
+    assert.ok(projectBox.x<linkedBox.x && Math.abs(projectBox.y-linkedBox.y)<2,'Project number precedes Linked Work Order');
+  }
+  await page.setViewportSize({width:1600,height:1000});
   await expect(sections.locator('h2')).toHaveText(['Purchase order information','Request','Approval','Sent by','Procurement verification']);
   for(const [title,fields] of [['Request',['requested_by','requested_date']],['Approval',['approval','rejection_reason','reviewed_by','review_date']],['Sent by',['sent_by','sent_date']],['Procurement verification',['verification','verified_by','verified_date']]]) {
     const section=sections.filter({has:page.getByRole('heading',{name:title,exact:true})});

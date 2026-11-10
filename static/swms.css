@@ -14,7 +14,6 @@
 .document-workflow-board .project-kanban-column[data-status="Rejected"] .project-column-heading { border-color:#d96373; }
 .document-workflow-board h3 { margin:0; font-size:15px; overflow-wrap:anywhere; }
 .document-workflow-board .project-title-button { white-space:normal; text-align:start; overflow-wrap:anywhere; }
-.certification-workflow { max-width:300px; margin:16px 0; }
 #swms-root .swms-card p { overflow-wrap:anywhere; }
 #swms-root .swms-check-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:18px 0; }
 #swms-root .swms-check { display:flex; align-items:start; gap:8px; font-size:13px; }
@@ -40,8 +39,7 @@
 #swms-root .swms-contact-signature>.swms-signature-actions { grid-column:2; grid-row:1; }
 #swms-root .swms-contact-signature>svg { grid-column:1/-1; grid-row:2; }
 #swms-root .swms-contact-signature>.muted { display:none; }
-#swms-root .swms-toolbar .swms-back-action { display:inline-grid; place-items:center; width:44px; min-width:44px; height:44px; padding:0; }
-#swms-root .swms-back-action>svg { display:block; width:24px; height:24px; }
+#swms-root .swms-toolbar .swms-back-action { display:inline-grid; place-items:center; flex:0 0 42px; box-sizing:border-box; width:42px; min-width:42px; max-width:42px; height:42px; min-height:42px; padding:0; }
 #swms-root .swms-icon-action, .takeoff-signature-dialog .button.swms-icon-action { display:inline-grid; place-items:center; flex:0 0 42px; box-sizing:border-box; width:42px; min-width:42px; max-width:42px; height:42px; min-height:42px; padding:8px; }
 .swms-icon-action > svg { display:block; width:22px; height:22px; }
 #swms-root .swms-review-grid { display:grid; grid-template-columns:repeat(10,minmax(82px,1fr)); gap:12px; overflow-x:auto; padding-bottom:4px; }

@@ -115,12 +115,13 @@ async function worksheetReady(title, label) {
   const calculatorsButton=page.getByRole('button',{name:'Calculators',exact:true});
   await calculatorsButton.click();await calculatorsButton.click();
   const count=pathname=>navigationRequests.filter(value=>value===pathname).length;
-  await expect(page.locator('#calculator-steel-hub')).toBeVisible();
-  const steelChoices=page.locator('#calculator-steel-hub [data-steel-calculator]');
-  await expect(steelChoices).toHaveCount(4);
-  assert.deepEqual(await steelChoices.evaluateAll(choices=>choices.map(choice=>choice.dataset.steelCalculator)),['steel_vermiculite','steel_intumescent','steel_board','steel_factors']);
+  await expect(page.locator('#calculator-steel-hub')).toHaveCount(0);
+  await expect(page.locator('#estimator-penetration')).toBeVisible();
+  const calculatorChoices=page.locator('#calculator-kind-pages [data-calculator-id]');
+  await expect(calculatorChoices).toHaveCount(6);
+  assert.deepEqual(await calculatorChoices.evaluateAll(choices=>choices.map(choice=>choice.dataset.calculatorId)),['penetration','ductwork','steel_vermiculite','steel_intumescent','steel_board','steel_factors']);
   assert.equal(count('/api/calculators/steel_vermiculite'),0);
-  await page.locator('#calculator-steel-hub').getByRole('button',{name:'Steel (spray)',exact:true}).click();
+  await page.locator('#calculator-kind-pages').getByRole('button',{name:'Steel (spray)',exact:true}).click();
   await expect.poll(()=>count('/api/calculators/steel_vermiculite')).toBe(1);
   await calculatorsButton.click();await calculatorsButton.click();releaseDefinition();
   await worksheetReady('Steel (spray)','SCHEDULE');

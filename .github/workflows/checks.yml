@@ -173,10 +173,13 @@ jobs:
       - run: node tests/browser/certification_defaults.cjs
       - run: node tests/browser/settings_polish.cjs
       - run: node tests/browser/certification_project_lifecycle.cjs
+      - run: node tests/browser/document_controls.cjs
+      - run: node tests/browser/creation_icons.cjs
       - run: node tests/browser/pdf_render_gate.cjs
       - run: node tests/browser/header_artwork.cjs
       - run: node tests/browser/header_layout_followups.cjs
       - run: node tests/browser/navigation_stack.cjs
+      - run: node tests/browser/workspace_headings.cjs
       - run: node tests/browser/appearance_theme_followups.cjs
       - run: node tests/browser/active_tools_lightning.cjs
       - run: node tests/browser/travel_editor_followups.cjs
@@ -228,6 +231,7 @@ jobs:
       - run: node tests/browser/brand_boot.cjs
       - run: npm run test:document-menus
       - run: npm run test:library-documents
+      - run: node tests/browser/technical_editor.cjs
       - run: npm run test:library-link-picker
       - run: npm run test:fyreshield-reports-browser
       - run: npm run test:promat-report-filters-browser

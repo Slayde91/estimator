@@ -40,7 +40,8 @@ async function clickProjectControl(page, name) {
     return;
   }
   const previous = await openProjectTools(page);
-  await page.locator('.project-workspace-actions').getByRole('button', { name, exact: true }).click();
+  const control = name === 'New' ? page.locator('#new-quote') : page.locator('.project-workspace-actions').getByRole('button', { name, exact: true });
+  await control.click();
   // Do not wait for a save response here: failure/held-response tests deliberately
   // test the UI before a response exists. Load keeps its review dialog in place.
   if (!['Load','New'].includes(name) && previous && previous !== 'quotes') {

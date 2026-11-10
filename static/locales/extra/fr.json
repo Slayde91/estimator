@@ -3490,5 +3490,16 @@
   "Change Work order details reviewed by": "Modifier Personne ayant vérifié les détails de l’ordre de travail",
   "Clear Work order details reviewed by": "Effacer Personne ayant vérifié les détails de l’ordre de travail",
   "This linked group contains other items. Split or relink the group before removing only some items.": "Ce groupe lié contient d’autres éléments. Scindez ou reliez à nouveau le groupe avant de ne retirer que certains éléments.",
-  "Client contact": "Contact du client"
+  "Client contact": "Contact du client",
+  "Billing company": "Société de facturation",
+  "Linked company": "Société liée",
+  "Contact company": "Société du contact",
+  "Company unavailable": "Société indisponible",
+  "Bids with the same site address are linked automatically.": "Les offres ayant la même adresse de chantier sont liées automatiquement.",
+  "Search site addresses": "Rechercher des adresses de chantier",
+  "Some saved projects are still being checked. Refresh to include more addresses.": "Certains projets enregistrés sont encore en cours de vérification. Actualisez pour afficher davantage d’adresses.",
+  "No matching site addresses.": "Aucune adresse de chantier correspondante.",
+  "Use site address": "Utiliser l’adresse du chantier",
+  "Link": "Lier",
+  "Save this Quote before creating a Work Order.": "Enregistrez ce devis avant de créer un ordre de travail."
 }

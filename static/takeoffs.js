@@ -341,6 +341,11 @@
       for (const control of host.querySelectorAll("[data-takeoff-delete-item]")) control.disabled = state.busy || state.modal || control.dataset.locked === "true";
   }
   function setModal(value) { state.modal = value; syncRegisterDeleteControls(); }
+  function workspaceControls(selector) {
+    // The heading is above the main tabs but keeps its original operation locks.
+    return [...new Set([state.ui?.root, state.ui?.heading].filter(Boolean)
+      .flatMap(host => [...(host.querySelectorAll?.(selector) || [])]))];
+  }
   function working(value) {
     window.CeasefireActivity?.set("takeoff-operation", value);
     state.busy = value;
@@ -348,7 +353,7 @@
       state.ui.root.setAttribute("aria-busy", String(value));
       // Navigation and drawing actions must visibly wait for scale inspection
       // or a mutation, rather than accepting a click that the handler ignores.
-      for (const control of state.ui.root.querySelectorAll("[data-mode],[data-tool]")) if (control.dataset.mode || control.dataset.tool) control.disabled = value || !!control.dataset.mode && !labels[control.dataset.mode];
+      for (const control of workspaceControls("[data-mode],[data-tool]")) if (control.dataset.mode || control.dataset.tool) control.disabled = value || !!control.dataset.mode && !labels[control.dataset.mode];
       refreshNavigation();
       for (const control of state.ui.pageControls?.querySelectorAll("button,input") || []) control.disabled = value;
       for (const control of state.ui.searchResults?.querySelectorAll("button") || []) control.disabled = value;
@@ -708,7 +713,10 @@
     const bottomControls = node("div", "takeoff-viewer-bottom"); bottomControls.append(pageControls, ui.presentationTools);
     const viewer = node("div", "takeoff-viewer"); viewer.append(ui.viewport, viewerTop, bottomControls);
     drawingPane.append(viewer, ui.progress, ui.controlStatus, ui.physicalOverlayStatus);
-    workspace.append(layout, register); root.append(ui.heading, ui.messageSlot, workspace, ui.physicalContainer);
+    workspace.append(layout, register); root.append(ui.messageSlot, workspace, ui.physicalContainer);
+    const pages = $("takeoff-pages");
+    if (pages?.parentNode) pages.parentNode.insertBefore(ui.heading, pages);
+    else root.prepend(ui.heading);
     ui.paneResize = window.CeasefireTakeoffPaneResize?.mount(layout, [ui.viewportPanel, ui.settingsPanel, ui.physicalDetails]);
     const alignHeading = () => {
       if (ui.headingInsetFrame) return;
@@ -4425,7 +4433,7 @@
       try {
         pending.reservation = bridge.reserveTakeoffSchedule(preview.capture);
         working(true);
-        pending.lockedControls = [...state.ui.root.querySelectorAll("input,select,textarea,button")].map(control => [control, control.disabled]);
+        pending.lockedControls = workspaceControls("input,select,textarea,button").map(control => [control, control.disabled]);
         for (const [control] of pending.lockedControls) control.disabled = true;
         let reply;
         try { reply = await api(`/sessions/${pending.sessionId}/${pending.endpoint}`, pending.payload); }
@@ -4457,7 +4465,7 @@
       if (sessionId !== state.session?.session_id || revision !== state.session?.revision) throw new Error("The takeoff changed. Review the current item and repeat this action.");
       if (guard && !guard()) return null;
       working(true); let reservation;
-      const lockedControls = [...(state.ui.root.querySelectorAll?.("input,select,textarea,button") || [])].map(control => [control, control.disabled]);
+      const lockedControls = workspaceControls("input,select,textarea,button").map(control => [control, control.disabled]);
       for (const [control] of lockedControls) control.disabled = true;
       let pending;
       try {
@@ -4962,7 +4970,7 @@
         if (!accepted) return; current();
         const reservation = window.CeasefireCalculators.reserveTakeoffTarget(calculatorId, target.fingerprint); working(true);
         const pending = { type: "calculator-refresh", sessionId, endpoint: "calculator-refresh-apply", reservation,
-          lockedControls: [...state.ui.root.querySelectorAll("input,select,textarea,button")].map(control => [control, control.disabled]),
+          lockedControls: workspaceControls("input,select,textarea,button").map(control => [control, control.disabled]),
           payload: { expected_revision: revision, request_id: uuid(), preview_id: refresh.preview_id, inputs: target.inputs, schedule_rows: target.schedule_rows } };
         for (const [control] of pending.lockedControls) control.disabled = true;
         try {
@@ -4991,7 +4999,7 @@
     if (sessionId !== state.session?.session_id || preview.revision !== state.session.revision) throw new Error("Takeoffs changed during transfer review. Preview again.");
     const reservation = window.CeasefireCalculators.reserveTakeoffTarget(calculatorId, target.fingerprint); working(true);
     const pending = { type: "calculator-transfer", calculatorId, sessionId, endpoint: "transfer-apply", reservation,
-      lockedControls: [...state.ui.root.querySelectorAll("input,select,textarea,button")].map(control => [control, control.disabled]),
+      lockedControls: workspaceControls("input,select,textarea,button").map(control => [control, control.disabled]),
       payload: { expected_revision: revision, request_id: uuid(), preview_id: preview.preview_id, inputs: target.inputs, schedule_rows: target.schedule_rows } };
     for (const [control] of pending.lockedControls) control.disabled = true;
     try {

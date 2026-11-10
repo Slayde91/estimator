@@ -184,9 +184,34 @@
     add(fields.billing?.contact_id,'Billing contact',{name:fields.billing?.name,phone:fields.billing?.phone,email:fields.billing?.email});
     for(const participant of participants?.participants || [])if(participant.kind==='contacts')
       add(participant.id,participants.roles?.[participant.role] || participant.role,{name:participant.label});
+    for(const party of participants?.linked_parties || [])if(party.kind==='contacts')
+      add(party.id,party.role,{name:party.label});
     return rows;
   }
-  window.ClassifireCommercialDirectory={field:directorySearch,load:loadDirectory,fold,linkedContacts};
+  function linkedCompanies(kind, fields, project, participants, directory) {
+    const rows=[],seen=new Map(),aliases=directory.identity_aliases?.accounts || {},accounts=new Map((directory.accounts || []).map(row=>[row.id,row]));
+    function add(id,role,label='',primary=false) {
+      if(!id && !label)return;
+      const canonical=aliases[id] || id,prior=id && seen.get(canonical);
+      if(prior){if(!prior.roles.includes(role))prior.roles.push(role);return;}
+      const account=accounts.get(canonical),row={id:canonical || '',account:account || null,name:account?.company || label || 'Company unavailable',roles:[role],primary};
+      rows.push(row);if(id)seen.set(canonical,row);
+    }
+    const details=fields.details || {},order=fields.order || {};
+    if(kind==='purchase_order') {
+      add(order.supplier_account_id,'Supplier',order.supplier,true);
+      add(project.account_id,'Client',project.client);
+    }else {
+      add(project.account_id || details.account_id,'Client',project.client || details.client,true);
+      if(details.account_id && details.account_id!==project.account_id)add(details.account_id,'Client',details.client);
+    }
+    add(fields.billing?.account_id,'Billing company');
+    for(const party of participants?.participants || [])if(party.kind==='accounts')add(party.id,participants.roles?.[party.role] || party.role,party.label);
+    for(const party of participants?.linked_parties || [])if(party.kind==='accounts')add(party.id,party.role,party.label);
+    for(const row of linkedContacts(kind,fields,project,participants,directory))if(row.contact?.account_id)add(row.contact.account_id,'Contact company',row.contact.company);
+    return rows;
+  }
+  window.ClassifireCommercialDirectory={field:directorySearch,load:loadDirectory,fold,linkedContacts,linkedCompanies};
   function attach(form, options) {
     const owner = form.parentElement, wrapper = el("div"), left = el("aside"), right = el("aside");
     const isPurchaseOrder=options.kind==='purchase_order';
@@ -197,7 +222,7 @@
     const accountPanel = panel("Company Details"), contactPanel = panel("Linked Contacts");
     left.append(accountPanel,contactPanel);
     let directory = {},participants=null,participantsKey='',participantTicket=0;
-    const contactList=el('div'),linkedNotice=el('p');contactList.className='commercial-linked-contacts';
+    const contactList=el('div'),companyList=el('div'),linkedNotice=el('p');contactList.className='commercial-linked-contacts';companyList.className='commercial-linked-companies';
     linkedNotice.className='helper';linkedNotice.setAttribute('role','status');
     const current=()=>wrapper.isConnected && (options.isCurrent?.() ?? true);
     // A Project save can rehydrate canonical IDs after the document was saved.
@@ -226,6 +251,27 @@
         await window.ClassifireContacts.editContact(id,{isCurrent:current});
         if(current())await refreshDirectory();
       }catch(error){if(current())options.message(error.message,true);}
+    }
+    async function editAccount(id) {
+      if(!current())return;
+      try {
+        await window.ClassifireContacts.editAccount(id,{isCurrent:current});
+        if(current())await refreshDirectory();
+      }catch(error){if(current())options.message(error.message,true);}
+    }
+    function showLinkedCompanies() {
+      companyList.replaceChildren();
+      for(const row of linkedCompanies(options.kind,options.fields,projectDetails(),participants,directory)) {
+        const card=el('article');card.className='commercial-linked-company';if(row.id)card.dataset.accountId=row.id;
+        card.append(row.account ? action(row.name,()=>void editAccount(row.id),'text-button project-title-button') : el('strong',row.name));
+        const roles=el('p');roles.className='helper';
+        row.roles.forEach((role,index)=>{if(index)roles.append(' · ');const label=el('span',role);window.CeasefireI18n?.text(label,role);roles.append(label);});card.append(roles);
+        const project=projectDetails(),projectPrimary=!isPurchaseOrder && row.primary && fold(project.client)===fold(options.fields.details.client);
+        fieldList(card,[["Billing address",projectPrimary ? project.billing_address ?? row.account?.billing_address : row.account?.billing_address],
+          ["ABN/ACN",projectPrimary ? project.abn_acn ?? row.account?.abn_acn : row.account?.abn_acn]]);
+        if(row.id && !row.account){const unavailable=el('p','The selected directory record is unavailable.');unavailable.className='helper';window.CeasefireI18n?.text(unavailable,unavailable.textContent);card.append(unavailable);}
+        companyList.append(card);
+      }
     }
     function showLinkedContacts() {
       contactList.replaceChildren();
@@ -271,21 +317,23 @@
       const supplierContact=form.querySelector('[data-order-field="supplier_contact"]')?.closest('.commercial-directory-field');
       if(supplier)accountPanel.append(supplier);
       if(supplierContact)contactPanel.append(supplierContact);
-    } else {accountPanel.append(company.element,site);contactPanel.append(name.element);controls=[company,name];}
-    contactPanel.append(contactList,linkedNotice,action('Refresh linked contacts',async()=>{
+    } else {accountPanel.append(company.element);contactPanel.append(name.element);controls=[company,name];}
+    accountPanel.append(companyList);if(!isPurchaseOrder)accountPanel.append(site);
+    const refreshContacts=action('',async()=>{
       if(!current())return;
       try {await refreshDirectory();await refreshParticipants(true);}catch(error){if(current())options.message(error.message,true);}
-    },'button secondary'));
+    },'button secondary icon-only commercial-refresh-contacts');
+    refreshContacts.title='Refresh linked contacts';refreshContacts.setAttribute('aria-label','Refresh linked contacts');
+    window.CeasefireI18n?.attr(refreshContacts,'title','Refresh linked contacts');window.CeasefireI18n?.attr(refreshContacts,'aria-label','Refresh linked contacts');
+    const refreshSymbol=el('span');refreshSymbol.className='button-symbol pricing-action-symbol pricing-reset-symbol';refreshSymbol.setAttribute('aria-hidden','true');
+    const existingRefresh=document.querySelector('#reset-pricing svg');
+    if(existingRefresh)refreshSymbol.append(existingRefresh.cloneNode(true));
+    else refreshSymbol.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M20 7v5h-5"></path><path d="M4 17v-5h5"></path><path d="M6.1 8.4A7.5 7.5 0 0 1 19.2 10L20 12"></path><path d="M17.9 15.6A7.5 7.5 0 0 1 4.8 14L4 12"></path></svg>';
+    refreshContacts.append(refreshSymbol);contactPanel.append(contactList,linkedNotice,refreshContacts);
     contactPanel.addEventListener('toggle',()=>{if(contactPanel.open)void refreshParticipants(true);});
     function showContact() {
-      const details=options.fields.details,project=projectDetails(),order=options.fields.order;
-      const supplier=(directory.accounts || []).filter(account=>order.supplier_account_id ? account.id===order.supplier_account_id : fold(account.company)===fold(order.supplier));
-      const account=isPurchaseOrder ? (supplier.length===1?supplier[0]:null) : projectAccount();
-      accountPanel.querySelector('dl')?.remove();
-      const sameProject=fold(project.client)===fold(details.client);
-      const companyList=el('div');fieldList(companyList,[["Billing address",!isPurchaseOrder && sameProject ? project.billing_address ?? account?.billing_address : account?.billing_address],["ABN/ACN",!isPurchaseOrder && sameProject ? project.abn_acn ?? account?.abn_acn : account?.abn_acn]]);
-      if(isPurchaseOrder)accountPanel.append(companyList.firstChild);else accountPanel.insertBefore(companyList.firstChild,site);
-      showLinkedContacts();
+      const details=options.fields.details;
+      showLinkedCompanies();showLinkedContacts();
       controls.forEach(control=>control.refresh());if(document.activeElement!==siteInput)siteInput.value=details.site_address || '';
     }
     showContact();

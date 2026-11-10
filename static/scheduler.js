@@ -114,6 +114,9 @@
   function orderLabel(order) {
     return [order.reference, order.project_no, order.client, order.site_address, translated(order.status), `v${order.version}`].filter(Boolean).join(' · ');
   }
+  function orderShiftTitle(order) {
+    return [order?.client,order?.site_address].map(value => (value || '').replace(/\s+/g,' ').trim()).filter(Boolean).join(': ').slice(0,200).replace(/[\uD800-\uDBFF]$/,'');
+  }
   function assignmentLabel(record) {
     const legacy=record.project_name || record.project_id;
     return record.work_order ? orderLabel(record.work_order) : legacy ? translated('{0} (legacy project)',[legacy]) : '';
@@ -175,7 +178,8 @@
       else search.setCustomValidity(translated('Choose a listed Work Order or clear the search.'));
       open();
     });
-    search.addEventListener('focus',()=>open(search.value===committedText ? '' : search.value));
+    search.addEventListener('focus',()=>{open(search.value===committedText ? '' : search.value);void loadOrders();});
+    wrapper.addEventListener('scheduler-orders-updated',()=>{if(!popup.hidden)open(search.value===committedText ? '' : search.value);});
     search.addEventListener('blur',event=>{if(!wrapper.contains(event.relatedTarget))close();});
     search.addEventListener('keydown',event=>{
       if(event.isComposing)return;
@@ -199,13 +203,7 @@
     return {work_order:{id, revision}};
   }
   function orderStatus() {
-    const label = state.root?.querySelector(".scheduler-projects-status");
-    if (label) label.textContent = state.projectsMessage;
-    const action = state.root?.querySelector(".scheduler-projects-refresh");
-    if (action) {
-      action.disabled = state.projectsLoading;
-      action.textContent = translated(state.projectsScan?.complete ? "Refresh Work Order choices" : "Continue loading Work Order choices");
-    }
+    state.root?.querySelectorAll('.scheduler-order-choice').forEach(control => control.dispatchEvent(new Event('scheduler-orders-updated')));
   }
   async function loadOrders() {
     if (state.projectsLoading || !state.data?.user) return;
@@ -312,10 +310,6 @@
     heading.append(el("h1","","Scheduler"),clock); state.root.append(heading); renderHeaderTime();
     const status = el("p", "scheduler-notice message"); status.setAttribute("role","status"); status.hidden = true;
     state.root.append(status);
-    const projects = el("div","scheduler-projects-info helper"), label = el("span","scheduler-projects-status",state.projectsMessage);
-    label.setAttribute("role","status");
-    projects.append(label,button("Refresh Work Order choices",() => {void loadOrders();},"text-button scheduler-projects-refresh"));
-    if(state.data?.user){state.root.append(projects); orderStatus();}
   }
   function closeDialog(force = false) { if(state.busy && force !== true)return; clearInterval(state.locationPlayback); state.locationPlayback = null; state.dialog?.close(); state.dialog?.remove(); state.dialog = null; }
   function dialog(title, build, saveLabel, save, submitClass = "button", draftLabel = "") {
@@ -520,17 +514,26 @@
   }
   function editShift(shift = null,date = today(),memberId = "") {
     const inputZone = zone, requestId = shift ? null : crypto.randomUUID();
+    void loadOrders();
     if (!admin()) {
       const modal = el("dialog","scheduler-dialog"); modal.append(el("h2","",shift.title),el("p","",`${dateFormatter.format(new Date(shift.start))} – ${dateFormatter.format(new Date(shift.end))}`),el("p","",shift.location || ""),el("p","",shift.notes || ""),button("Close",() => modal.close())); state.root.append(modal); modal.addEventListener("close",() => modal.remove()); modal.showModal(); return;
     }
     const editor = dialog(shift ? "Edit shift" : "Add shift",host => {
-      const title = input("text",shift?.title || "",{required:true,maxlength:200});
+      const title = input("text",shift?.title || orderShiftTitle(shift?.work_order),{required:true,maxlength:200});
       const start = input("datetime-local",shift ? localParts(shift.start) : `${date}T07:00`,{required:true});
       const end = input("datetime-local",shift ? localParts(shift.end) : `${date}T15:30`,{required:true});
       const color = shiftColours(shift?.color || "#2196f3");
       const initialProject = shift?.work_order;
       const project = orderSelect(shift || {}), location = input("text",shift?.location || initialProject?.site_address || "",{maxlength:400});
-      project.onChange(() => {const selected = project.order(); if (selected) location.value = selected.site_address || "";});
+      let titleOrder = project.order()?.id || '';
+      project.onChange(() => {
+        const selected = project.order(), nextOrder = selected?.id || '';
+        if (selected) {
+          location.value = selected.site_address || "";
+          if (nextOrder !== titleOrder) title.value = orderShiftTitle(selected);
+        }
+        titleOrder = nextOrder;
+      });
       const notes = el("textarea"); notes.value = shift?.notes || ""; notes.maxLength = 2000;
       const members = el("fieldset","scheduler-members"); members.append(el("legend","","Team members"));
       const selected = new Set(shift?.member_ids || (memberId ? [memberId] : []));
@@ -942,7 +945,10 @@
   }
   function beginPolling() {
     if (!state.timer) state.timer = setInterval(() => {
-      if (state.data?.user && !state.busy && (state.data.active_entry || !state.root?.closest("[hidden]"))) void refresh();
+      if (state.data?.user && !state.busy && (state.data.active_entry || !state.root?.closest("[hidden]"))) {
+        void refresh();
+        if (!state.root?.closest("[hidden]")) void loadOrders();
+      }
     },60000);
     if (!state.noticeTimer) state.noticeTimer = setInterval(() => {renderHeaderTime(); checkBreakNotification();},1000);
   }
@@ -1003,7 +1009,7 @@
     try {const bootstrap = await request("/bootstrap"); if(generation === state.authGeneration) {setZone(bootstrap.timezone); if(bootstrap.user) await refresh();}}
     catch (_) { /* Authentication and connection failures are shown on opening Scheduler. */ }
   }
-  document.addEventListener("visibilitychange",() => {if(!document.hidden && state.data?.user) {if(state.locationEnabled)void captureLocation(true); void refresh();}});
+  document.addEventListener("visibilitychange",() => {if(!document.hidden && state.data?.user) {if(state.locationEnabled)void captureLocation(true); void refresh();void loadOrders();}});
   accountChannel?.addEventListener("message",() => {resetAccount(); auth(false); void refresh();});
   window.addEventListener("online",() => {if(state.locationEnabled) void captureLocation(true);});
   window.addEventListener("pagehide",stopLocation);

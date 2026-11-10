@@ -28,7 +28,7 @@ async function chooseLanguage(locale){
  for(const role of ['pointer','precision','move','text','handwriting','link','resize-nwse','resize-nesw','resize-horizontal','resize-vertical','unavailable']){const response=await page.request.get(new URL(`/cursors/${role}.png`,page.url()).href);assert.equal(response.status(),200);assert.match(response.headers()['content-type'],/image\/png/);const data=await response.body();assert.equal(data.readUInt32BE(16),32);assert.equal(data.readUInt32BE(20),32);}
  await page.evaluate(async()=>{await window.CeasefireCalculators.completeProjectSnapshot();await window.CeasefirePenetrations.completeProjectSnapshot();});
  await chooseCalculator(page,'Firestopping');await idle();
- assert.equal(await page.locator('#penetration-current-item-card').evaluate(el=>el.firstElementChild.classList.contains('penetration-banner-heading')),true);
+ assert.equal(await page.locator('#calculator-kind-pages').evaluate(el=>el.previousElementSibling?.id==='calculators-heading-slot'),true);
  assert.equal(await page.locator('#penetration-clear svg').innerHTML(),await page.locator('#calculator-reset svg').innerHTML());
  for(const width of [1384,1020,825,390]){
   await page.setViewportSize({width,height:900});
@@ -117,7 +117,7 @@ async function chooseLanguage(locale){
  await chooseTakeoff(page,'Steel');await renderDrawing(page,()=>page.locator('#takeoff-upload').setInputFiles(info.fixture));
  await expect(page.locator('#view-takeoffs')).toHaveCSS('cursor',/cursors\/pointer\.png/);
  await expect(page.locator('main')).toHaveCSS('cursor',/cursors\/pointer\.png/);
- await expect(page.locator('#takeoffs-workspace > .takeoff-workspace-heading')).toHaveCSS('cursor',/cursors\/pointer\.png/);
+ await expect(page.locator('#view-takeoffs > .takeoff-workspace-heading')).toHaveCSS('cursor',/cursors\/pointer\.png/);
  await expect(page.locator('.takeoff-workspace-heading .calculator-document-toggle').first()).toHaveCSS('cursor',/cursors\/link\.png/);
  await expect(page.locator('#view-takeoffs input[type="checkbox"]').first()).toHaveCSS('cursor',/cursors\/link\.png/);
  await expect(page.locator('#view-takeoffs input[type="search"]').first()).toHaveCSS('cursor',/cursors\/text\.png/);

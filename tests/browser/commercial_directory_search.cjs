@@ -22,7 +22,7 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
   page.on('pageerror',error=>errors.push(error.message));
   const directory=async()=>{const response=await page.request.get(base+'/api/contacts/directory');assert.equal(response.status(),200);return response.json();};
   async function create(kind,fields,extra={}){const response=await page.request.post(base+'/api/contacts/'+kind,{data:{version:(await directory()).version,fields,...extra}});assert.equal(response.status(),200,await response.text());return response.json();}
-  await create('accounts',{company:'Primary Project',billing_address:'Project HQ',abn_acn:'ABN-PRIMARY'});
+  const primary=(await create('accounts',{company:'Primary Project',billing_address:'Project HQ',abn_acn:'ABN-PRIMARY'})).account;
   const beta=(await create('accounts',{company:'Beta Company',billing_address:'Beta HQ',abn_acn:'ABN-BETA'})).account;
   const person=(await create('contacts',{name:'Beta Contact',company:beta.company,phone:'222',email:'beta@example.test',title:'Beta Manager'})).contact;
   const sitePerson=(await create('contacts',{name:'Unrelated Contact',company:'Primary Project',phone:'111',email:'primary@example.test'})).contact;
@@ -33,7 +33,12 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
   const left=quote.locator('.commercial-sidebar').first();
   const company=left.getByRole('combobox',{name:'Company',exact:true}),name=left.getByRole('combobox',{name:'Name',exact:true});
   await company.fill('Beta');await left.getByRole('option',{name:'Beta Company',exact:true}).click();await expect(company).toHaveValue('Beta Company');
-  await expect(left).toContainText('Beta HQ');await expect(left).toContainText('ABN-BETA');await expect(left).not.toContainText('Project HQ');
+  const betaCompany=left.locator(`.commercial-linked-company[data-account-id="${beta.id}"]`),primaryCompany=left.locator(`.commercial-linked-company[data-account-id="${primary.id}"]`);
+  await expect(betaCompany).toHaveCount(1);await expect(primaryCompany).toHaveCount(1);
+  await expect(betaCompany.getByRole('button',{name:'Beta Company',exact:true})).toBeVisible();await expect(primaryCompany.getByRole('button',{name:'Primary Project',exact:true})).toBeVisible();
+  await expect(betaCompany).toContainText('Beta HQ');await expect(betaCompany).toContainText('ABN-BETA');await expect(betaCompany).not.toContainText('Project HQ');await expect(betaCompany).not.toContainText('ABN-PRIMARY');
+  await expect(primaryCompany).toContainText('Project HQ');await expect(primaryCompany).toContainText('ABN-PRIMARY');await expect(primaryCompany).not.toContainText('Beta HQ');await expect(primaryCompany).not.toContainText('ABN-BETA');
+  checked('Exact canonical Beta and linked Primary Project company rows settle with their own billing address and ABN; multiple linked companies cannot cross-wire identity details');
   await name.fill('');await name.focus();await expect(left.getByRole('option')).toHaveText(['Beta Contact']);
   await left.getByRole('option',{name:'Beta Contact',exact:true}).click();await expect(name).toHaveValue('Beta Contact');
   await expect(left).toContainText('Beta Manager');await expect(left).toContainText('beta@example.test');await expect(left).toContainText('222');

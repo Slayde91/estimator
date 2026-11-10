@@ -12,22 +12,28 @@
 .certification-history td:last-child{white-space:nowrap}
 .certification-history a{overflow-wrap:anywhere}.certification-document-select{width:fit-content;max-width:100%;min-width:0}
 .certification-document-select select{width:auto;max-width:100%;min-width:0}
-.certification-document-actions{display:block}
+.certification-document-actions{display:flex;align-items:end;flex-wrap:wrap;gap:16px}
+.certification-document-actions>.field{margin:0;min-width:0}
+.certification-document-actions>.certification-workflow{flex:0 1 240px;max-width:100%}
 .certification-document-picker{position:relative;display:flex;align-items:center;max-width:100%;min-width:160px}
 .certification-document-picker .project-account-add{position:absolute;inset-inline-start:4px;top:50%;transform:translateY(-50%);z-index:1;width:28px;height:28px;padding:0;display:grid;place-items:center}
 .certification-document-picker select{min-height:42px;min-width:160px}
 .certification-field-error{color:var(--error,#ff6377);font-size:12px;font-weight:500;line-height:1.4}
 .certification-field-error[hidden]{display:none}
 .certification-fields :is(input,textarea)[aria-invalid="true"]{border-color:var(--error,#ff6377);outline:1px solid var(--error,#ff6377)}
-.certification-bottom-actions{justify-content:space-between;align-items:center;gap:1rem;margin-block:1.5rem}
+.certification-bottom-actions{justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:12px;margin-block:1.5rem}
 .certification-bottom-actions .button{min-height:48px}.certification-save-status{min-height:1.6em}
-@media(max-width:700px){.projects-section-cards,.certification-fields{grid-template-columns:1fr}.certification-fields .field.certification-wide{grid-column:auto}.certification-bottom-actions{align-items:stretch;flex-direction:column}}
+@media(max-width:700px){.projects-section-cards,.certification-fields{grid-template-columns:1fr}.certification-fields .field.certification-wide{grid-column:auto}}
 
 .certification-fields textarea[rows="2"]{min-height:74px}
 #company-cover-name{overflow-wrap:anywhere;min-width:0;flex:1 1 20rem;max-width:100%}
 .certification-scope-field{margin-block-start:1rem;max-width:46rem}
-.certification-scope-dropdown{position:relative;min-width:0}
-.certification-scope-dropdown summary{cursor:pointer;border:1px solid var(--border,#48525f);border-radius:9px;background:var(--input-bg,#202730);padding:.85rem 1rem;min-height:44px;box-sizing:border-box;overflow-wrap:anywhere}
+.certification-scope-dropdown{position:relative;width:100%;max-width:420px;min-width:0}
+.certification-scope-dropdown summary{display:flex;align-items:center;gap:8px;cursor:pointer;border:1px solid var(--border,#48525f);border-radius:9px;background:var(--input-bg,#202730);padding:10.6px 16px;height:42px;min-height:42px;box-sizing:border-box}
+.certification-scope-dropdown summary::before{content:'▸';flex:none}
+.certification-scope-dropdown[open] summary::before{content:'▾'}
+.certification-scope-dropdown summary::-webkit-details-marker{display:none}
+.certification-scope-dropdown summary>span{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .certification-scope-dropdown summary:focus-visible{outline:3px solid var(--accent,#ed001b);outline-offset:3px}
 .certification-scope-choices{position:absolute;z-index:12;inset-inline:0;margin-top:.35rem;padding:.4rem;background:var(--surface,#171d25);border:1px solid var(--border,#48525f);border-radius:9px;box-shadow:0 10px 30px #0005}
 .certification-scope-choices label{display:flex;align-items:center;gap:.8rem;min-height:46px;padding:.5rem .7rem;cursor:pointer}
@@ -55,5 +61,7 @@
 .certification-list-toolbar>.button{min-height:44px;flex:0 0 auto}
 .certification-editor-toolbar{display:flex;align-items:center;gap:12px;margin-block:0 20px}
 .certification-editor-toolbar h2{margin:0;min-width:0}
+#certification-back{display:inline-grid;place-items:center;flex:0 0 42px;box-sizing:border-box;width:42px;min-width:42px;max-width:42px;height:42px;min-height:42px;padding:0}
+.certification-details-card>.certification-save-status{margin-block:0 16px}
 #certification-list[hidden],#certification-editor[hidden],#certification-resume[hidden]{display:none}
 @media(max-width:600px){.certification-list-toolbar>.field{flex-basis:100%}.certification-list-toolbar>.button{flex:1 1 auto}}

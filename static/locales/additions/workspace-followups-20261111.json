@@ -1,0 +1,57 @@
+{
+  "Billing company": [
+    "청구 회사",
+    "Kumpanya sa pagsingil",
+    "Công ty thanh toán"
+  ],
+  "Linked company": [
+    "연결된 회사",
+    "Nakaugnay na kumpanya",
+    "Công ty liên kết"
+  ],
+  "Contact company": [
+    "연락처 소속 회사",
+    "Kumpanya ng contact",
+    "Công ty của người liên hệ"
+  ],
+  "Company unavailable": [
+    "회사 정보를 사용할 수 없습니다",
+    "Hindi available ang kumpanya",
+    "Không có thông tin công ty"
+  ],
+  "Bids with the same site address are linked automatically.": [
+    "현장 주소가 같은 입찰은 자동으로 연결됩니다.",
+    "Awtomatikong iniuugnay ang mga bid na may parehong address ng site.",
+    "Các hồ sơ dự thầu có cùng địa chỉ công trường được liên kết tự động."
+  ],
+  "Search site addresses": [
+    "현장 주소 검색",
+    "Maghanap ng mga address ng site",
+    "Tìm địa chỉ công trường"
+  ],
+  "Some saved projects are still being checked. Refresh to include more addresses.": [
+    "일부 저장된 프로젝트를 확인하고 있습니다. 새로고침하면 더 많은 주소를 볼 수 있습니다.",
+    "Sinusuri pa ang ilang naka-save na proyekto. I-refresh para maisama ang iba pang address.",
+    "Một số dự án đã lưu vẫn đang được kiểm tra. Làm mới để hiển thị thêm địa chỉ."
+  ],
+  "No matching site addresses.": [
+    "일치하는 현장 주소가 없습니다.",
+    "Walang tumutugmang address ng site.",
+    "Không có địa chỉ công trường phù hợp."
+  ],
+  "Use site address": [
+    "현장 주소 사용",
+    "Gamitin ang address ng site",
+    "Dùng địa chỉ công trường"
+  ],
+  "Link": [
+    "연결",
+    "Iugnay",
+    "Liên kết"
+  ],
+  "Save this Quote before creating a Work Order.": [
+    "작업 지시서를 만들기 전에 이 견적서를 저장하세요.",
+    "I-save muna ang Quote na ito bago gumawa ng Work Order.",
+    "Lưu báo giá này trước khi tạo lệnh công việc."
+  ]
+}

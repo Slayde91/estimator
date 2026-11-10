@@ -161,9 +161,20 @@ async function inspectHeader(width) {
       assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width + 1 && bounds.y > header.y + header.height && bounds.y + bounds.height <= 1000);
       assert.equal(await actions.evaluate(el=>getComputedStyle(el).position),'fixed');
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Page overflow at ${width}/${section}`);
-      if (section === 'Projects') {
+      if (section === 'Projects' || section === 'Documents') {
+        if(section==='Documents'){
+          await expect(page.locator('#view-quotes')).toBeVisible();
+          await expect(page.locator('#app-message')).toContainText('Create or load a project before creating documents.');
+        }
         const controls = page.locator('.project-workspace-actions'), link = await box(controls.getByRole('button', { name: 'Link Project Folder', exact: true }));
-        for (const name of ['New', 'Load']) { const b = await box(controls.getByRole('button', { name, exact: true })); assert.ok(b.height >= link.height); }
+        const load = await box(controls.getByRole('button', { name: 'Load', exact: true })); assert.ok(load.height >= link.height);
+        const create = page.locator('#new-quote'), sort = await box(page.locator('#project-sort')), details = await box(page.locator('#project-current-details')), b = await box(create);
+        await expect(create).toHaveAccessibleName('New');assert.ok(b.height >= link.height);
+        assert.equal(await create.evaluate(el=>el.closest('.project-list-controls')===document.querySelector('#project-sort').closest('.project-list-controls')),true,'New retains the Sort row owner');
+        assert.ok(details.x>=0&&b.x+b.width<=width+1&&details.x+details.width<=b.x+1,'Current project details and New fit in their requested order');
+        const sameRow=Math.abs(b.y+b.height-sort.y-sort.height)<2;
+        assert.ok(sameRow?sort.x+sort.width<=details.x+1:details.y>=sort.y+sort.height-1,'Sort precedes the project action group; narrow layouts may wrap');
+        assert.ok(sort.x>=0&&sort.x+sort.width<=width+1,'Sort remains in the viewport alongside or above its project action group');
       } else for (const name of ['New', 'Load']) await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0);
     }
     evidence.widths.push(width);
@@ -198,7 +209,7 @@ async function inspectHeader(width) {
   await chooseCalculator(page,'Firestopping'); await idle();
   await expect(page.locator('#penetration-new-item')).toBeHidden(); await expect(page.locator('#penetration-recalculate')).toBeHidden();
   for (const [id, name] of [['penetration-clear','Clear'],['penetration-add-to-schedule','Add to Schedule'],['penetration-add-to-library','Add to Library']]) { await expect(page.locator('#'+id)).toBeVisible(); await expect(page.locator('#'+id)).toHaveAccessibleName(name); }
-  const penetrationBanner=page.locator('#penetration-current-item-card > .penetration-banner-heading'),headingActions=penetrationBanner.locator(':scope > .penetration-heading-actions'),currentItem=page.locator('#penetration-current-item-card > .penetration-item-heading');
+  const penetrationBanner=page.locator('#calculators-heading-slot > .penetration-banner-heading'),headingActions=penetrationBanner.locator(':scope > .penetration-heading-actions'),currentItem=page.locator('#penetration-current-item-card > .penetration-item-heading');
   for(const id of ['penetration-clear','penetration-add-to-library'])await expect(headingActions.locator('#'+id)).toHaveCount(1);
   const penetrationDocument=headingActions.getByRole('button',{name:'Document',exact:true});await expect(penetrationDocument).toHaveCount(1);
   await expect(headingActions.locator('#penetration-add-to-schedule')).toHaveCount(0);await expect(currentItem.locator('#penetration-add-to-schedule')).toBeVisible();
@@ -221,9 +232,9 @@ async function inspectHeader(width) {
       assert.ok(await page.locator('#library-pricing .table-scroll').evaluate(el=>el.scrollWidth<=el.clientWidth+1),'Pricing columns fit desktop width');
     }
     if(kind==='technical')await expect(page.locator('[data-library-summary="technical"]')).toBeVisible();
-    if(kind==='pricing')await expect(page.locator('#library-pricing > .page-heading .subtitle')).toHaveCount(0);
+    if(kind==='pricing')await expect(page.locator('#pricing-heading-slot > [data-library-heading="pricing"] .subtitle')).toHaveCount(0);
     else {
-      const heading=page.locator(`#library-${kind} > .page-heading`), image=heading.locator('.library-heading-art-slot img');
+      const heading=page.locator(`#pricing-heading-slot [data-library-heading="${kind}"]`), image=heading.locator('.library-heading-art-slot img');
       await expect(image).toHaveAttribute('src',`/header-${kind==='penetration'?'firestopping':'technical'}-library.png`);
       assert.ok(await image.evaluate(el=>el.complete&&el.naturalWidth>0));
       for(const width of [1384,825,390]) {

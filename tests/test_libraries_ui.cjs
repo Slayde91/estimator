@@ -936,6 +936,29 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.ok(walk(form).some(node=>node.tagName==='optgroup'&&node.getAttribute('label')==='Plastic Pipes'));
     await form.emit('submit');assert.equal(captured.title,'My technical item');assert.equal(captured.fields[0].value,'Full literal installation text');assert.deepEqual(captured.facets.services,['services-one']);assert.equal(captured.report.url,'https://example.test/report.pdf');assert.equal(captured.request_key,'0123456789abcdef0123456789abcdef');assert.equal(pane.technicalEditorPanel.hidden,true);
   });
+  await check('Closed Technical facet pickers preserve grouped unknown multivalues, exact retry payload and lifecycle cleanup',async h=>{
+    const keys=['substrate','orientation','type','category','services','frl'];let captured,fail=true;
+    const localeListeners=new Set();h.context.window.addEventListener=(name,fn)=>{if(name==='ceasefire:languagechange')localeListeners.add(fn);};h.context.window.removeEventListener=(name,fn)=>{if(name==='ceasefire:languagechange')localeListeners.delete(fn);};
+    const context={revision:3,source_sha256:'source-retained',record:{title:'Existing item',fields:[{label:'Installation Details',value:'Existing\nsecond line'}],filter_values:{manufacturer:['Maker'],...Object.fromEntries(keys.map(key=>[key,[key+'-one',key+'-legacy <literal>']]))}},filters:keys.map(key=>({key,options:[{value:key+'-one',label:key+' one',...key==='substrate'?{group:'Walls'}:key==='services'?{group:'Plastic Pipes'}:key==='frl'?{group:'120'}:{}},{value:key+'-two',label:key+' two'}]}))};
+    h.setRoute((path,options)=>{
+      if(path==='/api/libraries')return meta();
+      if(path.endsWith('/technical-1/edit'))return context;
+      if(path.endsWith('/technical-1/save')){captured=JSON.parse(options.body);return fail?{error:'Retry retained selections'}:{saved:true,id:'technical-1'};}
+      return path.includes('/technical/technical-1')?detail('technical','technical-1'):records('technical');
+    });
+    await h.api.open('technical','technical-1');const pane=h.pane('technical'),baselinePointers=h.context.document.listeners.pointerdown.length;await walk(pane.detailPanel).find(node=>node.dataset.libraryEdit==='technical-1').emit('click');
+    const form=pane.technicalEditorPanel.children[1],pickers=walk(form).filter(node=>node.dataset.technicalEditorDropdown),selects=walk(form).filter(node=>node.dataset.technicalEditorFacet);
+    assert.equal(pickers.length,6);assert.equal(selects.length,6);assert.ok(pickers.every(node=>!node.open));assert.ok(selects.every(node=>node.multiple&&node.hidden&&node.tabIndex===-1));
+    assert.ok(walk(form).some(node=>node.tagName==='legend'&&node.textContent==='Walls'));assert.ok(walk(form).some(node=>node.tagName==='legend'&&node.textContent==='Plastic Pipes'));
+    for(const key of keys){const picker=pickers.find(node=>node.dataset.technicalEditorDropdown===key),boxes=walk(picker).filter(node=>node.tagName==='input');assert.equal(boxes.length,3);assert.equal(boxes.find(node=>node.value===key+'-legacy <literal>').checked,true);const extra=boxes.find(node=>node.value===key+'-two');extra.checked=true;await extra.emit('change');assert.ok(picker.children[0].title.includes(key+'-legacy <literal>'));}
+    const nativeType=selects.find(node=>node.dataset.technicalEditorFacet==='type'),typePicker=pickers.find(node=>node.dataset.technicalEditorDropdown==='type'),typeRows=walk(typePicker).filter(node=>node.className==='library-technical-choice');nativeType.children[0].textContent='Translated owned type';typeRows[2].children[1].textContent='Independent source label';
+    const nativeGroup=walk(selects.find(node=>node.dataset.technicalEditorFacet==='substrate')).find(node=>node.tagName==='optgroup');nativeGroup.setAttribute('label','Translated owned group');assert.equal(localeListeners.size,1);for(const fn of localeListeners)fn();assert.equal(typeRows[0].children[1].textContent,'Translated owned type');assert.equal(typeRows[2].children[1].textContent,'Independent source label');assert.ok(walk(form).some(node=>node.tagName==='legend'&&node.textContent==='Translated owned group'));assert.ok(typePicker.children[0].title.includes('Translated owned type'));assert.equal(nativeType.children[0].value,'type-one');
+    const service=pickers.find(node=>node.dataset.technicalEditorDropdown==='services');service.open=true;const escape=await service.emit('keydown',{key:'Escape'});assert.equal(service.open,false);assert.equal(service.children[0].focused,true);assert.equal(escape.defaultPrevented,true);
+    for(const field of walk(form).filter(node=>node.tagName==='textarea'))assert.equal(field.rows,1);
+    const save=walk(form).find(node=>Object.hasOwn(node.dataset,'technicalEditorSave'));assert.ok(save.className.includes('primary'));
+    await form.emit('submit');const first=copy(captured);for(const key of keys)assert.deepEqual(captured.facets[key],[key+'-one',key+'-two',key+'-legacy <literal>']);assert.equal(captured.fields[0].value,'Existing\nsecond line');assert.ok(walk(form).filter(node=>node.tagName==='input').every(node=>!node.disabled));
+    assert.equal(h.context.document.listeners.pointerdown.length,baselinePointers+1);fail=false;await form.emit('submit');assert.deepEqual(captured,first);assert.equal(pane.technicalEditorPanel.hidden,true);assert.equal(h.context.document.listeners.pointerdown.length,baselinePointers);assert.equal(localeListeners.size,0);assertSourceHtmlSafe(walk(form));
+  });
   await check('Documentation uses the selected Technical item or explicitly opens its selector without a false receipt',async h=>{
     assert.deepEqual(copy(await h.api.documentationExport({format:'pdf'})),{selectionRequired:true});await h.api.open('technical','technical-1');
     const pane=h.pane('technical'),before=copy(pane.detail),receipt={saved:true,path:'C:/Fixture/item.pdf',filename:'item.pdf',destination:'project'};let captured;

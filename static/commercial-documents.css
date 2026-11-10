@@ -82,6 +82,10 @@
 .commercial-side-panel>summary{cursor:pointer;font-weight:700;overflow-wrap:anywhere}
 .commercial-side-panel[open]>summary{margin-bottom:12px}
 .commercial-linked-contacts{display:grid;gap:12px;min-width:0;margin-top:12px}
+.commercial-linked-companies{display:grid;gap:12px;min-width:0;margin-top:12px}
+.commercial-linked-company{min-width:0;border-top:1px solid var(--line);padding-top:10px;overflow-wrap:anywhere}
+.commercial-linked-company>.project-title-button{display:block;max-width:100%;text-align:start;white-space:normal;overflow-wrap:anywhere}
+.commercial-linked-company>.helper{margin:4px 0}
 .commercial-linked-contact{min-width:0;border-top:1px solid var(--line);padding-top:10px;overflow-wrap:anywhere}
 .commercial-linked-contact>.project-title-button{display:block;max-width:100%;text-align:start;white-space:normal;overflow-wrap:anywhere}
 .commercial-linked-contact>.helper{margin:4px 0}
@@ -141,6 +145,9 @@
 .commercial-totals { justify-self:end; min-width:300px; max-width:100%; border:1px solid var(--line); border-radius:10px; padding:15px; background:var(--paper); }
 .commercial-totals p { display:flex; justify-content:space-between; gap:35px; margin:10px 0; }
 .commercial-totals p:last-child { border-top:1px solid var(--line); padding-top:12px; font-size:17px; }
+.commercial-purchase-summary { display:flex; flex-wrap:wrap; gap:18px; align-items:start; min-width:0; }
+.commercial-purchase-summary>.commercial-purchase-request { flex:1 1 340px; min-width:0; }
+.commercial-purchase-summary>.commercial-totals { flex:0 1 300px; width:300px; min-width:0; max-width:100%; margin-inline-start:auto; box-sizing:border-box; }
 @media(max-width:650px) {
   .commercial-purchase-identifiers { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .commercial-details,.commercial-order-fields { grid-template-columns:1fr; padding:16px; }

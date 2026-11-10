@@ -89,10 +89,11 @@ async function contactSignature(root,output){
     const signed=await snapshot();assert.ok(signed.contact_signature.strokes.length);
     const back=host.getByRole('button',{name:'Back to statements',exact:true});
     const geometry=await back.evaluate(button=>{
-      const box=button.getBoundingClientRect(),svg=button.querySelector('svg').getBoundingClientRect();
-      return {width:box.width,height:box.height,svgWidth:svg.width,svgHeight:svg.height,offsetX:svg.x-box.x,offsetY:svg.y-box.y};
+      const box=button.getBoundingClientRect(),icon=button.querySelector('.button-symbol'),glyph=icon.getBoundingClientRect();
+      return {width:box.width,height:box.height,text:icon.textContent,fontSize:getComputedStyle(icon).fontSize,centerX:glyph.x+glyph.width/2-box.x-box.width/2,centerY:glyph.y+glyph.height/2-box.y-box.height/2};
     });
-    assert.deepEqual(geometry,{width:44,height:44,svgWidth:24,svgHeight:24,offsetX:10,offsetY:10});
+    assert.equal(geometry.width,42);assert.equal(geometry.height,42);assert.equal(geometry.text,'←');assert.equal(geometry.fontSize,'18px');
+    assert.ok(Math.abs(geometry.centerX)<1&&Math.abs(geometry.centerY)<1,'The retained commercial arrow glyph is centered in its42px Back control');
     for(const width of [1915,850,600,390]){
       await page.setViewportSize({width,height:884});await name.scrollIntoViewIfNeeded();
       const layout=await contact.evaluate(field=>{
@@ -124,12 +125,12 @@ async function contactSignature(root,output){
     await back.click();await host.locator('.swms-card .project-title-button').click();
     await expect(name).toHaveValue('');await expect(phone).toHaveValue('');assert.equal((await snapshot()).contact_signature,null);
     assert.deepEqual(writes,[]);assert.deepEqual(errors,[]);
-    return 'SWMS Contact Person: real pad cancel, company Settings failure and profile switch preserve the whole group; successful signing fills saved personal name/title and company phone with persisted vector ink; portable project and PDF retain ink; Clear resets only contact name/title/phone and ink across reopen; button stays beside field at 390–1915px, back arrow is 24px inside a centred 44px button, no Settings writes';
+    return 'SWMS Contact Person: real pad cancel, company Settings failure and profile switch preserve the whole group; successful signing fills saved personal name/title and company phone with persisted vector ink; portable project and PDF retain ink; Clear resets only contact name/title/phone and ink across reopen; button stays beside field at 390–1915px, commercial arrow glyph is centered inside a42px Back button, no Settings writes';
   }catch(error){fs.mkdirSync(directory,{recursive:true});fs.writeFileSync(path.join(directory,'server.log'),logs);throw error;}
   finally{await browser?.close();server.kill();}
 }
 module.exports=contactSignature;
 if(require.main===module){
   const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`swms-contact-${Date.now()}`);
-  contactSignature(root,output).then(check=>{fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({check,output},null,2));console.log(JSON.stringify({check,output}));}).catch(error=>{console.error(error);process.exitCode=1;});
+  contactSignature(root,output).then(check=>{fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,check,output},null,2));console.log(JSON.stringify({passed:true,check,output}));}).catch(error=>{console.error(error);process.exitCode=1;});
 }

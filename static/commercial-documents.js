@@ -17,6 +17,7 @@
     model: null,
     savedCards: [],
     editor: null,
+    cardIntent: null,
     busy: false,
     dirty: false,
     changed: false,
@@ -459,7 +460,10 @@
     const sortField = field("Sort by", sort);
     sort.addEventListener("change", () => { state.dirty = false; });
     sortField.classList.add("commercial-sort");
-    controls.append(sortField, button("New " + names[state.kind], () => openNew(), true));
+    const create=addButton("New " + names[state.kind], () => openNew());create.classList.add('add-icon-action');
+    const access=window.ClassifireAccess;
+    if(access){create.disabled=true;void access.ready.then(()=>{if(create.isConnected)create.disabled=state.busy || !access.can('edit');});}
+    controls.append(sortField, create);
     const columns = node("details", "commercial-columns-menu");
     columns.append(node("summary", "button secondary", "Columns ▾"));
     const columnOptions = node("div", "commercial-menu-options");
@@ -699,16 +703,26 @@
     if (!board.children.length) board.append(node("p", "empty-state", "Choose a column from Columns to show documents."));
   }
   async function openCard(card, createWorkOrder = false) {
-    if (state.busy) return;
+    if (state.busy || state.cardIntent) return;
     const source = sourceFor(card);
     const revision = state.revision;
-    const workspace=state.workspace,context=window.CeasefireProject?.runtimeContext?.();
+    const workspace=state.workspace,context=window.CeasefireProject?.runtimeContext?.(),kind=state.kind,editor=state.editor;
+    const documentFingerprint=JSON.stringify(editor?.document),projectFingerprint=JSON.stringify(projectDetailsSnapshot(editor?.source));
+    const sourceFingerprint=JSON.stringify(editor?.source && {file_id:editor.source.file_id,revision:editor.source.revision});
+    const intent={};state.cardIntent=intent;
+    const sameScope=()=>state.cardIntent===intent && workspace===state.workspace && workspace===currentWorkspace()
+      && context===window.CeasefireProject?.runtimeContext?.();
+    const current=()=>sameScope() && state.revision===revision && state.kind===kind && state.editor===editor
+      && documentFingerprint===JSON.stringify(editor?.document) && !state.dirty
+      && projectFingerprint===JSON.stringify(projectDetailsSnapshot(editor?.source))
+      && sourceFingerprint===JSON.stringify(editor?.source && {file_id:editor.source.file_id,revision:editor.source.revision});
+    let ownsBusy=true;
+    state.busy=true;setDisabled(true);
     try {
       let document = card;
       if (source) {
-        state.busy = true;
         const opened = await request("saved-open", {source, id: card.id});
-        if (state.revision !== revision || workspace!==state.workspace || workspace!==currentWorkspace() || context!==window.CeasefireProject?.runtimeContext?.()) return;
+        if (!current()) return;
         document = opened.document;
         source.documentId = document.id;
         source.estimates = opened.estimates;
@@ -720,7 +734,6 @@
           contact_name:document.fields.details.contact,contact_phone:document.fields.details.phone,contact_email:document.fields.details.email
         };
         source.createdProject = opened.created_project === true;
-        state.busy = false;
       }
       if (!createWorkOrder) { openEditor(document, source); return; }
       if (!requireProject(source)) return;
@@ -730,16 +743,24 @@
       }
       const details = {...document.fields.details, date: today()};
       const {fields} = await documentRequest("defaults", {workspace_id: state.workspace, kind: "work_order", details}, source);
-      if (state.revision !== revision || !await window.CeasefireProject.openCommercial("work_order")) return;
+      if (!current()) return;
+      // Navigation must be allowed to leave this clean editor. Keep its controls
+      // disabled and the intent reserved until the deliberate transition ends.
+      state.busy=false;ownsBusy=false;
+      if (!await window.CeasefireProject.openCommercial("work_order") || !sameScope()
+          || state.kind!=="work_order" || state.editor) return;
       fields.order.quote_id = document.id;
       fields.order.quote_reference = document.last_number;
       fields.order.description = document.fields.lines.map(line => line.description).join("\n");
       openEditor({id: crypto.randomUUID(), version: 0, kind: "work_order", status: "Draft", fields, last_number: ""}, source, document);
       markDirty();
     } catch (error) {
-      message(error.message, true);
+      if(sameScope() && state.editor===editor)message(error.message, true);
     } finally {
-      state.busy = false;
+      if(state.cardIntent===intent) {
+        const owned=sameScope();state.cardIntent=null;
+        if(owned && (ownsBusy || !state.busy)){state.busy=false;setDisabled(false);}
+      }
     }
   }
   async function saveActiveProject() {
@@ -918,6 +939,18 @@
     }
     return parsed.innerHTML;
   }
+  async function createWorkOrder() {
+    if (state.busy || state.kind !== "quote" || !state.editor) return;
+    const editor = state.editor;
+    if (!requireProject(editor.source)) return;
+    if (state.dirty || !editor.document.version) {
+      message("Save this Quote before creating a Work Order.", true); return;
+    }
+    const card = {...editor.document, ...(editor.source ? {
+      source_file:editor.source.file_id, source_revision:editor.source.revision
+    } : {})};
+    await openCard(card, true);
+  }
   async function createPurchaseOrder() {
     if (state.busy || state.kind !== "work_order") return;
     const editor = state.editor;
@@ -985,6 +1018,7 @@
     statusField.firstElementChild.hidden = true;
     window.CeasefireI18n?.attr(statusControl, 'aria-label', 'Status');
     actions.append(statusField);
+    if (state.kind === "quote") actions.append(button("Create WO", () => void createWorkOrder()));
     if (state.kind === "work_order") actions.append(button("Create PO", () => void createPurchaseOrder()));
     form.append(actions);
     const details = node("section", "card commercial-details");
@@ -1023,9 +1057,9 @@
       projectIdentifiers.replaceWith(identifiers);
       identifiers.append(projectIdentifiers, references);
     }
-    if (state.kind !== "purchase_order") details.append(detailPair([["client", "Client"], ["contact", "Client contact"]]));
     if (state.kind !== "purchase_order") {
       details.append(detailField("site_address", "Site address"));
+      details.append(detailPair([["client", "Client"], ["contact", "Client contact"]]));
       details.append(detailPair([["phone", "Client phone"], ["email", "Client email"]]));
     }
     form.append(details);
@@ -1048,8 +1082,7 @@
       const [linkedOrder, reference] = renderOrderFields(form, fields);
       if (state.kind === "purchase_order") {
         projectIdentifiers.classList.add("commercial-purchase-identifiers");
-        projectIdentifiers.firstElementChild.after(linkedOrder);
-        projectIdentifiers.append(reference);
+        projectIdentifiers.append(linkedOrder, reference);
       } else {
         const identifiers = node("div", "commercial-work-identifiers");
         const references = node("div", "commercial-field-pair");
@@ -1584,7 +1617,13 @@
         } else if(key===personDate && personPair)personPair.append(item);
         else section.append(item);
       }
-      form.append(section);
+      if (!isWorkOrder && title === "Request") {
+        const summary = node("div", "commercial-purchase-summary");
+        section.classList.add("commercial-purchase-request");
+        const totals = form.querySelector(".commercial-totals");
+        form.append(summary); summary.append(section);
+        if (totals) summary.append(totals);
+      } else form.append(section);
       section.querySelectorAll('h2,.field>span').forEach(element=>window.CeasefireI18n?.text(element,window.CeasefireI18n.source(element)));
       if (!isWorkOrder && title === "Purchase order information") {
         form.append(node("section", "commercial-lines"), button("Add line item", () => {
@@ -2216,6 +2255,7 @@
       state.workspace = prepared?.workspace_id || null;
       state.model = null;
       state.editor = null;
+      state.cardIntent = null;
       state.dirty = false;
       state.busy = false;
       state.changed = false;

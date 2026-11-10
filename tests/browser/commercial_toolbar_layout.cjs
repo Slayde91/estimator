@@ -27,7 +27,7 @@ async function pdfControl(host,kind){const pdf=host.locator('.commercial-editor-
    const statusBox=await status.boundingBox();
    if(width===1515){assert.ok(statusBox.x>box.x);assert.equal(statusBox.y,box.y);}
    {
-     const labels=kind==='quote'?['Document date','Project number','Linked Project','Quote No.']:kind==='work_order'?['Document date','Project number','Linked Quote','Work order reference']:['Document date','Linked Work Order','Project number','Purchase Order No.'];
+     const labels=kind==='quote'?['Document date','Project number','Linked Project','Quote No.']:kind==='work_order'?['Document date','Project number','Linked Quote','Work order reference']:['Document date','Project number','Linked Work Order','Purchase Order No.'];
      const [date,second,third,fourth]=await Promise.all(labels.map(label=>host.locator('.commercial-details').getByLabel(label,{exact:true}).locator('..').boundingBox()));
      if(width===1515 && kind!=='purchase_order'){
        assert.equal(date.y,second.y);assert.equal(third.y,fourth.y);assert.ok(third.y>=date.y+date.height);

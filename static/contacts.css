@@ -93,4 +93,5 @@
 @media(max-width:560px) { .contacts-group { grid-template-columns:1fr; } .contacts-form { padding:16px; } .contacts-link-controls .button { width:100%; } }
 .contacts-field-error{color:var(--error,#ff6377);font-size:12px;font-weight:500;line-height:1.4}
 .contacts-field-error[hidden]{display:none}
+.contacts-form .notice.error,#contacts-root .notice.error{color:#a20b16;background:#fff0f2;border:1px solid #d0001b;padding:12px;border-radius:7px;overflow-wrap:anywhere}
 .contacts-form :is(input,textarea)[aria-invalid="true"]{border-color:var(--error,#ff6377);outline:1px solid var(--error,#ff6377)}

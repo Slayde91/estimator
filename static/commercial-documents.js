@@ -918,6 +918,18 @@
     }
     return parsed.innerHTML;
   }
+  async function createWorkOrder() {
+    if (state.busy || state.kind !== "quote" || !state.editor) return;
+    const editor = state.editor;
+    if (!requireProject(editor.source)) return;
+    if (state.dirty || !editor.document.version) {
+      message("Save this Quote before creating a Work Order.", true); return;
+    }
+    const card = {...editor.document, ...(editor.source ? {
+      source_file:editor.source.file_id, source_revision:editor.source.revision
+    } : {})};
+    await openCard(card, true);
+  }
   async function createPurchaseOrder() {
     if (state.busy || state.kind !== "work_order") return;
     const editor = state.editor;
@@ -985,6 +997,7 @@
     statusField.firstElementChild.hidden = true;
     window.CeasefireI18n?.attr(statusControl, 'aria-label', 'Status');
     actions.append(statusField);
+    if (state.kind === "quote") actions.append(button("Create WO", () => void createWorkOrder()));
     if (state.kind === "work_order") actions.append(button("Create PO", () => void createPurchaseOrder()));
     form.append(actions);
     const details = node("section", "card commercial-details");
@@ -1023,9 +1036,9 @@
       projectIdentifiers.replaceWith(identifiers);
       identifiers.append(projectIdentifiers, references);
     }
-    if (state.kind !== "purchase_order") details.append(detailPair([["client", "Client"], ["contact", "Client contact"]]));
     if (state.kind !== "purchase_order") {
       details.append(detailField("site_address", "Site address"));
+      details.append(detailPair([["client", "Client"], ["contact", "Client contact"]]));
       details.append(detailPair([["phone", "Client phone"], ["email", "Client email"]]));
     }
     form.append(details);
@@ -1048,8 +1061,7 @@
       const [linkedOrder, reference] = renderOrderFields(form, fields);
       if (state.kind === "purchase_order") {
         projectIdentifiers.classList.add("commercial-purchase-identifiers");
-        projectIdentifiers.firstElementChild.after(linkedOrder);
-        projectIdentifiers.append(reference);
+        projectIdentifiers.append(linkedOrder, reference);
       } else {
         const identifiers = node("div", "commercial-work-identifiers");
         const references = node("div", "commercial-field-pair");
@@ -1584,7 +1596,13 @@
         } else if(key===personDate && personPair)personPair.append(item);
         else section.append(item);
       }
-      form.append(section);
+      if (!isWorkOrder && title === "Request") {
+        const summary = node("div", "commercial-purchase-summary");
+        section.classList.add("commercial-purchase-request");
+        const totals = form.querySelector(".commercial-totals");
+        form.append(summary); summary.append(section);
+        if (totals) summary.append(totals);
+      } else form.append(section);
       section.querySelectorAll('h2,.field>span').forEach(element=>window.CeasefireI18n?.text(element,window.CeasefireI18n.source(element)));
       if (!isWorkOrder && title === "Purchase order information") {
         form.append(node("section", "commercial-lines"), button("Add line item", () => {

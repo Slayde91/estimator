@@ -47,7 +47,8 @@ async function submit(name) {await page.locator('dialog[open]').getByRole('butto
   }
   await page.screenshot({path:path.join(output,'scheduler-slate-navigation.png')});
   await page.evaluate(()=>{document.documentElement.dataset.theme='ceasefire';});
-  await expect(page.locator('.scheduler-projects-status')).toContainText('1 Work Orders available');
+  await expect(page.locator('.scheduler-projects-info')).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Refresh Work Order choices',exact:true})).toHaveCount(0);
   const projects = (await api('projects')).body.files;
   const [order] = (await api('scheduler/work-orders')).body.orders;
   assert.equal(order.status,'Draft');assert.equal(order.reference,'WO-02');
@@ -58,10 +59,10 @@ async function submit(name) {await page.locator('dialog[open]').getByRole('butto
   const manyOrders=[copiedOrder,order,...Array.from({length:84},(_,i)=>({...order,
     id:i.toString(16).padStart(64,'0')+':'+order.project_id+':'+order.document_id,
     reference:'WO-QA-'+i,client:'Other client '+i,site_address:'Other location'}))];
-  await page.route('**/api/scheduler/work-orders?offset=*',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({orders:manyOrders,matched:manyOrders.length,scan_pending:false,error_count:0})}));
-  await page.getByRole('button',{name:'Refresh Work Order choices',exact:true}).click();
-  await expect(page.locator('.scheduler-projects-status')).toHaveText('86 Work Orders available');
+  let automaticOrderRequests=0;
+  await page.route('**/api/scheduler/work-orders?offset=*',route=>{automaticOrderRequests++;return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({orders:manyOrders,matched:manyOrders.length,scan_pending:false,error_count:0})});});
   await page.getByRole('button',{name:'Add shift',exact:true}).click();
+  await expect.poll(()=>automaticOrderRequests).toBeGreaterThan(0);
   let modal = page.locator('dialog[open]');
   const orderSearch=modal.getByRole('combobox',{name:'Work Order',exact:true});
   await expect(orderSearch).toHaveAttribute('placeholder','Search Work Orders');
@@ -112,6 +113,20 @@ async function submit(name) {await page.locator('dialog[open]').getByRole('butto
   await expect(orderSearch).toHaveAttribute('aria-expanded','false');
   await expect(orderSearch).toHaveValue(/WO-02/);
   await expect(modal.getByLabel('Location',{exact:true})).toHaveValue('12 Site Street');
+  await expect(modal.getByLabel('Title',{exact:true})).toHaveValue(order.client+': '+order.site_address);
+  await modal.getByLabel('Title',{exact:true}).fill('Manually edited site shift');
+  await orderSearch.fill('Site Street');await modal.getByRole('option').nth(1).click();
+  await expect(modal.getByLabel('Title',{exact:true})).toHaveValue('Manually edited site shift');
+  await orderSearch.fill('Other client 0');await modal.getByRole('option').click();
+  await expect(modal.getByLabel('Title',{exact:true})).toHaveValue('Other client 0: Other location');
+  await orderSearch.fill('Site Street');await modal.getByRole('option').nth(1).click();
+  await expect(modal.getByLabel('Title',{exact:true})).toHaveValue(order.client+': '+order.site_address);
+  await modal.getByLabel('Title',{exact:true}).fill('Manually edited site shift');
+  const refreshesBefore=automaticOrderRequests;
+  await orderSearch.focus();
+  await expect.poll(()=>automaticOrderRequests).toBeGreaterThan(refreshesBefore);
+  await expect(modal.getByLabel('Title',{exact:true})).toHaveValue('Manually edited site shift');
+  await orderSearch.press('Escape');
   await modal.getByLabel('Location',{exact:true}).fill('12 Site Street, gate B');
   await orderSearch.fill('unlisted text');
   await modal.getByRole('button',{name:'Publish shift',exact:true}).click();
@@ -126,22 +141,25 @@ async function submit(name) {await page.locator('dialog[open]').getByRole('butto
   assert.ok(createdShift.id);assert.equal(createdShift.work_order.id,order.id);assert.equal(createdShift.published,true);
   assert.equal(createdShift.work_order.revision,order.revision);assert.equal(createdShift.work_order.document_id,order.document_id);
   assert.equal(createdShift.location,'12 Site Street, gate B');
+  assert.equal(createdShift.title,'Manually edited site shift');
   // Clearing is deliberate but Cancel must retain the saved assignment.
   await page.getByLabel('Week containing date').fill('2026-11-02');await page.getByLabel('Week containing date').press('Tab');
   await page.locator('.scheduler-shift').click();await orderSearch.fill('');await submit('Cancel');
   assert.equal((await api('scheduler/state?start=2026-11-02&end=2026-11-09')).body.shifts[0].work_order.id,order.id);
   await page.unroute('**/api/scheduler/work-orders?offset=*');
   await page.route('**/api/scheduler/work-orders?offset=*',route=>route.fulfill({status:200,contentType:'application/json',body:'{"orders":[],"matched":0,"scan_pending":false,"error_count":0}'}));
-  await page.getByRole('button',{name:'Refresh Work Order choices',exact:true}).click();
-  await expect(page.locator('.scheduler-projects-status')).toHaveText('0 Work Orders available');
+  const automaticEmpty=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/scheduler/work-orders');
+  await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
+  await (await automaticEmpty).finished();
   await page.locator('.scheduler-shift').click();await expect(orderSearch).toHaveValue(/saved assignment/);
   const retainedSave=page.waitForRequest(request=>new URL(request.url()).pathname==='/api/scheduler/shifts/save'&&request.method()==='POST');
   await submit('Publish shift');
   assert.ok(!Object.hasOwn((await retainedSave).postDataJSON(),'work_order'),'Unchanged saved/unavailable assignment is not replaced');
   assert.equal((await api('scheduler/state?start=2026-11-02&end=2026-11-09')).body.shifts[0].work_order.id,order.id);
   await page.unroute('**/api/scheduler/work-orders?offset=*');
-  await page.getByRole('button',{name:'Refresh Work Order choices',exact:true}).click();
-  await expect(page.locator('.scheduler-projects-status')).toHaveText('1 Work Orders available');
+  const automaticRestore=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/scheduler/work-orders');
+  await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
+  await (await automaticRestore).finished();
   const denied = await api('scheduler/shifts/save',{title:'Blocked draft',project_id:draft.id,start:'2026-11-02T07:00',end:'2026-11-02T15:00'});
   assert.equal(denied.status,400);
   const worker = (await api('scheduler/members/save',{name:'Worker',email:'worker@example.test',password:'Worker-password-2026',base_rate:'40'})).body;

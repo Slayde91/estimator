@@ -172,7 +172,7 @@
     if (typeof host?.Audio !== "function") return silent;
     let audio;
     try {
-      audio = new host.Audio(); audio.preload = "auto"; audio.loop = true;
+      audio = new host.Audio(); audio.preload = "auto"; audio.loop = true; audio.volume = 0.75;
       audio.src = printingSource; audio.load();
     } catch { return silent; }
     let active = false, closed = false, generation = 0, attempted = -1;

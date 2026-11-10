@@ -32,7 +32,7 @@ window.CeasefireScheduleColumns = (() => {
   }
   function create() {
     const host = document.createElement("div"), button = document.createElement("button"), panel = document.createElement("div");
-    host.className = "schedule-column-chooser"; button.className = "calculator-page schedule-column-toggle"; button.type = "button";
+    host.className = "schedule-column-chooser"; button.className = "button secondary schedule-column-toggle"; button.type = "button";
     panel.className = "schedule-column-panel"; panel.id = `schedule-column-panel-${++nextId}`; panel.hidden = true; panel.setAttribute("role", "group");
     text(button, "Columns"); window.CeasefireI18n?.attr(panel, "aria-label", "Visible columns");
     button.setAttribute("aria-expanded", "false"); button.setAttribute("aria-controls", panel.id); host.append(button, panel);
@@ -2622,7 +2622,7 @@ window.CeasefireScheduleColumns = (() => {
       for (const table of $("calculator-grid").querySelectorAll("table")) window.CeasefireScheduleColumns.applyTable(table, hidden);
     };
     const hidden = scheduleColumnChooser.bind(key, entry.scheduleColumnChoices, apply);
-    scheduleColumnChooser.host.hidden = false; $("calculator-toolbar-actions").append(scheduleColumnChooser.host); apply(hidden);
+    scheduleColumnChooser.host.hidden = false; $("calculator-toolbar-actions").prepend(scheduleColumnChooser.host); apply(hidden);
   }
 
   function navigationCache(entry, create = false) {

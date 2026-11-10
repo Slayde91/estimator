@@ -39,7 +39,8 @@ async function stateSnapshot(){return page.evaluate(()=>({calculators:window.Cea
    if(!fire){const status=await bounds('#calculator-save-status');assert.ok(status.right<=geometry.h.right+1&&Math.abs(status.y-geometry.h.y)<2,'Live save status is at the heading top-right');}
    if(!fire&&title!=='Factor Calcs'&&width>760){
     const actions=await bounds('#calculator-toolbar-actions'),tabs=await bounds('#calculator-pages');assert.ok(tabs.right<=actions.x+1&&actions.y<tabs.bottom&&tabs.y<actions.bottom,'Tools share the inner tab row, after the scroller');
-    const columns=page.locator('#calculator-toolbar-actions .schedule-column-toggle');if(await columns.isVisible()){const c=await columns.boundingBox(),r=await bounds('#calculator-recalculate');assert.ok(r.right<=c.x+1&&Math.abs(r.y-c.y)<8,'Recalculate remains left of Columns');}
+    const columns=page.locator('#calculator-toolbar-actions .schedule-column-toggle');if(await columns.isVisible()){const c=await columns.boundingBox(),d=await bounds('#calculator-document-toggle');assert.ok(c.x+c.width<=d.x+1&&Math.abs(d.y-c.y)<8,'Columns remains left of Document');}
+    for(const id of ['calculator-reset','calculator-recalculate']){const control=page.locator('#'+id),b=await control.boundingBox(),style=await control.evaluate(el=>{const s=getComputedStyle(el);return{border:s.borderTopStyle,width:parseFloat(s.borderTopWidth)};});assert.ok(b.x>=0&&b.x+b.width<=width+1&&b.y>=0&&b.y+b.height<=1000,'Existing calculator tool remains visible within the viewport: '+JSON.stringify({title,theme,width,id,box:b,style}));assert.equal(style.border,'solid');assert.ok(style.width>=1,'Calculator tool outline remains visible');}
    }
    evidence.calculatorLayouts.push({title,theme,width,geometry});
   }

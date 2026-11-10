@@ -105,6 +105,78 @@ class AccessBoundaryTests(unittest.TestCase):
         self.assertEqual(self.call('/api/projects/details/save',{},cookie=self.editor,member=self.editor_id)[0],403)
         self.assertEqual(self.call('/api/access/audit',cookie=self.editor)[0],403)
 
+    def test_firestopping_definition_is_a_read_for_viewers_and_editors_without_saving_configuration(self):
+        route='/api/penetration/definition'
+        body={'configuration':{'inventory':{},'rates':{}}}
+        self.assertEqual(self.call(route,body)[0],401)
+        before=self.call('/api/bootstrap',cookie=self.editor)[2]['configuration']
+        directory=self.call('/api/contacts/directory',cookie=self.editor)[2]
+        status,_,definition=self.call(route,body,cookie=self.editor,member=self.editor_id)
+        self.assertEqual(status,200)
+        self.assertTrue(definition['groups'])
+        self.assertEqual(self.call('/api/configuration',{},cookie=self.editor,member=self.editor_id)[0],403)
+        self.assertEqual(self.call('/api/contacts/contacts',{},cookie=self.editor,member=self.admin_id)[0],409)
+        admin_token=self.access.scheduler.write('login',{'email':'admin@example.test','password':self.password})['token']
+        scheduler_only=self.access.scheduler.write('members/save',{
+            'name':'Scheduler only','email':'scheduler@example.test','password':self.password,
+            'role':'worker','active':True,'base_rate':'0'},admin_token)
+        scheduler_cookie=self.login('scheduler@example.test')
+        self.assertEqual(self.call(route,body,cookie=scheduler_cookie,member=scheduler_only['id'])[0],403)
+        self.access.assign({'member_id':self.editor_id,'role':'viewer','version':1},
+                           admin_token)
+        status,_,viewed=self.call(route,body,cookie=self.editor,member=self.editor_id)
+        self.assertEqual(status,200)
+        self.assertEqual(viewed,definition)
+        self.assertEqual(self.call(route,{**body,'save':True},cookie=self.editor,member=self.editor_id)[0],400)
+        for mutation in ('/api/configuration','/api/company-settings','/api/project/save','/api/contacts/contacts','/api/new-future-write'):
+            with self.subTest(route=mutation):
+                self.assertEqual(self.call(mutation,{},cookie=self.editor,member=self.editor_id)[0],403)
+                self.assertEqual(self.call(mutation,{},cookie=self.editor,member=self.admin_id)[0],409)
+        self.assertEqual(self.call('/api/bootstrap',cookie=self.editor)[2]['configuration'],before)
+        self.assertEqual(self.call('/api/contacts/directory',cookie=self.editor)[2],directory)
+
+    def test_viewer_prepares_nonempty_project_library_records_without_shared_authority(self):
+        from copy import deepcopy
+        from test_firestopping_library import editable_library
+        from estimator.firestopping_library import FirestoppingLibrary
+        from estimator.project_library_drafts import prepare_library_drafts
+        root=self.signers.store.path.parent/'libraries'
+        editable_library(root)
+        library=FirestoppingLibrary(root,self.signers.store)
+        edit=library.edit('pkb-001')
+        submitted={key:deepcopy(edit[key]) for key in ('draft','revision','pricing_token')}
+        submitted['draft']['rows'][0]['inputs']['AI']=75
+        packed=library.project_draft('pkb-001',submitted)
+        snapshot={'version':1,'source_sha256':packed['source_sha256'],'records':[packed['record']]}
+        expected=prepare_library_drafts(snapshot)
+        self.assertEqual(expected['records'][0]['price']['amount'],175)
+        self.assertEqual(b64encode((root/'images/diagram-a.png').read_bytes()).decode(),snapshot['records'][0]['diagram']['content_base64'])
+        before_files={str(path.relative_to(root)):path.read_bytes() for path in root.rglob('*') if path.is_file()}
+        with self.signers.store.connect() as db:before_database=tuple(db.iterdump())
+        body={'library_drafts':snapshot};route='/api/project/library-drafts/prepare'
+        self.assertEqual(self.call(route,{},cookie='')[0],401)
+        status,_,prepared=self.call(route,body,cookie=self.editor,member=self.editor_id)
+        self.assertEqual(status,200)
+        self.assertEqual(prepared['library_drafts'],snapshot)
+        admin_token=self.access.scheduler.write('login',{'email':'admin@example.test','password':self.password})['token']
+        worker=self.access.scheduler.write('members/save',{'name':'Scheduler','email':'schedule@example.test',
+            'password':self.password,'role':'worker','active':True,'base_rate':'0'},admin_token)
+        self.assertEqual(self.call(route,{},cookie=self.login('schedule@example.test'),member=worker['id'])[0],403)
+        self.access.assign({'member_id':self.editor_id,'role':'viewer','version':1},admin_token)
+        status,_,viewed=self.call(route,body,cookie=self.editor,member=self.editor_id)
+        self.assertEqual(status,200)
+        self.assertEqual(viewed['library_drafts'],snapshot)
+        self.assertEqual(viewed['records'][0]['price']['amount'],175)
+        self.assertEqual(viewed['records'][0]['diagram']['url'],'data:image/png;base64,'+snapshot['records'][0]['diagram']['content_base64'])
+        self.assertEqual(self.call(route,{**body,'save':True},cookie=self.editor,member=self.editor_id)[0],400)
+        for mutation in ('/api/configuration','/api/project/save','/api/libraries/penetration/pkb-001/save',
+                         '/api/libraries/penetration/pkb-001/delete','/api/new-future-write'):
+            with self.subTest(route=mutation):
+                self.assertEqual(self.call(mutation,{},cookie=self.editor,member=self.editor_id)[0],403)
+                self.assertEqual(self.call(mutation,{},cookie=self.editor,member=self.admin_id)[0],409)
+        with self.signers.store.connect() as db:self.assertEqual(tuple(db.iterdump()),before_database)
+        self.assertEqual({str(path.relative_to(root)):path.read_bytes() for path in root.rglob('*') if path.is_file()},before_files)
+
     def test_audit_does_not_persist_payload_query_arbitrary_path_or_bearer_identifiers(self):
         marker='ConfidentialCustomerAB765'
         workspace=str(uuid4())

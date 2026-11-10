@@ -192,7 +192,10 @@
     const search = element("input"); search.type = "search"; search.value = state.search;
     search.placeholder = "Title, project or site address…";
     search.addEventListener("input", () => { state.search = search.value; cards(); });
-    bar.append(field("Search statements", search), button("New SWMS", openNew, true)); host.append(bar, element("div", "swms-list")); cards();
+    const create=iconAction('New SWMS',openNew,'add');create.classList.add('add-icon-action');
+    const access=window.ClassifireAccess;
+    if(access){create.disabled=true;void access.ready.then(()=>{if(create.isConnected)create.disabled=state.busy || !access.can('edit');});}
+    bar.append(field("Search statements", search), create); host.append(bar, element("div", "swms-list")); cards();
   }
   function cardHeading(row) {
     const details = row.fields.details, project = window.CeasefireProject?.details?.() || {};

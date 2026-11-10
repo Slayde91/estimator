@@ -287,8 +287,10 @@ async function workbook(title) {
     assert.equal(await page.locator('.calculator-workspace-heading #calculator-document-toggle').count(),0);
     const actionBox=await actions.boundingBox(),columnBox=await columns.boundingBox();
     assert.ok(actionBox.x>=0&&actionBox.x+actionBox.width<=width+1,'Actions stay in the viewport');
-    if(width>=631)assert.ok(actionBox.x+actionBox.width<=columnBox.x+1,'Actions sit immediately before Columns');
-    else assert.ok(columnBox.y>=actionBox.y,'Narrow action rows retain logical order');
+    assert.ok(columnBox.x>=0&&columnBox.x+columnBox.width<=width+1,'Columns stays in the viewport');
+    assert.equal(await columns.evaluate(el=>!!(el.compareDocumentPosition(document.querySelector('#calculator-document-toggle'))&Node.DOCUMENT_POSITION_FOLLOWING)),true,'Columns precedes Document in the retained DOM order');
+    if(width>=631)assert.ok(columnBox.x+columnBox.width<=actionBox.x+1,'Columns sits immediately before Document actions');
+    else assert.ok(columnBox.y+columnBox.height<=actionBox.y+1||(Math.abs(columnBox.y-actionBox.y)<2&&columnBox.x+columnBox.width<=actionBox.x+1),'Narrow action rows retain Columns before Document');
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth+1),false,'Tabs scroll locally, not the whole page');
     await page.locator('#calculator-document-toggle').click();const menuBox=await page.locator('#calculator-document-menu').boundingBox();
     assert.ok(menuBox.x>=0&&menuBox.x+menuBox.width<=width+1,'Moved document menu stays inside the viewport');

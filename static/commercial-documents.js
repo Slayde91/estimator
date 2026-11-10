@@ -460,7 +460,10 @@
     const sortField = field("Sort by", sort);
     sort.addEventListener("change", () => { state.dirty = false; });
     sortField.classList.add("commercial-sort");
-    controls.append(sortField, button("New " + names[state.kind], () => openNew(), true));
+    const create=addButton("New " + names[state.kind], () => openNew());create.classList.add('add-icon-action');
+    const access=window.ClassifireAccess;
+    if(access){create.disabled=true;void access.ready.then(()=>{if(create.isConnected)create.disabled=state.busy || !access.can('edit');});}
+    controls.append(sortField, create);
     const columns = node("details", "commercial-columns-menu");
     columns.append(node("summary", "button secondary", "Columns ▾"));
     const columnOptions = node("div", "commercial-menu-options");

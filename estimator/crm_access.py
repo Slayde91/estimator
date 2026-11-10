@@ -20,12 +20,12 @@ ADMIN_WRITES = frozenset((
     '/api/company-settings', '/api/document-numbering', '/api/numbering-settings',
     '/api/document-numbering/migrate-orders', '/api/project-details',
     '/api/pricing/import', '/api/pricing/reset',
-    '/api/configuration', '/api/projects/delete', '/api/penetration/definition',
+    '/api/configuration', '/api/projects/delete',
 ))
 READ_POSTS = frozenset(('/api/calculate', '/api/calculators/calculate',
-    '/api/penetration/calculate', '/api/configuration/preview',
+    '/api/penetration/calculate', '/api/penetration/definition', '/api/configuration/preview',
     '/api/projects/load', '/api/projects/details', '/api/projects/files',
-    '/api/project/open', '/api/certifications/workspaces'))
+    '/api/project/open', '/api/project/library-drafts/prepare', '/api/certifications/workspaces'))
 EDIT_GETS = frozenset(('/api/libraries/technical/new',))
 ADMIN_READS = frozenset(('/api/certifications/defaults/legacy',))
 IDENTITY_READS = frozenset(('/api/certifications/defaults','/api/certifications/defaults/legacy','/api/scheduler/bootstrap'))

@@ -319,10 +319,17 @@
       if(supplierContact)contactPanel.append(supplierContact);
     } else {accountPanel.append(company.element);contactPanel.append(name.element);controls=[company,name];}
     accountPanel.append(companyList);if(!isPurchaseOrder)accountPanel.append(site);
-    contactPanel.append(contactList,linkedNotice,action('Refresh linked contacts',async()=>{
+    const refreshContacts=action('',async()=>{
       if(!current())return;
       try {await refreshDirectory();await refreshParticipants(true);}catch(error){if(current())options.message(error.message,true);}
-    },'button secondary'));
+    },'button secondary icon-only commercial-refresh-contacts');
+    refreshContacts.title='Refresh linked contacts';refreshContacts.setAttribute('aria-label','Refresh linked contacts');
+    window.CeasefireI18n?.attr(refreshContacts,'title','Refresh linked contacts');window.CeasefireI18n?.attr(refreshContacts,'aria-label','Refresh linked contacts');
+    const refreshSymbol=el('span');refreshSymbol.className='button-symbol pricing-action-symbol pricing-reset-symbol';refreshSymbol.setAttribute('aria-hidden','true');
+    const existingRefresh=document.querySelector('#reset-pricing svg');
+    if(existingRefresh)refreshSymbol.append(existingRefresh.cloneNode(true));
+    else refreshSymbol.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M20 7v5h-5"></path><path d="M4 17v-5h5"></path><path d="M6.1 8.4A7.5 7.5 0 0 1 19.2 10L20 12"></path><path d="M17.9 15.6A7.5 7.5 0 0 1 4.8 14L4 12"></path></svg>';
+    refreshContacts.append(refreshSymbol);contactPanel.append(contactList,linkedNotice,refreshContacts);
     contactPanel.addEventListener('toggle',()=>{if(contactPanel.open)void refreshParticipants(true);});
     function showContact() {
       const details=options.fields.details;

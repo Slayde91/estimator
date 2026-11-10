@@ -118,6 +118,9 @@ main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh -
 .button:active:not(:disabled){transform:translateY(1px)}
 .primary{color:white;background:var(--accent);border:1px solid var(--accent);box-shadow:0 3px 8px #b90a151a}
 .primary:hover{background:var(--accent-dark);border-color:var(--accent-dark);box-shadow:0 4px 12px #b90a1525}
+.button.primary.add-icon-action,:root[data-theme] .button.primary.add-icon-action{display:inline-flex;align-items:center;justify-content:center;flex:0 0 48px;box-sizing:border-box;width:48px;min-width:48px;height:48px;min-height:48px;padding:0;border:1px solid #eb324a;border-radius:10px;background:#d0001b;color:#fff;box-shadow:none}
+.button.primary.add-icon-action:hover:not(:disabled),:root[data-theme] .button.primary.add-icon-action:hover:not(:disabled){background:#b90018;border-color:#ee5065;color:#fff}
+.add-icon-action>.button-symbol{font-size:24px;line-height:1;font-weight:400}
 .secondary{color:#51414a;background:white;border:1px solid #dcd3d7}
 .secondary:hover{color:var(--accent);background:#fff7f5;border-color:#ddabad}
 .button.excel-button{color:#fff;background:var(--navy);border:1px solid #171217}
@@ -345,7 +348,7 @@ dialog .actions{justify-content:flex-end}
 #view-pricing .button.library-create-action:hover:not(:disabled){background:#b90018;border-color:#920016}
 .pricing-table input[data-price-field="yield"] { min-width: 11rem; }
 .pricing-yield-unit { min-width: 8rem; color: var(--muted); white-space: pre-wrap; }
-#project-folder { overflow-wrap: anywhere; }
+#project-folder[hidden] { display:none!important; }
 #project-file-errors { white-space: pre-wrap; overflow-wrap: anywhere; }
 .project-identity { min-width: 0; }
 .project-identity .helper { margin: .25rem 0; overflow-wrap: anywhere; }
@@ -538,8 +541,12 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 
 /* The saved-project view uses flat rows; commercial boards keep their columns. */
 #project-list-card{--project-action-width:clamp(165px,14vw,220px);--project-row-gap:16px}
-#project-list-card .project-list-controls{display:grid;grid-template-columns:minmax(0,1fr) var(--project-action-width);gap:var(--project-row-gap)}
+#project-list-card .project-list-controls{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,auto);gap:var(--project-row-gap)}
 #project-list-card .project-list-controls>.field{min-width:0}
+.project-list-options{display:flex;align-items:flex-end;flex-wrap:wrap;gap:12px;min-width:0}
+.project-list-options>.project-sort-field{flex:1 1 180px;min-width:0;margin:0}
+.project-list-actions{display:flex;align-items:center;flex-wrap:wrap;gap:9px;min-width:0}
+.project-list-actions>.button{min-height:48px}
 .project-list{display:grid;gap:0;min-width:0}
 .project-list-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,220px) var(--project-action-width);align-items:end;gap:var(--project-row-gap);padding:20px 0;border-bottom:1px solid var(--line);min-width:0}
 .project-list-row:first-child{padding-top:8px}

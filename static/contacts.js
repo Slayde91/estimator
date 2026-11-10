@@ -30,6 +30,15 @@
     node.addEventListener("click", action);
     return node;
   }
+  function creationButton(label, action) {
+    const control=button('',action,'button primary icon-only add-icon-action');
+    control.title=label;control.setAttribute('aria-label',label);
+    window.CeasefireI18n?.attr(control,'title',label);window.CeasefireI18n?.attr(control,'aria-label',label);
+    const symbol=el('span','button-symbol','+');symbol.setAttribute('aria-hidden','true');control.append(symbol);
+    const access=window.ClassifireAccess;
+    if(access){control.disabled=true;void access.ready.then(()=>{if(control.isConnected)control.disabled=!access.can('edit');});}
+    return control;
+  }
   function feedback(container, message, error = false) {
     const msg = container.querySelector("[data-contacts-notice]");
     copy(msg, message);
@@ -1004,8 +1013,7 @@
       label.append(cutoff); controls.append(label);
     }
     if (page !== "leads") controls.append(documentMenu(page));
-    const create = button("New " + singular[page], () => dialogEditor(page), "button primary");
-    if (page === "accounts") copy(create, "New Company");
+    const create = creationButton("New " + singular[page], () => dialogEditor(page));
     controls.append(create);
     section.append(controls, el("div", "contacts-results"));
     const layout = el("div", "contacts-directory-layout");

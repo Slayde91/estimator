@@ -38,8 +38,14 @@ bids. An unavailable source retains its last-recorded relationships and is label
 unavailable. A moved file must be deliberately relinked rather than guessed from a
 matching name, address or copied UUID.
 
-Staff can explicitly create a Site and link bids from different builders to it.
-Identical addresses do not automatically merge sites or bids.
+The shared-site search lists existing sites and saved Project addresses. Select a
+result and Link it to record a manual site choice. The saved Project address is
+the default: exactly matching normalized addresses group bids automatically,
+while each Project, client and document stays separate. Normalization folds case,
+Unicode presentation and repeated spaces; unit numbers, punctuation and street
+abbreviations remain significant. A manual choice takes priority; Use site address
+returns to automatic grouping. Participant roles describe involvement and do not
+grant application access.
 
 Scheduler selects saved Work Orders and displays their Project/client/site context.
 New bookings do not depend on the old Project Accepted status and do not require
@@ -88,12 +94,16 @@ records; Scheduler-only accounts receive a separate Scheduler page. Roles and
 requests are audited. Mutations require the tab's expected staff identity, and
 signer/profile reads also detect identity changes in another tab.
 
+Loading saved inputs may derive calculator definitions and Project-local library
+previews for a reader. Those read operations do not save pricing, library items or
+Project files. Actual saves, deletes and administrator settings retain their
+existing role and staff-identity checks.
+
 Personal signer details and artwork are isolated by authenticated staff ID. Existing
-global details and anonymous browser ink are retained. An administrator can review
-and deliberately copy previous details or ink into their own profile; neither is
-adopted automatically. Copying server details uses a normal versioned Save; copying
-browser ink requires its own signature-dialog Save. Issued signatures and revisions
-are never changed by profile recovery.
+global details and anonymous browser ink are retained. The personal-details page
+uses the current named profile and its normal versioned Save; the previous-details
+Review button has been removed. Earlier artwork and historical signer data remain
+stored. Changes to a current profile do not rewrite issued signatures or revisions.
 
 The request audit records a safe endpoint template and the staff identity before an
 authorised mutation. A separate response receipt records the HTTP result. A missing

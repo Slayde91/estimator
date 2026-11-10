@@ -167,7 +167,14 @@ async function inspectHeader(width) {
           await expect(page.locator('#app-message')).toContainText('Create or load a project before creating documents.');
         }
         const controls = page.locator('.project-workspace-actions'), link = await box(controls.getByRole('button', { name: 'Link Project Folder', exact: true }));
-        for (const name of ['New', 'Load']) { const b = await box(controls.getByRole('button', { name, exact: true })); assert.ok(b.height >= link.height); }
+        const load = await box(controls.getByRole('button', { name: 'Load', exact: true })); assert.ok(load.height >= link.height);
+        const create = page.locator('#new-quote'), sort = await box(page.locator('#project-sort')), details = await box(page.locator('#project-current-details')), b = await box(create);
+        await expect(create).toHaveAccessibleName('New');assert.ok(b.height >= link.height);
+        assert.equal(await create.evaluate(el=>el.closest('.project-list-controls')===document.querySelector('#project-sort').closest('.project-list-controls')),true,'New retains the Sort row owner');
+        assert.ok(details.x>=0&&b.x+b.width<=width+1&&details.x+details.width<=b.x+1,'Current project details and New fit in their requested order');
+        const sameRow=Math.abs(b.y+b.height-sort.y-sort.height)<2;
+        assert.ok(sameRow?sort.x+sort.width<=details.x+1:details.y>=sort.y+sort.height-1,'Sort precedes the project action group; narrow layouts may wrap');
+        assert.ok(sort.x>=0&&sort.x+sort.width<=width+1,'Sort remains in the viewport alongside or above its project action group');
       } else for (const name of ['New', 'Load']) await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0);
     }
     evidence.widths.push(width);

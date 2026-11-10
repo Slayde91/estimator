@@ -293,7 +293,15 @@
   async function openTechnicalEditor(pane, id = null) {
     if (pane.technicalEditor?.saving) { message(pane, "Wait for the current item save to finish.", true); return; }
     if (pane.technicalEditor?.dirty && !await window.CeasefirePenetrationNavigation?.confirm?.("Discard unsaved Technical Library edits?", "The current form has unsaved changes.", "Discard edits")) return;
-    const token = {}; pane.technicalEditor = token; message(pane);
+    pane.technicalEditor?.cleanup?.();
+    const token = {}, dropdowns = [], labelMirrors = [], summaryMirrors = []; pane.technicalEditor = token; message(pane);
+    const mirrorLabel = (read, target) => {
+      let last = read(); target.textContent = last;
+      labelMirrors.push(() => { if (target.textContent !== last) return; target.textContent = last = read(); });
+    };
+    const refreshLabels = () => { if (pane.technicalEditor !== token) return; for (const refresh of [...labelMirrors, ...summaryMirrors]) refresh(); };
+    const closeOutside = event => { for (const picker of dropdowns) if (!picker.contains(event.target)) picker.open = false; };
+    token.cleanup = () => { token.resizeObserver?.disconnect(); document.removeEventListener("pointerdown", closeOutside); window.removeEventListener?.("ceasefire:languagechange", refreshLabels); };
     let panel = pane.technicalEditorPanel;
     if (!panel) { panel = pane.technicalEditorPanel = node("section", "card library-technical-editor"); $("technical-library-workspace").append(panel); }
     pane.list.hidden = pane.detailPanel.hidden = pane.linkPanel.hidden = true; panel.hidden = false;
@@ -306,9 +314,17 @@
       form.addEventListener("input", () => { token.dirty = true; }); form.addEventListener("change", () => { token.dirty = true; });
       heading.tabIndex = -1;
       const problems = node("p", "message error"); problems.hidden = true; problems.setAttribute("role", "alert");
+      const grow = control => {
+        if (!control.isConnected || typeof getComputedStyle !== "function") return;
+        const style = getComputedStyle(control);
+        control.style.height = "auto";
+        control.style.height = Math.ceil(control.scrollHeight + (parseFloat(style.borderTopWidth) || 0) + (parseFloat(style.borderBottomWidth) || 0)) + "px";
+      };
+      const textControls = [];
       const field = (label, value, multiline = false) => {
-        const wrapper = node("label", "field"), control = node(multiline ? "textarea" : "input");
-        control.value = value || ""; control.maxLength = multiline ? 40000 : 1000; if (multiline) control.rows = 4;
+        const wrapper = node("label", "field"), control = node("textarea");
+        control.value = value || ""; control.maxLength = multiline ? 40000 : 1000; control.rows = 1;
+        control.addEventListener("input", () => grow(control)); textControls.push(control);
         wrapper.append(uiNode("span", "", label), control); form.append(wrapper); return control;
       };
       const title = field("Title", record.title); title.required = true;
@@ -324,20 +340,53 @@
       const manufacturer = field("Manufacturer", (currentFacets.manufacturer || []).join("\n"), true);
       facets.manufacturer = () => manufacturer.value.split(/\r?\n/).map(value => value.trim()).filter(Boolean);
       for (const [key, label] of linkFacets.filter(([key]) => !["report", "manufacturer"].includes(key))) {
-        const wrapper = node("label", "field"), control = node("select"); control.multiple = true; control.size = 4; control.dataset.technicalEditorFacet = key;
+        const wrapper = node("div", "field"), control = node("select"); control.multiple = true; control.hidden = true; control.tabIndex = -1; control.dataset.technicalEditorFacet = key;
         const definition = context.filters.find(entry => entry.key === key);
         appendFilterOptions(control, definition?.options || [], key);
         const selected = currentFacets[key] || [];
         for (const value of selected) if (!filterOptions(control).some(option => option.value === value)) { const retained = node("option", "", value); retained.value = value; control.append(retained); }
         for (const option of filterOptions(control)) option.selected = selected.includes(option.value);
-        wrapper.append(uiNode("span", "", label), control, uiNode("small", "helper", "Select all values that apply.")); form.append(wrapper);
+        const caption = uiNode("span", "", label); caption.id = "technical-facet-" + key + "-" + window.crypto.randomUUID();
+        const picker = node("details", "library-technical-picker"), summary = node("summary"), selectedText = node("span"), choices = node("div", "library-technical-choices");
+        picker.dataset.technicalEditorDropdown = key; summary.setAttribute("aria-labelledby", caption.id); summary.append(selectedText);
+        let lastSummary;
+        const updateSummary = () => {
+          const values = filterOptions(control).filter(option => option.selected).map(option => option.textContent);
+          if (values.length) selectedText.textContent = values.join(", ");
+          else uiText(selectedText, "Choose…");
+          summary.title = values.join(", ");
+          lastSummary = selectedText.textContent;
+        };
+        summaryMirrors.push(() => { if (selectedText.textContent === lastSummary) updateSummary(); });
+        const choice = (option, host) => {
+          const row = node("label", "library-technical-choice"), checkbox = node("input"); checkbox.type = "checkbox";
+          checkbox.checked = option.selected; checkbox.value = option.value; checkbox.dataset.technicalEditorChoice = key;
+          checkbox.addEventListener("change", () => { if (token.saving) return; option.selected = checkbox.checked; updateSummary(); });
+          const text = node("span"); mirrorLabel(() => option.textContent, text);
+          row.append(checkbox, text); host.append(row);
+        };
+        for (const entry of control.children) {
+          if (String(entry.tagName).toLowerCase() === "optgroup") {
+            const group = node("fieldset", "library-technical-choice-group"), legend = node("legend"); mirrorLabel(() => entry.getAttribute("label"), legend); group.append(legend);
+            for (const option of entry.children) choice(option, group);
+            choices.append(group);
+          } else choice(entry, choices);
+        }
+        summary.addEventListener("click", event => { if (token.saving) event.preventDefault(); else for (const other of dropdowns) if (other !== picker) other.open = false; });
+        picker.addEventListener("keydown", event => { if (event.key === "Escape") { picker.open = false; summary.focus(); event.preventDefault(); } });
+        picker.append(summary, choices); dropdowns.push(picker); updateSummary();
+        wrapper.append(caption, control, picker, uiNode("small", "helper", "Select all values that apply.")); form.append(wrapper);
         facets[key] = () => filterOptions(control).filter(option => option.selected).map(option => option.value);
       }
       const report = (record.fields || []).find(value => value.label === "Report Number"), reports = report?.report_links || [];
       const reportNumber = field("Report number", report?.value || (currentFacets.report || currentFacets.document || []).join("\n"), true); reportNumber.required = true;
-      const reportUrl = field("Report URL (optional)", reports[0]?.url || ""); reportUrl.type = "url"; reportUrl.maxLength = 4000;
-      const actions = node("div", "actions"), save = uiButton("Save item", () => {}), cancel = uiButton("Cancel", () => {
-        if (token.saving) return; pane.technicalEditor = null; panel.hidden = true; open("technical", id || { list: true });
+      const reportUrl = field("Report URL (optional)", reports[0]?.url || ""); reportUrl.maxLength = 4000;
+      // Keep the previous native URL-input sanitization and validity while allowing wrapped text to grow.
+      const urlCheck = node("input"); urlCheck.type = "url";
+      const validateUrl = () => { urlCheck.value = reportUrl.value; reportUrl.value = urlCheck.value; reportUrl.setCustomValidity?.(urlCheck.validationMessage || ""); grow(reportUrl); };
+      reportUrl.addEventListener("input", validateUrl); validateUrl();
+      const actions = node("div", "actions"), save = uiButton("Save item", () => {}, "button primary"), cancel = uiButton("Cancel", () => {
+        if (token.saving) return; token.cleanup(); pane.technicalEditor = null; panel.hidden = true; open("technical", id || { list: true });
       }); save.type = "submit"; save.dataset.technicalEditorSave = ""; actions.append(save, cancel); form.append(problems, actions);
       form.addEventListener("submit", async event => {
         event.preventDefault(); if (token.saving || pane.technicalEditor !== token) return;
@@ -345,16 +394,21 @@
         const payload = { revision: context.revision, source_sha256: context.source_sha256, request_key: requestKey, title: title.value,
           fields: fields.map(({label, control}) => ({label, value:control.value})), facets: selected,
           report: {number:reportNumber.value, url:reportUrl.value} };
-        token.saving = true; problems.hidden = true; for (const control of form.querySelectorAll("input,select,textarea,button")) control.disabled = true;
+        token.saving = true; problems.hidden = true; for (const picker of dropdowns) picker.open = false;
+        for (const control of form.querySelectorAll("input,select,textarea,button")) control.disabled = true;
         try {
           const receipt = await request(id ? `/api/libraries/technical/${encodeURIComponent(id)}/save` : "/api/libraries/technical", null, payload);
           if (!receipt.saved || !validId(receipt.id)) throw new Error("The server did not confirm the saved item.");
           if (pane.technicalEditor !== token) return;
-          pane.technicalEditor = null; panel.hidden = true; invalidate(); await open("technical", receipt.id); message(pane, "Technical Library item saved.");
+          token.cleanup(); pane.technicalEditor = null; panel.hidden = true; invalidate(); await open("technical", receipt.id); message(pane, "Technical Library item saved.");
         } catch (error) { if (pane.technicalEditor === token) { problems.textContent = error.message; problems.hidden = false; } }
         finally { token.saving = false; if (pane.technicalEditor === token) for (const control of form.querySelectorAll("input,select,textarea,button")) control.disabled = false; }
       });
-      panel.replaceChildren(heading, form); heading.focus({preventScroll:true}); panel.scrollIntoView?.({block:"start"});
+      panel.replaceChildren(heading, form); document.addEventListener("pointerdown", closeOutside); window.addEventListener?.("ceasefire:languagechange", refreshLabels);
+      const fitText = () => { for (const control of textControls) grow(control); };
+      fitText();
+      if (typeof ResizeObserver !== "undefined") { token.resizeObserver = new ResizeObserver(fitText); token.resizeObserver.observe(form); }
+      heading.focus({preventScroll:true}); panel.scrollIntoView?.({block:"start"});
     } catch (error) { if (pane.technicalEditor === token) panel.replaceChildren(node("p", "message error", error.message), uiButton("Back", () => { panel.hidden = true; open("technical", id || {list:true}); })); }
   }
   function closeLinkPicker(pane) {
@@ -1005,7 +1059,7 @@
       if (editing.technicalEditor.saving) { message(editing, "Wait for the current item save to finish.", true); return; }
       if (editing.technicalEditor.dirty && !await window.CeasefirePenetrationNavigation?.confirm?.("Discard unsaved Technical Library edits?", "The current form has unsaved changes.", "Discard edits")) return;
     }
-    for (const existing of state.panes.values()) { closeLinkPicker(existing); existing.documentCleanup?.(); if (existing.technicalEditorPanel) { existing.technicalEditor = null; existing.technicalEditorPanel.hidden = true; } }
+    for (const existing of state.panes.values()) { closeLinkPicker(existing); existing.documentCleanup?.(); if (existing.technicalEditorPanel) { existing.technicalEditor?.cleanup?.(); existing.technicalEditor = null; existing.technicalEditorPanel.hidden = true; } }
     state.current = kind; const pane = paneFor(kind), revision = ++pane.openRevision;
     renderProjectDrafts(pane);
     if (kind === "penetration" && validId(selection) && window.CeasefireLibraryEditor?.projectRecords?.().some(record => record.id === selection)) {

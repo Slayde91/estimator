@@ -1,0 +1,137 @@
+{
+  "Primary contact": [
+    "주 연락처",
+    "Pangunahing contact",
+    "Người liên hệ chính"
+  ],
+  "Project contact": [
+    "프로젝트 연락처",
+    "Contact ng proyekto",
+    "Người liên hệ dự án"
+  ],
+  "Linked Contacts": [
+    "연결된 연락처",
+    "Mga Naka-link na Contact",
+    "Người liên hệ được liên kết"
+  ],
+  "No linked contacts.": [
+    "연결된 연락처가 없습니다.",
+    "Walang naka-link na contact.",
+    "Không có người liên hệ được liên kết."
+  ],
+  "Refresh linked contacts": [
+    "연결된 연락처 새로고침",
+    "I-refresh ang mga naka-link na contact",
+    "Làm mới người liên hệ được liên kết"
+  ],
+  "Contact unavailable": [
+    "연락처를 사용할 수 없습니다",
+    "Hindi available ang contact",
+    "Không có thông tin người liên hệ"
+  ],
+  "Linked contacts could not be loaded.": [
+    "연결된 연락처를 불러올 수 없습니다.",
+    "Hindi ma-load ang mga naka-link na contact.",
+    "Không thể tải người liên hệ được liên kết."
+  ],
+  "Calculate quantities": [
+    "수량 계산",
+    "Kalkulahin ang mga dami",
+    "Tính khối lượng"
+  ],
+  "Source document": [
+    "원본 문서",
+    "Pinagmulang dokumento",
+    "Tài liệu nguồn"
+  ],
+  "Remove selected unconfirmed items from the calculator? You can confirm and add them again.": [
+    "선택한 미확정 항목을 계산기에서 제거할까요? 확정한 뒤 다시 추가할 수 있습니다.",
+    "Alisin sa calculator ang mga napiling hindi pa nakumpirmang item? Maaari mong kumpirmahin at idagdag silang muli.",
+    "Xóa các mục đã chọn chưa xác nhận khỏi bộ tính? Bạn có thể xác nhận và thêm lại."
+  ],
+  "Update {0} linked items?": [
+    "연결된 항목 {0}개를 업데이트할까요?",
+    "I-update ang {0} naka-link na item?",
+    "Cập nhật {0} mục được liên kết?"
+  ],
+  "{0} unconfirmed linked item(s) will be removed from {1}. You can confirm and add them again.": [
+    "{1}에서 미확정 연결 항목 {0}개가 제거됩니다. 확정한 뒤 다시 추가할 수 있습니다.",
+    "Aalisin ang {0} hindi pa nakumpirmang naka-link na item mula sa {1}. Maaari mong kumpirmahin at idagdag silang muli.",
+    "Sẽ xóa {0} mục liên kết chưa xác nhận khỏi {1}. Bạn có thể xác nhận và thêm lại."
+  ],
+  "Remove unconfirmed item: {0}": [
+    "미확정 항목 제거: {0}",
+    "Alisin ang hindi pa nakumpirmang item: {0}",
+    "Xóa mục chưa xác nhận: {0}"
+  ],
+  "Add: {0}": [
+    "추가: {0}",
+    "Idagdag: {0}",
+    "Thêm: {0}"
+  ],
+  "Update: {0}": [
+    "업데이트: {0}",
+    "I-update: {0}",
+    "Cập nhật: {0}"
+  ],
+  "Keep unchanged: {0}": [
+    "변경 없이 유지: {0}",
+    "Panatilihing hindi nagbabago: {0}",
+    "Giữ nguyên: {0}"
+  ],
+  "{0} unconfirmed linked items removed from the calculator draft.": [
+    "계산기 초안에서 미확정 연결 항목 {0}개가 제거되었습니다.",
+    "Naalis ang {0} hindi pa nakumpirmang naka-link na item sa draft ng calculator.",
+    "Đã xóa {0} mục liên kết chưa xác nhận khỏi bản nháp của bộ tính."
+  ],
+  "{0} unconfirmed items removed. You can confirm and add them again.": [
+    "미확정 항목 {0}개가 제거되었습니다. 확정한 뒤 다시 추가할 수 있습니다.",
+    "Naalis ang {0} hindi pa nakumpirmang item. Maaari mong kumpirmahin at idagdag silang muli.",
+    "Đã xóa {0} mục chưa xác nhận. Bạn có thể xác nhận và thêm lại."
+  ],
+  "Work order details reviewed by": [
+    "작업 지시서 세부 정보 검토자",
+    "Tagasuri ng mga detalye ng work order",
+    "Người duyệt chi tiết lệnh công việc"
+  ],
+  "Work order details reviewed by name": [
+    "작업 지시서 세부 정보 검토자 이름",
+    "Pangalan ng tagasuri ng mga detalye ng work order",
+    "Tên người duyệt chi tiết lệnh công việc"
+  ],
+  "Details review date": [
+    "세부 정보 검토일",
+    "Petsa ng pagsusuri ng mga detalye",
+    "Ngày duyệt chi tiết"
+  ],
+  "Choose a completion status before signing Work Order completion.": [
+    "작업 지시서 완료란에 서명하기 전에 완료 상태를 선택하세요.",
+    "Pumili ng katayuan ng pagkumpleto bago lagdaan ang pagkumpleto ng Work Order.",
+    "Chọn trạng thái hoàn thành trước khi ký phần hoàn thành lệnh công việc."
+  ],
+  "The Work Order signature changed. Sign it again before saving.": [
+    "작업 지시서 서명이 변경되었습니다. 저장하기 전에 다시 서명하세요.",
+    "Nagbago ang lagda sa Work Order. Lumagda muli bago i-save.",
+    "Chữ ký của lệnh công việc đã thay đổi. Hãy ký lại trước khi lưu."
+  ],
+  "The completion choice changed. Sign Work Order completion again.": [
+    "완료 선택이 변경되었습니다. 작업 지시서 완료란에 다시 서명하세요.",
+    "Nagbago ang napiling pagkumpleto. Lagdaan muli ang pagkumpleto ng Work Order.",
+    "Lựa chọn hoàn thành đã thay đổi. Hãy ký lại phần hoàn thành lệnh công việc."
+  ],
+  "Sign Work order details reviewed by": [
+    "작업 지시서 세부 정보 검토자 서명",
+    "Lagdaan ang Tagasuri ng mga detalye ng work order",
+    "Ký Người duyệt chi tiết lệnh công việc"
+  ],
+  "Change Work order details reviewed by": [
+    "작업 지시서 세부 정보 검토자 변경",
+    "Palitan ang Tagasuri ng mga detalye ng work order",
+    "Thay đổi Người duyệt chi tiết lệnh công việc"
+  ],
+  "Clear Work order details reviewed by": [
+    "작업 지시서 세부 정보 검토자 지우기",
+    "I-clear ang Tagasuri ng mga detalye ng work order",
+    "Xóa Người duyệt chi tiết lệnh công việc"
+  ]
+}

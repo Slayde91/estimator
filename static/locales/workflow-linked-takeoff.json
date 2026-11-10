@@ -187,5 +187,19 @@
     "Borrar Revisor de los detalles de la orden de trabajo",
     "مسح مراجع تفاصيل أمر العمل",
     "ล้างผู้ตรวจทานรายละเอียดใบสั่งงาน"
+  ],
+  "This linked group contains other items. Split or relink the group before removing only some items.": [
+    "该关联组包含其他项目。只移除部分项目之前，请先拆分或重新关联该组。",
+    "इस लिंक किए गए समूह में अन्य आइटम हैं। केवल कुछ आइटम हटाने से पहले समूह को अलग करें या दोबारा लिंक करें।",
+    "Este grupo vinculado contiene otros elementos. Divida o vuelva a vincular el grupo antes de quitar solo algunos elementos.",
+    "تحتوي هذه المجموعة المرتبطة على عناصر أخرى. قسّم المجموعة أو أعد ربطها قبل إزالة بعض العناصر فقط.",
+    "กลุ่มที่เชื่อมโยงนี้มีรายการอื่นอยู่ด้วย โปรดแยกกลุ่มหรือเชื่อมโยงใหม่ก่อนนำออกเพียงบางรายการ"
+  ],
+  "Client contact": [
+    "客户联系人",
+    "क्लाइंट का संपर्क",
+    "Contacto del cliente",
+    "جهة اتصال العميل",
+    "ผู้ติดต่อของลูกค้า"
   ]
 }

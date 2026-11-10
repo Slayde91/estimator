@@ -3488,5 +3488,7 @@
   "The completion choice changed. Sign Work Order completion again.": "تکمیل کا انتخاب بدل گیا ہے۔ کام کے آرڈر کی تکمیل پر دوبارہ دستخط کریں۔",
   "Sign Work order details reviewed by": "کام کے آرڈر کی تفصیلات کا جائزہ لینے والا پر دستخط کریں",
   "Change Work order details reviewed by": "کام کے آرڈر کی تفصیلات کا جائزہ لینے والا تبدیل کریں",
-  "Clear Work order details reviewed by": "کام کے آرڈر کی تفصیلات کا جائزہ لینے والا صاف کریں"
+  "Clear Work order details reviewed by": "کام کے آرڈر کی تفصیلات کا جائزہ لینے والا صاف کریں",
+  "This linked group contains other items. Split or relink the group before removing only some items.": "اس منسلک گروپ میں دیگر آئٹمز بھی ہیں۔ صرف کچھ آئٹمز ہٹانے سے پہلے گروپ تقسیم کریں یا دوبارہ منسلک کریں۔",
+  "Client contact": "کلائنٹ کا رابطہ"
 }

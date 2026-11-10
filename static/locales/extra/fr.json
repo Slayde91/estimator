@@ -3488,5 +3488,7 @@
   "The completion choice changed. Sign Work Order completion again.": "Le choix d’achèvement a changé. Signez à nouveau la fin de l’ordre de travail.",
   "Sign Work order details reviewed by": "Signer Personne ayant vérifié les détails de l’ordre de travail",
   "Change Work order details reviewed by": "Modifier Personne ayant vérifié les détails de l’ordre de travail",
-  "Clear Work order details reviewed by": "Effacer Personne ayant vérifié les détails de l’ordre de travail"
+  "Clear Work order details reviewed by": "Effacer Personne ayant vérifié les détails de l’ordre de travail",
+  "This linked group contains other items. Split or relink the group before removing only some items.": "Ce groupe lié contient d’autres éléments. Scindez ou reliez à nouveau le groupe avant de ne retirer que certains éléments.",
+  "Client contact": "Contact du client"
 }

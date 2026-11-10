@@ -133,5 +133,15 @@
     "작업 지시서 세부 정보 검토자 지우기",
     "I-clear ang Tagasuri ng mga detalye ng work order",
     "Xóa Người duyệt chi tiết lệnh công việc"
+  ],
+  "This linked group contains other items. Split or relink the group before removing only some items.": [
+    "이 연결 그룹에는 다른 항목이 있습니다. 일부 항목만 제거하려면 먼저 그룹을 나누거나 다시 연결하세요.",
+    "May iba pang item ang naka-link na grupong ito. Hatiin o muling i-link ang grupo bago alisin ang ilan lamang sa mga item.",
+    "Nhóm liên kết này chứa các mục khác. Hãy tách hoặc liên kết lại nhóm trước khi chỉ xóa một số mục."
+  ],
+  "Client contact": [
+    "고객 연락처",
+    "Contact ng kliyente",
+    "Người liên hệ của khách hàng"
   ]
 }

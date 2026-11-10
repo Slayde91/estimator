@@ -150,6 +150,7 @@ jobs:
       - run: node tests/browser/commercial_documents.cjs
       - run: node tests/browser/commercial_pricing_picker.cjs
       - run: node tests/browser/commercial_directory_search.cjs
+      - run: node tests/browser/commercial_linked_contacts.cjs
       - run: node tests/browser/saved_download_links.cjs
       - run: node tests/browser/commercial_panes_signatures.cjs
       - run: node tests/browser/commercial_status_project_scope.cjs
@@ -258,6 +259,7 @@ jobs:
       - run: npm run test:takeoffs-viewer-shortcuts
       - run: npm run test:takeoffs-library-links
       - run: npm run test:manual-register-transfer
+      - run: node tests/browser/takeoff_unconfirmed_sync.cjs
       - run: npm run test:takeoffs-library-barriers
       - run: npm run test:takeoffs-drawing-ocr
       - run: npm run test:takeoffs-duct-filters

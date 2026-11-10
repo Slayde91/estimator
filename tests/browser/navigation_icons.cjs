@@ -1,5 +1,6 @@
 const {cycleTheme}=require('./theme_navigation.cjs');
 const {assertPreviewHeaderIcons,views}=require('./preview_header_helpers.cjs');
+const {createNewProject}=require('./project_actions.cjs');
 const {chromium,expect}=require('@playwright/test');
 const {spawn,spawnSync}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),assert=require('node:assert/strict');
@@ -64,10 +65,13 @@ async function homeIcons(theme){
   const info=await ready;assert.notEqual(info.port,8765);
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1384,height:764},deviceScaleFactor:2});page.setDefaultTimeout(30000);
   page.on('pageerror',error=>errors.push(error.message));
-  page.on('request',request=>{const route=new URL(request.url()).pathname;if(request.method()!=='GET'&&/^\/api\/(?:calculators\/[^/]+\/state|pricing|project\/save(?:-as)?)$/.test(route))saveRequests.push({route,method:request.method()});});
   await page.addInitScript(()=>document.addEventListener('securitypolicyviolation',event=>{window.qaIconCsp??=[];window.qaIconCsp.push({directive:event.effectiveDirective,blocked:event.blockedURI});}));
   await page.goto(`http://127.0.0.1:${info.port}/`);
   await page.waitForFunction(()=>window.CeasefireDesktop?.status().ready);
+  // Documents opens Documentation directly and requires a real created Project.
+  // The one disposable setup Save precedes the unchanged no-save navigation checks.
+  const projectSetup=await createNewProject(page,{client:'Navigation icon fixture Company','site-address':'79 Synthetic Navigation Street'});assert.match(projectSetup.project.estimate.project_no,/^PN-/);await expect(page.locator('#project-no')).toHaveValue(projectSetup.project.estimate.project_no);
+  page.on('request',request=>{const route=new URL(request.url()).pathname;if(request.method()!=='GET'&&/^\/api\/(?:calculators\/[^/]+\/state|pricing|project\/save(?:-as)?)$/.test(route))saveRequests.push({route,method:request.method()});});
   for(const [name,file,digest,size] of assets){
     assert.equal(hash(fs.readFileSync(path.join(root,'static/icons',file))),digest);
     const reply=await page.request.get(`http://127.0.0.1:${info.port}/icons/${file}`);assert.equal(reply.status(),200);assert.equal(reply.headers()['content-type'],'image/jpeg');assert.equal(hash(await reply.body()),digest);
@@ -104,5 +108,5 @@ async function homeIcons(theme){
   }
   csp.push(...await page.evaluate(()=>window.qaIconCsp||[]));
   assert.deepEqual(errors,[]);assert.deepEqual(csp,[]);assert.deepEqual(saveRequests,[]);
-  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,evidence,homeEvidence,homeActions,errors,csp,saveRequests,assets},null,2));console.log(`PASS: all eight header icons and six matching Home icons; five themes, desktop/tablet/mobile and native card actions. ${output}`);
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,projectSetup:{project_no:projectSetup.project.estimate.project_no,created_before_navigation_save_observer:true},evidence,homeEvidence,homeActions,errors,csp,saveRequests,assets},null,2));console.log(`PASS: all eight header icons and six matching Home icons; five themes, desktop/tablet/mobile and native card actions. ${output}`);
 })().catch(async error=>{console.error(error);process.exitCode=1;await page?.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});}).finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);await browser?.close();server.kill();});

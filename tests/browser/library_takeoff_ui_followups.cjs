@@ -22,13 +22,14 @@ async function idle(){await page.waitForFunction(()=>{const s=window.CeasefireDe
 async function setTheme(id){await page.locator('html').evaluate((node,id)=>node.dataset.theme=id,id);}
 async function alignment(label){
  const geometry=()=>page.locator('#view-takeoffs').evaluate(root=>{
-  const heading=root.querySelector('.takeoff-workspace-heading'),viewport=root.querySelector('#takeoff-viewport'),title=heading.querySelector('h1,h2'),rtl=getComputedStyle(root).direction==='rtl';
+  const heading=root.querySelector('.takeoff-workspace-heading'),tabs=root.querySelector('#takeoff-pages'),viewport=root.querySelector('#takeoff-viewport'),title=heading.querySelector('h1,h2'),rtl=getComputedStyle(root).direction==='rtl';
   const box=node=>{const r=node.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};};
-  const h=box(heading),v=box(viewport),t=box(title),art=[...heading.querySelectorAll('.takeoff-heading-art')].find(node=>getComputedStyle(node).display!=='none');
-  return{heading:h,viewport:v,title:t,rtl,delta:rtl?h.right-v.right:h.x-v.x,art:art?box(art):null,overflow:document.documentElement.scrollWidth-innerWidth};
+  const h=box(heading),p=box(tabs),section=box(root),v=box(viewport),t=box(title),art=[...heading.querySelectorAll('.takeoff-heading-art')].find(node=>getComputedStyle(node).display!=='none');
+  return{heading:h,tabs:p,section,viewport:v,title:t,rtl,delta:rtl?h.right-p.right:h.x-p.x,sectionDelta:rtl?h.right-section.right:h.x-section.x,sectionOwnsHeadingAndTabs:heading.parentElement===root&&tabs.parentElement===root,headingBeforeTabs:!!(heading.compareDocumentPosition(tabs)&Node.DOCUMENT_POSITION_FOLLOWING),art:art?box(art):null,overflow:document.documentElement.scrollWidth-innerWidth};
  });
- await expect.poll(async()=>Math.abs((await geometry()).delta),{message:'Takeoffs heading aligns with drawing: '+label}).toBeLessThan(1);
+ await expect.poll(async()=>Math.abs((await geometry()).delta),{message:'Takeoffs heading aligns with its main section tabs: '+label}).toBeLessThan(1);
  const value=await geometry();assert.ok(value.overflow<=1,'No viewport overflow at '+label+': '+JSON.stringify(value));
+ assert.ok(value.sectionOwnsHeadingAndTabs&&value.headingBeforeTabs&&value.heading.bottom<=value.tabs.y+1&&Math.abs(value.sectionDelta)<1,'Takeoffs section owns its heading above aligned main tabs: '+label+': '+JSON.stringify(value));
  assert.ok(Math.abs(value.rtl?value.title.right-value.heading.right:value.title.x-value.heading.x)<1,'Title starts at its aligned heading edge: '+label);
  if(value.art)assert.ok(value.rtl?value.art.right<=value.title.x+1:value.art.x>=value.title.right-1,'Existing artwork remains beside the title: '+label);
  evidence.alignment.push({label,...value});
@@ -89,7 +90,7 @@ async function activePaint(label){
    await button.click();await expect(button).toHaveAttribute('aria-expanded','false');await alignment(width+'/'+name+'/closed');
   }
  }
- // Every title and its artwork must fit after the PDF-edge inset, including
+ // Every title and its artwork must fit above the aligned main tabs, including
  // narrow physical workspaces and both logical directions.
  for(const width of [1384,825,390]){
   await page.setViewportSize({width,height:900});

@@ -188,16 +188,26 @@ const ready = new Promise((resolve, reject) => {
   await expect(edit).toBeVisible();
   await expect(edit).toContainText('Unavailable saved record. Clear the selection to remove this link.');
   await expect(edit.locator('.contacts-links-group > summary')).toHaveText(['Contacts (1)','Projects (1)']);
+  const retainedRefresh=page.waitForResponse(reply=>{
+    const url=new URL(reply.url());return url.pathname==='/api/contacts/account-links'
+      && url.searchParams.get('id')===account.id && url.searchParams.get('search')==='No matching record';
+  });
   await edit.getByLabel('Find records to link').fill('No matching record');
   await expect(edit.locator('.contacts-link-search-results')).toContainText('No matching records.');
   await edit.getByLabel('Find records to link').press('Escape');
+  assert.equal((await retainedRefresh).status(),200);
+  await expect(edit.getByRole('button',{name:'Refresh linked records',exact:true})).toBeEnabled();
+  await expect(edit.getByRole('button',{name:'Save',exact:true})).toBeEnabled();
   await expect(edit.locator('.contacts-links [data-link-group="projects"] input')).toBeChecked();
   let retained;
   await page.route('**/api/contacts/accounts', async route => {
     retained=route.request().postDataJSON();
     await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Retry retained links'})});
   });
+  const retainedSave=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/contacts/accounts'
+    && reply.request().method()==='POST' && reply.request().postDataJSON().id===account.id);
   await edit.getByRole('button',{name:'Save',exact:true}).click();
+  assert.equal((await retainedSave).status(),503);
   await expect(edit).toContainText('Retry retained links');
   assert.deepEqual(retained.links.projects,[linked.linked.projects[0].id]);
   await expect(edit.locator('.contacts-links [data-link-group="projects"] input')).toBeChecked();

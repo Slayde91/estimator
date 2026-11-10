@@ -338,7 +338,16 @@ class OriginalWorkbookExtractionTests(unittest.TestCase):
         root = Path(os.environ["ESTIMATOR_WORKBOOK_DIR"])
         regenerated = extract_calculator(root / "Quote.xlsm")
         path = Path(__file__).resolve().parents[1] / "data" / "calculator.json"
-        self.assertEqual(regenerated, json.loads(path.read_text(encoding="utf-8")))
+        application = json.loads(path.read_text(encoding="utf-8"))
+        original_quantity = [field for field in regenerated["fields"] if field.get("cell") == "B8"]
+        application_quantity = [field for field in application["fields"] if field.get("cell") == "B8"]
+        self.assertEqual([field["label"] for field in original_quantity], ["Sqm/Items"])
+        self.assertEqual([field["label"] for field in application_quantity], ["Sqm/Items"])
+        self.assertEqual(original_quantity[0]["default"], 30)
+        self.assertIsNone(application_quantity[0]["default"])
+        # The application deliberately starts quantity blank; the original retains its sample value.
+        original_quantity[0]["default"] = None
+        self.assertEqual(regenerated, application)
 
 
 if __name__ == "__main__":

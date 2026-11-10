@@ -14,7 +14,7 @@ function harness({legacySave=true}={}) {
   let project={}, defaults={fields:Object.fromEntries(['name','position','qualification','accreditation'].map(key=>[key,''])),signature_image:null,signature_name:'',version:1};
   let serial = 0, creates = 0, approve = true, routeOverride = null, loseGeneratedReply = false, loseCreatedReply = false;
   let canvasData=signature;
-  const element = tag => ({tagName:tag,value:'',textContent:'',children:[],listeners:{},disabled:false,attributes:{},files:[],checked:false,open:false,captures:new Set(),width:900,height:270,
+  const element = tag => ({tagName:tag,value:'',textContent:'',children:[],listeners:{},disabled:false,attributes:{},dataset:{},files:[],checked:false,open:false,captures:new Set(),width:900,height:270,
     contains(target){return target===this;},querySelector(){return {focus(){}};},focus(){this.focused=true;},
     append(...items){this.children.push(...items);},replaceChildren(...items){this.children=items;},
     setAttribute(k,v){this.attributes[k]=v;},removeAttribute(k){delete this.attributes[k];delete this[k];},addEventListener(k,fn){(this.listeners[k]||=[]).push(fn);},
@@ -101,12 +101,12 @@ async function check(name,fn,{open=true,legacySave=true}={}){const h=harness({le
     assert.equal(h.api.hasUnsavedChanges(),false);
     const revisions=h.calls.filter(call=>call.path.endsWith('/revisions'));assert.equal(revisions.length,2);assert.deepEqual(revisions[0].body,revisions[1].body);
   },{legacySave:false});
-  await check('Project guard blocks new certificate creation before validation or writes and keeps fields',async h=>{
-    await h.api.open();h.field('client','Keep this unsaved draft');
+  await check('An unfiled editor can compose a new draft, while Project guards block every actual save and generation',async h=>{
+    await h.api.open();
     h.window.CeasefireProject.requireCreatedProject=()=>false;
-    const before=h.byId('certification-client').value;
-    await h.select('');await h.save();await h.generate();
-    assert.equal(h.byId('certification-client').value,before);
+    await h.select('');assert.equal(h.byId('certification-editor').hidden,false);
+    h.field('client','Keep this unsaved draft');await h.save();await h.generate();
+    assert.equal(h.byId('certification-client').value,'Keep this unsaved draft');
     assert.equal(h.documents.size,0);assert.equal(h.calls.filter(call=>call.path==='/api/certifications'&&call.body).length,0);
   });
   await check('Blank certificate does not invent standards or qualifications; company wording remains literal text',async h=>{
@@ -522,6 +522,52 @@ async function check(name,fn,{open=true,legacySave=true}={}){const h=harness({le
     assert.notEqual(h.api.sessionId(),identity.workspace_id);await h.api.open();
     assert.equal(h.calls.filter(call=>call.path==='/api/certifications/workspaces').length,1);
   },{open:false});
+  await check('Certification starts on its board, creates an editor only explicitly and preserves a draft on Back and Resume',async h=>{
+    assert.equal(h.byId('certification-list').hidden,false);assert.equal(h.byId('certification-editor').hidden,true);
+    const before=h.calls.filter(call=>call.path==='/api/certifications'&&call.body).length;
+    await h.select('');assert.equal(h.byId('certification-editor').hidden,false);assert.equal(h.byId('certification-list').hidden,true);
+    h.field('location_area','Uncommitted editor draft');const stamp=h.api.projectFingerprint();
+    await h.byId('certification-back').emit('click');assert.equal(h.byId('certification-list').hidden,false);
+    assert.equal(h.byId('certification-resume').hidden,false);assert.equal(h.api.projectFingerprint(),stamp);
+    await h.byId('certification-resume').emit('click');assert.equal(h.byId('certification-editor').hidden,false);
+    assert.equal(h.byId('certification-location_area').value,'Uncommitted editor draft');
+    assert.equal(h.calls.filter(call=>call.path==='/api/certifications'&&call.body).length,before);
+  });
+  await check('Back cannot hide an uncertain committed save or a signature choice',async h=>{
+    await h.select('');h.loseNextCreatedReply();await h.save();
+    assert.equal(h.byId('certification-back').disabled,true);await h.byId('certification-back').emit('click');assert.equal(h.byId('certification-editor').hidden,false);
+    await h.save();const choosing=deferred();h.window.ClassifirePersonalSignature.choose=()=>choosing.promise;
+    const signing=h.saveSignature();await flush();await h.byId('certification-back').emit('click');assert.equal(h.byId('certification-editor').hidden,false);
+    choosing.resolve(null);await signing;await h.byId('certification-back').emit('click');assert.equal(h.byId('certification-list').hidden,false);
+  });
+  await check('A portable project draft is resumable from the board and cannot be silently replaced by Create',async h=>{
+    const prepared=await h.api.prepareProject();prepared.draft={id:null,version:null,fields:{...blank(),client:'Portable client',location_area:'Portable unsaved certificate area'},options:{cover_pdf:null,cover_pdf_name:'',scopes:[]}};
+    h.api.applyProject(prepared);assert.equal(h.byId('certification-editor').hidden,true);assert.equal(h.byId('certification-resume').hidden,false);
+    h.approve(false);await h.select('');assert.equal(h.byId('certification-location_area').value,'Portable unsaved certificate area');assert.equal(h.byId('certification-editor').hidden,true);
+    await h.byId('certification-resume').emit('click');assert.equal(h.byId('certification-editor').hidden,false);assert.equal(h.byId('certification-client').value,'Portable client');
+  });
+  await check('Identical portable certificate fields with a different JSON key order do not lock board status changes',async h=>{
+    await h.save();const current=copy([...h.documents.values()][0]),prepared=await h.api.prepareProject();
+    prepared.items=[current];prepared.current=current;prepared.draft={id:current.id,version:current.version,
+      fields:Object.fromEntries(Object.entries(current.fields).reverse()),options:copy(current.options)};
+    let board;h.window.ClassifireDocumentBoard={render:(_host,options)=>{board=options;}};h.api.applyProject(prepared);
+    assert.equal(h.api.hasUnsavedChanges(),false);assert.equal(board.locked(),false);
+  });
+  await check('Search filters board metadata across all stages without changing the stored documents',async h=>{
+    let board;h.window.ClassifireDocumentBoard={render:(_host,options)=>{board=options;}};
+    for(const [index,status]of ['Draft','Review','Approved','Rejected'].entries()){
+      const doc={id:'search-'+index,version:1,reference:'CERT-'+index,fields:{...blank(),client:status+' client',project:'PN-'+index,address:'Site '+index},options:{cover_pdf:null,cover_pdf_name:'',scopes:[],workflow_status:status},revisions:[]};
+      h.documents.set(doc.id,doc);
+    }
+    await h.api.open();assert.equal(board.items.length,4);const before=copy([...h.documents.values()]);
+    for(const term of ['CERT-2','Approved client','PN-2','Site 2']){
+      h.byId('certification-search').value=term;await h.byId('certification-search').emit('input');
+      assert.equal(board.items.length,1);assert.equal(board.items[0].id,'search-2');assert.equal(board.stageOf(board.items[0]),'Approved');
+    }
+    h.byId('certification-search').value='No matching certificate';await h.byId('certification-search').emit('input');assert.equal(board.items.length,0);
+    h.byId('certification-search').value='';await h.byId('certification-search').emit('input');assert.equal(board.items.length,4);
+    assert.deepEqual(copy([...h.documents.values()]),before);assert.equal(h.byId('certification-editor').hidden,true);
+  });
   await check('Concurrent capability requests share creation and reject malformed scope replies before adoption',async h=>{
     const held=deferred();h.override(path=>path==='/api/certifications/workspaces'?held.promise:undefined);
     const first=h.api.projectWorkspace(),second=h.api.projectWorkspace();await flush();assert.equal(h.api.hasPendingOperation(),true);

@@ -2,6 +2,7 @@ const {fillProjectDetails}=require('./project_actions.cjs');
 // Real authored exports and portable current-project history on private storage.
 const {chromium,expect}=require('@playwright/test');
 const {openProjectSection,clickProjectControl,createNewProject}=require('./project_actions.cjs');
+const {openCertificateEditor}=require('./certification_generation.cjs');
 const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),{createHash}=require('node:crypto');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`project-documentation-${Date.now()}`);
@@ -99,6 +100,8 @@ function checkCompanions(project,folder){
   // Certification is an existing validated preparation workflow, not a second
   // renderer or an unreviewed auto-filled compliance statement.
   await page.locator('button[data-document-kind="certification"]').click();await expect(page.locator('#view-certification')).toBeVisible();await idle();
+  await expect(page.locator('#certification-list')).toBeVisible();await expect(page.locator('#certification-editor')).toBeHidden();
+  await openCertificateEditor(page);
   const required=['client','project','address','location_area','statement_of_compliance','australian_standards','ncc_clauses','approved_design','additional_standards','other_references','exclusions','materials_manufacturers','fire_resistance_level','name','position','qualification','accreditation'];
   for(const field of required)await page.locator('#certification-'+field).fill(field==='client'?'SYNTHETIC DOCUMENTATION QA':'N/A - synthetic browser fixture');
   await page.locator('#certification-generate').click();await expect(page.locator('#certification-status')).toContainText('Revision 1 saved',{timeout:60000});await idle();
@@ -127,7 +130,7 @@ function checkCompanions(project,folder){
   await expect(page.locator('#documentation-revisions-pane')).toBeHidden();await expect(page.locator('#documentation-revisions-list a')).toHaveCount(0);
   assert.deepEqual((await api('/api/documentation?workspace='+b)).items,[]);
   for(const item of historyA.items){const foreign=await page.request.get(base+'/api/documentation/'+item.id+'?workspace='+b);assert.equal(foreign.status(),404);}
-  await openProjectSection(page,'certification');await expect(page.locator(`#certification-document option[value="${certificateId}"]`)).toHaveCount(0);
+  await openProjectSection(page,'certification');await openCertificateEditor(page);await expect(page.locator(`#certification-document option[value="${certificateId}"]`)).toHaveCount(0);
   await page.locator('#certification-client').fill('Unsaved synthetic Project B certificate draft');
   checks.push('New Project B starts empty and cannot read any Project A document or certificate through its own scope');
   await load('moved/project-copy.cf.json');await expect(page.locator('#client')).toHaveValue('SYNTHETIC DOCUMENTATION QA');await documentation();
@@ -135,7 +138,7 @@ function checkCompanions(project,folder){
   const after=await api('/api/documentation?workspace='+restored);assert.equal(after.project_id,historyA.project_id);assert.deepEqual(publicHistory(after),readBefore);
   await revisions('estimate.summary.pdf',2);await revisions('calculator.steel_board.template.xlsx',1);
   for(const item of after.items)await oldFile(item,restored);assert.deepEqual(await oldFile(estimateOne,restored),firstBytes);
-  await openProjectSection(page,'certification');await expect(page.locator('#certification-document')).toHaveValue(certificateId);await expect(page.locator('#certification-revisions a')).toHaveCount(1);
+  await openProjectSection(page,'certification');await openCertificateEditor(page);await expect(page.locator('#certification-document')).toHaveValue(certificateId);await expect(page.locator('#certification-revisions a')).toHaveCount(1);
   await documentation();assert.equal((await api('/api/documentation?workspace='+restored)).workspace_revision,3);assert.equal(digest(fs.readFileSync(path.join(moved,'project-copy.cf.json'))),copiedHash);
   checks.push('Loading the moved project restores all immutable links, revision numbers, exact file hashes and only its own certificate');
   for(const width of [1280,671,390]){await page.setViewportSize({width,height:1000});await expect(page.locator('#documentation-heading')).toBeVisible();

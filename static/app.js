@@ -1270,6 +1270,19 @@
     });
     window.addEventListener("pointerdown", event => { if (!navigation.contains(event.target)) setOpen(false); });
   }
+  function setupWorkspaceTabs(id, selector, navigate) {
+    const strip = $(id);
+    for (const button of strip?.querySelectorAll(selector) || []) button.addEventListener("click", () => {
+      Promise.resolve(navigate(button)).catch(error => message(error.message, true));
+    });
+    strip?.addEventListener("keydown", event => {
+      const tabs = [...strip.querySelectorAll(selector)].filter(button => !button.disabled), index = tabs.indexOf(event.target);
+      if (index < 0 || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const forward = document.documentElement.dir === "rtl" ? "ArrowLeft" : "ArrowRight";
+      tabs[event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === forward ? 1 : -1) + tabs.length) % tabs.length]?.focus();
+    });
+  }
   function setSectionMenuOpen(id, open) {
     const menu = $(id + "-menu"), toggle = $(id + "-toggle");
     if (!menu || !toggle) return;
@@ -2916,15 +2929,9 @@
   for (const card of document.querySelectorAll(".projects-section-card[data-document-section]")) card.addEventListener("click", () => requestViewNavigation(card.dataset.documentSection));
   for (const button of documentPages?.querySelectorAll("[data-document-section]") || []) button.addEventListener("click", () => requestViewNavigation(button.dataset.documentSection));
   for (const card of document.querySelectorAll("[data-steel-calculator]")) card.addEventListener("click", () => requestCalculatorNavigation(card.dataset.steelCalculator));
-  const calculatorTabs = $("calculator-kind-pages");
-  for (const button of calculatorTabs?.querySelectorAll("[data-calculator-id]") || []) button.addEventListener("click", () => requestCalculatorNavigation(button.dataset.calculatorId));
-  calculatorTabs?.addEventListener("keydown", event => {
-    const tabs = [...calculatorTabs.querySelectorAll("[data-calculator-id]")], index = tabs.indexOf(event.target);
-    if (index < 0 || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-    event.preventDefault();
-    const forward = document.documentElement.dir === "rtl" ? "ArrowLeft" : "ArrowRight";
-    tabs[event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === forward ? 1 : -1) + tabs.length) % tabs.length]?.focus();
-  });
+  setupWorkspaceTabs("calculator-kind-pages", "[data-calculator-id]", button => requestCalculatorNavigation(button.dataset.calculatorId));
+  setupWorkspaceTabs("library-pages", "[data-library-kind]", button => requestLibraryNavigation(button.dataset.libraryKind));
+  setupWorkspaceTabs("takeoff-pages", "[data-mode]", button => requestTakeoffNavigation(button.dataset.mode, button.dataset.physicalScope));
   setupCalculatorNavigation();
   for (const button of document.querySelectorAll("[data-home-view]")) button.addEventListener("click", () => requestViewNavigation(button.dataset.homeView));
   document.querySelector(".brand")?.addEventListener("click", (event) => { event.preventDefault(); requestViewNavigation("home"); });

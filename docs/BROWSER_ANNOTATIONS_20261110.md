@@ -16,6 +16,15 @@ after switching views. Actual certificate writes, signature insertion, generatio
 and uncertain requests awaiting exact-key retry remain guarded. The broader
 pending predicate still protects project replacement, capture and desktop close.
 
+Certification opens as a searchable four-stage board. Create Certificate opens a
+separate editor pane, and selecting a saved card opens that certificate. Back
+returns to the board without saving or discarding the form. Resume draft keeps
+an unfinished or restored portable draft reachable, including a restored draft
+whose project baseline is already clean. A pending mutation/signature still
+prevents leaving the editor; replacing an edited draft retains the existing
+confirmation. Search filters the recorded reference, client, project and site;
+it changes only visible cards and counts, never the saved workflow stages.
+
 ## Calculator strip and worksheet actions
 
 All six calculators have a persistent strip using the existing Projects tab
@@ -32,6 +41,15 @@ breakpoint places the worksheet tabs on their own row. Actions wrap in document
 order when the available width is insufficient, and the document popup stays
 within the viewport. Export/import/reset handlers and column preferences are
 unchanged. Factor Calcs keeps its existing applicable actions.
+
+Takeoffs has the same strip for its five actual workspaces: Steel, Duct,
+Walls/Floors, Defect Reports and Service Plans. Libraries has Pricing Library,
+Firestopping Library and Technical Library. These strips call the same guarded
+navigation functions as their existing header menus; they do not copy drawings,
+merge registers, apply pricing or save projects merely by switching tabs. Dirty
+Pricing Library confirmation and Takeoff editor checks still apply. The main
+estimate's visible name-field label now reads Estimate name, matching its
+existing accessible name and keeping the same control and stored value.
 
 ## Scheduler
 

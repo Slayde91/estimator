@@ -814,9 +814,11 @@
   }
   async function open() { build(); state.active = true; await ensureSession(); renderData(); scheduleLinkedThickness(true); if (state.document) await renderPage(); }
   function refreshNavigation() {
-    for (const choice of $("takeoff-navigation-menu")?.querySelectorAll("[data-mode]") || []) {
-      choice.disabled = !!(state.busy || state.physicalPlacing || state.navigationBusy || !labels[choice.dataset.mode]);
-      choice.setAttribute("aria-pressed", String(inWorkspace(choice.dataset.mode) && (!choice.dataset.physicalScope || choice.dataset.physicalScope === state.physicalScope)));
+    for (const host of [$("takeoff-navigation-menu"), $("takeoff-pages")]) {
+      for (const choice of host?.querySelectorAll("[data-mode]") || []) {
+        choice.disabled = !!(state.busy || state.physicalPlacing || state.navigationBusy || !labels[choice.dataset.mode]);
+        choice.setAttribute("aria-pressed", String(inWorkspace(choice.dataset.mode) && (!choice.dataset.physicalScope || choice.dataset.physicalScope === state.physicalScope)));
+      }
     }
   }
   async function selectWorkspace(mode, scope) {

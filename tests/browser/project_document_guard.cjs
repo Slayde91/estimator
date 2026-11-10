@@ -2,6 +2,7 @@
 const {chromium, expect}=require('@playwright/test'),assert=require('node:assert/strict');
 const {spawn}=require('node:child_process'),fs=require('node:fs'),path=require('node:path');
 const {fillProjectDetails,clickProjectControl,openProjectSection}=require('./project_actions.cjs');
+const {openCertificateEditor}=require('./certification_generation.cjs');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa','project-document-guard-'+Date.now());
 fs.mkdirSync(output,{recursive:true});
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
@@ -55,17 +56,18 @@ async function discard(root,label){
   }
   await openProjectSection(page,'swms');await page.locator('#swms-root').getByRole('button',{name:'New SWMS',exact:true}).click();await notified();
   await expect(page.locator('#swms-root').getByLabel('Workflow status',{exact:true})).toHaveCount(0);
-  await openProjectSection(page,'certification');await expect(page.locator('#certification-document')).toBeDisabled();
+  await openProjectSection(page,'certification');await expect(page.locator('#certification-list')).toBeVisible();await expect(page.locator('#certification-editor')).toBeHidden();await expect(page.locator('#certification-document')).toBeDisabled();
   await expect(page.locator('#certification-document option')).toHaveCount(0);await expect(page.locator('#certification-new')).toBeEnabled();
-  await page.locator('#certification-client').fill('Keep incomplete certificate draft');
-  await page.locator('#certification-new').click();await notified();
-  await expect(page.locator('#certification-client')).toHaveValue('Keep incomplete certificate draft');
+  await page.locator('#certification-new').click();await expect(page.locator('#certification-editor')).toBeVisible();
+  await page.locator('#certification-client').fill('Keep incomplete unfiled certificate draft');
+  await page.locator('#certification-save-draft').click();await notified();
+  await expect(page.locator('#certification-client')).toHaveValue('Keep incomplete unfiled certificate draft');
   await expect(page.locator('#certification-save')).toHaveCount(0);await page.locator('#certification-generate').click();await notified();
   const documentTabs=page.locator('#document-pages');await expect(documentTabs).toBeVisible();
   await documentTabs.locator('[data-document-section="documentation"]').click();await notified();
   await expect(page.locator('#view-certification')).toBeVisible();await expect(page.locator('#view-documentation')).toBeHidden();
   await expect(documentTabs.locator('[aria-current="page"]')).toHaveAttribute('data-document-section','certification');
-  await expect(page.locator('#certification-client')).toHaveValue('Keep incomplete certificate draft');
+  await expect(page.locator('#certification-client')).toHaveValue('Keep incomplete unfiled certificate draft');
   await page.locator('#documents-navigation-toggle').hover();
   await page.locator('#documents-navigation-menu [data-document-section="documentation"]').click();await notified();
   await expect(page.locator('#view-documentation')).toBeHidden();
@@ -87,7 +89,7 @@ async function discard(root,label){
   }
   await openProjectSection(page,'swms');await page.locator('#swms-root').getByRole('button',{name:'New SWMS',exact:true}).click();
   await expect(page.locator('#swms-root').getByLabel('Workflow status',{exact:true})).toBeVisible();await discard(page.locator('#swms-root'),'Back to statements');
-  await openProjectSection(page,'certification');await page.locator('#certification-new').click();
+  await openProjectSection(page,'certification');await openCertificateEditor(page,{fresh:true});
   await expect(page.locator('#certification-client')).toHaveValue('Project guard account');
   // A genuinely committed draft with a lost reply must still block navigation;
   // retrying recovers the original record rather than creating another one.

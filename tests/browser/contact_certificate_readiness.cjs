@@ -4,6 +4,7 @@ const {chromium,expect:baseExpect}=require('@playwright/test');
 const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {createNewProject,openProjectSection}=require('./project_actions.cjs');
+const {openCertificateEditor}=require('./certification_generation.cjs');
 const expect=baseExpect.configure({timeout:30000}),root=path.resolve(__dirname,'../..');
 const output=path.join(root,'.runtime/browser-qa','contact-certificate-readiness-'+Date.now());fs.mkdirSync(output,{recursive:true});
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
@@ -32,7 +33,8 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
  await createNewProject(page,{client:'Certificate Requirement Company','site-address':'1 Certificate QA Road'});await openProjectSection(page,'quotes');await page.locator('#project-current-details').click();
  await page.locator('#project-pane-client').press('Escape');await page.locator('#project-contact-new').click();const inline=page.getByRole('dialog',{name:'New Contact',exact:true});await expect(inline).toBeVisible();const count=posts.length;
  await inline.getByRole('button',{name:'Save',exact:true}).click();await expect(inline.getByLabel('Phone',{exact:true})).toBeFocused();assert.equal(posts.length,count);await inline.getByRole('button',{name:'Cancel',exact:true}).click();await page.locator('#project-details-close').click();checks.push('The inline plus uses the same required Contact creation preflight and focuses its first missing value after inherited Name/Company');
- await openProjectSection(page,'certification');await idle();const select=page.locator('#certification-document'),plus=page.getByRole('button',{name:'New certificate',exact:true}),generate=page.getByRole('button',{name:'Generate Certificate',exact:true});
+ await openProjectSection(page,'certification');await idle();const select=page.locator('#certification-document'),plus=page.getByRole('button',{name:'Create Certificate',exact:true}),generate=page.getByRole('button',{name:'Generate Certificate',exact:true});
+ await expect(page.locator('#certification-list')).toBeVisible();await expect(page.locator('#certification-editor')).toBeHidden();
  await expect(page.getByLabel('Saved certification',{exact:true})).toHaveAttribute('id','certification-document');
  await expect(select.locator('option')).toHaveCount(0);await expect(select).toBeDisabled();await expect(plus).toBeEnabled();
  await plus.click();await expect(page.locator('#certification-client')).toBeFocused();await expect(select.locator('option')).toHaveCount(0);
@@ -42,7 +44,7 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
  await expect(page.locator('#certification-qualification')).toHaveValue('');await expect(page.locator('#certification-accreditation')).toHaveValue('');await expect(page.locator('#certification-signature-preview')).toBeHidden();
  const generated=page.waitForResponse(response=>/\/api\/certifications\/[a-z0-9-]+\/revisions$/.test(new URL(response.url()).pathname));await generate.click();const receipt=await generated;assert.equal(receipt.status(),201,await receipt.text());const result=await receipt.json();await idle();
  assert.equal(result.document.fields.qualification,'');assert.equal(result.document.fields.accreditation,'');assert.equal(result.revision.revision,1);await expect(select.locator('option')).toHaveCount(1);await expect(select).toHaveValue(result.document.id);checks.push('Certificate generation requires every first-section field and signer Name/Position; zero text, N/A and absent optional credentials/signature are accepted');
- await plus.click();await expect(select).toHaveValue('');await expect(select.locator('option')).toHaveCount(1);await expect(page.locator('#certification-name')).toHaveValue('');await select.selectOption(result.document.id);await expect(page.locator('#certification-name')).toHaveValue('N/A');
+ await openCertificateEditor(page,{fresh:true});await expect(select).toHaveValue('');await expect(select.locator('option')).toHaveCount(1);await expect(page.locator('#certification-name')).toHaveValue('');await select.selectOption(result.document.id);await expect(page.locator('#certification-name')).toHaveValue('N/A');
  assert.deepEqual(await select.locator('option').evaluateAll(options=>options.map(option=>option.value)),[result.document.id]);checks.push('Plus starts a clean draft; picker contains only existing certificates and reopens the saved record');
  await page.screenshot({path:path.join(output,'certificate-picker.png'),fullPage:false});assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,posts,errors},null,2));console.log('PASS Contact and Certificate readiness: '+output);
 })().catch(async error=>{console.error(error);if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});fs.writeFileSync(path.join(output,'failure.txt'),String(error.stack||error)+'\n'+logs);process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

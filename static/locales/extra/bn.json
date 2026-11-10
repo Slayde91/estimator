@@ -3455,5 +3455,11 @@
   "Choose a listed Work Order or clear the search.": "তালিকা থেকে একটি কাজের আদেশ বেছে নিন অথবা অনুসন্ধান মুছে ফেলুন।",
   "Linked Project": "সংযুক্ত প্রকল্প",
   "No linked Project": "কোনো সংযুক্ত প্রকল্প নেই",
-  "Assigned when downloaded": "ডাউনলোড করার সময় নির্ধারিত হবে"
+  "Assigned when downloaded": "ডাউনলোড করার সময় নির্ধারিত হবে",
+  "Search certificates": "সনদ খুঁজুন",
+  "Reference, client, project or site address…": "রেফারেন্স, ক্লায়েন্ট, প্রকল্প অথবা কাজের স্থানের ঠিকানা…",
+  "Create Certificate": "সনদ তৈরি করুন",
+  "Resume draft": "খসড়া চালিয়ে যান",
+  "Back to certificates": "সনদের তালিকায় ফিরুন",
+  "Certificate details": "সনদের বিবরণ"
 }

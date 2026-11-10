@@ -1,5 +1,5 @@
 const {fillProjectDetails}=require('./project_actions.cjs');
-const {generateCertificate}=require('./certification_generation.cjs');
+const {generateCertificate,openCertificateEditor}=require('./certification_generation.cjs');
 // Disposable lifecycle coverage. Certificate PDFs are generated only in the private fixture.
 const {chromium,expect:baseExpect}=require('@playwright/test');
 const expect=baseExpect.configure({timeout:30000});
@@ -18,8 +18,8 @@ const ready=new Promise((resolve,reject)=>{
 });
 const errors=[],generationRequests=[],profileWrites=[],pendingRequests=new Map(),evidence={checks:[],screenshots:[]};
 async function idle(){await page.waitForFunction(()=>{const status=window.CeasefireDesktop?.status();return status?.ready&&!status.busy;});}
-async function certification(){await openProjectSection(page,'certification');await expect(page.locator('#certification-client')).toBeEnabled();}
-async function fresh(){await page.getByRole('button',{name:'New certificate',exact:true}).click();const confirm=page.getByRole('button',{name:'Continue without saving',exact:true});if(await confirm.isVisible())await confirm.click();await expect(page.locator('#certification-document')).toHaveValue('');}
+async function certification(){await openProjectSection(page,'certification');await openCertificateEditor(page);}
+async function fresh(){await openCertificateEditor(page,{fresh:true});await expect(page.locator('#certification-document')).toHaveValue('');}
 (async()=>{
   const info=await ready;assert.notEqual(info.port,8765);const base=`http://127.0.0.1:${info.port}`;
   // Seed an older draft and separate signer preferences; no PDF/revision is
@@ -58,7 +58,7 @@ async function fresh(){await page.getByRole('button',{name:'New certificate',exa
   await expect(page.locator('#certification-exclusions')).toHaveValue('Project No.: PN-01');
   await expect(page.locator('#certification-name')).toHaveValue('');
   await expect(page.locator('#certification-statement_of_compliance')).toHaveValue("This is to certify that the fire rated materials have been installed according to the manufacturer's specifications to provide the nominated fire resistance level for the items listed in the relevant schedule.\n\nAll materials have been installed at the above location and comply with:");
-  await expect(page.locator('#certification-new')).toBeVisible();await expect(page.locator('#certification-reload')).toHaveCount(0);
+  await expect(page.locator('#certification-back')).toBeVisible();await expect(page.locator('#certification-new')).toBeHidden();await expect(page.locator('#certification-reload')).toHaveCount(0);
   await expect(page.locator('#certification-cover-pdf')).toHaveCount(0);
   for(const name of ['approved_design','additional_standards','other_references']){
     await expect(page.locator('#certification-'+name)).toHaveValue('N/A');await expect(page.locator('#certification-'+name)).toHaveAttribute('rows','1');

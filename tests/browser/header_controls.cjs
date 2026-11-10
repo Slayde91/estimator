@@ -99,7 +99,7 @@ async function inspectHeader(width) {
   await page.keyboard.press('ArrowDown'); await page.keyboard.press('End');
   await expect(page.locator('#penetration-navigation-toggle')).toBeFocused();
   await page.keyboard.press('ArrowRight');
-  await expect(page.getByRole('button',{name:'Defect Reports',exact:true})).toBeFocused();
+  await expect(page.locator('#penetration-navigation-menu').getByRole('button',{name:'Defect Reports',exact:true})).toBeFocused();
   await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
   await expect(page.locator('#calculators-heading,#libraries-heading,#takeoffs-heading,.library-choices,.takeoff-tab-panel,.takeoff-heading-controls')).toHaveCount(0);
   for (const width of [1600, 1146, 1021, 981, 825, 720, 570, 390, 320]) {
@@ -141,9 +141,9 @@ async function inspectHeader(width) {
       }
       if(id === 'takeoff') {
         await page.keyboard.press('ArrowRight');
-        await expect(page.getByRole('button',{name:'Defect Reports',exact:true})).toBeFocused();
+        await expect(page.locator('#penetration-navigation-menu').getByRole('button',{name:'Defect Reports',exact:true})).toBeFocused();
         await page.keyboard.press('End');
-        await expect(page.getByRole('button',{name:'Service Plans',exact:true})).toBeFocused();
+        await expect(page.locator('#penetration-navigation-menu').getByRole('button',{name:'Service Plans',exact:true})).toBeFocused();
       }
       await page.keyboard.press('ArrowDown'); await expect(menu.getByRole('button').first()).toBeFocused();
       await page.keyboard.press('Escape'); await expect(toggle).toBeFocused(); await expect(menu).toBeHidden();

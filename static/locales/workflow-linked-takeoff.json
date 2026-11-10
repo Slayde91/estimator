@@ -1,0 +1,205 @@
+{
+  "Primary contact": [
+    "主要联系人",
+    "मुख्य संपर्क",
+    "Contacto principal",
+    "جهة الاتصال الرئيسية",
+    "ผู้ติดต่อหลัก"
+  ],
+  "Project contact": [
+    "项目联系人",
+    "प्रोजेक्ट संपर्क",
+    "Contacto del proyecto",
+    "جهة اتصال المشروع",
+    "ผู้ติดต่อโครงการ"
+  ],
+  "Linked Contacts": [
+    "关联联系人",
+    "लिंक किए गए संपर्क",
+    "Contactos vinculados",
+    "جهات الاتصال المرتبطة",
+    "ผู้ติดต่อที่เชื่อมโยง"
+  ],
+  "No linked contacts.": [
+    "没有关联联系人。",
+    "कोई लिंक किया गया संपर्क नहीं है।",
+    "No hay contactos vinculados.",
+    "لا توجد جهات اتصال مرتبطة.",
+    "ไม่มีผู้ติดต่อที่เชื่อมโยง"
+  ],
+  "Refresh linked contacts": [
+    "刷新关联联系人",
+    "लिंक किए गए संपर्क रीफ़्रेश करें",
+    "Actualizar contactos vinculados",
+    "تحديث جهات الاتصال المرتبطة",
+    "รีเฟรชผู้ติดต่อที่เชื่อมโยง"
+  ],
+  "Contact unavailable": [
+    "联系人不可用",
+    "संपर्क उपलब्ध नहीं है",
+    "Contacto no disponible",
+    "جهة الاتصال غير متاحة",
+    "ไม่พบข้อมูลผู้ติดต่อ"
+  ],
+  "Linked contacts could not be loaded.": [
+    "无法加载关联联系人。",
+    "लिंक किए गए संपर्क लोड नहीं हो सके।",
+    "No se pudieron cargar los contactos vinculados.",
+    "تعذر تحميل جهات الاتصال المرتبطة.",
+    "โหลดผู้ติดต่อที่เชื่อมโยงไม่ได้"
+  ],
+  "Calculate quantities": [
+    "计算数量",
+    "मात्राओं की गणना करें",
+    "Calcular cantidades",
+    "حساب الكميات",
+    "คำนวณปริมาณ"
+  ],
+  "Source document": [
+    "来源文档",
+    "स्रोत दस्तावेज़",
+    "Documento de origen",
+    "المستند المصدر",
+    "เอกสารต้นทาง"
+  ],
+  "Remove selected unconfirmed items from the calculator? You can confirm and add them again.": [
+    "从计算器中移除所选的未确认项目？您可以重新确认并再次添加。",
+    "चुने गए अपुष्ट आइटम कैलकुलेटर से हटाएँ? आप उनकी पुष्टि करके उन्हें फिर जोड़ सकते हैं।",
+    "¿Quitar de la calculadora los elementos seleccionados sin confirmar? Puede confirmarlos y volver a añadirlos.",
+    "هل تريد إزالة العناصر المحددة غير المؤكدة من الحاسبة؟ يمكنك تأكيدها وإضافتها مجدداً.",
+    "นำรายการที่เลือกซึ่งยังไม่ยืนยันออกจากเครื่องคำนวณหรือไม่? คุณสามารถยืนยันและเพิ่มอีกครั้งได้"
+  ],
+  "Update {0} linked items?": [
+    "更新 {0} 个关联项目？",
+    "{0} लिंक किए गए आइटम अपडेट करें?",
+    "¿Actualizar {0} elementos vinculados?",
+    "هل تريد تحديث {0} عناصر مرتبطة؟",
+    "อัปเดต {0} รายการที่เชื่อมโยงหรือไม่?"
+  ],
+  "{0} unconfirmed linked item(s) will be removed from {1}. You can confirm and add them again.": [
+    "将从 {1} 中移除 {0} 个未确认的关联项目。您可以重新确认并再次添加。",
+    "{1} से {0} अपुष्ट लिंक किए गए आइटम हटाए जाएँगे। आप उनकी पुष्टि करके उन्हें फिर जोड़ सकते हैं।",
+    "Se quitarán {0} elementos vinculados sin confirmar de {1}. Puede confirmarlos y volver a añadirlos.",
+    "ستتم إزالة {0} عناصر مرتبطة غير مؤكدة من {1}. يمكنك تأكيدها وإضافتها مجدداً.",
+    "จะนำ {0} รายการที่เชื่อมโยงซึ่งยังไม่ยืนยันออกจาก {1} คุณสามารถยืนยันและเพิ่มอีกครั้งได้"
+  ],
+  "Remove unconfirmed item: {0}": [
+    "移除未确认项目：{0}",
+    "अपुष्ट आइटम हटाएँ: {0}",
+    "Quitar elemento sin confirmar: {0}",
+    "إزالة العنصر غير المؤكد: {0}",
+    "นำรายการที่ยังไม่ยืนยันออก: {0}"
+  ],
+  "Add: {0}": [
+    "添加：{0}",
+    "जोड़ें: {0}",
+    "Añadir: {0}",
+    "إضافة: {0}",
+    "เพิ่ม: {0}"
+  ],
+  "Update: {0}": [
+    "更新：{0}",
+    "अपडेट करें: {0}",
+    "Actualizar: {0}",
+    "تحديث: {0}",
+    "อัปเดต: {0}"
+  ],
+  "Keep unchanged: {0}": [
+    "保持不变：{0}",
+    "अपरिवर्तित रखें: {0}",
+    "Mantener sin cambios: {0}",
+    "الإبقاء دون تغيير: {0}",
+    "คงเดิม: {0}"
+  ],
+  "{0} unconfirmed linked items removed from the calculator draft.": [
+    "已从计算器草稿中移除 {0} 个未确认的关联项目。",
+    "कैलकुलेटर ड्राफ़्ट से {0} अपुष्ट लिंक किए गए आइटम हटाए गए।",
+    "Se quitaron {0} elementos vinculados sin confirmar del borrador de la calculadora.",
+    "تمت إزالة {0} عناصر مرتبطة غير مؤكدة من مسودة الحاسبة.",
+    "นำ {0} รายการที่เชื่อมโยงซึ่งยังไม่ยืนยันออกจากฉบับร่างของเครื่องคำนวณแล้ว"
+  ],
+  "{0} unconfirmed items removed. You can confirm and add them again.": [
+    "已移除 {0} 个未确认项目。您可以重新确认并再次添加。",
+    "{0} अपुष्ट आइटम हटाए गए। आप उनकी पुष्टि करके उन्हें फिर जोड़ सकते हैं।",
+    "Se quitaron {0} elementos sin confirmar. Puede confirmarlos y volver a añadirlos.",
+    "تمت إزالة {0} عناصر غير مؤكدة. يمكنك تأكيدها وإضافتها مجدداً.",
+    "นำ {0} รายการที่ยังไม่ยืนยันออกแล้ว คุณสามารถยืนยันและเพิ่มอีกครั้งได้"
+  ],
+  "Work order details reviewed by": [
+    "工单详情审核人",
+    "कार्य आदेश के विवरण के समीक्षक",
+    "Revisor de los detalles de la orden de trabajo",
+    "مراجع تفاصيل أمر العمل",
+    "ผู้ตรวจทานรายละเอียดใบสั่งงาน"
+  ],
+  "Work order details reviewed by name": [
+    "工单详情审核人姓名",
+    "कार्य आदेश के विवरण के समीक्षक का नाम",
+    "Nombre del revisor de los detalles de la orden de trabajo",
+    "اسم مراجع تفاصيل أمر العمل",
+    "ชื่อผู้ตรวจทานรายละเอียดใบสั่งงาน"
+  ],
+  "Details review date": [
+    "详情审核日期",
+    "विवरण की समीक्षा की तारीख",
+    "Fecha de revisión de los detalles",
+    "تاريخ مراجعة التفاصيل",
+    "วันที่ตรวจทานรายละเอียด"
+  ],
+  "Choose a completion status before signing Work Order completion.": [
+    "签署工单完工栏之前，请选择完工状态。",
+    "कार्य आदेश की पूर्णता पर हस्ताक्षर करने से पहले पूर्णता की स्थिति चुनें।",
+    "Elija un estado de finalización antes de firmar la finalización de la orden de trabajo.",
+    "اختر حالة الإنجاز قبل توقيع إتمام أمر العمل.",
+    "เลือกสถานะการเสร็จงานก่อนลงนามในส่วนการเสร็จสิ้นใบสั่งงาน"
+  ],
+  "The Work Order signature changed. Sign it again before saving.": [
+    "工单签名已更改。请重新签署后再保存。",
+    "कार्य आदेश का हस्ताक्षर बदल गया है। सहेजने से पहले फिर हस्ताक्षर करें।",
+    "La firma de la orden de trabajo ha cambiado. Vuelva a firmar antes de guardar.",
+    "تغير توقيع أمر العمل. وقّع مجدداً قبل الحفظ.",
+    "ลายเซ็นใบสั่งงานเปลี่ยนไป โปรดลงนามอีกครั้งก่อนบันทึก"
+  ],
+  "The completion choice changed. Sign Work Order completion again.": [
+    "完工选项已更改。请重新签署工单完工栏。",
+    "पूर्णता का चयन बदल गया है। कार्य आदेश की पूर्णता पर फिर हस्ताक्षर करें।",
+    "La opción de finalización ha cambiado. Vuelva a firmar la finalización de la orden de trabajo.",
+    "تغير خيار الإنجاز. وقّع إتمام أمر العمل مجدداً.",
+    "ตัวเลือกการเสร็จงานเปลี่ยนไป โปรดลงนามในส่วนการเสร็จสิ้นใบสั่งงานอีกครั้ง"
+  ],
+  "Sign Work order details reviewed by": [
+    "签署工单详情审核人",
+    "कार्य आदेश के विवरण के समीक्षक पर हस्ताक्षर करें",
+    "Firmar Revisor de los detalles de la orden de trabajo",
+    "توقيع مراجع تفاصيل أمر العمل",
+    "ลงนามผู้ตรวจทานรายละเอียดใบสั่งงาน"
+  ],
+  "Change Work order details reviewed by": [
+    "更改工单详情审核人",
+    "कार्य आदेश के विवरण के समीक्षक बदलें",
+    "Cambiar Revisor de los detalles de la orden de trabajo",
+    "تغيير مراجع تفاصيل أمر العمل",
+    "เปลี่ยนผู้ตรวจทานรายละเอียดใบสั่งงาน"
+  ],
+  "Clear Work order details reviewed by": [
+    "清除工单详情审核人",
+    "कार्य आदेश के विवरण के समीक्षक साफ़ करें",
+    "Borrar Revisor de los detalles de la orden de trabajo",
+    "مسح مراجع تفاصيل أمر العمل",
+    "ล้างผู้ตรวจทานรายละเอียดใบสั่งงาน"
+  ],
+  "This linked group contains other items. Split or relink the group before removing only some items.": [
+    "该关联组包含其他项目。只移除部分项目之前，请先拆分或重新关联该组。",
+    "इस लिंक किए गए समूह में अन्य आइटम हैं। केवल कुछ आइटम हटाने से पहले समूह को अलग करें या दोबारा लिंक करें।",
+    "Este grupo vinculado contiene otros elementos. Divida o vuelva a vincular el grupo antes de quitar solo algunos elementos.",
+    "تحتوي هذه المجموعة المرتبطة على عناصر أخرى. قسّم المجموعة أو أعد ربطها قبل إزالة بعض العناصر فقط.",
+    "กลุ่มที่เชื่อมโยงนี้มีรายการอื่นอยู่ด้วย โปรดแยกกลุ่มหรือเชื่อมโยงใหม่ก่อนนำออกเพียงบางรายการ"
+  ],
+  "Client contact": [
+    "客户联系人",
+    "क्लाइंट का संपर्क",
+    "Contacto del cliente",
+    "جهة اتصال العميل",
+    "ผู้ติดต่อของลูกค้า"
+  ]
+}

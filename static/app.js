@@ -1546,7 +1546,11 @@
   }
 
   function resetButton(kind, item) {
-    const button = uiNode("button", "reset-button", "Reset row");
+    const button = node("button", "button secondary icon-only pricing-reset-button reset-button");
+    const icon = node("span", "button-symbol pricing-action-symbol pricing-reset-symbol");
+    icon.setAttribute("aria-hidden", "true");
+    icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M20 7v5h-5"></path><path d="M4 17v-5h5"></path><path d="M6.1 8.4A7.5 7.5 0 0 1 19.2 10L20 12"></path><path d="M17.9 15.6A7.5 7.5 0 0 1 4.8 14L4 12"></path></svg>';
+    button.append(icon, uiNode("span", "sr-only", "Reset row"));
     button.type = "button";
     const saved = pricingBaseline(), savedCatalog = saved.catalog || state.baseline;
     const ownRate = (rate) => kind === "inventory" ? rate.inventory_id === item.id : rate.id === item.id;
@@ -1554,6 +1558,7 @@
       : Object.values(savedCatalog.rate_groups).flat().find(ownRate);
     button.disabled = !original;
     window.CeasefireI18n.attr(button, "aria-label", "Restore saved values and estimator uses for {0}", [item.name]);
+    window.CeasefireI18n.attr(button, "title", "Restore saved values and estimator uses for {0}", [item.name]);
     button.addEventListener("click", () => {
       if (!original) return;
       const affectedRates = new Set([...Object.values(state.catalog.rate_groups).flat(), ...Object.values(savedCatalog.rate_groups).flat()].filter(ownRate).map((rate) => rate.id));

@@ -250,8 +250,8 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .download-arrow{font:800 21px/1 "Segoe UI Symbol",sans-serif;transform:translateY(-1px)}
 .download-arrow svg{display:block;width:20px;height:24px}
 .download-format{font-size:8px;font-weight:900;letter-spacing:.02em}
-.pricing-table .reset-button{background:none;color:var(--accent);font-size:10px;white-space:nowrap;padding:7px;text-decoration:underline;text-underline-offset:3px}
-.pricing-table .reset-button:disabled{color:var(--muted);cursor:default;text-decoration:none;opacity:.6}
+.pricing-table .reset-button{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;text-decoration:none}
+.pricing-table .reset-button:disabled{cursor:default;opacity:.6}
 .pricing-use-row>td{padding:0 14px 13px;border-top:0}
 .pricing-uses{border:1px solid var(--line);border-radius:8px;background:#fbf9fa}
 .pricing-uses>summary{padding:9px 12px;color:#51414a;font-weight:600;cursor:pointer}
@@ -336,8 +336,10 @@ dialog .actions{justify-content:flex-end}
 .pricing-table input[data-price-field="Item code"] { min-width: 6rem; width: 8rem; }
 .pricing-table .pricing-rate-notice { max-width: 15rem; }
 .pricing-table td { vertical-align: top; }
-.pricing-row-actions{white-space:nowrap}
+.pricing-row-actions{white-space:nowrap;min-width:80px}
 .pricing-row-actions .button{margin:3px}
+#view-pricing .button.library-create-action{min-width:48px;background:#d0001b;border-color:#a80016;color:#fff}
+#view-pricing .button.library-create-action:hover:not(:disabled){background:#b90018;border-color:#920016}
 .pricing-table input[data-price-field="yield"] { min-width: 11rem; }
 .pricing-yield-unit { min-width: 8rem; color: var(--muted); white-space: pre-wrap; }
 #project-folder { overflow-wrap: anywhere; }
@@ -373,7 +375,7 @@ dialog .actions{justify-content:flex-end}
 .gear-symbol { color: #111; }
 
 /* Shared pricing columns stay readable without unused horizontal space. */
-.pricing-table th,.pricing-table td{padding:9px 6px;overflow-wrap:anywhere}.pricing-table th:nth-child(3){width:8%}.pricing-table th:nth-child(4){width:6%}.pricing-table th:nth-child(5){width:8%}.pricing-table th:nth-child(6),.pricing-table th:nth-child(7){width:16%}.pricing-table th:nth-child(8),.pricing-table th:nth-child(9){width:6%}.pricing-table .pricing-row-actions{white-space:normal}.pricing-table .pricing-row-actions .reset-button{padding:5px 0}.pricing-table .pricing-row-actions .icon-only{width:28px;min-width:28px;height:28px;padding:5px}
+.pricing-table th,.pricing-table td{padding:9px 6px;overflow-wrap:anywhere}.pricing-table th:nth-child(3){width:8%}.pricing-table th:nth-child(4){width:6%}.pricing-table th:nth-child(5){width:8%}.pricing-table th:nth-child(6),.pricing-table th:nth-child(7){width:16%}.pricing-table th:nth-child(8),.pricing-table th:nth-child(9){width:6%}.pricing-table .pricing-row-actions{white-space:nowrap}.pricing-table .pricing-row-actions .icon-only{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;width:28px;min-width:28px;height:28px;padding:5px}
 
 .calculator-status{display:inline-block;background:#fff1bf;color:#775300;width:fit-content}
 .company-branding-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 24px;margin:20px 0}

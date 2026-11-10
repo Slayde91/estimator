@@ -240,13 +240,13 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   const personalDefaults=await(await page.request.get(personalUrl)).json();
   const savedPersonal=await page.request.post(personalUrl,{data:{expected_version:personalDefaults.version,fields:{...personalDefaults.fields,name:'Commercial fixture signer'}}});
   assert.equal(savedPersonal.status(),200,await savedPersonal.text());
-  for(const label of ['Reviewed by','Prepared by','Approved by']) {
+  for(const label of ['Work order details reviewed by','Reviewed by','Prepared by','Approved by']) {
     await work.getByRole('button',{name:'Sign '+label,exact:true}).click();
     await expect(work.getByRole('img',{name:label+' signature',exact:true})).toBeVisible();
   }
   await work.getByRole('button',{name:'Change Reviewed by',exact:true}).click();
   await page.getByRole('dialog').getByRole('button',{name:'Cancel',exact:true}).click();
-  for(const panel of ['Company Details','Contact Details','Notes','Files','Linked Quotes','Linked Purchase Orders']) await expect(work.locator('.commercial-side-panel summary').filter({hasText:panel})).toBeVisible();
+  for(const panel of ['Company Details','Linked Contacts','Notes','Files','Linked Quotes','Linked Purchase Orders']) await expect(work.locator('.commercial-side-panel summary').filter({hasText:panel})).toBeVisible();
   const startBounds=await work.getByLabel('Proposed start date').boundingBox(), endBounds=await work.getByLabel('Proposed end date').boundingBox();
   assert.ok(endBounds.x>startBounds.x && Math.abs(startBounds.y-endBounds.y)<2,'Proposed dates share a row within one column');
   await work.getByRole('button',{name:'New note'}).click();

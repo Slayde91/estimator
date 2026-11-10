@@ -1,0 +1,98 @@
+'use strict';
+// Real directory edits and project links in a disposable server, never port 8765.
+const {chromium,expect}=require('@playwright/test'),{spawn,spawnSync}=require('node:child_process');
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const {createNewProject,openProjectSection}=require('./project_actions.cjs');
+const root=path.resolve(__dirname,'../..'),out=path.join(root,'.runtime/browser-qa','commercial-linked-contacts-'+Date.now());fs.mkdirSync(out,{recursive:true});
+const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',out],{cwd:root,windowsHide:true});
+let logs='',browser,page;server.stderr.on('data',x=>logs+=x);
+const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()=>reject(Error(logs||'Fixture timeout')),120000);
+  server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(Error('Fixture exited '+code));});
+  server.stdout.on('data',x=>{text+=x;if(text.includes('\n')){clearTimeout(timer);resolve(JSON.parse(text.split('\n')[0]));}});});
+const checks=[],errors=[];
+(async()=>{
+ const info=await ready;assert.notEqual(info.port,8765);const base='http://127.0.0.1:'+info.port;
+ browser=await chromium.launch({headless:true});const admin=await browser.newContext({viewport:{width:1915,height:1000}});page=await admin.newPage();page.setDefaultTimeout(45000);page.on('pageerror',e=>errors.push(e.message));
+ const read=async route=>{const r=await admin.request.get(base+route);assert.equal(r.status(),200,await r.text());return r.json();};
+ async function post(route,data){let headers={};if(['/api/access/settings','/api/access/roles'].includes(route)){const session=await read('/api/access/session');headers={'X-CRM-Member':session.user.id};}
+   const r=await admin.request.post(base+route,{data,headers});assert.equal(r.status(),200,await r.text());return r.json();}
+ const create=async(kind,fields)=>post('/api/contacts/'+kind,{version:(await read('/api/contacts/directory')).version,fields});
+ const builder=(await create('accounts',{company:'Linked Builder',billing_address:'Builder office',abn_acn:'BUILDER'})).account;
+ const supplier=(await create('accounts',{company:'Linked Supplier',billing_address:'Supplier office',abn_acn:'SUPPLIER'})).account;
+ const primary=(await create('contacts',{name:'Primary Person',company:builder.company,phone:'111',email:'primary@example.test',title:'Project lead'})).contact;
+ const participant=(await create('contacts',{name:'Participant Person',company:supplier.company,phone:'222',email:'participant@example.test',title:'Consultant'})).contact;
+ await create('contacts',{name:'Unlinked Employee',company:builder.company,phone:'333',email:'unlinked@example.test'});
+ await page.goto(base);await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready&&!window.CeasefireDesktop.status().busy);
+ await createNewProject(page,{client:builder.company,contact_name:primary.name,contact_phone:primary.phone,contact_email:primary.email});
+ await openProjectSection(page,'quote');const quote=page.locator('#commercial-quote-root');await quote.getByRole('button',{name:'New Quote',exact:true}).click();
+ const left=quote.locator('.commercial-sidebar').first(),name=left.getByRole('combobox',{name:'Name',exact:true});
+ await name.fill('Primary');await left.getByRole('option',{name:primary.name,exact:true}).click();
+ async function save(host){const receipt=page.waitForResponse(r=>/\/api\/commercial\/(?:saved-)?save$/.test(new URL(r.url()).pathname));await host.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();const r=await receipt;assert.equal(r.status(),200,await r.text());await page.waitForFunction(()=>!window.CeasefireDesktop.status().busy);return r.json();}
+ const savedQuote=await save(quote);
+ assert.equal(await page.evaluate(()=>window.CeasefireProject.details().contact_id),primary.id,'Selecting the primary Contact keeps its exact Project ID');
+ const identity=await page.evaluate(()=>window.CeasefireProject.context()),selector='native:'+identity.project_token;
+ const recorded=await read('/api/crm/project-participants?project='+encodeURIComponent(selector));
+ await post('/api/crm/project-participants',{project:selector,project_revision:recorded.project_revision,version:recorded.version,site_id:null,participants:[
+   {id:primary.id,kind:'contacts',role:'site_contact'},{id:participant.id,kind:'contacts',role:'consultant'},{id:participant.id,kind:'contacts',role:'billing_contact'},{id:supplier.id,kind:'accounts',role:'supplier'}]});
+ await left.getByRole('button',{name:'Refresh linked contacts',exact:true}).click();
+ const cards=left.locator('.commercial-linked-contact');await expect(cards).toHaveCount(2);await expect(cards.first()).toHaveAttribute('data-contact-id',primary.id);
+ await expect(cards.first()).toContainText('Primary contact');await expect(cards.first()).toContainText('Site contact');
+ await expect(cards.nth(1)).toHaveAttribute('data-contact-id',participant.id);await expect(cards.nth(1)).toContainText('Consultant');await expect(cards.nth(1)).toContainText('Billing contact');await expect(left).not.toContainText('Unlinked Employee');
+ checks.push('Exact-ID primary-first contacts include explicit participant roles once each, without adding unrelated company employees.');
+ const generation=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/commercial/issue');await quote.getByRole('button',{name:'Download PDF',exact:true}).click();const issuedResponse=await generation;assert.equal(issuedResponse.status(),200,await issuedResponse.text());const issued=await issuedResponse.json();await page.waitForFunction(()=>!window.CeasefireDesktop.status().busy);
+ const pdf=fs.readFileSync(issued.path),projectBytes=fs.readFileSync(info.project),fingerprint=await page.evaluate(()=>window.CeasefireCommercial.projectFingerprint());
+ await cards.nth(1).getByRole('button',{name:participant.name,exact:true}).click();let dialog=page.getByRole('dialog',{name:'Edit Contact',exact:true});await expect(dialog).toBeVisible();
+ await dialog.getByLabel('Phone',{exact:true}).fill('222 edited');await dialog.getByLabel('Title',{exact:true}).fill('Updated consultant');await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog).toBeHidden();
+ await expect(cards.nth(1)).toContainText('222 edited');assert.equal((await read('/api/contacts/directory')).contacts.find(c=>c.id===participant.id).phone,'222 edited');
+ assert.deepEqual(fs.readFileSync(info.project),projectBytes);assert.deepEqual(fs.readFileSync(issued.path),pdf);assert.equal(await page.evaluate(()=>window.CeasefireCommercial.projectFingerprint()),fingerprint);
+ checks.push('Real popup saves the selected directory Contact, refreshes the list and leaves Project/document snapshots and the issued PDF byte-identical.');
+ await cards.nth(1).getByRole('button',{name:participant.name,exact:true}).click();dialog=page.getByRole('dialog',{name:'Edit Contact',exact:true});await dialog.getByLabel('Phone',{exact:true}).fill('Unsaved conflict value');
+ const latest=await read('/api/contacts/directory'),old=latest.contacts.find(c=>c.id===primary.id);await post('/api/contacts/contacts',{id:old.id,version:latest.version,fields:{name:old.name,company:old.company,phone:old.phone,email:old.email,title:'Independent later edit'}});
+ const conflict=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/contacts/contacts');await dialog.getByRole('button',{name:'Save',exact:true}).click();assert.equal((await conflict).status(),409);
+ await expect(dialog).toBeVisible();await expect(dialog.getByLabel('Phone',{exact:true})).toHaveValue('Unsaved conflict value');assert.equal((await read('/api/contacts/directory')).contacts.find(c=>c.id===participant.id).phone,'222 edited');
+ await dialog.getByRole('button',{name:'Cancel',exact:true}).click();checks.push('Concurrent directory change rejects stale modal Save, retaining typed values and the current saved record.');
+ await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await openProjectSection(page,'purchase-orders');const po=page.locator('#commercial-purchase-order-root');await po.getByRole('button',{name:'New Purchase Order',exact:true}).click();
+ const poLeft=po.locator('.commercial-sidebar').first();await expect(poLeft.locator('summary')).toHaveText(['Company Details','Linked Contacts']);
+ await poLeft.getByRole('combobox',{name:'Supplier',exact:true}).fill('Linked Supplier');await poLeft.getByRole('option',{name:supplier.company,exact:true}).click();
+ await poLeft.getByRole('combobox',{name:'Supplier contact',exact:true}).fill('Participant');await poLeft.getByRole('option',{name:participant.name,exact:true}).click();
+ await expect(poLeft.locator('.commercial-linked-contact').first()).toHaveAttribute('data-contact-id',participant.id);await expect(poLeft).toContainText('Supplier office');await expect(po.getByLabel('Supplier email',{exact:true})).toHaveValue(participant.email);
+ assert.equal(await po.getByRole('combobox',{name:'Supplier',exact:true}).count(),1);assert.equal(await po.getByRole('combobox',{name:'Supplier contact',exact:true}).count(),1);await save(po);
+ for(const width of [1915,1101,390]){await page.setViewportSize({width,height:1000});const m=await po.locator('.commercial-purchase-layout').evaluate(layout=>({overflow:document.documentElement.scrollWidth-innerWidth,columns:getComputedStyle(layout).gridTemplateColumns.split(' ').length}));assert.ok(m.overflow<=1,JSON.stringify(m));assert.equal(m.columns,width>1050?3:1);await po.screenshot({path:path.join(out,'po-linked-'+width+'.png')});}
+ checks.push('PO reuses one supplier/company and supplier/contact selector in its left panels; exact supplier identity and current values survive Save at desktop/mobile widths.');
+ await po.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();await openProjectSection(page,'quote');await quote.locator(`[data-document-id="${savedQuote.id}"] .project-title-button`).click();
+ let held,resolveHeld;const heldReady=new Promise(resolve=>resolveHeld=resolve);
+ await page.route('**/api/crm/project-participants?*',async route=>{const response=await route.fetch();if(!held){held={route,response};resolveHeld();}else await route.fulfill({response});});
+ await left.getByRole('button',{name:'Refresh linked contacts',exact:true}).click();await heldReady;
+ await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
+ fs.writeFileSync(path.join(out,'save-dialog-target.json'),JSON.stringify({file:'other-project.cf.json'}));
+ await createNewProject(page,{client:'Different Project'});
+ await held.route.fulfill({response:held.response});await page.unroute('**/api/crm/project-participants?*');await openProjectSection(page,'quote');await quote.getByRole('button',{name:'New Quote',exact:true}).click();await expect(quote.locator('.commercial-sidebar').first()).not.toContainText(participant.name);
+ checks.push('A held participant response from the old Project cannot populate the new Project editor.');
+ const otherIdentity=await page.evaluate(()=>window.CeasefireProject.context()),otherSelector='native:'+otherIdentity.project_token;
+ const otherParticipants=await read('/api/crm/project-participants?project='+encodeURIComponent(otherSelector));
+ await post('/api/crm/project-participants',{project:otherSelector,project_revision:otherParticipants.project_revision,version:otherParticipants.version,site_id:null,participants:[{id:participant.id,kind:'contacts',role:'consultant'}]});
+ await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await page.locator('#discard-dialog').getByRole('button',{name:'Yes',exact:true}).click();
+ const history=await admin.newPage();await history.goto(base);await history.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready&&!window.CeasefireDesktop.status().busy);await openProjectSection(history,'quote');await history.waitForFunction(()=>Boolean(window.CeasefireCertification?.sessionId?.()));
+ const historyWorkspace=await history.evaluate(()=>window.CeasefireCertification.sessionId()),scope=await read('/api/certifications/workspaces/'+historyWorkspace);assert.equal(scope.created_project,false);
+ const seeded=spawnSync(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'legacy_unfiled_fixture.py'),out,historyWorkspace,scope.project_id],{cwd:root,windowsHide:true,encoding:'utf8'});assert.equal(seeded.status,0,seeded.stderr);const unfiled=JSON.parse(seeded.stdout);
+ const activeBeforeHistory=await page.evaluate(()=>window.CeasefireProject.context()),otherFileBytes=fs.readFileSync(path.join(out,'other-project.cf.json'));let historyParticipantReads=0;
+ const observeRequest=request=>{if(new URL(request.url()).pathname==='/api/crm/project-participants')historyParticipantReads++;};page.on('request',observeRequest);
+ await page.evaluate(()=>window.CeasefireCommercial.activate('quote'));await quote.locator(`[data-document-id="${unfiled.id}"] .project-title-button`).click();
+ await expect(quote.getByLabel('Linked Project',{exact:true})).toHaveValue('');await expect(quote.getByLabel('Client',{exact:true})).toHaveValue('Unfiled fixture company');
+ await quote.locator('.commercial-sidebar').first().getByRole('button',{name:'Refresh linked contacts',exact:true}).click();await expect(quote.locator('.commercial-linked-contacts')).not.toContainText(participant.name);
+ assert.equal(historyParticipantReads,0,'Unfiled history never asks for the active saved Project participants');assert.deepEqual(await page.evaluate(()=>window.CeasefireProject.context()),activeBeforeHistory);assert.deepEqual(fs.readFileSync(path.join(out,'other-project.cf.json')),otherFileBytes);page.off('request',observeRequest);await history.close();
+ checks.push('Opening real unfiled history while another saved Project is active reads no current-project participants and leaves that Project and file unchanged.');
+ // Enable named permissions only in this private fixture and inspect the real modal as a viewer.
+ await post('/api/scheduler/setup',{name:'Fixture Admin',email:'admin@example.test',password:'Fixture-admin-password'});
+ const viewer=await post('/api/scheduler/members/save',{name:'Fixture Viewer',email:'viewer@example.test',password:'Fixture-viewer-password',role:'worker',active:true,base_rate:'0'});
+ await post('/api/access/login',{email:'admin@example.test',password:'Fixture-admin-password'});await post('/api/access/roles',{member_id:viewer.id,role:'viewer',version:0});await post('/api/access/settings',{enabled:true,version:1});
+ const viewerContext=await browser.newContext(),view=await viewerContext.newPage();view.setDefaultTimeout(45000);view.on('pageerror',e=>errors.push(e.message));
+ await view.goto(base);await view.getByLabel('Email',{exact:true}).fill('viewer@example.test');await view.getByLabel('Password',{exact:true}).fill('Fixture-viewer-password');await view.getByRole('button',{name:'Sign in',exact:true}).click();await view.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready);
+ // The standalone entry point uses exactly the same permission decision when
+ // called from a linked Contact; no DOM or directory data is fabricated here.
+ const opened=view.evaluate(id=>void window.ClassifireContacts.editContact(id),participant.id);await opened;
+ const readonly=view.getByRole('dialog',{name:participant.name,exact:true});await expect(readonly).toBeVisible();await expect(readonly.getByLabel('Phone',{exact:true})).toHaveAttribute('readonly','');await expect(readonly.getByRole('button',{name:'Save',exact:true})).toHaveCount(0);await expect(readonly.getByRole('button',{name:'Edit',exact:true})).toHaveCount(0);
+ const denied=await view.evaluate(async id=>{const response=await fetch('/api/contacts/contacts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});return response.status;},participant.id);assert.equal(denied,403);await readonly.getByRole('button',{name:'Close',exact:true}).click();
+ checks.push('Named viewer opens read-only Contact details with no Save/Edit action; server denies attempted directory writes.');
+ assert.deepEqual(errors,[]);fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({passed:true,checks,errors,issued_pdf:issued.path},null,2));console.log('PASS commercial linked contacts: '+out);
+})().catch(async error=>{console.error(error);console.error(logs);await page?.screenshot({path:path.join(out,'failure.png')}).catch(()=>{});process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

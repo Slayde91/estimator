@@ -14,14 +14,14 @@ STEEL = ('Status', 'Member mark', 'Level', 'Member type', 'Steel section', 'Prod
 DUCT = ('Status', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation', 'Product')
 SURFACE = ('Status', 'Surface ID', 'Surface type', 'Level', 'Surface basis', 'Substrate',
            'Treatment', 'Protection system', 'Protection product', 'FRL / fire rating', 'Number of layers')
-LENGTH = ('Qty', 'Length each (m)', 'Total (m)', 'Thickness (mm)', 'Report', 'Evidence / issues')
+LENGTH = ('Qty', 'Length each (m)', 'Total (m)', 'Thickness (mm)', 'Report', 'Source document')
 DUCT_LENGTH = LENGTH[:3] + ('Duct surface (m²)',) + LENGTH[3:]
-AREA = ('Gross (m²)', 'Excluded (m²)', 'Net (m²)', 'Total (m²)', 'Evidence / issues')
+AREA = ('Gross (m²)', 'Excluded (m²)', 'Net (m²)', 'Total (m²)', 'Source document')
 STANDALONE = ('Status', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation')
 
 
 def _width(header):
-    if header in ('Evidence / issues', 'Source evidence', 'Legacy hierarchy / label', 'Report', 'System'):
+    if header in ('Source document', 'Source evidence', 'Legacy hierarchy / label', 'Report', 'System'):
         return 58
     if header in ('Protection system', 'Protection product', 'Substrate', 'Surface basis', 'Service type'):
         return 30

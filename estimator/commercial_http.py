@@ -139,7 +139,7 @@ class CommercialHTTP:
         fields_by_action = {
             'defaults': {'kind', 'details', 'project_details'}, 'derive': {'fields', 'selected_ids', 'include_scope_tables'},
             'purchase-order-defaults': {'work_order_id', 'work_order_version'},
-            'save': {'id', 'version', 'kind', 'status', 'fields', 'retain_unfiled', 'project_details', 'billing_review'},
+            'save': {'id', 'version', 'kind', 'status', 'fields', 'retain_unfiled', 'project_details', 'billing_review', 'signature_actions'},
             'delete': {'id', 'version'}, 'status': {'id', 'version', 'status'},
             'notes': {'id', 'version', 'notes'},
             'issue': {'id', 'kind', 'version', 'request_id'},
@@ -234,7 +234,7 @@ class CommercialHTTP:
                     line['unit_price'] = prices[identity]
                 fields['scope_tables'] = derived['scope_tables']
                 fields['sources'] = derived['sources']
-            allowed = {key: body[key] for key in ('id', 'version', 'kind', 'status') if key in body}
+            allowed = {key: body[key] for key in ('id', 'version', 'kind', 'status', 'signature_actions') if key in body}
             if 'retain_unfiled' in body and body['retain_unfiled'] is not True:
                 raise ValidationError('Invalid local document save.')
             captured = None

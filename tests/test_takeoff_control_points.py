@@ -96,9 +96,13 @@ class TakeoffControlPointTests(unittest.TestCase):
         self.assertEqual(unchanged['inputs'], transferred['inputs'])
         self.assertEqual(unchanged['schedule_rows'], transferred['schedule_rows'])
         self.assertEqual(self.case.service.get(self.case.sid)['snapshot'], before_add)
-        # Add retains this linked row; explicitly updating it still requires a fresh confirmation.
-        with self.assertRaises(ValidationError):
-            self.case.preview(identifier, inputs=transferred['inputs'], rows=transferred['schedule_rows'], update=True)
+        # Add retains the linked row. Explicit Update instead reviews removal
+        # while its source is unconfirmed; preview alone changes neither draft.
+        removal = self.case.preview(identifier, inputs=transferred['inputs'], rows=transferred['schedule_rows'], update=True)
+        self.assertEqual(removal['changes'], [{'item_id': identifier, 'row': binding['row'], 'action': 'remove'}])
+        self.assertEqual(removal['bindings'], [])
+        self.assertEqual(removal['removed_bindings'], [binding])
+        self.assertEqual(self.case.service.get(self.case.sid)['snapshot'], before_add)
         self.case.command('confirm_items', item_ids=[identifier])
         self.assertNotEqual(self.item(identifier)['confirmation']['id'], receipt['id'])
 

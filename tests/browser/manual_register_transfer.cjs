@@ -36,5 +36,21 @@ async function snapshot(){return page.evaluate(()=>window.CeasefirePenetrations.
  await response(()=>clickProjectControl(page,'Save'),'/api/project/save-as');const project=JSON.parse(fs.readFileSync(info.project,'utf8'));assert.deepEqual(project.penetration.draft,edited.draft);
  await clickProjectControl(page,'Load');await modal('Load this project?',{},'Load Project');await idle();assert.deepEqual((await snapshot()).draft,edited.draft);
  await chooseTakeoff(page,'Service Plans');const retry=page.waitForResponse(reply=>reply.url().endsWith('/library/transfer-confirmed'));await page.getByRole('button',{name:'Transfer to Firestopping Schedule',exact:true}).click();assert.equal((await retry).status(),400);assert.deepEqual((await snapshot()).draft,edited.draft);
+ // Unconfirm the retained source, remove only its linked draft through the
+ // actual Update action, then confirm and add that same stable source again.
+ await page.locator(`tr[data-physical-id="${barrier}"] .takeoff-row-link`).click();
+ await response(()=>inspector().getByLabel('Status',{exact:true}).selectOption('unconfirmed'),'/physical/apply');
+ const physicalBefore=await page.evaluate(()=>window.CeasefireTakeoffs.projectSnapshot());
+ await page.locator(`tr[data-physical-id="${service}"]`).getByRole('checkbox',{name:/^Select /}).check();
+ await page.getByRole('button',{name:'Update linked rows',exact:true}).click();
+ await expect(page.getByRole('dialog')).toContainText('Remove selected unconfirmed items from the calculator? You can confirm and add them again.');
+ const removed=await response(()=>page.getByRole('dialog').getByRole('button',{name:'Update linked rows',exact:true}).click(),'/library/remove-unconfirmed');
+ assert.equal(removed.library_link.removed,1);assert.deepEqual((await snapshot()).draft.rows,[]);
+ assert.deepEqual(removed.snapshot.service_plans,physicalBefore.service_plans);
+ await page.locator(`tr[data-physical-id="${barrier}"] .takeoff-row-link`).click();
+ await response(()=>inspector().getByLabel('Status',{exact:true}).selectOption('confirmed'),'/physical/apply');
+ const again=await response(()=>page.getByRole('button',{name:'Transfer to Firestopping Schedule',exact:true}).click(),'/library/transfer-confirmed');
+ assert.equal(again.library_link.manual_transferred,1);const restored=(await snapshot()).draft.rows;
+ assert.equal(restored.length,1);assert.equal(restored[0].id,row.id);assert.equal(restored[0].takeoff_source.service_id,service);assert.equal(restored[0].inputs.O,2);
  assert.deepEqual(errors,[]);await page.screenshot({path:path.join(output,'manual-transfer.png')});fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,barrier,service,row:edited.draft.rows[0],errors},null,2));console.log(`PASS manual register transfer, known-value editor, precision, duplicate guard and project round trip: ${output}`);
 })().catch(async error=>{console.error(error.stack);console.error(logs.slice(-3000));await page?.screenshot({path:path.join(output,'failure.png')});process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

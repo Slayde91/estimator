@@ -915,7 +915,7 @@ let passed=0;
   assert.match(markup,/id="new-quote"[^>]*>New<\/button>/);assert.doesNotMatch(markup,/id="edit-project-details"/);assert.match(markup,/id="load-project"[^>]*>Load<\/button>/);
   assert.doesNotMatch(markup,/id="libraries-heading"|class="library-choices"/);
   assert.match(markup,/id="library-navigation-menu"[^>]*aria-label="Choose a library"/);
-  assert.match(markup,/id="add-pricing-item"[^>]*>\+ Add item<\/button>/);assert.match(markup,/id="link-project-folder"[^>]*aria-label="Link Project Folder"/);assert.match(markup,/id="refresh-quotes"[^>]*aria-label="Refresh"/);
+  assert.match(markup,/id="add-pricing-item"[^>]*class="[^"]*icon-only[^"]*"[^>]*aria-label="\+ Add item"[^>]*>[\s\S]*?<span class="button-symbol" aria-hidden="true">\+<\/span><span class="sr-only">\+ Add item<\/span><\/button>/);assert.match(markup,/id="link-project-folder"[^>]*aria-label="Link Project Folder"/);assert.match(markup,/id="refresh-quotes"[^>]*aria-label="Refresh"/);
   const pricingTable=markup.indexOf('class="pricing-table"');
   for(const id of ['export-pricing','import-pricing','discard-pricing','reset-pricing','save-pricing'])assert.ok(markup.indexOf(`id="${id}"`)<pricingTable);
   assert.match(markup,/id="save-pricing"[^>]*class="button save-button icon-only"[^>]*aria-label="Save pricing"[^>]*title="Save pricing"/);

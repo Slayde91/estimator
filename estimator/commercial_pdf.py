@@ -420,6 +420,9 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
             pass  # Historical work orders could contain a free-text cost.
         _fields(story, [('Estimated cost (AUD)', cost)], styles)
         signatures = fields.get('signatures', {})
+        if any(order.get(key) for key in ('details_by','details_date')) or signatures.get('details_by'):
+            _fields(story, [('Reviewed by', Signature(signatures['details_by'],160,52) if signatures.get('details_by') else ''),
+                            ('Name',order.get('details_by','')),('Review date',order.get('details_date',''))],styles,keep_together=True)
         for title, pairs in [
             ('WORK ORDER REVIEW', [('Review date', 'review_date'), ('Approval', 'approval'), ('Justification', 'justification'), ('Reviewed by', 'reviewed_by'), ('Name', 'reviewed_by')]),
             ('OHS DOCUMENTATION', [('Prepared by', 'prepared_by'), ('Name', 'prepared_by'), ('Date', 'prepared_date')]),

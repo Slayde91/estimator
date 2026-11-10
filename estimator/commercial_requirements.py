@@ -33,16 +33,17 @@ def _signer(key, label, date_key, date_label):
 
 
 WORK_STAGES = (
-    ('Review', [_entry('order.approval', 'Approval'),
+    ('Review', _signer('details_by', 'Work order details reviewed by', 'details_date', 'Details review date')),
+    ('OHS Docs', [_entry('order.approval', 'Approval'),
                 *_signer('reviewed_by', 'Reviewed by', 'review_date', 'Review date')]),
-    ('OHS Docs', _signer('prepared_by', 'Prepared by', 'prepared_date', 'Date')),
-    ('Client Approval', _signer('client_approved_by', 'Approved by', 'client_approval_date', 'Approval date')),
-    ('In progress', [_entry('order.quote_id', 'Linked Quote'),
+    ('Client Approval', _signer('prepared_by', 'Prepared by', 'prepared_date', 'Date')),
+    ('In progress', _signer('client_approved_by', 'Approved by', 'client_approval_date', 'Approval date')),
+    ('Claim', [_entry('order.quote_id', 'Linked Quote'),
                      _entry('work_tracking.completed_percent', '% completed', 'completed'),
                      *_signer('progress_by', 'Progress signed by', 'progress_date', 'Date')]),
-    ('Claim', [_entry('work_tracking.claimed_percent', '% claimed', 'claimed'),
+    ('Certify', [_entry('work_tracking.claimed_percent', '% claimed', 'claimed'),
                *_signer('claimed_by', 'Claim signed by', 'claim_date', 'Date')]),
-    ('Certify', [_entry('order.certification', 'Certification details'), _entry('order.completion', 'Completion'),
+    ('Completed', [_entry('order.certification', 'Certification details'), _entry('order.completion', 'Completion'),
                  *_signer('closed_by', 'Closed by', 'closed_date', 'Date')]),
 )
 
@@ -55,7 +56,7 @@ def entries(kind, status, operation='save'):
     if kind != 'work_order':
         return []
     result = deepcopy(WORK)
-    stage = 'Certify' if status == 'Completed' else status
+    stage = status
     if stage in dict(WORK_STAGES):
         for current, additions in WORK_STAGES:
             result.extend(deepcopy(additions))
@@ -117,9 +118,11 @@ def _ink(value):
     return bool(signature and any(len({tuple(point) for point in stroke}) > 1 for stroke in signature['strokes']))
 
 
-def missing(kind, status, fields, operation='save'):
+def missing(kind, status, fields, operation='save', *, legacy_details=False):
     absent = []
     for entry in entries(kind, status, operation):
+        if legacy_details and entry['path'] in ('signatures.details_by','order.details_by','order.details_date'):
+            continue
         value, item_type = _value(fields, entry['path']), entry['type']
         if item_type in ('completed', 'claimed'):
             rows = fields.get('work_tracking', {}).get('rows', [])
@@ -136,8 +139,8 @@ def missing(kind, status, fields, operation='save'):
     return absent
 
 
-def require_ready(kind, status, fields, operation='save'):
-    absent = missing(kind, status, fields, operation)
+def require_ready(kind, status, fields, operation='save', *, legacy_details=False):
+    absent = missing(kind, status, fields, operation, legacy_details=legacy_details)
     if absent:
         label = {'quote': 'Quote', 'work_order': 'Work Order'}[kind]
         raise ValidationError('Complete required ' + label + ' fields: ' + ', '.join(entry['label'] for entry in absent) + '.')

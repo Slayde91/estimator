@@ -46,9 +46,9 @@ class RegisterCopyTests(unittest.TestCase):
     def test_each_register_has_exact_data_headers_and_one_sheet(self):
         steel = ('Status', 'Member mark', 'Level', 'Member type', 'Steel section', 'Product',
                  'Fire period (min)', 'Crit. Temp (°C)', 'Exposure')
-        length = ('Qty', 'Length each (m)', 'Total (m)', 'Thickness (mm)', 'Report', 'Evidence / issues')
+        length = ('Qty', 'Length each (m)', 'Total (m)', 'Thickness (mm)', 'Report', 'Source document')
         duct = ('Status', 'Item', 'Level', 'WxH (mm)', 'FRL', 'Orientation', 'Product',
-                'Qty', 'Length each (m)', 'Total (m)', 'Duct surface (m²)', 'Thickness (mm)', 'Report', 'Evidence / issues')
+                'Qty', 'Length each (m)', 'Total (m)', 'Duct surface (m²)', 'Thickness (mm)', 'Report', 'Source document')
         cases = [('steel', 'steel_vermiculite', steel + length),
                  ('steel', 'steel_board', steel + ('Exposed sides',) + length),
                  ('duct', 'ductwork', duct), ('walls_floors', None, SURFACE + AREA)]
@@ -117,8 +117,8 @@ class RegisterCopyTests(unittest.TestCase):
                 self.assertEqual(rows[1][rows[0].index('Total (m)')], total)
                 for label in ['Length each (m)', 'Total (m)', 'Thickness (mm)']:
                     self.assertIsNone(rows[2][rows[0].index(label)])
-                self.assertIn('Original.pdf · p2', rows[2][rows[0].index('Evidence / issues')])
-                self.assertNotIn('non-rectangular duct', rows[2][rows[0].index('Evidence / issues')])
+                self.assertIn('Original.pdf · p2', rows[2][rows[0].index('Source document')])
+                self.assertNotIn('non-rectangular duct', rows[2][rows[0].index('Source document')])
                 self.assertFalse(any(cell.data_type == 'f' for row in sheet for cell in row))
             finally:
                 workbook.close()

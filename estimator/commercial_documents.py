@@ -39,11 +39,11 @@ ORDER_FIELDS = ('start_date', 'end_date', 'urgency', 'quote_id', 'work_order_id'
                 'ship_to_address', 'delivery_date', 'expense_type', 'delivery_method', 'requested_by',
                 'requested_date', 'sent_by', 'sent_date', 'verified_by', 'verified_date', 'verification', 'prepared_date')
 FIELD_KEYS = {'title', 'details', 'introduction', 'lines', 'scope', 'scope_tables', 'sources', 'allowances', 'terms', 'order', 'company_reference'}
-WORK_ORDER_OPTIONAL_FIELDS = ('progress_by', 'progress_date', 'closed_date', 'claimed_by', 'claim_date')
+WORK_ORDER_OPTIONAL_FIELDS = ('progress_by', 'progress_date', 'closed_date', 'claimed_by', 'claim_date', 'details_by', 'details_date')
 PURCHASE_PARTY_LABELS = {'supplier_account_id':'supplier', 'supplier_contact_id':'supplier_contact', 'site_contact_id':'ship_to_name'}
 PURCHASE_ORDER_OPTIONAL_DEFAULTS = ('site_contact_number', 'delivery_time', 'rejection_reason')
 PURCHASE_ORDER_OPTIONAL_FIELDS = (*PURCHASE_ORDER_OPTIONAL_DEFAULTS, *PURCHASE_PARTY_LABELS)
-WORK_ORDER_SIGNATURE_FIELDS = {'reviewed_by', 'prepared_by', 'client_approved_by', 'progress_by', 'closed_by', 'claimed_by'}
+WORK_ORDER_SIGNATURE_FIELDS = {'details_by', 'reviewed_by', 'prepared_by', 'client_approved_by', 'progress_by', 'closed_by', 'claimed_by'}
 PURCHASE_ORDER_SIGNATURE_FIELDS = {'requested_by', 'reviewed_by', 'sent_by', 'verified_by'}
 CERTIFICATION_CHOICES = ('Certification issued', 'Certification not issued')
 COMPLETION_CHOICES = ('Completed', 'Ongoing', 'On hold', 'Not completed')
@@ -982,12 +982,15 @@ class CommercialDocuments:
             return item, self.files.read(project, item)
 
     def save(self, workspace, payload, *, unfiled_context=None):
-        if not isinstance(payload, dict) or set(payload) - {'id', 'version', 'kind', 'status', 'fields'}:
+        if not isinstance(payload, dict) or set(payload) - {'id', 'version', 'kind', 'status', 'fields', 'signature_actions'}:
             raise ValidationError('Commercial document save contains unsupported fields.')
         kind = payload.get('kind')
         if kind not in KINDS or payload.get('status') not in STATUSES[kind]:
             raise ValidationError('Choose a valid commercial document status.')
         fields = validate_fields(payload.get('fields'), kind=kind)
+        from .work_order_signing import actions, apply as apply_signing
+        signed = actions(payload.get('signature_actions', []), kind)
+        status = payload['status']
         with self._connect() as db:
             self.numbering.attach(db)
             db.execute('BEGIN IMMEDIATE')
@@ -1026,27 +1029,41 @@ class CommercialDocuments:
                         fields.setdefault('signatures',{})['claimed_by']=deepcopy(previous['fields']['signatures']['claimed_by'])
                 if kind=='work_order' and 'billing' not in payload['fields'] and previous['fields'].get('billing'):
                     fields['billing'] = deepcopy(previous['fields']['billing'])
+                if kind=='work_order' and not any(key in payload['fields']['order'] for key in ('details_by','details_date')):
+                    for key in ('details_by','details_date'):
+                        if key in previous['fields']['order']:
+                            fields['order'][key]=previous['fields']['order'][key]
+                    if previous['fields'].get('signatures',{}).get('details_by'):
+                        fields.setdefault('signatures',{})['details_by']=deepcopy(previous['fields']['signatures']['details_by'])
                 if kind=='work_order' and fields.get('work_tracking') and previous['fields'].get('work_tracking'):
                     previous_rows={row['line_id']:row for row in previous['fields']['work_tracking']['rows']}
                     for raw, row in zip(payload['fields']['work_tracking']['rows'],fields['work_tracking']['rows']):
                         if 'notes' not in raw and row['line_id'] in previous_rows:
                             row['notes']=previous_rows[row['line_id']].get('notes','')
             self._relationships(db, workspace, project, kind, fields, previous, create_retry=payload.get('version') == 0)
+            legacy_details = (kind=='work_order' and previous is not None
+                              and not any(key in previous['fields']['order'] for key in ('details_by','details_date'))
+                              and not any(item['key']=='details_by' for item in signed))
+            if kind=='work_order' and previous is None:
+                for key in ('details_by','details_date'):
+                    fields['order'].setdefault(key,'')
             if kind=='work_order':
                 for key, choices in (('certification',CERTIFICATION_CHOICES),('completion',COMPLETION_CHOICES)):
                     if fields['order'][key] and fields['order'][key] not in choices and (previous is None or fields['order'][key]!=previous['fields']['order'][key]):
                         raise ValidationError('Choose a listed certification or completion status.')
                 self._validate_tracking(db, project, fields, previous)
+            if signed:
+                status = apply_signing(fields, status, signed)
             if payload.get('version') == 0 and previous:
-                if previous['fields'] == fields and previous['status'] == payload['status']:
+                if previous['fields'] == fields and previous['status'] == status:
                     if unfiled_context is not None:
                         self.unfiled.enroll(db, workspace, previous['id'], unfiled_context)
                     return previous
                 raise CommercialConflict('This new document was already saved with different content. Reopen it before editing.')
-            require_ready(kind, payload['status'], fields)
+            require_ready(kind, status, fields, legacy_details=legacy_details)
             now = datetime.now(timezone.utc).isoformat()
             document = {'id': previous['id'] if previous else payload.get('id') or str(uuid.uuid4()), 'kind': kind,
-                        'version': previous['version'] + 1 if previous else 1, 'status': payload['status'], 'fields': fields,
+                        'version': previous['version'] + 1 if previous else 1, 'status': status, 'fields': fields,
                         'created_at': previous['created_at'] if previous else now, 'updated_at': now,
                         'last_number': previous['last_number'] if previous else ''}
             if kind in ('work_order','purchase_order'):
@@ -1058,6 +1075,9 @@ class CommercialDocuments:
             validate_commercial_documents(snapshot)
             db.execute('INSERT INTO commercial_drafts VALUES(?,?,?) ON CONFLICT(workspace,id) DO UPDATE SET data=excluded.data', (workspace, document['id'], _json(document)))
             self._audit(db, workspace, document['id'], 'save', previous, document)
+            if signed:
+                self._audit(db, workspace, document['id'], 'signatures', None,
+                            {'document_version':document['version'], 'actions':signed, 'status':status})
             if unfiled_context is not None:
                 self.unfiled.enroll(db, workspace, document['id'], unfiled_context)
         return document
@@ -1098,7 +1118,8 @@ class CommercialDocuments:
             if document['kind'] == 'work_order' and status != 'Draft':
                 self._relationships(db, workspace, project, document['kind'], document['fields'], previous)
                 self._validate_tracking(db, project, document['fields'], previous)
-            require_ready(document['kind'], status, document['fields'])
+            require_ready(document['kind'], status, document['fields'],
+                          legacy_details=document['kind']=='work_order' and not any(key in document['fields']['order'] for key in ('details_by','details_date')))
             document.update(status=status, version=version + 1, updated_at=datetime.now(timezone.utc).isoformat())
             db.execute('UPDATE commercial_drafts SET data=? WHERE workspace=? AND id=?', (_json(document), workspace, identity))
             self._audit(db, workspace, identity, 'status', previous, document)
@@ -1165,7 +1186,8 @@ class CommercialDocuments:
                 self._validate_tracking(db, project, document['fields'], previous)
             if kind == 'work_order' and order['quote_id'] and not order['estimated_cost']:
                 order['estimated_cost'] = self._linked_quote_total(db, workspace, project, order['quote_id'], order['quote_reference'])
-            require_ready(kind, document['status'], document['fields'], operation='issue')
+            require_ready(kind, document['status'], document['fields'], operation='issue',
+                          legacy_details=kind=='work_order' and not any(key in order for key in ('details_by','details_date')))
             label = (self.numbering.assign(db, kind, project + ':issue:' + request_id) if kind == 'quote' else document['reference'])
             if self.renderer is None:
                 from .commercial_pdf import render_commercial_pdf

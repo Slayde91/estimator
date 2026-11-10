@@ -103,6 +103,8 @@ async function transfer(update = false, expectedNote = null, expectedDetails = [
   fs.writeFileSync(path.join(output, `transfer-${Date.now()}.json`), JSON.stringify({ request: response.request().postDataJSON(), response: preview }, null, 2));
   assert.equal(response.status(), 200, JSON.stringify(preview));
   if (expectedNote) await expect(page.getByRole('dialog')).toContainText(expectedNote);
+  await expect(page.getByRole('dialog')).not.toContainText('Source ID:');
+  await expect(page.getByRole('dialog')).not.toContainText('Destination inputs:');
   for (const detail of expectedDetails) await expect(page.getByRole('dialog')).toContainText(detail);
   const applied = page.waitForResponse(r => r.url().endsWith('/transfer-apply'));
   await dialog(`${update ? 'Update' : 'Transfer'} 1 confirmed items?`, {}, update ? 'Update linked rows' : 'Add to schedule');
@@ -178,7 +180,7 @@ async function boardJourney(info) {
   const measured = state.item_results.find(item => item.id === measuredId);
   assert.ok(Math.abs(measured.length_m - 10) < 0.02); assert.equal(measured.total_length_m, measured.length_m * 2);
   assert.equal(state.snapshot.items.find(item => item.id === measuredId).member_ids.length, 2);
-  await reviewConfirm(); let transferred = await transfer(false, 'CLADDING ESTIMATE', ['Physical quantity: 2', `Per-member length: ${measured.length_m.toFixed(2)} m`, `Total length: ${measured.total_length_m.toFixed(2)} m`, `Lineal metres: ${measured.total_length_m.toFixed(2)}`]);
+  await reviewConfirm(); let transferred = await transfer(false, 'CLADDING ESTIMATE', ['Add:']);
   const measuredBinding = transferred.state.snapshot.transfers.find(binding => binding.item_id === measuredId);
   assert.equal(measuredBinding.calculator_id, 'steel_board');
   assert.equal(transferred.preview.inputs[measuredBinding.sheet]['F' + measuredBinding.row], measured.total_length_m);
@@ -197,7 +199,7 @@ async function boardJourney(info) {
   state = await fillInspector({ ...supported, 'Steel section': '100UC15' });
   assert.equal(state.item_results.find(item => item.id === citedId).total_length_m, 21.75);
   assert.equal(state.snapshot.items.find(item => item.id === citedId).member_ids.length, 3);
-  await reviewConfirm(); transferred = await transfer(false, 'CLADDING ESTIMATE', ['Physical quantity: 3', 'Per-member length: 7.25 m', 'Total length: 21.75 m', 'Lineal metres: 21.75']);
+  await reviewConfirm(); transferred = await transfer(false, 'CLADDING ESTIMATE', ['Add: BOARD-CITED']);
   const citedBinding = transferred.state.snapshot.transfers.find(binding => binding.item_id === citedId);
   assert.equal(transferred.preview.inputs[citedBinding.sheet]['F' + citedBinding.row], 21.75);
   transferred = await skippedTransfer([citedBinding.id]);

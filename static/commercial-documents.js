@@ -1198,7 +1198,22 @@
       reader.onload=()=>resolve(reader.result.split(",")[1]); reader.readAsDataURL(blob);
     });
     editor.panels=window.ClassifireWorkOrderPanels.attach(form, {
-      fields, kind:doc.kind, id:doc.id, related, message, richEditor, canEdit:()=>current() && !state.busy, changeDetails:values=>{if(current() && !state.busy)editDocumentDetails(fields,values);}, projectDetails:projectDetailsSnapshot(editor.source), isSaved:()=>Boolean(doc.version),
+      fields, kind:doc.kind, id:doc.id, related, message, richEditor, isCurrent:current,
+      canEdit:()=>current() && !state.busy && (!window.ClassifireAccess || window.ClassifireAccess.can('edit')),
+      changeDetails:values=>{if(current() && !state.busy)editDocumentDetails(fields,values);}, projectDetails:projectDetailsSnapshot(editor.source), isSaved:()=>Boolean(doc.version),
+      readProjectDetails:()=>projectDetailsSnapshot(editor.source),
+      participantSource() {
+        if(!current())return null;
+        if(editor.source)return editor.source.file_id.startsWith('local-') ? null : {selector:editor.source.file_id,revision:editor.source.revision};
+        const active=window.CeasefireProject?.context?.();
+        const file=window.CeasefireProject?.projectPaneSnapshot?.().file;
+        // A visible tab alone does not make an unfiled/history document part
+        // of its Project. Require the saved file's recorded commercial owner
+        // and current workspace to agree before reading local participants.
+        if(!window.CeasefireProject?.hasCreatedProject?.() || !file?.source_project_id || file.source_project_id!==state.model?.project_id
+          || state.model?.workspace_id!==panelWorkspace || file.save_token!==active?.project_token || file.revision!==active?.project_revision)return null;
+        return active?.project_token ? {selector:'native:'+active.project_token,revision:active.project_revision} : null;
+      },
       async writeNotes(notes) {
         if (!current() || state.busy) throw new Error("Finish the current document operation first.");
         if (!doc.version) { fields.notes=copy(notes); markDirty(); return; }
@@ -1517,9 +1532,9 @@
             const rows=(data.accounts || []).filter(item=>fold(item.company)===fold(fields.order.supplier));
             return rows.length===1?rows[0]:null;
           };
-          function update(values){if(!current())return;Object.assign(fields.order,values);section.querySelectorAll('[data-order-field]').forEach(control=>control.value=fields.order[control.dataset.orderField] || '');markDirty();}
+          function update(values){if(!current())return;Object.assign(fields.order,values);root().querySelectorAll('[data-order-field]').forEach(control=>control.value=fields.order[control.dataset.orderField] || '');markDirty();owner.panels?.refreshProjectDetails(projectDetailsSnapshot(owner.source));}
           const search=window.ClassifireCommercialDirectory.field(label,{kind:key==='supplier'?'accounts':'contacts',value:fields.order[key],read:()=>fields.order[key],isCurrent:current,message,
-            account:key==='ship_to_name' ? undefined : account,filter: key==='supplier_contact' ? (contact,data)=>!fields.order.supplier || !!account(data) && (contact.account_id===account(data).id || contact.account_id===undefined && window.ClassifireCommercialDirectory.fold(contact.company)===window.ClassifireCommercialDirectory.fold(fields.order.supplier)) : undefined,
+            account:key==='ship_to_name' ? undefined : account,onDirectory:data=>void owner.panels?.refreshDirectory(data),filter: key==='supplier_contact' ? (contact,data)=>!fields.order.supplier || !!account(data) && (contact.account_id===account(data).id || contact.account_id===undefined && window.ClassifireCommercialDirectory.fold(contact.company)===window.ClassifireCommercialDirectory.fold(fields.order.supplier)) : undefined,
             onInput(value){
               if(value===fields.order[key])return;
               if(key==='supplier')update({supplier:value,supplier_account_id:'',supplier_contact:'',supplier_contact_id:'',supplier_email:''});

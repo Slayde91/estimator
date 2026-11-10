@@ -82,13 +82,13 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
   await quote.screenshot({path:path.join(output,'quote-directory-desktop.png')});await reopenedLeft.getByRole('option',{name:'Beta Company',exact:true}).click();
   await reopenedLeft.getByRole('combobox',{name:'Name',exact:true}).fill('Beta');await reopenedLeft.getByRole('option',{name:'Beta Contact',exact:true}).click();await save(quote);
   await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await openProjectSection(page,'purchase-orders');const purchase=page.locator('#commercial-purchase-order-root');await purchase.getByRole('button',{name:'New Purchase Order',exact:true}).click();
-  const information=purchase.locator('.commercial-purchase-information');await expect(information.getByRole('combobox',{name:'Supplier',exact:true})).toBeVisible();
-  await information.getByRole('combobox',{name:'Supplier',exact:true}).fill('Beta');await information.getByRole('option',{name:'Beta Company',exact:true}).click();
-  await information.getByRole('combobox',{name:'Supplier contact',exact:true}).fill('');await information.getByRole('combobox',{name:'Supplier contact',exact:true}).focus();await expect(information.locator('.commercial-directory-options:visible').getByRole('option')).toHaveText(['Beta Contact']);await information.getByRole('option',{name:'Beta Contact',exact:true}).click();await expect(information.getByLabel('Supplier email',{exact:true})).toHaveValue('beta-later@example.test');
+  const information=purchase.locator('.commercial-purchase-information');await expect(purchase.getByRole('combobox',{name:'Supplier',exact:true})).toBeVisible();
+  await purchase.getByRole('combobox',{name:'Supplier',exact:true}).fill('Beta');await purchase.locator('.commercial-directory-options:visible').getByRole('option',{name:'Beta Company',exact:true}).click();
+  await purchase.getByRole('combobox',{name:'Supplier contact',exact:true}).fill('');await purchase.getByRole('combobox',{name:'Supplier contact',exact:true}).focus();await expect(purchase.locator('.commercial-directory-options:visible').getByRole('option')).toHaveText(['Beta Contact']);await purchase.locator('.commercial-directory-options:visible').getByRole('option',{name:'Beta Contact',exact:true}).click();await expect(information.getByLabel('Supplier email',{exact:true})).toHaveValue('beta-later@example.test');
   const siteContact=information.getByRole('combobox',{name:'Site contact',exact:true}),sitePhone=information.getByLabel('Site contact number',{exact:true});
-  await siteContact.focus();await expect(information.locator('.commercial-directory-options:visible').getByRole('option')).toHaveText(['Beta Contact','Inline Person','Unrelated Contact']);
-  await information.getByRole('option',{name:'Unrelated Contact',exact:true}).click();await expect(siteContact).toHaveValue('Unrelated Contact');await expect(sitePhone).toHaveValue('111');
-  await expect(information.getByRole('combobox',{name:'Supplier',exact:true})).toHaveValue('Beta Company');await expect(information.getByRole('combobox',{name:'Supplier contact',exact:true})).toHaveValue('Beta Contact');
+  await siteContact.focus();await expect(purchase.locator('.commercial-directory-options:visible').getByRole('option')).toHaveText(['Beta Contact','Inline Person','Unrelated Contact']);
+  await purchase.locator('.commercial-directory-options:visible').getByRole('option',{name:'Unrelated Contact',exact:true}).click();await expect(siteContact).toHaveValue('Unrelated Contact');await expect(sitePhone).toHaveValue('111');
+  await expect(purchase.getByRole('combobox',{name:'Supplier',exact:true})).toHaveValue('Beta Company');await expect(purchase.getByRole('combobox',{name:'Supplier contact',exact:true})).toHaveValue('Beta Contact');
   const siteGeometry=await Promise.all([siteContact,sitePhone,information.getByLabel('Ship to address',{exact:true})].map(control=>control.boundingBox()));
   assert.ok(Math.abs(siteGeometry[0].y-siteGeometry[1].y)<2&&siteGeometry[1].x>siteGeometry[0].x&&siteGeometry[2].y>siteGeometry[1].y,'Site contact and number share a row; delivery address follows below');
   await sitePhone.fill('+61 111 ext 9');
@@ -126,8 +126,8 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
     const supplier=purchase.locator('[data-order-field="supplier"]'),contact=purchase.locator('[data-order-field="supplier_contact"]');
     await expect(supplier).toHaveValue('Beta Company');await expect(contact).toHaveValue('Beta Contact');
     await expect(purchase.locator('[data-order-field="ship_to_name"]')).toHaveValue('Unrelated Contact');await expect(purchase.locator('[data-order-field="site_contact_number"]')).toHaveValue('+61 111 ext 9');
-    await supplier.focus();await expect(information.locator('.commercial-directory-options:visible').getByRole('option')).toHaveText(['Beta Company']);await supplier.blur();
-    await contact.focus();await expect(information.locator('.commercial-directory-options:visible').getByRole('option')).toHaveText(['Beta Contact']);await contact.blur();
+    await supplier.focus();await expect(purchase.locator('.commercial-directory-options:visible').getByRole('option')).toHaveText(['Beta Company']);await supplier.blur();
+    await contact.focus();await expect(purchase.locator('.commercial-directory-options:visible').getByRole('option')).toHaveText(['Beta Contact']);await contact.blur();
     const after=JSON.parse(await page.evaluate(()=>window.CeasefireCommercial.projectFingerprint())).editor;
     assert.equal(after.id,beforeLocales.id);assert.equal(after.version,beforeLocales.version);
     assert.deepEqual(after.fields,beforeLocales.fields,'Language switching preserves every saved Purchase Order field');
@@ -136,7 +136,7 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
   }
   fs.writeFileSync(path.join(output,'delivery-locales.json'),JSON.stringify({passed:true,languages:localeEvidence,canonicalFieldsUnchanged:true,savedFileUnchanged:true},null,2));
   checked('Delivery/Pickup labels translate in Chinese and Arabic through the real language menu, while canonical option values, selected Pickup, raw Company/Contact results and all saved fields remain unchanged');
-  for(const width of [1101,520]){await page.setViewportSize({width,height:1000});const field=information.getByRole('combobox',{name:'Supplier',exact:true});await field.fill('Beta');const option=information.getByRole('option',{name:'Beta Company',exact:true});await expect(option).toBeVisible();const box=await option.boundingBox();assert.ok(box.x>=0&&box.x+box.width<=width+1,JSON.stringify(box));await page.screenshot({path:path.join(output,'purchase-search-'+width+'.png'),fullPage:true});await option.click();}
+  for(const width of [1101,520]){await page.setViewportSize({width,height:1000});const field=purchase.getByRole('combobox',{name:'Supplier',exact:true});await field.fill('Beta');const option=purchase.locator('.commercial-directory-options:visible').getByRole('option',{name:'Beta Company',exact:true});await expect(option).toBeVisible();const box=await option.boundingBox();assert.ok(box.x>=0&&box.x+box.width<=width+1,JSON.stringify(box));await page.screenshot({path:path.join(output,'purchase-search-'+width+'.png'),fullPage:true});await option.click();}
   checked('Directory result lists remain in the available container at desktop/tablet/mobile widths');
   await save(purchase);await purchase.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();
   const otherPath=path.join(path.dirname(info.project),'other-owner.cf.json'),other=JSON.parse(fs.readFileSync(info.project,'utf8'));

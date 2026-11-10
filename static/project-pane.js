@@ -8,7 +8,7 @@
   const translate = source => window.CeasefireI18n?.translate?.(source) || source;
   const text = (element,source) => window.CeasefireI18n ? window.CeasefireI18n.text(element,source) : (element.textContent=source);
   const fields = {project_no:"project-pane-number", client:"project-pane-client", site_address:"project-pane-address", contact_name:"project-pane-contact-name", contact_phone:"project-pane-contact-phone", contact_email:"project-pane-contact-email", billing_address:"project-pane-billing-address", abn_acn:"project-pane-abn-acn"};
-  const required = {project_no:"Project No.",client:"Client",site_address:"Site Address",contact_name:"Contact name",contact_email:"Contact email",contact_phone:"Contact phone"};
+  const required = {project_no:"Project No.",client:"Client",site_address:"Site Address",contact_name:"Primary contact",contact_email:"Contact email",contact_phone:"Contact phone"};
   for (const key of Object.keys(required)) {
     const control = $(fields[key]);
     control.setAttribute("aria-required","true");

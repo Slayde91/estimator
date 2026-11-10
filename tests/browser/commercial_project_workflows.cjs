@@ -100,9 +100,9 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   const poDefaults=page.waitForResponse(response=>response.url().endsWith('/api/commercial/purchase-order-defaults'));
   await work.getByRole('button',{name:'Create PO',exact:true}).click();assert.equal((await poDefaults).status(),200);
   const purchase=page.locator('#commercial-purchase-order-root');await expect(purchase.getByLabel('Linked Work Order',{exact:true})).toHaveValue(source.id);
-  await expect(purchase.locator('.commercial-work-layout>.commercial-sidebar')).toHaveCount(1);
+  await expect(purchase.locator('.commercial-work-layout>.commercial-sidebar')).toHaveCount(2);
   for(const title of ['Notes (0)','Files (0)','Linked Work Orders (1)','Linked Quotes (1)'])await expect(purchase.locator('.commercial-sidebar summary').filter({hasText:title})).toHaveCount(1);
-  await expect(purchase.locator('.commercial-side-panel summary').filter({hasText:/^(Company Details|Contact Details)$/})).toHaveCount(0);
+  await expect(purchase.locator('.commercial-sidebar').first().locator('summary')).toHaveText(['Company Details','Linked Contacts']);
   await expect(purchase.locator('.commercial-details [data-project-detail=site_address]')).toHaveCount(0);
   await expect(purchase.getByRole('combobox',{name:'Site contact',exact:true})).toHaveValue('Project Contact');await expect(purchase.getByLabel('Site contact number',{exact:true})).toHaveValue('0400 123 456');await expect(purchase.getByLabel('Ship to address',{exact:true})).toHaveValue('17 Procurement Road');
   for(const label of ['Supplier','Supplier email','Supplier contact','Payment terms','Requested by name'])await expect(purchase.getByLabel(label,{exact:true})).toHaveValue('');

@@ -152,6 +152,7 @@
     if (!accountEditor && (saving || root()?.getAttribute("aria-busy") === "true")) return null;
     if (!await leaveAccount()) return null;
     if (requestId !== editorRequest || saving || root()?.getAttribute("aria-busy") === "true") return null;
+    if (options.isCurrent && !options.isCurrent()) return null;
     const inPane = ["accounts", "contacts"].includes(kind) && Boolean(record.id) && !options.standalone;
     const dialog = el(inPane ? "aside" : "dialog", inPane ? "card contacts-account-pane" : "contacts-dialog");
     if (inPane && kind === "contacts") dialog.classList.add("contacts-contact-pane");
@@ -327,7 +328,10 @@
     }
     const cancel = button("Cancel", () => inPane ? leaveAccount() : cancelModal());
     copy(cancel, "Cancel");
-    if (readOnly) actions.append(button("Close", closeEditor), button("Edit", () => {closeEditor(); dialogEditor(kind, record);}, "button primary"));
+    if (readOnly) {
+      actions.append(button("Close", closeEditor));
+      if (!options.lockedReadOnly) actions.append(button("Edit", () => {closeEditor(); dialogEditor(kind, record);}, "button primary"));
+    }
     else actions.append(cancel, save);
     const linkSelections = {};
     let linksChanged = () => false;
@@ -746,7 +750,7 @@
         dialog.parentNode?.classList.remove("contacts-account-open");
       }
       dialog.remove(); resolveClosed(savedRecord);
-      if (inPane && returnFocus?.isConnected) returnFocus.focus();
+      if ((inPane || options.standalone) && returnFocus?.isConnected) returnFocus.focus();
     }, {once: true});
     if (inPane) {
       const close = button("×", () => leaveAccount(), "button secondary icon-only contacts-account-close");
@@ -781,6 +785,15 @@
     const account = initial.account_id ? directory.accounts.find(item=>item.id===initial.account_id) : null;
     if(initial.account_id && !account)throw new Error('Choose a valid Company.');
     return dialogEditor('contacts',{name:typeof initial.name==='string'?initial.name:'',...(account?{company:account.company,account_id:account.id}:{})},false,{directory,standalone:true});
+  }
+  async function editContact(id, options = {}) {
+    await window.ClassifireAccess?.ready;
+    const directory = await request('directory');
+    if (options.isCurrent && !options.isCurrent()) return null;
+    const contact = directory.contacts.find(person=>person.id===id);
+    if (!contact) throw new Error('The selected directory record is unavailable.');
+    const readOnly = Boolean(window.ClassifireAccess && !window.ClassifireAccess.can('edit'));
+    return dialogEditor('contacts',contact,readOnly,{directory,standalone:true,lockedReadOnly:readOnly,isCurrent:options.isCurrent});
   }
   function matches(row) {
     const keys = page === "accounts" ? ["company", "abn_acn", "billing_address", "owner_name"] :
@@ -998,7 +1011,7 @@
     const menu = event.target.closest?.("#contacts-root details[open]");
     if (menu) {menu.open = false; menu.querySelector("summary").focus();}
   });
-  window.ClassifireContacts = {activate, createAccount, createContact, leave:leaveAccount,
+  window.ClassifireContacts = {activate, createAccount, createContact, editContact, leave:leaveAccount,
     pendingMessage:()=>accountEditor?.pendingMessage() || "Finish the current Company action first.",
     hasUnsavedChanges:()=>Boolean(accountEditor?.dirty()), hasPendingOperation:()=>Boolean(accountEditor?.pending()),
     fingerprint:()=>accountEditor?.fingerprint() || ""};

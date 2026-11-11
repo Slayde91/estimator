@@ -26,7 +26,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   const companies=page.locator('#project-company-participants'), contacts=page.locator('#project-contact-participants');
   const siteWrites=[];
   page.on('request',r=>{if(r.method()==='POST' && new URL(r.url()).pathname==='/api/crm/project-participants')siteWrites.push(r.postDataJSON());});
-  await companies.getByText('Add participant',{exact:true}).click();
+  await companies.getByText('Add',{exact:true}).click();
   await companies.getByLabel('Role',{exact:true}).selectOption('consultant');
   await companies.getByRole('button',{name:'New Company',exact:true}).click();
   await page.getByRole('dialog',{name:'New Company',exact:true}).getByRole('button',{name:'Cancel',exact:true}).click();
@@ -34,7 +34,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   await companies.getByRole('option',{name:'Consulting team',exact:true}).click();
   await expect(companies.locator('li')).toContainText('Consulting team · Consultant');
   const currentPrimary=await page.locator('#project-pane-contact-name').inputValue();
-  await contacts.getByText('Add participant',{exact:true}).click();
+  await contacts.getByText('Add',{exact:true}).click();
   await contacts.getByRole('combobox',{name:'Contact',exact:true}).fill('Site manager');
   await contacts.getByRole('button',{name:'New Contact'}).click();
   const dialog=page.getByRole('dialog',{name:'New Contact',exact:true});
@@ -47,6 +47,14 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   await expect(page.locator('#project-pane-contact-name')).toHaveValue(currentPrimary);
   await contacts.getByRole('button',{name:'Remove',exact:true}).click();
   await expect(contacts.locator('li')).toHaveCount(0);
+  const stray = await page.request.post(new URL('/api/contacts/contacts',page.url()).href,{data:{
+    version:(await read('/api/contacts/directory')).version,fields:{name:'Site manager elsewhere',company:'Unrelated team',phone:'123',email:'other@example.test'}
+  }});
+  assert.equal(stray.status(),200,await stray.text());
+  await contacts.getByText('Add',{exact:true}).click();
+  await contacts.getByRole('combobox',{name:'Contact',exact:true}).fill('Site manager');
+  await expect(contacts.getByRole('listbox').getByRole('option')).toHaveText(['Site manager']);
+  await contacts.getByRole('combobox',{name:'Contact',exact:true}).press('Escape');
   const siteCreate=await page.request.post(new URL('/api/crm/sites',page.url()).href,{data:{id:require('node:crypto').randomUUID(),name:'Shared school refurbishment',address:'42 Example Lane'}});
   assert.equal(siteCreate.status(),200,await siteCreate.text());const site=await siteCreate.json();
   await expect(panel.locator('input,button,[data-linked-site-id]')).toHaveCount(0);
@@ -61,6 +69,21 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   fs.writeFileSync(copyPath,JSON.stringify(copy));const copyBytes=fs.readFileSync(copyPath);
   await page.locator('#project-details-close').click();await page.locator('#refresh-quotes').click();
   const selected=(await read('/api/projects')).files.find(row=>row.name==='separate-builder.cf.json');assert.ok(selected);
+  await page.locator('#project-current-details').click();
+  const targetB=panel.getByRole('button',{name:/Builder B/});
+  await expect(targetB).toBeVisible();
+  const currentAddress=page.locator('#project-pane-address');
+  await currentAddress.fill('Draft should stay on cancel');
+  await targetB.click();
+  const navigation=page.locator('#discard-dialog');
+  await navigation.getByRole('button',{name:'Cancel',exact:true}).click();
+  await expect(currentAddress).toHaveValue('Draft should stay on cancel');
+  await targetB.click();await navigation.getByRole('button',{name:'Open without saving'}).click();
+  await expect(page.locator('#project-pane-client')).toHaveValue('Builder B');
+  assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),copyPath);
+  assert.deepEqual(fs.readFileSync(info.project),original);
+  await panel.getByRole('button',{name:/Builder A/}).click();
+  await expect(page.locator('#project-pane-client')).toHaveValue('Builder A');
   await page.locator(`[data-project-details-id="${selected.id}"]`).click();
   await expect(page.locator('#project-details-pane')).toHaveAttribute('aria-busy','false');
   await expect(page.locator('#project-pane-client')).toHaveValue('Builder B');
@@ -82,7 +105,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   assert.deepEqual(fs.readFileSync(info.project),original);assert.deepEqual(fs.readFileSync(copyPath),copyBytes);
   // The older open form must recover its version before adding a role and retain the explicit site.
   const addConsultant=async()=>{
-    await companies.getByText('Add participant',{exact:true}).click();
+    await companies.getByText('Add',{exact:true}).click();
     await companies.getByLabel('Role',{exact:true}).selectOption('consultant');
     await companies.getByRole('combobox',{name:'Company',exact:true}).fill('Consulting');
     await companies.getByRole('option',{name:'Consulting team',exact:true}).click();
@@ -101,7 +124,8 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   try {
     const started=Date.now();
     const denied=saveResponse();
-    await saveDetails.click();
+    await panel.getByRole('button',{name:/Builder A/}).click();
+    await navigation.getByRole('button',{name:'Save',exact:true}).click();
     assert.equal((await denied).status(),400);
     timings.deniedMetadataSaveMs=Date.now()-started;
     await expect(page.locator('#project-details-status')).toContainText('writable folder');
@@ -151,20 +175,28 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   const earlierBid=panel.getByText(/PN-.*Builder A.*42 Example Lane/);
   await expect(earlierBid).toBeVisible();
   await expect(panel.locator('li')).toHaveCount(1);
-  await expect(panel.locator('input,button,details')).toHaveCount(0);
+  await expect(panel.locator('input,details')).toHaveCount(0);
   assert.deepEqual(fs.readFileSync(copyPath),savedCopy,'Viewing links cannot reassign or rewrite the Project');
   assert.deepEqual(fs.readFileSync(info.project),original,'The other bid keeps its original address');
+  await page.locator('#project-pane-contact-phone').fill('5550987');
+  await earlierBid.click();
+  await navigation.getByRole('button',{name:'Save',exact:true}).click();
+  await expect(page.locator('#project-pane-client')).toHaveValue('Builder A');
+  assert.equal(JSON.parse(fs.readFileSync(copyPath)).estimate.contact_phone,'5550987');
+  await page.locator(`[data-project-details-id="${selected.id}"]`).click();
+  await expect(earlierBid).toBeVisible();
+  const updatedCopy=fs.readFileSync(copyPath);
   // Removing the saved copy outside CLASSIFIRE must not erase or rebind the recorded site relationship.
   fs.renameSync(copyPath,copyPath+'.retained');
   const siteView=await read('/api/crm/sites?id='+sites.sites[0].id);
   const archived=siteView.linked_bids.find(bid=>bid.client==='Builder B');assert.equal(archived.availability,'unavailable');
-  assert.deepEqual(fs.readFileSync(copyPath+'.retained'),savedCopy);
+  assert.deepEqual(fs.readFileSync(copyPath+'.retained'),updatedCopy);
   await earlierBid.scrollIntoViewIfNeeded();
   await page.screenshot({path:path.join(folder,'participants.png')});
   await page.setViewportSize({width:390,height:884});await earlierBid.scrollIntoViewIfNeeded();
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)<=1,'Linked projects fit the mobile viewport');
   await page.screenshot({path:path.join(folder,'participants-mobile.png')});
-  await companies.getByText('Add participant',{exact:true}).click();
+  await companies.getByText('Add',{exact:true}).click();
   await companies.getByRole('combobox',{name:'Company',exact:true}).focus();
   const options=companies.getByRole('listbox');
   await expect(options).toBeVisible();const popupBox=await options.boundingBox();
@@ -181,6 +213,23 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   assert.equal(JSON.parse(fs.readFileSync(info.project)).estimate.site_address,'18 Current Project Way');
   await expect(panel.getByText('No linked projects.',{exact:true})).toBeVisible();
   assert.deepEqual(siteWrites.map(body=>body.site_id),[null,null,null,null,site.id],'Only user-requested participant changes sent writes, including the retried conflict');
+  // A current Project draft uses the full file save before following an available peer.
+  const restored=JSON.parse(updatedCopy);
+  for (const estimate of [restored.estimate, ...(restored.estimates || []).map(entry=>entry.workspace.estimate)]) {
+    estimate.site_address='18 Current Project Way';
+  }
+  fs.writeFileSync(copyPath,JSON.stringify(restored));
+  await page.locator('#project-details-close').click();
+  const refreshed=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/projects');
+  await page.locator('#refresh-quotes').click();await refreshed;
+  await page.locator('#project-current-details').click();await expect(targetB).toBeVisible();
+  await page.locator('#project-pane-contact-phone').fill('5550101');
+  await targetB.click();
+  const onDisk=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/save');
+  await navigation.getByRole('button',{name:'Save',exact:true}).click();
+  assert.equal((await onDisk).status(),200);
+  await expect(page.locator('#project-pane-client')).toHaveValue('Builder B');
+  assert.equal(JSON.parse(fs.readFileSync(info.project)).estimate.contact_phone,'5550101');
   // Older servers can mix current and historical addresses in one peer list.
   await page.route('**/api/crm/project-participants?*',async route=>{
     const response=await route.fetch(), data=await response.json();delete data.linked_sites;delete data.other_site_bids;

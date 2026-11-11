@@ -57,7 +57,13 @@
         if (seen.has(key)) continue;
         seen.add(key);
       }
-      const row = el("li", [bid.project_no, bid.client, bid.site_address].filter(Boolean).join(" · "));
+      const row = el("li"), label = [bid.project_no, bid.client, bid.site_address].filter(Boolean).join(" · ");
+      if (bid.availability === "available" && bid.source) {
+        const open = el("button", label);
+        open.type = "button"; open.className = "text-button";
+        open.onclick = () => void window.CeasefireProject.openLinkedProject(bid, open);
+        row.append(open);
+      } else row.textContent = label;
       if (bid.availability === "unavailable") row.append(" · ", ui("small", "Saved project unavailable"));
       if (bid.availability === "unverified") row.append(" · ", ui("small", "Availability not yet verified"));
       list.append(row);
@@ -118,11 +124,22 @@
   }
 
   function renderParticipants() {
+    const companyIds = new Set([...record.participants, ...(record.linked_parties || [])]
+      .filter(item => item.kind === "accounts").map(item => item.id));
     for (const [kind, host] of Object.entries(hosts)) {
       host.replaceChildren();
       const entries = record.participants.filter(item => item.kind === kind);
       const group = el("fieldset"), note = status();
-      if (entries.length) {
+      const primaryId = window.CeasefireProjectPane?.primaryParties()[kind];
+      const recorded = new Set(entries.map(item => item.id));
+      const linked = new Map();
+      for (const item of record.linked_parties || []) {
+        if (item.kind !== kind || item.id === primaryId || recorded.has(item.id)) continue;
+        const previous = linked.get(item.id);
+        if (previous) { previous.roles.add(item.role); previous.label ||= item.label; }
+        else linked.set(item.id, {label: item.label, roles: new Set([item.role])});
+      }
+      if (entries.length || linked.size) {
         const list = el("ul");
         for (const item of entries) {
           const row = el("li");
@@ -134,6 +151,12 @@
               entry.kind !== kind || entry.id !== item.id || entry.role !== item.role), host);
             row.append(" ", remove);
           }
+          list.append(row);
+        }
+        for (const {label, roles} of linked.values()) {
+          const row = el("li");
+          if (label) row.append(el("strong", label), " · ");
+          [...roles].forEach((role, index) => { if (index) row.append(" · "); row.append(ui("span", role)); });
           list.append(row);
         }
         group.append(list);
@@ -151,14 +174,25 @@
         const search = window.ClassifireCommercialDirectory.field(labelId, {
           kind, isCurrent: () => !!selection && !saving && canEdit() && !host.inert && !pane.inert,
           read: () => "", onInput() {}, message: value => text(note, value),
-          filter: item => !entries.some(entry => entry.id === item.id && entry.role === role.value),
+          filter: (item, directory) => (kind !== "contacts" || contactCompanyIsLinked(item, directory, companyIds)) &&
+            !entries.some(entry => entry.id === item.id && entry.role === role.value),
           onSelect: item => void save([...record.participants, {role: role.value, kind, id: item.id}], host)
         });
-        add.append(ui("summary", "Add participant"), field, search.element);
+        add.append(ui("summary", "Add"), field, search.element);
         group.append(add);
       }
       if (group.childElementCount) host.append(group, note);
     }
+  }
+
+  function contactCompanyIsLinked(contact, directory, linked) {
+    if (!contact.account_id) return false;
+    const aliases = directory.identity_aliases?.accounts || {};
+    const canonical = id => aliases[id] || id;
+    const company = canonical(contact.account_id);
+    const main = window.CeasefireProjectPane?.primaryParties().accounts;
+    if (company === canonical(main) || linked.has(company)) return true;
+    return Object.entries(aliases).some(([alias, id]) => id === company && linked.has(alias));
   }
 
   async function load() {

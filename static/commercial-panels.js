@@ -167,20 +167,22 @@
       const canonical=aliases[id] || id, prior=id && seen.get(canonical);
       if(prior){if(!prior.roles.includes(role))prior.roles.push(role);return;}
       const contact=id ? contacts.get(canonical) : null;
-      const row={id:canonical || '',contact:contact || null,name:contact?.name || snapshot.name || 'Contact unavailable',
-        phone:contact?.phone ?? snapshot.phone ?? '',email:contact?.email ?? snapshot.email ?? '',title:contact?.title || '',roles:[role],primary};
+      const row={id:canonical || '',contact:contact || null,
+        name:(primary && snapshot.name) || contact?.name || snapshot.name || 'Contact unavailable',
+        phone:(primary ? snapshot.phone : undefined) ?? contact?.phone ?? snapshot.phone ?? '',
+        email:(primary ? snapshot.email : undefined) ?? contact?.email ?? snapshot.email ?? '',
+        title:contact?.title || '',roles:[role],primary};
       rows.push(row);if(id)seen.set(canonical,row);
     }
     if(kind==='purchase_order') {
-      add(order.supplier_contact_id,'Primary contact',{name:order.supplier_contact,email:order.supplier_email},true);
-      add(project.contact_id,'Project contact',{name:project.contact_name,phone:project.contact_phone,email:project.contact_email});
-      add(order.site_contact_id,'Site contact',{name:order.ship_to_name,phone:order.site_contact_number});
-    } else {
-      const primaryId=project.contact_id || details.contact_id;
-      add(primaryId,'Primary contact',{name:project.contact_name || details.contact,phone:project.contact_phone ?? details.phone,email:project.contact_email ?? details.email},true);
-      if(details.contact_id && details.contact_id!==primaryId)
-        add(details.contact_id,'Client contact',{name:details.contact,phone:details.phone,email:details.email});
+      add(order.supplier_contact_id,'Supplier contact',{name:order.supplier_contact,email:order.supplier_email},true);
+      return rows;
     }
+    const samePerson=details.contact_id && project.contact_id===details.contact_id;
+    add(details.contact_id,samePerson ? 'Primary contact' : 'Client contact',
+      {name:details.contact,phone:details.phone,email:details.email},true);
+    if(!samePerson && (project.contact_id || project.contact_name!==details.contact))
+      add(project.contact_id,'Project contact',{name:project.contact_name,phone:project.contact_phone,email:project.contact_email});
     add(fields.billing?.contact_id,'Billing contact',{name:fields.billing?.name,phone:fields.billing?.phone,email:fields.billing?.email});
     for(const participant of participants?.participants || [])if(participant.kind==='contacts')
       add(participant.id,participants.roles?.[participant.role] || participant.role,{name:participant.label});
@@ -194,17 +196,17 @@
       if(!id && !label)return;
       const canonical=aliases[id] || id,prior=id && seen.get(canonical);
       if(prior){if(!prior.roles.includes(role))prior.roles.push(role);return;}
-      const account=accounts.get(canonical),row={id:canonical || '',account:account || null,name:account?.company || label || 'Company unavailable',roles:[role],primary};
+      const account=accounts.get(canonical),row={id:canonical || '',account:account || null,name:(primary && label) || account?.company || label || 'Company unavailable',roles:[role],primary};
       rows.push(row);if(id)seen.set(canonical,row);
     }
     const details=fields.details || {},order=fields.order || {};
     if(kind==='purchase_order') {
       add(order.supplier_account_id,'Supplier',order.supplier,true);
-      add(project.account_id,'Client',project.client);
-    }else {
-      add(project.account_id || details.account_id,'Client',project.client || details.client,true);
-      if(details.account_id && details.account_id!==project.account_id)add(details.account_id,'Client',details.client);
+      return rows;
     }
+    add(details.account_id,'Client',details.client,true);
+    const sameCompany=project.account_id ? project.account_id===details.account_id : project.client===details.client;
+    if(!sameCompany)add(project.account_id,'Main Client',project.client);
     add(fields.billing?.account_id,'Billing company');
     for(const party of participants?.participants || [])if(party.kind==='accounts')add(party.id,participants.roles?.[party.role] || party.role,party.label);
     for(const party of participants?.linked_parties || [])if(party.kind==='accounts')add(party.id,party.role,party.label);
@@ -229,7 +231,7 @@
     // Always read the captured editor owner; never infer its contact by name.
     const projectDetails=()=>options.readProjectDetails?.() || options.projectDetails || {};
     async function refreshParticipants(force=false) {
-      if(!current())return;
+      if(isPurchaseOrder || !current())return;
       const identity=options.participantSource?.(),key=JSON.stringify(identity);
       if(!force && key===participantsKey)return;
       participantsKey=key;const ticket=++participantTicket;participants=null;linkedNotice.textContent='';
@@ -266,9 +268,9 @@
         card.append(row.account ? action(row.name,()=>void editAccount(row.id),'text-button project-title-button') : el('strong',row.name));
         const roles=el('p');roles.className='helper';
         row.roles.forEach((role,index)=>{if(index)roles.append(' · ');const label=el('span',role);window.CeasefireI18n?.text(label,role);roles.append(label);});card.append(roles);
-        const project=projectDetails(),projectPrimary=!isPurchaseOrder && row.primary && fold(project.client)===fold(options.fields.details.client);
-        fieldList(card,[["Billing address",projectPrimary ? project.billing_address ?? row.account?.billing_address : row.account?.billing_address],
-          ["ABN/ACN",projectPrimary ? project.abn_acn ?? row.account?.abn_acn : row.account?.abn_acn]]);
+        const docCompany=!isPurchaseOrder && row.primary ? options.fields.details : null;
+        fieldList(card,[["Billing address",docCompany?.billing_address ?? row.account?.billing_address],
+          ["ABN/ACN",docCompany?.abn_acn ?? row.account?.abn_acn]]);
         if(row.id && !row.account){const unavailable=el('p','The selected directory record is unavailable.');unavailable.className='helper';window.CeasefireI18n?.text(unavailable,unavailable.textContent);card.append(unavailable);}
         companyList.append(card);
       }
@@ -286,10 +288,10 @@
         if(row.id && !row.contact){const unavailable=el('p','The selected directory record is unavailable.');unavailable.className='helper';window.CeasefireI18n?.text(unavailable,unavailable.textContent);card.append(unavailable);}
         contactList.append(card);
       }
-      if(!rows.length){const empty=el('p','No linked contacts.');empty.className='helper';window.CeasefireI18n?.text(empty,'No linked contacts.');contactList.append(empty);}
+      if(!isPurchaseOrder && !rows.length){const empty=el('p','No linked contacts.');empty.className='helper';window.CeasefireI18n?.text(empty,'No linked contacts.');contactList.append(empty);}
     }
-    const projectAccount=()=>{const rows=(directory.accounts || []).filter(account=>projectDetails().account_id
-      ? account.id===projectDetails().account_id && fold(account.company)===fold(options.fields.details.client)
+    const documentAccount=()=>{const rows=(directory.accounts || []).filter(account=>options.fields.details.account_id
+      ? account.id===options.fields.details.account_id
       : fold(account.company)===fold(options.fields.details.client));return rows.length===1?rows[0]:null;};
     function change(values){options.changeDetails(values);showContact();}
     function companyValues(account,value='') {
@@ -297,27 +299,20 @@
       return {client:account?.company || value,account_id:account?.id || '',
         billing_address:same ? project.billing_address || '' : account?.billing_address || '',abn_acn:same ? project.abn_acn || '' : account?.abn_acn || ''};
     }
-    function changeCompany(value,account=null){const changed=value!==options.fields.details.client;
+    function changeCompany(value,account=null){const changed=account ? account.id!==options.fields.details.account_id : value!==options.fields.details.client;
       if(!changed && !account)return;
       change({...companyValues(account,value),...(changed?{contact:'',contact_id:'',phone:'',email:''}:{})});}
     const company=!isPurchaseOrder && directorySearch('Company',{kind:'accounts',value:options.fields.details.client,read:()=>options.fields.details.client,isCurrent:options.canEdit,message:options.message,
       onDirectory(data){directory=data;showContact();},onInput(value){changeCompany(value);},onSelect(account){changeCompany(account.company,account);}});
     const name=!isPurchaseOrder && directorySearch('Name',{kind:'contacts',value:options.fields.details.contact,read:()=>options.fields.details.contact,isCurrent:options.canEdit,message:options.message,
-      account:projectAccount,filter(contact,data){const account=projectAccount();return !options.fields.details.client || !!account && (contact.account_id===account.id || contact.account_id===undefined && fold(contact.company)===fold(account.company));},
-      onDirectory(data){directory=data;showContact();},onInput(value){if(value===options.fields.details.contact)return;change(value?{contact:value,contact_id:''}:{...companyValues(null),contact:'',contact_id:'',phone:'',email:''});},onSelect(contact,data){
+      account:documentAccount,filter(contact){const account=documentAccount();return !options.fields.details.client || !!account && (contact.account_id===account.id || contact.account_id===undefined && fold(contact.company)===fold(account.company));},
+      onDirectory(data){directory=data;showContact();},onInput(value){if(value===options.fields.details.contact)return;change({contact:value,contact_id:'',phone:'',email:''});},onSelect(contact,data){
         const accounts=(data.accounts || []).filter(account=>contact.account_id ? account.id===contact.account_id : fold(account.company)===fold(contact.company));const account=accounts.length===1?accounts[0]:null;
         change({...companyValues(account,contact.company || ''),contact:contact.name,contact_id:contact.id,phone:contact.phone || '',email:contact.email || ''});}});
     const site=el('label'),siteCaption=el('span','Site address'),siteInput=el('textarea');siteInput.rows=2;siteInput.maxLength=400;site.className='field commercial-site-address';
     window.CeasefireI18n?.text(siteCaption,'Site address');siteInput.value=options.fields.details.site_address || '';siteInput.setAttribute('aria-label','Site address');window.CeasefireI18n?.attr(siteInput,'aria-label','Site address');
-    siteInput.addEventListener('input',()=>{if(options.canEdit())change({site_address:siteInput.value});});site.append(siteCaption,siteInput);
-    if(isPurchaseOrder) {
-      // Reuse the existing supplier controls and their exact-ID/clear handlers.
-      // Moving them creates no second selector or alternate supplier state.
-      const supplier=form.querySelector('[data-order-field="supplier"]')?.closest('.commercial-directory-field');
-      const supplierContact=form.querySelector('[data-order-field="supplier_contact"]')?.closest('.commercial-directory-field');
-      if(supplier)accountPanel.append(supplier);
-      if(supplierContact)contactPanel.append(supplierContact);
-    } else {accountPanel.append(company.element);contactPanel.append(name.element);controls=[company,name];}
+    siteInput.readOnly=true;site.append(siteCaption,siteInput);
+    if(!isPurchaseOrder){accountPanel.append(company.element);contactPanel.append(name.element);controls=[company,name];}
     accountPanel.append(companyList);if(!isPurchaseOrder)accountPanel.append(site);
     const refreshContacts=action('',async()=>{
       if(!current())return;
@@ -340,6 +335,7 @@
     loadDirectory().then(data=>{if(!current())return;directory=data;showContact();}).catch(error=>{if(current())linkedNotice.textContent=error.message;});
     void refreshParticipants();
     form.querySelector(".commercial-details")?.addEventListener("input",showContact);
+    if(isPurchaseOrder)form.querySelector('[data-order-field="supplier_email"]')?.addEventListener("input",showContact);
     refreshDetails=()=>{showContact();void refreshParticipants();};
     }
     const notes = panel("Notes",0), files = panel("Files",0);

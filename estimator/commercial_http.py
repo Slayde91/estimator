@@ -177,7 +177,8 @@ class CommercialHTTP:
             result = {'fields': default_fields(body.get('kind'), body.get('details'), self._company(),
                                                rates=profile['rates'] if profile else None)}
             if 'project_details' in body:
-                result['fields']['details'].update(project_document_details(body['project_details']))
+                result['fields']['details'].update(project_document_details(
+                    body['project_details'], with_recipient=body.get('kind') in ('quote','work_order')))
                 if body.get('kind') == 'purchase_order':
                     result['fields']['order']['ship_to_address'] = result['fields']['details']['site_address']
             if profile is not None:

@@ -1,0 +1,58 @@
+{
+  "Main Client": [
+    "主要客户",
+    "मुख्य ग्राहक",
+    "Cliente principal",
+    "العميل الرئيسي",
+    "ลูกค้าหลัก"
+  ],
+  "Add": [
+    "添加",
+    "जोड़ें",
+    "Añadir",
+    "إضافة",
+    "เพิ่ม"
+  ],
+  "Supplier company": [
+    "供应商公司",
+    "आपूर्तिकर्ता कंपनी",
+    "Empresa proveedora",
+    "الشركة الموردة",
+    "บริษัทผู้จัดจำหน่าย"
+  ],
+  "Save changes before opening the linked project?": [
+    "打开关联项目前保存更改？",
+    "लिंक की गई परियोजना खोलने से पहले बदलाव सहेजें?",
+    "¿Guardar los cambios antes de abrir el proyecto vinculado?",
+    "هل تريد حفظ التغييرات قبل فتح المشروع المرتبط؟",
+    "บันทึกการเปลี่ยนแปลงก่อนเปิดโครงการที่เชื่อมโยงหรือไม่"
+  ],
+  "Opening {0} will replace your current project.": [
+    "打开 {0} 后将切换到该项目。",
+    "{0} खोलने पर आपकी वर्तमान परियोजना की जगह यह परियोजना खुलेगी।",
+    "Al abrir {0}, se sustituirá el proyecto actual.",
+    "سيحلّ {0} محل مشروعك الحالي عند فتحه.",
+    "การเปิด {0} จะแทนที่โครงการปัจจุบันของคุณ"
+  ],
+  "Open without saving": [
+    "不保存并打开",
+    "बिना सहेजे खोलें",
+    "Abrir sin guardar",
+    "فتح دون حفظ",
+    "เปิดโดยไม่บันทึก"
+  ],
+  "Reopen this document to edit its recipient. Change project details in Projects.": [
+    "请重新打开此文档以编辑收件人。项目详情请在“项目”中更改。",
+    "प्राप्तकर्ता बदलने के लिए यह दस्तावेज़ फिर खोलें। परियोजना के विवरण परियोजनाएँ अनुभाग में बदलें।",
+    "Vuelva a abrir este documento para editar el destinatario. Cambie los datos del proyecto en Proyectos.",
+    "أعد فتح هذا المستند لتعديل المستلم. عدّل تفاصيل المشروع في قسم المشاريع.",
+    "เปิดเอกสารนี้อีกครั้งเพื่อแก้ไขผู้รับ แก้ไขรายละเอียดโครงการในหน้าโครงการ"
+  ],
+  "The contact directory is unavailable. Reopen the document.": [
+    "联系人目录不可用。请重新打开文档。",
+    "संपर्क निर्देशिका उपलब्ध नहीं है। दस्तावेज़ फिर खोलें।",
+    "El directorio de contactos no está disponible. Vuelva a abrir el documento.",
+    "دليل جهات الاتصال غير متاح. أعد فتح المستند.",
+    "ไม่สามารถเปิดสมุดรายชื่อผู้ติดต่อได้ โปรดเปิดเอกสารอีกครั้ง"
+  ]
+}

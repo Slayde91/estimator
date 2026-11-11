@@ -27,12 +27,10 @@ async function reopen(){await host.getByRole('button',{name:'Back to Purchase Or
   await expect(host.locator('.commercial-side-panel summary')).toHaveText(['Company Details','Linked Contacts','Notes (0)','Files (0)','Linked Work Orders (0)','Linked Quotes (0)']);
   await expect(host.locator('.commercial-details [data-project-detail=site_address]')).toHaveCount(0);
   await expect(host.getByLabel('Ship to address',{exact:true})).toHaveValue('Current Project site\nSynthetic address');
-  const information=host.locator('.commercial-purchase-information'),supplier=host.getByRole('combobox',{name:'Supplier',exact:true}),terms=information.getByLabel('Payment terms',{exact:true}),contact=host.getByRole('combobox',{name:'Supplier contact',exact:true}),email=information.getByLabel('Supplier email',{exact:true});
+  const information=host.locator('.commercial-purchase-information'),supplier=information.getByRole('combobox',{name:'Supplier company',exact:true}),terms=information.getByLabel('Payment terms',{exact:true}),contact=information.getByRole('combobox',{name:'Supplier contact',exact:true}),email=information.getByLabel('Supplier email',{exact:true});
   const boxes=await Promise.all([supplier,terms,contact,email].map(control=>control.boundingBox()));
-  const left=await host.locator('.commercial-sidebar').first().boundingBox(),centre=await host.locator('.commercial-editor').boundingBox();
-  assert.ok(boxes[0].x>=left.x&&boxes[0].x+boxes[0].width<=left.x+left.width+1);
-  assert.ok(boxes[2].x>=left.x&&boxes[2].x+boxes[2].width<=left.x+left.width+1&&boxes[2].y>boxes[0].y+boxes[0].height);
-  assert.ok(boxes[1].x>=centre.x&&boxes[3].x>boxes[1].x&&Math.abs(boxes[1].y-boxes[3].y)<2);
+  const body=await information.boundingBox();
+  assert.ok(boxes.every(box=>box.x>=body.x && box.x+box.width<=body.x+body.width+1),'Supplier fields fit in Purchase order information');
   await supplier.fill('Signature Supplier');await terms.fill('30 days');await email.fill('supplier@example.test');
   await expect(host.getByRole('group',{name:'Delivery date and time',exact:true})).toBeHidden();await host.getByLabel('Delivery or pickup',{exact:true}).selectOption('Delivery');
   await expect(host.getByRole('group',{name:'Delivery date and time',exact:true})).toBeVisible();await expect(host.getByLabel('Delivery time',{exact:true})).toHaveValue('');
@@ -41,7 +39,7 @@ async function reopen(){await host.getByRole('button',{name:'Back to Purchase Or
   await approval.selectOption('Rejected');await expect(reason).toBeVisible();await reason.fill('Wrong quantities; please revise.');
   let saved=await save();assert.equal(saved.fields.details.site_address,'Current Project site\nSynthetic address');assert.equal(saved.fields.order.delivery_time,'14:35');assert.equal(saved.fields.order.rejection_reason,'Wrong quantities; please revise.');
   await reopen();await expect(reason).toHaveValue('Wrong quantities; please revise.');await approval.selectOption('Approved');await expect(reason).toBeHidden();saved=await save();assert.equal(saved.fields.order.rejection_reason,'Wrong quantities; please revise.');
-  checks.push('PO places its single Supplier/Supplier contact searches in the left identity panels and retains terms/email in the editor; shipping is seeded once, editable, and separate from canonical Project site; Approval controls a persisted rejection reason without erasing it when hidden');
+  checks.push('PO collects its supplier, contact, terms and email in Purchase order information; shipping is seeded once, editable, and separate from canonical Project site; Approval controls a persisted rejection reason without erasing it when hidden');
   for(const [key,label,date] of signers){await expect(host.getByLabel(label+' name',{exact:true})).toHaveValue('');await expect(host.locator(`[data-order-field="${date}"]`)).toHaveValue('');await expect(host.locator(`[data-signature-field="${key}"] button`)).toHaveCount(2);
     await personal(label+' Person');const before=writes.filter(route=>route==='/api/certifications/defaults').length;await host.getByRole('button',{name:'Sign '+label,exact:true}).click();await idle();
     await expect(host.getByLabel(label+' name',{exact:true})).toHaveValue(label+' Person');await expect(host.locator(`[data-order-field="${date}"]`)).toHaveValue('2026-11-09');await expect(host.locator(`[data-signature-field="${key}"] svg[role=img]`)).toHaveCount(1);assert.equal(writes.filter(route=>route==='/api/certifications/defaults').length,before);

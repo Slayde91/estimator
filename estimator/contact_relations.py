@@ -70,6 +70,8 @@ class ContactRelations:
             if project_token is None and not (source and document.get('unfiled')):
                 continue
             roles = []
+            if group in ('quotes','work_orders') and fields.get('details',{}).get('contact_id') in members:
+                roles.append('Client contact')
             if group == 'work_orders' and fields.get('order',{}).get('billing_contact_id') in members:
                 roles.append('Billing contact')
             if group == 'purchase_orders':

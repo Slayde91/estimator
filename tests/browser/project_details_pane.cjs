@@ -26,8 +26,10 @@ const ready = new Promise((resolve,reject)=>{
   await fillProjectDetails(page,{client:'Pane Alpha Account','site-address':'10 Synthetic Street'});
   await openProjectSection(page,'quotes');await page.locator('#project-current-details').click();
   const address=page.locator('#project-pane-address');await expect(address).toHaveJSProperty('tagName','TEXTAREA');
-  await expect(address).toHaveAttribute('rows','2');await expect(address).toHaveAttribute('maxlength','400');await expect(address).toHaveCSS('resize','vertical');
+  await expect(address).toHaveAttribute('rows','1');await expect(address).toHaveAttribute('maxlength','400');
+  const shortAddressHeight=(await address.boundingBox()).height;
   await address.fill('10 Synthetic Street\nLevel 2');
+  assert.ok((await address.boundingBox()).height>shortAddressHeight,'Site address expands to fit a second line');
   await page.locator('#project-pane-contact-name').fill('Alpha Person');
   await page.locator('#project-pane-contact-phone').fill('0400000001');
   await page.locator('#project-pane-contact-email').fill('alpha@example.test');
@@ -165,7 +167,9 @@ const ready = new Promise((resolve,reject)=>{
   for(const width of [1101,800,390]){
     await page.setViewportSize({width,height:884});
     const box=await page.evaluate(()=>({width:document.documentElement.scrollWidth,viewport:innerWidth,columns:getComputedStyle(document.querySelector('.project-pane-fields')).gridTemplateColumns.split(' ').length,pane:document.querySelector('#project-details-pane').getBoundingClientRect().toJSON(),list:document.querySelector('#project-list-card').getBoundingClientRect().toJSON()}));
-    assert.ok(box.width<=box.viewport,JSON.stringify(box));assert.equal(box.columns,width===390?1:2);
+    assert.ok(box.width<=box.viewport,JSON.stringify(box));assert.equal(box.columns,2);
+    const numberWidth=(await page.locator('#project-pane-number').boundingBox()).width;
+    assert.ok((await page.locator('#project-pane-address').boundingBox()).width >= numberWidth*2);
     if(width===800)assert.ok(box.pane.bottom<=box.list.top);
     await page.screenshot({path:path.join(output,`pane-${width}.png`),fullPage:true});
   }

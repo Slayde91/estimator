@@ -15,13 +15,18 @@ FIRESTOPPING_GROUPS = (
     {"key": "collars", "label": "Collar Type", "list_column": "B"},
     {"key": "frames", "label": "Frame Type", "list_column": "AN"},
     {"key": "wraps", "label": "Wrap Type", "list_column": "E"},
-    {"key": "mastics", "label": "Mastic Type", "list_column": "S"},
+    {"key": "mastic", "label": "Mastic Type", "list_column": "S"},
     {"key": "materials", "label": "Materials", "list_column": "AR"},
 )
 
 
 class ValidationError(ValueError):
     """Input rejected before changing persisted data."""
+
+
+def canonical_firestopping_group(value):
+    """Read the plural key written by earlier pricing exports and projects."""
+    return "mastic" if value == "mastics" else value
 
 
 def baseline():
@@ -169,6 +174,7 @@ def validate_catalog(value):
             assigned = item["firestopping_groups"]
             if not isinstance(assigned, list) or len(assigned) > len(FIRESTOPPING_GROUPS):
                 raise ValidationError(f"Inventory {key} Firestopping groups must be a list with at most {len(FIRESTOPPING_GROUPS)} entries.")
+            assigned = item["firestopping_groups"] = [canonical_firestopping_group(group) for group in assigned]
             if any(not isinstance(group, str) or group not in firestopping_keys for group in assigned):
                 raise ValidationError(f"Inventory {key} contains an unsupported Firestopping group.")
             if len(set(assigned)) != len(assigned):

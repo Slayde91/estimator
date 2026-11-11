@@ -1,4 +1,12 @@
 {
+  "Main Client": "Client principal",
+  "Add": "Ajouter",
+  "Supplier company": "Entreprise fournisseur",
+  "Save changes before opening the linked project?": "Enregistrer les modifications avant d’ouvrir le projet lié ?",
+  "Opening {0} will replace your current project.": "L’ouverture de {0} remplacera votre projet actuel.",
+  "Open without saving": "Ouvrir sans enregistrer",
+  "Reopen this document to edit its recipient. Change project details in Projects.": "Rouvrez ce document pour modifier le destinataire. Modifiez les détails du projet dans Projets.",
+  "The contact directory is unavailable. Reopen the document.": "L’annuaire des contacts est indisponible. Rouvrez le document.",
   "Some linked projects could not be checked.": "Certains projets liés n’ont pas pu être vérifiés.",
   "Participants changed. Review the updated list and try again.": "La liste des participants a changé. Vérifiez la liste à jour et réessayez.",
   "Linked Projects": "Projets liés",

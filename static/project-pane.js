@@ -404,6 +404,9 @@
   });
   window.CeasefireProjectPane = Object.freeze({
     openCurrent,openNew, toggle: file => !pane.hidden && selected?.file?.id === file.id ? leave() : open(file), refreshToggles, leave, projectDetailsChanged,
+    primaryParties: () => ({accounts:accountId,contacts:contactId}),
+    savePendingDetails: async () => { if (dirty()) await save(); },
+    closeAfterReplacement: hide,
     hasUnsavedChanges:dirty, hasPendingOperation:() => pending || !!selected?.creation?.uncertain, fingerprint:() => selected ? JSON.stringify({id:selected.file?.id,context:selected.context,values:details()}) : "",
     async beforeProjectSave() {
       if (pending || window.ClassifireProjectParticipants?.pending()) throw new Error("Finish the current project details action before saving.");

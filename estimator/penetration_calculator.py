@@ -13,7 +13,7 @@ import math
 from pathlib import Path
 import re
 
-from .catalog import FIRESTOPPING_GROUPS, ValidationError, effective_catalog
+from .catalog import FIRESTOPPING_GROUPS, ValidationError, canonical_firestopping_group, effective_catalog
 from .penetration_entry import required_item_fields
 from .library_facets import (CATEGORIES, LAGGED_PIPE_TYPES, PLASTIC_PIPE_TYPES, SERVICES,
                              UNLAGGED_PIPE_TYPES, facet_options)
@@ -264,7 +264,7 @@ def _firestopping_rules():
 def firestopping_group_keys(item):
     """Return explicit assignments, or source-compatible defaults for old libraries."""
     if 'firestopping_groups' in item:
-        return tuple(item['firestopping_groups'])
+        return tuple(canonical_firestopping_group(group) for group in item['firestopping_groups'])
     source = item['sales_description'].casefold()
     return tuple(group['key'] for group in _firestopping_rules()
                  if any(keyword.casefold() in source for keyword in group['keywords']))

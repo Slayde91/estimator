@@ -5,7 +5,7 @@ from .catalog import ValidationError
 from .commercial_documents import KINDS, CommercialConflict, commercial_cards, project_document_details, apply_project_document_details
 from .download_files import DownloadDestination
 from .project_file import WORKSPACE_FIELDS, load_project_bytes
-from .quote_details import QUOTE_DETAIL_LIMITS, validate_quote_details, compose_quote_title
+from .quote_details import QUOTE_DETAIL_LIMITS
 
 
 def estimate_inputs(snapshot):
@@ -25,38 +25,9 @@ def estimate_inputs(snapshot):
 
 
 class SavedCommercial:
-    def __init__(self, projects, directory=None):
+    def __init__(self, projects):
         self.projects = projects
-        self.directory = directory
         self.sessions = {}
-
-    def _project_updates(self, value):
-        if value is None:
-            return None
-        if not isinstance(value, dict) or set(value) - (set(QUOTE_DETAIL_LIMITS) - {'project_no'}):
-            raise ValidationError('Include editable Project details only.')
-        validated = validate_quote_details(value)
-        return {key: validated[key] for key in value}
-
-    @staticmethod
-    def _apply_project_updates(snapshot, updates, directory):
-        previous = validate_quote_details(snapshot['estimate'])
-        details = validate_quote_details(updates, previous)
-        if any(details[key] != previous[key] for key in ('client','account_id')):
-            account = next((row for row in (directory or {}).get('accounts', []) if row['id'] == details['account_id']), None)
-            if details['client'] and (not account or account['company'] != details['client']):
-                raise ValidationError('Choose an existing Company for this Client, or add a new Company.')
-        if details['contact_id'] and any(details[key] != previous[key] for key in ('contact_id','contact_name','account_id')):
-            contact = next((row for row in (directory or {}).get('contacts', []) if row['id'] == details['contact_id']), None)
-            if (not contact or contact['name'] != details['contact_name']
-                    or (contact.get('account_id') or '') != details['account_id']):
-                raise ValidationError('Choose an existing Contact linked to this Company.')
-        for estimate in [snapshot['estimate'], *[entry['workspace']['estimate'] for entry in snapshot.get('estimates', [])]]:
-            number = estimate.get('project_no', '')
-            estimate.update(details)
-            estimate['project_no'] = number
-            estimate['title'] = compose_quote_title(number, details['client'], details['site_address'], estimate.get('title'))
-        return details
 
     def _session(self, file_id, revision, snapshot, path):
         cached = self.sessions.get(file_id)
@@ -90,13 +61,8 @@ class SavedCommercial:
             raise ValidationError('Choose the saved project owning this document.')
         file_id, revision = source['file_id'], source['revision']
         body = {key: value for key, value in body.items() if key != 'source'}
-        updates = body.pop('project_updates', None)
-        if updates is not None and (action != 'save' or str(file_id).startswith('local-')):
-            raise ValidationError('Project details can only change while saving a linked document.')
-        updates = self._project_updates(updates)
-        # Read directory records before the Project lock, matching lead conversion's
-        # lock order. Only the selected owner's CAS-protected snapshot is changed.
-        directory = self.directory() if updates is not None and self.directory else None
+        if 'project_updates' in body:
+            raise ValidationError('Reopen this document to edit its recipient. Change project details in Projects.')
         if not isinstance(revision, str) or len(revision) != 64 or set(body) & {'workspace_id', 'estimates', 'active_estimate_id', 'download', 'retain_unfiled', 'project_details'}:
             raise ValidationError('Saved document estimates and downloads come from their own project.')
         if isinstance(file_id, str) and file_id.startswith('local-'):
@@ -114,8 +80,6 @@ class SavedCommercial:
                 import base64
                 item, raw = self.projects.commercial.read_attachment(workspace, body['id'], body['file_id'])
                 return {**item, 'content': base64.b64encode(raw).decode('ascii')}
-            if updates is not None:
-                self._apply_project_updates(snapshot, updates, directory)
             details = project_document_details(snapshot['estimate'])
             captured = estimate_inputs(snapshot)
             if action == 'open':

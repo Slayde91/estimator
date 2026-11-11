@@ -3,7 +3,7 @@ import re
 from uuid import UUID
 
 from .catalog import ValidationError
-from .commercial_documents import commercial_cards, project_document_details
+from .commercial_documents import apply_project_document_details, commercial_cards, project_document_details
 
 
 def choice(card):
@@ -46,7 +46,7 @@ def resolve(projects, identity, revision):
                 item = next((card for card in commercial_cards(commercial) if card['id']==document_id and card['kind']=='work_order'), None)
                 if item:
                     item.update(source_file=source, source_revision=revision)
-                    item['fields']['details'].update(project_document_details(snapshot['estimate']))
+                    apply_project_document_details(item['fields'], project_document_details(snapshot['estimate']))
         if item is None:
             raise ValidationError('This Work Order changed or is unavailable. Refresh the list.')
         projects.commercial.apply_register_numbers([item])

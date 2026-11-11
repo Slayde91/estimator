@@ -143,8 +143,8 @@
         const tr=node('tr'), name=node('td','documentation-name',row.label), action=node('td','documentation-action'), history=node('td'), controls=node('div','documentation-download');
         tr.dataset.documentKind=row.id;
         const breakdown=row.id==='estimate.summary.pdf';
-        const button=node('button',breakdown?'button primary icon-only add-icon-action documentation-download-button':'button secondary documentation-download-button');button.type='button';button.dataset.documentKind=row.id;
-        const icon=node('span',breakdown?'button-symbol':'documentation-download-icon');icon.textContent=breakdown?'+':'⇩';icon.setAttribute('aria-hidden','true');button.append(icon);
+        const button=node('button','button primary icon-only penetration-new-item-action documentation-download-button');button.type='button';button.dataset.documentKind=row.id;
+        const icon=node('span','button-symbol');icon.textContent='+';icon.setAttribute('aria-hidden','true');button.append(icon);
         if(window.CeasefireI18n) {
           window.CeasefireI18n.attr(button,'aria-label','Download {0}',[row.label]);
           window.CeasefireI18n.attr(button,'title','Download {0}',[row.label]);

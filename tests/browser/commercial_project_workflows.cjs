@@ -73,7 +73,23 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
     await page.evaluate(()=>{window.CeasefireEstimates.capture=window.__qaOriginalCapture;window.CeasefireProject.details=window.__qaCaptureDetails;delete window.__qaOriginalCapture;delete window.__qaCaptureDetails;});
   }
   checks.push('Save and Download capture Project ownership before asynchronous estimate capture; changes during capture make no Save/Issue request and preserve the document draft');
+  // Give the Quote a different recipient so a Work Order falling back to the
+  // Project would fail this check even though the original Quote defaults passed.
+  async function addParty(kind,fields) {
+    const url=new URL('/api/contacts/',page.url()).href;
+    const directory=await (await page.request.get(url+'directory')).json();
+    const response=await page.request.post(url+kind,{data:{version:directory.version,fields}});
+    assert.equal(response.status(),200,await response.text());
+  }
+  await addParty('accounts',{company:'Quoted Company'});
+  await addParty('contacts',{company:'Quoted Company',name:'Quoted Person',phone:'555',email:'quoted@example.test'});
+  const recipient=quote.locator('.commercial-sidebar').first();
+  for(const [label,value] of [['Company','Quoted Company'],['Name','Quoted Person']]){
+    await recipient.getByRole('combobox',{name:label,exact:true}).fill(value);
+    await recipient.getByRole('option',{name:value,exact:true}).click();
+  }
   await save(quote);
+  assert.equal((await page.evaluate(()=>window.CeasefireProject.details())).contact_name,'Project Contact');
   const issue=page.waitForResponse(response=>response.url().endsWith('/api/commercial/issue'));
   await quote.getByRole('button',{name:'Download PDF',exact:true}).click();assert.equal((await issue).status(),200);await expect(quote.locator('.commercial-message')).toContainText('PDF saved');await idle();
   const sourceQuote=(await state()).documents.find(doc=>doc.kind==='quote');
@@ -118,7 +134,7 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Create WO',exact:true}).click();
   const work=page.locator('#commercial-work-order-root');await expect(work.getByRole('button',{name:'Create PO',exact:true})).toBeVisible();
   await expect(work.getByLabel('Linked Quote',{exact:true})).toHaveValue(sourceQuote.id);
-  await expect(work.getByLabel('Client contact',{exact:true})).toHaveValue('Project Contact');await expect(work.getByLabel('Client email',{exact:true})).toHaveValue('project-contact@example.test');
+  await expect(work.getByLabel('Client',{exact:true})).toHaveValue('Quoted Company');await expect(work.getByLabel('Client contact',{exact:true})).toHaveValue('Quoted Person');await expect(work.getByLabel('Client email',{exact:true})).toHaveValue('quoted@example.test');
   await expect(work.getByLabel('Document title',{exact:true})).toHaveCount(0);
   await work.getByLabel('Description of works',{exact:true}).fill('Manual works description');await work.getByLabel('Estimated cost (AUD)',{exact:true}).fill('987');
   let before=writes.length;await work.getByRole('button',{name:'Create PO',exact:true}).click();
@@ -152,7 +168,7 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   await expect(purchase.getByRole('combobox',{name:'Site contact',exact:true})).toHaveValue('');
   await expect(purchase.getByLabel('Site contact number',{exact:true})).toHaveValue('');
   await expect(purchase.getByLabel('Ship to address',{exact:true})).toHaveValue('17 Procurement Road');
-  for(const label of ['Supplier','Supplier email','Supplier contact','Payment terms','Requested by name'])await expect(purchase.getByLabel(label,{exact:true})).toHaveValue('');
+  for(const label of ['Supplier company','Supplier email','Supplier contact','Payment terms','Requested by name'])await expect(purchase.getByLabel(label,{exact:true})).toHaveValue('');
   await expect(purchase.getByLabel('Purchase Order No.',{exact:true})).toHaveValue('');
   assert.equal(fs.readFileSync(info.project,'utf8'),sourceFile,'Creating the PO draft leaves the source project file unchanged');
   assert.deepEqual((await state()).documents.find(doc=>doc.id===source.id),source);assert.equal((await state()).documents.filter(doc=>doc.kind==='purchase_order').length,0);
@@ -191,7 +207,7 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   await purchase.locator('input[type=file]').setInputFiles(info.fixture);await expect(purchase.locator('.commercial-sidebar summary').filter({hasText:'Files (1)'})).toHaveCount(1);await save(purchase);
   const withEvidence=await state(),evidence=withEvidence.documents.find(doc=>doc.id===po.id);assert.equal(evidence.fields.notes[0].title,'Owned PO note');assert.equal(evidence.fields.files.length,1);
   assert.equal(withEvidence.documents.find(doc=>doc.id===source.id).fields.notes,undefined,'PO notes remain confined to their owning document');
-  await purchase.getByLabel('Supplier',{exact:true}).fill('Save race supplier');
+  await purchase.getByLabel('Supplier company',{exact:true}).fill('Save race supplier');
   const editorBeforeRace=await page.evaluate(()=>JSON.parse(window.CeasefireCommercial.projectFingerprint()).editor),fileBeforeRace=fs.readFileSync(info.project,'utf8');
   await page.route('**/api/commercial/save',async route=>{
     const response=await route.fetch();
@@ -247,7 +263,7 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   const ownerFile=fs.readFileSync(info.project,'utf8'),nativeDefaults=page.waitForResponse(response=>response.url().endsWith('/api/commercial/saved-purchase-order-defaults'));
   await sourceWork.getByRole('button',{name:'Create PO',exact:true}).click();assert.equal((await nativeDefaults).status(),200);
   await expect(sourcePurchase.getByLabel('Linked Work Order',{exact:true})).toHaveValue(source.id);
-  for(const label of ['Supplier','Supplier contact','Site contact'])await expect(sourcePurchase.getByRole('combobox',{name:label,exact:true})).toHaveValue('');
+  for(const label of ['Supplier company','Supplier contact','Site contact'])await expect(sourcePurchase.getByRole('combobox',{name:label,exact:true})).toHaveValue('');
   await expect(sourcePurchase.getByLabel('Ship to address',{exact:true})).toHaveValue('17 Procurement Road');
   assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),null,'Native saved-source creation does not replace the active unsaved Project');
   assert.equal(fs.readFileSync(info.project,'utf8'),ownerFile,'Native source creation leaves owner file unchanged until Save');

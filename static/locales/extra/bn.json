@@ -1,4 +1,12 @@
 {
+  "Main Client": "প্রধান ক্লায়েন্ট",
+  "Add": "যোগ করুন",
+  "Supplier company": "সরবরাহকারী প্রতিষ্ঠান",
+  "Save changes before opening the linked project?": "সংযুক্ত প্রকল্প খোলার আগে পরিবর্তনগুলো সংরক্ষণ করবেন?",
+  "Opening {0} will replace your current project.": "{0} খুললে এটি আপনার বর্তমান প্রকল্পের জায়গায় খুলবে।",
+  "Open without saving": "সংরক্ষণ না করে খুলুন",
+  "Reopen this document to edit its recipient. Change project details in Projects.": "প্রাপক পরিবর্তন করতে নথিটি আবার খুলুন। প্রকল্পের তথ্য ‘প্রকল্প’ বিভাগে পরিবর্তন করুন।",
+  "The contact directory is unavailable. Reopen the document.": "যোগাযোগের তালিকাটি পাওয়া যাচ্ছে না। নথিটি আবার খুলুন।",
   "Some linked projects could not be checked.": "কিছু সংযুক্ত প্রকল্প যাচাই করা যায়নি।",
   "Participants changed. Review the updated list and try again.": "অংশগ্রহণকারীদের তালিকা বদলেছে। হালনাগাদ তালিকাটি দেখে আবার চেষ্টা করুন।",
   "Linked Projects": "সংযুক্ত প্রকল্প",

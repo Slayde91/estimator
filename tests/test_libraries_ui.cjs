@@ -548,13 +548,14 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
       {label:'Seal Depth / Fillet Size',value:'Use the seal with PEbackingrod.'},
       {label:'Service Size / Configuration',value:'',table:{columns:['Seal Depth / Fillet Size','Service'],rows:[['Seal with PEbackingrod.','uPVC pipe']]}}
     ],before=copy(fields);
-    h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','structured-fields'),fields,images:[]}));
+    h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','structured-fields'),subtitle:'CLT floor minimum130mm;both faces',fields,images:[]}));
     await h.api.open('technical','structured-fields');
     const nodes=walk(h.pane('technical').detailPanel),prose=nodes.find(n=>n.className==='library-detail-text');
     assert.deepEqual(prose.children.map(n=>n.tagName),['p','dl','p']);
     assert.deepEqual(prose.children[1].children.map(n=>n.textContent),['Service','uPVC pipe','Service Wrap','No wrap; one Unicorn collar layer']);
     assert.equal(prose.children[0].textContent,'Fit the frames with the listed fixings.');
     assert.equal(prose.children[2].textContent,'Use the lower rating.');
+    assert.ok(nodes.some(n=>n.tagName==='p'&&n.textContent==='CLT floor minimum 130 mm; both faces'));
     assert.ok(nodes.some(n=>n.tagName==='dd'&&n.textContent==='Use the seal with PE backing rod.'));
     assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),['Seal with PE backing rod.','uPVC pipe']);
     assert.deepEqual(fields,before);

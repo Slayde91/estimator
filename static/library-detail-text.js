@@ -168,6 +168,8 @@
     [/\b(as|in|original|per|selected)(?=(?:FAS|FCO|FC|T|Table)\d)/gi, "$1 "],
     [/(?<=\d)(?=(?:tables?|figures?|details?|instructions?|specimens?|starred|notes?|row|application|contain|layers?|segments|mixed|pipe|and|or|add|corroborates)(?:[A-Z]|\d|\b))/gi, " "],
     [/(?<=\d)(pp?)(?=\d)/g, " $1. "],
+    [/\b(PDF|(?:FAS|FCO?|FAR)\d+(?:-\d+)*(?:[ \t]+(?:R(?:ev)?[ \t]*[A-Z\d.]+|Issue[ \t]*\d+|Table[ \t]*\d+[a-z]?))?)[ \t]+pp(?=\d)/g, "$1 pp. "],
+    [/\b([OI]D)(?=\d+(?:\.\d+)?mm\b)/g, "$1 "],
     [/(?<=\d)x(?=CAT\d|TPS\d|fibre\b|PVC\b)/g, " × "],
     [/\b(with|of|per|as|the|over)(?=[A-Z]{2,}\b)/g, "$1 "],
     [/\b(a)(?=\d+(?:x\d+)?mm\b)/gi, "$1 "],
@@ -181,11 +183,11 @@
     [/(;)(?=[\d<>≥≤])/g, "$1 "],
     [/(?<=[A-Za-z)]):(?=[A-Za-z\d<>≥≤])/g, ": "],
     [/(?<=[a-z)])\.(?=(?:Apply|Install|Cut|Fix|Seal|Use|Based|The|Maintain|Fit|Ensure|Form|Allow)\b)/g, ". "],
-    [/(?<=\w)(?=[≤≥§])/g, " "],
+    [/(?<=[A-Za-z0-9_Øø²³])(?=[≤≥§])/g, " "],
     [/([≤≥§])(?=\d)/g, "$1 "],
     [/(?<=[A-Za-z\d²³])×(?=[A-Za-z\d])/g, " × "],
     [/(?<= )×(?=\d)/g, "× "],
-    [/(?<=\w)×(?= )/g, " ×"],
+    [/(?<=[A-Za-z0-9_Øø²³])×(?= )/g, " ×"],
   ];
   const readingUnits = [
     [/\bw\/(?=\s)/gi, "with"],
@@ -389,7 +391,7 @@
 
   function render(document, value, options) {
     const display = options?.fieldLabel ? text => fieldText(options.fieldLabel, text)
-      : options?.readable ? readable : options?.compact ? compact : text => text;
+      : options?.compact ? compact : text => text;
     const renderBlock = block => {
       if (block.type === "fields") {
         const definitions = document.createElement("dl");

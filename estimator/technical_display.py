@@ -218,13 +218,15 @@ _READING_PHRASES = (
 _JOINED_PHRASES = {phrase.replace(' ', '').casefold(): phrase for phrase in _READING_PHRASES}
 _JOINED = re.compile(r'(?<![A-Za-z])(?:' + '|'.join(
     re.escape(phrase) for phrase in sorted(_JOINED_PHRASES, key=len, reverse=True)
-) + r')(?![A-Za-z])', re.I)
+) + r')(?![A-Za-z])', re.I | re.ASCII)
 _READING_PROTECTED = re.compile(_PROTECTED.pattern + r'|\b[0-9a-f]{32,}\b|\bINEX>FLOOR19\b', re.I)
 _DIMENSION_CHAIN = re.compile(r'(?<![\w.])(?:\d+(?:\.\d+)?[ \t]*(?:mm|cm)?[ \t]*[xX][ \t]*)+\d+(?:\.\d+)?[ \t]*(?:mm|cm)(?:[23²³])?\b')
 _READING_SPACING = (
     (re.compile(r'\b(as|in|original|per|selected)(?=(?:FAS|FCO|FC|T|Table)\d)', re.I), r'\g<1> '),
     (re.compile(r'(?<=\d)(?=(?:tables?|figures?|details?|instructions?|specimens?|starred|notes?|row|application|contain|layers?|segments|mixed|pipe|and|or|add|corroborates)(?:[A-Z]|\d|\b))', re.I), ' '),
     (re.compile(r'(?<=\d)(pp?)(?=\d)'), r' \1. '),
+    (re.compile(r'\b(PDF|(?:FAS|FCO?|FAR)\d+(?:-\d+)*(?:[ \t]+(?:R(?:ev)?[ \t]*[A-Z\d.]+|Issue[ \t]*\d+|Table[ \t]*\d+[a-z]?))?)[ \t]+pp(?=\d)'), r'\1 pp. '),
+    (re.compile(r'\b([OI]D)(?=\d+(?:\.\d+)?mm\b)'), r'\1 '),
     (re.compile(r'(?<=\d)x(?=CAT\d|TPS\d|fibre\b|PVC\b)'), ' × '),
     (re.compile(r'\b(with|of|per|as|the|over)(?=[A-Z]{2,}\b)'), r'\g<1> '),
     (re.compile(r'\b(a)(?=\d+(?:x\d+)?mm\b)', re.I), r'\g<1> '),
@@ -238,11 +240,11 @@ _READING_SPACING = (
     (re.compile(r'(;)(?=[\d<>≥≤])'), r'\g<1> '),
     (re.compile(r'(?<=[A-Za-z)]):(?=[A-Za-z\d<>≥≤])'), ': '),
     (re.compile(r'(?<=[a-z)])\.(?=(?:Apply|Install|Cut|Fix|Seal|Use|Based|The|Maintain|Fit|Ensure|Form|Allow)\b)'), '. '),
-    (re.compile(r'(?<=\w)(?=[≤≥§])'), ' '),
+    (re.compile(r'(?<=[A-Za-z0-9_Øø²³])(?=[≤≥§])'), ' '),
     (re.compile(r'([≤≥§])(?=\d)'), r'\g<1> '),
     (re.compile(r'(?<=[A-Za-z\d²³])×(?=[A-Za-z\d])'), ' × '),
     (re.compile(r'(?<= )×(?=\d)'), '× '),
-    (re.compile(r'(?<=\w)×(?= )'), ' ×'),
+    (re.compile(r'(?<=[A-Za-z0-9_Øø²³])×(?= )'), ' ×'),
 )
 _READING_UNITS = (
     (re.compile(r'\bw/(?=\s)', re.I), 'with'),

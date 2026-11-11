@@ -1,5 +1,13 @@
 [
   {
+    "source": "NB300; OD300mm; ID25.5mm; wall 5mm. Table 8, PDF pp25–26. FAS200363 R2.4 pp34–35. FCO1579 RevM pp26. FAS210023TPD26, P23, P40-MAK, OD500, ID400 and pp12.",
+    "display": "NB300; OD 300 mm; ID 25.5 mm; wall 5 mm. Table 8, PDF pp. 25–26. FAS200363 R2.4 pp. 34–35. FCO1579 RevM pp. 26. FAS210023TPD26, P23, P40-MAK, OD500, ID400 and pp12."
+  },
+  {
+    "source": "Pipe diameter Ø≤12mm, with up to 3 services.",
+    "display": "Pipe diameter Ø ≤ 12 mm, with up to 3 services."
+  },
+  {
     "source": "Ryanfire HP-X to10mm depth from the underside of the Ryan502Batts over PEbackingrod,asT00169detailG/instruction3;annular gap per selectedFAS210123Table105row. Unicorncollar fixed with source tabs/bolts and penny washers.",
     "display": "Ryanfire HP-X to 10 mm depth from the underside of the Ryan 502 Batts over PE backing rod, as T00169 detail G/instruction 3; annular gap per selected FAS210123 Table 105 row. Unicorn collar fixed with source tabs/bolts and penny washers."
   },

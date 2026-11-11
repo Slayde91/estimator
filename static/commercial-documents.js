@@ -196,7 +196,7 @@
         assignDocumentRecipient(fields, values, project);
         for (const [key, control] of controls) control.value = details[key];
         company.refresh(); contact.refresh(); company.input.setCustomValidity(''); message('');
-      }, {companyLabel:'Client', contactLabel:'Client contact', allowCreate:false, isCurrent:() => host.isConnected, message});
+      }, {companyLabel:'Client', contactLabel:'Client contact', isCurrent:() => host.isConnected, message});
     company.input.required = contact.input.required = true;
     host.append(company.element, contact.element);
     for (const [key,label] of [['phone','Client phone'], ['email','Client email']]) {

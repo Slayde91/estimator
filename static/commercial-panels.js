@@ -149,8 +149,9 @@
     add.addEventListener('click',async()=>{
       if(creating || !current())return;creating=true;add.disabled=true;close();const value=input.value;
       try {
-        const account=options.account?.(records);
-        const saved=options.kind==='accounts' ? await window.ClassifireContacts.createAccount({company:value}) : await window.ClassifireContacts.createContact({name:value,...(account?{account_id:account.id}:{})});
+        const account=await options.account?.(records);
+        if(!current() || input.value!==value)return;
+        const saved=options.kind==='accounts' ? await window.ClassifireContacts.createAccount({company:value,isCurrent:current}) : await window.ClassifireContacts.createContact({name:value,isCurrent:current,...(account?{account_id:account.id}:{})});
         const latest=await loadDirectory(true);
         if(!current() || input.value!==value || !saved)return;
         records=latest;options.onDirectory?.(latest);choose(saved);
@@ -238,7 +239,12 @@
     const company = directorySearch(options.companyLabel || 'Company', {...searchOptions, kind:'accounts', value:fields.details.client,
       read:() => fields.details.client, onInput:changeCompany, onSelect:account => changeCompany(account.company, account)});
     const name = directorySearch(options.contactLabel || 'Name', {...searchOptions, kind:'contacts', value:fields.details.contact,
-      read:() => fields.details.contact, account:documentAccount,
+      read:() => fields.details.contact,
+      account(records) {
+        if (fields.details.account_id) return {id:fields.details.account_id};
+        const name = fields.details.client;
+        return documentAccount(records) || (name && loadDirectory().then(data => accountFor('', name, data)));
+      },
       filter(contact) {
         const account = documentAccount();
         return !fields.details.client || !!account && (contact.account_id === account.id || contact.account_id === undefined && fold(contact.company) === fold(account.company));

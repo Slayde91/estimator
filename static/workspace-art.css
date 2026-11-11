@@ -1,9 +1,5 @@
 /* Decorative campaign artwork; masks blend into each theme's actual surface. */
 @media screen {
-  #pricing-heading { font-size:28px; }
-  #penetration-heading { font-size:23px; }
-  #library-technical .library-heading-art-slot img { width:188.5px; height:80px; }
-  #library-penetration .library-heading-art-slot img { width:314px; height:84px; }
   .estimate-heading-copy,.project-heading-copy { display:flex; flex:1 1 auto; align-items:center; align-self:stretch; min-width:0; }
   .estimate-heading-text,.project-heading-text { flex:0 1 auto; min-width:0; }
   .estimate-heading-art-slot,.project-heading-art-slot { position:relative; flex:1 1 0; align-self:stretch; min-width:0; pointer-events:none; }
@@ -73,13 +69,6 @@
      places the artwork directly after the copy without adding layout height. */
   .calculator-heading-copy { display:flex; flex:1 1 auto; align-items:center; align-self:stretch; min-width:0; }
   .calculator-heading-text { flex:0 1 auto; min-width:0; }
-  .library-banner-heading { display:flex; flex-direction:row; align-items:center; flex-wrap:nowrap; }
-  .library-banner-heading > :first-child { flex:0 1 auto; min-width:0; }
-  .library-heading-art-slot { position:relative; flex:1 0 90px; align-self:stretch; min-width:0; pointer-events:none; }
-  .library-heading-art-slot img {
-    position:absolute; inset-block:50% auto; inset-inline:24px auto; transform:translateY(-50%);
-    width:auto; height:100px; max-width:calc(100% - 24px); object-fit:contain; object-position:left center; pointer-events:none;
-  }
   .calculator-heading-art-slot { position:relative; flex:1 1 0; align-self:stretch; min-width:0; pointer-events:none; }
   .calculator-heading-lightning { display:none; }
   .calculator-steel-cards { grid-template-columns:repeat(2,minmax(0,1fr)); }
@@ -182,7 +171,6 @@
     .calculator-workspace-heading .calculator-document-actions { left:auto; right:auto; inset-inline-start:0; inset-inline-end:auto; }
   }
   @media (max-width:570px) {
-    .library-heading-art-slot img { inset-inline-start:12px; max-width:calc(100% - 12px); height:72px; }
     /* Phone top padding is smaller; keep the same native row wrapping and
        constrain narrow Steel artwork to the gap before its controls. */
     .takeoff-heading-art { height:calc(100% + 40px); }
@@ -198,5 +186,5 @@
   .estimate-heading-art-slot .workspace-banner-image { left:auto; right:0; top:0; width:calc(100% / .55); height:100%; object-fit:cover; object-position:right center; }
 }
 @media print {
-  .workspace-header-art,.penetration-workspace-art,.home-laser-art,.takeoff-heading-art-slot,.calculator-heading-art-slot,.library-heading-art-slot,.project-heading-art-slot,.project-evidence-art { display:none!important; }
+  .workspace-header-art,.penetration-workspace-art,.home-laser-art,.takeoff-heading-art-slot,.calculator-heading-art-slot,.project-heading-art-slot,.project-evidence-art { display:none!important; }
 }

@@ -161,7 +161,7 @@ class IdentityTests(unittest.TestCase):
         with self.store.connection() as db:
             db.execute('UPDATE leads SET person_snapshot=NULL WHERE id=?',(lead,))
         self.merge('accounts',original,active)
-        self.save('leads',{**fields,'status':'Contacted'},id=lead,contact_id=person,account_id=original)
+        self.save('leads',{**fields,'status':'Qualified'},id=lead,contact_id=person,account_id=original)
         edited = self.store.save('contacts',{'version':self.version(),'id':person,'fields':{
             'name':'Taylor','title':'Manager','phone':'456','email':'office@example.test','company':'Current employer'}})
         self.assertEqual(edited['contact']['account_id'],active)

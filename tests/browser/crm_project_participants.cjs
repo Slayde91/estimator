@@ -39,6 +39,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   await contacts.getByRole('button',{name:'New Contact'}).click();
   const dialog=page.getByRole('dialog',{name:'New Contact',exact:true});
   await expect(dialog.getByLabel('Name',{exact:true})).toHaveValue('Site manager');
+  await expect(dialog.getByLabel('Company',{exact:true})).toHaveValue('Builder A');
   await dialog.getByLabel('Company',{exact:true}).fill('Consulting team');
   await dialog.getByLabel('Phone',{exact:true}).fill('5551234');
   await dialog.getByLabel('Email',{exact:true}).fill('site@example.test');

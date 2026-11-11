@@ -127,6 +127,13 @@ def event(db, kind, ident, typ, detail, actor, *, owner=None, due=None, task=Non
 
 
 def finish_tracking(db, actor):
+    if actor:
+        # Include records created indirectly by a lead, workbook import or billing form.
+        db.execute("""INSERT INTO crm_assignments(kind,record_id,owner_id,owner_name,region)
+            SELECT kind,record_id,?,?,''
+            FROM crm_writes WHERE table_name=kind AND operation='INSERT'
+            ON CONFLICT(kind,record_id) DO UPDATE SET owner_id=excluded.owner_id,owner_name=excluded.owner_name
+            WHERE crm_assignments.owner_id=''""", (actor['id'], actor['name']))
     changes = {}
     for row in db.execute('SELECT * FROM crm_writes ORDER BY rowid'):
         changes.setdefault((row['kind'],row['record_id']),[]).append(row)
@@ -292,6 +299,8 @@ def log_activity(store, body, actor, conflict):
                 raise conflict('This task has already been completed.')
             links=tuple(original[column] for column in LINK.values())
         owner=owner_for(store.staff_provider,body.get('owner_id',''))
+        if not owner and not task:
+            owner=actor
         eid=event(db,kind,ident,typ,{'text':text.strip()},actor,owner=owner,due=due or None,task=task,
                   request_id=req,request_data=fingerprint,links=links,occurred=occurred)
         db.execute('UPDATE revision SET version=version+1 WHERE id=1')

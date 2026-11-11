@@ -260,6 +260,10 @@
     async function safe(action) { try { await action(); } catch (error) { if (!state.destroyed) report(error); } }
     function button(label, action, className = "button secondary", beforeFlush) {
       const control = node("button", className, label); control.type = "button";
+      if (label === "+") {
+        const symbol = node("span", "button-symbol add-symbol", "+");
+        symbol.setAttribute("aria-hidden", "true"); control.replaceChildren(symbol);
+      }
       control.addEventListener("pointerdown", () => { state.pointerAction = control; cancelAutomatic(); });
       for (const event of ["pointercancel", "pointerleave"]) control.addEventListener(event, () => { if (state.pointerAction === control) { state.pointerAction = null; refreshPressedInspector(); } });
       control.addEventListener("click", () => void safe(async () => {

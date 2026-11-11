@@ -107,7 +107,7 @@
     add.type='button';add.className='project-account-add';
     const title=options.kind==='accounts'?'New Company':'New Contact';add.title=title;add.setAttribute('aria-label',title);
     window.CeasefireI18n?.attr(add,'title',title);window.CeasefireI18n?.attr(add,'aria-label',title);
-    add.innerHTML='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M8 4v8M4 8h8"></path></svg>';
+    const symbol=el('span','+');symbol.className='button-symbol add-symbol';symbol.setAttribute('aria-hidden','true');add.append(symbol);
     search.append(input);if(options.allowCreate!==false)search.append(add);wrap.append(caption,search,popup);
     let records={accounts:[],contacts:[]}, matches=[],active=-1,requested=false,sequence=0,creating=false;
     const current=()=>wrap.isConnected && options.isCurrent() && !input.disabled;

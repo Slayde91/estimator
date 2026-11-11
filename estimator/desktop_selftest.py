@@ -258,9 +258,9 @@ def self_test(data_directory, output_report):
                 report['checks'].append('Native preview SVG navigation icons render 20% larger than the previous 65% scale of their original 26 pixels, decorative, consistently stroked and centred above visible page names')
                 probe.script('window.nativeQaCsp=[]; document.addEventListener("securitypolicyviolation",event=>window.nativeQaCsp.push(event.effectiveDirective));')
                 probe.click('[data-view="contacts"]')
-                probe.wait('!document.querySelector("#view-contacts").hidden && document.querySelectorAll("#contacts-root .project-kanban-column").length === 7')
-                assert probe.script('Array.from(document.querySelectorAll("#contacts-root .project-kanban-column"),column=>column.dataset.status)') == ['New', 'Contacted', 'Qualified', 'Quoting', 'Negotiating', 'Won', 'Lost']
-                report['checks'].append('Packaged Contacts opened the six-column Leads board')
+                probe.wait('!document.querySelector("#view-contacts").hidden && document.querySelectorAll("#contacts-root .project-kanban-column").length === 4')
+                assert probe.script('Array.from(document.querySelectorAll("#contacts-root .project-kanban-column"),column=>column.dataset.status)') == ['New', 'Qualified', 'Disqualified', 'Converted']
+                report['checks'].append('Packaged Contacts opened the four-column Leads board')
                 probe.click('[data-view="settings"]')
                 probe.wait('!document.querySelector("#view-settings").hidden && !document.querySelector("#company-settings-save").disabled && '
                            + notification_text('#company-settings-status') + ' === "Saved" && document.querySelector("#theme-toggle").dataset.themeReady === "true"')

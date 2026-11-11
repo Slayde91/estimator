@@ -29,7 +29,7 @@
   sites.hidden = true;
   sites.open = true;
   sites.append(ui("summary", "Linked Sites"), ui("h4", "Linked Projects"), projects, siteStatus);
-  pane.append(sites);
+  document.getElementById("project-pricing-notice").before(sites);
 
   let selection = null, fileRevision = null, record = null, generation = 0;
   let saving = false, loading = false, scanTimer, retriedScan = false;
@@ -173,6 +173,7 @@
         const field = el("div"); field.className = "field"; field.append(label, role);
         const search = window.ClassifireCommercialDirectory.field(labelId, {
           kind, isCurrent: () => !!selection && !saving && canEdit() && !host.inert && !pane.inert,
+          account: () => ({id: window.CeasefireProjectPane.primaryParties().accounts}),
           read: () => "", onInput() {}, message: value => text(note, value),
           filter: (item, directory) => (kind !== "contacts" || contactCompanyIsLinked(item, directory, companyIds)) &&
             !entries.some(entry => entry.id === item.id && entry.role === role.value),

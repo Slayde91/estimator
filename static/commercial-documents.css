@@ -54,7 +54,6 @@
 }
 .commercial-estimate-controls { display:grid; grid-template-columns:36px minmax(0,1fr); gap:10px; align-items:start; }
 .commercial-estimate-controls>.commercial-add-custom-row { width:36px; min-width:36px; height:36px; min-height:36px; margin-top:3px; padding:0; border-radius:8px; }
-.commercial-add-custom-row .button-symbol { font-size:20px; line-height:1; }
 .commercial-estimate-picker { min-width:0; }
 .commercial-estimate-picker>summary { width:261px; max-width:100%; box-sizing:border-box; min-height:42px; padding:10px 12px; line-height:20px; cursor:pointer; list-style-position:inside; }
 .commercial-estimate-options { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:12px; margin-top:12px; padding:12px; border:1px solid var(--line); border-radius:10px; }
@@ -162,10 +161,10 @@
 
 /* Directory controls follow the existing Project search geometry inside each pane. */
 .commercial-directory-field { min-width:0; margin-top:12px; }
-.commercial-directory-field .project-account-add svg { width:16px; height:16px; }
 .commercial-directory-field input { min-width:0; width:100%; padding-inline-start:37px; }
 .commercial-directory-options { inset-inline:0; text-align:start; }
 .commercial-directory-options button { text-align:start; }
+.commercial-refresh-contacts { margin-block-start:8px; }
 .commercial-site-address { display:block; margin-top:14px; }
 .commercial-site-address>span { display:block; margin-bottom:7px; font-size:12px; font-weight:650; }
 .commercial-purchase-information textarea { min-height:42px; height:42px; line-height:20px; resize:vertical; }

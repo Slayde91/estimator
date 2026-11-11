@@ -21,15 +21,17 @@ async function plus(control,name,{disabled=false}={}){
  await expect(control).toHaveAttribute('aria-label',name);await expect(control).toHaveAttribute('title',name);
  await expect(control.locator('.button-symbol[aria-hidden="true"]')).toHaveText('+');
  assert.equal(await control.getAttribute('data-i18n'),null,'Translation never replaces the visible plus');
- if(await control.getAttribute('data-document-kind')){
-   const styles=await control.evaluate(button=>{
-     const reference=document.getElementById('penetration-add');
-     const appearance=node=>[getComputedStyle(node).borderRadius,getComputedStyle(node.firstElementChild).fontSize,getComputedStyle(node.firstElementChild).lineHeight];
-     const box=button.getBoundingClientRect(),symbol=button.firstElementChild.getBoundingClientRect();
-     return {actual:appearance(button),expected:appearance(reference),dx:symbol.x+symbol.width/2-box.x-box.width/2,dy:symbol.y+symbol.height/2-box.y-box.height/2};
-   });
-   assert.deepEqual(styles.actual,styles.expected);assert.ok(Math.abs(styles.dx)<=1 && Math.abs(styles.dy)<=1,JSON.stringify(styles));
- }else await expect(control).toHaveCSS('background-color','rgb(208, 0, 27)');
+ const styles=await control.evaluate(button=>{
+   const reference=document.getElementById('penetration-estimator-add');
+   const appearance=node=>{
+     const icon=getComputedStyle(node.firstElementChild);
+     return [getComputedStyle(node).borderRadius,icon.fontFamily,icon.fontSize,icon.fontWeight,icon.lineHeight];
+   };
+   const box=button.getBoundingClientRect(),symbol=button.firstElementChild.getBoundingClientRect();
+   return {actual:appearance(button),expected:appearance(reference),dx:symbol.x+symbol.width/2-box.x-box.width/2,dy:symbol.y+symbol.height/2-box.y-box.height/2};
+ });
+ assert.deepEqual(styles.actual,styles.expected,name);
+ assert.ok(Math.abs(styles.dx)<=1 && Math.abs(styles.dy)<=1,name+' '+JSON.stringify(styles));
  const box=await control.boundingBox();assert.equal(box.width,48);assert.equal(box.height,48);
  if(disabled)await expect(control).toBeDisabled();else await expect(control).toBeEnabled();
 }
@@ -42,6 +44,8 @@ function libraryFiles(){const directory=path.dirname(path.dirname(info.diagram))
  const read=async route=>{const r=await context.request.get(base+route);assert.equal(r.status(),200,await r.text());return r.json();};
  async function post(route,data){const session=await read('/api/access/session'),headers=session.user?{'X-CRM-Member':session.user.id}:{};const r=await context.request.post(base+route,{data,headers});assert.equal(r.status(),200,await r.text());return r.json();}
  await page.goto(base);await idle();
+ await chooseLibrary(page,'pricing');await plus(page.locator('#add-pricing-item'),'+ Add item');
+ await chooseLibrary(page,'technical');await plus(page.getByRole('button',{name:'Add Technical Library item',exact:true}),'Add Technical Library item');
  const originalDirectory=await read('/api/contacts/directory');
  for(const [kind,name] of [['leads','New Lead'],['contacts','New Contact'],['accounts','New Company']]){
   await contacts(page,kind);const control=page.locator('#contacts-root .contacts-controls .add-icon-action');await plus(control,name);await control.click();

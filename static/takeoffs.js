@@ -155,7 +155,7 @@
     "Add exclusion": "M7 3h14v14H7zM3 3v14M1 5l2-2 2 2M1 15l2 2 2-2M7 21h14M9 19l-2 2 2 2M19 19l2 2-2 2",
     "Scale": "M2 7h20v10H2zM6 7v5M10 7v3M14 7v5M18 7v3",
     "Viewport": "M7 3H3v4M17 3h4v4M3 17v4h4M21 17v4h-4M7 7h10v10H7z",
-    "Add viewport": "M12 4v16M4 12h16",
+    "Add viewport": "+",
     "Delete viewport": "M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7",
     "Remove exclusion": "M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7",
     "Remove document": "M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7",
@@ -193,7 +193,9 @@
       if (label === "Apply item edits") el.classList.add("save-button");
       if (label === "Undo last edit") el.classList.add("takeoff-undo-button");
       const symbol = node("span", "button-symbol takeoff-button-symbol"); symbol.setAttribute("aria-hidden", "true");
-      if (schedule) {
+      if (icon === "+") {
+        symbol.className = "button-symbol add-symbol"; symbol.textContent = "+";
+      } else if (schedule) {
         el.classList.add("takeoff-preview-transfer");
         const image = node("img", "takeoff-transfer-icon"); image.src = "/icons/takeoff-transfer.png"; image.alt = ""; image.setAttribute("aria-hidden", "true"); symbol.append(image);
       } else if (label === "Undo last edit") {

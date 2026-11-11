@@ -36,7 +36,7 @@
   const button = (text, action, className = "button secondary") => { const el = node("button", className, text); el.type = "button"; el.addEventListener("click", action); return el; };
   const symbolButton = (symbol, label, action) => {
     const el = button("", action, "button secondary icon-only");
-    const icon = node("span", "button-symbol", symbol); icon.setAttribute("aria-hidden", "true");
+    const icon = node("span", symbol === "+" ? "button-symbol add-symbol" : "button-symbol", symbol); icon.setAttribute("aria-hidden", "true");
     el.append(icon); uiAttr(el, "title", label); uiAttr(el, "aria-label", label); return el;
   };
   async function request(path, signal, payload) {

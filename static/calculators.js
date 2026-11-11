@@ -1139,7 +1139,7 @@ window.CeasefireScheduleColumns = (() => {
   function renderScheduleTools(entry) {
     const toolbar = node("div", "calculator-schedule-tools"), add = node("button", "button primary icon-only"), undo = node("button", "button secondary icon-only");
     add.type = undo.type = "button"; add.dataset.scheduleAdd = "true"; undo.dataset.scheduleUndo = "true";
-    const addIcon = node("span", "button-symbol", "+"), undoIcon = node("span", "button-symbol", "↶"); addIcon.setAttribute("aria-hidden", "true"); undoIcon.setAttribute("aria-hidden", "true");
+    const addIcon = node("span", "button-symbol add-symbol", "+"), undoIcon = node("span", "button-symbol", "↶"); addIcon.setAttribute("aria-hidden", "true"); undoIcon.setAttribute("aria-hidden", "true");
     window.CeasefireI18n.attr(add, "title", "Add row"); window.CeasefireI18n.attr(add, "aria-label", "Add row"); add.append(addIcon);
     window.CeasefireI18n.attr(undo, "title", "Undo remove"); window.CeasefireI18n.attr(undo, "aria-label", "Undo remove"); undo.append(undoIcon);
     const capacity = entry.definition.schedule.last_row - entry.definition.schedule.first_row + 1;

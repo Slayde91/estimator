@@ -38,15 +38,18 @@
   }
   function button(text, action, className = "button secondary") {
     const result = el("button", className, text); result.type = "button";
+    if (text === "+") {
+      const symbol = el("span", "button-symbol add-symbol", "+");
+      symbol.setAttribute("aria-hidden", "true"); result.replaceChildren(symbol);
+    }
     result.addEventListener("click", action); return result;
   }
   function addIconButton(label, action, extraClass = "") {
-    const result = button("", action, "button primary icon-only penetration-new-item-action" + (extraClass ? " " + extraClass : ""));
+    const result = button("+", action, "button primary icon-only penetration-new-item-action" + (extraClass ? " " + extraClass : ""));
     result.title = label; result.setAttribute("aria-label", label);
     window.CeasefireI18n?.attr(result, "title", label);
     window.CeasefireI18n?.attr(result, "aria-label", label);
-    const symbol = el("span", "button-symbol", "+"); symbol.setAttribute("aria-hidden", "true");
-    result.append(symbol); return result;
+    return result;
   }
   function input(type, value = "", attributes = {}) {
     const result = el("input"); result.type = type; result.value = value;

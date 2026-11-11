@@ -110,10 +110,8 @@ async function followupBanners(themes=['ceasefire','midnight','ocean','forest','
      return{heading:box(el),title:box(title),font:getComputedStyle(title).fontSize,art:frame?box(frame):null,src:image?.getAttribute('src'),loaded:!image||image.complete&&image.naturalWidth>0,direction:getComputedStyle(el).direction,subtitle:el.querySelectorAll('.subtitle').length,overflow:document.documentElement.scrollWidth-innerWidth};
     });
     assert.equal(data.loaded,true);assert.equal(data.subtitle,0);assert.ok(data.overflow<=1,JSON.stringify(data));
-    if(['estimate','projects'].includes(workspace))assert.equal(data.art,null,workspace+' artwork remains removed');
-    else if(workspace==='pricing')assert.equal(data.font,'28px');
-    else{assert.ok(data.art.width>0&&data.art.height>0);assert.ok(data.direction==='rtl'?data.art.right<=data.title.x:data.art.x>=data.title.right,'Artwork follows the heading without overlap: '+JSON.stringify(data));assert.ok(data.art.x>=data.heading.x&&data.art.right<=data.heading.right+.1);}
-    if(workspace==='technical'){assert.ok(data.art.width<=188.6&&data.art.height<=80.1,'Technical artwork fits 188.5 by 80');}if(workspace==='penetration'){assert.ok(data.art.width<=314.1&&data.art.height<=84.1,'Firestopping Library artwork fits 314 by 84');}
+    assert.equal(data.art,null,workspace+' heading has no artwork');
+    if(workspace!=='estimate')assert.equal(data.font,'18px');
     if(workspace==='estimate'){const toggle=page.locator('#view-estimate [data-document-menu-toggle][aria-controls="firestopping-document-actions"]');await toggle.click({trial:true});}
     if(workspace==='projects'){
      for(const id of ['new-quote','load-project','link-project-folder','refresh-quotes'])await page.locator('#'+id).click({trial:true});

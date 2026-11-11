@@ -34,6 +34,7 @@ const ready = new Promise((resolve, reject) => {
   await page.locator('button[data-view="contacts"]').click();
   const root=page.locator('#contacts-root');
   await expect(root.getByRole('heading',{name:'Leads',exact:true})).toBeVisible();
+  await expect(root.locator('.project-kanban-column h2')).toHaveText(['New','Qualified','Disqualified','Converted']);
   await expect(page.locator('#contacts-navigation-menu [data-contacts-section]')).toHaveCount(3);
   await expect(page.locator('#contacts-navigation-menu [data-contacts-section="accounts"]')).toHaveText('Companies');
   await expect(root.locator('.contacts-tabs button')).toHaveText(['Leads','Contacts','Companies']);
@@ -91,7 +92,7 @@ const ready = new Promise((resolve, reject) => {
   await page.unroute('**/api/contacts/leads');await page.setViewportSize({width:1915,height:884});await page.evaluate(()=>document.documentElement.dataset.theme='ceasefire');
   await dlg.getByRole('button',{name:'Save',exact:true}).click();
   const card=root.locator('.project-kanban-card').filter({hasText:'Robin Sample'});
-  await expect(card).toBeVisible();
+  await expect(root.locator('[data-status="New"] article')).toContainText('Robin Sample');
   const partialDirectory=await page.evaluate(async()=>await(await fetch('/api/contacts/directory')).json());
   let convertRequests=0;
   page.on('request',request=>{if(new URL(request.url()).pathname==='/api/contacts/leads/convert')convertRequests++;});
@@ -102,6 +103,7 @@ const ready = new Promise((resolve, reject) => {
   assert.deepEqual(await page.evaluate(async()=>await(await fetch('/api/contacts/directory')).json()),partialDirectory);
   await card.locator('summary').click();await card.getByRole('button',{name:'Edit',exact:true}).click();
   await dlg.getByLabel('Phone',{exact:true}).fill('0400');
+  await expect(dlg.getByLabel('Status',{exact:true})).toHaveValue('Qualified');
   await dlg.getByLabel('Email',{exact:true}).fill('robin@example.test');
   await dlg.getByLabel('Next action',{exact:true}).fill('Call about east wing');
   await dlg.getByLabel('Follow-up date',{exact:true}).fill('2027-01-18');
@@ -111,7 +113,10 @@ const ready = new Promise((resolve, reject) => {
   await cutoff.fill('2027-01-17'); await expect(card).toHaveCount(0);
   await cutoff.fill('2027-01-18'); await expect(card).toBeVisible();
   await cutoff.fill('');
-  await card.dragTo(root.locator('.project-kanban-column[data-status="Qualified"]'));
+  await expect(root.locator('.project-kanban-column[data-status="Qualified"]')).toContainText('Robin Sample');
+  await card.dragTo(root.locator('.project-kanban-column[data-status="Disqualified"]'));
+  await expect(root.locator('.project-kanban-column[data-status="Disqualified"]')).toContainText('Robin Sample');
+  await card.dragTo(root.locator('.project-kanban-column[data-status="New"]'));
   await expect(root.locator('.project-kanban-column[data-status="Qualified"]')).toContainText('Robin Sample');
   await expect(card).toContainText('2027-01-18');
   await root.getByRole('button',{name:'Companies',exact:true}).click();
@@ -164,7 +169,6 @@ const ready = new Promise((resolve, reject) => {
   const saved = JSON.parse(fs.readFileSync(receipt.path,'utf8'));
   assert.equal(saved.estimate.site_address,'QA Site Street'); assert.equal(saved.estimate.client,'Sample Company');
   assert.equal(saved.estimate.project_no,receipt.project_no); assert.match(saved.estimate.measurements,/Robin Sample/);
-  await expect(card).toHaveCount(0);
   await expect(page.locator('#view-estimate')).toBeVisible();
   await expect(page.locator('#project-no')).toHaveValue(receipt.project_no);
   await expect(page.locator('#client')).toHaveValue('Sample Company');
@@ -175,6 +179,18 @@ const ready = new Promise((resolve, reject) => {
   await expect(page.locator('#contacts-navigation-menu [data-contacts-section="contacts"]')).toHaveAttribute('aria-pressed','true');
   await expect(root.locator('.contacts-table thead th')).toHaveText(['Name','Company','Title','Phone','Email']);
   await root.getByRole('button',{name:'Leads',exact:true}).click();
+  const convertedCard=root.locator('[data-status="Converted"] article').filter({hasText:'Robin Sample'});
+  await expect(convertedCard).toContainText(receipt.project_no);
+  await expect(convertedCard.getByRole('button')).toHaveCount(0);
+  const freshPage=await browser.newPage();
+  await freshPage.goto('http://127.0.0.1:'+port+'/');
+  await freshPage.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready);
+  await freshPage.locator('#contacts-navigation-toggle').click();
+  await expect(freshPage.locator('[data-status="Converted"] article')).toContainText(receipt.project_no);
+  await freshPage.close();
+  await root.getByRole('searchbox',{name:'Search leads'}).fill(receipt.project_no);
+  await expect(convertedCard).toBeVisible();
+  await root.getByRole('searchbox',{name:'Search leads'}).fill('');
   await root.getByRole('button',{name:'New Lead',exact:true}).click();
   await dlg.getByLabel('Name',{exact:true}).fill('Second Lead');
   await dlg.getByLabel('Company',{exact:true}).fill('Second Company');

@@ -144,7 +144,7 @@
         tr.dataset.documentKind=row.id;
         const breakdown=row.id==='estimate.summary.pdf';
         const button=node('button','button primary icon-only penetration-new-item-action documentation-download-button');button.type='button';button.dataset.documentKind=row.id;
-        const icon=node('span','button-symbol');icon.textContent='+';icon.setAttribute('aria-hidden','true');button.append(icon);
+        const icon=node('span','button-symbol add-symbol');icon.textContent='+';icon.setAttribute('aria-hidden','true');button.append(icon);
         if(window.CeasefireI18n) {
           window.CeasefireI18n.attr(button,'aria-label','Download {0}',[row.label]);
           window.CeasefireI18n.attr(button,'title','Download {0}',[row.label]);

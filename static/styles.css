@@ -120,7 +120,7 @@ main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh -
 .primary:hover{background:var(--accent-dark);border-color:var(--accent-dark);box-shadow:0 4px 12px #b90a1525}
 .button.primary.add-icon-action,:root[data-theme] .button.primary.add-icon-action{display:inline-flex;align-items:center;justify-content:center;flex:0 0 48px;box-sizing:border-box;width:48px;min-width:48px;height:48px;min-height:48px;padding:0;border:1px solid #eb324a;border-radius:10px;background:#d0001b;color:#fff;box-shadow:none}
 .button.primary.add-icon-action:hover:not(:disabled),:root[data-theme] .button.primary.add-icon-action:hover:not(:disabled){background:#b90018;border-color:#ee5065;color:#fff}
-.add-icon-action>.button-symbol{font-size:24px;line-height:1;font-weight:400}
+.button-symbol.add-symbol{display:grid;place-items:center;font:650 18px/1 "Segoe UI Symbol","Arial Unicode MS",sans-serif}
 .secondary{color:#51414a;background:white;border:1px solid #dcd3d7}
 .secondary:hover{color:var(--accent);background:#fff7f5;border-color:#ddabad}
 .button.excel-button{color:#fff;background:var(--navy);border:1px solid #171217}
@@ -503,6 +503,7 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 /* Section headings precede the main tabs; moving the real nodes retains their
    controls, artwork, status and accessibility anchors. */
 .workspace-section-heading{min-width:0}
+.workspace-view :is(.page-heading,.takeoff-workspace-heading,.calculator-workspace-heading) :is(h1,h2){font-size:18px}
 .workspace-section-heading>.calculator-workspace-heading{padding:0;margin:0 0 20px;align-items:flex-start;flex-direction:row;flex-wrap:nowrap}
 .workspace-section-heading #calculator-save-status{flex:0 0 auto;margin:0;margin-inline-start:auto;max-width:45%;text-align:end}
 .workspace-section-heading>.penetration-banner-heading{z-index:5;min-height:96px;padding:0;margin:0 0 20px;gap:16px;flex-direction:row;flex-wrap:wrap;align-items:center}
@@ -510,8 +511,6 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .workspace-section-heading>.penetration-banner-heading>.penetration-heading-actions{position:relative;inset:auto;width:auto;max-width:100%;flex:0 0 auto;align-self:center;flex-wrap:nowrap;margin:0;gap:10px}
 #calculators-heading-slot .penetration-heading-actions .calculator-document-menu{position:static}
 #calculators-heading-slot #firestopping-item-document-actions{left:auto;right:0;inset-inline-start:auto;inset-inline-end:0;max-width:calc(100vw - 28px)}
-#pricing-heading-slot [data-library-heading="technical"] .library-heading-art-slot img{width:188.5px;height:80px}
-#pricing-heading-slot [data-library-heading="penetration"] .library-heading-art-slot img{width:314px;height:84px}
 @media(max-width:580px){.workspace-section-heading>.penetration-banner-heading>.penetration-heading-actions{flex-basis:100%;justify-content:flex-end}}
 /* Every inner worksheet page uses the Factor Calcs chooser's compact shape.
    Keep the page scroller flexible, so actions and Columns share its row. */
@@ -533,9 +532,6 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .project-estimate-chevron{grid-area:1/2;place-self:center;width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:translateY(-2px) rotate(45deg);pointer-events:none}
 .project-estimate-picker:has(select:focus-visible) input{outline:2px solid var(--accent);outline-offset:2px}
 #project-estimate-new{grid-area:1/1;z-index:2;align-self:center;justify-self:start;margin-inline-start:4px;width:30px;min-width:30px;height:30px;min-height:30px;padding:0}
-#project-estimate-new .button-symbol{font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;width:100%;height:100%}
-.project-add-symbol{display:flex;align-items:center;justify-content:center;width:100%;height:100%;line-height:1}
-.project-add-symbol svg{display:block;width:16px;height:16px;transform:translateY(1px)}
 .kanban-card-details{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:7px 10px;margin:12px 0 0;font-size:11px;line-height:1.5}
 .kanban-card-details dt{font-weight:700}.kanban-card-details dd{margin:0;min-width:0;overflow-wrap:anywhere}
 

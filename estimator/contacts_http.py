@@ -120,7 +120,8 @@ class ContactsHTTP:
         try:
             workbook = re.fullmatch(r"(accounts|contacts)/(template\.xlsx|import)", action)
             if handler.command == "GET" and action == "directory":
-                handler.send_payload(200, self.store.list())
+                board = parse_qs(urlsplit(handler.path).query).get('board') == ['1']
+                handler.send_payload(200, self.store.list(lead_board=board))
             elif handler.command == 'GET' and action == 'staff':
                 handler.send_payload(200, {'staff':[{'id':row['id'],'name':row['name']} for row in self.store.staff_provider()]})
             elif handler.command == 'GET' and action == 'activity':

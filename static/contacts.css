@@ -31,7 +31,7 @@
 .contacts-account-pane .contacts-form input,.contacts-account-pane .contacts-form textarea { min-width:0; }
 @media(max-width:1000px) { .contacts-directory-layout.contacts-account-open { grid-template-columns:minmax(0,1fr); } }
 .contacts-board { display:flex; overflow-x:auto; gap:12px; padding-bottom:14px; }
-.contacts-board .project-kanban-card { cursor:grab; }
+.contacts-board .project-kanban-card[draggable="true"] { cursor:grab; }
 .contacts-board .project-title-button,.contacts-table .text-button { text-align:left; }
 .contacts-board .project-kanban-card p { margin:6px 0; overflow-wrap:anywhere; }
 .contacts-lead-actions { display:flex; justify-content:flex-end; margin-top:12px; }
@@ -44,11 +44,9 @@
 .contacts-lookup-option { display:block; width:100%; min-height:36px; padding:8px; border:0; border-radius:4px; color:var(--ink); background:transparent; font:inherit; text-align:start; white-space:normal; overflow-wrap:anywhere; cursor:pointer; }
 .contacts-lookup-option:hover,.contacts-lookup-option[aria-selected=true] { background:var(--accent); color:#fff; }
 .contacts-lookup-options .helper { margin:8px; }
-.contacts-board [data-status="Assisting"] .project-column-heading { border-color:#d69f20; }
-.contacts-board [data-status="Interstate"] .project-column-heading { border-color:#5a9ce8; }
 .contacts-board [data-status="Qualified"] .project-column-heading { border-color:#36ad7d; }
 .contacts-board [data-status="Disqualified"] .project-column-heading { border-color:#d96373; }
-.contacts-board [data-status="Not Applicable"] .project-column-heading { border-color:#9c90c6; }
+.contacts-board [data-status="Converted"] .project-column-heading { border-color:#5a9ce8; }
 .contacts-table { width:100%; }
 .contacts-table th,.contacts-table td { text-align:left; padding:12px; overflow-wrap:anywhere; }
 .contacts-dialog { width:min(680px,94vw); max-height:85vh; overflow:auto; margin:auto; padding:0; border:1px solid var(--line); border-top:3px solid var(--accent); border-radius:12px; color:var(--ink); background:var(--paper); }

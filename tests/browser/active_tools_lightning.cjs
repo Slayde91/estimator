@@ -33,7 +33,7 @@ const paint=locator=>locator.evaluate(el=>{const c=getComputedStyle(el),r=el.get
  await page.setViewportSize({width:1384,height:900});
  for(const [name,selector] of [['Steel (spray)','.calculator-workspace-heading'],['Steel (intumescent)','.calculator-workspace-heading'],['Steel (board)','.calculator-workspace-heading'],['Ductwork (spray/wrap)','.calculator-workspace-heading'],['Factor Calcs','.calculator-workspace-heading'],['Firestopping','.penetration-banner-heading']]){
   await chooseCalculator(page,name);await idle();
-  if(name==='Firestopping')await expect(page.locator('#penetration-heading')).toHaveCSS('font-size','23px');
+  if(name==='Firestopping')await expect(page.locator('#penetration-heading')).toHaveCSS('font-size','18px');
   for(const width of [1384,390]){
    await page.setViewportSize({width,height:900});
    await expect(page.locator(selector).locator('.calculator-heading-lightning,.calculator-heading-art-slot,.workspace-header-art,.penetration-workspace-art,.eyebrow')).toHaveCount(0);

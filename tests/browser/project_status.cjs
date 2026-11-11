@@ -77,7 +77,7 @@ async function idle() {
   await expect(documentToggle).toBeVisible();
   assert.equal(JSON.parse(fs.readFileSync(path.join(output,'Project-1.cf.json'))).project_status,'Draft');
   await expect(page.locator('#project-estimate-new')).toHaveAttribute('aria-label','New estimate');
-  assert.equal(await page.locator('#project-estimate-new .button-symbol svg').innerHTML(),await page.locator('#project-account-new .button-symbol svg').innerHTML());
+  for(const id of ['project-estimate-new','project-account-new'])await expect(page.locator('#'+id+' .add-symbol')).toHaveText('+');
   for(const width of [320,390,1254,1915]) {
     await page.setViewportSize({width,height:1000});
     const addBox = await page.locator('#project-estimate-new').boundingBox();

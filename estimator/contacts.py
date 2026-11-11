@@ -14,8 +14,8 @@ from . import crm_identity
 from . import crm_activity
 
 
-LEAD_STATUSES = ("New", "Contacted", "Qualified", "Quoting", "Negotiating", "Won", "Lost")
-LEGACY_LEAD_STATUSES = ("Assisting", "Interstate", "Disqualified", "Not Applicable")
+ACTIVE_LEAD_STATUSES = ("New", "Qualified", "Disqualified")
+LEAD_STATUSES = (*ACTIVE_LEAD_STATUSES, "Converted")
 PERSON_FIELDS = ("name", "phone", "company", "title", "email")
 ACCOUNT_FIELDS = ("company", "billing_address", "abn_acn")
 LEAD_FIELDS = (*PERSON_FIELDS, "site_address", "billing_address", "description", "status", "abn_acn", "next_action", "follow_up_date")
@@ -28,6 +28,15 @@ FIELDS = {"leads": LEAD_FIELDS, "contacts": PERSON_FIELDS, "accounts": ACCOUNT_F
 LIMITS = {"name": 160, "phone": 60, "company": 240, "title": 160, "email": 254,
           "site_address": 1200, "billing_address": 1200, "description": 8000, "status": 100, "abn_acn": 80,
           "next_action": 500, "follow_up_date": 10}
+
+
+def active_lead_status(status, fields, *, selected_contact=False):
+    """Classify active enquiries, including stages stored by earlier versions."""
+    if status in ("Disqualified", "Lost", "Not Applicable"):
+        return "Disqualified"
+    if status in ("Qualified", "Contacted", "Quoting", "Negotiating", "Won") or selected_contact or fields["phone"] or fields["email"]:
+        return "Qualified"
+    return "New"
 
 
 def checked_fields(kind, values):
@@ -54,7 +63,7 @@ def checked_fields(kind, values):
             except ValueError:
                 raise ValidationError("Enter a valid follow-up date.") from None
         clean["status"] = clean["status"] or LEAD_STATUSES[0]
-        if clean["status"] not in (*LEAD_STATUSES, *LEGACY_LEAD_STATUSES):
+        if clean["status"] not in ACTIVE_LEAD_STATUSES:
             raise ValidationError("Choose a status from the lead board.")
     return clean
 
@@ -193,7 +202,7 @@ class ContactsStore:
                 if not row or row['name'] != order['ship_to_name'] or order['site_contact_id'] in crm_identity.aliases(db)['contacts']:
                     raise ValidationError('Choose an existing Contact for this name, or enter the name without a Contact link.')
 
-    def list(self, *, history_contact_id=None, history_account_id=None, raw_identities=False):
+    def list(self, *, history_contact_id=None, history_account_id=None, raw_identities=False, lead_board=False):
         with self.connection() as db:
             db.execute("BEGIN")
             contacts = """
@@ -214,9 +223,9 @@ class ContactsStore:
                 """)],
             }
             crm_activity.add_metadata(db,result)
-            used={row['status'] for row in result['leads']}
-            result['statuses']=(*LEAD_STATUSES,*(s for s in LEGACY_LEAD_STATUSES if s in used))
-            result['sales_stages']=LEAD_STATUSES
+            result['sales_stages'] = ACTIVE_LEAD_STATUSES
+            if lead_board:
+                result['converted_leads'] = self._converted_lead_history(db, None, None)
             if history_contact_id or history_account_id:
                 result['converted_leads'] = self._converted_lead_history(db, history_contact_id, history_account_id)
             crm_identity.project_directory(db, result, raw_identities)
@@ -228,6 +237,7 @@ class ContactsStore:
         snapshot = value.pop('person_snapshot', None)
         if snapshot is not None:
             value.update(json.loads(snapshot))
+        value['status'] = active_lead_status(value['status'], value)
         return value
 
     @staticmethod
@@ -307,13 +317,16 @@ class ContactsStore:
     @staticmethod
     def _converted_lead_history(db, contact_id, account_id):
         # Read history and active leads from the same directory revision.
-        column, value = ('contact_id', contact_id) if contact_id else ('account_id', account_id)
-        group = crm_identity.group_ids(crm_identity.aliases(db)['contacts' if contact_id else 'accounts'], value)
-        placeholders = ','.join('?' for _ in group)
+        where, values = '', ()
+        if contact_id or account_id:
+            column, value = ('contact_id', contact_id) if contact_id else ('account_id', account_id)
+            group = crm_identity.group_ids(crm_identity.aliases(db)['contacts' if contact_id else 'accounts'], value)
+            placeholders = ','.join('?' for _ in group)
+            where, values = f'WHERE r.{column} IN ({placeholders})', tuple(group)
         rows = db.execute(f"""SELECT r.lead_id,r.project_no,d.converted_at,d.snapshot,e.actor_id,e.actor_name
             FROM converted_leads r LEFT JOIN lead_conversion_details d ON d.lead_id=r.lead_id
             LEFT JOIN crm_events e ON e.lead_id=r.lead_id AND e.event_type='Converted'
-            WHERE r.{column} IN ({placeholders}) ORDER BY d.converted_at DESC,r.project_no,r.lead_id""", tuple(group))
+            {where} ORDER BY d.converted_at DESC,r.project_no,r.lead_id""", values)
         return [{key:val for key,val in {**dict(row),'snapshot':json.loads(row['snapshot']) if row['snapshot'] else None}.items()
                  if val is not None or key not in ('actor_id','actor_name')} for row in rows]
 
@@ -401,18 +414,25 @@ class ContactsStore:
                     raise crm_identity.IdentityConflict('Reopen the company to review links from merged records.')
             links = self._checked_links(db, ident, body["links"], link_catalog) if "links" in body else None
             if kind == "leads":
-                previous = db.execute("""SELECT l.contact_id,l.person_snapshot,l.site_address,l.status,c.account_id
+                previous = db.execute("""SELECT l.contact_id,l.person_snapshot,l.site_address,l.status,c.account_id,c.phone,c.email
                     FROM leads l JOIN contacts c ON c.id=l.contact_id WHERE l.id=?""", (ident,)).fetchone() if prior_id else None
                 person_id = body.get('contact_id', previous['contact_id'] if previous else '')
-                if previous and 'status' not in body['fields']:
-                    data['status']=previous['status']
+                prior_snapshot = json.loads(previous['person_snapshot']) if previous and previous['person_snapshot'] else {}
+                prior_stage = active_lead_status(previous['status'], prior_snapshot or previous) if previous else 'New'
+                if 'status' not in body['fields']:
+                    data['status'] = prior_stage
+                selected_contact = person_id and (not previous or person_id != previous['contact_id'])
+                data['status'] = active_lead_status(data['status'], data, selected_contact=selected_contact)
+                # Keep historic spellings on unrelated edits so the activity timeline
+                # only records a stage change when the board actually changes stage.
+                if previous and prior_stage == data['status'] == active_lead_status(previous['status'], data):
+                    data['status'] = previous['status']
                 if person_id:
                     self._id(db, 'contacts', person_id)
                     if person_id in mappings['contacts'] and not (previous and previous['contact_id'] == person_id):
                         raise crm_identity.IdentityConflict('This contact was merged. Select its current directory entry.')
                 elif person_id != '' and person_id is not None:
                     raise ValidationError('Choose a valid Contact.')
-                prior_snapshot = json.loads(previous['person_snapshot']) if previous and previous['person_snapshot'] else {}
                 if previous and not prior_snapshot and previous['account_id'] in mappings['accounts']:
                     # Preserve the raw employer behind a legacy lead's documented
                     # join fallback when saving an otherwise unchanged enquiry.

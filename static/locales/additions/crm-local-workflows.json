@@ -344,6 +344,21 @@
     "Nagtala",
     "Người ghi"
   ],
+  "Status at conversion": [
+    "전환 당시 상태",
+    "Katayuan noong na-convert",
+    "Trạng thái khi chuyển đổi"
+  ],
+  "Qualified": [
+    "적격",
+    "Kuwalipikado",
+    "Đủ điều kiện"
+  ],
+  "Disqualified": [
+    "부적격",
+    "Hindi kuwalipikado",
+    "Không đủ điều kiện"
+  ],
   "Contacted": [
     "연락함",
     "Nakontak na",

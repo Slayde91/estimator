@@ -10,11 +10,13 @@
   function button(name, fn) {
     const b=el('button',term(name));b.type='button';b.className='button secondary';b.addEventListener('click',fn);return b;
   }
-  function ownerSelect(record={}) {
+  function ownerSelect(record) {
     const control=el('select');
-    control.add(new Option(term('Unassigned'),''));
-    if(record.owner_id)control.add(new Option(record.owner_name || record.owner_id,record.owner_id));
-    control.value=record.owner_id || '';return control;
+    const creator = record?.id ? null : window.ClassifireAccess?.user;
+    const ownerId = creator?.id || record?.owner_id || '';
+    if (!creator) control.add(new Option(term('Unassigned'),''));
+    if (ownerId) control.add(new Option(creator?.name || record?.owner_name || ownerId, ownerId));
+    control.value=ownerId;return control;
   }
   function populate(control, staff) {
     const keep=control.value;
@@ -102,7 +104,7 @@
         // after another user's change cannot grant a stale form a fresh version.
         if(result.version===version()+1)setVersion(result.version);
         replay=null;
-        if(values.type!=='Task completed'){note.value='';due.value='';owner.value='';occurred.value='';}
+        if(values.type!=='Task completed'){note.value='';due.value='';owner.value=window.ClassifireAccess?.user?.id || '';occurred.value='';}
         await load();
       } catch(error) {if(isOpen())message.textContent=error.message;}
       finally {busy=false;controls.disabled=false;}

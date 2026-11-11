@@ -87,7 +87,7 @@
     control.classList.add("icon-only", "penetration-new-item-action");
     control.title = label; control.setAttribute("aria-label", label);
     window.CeasefireI18n?.attr(control, "title", label); window.CeasefireI18n?.attr(control, "aria-label", label);
-    const symbol = node("span", "button-symbol", "+"); symbol.setAttribute("aria-hidden", "true");
+    const symbol = node("span", "button-symbol add-symbol", "+"); symbol.setAttribute("aria-hidden", "true");
     control.append(symbol); return control;
   }
   function requireProject(source = null) {

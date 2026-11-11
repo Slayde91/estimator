@@ -38,6 +38,7 @@ class CrmActivityTests(TestCase):
         lead=directory['leads'][0]
         for kind in ('leads','contacts','accounts'):
             row=directory[kind][0]
+            self.assertEqual(row['owner_id'], self.owner['id'] if kind=='leads' else self.actor['id'])
             self.assertEqual(row['created_at'],row['updated_at'])
             own=[e for e in self.events(kind,row['id'])['events'] if e['record_id']==row['id']]
             self.assertEqual([e['event_type'] for e in own],['Created'])
@@ -47,9 +48,9 @@ class CrmActivityTests(TestCase):
         self.save('leads',self.fields,id=lead['id'],owner_id=self.owner['id'])
         self.assertEqual(self.store.list()['leads'][0],lead)
         self.assertEqual(len(self.events('leads',lead['id'])['events']),1)
-        self.save('leads',{**self.fields,'status':'Quoting'},id=lead['id'])
+        self.save('leads',{**self.fields,'status':'Disqualified'},id=lead['id'])
         newer=self.store.list()['leads'][0];entry=self.events('leads',lead['id'])['events'][0]
-        self.assertEqual((entry['event_type'],entry['detail']['previous_status'],entry['detail']['status']),('Stage changed','New','Quoting'))
+        self.assertEqual((entry['event_type'],entry['detail']['previous_status'],entry['detail']['status']),('Stage changed','Qualified','Disqualified'))
         self.assertEqual((newer['region'],newer['owner_id'],newer['created_at']),('Interstate',self.owner['id'],lead['created_at']))
         self.assertGreater(newer['updated_at'],newer['created_at'])
 
@@ -60,14 +61,14 @@ class CrmActivityTests(TestCase):
             db.execute('INSERT INTO contacts VALUES(?,?,?,?,?,?)',(contact,'Older buyer','123','','a@example.test',account))
             db.execute('INSERT INTO leads VALUES(?,?,?,?,?,?,NULL)',(ident,contact,'Site','','','Interstate'))
         before=self.store.list()
-        self.assertEqual(tuple(before['sales_stages']),LEAD_STATUSES)
-        self.assertIn('Interstate',before['statuses'])
+        self.assertEqual(tuple(before['statuses']),LEAD_STATUSES)
+        self.assertEqual(before['leads'][0]['status'],'Qualified')
         self.assertNotIn('created_at',before['leads'][0])
         self.assertEqual(self.events('leads',ident)['events'],[])
         fields={**self.fields,'name':'Older buyer','company':'A','site_address':'Site'}
         self.save('leads',fields,id=ident,region='Victoria')
         lead=self.store.list()['leads'][0]
-        self.assertEqual(lead['status'],'Interstate')
+        self.assertEqual(lead['status'],'Qualified')
         self.assertIn('updated_at',lead);self.assertNotIn('created_at',lead)
         body={'id':ident,'version':self.version()}
         receipt=self.store.convert(body,lambda _: {'project_no':'PN-001','path':'fixture/project.cf.json'},actor=self.actor)
@@ -77,8 +78,25 @@ class CrmActivityTests(TestCase):
         self.assertEqual(converted['actor_name'],self.actor['name'])
         events=self.events('leads',ident)['events']
         self.assertEqual([e['event_type'] for e in events],['Converted','Updated'])
-        self.assertEqual(events[0]['detail']['status'],'Interstate')
+        self.assertEqual(events[0]['detail']['status'],'Qualified')
         self.assertEqual(events[0]['detail']['project_no'],receipt['project_no'])
+
+    def test_board_displays_old_stages_and_receipts_without_rewriting_them(self):
+        account, person, archived = (str(uuid4()) for _ in range(3))
+        expected = {'Contacted':'Qualified', 'Quoting':'Qualified', 'Negotiating':'Qualified', 'Won':'Qualified',
+                    'Lost':'Disqualified', 'Not Applicable':'Disqualified', 'Assisting':'New', 'Interstate':'New'}
+        with self.store.connection() as db:
+            db.execute('INSERT INTO accounts VALUES(?,?,?,?,?)', (account, 'Client', 'client', '', ''))
+            db.execute('INSERT INTO contacts VALUES(?,?,?,?,?,?)', (person, 'Buyer', '', '', '', account))
+            db.executemany('INSERT INTO leads VALUES(?,?,?,?,?,?,NULL)',
+                           [(str(uuid4()), person, '', '', old, old) for old in expected])
+            db.execute('INSERT INTO converted_leads VALUES(?,?,?,?,?)', (archived, person, account, 'PN-OLD', 'old.cf.json'))
+        board = self.store.list(lead_board=True)
+        self.assertEqual({lead['description']:lead['status'] for lead in board['leads']}, expected)
+        receipt, = board['converted_leads']
+        self.assertEqual((receipt['lead_id'], receipt['project_no'], receipt['snapshot']), (archived, 'PN-OLD', None))
+        with self.store.connection() as db:
+            self.assertEqual(dict(db.execute('SELECT description,status FROM leads')), {old:old for old in expected})
 
     def test_authored_events_agree_on_owner_customer_and_person_and_retry_without_duplicates(self):
         person=self.save('contacts',{**{key:self.fields[key] for key in ('name','email','phone')},'company':'Employer'})['contact']
@@ -144,6 +162,24 @@ class CrmActivityTests(TestCase):
         self.store.import_rows('contacts',[(2,fields)],self.version(),actor=self.actor)
         self.assertEqual(after['contacts'],self.store.list()['contacts'])
         self.assertIn('created_at',after['contacts'][0])
+        for kind in ('contacts','accounts'):
+            self.assertEqual(after[kind][0]['owner_id'],self.actor['id'])
+
+    def test_creator_is_default_for_new_records_and_activities_only(self):
+        card=self.save('accounts',{'company':'Original customer'})['account']
+        directory=self.store.list()
+        self.assertEqual(directory['accounts'][0]['owner_id'],self.actor['id'])
+        change={'version':directory['version'],'fields':{'company':'Renamed customer'},'id':card['id']}
+        self.store.save('accounts',change,actor=self.owner)
+        self.assertEqual(self.store.list()['accounts'][0]['owner_id'],self.actor['id'])
+        self.store.save('accounts',{**change,'version':self.version(),'owner_id':''},actor=self.owner)
+        self.assertFalse(self.store.list()['accounts'][0].get('owner_id'))
+        self.log({'id':card['id'],'kind':'accounts','version':self.version(),'type':'Note',
+                  'text':'Spoke with client','request_id':str(uuid4())},actor=self.owner)
+        self.assertEqual(self.events('accounts',card['id'])['events'][0]['owner_id'],self.owner['id'])
+        self.store.save('accounts',{'version':self.version(),'fields':{'company':'Anonymous customer'}})
+        anonymous=next(a for a in self.store.list()['accounts'] if a['company']=='Anonymous customer')
+        self.assertFalse(anonymous.get('owner_id'))
 
     def test_merge_and_undo_project_original_events_and_last_interaction_without_reassigning_them(self):
         from estimator.crm_identity import IdentityService

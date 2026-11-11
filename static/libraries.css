@@ -1,6 +1,5 @@
 .library-choices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:28px}
 .library-child[hidden]{display:none!important}
-.library-child>.page-heading h2{font-size:28px}
 .library-controls{display:flex;align-items:flex-end;gap:16px;margin-bottom:16px}
 .library-technical-editor[hidden]{display:none!important}
 .library-technical-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:18px}

@@ -29,9 +29,9 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
   await page.locator('#contacts-navigation-toggle').click();const host=page.locator('#contacts-root');
   await host.getByRole('button',{name:'New Lead',exact:true}).click();let dialog=page.getByRole('dialog',{name:'New Lead',exact:true});
   await dialog.getByLabel('Name',{exact:true}).fill('Builder contact');await dialog.getByLabel('Company',{exact:true}).fill('Builder');
-  await dialog.getByLabel('Region',{exact:true}).fill('Northern NSW');await dialog.getByLabel('Owner',{exact:true}).selectOption({label:name});
-  await dialog.getByLabel('Status',{exact:true}).selectOption('Negotiating');await dialog.getByRole('button',{name:'Save',exact:true}).click();
-  const card=host.locator('[data-status="Negotiating"] .project-kanban-card');await expect(card).toContainText('Northern NSW');await expect(card).toContainText(name);
+  await dialog.getByLabel('Region',{exact:true}).fill('Northern NSW');await expect(dialog.getByLabel('Owner',{exact:true})).toHaveValue(staff[0].id);
+  await expect(dialog.getByLabel('Status',{exact:true})).toHaveValue('New');await dialog.getByRole('button',{name:'Save',exact:true}).click();
+  const card=host.locator('[data-status="New"] .project-kanban-card');await expect(card).toContainText('Northern NSW');await expect(card).toContainText(name);
   await card.getByRole('button',{name:'Builder contact',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Edit',exact:true}).click();
   dialog=page.getByRole('dialog',{name:'Edit Lead',exact:true});
   await dialog.locator('.crm-timeline > summary').click();const timeline=dialog.locator('.crm-timeline');
@@ -42,14 +42,14 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
   await expect(timeline.locator('.crm-event-list')).toContainText('Discussed access times');
   await timeline.getByLabel('Activity type',{exact:true}).selectOption('Task');
   await timeline.getByLabel('Activity details',{exact:true}).fill('Confirm site access');
-  await timeline.getByLabel('Activity owner',{exact:true}).selectOption(staff[0].id);
+  await expect(timeline.getByLabel('Activity owner',{exact:true})).toHaveValue(staff[0].id);
   await timeline.getByLabel('Due date',{exact:true}).fill('2027-02-11');
   await timeline.getByRole('button',{name:'Log activity',exact:true}).click();
   const task=timeline.locator('.crm-event-list li').filter({hasText:'Confirm site access'});
   await expect(task).toContainText('2027-02-11');await task.getByRole('button',{name:'Complete task',exact:true}).click();
   await expect(task.getByRole('button')).toHaveCount(0);
-  await dialog.getByLabel('Status',{exact:true}).selectOption('Won');await dialog.getByRole('button',{name:'Save',exact:true}).click();
-  await expect(host.locator('[data-status="Won"] article')).toContainText('Builder contact');
+  await dialog.getByLabel('Status',{exact:true}).selectOption('Disqualified');await dialog.getByRole('button',{name:'Save',exact:true}).click();
+  await expect(host.locator('[data-status="Disqualified"] article')).toContainText('Builder contact');
   const dir=await api('/api/contacts/directory'),lead=dir.leads[0];
   assert.equal(lead.owner_id,staff[0].id);assert.ok(lead.last_interaction_at);assert.equal(lead.region,'Northern NSW');
   for(const [kind,id] of [['leads',lead.id],['accounts',lead.account_id],['contacts',lead.contact_id]]){

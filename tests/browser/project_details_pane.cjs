@@ -61,7 +61,7 @@ const ready = new Promise((resolve,reject)=>{
   assert.deepEqual(plusStyles[0],plusStyles[1]);
   assert.equal(plusStyles[0].backgroundColor,'rgba(0, 0, 0, 0)');
   await expect(page.locator('#project-tools')).toBeHidden();
-  const symbols=await page.locator('#project-estimate-new .project-add-symbol,#project-account-new .project-add-symbol').evaluateAll(nodes=>nodes.map(node=>node.innerHTML.trim()));
+  const symbols=await page.locator('#project-estimate-new .add-symbol,#project-account-new .add-symbol').evaluateAll(nodes=>nodes.map(node=>node.innerHTML.trim()));
   assert.equal(symbols.length,2);assert.equal(symbols[0],symbols[1]);
   const firstRow=toggle(first).locator('xpath=ancestor::article');
   await firstRow.locator('summary').click();await firstRow.getByRole('button',{name:'Browse files',exact:true}).click();await idle();
@@ -84,7 +84,7 @@ const ready = new Promise((resolve,reject)=>{
   const estimateControls=page.locator('.project-estimate-controls');
   await expect(estimateControls.locator(':scope > .calculator-document-menu')).toHaveCount(1);
   await expect(estimateControls.locator('#project-estimate-create,#project-estimate-quote,#project-estimate-swms')).toHaveCount(0);
-  const plusBox=await page.locator('#project-estimate-new').evaluate(button=>{const b=button.getBoundingClientRect(),s=button.querySelector('svg').getBoundingClientRect();return {offset:Math.abs((b.top+b.bottom)/2-(s.top+s.bottom)/2),left:b.left,select:document.querySelector('#project-estimate-select').getBoundingClientRect().left};});
+  const plusBox=await page.locator('#project-estimate-new').evaluate(button=>{const b=button.getBoundingClientRect(),s=button.querySelector('.add-symbol').getBoundingClientRect();return {offset:Math.abs((b.top+b.bottom)/2-(s.top+s.bottom)/2),left:b.left,select:document.querySelector('#project-estimate-select').getBoundingClientRect().left};});
   assert.ok(plusBox.offset<=1.1,JSON.stringify(plusBox));assert.ok(plusBox.left<plusBox.select+5);
   await openProjectSection(page,'quotes');
   await toggle(first).click();await idle();

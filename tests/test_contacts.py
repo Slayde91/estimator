@@ -56,18 +56,19 @@ class DirectoryTests(unittest.TestCase):
 
     def test_lead_is_linked_to_person_and_company_through_updates(self):
         directory = self.request("directory")
-        self.assertEqual(directory["statuses"], ["New", "Contacted", "Qualified", "Quoting", "Negotiating", "Won", "Lost"])
+        self.assertEqual(directory["statuses"], ["New", "Qualified", "Disqualified", "Converted"])
         fields = {"name": "Morgan", "phone": "0401", "title": "Foreman", "email": "morgan@example.test",
                   "company": "ACME", "site_address": "First site", "billing_address": "HQ", "description": "Fitout"}
         result = self.request("leads", {"fields": fields, "version": directory["version"]})
         current = self.request("directory")
         contact, account, lead = current["contacts"][0], current["accounts"][0], current["leads"][0]
         self.assertEqual((lead["id"], lead["status"], lead["contact_id"], contact["account_id"]),
-                         (result["id"], "New", contact["id"], account["id"]))
+                         (result["id"], "Qualified", contact["id"], account["id"]))
         self.assertEqual(account["billing_address"], "HQ")
         for key in ["name", "phone", "company", "title", "email"]:
             self.assertEqual(fields[key], contact[key])
-        self.request("leads", {"id": lead["id"], "fields": {**fields, "status": "Assisting"}, "version": current["version"]})
+        self.request("leads", {"id": lead["id"], "fields": {**fields, "status": "Converted"}, "version": current["version"]}, 400)
+        self.request("leads", {"id": lead["id"], "fields": {**fields, "status": "Disqualified"}, "version": current["version"]})
         self.request("leads", {"id": lead["id"], "fields": fields, "version": current["version"]}, 409)
         self.request("leads", {"fields": {**fields, "company": "Acme", "name": "Alex"},
                                "version": self.request("directory")["version"]})
@@ -75,7 +76,16 @@ class DirectoryTests(unittest.TestCase):
         self.assertEqual(len(latest["accounts"]), 1)
         self.assertEqual(len(latest["contacts"]), 2)
         self.assertEqual({p["account_id"] for p in latest["contacts"]}, {account["id"]})
-        self.assertEqual(next(l for l in latest["leads"] if l["id"] == result["id"])["status"], "Assisting")
+        self.assertEqual(next(l for l in latest["leads"] if l["id"] == result["id"])["status"], "Disqualified")
+
+    def test_new_lead_with_an_explicit_directory_contact_without_phone_or_email_qualifies(self):
+        self.upload("contacts", [["Existing person", "", "Existing company", "", ""]])
+        directory = self.request("directory")
+        person, = directory['contacts']
+        self.request("leads", {"fields": {"name": person['name'], "company": person['company']},
+                               "contact_id": person['id'], "version": directory['version']})
+        lead, = self.request("directory")['leads']
+        self.assertEqual((lead['status'], lead['contact_id']), ('Qualified', person['id']))
 
     def test_possible_contact_duplicate_requires_review_without_partial_writes(self):
         fields = {"name": "Jo García", "phone": "0400", "company": "Example", "email": "josé@example.test"}
@@ -131,6 +141,9 @@ class DirectoryTests(unittest.TestCase):
         self.assertIn("Description: Install",project["estimate"]["measurements"])
         current = self.request("directory")
         self.assertFalse(current["leads"])
+        converted, = self.request("directory?board=1")["converted_leads"]
+        self.assertEqual((converted["lead_id"], converted["project_no"], converted["snapshot"]),
+                         (lead["id"], saved["project_no"], lead))
         self.assertEqual(current["contacts"][0]["account_id"],current["accounts"][0]["id"])
         # Lead conversion intentionally has no certificate/commercial workspace;
         # its saved file must still be a valid existing Project link target.

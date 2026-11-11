@@ -54,7 +54,7 @@ class PurchaseOrderPdfFormattingTests(unittest.TestCase):
             self.assertNotIn('Field Details', text)
             for label in ('Subtotal', 'GST (10%)', 'Grand total', 'Rejection reason', 'Verification method,'):
                 self.assertIn(label, text)
-            tokens = {'Customer', 'Supplier', 'Subtotal', 'GST', 'Grand', 'Approval', 'Rejection', 'Verification'}
+            tokens = {'Supplier', 'Contact', 'Subtotal', 'GST', 'Grand', 'Approval', 'Rejection', 'Verification'}
             found = set()
             signer_headers = {'Requested', 'Approved', 'Sent', 'Verified', 'Name'}
             seen_headers = set()

@@ -10,7 +10,7 @@ const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtim
 fs.mkdirSync(output, { recursive: true });
 const assets = ['static/index.html', 'static/app.js', 'static/styles.css', 'static/calculators.css', 'static/takeoffs.js', 'static/takeoff-physical.js'];
 const assetHashes = Object.fromEntries(assets.map(name => [name, crypto.createHash('sha256').update(fs.readFileSync(path.join(root, name))).digest('hex')]));
-const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'fixtures.py'), '--directory', output], { cwd: root, windowsHide: true });
+const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'project_library_fixture.py'), '--directory', output], { cwd: root, windowsHide: true });
 let logs = '', browser, page;
 server.stderr.on('data', value => { logs += value; });
 const ready = new Promise((resolve, reject) => {
@@ -227,20 +227,18 @@ async function inspectHeader(width) {
   for (const kind of ['pricing', 'penetration', 'technical']) {
     await chooseLibrary(page, kind); await expect(page.locator(`#library-${kind}`)).toBeVisible();
     if(kind==='pricing'){
-      await expect(page.locator('#pricing-heading')).toHaveText('Pricing Library');await expect(page.locator('#pricing-heading')).toHaveCSS('font-size','28px');
+      await expect(page.locator('#pricing-heading')).toHaveText('Pricing Library');await expect(page.locator('#pricing-heading')).toHaveCSS('font-size','18px');
       await expect(page.locator('#library-pricing .eyebrow')).toHaveCount(0);
       assert.ok(await page.locator('#library-pricing .table-scroll').evaluate(el=>el.scrollWidth<=el.clientWidth+1),'Pricing columns fit desktop width');
     }
     if(kind==='technical')await expect(page.locator('[data-library-summary="technical"]')).toBeVisible();
     if(kind==='pricing')await expect(page.locator('#pricing-heading-slot > [data-library-heading="pricing"] .subtitle')).toHaveCount(0);
     else {
-      const heading=page.locator(`#pricing-heading-slot [data-library-heading="${kind}"]`), image=heading.locator('.library-heading-art-slot img');
-      await expect(image).toHaveAttribute('src',`/header-${kind==='penetration'?'firestopping':'technical'}-library.png`);
-      assert.ok(await image.evaluate(el=>el.complete&&el.naturalWidth>0));
+      const heading=page.locator(`#pricing-heading-slot [data-library-heading="${kind}"]`);
+      await expect(heading.locator('img')).toHaveCount(0);
       for(const width of [1384,825,390]) {
         await page.setViewportSize({width,height:1000});
-        const bounds=await heading.boundingBox(), art=await image.boundingBox(), title=await heading.locator('h1,h2').boundingBox();
-        assert.ok(art.x>=title.x+title.width&&art.x+art.width<=bounds.x+bounds.width+1,'Library artwork sits beside the heading without overlap');
+        await expect(heading.getByRole('heading')).toHaveCSS('font-size','18px');
         assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
         await page.screenshot({path:path.join(output,`library-${kind}-${width}.png`)});
       }

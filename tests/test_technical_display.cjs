@@ -3,6 +3,17 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const detail = require("../static/library-detail-text.js");
+for (const entry of require("./fixtures/technical-reading-display.json")) {
+  assert.equal(detail.readable(entry.source), entry.display, entry.source);
+  assert.equal(detail.readable(entry.display), entry.display);
+  assert.deepEqual(entry.source.match(/\d+/g), entry.display.match(/\d+/g));
+}
+const sourceReference = "With FyreFLEX per Table 15 (see Figure 6).";
+for (const label of ["Installation Details", "Seal Depth / Fillet Size"]) {
+  assert.equal(detail.fieldText(label, sourceReference), sourceReference);
+}
+assert.equal(detail.fieldText("Service Wrap", sourceReference), detail.compact(sourceReference));
+assert.equal(detail.fieldText("Service Wrap", "No wrap;one Unicorn collar layer"), "No wrap; one Unicorn collar layer");
 for (const entry of require('./fixtures/technical-page-display.json')) {
   assert.equal(detail.compact(entry.source), entry.display, entry.source);
   assert.equal(detail.compact(entry.display), entry.display, 'Page locator cleanup is stable');

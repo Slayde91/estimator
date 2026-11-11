@@ -236,9 +236,7 @@
     const controls = [];
     const prerequisites = signingSteps[draft.kind].slice(0, signingSteps[draft.kind].indexOf(step))
       .filter(prior => !legacy || prior.key !== 'details_by');
-    const missingSigners = prerequisites.filter(({key}) =>
-      !requirementPresent({path:'signatures.'+key,type:'signature'},fields) ||
-      !requirementPresent({path:'order.'+key},fields) || !fields.order[signatureDates[key]]);
+    const missingSigners = prerequisites.filter(({key}) => !signerComplete(fields,key));
     const missingProject = specs.filter(spec => ['details.project_no','details.site_address'].includes(spec.path) && !requirementPresent(spec, fields));
     const blockers = [];
     function instruction(source, labels) {
@@ -1331,6 +1329,14 @@
     if (!step) return [];
     return step.next || [...new Set(Object.values(step.outcomes))];
   }
+  function signerComplete(fields, key) {
+    const date = fields.order[signatureDates[key]];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date.startsWith('0000')) return false;
+    const parsed = new Date(date + 'T00:00:00Z');
+    return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0,10) === date &&
+      requirementPresent({path:'signatures.'+key,type:'signature'}, fields) &&
+      requirementPresent({path:'order.'+key}, fields);
+  }
   function validateSigningStep(editor, key, clearing = false) {
     const {kind,fields}=editor.document, steps=signingSteps[kind].map(step=>step.key), index=steps.indexOf(key);
     const signed=step=>Boolean(fields.signatures?.[step]);
@@ -1338,7 +1344,7 @@
       throw new Error('Clear the later signatures before changing this signature.');
     if (clearing) return;
     const predecessors=steps.slice(0,index).filter(step=>step!=='details_by' || !editor.legacyDetailsSignoff);
-    if (predecessors.some(step=>!signed(step) || !fields.order[step]?.trim() || !fields.order[signatureDates[step]]))
+    if (predecessors.some(step=>!signerComplete(fields,step)))
       throw new Error('Sign the preceding sections first.');
     if (index>steps.indexOf('reviewed_by') && fields.order.approval!=='Approved')
       throw new Error('An approved review is required before signing this section.');
@@ -1511,6 +1517,9 @@
     if (!source || !source.file_id.startsWith("local-")) applyProjectDetails(fields, commercialProjectDetails(source));
     const projectNo = boundWorkOrderProjectNumber({document:proposed, source});
     if (projectNo) fields.details.project_no = projectNo;
+    if (proposed.kind === 'work_order' && !fields.order.estimated_cost) {
+      fields.order.estimated_cost = issuedQuoteCost(fields.order, source);
+    }
     const defaults = await signingDefaults(fields.order, step.key);
     if (!current()) return;
     const values = await boardSigningDialog(proposed, source, step, target, defaults, state.cardIntent);
@@ -1874,6 +1883,18 @@
       repaint();loadDefaults();
     };
   }
+  function issuedQuoteCost(order, source, linkedQuote) {
+    if (!order.quote_id) return '';
+    let reference = order.quote_reference;
+    if (!reference) {
+      const quotes = linkedQuote ? [linkedQuote] : source ? source.related : state.model.documents;
+      const projectNo = commercialProjectDetails(source).project_no.trim();
+      reference = quotes?.find(doc => doc.id === order.quote_id && doc.kind === 'quote'
+        && doc.fields.details.project_no.trim() === projectNo)?.last_number;
+    }
+    const totals = source ? source.quoteTotals : state.model.quote_totals;
+    return totals?.[order.quote_id]?.[reference] ?? '';
+  }
   function renderOrderFields(form, fields) {
     const isWorkOrder = state.kind === "work_order";
     const linkKey = isWorkOrder ? "quote_id" : "work_order_id";
@@ -1883,16 +1904,14 @@
       : item.kind === "work_order" && item.fields.order.work_order_reference);
     let costControl;
     let costEdited = Boolean(fields.order.estimated_cost);
-    const quoteTotals = state.editor.source?.quoteTotals || state.model.quote_totals;
     const trackingHosts = [];
-    const applyQuoteCost = (id, number) => {
+    const applyQuoteCost = () => {
       if (costEdited) return;
-      fields.order.estimated_cost = quoteTotals?.[id]?.[number] || "";
+      fields.order.estimated_cost = issuedQuoteCost(fields.order, state.editor.source, state.editor.linkedQuote);
       if (costControl) costControl.value = fields.order.estimated_cost;
     };
     if (isWorkOrder) {
-      const quote = choices.find(item => item.id === fields.order.quote_id);
-      applyQuoteCost(fields.order.quote_id, fields.order.quote_reference || quote?.last_number);
+      applyQuoteCost();
       initializeWorkTracking(fields,state.editor.source);
     }
     const linked = node("select");
@@ -1941,7 +1960,7 @@
         const linkedNumber=boundWorkOrderProjectNumber(state.editor) || commercialProjectDetails(state.editor.source).project_no;
         fields.details.project_no=linkedNumber;
         const number=root()?.querySelector('[data-project-detail="project_no"]');if(number)number.value=linkedNumber;
-        applyQuoteCost(linked.value, fields.order.quote_reference);
+        applyQuoteCost();
       } else {
         fields.order.work_order_reference = selected?.fields.order.work_order_reference || "";
       }

@@ -271,6 +271,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await expect(column(work,'In progress').locator('.commercial-card')).toHaveCount(1);
   const approved=currentWork();
   assert.equal(approved.status,'In progress');
+  assert.equal(approved.fields.order.estimated_cost,'125.25');
   assert.equal(approved.fields.order.client_approved_by,'Fixture client approver');
   assert.equal(approved.fields.order.client_approval_date,'2026-11-11');
   assert.ok(approved.fields.signatures.client_approved_by.strokes.length);
@@ -472,12 +473,14 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
     await card.locator('summary').click();
     await card.getByRole('combobox',{name:'Move to'}).selectOption(target);
     await expect(signDialog).toBeVisible();
+    if(route==='work-orders') await expect(signDialog.getByLabel('Estimated cost (AUD)',{exact:true})).toHaveCount(0);
     if(route==='purchase-orders') await signDialog.getByLabel('Approval',{exact:true}).selectOption('Rejected');
     await signDialog.getByLabel('Name',{exact:true}).fill('Register signer');
     await signDialog.getByRole('button',{name:'Sign and move',exact:true}).click();
     await expect(host.locator(`.commercial-column[aria-label="${target}"] .commercial-card`)).toHaveCount(1);
     const signedDocument=owner().find(d=>d.fields.title===title);
     assert.equal(signedDocument.status,target);
+    if(route==='work-orders') assert.equal(signedDocument.fields.order.estimated_cost,originalTotal);
     assert.equal(signedDocument.fields.order[signer],'Register signer');
     assert.ok(signedDocument.fields.signatures[signer].strokes.length);
     assert.deepEqual(JSON.parse(fs.readFileSync(info.project,'utf8')).commercial_documents.documents,saved.commercial_documents.documents);

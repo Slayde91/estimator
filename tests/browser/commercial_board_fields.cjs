@@ -30,6 +30,7 @@ async function ready() {
     !window.CeasefireProject.hasPendingOperation() && !document.querySelector('[aria-busy="true"]'));
 }
 async function saveDraft(pane, boardName) {
+  await ready();
   await button(pane.locator('.commercial-editor-actions'), 'Save').click();
   await expect(pane.locator('.commercial-message')).toContainText('Document saved.');
   await button(pane, 'Back to ' + boardName).click();
@@ -100,12 +101,15 @@ async function test() {
   const issued = await issuing;
   assert.equal(issued.status(), 200, await issued.text());
   await expect(quote.locator('.commercial-message')).toContainText('PDF saved');
-  await saveDraft(quote, 'Quotes');
+  await button(quote, 'Back to Quotes').click();
 
   await openProjectSection(page, 'work-orders');
   const work = page.locator('#commercial-work-order-root');
   await button(work, 'New Work Order').click();
-  await field(work, 'Linked Quote').selectOption(order('quote').id);
+  const availableQuotes = field(work, 'Linked Quote');
+  const issuedChoices = availableQuotes.locator('option:not([value=""])');
+  await expect(issuedChoices).toHaveCount(1);
+  await availableQuotes.selectOption(await issuedChoices.getAttribute('value'));
   await saveDraft(work, 'Work Orders');
   const draft = order('work_order');
   const initialCount = await signatureCount();

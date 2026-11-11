@@ -157,6 +157,10 @@ def _archive_length(metadata, sizes):
     return len(metadata) + sum(sizes.values()) + 22 + sum(76 + 2 * len(name) for name in names)
 
 
+class ProjectWorkspaceUnavailable(ValidationError):
+    """A validly shaped runtime capability expired or was discarded."""
+
+
 class CertificationProjects:
     def __init__(self, legacy):
         self.legacy = legacy
@@ -170,7 +174,7 @@ class CertificationProjects:
         with self._lock:
             current = self._workspaces.get(token)
         if current is None:
-            raise ValidationError('This certificate workspace is unavailable. Reopen its saved project.')
+            raise ProjectWorkspaceUnavailable('This certificate workspace is unavailable. Reopen its saved project.')
         return current
 
     def service(self, token):

@@ -70,7 +70,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   await expect(panel.getByText('Bids with the same site address are linked automatically.',{exact:true})).toBeVisible();
   const persisted=await read('/api/crm/project-participants?project='+encodeURIComponent(selected.id));
   assert.equal(persisted.site_id,site.id);assert.equal(persisted.version,manual.version);
-  await expect(panel.getByRole('heading',{name:'Other bids linked to this site'})).toBeVisible();
+  await expect(panel.getByRole('heading',{name:'Other bids at this address'})).toBeVisible();
   await expect(panel.locator('li').filter({hasText:'Builder A'})).toHaveCount(1);
   assert.deepEqual(fs.readFileSync(info.project),original);assert.deepEqual(fs.readFileSync(copyPath),copyBytes);
   // Edit a saved bid with a legacy explicit site and keep both valid relationships.
@@ -132,6 +132,14 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   if(!await panel.evaluate(el=>el.open))await panel.locator('summary').first().click();
   await expect(panel.getByLabel('Search site addresses',{exact:true})).toHaveValue(newAddress);
   await expect(panel.locator('[data-linked-site-id]').filter({hasText:newAddress})).toHaveCount(1);
+  assert.equal(afterAddressEdit.linked_bids.length,0);
+  assert.deepEqual(afterAddressEdit.other_site_bids.map(item=>item.client),['Builder A']);
+  await expect(panel.getByRole('heading',{name:'Other bids at this address'})).toHaveCount(0);
+  const recordedLink=panel.getByText('Other recorded site links',{exact:true});
+  const earlierBid=panel.getByText(/PN-.*Builder A.*42 Example Lane/);
+  await expect(recordedLink).toBeVisible();await expect(earlierBid).toBeHidden();
+  await recordedLink.click();await expect(earlierBid).toBeVisible();
+  await recordedLink.click();await expect(earlierBid).toBeHidden();
   const search=panel.getByLabel('Search site addresses',{exact:true});
   await search.fill('42 Example Lane');
   await expect(panel.locator(`[data-site-id="${site.id}"]`)).toBeVisible();
@@ -174,14 +182,18 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   if(!await panel.evaluate(el=>el.open))await panel.locator('summary').first().click();
   await expect(panel.locator('[data-linked-site-id]')).toHaveText('18 Current Project Way');
   assert.deepEqual(siteWrites.map(body=>body.site_id),[null,null],'Only user-requested participant changes sent writes');
-  // Older servers return a single site while a browser updates.
+  // Older servers can mix current and historical addresses in one peer list.
   await page.route('**/api/crm/project-participants?*',async route=>{
-    const response=await route.fetch(), data=await response.json();delete data.linked_sites;
+    const response=await route.fetch(), data=await response.json();delete data.linked_sites;delete data.other_site_bids;
+    data.linked_bids=[{project_no:'PN-older',client:'Earlier bid',site_address:'42 Example Lane'}];
     await route.fulfill({response,json:data});
   });
   const legacyRefresh=page.waitForResponse(r=>r.request().method()==='GET' && new URL(r.url()).pathname==='/api/crm/project-participants');
   await panel.getByRole('button',{name:'Refresh',exact:true}).click();await legacyRefresh;
   await expect(panel.locator('[data-linked-site-id]')).toHaveText('18 Current Project Way');
+  await expect(panel.getByRole('heading',{name:'Other bids at this address'})).toHaveCount(0);
+  await expect(panel.getByText('Other recorded site links',{exact:true})).toBeVisible();
+  await expect(panel.getByText(/PN-older · Earlier bid/)).toBeHidden();
   assert.deepEqual(errors,[]);
   fs.writeFileSync(path.join(folder,'result.json'),JSON.stringify({passed:true,checks:['Automatic site for the first project at an address','Unique named site reused','No Link button or automatic writes','Exact-address peers','Permission denial preserves edits and previous links','Successful retry permits continued editing during list refresh','Current and selected projects follow saved address changes','Historical explicit site retained alongside the current address','Distinct bid files and unavailable explicit sources remain recorded'],timings,output:folder},null,2));
   console.log('PASS automatic project sites, exact-address peers, legacy links, edits, permission recovery and mobile layout: '+folder);

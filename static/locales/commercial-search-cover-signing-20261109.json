@@ -54,5 +54,19 @@
     "Seleccione Entrega o Recogida como método de entrega.",
     "اختر التوصيل أو الاستلام لطريقة التسليم.",
     "เลือกจัดส่งหรือรับสินค้าเป็นวิธีการรับสินค้า"
+  ],
+  "Reopen the current project to create a new commercial document. Your open edits have been kept.": [
+    "请重新打开当前项目以创建新的商务单据。您当前的修改已保留。",
+    "नया व्यावसायिक दस्तावेज़ बनाने के लिए मौजूदा प्रोजेक्ट फिर से खोलें। आपके खुले संपादन सुरक्षित हैं।",
+    "Vuelva a abrir el proyecto actual para crear un documento comercial. Se han conservado los cambios que tenía abiertos.",
+    "أعد فتح المشروع الحالي لإنشاء مستند تجاري جديد. تم الاحتفاظ بالتعديلات المفتوحة.",
+    "เปิดโครงการปัจจุบันอีกครั้งเพื่อสร้างเอกสารธุรกิจใหม่ การแก้ไขที่เปิดค้างไว้ยังคงอยู่"
+  ],
+  "The current project session has expired. Reopen the project before continuing this document edit.": [
+    "当前项目会话已过期。请重新打开项目，然后继续编辑此单据。",
+    "मौजूदा प्रोजेक्ट का सत्र समाप्त हो गया है। इस दस्तावेज़ का संपादन जारी रखने से पहले प्रोजेक्ट फिर से खोलें।",
+    "La sesión del proyecto ha caducado. Vuelva a abrir el proyecto para seguir editando este documento.",
+    "انتهت جلسة المشروع الحالية. أعد فتح المشروع قبل متابعة تعديل هذا المستند.",
+    "เซสชันของโครงการปัจจุบันหมดอายุแล้ว เปิดโครงการอีกครั้งก่อนแก้ไขเอกสารนี้ต่อ"
   ]
 }

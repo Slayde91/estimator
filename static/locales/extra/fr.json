@@ -3504,5 +3504,9 @@
   "Save this Quote before creating a Work Order.": "Enregistrez ce devis avant de créer un ordre de travail.",
   "Linked Sites": "Chantiers liés",
   "Participants and linked sites": "Participants et chantiers liés",
-  "No linked sites.": "Aucun chantier lié."
+  "No linked sites.": "Aucun chantier lié.",
+  "Other recorded site links": "Autres liens de chantier enregistrés",
+  "Other bids at this address": "Autres offres à cette adresse",
+  "Reopen the current project to create a new commercial document. Your open edits have been kept.": "Rouvrez le projet en cours pour créer un nouveau document commercial. Vos modifications en cours sont conservées.",
+  "The current project session has expired. Reopen the project before continuing this document edit.": "La session du projet a expiré. Rouvrez le projet pour continuer à modifier ce document."
 }

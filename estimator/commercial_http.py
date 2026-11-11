@@ -5,8 +5,10 @@ import json
 from urllib.parse import parse_qs, urlsplit
 
 from .catalog import ValidationError, effective_catalog
+from .certification_projects import ProjectWorkspaceUnavailable
 from .crm_identity import DuplicateReview
-from .commercial_documents import KINDS, CommercialConflict, default_fields, linked_estimate_ids, project_document_details, apply_project_document_details
+from .commercial_documents import KINDS, STATUSES, CommercialConflict, default_fields, linked_estimate_ids, project_document_details, apply_project_document_details
+from .commercial_requirements import requirements
 from .unfiled_commercial import quote_context
 
 
@@ -70,10 +72,18 @@ class CommercialHTTP:
                     handler.send_payload(200, data, 'application/octet-stream',
                                          {'Content-Disposition': "attachment; filename*=UTF-8''" + quote(item['name'], safe='')})
                     return True
+                # Saved sources are the same authorized files/retained documents
+                # that the board lists from a fresh tab. They need no active
+                # estimate or certificate. Mutations keep their source/revision checks.
+                if action == 'register' and self.saved and query in ({}, {'refresh': ['1']}):
+                    result = self.saved.projects.commercial_register(refresh='refresh' in query)
+                    handler.send_payload(200, {**result, 'statuses': STATUSES, 'requirements': requirements(STATUSES)})
+                    return True
                 option = {'register': 'refresh', 'state': 'compact'}.get(action)
-                if set(query) != {'workspace'} and not (option and set(query) == {'workspace', option} and query[option] == ['1']):
+                unscoped_products = action == 'supplier-products' and not query
+                if not unscoped_products and set(query) != {'workspace'} and not (option and set(query) == {'workspace', option} and query[option] == ['1']):
                     raise ValidationError('Choose the current project document workspace.')
-                workspace = query['workspace'][0]
+                workspace = None if unscoped_products else query['workspace'][0]
                 if action == 'register' and self.saved:
                     self.service.certifications.project_id(workspace)
                     result = self.saved.projects.commercial_register(refresh='refresh' in query, active_workspace=workspace)
@@ -88,7 +98,8 @@ class CommercialHTTP:
                 elif action == 'snapshot':
                     result = self.service.capture(workspace)
                 elif action == 'supplier-products' and self.pricing:
-                    self.service.certifications.project_id(workspace)
+                    if workspace is not None:
+                        self.service.certifications.project_id(workspace)
                     catalog = effective_catalog(self.pricing())
                     items = [*catalog['inventory'], *(row for rows in catalog['rate_groups'].values() for row in rows if not row.get('inventory_id'))]
                     result = {'products': [{'label': item.get('product_service') or item.get('display_name') or item['name'],
@@ -135,6 +146,9 @@ class CommercialHTTP:
             handler.send_payload(409, {'error':str(error),'billing_review':error.decision})
         except CommercialConflict as error:
             handler.send_payload(409, {'error': str(error)})
+        except ProjectWorkspaceUnavailable:
+            handler.send_payload(400, {'code': 'project_workspace_unavailable',
+                                      'error': 'The current project session has expired. Reopen the project before continuing this document edit.'})
         except (ValidationError, KeyError, TypeError) as error:
             message = str(error) if isinstance(error, ValidationError) else 'Commercial document input is incomplete.'
             handler.send_payload(400, {'error': message})

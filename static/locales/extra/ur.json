@@ -3504,5 +3504,9 @@
   "Save this Quote before creating a Work Order.": "ورک آرڈر بنانے سے پہلے یہ کوٹیشن محفوظ کریں۔",
   "Linked Sites": "منسلک مقامات",
   "Participants and linked sites": "شرکاء اور منسلک مقامات",
-  "No linked sites.": "کوئی مقام منسلک نہیں ہے۔"
+  "No linked sites.": "کوئی مقام منسلک نہیں ہے۔",
+  "Other recorded site links": "دیگر درج شدہ مقامی روابط",
+  "Other bids at this address": "اس پتے پر دیگر بولیاں",
+  "Reopen the current project to create a new commercial document. Your open edits have been kept.": "نئی تجارتی دستاویز بنانے کے لیے موجودہ پروجیکٹ دوبارہ کھولیں۔ آپ کی جاری تبدیلیاں برقرار ہیں۔",
+  "The current project session has expired. Reopen the project before continuing this document edit.": "موجودہ پروجیکٹ کے سیشن کی میعاد ختم ہو گئی ہے۔ اس دستاویز میں ترمیم جاری رکھنے سے پہلے پروجیکٹ دوبارہ کھولیں۔"
 }

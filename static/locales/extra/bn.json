@@ -3504,5 +3504,9 @@
   "Save this Quote before creating a Work Order.": "কাজের আদেশ তৈরি করার আগে এই কোটেশনটি সংরক্ষণ করুন।",
   "Linked Sites": "সংযুক্ত প্রকল্পস্থল",
   "Participants and linked sites": "অংশগ্রহণকারী ও সংযুক্ত প্রকল্পস্থল",
-  "No linked sites.": "কোনো প্রকল্পস্থল সংযুক্ত নেই।"
+  "No linked sites.": "কোনো প্রকল্পস্থল সংযুক্ত নেই।",
+  "Other recorded site links": "অন্যান্য নথিভুক্ত প্রকল্পস্থলের সংযোগ",
+  "Other bids at this address": "এই ঠিকানার অন্যান্য দরপত্র",
+  "Reopen the current project to create a new commercial document. Your open edits have been kept.": "নতুন বাণিজ্যিক নথি তৈরি করতে বর্তমান প্রকল্পটি আবার খুলুন। আপনার চলতি সম্পাদনাগুলো রাখা হয়েছে।",
+  "The current project session has expired. Reopen the project before continuing this document edit.": "বর্তমান প্রকল্পের সেশনের মেয়াদ শেষ হয়েছে। এই নথি সম্পাদনা চালিয়ে যাওয়ার আগে প্রকল্পটি আবার খুলুন।"
 }

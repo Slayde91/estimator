@@ -150,13 +150,35 @@ class CRMParticipants:
     def _decorate(self,record,project,catalog):
         """Derive same-address bids without modifying either file or sidecar."""
         ids=record.pop('_site_ids')
-        peers={(row['source'],row['owner']):row for row in record['linked_bids']}
+        peers={(row['source'],row['owner']):row for row in record.pop('linked_bids')}
+        current_address=address_key(project['site_address'])
+        same_address=set()
         current=(project['source'],project['owner'])
         for row in catalog['projects']:
             identity=(row['source'],row['owner'])
             if identity!=current and not ids.isdisjoint(row['_site_ids']):
-                peers[identity]={**{name:value for name,value in row.items() if name!='_site_ids'},'automatic':identity not in peers}
-        record['linked_bids']=sorted(peers.values(),key=lambda row:(row['project_no'],row['client'],row['source'],row['owner']))
+                # An older relationship can predate the file's commercial owner.
+                # Prefer the current metadata when it still identifies the same bid.
+                legacy=(row['source'],'')
+                recorded=identity in peers
+                if row['owner'] and legacy in peers and peers[legacy]['project_no']==row['project_no']:
+                    del peers[legacy]
+                    recorded=True
+                peers[identity]={**{name:value for name,value in row.items() if name!='_site_ids'},'automatic':not recorded}
+                if current_address and address_key(row['site_address'])==current_address:
+                    same_address.add(identity)
+        ordered=sorted(peers.values(),key=lambda row:(row['project_no'],row['client'],row['source'],row['owner']))
+        self._availability(ordered)
+        record['linked_bids']=[]
+        record['other_site_bids']=[]
+        for bid in ordered:
+            if bid['availability']!='available' and bid.get('automatic'):
+                # A file lost between scans has no durable bid link of its own.
+                continue
+            if (bid['source'],bid['owner']) in same_address and bid['availability']=='available':
+                record['linked_bids'].append(bid)
+            else:
+                record['other_site_bids'].append(bid)
         record['scan_pending']=catalog['scan_pending']
         record['error_count']=catalog.get('error_count',0)
         record['site_address']=project['site_address']
@@ -168,7 +190,6 @@ class CRMParticipants:
                 record['linked_parties'].extend({'kind':'accounts','id':row[0],'label':row[1],'role':'Linked company'}
                     for row in db.execute('''SELECT a.id,a.company FROM account_links l JOIN accounts a ON a.id=l.account_id
                         WHERE l.kind='projects' AND l.target_id=? ORDER BY a.company,a.id''',(project['account_link_id'],)))
-        self._availability(record['linked_bids'])
         return record
 
     @staticmethod

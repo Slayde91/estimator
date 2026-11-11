@@ -38,5 +38,15 @@
     "배송 방법으로 배송 또는 직접 수령을 선택하세요.",
     "Piliin ang Delivery o Pickup bilang paraan ng paghahatid.",
     "Chọn Giao hàng hoặc Nhận hàng làm phương thức giao nhận."
+  ],
+  "Reopen the current project to create a new commercial document. Your open edits have been kept.": [
+    "새 거래 문서를 만들려면 현재 프로젝트를 다시 여세요. 작업 중이던 변경 사항은 유지됩니다.",
+    "Buksan muli ang kasalukuyang proyekto para gumawa ng bagong dokumentong pangnegosyo. Napanatili ang mga pagbabagong ginagawa mo.",
+    "Mở lại dự án hiện tại để tạo chứng từ thương mại mới. Các chỉnh sửa đang thực hiện vẫn được giữ lại."
+  ],
+  "The current project session has expired. Reopen the project before continuing this document edit.": [
+    "현재 프로젝트 세션이 만료되었습니다. 이 문서를 계속 편집하려면 프로젝트를 다시 여세요.",
+    "Nag-expire na ang session ng kasalukuyang proyekto. Buksan muli ang proyekto bago ipagpatuloy ang pag-edit ng dokumentong ito.",
+    "Phiên làm việc của dự án hiện tại đã hết hạn. Mở lại dự án để tiếp tục chỉnh sửa chứng từ này."
   ]
 }

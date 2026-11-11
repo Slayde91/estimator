@@ -141,7 +141,19 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
   }
   fs.writeFileSync(path.join(output,'delivery-locales.json'),JSON.stringify({passed:true,languages:localeEvidence,canonicalFieldsUnchanged:true,savedFileUnchanged:true},null,2));
   checked('Delivery/Pickup labels translate in Chinese and Arabic through the real language menu, while canonical option values, selected Pickup, raw Company/Contact results and all saved fields remain unchanged');
-  for(const width of [1101,520]){await page.setViewportSize({width,height:1000});const field=purchase.getByRole('combobox',{name:'Supplier',exact:true});await field.fill('Beta');const option=purchase.locator('.commercial-directory-options:visible').getByRole('option',{name:'Beta Company',exact:true});await expect(option).toBeVisible();const box=await option.boundingBox();assert.ok(box.x>=0&&box.x+box.width<=width+1,JSON.stringify(box));await page.screenshot({path:path.join(output,'purchase-search-'+width+'.png'),fullPage:true});await option.click();}
+  for(const width of [1101,520]){
+    await page.setViewportSize({width,height:1000});
+    const field=purchase.getByRole('combobox',{name:'Supplier',exact:true});
+    await field.fill('Beta');
+    const option=purchase.locator('.commercial-directory-options:visible').getByRole('option',{name:'Beta Company',exact:true});
+    // Searching can replace the option between the visibility check and the layout measurement.
+    await expect.poll(async()=>{
+      const box=await option.boundingBox();
+      return !!box && box.width>0 && box.height>0 && box.x>=0 && box.x+box.width<=width+1;
+    }).toBe(true);
+    await page.screenshot({path:path.join(output,'purchase-search-'+width+'.png'),fullPage:true});
+    await option.click();
+  }
   checked('Directory result lists remain in the available container at desktop/tablet/mobile widths');
   await save(purchase);await purchase.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();
   const otherPath=path.join(path.dirname(info.project),'other-owner.cf.json'),other=JSON.parse(fs.readFileSync(info.project,'utf8'));

@@ -933,5 +933,15 @@
     "연결된 현장이 없습니다.",
     "Walang naka-link na lugar.",
     "Chưa có công trường nào được liên kết."
+  ],
+  "Other recorded site links": [
+    "기타 기록된 현장 연결",
+    "Iba pang nakatalang ugnayan sa lugar",
+    "Các liên kết công trường khác đã ghi nhận"
+  ],
+  "Other bids at this address": [
+    "이 주소의 다른 입찰",
+    "Iba pang bid sa address na ito",
+    "Các hồ sơ dự thầu khác tại địa chỉ này"
   ]
 }

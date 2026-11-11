@@ -108,6 +108,54 @@ async function save(page){
   await expect(board(other).getByLabel('Linked Project',{exact:true})).toHaveValue([file.estimate.project_no,file.estimate.client,file.estimate.site_address?.replace(/\s+/g,' ')].filter(Boolean).join(' · '));
   await expect(board(other).getByLabel('Linked Project',{exact:true})).toHaveAttribute('readonly','');
   assert.equal(await currentFile(other),null,'Displaying the saved Quote owner does not load it over the active workspace');
+
+  // A browser tab can outlive the server's in-memory project capability.
+  const savedBytes=fs.readFileSync(info.project);
+  const registerRequests=[];
+  const observeRegister=req=>{if(new URL(req.url()).pathname==='/api/commercial/register') registerRequests.push(req.url());};
+  owner.on('request',observeRegister);
+  await owner.route('**/api/commercial/state?*',route=>route.fulfill({status:403,json:{error:'Sign in to open this workspace.'}}),{times:1});
+  await openProjectSection(owner,'work-orders');
+  await expect(owner.locator('#commercial-work-order-root .commercial-message')).toHaveText('Sign in to open this workspace.');
+  owner.off('request',observeRegister);
+  assert.deepEqual(registerRequests,[],'Authorization errors cannot fall back to the saved register');
+  await openProjectSection(owner,'quote');
+  await board(owner).getByRole('button',{name:'New Quote',exact:true}).click();
+  const introduction=board(owner).getByLabel('Introduction',{exact:true});
+  await introduction.fill('Keep my unsaved Quote edits');
+  const expiredWorkspace=await owner.evaluate(()=>window.CeasefireCertification.sessionId());
+  const expiration=await owner.request.post(base+'/api/certifications/workspaces/'+expiredWorkspace+'/discard',{data:{}});
+  assert.equal(expiration.status(),200);
+  await board(owner).locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();
+  await expect(board(owner).locator('.commercial-message')).toContainText(/reopen.*project/i);
+  await expect(board(owner).locator('.commercial-message')).not.toContainText(/certificate/i);
+  await expect(introduction).toHaveValue('Keep my unsaved Quote edits');
+  await board(owner).getByRole('button',{name:'Back to Quotes',exact:true}).click();
+  await owner.locator('#discard-dialog').getByRole('button',{name:'Yes',exact:true}).click();
+
+  for(const [section,label,id] of [
+    ['work-orders','Work Order','commercial-work-order-root'],
+    ['purchase-orders','Purchase Order','commercial-purchase-order-root'],
+    ['quote','Quote','commercial-quote-root']
+  ]){
+    const pane=owner.locator('#'+id);
+    await openProjectSection(owner,section);
+    const create=pane.getByRole('button',{name:'New '+label,exact:true});
+    await expect(create).toBeVisible();
+    await expect(pane).not.toContainText(/certificate workspace/i);
+    if(section==='quote'){
+      await pane.locator('.commercial-card').getByRole('button',{name:heading,exact:true}).click();
+      await expect(introduction).toHaveValue(edited);
+      await pane.getByRole('button',{name:'Back to Quotes',exact:true}).click();
+    }
+    await create.click();
+    await expect(pane.locator('.commercial-message')).toContainText(/reopen.*project/i);
+    await expect(pane.locator('.commercial-editor')).toHaveCount(0);
+    assert.equal(await owner.evaluate(()=>window.CeasefireCertification.sessionId()),expiredWorkspace);
+  }
+  await openProjectSection(owner,'certification');
+  await expect(owner.locator('#app-message')).toContainText(/certificate workspace is unavailable/i);
+  assert.deepEqual(fs.readFileSync(info.project),savedBytes);
   assert.deepEqual(errors,[]);
-  console.log('PASS: Existing unfiled history is editable across tabs and filed exactly once; New requires an explicitly saved Project.');
+  console.log('PASS: Unfiled history, saved cards after workspace expiry, retained Quote drafts, authorization, and certificate-specific errors.');
 })().catch(error=>{console.error(error,logs);process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

@@ -257,6 +257,49 @@ class SavedQuoteTests(unittest.TestCase):
         adapter.dispatch(handler, handler.path)
         self.assertEqual(handler.result[0], 400)
 
+    def test_restart_keeps_saved_board_readable_and_expired_project_private(self):
+        old = self.library.certifications.new()['workspace_id']
+        before = self.path.read_bytes()
+        certs = CertificationProjects(CertificationService(self.store))
+        restarted = ProjectLibrary(self.store, certifications=certs)
+        self.addCleanup(restarted.close)
+        restarted.commercial = CommercialDocuments(certs)
+        adapter = CommercialHTTP(restarted.commercial, saved=SavedCommercial(restarted))
+
+        class Handler:
+            command = 'GET'
+            headers = {}
+            def send_payload(self, status, value): self.result = status, value
+
+        handler = Handler()
+        def get(route, query=''):
+            handler.path = '/api/commercial/' + route + query
+            self.assertTrue(adapter.dispatch(handler, '/api/commercial/' + route))
+            return handler.result
+
+        for route in ('state', 'snapshot', 'register'):
+            status, error = get(route, '?workspace=' + old)
+            self.assertEqual(status, 400)
+            self.assertEqual(error['code'], 'project_workspace_unavailable')
+            self.assertNotIn('certificate', error['error'].lower())
+        for route, query in [('state', ''), ('register', '?workspace=invalid'), ('register', '?refresh=0')]:
+            status, error = get(route, query)
+            self.assertEqual(status, 400)
+            self.assertNotIn('code', error)
+
+        status, register = get('register', '?refresh=1')
+        while status == 200 and register['scan_pending']:
+            status, register = get('register')
+        self.assertEqual(status, 200)
+        self.assertEqual(set(register['statuses']), {'quote', 'work_order', 'purchase_order'})
+        card, = register['documents']
+        self.assertEqual((card['id'], card['source_file'], card['source_revision']),
+                         (self.document['id'], self.source['file_id'], self.source['revision']))
+        self.assertNotIn('snapshot', register)
+        self.assertEqual(self.path.read_bytes(), before)
+        with self.assertRaisesRegex(ValidationError, 'certificate workspace is unavailable'):
+            certs.view(old)
+
     def test_ignoring_one_source_keeps_other_missing_sources_visible(self):
         empty = self.root / 'empty-linked-folder'
         empty.mkdir()

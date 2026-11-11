@@ -105,8 +105,13 @@
     }
     if(!linkedSites.length)body.append(ui('p','No linked sites.'));
     if(record.site_mode==='automatic')body.append(ui('p','Bids with the same site address are linked automatically.'));
-    if(record.linked_bids.length){
-      body.append(ui('h4','Other bids linked to this site'),bidList(record.linked_bids));
+    // Older responses combine current addresses and stored site links.
+    const verified=Array.isArray(record.other_site_bids);
+    if(verified && record.linked_bids.length)
+      body.append(ui('h4','Other bids at this address'),bidList(record.linked_bids));
+    const others=verified ? record.other_site_bids : record.linked_bids;
+    if(others.length){
+      const history=el('details');history.append(ui('summary','Other recorded site links'),bidList(others));body.append(history);
     }
     {
       const controls=el('fieldset'),find=input(1200,'search'),results=el('div'),scan=el('p');controls.disabled=busy;

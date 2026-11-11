@@ -93,6 +93,10 @@
   function requireProject(source = null) {
     if (source?.createdProject === true) return true;
     if (source) { message("Create or load a project before creating documents.", true); return false; }
+    if (state.model?.registerOnly) {
+      message("Reopen the current project to create a new commercial document. Your open edits have been kept.", true);
+      return false;
+    }
     if (window.CeasefireProject?.requireCreatedProject) return window.CeasefireProject.requireCreatedProject();
     message("Create or load a project before creating documents.", true); return false;
   }
@@ -136,7 +140,8 @@
   function message(text, error = false) {
     const element = root()?.querySelector(".commercial-message");
     if (element) {
-      element.textContent = text;
+      if (window.CeasefireI18n?.text) window.CeasefireI18n.text(element, text);
+      else element.textContent = text;
       element.hidden = !text;
       element.classList.toggle("error", error);
     }
@@ -228,7 +233,7 @@
     const result = await response.json();
     if (!response.ok) {
       const error = new Error(result.error || "The commercial document request failed.");
-      error.status = response.status; error.billingReview=result.billing_review; throw error;
+      error.status = response.status; error.code = result.code; error.billingReview=result.billing_review; throw error;
     }
     return result;
   }
@@ -362,20 +367,53 @@
   async function load(revision = ++state.revision, refresh = false, workspaceOnly = false) {
     const workspace = state.workspace;
     const context = window.CeasefireProject?.runtimeContext?.();
-    const result = await request(`state?workspace=${encodeURIComponent(workspace)}&compact=1`);
-    result.snapshot.documents = result.documents;
-    if (state.kind === "purchase_order" && !workspaceOnly) result.products = (await request(`supplier-products?workspace=${encodeURIComponent(workspace)}`)).products;
-    if (revision !== state.revision || workspace !== state.workspace || workspace !== currentWorkspace() || context !== window.CeasefireProject?.runtimeContext?.()) return false;
-    if (workspaceOnly) {
-      Object.assign(state.model, result);
-      return true;
-    } else {
-      let register;
+    const current = () => revision === state.revision && workspace === state.workspace && workspace === currentWorkspace() && context === window.CeasefireProject?.runtimeContext?.();
+    async function readRegister(scope) {
+      const query = new URLSearchParams();
+      if (scope) query.set("workspace", scope);
+      if (refresh) query.set("refresh", "1");
+      let page;
       do {
-        register = await request(`register?workspace=${encodeURIComponent(workspace)}${refresh ? "&refresh=1" : ""}`);
-        refresh = false;
-        if (revision !== state.revision || workspace !== currentWorkspace() || context !== window.CeasefireProject?.runtimeContext?.()) return false;
-      } while (register.scan_pending);
+        page = await request("register" + (query.size ? "?" + query : ""));
+        query.delete("refresh");
+        if (!current()) return null;
+      } while (page.scan_pending);
+      return page;
+    }
+    let result, register;
+    let registerOnly = !workspaceOnly && state.model?.registerOnly && state.model.workspace_id === workspace;
+    if (!registerOnly) {
+      try {
+        result = await request(`state?workspace=${encodeURIComponent(workspace)}&compact=1`);
+        if (!current()) return false;
+        result.snapshot.documents = result.documents;
+        if (workspaceOnly) {
+          Object.assign(state.model, result);
+          return true;
+        }
+        if (state.kind === "purchase_order") result.products = (await request(`supplier-products?workspace=${encodeURIComponent(workspace)}`)).products;
+        if (!current()) return false;
+        register = await readRegister(workspace);
+      } catch (error) {
+        if (!current()) return false;
+        if (workspaceOnly || error.code !== "project_workspace_unavailable") throw error;
+        registerOnly = true;
+      }
+    }
+    if (registerOnly) {
+      register = await readRegister(null);
+      if (!register) return false;
+      // The file register supplies its own revision-bound document actions.
+      // Keep the open estimate and expired token intact until the user reopens it.
+      result = {registerOnly:true, workspace_id:workspace,
+        snapshot:state.model?.workspace_id === workspace ? state.model.snapshot : undefined,
+        documents:[], statuses:register.statuses,
+        requirements:register.requirements, quote_totals:{}, quote_rows:{}};
+    }
+    if (!register || !current()) return false;
+    if (result.registerOnly) {
+      state.savedCards = register.documents;
+    } else {
       const active = window.CeasefireProject?.context?.();
       const diskRevision = register.revisions?.[active?.project_path];
       result.activeFileChanged = Boolean(diskRevision && active?.project_revision && diskRevision !== active.project_revision);
@@ -384,9 +422,9 @@
         : !card.current_workspace);
       result.localBillingSources = new Map(register.documents.filter(card=>card.unfiled && card.current_workspace && card.kind==='work_order')
                                             .map(card=>[card.id,sourceFor(card)]));
-      result.unavailableProjects = register.error_count;
-      result.unavailableSources = register.unavailable_sources || [];
     }
+    result.unavailableProjects = register.error_count;
+    result.unavailableSources = register.unavailable_sources || [];
     state.model = result;
     return true;
   }
@@ -512,7 +550,7 @@
           ? `${source.title} — the saved file could not be read at ${source.path}`
           : `${source.title} — CLASSIFIRE has issued document history for this project but has no current saved file for it.`;
         const item = node("li", "", description);
-        if (source.id) {
+        if (source.id && !state.model.registerOnly) {
           const ignore = button("Ignore deleted project", async () => {
           if (state.busy) return;
           const accepted = await window.CeasefireDialogs.confirm("Ignore project source", "Stop looking for this project's saved file and hide its unavailable-file notice? Issued document history is retained.", "Yes", "Cancel");
@@ -1907,7 +1945,7 @@
       if(state.kind==='purchase_order' || state.kind==='quote' && !line.estimate_id){
         const cleanup=window.ClassifireCommercialPricing?.attach(descriptionInput,{
         ...(state.kind==='purchase_order' ? {searchItems:async query=>{
-          const data=await request('supplier-products?workspace='+encodeURIComponent(workspace));
+          const data=await request(owner.source ? 'supplier-products' : 'supplier-products?workspace='+encodeURIComponent(workspace));
           const needle=query.trim().toLocaleLowerCase();
           return data.products.map((item,index)=>({...item,searchId:String(index)})).filter(item=>[item.label,item.code].join(' ').toLocaleLowerCase().includes(needle)).slice(0,30).map(item=>({id:item.searchId,name:item.label,description:item.label,unit_price:Number(item.supplier_price ?? 0),supplierPrice:item.supplier_price}));
         }} : {}),

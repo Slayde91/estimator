@@ -1,0 +1,30 @@
+{
+  "Some linked projects could not be checked.": [
+    "部分关联项目无法核实。",
+    "कुछ लिंक की गई परियोजनाओं की जाँच नहीं हो सकी।",
+    "No se pudieron comprobar algunos proyectos vinculados.",
+    "تعذّر التحقق من بعض المشاريع المرتبطة.",
+    "ไม่สามารถตรวจสอบโครงการที่เชื่อมโยงบางโครงการได้"
+  ],
+  "Participants changed. Review the updated list and try again.": [
+    "参与方已更改。请查看更新后的列表，然后重试。",
+    "प्रतिभागियों की सूची बदल गई है। नई सूची देखें और फिर कोशिश करें।",
+    "Los participantes han cambiado. Revisa la lista actualizada y vuelve a intentarlo.",
+    "تغيّر المشاركون. راجع القائمة المحدّثة وحاول مرة أخرى.",
+    "รายชื่อผู้เข้าร่วมมีการเปลี่ยนแปลง โปรดตรวจสอบรายชื่อที่อัปเดตแล้วลองอีกครั้ง"
+  ],
+  "Linked Projects": [
+    "关联项目",
+    "लिंक की गई परियोजनाएँ",
+    "Proyectos vinculados",
+    "المشاريع المرتبطة",
+    "โครงการที่เชื่อมโยง"
+  ],
+  "No linked projects.": [
+    "没有关联项目。",
+    "कोई परियोजना लिंक नहीं है।",
+    "No hay proyectos vinculados.",
+    "لا توجد مشاريع مرتبطة.",
+    "ไม่มีโครงการที่เชื่อมโยง"
+  ]
+}

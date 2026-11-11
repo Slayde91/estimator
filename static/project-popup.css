@@ -6,15 +6,15 @@
 .project-new-dialog .project-account-options{max-height:180px}
 .project-new-dialog .actions{margin-top:18px}
 @media(max-width:520px){.project-new-dialog{width:calc(100vw - 24px)}.project-new-dialog .project-pane-fields{gap:14px 10px}.project-new-dialog .field>label,.project-new-dialog .field>span{font-size:11px}.project-new-dialog input{font-size:12px;padding-inline:10px}.project-new-dialog .project-account-search input{padding-inline-start:32px}}
-#project-participants-panel{border-top:1px solid var(--line);margin-top:20px;padding-top:14px;min-width:0;overflow-wrap:anywhere}
-#project-participants-panel>summary{font-weight:700;cursor:pointer}
-#project-participants-panel fieldset{border:0;padding:0;margin:10px 0 16px;min-inline-size:0;display:flex;flex-wrap:wrap;gap:10px}
-#project-participants-panel fieldset>.field,#project-participants-panel fieldset>details{flex-basis:100%;min-width:0;margin:0}
-#project-participants-panel select,#project-participants-panel input{min-width:0;max-width:100%}
-#project-participants-panel li{margin-block:6px}
-#project-participants-panel .project-site-results{display:grid;gap:10px;width:100%;min-width:0}
-#project-participants-panel .project-site-result{display:flex;flex-wrap:wrap;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:10px;min-width:0}
-#project-participants-panel .project-site-result>strong{flex:1 1 180px;overflow-wrap:anywhere}
-#project-participants-panel .project-site-result>p{flex-basis:100%;margin:0;overflow-wrap:anywhere}
-#project-participants-panel .project-site-result>.button{margin-inline-start:auto}
-#project-participants-panel fieldset>details[open]>.field{margin-top:8px}
+#project-participants-panel{min-width:0;overflow-wrap:anywhere}
+#project-participants-panel h4{margin:0 0 8px}
+#project-participants-panel ul{padding-inline-start:20px;margin:0}
+#project-participants-panel li+li{margin-top:6px}
+#project-participants-panel p{margin-block:6px 0}
+.project-link-status:empty{display:none}
+#project-company-participants fieldset,#project-contact-participants fieldset{min-inline-size:0;border:0;border-top:1px solid var(--line);margin:14px 0 0;padding:10px 0 0}
+#project-company-participants ul,#project-contact-participants ul{padding-inline-start:20px;margin:0 0 12px;overflow-wrap:anywhere}
+#project-company-participants li+li,#project-contact-participants li+li{margin-top:8px}
+#project-company-participants .text-button,#project-contact-participants .text-button{margin-inline-start:4px}
+#project-company-participants summary,#project-contact-participants summary{cursor:pointer;font-weight:600}
+#project-company-participants .field,#project-contact-participants .field{margin:10px 0 0;min-width:0}

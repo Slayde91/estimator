@@ -38,14 +38,18 @@ bids. An unavailable source retains its last-recorded relationships and is label
 unavailable. A moved file must be deliberately relinked rather than guessed from a
 matching name, address or copied UUID.
 
-The shared-site search lists existing sites and saved Project addresses. Select a
-result and Link it to record a manual site choice. The saved Project address is
-the default: exactly matching normalized addresses group bids automatically,
-while each Project, client and document stays separate. Normalization folds case,
-Unicode presentation and repeated spaces; unit numbers, punctuation and street
-abbreviations remain significant. A manual choice takes priority; Use site address
-returns to automatic grouping. Participant roles describe involvement and do not
-grant application access.
+In Project Details, use **Companies** to choose the client and **Contacts** to
+choose the primary contact. The + beside each search creates the corresponding
+directory record. Additional participants have their own roles. New Quotes and
+Work Orders use the project's primary contact. On a Purchase Order, choose the
+supplier and the relevant contacts manually, including when starting from a Work Order.
+
+**Linked Sites** shows one **Linked Projects** list. Saving a project address
+automatically links projects at the same address. Matching ignores differences
+in case, Unicode presentation and repeated spaces. Unit numbers, punctuation and
+street abbreviations still matter. Previously recorded site relationships also
+appear in the list, with each project's own address. Each project keeps its own
+client, documents and access permissions.
 
 Scheduler selects saved Work Orders and displays their Project/client/site context.
 New bookings do not depend on the old Project Accepted status and do not require

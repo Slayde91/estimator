@@ -2766,6 +2766,7 @@
       $("project-next").disabled = true;
       if ($("project-previous").parentElement) $("project-previous").parentElement.hidden = true;
       $("project-continue").hidden = !data.scan_pending;
+      if (!data.scan_pending) window.ClassifireProjectParticipants?.scanComplete?.();
       const problems = (data.errors || []).map(item => `${item.name}: ${item.error}`);
       if (data.error_count > problems.length) problems.push(`${data.error_count - problems.length} additional entries could not be listed.`);
       if (data.truncated && !data.scan_pending) problems.push("Some entries could not be listed. Refresh to try again; details are shown below.");

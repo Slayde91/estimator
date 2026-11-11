@@ -1,4 +1,8 @@
 {
+  "Some linked projects could not be checked.": "কিছু সংযুক্ত প্রকল্প যাচাই করা যায়নি।",
+  "Participants changed. Review the updated list and try again.": "অংশগ্রহণকারীদের তালিকা বদলেছে। হালনাগাদ তালিকাটি দেখে আবার চেষ্টা করুন।",
+  "Linked Projects": "সংযুক্ত প্রকল্প",
+  "No linked projects.": "কোনো সংযুক্ত প্রকল্প নেই।",
   "Publish shift": "শিফট প্রকাশ করুন",
   "Create draft": "খসড়া তৈরি করুন",
   "Current colour": "বর্তমান রং",

@@ -59,7 +59,9 @@ class CommercialPaneSignerTests(unittest.TestCase):
         dates = {'review_date':'2026-11-09','prepared_date':'2026-11-10','client_approval_date':'2026-11-11'}
         fields['order'].update(names | dates)
         ink = {'version':1,'ratio':3,'strokes':[[[0,0],[.5,1],[1,0]]]}
-        fields['signatures'] = dict.fromkeys(names, ink)
+        fields = complete_work_order(fields, 'Review')
+        fields['order']['approval'] = 'Approved'
+        fields['signatures'].update(dict.fromkeys(names, ink))
         document = self.save('work_order', fields)
         operation = str(uuid4())
         issued = self.store.issue(self.workspace, document['id'], document['version'], operation)
@@ -123,8 +125,13 @@ class CommercialPaneSignerTests(unittest.TestCase):
         fields = complete_work_order(fields)
         fields['order'].update(quote_id=quote['id'], claimed_by='Claim Person', claim_date='2026-11-09')
         ink = {'version':1, 'ratio':3, 'strokes':[[[0,0],[.5,1],[1,0]]]}
-        fields['signatures'] = {'claimed_by':ink}
         work = self.save('work_order', fields)
+        snapshot = self.store.capture(self.workspace)
+        legacy_work = next(row for row in snapshot['documents'] if row['id'] == work['id'])
+        legacy_work['fields']['signatures'] = {'claimed_by': ink}
+        self.workspace = self.projects.add(self.project)
+        self.store.restore(self.workspace, snapshot)
+        work = next(row for row in self.store.view(self.workspace)['documents'] if row['id'] == work['id'])
         issued = self.store.issue(self.workspace, work['id'], work['version'], str(uuid4()))
         work = issued['document']
         target = self.projects.add(self.project)

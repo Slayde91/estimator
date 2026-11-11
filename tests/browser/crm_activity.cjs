@@ -37,9 +37,14 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
   await dialog.locator('.crm-timeline > summary').click();const timeline=dialog.locator('.crm-timeline');
   await expect(timeline.locator('.crm-event-list')).toContainText('Created');
   await timeline.getByLabel('Activity type',{exact:true}).selectOption('Call');
+  await expect(timeline.getByLabel('Activity owner',{exact:true})).toBeDisabled();
+  await expect(timeline.getByLabel('Activity owner',{exact:true})).toHaveValue(staff[0].id);
   await timeline.getByLabel('Activity details',{exact:true}).fill('Discussed access times');
   await timeline.getByRole('button',{name:'Log activity',exact:true}).click();
   await expect(timeline.locator('.crm-event-list')).toContainText('Discussed access times');
+  const noteBox=await timeline.getByLabel('Activity details',{exact:true}).boundingBox();
+  const logBox=await timeline.getByRole('button',{name:'Log activity',exact:true}).boundingBox();
+  assert.ok(noteBox.height>=90 && noteBox.width>2*logBox.width && logBox.height<=40);
   await timeline.getByLabel('Activity type',{exact:true}).selectOption('Task');
   await timeline.getByLabel('Activity details',{exact:true}).fill('Confirm site access');
   await expect(timeline.getByLabel('Activity owner',{exact:true})).toHaveValue(staff[0].id);
@@ -55,6 +60,7 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
   for(const [kind,id] of [['leads',lead.id],['accounts',lead.account_id],['contacts',lead.contact_id]]){
     const events=(await api('/api/contacts/activity?kind='+kind+'&id='+id)).events;
     for(const name of ['Call','Task','Task completed','Stage changed'])assert.ok(events.some(e=>e.event_type===name && e.actor_id===staff[0].id));
+    for(const name of ['Call','Task'])assert.equal(events.find(e=>e.event_type===name).owner_id,staff[0].id);
   }
   assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,actor:name,stage:lead.status,checks:['owner/region','timestamped attributed activities','task due and completion','linked histories','stage without conversion']},null,2));
   console.log('PASS local CRM activity journal: '+output);

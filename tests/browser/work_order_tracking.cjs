@@ -189,7 +189,12 @@ async function download(host) {
   const linkedBilling=ownedWork(info).fields.billing, afterBilling=await directory();
   const billingPerson=afterBilling.contacts.find(person=>person.id===linkedBilling.contact_id);
   assert.equal(billingPerson.name,'Accounts Example');assert.equal(billingPerson.account_id,linkedBilling.account_id);
-  assert.deepEqual(afterBilling.accounts,initialDirectory.accounts,'Claim billing never edits the company');
+  const billingCompany=afterBilling.accounts.find(row=>row.id===linkedBilling.account_id);
+  assert.equal(billingCompany.billing_address,'Level 2, 40 Claim Street');
+  assert.equal(billingCompany.abn_acn,'ABN 11 111 111 111');
+  assert.equal(billingCompany.billing_contact_id,linkedBilling.contact_id);
+  assert.deepEqual(afterBilling.accounts.filter(row=>row.id!==billingCompany.id),
+                   initialDirectory.accounts.filter(row=>row.id!==billingCompany.id),'Other companies retain their details');
   stage = 'editing another percentage after saving without reopening';
   percentages.claimed_percent[1] = '25';
   await trackingRows(work, 'claimed_percent').nth(1).locator('input').fill('25');
@@ -248,6 +253,18 @@ async function download(host) {
   await page.screenshot({path:path.join(output, 'reopened-tracking.png'), fullPage:true});
   checks.push('Main Project Save and native Load reopen the exact row percentages and selected enum values');
 
+  stage = 'prefilling a new claim from its client and designated accounts contact';
+  await work.getByRole('button', {name:'Back to Work Orders', exact:true}).click();
+  await work.getByRole('button', {name:'New Work Order',exact:true}).click();
+  await idle();
+  const newBilling=work.locator('[data-claim-billing]');
+  await expect(newBilling.getByLabel('Billing address',{exact:true})).toHaveValue(billingCompany.billing_address);
+  await expect(newBilling.getByLabel('ABN/ACN',{exact:true})).toHaveValue(billingCompany.abn_acn);
+  await expect(newBilling.getByLabel('Accounts name',{exact:true})).toHaveValue(billingPerson.name);
+  await expect(newBilling.getByLabel('Accounts email',{exact:true})).toHaveValue(billingPerson.email);
+  await expect(newBilling.getByLabel('Accounts phone',{exact:true})).toHaveValue(billingPerson.phone);
+  checks.push('A new claim prefills the exact billing company address, ABN and its designated accounts contact');
+
   stage = 'saved-board billing contact retry';
   await page.close();await openPage(info);
   assert.equal((await page.evaluate(()=>window.CeasefireProject.context())).project_token,null);
@@ -256,6 +273,9 @@ async function download(host) {
   await boardClaim.getByLabel('Accounts name',{exact:true}).fill('Board accounts');
   await boardClaim.getByLabel('Accounts email',{exact:true}).fill('board.accounts@example.test');
   await boardClaim.getByLabel('Accounts phone',{exact:true}).fill('0400 333 444');
+  await work.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();
+  await expect(boardClaim.getByRole('button',{name:'Apply billing choices',exact:true})).toBeVisible();
+  await boardClaim.getByRole('button',{name:'Create a separate Contact',exact:true}).click();
   await page.route('**/api/commercial/complete-billing',route=>route.fulfill({status:503,
     contentType:'application/json',body:JSON.stringify({error:'Temporary accounts directory failure'})}));
   const savedBoard=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/commercial/saved-save');

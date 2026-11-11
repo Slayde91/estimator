@@ -242,7 +242,9 @@ class CommercialTests(unittest.TestCase):
         text = '\n'.join(page.extract_text() for page in reader.pages)
         scope_pages = [page.extract_text() for page in reader.pages if 'EXACT FULL SCHEDULE EVIDENCE' in page.extract_text()]
         self.assertEqual(len(scope_pages), 1)
-        self.assertLess(text.index('SCHEDULE OF RATES'), text.index('EXACT FULL SCHEDULE EVIDENCE'))
+        positions = [text.index(section) for section in ('EXACT FULL SCHEDULE EVIDENCE', 'ALLOWANCES',
+                                                        'QUOTE SUMMARY', 'SCHEDULE OF RATES', 'TERMS OF TRADE')]
+        self.assertEqual(positions, sorted(positions))
         self.assertIn('Example Fire Pty Ltd', text)
         self.assertIn('ABN 12 345 678 901', text)
         self.assertNotIn('ACN 612 231 562', text)

@@ -40,19 +40,27 @@
     box.append(heading,info,list,earlier,message);form.append(box);
     const type=el('select'),note=el('textarea'),due=el('input'),owner=ownerSelect(),occurred=el('input');
     for(const name of ['Call','Email','Meeting','Note','Task'])type.add(new Option(term(name),name));
-    type.value='Note';due.type='date';occurred.type='datetime-local';note.maxLength=4000;note.rows=2;
+    type.value='Note';due.type='date';occurred.type='datetime-local';note.maxLength=4000;note.rows=5;
+    const noteField=label('Activity details',note);noteField.classList.add('crm-activity-details');
+    const actor=window.ClassifireAccess?.user;
+    function setOwnerMode() {
+      owner.disabled=Boolean(actor && type.value!=='Task');
+      if(owner.disabled)owner.value=actor.id;
+    }
+    setOwnerMode();
     const dueField=label('Due date',due);dueField.hidden=true;
     const timeField=label('Interaction time',occurred);timeField.hidden=true;
     type.addEventListener('change',()=>{
+      setOwnerMode();
       dueField.hidden=type.value!=='Task';if(dueField.hidden)due.value='';
       timeField.hidden=!['Call','Email','Meeting'].includes(type.value);if(timeField.hidden)occurred.value='';
     });
     staff.then(rows=>populate(owner,rows)).catch(()=>{});
     const controls=el('fieldset');controls.className='contacts-group';
-    controls.append(el('legend',term('Log activity')),label('Activity type',type),label('Activity details',note),label('Activity owner',owner),timeField,dueField);
-    const log=button('Log activity',()=>submit({kind,id:record.id,type:type.value,text:note.value,owner_id:owner.value,due_date:due.value,
+    controls.append(el('legend',term('Log activity')),label('Activity type',type),label('Activity owner',owner),noteField,timeField,dueField);
+    const log=button('Log activity',()=>submit({kind,id:record.id,type:type.value,text:note.value,...(owner.disabled ? {} : {owner_id:owner.value}),due_date:due.value,
       ...(occurred.value ? {occurred_at:new Date(occurred.value).toISOString()} : {})}));
-    controls.append(log);if(!readOnly)box.append(controls);
+    log.classList.add('crm-activity-submit');controls.append(log);if(!readOnly)box.append(controls);
     function row(item){
       const li=el('li'),head=el('strong',term(item.event_type)),meta=el('p');
       const named=[stamp(item.recorded_at),term('Logged by')+': '+(item.actor_name || term('Unknown'))];

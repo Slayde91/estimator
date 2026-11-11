@@ -223,6 +223,11 @@ class ContactsStore:
                 """)],
             }
             crm_activity.add_metadata(db,result)
+            if db.execute("SELECT 1 FROM sqlite_schema WHERE name='work_order_accounts_contacts'").fetchone():
+                billing_contacts = dict(db.execute('SELECT account_id,contact_id FROM work_order_accounts_contacts'))
+                for account in result['accounts']:
+                    if account['id'] in billing_contacts:
+                        account['billing_contact_id'] = billing_contacts[account['id']]
             result['sales_stages'] = ACTIVE_LEAD_STATUSES
             if lead_board:
                 result['converted_leads'] = self._converted_lead_history(db, None, None)

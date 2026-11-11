@@ -206,14 +206,15 @@ class CommercialHTTP:
             if isinstance(fields,dict) and 'billing' in fields and body.get('kind')=='work_order':
                 from .work_order_billing import normalized, contact_id
                 billing = normalized(fields['billing'])
-                if contact_id(billing):
+                if contact_id(billing) or billing.get('sync_key'):
                     if self.billing is None:
                         raise ValidationError('The billing contact directory is unavailable.')
                     if 'project_details' in body and not isinstance(body['project_details'],dict):
                         raise ValidationError('Include the document and its project details.')
                     prior = document['fields'].get('billing', {}) if document else {}
                     self.billing.validate_selection(billing,prior,(body.get('project_details') or {}).get('account_id'),
-                                                    body.get('billing_review'), project, identity)
+                                                    body.get('billing_review'), project, identity,
+                                                    (fields.get('details') or {}).get('account_id'))
             if 'project_details' in body:
                 if not isinstance(fields, dict) or not isinstance(fields.get('details'), dict):
                     raise ValidationError('Include the document and its project details.')

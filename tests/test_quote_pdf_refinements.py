@@ -60,7 +60,8 @@ class QuotePdfRefinementTests(unittest.TestCase):
             self.assertLess(text.index('Total Price'), text.index('Subtotal'))
             all_text = '\n'.join(item.extract_text() for item in pdf.pages)
             self.assertLess(all_text.index('Grand total'), all_text.index('SCHEDULE OF RATES'))
-            self.assertLess(all_text.index('SCHEDULE OF RATES'), all_text.index('SCOPE OF WORKS'))
+            self.assertLess(all_text.index('SCOPE OF WORKS'), all_text.index('ALLOWANCES'))
+            self.assertLess(all_text.index('Normal access allowed.'), all_text.index('QUOTE SUMMARY'))
             for label in ('Document', 'Date', 'Customer', 'Contact', 'Site', 'Project', 'Subtotal', 'GST', 'Grand'):
                 word = next(word for word in words if word['text'] == label)
                 chars = page.crop((word['x0'] - .1, word['top'] - .1, word['x1'] + .1, word['bottom'] + .1)).chars
@@ -71,8 +72,7 @@ class QuotePdfRefinementTests(unittest.TestCase):
                                     rect['top'] < word['top'] < word['bottom'] < rect['bottom']
                                     for rect in page.rects), label)
             # The quote's grids and section rules use the same brand red.
-            rates_heading = next(word for word in words if word['text'] == 'RATES')
-            table_lines = [line for line in page.lines if 85 < line['top'] < rates_heading['top']]
+            table_lines = [line for line in page.lines if 85 < line['top'] < page.height - 32]
             self.assertTrue(table_lines)
             self.assertTrue(all(brand_red(line['stroking_color']) for line in table_lines))
             red_rects = [rect for rect in page.rects if isinstance(rect['non_stroking_color'], tuple)
@@ -93,6 +93,7 @@ class QuotePdfRefinementTests(unittest.TestCase):
                                     and word['bottom'] < line['top'] < word['bottom'] + 25
                                     for line in page.lines), heading)
             acceptance_page = next(page for page in pdf.pages if 'Accepted by' in page.extract_text())
+            self.assertIn('SCHEDULE OF RATES', acceptance_page.extract_text())
             lines = [line for line in acceptance_page.lines if line['top'] > 85]
             self.assertTrue(lines and all(brand_red(line['stroking_color']) for line in lines))
 

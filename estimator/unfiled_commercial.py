@@ -9,7 +9,7 @@ import secrets
 import zlib
 
 from .catalog import ValidationError
-from .commercial_documents import apply_project_document_details, CommercialConflict, commercial_cards
+from .commercial_documents import apply_project_document_details, CommercialConflict, commercial_cards, _stored_document
 
 STALE = 'This document changed or its project was filed. Reopen its board and select the document again.'
 
@@ -196,7 +196,7 @@ class UnfiledCommercial:
                 'SELECT m.id,d.data FROM local_commercial_documents m JOIN commercial_drafts d USING(workspace,id) WHERE m.workspace=?',
                 (workspace,))}
             anchor = body.pop('context_id', None) or body.get('id')
-            document = json.loads(records[anchor]['data']) if isinstance(anchor,str) and anchor in records else None
+            document = _stored_document(records[anchor]['data']) if isinstance(anchor,str) and anchor in records else None
             if action == 'attachment' and set(body) == {'name','content'} and document and (
                     document['kind'] == 'work_order' or document['kind'] == 'quote' and document['last_number']):
                 return self.service.files.add(project, body['name'], body['content'])

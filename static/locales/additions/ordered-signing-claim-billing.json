@@ -1,0 +1,92 @@
+{
+  "Cancelled": [
+    "취소됨",
+    "Kinansela",
+    "Đã hủy"
+  ],
+  "Clear the later signatures before changing this signature.": [
+    "이 서명을 변경하기 전에 이후 서명을 지우세요.",
+    "Alisin muna ang mga kasunod na lagda bago baguhin ang lagdang ito.",
+    "Xóa các chữ ký phía sau trước khi thay đổi chữ ký này."
+  ],
+  "Sign the preceding sections first.": [
+    "이전 항목에 먼저 서명하세요.",
+    "Lagdaan muna ang mga naunang seksyon.",
+    "Ký các phần trước theo thứ tự."
+  ],
+  "An approved review is required before signing this section.": [
+    "검토가 승인된 후에 이 항목에 서명할 수 있습니다.",
+    "Kailangang maaprubahan ang pagsusuri bago lagdaan ang seksyong ito.",
+    "Cần phê duyệt kết quả rà soát trước khi ký phần này."
+  ],
+  "Choose an approval decision before signing.": [
+    "서명하기 전에 승인 여부를 선택하세요.",
+    "Piliin muna kung aprubado o hindi bago lumagda.",
+    "Chọn kết quả phê duyệt trước khi ký."
+  ],
+  "Enter the signer name and date before signing.": [
+    "서명하기 전에 서명자 이름과 날짜를 입력하세요.",
+    "Ilagay ang pangalan ng lalagda at ang petsa bago lumagda.",
+    "Nhập tên người ký và ngày trước khi ký."
+  ],
+  "Choose which billing details to keep.": [
+    "유지할 청구 정보를 선택하세요.",
+    "Piliin ang mga detalye ng pagsingil na pananatilihin.",
+    "Chọn thông tin thanh toán cần giữ."
+  ],
+  "Choose a value": [
+    "값 선택",
+    "Pumili ng halaga",
+    "Chọn giá trị"
+  ],
+  "Directory": [
+    "주소록",
+    "Direktoryo",
+    "Danh bạ"
+  ],
+  "Apply billing choices": [
+    "선택한 청구 정보 적용",
+    "Ilapat ang mga piniling detalye ng pagsingil",
+    "Áp dụng thông tin thanh toán đã chọn"
+  ],
+  "Save the Work Order to apply these choices.": [
+    "선택 사항을 적용하려면 작업 지시서를 저장하세요.",
+    "I-save ang utos sa trabaho upang ilapat ang mga pinili.",
+    "Lưu lệnh công việc để áp dụng các lựa chọn này."
+  ],
+  "New company name": [
+    "새 회사 이름",
+    "Pangalan ng bagong kumpanya",
+    "Tên công ty mới"
+  ],
+  "Create a new Company": [
+    "새 회사 만들기",
+    "Gumawa ng bagong kumpanya",
+    "Tạo công ty mới"
+  ],
+  "Save the Work Order to create the billing Company.": [
+    "청구 대상 회사를 만들려면 작업 지시서를 저장하세요.",
+    "I-save ang utos sa trabaho upang magawa ang kumpanya para sa pagsingil.",
+    "Lưu lệnh công việc để tạo công ty nhận hóa đơn."
+  ],
+  "Keep this Company": [
+    "이 회사 유지",
+    "Panatilihin ang kumpanyang ito",
+    "Giữ công ty này"
+  ],
+  "A Company with this name already exists. Enter a different name.": [
+    "같은 이름의 회사가 이미 있습니다. 다른 이름을 입력하세요.",
+    "May kumpanya na sa pangalang ito. Maglagay ng ibang pangalan.",
+    "Đã có công ty mang tên này. Hãy nhập tên khác."
+  ],
+  "The billing details changed. Review the claim again.": [
+    "청구 정보가 변경되었습니다. 대금 청구 내용을 다시 검토하세요.",
+    "Nagbago ang mga detalye ng pagsingil. Suriin muli ang kahilingan sa bayad.",
+    "Thông tin thanh toán đã thay đổi. Vui lòng kiểm tra lại yêu cầu thanh toán."
+  ],
+  "Sign this section again or clear its signature to change its signing details.": [
+    "서명 정보를 변경하려면 이 항목에 다시 서명하거나 서명을 지우세요.",
+    "Upang baguhin ang detalye ng paglagda, lagdaang muli ang seksyong ito o alisin ang lagda nito.",
+    "Để thay đổi thông tin ký, hãy ký lại phần này hoặc xóa chữ ký."
+  ]
+}

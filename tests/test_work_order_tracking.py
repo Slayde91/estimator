@@ -79,7 +79,8 @@ class WorkOrderTrackingTests(unittest.TestCase):
         fields=self.fields();source=deepcopy(fields['work_tracking'])
         for row,note in zip(fields['work_tracking']['rows'],['Paid note','Free note','Credit note','Duplicate note']):row['notes']=note
         fields['work_tracking']['rows'][0]['completed_percent']='1'
-        fields['signatures']={'progress_by':INK};fields['order'].update(progress_by='Progress Signer',progress_date='2026-11-09')
+        fields=complete_work_order(fields, 'In progress')
+        fields['signatures']['progress_by']=INK;fields['order'].update(progress_by='Progress Signer',progress_date='2026-11-09')
         saved=self.save('work_order',fields)
         changed=deepcopy(saved['fields']);changed['work_tracking']['rows'][2]['notes']='Credit note updated\nSecond line'
         updated=self.save('work_order',changed,saved)
@@ -143,8 +144,8 @@ class WorkOrderTrackingTests(unittest.TestCase):
         with self.store._connect() as db:
             self.assertIsNone(self.store._quote_tracking(db,self.project,saved['id'],issued['number']))
 
-    def test_progress_signature_requires_positive_completion_and_optional_closed_signature_does_not(self):
-        fields=self.fields();fields['signatures']={'progress_by':INK}
+    def test_progress_signature_requires_positive_completion_and_closure_requires_previous_signoffs(self):
+        fields=complete_work_order(self.fields(), 'In progress');fields['signatures']['progress_by']=INK
         with self.assertRaisesRegex(ValidationError,'completed percentage'):self.save('work_order',fields)
         fields['work_tracking']['rows'][1]['completed_percent']='1';fields['order'].update(progress_by='Progress Signer',progress_date='2026-11-09')
         saved=self.save('work_order',fields)
@@ -152,7 +153,8 @@ class WorkOrderTrackingTests(unittest.TestCase):
         changed=deepcopy(saved['fields']);changed['work_tracking']['rows'][1]['completed_percent']=''
         with self.assertRaisesRegex(ValidationError,'completed percentage'):self.save('work_order',changed,saved)
         changed['signatures']={'closed_by':INK};changed['order'].update(progress_by='',progress_date='',closed_by='Closure Signer',closed_date='2026-11-10')
-        self.assertEqual(self.save('work_order',changed,saved)['fields']['order']['closed_by'],'Closure Signer')
+        with self.assertRaisesRegex(ValidationError, 'later signatures'):
+            self.save('work_order',changed,saved)
 
     def test_forged_edited_reordered_and_foreign_baselines_never_write(self):
         fields=self.fields();saved=self.save('work_order',fields)
@@ -199,7 +201,8 @@ class WorkOrderTrackingTests(unittest.TestCase):
         fields=self.fields();fields['work_tracking']['rows'][0].update(completed_percent='40',claimed_percent='80',notes='Portable paid progress note')
         fields['work_tracking']['rows'][1]['notes']='Portable free progress note';fields['work_tracking']['rows'][2]['notes']='Portable credit progress note'
         fields['order'].update(progress='Legacy progress stays stored',claim='Legacy claim stays stored',progress_by='Progress Signer',progress_date='2026-11-09',claimed_by='Claim Signer',claim_date='2026-11-11',closed_by='Closed Signer',closed_date='2026-11-10',certification='Certification issued',completion='Completed')
-        fields['signatures']={'progress_by':INK,'closed_by':INK,'claimed_by':INK}
+        fields=complete_work_order(fields, 'In progress')
+        fields['signatures'].update(progress_by=INK,closed_by=INK,claimed_by=INK)
         saved=self.save('work_order',fields)
         self.store.renderer=render_commercial_pdf
         historic=self.store.issue(self.workspace,saved['id'],saved['version'],str(uuid4()),company=DEFAULTS)

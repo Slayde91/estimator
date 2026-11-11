@@ -121,7 +121,7 @@ class CommercialReadinessTests(unittest.TestCase):
         # Existing stage evidence is still required when jumping ahead.
         fields = deepcopy(saved['fields'])
         fields['order']['reviewed_by'] = ''
-        with self.assertRaisesRegex(ValidationError, 'Reviewed by name'):
+        with self.assertRaisesRegex(ValidationError, 'signing details'):
             self.save('work_order', fields, saved, 'Client Approval')
 
     def test_progress_claim_and_completion_need_their_rows_and_signers(self):

@@ -244,7 +244,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
     await work.getByRole('button',{name:'Sign '+label,exact:true}).click();
     await expect(work.getByRole('img',{name:label+' signature',exact:true})).toBeVisible();
   }
-  await work.getByRole('button',{name:'Change Reviewed by',exact:true}).click();
+  await work.getByRole('button',{name:'Change Approved by',exact:true}).click();
   await page.getByRole('dialog').getByRole('button',{name:'Cancel',exact:true}).click();
   for(const panel of ['Company Details','Linked Contacts','Notes','Files','Linked Quotes','Linked Purchase Orders']) await expect(work.locator('.commercial-side-panel summary').filter({hasText:panel})).toBeVisible();
   const startBounds=await work.getByLabel('Proposed start date').boundingBox(), endBounds=await work.getByLabel('Proposed end date').boundingBox();

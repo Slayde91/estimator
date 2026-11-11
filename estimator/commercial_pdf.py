@@ -196,7 +196,8 @@ def _totals(story, fields, styles, *, keep_together=False):
             keep_together=keep_together)
 
 
-def _rates(story, schedule, styles):
+def _rates(document_story, schedule, styles):
+    story = []
     _section(story, 'SCHEDULE OF RATES', styles)
     story.append(_paragraph(schedule['introduction'], styles['body']))
     rates = schedule['rates']
@@ -223,7 +224,10 @@ def _rates(story, schedule, styles):
                               ('TOPPADDING', (0, 0), (-1, -1), 8),
                               ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
                               ('LEFTPADDING', (0, 0), (-1, -1), 8)]))
-    story.append(KeepTogether([Spacer(1, 14), table]))
+    # Keep the usual short schedule with its acceptance box. ReportLab can
+    # still split a long custom introduction across pages.
+    story.extend([Spacer(1, 14), table])
+    document_story.append(KeepTogether(story))
 
 
 def _terms_pdf(text, document, number, company):
@@ -362,9 +366,6 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
         story.append(_paragraph(fields['introduction'], styles['body']))
     parts = []
     if kind == 'quote':
-        _summary(story, fields, styles)
-        _totals(story, fields, styles)
-        _rates(story, fields['rate_schedule'], styles)
         if scope_documents:
             scope_hash = sha256(fields['scope'].encode('utf-8')).hexdigest()
             embedded_scope = PdfReader(BytesIO(scope_documents[0])).metadata or {}
@@ -400,6 +401,9 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
                                     [[row[index] for index in columns] for row in table['rows']], styles))
         _section(story, 'ALLOWANCES', styles)
         story.extend(_rich(fields['allowances'], styles['body']) or [_paragraph('—', styles['body'])])
+        _summary(story, fields, styles)
+        _totals(story, fields, styles)
+        _rates(story, fields['rate_schedule'], styles)
         reference = fields['company_reference']
         previous_company = escape(f"{reference['name']} (ABN {reference['abn']})", quote=False)
         current_company = escape(f"{company.get('name', '')} (ABN {company.get('abn', '')})", quote=False)

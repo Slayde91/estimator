@@ -38,7 +38,7 @@ class PurchaseOrderSignatureDeliveryTests(unittest.TestCase):
         fields['signatures'] = {key: deepcopy(INK) for key in SIGNERS}
         for index, (name, date) in enumerate(SIGNERS.items(), 1):
             fields['order'].update({name: f'Person {index}', date: f'2026-11-{index:02d}'})
-        fields['order'].update(delivery_date='2026-11-21', delivery_time='14:35', approval='Rejected',
+        fields['order'].update(delivery_date='2026-11-21', delivery_time='14:35', approval='Approved',
                                rejection_reason='Damaged specification', ship_to_address='Manual receiving depot')
         purchase = self.save(fields)
         operation = str(uuid4())
@@ -67,6 +67,56 @@ class PurchaseOrderSignatureDeliveryTests(unittest.TestCase):
             self.save(cleared, restored, restored_workspace)
         self.assertEqual(self.store.read_pdf(restored_workspace, issued['id'])[1], issued['pdf'])
         self.assertEqual(self.store.issue(self.workspace, purchase['id'], issued_version, operation)['pdf'], issued['pdf'])
+
+    def test_ordered_signatures_save_one_stage_at_a_time_and_rejection_cancels(self):
+        from estimator.commercial_documents import commercial_cards, validate_commercial_documents
+        for decision in ('Approved', 'Rejected'):
+            doc = self.save(default_fields('purchase_order'))
+            for key, expected in [('requested_by', 'Requested'), ('reviewed_by', 'Reviewed'),
+                                  ('sent_by', 'Sent'), ('verified_by', 'Completed')]:
+                fields = deepcopy(doc['fields'])
+                date_key = SIGNERS[key]
+                fields.setdefault('signatures', {})[key] = INK
+                fields['order'].update({key: 'Signing person', date_key: '2026-11-12'})
+                event = {'key': key, 'name': 'Signing person', 'date': '2026-11-12', 'signature': INK}
+                payload = {**self.payload(doc), 'fields': fields, 'signature_actions': [event]}
+                if key == 'reviewed_by':
+                    with self.assertRaisesRegex(ValidationError, 'approval decision'):
+                        self.store.save(self.workspace, payload)
+                    fields['order']['approval'] = decision
+                doc = self.store.save(self.workspace, payload)
+                self.assertEqual(doc['status'], 'Cancelled' if key == 'reviewed_by' and decision == 'Rejected' else expected)
+                snapshot = self.store.capture(self.workspace)
+                self.assertEqual(next(row for row in snapshot['documents'] if row['id'] == doc['id']), doc)
+                if doc['status'] == 'Cancelled':
+                    edited = deepcopy(doc['fields'])
+                    edited['order']['approval'] = 'Approved'
+                    with self.assertRaisesRegex(ValidationError, 'signing details'):
+                        self.save(edited, doc)
+                    break
+            if doc['status'] == 'Completed':
+                old = next(row for row in snapshot['documents'] if row['id'] == doc['id'])
+                old['status'] = 'Verified'
+                self.assertEqual(next(row for row in commercial_cards(snapshot) if row['id'] == doc['id'])['status'], 'Completed')
+                self.assertEqual(next(row for row in validate_commercial_documents(snapshot)['documents']
+                                      if row['id'] == doc['id'])['status'], 'Completed')
+                self.assertEqual(old['status'], 'Verified')
+
+    def test_invalid_and_out_of_order_signatures_leave_draft_and_audit_untouched(self):
+        doc = self.save(default_fields('purchase_order'))
+        snapshot = self.store.capture(self.workspace)
+        for key, name, date in [('requested_by', '  ', '2026-11-12'),
+                                ('requested_by', 'Person', '2026-02-30'),
+                                ('sent_by', 'Person', '2026-11-12')]:
+            fields = deepcopy(doc['fields'])
+            fields['order'].update({key: name, SIGNERS[key]: date})
+            fields['signatures'] = {key: INK}
+            event = {'key': key, 'name': name, 'date': date, 'signature': INK}
+            with self.assertRaises(ValidationError):
+                self.store.save(self.workspace, {**self.payload(doc), 'fields': fields, 'signature_actions': [event]})
+            self.assertEqual(self.store.capture(self.workspace), snapshot)
+        with self.store._connect() as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM commercial_audit WHERE action='signatures'").fetchone()[0], 0)
 
     def test_old_editor_omissions_preserve_new_fields_and_ink_but_explicit_blanks_clear(self):
         fields = default_fields('purchase_order')

@@ -106,7 +106,6 @@
     element.value = value ?? "";
     element.addEventListener("input", () => {
       changed(element.value);
-      recordSigningEdit(element);
       markDirty();
     });
     return element;
@@ -121,7 +120,6 @@
     element.value = value;
     element.addEventListener("change", () => {
       changed(element.value);
-      recordSigningEdit(element);
       if (dirty) markDirty();
     });
     return element;
@@ -132,7 +130,6 @@
     element.rows = 3;
     element.addEventListener("input", () => {
       changed(element.value);
-      recordSigningEdit(element);
       markDirty();
     });
     return element;
@@ -146,9 +143,13 @@
       element.classList.toggle("error", error);
     }
   }
-  function markDirty() {
+  function markDirty({billingChoice = false} = {}) {
     state.dirty = true;
-    if (state.editor) {state.editor.pendingIssue = null;state.editor.pendingProjectDetails = null;}
+    if (state.editor) {
+      state.editor.pendingIssue = null;
+      state.editor.pendingProjectDetails = null;
+      if(!billingChoice)state.editor.pendingBillingSignature = null;
+    }
     window.CeasefireProject?.changed?.();
     if(state.editor) updateRequiredFields();
   }
@@ -192,6 +193,11 @@
       if(requirementPresent(spec)) {control.removeAttribute('aria-invalid');control.classList.remove('commercial-requirement-invalid');}
       const label=control.closest('.field')?.querySelector(':scope > span') || control.closest('details.commercial-rich')?.querySelector('summary');
       label?.classList.add('commercial-required-label');
+    }
+    for (const control of host.querySelectorAll('[data-signing-required]')) {
+      control.required=true;
+      control.setAttribute('aria-required','true');
+      control.closest('.field')?.querySelector(':scope > span')?.classList.add('commercial-required-label');
     }
   }
   function validateReadiness(action) {
@@ -643,6 +649,7 @@
     }
     editor.recipientEdited = true;
     refreshEditorProjectDetails();
+    editor.refreshClaimClient?.();
     markDirty();
   }
   function boundWorkOrderProjectNumber(editor) {
@@ -1056,7 +1063,6 @@
       generatedScope: null,
       scopeTables: copy(document.fields.scope_tables || []),
       scopeRevision: 0,
-      signatureActions: [],
       legacyDetailsSignoff: document.kind==='work_order' && document.version>0 && !['details_by','details_date'].some(key=>Object.hasOwn(document.fields.order,key)),
       derivedEstimates: new Map()
     };
@@ -1072,8 +1078,6 @@
     const actions = node("div", "commercial-editor-actions");
     actions.append(backButton("Back to " + names[state.kind] + "s", () => void leaveEditor()), button("Save", () => void saveEditor(), true), pdfDownloadButton(() => void downloadEditor()));
     const statusControl=select(state.model.statuses[state.kind], state.editor.document.status, value => {
-      const action=state.editor.signatureActions.at(-1);
-      if(action)action.status_override=value;
       state.editor.document.status=value;statusControl.dataset.status=value;
     });
     statusControl.classList.add('commercial-document-status');statusControl.dataset.status=state.editor.document.status;
@@ -1082,8 +1086,8 @@
     statusField.classList.add("commercial-action-status");
     statusField.firstElementChild.hidden = true;
     window.CeasefireI18n?.attr(statusControl, 'aria-label', 'Status');
+    if (state.kind === "quote") actions.append(button("Create WO", () => void createWorkOrder(), true));
     actions.append(statusField);
-    if (state.kind === "quote") actions.append(button("Create WO", () => void createWorkOrder()));
     if (state.kind === "work_order") actions.append(button("Create PO", () => void createPurchaseOrder()));
     form.append(actions);
     const details = node("section", "card commercial-details");
@@ -1169,35 +1173,30 @@
     if (state.kind === "quote" && document.version > 0) void refreshScopePreview();
   }
   const signatureDates = {details_by:"details_date",requested_by:"requested_date",reviewed_by:"review_date",prepared_by:"prepared_date",client_approved_by:"client_approval_date",progress_by:"progress_date",closed_by:"closed_date",claimed_by:"claim_date",sent_by:"sent_date",verified_by:"verified_date"};
-  function recordSigningEdit(control) {
-    const key=control.dataset.orderField;
-    if(!['certification','completion','closed_by','closed_date','progress_by','progress_date','claimed_by','claim_date'].includes(key))return;
-    const action=state.editor?.signatureActions?.findLast(item=>item.key==='closed_by' && item.completion==='Ongoing');
-    if(action && !(action.after_signing_edits ||= []).includes(key))action.after_signing_edits.push(key);
-  }
-  function applyWorkOrderSignature(editor, action) {
-    if(editor.document.kind!=='work_order')return;
-    editor.signatureActions.push(copy(action));
-    const targets={details_by:'Review',reviewed_by:'OHS Docs',prepared_by:'Client Approval',client_approved_by:'In progress',progress_by:'Claim',claimed_by:'Certify'};
-    let status=targets[action.key];
-    if(action.key==='closed_by') {
-      if(action.completion==='Completed')status='Completed';
-      else if(action.completion==='Ongoing') {
-        const fields=editor.document.fields;
-        for(const key of ['certification','completion','closed_by','closed_date','progress_by','progress_date','claimed_by','claim_date'])fields.order[key]='';
-        for(const key of ['closed_by','progress_by','claimed_by'])delete (fields.signatures ||= {})[key];
-        root()?.querySelectorAll('[data-order-field]').forEach(control=>control.value=fields.order[control.dataset.orderField] || '');
-        for(const [key,label] of [['progress_by','Progress signed by'],['claimed_by','Claim signed by']]) {
-          const old=root()?.querySelector(`[data-signature-field="${key}"]`);
-          if(old)old.replaceWith(signatureField(fields,key,label));
-        }
-        status='In progress';
-      }
-    }
-    if(status) {
-      editor.document.status=status;
-      const control=root()?.querySelector('.commercial-document-status');
-      if(control){control.value=status;control.dataset.status=status;}
+  const signingOrder = {
+    work_order:['details_by','reviewed_by','prepared_by','client_approved_by','progress_by','claimed_by','closed_by'],
+    purchase_order:['requested_by','reviewed_by','sent_by','verified_by']
+  };
+  function validateSigningStep(editor, key, clearing = false) {
+    const {kind,fields}=editor.document, steps=signingOrder[kind], index=steps.indexOf(key);
+    const signed=step=>Boolean(fields.signatures?.[step]);
+    if (signed(key) && steps.slice(index+1).some(signed))
+      throw new Error('Clear the later signatures before changing this signature.');
+    if (clearing) return;
+    const predecessors=steps.slice(0,index).filter(step=>step!=='details_by' || !editor.legacyDetailsSignoff);
+    if (predecessors.some(step=>!signed(step) || !fields.order[step]?.trim() || !fields.order[signatureDates[step]]))
+      throw new Error('Sign the preceding sections first.');
+    if (index>steps.indexOf('reviewed_by') && fields.order.approval!=='Approved')
+      throw new Error('An approved review is required before signing this section.');
+    if (key==='reviewed_by' && !['Approved',kind==='work_order'?'Denied':'Rejected'].includes(fields.order.approval))
+      throw new Error('Choose an approval decision before signing.');
+    if (key==='closed_by' && !['Completed','Ongoing','On hold','Not completed'].includes(fields.order.completion))
+      throw new Error('Choose a completion status before signing Work Order completion.');
+    if (key==='progress_by') {
+      const rows=fields.work_tracking?.rows || [];
+      if(rows.some(row=>row.completed_percent!=='' && (!Number.isFinite(Number(row.completed_percent)) || Number(row.completed_percent)<1 || Number(row.completed_percent)>100)))
+        throw new Error('Enter a percentage from 1 to 100, or leave it blank.');
+      if(!rows.some(row=>Number(row.completed_percent)>0))throw new Error('Record a completed percentage before signing work progress.');
     }
   }
   async function signatureProfile() {
@@ -1217,6 +1216,7 @@
   function signatureField(fields, key, label) {
     const wrap = node("div","field commercial-signature"), buttonRow = node("div","commercial-signature-actions"), preview=node("div","commercial-signature-preview");
     wrap.dataset.signatureField=key;
+    wrap.dataset.signatureLabel=label;
     const value = fields.signatures?.[key];
     if (value) {
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -1230,33 +1230,24 @@
       preview.append(svg);
     } else preview.append(node("span","helper","Not signed"));
     const selected = state.editor;
-    const checkProgress = () => {
-      if(key==='closed_by' && !['Completed','Ongoing','On hold','Not completed'].includes(fields.order.completion))throw new Error('Choose a completion status before signing Work Order completion.');
-      if(key!=='progress_by')return;
-      const rows=fields.work_tracking?.rows || [];
-      if(rows.some(row=>row.completed_percent!=='' && (!Number.isFinite(Number(row.completed_percent)) || Number(row.completed_percent)<1 || Number(row.completed_percent)>100)))throw new Error('Enter a percentage from 1 to 100, or leave it blank.');
-      if(!rows.some(row=>Number(row.completed_percent)>0))throw new Error('Record a completed percentage before signing work progress.');
-    };
     const sign = button("", async () => {
-      if (state.busy) return;
-      try {checkProgress();}catch(error){message(error.message,true);return;}
+      if (state.busy || state.editor!==selected) return;
+      try {validateSigningStep(selected,key);}catch(error){message(error.message,true);return;}
       state.busy=true;setDisabled(true);
       try {
         const before=await signatureProfile();
+        const profileName=(await signerName()).trim();
+        if(state.editor !== selected)return;
+        const name=fields.order[key]?.trim() || profileName;
+        const date=fields.order[signatureDates[key]] || (profileName && signedDate(before.timezone));
+        if(!name || !date)throw new Error('Enter the signer name and date before signing.');
         const result = await window.ClassifirePersonalSignature.choose(fields.signatures?.[key] || null);
         if (state.editor !== selected || !result) return;
-        const name=await signerName(),after=await signatureProfile();
+        const after=await signatureProfile();
         if(state.editor !== selected)return;
-        checkProgress();
         if((before.user?.id||null)!==(after.user?.id||null))throw new Error('Your signature profile changed. Reopen the signature pad.');
-        const date=signedDate(after.timezone);
-        (fields.signatures ||= {})[key] = result;
-        fields.order[key]=name;fields.order[signatureDates[key]]=date;
-        if(key==='details_by')selected.legacyDetailsSignoff=false;
-        if(selected.document.kind==='work_order')applyWorkOrderSignature(selected,{key,signature:result,name,date,
+        await saveEditor({key,signature:result,name,date,
           ...(key==='closed_by'?{completion:fields.order.completion,certification:fields.order.certification}:{})});
-        updateControls();
-        markDirty(); wrap.replaceWith(signatureField(fields,key,label));
       } catch (error) { message(error.message,true); }
       finally {if(state.editor === selected){state.busy=false;setDisabled(false);}}
     });
@@ -1269,8 +1260,8 @@
     }
     function reset() {
       if(state.busy || state.editor!==selected)return;
+      try {validateSigningStep(selected,key,true);}catch(error){message(error.message,true);return;}
       delete (fields.signatures ||= {})[key];fields.order[key]='';fields.order[signatureDates[key]]='';
-      selected.signatureActions=selected.signatureActions.filter(action=>action.key!==key || key==='closed_by' && action.completion==='Ongoing');
       updateControls();markDirty();wrap.replaceWith(signatureField(fields,key,label));
     }
     function resetButton(action,path) {
@@ -1410,32 +1401,44 @@
     panel.dataset.claimBilling=''; status.setAttribute('role','status');status.hidden=true;review.hidden=true;
     const controls={},project=()=>projectDetailsSnapshot(editor.source);
     const current=()=>state.editor===editor && !state.busy && panel.isConnected;
-    const defaults=()=>editor.document.version===0 ? {address:project().billing_address || '',abn_acn:project().abn_acn || ''} : {};
+    const clientId=()=>Object.hasOwn(fields.details,'account_id') ? fields.details.account_id : project().account_id;
+    const ownerId=()=>fields.billing?.account_id || clientId() || '';
+    const defaults=()=>editor.document.version===0 ? {
+      address:fields.details.billing_address || (clientId()===project().account_id && project().billing_address) || '',
+      abn_acn:fields.details.abn_acn || (clientId()===project().account_id && project().abn_acn) || ''} : {};
     const value=key=>(fields.billing || defaults())[key] || '';
     const notice=text=>{status.hidden=!text;status.textContent=text; if(text)window.CeasefireI18n?.text(status,text);};
-    function set(values) {
+    function repaint(){for(const [key,control] of Object.entries(controls))control.value=value(key);}
+    function set(values, keys=Object.keys(values).filter(key=>Object.hasOwn(controls,key)), billingChoice=false) {
       fields.billing={...(fields.billing || defaults()),...values};
-      if(Object.hasOwn(values,'new_contact_key'))editor.billingPendingKey=values.new_contact_key || '';
-      delete editor.billingReview;review.hidden=true; status.hidden=true;markDirty();
+      const account=ownerId();
+      if(account) {
+        fields.billing.account_id=account;
+        editor.billingEdits ||= new Set();
+        keys.forEach(key=>editor.billingEdits.add(key));
+        fields.billing.sync_fields=[...editor.billingEdits];
+        fields.billing.sync_key=crypto.randomUUID();
+        editor.billingPendingKey=fields.billing.sync_key;
+      }
+      delete editor.billingReview;review.hidden=true; status.hidden=true;markDirty({billingChoice});
     }
     function edit(key,text) {
       if(key==='name') {
-        set({name:text,contact_id:'',new_contact_key:text.trim()?crypto.randomUUID():'',account_id:project().account_id || ''});
-      } else if (['email','phone'].includes(key) && fields.billing?.new_contact_key) {
-        const linked=editor.billingLinked===fields.billing.contact_id && !!editor.billingLinked;
-        set({[key]:text,new_contact_key:linked?'':crypto.randomUUID(),contact_id:linked?editor.billingLinked:''});
+        if(text.trim() && fields.billing?.contact_id)set({name:text});
+        else set({name:text,contact_id:'',new_contact_key:text.trim()?crypto.randomUUID():'',email:'',phone:''});
+        controls.email.value=value('email');controls.phone.value=value('phone');
       } else set({[key]:text});
     }
-    function choose(person) {
+    function choose(person,billingChoice=false) {
       set({name:person.name,email:person.email || '',phone:person.phone || '',contact_id:person.id,new_contact_key:'',
-        account_id:project().account_id || ''});
+        account_id:ownerId()},['name','email','phone'],billingChoice===true);
       for(const key of ['name','email','phone'])controls[key].value=value(key);
     }
     for(const [key,label,type,max] of [['address','Billing address','text',1200],['abn_acn','ABN/ACN','text',80],
       ['name','Accounts name','text',160],['email','Accounts email','email',254],['phone','Accounts phone','tel',60]]) {
       if(key==='name'){
         const picker=window.ClassifireCommercialDirectory.field(label,{kind:'contacts',allowCreate:false,value:value(key),read:()=>value(key),
-          isCurrent:current,message,filter:(person,dir)=>{const owner=project().account_id;return !!owner && person.account_id===(dir.identity_aliases?.accounts?.[owner] || owner);},
+          isCurrent:current,message,filter:(person,dir)=>{const owner=ownerId();return !!owner && person.account_id===(dir.identity_aliases?.accounts?.[owner] || owner);},
           onInput:text=>edit(key,text),onSelect:choose});
         controls[key]=picker.input;panel.append(picker.element);
       }else{
@@ -1454,25 +1457,68 @@
       try{directory=await window.ClassifireCommercialDirectory.load();}catch{directory={};}
       if(!panel.isConnected || state.editor!==editor)return;
       review.replaceChildren();review.hidden=false;
+      review.scrollIntoView({block:'center'});
+      if(decision.kind==='claim'){
+        const tr=source=>window.CeasefireI18n?.translate(source) || source;
+        const changes={},labels={address:'Billing address',abn_acn:'ABN/ACN',name:'Accounts name',email:'Accounts email',phone:'Accounts phone'};
+        review.append(node('strong','',decision.company));
+        for(const [key,pair] of Object.entries(decision.conflicts)){
+          const select=node('select');
+          for(const [value,label] of [['','Choose a value'],['saved','Directory'],['entered','Work Order']]){
+            const option=node('option','',value ? tr(label)+' · '+pair[value] : tr(label));option.value=value;select.append(option);
+          }
+          changes[key]=select;review.append(field(labels[key],select));
+        }
+        review.append(button('Apply billing choices',()=>{
+          if(Object.values(changes).some(select=>!select.value)){notice('Choose which billing details to keep.');return;}
+          const replace={};
+          for(const [key,select] of Object.entries(changes)){
+            if(select.value==='saved')fields.billing[key]=decision.conflicts[key].saved;
+            else replace[key]=decision.conflicts[key].token;
+          }
+          editor.billingReview={...editor.billingReview,replace};repaint();review.hidden=true;notice('Save the Work Order to apply these choices.');markDirty({billingChoice:true});
+        }));
+        const companyName=node('input');companyName.maxLength=240;
+        review.append(field('New company name',companyName),button('Create a new Company',()=>{
+          if(!companyName.value.trim()){companyName.focus();return;}
+          const previousKey=fields.billing.sync_key, name=value('name');
+          set({company_key:previousKey,company_name:companyName.value.trim(),account_id:decision.new_account_id,
+            contact_id:'',new_contact_key:name?crypto.randomUUID():''},Object.keys(controls),true);
+          notice('Save the Work Order to create the billing Company.');repaint();
+        }));
+        if(decision.conflicts.name)review.append(button('Create a separate Contact',()=>{
+          set({contact_id:'',new_contact_key:crypto.randomUUID()},['name','email','phone'],true);
+          notice('Save the Work Order to create this contact.');
+        }));
+        review.querySelectorAll('button,label.field>span').forEach(el=>window.CeasefireI18n?.text(el,el.textContent));
+        review.querySelectorAll('[aria-label]').forEach(el=>window.CeasefireI18n?.attr(el,'aria-label',el.getAttribute('aria-label')));
+        return;
+      }
       for(const match of decision.matches.filter(item=>item.strong)){
+        if(decision.kind==='accounts'){review.append(node('span','helper',match.fields.company));continue;}
         const person=match.fields;
         const text=[person.name,person.email,person.phone].filter(Boolean).join(' · ');
-        const active=(directory.contacts || []).find(row=>row.id===person.id), owner=project().account_id;
-        if(active && active.account_id===(directory.identity_aliases?.accounts?.[owner] || owner))review.append(button(text,()=>choose(active)));
+        const active=(directory.contacts || []).find(row=>row.id===person.id), owner=ownerId();
+        if(active && active.account_id===(directory.identity_aliases?.accounts?.[owner] || owner))review.append(button(text,()=>choose(active,true)));
         else review.append(node('span','helper',text));
       }
-      const separate=button('Create a separate Contact',()=>{
-        editor.billingReview=decision.review_token;review.hidden=true;notice('Save the Work Order to create this contact.');
+      const separateLabel=decision.kind==='accounts'?'Keep this Company':'Create a separate Contact';
+      const separate=button(separateLabel,()=>{
+        editor.billingReview=fields.billing?.sync_key ? {...editor.billingReview,duplicates:{
+          ...editor.billingReview?.duplicates,[decision.kind]:decision.review_token}} : decision.review_token;
+        review.hidden=true;notice('Save the Work Order to apply these choices.');
       });
-      window.CeasefireI18n?.text(separate,'Create a separate Contact');review.append(separate);
+      window.CeasefireI18n?.text(separate,separateLabel);review.append(separate);
     };
     editor.billingNotice=notice;
-    if(fields.billing?.new_contact_key){
+    if(fields.billing?.sync_key || fields.billing?.new_contact_key){
       const id=fields.billing.contact_id;
       notice('Accounts contact link pending. Save the Work Order to finish.');
       editor.billingDirectory=window.ClassifireCommercialDirectory.load().then(dir=>{
-        if(!panel.isConnected || !id || fields.billing?.contact_id!==id)return;
-        if(dir.contacts.some(person=>person.id===(dir.identity_aliases?.contacts?.[id] || id))){
+        if(!panel.isConnected || fields.billing?.contact_id!==id || editor.billingEdits?.size)return;
+        if(fields.billing?.sync_key && dir.accounts.some(a=>[ownerId(),clientId()].includes(a.id))){
+          editor.billingPendingKey=fields.billing.sync_key;notice('');
+        }else if(dir.contacts.some(person=>person.id===(dir.identity_aliases?.contacts?.[id] || id))){
           editor.billingLinked=id;editor.billingPendingKey='';notice('');
         }else if(dir.accounts.some(account=>account.id===(dir.identity_aliases?.accounts?.[fields.billing.account_id] || fields.billing.account_id))){
           editor.billingPendingKey=fields.billing.new_contact_key;
@@ -1480,7 +1526,35 @@
           editor.billingPendingKey='';notice('The billing Company is unavailable in this directory. Saved claim details are retained.');
         }
       }).catch(()=>{if(panel.isConnected)notice('The billing contact directory is unavailable.');});
+    }else loadDefaults();
+    function loadDefaults(){
+      if(!clientId())return;
+      const account=clientId(),initial=fields.billing;
+      editor.billingDirectory=window.ClassifireCommercialDirectory.load().then(dir=>{
+        if(!panel.isConnected || state.editor!==editor || clientId()!==account || fields.billing!==initial || editor.billingEdits?.size)return;
+        const canonical=(kind,id)=>dir.identity_aliases?.[kind]?.[id] || id;
+        const company=dir.accounts.find(a=>a.id===canonical('accounts',account));
+        if(!company)return;
+        const billing={...(fields.billing || {})}, person=dir.contacts.find(p=>
+          p.id===canonical('contacts',billing.contact_id || company.billing_contact_id) && p.account_id===company.id);
+        for(const [key,x] of [['address',company.billing_address],['abn_acn',company.abn_acn]]){
+          if(x && (editor.document.version===0 || !billing[key]))billing[key]=x;
+        }
+        if(person && (!billing.name || billing.contact_id===person.id)){
+          for(const key of ['name','email','phone'])if(!billing[key] && person[key])billing[key]=person[key];
+          Object.assign(billing,{contact_id:person.id,account_id:company.id});
+        }
+        if(Object.keys(billing).length){fields.billing=billing;repaint();}
+      }).catch(()=>{});
     }
+    let lastClient=clientId();
+    editor.refreshClaimClient=()=>{
+      if(lastClient===clientId())return;
+      lastClient=clientId();
+      if(editor.document.version || fields.billing?.sync_key || editor.billingEdits?.size)return;
+      delete fields.billing;
+      repaint();loadDefaults();
+    };
   }
   function renderOrderFields(form, fields) {
     const isWorkOrder = state.kind === "work_order";
@@ -1540,7 +1614,6 @@
           refreshEditorProjectDetails();
         }
         delete fields.work_tracking;
-        state.editor.signatureActions=state.editor.signatureActions.filter(action=>!['progress_by','claimed_by'].includes(action.key));
         for(const key of ['progress_by','claimed_by']) {
           if(fields.signatures)delete fields.signatures[key];
           fields.order[key]='';fields.order[signatureDates[key]]='';
@@ -1604,6 +1677,7 @@
         if (Object.hasOwn(signatureDates,key)) {
           const row=node('div','commercial-signer-row'),name=input(fields.order[key],value=>fields.order[key]=value);
           name.dataset.orderField=key;
+          name.dataset.signingRequired='';
           const nameField=field('Name',name);name.setAttribute('aria-label',label+' name');
           window.CeasefireI18n?.attr(name,'aria-label',label+' name');
           personPair=node('div','commercial-field-pair commercial-review-person-details');personPair.append(nameField);
@@ -1676,6 +1750,7 @@
         if(isWorkOrder && key==='justification')control.rows=1;
         if(!isWorkOrder && title==='Purchase order information' && control.tagName==='TEXTAREA')control.rows=1;
         control.dataset.orderField=key;
+        if (key===personDate || key==='approval' || key==='completion')control.dataset.signingRequired='';
         const item = field(label, control);
         if(!isWorkOrder && key==='rejection_reason'){rejectionField=item;item.hidden=fields.order.approval!=='Rejected';}
         if(isWorkOrder && key==='description')item.classList.add('commercial-work-description');
@@ -2114,20 +2189,25 @@
     if (editor.recipientEdited && recipient.client && !recipient.account_id)
       throw new Error("Choose an existing Company for this Client, or add a new Company.");
   }
-  async function persist(captured, explicitlySaved, operation) {
+  async function persist(captured, explicitlySaved, operation, signatureAction = null) {
     assertDocumentOperation(operation);
     validateRecipient(operation.editor);
     const {editor,workspace,projectDetails}=operation, document=editor.document;
     if(editor.billingDirectory)await editor.billingDirectory;
-    if(!explicitlySaved && document.kind==='work_order' && document.fields.billing?.new_contact_key &&
-        document.fields.billing.new_contact_key===editor.billingPendingKey)
+    const billingKey=document.fields.billing?.sync_key || document.fields.billing?.new_contact_key;
+    if(!explicitlySaved && document.kind==='work_order' && billingKey && billingKey===editor.billingPendingKey && editor.billingEdits?.size)
       throw new Error('Save the Work Order before issuing it with a new accounts contact.');
     const lockedNumber=boundWorkOrderProjectNumber(editor);
     if(!editor.source)applyProjectDetails(document.fields,commercialProjectDetails());
     if(lockedNumber)document.fields.details.project_no=lockedNumber;
     // Quote saves regenerate schedules and source hashes from the captured
     // estimates on the server. Old generated tables can be several MiB.
-    const fields = document.kind === 'quote' ? {...document.fields, scope_tables: [], sources: []} : document.fields;
+    let fields = document.kind === 'quote' ? {...document.fields, scope_tables: [], sources: []} : document.fields;
+    if (signatureAction) {
+      const {key,signature,name,date}=signatureAction;
+      fields={...fields, signatures:{...fields.signatures,[key]:signature},
+        order:{...fields.order,[key]:name,[signatureDates[key]]:date}};
+    }
     const saved = await documentRequest("save", {
       workspace_id: workspace,
       id: document.id,
@@ -2135,7 +2215,7 @@
       kind: document.kind,
       status: document.status,
       fields,
-      ...(editor.signatureActions.length ? {signature_actions:copy(editor.signatureActions)} : {}),
+      ...(signatureAction ? {signature_actions:[signatureAction]} : {}),
       ...(editor.billingReview?{billing_review:editor.billingReview}:{}),
       ...(!editor.source ? {project_details:projectDetails} : {}),
       ...(explicitlySaved && !state.editor.source && !window.CeasefireProject.context().project_token ? {retain_unfiled:true} : {}),
@@ -2165,10 +2245,21 @@
     Object.assign(state.editor.document, saved, {
       fields
     });
-    state.editor.signatureActions=[];
+    state.editor.pendingBillingSignature=null;
+    state.editor.pendingIssue=null;
+    state.editor.pendingProjectDetails=null;
     state.editor.legacyDetailsSignoff=saved.kind==='work_order' && !['details_by','details_date'].some(key=>Object.hasOwn(fields.order,key));
     const status=root()?.querySelector('.commercial-document-status');
     if(status){status.value=saved.status;status.dataset.status=saved.status;}
+    for (const wrap of root()?.querySelectorAll('[data-signature-field]') || []) {
+      const {signatureField:key,signatureLabel:label}=wrap.dataset;
+      for(const name of [key,signatureDates[key]]) {
+        const input=root().querySelector(`[data-order-field="${name}"]`);
+        if(input)input.value=fields.order[name] || '';
+      }
+      wrap.replaceWith(signatureField(fields,key,label));
+    }
+    updateRequiredFields();
     renderLines();
     renderScope();
     const reference = root()?.querySelector("[data-order-reference]");
@@ -2179,9 +2270,11 @@
     refreshQuoteIdentifiers();
     state.editor.panels?.refreshProjectDetails(projectDetailsSnapshot(state.editor.source));
   }
-  async function saveEditor() {
-    if (state.busy || !state.editor) return;
-    try {validateReadiness('save');} catch(error) {message(error.message,true);return;}
+  async function saveEditor(signatureAction = null) {
+    if (!state.editor || (state.busy && !signatureAction)) return;
+    signatureAction ||= state.editor.pendingBillingSignature;
+    // The server validates the resulting signed stage with its new ink and metadata.
+    if(!signatureAction)try {validateReadiness('save');} catch(error) {message(error.message,true);return;}
     const operation=captureDocumentOperation();
     let draftSaved=false;
     state.busy = true;
@@ -2194,20 +2287,23 @@
       await flushRateDefaults();
       assertDocumentOperation(operation);
       const captured = state.kind === "quote" ? await capturedEstimates() : {};
-      await persist(captured, true, operation);
+      await persist(captured, true, operation, signatureAction);
       draftSaved=true;
       const source = state.editor.source;
       const inFile = source ? !source.file_id.startsWith("local-") : await saveActiveProject();
       const document=operation.editor.document,billing=document.fields.billing;
-      if(document.kind==='work_order' && billing?.new_contact_key && billing.new_contact_key===operation.editor.billingPendingKey) {
+      const billingKey=billing?.sync_key || billing?.new_contact_key;
+      if(document.kind==='work_order' && billingKey && billingKey===operation.editor.billingPendingKey) {
         const active=window.CeasefireProject.context(),owner=source ? {file_id:source.file_id,revision:source.revision} :
           inFile ? {project_token:active.project_token,revision:active.project_revision} : state.model.localBillingSources?.get(document.id);
         try {
           if(!owner)throw new Error('Reopen the saved Work Order to finish linking its accounts contact.');
-          const result=await request('complete-billing',{source:owner,id:document.id,version:document.version,new_contact_key:billing.new_contact_key,
+          const result=await request('complete-billing',{source:owner,id:document.id,version:document.version,
+            ...(billing.sync_key?{sync_key:billing.sync_key}:{new_contact_key:billing.new_contact_key}),
             ...(operation.editor.billingReview?{review_token:operation.editor.billingReview}:{})});
           if(state.editor!==operation.editor)return;
           operation.editor.billingLinked=result.contact_id;operation.editor.billingPendingKey='';operation.editor.billingNotice?.('');
+          delete operation.editor.billingReview;delete operation.editor.billingEdits;
           void window.ClassifireCommercialDirectory.load(true).then(data=>{
             if(state.editor===operation.editor)return operation.editor.panels?.refreshDirectory(data);
           }).catch(()=>{});
@@ -2220,7 +2316,10 @@
         ? "Document saved. Its linked project file is updated." : "Document saved. It is available on the board.");
     } catch (error) {
       if(draftSaved && operation.editor.billingPendingKey)operation.editor.billingNotice?.('Accounts contact link pending. Save the Work Order to finish.');
-      if(error.billingReview && state.editor===operation.editor)operation.editor.showBillingReview?.(error.billingReview);
+      if(error.billingReview && state.editor===operation.editor) {
+        if(!draftSaved)operation.editor.pendingBillingSignature=signatureAction;
+        operation.editor.showBillingReview?.(error.billingReview);
+      }
       message(error.message, true);
     } finally {
       state.busy = false;

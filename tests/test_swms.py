@@ -414,7 +414,7 @@ class SwmsTests(unittest.TestCase):
         path = self.root / 'test.cf.json'; path.write_bytes(payload)
         library = ProjectLibrary(store); self.addCleanup(library.close)
         with self.assertRaisesRegex(ValidationError, 'SWMS'):
-            library._preserve_takeoffs(path, {'estimate': request['estimate'], 'certifications': manifest})
+            library._preserve_overwrite(path.read_bytes(), {'estimate': request['estimate'], 'certifications': manifest})
         library.swms = self.service
         library.certifications = type('Capture', (), {'capture': lambda self, value: manifest})()
         snapshot = library._capture_workspace({**request, 'certifications': {'workspace_id': self.workspace}})

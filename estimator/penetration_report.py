@@ -97,11 +97,18 @@ def _excel_format(field):
     return {'percent': '0.00%', 'currency': '$#,##0.00'}.get(field.get('format'), '#,##0.00')
 
 
+def _report_library(draft, library):
+    # Manual rows have no assigned reports. Only the interactive picker uses
+    # their material/FRL context to suggest filters, and exports have no picker.
+    links = ('technical_reference_ids', 'takeoff_reference_ids', 'library_item_id', 'report_reference', 'takeoff_source')
+    return library if any(any(row.get(key) for key in links) for row in draft['rows']) else None
+
+
 def _schedule_records(result, definition, library):
     """One public technical projection for the PDF and the Quote editor."""
     fields = {field['column']: field for field in definition['row_fields'] + definition['output_fields']}
     source_rows = {row['id']: row for row in result.get('draft', {}).get('rows', [])}
-    references = resolve_schedule_references(result['draft'], library)['row_references']
+    references = resolve_schedule_references(result['draft'], _report_library(result['draft'], library))['row_references']
     records = []
     for index, row in enumerate(result['rows'], 1):
         diagram = None
@@ -281,7 +288,7 @@ def build_penetration_register(result, definition, project_details, *, library=N
     row = _table(summary, 4, ['Project details', 'Value'],
                  [[label, project_details.get(key, '')] for label, key in
                   [('Project No.', 'project_no'), ('Client', 'client'), ('Site Address', 'site_address')]], [36, 64])
-    references = resolve_schedule_references(result['draft'], library)['row_references']
+    references = resolve_schedule_references(result['draft'], _report_library(result['draft'], library))['row_references']
     widths = [9, 35, 14, 22, 36, 24, 28, 45]
     if any(len(' | '.join(reference['label'] for reference in value['reports'])) > 32767 for value in references.values()):
         raise ValidationError('This report list is too long for an Excel cell. Choose fewer references or use PDF.')

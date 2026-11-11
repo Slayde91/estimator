@@ -178,9 +178,9 @@ class StorageTests(unittest.TestCase):
         self.assertEqual(self.store.configuration(), valid)
 
     def test_errors_can_be_saved_as_drafts_without_fabricated_totals(self):
-        quote = self.store.save_quote({"title": "Needs quantities", "inputs": {"C15": 0}})
+        quote = self.store.save_quote({"title": "Missing pricing", "inputs": {"D15": "Unknown product"}})
         self.assertIsNone(quote["result"]["summary"]["total"])
-        self.assertEqual(self.store.quote(quote["id"])["result"]["errors"]["B35"], "#DIV/0!")
+        self.assertEqual(self.store.quote(quote["id"])["result"]["errors"]["A63"], "#N/A")
 
     def test_quote_metadata_derives_title_and_survives_restart(self):
         quote = self.store.save_quote({"title": "ignored manual title", "project_no": " P-42 ",

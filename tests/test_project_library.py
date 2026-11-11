@@ -349,6 +349,15 @@ class ProjectLibraryTests(unittest.TestCase):
         self.assertEqual(receipt['project']['penetration']['composer']['rows'][0]['inputs']['O'], 3.123456789)
         self.assertEqual(receipt['project']['penetration']['draft']['rows'], [])
 
+    def test_overwrite_reports_malformed_estimates_and_retains_the_confirmed_target(self):
+        target = self.folder / 'Damaged.cf.json'
+        damaged = b'{"format":"ceasefire-project","estimates":null}'
+        target.write_bytes(damaged)
+        self.dialogs.selection = SaveSelection(str(target), file_fingerprint(target))
+        with self.assertRaisesRegex(ValidationError, 'incomplete or invalid records'):
+            self.library.save_as({**self.request, 'project_status':'Draft'})
+        self.assertEqual(target.read_bytes(), damaged)
+
     def test_save_refuses_unknown_path_modified_deleted_or_replaced_target(self):
         target = self.folder / "Existing.cf.json"
         target.write_bytes(self.payload)

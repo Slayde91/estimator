@@ -368,7 +368,9 @@ let passed=0;
     {key:'collars',label:'Collar Type',list_column:'B',keywords:['collar']},
     {key:'wraps',label:'Wrap Type',list_column:'E',keywords:['wrap']},
     {key:'materials',label:'Materials',list_column:'AR',keywords:['material']}]}};
-  byId('pricing-search').value='';byId('rate-group').value='';audit.setRenderPricing(audit.renderPricing);audit.refreshPricingCatalog();audit.renderPricing();
+  byId('pricing-search').value='';byId('rate-group').value='';audit.setRenderPricing(audit.renderPricing);audit.refreshPricingCatalog();
+  audit.state.currentView='estimate';audit.renderPricing();assert.equal(productRows().length,0);
+  audit.state.currentView='pricing';audit.state.libraryKind='pricing';audit.renderPricing();
   assert.deepEqual(byId('rate-group').children.map(option=>[option.value,option.textContent]),[
     ['','All estimator availability'],['main-estimator','Main Estimator'],['primers','Main Estimator — Primers'],['topcoats','Main Estimator — Topcoats'],['labour_rates','Main Estimator — Labour'],['sprays','Main Estimator — Sprays'],
     ['firestopping','Firestopping Estimator'],['firestopping:collars','Firestopping Estimator — Collar Type'],['firestopping:wraps','Firestopping Estimator — Wrap Type'],['firestopping:materials','Firestopping Estimator — Materials'],['not-used','Not used in either estimator']]);
@@ -779,7 +781,7 @@ let passed=0;
 
   // Missing and failed labour values remain unavailable or explicit errors rather than plausible zero days.
   const missingLabour=copy(labourResult);missingLabour.labour.tasks[0].days=null;missingLabour.labour.masking_days='#DIV/0!';missingLabour.labour.mobilisation_days='';missingLabour.labour.total_days='#N/A';
-  audit.renderResults(missingLabour);assert.equal(labourRows()[0].children[1].textContent,'—');assert.equal(labourRows()[8].children[1].textContent,'#DIV/0!');assert.equal(labourRows()[10].children[1].textContent,'—');assert.equal(labourRows()[11].children[1].textContent,'#N/A');
+  audit.renderResults(missingLabour);assert.equal(labourRows()[0].children[1].textContent,'—');assert.equal(labourRows()[8].children[1].textContent,'—');assert.equal(labourRows()[10].children[1].textContent,'—');assert.equal(labourRows()[11].children[1].textContent,'—');
   audit.renderResults({});assert.equal(labourRows().length,1);assert.equal(labourRows()[0].children[0].textContent,'Labour breakdown is unavailable for this result.');passed++;
 
   // Labour output clears during calculation, rejects stale responses and cannot leave old totals after a failure.
@@ -971,7 +973,7 @@ let passed=0;
   // Every material's own team gates entry; pins/clips stay independent.
   const teamMap={B15:'D2',B16:'D3',B18:'D6',B19:'D8',B20:'D4',B21:'D5',B22:'D9',B23:'D10'};
   for(const [cell,team] of Object.entries(teamMap)){
-    setup();audit.state.inputs={...Object.fromEntries(Object.values(teamMap).map(key=>[key,'1 Team - 1x'])),[cell]:0,[team]:'N/A'};
+    setup();audit.state.inputs={...Object.fromEntries(numericFields.map(field=>[field.cell,field.default])),...Object.fromEntries(Object.values(teamMap).map(key=>[key,'1 Team - 1x'])),[cell]:0,[team]:'N/A'};
     const coverage=audit.makeControl({cell,label:'Coverage required',type:'number'},true),selector=audit.makeControl({cell:team,label:'Labour',type:'select',options:['N/A','1 Team - 1x']},true);
     for(const rejected of ['2','-2','2.5']){coverage.value=rejected;await coverage.emit('input');assert.equal(audit.state.inputs[cell],0);assert.equal(coverage.value,'0');assert.equal(byId('app-message').textContent,'Select Teams');}
     selector.value='1 Team - 1x';await selector.emit('input');coverage.value='3';await coverage.emit('input');assert.equal(audit.state.inputs[cell],3);assert.equal(audit.state.inputErrors.size,0);

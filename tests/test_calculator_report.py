@@ -14,7 +14,7 @@ from estimator.company_settings import DEFAULTS
 from estimator.excel_engine import WorkbookEngine, column_number
 from estimator.perlifoc_assessment import Assessment as PerlifocAssessment
 from estimator.promat_spray_assessment import Assessment as PromatAssessment
-from estimator.workbook_calculators import source_model
+from estimator.workbook_calculators import calculator_engine, source_model
 from tests.test_workbook_parity import read_fixture, scenario_inputs, excel_equal
 
 
@@ -128,6 +128,20 @@ class CalculatorReportTests(unittest.TestCase):
         cls.addClassCleanup(missing.stop)
         default_projection.cache_clear()
         blank_projection.cache_clear()
+
+    def test_repeated_report_reuses_workbook_only_while_inputs_and_evidence_match(self):
+        inputs = {'SCHEDULE': {'A10': 'Report session check', 'B10': 'CAFCO 300'}}
+        with patch('estimator.workbook_calculators.calculator_engine', wraps=calculator_engine) as build:
+            first = project_calculator_report('steel_vermiculite', inputs)
+            self.assertEqual(project_calculator_report('steel_vermiculite', inputs), first)
+            self.assertEqual(build.call_count, 1)
+            inputs['SCHEDULE']['A10'] = 'Revised report session check'
+            project_calculator_report('steel_vermiculite', inputs)
+            self.assertEqual(build.call_count, 2)
+            changed = PromatAssessment('missing', error='Different evidence access failure')
+            with patch('estimator.promat_spray_assessment.load_assessment', return_value=changed):
+                project_calculator_report('steel_vermiculite', inputs)
+            self.assertEqual(build.call_count, 3)
 
     def assert_native_projection(self, identity, projected, expected):
         comparisons = 0

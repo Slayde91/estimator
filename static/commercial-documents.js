@@ -359,13 +359,17 @@
     window.CeasefireProject?.refreshPages?.();
     return host;
   }
-  async function load(revision = ++state.revision, refresh = false) {
+  async function load(revision = ++state.revision, refresh = false, workspaceOnly = false) {
     const workspace = state.workspace;
     const context = window.CeasefireProject?.runtimeContext?.();
-    const result = await request(`state?workspace=${encodeURIComponent(workspace)}`);
-    if (state.kind === "purchase_order") result.products = (await request(`supplier-products?workspace=${encodeURIComponent(workspace)}`)).products;
+    const result = await request(`state?workspace=${encodeURIComponent(workspace)}&compact=1`);
+    result.snapshot.documents = result.documents;
+    if (state.kind === "purchase_order" && !workspaceOnly) result.products = (await request(`supplier-products?workspace=${encodeURIComponent(workspace)}`)).products;
     if (revision !== state.revision || workspace !== state.workspace || workspace !== currentWorkspace() || context !== window.CeasefireProject?.runtimeContext?.()) return false;
-    {
+    if (workspaceOnly) {
+      Object.assign(state.model, result);
+      return true;
+    } else {
       let register;
       do {
         register = await request(`register?workspace=${encodeURIComponent(workspace)}${refresh ? "&refresh=1" : ""}`);
@@ -386,34 +390,50 @@
     state.model = result;
     return true;
   }
-  let leavingEditor = false;
-  async function leaveEditor() {
-    if (state.busy || leavingEditor) return false;
+  let leavingEditor = null;
+  function leaveEditor() {
+    // The user may select another board just after confirming discard. Let
+    // that navigation finish when the pending board refresh completes.
+    if (leavingEditor) return state.busy ? leavingEditor : Promise.resolve(false);
+    if (state.busy) return Promise.resolve(false);
+    leavingEditor = finishLeavingEditor().finally(() => { leavingEditor = null; });
+    return leavingEditor;
+  }
+  async function finishLeavingEditor() {
     const editor = state.editor;
-    leavingEditor = true;
-    try {
-      if (state.dirty) {
-        const label = names[state.kind].toLowerCase();
-        const discard = await window.CeasefireDialogs.confirm(`Discard the current ${label}?`, "", "Yes", "Cancel");
-        if (editor !== state.editor || state.busy) return false;
-        if (!discard) {
-          window.CeasefireDialogs.message("Save or discard the current commercial document edit before changing views.", true);
-          return false;
-        }
+    if (state.dirty) {
+      const label = names[state.kind].toLowerCase();
+      const discard = await window.CeasefireDialogs.confirm(`Discard the current ${label}?`, "", "Yes", "Cancel");
+      if (editor !== state.editor || state.busy) return false;
+      if (!discard) {
+        window.CeasefireDialogs.message("Save or discard the current commercial document edit before changing views.", true);
+        return false;
       }
-      if (rateDefaults.pending.size || rateDefaults.saving) {
-        state.busy = true; setDisabled(true);
-        try { await flushRateDefaults(); }
-        catch (error) { message(error.message, true); return false; }
-        finally { state.busy = false; setDisabled(false); }
-      }
-      if(state.dirty)discardProjectDetailEdits(editor);
-      renderBoard();
-      window.CeasefireProject?.changed?.();
-      return true;
-    } finally {
-      leavingEditor = false;
     }
+    if (rateDefaults.pending.size || rateDefaults.saving) {
+      state.busy = true; setDisabled(true);
+      try { await flushRateDefaults(); }
+      catch (error) { message(error.message, true); return false; }
+      finally { state.busy = false; setDisabled(false); }
+    }
+    if(state.dirty)discardProjectDetailEdits(editor);
+    if (editor?.refreshBoard) {
+      const host = root();
+      state.busy = true;
+      host.inert = true;
+      try {
+        if (!await load() || editor !== state.editor) return false;
+      } catch (error) {
+        message(error.message, true);
+        return false;
+      } finally {
+        host.inert = false;
+        state.busy = false;
+      }
+    }
+    renderBoard();
+    window.CeasefireProject?.changed?.();
+    return true;
   }
   async function activate(kind) {
     if (!names[kind]) return;
@@ -2059,13 +2079,16 @@
     const lockedNumber=boundWorkOrderProjectNumber(editor);
     if(!editor.source)applyProjectDetails(document.fields,commercialProjectDetails());
     if(lockedNumber)document.fields.details.project_no=lockedNumber;
+    // Quote saves regenerate schedules and source hashes from the captured
+    // estimates on the server. Old generated tables can be several MiB.
+    const fields = document.kind === 'quote' ? {...document.fields, scope_tables: [], sources: []} : document.fields;
     const saved = await documentRequest("save", {
       workspace_id: workspace,
       id: document.id,
       version: document.version,
       kind: document.kind,
       status: document.status,
-      fields: document.fields,
+      fields,
       ...(editor.signatureActions.length ? {signature_actions:copy(editor.signatureActions)} : {}),
       ...(editor.billingReview?{billing_review:editor.billingReview}:{}),
       ...(!editor.source ? {project_details:projectDetails} : editor.source.projectUpdates ? {project_updates:editor.source.projectUpdates} : {}),
@@ -2078,7 +2101,13 @@
     delete editor.projectOriginal;delete editor.projectApplied;delete editor.projectBaseline;
     state.dirty = false;
     if (!state.editor.source) changed();
-    await load();
+    // A board-wide file scan can take several batches. Finish the document
+    // and its owner file first; refresh external cards when returning to them.
+    editor.refreshBoard = true;
+    if (!editor.source) {
+      const needsLocalBillingSource = explicitlySaved && editor.billingPendingKey && !window.CeasefireProject.context().project_token;
+      await load(++state.revision, false, !needsLocalBillingSource);
+    }
     assertDocumentOperation(operation);
     return saved;
   }
@@ -2213,8 +2242,7 @@
     if ((state.busy && !state.syncingProject) || state.dirty) throw new Error("Save or discard commercial document edits before saving the project.");
     const workspace = currentWorkspace();
     if (!workspace) return null;
-    const result = await request(`state?workspace=${encodeURIComponent(workspace)}`);
-    return result.snapshot;
+    return request(`snapshot?workspace=${encodeURIComponent(workspace)}`);
   }
   function clearPricingPickers() {
     state.editor?.pricingCleanups?.forEach(cleanup=>cleanup());

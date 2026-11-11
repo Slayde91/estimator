@@ -20,6 +20,7 @@ import time
 import uuid
 
 from .catalog import ValidationError
+from .project_file import _same_project_values
 from .commercial_sources import CommercialSources, source_id
 from .edition import require_project_edition, validate_edition
 from .native_dialogs import NativeDialogs, SaveSelection
@@ -114,6 +115,10 @@ def _read_file(path, *, scan=False):
         raise ValidationError("The project file cannot be read. Refresh the folder and try again.") from error
 
 
+def _fingerprint(payload, info):
+    return {"size": info.st_size, "mtime_ns": info.st_mtime_ns, "sha256": hashlib.sha256(payload).hexdigest()}
+
+
 def file_fingerprint(path):
     """Also used by injected dialog adapters in tests."""
     try:
@@ -121,7 +126,18 @@ def file_fingerprint(path):
     except FileNotFoundError:
         return None
     payload, info = _read_file(path)
-    return {"size": info.st_size, "mtime_ns": info.st_mtime_ns, "sha256": hashlib.sha256(payload).hexdigest()}
+    return _fingerprint(payload, info)
+
+
+def _confirmed_bytes(path, selection, changed_message):
+    try:
+        path.lstat()
+    except FileNotFoundError as error:
+        raise ValidationError(changed_message) from error
+    payload, info = _read_file(path)
+    if _fingerprint(payload, info) != selection.fingerprint:
+        raise ValidationError(changed_message)
+    return payload
 
 
 def _attachment_filename(value):
@@ -153,22 +169,13 @@ def _decode_attachment(value):
     return payload
 
 
-def _preserve_penetration_inputs(path, request, *, previous_snapshot=None):
+def _preserve_penetration_inputs(snapshot, request):
     incoming = request.get("penetration")
     aware = (isinstance(incoming, dict) and type(incoming.get("library_tracking_version")) is int
              and incoming["library_tracking_version"] == 1)
     if isinstance(incoming, dict) and "composer" in incoming and aware:
         return
-    snapshot = previous_snapshot
-    recognized = snapshot is not None
-    if snapshot is None:
-        existing, _ = _read_file(path)
-        try:
-            snapshot = json.loads(existing)
-        except (ValueError, UnicodeDecodeError, RecursionError):
-            return
-        recognized = has_project_identity(existing)
-    if isinstance(snapshot, dict) and recognized and "penetration" in snapshot:
+    if "penetration" in snapshot:
         previous = snapshot["penetration"]
         missing_composer = isinstance(previous, dict) and "composer" in previous and (not isinstance(incoming, dict) or "composer" not in incoming)
         if "penetration" not in request or missing_composer:
@@ -183,32 +190,20 @@ def _preserve_penetration_inputs(path, request, *, previous_snapshot=None):
                     raise ValidationError("Refresh the application and reload this project before saving its Firestopping Estimator library items.")
 
 
-def _preserve_library_drafts(path, request):
+def _preserve_library_drafts(snapshot, request):
     """An older browser must not silently remove a project's library copies."""
-    if 'library_drafts' in request:
-        return
-    existing, _ = _read_file(path)
-    try:
-        snapshot = json.loads(existing)
-    except (ValueError, UnicodeDecodeError, RecursionError):
-        return
-    if isinstance(snapshot, dict) and has_project_identity(existing) and 'library_drafts' in snapshot:
+    if 'library_drafts' not in request and 'library_drafts' in snapshot:
         raise ValidationError('Refresh the application and reload this project before saving its project library drafts.')
 
 
-def _preserve_optional_calculators(path, request):
+def _preserve_optional_calculators(snapshot, request):
     """An older browser cannot remove a calculator it has not loaded."""
     incoming = request.get('calculators', {})
     missing = set(OPTIONAL_CALCULATOR_IDS) - set(incoming)
     if not missing:
         return
-    existing, _ = _read_file(path)
-    try:
-        snapshot = json.loads(existing)
-    except (ValueError, UnicodeDecodeError, RecursionError):
-        return
-    calculators = snapshot.get('calculators') if isinstance(snapshot, dict) else None
-    if not has_project_identity(existing) or not isinstance(calculators, dict):
+    calculators = snapshot.get('calculators')
+    if not isinstance(calculators, dict):
         return
     from .schedule_rows import empty_schedule_inputs, normalize_schedule_rows
     from .workbook_calculators import source_model
@@ -370,13 +365,18 @@ class ProjectLibrary:
             if not isinstance(entries, list) or not 1 <= len(entries) <= 50:
                 raise ValidationError("Include the complete project estimate collection.")
             captured = []
+            root_inputs = {key: value for key, value in request.items() if key in WORKSPACE_FIELDS or key == 'takeoffs_session_id'}
             for entry in entries:
                 if not isinstance(entry, dict) or set(entry) != {"id", "name", "workspace"}:
                     raise ValidationError("Each project estimate requires its ID, name and workspace.")
                 workspace = entry["workspace"]
                 if not isinstance(workspace, dict) or set(workspace) - WORKSPACE_FIELDS - {"takeoffs_session_id"}:
                     raise ValidationError("An estimate contains unsupported workspace fields.")
-                captured.append({**entry, "workspace": self._capture_workspace(workspace)})
+                if entry['id'] == request.get('active_estimate_id') and _same_project_values(workspace, root_inputs):
+                    retained = {key: value for key, value in prepared.items() if key in WORKSPACE_FIELDS}
+                else:
+                    retained = self._capture_workspace(workspace)
+                captured.append({**entry, "workspace": retained})
             prepared["estimates"] = estimate_descriptors(captured, request.get("active_estimate_id"))
         return prepared
 
@@ -392,19 +392,45 @@ class ProjectLibrary:
             prepared['takeoffs_session_id'] = request['takeoffs_session_id']
         return prepared
 
-    def _preserve_estimates(self, path, request):
-        """Apply existing overwrite guards to the same estimate across a switch."""
-        payload, _ = _read_file(path)
-        assert_project_overwrite(payload, edition=self.edition)
-        if not has_project_identity(payload):
-            return request
+    def _preserve_overwrite(self, payload, request, *, captured=None):
+        """All preservation checks must see the same version of the selected file."""
+        snapshot = assert_project_overwrite(payload, edition=self.edition)
+        recognized = has_project_identity(payload)
+        if self.edition == 'full':
+            try:
+                snapshot = json.loads(payload)
+            except (ValueError, RecursionError) as error:
+                if (captured is not None and self.project_details) or (recognized and isinstance(error, RecursionError)):
+                    raise ValidationError('The saved project could not be read. Reload it or choose a new filename.') from error
+                snapshot = None
         try:
-            previous = json.loads(payload)
-        except (ValueError, UnicodeDecodeError):
-            return request
-        if isinstance(previous, dict):
-            _preserve_project_contacts(request, previous)
-        if not isinstance(previous, dict) or ('estimates' not in previous and 'estimates' not in request):
+            if captured is not None and self.project_details:
+                from .project_details import numbers
+                prior = numbers(snapshot)
+                incoming = numbers(captured)
+                previous_numbers = set(prior.values())
+                if any(value != prior.get(key, value) or key not in prior and value not in previous_numbers for key, value in incoming.items()):
+                    raise ValidationError('Existing project numbers cannot be edited. Reload this project to restore its saved numbers.')
+            project = snapshot if isinstance(snapshot, dict) and recognized else {}
+            if project:
+                request = self._preserve_estimates(project, request)
+            if captured is not None:
+                require_project_details(captured['estimate'])
+            if project:
+                _preserve_penetration_inputs(project, request)
+                _preserve_library_drafts(project, request)
+                _preserve_optional_calculators(project, request)
+            self._preserve_takeoffs(snapshot, request)
+        except (AttributeError, KeyError, TypeError) as error:
+            # Incoming workspaces have already been validated. The selected
+            # file may still contain malformed estimate or calculator records.
+            raise ValidationError('The existing project contains incomplete or invalid records. Choose a new filename to retain the original.') from error
+
+    @staticmethod
+    def _preserve_estimates(previous, request):
+        """Apply existing overwrite guards to the same estimate across a switch."""
+        _preserve_project_contacts(request, previous)
+        if 'estimates' not in previous and 'estimates' not in request:
             return request
         incoming = {entry['id']: entry['workspace'] for entry in request.get('estimates', [])}
         prior_entries = previous.get('estimates', [{'id':'estimate-1', 'workspace':previous}])
@@ -417,7 +443,7 @@ class ProjectLibrary:
                     raise ValidationError('Reload the project before saving so every estimate workspace is complete.')
             if not set(entry['workspace']['calculators']) <= set(workspace['calculators']):
                 raise ValidationError('Reload all calculators for each project estimate before saving.')
-            _preserve_penetration_inputs(path, workspace, previous_snapshot=entry['workspace'])
+            _preserve_penetration_inputs(entry['workspace'], workspace)
             _preserve_project_contacts(workspace, entry['workspace'])
         active = incoming[previous.get('active_estimate_id', 'estimate-1')]
         return {**{key: value for key, value in request.items() if key not in WORKSPACE_FIELDS}, **active}
@@ -526,7 +552,7 @@ class ProjectLibrary:
                 raise ValidationError('Open this project with its SWMS workspace available.')
             if self.commercial is not None and workspace is not None:
                 self.commercial.files.transfer(project.get('commercial_documents'), path, restore=True)
-                self.commercial.restore(workspace['workspace_id'], project.get('commercial_documents'))
+                self.commercial.restore(workspace['workspace_id'], project.get('commercial_documents'), return_view=False)
                 if path:
                     with self.commercial._connect() as db:
                         self.commercial.unfiled.bind_file(db, workspace['workspace_id'])
@@ -573,13 +599,8 @@ class ProjectLibrary:
                 self.certifications.discard(workspace['workspace_id'])
             raise
 
-    def _preserve_takeoffs(self, path, request):
-        previous, _ = _read_file(path)
-        assert_project_overwrite(previous, edition=self.edition)
-        try:
-            snapshot = json.loads(previous)
-        except (ValueError, UnicodeDecodeError, RecursionError):
-            return
+    @staticmethod
+    def _preserve_takeoffs(snapshot, request):
         if isinstance(snapshot, dict) and snapshot.get('format') == 'ceasefire-project':
             if 'estimates' in snapshot:
                 previous = {entry['id'] for entry in snapshot['estimates']}
@@ -1181,8 +1202,7 @@ class ProjectLibrary:
 
     def _authorize_save(self, path, info, payload, metadata):
         token = secrets.token_urlsafe(32)
-        fingerprint = {"size": info.st_size, "mtime_ns": info.st_mtime_ns,
-                       "sha256": hashlib.sha256(payload).hexdigest()}
+        fingerprint = _fingerprint(payload, info)
         with self._lock:
             self._save_targets[token] = SaveSelection(str(path), fingerprint)
             self._commercial_sources.remember([metadata])
@@ -1324,10 +1344,9 @@ class ProjectLibrary:
                 raise ValidationError('This project selection is no longer available. Use Load Project or "Save As".')
             selected_path = _project_save_path(selection)
         captured = self._capture_takeoffs({key: request[key] for key in ("estimate", "calculators", "penetration", "takeoffs", "takeoffs_session_id", "library_drafts", "certifications", "documentation", "project_status", "estimates", "active_estimate_id", "commercial_documents", "swms") if key in request})
+        changed_message = 'The project file changed or was removed outside this window. Reload it or use "Save As".'
         if "project_status" not in captured:
-            if file_fingerprint(selected_path) != selection.fingerprint:
-                raise ValidationError('The project file changed or was removed outside this window. Reload it or use "Save As".')
-            existing, _ = _read_file(selected_path)
+            existing = _confirmed_bytes(selected_path, selection, changed_message)
             captured["project_status"] = project_summary(existing, edition=self.edition)["project_status"]
         payload = export_project(self.store, captured, edition=self.edition)
         project = load_project_bytes(self.store, payload, edition=self.edition)
@@ -1337,26 +1356,15 @@ class ProjectLibrary:
             if self._save_targets.get(token) is not selection:
                 raise ValidationError('The project was already saved by another request. Reload it or use "Save As".')
             path = selected_path
-            if file_fingerprint(path) != selection.fingerprint:
-                raise ValidationError('The project file changed or was removed outside this window. Reload it or use "Save As".')
-            if self.project_details:
-                from .project_details import numbers
-                existing, _ = _read_file(path)
-                prior = numbers(json.loads(existing))
-                incoming = numbers(captured)
-                if any(value != prior.get(key, value) or key not in prior and value not in set(prior.values()) for key, value in incoming.items()):
-                    raise ValidationError('Existing project numbers cannot be edited. Reload this project to restore its saved numbers.')
-            preservation = self._preserve_estimates(path, request)
-            require_project_details(captured['estimate'])
-            _preserve_penetration_inputs(path, preservation)
-            _preserve_library_drafts(path, preservation)
-            _preserve_optional_calculators(path, preservation)
-            self._preserve_takeoffs(path, preservation)
+            existing = _confirmed_bytes(path, selection, changed_message)
+            self._preserve_overwrite(existing, request, captured=captured)
             selected_folder = self.store.project_folder()
             if 'takeoffs' in captured or 'certifications' in captured or 'documentation' in captured or 'estimates' in captured:
-                captured = self._publish_takeoffs(captured, path)
-                payload = export_project(self.store, captured, edition=self.edition)
-                project = load_project_bytes(self.store, payload, edition=self.edition)
+                published = self._publish_takeoffs(captured, path)
+                if not _same_project_values(captured, published):
+                    payload = export_project(self.store, published, edition=self.edition)
+                    project = load_project_bytes(self.store, payload, edition=self.edition)
+                captured = published
             with self._commercial_publication(request, captured, selection, payload):
                 path, info = _atomic_write(selection, payload)
             warning = self._saved_takeoff_source(request, captured, path)
@@ -1754,23 +1762,20 @@ class ProjectLibrary:
             selected_path = _project_save_path(selection)
             with self._lock:
                 if isinstance(selection, SaveSelection) and selection.fingerprint is not None:
+                    existing = _confirmed_bytes(selected_path, selection,
+                        "The selected file changed. Reload the project or use Save As to confirm its current contents.")
                     if "project_status" not in request:
-                        if file_fingerprint(selected_path) != selection.fingerprint:
-                            raise ValidationError("The selected file changed. Reload the project or use Save As to confirm its current contents.")
-                        existing, _ = _read_file(selected_path)
                         if has_project_identity(existing):
                             captured["project_status"] = project_summary(existing, edition=self.edition)["project_status"]
                             payload = export_project(self.store, captured, edition=self.edition)
                             project = load_project_bytes(self.store, payload, edition=self.edition)
-                    preservation = self._preserve_estimates(selected_path, request)
-                    _preserve_penetration_inputs(selected_path, preservation)
-                    _preserve_library_drafts(selected_path, preservation)
-                    _preserve_optional_calculators(selected_path, preservation)
-                    self._preserve_takeoffs(selected_path, preservation)
+                    self._preserve_overwrite(existing, request)
                 if 'takeoffs' in captured or 'certifications' in captured or 'documentation' in captured or 'estimates' in captured:
-                    captured = self._publish_takeoffs(captured, selected_path)
-                    payload = export_project(self.store, captured, edition=self.edition)
-                    project = load_project_bytes(self.store, payload, edition=self.edition)
+                    published = self._publish_takeoffs(captured, selected_path)
+                    if not _same_project_values(captured, published):
+                        payload = export_project(self.store, published, edition=self.edition)
+                        project = load_project_bytes(self.store, payload, edition=self.edition)
+                    captured = published
                 if ticket:
                     self.project_details.prepare(ticket['id'], selected_path, payload)
                 with self._commercial_publication(request, captured, selection, payload):

@@ -202,6 +202,8 @@ def _same_project_values(left, right):
     Python's ordinary equality considers True and 1 equal, while calculator
     input validation deliberately rejects booleans.
     """
+    if left is right:
+        return True
     if type(left) is not type(right):
         return False
     if isinstance(left, dict):
@@ -269,11 +271,17 @@ def _portable_penetration(value, *, saved=False):
 
 def export_project(store, request, *, edition='full'):
     """Return a portable project snapshot with verified evidence manifests."""
-    snapshot = _export_project_snapshot(store, request, edition=edition)
+    payload, _, _ = prepare_project_export(store, request, edition=edition)
+    return payload
+
+
+def prepare_project_export(store, request, *, edition='full'):
+    """Keep the verified portable values and calculation together for linked Quote schedules."""
+    snapshot, prepared = _export_project_snapshot(store, request, edition=edition)
     payload = json.dumps(snapshot, ensure_ascii=False, allow_nan=False, indent=2).encode("utf-8")
     if len(payload) > MAX_PROJECT_FILE:
         raise ValidationError("The complete project, including all estimates, must be at most 16 MB.")
-    return payload
+    return payload, snapshot, prepared
 
 
 def _export_project_snapshot(store, request, *, edition, tree_checked=False):
@@ -359,7 +367,7 @@ def _export_project_snapshot(store, request, *, edition, tree_checked=False):
             # estimates still receive their complete independent validation.
             child = ({key: deepcopy(snapshot[key]) for key in WORKSPACE_FIELDS if key in snapshot}
                      if _same_project_values(entry['workspace'], source_workspace) else
-                     _export_project_snapshot(store, entry['workspace'], edition=edition, tree_checked=True))
+                     _export_project_snapshot(store, entry['workspace'], edition=edition, tree_checked=True)[0])
             normalized.append({"id": entry["id"], "name": entry["name"],
                                "workspace": {key: child[key] for key in WORKSPACE_FIELDS if key in child}})
         active = next(entry["workspace"] for entry in normalized if entry["id"] == request["active_estimate_id"])
@@ -367,7 +375,7 @@ def _export_project_snapshot(store, request, *, edition, tree_checked=False):
             raise ValidationError("The current workspace must match the selected project estimate.")
         snapshot["estimates"] = normalized
         snapshot["active_estimate_id"] = request["active_estimate_id"]
-    return snapshot
+    return snapshot, prepared
 
 
 def import_project(store, filename, content_base64, *, edition='full'):
@@ -505,7 +513,8 @@ def assert_project_overwrite(payload, *, edition='full'):
     """A reduced edition must never erase data it cannot load or understand.
 
     This is called on the actual selected target immediately before its atomic
-    replacement. Malformed JSON cannot prove compatibility and is retained.
+    replacement. Return the decoded snapshot when the edition requires strict
+    parsing, so the remaining overwrite checks can reuse it.
     """
     if validate_edition(edition) == 'full':
         return
@@ -520,3 +529,4 @@ def assert_project_overwrite(payload, *, edition='full'):
         if type(snapshot.get('version')) is not int or snapshot['version'] != PROJECT_VERSION:
             raise ValidationError('This existing project version is not supported by this edition. '
                                   'Choose a new filename; the original file has not been changed.')
+    return snapshot

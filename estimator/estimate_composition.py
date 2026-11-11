@@ -9,10 +9,10 @@ full Firestopping result and its input/source snapshot remain auditable.
 from copy import deepcopy
 import math
 
-from .calculator import LINES, calculate as calculate_base, normalize_inputs
+from .calculator import LINES, calculate_normalized, normalize_inputs
 from .catalog import ValidationError, effective_catalog
 from .penetration_calculator import calculate as calculate_firestopping, normalize_draft, source_model
-from .presentation import MATERIAL_NAMES
+from .presentation import MATERIAL_NAMES, calculation_error_details
 
 
 CALCULATION_POLICY_VERSION = 'combined-global-cost-adjustments-v1'
@@ -47,22 +47,23 @@ def normalize_work_items(value, inputs, catalog, *, require_teams=True):
             candidate[f'B{row}'] = 0
         for column in ('B', 'C', 'D', 'E'):
             candidate[f'{column}{source_row}'] = item_inputs[column]
-        checked = normalize_inputs(candidate, catalog, require_teams=require_teams)
+        checked = normalize_inputs(candidate, catalog, require_teams=require_teams, skip_inactive=True)
         normalized.append({'id': item_id, 'source_row': source_row,
                            'inputs': {column: checked[f'{column}{source_row}'] for column in ('B', 'C', 'D', 'E')}})
         seen.add(item_id)
     return normalized
 
 
-def _duplicate_result(item, normalized_inputs, configuration):
+def _duplicate_result(item, normalized_inputs, catalog):
     source_row = item['source_row']
     duplicate_inputs = deepcopy(normalized_inputs)
     for row in range(15, 24):
         duplicate_inputs[f'B{row}'] = 0
+        duplicate_inputs[f'D{row}'] = 'N/A'
     duplicate_inputs.update(B9=0, B26=0, B27=0, B28=0, F26=0, F27=0, F28=0)
     for column, value in item['inputs'].items():
         duplicate_inputs[f'{column}{source_row}'] = value
-    calculated = calculate_base(duplicate_inputs, configuration)
+    calculated = calculate_normalized(duplicate_inputs, catalog, skip_inactive=True)
     line_index = source_row - 15
     line = LINES[line_index]
     price_row, requirement_row, labour_row = line[1], line[2], line[3]
@@ -82,13 +83,13 @@ def _duplicate_result(item, normalized_inputs, configuration):
     }
     return {'item': deepcopy(item), 'material': material, 'labour': labour,
             'yield': calculated['cells'].get(f'F{source_row}'),
-            'summary': deepcopy(calculated['summary']), 'errors': deepcopy(calculated['errors'])}
+            'summary': deepcopy(calculated['summary']), 'errors': calculated['errors'], 'error_roots': calculated['error_roots']}
 
 
-def _add_duplicate_work_items(result, work_items, normalized_inputs, configuration):
+def _add_duplicate_work_items(result, work_items, normalized_inputs, catalog):
     calculated_items = []
     for item in work_items:
-        duplicate = _duplicate_result(item, normalized_inputs, configuration)
+        duplicate = _duplicate_result(item, normalized_inputs, catalog)
         calculated_items.append({**duplicate['item'], 'yield': duplicate['yield']})
         result['materials'].append(duplicate['material'])
         if duplicate['labour'] is not None:
@@ -101,6 +102,7 @@ def _add_duplicate_work_items(result, work_items, normalized_inputs, configurati
             task['days'] = _computed(
                 lambda task=task, labour=labour: _number(task.get('days')) + _number(labour.get('days')))
             task.setdefault('work_item_ids', []).append(item['id'])
+        result['error_roots'].extend(f'duplicate:{item["id"]}:{cell}' for cell in duplicate['error_roots'])
         for cell, error in duplicate['errors'].items():
             result['errors'][f'duplicate:{item["id"]}:{cell}'] = error
         for key in ('material', 'labour', 'days'):
@@ -164,8 +166,9 @@ def calculate_for_load(inputs=None, configuration=None, penetration=None, work_i
     except ValidationError as error:
         if str(error) != 'Select Teams':
             raise
-    normalized = normalize_inputs({} if inputs is None else inputs, effective_catalog(configuration), require_teams=False)
-    normalized_work_items = normalize_work_items(work_items, normalized, effective_catalog(configuration), require_teams=False)
+    catalog = effective_catalog(configuration)
+    normalized = normalize_inputs({} if inputs is None else inputs, catalog, require_teams=False)
+    normalized_work_items = normalize_work_items(work_items, normalized, catalog, require_teams=False)
     result = {'inputs': normalized, 'cells': deepcopy(normalized),
               'errors': {'coverage_teams': 'Select Teams'},
               'summary': dict.fromkeys(('labour', 'material', 'access', 'travel', 'subtotal', 'total', 'rate', 'days')),
@@ -179,6 +182,7 @@ def calculate_for_load(inputs=None, configuration=None, penetration=None, work_i
         result['firestopping'] = {**snapshot, 'result': schedule}
         for index, error in enumerate(schedule['errors']):
             result['errors'][f'firestopping:{index}:{error["cell"]}'] = error['message']
+    result['error_details'] = calculation_error_details(result, catalog=catalog)
     return result
 
 
@@ -191,15 +195,15 @@ def calculate(inputs=None, configuration=None, penetration=None, work_items=None
     Firestopping, then applies each percentage once to its complete cost base.
     """
     catalog = effective_catalog(configuration)
-    normalized = normalize_inputs({} if inputs is None else inputs, catalog)
+    normalized = normalize_inputs({} if inputs is None else inputs, catalog, skip_inactive=True)
     normalized_work_items = normalize_work_items(work_items, normalized, catalog)
     material_percent, labour_percent = normalized['B26'], normalized['B27']
     source_inputs = deepcopy(normalized)
     source_inputs.update(B26=0, B27=0)
-    result = calculate_base(source_inputs, configuration)
+    result = calculate_normalized(source_inputs, catalog, skip_inactive=True)
     result['inputs'] = deepcopy(normalized)
     result['cells'].update(B26=material_percent, B27=labour_percent)
-    _add_duplicate_work_items(result, normalized_work_items, normalized, configuration)
+    _add_duplicate_work_items(result, normalized_work_items, normalized, catalog)
     if penetration is not None:
         snapshot = normalize_penetration(penetration)
         firestopping = calculate_firestopping(snapshot['draft'], configuration)
@@ -285,4 +289,5 @@ def calculate(inputs=None, configuration=None, penetration=None, work_items=None
         result['materials'].append({'source': 'global_adjustment',
             'name': 'Global material adjustment', 'quantity': 1,
             'price': material_adjustment, 'total': material_adjustment, 'days': 0})
+    result['error_details'] = calculation_error_details(result, catalog=catalog)
     return result

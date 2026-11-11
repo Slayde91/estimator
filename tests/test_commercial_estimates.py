@@ -1,7 +1,9 @@
 """Linked Quote amounts and original schedules use captured estimate values."""
 
 from copy import deepcopy
+from hashlib import sha256
 from io import BytesIO
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -13,6 +15,8 @@ from estimator.commercial_estimates import derive_estimates
 from estimator.commercial_documents import default_fields
 from estimator.commercial_pdf import render_commercial_pdf
 from estimator.company_settings import DEFAULTS
+from estimator.project_file import CALCULATOR_IDS, export_project, load_project_bytes
+from estimator.schedule_rows import empty_schedule_inputs
 from estimator.storage import Store
 
 
@@ -36,6 +40,22 @@ class CommercialEstimateTests(unittest.TestCase):
                 'estimate': {'title': 'Additional work', 'inputs': {'B28': 75}},
             }},
         ], 'selected_ids': ['estimate-1']}
+
+    def test_out_of_range_linked_total_names_estimate_and_respects_cent_rounding(self):
+        request = self.request()
+        estimate = request['estimates'][0]['workspace']['estimate']
+        estimate['inputs'] = {'B15': 1, 'C15': 1e-28, 'D2': '1 Team - 1x'}
+        with self.assertRaisesRegex(ValidationError, 'Fire protection.*Quote line range.*daily outputs'):
+            derive_estimates(self.store, request)
+        base = self.store.prepare_quote({})['result']['summary']['total']
+        for sign in (-1, 1):
+            with self.subTest(sign=sign):
+                estimate['inputs'] = {'B28': sign * 1_000_000_000.004 - base}
+                result = derive_estimates(self.store, request)
+                self.assertEqual(result['lines'][0]['unit_price'], f'{sign * 1_000_000_000}.00')
+                estimate['inputs'] = {'B28': sign * 1_000_000_000.005 - base}
+                with self.assertRaisesRegex(ValidationError, 'Fire protection.*Quote line range'):
+                    derive_estimates(self.store, request)
 
     def test_selected_price_and_original_full_schedule_pdf(self):
         request = self.request()
@@ -70,6 +90,20 @@ class CommercialEstimateTests(unittest.TestCase):
         request['estimates'][1]['name'] = 'Renamed scope'
         renamed = derive_estimates(self.store, request)
         self.assertNotEqual(changed['sources'], renamed['sources'])
+
+    def test_linked_source_matches_portable_file_and_reopened_total(self):
+        request = self.request()
+        item = request['estimates'][0]
+        workspace = deepcopy(item['workspace'])
+        for calculator in CALCULATOR_IDS:
+            workspace['calculators'].setdefault(calculator, {'inputs': empty_schedule_inputs(calculator)})
+        payload = export_project(self.store, workspace)
+        reopened = load_project_bytes(self.store, payload)
+        canonical = json.dumps({'name': item['name'], 'workspace': json.loads(payload)}, sort_keys=True,
+                               ensure_ascii=False, allow_nan=False, separators=(',', ':')).encode('utf-8')
+        result = derive_estimates(self.store, request)
+        self.assertEqual(result['sources'], [{'estimate_id': item['id'], 'sha256': sha256(canonical).hexdigest()}])
+        self.assertEqual(float(result['lines'][0]['unit_price']), reopened['estimate']['result']['summary']['total'])
 
     def test_custom_legacy_scope_is_preserved_once_with_first_schedule_across_estimates(self):
         request = self.request()

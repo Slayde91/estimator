@@ -16,7 +16,6 @@ from urllib.parse import parse_qs, urlsplit
 from .calculator import fields, labour_breakdown
 from .estimate_composition import calculate
 from .catalog import ROOT, baseline, configuration_catalog, effective_catalog, validate_configuration, ValidationError
-from .presentation import calculation_error_details
 from .quote_details import compile_work_summary
 from .storage import Store, WORKFLOWS
 from .edition import excluded_route, features, render_index, require_project_edition, validate_edition
@@ -487,7 +486,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                                       {'Content-Disposition': f'inline; filename="{filename}"'})
                 elif route == '/api/penetration':
                     from .penetration_calculator import definition
-                    self.send_payload(200, definition(store.configuration(), service_types=libraries.service_types()))
+                    self.send_payload(200, definition(store.configuration()))
                 elif route == '/api/calculators':
                     from .workbook_calculators import calculator_list
                     self.send_payload(200, calculator_list())
@@ -668,7 +667,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if not isinstance(body, dict) or set(body) != {'library_drafts'}:
                         raise ValidationError('Include only the project library drafts to prepare.')
                     from .project_library_drafts import prepare_library_drafts
-                    self.send_payload(200, prepare_library_drafts(body['library_drafts'], service_types=libraries.service_types()))
+                    self.send_payload(200, prepare_library_drafts(body['library_drafts']))
                 elif re.fullmatch(r'/api/libraries/penetration/[a-z0-9][a-z0-9_-]{0,119}/(calculate|refresh-pricing|save|delete)', route):
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})
@@ -724,15 +723,17 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         allowed |= {'project_details', 'download'}
                     if set(body) - allowed or (action != 'definition' and 'draft' not in body):
                         raise ValidationError('Include the Firestopping Estimator draft and pricing configuration only.')
-                    config = validate_configuration(body.get('configuration', store.configuration()))
+                    config = validate_configuration(body['configuration'] if 'configuration' in body else store.configuration())
                     if action == 'definition':
-                        self.send_payload(200, definition(config, service_types=libraries.service_types()))
+                        # The calculator uses the reviewed, fixed Services vocabulary.
+                        # Opening an estimate must not load the entire Technical Library.
+                        self.send_payload(200, definition(config))
                     elif action == 'validate-item':
                         from .penetration_entry import validate_item_for_add
                         validate_item_for_add(body['draft'])
                         self.send_payload(200, {'valid': True})
                     elif action == 'calculate':
-                        result = calculate_penetration(body['draft'], config, service_types=libraries.service_types())
+                        result = calculate_penetration(body['draft'], config)
                         self.send_payload(200, result)
                     else:
                         from .penetration_report import render_penetration_pdf, build_penetration_register
@@ -907,9 +908,9 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         raise ValidationError("Workflow must be text of at most 200 characters.")
                     if 'penetration' in body and body['penetration'] is None:
                         raise ValidationError('Include the Firestopping schedule draft only in the estimate.')
-                    result = calculate(body.get("inputs", {}), body.get("configuration", store.configuration()), body.get('penetration'), body.get('work_items'))
-                    self.send_payload(200, {**result, "error_details": calculation_error_details(result),
-                                            "work_summary": compile_work_summary(workflow, result)})
+                    configuration = body["configuration"] if "configuration" in body else store.configuration()
+                    result = calculate(body.get("inputs", {}), configuration, body.get('penetration'), body.get('work_items'))
+                    self.send_payload(200, {**result, "work_summary": compile_work_summary(workflow, result)})
                 elif route == "/api/configuration" and self.command == "PUT":
                     self.send_payload(200, store.save_configuration(body))
                 elif route == "/api/quotes" and self.command == "POST":

@@ -1,5 +1,5 @@
 const fs = require('node:fs'), vm = require('node:vm'), assert = require('node:assert/strict');
-function harness({blocked=false, type='application/pdf', ok=true, size=100, projectToken=null}={}) {
+function harness({blocked=false, type='application/pdf', ok=true, size=100, projectToken=null, saveFailure=false}={}) {
   const calls=[], urls=[], revoked=[], downloads=[], intervals=[], timers=[];
   const viewer={closed:false,opener:{},location:{replace:value=>calls.push(['view',value])},close(){this.closed=true;}};
   const context={window:{open:()=>{calls.push(['open']);return blocked?null:viewer;},
@@ -7,7 +7,9 @@ function harness({blocked=false, type='application/pdf', ok=true, size=100, proj
     CeasefireDocumentation:{downloadHeaders(){throw Error('Must not create project history');}},
     CeasefireActivity:{begin:()=>()=>calls.push(['end'])}},
     document:{activeElement:null,body:{append(){}},createElement:()=>({click(){downloads.push(this.download);},remove(){}})},
-    fetch:async(path,options)=>{calls.push(['fetch',path,JSON.parse(options.body)]);return {ok,status:ok?200:400,
+    fetch:async(path,options)=>{calls.push(['fetch',path,JSON.parse(options.body)]);
+      if(saveFailure && calls.filter(c=>c[0]==='fetch').length===1) return {ok:false,status:400,clone(){return this;},json:async()=>({error:'The download could not be saved. Check the destination folder permissions and available disk space, then try again.'})};
+      return {ok,status:ok?200:400,
       headers:{get:()=>type},blob:async()=>({size}),json:async()=>ok?({saved:true,path:'C:/Downloads/Reference.xlsx',filename:'Reference.xlsx',destination:'downloads'}):({error:'Actual source validation failed'})};},
     URL:{createObjectURL:blob=>{urls.push(blob);return 'blob:temporary';},revokeObjectURL:url=>revoked.push(url)},
     setInterval:fn=>{intervals.push(fn);return intervals.length;},clearInterval(){},
@@ -32,6 +34,12 @@ function harness({blocked=false, type='application/pdf', ok=true, size=100, proj
     assert.deepEqual(h.calls.find(c=>c[0]==='fetch')[2],{configuration:{captured:true},download:{project_token:null}});
     assert.equal(h.calls.some(c=>c[0]==='open'),false);assert.equal(h.urls.length,0);
   }
+  const fallback=harness({saveFailure:true,type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',projectToken:'saved-project'});
+  const fallbackResult=await fallback.api.save('/api/pricing/export',{configuration:{captured:true}});
+  assert.equal(fallbackResult.destination,'browser');
+  assert.deepEqual(fallback.downloads,['CLASSIFIRE-Pricing.xlsx']);
+  assert.deepEqual(fallback.calls.filter(c=>c[0]==='fetch')[1][2],{configuration:{captured:true}});
+  fallback.timers.forEach(fn=>fn());assert.deepEqual(fallback.revoked,['blob:temporary']);
   const blocked=harness({blocked:true});await assert.rejects(blocked.api.save('/api/technical/item.pdf',{}),/Allow a new PDF tab/);
   assert.equal(blocked.calls.some(c=>c[0]==='fetch'),false);
   for(const options of [{ok:false},{type:'text/html'},{size:0}]){

@@ -49,6 +49,7 @@ CERTIFICATION_CHOICES = ('Certification issued', 'Certification not issued')
 COMPLETION_CHOICES = ('Completed', 'Ongoing', 'On hold', 'Not completed')
 MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024
 MAX_PDF_BYTES = 64 * 1024 * 1024
+MAX_DOCUMENT_AMOUNT = 1_000_000_000
 RATE_DEFAULTS = {'ordinary_time': '130', 'time_and_half': '160', 'double_time': '190',
                  'site_remobilisation': '1000', 'access_equipment_transport': '400',
                  'equipment': '20', 'materials': '20'}
@@ -129,7 +130,7 @@ def _number(value, label, minimum=0):
         raise ValidationError(f'{label} must be a number.')
     try:
         result = Decimal(str(value))
-        if not result.is_finite() or not minimum <= result <= Decimal('1000000000') or result.as_tuple().exponent < -6:
+        if not result.is_finite() or not minimum <= result <= MAX_DOCUMENT_AMOUNT or result.as_tuple().exponent < -6:
             raise ValueError
     except (InvalidOperation, ValueError) as error:
         raise ValidationError(f'{label} must be between {minimum} and one billion with at most six decimal places.') from error
@@ -398,7 +399,7 @@ def validate_fields(value, *, kind=None):
         result['lines'].append({'estimate_id': _text(line.get('estimate_id', ''), 'Estimate identity', 100),
                                 'description': _text(line.get('description', ''), 'Description', 6000),
                                 'quantity': _number(line.get('quantity', '1'), 'Quantity'),
-                                'unit_price': _number(line.get('unit_price', '0'), 'Unit price', -1000000000),
+                                'unit_price': _number(line.get('unit_price', '0'), 'Unit price', -MAX_DOCUMENT_AMOUNT),
                                 'size': _text(line.get('size', ''), 'Size', 1000),
                                 'comments': _text(line.get('comments', ''), 'Comments', 2000)})
     tables = value['scope_tables']
@@ -566,7 +567,7 @@ def commercial_cards(snapshot):
             if kind == 'work_order':
                 grand_total = order['estimated_cost']
             else:
-                amounts = [{'quantity': _number(line['quantity'], 'Quantity'), 'unit_price': _number(line['unit_price'], 'Unit price', -1000000000)} for line in lines]
+                amounts = [{'quantity': _number(line['quantity'], 'Quantity'), 'unit_price': _number(line['unit_price'], 'Unit price', -MAX_DOCUMENT_AMOUNT)} for line in lines]
                 grand_total = totals({'lines': amounts})['grand_total']
             cards.append({'id': _identity(document['id']), 'project_id': snapshot['project_id'], 'kind': kind,
                           'version': document['version'], 'status': document['status'], 'grand_total': grand_total,
@@ -605,6 +606,7 @@ class CommercialDocuments:
         self.files = WorkOrderFiles(self.root / "files")
         self.renderer = renderer
         self.validate_purchase_parties = validate_purchase_parties
+        self._validated_draft_sizes = {}
         with self._connect() as db:
             db.executescript('''
                 CREATE TABLE IF NOT EXISTS commercial_workspaces (workspace TEXT PRIMARY KEY, project_id TEXT NOT NULL);
@@ -707,20 +709,29 @@ class CommercialDocuments:
         if local_project is not None:
             return local_project
         project = self.certifications.project_id(workspace)
-        db.execute('INSERT OR IGNORE INTO commercial_workspaces VALUES (?,?)', (workspace, project))
-        if db.execute('SELECT project_id FROM commercial_workspaces WHERE workspace=?', (workspace,)).fetchone()[0] != project:
+        row = db.execute('SELECT project_id FROM commercial_workspaces WHERE workspace=?', (workspace,)).fetchone()
+        if row is None:
+            db.execute('INSERT OR IGNORE INTO commercial_workspaces VALUES (?,?)', (workspace, project))
+            row = db.execute('SELECT project_id FROM commercial_workspaces WHERE workspace=?', (workspace,)).fetchone()
+        elif not db.in_transaction:
+            # Capture the drafts and their counters from one read transaction.
+            # Existing workspaces need no write lock to load a document or board.
+            db.execute('BEGIN')
+        if row[0] != project:
             raise CommercialConflict('The commercial document workspace changed projects.')
         return project
 
     @staticmethod
-    def _snapshot(db, workspace, project):
-        rows = db.execute('SELECT data FROM commercial_drafts WHERE workspace=? ORDER BY id', (workspace,)).fetchall()
+    def _snapshot(db, workspace, project, documents=None):
+        if documents is None:
+            documents = [_stored_document(row[0]) for row in db.execute(
+                'SELECT data FROM commercial_drafts WHERE workspace=? ORDER BY id', (workspace,))]
         counters = dict.fromkeys(KINDS, 0)
         counters.update(dict(db.execute('SELECT kind,number FROM commercial_sequences').fetchall()))
         work_order_counters = dict(db.execute('SELECT quote_number,number FROM commercial_work_order_sequences WHERE project_id=?', (project,)).fetchall())
         series = DocumentNumbers.history(db,project)
         short_quotes = DocumentNumbers.short_quote_history(db,project)
-        return {'version': 1, 'project_id': project, 'documents': [_stored_document(row[0]) for row in rows], **({'reference_counters': series} if series else {}),
+        return {'version': 1, 'project_id': project, 'documents': documents, **({'reference_counters': series} if series else {}),
                 **({'short_quote_counters': short_quotes} if short_quotes else {}),
                 'number_counters': counters, 'work_order_counters': work_order_counters}
 
@@ -731,6 +742,16 @@ class CommercialDocuments:
         if expected_snapshot is not None and validate_commercial_documents(expected_snapshot) != snapshot:
             raise CommercialConflict('Commercial documents changed while the project was being saved. Refresh and save again.')
         return snapshot
+
+    def document_context(self, workspace, identity=None):
+        """Resolve the workspace capability and the selected draft, if present."""
+        with self._connect() as db:
+            project = self._workspace(db, workspace)
+            if not identity:
+                return project, None
+            row = db.execute('SELECT data FROM commercial_drafts WHERE workspace=? AND id=?',
+                             (workspace, identity)).fetchone()
+            return project, _stored_document(row[0]) if row is not None else None
 
     @staticmethod
     def _linked_quote_total(db, workspace, project, quote_id, quote_number):
@@ -796,7 +817,7 @@ class CommercialDocuments:
                     result['quote_rows'].setdefault(identity,{})[number] = tracking
             return result
 
-    def restore(self, workspace, snapshot):
+    def restore(self, workspace, snapshot, *, return_view=True):
         snapshot = validate_commercial_documents(snapshot)
         with self._connect() as db:
             self.numbering.attach(db)
@@ -827,7 +848,8 @@ class CommercialDocuments:
                     db.execute('INSERT INTO commercial_sequences VALUES(?,?) ON CONFLICT(kind) DO UPDATE SET number=max(number,excluded.number)', (kind, number))
                 for quote_number, number in snapshot['work_order_counters'].items():
                     db.execute('INSERT INTO commercial_work_order_sequences VALUES(?,?,?) ON CONFLICT(project_id,quote_number) DO UPDATE SET number=max(number,excluded.number)', (project, quote_number, number))
-        return self.view(workspace)
+        if return_view:
+            return self.view(workspace)
 
     @staticmethod
     def _record(db, workspace, identity):
@@ -981,6 +1003,33 @@ class CommercialDocuments:
                 raise ValidationError('Attachment not found on this document.')
             return item, self.files.read(project, item)
 
+    def _validate_draft_save(self, db, workspace, project, document):
+        """Enforce the portable collection limits while holding the same write transaction as the save."""
+        snapshot = self._snapshot(db, workspace, project, [document])
+        validate_commercial_documents(snapshot)
+        size = len(_json(snapshot).encode('utf-8'))
+        rows = db.execute('SELECT id,CAST(data AS BLOB) FROM commercial_drafts WHERE workspace=? AND id<>?',
+                          (workspace, document['id']))
+        for count, (identity, raw) in enumerate(rows, start=2):
+            if count > 100:
+                raise ValidationError('A project supports at most 100 commercial documents.')
+            key = (project, identity, sha256(raw).digest())
+            length = self._validated_draft_sizes.get(key)
+            if length is None:
+                # Historical drafts gain default fields when read. Count the normalized
+                # UTF-8 bytes, including for old files, and never cache the document itself.
+                stored = _stored_document(raw)
+                if stored['id'] != identity:
+                    raise ValidationError('Commercial document identities must be unique.')
+                validate_commercial_documents({**snapshot, 'documents': [stored]})
+                length = len(_json(stored).encode('utf-8'))
+                if len(self._validated_draft_sizes) >= 2048:
+                    self._validated_draft_sizes.clear()
+                self._validated_draft_sizes[key] = length
+            size += 1 + length  # Serialized comma between documents.
+            if size > MAX_SNAPSHOT_BYTES:
+                raise ValidationError('Commercial document drafts exceed the 8 MiB project limit.')
+
     def save(self, workspace, payload, *, unfiled_context=None):
         if not isinstance(payload, dict) or set(payload) - {'id', 'version', 'kind', 'status', 'fields', 'signature_actions'}:
             raise ValidationError('Commercial document save contains unsupported fields.')
@@ -1070,9 +1119,7 @@ class CommercialDocuments:
                 document['reference'] = self.numbering.assign(db, kind, project + ':' + document['id'], (previous or {}).get('reference',''))
                 if kind == 'work_order':
                     fields['order']['work_order_reference'] = document['reference']
-            snapshot = self._snapshot(db, workspace, project)
-            snapshot['documents'] = [row for row in snapshot['documents'] if row['id'] != document['id']] + [document]
-            validate_commercial_documents(snapshot)
+            self._validate_draft_save(db, workspace, project, document)
             db.execute('INSERT INTO commercial_drafts VALUES(?,?,?) ON CONFLICT(workspace,id) DO UPDATE SET data=excluded.data', (workspace, document['id'], _json(document)))
             self._audit(db, workspace, document['id'], 'save', previous, document)
             if signed:
@@ -1136,6 +1183,7 @@ class CommercialDocuments:
         signature = self._signature(owner_key or workspace, identity, version, company, request_fingerprint)
         with self._connect() as db:
             self.numbering.attach(db)
+            db.execute('BEGIN IMMEDIATE')
             project = self._workspace(db, workspace)
             row = db.execute('SELECT * FROM commercial_issued WHERE request_id=?', (request_id,)).fetchone()
             if row is None:

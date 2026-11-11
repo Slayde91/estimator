@@ -44,6 +44,14 @@
     element.addEventListener("click", action);
     return element;
   }
+  function statusLabel(tag, status) {
+    const element = node(tag, "", status);
+    window.CeasefireI18n?.text(element, status);
+    return element;
+  }
+  function bindStatusOptions(control) {
+    for (const option of control.options) window.CeasefireI18n?.text(option, option.value);
+  }
   function pdfDownloadButton(action) {
     const control = button("", action, true);
     control.classList.add("icon-only", "commercial-download-pdf");
@@ -539,7 +547,7 @@
         if (checkbox.checked) state.hidden.delete(status);else state.hidden.add(status);
         renderCards();
       });
-      label.append(checkbox, node("span", "", status));
+      label.append(checkbox, statusLabel("span", status));
       columnOptions.append(label);
     }
     columns.append(columnOptions);
@@ -702,7 +710,7 @@
       column.setAttribute("aria-label", status);
       const matches = documents.filter(document => document.status === status);
       const columnHeading = node("div", "project-column-heading");
-      columnHeading.append(node("h2", "", status), node("span", "status-label", matches.length));
+      columnHeading.append(statusLabel("h2", status), node("span", "status-label", matches.length));
       column.append(columnHeading);
       column.addEventListener("dragover", event => {
         event.preventDefault();
@@ -735,6 +743,7 @@
           actions.append(control);
         }
         const statusSelect = select(state.model.statuses[state.kind], document.status, value => void move(document, value), false);
+        bindStatusOptions(statusSelect);
         statusSelect.addEventListener("change", () => {
           state.dirty = false;
           menu.open = false;
@@ -1081,6 +1090,7 @@
       state.editor.document.status=value;statusControl.dataset.status=value;
     });
     statusControl.classList.add('commercial-document-status');statusControl.dataset.status=state.editor.document.status;
+    bindStatusOptions(statusControl);
     for(const option of statusControl.options)option.dataset.status=option.value;
     const statusField = field("Status", statusControl);
     statusField.classList.add("commercial-action-status");
@@ -1403,7 +1413,7 @@
     const current=()=>state.editor===editor && !state.busy && panel.isConnected;
     const clientId=()=>Object.hasOwn(fields.details,'account_id') ? fields.details.account_id : project().account_id;
     const ownerId=()=>fields.billing?.account_id || clientId() || '';
-    const defaults=()=>editor.document.version===0 ? {
+    const defaults=()=>editor.document.version===0 || editor.billingRebound ? {
       address:fields.details.billing_address || (clientId()===project().account_id && project().billing_address) || '',
       abn_acn:fields.details.abn_acn || (clientId()===project().account_id && project().abn_acn) || ''} : {};
     const value=key=>(fields.billing || defaults())[key] || '';
@@ -1460,7 +1470,7 @@
       review.scrollIntoView({block:'center'});
       if(decision.kind==='claim'){
         const tr=source=>window.CeasefireI18n?.translate(source) || source;
-        const changes={},labels={address:'Billing address',abn_acn:'ABN/ACN',name:'Accounts name',email:'Accounts email',phone:'Accounts phone'};
+        const changes={},labels={address:'Billing address',abn_acn:'ABN/ACN',name:'Accounts name',email:'Accounts email',phone:'Accounts phone',billing_contact:'Billing contact'};
         review.append(node('strong','',decision.company));
         for(const [key,pair] of Object.entries(decision.conflicts)){
           const select=node('select');
@@ -1473,7 +1483,11 @@
           if(Object.values(changes).some(select=>!select.value)){notice('Choose which billing details to keep.');return;}
           const replace={};
           for(const [key,select] of Object.entries(changes)){
-            if(select.value==='saved')fields.billing[key]=decision.conflicts[key].saved;
+            if(select.value==='saved' && key==='billing_contact'){
+              const person=decision.conflicts[key].saved_contact;
+              Object.assign(fields.billing,{name:person.name,email:person.email,phone:person.phone,contact_id:person.id,new_contact_key:''});
+            }
+            else if(select.value==='saved')fields.billing[key]=decision.conflicts[key].saved;
             else replace[key]=decision.conflicts[key].token;
           }
           editor.billingReview={...editor.billingReview,replace};repaint();review.hidden=true;notice('Save the Work Order to apply these choices.');markDirty({billingChoice:true});
@@ -1511,12 +1525,18 @@
       window.CeasefireI18n?.text(separate,separateLabel);review.append(separate);
     };
     editor.billingNotice=notice;
+    function rebindHistoricalClient(dir){
+      const owner=fields.billing?.account_id,client=clientId(),aliases=dir.identity_aliases?.accounts || {};
+      if(!owner || !client || fields.billing.company_key || (aliases[owner] || owner)===(aliases[client] || client))return false;
+      lastClient=owner;editor.refreshClaimClient();return true;
+    }
     if(fields.billing?.sync_key || fields.billing?.new_contact_key){
       const id=fields.billing.contact_id;
       notice('Accounts contact link pending. Save the Work Order to finish.');
       editor.billingDirectory=window.ClassifireCommercialDirectory.load().then(dir=>{
-        if(!panel.isConnected || fields.billing?.contact_id!==id || editor.billingEdits?.size)return;
-        if(fields.billing?.sync_key && dir.accounts.some(a=>[ownerId(),clientId()].includes(a.id))){
+        if(!panel.isConnected || fields.billing?.contact_id!==id || editor.billingEdits?.size || rebindHistoricalClient(dir))return;
+        const owners=[ownerId(),clientId()].map(id=>dir.identity_aliases?.accounts?.[id] || id);
+        if(fields.billing?.sync_key && dir.accounts.some(a=>owners.includes(a.id))){
           editor.billingPendingKey=fields.billing.sync_key;notice('');
         }else if(dir.contacts.some(person=>person.id===(dir.identity_aliases?.contacts?.[id] || id))){
           editor.billingLinked=id;editor.billingPendingKey='';notice('');
@@ -1531,14 +1551,14 @@
       if(!clientId())return;
       const account=clientId(),initial=fields.billing;
       editor.billingDirectory=window.ClassifireCommercialDirectory.load().then(dir=>{
-        if(!panel.isConnected || state.editor!==editor || clientId()!==account || fields.billing!==initial || editor.billingEdits?.size)return;
+        if(!panel.isConnected || state.editor!==editor || clientId()!==account || fields.billing!==initial || editor.billingEdits?.size || rebindHistoricalClient(dir))return;
         const canonical=(kind,id)=>dir.identity_aliases?.[kind]?.[id] || id;
         const company=dir.accounts.find(a=>a.id===canonical('accounts',account));
         if(!company)return;
         const billing={...(fields.billing || {})}, person=dir.contacts.find(p=>
           p.id===canonical('contacts',billing.contact_id || company.billing_contact_id) && p.account_id===company.id);
         for(const [key,x] of [['address',company.billing_address],['abn_acn',company.abn_acn]]){
-          if(x && (editor.document.version===0 || !billing[key]))billing[key]=x;
+          if(x && (editor.document.version===0 || editor.billingRebound || !billing[key]))billing[key]=x;
         }
         if(person && (!billing.name || billing.contact_id===person.id)){
           for(const key of ['name','email','phone'])if(!billing[key] && person[key])billing[key]=person[key];
@@ -1550,9 +1570,13 @@
     let lastClient=clientId();
     editor.refreshClaimClient=()=>{
       if(lastClient===clientId())return;
+      if(!clientId() && fields.details.client)return; // Wait for the Company lookup selection.
       lastClient=clientId();
-      if(editor.document.version || fields.billing?.sync_key || editor.billingEdits?.size)return;
+      if(fields.billing?.company_key)return; // The user explicitly chose a separate bill-to Company.
+      editor.billingRebound=true;editor.billingPendingKey='';delete editor.billingEdits;delete editor.billingReview;
       delete fields.billing;
+      if(editor.document.version)fields.billing={...defaults()};
+      review.hidden=true;notice('');
       repaint();loadDefaults();
     };
   }
@@ -2269,6 +2293,8 @@
     root()?.querySelectorAll('[data-project-detail]').forEach(control=>{control.value=fields.details[control.dataset.projectDetail] || '';});
     refreshQuoteIdentifiers();
     state.editor.panels?.refreshProjectDetails(projectDetailsSnapshot(state.editor.source));
+    // Rebuilt controls must stay locked while the owning project file is being written.
+    if(state.busy)setDisabled(true);
   }
   async function saveEditor(signatureAction = null) {
     if (!state.editor || (state.busy && !signatureAction)) return;

@@ -3541,5 +3541,14 @@
   "Keep this Company": "Conserver cette entreprise",
   "A Company with this name already exists. Enter a different name.": "Une entreprise porte déjà ce nom. Saisissez un autre nom.",
   "The billing details changed. Review the claim again.": "Les coordonnées de facturation ont changé. Revérifiez la demande de paiement.",
-  "Sign this section again or clear its signature to change its signing details.": "Pour modifier les données de signature, signez à nouveau cette section ou effacez sa signature."
+  "Sign this section again or clear its signature to change its signing details.": "Pour modifier les données de signature, signez à nouveau cette section ou effacez sa signature.",
+  "Requested": "Demandé",
+  "Reviewed": "Examiné",
+  "Sent": "Envoyé",
+  "OHS Docs": "Documents de santé et sécurité au travail",
+  "Client Approval": "Approbation du client",
+  "In progress": "En cours",
+  "Claim": "Demande de paiement",
+  "Certify": "Certification",
+  "On Hold": "En attente"
 }

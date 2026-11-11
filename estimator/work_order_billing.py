@@ -36,7 +36,7 @@ def normalized(raw):
             if value != '':
                 result[key] = valid_id(value)
         elif key == 'sync_fields':
-            if not isinstance(value,list) or not value or any(not isinstance(k,str) or k not in FIELDS for k in value):
+            if not isinstance(value,list) or not 1 <= len(value) <= len(FIELDS) or any(not isinstance(k,str) or k not in FIELDS for k in value):
                 raise ValidationError('Invalid Work Order billing details.')
             result[key] = sorted(set(value))
         elif (not isinstance(value,str) or len(value)>FIELDS.get(key,240)
@@ -119,13 +119,27 @@ class WorkOrderBilling:
     @staticmethod
     def _remember_contact(db, account, person):
         db.execute('''CREATE TABLE IF NOT EXISTS work_order_accounts_contacts (
-            account_id TEXT PRIMARY KEY REFERENCES accounts(id),contact_id TEXT NOT NULL REFERENCES contacts(id))''')
+            account_id TEXT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+            contact_id TEXT NOT NULL REFERENCES contacts(id) ON DELETE CASCADE)''')
         current = db.execute('SELECT contact_id FROM work_order_accounts_contacts WHERE account_id=?',(account,)).fetchone()
         if current and current[0] == person:
             return False
         db.execute('''INSERT INTO work_order_accounts_contacts VALUES (?,?) ON CONFLICT(account_id)
             DO UPDATE SET contact_id=excluded.contact_id''',(account,person))
         return True
+
+    @staticmethod
+    def _preferred(db, account, mapping):
+        tables = {r[0] for r in db.execute("SELECT name FROM sqlite_schema WHERE name IN ('work_order_billing_receipts','work_order_accounts_contacts')")}
+        row = db.execute('SELECT contact_id FROM work_order_accounts_contacts WHERE account_id=?',(account,)).fetchone() if 'work_order_accounts_contacts' in tables else None
+        if not row and 'work_order_billing_receipts' in tables:
+            row = db.execute('''SELECT min(c.id) FROM work_order_billing_receipts r JOIN contacts c ON c.id=r.contact_id
+                WHERE c.account_id=? HAVING count(*)=1''',(account,)).fetchone()
+        if row:
+            ident = mapping['contacts'].get(row[0],row[0])
+            record = db.execute('SELECT id,name,email,phone,account_id FROM contacts WHERE id=?',(ident,)).fetchone()
+            if record and mapping['accounts'].get(record['account_id'],record['account_id']) == account:
+                return dict(record)
 
     @staticmethod
     def _person(db, billing, review, project, document_id, previous=None):
@@ -172,7 +186,7 @@ class WorkOrderBilling:
                     known = {billing['account_id'],project_account,recipient}
                     if not any(i and db.execute('SELECT 1 FROM accounts WHERE id=?',(i,)).fetchone() for i in known):
                         return  # A portable copy can retain its snapshot without its original directory.
-                self._sync_plan(db,billing,{project_account,recipient},review,project,document_id)
+                self._sync_plan(db,billing,{recipient or project_account},review,project,document_id)
             return
         if not contact_id(billing) or identity(billing)==identity(previous):
             return
@@ -193,7 +207,7 @@ class WorkOrderBilling:
                 raise CommercialConflict(REOPEN)
             owner = details.get('account_id')
             if include_recipient:
-                owner = {owner,doc['fields']['details'].get('account_id')}
+                owner = {doc['fields']['details'].get('account_id') or owner}
             return complete(normalized(doc['fields'].get('billing',{})),owner,project)
         if not isinstance(source,dict) or len(source)!=2 or not isinstance(source.get('revision'),str):
             raise ValidationError(REOPEN)
@@ -270,6 +284,10 @@ class WorkOrderBilling:
                 conflicts[key] = {'saved':stored,'entered':entered}
             target[db_key] = entered
             changes.add('accounts' if target is company_fields else 'contacts')
+        preferred = self._preferred(db,company_id,mapping) if ident and ('name' in billing['sync_fields'] or not person) else None
+        if preferred and preferred['id'] != ident:
+            conflicts['billing_contact'] = {'saved':preferred['name'],'entered':billing['name'],
+                                           'saved_contact':preferred}
         if conflicts:
             accepted = choice.get('replace')
             for field,pair in conflicts.items():

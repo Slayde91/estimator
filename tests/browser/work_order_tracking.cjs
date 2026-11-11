@@ -276,6 +276,9 @@ async function download(host) {
   await work.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();
   await expect(boardClaim.getByRole('button',{name:'Apply billing choices',exact:true})).toBeVisible();
   await boardClaim.getByRole('button',{name:'Create a separate Contact',exact:true}).click();
+  await work.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();
+  await boardClaim.getByRole('combobox',{name:'Billing contact',exact:true}).selectOption('entered');
+  await boardClaim.getByRole('button',{name:'Apply billing choices',exact:true}).click();
   await page.route('**/api/commercial/complete-billing',route=>route.fulfill({status:503,
     contentType:'application/json',body:JSON.stringify({error:'Temporary accounts directory failure'})}));
   const savedBoard=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/commercial/saved-save');

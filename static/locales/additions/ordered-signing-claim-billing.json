@@ -88,5 +88,50 @@
     "서명 정보를 변경하려면 이 항목에 다시 서명하거나 서명을 지우세요.",
     "Upang baguhin ang detalye ng paglagda, lagdaang muli ang seksyong ito o alisin ang lagda nito.",
     "Để thay đổi thông tin ký, hãy ký lại phần này hoặc xóa chữ ký."
+  ],
+  "Requested": [
+    "요청됨",
+    "Hiniling",
+    "Đã yêu cầu"
+  ],
+  "Reviewed": [
+    "검토됨",
+    "Nasuri",
+    "Đã rà soát"
+  ],
+  "Sent": [
+    "전송됨",
+    "Naipadala",
+    "Đã gửi"
+  ],
+  "OHS Docs": [
+    "산업 안전 보건 문서",
+    "Mga dokumento sa kalusugan at kaligtasan sa trabaho",
+    "Hồ sơ an toàn và sức khỏe nghề nghiệp"
+  ],
+  "Client Approval": [
+    "고객 승인",
+    "Pag-apruba ng kliyente",
+    "Khách hàng phê duyệt"
+  ],
+  "In progress": [
+    "진행 중",
+    "Isinasagawa",
+    "Đang thực hiện"
+  ],
+  "Claim": [
+    "대금 청구",
+    "Paghiling ng bayad",
+    "Yêu cầu thanh toán"
+  ],
+  "Certify": [
+    "인증",
+    "Sertipikasyon",
+    "Chứng nhận"
+  ],
+  "On Hold": [
+    "보류 중",
+    "Nakaantala",
+    "Tạm dừng"
   ]
 }

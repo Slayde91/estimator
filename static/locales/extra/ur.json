@@ -3541,5 +3541,14 @@
   "Keep this Company": "یہی کمپنی رکھیں",
   "A Company with this name already exists. Enter a different name.": "اس نام کی کمپنی پہلے سے موجود ہے۔ کوئی دوسرا نام درج کریں۔",
   "The billing details changed. Review the claim again.": "بل کی تفصیلات بدل گئی ہیں۔ ادائیگی کے دعوے کا دوبارہ جائزہ لیں۔",
-  "Sign this section again or clear its signature to change its signing details.": "دستخط کی تفصیلات بدلنے کے لیے اس حصے پر دوبارہ دستخط کریں یا اس کے دستخط ہٹائیں۔"
+  "Sign this section again or clear its signature to change its signing details.": "دستخط کی تفصیلات بدلنے کے لیے اس حصے پر دوبارہ دستخط کریں یا اس کے دستخط ہٹائیں۔",
+  "Requested": "درخواست دی گئی",
+  "Reviewed": "جائزہ مکمل",
+  "Sent": "بھیج دیا گیا",
+  "OHS Docs": "پیشہ ورانہ صحت و حفاظت کی دستاویزات",
+  "Client Approval": "کلائنٹ کی منظوری",
+  "In progress": "کام جاری ہے",
+  "Claim": "ادائیگی کا دعویٰ",
+  "Certify": "تصدیق",
+  "On Hold": "زیر التوا"
 }

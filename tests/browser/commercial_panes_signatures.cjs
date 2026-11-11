@@ -78,7 +78,24 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  }
  for(const signature of await work.locator('[data-signature-field]').all())await expect(signature.getByRole('button')).toHaveCount(2);
  await expect(work.getByRole('button',{name:/^Delete (Reviewed by|Prepared by|Approved by|Progress signed by|Closed by|Claim signed by)$/})).toHaveCount(0);
- await groupSign(work,'details_by','Work order details reviewed by','Details Person','Details review date');await expect(work.getByLabel('Status',{exact:true})).toHaveValue('Review');
+ const billing=work.locator('[data-claim-billing]'),address=billing.getByRole('textbox',{name:'Billing address',exact:true});
+ await address.fill('2 Existing Accounts Road');await save(work);
+ await address.fill('8 Updated Accounts Road');await personal('Details Person');
+ const conflict=page.waitForResponse(response=>response.url().endsWith('/api/commercial/save') && response.request().method()==='POST');
+ await work.getByRole('button',{name:'Sign Work order details reviewed by',exact:true}).click();
+ assert.equal((await conflict).status(),409);await expect(billing.getByRole('button',{name:'Apply billing choices'})).toBeVisible();
+ await expect(work.getByLabel('Status',{exact:true})).toHaveValue('Draft');
+ await expect(work.locator('[data-signature-field=details_by] svg[role=img]')).toHaveCount(0);
+ await billing.getByRole('combobox',{name:'Billing address',exact:true}).selectOption('entered');
+ await billing.getByRole('button',{name:'Apply billing choices',exact:true}).click();
+ const retried=page.waitForRequest(req=>req.url().endsWith('/api/commercial/save') && req.method()==='POST');
+ await save(work);assert.equal((await retried).postDataJSON().signature_actions.length,1);
+ await expect(work.getByLabel('Status',{exact:true})).toHaveValue('Review');
+ const accepted=(await current()).documents.find(order=>order.kind==='work_order');
+ assert.equal(accepted.status,'Review');assert.equal(accepted.fields.order.details_by,'Details Person');assert.ok(accepted.fields.signatures.details_by.strokes.length);
+ const directory=await(await page.request.get(new URL('/api/contacts/directory',page.url()).href)).json();
+ assert.equal(directory.accounts.find(row=>row.company==='SIGNATURE PANE QA').billing_address,'8 Updated Accounts Road');
+ checks.push('A signed stage that encounters a conflicting billing address stays unsigned until the user chooses a value. Saving the decision applies the original signature once and updates the matching company.');
  await work.getByRole('button',{name:'Sign Reviewed by',exact:true}).click();await expect(work.locator('.commercial-message')).toHaveText('Choose an approval decision before signing.');
  await work.getByLabel('Approval',{exact:true}).selectOption('Denied');await groupSign(work,'reviewed_by','Reviewed by','Review Person','Review date');
  assert.equal((await current()).documents.find(document=>document.kind==='work_order').status,'Cancelled');

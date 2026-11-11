@@ -240,9 +240,16 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   const personalDefaults=await(await page.request.get(personalUrl)).json();
   const savedPersonal=await page.request.post(personalUrl,{data:{expected_version:personalDefaults.version,fields:{...personalDefaults.fields,name:'Commercial fixture signer'}}});
   assert.equal(savedPersonal.status(),200,await savedPersonal.text());
+  let releaseProjectWrite;
+  const writing=new Promise(resolve=>{releaseProjectWrite=resolve;});
+  await page.route('**/api/project/save',async route=>{await writing;await route.continue();},{times:1});
   for(const label of ['Work order details reviewed by','Reviewed by','Prepared by','Approved by']) {
     await work.getByRole('button',{name:'Sign '+label,exact:true}).click();
     await expect(work.getByRole('img',{name:label+' signature',exact:true})).toBeVisible();
+    if(label==='Work order details reviewed by') {
+      try {await expect(work.getByRole('button',{name:'Sign Reviewed by',exact:true})).toBeDisabled();}
+      finally {releaseProjectWrite();}
+    }
   }
   await work.getByRole('button',{name:'Change Approved by',exact:true}).click();
   await page.getByRole('dialog').getByRole('button',{name:'Cancel',exact:true}).click();

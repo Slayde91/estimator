@@ -229,16 +229,23 @@
   const fieldText = (label, value) => readingText(value, label === "Installation Details" || label === "Seal Depth / Fillet Size");
 
   const selectorRecord = record => /^(?:promat-|trafalgar-selector-)/i.test(String(record?.id || ""));
-  function displayTitle(record) {
-    const title = String(record?.title || record?.id || "");
+  function displayTitle(record, format = String) {
+    const id = String(record?.id || "");
+    if (/^tv-[0-9a-f]{40}$/.test(id)) {
+      if (record.title && !record.title.includes(id)) return record.title;
+      return [record.source_code, record.configuration].filter(Boolean).join(" — ") || "Technical Library item";
+    }
+    const title = String(record?.title || id);
     // Only supplier selector numbers are presentation noise. Technical IDs,
     // dimensions and ratings remain literal, and navigation keeps record.id.
-    return selectorRecord(record) ? title.replace(/^\s*(Promat|Trafalgar)(?:\s*:\s*|\s+)\d+\s*[—–-]\s*/i, "$1 — ") : title;
+    return title && format(selectorRecord(record) ? title.replace(/^\s*(Promat|Trafalgar)(?:\s*:\s*|\s+)\d+\s*[—–-]\s*/i, "$1 — ") : title);
   }
-  function displaySubtitle(record) {
+  function displaySubtitle(record, format = String) {
     const subtitle = String(record?.subtitle || "");
-    return selectorRecord(record) ? subtitle.split("·").map(part => part.trim())
+    if (record?.configuration && subtitle.includes(record.configuration)) return subtitle;
+    const value = selectorRecord(record) ? subtitle.split("·").map(part => part.trim())
       .filter(part => part && !/^\d+\s+selector variants?$/i.test(part)).join(" · ") : subtitle;
+    return value && format(value);
   }
   const hiddenFields = new Set(["diagram captions (visually checked)", "workbook report revision", "reference review", "reference qualification", "workbook / source differences", "workbook / source difference", "source information"]);
   const hiddenTechnicalFields = new Set(["source table notes", "source option alignment", "technical basis", "lead time"]);
@@ -248,7 +255,7 @@
     const selectorSupplier = selectorRecord(record) || (record.fields || []).some(item =>
       String(item.label).trim().toLowerCase() === "manufacturer" && String(item.value).split(/\r?\n/)
         .some(name => /^(?:promat|trafalgar)$/i.test(name.trim())));
-    if (kind === "technical" && selectorSupplier && label === "id" &&
+    if (kind === "technical" && selectorSupplier && label === "id" && field.value !== record.source_code &&
         /^(?:\d+|sys_var_\d+_au)(?:\s*\(\+\d+ variants listed below\))?$/i.test(String(field.value).trim())) return false;
     return kind !== "technical" || String(field.value ?? "").trim() !== "" || Boolean(field.images?.length || field.table || field.tables?.length || field.table_links?.length);
   }

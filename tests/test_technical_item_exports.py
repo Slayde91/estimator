@@ -199,6 +199,38 @@ class TechnicalItemExportsTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             self.capture()
 
+    def test_selected_variant_code_and_complete_configuration_survive_both_formats(self):
+        generated = 'tv-' + 'a' * 40
+        configuration = ('Concrete wall with minimum 25 mm wrap (see Table 7). ' * 5
+                         + 'End condition: use the lower rating.')
+        for manufacturer, code, custom_title in (('Promat', 'sys_var_1138717_au', ''),
+                                                  ('Trafalgar', '1165', 'Site-specific reference')):
+            with self.subTest(manufacturer=manufacturer):
+                record = self.library.detail('technical', 'report-a-v1')
+                record.update(id=generated, source_code=code, configuration=configuration,
+                              title=custom_title or f'{manufacturer}: {code} — {configuration}')
+                record['fields'] = [field for field in record['fields'] if field['label'] != 'ID']
+                record['fields'].insert(0, {'label': 'ID', 'value': code})
+                with patch.object(self.library, 'detail', return_value=record) as detail:
+                    snapshot = self.capture({'id': generated})
+                detail.assert_called_once_with('technical', generated)
+                pdf = PdfReader(BytesIO(render_technical_item_pdf(snapshot)))
+                text = ' '.join(' '.join(page.extract_text() for page in pdf.pages).split())
+                self.assertIn(configuration, text)
+                self.assertIn(code, text)
+                self.assertNotIn(generated, text)
+                book = load_workbook(BytesIO(build_technical_item_xlsx(snapshot)), data_only=False)
+                try:
+                    sheet = book['Item Details']
+                    rows = list(sheet.iter_rows(values_only=True))
+                    self.assertIn(('ID', code), rows)
+                    self.assertIn(('Selected configuration', configuration), rows)
+                    self.assertFalse(any(generated in str(value) for row in rows for value in row))
+                    links = [(cell.value, cell.hyperlink.target) for row in sheet for cell in row if cell.hyperlink]
+                    self.assertEqual(links, [('SYN-123', REPORT_URL)])
+                finally:
+                    book.close()
+
     def test_invalid_report_link_and_finite_work_budgets_fail_closed(self):
         canonical = self.library.detail('technical', 'report-a-v1')
         field = next(field for field in canonical['fields'] if field['label'] == 'Report Number')

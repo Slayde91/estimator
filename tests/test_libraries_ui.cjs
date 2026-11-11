@@ -537,9 +537,28 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
       const fields=[{label,value:'Source page 1, 2\nFit around the\nservice.\n\n1. Cut the board.\n2. Fill the gap.\nSource page 3\nProtect both faces.'}],before=copy(fields);
       h.setRoute(path=>path==='/api/libraries'?meta():({...detail(kind,'instructions'),fields,images:[]}));await h.api.open(kind,'instructions');
       const nodes=walk(h.pane(kind).detailPanel),prose=nodes.find(n=>n.className==='library-detail-text');
-      assert.ok(prose);assert.doesNotMatch(text(prose),/Source page/);assert.match(text(prose),/Fit around service\./);
+      assert.ok(prose);assert.doesNotMatch(text(prose),/Source page/);
+      assert.match(text(prose),kind==='technical'&&label==='Installation Details' ? /Fit around the service\./ : /Fit around service\./);
       assert.equal(walk(prose).filter(n=>n.tagName==='ol').length,1);assert.equal(walk(prose).filter(n=>n.tagName==='li').length,2);assert.match(text(prose),/Protect both faces/);assert.deepEqual(fields,before);
     }
+  });
+  await check('Technical instructions keep unmatched field lines distinct and display source wording for seals',async h=>{
+    const fields=[
+      {label:'Installation Details',value:'Fit the frames with the listed fixings.\n\nService: uPVC pipe\nService Wrap: No wrap;one Unicorn collar layer\n\nUse the lower rating.'},
+      {label:'Seal Depth / Fillet Size',value:'Use the seal with PEbackingrod.'},
+      {label:'Service Size / Configuration',value:'',table:{columns:['Seal Depth / Fillet Size','Service'],rows:[['Seal with PEbackingrod.','uPVC pipe']]}}
+    ],before=copy(fields);
+    h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','structured-fields'),subtitle:'CLT floor minimum130mm;both faces',fields,images:[]}));
+    await h.api.open('technical','structured-fields');
+    const nodes=walk(h.pane('technical').detailPanel),prose=nodes.find(n=>n.className==='library-detail-text');
+    assert.deepEqual(prose.children.map(n=>n.tagName),['p','dl','p']);
+    assert.deepEqual(prose.children[1].children.map(n=>n.textContent),['Service','uPVC pipe','Service Wrap','No wrap; one Unicorn collar layer']);
+    assert.equal(prose.children[0].textContent,'Fit the frames with the listed fixings.');
+    assert.equal(prose.children[2].textContent,'Use the lower rating.');
+    assert.ok(nodes.some(n=>n.tagName==='p'&&n.textContent==='CLT floor minimum 130 mm; both faces'));
+    assert.ok(nodes.some(n=>n.tagName==='dd'&&n.textContent==='Use the seal with PE backing rod.'));
+    assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),['Seal with PE backing rod.','uPVC pipe']);
+    assert.deepEqual(fields,before);
   });
   await check('FRL summaries show existing extrema once with working table links and all source cells retained',async h=>{
     const fields=[{label:'FRL',value:'-/60/60\n\n-/60/60 to -/120/120 — source substrate alternatives (Barrier Construction table 1; FRL). The entry selection remains separate.',table_links:[{field:'Barrier Construction',table_index:0}]},{label:'Barrier Construction',value:'',table:{columns:['Substrate','FRL'],rows:[['Wall A','-/60/60'],['Wall B','-/90/90'],['Wall C','-/120/120']]}}],before=copy(fields);

@@ -77,3 +77,29 @@ console.log("Library detail text formatting tests passed");
 
 assert.equal(compact("Use Brush Grade including approximately 3 layers; do not exceed 200 mm, or 2 × 50 mm."), "Use BG incl. approx. 3 layers; do not exceed 200 mm, or 2 × 50 mm.");
 assert.equal(compact("The Batt layers are glued together using Mastic (Brush Grade or Mastic)."), "Glue Batt layers together w/ Mastic (BG or Mastic).");
+
+// Explicit specification lines have their own source labels and values. Other
+// prose and continuations in author-supplied procedures retain their context.
+const labelledSource = [
+  "Seal the aperture.",
+  "",
+  "Barrier Construction: CLT floor, both faces",
+  "Service: uPVC pipe",
+  "Service Size / Configuration: 40 mm, nominal wall 2.3 mm",
+  "",
+  "Maintain the independently rated floor."
+].join("\n");
+const definitions = render(document, labelledSource, { installation: true });
+assert.deepEqual(definitions.map(node => node.tagName), ["p", "dl", "p"]);
+assert.deepEqual(definitions[1].children.map(node => [node.tagName, node.textContent]), [
+  ["dt", "Barrier Construction"], ["dd", "CLT floor, both faces"],
+  ["dt", "Service"], ["dd", "uPVC pipe"],
+  ["dt", "Service Size / Configuration"], ["dd", "40 mm, nominal wall 2.3 mm"]
+]);
+assert.equal(definitions[2].textContent, "Maintain the independently rated floor.");
+const wrappedQualifier = "1. Use only the stated\nService: copper pipe\nwith the stated insulation.";
+assert.deepEqual(parse(wrappedQualifier, { installation: true }), [
+  list(true, item("Use only the stated Service: copper pipe with the stated insulation.", 1))
+]);
+const wrappedField = "Service: insulated pipe\nwith the selected wall thickness.";
+assert.deepEqual(parse(wrappedField, { installation: true }), [paragraph("Service: insulated pipe with the selected wall thickness.")]);

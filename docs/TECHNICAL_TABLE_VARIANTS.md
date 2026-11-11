@@ -6,6 +6,14 @@ inputs, prices, or saved projects. The loader validates existing field,
 duplicate, Firefly and Services reviews before applying these public views.
 Without this optional sidecar, the original library remains unchanged.
 
+After validation, the detail view formats joined technical words, dimensions
+and report locators for reading. Recognised generated installation paragraphs
+can be shown as steps. A repeated configuration line is omitted only when it
+matches a visible field on that same item. Unrecognised instructions and
+different values stay in place. The browser and item downloads share these
+presentation rules; the editor, review bindings and supplier evidence keep
+the original wording. Do not regenerate the review plan for a formatting fix.
+
 The top-level object has `schema_version: 1`, `review_id`,
 `reviewed_index_sha256`, `families`, `aliases`, and optional `existing_bindings`.
 The index hash records lineage; every referenced raw item, public projection,

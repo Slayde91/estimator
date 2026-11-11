@@ -29,7 +29,7 @@ from .reference_library import identifier
 from .pdf_fonts import FONT_REGULAR
 from .report import _Report, _company_header, _escaped, _register_fonts, _LINE, _MUTED
 from .technical_fields import is_hidden_technical_label
-from .technical_display import compact_technical_text, display_technical_title
+from .technical_display import compact_technical_text, display_technical_title, technical_field_text
 
 _NOTE = 'Technical Library item details.'
 _HIDDEN = {'diagram captions (visually checked)', 'workbook report revision', 'reference review',
@@ -147,7 +147,12 @@ def _field_rows(snapshot):
                 if label.strip():
                     yield compact_technical_text(field['label']), compact_technical_text(label.strip()), links.get(label.strip())
         else:
-            yield compact_technical_text(field['label']), compact_technical_text(field['value']), None
+            yield compact_technical_text(field['label']), technical_field_text(field['label'], field['value']), None
+
+
+def _display_rows(table):
+    return [[technical_field_text(label, value) for label, value in zip(table['columns'], row, strict=True)]
+            for row in table['rows']]
 
 
 def _diagram_caption(image):
@@ -206,7 +211,7 @@ def build_technical_item_xlsx(snapshot):
         target = _new_sheet(workbook, f'Installation Table {ordinal}', compact_technical_text(table['label']), widths)
         _xlsx_table(target, 4,
                     [compact_technical_text(value) for value in table['columns']],
-                    [[compact_technical_text(value) for value in row] for row in table['rows']], widths)
+                    _display_rows(table), widths)
     diagrams = _new_sheet(workbook, 'Source Diagrams', 'SOURCE DIAGRAMS', [32, 82])
     row = 4
     if not snapshot['images']:
@@ -246,15 +251,16 @@ def render_technical_item_pdf(snapshot, *, company=None):
         report.story.append(report.table(['Field', 'Value'], rows, [content * .3, content * .7]))
     for table in snapshot['tables']:
         report.story.append(report.p(compact_technical_text(table['label']), 'subheading'))
+        display_rows = _display_rows(table)
         if len(table['columns']) <= 4:
-            report.story.append(report.table([compact_technical_text(value) for value in table['columns']], [[report.p(compact_technical_text(value), 'cell') for value in row] for row in table['rows']], [content / len(table['columns'])] * len(table['columns']), compact=True))
+            report.story.append(report.table([compact_technical_text(value) for value in table['columns']], [[report.p(value, 'cell') for value in row] for row in display_rows], [content / len(table['columns'])] * len(table['columns']), compact=True))
         else:
             # Keep source columns readable rather than shrinking 20 columns into
             # an A4 page. The explicit source row links each horizontal part.
             for start in range(0, len(table['columns']), 3):
                 columns = [compact_technical_text(value) for value in table['columns'][start:start + 3]]
                 report.story.append(report.p(f'Columns {start + 1}-{start + len(columns)} of {len(table["columns"])}; row numbers align these parts.', 'small'))
-                values = [[report.p(str(index), 'cell')] + [report.p(compact_technical_text(value), 'cell') for value in row[start:start + 3]] for index, row in enumerate(table['rows'], 1)]
+                values = [[report.p(str(index), 'cell')] + [report.p(value, 'cell') for value in row[start:start + 3]] for index, row in enumerate(display_rows, 1)]
                 report.story.append(report.table(['Row', *columns], values, [55] + [(content - 55) / len(columns)] * len(columns), compact=True))
     if not snapshot['images']:
         report.story.extend([report.p('Diagram', 'subheading'), report.p('No diagram is recorded.')])

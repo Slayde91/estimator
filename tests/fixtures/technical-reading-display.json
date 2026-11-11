@@ -1,0 +1,54 @@
+[
+  {
+    "source": "NB300; OD300mm; ID25.5mm; wall 5mm. Table 8, PDF pp25–26. FAS200363 R2.4 pp34–35. FCO1579 RevM pp26. FAS210023TPD26, P23, P40-MAK, OD500, ID400 and pp12.",
+    "display": "NB300; OD 300 mm; ID 25.5 mm; wall 5 mm. Table 8, PDF pp. 25–26. FAS200363 R2.4 pp. 34–35. FCO1579 RevM pp. 26. FAS210023TPD26, P23, P40-MAK, OD500, ID400 and pp12."
+  },
+  {
+    "source": "Pipe diameter Ø≤12mm, with up to 3 services.",
+    "display": "Pipe diameter Ø ≤ 12 mm, with up to 3 services."
+  },
+  {
+    "source": "Ryanfire HP-X to10mm depth from the underside of the Ryan502Batts over PEbackingrod,asT00169detailG/instruction3;annular gap per selectedFAS210123Table105row. Unicorncollar fixed with source tabs/bolts and penny washers.",
+    "display": "Ryanfire HP-X to 10 mm depth from the underside of the Ryan 502 Batts over PE backing rod, as T00169 detail G/instruction 3; annular gap per selected FAS210123 Table 105 row. Unicorn collar fixed with source tabs/bolts and penny washers."
+  },
+  {
+    "source": "FAS200363Table30;CLT independently rated60min;full timber/friction-fit installation. All tested local service details retained;max. aperture:1000mm×1000mm",
+    "display": "FAS200363 Table 30; CLT independently rated 60 min; full timber/friction-fit installation. All tested local service details retained; max. aperture: 1000 mm × 1000 mm"
+  },
+  {
+    "source": "FyreSTRAP40mm high×up to160mm wide;50mm FyrePEXHP depth each wall face;separate service holes5mm oversize. Use M6x50mm anchors and10gx100mm screws.",
+    "display": "FyreSTRAP 40 mm high × up to 160 mm wide; 50 mm FyrePEXHP depth each wall face; separate service holes 5 mm oversize. Use M6 × 50 mm anchors and 10g × 100 mm screws."
+  },
+  {
+    "source": "7x25mm Anaconda conduits;4contain2xfibre optic,3contain2xCAT6;bundle≤100mm. Retain the 10mm x 20mm x 3mm limit.",
+    "display": "7 × 25 mm Anaconda conduits; 4 contain 2 × fibre optic, 3 contain 2 × CAT6; bundle ≤ 100 mm. Retain the 10 mm × 20 mm × 3 mm limit."
+  },
+  {
+    "source": "FAS210123R2Table93p155;perTable11notes2 and 3;originalT00203/T00204instructions4and6. 25SFR00035specimen6.",
+    "display": "FAS210123R2 Table 93 p. 155; per Table 11 notes 2 and 3; original T00203/T00204 instructions 4 and 6. 25SFR00035 specimen 6."
+  },
+  {
+    "source": "Using1x mounting bracket,100mm wide. Limited to maximum1.62m². Fix with M6x50mm.",
+    "display": "Using 1x mounting bracket, 100 mm wide. Limited to maximum 1.62 m². Fix with M6 × 50 mm."
+  },
+  {
+    "source": "40mm;nominal wall2.3mm",
+    "display": "40 mm; nominal wall 2.3 mm"
+  },
+  {
+    "source": "CLT floor minimum130mm;two-layer friction fit,both faces",
+    "display": "CLT floor minimum 130 mm; two-layer friction fit, both faces"
+  },
+  {
+    "source": "See https://example.org/Unicorncollar/Table3?x=Figure4, sender+Table12@example.org and Table12.pdf. P40-MAK, P40 MAK Wrap, NBN P23, P1, p1, WMD12, -/60/60, AS1530.4 and FAS210123R2.0.",
+    "display": "See https://example.org/Unicorncollar/Table3?x=Figure4, sender+Table12@example.org and Table12.pdf. P40-MAK, P40 MAK Wrap, NBN P23, P1, p1, WMD12, -/60/60, AS1530.4 and FAS210123R2.0."
+  },
+  {
+    "source": "Fit w/ all fixings p/ the report;do not substitute FyreFLEX, UniCORN or INEX>FLOOR19. Keep numbers 10,000 and 1:20.",
+    "display": "Fit with all fixings per the report; do not substitute FyreFLEX, UniCORN or INEX>FLOOR19. Keep numbers 10,000 and 1:20."
+  },
+  {
+    "source": "assessmentTable62p127corroboratesNB300;T00204starredspecimen5note,asT00169detailG/instruction3;annular gapas selected source specimen",
+    "display": "assessment Table 62 p. 127 corroborates NB300; T00204 starred specimen 5 note, as T00169 detail G/instruction 3; annular gap as selected source specimen"
+  }
+]

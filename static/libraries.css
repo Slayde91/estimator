@@ -105,6 +105,10 @@
 .library-record-field dt{font-size:11px;font-weight:650;color:var(--muted);margin-bottom:5px}
 .library-record-field dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
 .library-detail-text{white-space:normal;line-height:1.55}
+.library-record-field[data-library-installation]{grid-column:1/-1}
+.library-record-field[data-library-installation] .library-detail-text{max-inline-size:78ch}
+.library-installation-fields{display:grid;grid-template-columns:fit-content(40%) minmax(0,1fr);gap:.3rem .8rem;align-items:baseline;margin:0 0 .65rem}
+.library-installation-fields dt,.library-installation-fields dd{margin:0}
 .library-detail-text p{margin:0 0 .65rem}
 .library-detail-text ol,.library-detail-text ul{margin:0 0 .65rem;padding-inline-start:1.65rem}
 .library-detail-text li{margin:.25rem 0;padding-inline-start:.2rem}

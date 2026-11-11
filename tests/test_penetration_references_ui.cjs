@@ -14,6 +14,7 @@ function setup() {
   };
   doc.body = doc.createElement('body'); Object.assign(h.context, { AbortController, URLSearchParams });
   Object.assign(h.context.window, { document: doc });
+  vm.runInContext(fs.readFileSync('static/library-detail-text.js', 'utf8'), h.context);
   vm.runInContext(fs.readFileSync('static/libraries.js', 'utf8'), h.context);
   vm.runInContext(fs.readFileSync('static/register-references.js', 'utf8'), h.context);
   vm.runInContext(fs.readFileSync('static/penetration-references.js', 'utf8'), h.context);
@@ -95,9 +96,14 @@ function setup() {
   });
   await check('Inspecting an item keeps its pending selection inside the picker and renders source text literally', async () => {
     const h = setup(), applied = [];
-    const pending = h.refs.open({ reference: { systems: [] }, fetch: async url => reply(url.includes('?') ? page([record('first')]) : { id: 'first', title: 'First system', fields: [{ label: 'Report', value: '<script>literal</script>' }] }), apply: async ids => applied.push(ids) }); await flush();
+    const fields = [{ label: 'Report', value: '<script>literal</script>' },
+      { label: 'Seal Depth / Fillet Size', value: 'PEbackingrod,asT00169detailG/instruction3' },
+      { label: 'Installation Details', value: '1. Fit the board.\n2. Seal to10mm.' }];
+    const pending = h.refs.open({ reference: { systems: [] }, fetch: async url => reply(url.includes('?') ? page([record('first')]) : { id: 'first', title: 'First system', fields }), apply: async ids => applied.push(ids) }); await flush();
     const checkbox = h.find(el => el.dataset.penetrationReferenceChoice === 'first'); checkbox.checked = true; await checkbox.emit('change'); await h.button('View item').emit('click'); await flush();
     assert.ok(h.elements().some(el => el.tagName === 'dd' && el.textContent === '<script>literal</script>')); assert.equal(checkbox.checked, true);
+    assert.ok(h.elements().some(el => el.tagName === 'dd' && /PE backing rod, as T00169 detail G/.test(el.textContent)));
+    assert.ok(h.elements().some(el => el.tagName === 'li' && el.textContent === 'Seal to 10 mm.'));
     await h.button('Use selected references').emit('click'); await pending; assert.deepEqual(copy(applied), [['first']]);
   });
   await check('Unavailable selected IDs remain visible and removable rather than silently discarded', async () => {

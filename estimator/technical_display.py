@@ -201,3 +201,107 @@ def compact_technical_text(value):
         cursor = match.end()
     pieces.append(compact(value[cursor:]))
     return _capitalise_sentences(re.sub(r'[ \t]+$', '', ''.join(pieces), flags=re.M), value)
+
+
+# Match only documented joins found in library prose. Blanket CamelCase and
+# letter/digit splitting would damage product names, drawing numbers and FRLs.
+_READING_PHRASES = (
+    'PE backing rod', 'Unicorn collar', 'Ryanfire 502 Board', 'Ryan 502 Batts',
+    'Ryanfire HP-X', 'Ryanfire Mastic', 'Brush Grade Mastic', 'Ryanfire Servowrap',
+    'Trafalgar FyreFLEX', 'FIRST Servowrap layer', 'OUTER Servowrap', 'EACH side',
+    'ONE face', 'Walsc AAC', 'Double DWV PVC stack', 'with Servowrap', 'of TWrap',
+    'on TCard', 'supporting floor', 'gap as', 'starred specimen', 'starred note',
+    'conclusion p', 'detail G', 'appendix Table', 'assessment Table', 'Drawing No',
+    'Report No', 'neighbouring PF', 'corroborates NB', 'Group A', 'Group B',
+    'specimens C', 'mm Overlap', 'Ryan Mastic', 'and service',
+)
+_JOINED_PHRASES = {phrase.replace(' ', '').casefold(): phrase for phrase in _READING_PHRASES}
+_JOINED = re.compile(r'(?<![A-Za-z])(?:' + '|'.join(
+    re.escape(phrase) for phrase in sorted(_JOINED_PHRASES, key=len, reverse=True)
+) + r')(?![A-Za-z])', re.I | re.ASCII)
+_READING_PROTECTED = re.compile(_PROTECTED.pattern + r'|\b[0-9a-f]{32,}\b|\bINEX>FLOOR19\b', re.I)
+_DIMENSION_CHAIN = re.compile(r'(?<![\w.])(?:\d+(?:\.\d+)?[ \t]*(?:mm|cm)?[ \t]*[xX][ \t]*)+\d+(?:\.\d+)?[ \t]*(?:mm|cm)(?:[23²³])?\b')
+_READING_SPACING = (
+    (re.compile(r'\b(as|in|original|per|selected)(?=(?:FAS|FCO|FC|T|Table)\d)', re.I), r'\g<1> '),
+    (re.compile(r'(?<=\d)(?=(?:tables?|figures?|details?|instructions?|specimens?|starred|notes?|row|application|contain|layers?|segments|mixed|pipe|and|or|add|corroborates)(?:[A-Z]|\d|\b))', re.I), ' '),
+    (re.compile(r'(?<=\d)(pp?)(?=\d)'), r' \1. '),
+    (re.compile(r'\b(PDF|(?:FAS|FCO?|FAR)\d+(?:-\d+)*(?:[ \t]+(?:R(?:ev)?[ \t]*[A-Z\d.]+|Issue[ \t]*\d+|Table[ \t]*\d+[a-z]?))?)[ \t]+pp(?=\d)'), r'\1 pp. '),
+    (re.compile(r'\b([OI]D)(?=\d+(?:\.\d+)?mm\b)'), r'\1 '),
+    (re.compile(r'(?<=\d)x(?=CAT\d|TPS\d|fibre\b|PVC\b)'), ' × '),
+    (re.compile(r'\b(with|of|per|as|the|over)(?=[A-Z]{2,}\b)'), r'\g<1> '),
+    (re.compile(r'\b(a)(?=\d+(?:x\d+)?mm\b)', re.I), r'\g<1> '),
+    (re.compile(r'\b(Appendix)(?=[A-Z](?:\.\d+|\d+)\b)', re.I), r'\1 '),
+    (re.compile(r'\b(tables?|figures?|sections?|instructions?|pages?|sheet|item)(?=\d)', re.I), r'\g<1> '),
+    (re.compile(r'\b(add|and|apply|arrangement|assessed|at|callout|cites|claim|complete|contain|elements|established|explicit|extending|five|floor|for|FRL|gap|governs|holes|in|install|into|issue|item|layer|least|literal|local|maintain|maximum|min|minimum|most|nominal|note|notes|of|one|or|original|overall|overlap|perimeter|plus|printed|rated|report|required|rows|secure|selected|selector|separate|source|specimen|standard|the|this|to|use|using|wall|where|wide|with|Servowrap|Shaftliner|FyreSTRAP|FyrePEXHP|TPS)(?=\d)', re.I), r'\g<1> '),
+    (re.compile(r'(?<=\d)(January|February|March|April|May|June|July|August|September|October|November|December)(?=\d{4}\b)', re.I), r' \g<1> '),
+    (re.compile(r'(?<=\bIssue \d),(?=\d{1,2} [A-Z][a-z]+ \d{4})'), ', '),
+    (re.compile(r'([,;])(?=[A-Za-z(])'), r'\g<1> '),
+    (re.compile(r'(?<=[A-Za-z]),(?=\d)|,(?=\d{2}SFR\d)'), ', '),
+    (re.compile(r'(;)(?=[\d<>≥≤])'), r'\g<1> '),
+    (re.compile(r'(?<=[A-Za-z)]):(?=[A-Za-z\d<>≥≤])'), ': '),
+    (re.compile(r'(?<=[a-z)])\.(?=(?:Apply|Install|Cut|Fix|Seal|Use|Based|The|Maintain|Fit|Ensure|Form|Allow)\b)'), '. '),
+    (re.compile(r'(?<=[A-Za-z0-9_Øø²³])(?=[≤≥§])'), ' '),
+    (re.compile(r'([≤≥§])(?=\d)'), r'\g<1> '),
+    (re.compile(r'(?<=[A-Za-z\d²³])×(?=[A-Za-z\d])'), ' × '),
+    (re.compile(r'(?<= )×(?=\d)'), '× '),
+    (re.compile(r'(?<=[A-Za-z0-9_Øø²³])×(?= )'), ' ×'),
+)
+_READING_UNITS = (
+    (re.compile(r'\bw/(?=\s)', re.I), 'with'),
+    (re.compile(r'\bp/(?=\s)', re.I), 'per'),
+    (re.compile(r'\b(M\d+|\d+g)[xX](?=\d+(?:\.\d+)?[ \t]*mm\b)', re.I), r'\1 × '),
+    (re.compile(r'\b(\d+(?:\.\d+)?)(mm|cm|µm|min|m(?=[²³]))(?=\b|[²³]|[23]\b)', re.I), r'\g<1> \g<2>'),
+)
+
+
+def _joined_phrase(match):
+    # Preserve spelling and original capitalisation while restoring spaces.
+    text = match[0]
+    cursor = 0
+    words = []
+    for word in _JOINED_PHRASES[text.casefold()].split():
+        words.append(text[cursor:cursor + len(word)])
+        cursor += len(word)
+    return ' '.join(words)
+
+
+def _reading_text(value, *, always):
+    if not isinstance(value, str):
+        return value
+    # Keep source identifiers, URLs, filenames and email addresses as-is.
+    parts = []
+    cursor = 0
+    changed = False
+    for match in _READING_PROTECTED.finditer(value):
+        parts.extend(((True, value[cursor:match.start()]), (False, match[0])))
+        cursor = match.end()
+    parts.append((True, value[cursor:]))
+    spaced = []
+    for prose, text in parts:
+        if prose:
+            source = text
+            text = _JOINED.sub(_joined_phrase, text)
+            for expression, replacement in _READING_SPACING:
+                text = expression.sub(replacement, text)
+            changed |= text != source
+        spaced.append((prose, text))
+    if not always and not changed:
+        return compact_technical_text(value)
+    result = []
+    for prose, text in spaced:
+        if prose:
+            text = _DIMENSION_CHAIN.sub(lambda match: re.sub(r'[ \t]*[xX][ \t]*', ' × ', match[0]), text)
+            for expression, replacement in _READING_UNITS:
+                text = expression.sub(replacement, text)
+        result.append(text)
+    return ''.join(result)
+
+
+def readable_technical_text(value):
+    """Retain complete technical prose and evidence locators in reading order."""
+    return _reading_text(value, always=True)
+
+
+def technical_field_text(label, value):
+    """Prefer full instructions for seal/installation fields and damaged prose."""
+    return _reading_text(value, always=label in {'Installation Details', 'Seal Depth / Fillet Size'})

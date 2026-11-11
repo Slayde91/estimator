@@ -148,6 +148,86 @@
     });
   }
 
+  // Match the export formatter. Repair only documented joins; product names,
+  // drawing numbers and FRLs cannot be split generically at case or digits.
+  const readingPhrases = [
+      "PE backing rod", "Unicorn collar", "Ryanfire 502 Board", "Ryan 502 Batts",
+      "Ryanfire HP-X", "Ryanfire Mastic", "Brush Grade Mastic", "Ryanfire Servowrap",
+      "Trafalgar FyreFLEX", "FIRST Servowrap layer", "OUTER Servowrap", "EACH side",
+      "ONE face", "Walsc AAC", "Double DWV PVC stack", "with Servowrap", "of TWrap",
+      "on TCard", "supporting floor", "gap as", "starred specimen", "starred note",
+      "conclusion p", "detail G", "appendix Table", "assessment Table", "Drawing No",
+      "Report No", "neighbouring PF", "corroborates NB", "Group A", "Group B",
+      "specimens C", "mm Overlap", "Ryan Mastic", "and service",
+  ];
+  const joinedPhrases = new Map(readingPhrases.map(phrase => [phrase.replaceAll(" ", "").toLowerCase(), phrase]));
+  const joined = new RegExp("(?<![A-Za-z])(?:" + [...joinedPhrases.keys()].sort((a, b) => b.length - a.length).join("|") + ")(?![A-Za-z])", "gi");
+  const readingProtected = /https?:\/\/[^\s<>]+|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|\b[\w.-]+\.(?:pdf|xlsx?|docx?|png|jpe?g|json)\b|\b[0-9a-f]{32,}\b|\bINEX>FLOOR19\b/gi;
+  const dimensionChain = /(?<![\w.])(?:\d+(?:\.\d+)?[ \t]*(?:mm|cm)?[ \t]*[xX][ \t]*)+\d+(?:\.\d+)?[ \t]*(?:mm|cm)(?:[23²³])?\b/g;
+  const readingSpacing = [
+    [/\b(as|in|original|per|selected)(?=(?:FAS|FCO|FC|T|Table)\d)/gi, "$1 "],
+    [/(?<=\d)(?=(?:tables?|figures?|details?|instructions?|specimens?|starred|notes?|row|application|contain|layers?|segments|mixed|pipe|and|or|add|corroborates)(?:[A-Z]|\d|\b))/gi, " "],
+    [/(?<=\d)(pp?)(?=\d)/g, " $1. "],
+    [/\b(PDF|(?:FAS|FCO?|FAR)\d+(?:-\d+)*(?:[ \t]+(?:R(?:ev)?[ \t]*[A-Z\d.]+|Issue[ \t]*\d+|Table[ \t]*\d+[a-z]?))?)[ \t]+pp(?=\d)/g, "$1 pp. "],
+    [/\b([OI]D)(?=\d+(?:\.\d+)?mm\b)/g, "$1 "],
+    [/(?<=\d)x(?=CAT\d|TPS\d|fibre\b|PVC\b)/g, " × "],
+    [/\b(with|of|per|as|the|over)(?=[A-Z]{2,}\b)/g, "$1 "],
+    [/\b(a)(?=\d+(?:x\d+)?mm\b)/gi, "$1 "],
+    [/\b(Appendix)(?=[A-Z](?:\.\d+|\d+)\b)/gi, "$1 "],
+    [/\b(tables?|figures?|sections?|instructions?|pages?|sheet|item)(?=\d)/gi, "$1 "],
+    [/\b(add|and|apply|arrangement|assessed|at|callout|cites|claim|complete|contain|elements|established|explicit|extending|five|floor|for|FRL|gap|governs|holes|in|install|into|issue|item|layer|least|literal|local|maintain|maximum|min|minimum|most|nominal|note|notes|of|one|or|original|overall|overlap|perimeter|plus|printed|rated|report|required|rows|secure|selected|selector|separate|source|specimen|standard|the|this|to|use|using|wall|where|wide|with|Servowrap|Shaftliner|FyreSTRAP|FyrePEXHP|TPS)(?=\d)/gi, "$1 "],
+    [/(?<=\d)(January|February|March|April|May|June|July|August|September|October|November|December)(?=\d{4}\b)/gi, " $1 "],
+    [/(?<=\bIssue \d),(?=\d{1,2} [A-Z][a-z]+ \d{4})/g, ", "],
+    [/([,;])(?=[A-Za-z(])/g, "$1 "],
+    [/(?<=[A-Za-z]),(?=\d)|,(?=\d{2}SFR\d)/g, ", "],
+    [/(;)(?=[\d<>≥≤])/g, "$1 "],
+    [/(?<=[A-Za-z)]):(?=[A-Za-z\d<>≥≤])/g, ": "],
+    [/(?<=[a-z)])\.(?=(?:Apply|Install|Cut|Fix|Seal|Use|Based|The|Maintain|Fit|Ensure|Form|Allow)\b)/g, ". "],
+    [/(?<=[A-Za-z0-9_Øø²³])(?=[≤≥§])/g, " "],
+    [/([≤≥§])(?=\d)/g, "$1 "],
+    [/(?<=[A-Za-z\d²³])×(?=[A-Za-z\d])/g, " × "],
+    [/(?<= )×(?=\d)/g, "× "],
+    [/(?<=[A-Za-z0-9_Øø²³])×(?= )/g, " ×"],
+  ];
+  const readingUnits = [
+    [/\bw\/(?=\s)/gi, "with"],
+    [/\bp\/(?=\s)/gi, "per"],
+    [/\b(M\d+|\d+g)[xX](?=\d+(?:\.\d+)?[ \t]*mm\b)/gi, "$1 × "],
+    [/\b(\d+(?:\.\d+)?)(mm|cm|µm|min|m(?=[²³]))(?=\b|[²³]|[23]\b)/gi, "$1 $2"],
+  ];
+
+  function joinedPhrase(text) {
+    let cursor = 0;
+    return joinedPhrases.get(text.toLowerCase()).split(" ").map(word => {
+      const value = text.slice(cursor, cursor + word.length);
+      cursor += word.length;
+      return value;
+    }).join(" ");
+  }
+
+  function readingText(value, always) {
+    const original = String(value ?? ""), parts = [];
+    let cursor = 0, changed = false;
+    const addProse = text => {
+      const spaced = readingSpacing.reduce((part, [expression, replacement]) =>
+        part.replace(expression, replacement), text.replace(joined, joinedPhrase));
+      changed ||= spaced !== text;
+      parts.push({ prose: true, text: spaced });
+    };
+    for (const match of original.matchAll(readingProtected)) {
+      addProse(original.slice(cursor, match.index));
+      parts.push({ prose: false, text: match[0] });
+      cursor = match.index + match[0].length;
+    }
+    addProse(original.slice(cursor));
+    if (!always && !changed) return compact(original);
+    return parts.map(part => part.prose ? readingUnits.reduce((text, [expression, replacement]) =>
+      text.replace(expression, replacement), part.text.replace(dimensionChain, chain => chain.replace(/[ \t]*[xX][ \t]*/g, " × "))) : part.text).join("");
+  }
+
+  const readable = value => readingText(value, true);
+  const fieldText = (label, value) => readingText(value, label === "Installation Details" || label === "Seal Depth / Fillet Size");
+
   const selectorRecord = record => /^(?:promat-|trafalgar-selector-)/i.test(String(record?.id || ""));
   function displayTitle(record) {
     const title = String(record?.title || record?.id || "");
@@ -212,7 +292,23 @@
     return bullet ? { ordered: false, text: bullet[1] } : null;
   }
 
-  function parse(value, { sourceMarkers = false } = {}) {
+  // Selected technical configurations can include a paragraph of explicitly
+  // labelled source lines. Recognise whole paragraphs so hard-wrapped prose
+  // and conditions within numbered steps stay attached to their instructions.
+  const installationFieldLine = /^(Barrier Construction|Service|Service Size \/ Configuration|Service Wrap|Seal Depth \/ Fillet Size|Fixings|Location|Batt Location|Local Protection|Collar):\s*(.+)$/i;
+  function installationFieldBlock(lines, start) {
+    if ((start > 0 && lines[start - 1]) || !installationFieldLine.test(lines[start])) return null;
+    const entries = [];
+    let index = start;
+    for (; index < lines.length && lines[index]; index++) {
+      const match = installationFieldLine.exec(lines[index]);
+      if (!match) return null;
+      entries.push({ label: match[1], text: match[2] });
+    }
+    return { block: { type: "fields", entries }, end: index - 1 };
+  }
+
+  function parse(value, { sourceMarkers = false, installation = false } = {}) {
     const lines = String(value ?? "").replace(/\r\n?|[\f\u2028\u2029]/g, "\n").split("\n").map(cleanLine);
     const blocks = [];
     let paragraph = null, list = null, item = null, nested = null, nestedItem = null, gap = false;
@@ -230,6 +326,10 @@
       let line = lines[index];
       if (!line) { gap = true; continue; }
       if (sourcePage.test(line)) { end(); continue; }
+      if (installation) {
+        const group = installationFieldBlock(lines, index);
+        if (group) { end(); blocks.push(group.block); index = group.end; continue; }
+      }
       // These source headings separate alternative procedures. Their trailing
       // dash and following numbered step distinguish them from wrapped prose.
       const section = installationHeading(lines, index);
@@ -290,8 +390,19 @@
   }
 
   function render(document, value, options) {
-    const display = options?.compact ? compact : text => text;
+    const display = options?.fieldLabel ? text => fieldText(options.fieldLabel, text)
+      : options?.compact ? compact : text => text;
     const renderBlock = block => {
+      if (block.type === "fields") {
+        const definitions = document.createElement("dl");
+        definitions.className = "library-installation-fields";
+        for (const entry of block.entries) {
+          const label = document.createElement("dt"), value = document.createElement("dd");
+          label.textContent = entry.label; value.textContent = display(entry.text);
+          definitions.append(label, value);
+        }
+        return definitions;
+      }
       if (block.type === "paragraph") {
         const paragraph = document.createElement("p"); paragraph.textContent = display(block.text); return paragraph;
       }
@@ -304,7 +415,7 @@
         else if (block.ordered) element.setAttribute("value", String(item.number));
         // Number markers are rendered by <ol>, but their full stop still starts
         // a sentence. Keep that context for the shared display/export rule.
-        const prefix = options?.compact && block.ordered && !item.label ? `${item.number}. ` : "";
+        const prefix = (options?.compact || options?.fieldLabel) && block.ordered && !item.label ? `${item.number}. ` : "";
         element.textContent = display(prefix + item.text).slice(prefix.length);
         element.append(...item.children.map(renderBlock));
         list.append(element);
@@ -313,10 +424,10 @@
     };
     // Complete field lines must be compared before wrapped-line parsing joins
     // them into prose. This is a display copy; parse(value) keeps the source.
-    return parse(options?.compact ? singleDiameter(String(value ?? "")) : value, options).map(renderBlock);
+    return parse(options?.compact || options?.fieldLabel ? singleDiameter(String(value ?? "")) : value, options).map(renderBlock);
   }
 
-  const api = Object.freeze({ parse, render, compact, displayTitle, displaySubtitle, visibleField });
+  const api = Object.freeze({ parse, render, compact, readable, fieldText, displayTitle, displaySubtitle, visibleField });
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (root) root.LibraryDetailText = api;
 })(typeof window !== "undefined" ? window : globalThis);

@@ -58,6 +58,20 @@ class TechnicalItemExportsTests(unittest.TestCase):
         self.assertEqual(snapshot['tables'][0]['columns'], ['Service', 'FRL'])
         self.assertEqual(inventory(self.root), before)
 
+    def test_pdf_and_workbook_display_complete_instructions_and_the_matching_table_cells(self):
+        snapshot = self.capture()
+        snapshot['fields'].append({'label': 'Seal Depth / Fillet Size', 'value':
+            'Use PEbackingrod,asT00169detailG/instruction3;gap10mm. Keep the limits in FAS210123 Table 105.',
+            'report_links': []})
+        snapshot['tables'][0]['rows'][0][0] = '40mm;nominal wall2.3mm'
+        book = load_workbook(BytesIO(build_technical_item_xlsx(snapshot)), data_only=False)
+        workbook_text = ' '.join(str(cell.value) for sheet in book for row in sheet for cell in row)
+        pdf = PdfReader(BytesIO(render_technical_item_pdf(snapshot)))
+        pdf_text = ' '.join(' '.join(page.extract_text().split()) for page in pdf.pages)
+        for text in (workbook_text, pdf_text):
+            for term in ('PE backing rod', 'T00169 detail G', 'FAS210123 Table 105', '10 mm', '40 mm; nominal wall 2.3 mm'):
+                self.assertIn(term, text)
+
     def test_payload_cannot_supply_record_content_paths_urls_or_schedule(self):
         for body in ({'id': '../private'}, {'id': 'report-a-v1', 'record': {}}, {'id': 'report-a-v1', 'images': []},
                      {'id': 'report-a-v1', 'url': REPORT_URL}, {'id': ['report-a-v1']}, {'items': ['report-a-v1']}):

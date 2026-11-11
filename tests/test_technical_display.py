@@ -4,10 +4,27 @@ from pathlib import Path
 import re
 import unittest
 
-from estimator.technical_display import compact_technical_text
+from estimator.technical_display import compact_technical_text, readable_technical_text, technical_field_text
 
 
 class TechnicalDisplayTests(unittest.TestCase):
+    def test_reading_prose_repairs_joined_source_text_and_preserves_identifiers(self):
+        entries = json.loads((Path(__file__).parent / 'fixtures/technical-reading-display.json').read_text(encoding='utf-8'))
+        for entry in entries:
+            with self.subTest(source=entry['source']):
+                self.assertEqual(readable_technical_text(entry['source']), entry['display'])
+                self.assertEqual(readable_technical_text(entry['display']), entry['display'])
+                self.assertEqual(re.findall(r'\d+', entry['source']), re.findall(r'\d+', entry['display']))
+
+    def test_reading_mode_depends_on_field_label_or_identifiable_spacing_error(self):
+        source = 'With FyreFLEX per Table 15 (see Figure 6).'
+        for label in ('Installation Details', 'Seal Depth / Fillet Size'):
+            self.assertEqual(technical_field_text(label, source), source)
+        self.assertEqual(technical_field_text('Service Wrap', source), compact_technical_text(source))
+        self.assertEqual(technical_field_text('Service Wrap', 'No wrap;one Unicorn collar layer'),
+                         'No wrap; one Unicorn collar layer')
+        self.assertIsNone(readable_technical_text(None))
+
     def test_page_prefix_is_omitted_without_removing_installation_numbers(self):
         source = 'Page 1, 2, 3: 1. Cut board with 100mm overlap.\n\nPage 2: Seal to 60mm. See Pages 2-3 for details.'
         expected = '1. Cut board w/ 100mm overlap.\n\nSeal to 60mm.'

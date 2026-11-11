@@ -146,7 +146,21 @@
               if (revision !== state.revision || !current()) return;
               if (detail.id !== item.id || !Array.isArray(detail.fields)) throw new Error("The Technical Library returned an invalid item.");
               const fields = node(document, "dl", "library-record-fields");
-              for (const field of detail.fields.filter(field => root.LibraryDetailText?.visibleField?.(detail, field, "technical") ?? true)) { const entry = node(document, "div", "library-record-field"); entry.append(node(document, "dt", "", field.label), node(document, "dd", "", field.value)); fields.append(entry); }
+              const firefly = /^fas19023[456]-/i.test(detail.id) || detail.fields.some(field =>
+                String(field.label).trim().toLowerCase() === "manufacturer" && /\bfirefly\b/i.test(String(field.value)));
+              for (const field of detail.fields.filter(field => root.LibraryDetailText.visibleField(detail, field, "technical"))) {
+                const entry = node(document, "div", "library-record-field"), value = node(document, "dd");
+                if (field.label === "Installation Details") {
+                  entry.dataset.libraryInstallation = "";
+                  value.className = "library-detail-text";
+                  value.append(...root.LibraryDetailText.render(document, field.value, {
+                    fieldLabel: field.label, installation: true, sourceMarkers: firefly
+                  }));
+                } else {
+                  value.textContent = root.LibraryDetailText.fieldText(field.label, field.value);
+                }
+                entry.append(node(document, "dt", "", field.label), value); fields.append(entry);
+              }
               preview.replaceChildren(node(document, "h4", "", displayTitle(detail)), fields); previewLoaded = true; inspect.setAttribute("aria-expanded", "true");
             } catch (error) { if (!state.closed && revision === state.revision && error.name !== "AbortError") { preview.replaceChildren(node(document, "p", "message error", error.message)); } }
             finally { previewLoading = false; inspect.disabled = state.saving; }

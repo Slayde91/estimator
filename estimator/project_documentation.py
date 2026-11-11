@@ -14,11 +14,11 @@ import os
 from pathlib import Path
 import re
 import sqlite3
-import tempfile
 from threading import RLock
 import uuid
 
 from .catalog import ValidationError
+from .project_temp import open_project_temp
 from .evidence_files import _directory, _open_regular, _hash_stream
 
 MAX_ARTIFACT_BYTES = 256 * 1024 * 1024
@@ -137,8 +137,7 @@ def _publish_file(source, destination, digest, size, maximum):
     else:
         _verified(destination, digest, size, maximum)
         return
-    descriptor, temporary_name = tempfile.mkstemp(prefix='.document-', dir=destination.parent)
-    temporary = Path(temporary_name)
+    descriptor, temporary = open_project_temp(destination.parent)
     try:
         with os.fdopen(descriptor, 'wb') as outgoing, _open_regular(source, maximum) as incoming:
             if os.fstat(incoming.fileno()).st_size != size:
@@ -325,8 +324,7 @@ class ProjectDocumentation:
 
     def _stage(self, payload, media_type):
         folder = _directory(self.root / 'staging', create=True)
-        descriptor, name = tempfile.mkstemp(prefix='.document-', dir=folder)
-        path = Path(name)
+        descriptor, path = open_project_temp(folder)
         try:
             if isinstance(payload, (bytes, bytearray, memoryview)):
                 if not 1 <= len(payload) <= MAX_ARTIFACT_BYTES:
@@ -450,8 +448,7 @@ class ProjectDocumentation:
             _verified(self.root / 'blobs' / (digest + EXTENSIONS[media_type]), digest, size, MAX_ARTIFACT_BYTES)
         digest = sha256(metadata).hexdigest()
         folder = _directory(self.root / 'staging', create=True)
-        descriptor, name = tempfile.mkstemp(prefix='.manifest-', dir=folder)
-        path = Path(name)
+        descriptor, path = open_project_temp(folder)
         try:
             with os.fdopen(descriptor, 'wb') as stream:
                 stream.write(metadata); stream.flush(); os.fsync(stream.fileno())

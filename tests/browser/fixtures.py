@@ -265,6 +265,7 @@ if __name__ == '__main__':
     parser.add_argument('--fixture-only')
     parser.add_argument('--directory')
     parser.add_argument('--physical-legacy', action='store_true')
+    parser.add_argument('--simulate-project-write-denial', action='store_true')
     args = parser.parse_args()
     if args.fixture_only:
         make_pdf(args.fixture_only)
@@ -301,7 +302,16 @@ if __name__ == '__main__':
             # Native document saves in this disposable server must never enter
             # the user's Downloads folder, even before the fixture is saved.
             from unittest.mock import patch
-            with patch('estimator.download_files.standard_downloads_directory', return_value=folder / 'native-downloads'):
+            from contextlib import ExitStack
+            with ExitStack() as patches:
+                patches.enter_context(patch('estimator.download_files.standard_downloads_directory', return_value=folder / 'native-downloads'))
+                if args.simulate_project_write_denial:
+                    from estimator.project_temp import open_project_temp
+                    def open_temp(target_folder):
+                        if target_folder == folder and (folder / 'deny-project-writes').exists():
+                            raise PermissionError('Synthetic project folder denied write access')
+                        return open_project_temp(target_folder)
+                    patches.enter_context(patch('estimator.project_library.open_project_temp', open_temp))
                 server.serve_forever()
         finally:
             server.server_close()

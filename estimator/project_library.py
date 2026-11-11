@@ -14,12 +14,12 @@ import secrets
 import stat
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 import uuid
 
 from .catalog import ValidationError
+from .project_temp import open_project_temp
 from .project_file import _same_project_values
 from .commercial_sources import CommercialSources, source_id
 from .edition import require_project_edition, validate_edition
@@ -309,7 +309,11 @@ def _atomic_write(selection, payload):
     try:
         if file_fingerprint(path) != expected:
             raise ValidationError("The selected file changed. Reload the project or use Save As to confirm its current contents.")
-        descriptor, temporary = tempfile.mkstemp(prefix=".ceasefire-project-", suffix=".tmp", dir=folder)
+        try:
+            descriptor, temporary = open_project_temp(folder)
+        except PermissionError as error:
+            raise ValidationError("The project folder denied permission to create a temporary save file. "
+                                  "Allow file creation in this folder or use Save As to choose a writable folder.") from error
         with os.fdopen(descriptor, "wb") as stream:
             stream.write(payload)
             stream.flush()

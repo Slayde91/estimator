@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -10,8 +11,10 @@ from uuid import uuid4
 
 from estimator.catalog import ValidationError
 from estimator.contacts import ContactsStore
+from estimator.crm_participants import CRMParticipants
 from estimator.project_file import export_project, load_project_bytes
 from estimator.project_library import ProjectLibrary, ProjectDetailsConflict
+from estimator.project_temp import open_project_temp
 from estimator.quote_details import QUOTE_DETAIL_LIMITS
 from estimator.storage import Store
 
@@ -60,6 +63,48 @@ class ProjectPaneTests(unittest.TestCase):
 
     def save(self, request):
         return self.library.save_details(request, accounts=self.accounts)
+
+    def test_linked_site_address_denied_write_fails_once_and_can_be_retried(self):
+        service = CRMParticipants(self.root / "participants.sqlite3", self.library, self.accounts)
+        actor = {"id": str(uuid4()), "name": "Synthetic user"}
+        site = service.create_site({"id": str(uuid4()), "name": "Shared site", "address": "Linked address"}, actor)
+        request = self.request(site_address="Updated address")
+        service.save({"project": self.file["id"], "project_revision": request["revision"],
+                      "version": 0, "site_id": site["id"], "participants": []}, actor)
+        previous = self.path.read_bytes()
+        # Simulate the effective Windows ACL: the directory exists and can be
+        # read, but opening any new temporary file there is denied.
+        real_open = os.open
+        attempts = []
+        def deny_creation(path, flags, *args, **kwargs):
+            if flags & os.O_CREAT and Path(path).parent == self.root:
+                attempts.append(path)
+                if len(attempts) > 1:
+                    self.fail("Permission denied must not trigger another filename attempt")
+                raise PermissionError("Access denied")
+            return real_open(path, flags, *args, **kwargs)
+        with patch("os.open", side_effect=deny_creation), self.assertRaisesRegex(ValidationError, "permission to create"):
+            self.save(request)
+        self.assertEqual(len(attempts), 1)
+        self.assertEqual(self.path.read_bytes(), previous)
+        self.assertEqual(self.read()["details"]["site_address"], "Old Site")
+        self.assertEqual(self.save(request)["details"]["site_address"], "Updated address")
+        linked = service.view(self.file["id"])
+        self.assertEqual((linked["site_id"], linked["site_address"]), (site["id"], "Updated address"))
+        self.assertEqual(linked["site"]["address"], "Linked address")
+
+    def test_temporary_name_collisions_preserve_existing_files_and_are_bounded(self):
+        collision = self.root / ".cf-first.tmp"
+        collision.write_bytes(b"existing contents")
+        with patch("estimator.project_temp.secrets.token_hex", side_effect=["first", "second"]):
+            descriptor, writable = open_project_temp(self.root)
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(b"separate file")
+        self.assertEqual(writable.read_bytes(), b"separate file")
+        with patch("estimator.project_temp.secrets.token_hex", return_value="first") as draw, self.assertRaises(FileExistsError):
+            open_project_temp(self.root)
+        self.assertEqual(draw.call_count, 8)
+        self.assertEqual(collision.read_bytes(), b"existing contents")
 
     def test_read_and_save_do_not_open_or_recalculate_workspace(self):
         before = deepcopy(self.base)

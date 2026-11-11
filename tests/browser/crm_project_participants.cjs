@@ -4,12 +4,13 @@ const {spawn}=require('node:child_process'),fs=require('node:fs'),path=require('
 const {createNewProject,openProjectSection}=require('./project_actions.cjs');
 const root=path.resolve(__dirname,'../..'),folder=path.join(root,'.runtime/browser-qa','crm-participants-'+Date.now());
 fs.mkdirSync(folder,{recursive:true});
-const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',folder],{cwd:root,windowsHide:true});
+const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',folder,'--simulate-project-write-denial'],{cwd:root,windowsHide:true});
 let stderr='',browser,page;server.stderr.on('data',d=>stderr+=d);
 const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject);server.on('exit',()=>reject(Error(stderr)));
   server.stdout.on('data',d=>{text+=d;if(text.includes('\n'))resolve(JSON.parse(text.split('\n')[0]));});});
 (async()=>{
   const info=await ready;assert.notEqual(info.port,8765);
+  const timings={};
   browser=await chromium.launch({headless:true});page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto('http://127.0.0.1:'+info.port);await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready);
   await createNewProject(page,{client:'Builder A','site-address':'42 Example Lane'});
@@ -66,17 +67,111 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   await expect(panel.getByRole('heading',{name:'Other bids linked to this site'})).toBeVisible();
   await expect(panel.locator('li').filter({hasText:'Builder A'})).toHaveCount(1);
   assert.deepEqual(fs.readFileSync(info.project),original);assert.deepEqual(fs.readFileSync(copyPath),copyBytes);
+  // Edit a saved bid while it has an explicit shared site, then change that link.
+  const address=page.locator('#project-pane-address');
+  const newAddress='77 Replacement Lane';
+  const linkState=()=>read('/api/crm/project-participants?project='+encodeURIComponent(selected.id));
+  await address.fill(newAddress);
+  const saveDetails=page.locator('#project-details-save');
+  const saveResponse=()=>page.waitForResponse(r=>new URL(r.url()).pathname==='/api/projects/details/save',{timeout:10000});
+  const deniedMarker=path.join(folder,'deny-project-writes');
+  fs.writeFileSync(deniedMarker,'');
+  try {
+    const started=Date.now();
+    const denied=saveResponse();
+    await saveDetails.click();
+    assert.equal((await denied).status(),400);
+    timings.deniedMetadataSaveMs=Date.now()-started;
+    await expect(page.locator('#project-details-status')).toContainText('writable folder');
+    await expect(address).toBeEditable();
+    await expect(address).toHaveValue(newAddress);
+    assert.deepEqual(fs.readFileSync(copyPath),copyBytes);
+    assert.equal((await linkState()).site_id,site.id);
+  } finally {
+    fs.unlinkSync(deniedMarker);
+  }
+  // A slow project-list refresh after the retry must not lock the saved form.
+  let allowRefresh,refreshStarted=false,finishedRefresh;
+  const gate=new Promise(resolve=>{allowRefresh=resolve;});
+  const continued=new Promise(resolve=>{finishedRefresh=resolve;});
+  const listEndpoint=url=>url.pathname==='/api/projects';
+  const delayList=async route=>{
+    refreshStarted=true;
+    await gate;
+    try { await route.continue(); } finally { finishedRefresh(); }
+  };
+  await page.route(listEndpoint,delayList);
+  try {
+    const started=Date.now();
+    const retry=saveResponse();
+    await saveDetails.click();
+    const savedAddress=await retry;assert.equal(savedAddress.status(),200,await savedAddress.text());
+    await expect.poll(()=>refreshStarted).toBe(true);
+    await expect(page.locator('#project-details-status')).toHaveText('Project details saved.');
+    await expect(address).toBeEditable();
+    await expect(page.locator('#project-details-close')).toBeEnabled();
+    timings.metadataRetryUntilEditableMs=Date.now()-started;
+  } finally {
+    allowRefresh();
+    if(refreshStarted)await continued;
+    await page.unroute(listEndpoint,delayList);
+  }
+  await expect(address).toHaveValue(newAddress);
+  const savedCopy=fs.readFileSync(copyPath);
+  assert.equal(JSON.parse(savedCopy).estimate.site_address,newAddress);
+  const afterAddressEdit=await linkState();
+  assert.equal(afterAddressEdit.site_id,site.id);
+  assert.equal(afterAddressEdit.site_mode,'manual');
+  if(!await panel.evaluate(el=>el.open))await panel.locator('summary').first().click();
+  await expect(panel.getByLabel('Search site addresses',{exact:true})).toHaveValue(newAddress);
+  const nextSite=await page.request.post(new URL('/api/crm/sites',page.url()).href,{data:{
+    id:require('node:crypto').randomUUID(),name:'Alternate work site',address:'99 Alternative Street'}});
+  assert.equal(nextSite.status(),200,await nextSite.text());
+  const alternate=await nextSite.json();
+  const search=panel.getByLabel('Search site addresses',{exact:true});
+  async function changeLink(button,siteId){
+    const response=page.waitForResponse(r=>r.request().method()==='POST' &&
+      new URL(r.url()).pathname==='/api/crm/project-participants' && r.request().postDataJSON().site_id===siteId);
+    await button.click();
+    const receipt=await response;assert.equal(receipt.status(),200,await receipt.text());
+    await expect(panel.getByRole('button',{name:'Refresh',exact:true})).toBeEnabled();
+    return receipt.json();
+  }
+  await search.fill('99 Alternative Street');
+  const changed=await changeLink(panel.locator(`[data-site-id="${alternate.id}"]`).getByRole('button',{name:/^Link /}),alternate.id);
+  assert.equal(changed.site_id,alternate.id);assert.equal((await linkState()).site_id,alternate.id);
+  const reverted=await changeLink(panel.getByRole('button',{name:'Use site address',exact:true}),null);
+  assert.equal(reverted.site_id,null);assert.equal((await linkState()).site_id,null);
+  await search.fill('42 Example Lane');
+  await changeLink(panel.locator(`[data-site-id="${site.id}"]`).getByRole('button',{name:/^Link /}),site.id);
+  assert.deepEqual(fs.readFileSync(copyPath),savedCopy,'Changing the site link preserves the edited project file');
+  assert.deepEqual(fs.readFileSync(info.project),original,'The other bid keeps its original address');
   // Removing the saved copy outside CLASSIFIRE must not erase or rebind the recorded site relationship.
   fs.renameSync(copyPath,copyPath+'.retained');
   const siteView=await read('/api/crm/sites?id='+sites.sites[0].id);
   const archived=siteView.linked_bids.find(bid=>bid.client==='Builder B');assert.equal(archived.availability,'unavailable');
-  assert.deepEqual(fs.readFileSync(copyPath+'.retained'),copyBytes);
+  assert.deepEqual(fs.readFileSync(copyPath+'.retained'),savedCopy);
+  await search.fill('42 Example Lane');
   await expect(panel.locator(`[data-site-id="${site.id}"]`)).toBeVisible();
   await panel.locator(`[data-site-id="${site.id}"]`).scrollIntoViewIfNeeded();
   await page.screenshot({path:path.join(folder,'participants.png')});
   await page.setViewportSize({width:390,height:884});await panel.locator(`[data-site-id="${site.id}"]`).scrollIntoViewIfNeeded();
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)<=1,'Address search fits the mobile viewport');
-  await page.screenshot({path:path.join(folder,'participants-mobile.png')});assert.deepEqual(errors,[]);
-  fs.writeFileSync(path.join(folder,'result.json'),JSON.stringify({passed:true,checks:['Exact typed participants','Direct address search defaults to the Project address','Existing named-site direct Link','Automatic exact-address peer before persisting site ID','Distinct saved bids and unchanged Project bytes','Unavailable explicit sources remain recorded'],output:folder},null,2));
+  await page.screenshot({path:path.join(folder,'participants-mobile.png')});
+  await page.locator('#project-details-close').click();await page.locator('#project-current-details').click();
+  await panel.locator('summary').first().click();
+  await expect(panel.getByText('Shared school refurbishment · 42 Example Lane',{exact:true}).first()).toBeVisible();
+  await address.fill('18 Current Project Way');
+  const started=Date.now();
+  const projectSave=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/save');
+  await page.locator('#save-current-project').click();
+  const receipt=await projectSave;assert.equal(receipt.status(),200,await receipt.text());
+  await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  timings.activeProjectSaveMs=Date.now()-started;
+  assert.equal(JSON.parse(fs.readFileSync(info.project)).estimate.site_address,'18 Current Project Way');
+  if(!await panel.evaluate(el=>el.open))await panel.locator('summary').first().click();
+  await expect(panel.getByText('Shared school refurbishment · 42 Example Lane',{exact:true}).first()).toBeVisible();
+  assert.deepEqual(errors,[]);
+  fs.writeFileSync(path.join(folder,'result.json'),JSON.stringify({passed:true,checks:['Exact typed participants','Direct address search defaults to the Project address','Existing named-site direct Link','Automatic exact-address peer before persisting site ID','Permission denial preserves the saved bid, current edit and site link','Successful retry permits continued editing during Project list refresh','Saved and active project address changes keep an explicit site link','Changing shared sites and reverting to address matching','Distinct bid files and unavailable explicit sources remain recorded'],timings,output:folder},null,2));
   console.log('PASS typed project participants, direct site Link, automatic exact-address bids, directory backlink and saved file preservation: '+folder);
 })().catch(async error=>{console.error(error,stderr,await page?.locator('#project-participants-panel').innerText().catch(()=>''));await page?.screenshot({path:path.join(folder,'failure.png')}).catch(()=>{});process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

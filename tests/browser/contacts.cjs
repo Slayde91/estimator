@@ -78,9 +78,13 @@ const ready = new Promise((resolve, reject) => {
   await page.route('**/api/contacts/leads',route=>route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({error:companyConflict})}));
   for(const theme of ['ceasefire','midnight','ocean','forest','slate'])for(const width of [1915,390]){
     await page.setViewportSize({width,height:884});await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
-    await dlg.getByRole('button',{name:'Save',exact:true}).click();
+    const [conflict] = await Promise.all([
+      page.waitForResponse(response=>new URL(response.url()).pathname==='/api/contacts/leads' && response.request().method()==='POST'),
+      dlg.getByRole('button',{name:'Save',exact:true}).click()
+    ]);
+    assert.equal(conflict.status(),409);
     const alert=dlg.locator('[data-contacts-notice]');await expect(alert).toHaveText(companyConflict);await expect(alert).toHaveAttribute('role','alert');
-    const bounds=await alert.boundingBox();assert.ok(bounds.y>=0 && bounds.y+bounds.height<=884,'The conflict is brought fully into view');
+    await expect(alert,'The conflict is brought fully into view').toBeInViewport({ratio:1});
     const colour=await alert.evaluate(node=>getComputedStyle(node).color);assert.equal(colour,'rgb(162, 11, 22)');
     await expect(dlg.getByLabel('Name',{exact:true})).toHaveValue('Robin Sample');
   }

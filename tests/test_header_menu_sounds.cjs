@@ -2,7 +2,7 @@
 const { verifiedNativeMediaCancellation } = require("./helpers/media_preload_guard.cjs");
 const assert = require("node:assert/strict"), { test } = require("node:test");
 const fs = require("node:fs"), path = require("node:path"), { createHash } = require("node:crypto");
-const { create, sources, createFeedback, feedbackSources, createPrinting, printingSource, createDownloadSound } = require("../static/header-menu-sounds.js");
+const { create, sources, createFeedback, feedbackSources, createDownloadSound } = require("../static/header-menu-sounds.js");
 const {create: createAudioSettings} = require('../static/audio-settings.js');
 
 test("native media cancellation at any stage requires exact delivery and fresh trusted decoding proof", () => {
@@ -15,7 +15,7 @@ test("native media cancellation at any stage requires exact delivery and fresh t
     assert.equal(verifiedNativeMediaCancellation({ ...request, stage }, proof), true);
   assert.equal(verifiedNativeMediaCancellation(request, { ...proof, capturedAt: request.observedAt }), true);
   assert.equal(verifiedNativeMediaCancellation(request), false, "Missing final proof cannot excuse a late request");
-  for (const [clip, mime] of [[feedbackSources.explosion, "audio/wav"], [feedbackSources.checkpoint, "audio/ogg"], [printingSource, "audio/mpeg"]]) {
+  for (const [clip, mime] of [[feedbackSources.explosion, "audio/wav"], [feedbackSources.checkpoint, "audio/ogg"]]) {
     const address = origin + clip;
     const typed = { ...proof, paths: [clip], hashes: { [`static${clip}`]: sha256 }, assets: [{ ...proof.assets[0], url: address, contentType: mime }], media: [{ ...proof.media[0], url: address }] };
     assert.equal(verifiedNativeMediaCancellation({ ...request, url: address }, typed), true);
@@ -409,46 +409,18 @@ test("download compatibility hooks never access audio or register deferred playb
   assert.doesNotThrow(() => createDownloadSound(null).begin()());
 });
 
-test("printer audio loops only during the active phrase and never starts after it has finished", () => {
-  const h = audioHarness(), printer = createPrinting(h.motion, h.host, h.document), audio = h.players[0];
-  assert.equal(audio.src, printingSource); assert.equal(audio.loop, true); assert.equal(audio.preload, "auto"); assert.equal(h.plays().length, 0);
-  assert.equal(audio.volume, 0.75, "Printing plays at 75% of its previous volume");
-  printer.start(); assert.equal(h.plays().length, 1); assert.equal(audio.paused, false);
-  printer.stop(); assert.equal(audio.paused, true); assert.equal(audio.currentTime, 0);
-  audio.readyState = 0; printer.start(); assert.equal(h.plays().length, 1);
-  printer.stop(); audio.readyState = 4; audio.emit("canplay"); assert.equal(h.plays().length, 1, "Readiness after finish cannot replay the phrase");
-  audio.readyState = 0; printer.start(); audio.readyState = 4; audio.emit("canplay"); audio.emit("canplay");
-  assert.equal(h.plays().length, 2, "A still-printing phrase can start once when decoded");
-  printer.stop(); printer.start(); assert.equal(h.plays().length, 3, "A replacement phrase restarts its loop");
-});
-
-test("muting immediately stops header, Takeoff, logo and printing clips without replay after re-enable", () => {
+test("muting immediately stops header, Takeoff and logo clips without replay after re-enable", () => {
   const h=audioHarness(),preference=h.host.CeasefireAudioSettings=createAudioSettings(h.host),button=target();
-  const header=create({querySelectorAll:()=>[button]},h.host),feedback=createFeedback(h.document,h.host,header),printer=createPrinting(h.motion,h.host,h.document);
-  button.emit('click');printer.start();assert.ok(h.players.some(audio=>!audio.paused));
+  const header=create({querySelectorAll:()=>[button]},h.host),feedback=createFeedback(h.document,h.host,header);
+  button.emit('click');assert.ok(h.players.some(audio=>!audio.paused));
   const count=h.plays().length;preference.setEnabled(false);assert.ok(h.players.every(audio=>audio.paused));
-  button.emit('pointerenter',{pointerType:'mouse'});button.emit('click');printer.start();
+  button.emit('pointerenter',{pointerType:'mouse'});button.emit('click');
   h.document.emit('click',{target:element(element(null,{zone:'header'}),{brand:true})});
   h.document.emit('click',{target:element(element(null,{zone:'takeoff'}),{control:true})});
   for(const audio of h.players)audio.emit('canplay');assert.equal(h.plays().length,count);
-  preference.setEnabled(true);for(const audio of h.players)audio.emit('canplay');assert.equal(h.plays().length,count,'Unmuting cannot replay muted clicks or the old printing phrase');
-  button.emit('click');assert.equal(h.plays().length,count+1);printer.start();assert.equal(h.plays().length,count+2);
-  header.close();feedback.close();printer.close();preference.close();
-});
-
-test("printer blocks stale promises, reduced motion, hidden documents and pagehide without changing typing", async () => {
-  const h = audioHarness(), printer = createPrinting(h.motion, h.host, h.document), audio = h.players[0];
-  audio.failure = "pending"; printer.start(); const reject = audio.reject;
-  audio.failure = undefined; printer.start(); reject(Error("Old blocked phrase")); await Promise.resolve(); assert.equal(audio.paused, false);
-  h.motion.matches = true; h.motion.emit("change", { matches: true }); assert.equal(audio.paused, true);
-  printer.start(); assert.equal(h.plays().length, 2); h.motion.matches = false;
-  printer.start(); h.document.hidden = true; h.document.emit("visibilitychange"); assert.equal(audio.paused, true);
-  h.document.hidden = false; audio.emit("canplay"); assert.equal(h.plays().length, 3, "Unhiding does not revive a cancelled phrase");
-  audio.failure = "reject"; printer.start(); await Promise.resolve(); audio.emit("canplay");
-  assert.equal(h.plays().length, 4); assert.equal(audio.paused, true, "A blocked phrase has no gesture replay");
-  audio.failure = undefined; printer.start(); h.host.emit("pagehide"); printer.start(); audio.emit("canplay");
-  assert.equal(h.plays().length, 5); assert.equal(audio.paused, true);
-  assert.doesNotThrow(() => createPrinting(null, null).start()); assert.doesNotThrow(() => createFeedback(null, null).close());
+  preference.setEnabled(true);for(const audio of h.players)audio.emit('canplay');assert.equal(h.plays().length,count,'Unmuting cannot replay muted clicks');
+  button.emit('click');assert.equal(h.plays().length,count+1);
+  header.close();feedback.close();preference.close();
 });
 
 test("supplied feedback assets and the trimmed logo clip retain verified bytes", () => {
@@ -472,7 +444,6 @@ test("supplied feedback assets and the trimmed logo clip retain verified bytes",
 
 test("the preloaded logo PCM begins with audible signal instead of the supplied silent lead", () => {
   assert.equal(feedbackSources.explosion, "/sounds/flame-whoosh.wav");
-  assert.equal(printingSource, "/sounds/type.mp3");
   const wav = fs.readFileSync(path.join(__dirname, "../static/sounds/flame-whoosh.wav"));
   assert.equal(wav.toString("ascii", 0, 4), "RIFF"); assert.equal(wav.toString("ascii", 8, 12), "WAVE");
   assert.equal(wav.readUInt16LE(20), 1); assert.equal(wav.readUInt16LE(22), 2);

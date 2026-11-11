@@ -27,6 +27,19 @@ _TRIPLE = re.compile(r'(?<![\w/])' + _CRITERION + r'\s*/\s*' + _CRITERION
 _NOTE = re.compile(r'\bnotes?\s*:', re.I)
 _NOTE_PARAGRAPH = re.compile(r'^\s*(?:[•*]\s*)?any\s+ratio\s+of\b', re.I)
 _D_SERVICE = {'D1 Power Cables', 'D2 Comms Cables'}
+_BLADERUNNER = re.compile(r'\bblade[\s‐‑–-]*runner\b', re.I)
+
+
+def matches_browse_service(item, values, service):
+    if service in values.get('services', []):
+        return True
+    # Cross-list BladeRunner in the browser only. Stack and HDPE options keep
+    # their reviewed services for their detail, editor and register matching.
+    if service != 'uPVC floorwaste' or not any(
+            name.casefold() == 'trafalgar' for name in values.get('manufacturer', [])):
+        return False
+    return any(field['label'] in {'System Products', 'Collar'} and _BLADERUNNER.search(field.get('value', ''))
+               for field in item.get('fields', []))
 
 
 def canonical_frl(value):

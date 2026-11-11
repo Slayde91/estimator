@@ -60,7 +60,7 @@ class ParticipantTests(unittest.TestCase):
         peer,=self.service.view('A')['linked_bids']
         self.assertEqual((peer['client'],peer['project_no'],peer['site_address'],peer['availability']),
                          ('Builder B','PN-B','Address B','available'))
-        self.assertIsNone(self.service.view('C')['site'])
+        self.assertEqual(self.service.view('C')['linked_sites'],[address_site('Address C')])
         self.assertEqual(self.service.view('A')['participants'][0]['label'],'Engineering Co')
         alias_group=[str(uuid4()),self.participant['id']]
         role,=self.service.related('accounts',alias_group)
@@ -120,11 +120,12 @@ class ParticipantTests(unittest.TestCase):
         with self.service.db() as db:
             self.assertEqual(db.execute('SELECT count(*) FROM sites').fetchone()[0],0)
         linked=self.link('A',site=target['id'],rows=[self.participant])
-        self.assertEqual(linked['site_mode'],'manual')
+        self.assertEqual(linked['site_mode'],'automatic')
+        self.assertEqual([site['address'] for site in linked['linked_sites']],['Address A','Address B'])
         self.assertEqual([row['source'] for row in linked['linked_bids']],['B'])
         self.assertEqual(linked['site_id'],target['id'])
         self.projects.rows['A']['site_address']='Address C'
-        self.assertEqual([row['source'] for row in self.service.view('A')['linked_bids']],['B'],'Explicit selection wins over edited address')
+        self.assertEqual([row['source'] for row in self.service.view('A')['linked_bids']],['B','C'])
         automatic=self.link('A',version=linked['version'],rows=[self.participant])
         self.assertEqual(automatic['site_mode'],'automatic')
         self.assertEqual([row['source'] for row in automatic['linked_bids']],['C'])
@@ -136,7 +137,14 @@ class ParticipantTests(unittest.TestCase):
         second=self.service.create_site({'id':str(uuid4()),'name':'West campus','address':'ADDRESS A'},self.actor)
         choices=self.service.sites('address a')
         self.assertEqual({row['id'] for row in choices['sites']},{first['id'],second['id']})
-        self.assertEqual(self.link('A',site=second['id'])['site']['name'],'West campus')
+        self.assertEqual(self.service.view('A')['linked_sites'],[address_site('Address A')])
+        self.assertEqual(self.service.site(first['id'])['linked_bids'],[])
+        self.assertEqual(self.link('A',site=second['id'])['linked_sites'],[second])
+        self.projects.rows['B']['site_address']='Address A'
+        self.link('B',site=first['id'])
+        self.assertEqual(self.service.view('A')['linked_bids'],[])
+        self.assertEqual(self.service.view('B')['linked_bids'],[])
+        self.assertEqual([bid['source'] for bid in self.service.site(first['id'])['linked_bids']],['B'])
         with patch.object(self.projects,'participant_sites',return_value={'projects':[], 'scan_pending':True}):
             self.assertTrue(self.service.view('A')['scan_pending'])
             self.assertTrue(self.service.sites()['scan_pending'])
@@ -154,15 +162,30 @@ class ParticipantTests(unittest.TestCase):
         self.assertEqual(self.service.view('B')['linked_parties'],[])
         self.assertEqual(view['linked_parties'][0],self.projects.rows['A']['linked_parties'][0])
 
-    def test_manual_site_address_overrides_are_symmetric_and_reads_preserve_every_record(self):
+    def test_automatic_and_previous_manual_sites_are_symmetric_and_reads_preserve_every_record(self):
         self.projects.rows['A']['site_address']='East address'
         self.projects.rows['B']['site_address']='EAST ADDRESS'
         self.projects.rows['C']['site_address']='West address'
         site=self.service.create_site({'id':str(uuid4()),'name':'Manual West','address':'WEST address'},self.actor)
         self.link('B',site=site['id'])
         before=self.service.path.read_bytes(),deepcopy(self.projects.rows)
-        self.assertEqual(self.service.view('A')['linked_bids'],[],'B explicit West override takes precedence over its saved East address')
-        self.assertEqual([row['source'] for row in self.service.view('B')['linked_bids']],['C'])
+        self.assertEqual([row['source'] for row in self.service.view('A')['linked_bids']],['B'])
+        self.assertEqual([row['source'] for row in self.service.view('B')['linked_bids']],['A','C'])
         self.assertEqual([row['source'] for row in self.service.view('C')['linked_bids']],['B'],'Effective-address matches are symmetric')
         self.assertEqual((self.service.path.read_bytes(),self.projects.rows),before)
         self.assertEqual(self.service.site(site['id'])['linked_bids'][0]['source'],'B')
+
+    def test_single_project_links_on_open_and_follows_saved_address_without_writes(self):
+        named=self.service.create_site({'id':str(uuid4()),'name':'Campus','address':'ADDRESS A'},self.actor)
+        before=self.service.path.read_bytes()
+        self.assertEqual(self.service.view('A')['linked_sites'],[named])
+        self.assertEqual([bid['source'] for bid in self.service.site(named['id'])['linked_bids']],['A'])
+        self.projects.rows['A']['site_address']='Unit 3, Address A'
+        self.assertEqual(self.service.view('A')['linked_sites'],[address_site('Unit 3, Address A')])
+        self.assertEqual(self.service.site(named['id'])['linked_bids'],[])
+        self.projects.rows['A']['site_address']=' '
+        self.assertEqual(self.service.view('A')['linked_sites'],[])
+        with patch.object(self.projects,'participant_sites',side_effect=OSError):
+            self.projects.rows['A']['site_address']='Address A'
+            self.assertEqual(self.service.view('A')['linked_sites'],[named])
+        self.assertEqual(self.service.path.read_bytes(),before)

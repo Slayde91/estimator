@@ -226,7 +226,9 @@
   }
 
   const readable = value => readingText(value, true);
-  const fieldText = (label, value) => readingText(value, label === "Installation Details" || label === "Seal Depth / Fillet Size");
+  const componentList = (label, value) => label === "Service Size / Configuration" && /^• \d+[ \t]*[×xX][ \t]/m.test(value);
+  const fieldText = (label, value) => readingText(value, label === "Installation Details" || label === "Seal Depth / Fillet Size"
+    || componentList(label, value) || label === "Service Size / Configuration" && String(value).startsWith("Fix a single layer of waterproofing panel"));
 
   const selectorRecord = record => /^(?:promat-|trafalgar-selector-)/i.test(String(record?.id || ""));
   function displayTitle(record, format = String) {
@@ -397,7 +399,8 @@
   }
 
   function render(document, value, options) {
-    const display = options?.fieldLabel ? text => fieldText(options.fieldLabel, text)
+    const components = componentList(options?.fieldLabel, value);
+    const display = components ? readable : options?.fieldLabel ? text => fieldText(options.fieldLabel, text)
       : options?.compact ? compact : text => text;
     const renderBlock = block => {
       if (block.type === "fields") {
@@ -431,10 +434,12 @@
     };
     // Complete field lines must be compared before wrapped-line parsing joins
     // them into prose. This is a display copy; parse(value) keeps the source.
-    return parse(options?.compact || options?.fieldLabel ? singleDiameter(String(value ?? "")) : value, options).map(renderBlock);
+    const text = options?.compact || options?.fieldLabel ? singleDiameter(String(value ?? "")) : value;
+    const sections = components ? text.split(/\r?\n[ \t]*\r?\n/) : [text];
+    return sections.flatMap(section => parse(section, options)).map(renderBlock);
   }
 
-  const api = Object.freeze({ parse, render, compact, readable, fieldText, displayTitle, displaySubtitle, visibleField });
+  const api = Object.freeze({ parse, render, compact, readable, fieldText, componentList, displayTitle, displaySubtitle, visibleField });
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (root) root.LibraryDetailText = api;
 })(typeof window !== "undefined" ? window : globalThis);

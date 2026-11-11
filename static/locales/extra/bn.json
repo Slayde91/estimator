@@ -3501,5 +3501,8 @@
   "No matching site addresses.": "কোনো মিল থাকা সাইটের ঠিকানা নেই।",
   "Use site address": "সাইটের ঠিকানা ব্যবহার করুন",
   "Link": "যুক্ত করুন",
-  "Save this Quote before creating a Work Order.": "কাজের আদেশ তৈরি করার আগে এই কোটেশনটি সংরক্ষণ করুন।"
+  "Save this Quote before creating a Work Order.": "কাজের আদেশ তৈরি করার আগে এই কোটেশনটি সংরক্ষণ করুন।",
+  "Linked Sites": "সংযুক্ত প্রকল্পস্থল",
+  "Participants and linked sites": "অংশগ্রহণকারী ও সংযুক্ত প্রকল্পস্থল",
+  "No linked sites.": "কোনো প্রকল্পস্থল সংযুক্ত নেই।"
 }

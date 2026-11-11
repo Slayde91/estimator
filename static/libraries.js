@@ -621,8 +621,11 @@
   const summaryClass = record => record.configuration && Object.hasOwn(record, "source_code") ? "library-variant-summary" : "library-frl-value";
   // Explicit official homepages: source text never becomes a navigable URL.
   function manufacturerHomepage(record) {
-    const names = (record?.fields || []).filter(field => String(field.label).trim().toLowerCase() === "manufacturer").map(field => String(field.value).trim().toLowerCase());
-    if (!names.length && /^fas19023[456]-/i.test(String(record?.id))) names.push("firefly");
+    const hasManufacturers = Array.isArray(record?.manufacturers);
+    const names = hasManufacturers ? record.manufacturers :
+      (record?.fields || []).filter(field => String(field.label).trim().toLowerCase() === "manufacturer")
+        .flatMap(field => String(field.value).split(/\r?\n/)).filter(name => name.trim());
+    if (!hasManufacturers && !names.length && /^fas19023[456]-/i.test(String(record?.id))) names.push("firefly");
     const homepages = [
       [/^(?:promat|promat australia)$/, "https://www.promat.com/en-au/"],
       [/^(?:boss|boss fire|boss fire & safety)$/, "https://bossfire.com/"],
@@ -632,8 +635,8 @@
       [/^(?:snap|snap fire systems)$/, "https://snapcollars.com.au/"],
       [/^fendix$/, "https://fendix.com.au/"]
     ];
-    const urls = [...new Set(names.map(name => homepages.find(([pattern]) => pattern.test(name))?.[1]).filter(Boolean))];
-    return urls.length === 1 ? urls[0] : null;
+    const urls = new Set(names.map(name => homepages.find(([pattern]) => pattern.test(name.trim().toLowerCase()))?.[1]));
+    return urls.size === 1 ? [...urls][0] || null : null;
   }
   function imageNode(item, kind, imageOnly = false, replicas = {}, record = null) {
     const figure = node("figure", "library-image"), link = node("a"), image = node("img");
@@ -969,7 +972,9 @@
       const imageOnly = firefly && field.label === "Diagrams & Figures";
       if (imageOnly && !images.length) continue;
       const boss = (data.fields || []).some(f => f.label === "Manufacturer" && f.value === "BOSS");
-      const formatted = ["Installation Details", "Local Protection"].includes(field.label) || boss && field.label === "Barrier Construction" || firefly && ["Service Wrap", configurationField].includes(field.label);
+      const formatted = ["Installation Details", "Local Protection"].includes(field.label) || boss && field.label === "Barrier Construction"
+        || firefly && ["Service Wrap", configurationField].includes(field.label)
+        || pane.kind === "technical" && window.LibraryDetailText.componentList(field.label, field.value);
       if (pane.kind === "technical" && !images.length && !tables.length && !links.length && String(field.value ?? "").trim() === "") continue;
       const reportLinks = pane.kind === "technical" && field.label === "Report Number" && Array.isArray(field.report_links) ? field.report_links : [];
       const reportLabels = String(field.value ?? "").split(/\n/).map(x => x.trim()).filter(Boolean);

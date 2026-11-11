@@ -15,7 +15,6 @@
     // adding MP3 encoder padding before the first audible sample.
     explosion: "/sounds/flame-whoosh.wav",
   });
-  const printingSource = "/sounds/type.mp3";
 
   function stopAudio(audio) {
     try { audio?.pause(); if (audio && audio.currentTime !== 0) audio.currentTime = 0; } catch { /* Media failure must not affect a control. */ }
@@ -168,59 +167,16 @@
     return Object.freeze({ stop, close });
   }
 
-  function createPrinting(motion, host = root, document = host?.document) {
-    if (typeof host?.Audio !== "function") return silent;
-    let audio;
-    try {
-      audio = new host.Audio(); audio.preload = "auto"; audio.loop = true; audio.volume = 0.75;
-      audio.src = printingSource; audio.load();
-    } catch { return silent; }
-    let active = false, closed = false, generation = 0, attempted = -1;
-    function stop() { active = false; ++generation; stopAudio(audio); }
-    const unsubscribeAudio = host.CeasefireAudioSettings?.subscribe(enabled => { if (!enabled) stop(); });
-    function playCurrent() {
-      if (closed || !active || host.CeasefireAudioSettings?.isEnabled() === false || motion?.matches || document?.hidden || audio.error || audio.readyState < 2 || attempted === generation) return;
-      const attempt = attempted = generation;
-      try { audio.play()?.catch?.(() => { if (attempt === generation) stop(); }); }
-      catch { stop(); }
-    }
-    function start() {
-      stop();
-      if (closed || host.CeasefireAudioSettings?.isEnabled() === false || motion?.matches || document?.hidden) return;
-      active = true; playCurrent();
-    }
-    function visibility() { if (document?.hidden) stop(); }
-    function preference(event) { if (event.matches) stop(); }
-    // Readiness can start only the phrase that is still printing. Finishing,
-    // cancelling or blocking that phrase invalidates the attempt permanently.
-    audio.addEventListener?.("canplay", playCurrent);
-    audio.addEventListener?.("error", stop);
-    document?.addEventListener?.("visibilitychange", visibility);
-    motion?.addEventListener?.("change", preference);
-    host.addEventListener?.("pagehide", close);
-    function close() {
-      closed = true; stop();
-      unsubscribeAudio?.();
-      audio.removeEventListener?.("canplay", playCurrent);
-      audio.removeEventListener?.("error", stop);
-      document?.removeEventListener?.("visibilitychange", visibility);
-      motion?.removeEventListener?.("change", preference);
-      host.removeEventListener?.("pagehide", close);
-    }
-    return Object.freeze({ start, stop, close });
-  }
-
   function createDownloadSound() {
     // Existing exporters retain their paired begin/end hooks, but downloading
     // never creates, preloads or plays audio. Visual progress owns its lifecycle.
     return Object.freeze({ begin: () => () => {}, close() {} });
   }
 
-  if (typeof module === "object" && module.exports) module.exports = Object.freeze({ create, sources, createFeedback, feedbackSources, createPrinting, printingSource, createDownloadSound });
+  if (typeof module === "object" && module.exports) module.exports = Object.freeze({ create, sources, createFeedback, feedbackSources, createDownloadSound });
   if (root) {
     root.CeasefireHeaderMenuSounds = create(root.document.querySelector(".app-header nav"), root);
     root.CeasefireButtonSounds = createFeedback(root.document, root, root.CeasefireHeaderMenuSounds);
-    root.CeasefireHeaderTaglineSound = createPrinting(root.matchMedia?.("(prefers-reduced-motion: reduce)"), root, root.document);
     root.CeasefireDownloadSound = createDownloadSound(root);
   }
 })(typeof window === "object" ? window : null);

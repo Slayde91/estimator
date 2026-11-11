@@ -3,6 +3,42 @@ from copy import deepcopy
 import unittest
 
 from estimator.technical_installation_text import present_installation_fields
+from estimator.technical_display import technical_field_text
+
+
+class ServiceConfigurationTextTests(unittest.TestCase):
+    label = 'Service Size / Configuration'
+    components = ('1 × DN100 DWV uPVC pipe\n1 × 100 mm to 80 mm PVC offset reducer\n1 × 80 mm waste pipe\n'
+                  '1 × Ø80 mm Puddle flange\n1 × BOSS gully trap')
+    source = ('Single layer of waterproofing panel is installed\naround the puddle flange using board screws at 200\n'
+              'mm centers\nVitreous tile is then adhered to waterproofing panel\nusing adhesive\n'
+              'A square drain protruded through the waterproofing\npanel and finish flush with the tile.\n'
+              'A small insert vitreous tile is then fit into the square\ndrain')
+
+    def show(self, source):
+        fields = [{'label': self.label, 'value': source}]
+        present_installation_fields(fields)
+        displayed = fields[0]['value']
+        present_installation_fields(fields)
+        self.assertEqual(fields[0]['value'], displayed)
+        return displayed
+
+    def test_drain_parts_and_four_sentences_are_separate_and_preserved_in_exports(self):
+        value = self.show(self.components + '\n' + self.source)
+        parts, method = value.split('\n\n')
+        self.assertEqual(parts.splitlines(), ['• ' + row for row in self.components.splitlines()])
+        self.assertEqual(method, 'Fix a single layer of waterproofing panel around the puddle flange with board screws '
+            'at 200 mm centres. Bond the vitreous tile to the panel with adhesive. Fit the square drain through the '
+            'panel so it sits flush with the tile. Fit a small vitreous tile insert into the square drain.')
+        self.assertEqual(technical_field_text(self.label, value), value)
+        self.assertIn('at 150.5 mm centres.', self.show(self.source.replace('200', '150.5')))
+
+    def test_only_complete_component_lists_and_known_drain_methods_are_reformatted(self):
+        self.assertEqual(self.show('Any combination of up to\n1 × Cat6 cable\n4 × RG6 cables'),
+                         'Any combination of up to\n\n• 1 × Cat6 cable\n• 4 × RG6 cables')
+        for text in (self.components + '\n' + self.source + ' only where stated.',
+                     '1 × Ø80 mm drain\nOR\n2 × Ø40 mm drains', '150 × 200 mm\n100 × 80 mm'):
+            self.assertEqual(self.show(text), text)
 
 
 PROCEDURE = (

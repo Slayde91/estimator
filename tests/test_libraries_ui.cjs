@@ -308,6 +308,17 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
       if(url){assert.equal(links[0].href,url);assert.equal(links[0].rel,'noopener noreferrer');assert.equal(links[0].target,'_blank');}
     }
   });
+  await check('Reviewed manufacturer identifies the caption on generated configurations without supplier fields',async h=>{
+    const id='tv-'+'7'.repeat(40);
+    for(const [manufacturers,expected] of [[['Firefly'],'https://tbafirefly.com.au/'],[['Firefly','TBA Firefly'],'https://tbafirefly.com.au/'],[['Firefly','Trafalgar'],null],[['Unknown supplier'],null]]){
+      const source={...detail('technical',id),fields:[],manufacturers,image_replicas:{'synthetic_image-1':'/api/libraries/replicas/synthetic_image-1'}};
+      h.setRoute(path=>path==='/api/libraries'?meta():source);await h.api.open('technical',id);
+      const caption=walk(h.pane('technical').detailPanel).find(node=>node.tagName==='figcaption');
+      const links=walk(caption).filter(node=>node.tagName==='a');
+      assert.equal(links.length,expected?1:0);
+      if(expected)assert.equal(links[0].href,expected);
+    }
+  });
   await check('Technical general notices stay absent while record errors and retry controls remain visible',async h=>{
     h.setRoute(path=>path==='/api/libraries'?meta():path.includes('?')?records('technical'):{error:'This linked library record was removed.'});await h.api.open('technical');const pane=h.pane('technical');assert.equal(h.byId('technical-library-workspace').contains(pane.notice),false);
     await h.api.open('technical','removed record');assert.match(h.calls.at(-1).path,/\/technical\/removed%20record$/);assert.match(text(pane.detailPanel),/linked library record was removed/);assert.equal(pane.detailPanel.getAttribute('aria-busy'),'false');assert.equal(h.byId('technical-library-workspace').contains(pane.notice),false);

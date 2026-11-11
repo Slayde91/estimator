@@ -16,7 +16,8 @@ async function save(host){const pending=page.waitForResponse(reply=>new URL(repl
 async function pdfControl(host,kind){const pdf=host.locator('.commercial-editor-actions').getByRole('button',{name:'Download PDF',exact:true});await expect(pdf).toHaveCount(1);await expect(pdf).toHaveAttribute('title','Download PDF');await expect(pdf).toHaveClass(/icon-only/);await expect(pdf.locator('.download-format-icon')).toHaveAttribute('aria-hidden','true');await expect(pdf.locator('.download-arrow')).toHaveText('⇩');await expect(pdf.locator('.download-format')).toHaveText('PDF');
  await expect(host.getByLabel('Document title',{exact:true})).toHaveCount(0);
  await expect(pdf).toBeEnabled();
- const status=host.locator('.commercial-download-pdf + .commercial-action-status select');
+ const status=host.locator('.commercial-action-status select');
+ if(kind==='quote')await expect(host.locator('.commercial-editor-actions .primary:has(+ .commercial-action-status)')).toHaveText('Create WO');
  await expect(status).toHaveValue('Draft');
  await expect(status).toHaveAccessibleName('Status');
  await expect(host.locator('.commercial-action-status>span')).toBeHidden();

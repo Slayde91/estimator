@@ -18,6 +18,8 @@
 .crm-event-list li { margin:10px 0; }
 .crm-event-list p { white-space:pre-line; margin:4px 0; }
 .crm-timeline .contacts-group { margin-top:12px; }
+.crm-activity-details { grid-column:1/-1; }
+.crm-timeline .crm-activity-submit { grid-column:1/-1; justify-self:start; width:auto; min-height:32px; padding:5px 12px; }
 .crm-timeline [hidden] { display:none; }
 .contacts-directory-layout { min-width:0; display:grid; gap:20px; align-items:start; }
 .contacts-directory-layout.contacts-account-open { grid-template-columns:minmax(330px,420px) minmax(0,1fr); }

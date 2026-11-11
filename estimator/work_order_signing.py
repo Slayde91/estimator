@@ -1,8 +1,9 @@
-"""Deliberate Work Order signing commands; loading saved ink is never a command."""
-from datetime import date
+"""Ordered commercial signatures are validated inside the document save transaction."""
 from copy import deepcopy
+from datetime import date
 
 from .catalog import ValidationError
+from .commercial_requirements import meaningful
 from .swms import validate_signature
 
 
@@ -13,93 +14,133 @@ STEPS = {
     'client_approved_by': ('client_approval_date', 'In progress'),
     'progress_by': ('progress_date', 'Claim'),
     'claimed_by': ('claim_date', 'Certify'),
-    'closed_by': ('closed_date', None),
+    'closed_by': ('closed_date', 'Completed'),
 }
+PURCHASE_STEPS = {
+    'requested_by': ('requested_date', 'Requested'),
+    'reviewed_by': ('review_date', 'Reviewed'),
+    'sent_by': ('sent_date', 'Sent'),
+    'verified_by': ('verified_date', 'Completed'),
+}
+WORKFLOWS = {'work_order': STEPS, 'purchase_order': PURCHASE_STEPS}
 COMPLETIONS = ('Completed', 'Ongoing', 'On hold', 'Not completed')
-STATUSES = ('Draft','Review','OHS Docs','Client Approval','In progress','Claim','Certify','Completed','On Hold','Canceled')
-CYCLE_FIELDS = ('certification', 'completion', 'closed_by', 'closed_date',
-                'progress_by', 'progress_date', 'claimed_by', 'claim_date')
+CYCLE_SIGNERS = ('progress_by', 'claimed_by', 'closed_by')
+
+
+def _valid_date(value):
+    try:
+        return isinstance(value, str) and date.fromisoformat(value).isoformat() == value
+    except ValueError:
+        return False
+
+
+def _ink(signature):
+    return bool(signature and any(len({tuple(point) for point in stroke}) > 1 for stroke in signature['strokes']))
 
 
 def actions(value, kind):
-    if not isinstance(value, list) or len(value) > 32 or (value and kind != 'work_order'):
-        raise ValidationError('Invalid Work Order signing actions.')
+    if not isinstance(value, list) or len(value) > 1 or (value and kind not in WORKFLOWS):
+        raise ValidationError('Invalid commercial document signing actions.')
     result = []
     for item in value:
-        if not isinstance(item, dict) or not isinstance(item.get('key'),str) or item['key'] not in STEPS:
-            raise ValidationError('Choose a valid Work Order signature.')
+        if not isinstance(item, dict) or not isinstance(item.get('key'), str) or item['key'] not in WORKFLOWS[kind]:
+            raise ValidationError('Choose a valid commercial document signature.')
         keys = {'key', 'signature', 'name', 'date'}
         if item['key'] == 'closed_by':
-            keys |= {'completion', 'certification'}
-        optional = {'status_override'}
-        if item['key']=='closed_by' and item.get('completion')=='Ongoing':optional.add('after_signing_edits')
-        if set(item) - optional != keys:
-            raise ValidationError('Include the complete Work Order signing action.')
+            keys.update(('completion', 'certification'))
+        if set(item) != keys:
+            raise ValidationError('Include the complete signing action.')
         signature = validate_signature(item['signature'])
-        if not signature or not any(len({tuple(point) for point in stroke}) > 1 for stroke in signature['strokes']):
-            raise ValidationError('Add a signature before progressing the Work Order.')
-        for key, limit in (('name', 6000), ('date', 10), ('certification', 6000)):
-            if key in item and (not isinstance(item[key], str) or len(item[key]) > limit
-                                or any(ord(char) < 32 and char not in '\n\r\t' or 0xd800 <= ord(char) <= 0xdfff for char in item[key])):
-                raise ValidationError('Include valid Work Order signer details.')
-        try:
-            if date.fromisoformat(item['date']).isoformat() != item['date']:
-                raise ValueError
-        except ValueError:
-            raise ValidationError('Include a valid signature date.') from None
+        if not _ink(signature):
+            raise ValidationError('Add a signature before saving this step.')
+        if not meaningful(item['name']) or len(item['name']) > 6000:
+            raise ValidationError('Enter the signer name and date before signing.')
+        if not _valid_date(item['date']):
+            raise ValidationError('Enter the signer name and date before signing.')
         if item['key'] == 'closed_by' and item['completion'] not in COMPLETIONS:
             raise ValidationError('Choose a completion status before signing Work Order completion.')
-        edits=item.get('after_signing_edits',[])
-        if (not isinstance(edits,list) or len(edits)>len(CYCLE_FIELDS)
-                or any(not isinstance(key,str) or key not in CYCLE_FIELDS for key in edits) or len(set(edits))!=len(edits)):
-            raise ValidationError('Invalid edits after signing Work Order completion.')
-        if 'status_override' in item and item['status_override'] not in STATUSES:
-            raise ValidationError('Choose a valid commercial document status.')
         result.append({**deepcopy(item), 'signature': signature})
     return result
 
 
-def apply(fields, status, signed):
-    """Apply bounded actions in click order inside the caller's save transaction.
+def _outcome(kind, key, order):
+    if key == 'reviewed_by':
+        rejection = 'Denied' if kind == 'work_order' else 'Rejected'
+        if order.get('approval') == rejection:
+            return 'Cancelled'
+        if order.get('approval') != 'Approved':
+            raise ValidationError('Choose an approval decision before signing.')
+    if key == 'closed_by':
+        if order['completion'] == 'On hold':
+            return 'On Hold'
+        if order['completion'] in ('Ongoing', 'Not completed'):
+            return 'In progress'
+        if order['completion'] != 'Completed':
+            raise ValidationError('Choose a completion status before signing Work Order completion.')
+    return WORKFLOWS[kind][key][1]
 
-    Each ink snapshot remains in the audit even when an Ongoing closure clears
-    the new cycle's fields. Ordinary Save/import/name/date edits carry no actions.
-    """
-    expected = {}
-    completion = None
-    clears = set()
-    clear_signatures = set()
-    for item in signed:
-        key = item['key']
-        expected[key] = item['signature']
-        clears.difference_update((key,STEPS[key][0]))
-        clear_signatures.discard(key)
-        target = STEPS[key][1]
+
+def apply(kind, fields, status, signed, previous, *, legacy_details=False):
+    """Advance only deliberate actions; unchanged historical signoffs remain readable."""
+    if kind not in WORKFLOWS:
+        return status
+    steps = WORKFLOWS[kind]
+    sequence = tuple(steps)
+    prior = previous['fields'] if previous else {}
+    old_ink = prior.get('signatures', {})
+    ink = fields.get('signatures', {})
+    order = fields['order']
+    changed = {key for key, value in ink.items() if value and value != old_ink.get(key)}
+    active = {key for key in steps if _ink(old_ink.get(key)) and ink.get(key) == old_ink[key]}
+    action_keys = {item['key'] for item in signed}
+    if signed and changed - action_keys:
+        raise ValidationError('Save each signature using its signing button.')
+    cleared = {key for key in steps if old_ink.get(key) and not ink.get(key)}
+    for key in active - action_keys:
+        evidence = [key, steps[key][0]]
+        if key == 'reviewed_by':
+            evidence.append('approval')
         if key == 'closed_by':
-            completion = item['completion']
-            if item['completion'] == 'Completed':
-                clears.difference_update(('completion','certification'))
-                target = 'Completed'
-            elif item['completion'] == 'Ongoing':
-                clears.update(CYCLE_FIELDS)
-                clears.difference_update(item.get('after_signing_edits',[]))
-                for name in ('closed_by', 'progress_by', 'claimed_by'):
-                    clear_signatures.add(name)
-                    expected[name] = None
-                target = 'In progress'
-        if target:
+            evidence.extend(('completion', 'certification'))
+        if any(prior['order'].get(field) != order.get(field) for field in evidence):
+            raise ValidationError('Sign this section again or clear its signature to change its signing details.')
+    for key in cleared:
+        if any(ink.get(later) for later in sequence[sequence.index(key) + 1:]):
+            raise ValidationError('Clear the later signatures before changing this signature.')
+
+    # Older editors can save newly drawn ink without an action envelope. Check
+    # their order and metadata too; ordinary saves of existing ink do not sign again.
+    events = signed or [{'key': key, 'signature': ink[key], 'name': order.get(key, ''),
+                         'date': order.get(steps[key][0], '')} for key in steps if key in changed]
+    for item in events:
+        key = item['key']
+        date_key = steps[key][0]
+        position = sequence.index(key)
+        predecessors = sequence[:position]
+        if legacy_details:
+            predecessors = tuple(name for name in predecessors if name != 'details_by')
+        if any(name not in active or not meaningful(order.get(name)) or not _valid_date(order.get(steps[name][0]))
+               for name in predecessors):
+            raise ValidationError('Sign the preceding sections first.')
+        if 'reviewed_by' in predecessors and order.get('approval') != 'Approved':
+            raise ValidationError('An approved review is required before signing this section.')
+        if old_ink.get(key) and any(name in active for name in sequence[position + 1:]):
+            raise ValidationError('Clear the later signatures before changing this signature.')
+        if not meaningful(item['name']) or not _valid_date(item['date']):
+            raise ValidationError('Enter the signer name and date before signing.')
+        if ink.get(key) != item['signature'] or not _ink(ink.get(key)):
+            raise ValidationError('The signature changed. Sign it again before saving.')
+        if (order.get(key) != item['name'] or order.get(date_key) != item['date']
+                or key == 'closed_by' and signed and
+                (order['completion'] != item['completion'] or order['certification'] != item['certification'])):
+            raise ValidationError('The signing details changed. Sign this section again.')
+        target = _outcome(kind, key, order)
+        active.add(key)
+        if signed:
             status = target
-        if 'status_override' in item:
-            status = item['status_override']
-    for name in clears:
-        fields['order'][name] = ''
-    for name in clear_signatures:
-        fields.setdefault('signatures', {}).pop(name,None)
-    # The current fields must contain the chosen ink unless that same command
-    # deliberately cleared it for the next progress/claim cycle.
-    for key, signature in expected.items():
-        if fields.get('signatures', {}).get(key) != signature:
-            raise ValidationError('The Work Order signature changed. Sign it again before saving.')
-    if completion and completion != 'Ongoing' and fields['order']['completion'] != completion:
-        raise ValidationError('The completion choice changed. Sign Work Order completion again.')
+            if key == 'closed_by' and target == 'In progress':
+                for signer in CYCLE_SIGNERS:
+                    ink.pop(signer, None)
+                    order[signer] = order[steps[signer][0]] = ''
+                    active.discard(signer)
     return status

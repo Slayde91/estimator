@@ -27,6 +27,25 @@ Certificate Clear removes only the signature image. Delete signer details clears
 only Name, Position, Qualification and Accreditation. Reusable signature artwork
 is managed separately by the existing signature chooser.
 
+Purchase Order and Work Order signers sign in the order shown. Signing saves
+the document and its new stage together. The signer's name and date must be
+present; explicitly entered values take precedence over Personal Details.
+The review signature also requires an approval decision.
+
+| Document | Signed steps and resulting stages |
+| --- | --- |
+| Purchase Order | Request → Requested; approve → Reviewed (reject → Cancelled); send → Sent; verify → Completed. Older Verified orders appear under Completed. |
+| Work Order | Check details → Review; approve review → OHS Docs (deny → Cancelled); prepare OHS documents → Client Approval; obtain client approval → In progress; sign progress → Claim; sign claim → Certify. |
+
+Closing a Work Order as Completed or On hold moves it to the corresponding
+column. Ongoing and Not completed reopen it at In progress: only the progress,
+claim and closure signatures, names and dates are cleared. Earlier sign-offs
+and the reported work and claim quantities are retained for the next round.
+
+New Quote PDFs print the scope and allowances before the Quote Summary, totals
+and Schedule of Rates. The rates and acceptance box stay together when they fit
+on a page. Issued PDFs are not regenerated when the template changes.
+
 Documentation lists `View Revisions (N)` using the number of stored documents for
 that row, rather than the largest revision number. Its left pane displays the
 existing immutable scoped links, supports Escape/close with focus restoration,

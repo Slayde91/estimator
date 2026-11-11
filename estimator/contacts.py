@@ -223,6 +223,18 @@ class ContactsStore:
                 """)],
             }
             crm_activity.add_metadata(db,result)
+            billing_contacts = {}
+            tables = {r[0] for r in db.execute("SELECT name FROM sqlite_schema WHERE name IN ('work_order_billing_receipts','work_order_accounts_contacts')")}
+            if 'work_order_billing_receipts' in tables:
+                # Older releases recorded contact creation but no preferred person.
+                # A single historical billing contact is the only unambiguous default.
+                billing_contacts.update(db.execute('''SELECT c.account_id,min(c.id) FROM work_order_billing_receipts r
+                    JOIN contacts c ON c.id=r.contact_id GROUP BY c.account_id HAVING count(*)=1'''))
+            if 'work_order_accounts_contacts' in tables:
+                billing_contacts.update(db.execute('SELECT account_id,contact_id FROM work_order_accounts_contacts'))
+            for account in result['accounts']:
+                if account['id'] in billing_contacts:
+                    account['billing_contact_id'] = billing_contacts[account['id']]
             result['sales_stages'] = ACTIVE_LEAD_STATUSES
             if lead_board:
                 result['converted_leads'] = self._converted_lead_history(db, None, None)

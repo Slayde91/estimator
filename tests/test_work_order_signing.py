@@ -45,12 +45,15 @@ class WorkOrderSigningTests(unittest.TestCase):
                                                     (self.workspace,identity))]
 
     def test_each_deliberate_signature_advances_its_outgoing_stage_even_when_ink_is_reused(self):
-        document = self.store.save(self.workspace,self.payload())
+        fields = deepcopy(self.fields)
+        fields.pop('signatures')
+        document = self.store.save(self.workspace,self.payload(fields))
         self.assertEqual(document['status'],'Draft')
         for key, expected in [('details_by','Review'),('reviewed_by','OHS Docs'),('prepared_by','Client Approval'),
                               ('client_approved_by','In progress'),('progress_by','Claim'),('claimed_by','Certify'),('closed_by','Completed')]:
             with self.subTest(key=key):
                 fields = deepcopy(document['fields'])
+                fields.setdefault('signatures', {})[key] = deepcopy(INK)
                 document = self.store.save(self.workspace,self.payload(fields,document,[self.action(fields,key)]))
                 self.assertEqual(document['status'],expected)
                 self.assertEqual(document['fields']['signatures'][key],INK)
@@ -59,11 +62,13 @@ class WorkOrderSigningTests(unittest.TestCase):
                 self.assertEqual(json.loads(event['after_data'])['actions'][0]['key'],key)
         self.assertEqual(len([row for row in self.audit(document['id']) if row['action']=='signatures']),7)
 
-    def test_loading_saving_or_editing_old_names_dates_and_ink_is_not_a_signing_action(self):
+    def test_loading_and_saving_old_ink_does_not_sign_again_and_evidence_is_bound(self):
         document = self.store.save(self.workspace,self.payload())
         fields = deepcopy(document['fields'])
         fields['order'].update(reviewed_by='Edited name only',review_date='2026-11-10')
-        document = self.store.save(self.workspace,self.payload(fields,document))
+        with self.assertRaisesRegex(ValidationError, 'signing details'):
+            self.store.save(self.workspace,self.payload(fields,document))
+        document = self.store.save(self.workspace,self.payload(document['fields'],document))
         self.assertEqual(document['status'],'Draft')
         snapshot = self.store.capture(self.workspace)
         target = self.fixture.projects.add(snapshot['project_id'])
@@ -71,20 +76,40 @@ class WorkOrderSigningTests(unittest.TestCase):
         self.assertEqual(self.store.view(target)['documents'][-1]['status'],'Draft')
         self.assertFalse(any(row['action']=='signatures' for row in self.audit(document['id'])))
 
-    def test_review_signing_keeps_the_explicit_approval_choice(self):
-        fields=deepcopy(self.fields);fields['order']['approval']='Denied'
-        document=self.store.save(self.workspace,self.payload(fields,signed=[self.action(fields,'reviewed_by')]))
-        self.assertEqual(document['status'],'OHS Docs')
-        self.assertEqual(document['fields']['order']['approval'],'Denied')
+    def test_review_requires_approval_and_denial_cancels(self):
+        fields = deepcopy(self.fields)
+        fields['signatures'] = {'details_by': INK}
+        doc = self.store.save(self.workspace, self.payload(fields))
+        fields = deepcopy(doc['fields'])
+        fields['signatures']['reviewed_by'] = INK
+        fields['order']['approval'] = ''
+        with self.assertRaisesRegex(ValidationError, 'approval decision'):
+            self.store.save(self.workspace, self.payload(fields, doc, [self.action(fields, 'reviewed_by')]))
+        fields['order']['approval'] = 'Denied'
+        doc = self.store.save(self.workspace, self.payload(fields, doc, [self.action(fields, 'reviewed_by')]))
+        self.assertEqual(doc['status'], 'Cancelled')
+        fields = deepcopy(doc['fields'])
+        fields['signatures']['prepared_by'] = INK
+        with self.assertRaisesRegex(ValidationError, 'approved review'):
+            self.store.save(self.workspace, self.payload(fields, doc, [self.action(fields, 'prepared_by')]))
 
-    def test_other_existing_completion_choices_are_not_cleared_or_reinterpreted(self):
-        for choice in ('On hold','Not completed'):
+    def test_completion_choices_apply_their_status_and_preserve_decisions(self):
+        for choice, status in [('On hold', 'On Hold'), ('Not completed', 'In progress')]:
             with self.subTest(choice=choice):
-                fields=deepcopy(self.fields);fields['order']['completion']=choice
-                document=self.store.save(self.workspace,self.payload(fields,signed=[self.action(fields,'closed_by')]))
-                self.assertEqual(document['status'],'Draft')
-                self.assertEqual(document['fields']['order']['completion'],choice)
-                self.assertEqual(document['fields']['signatures']['closed_by'],INK)
+                doc = self.store.save(self.workspace, self.payload())
+                fields = deepcopy(doc['fields'])
+                fields['order']['completion'] = choice
+                doc = self.store.save(self.workspace, self.payload(fields, doc, [self.action(fields, 'closed_by')]))
+                self.assertEqual(doc['status'], status)
+                self.assertEqual(doc['fields']['order']['completion'], choice)
+                self.assertEqual(doc['fields']['order']['certification'], fields['order']['certification'])
+                for key in ('progress_by', 'claimed_by', 'closed_by'):
+                    if choice == 'On hold':
+                        self.assertEqual(doc['fields']['signatures'][key], INK)
+                    else:
+                        self.assertNotIn(key, doc['fields']['signatures'])
+                        self.assertEqual(doc['fields']['order'][key], '')
+                        self.assertEqual(doc['fields']['order'][STEPS[key][0]], '')
 
     def test_ongoing_closure_clears_only_cycle_signoffs_and_completion_and_retains_receipt_and_quantities(self):
         document = self.store.save(self.workspace,self.payload())
@@ -97,7 +122,7 @@ class WorkOrderSigningTests(unittest.TestCase):
         event = self.action(fields,'closed_by')
         document = self.store.save(self.workspace,self.payload(fields,document,[event]))
         self.assertEqual(document['status'],'In progress')
-        for key in ('certification','completion','closed_by','closed_date','progress_by','progress_date','claimed_by','claim_date'):
+        for key in ('closed_by','closed_date','progress_by','progress_date','claimed_by','claim_date'):
             self.assertEqual(document['fields']['order'][key],'',key)
         for key in ('closed_by','progress_by','claimed_by'):
             self.assertNotIn(key,document['fields']['signatures'])
@@ -117,21 +142,22 @@ class WorkOrderSigningTests(unittest.TestCase):
         self.assertEqual(document['status'],'Claim')
         self.assertEqual(document['fields']['work_tracking'],before_tracking)
 
-    def test_ongoing_new_save_retry_is_idempotent_and_stale_existing_save_cannot_clear_newer_edits(self):
-        fields=deepcopy(self.fields);fields['order']['completion']='Ongoing'
-        payload=self.payload(fields,signed=[self.action(fields,'closed_by')])
-        document=self.store.save(self.workspace,payload)
-        count=len(self.audit(document['id']))
-        self.assertEqual(self.store.save(self.workspace,payload),document)
-        self.assertEqual(len(self.audit(document['id'])),count)
-        updated=deepcopy(document['fields']);updated['order']['description']='Newer business edit'
-        newer=self.store.save(self.workspace,self.payload(updated,document))
-        before=self.store.capture(self.workspace)
+    def test_first_signature_create_retry_and_stale_save_are_atomic(self):
+        fields = deepcopy(self.fields)
+        fields['signatures'] = {'details_by': INK}
+        payload = self.payload(fields, signed=[self.action(fields, 'details_by')])
+        doc = self.store.save(self.workspace, payload)
+        count = len(self.audit(doc['id']))
+        self.assertEqual(self.store.save(self.workspace, payload), doc)
+        self.assertEqual(len(self.audit(doc['id'])), count)
+        updated = deepcopy(doc['fields'])
+        updated['order']['description'] = 'Newer business edit'
+        newer = self.store.save(self.workspace, self.payload(updated, doc))
+        before = self.store.capture(self.workspace)
         with self.assertRaises(CommercialConflict):
-            self.store.save(self.workspace,self.payload(fields,document,[self.action(fields,'closed_by')]))
-        self.assertEqual(self.store.capture(self.workspace),before)
-        saved=next(item for item in self.store.view(self.workspace)['documents'] if item['id']==newer['id'])
-        self.assertEqual(saved['fields']['order']['description'],'Newer business edit')
+            self.store.save(self.workspace, self.payload(fields, doc, [self.action(fields, 'details_by')]))
+        self.assertEqual(self.store.capture(self.workspace), before)
+        self.assertEqual(newer['fields']['order']['description'], 'Newer business edit')
 
     def test_old_client_omissions_preserve_new_details_signature_without_progressing(self):
         document=self.store.save(self.workspace,self.payload())
@@ -143,37 +169,30 @@ class WorkOrderSigningTests(unittest.TestCase):
         self.assertEqual(updated['fields']['signatures']['details_by'],INK)
         self.assertEqual(updated['status'],'Draft')
 
-    def test_new_cycle_signature_after_ongoing_before_save_keeps_the_new_signoff(self):
-        fields=deepcopy(self.fields);fields['order']['completion']='Ongoing'
-        closing=self.action(fields,'closed_by')
-        fields['order'].update(progress_by='New progress cycle',progress_date='2026-11-13')
-        progressing=self.action(fields,'progress_by')
-        document=self.store.save(self.workspace,self.payload(fields,signed=[closing,progressing]))
-        self.assertEqual(document['status'],'Claim')
-        self.assertEqual(document['fields']['order']['progress_by'],'New progress cycle')
-        self.assertEqual(document['fields']['signatures']['progress_by'],INK)
-        for key in ('completion','certification','closed_by','closed_date','claimed_by','claim_date'):
-            self.assertEqual(document['fields']['order'][key],'')
+    def test_skipped_stage_and_unacknowledged_predecessor_ink_are_rejected(self):
+        fields = deepcopy(self.fields)
+        fields['signatures'] = {}
+        doc = self.store.save(self.workspace, self.payload(fields))
+        before = self.store.capture(self.workspace)
+        fields = deepcopy(doc['fields'])
+        fields.setdefault('signatures', {})
+        fields['signatures']['reviewed_by'] = INK
+        with self.assertRaisesRegex(ValidationError, 'preceding sections'):
+            self.store.save(self.workspace, self.payload(fields, doc, [self.action(fields, 'reviewed_by')]))
+        with self.assertRaisesRegex(ValidationError, 'preceding sections'):
+            self.store.save(self.workspace, self.payload(fields, doc))
+        fields['signatures']['details_by'] = INK
+        with self.assertRaisesRegex(ValidationError, 'signing button'):
+            self.store.save(self.workspace, self.payload(fields, doc, [self.action(fields, 'reviewed_by')]))
+        self.assertEqual(self.store.capture(self.workspace), before)
 
-    def test_deliberate_new_input_after_ongoing_clear_is_not_erased_by_save(self):
-        fields=deepcopy(self.fields);fields['order']['completion']='Ongoing'
-        closing=self.action(fields,'closed_by')
-        closing['after_signing_edits']=['certification','progress_by']
-        fields['order'].update(certification='Certification not issued',progress_by='New draft progress name')
-        document=self.store.save(self.workspace,self.payload(fields,signed=[closing]))
-        self.assertEqual(document['status'],'In progress')
-        self.assertEqual(document['fields']['order']['certification'],'Certification not issued')
-        self.assertEqual(document['fields']['order']['progress_by'],'New draft progress name')
-        self.assertEqual(document['fields']['order']['progress_date'],'')
-        self.assertNotIn('progress_by',document['fields']['signatures'])
-
-    def test_explicit_manual_status_after_signing_preserves_the_signing_audit_and_readiness(self):
-        fields=deepcopy(self.fields);fields['order']['completion']='Ongoing'
-        closing=self.action(fields,'closed_by');closing['status_override']='On Hold'
-        document=self.store.save(self.workspace,self.payload(fields,signed=[closing]))
-        self.assertEqual(document['status'],'On Hold')
-        self.assertEqual(document['fields']['order']['completion'],'')
-        self.assertEqual(json.loads(self.audit(document['id'])[-1]['after_data'])['actions'][0],closing)
+    def test_signing_does_not_accept_status_override_or_multiple_stages_in_one_save(self):
+        doc = self.store.save(self.workspace, self.payload())
+        fields = deepcopy(doc['fields'])
+        closing = self.action(fields, 'closed_by')
+        for events in ([{**closing, 'status_override': 'On Hold'}], [closing, closing]):
+            with self.assertRaises(ValidationError):
+                self.store.save(self.workspace, self.payload(fields, doc, events))
 
     def test_malformed_signing_actions_reject_atomically_and_other_document_kinds_cannot_use_them(self):
         document=self.store.save(self.workspace,self.payload())
@@ -186,7 +205,7 @@ class WorkOrderSigningTests(unittest.TestCase):
             self.assertEqual(self.store.capture(self.workspace),before)
         with self.assertRaises(ValidationError):actions([good],'purchase_order')
         fields=deepcopy(document['fields']);fields['signatures'].pop('details_by')
-        with self.assertRaisesRegex(ValidationError,'signature changed'):
+        with self.assertRaisesRegex(ValidationError,'later signatures'):
             self.store.save(self.workspace,self.payload(fields,document,[good]))
 
     def test_new_details_fields_remain_optional_for_legacy_snapshot_reads(self):

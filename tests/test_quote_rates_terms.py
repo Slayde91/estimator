@@ -43,7 +43,8 @@ class QuoteRatesTermsTests(unittest.TestCase):
         text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(pdf)).pages)
         for expected in ('$147.25', 'Hire Rate + 17.5%', 'Example person', '2026-11-07', 'custom'):
             self.assertIn(expected, text)
-        self.assertLess(text.index('SCHEDULE OF RATES'), text.index('SCOPE OF WORKS'))
+        self.assertLess(text.index('ALLOWANCES'), text.index('QUOTE SUMMARY'))
+        self.assertLess(text.index('QUOTE SUMMARY'), text.index('SCHEDULE OF RATES'))
         self.assertIn('Accepted by', text)
         self.assertIn('Signature', text)
         with pdfplumber.open(BytesIO(pdf)) as document:

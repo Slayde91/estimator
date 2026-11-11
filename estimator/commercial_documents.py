@@ -22,8 +22,8 @@ from .commercial_requirements import require_ready, requirements
 KINDS = {'quote': 'Quote', 'work_order': 'Work Order', 'purchase_order': 'Purchase Order'}
 STATUSES = {
     'quote': ('Draft', 'Review', 'Presented', 'Accepted', 'Lost'),
-    'work_order': ('Draft', 'Review', 'OHS Docs', 'Client Approval', 'In progress', 'Claim', 'Certify', 'Completed', 'On Hold', 'Canceled'),
-    'purchase_order': ('Draft', 'Requested', 'Reviewed', 'Sent', 'Verified'),
+    'work_order': ('Draft', 'Review', 'OHS Docs', 'Client Approval', 'In progress', 'Claim', 'Certify', 'Completed', 'On Hold', 'Cancelled'),
+    'purchase_order': ('Draft', 'Requested', 'Reviewed', 'Sent', 'Completed', 'Cancelled'),
 }
 INTRODUCTION = ('We have the pleasure in providing you with the following quotation for our passive fire protection products and services, '
                 'which will be supplied, installed and certified to comply with the National Construction Code and the relevant Australian '
@@ -477,6 +477,14 @@ def _json(value):
     return json.dumps(value, sort_keys=True, ensure_ascii=False, allow_nan=False, separators=(',', ':'))
 
 
+def _canonical_status(kind, status):
+    if kind == 'purchase_order' and status == 'Verified':
+        return 'Completed'
+    if kind == 'work_order' and status == 'Canceled':
+        return 'Cancelled'
+    return status
+
+
 def validate_commercial_documents(value):
     if value is None:
         return None
@@ -510,9 +518,11 @@ def validate_commercial_documents(value):
         if identity in identities:
             raise ValidationError('Commercial document identities must be unique.')
         identities.add(identity)
-        if document['kind'] not in KINDS or document['status'] not in STATUSES[document['kind']] or type(document['version']) is not int or document['version'] < 1:
+        status = _canonical_status(document['kind'], document['status'])
+        if document['kind'] not in KINDS or status not in STATUSES[document['kind']] or type(document['version']) is not int or document['version'] < 1:
             raise ValidationError('Commercial document kind, status or version is invalid.')
         row = deepcopy(document)
+        row['status'] = status
         row['fields'] = validate_fields(document['fields'], kind=row['kind'])
         if row['fields'].get('work_tracking', {}).get('project_id', value['project_id']) != value['project_id']:
             raise ValidationError('Work tracking belongs to a different project.')
@@ -560,7 +570,8 @@ def commercial_cards(snapshot):
     for document in snapshot['documents']:
         try:
             kind = document['kind']
-            if kind not in KINDS or document['status'] not in STATUSES[kind] or type(document['version']) is not int or document['version'] < 1:
+            status = _canonical_status(kind, document['status'])
+            if kind not in KINDS or status not in STATUSES[kind] or type(document['version']) is not int or document['version'] < 1:
                 raise ValidationError('Invalid saved commercial document status or version.')
             fields = document['fields']
             details = {key: _text(fields['details'].get(key, ''), key, 1000) for key in ('project_no', 'client', 'site_address', 'contact', 'phone', 'email')}
@@ -586,7 +597,7 @@ def commercial_cards(snapshot):
                 amounts = [{'quantity': _number(line['quantity'], 'Quantity'), 'unit_price': _number(line['unit_price'], 'Unit price', -MAX_DOCUMENT_AMOUNT)} for line in lines]
                 grand_total = totals({'lines': amounts})['grand_total']
             cards.append({'id': _identity(document['id']), 'project_id': snapshot['project_id'], 'kind': kind,
-                          'version': document['version'], 'status': document['status'], 'grand_total': grand_total,
+                          'version': document['version'], 'status': status, 'grand_total': grand_total,
                           'created_at': _text(document['created_at'], 'Creation date', 100),
                           'updated_at': _text(document['updated_at'], 'Last updated', 100),
                           'last_number': _text(document['last_number'], 'Document number', 100),
@@ -606,6 +617,7 @@ def linked_estimate_ids(lines):
 
 def _stored_document(value):
     document = json.loads(value)
+    document['status'] = _canonical_status(document['kind'], document['status'])
     # Older drafts did not contain relationship identities. Normalise them on read
     # so opening an existing project does not require rewriting its saved data.
     document['fields'] = validate_fields(document['fields'], kind=document['kind'])
@@ -697,6 +709,7 @@ class CommercialDocuments:
             # A linked project's issued quotes also reserve their numbers before
             # anyone opens that project on this computer.
             for card in cards:
+                card['status'] = _canonical_status(card['kind'], card['status'])
                 if card['kind'] == 'quote' and valid_reference(card.get('last_number', '')):
                     self.numbering.observe_reference(db, 'quote', card['last_number'])
             # Old work orders can have no cost until opened. Display the issued
@@ -1069,12 +1082,12 @@ class CommercialDocuments:
         if not isinstance(payload, dict) or set(payload) - {'id', 'version', 'kind', 'status', 'fields', 'signature_actions'}:
             raise ValidationError('Commercial document save contains unsupported fields.')
         kind = payload.get('kind')
-        if kind not in KINDS or payload.get('status') not in STATUSES[kind]:
+        status = _canonical_status(kind, payload.get('status'))
+        if kind not in KINDS or status not in STATUSES[kind]:
             raise ValidationError('Choose a valid commercial document status.')
         fields = validate_fields(payload.get('fields'), kind=kind)
         from .work_order_signing import actions, apply as apply_signing
         signed = actions(payload.get('signature_actions', []), kind)
-        status = payload['status']
         with self._connect() as db:
             self.numbering.attach(db)
             db.execute('BEGIN IMMEDIATE')
@@ -1136,8 +1149,7 @@ class CommercialDocuments:
                     if fields['order'][key] and fields['order'][key] not in choices and (previous is None or fields['order'][key]!=previous['fields']['order'][key]):
                         raise ValidationError('Choose a listed certification or completion status.')
                 self._validate_tracking(db, project, fields, previous)
-            if signed:
-                status = apply_signing(fields, status, signed)
+            status = apply_signing(kind, fields, status, signed, previous, legacy_details=legacy_details)
             if payload.get('version') == 0 and previous:
                 if previous['fields'] == fields and previous['status'] == status:
                     if unfiled_context is not None:
@@ -1194,6 +1206,7 @@ class CommercialDocuments:
             project = self._workspace(db, workspace)
             previous = self._record(db, workspace, identity)
             self._version(previous, version)
+            status = _canonical_status(previous['kind'], status)
             if status not in STATUSES[previous['kind']]:
                 raise ValidationError('Choose a valid document status.')
             document = deepcopy(previous)

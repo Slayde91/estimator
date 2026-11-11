@@ -13,7 +13,7 @@ from estimator.company_settings import DEFAULTS
 from estimator.contact_relations import ContactRelations
 from estimator.contacts import ContactsStore
 from estimator.crm_identity import DuplicateReview
-from estimator.work_order_billing import WorkOrderBilling
+from estimator.work_order_billing import BillingChoice, WorkOrderBilling
 from tests import test_work_order_tracking as tracking
 
 
@@ -23,6 +23,7 @@ class WorkOrderBillingTests(unittest.TestCase):
         self.fixture.setUp();self.addCleanup(self.fixture.doCleanups)
         self.store=self.fixture.store
         self.directory=ContactsStore(self.fixture.root/'people.sqlite3')
+        self.store.validate_purchase_parties=self.directory.validate_purchase_parties
         self.sources=SimpleNamespace(commercial=self.store,_commercial_sources=SimpleNamespace(ignored_owners=lambda:set()))
         self.billing=WorkOrderBilling(self.directory,self.sources)
         self.http=CommercialHTTP(self.store,billing=self.billing)
@@ -113,3 +114,84 @@ class WorkOrderBillingTests(unittest.TestCase):
         legacy=deepcopy(updated);del legacy['fields']['billing']
         self.assertNotIn('billing',validate_fields(legacy['fields'],kind='work_order'))
         self.assertNotIn('Accounts email',' '.join(page.extract_text() for page in PdfReader(BytesIO(render_commercial_pdf(legacy,'WO-01',company=DEFAULTS))).pages))
+
+    def sync_source(self, doc):
+        card=next(row for row in self.store.unfiled.cards(None) if row['id']==doc['id'])
+        return {'source':{'file_id':card['source_file'],'revision':card['source_revision']},
+                'id':doc['id'],'version':doc['version'],'sync_key':doc['fields']['billing']['sync_key']}
+
+    def test_sync_requires_current_field_decisions_and_retries_once(self):
+        values={**self.values,'sync_key':str(uuid4()),'sync_fields':['address','abn_acn','name','phone','email']}
+        before=self.directory.list()
+        document_id=str(uuid4())
+        with self.assertRaises(BillingChoice) as first:self.save(values,id=document_id)
+        pairs=first.exception.decision['conflicts']
+        self.assertEqual(set(pairs),{'address','abn_acn'})
+        choice={'replace':{'abn_acn':pairs['abn_acn']['token']}}
+        doc=self.save({**values,'address':pairs['address']['saved']},id=document_id,billing_review=choice)
+        request=self.sync_source(doc)
+        self.assertEqual(self.directory.list(),before)
+        self.directory.save('accounts',{'id':self.account,'version':before['version'],'fields':{
+            'company':'Client Pty Ltd','billing_address':'Main office','abn_acn':'Concurrent change'}})
+        with self.assertRaises(BillingChoice) as stale:self.billing.complete({**request,'review_token':choice})
+        self.assertEqual(stale.exception.decision['conflicts']['abn_acn']['saved'],'Concurrent change')
+        self.assertFalse(self.directory.list()['contacts'])
+        current={'replace':{'abn_acn':stale.exception.decision['conflicts']['abn_acn']['token']}}
+        self.assertTrue(self.billing.complete({**request,'review_token':current})['created'])
+        saved=self.directory.list();company=saved['accounts'][0];person=saved['contacts'][0]
+        self.assertEqual((company['billing_address'],company['abn_acn'],company['billing_contact_id']),
+                         ('Main office','Claim reference',person['id']))
+        self.assertFalse(self.billing.complete(request)['created'])
+        self.assertEqual(self.directory.list(),saved)
+        self.directory.save('contacts',{'id':person['id'],'version':saved['version'],'fields':{
+            'company':'Client Pty Ltd','name':person['name'],'email':person['email'],'phone':'','title':'Treasurer'}})
+        updated=self.save({**doc['fields']['billing'],'sync_key':str(uuid4()),'sync_fields':['phone'],'phone':'0400 222 111'},doc)
+        self.billing.complete(self.sync_source(updated))
+        person=self.directory.list()['contacts'][0]
+        self.assertEqual((person['phone'],person['title']),('0400 222 111','Treasurer'))
+
+    def test_conflict_can_create_a_separate_claim_company_without_changing_the_client(self):
+        key=str(uuid4());doc_id=str(uuid4())
+        def save(billing):
+            return self.http.execute('save',{'workspace_id':self.fixture.workspace,'kind':'work_order','id':doc_id,
+                'version':0,'status':'Draft','fields':{**self.fixture.fields(),'billing':billing},
+                'project_details':self.details,'retain_unfiled':True})
+        values={**self.values,'sync_key':key,'sync_fields':['address','abn_acn','name','phone','email']}
+        with self.assertRaises(BillingChoice) as found:save(values)
+        doc=save({**values,'sync_key':str(uuid4()),'account_id':found.exception.decision['new_account_id'],
+                  'company_key':key,'company_name':'Separate claim account'})
+        self.assertEqual(len(self.directory.list()['accounts']),1)
+        self.billing.complete(self.sync_source(doc))
+        accounts={x['company']:x for x in self.directory.list()['accounts']}
+        self.assertEqual(accounts['Client Pty Ltd']['abn_acn'],'Company reference')
+        self.assertEqual(accounts['Separate claim account']['abn_acn'],self.values['abn_acn'])
+        self.assertEqual(self.directory.list()['contacts'][0]['account_id'],accounts['Separate claim account']['id'])
+
+    def test_concurrent_first_billing_contact_and_switched_work_order_client(self):
+        def person(name):
+            return self.directory.save('contacts',{'version':self.directory.list()['version'],'fields':{
+                'company':'Client Pty Ltd','name':name,'phone':'0400 111 333','email':name+'@example.test'}})['id']
+        alan,bea=person('Alan'),person('Bea')
+        def selection(pid,name):
+            return {'account_id':self.account,'name':name,'contact_id':pid,'sync_key':str(uuid4()),'sync_fields':['name']}
+        first=self.save(selection(alan,'Alan'));second=self.save(selection(bea,'Bea'))
+        # Both orders were saved before either person became the default.
+        self.billing.complete(self.sync_source(first))
+        request=self.sync_source(second)
+        with self.assertRaises(BillingChoice) as found:self.billing.complete(request)
+        pair=found.exception.decision['conflicts']['billing_contact']
+        self.assertEqual((pair['saved'],pair['entered'],pair['saved_contact']['id']),('Alan','Bea',alan))
+        self.billing.complete({**request,'review_token':{'replace':{'billing_contact':pair['token']}}})
+        self.assertEqual(self.directory.list()['accounts'][0]['billing_contact_id'],bea)
+        other=self.directory.save('accounts',{'version':self.directory.list()['version'],'fields':{'company':'WO Client'}})['id']
+        base={'workspace_id':self.fixture.workspace,'kind':'work_order','id':second['id'],'version':second['version'],
+              'project_details':self.details,'status':'Draft','retain_unfiled':True}
+        fields={**second['fields'],'details':{**second['fields']['details'],'client':'WO Client','account_id':other},
+                'billing':{'account_id':self.account,'address':'WO client office','sync_key':str(uuid4()),'sync_fields':['address']}}
+        with self.assertRaises(ValidationError):self.http.execute('save',{**base,'fields':fields})
+        fields['billing']['account_id']=other
+        switched=self.http.execute('save',{**base,'fields':fields})
+        self.billing.complete(self.sync_source(switched))
+        accounts={row['id']:row for row in self.directory.list()['accounts']}
+        self.assertEqual(accounts[other]['billing_address'],'WO client office')
+        self.assertEqual(accounts[self.account]['billing_address'],'Main office')

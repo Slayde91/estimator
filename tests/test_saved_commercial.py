@@ -11,7 +11,7 @@ from estimator.catalog import ValidationError
 from estimator.certification import CertificationService
 from estimator.certification_projects import CertificationProjects
 from estimator.commercial_documents import CommercialConflict, CommercialDocuments, default_fields
-from tests.commercial_ready_fixtures import complete_quote, complete_work_order
+from tests.commercial_ready_fixtures import complete_quote, complete_work_order, INK
 from estimator.commercial_http import CommercialHTTP
 from estimator.commercial_sources import CommercialSources, source_id
 from estimator.project_documentation import ProjectDocumentation
@@ -129,6 +129,30 @@ class SavedQuoteTests(unittest.TestCase):
         self.assertEqual(next(d for d in written if d['id']==purchase['id'])['status'],'Sent')
         with self.assertRaises(CommercialConflict):
             self.saved.perform('open',{'source':source,'id':purchase['id']},self.http.execute)
+
+    def test_signing_saved_purchase_order_updates_the_owner_file_and_rejects_stale_source(self):
+        snapshot = json.loads(self.path.read_bytes())
+        purchase = {**self.document, 'id': str(uuid.uuid4()), 'kind': 'purchase_order',
+                    'status': 'Draft', 'fields': default_fields('purchase_order')}
+        snapshot['commercial_documents']['documents'].append(purchase)
+        self.path.write_text(json.dumps(snapshot), encoding='utf8')
+        self.library.commercial_register(refresh=True)
+        card = next(row for row in self.register()['documents'] if row['id'] == purchase['id'])
+        source = {'file_id': card['source_file'], 'revision': card['source_revision']}
+        fields = self.saved.perform('open', {'source': source, 'id': purchase['id']}, self.http.execute)['document']['fields']
+        fields['order'].update(requested_by='Purchaser', requested_date='2026-11-12')
+        fields['signatures'] = {'requested_by': INK}
+        body = {'source': source, 'id': purchase['id'], 'version': 1, 'kind': 'purchase_order', 'status': 'Draft',
+                'fields': fields, 'signature_actions': [{'key': 'requested_by', 'name': 'Purchaser',
+                                                       'date': '2026-11-12', 'signature': INK}]}
+        result = self.saved.perform('save', dict(body), self.http.execute)
+        contents = self.path.read_bytes()
+        stored = next(row for row in json.loads(contents)['commercial_documents']['documents'] if row['id'] == purchase['id'])
+        self.assertEqual((stored['status'], stored['version'], stored['fields']['signatures']), ('Requested', 2, {'requested_by': INK}))
+        self.assertEqual(result['result']['status'], stored['status'])
+        with self.assertRaises(CommercialConflict):
+            self.saved.perform('save', dict(body), self.http.execute)
+        self.assertEqual(self.path.read_bytes(), contents)
 
     def test_file_conflict_keeps_external_edits_and_malformed_inputs_do_not_mutate(self):
         original = self.path.read_bytes()
@@ -354,6 +378,9 @@ class SavedQuoteTests(unittest.TestCase):
         transient = original.save(workspace, {'kind':'purchase_order','status':'Draft','fields':default_fields('purchase_order')})
         purchase = original.save(workspace, {'kind':'purchase_order','status':'Draft',
                                             'fields':default_fields('purchase_order')}, unfiled_context={})
+        with original._connect() as db:
+            db.execute("UPDATE commercial_drafts SET data=json_set(data,'$.status','Verified') WHERE workspace=? AND id=?",
+                       (workspace, purchase['id']))
         original.certifications.discard(workspace)
         certs = CertificationProjects(CertificationService(self.store))
         service = CommercialDocuments(certs, renderer=lambda *args, **kwargs: pdf('Local'))
@@ -376,6 +403,8 @@ class SavedQuoteTests(unittest.TestCase):
         source = {'file_id':cards[quote['id']]['source_file'], 'revision':cards[quote['id']]['source_revision']}
         def act(action, **fields):
             return saved.perform(action, {'source':source, **fields}, execute)
+        self.assertEqual(cards[purchase['id']]['status'], 'Completed')
+        self.assertEqual(act('open', id=purchase['id'])['document']['status'], 'Completed')
         opened = act('open', id=quote['id'])
         self.assertEqual(opened['estimates'], [{'id':'steel','name':'Steel allowance'}])
         self.assertEqual(opened['details']['client'], 'Held client')

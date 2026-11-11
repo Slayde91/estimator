@@ -67,13 +67,19 @@ Shift publication is deliberate: Publish shift and Create draft save the same
 shift identity with the chosen visibility. Typing Enter in a field does not publish
 a draft. Colour tiles retain an older custom colour until another is selected.
 
-Work Order Claim has its own billing address, business identifier and accounts
-person snapshot. A new accounts person is linked to the Project's existing Company
-only after an explicit successful document Save. Completion verifies the exact
-saved source and revision; retries reuse the same creation receipt. A directory
-conflict leaves a visible pending link for review rather than pretending creation
-succeeded. Choosing an existing person does not change their employer or directory
-details. Billing overrides do not update the Company's master data or earlier PDFs.
+Work Order Claim keeps a snapshot of the billing address, ABN/ACN and accounts
+contact. Known directory values prefill a new claim. Saving an edited value can
+fill a gap in the linked Company or Contact. If both records have a different
+value, choose which one to keep for each field or name a separate billing
+Company. Creating a billing Company does not replace the Project's main client
+or move an existing Contact to a different employer. Directory writes verify
+the saved Work Order and revision; repeated completion requests do not create
+another Company or Contact. Existing issued PDFs retain their original details.
+
+New activity entries default to the signed-in staff member, independently of
+the owner of the Lead, Contact or Company. Tasks may be delegated. In a local
+session without a signed-in staff member, the form cannot infer who is logging
+the activity.
 
 ## Reviewed duplicates and current details
 

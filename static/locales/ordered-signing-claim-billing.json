@@ -1,0 +1,191 @@
+{
+  "Cancelled": [
+    "已取消",
+    "रद्द",
+    "Cancelado",
+    "ملغى",
+    "ยกเลิกแล้ว"
+  ],
+  "Clear the later signatures before changing this signature.": [
+    "请先清除后续签名，再更改此签名。",
+    "इस हस्ताक्षर को बदलने से पहले बाद के हस्ताक्षर हटाएँ।",
+    "Borre las firmas posteriores antes de cambiar esta firma.",
+    "امسح التوقيعات اللاحقة قبل تغيير هذا التوقيع.",
+    "ล้างลายเซ็นที่อยู่ถัดไปก่อนเปลี่ยนลายเซ็นนี้"
+  ],
+  "Sign the preceding sections first.": [
+    "请先签署前面的部分。",
+    "पहले पिछले अनुभागों पर हस्ताक्षर करें।",
+    "Firme primero las secciones anteriores.",
+    "وقّع الأقسام السابقة أولاً.",
+    "กรุณาลงนามในส่วนก่อนหน้าก่อน"
+  ],
+  "An approved review is required before signing this section.": [
+    "审核通过后才能签署此部分。",
+    "इस अनुभाग पर हस्ताक्षर करने से पहले समीक्षा की मंज़ूरी ज़रूरी है।",
+    "La revisión debe estar aprobada antes de firmar esta sección.",
+    "يجب اعتماد المراجعة قبل توقيع هذا القسم.",
+    "ต้องอนุมัติผลการตรวจทานก่อนลงนามในส่วนนี้"
+  ],
+  "Choose an approval decision before signing.": [
+    "签署前请选择审批结果。",
+    "हस्ताक्षर करने से पहले अनुमोदन का निर्णय चुनें।",
+    "Seleccione el resultado de la aprobación antes de firmar.",
+    "اختر قرار الموافقة قبل التوقيع.",
+    "เลือกผลการอนุมัติก่อนลงนาม"
+  ],
+  "Enter the signer name and date before signing.": [
+    "签署前请输入签署人姓名和日期。",
+    "हस्ताक्षर करने से पहले हस्ताक्षरकर्ता का नाम और तारीख दर्ज करें।",
+    "Introduzca el nombre del firmante y la fecha antes de firmar.",
+    "أدخل اسم الموقّع والتاريخ قبل التوقيع.",
+    "กรอกชื่อผู้ลงนามและวันที่ก่อนลงนาม"
+  ],
+  "Choose which billing details to keep.": [
+    "选择要保留的账单信息。",
+    "चुनें कि कौन से बिलिंग विवरण रखने हैं।",
+    "Elija qué datos de facturación conservar.",
+    "اختر بيانات الفوترة التي تريد الاحتفاظ بها.",
+    "เลือกข้อมูลการเรียกเก็บเงินที่ต้องการเก็บไว้"
+  ],
+  "Choose a value": [
+    "选择一个值",
+    "कोई मान चुनें",
+    "Elija un valor",
+    "اختر قيمة",
+    "เลือกค่า"
+  ],
+  "Directory": [
+    "通讯录",
+    "निर्देशिका",
+    "Directorio",
+    "الدليل",
+    "สมุดรายชื่อ"
+  ],
+  "Apply billing choices": [
+    "应用账单信息选择",
+    "चुने गए बिलिंग विवरण लागू करें",
+    "Aplicar datos de facturación seleccionados",
+    "تطبيق خيارات الفوترة",
+    "ใช้ข้อมูลการเรียกเก็บเงินที่เลือก"
+  ],
+  "Save the Work Order to apply these choices.": [
+    "保存工单以应用这些选择。",
+    "इन विकल्पों को लागू करने के लिए कार्य आदेश सहेजें।",
+    "Guarde la orden de trabajo para aplicar estas opciones.",
+    "احفظ أمر العمل لتطبيق هذه الخيارات.",
+    "บันทึกใบสั่งงานเพื่อใช้ตัวเลือกเหล่านี้"
+  ],
+  "New company name": [
+    "新公司名称",
+    "नई कंपनी का नाम",
+    "Nombre de la nueva empresa",
+    "اسم الشركة الجديدة",
+    "ชื่อบริษัทใหม่"
+  ],
+  "Create a new Company": [
+    "创建新公司",
+    "नई कंपनी बनाएँ",
+    "Crear una nueva empresa",
+    "إنشاء شركة جديدة",
+    "สร้างบริษัทใหม่"
+  ],
+  "Save the Work Order to create the billing Company.": [
+    "保存工单以创建账单公司。",
+    "बिलिंग कंपनी बनाने के लिए कार्य आदेश सहेजें।",
+    "Guarde la orden de trabajo para crear la empresa de facturación.",
+    "احفظ أمر العمل لإنشاء شركة الفوترة.",
+    "บันทึกใบสั่งงานเพื่อสร้างบริษัทสำหรับการเรียกเก็บเงิน"
+  ],
+  "Keep this Company": [
+    "保留此公司",
+    "यही कंपनी रखें",
+    "Conservar esta empresa",
+    "الاحتفاظ بهذه الشركة",
+    "ใช้บริษัทนี้ต่อไป"
+  ],
+  "A Company with this name already exists. Enter a different name.": [
+    "已存在同名公司。请输入其他名称。",
+    "इस नाम की कंपनी पहले से मौजूद है। कोई दूसरा नाम दर्ज करें।",
+    "Ya existe una empresa con este nombre. Introduzca un nombre distinto.",
+    "توجد شركة بهذا الاسم بالفعل. أدخل اسماً مختلفاً.",
+    "มีบริษัทชื่อนี้อยู่แล้ว โปรดป้อนชื่ออื่น"
+  ],
+  "The billing details changed. Review the claim again.": [
+    "账单信息已更改。请重新核对付款申请。",
+    "बिलिंग विवरण बदल गए हैं। भुगतान दावे की फिर से समीक्षा करें।",
+    "Los datos de facturación han cambiado. Revise de nuevo la solicitud de pago.",
+    "تغيرت بيانات الفوترة. راجع مطالبة الدفع مجدداً.",
+    "ข้อมูลการเรียกเก็บเงินเปลี่ยนไป โปรดตรวจสอบคำขอเบิกเงินอีกครั้ง"
+  ],
+  "Sign this section again or clear its signature to change its signing details.": [
+    "如需更改签署信息，请重新签署此部分或清除签名。",
+    "हस्ताक्षर विवरण बदलने के लिए इस अनुभाग पर फिर हस्ताक्षर करें या उसके हस्ताक्षर हटाएँ।",
+    "Para cambiar los datos de firma, vuelva a firmar esta sección o borre su firma.",
+    "لتغيير بيانات التوقيع، وقّع هذا القسم مجدداً أو امسح توقيعه.",
+    "ลงนามในส่วนนี้อีกครั้งหรือล้างลายเซ็นเพื่อเปลี่ยนข้อมูลการลงนาม"
+  ],
+  "Requested": [
+    "已申请",
+    "अनुरोधित",
+    "Solicitado",
+    "مطلوب",
+    "ขอแล้ว"
+  ],
+  "Reviewed": [
+    "已审核",
+    "समीक्षा हुई",
+    "Revisado",
+    "تمت المراجعة",
+    "ตรวจทานแล้ว"
+  ],
+  "Sent": [
+    "已发送",
+    "भेजा गया",
+    "Enviado",
+    "مُرسل",
+    "ส่งแล้ว"
+  ],
+  "OHS Docs": [
+    "职业健康安全文件",
+    "व्यावसायिक स्वास्थ्य और सुरक्षा दस्तावेज़",
+    "Documentación de SST",
+    "وثائق الصحة والسلامة المهنية",
+    "เอกสารอาชีวอนามัยและความปลอดภัย"
+  ],
+  "Client Approval": [
+    "客户批准",
+    "ग्राहक अनुमोदन",
+    "Aprobación del cliente",
+    "موافقة العميل",
+    "การอนุมัติจากลูกค้า"
+  ],
+  "In progress": [
+    "进行中",
+    "कार्य जारी",
+    "En curso",
+    "قيد التنفيذ",
+    "กำลังดำเนินการ"
+  ],
+  "Claim": [
+    "付款申请",
+    "भुगतान का दावा",
+    "Solicitud de pago",
+    "مطالبة بالدفع",
+    "การเบิกเงิน"
+  ],
+  "Certify": [
+    "出具证明",
+    "प्रमाणित करें",
+    "Certificar",
+    "التصديق",
+    "รับรอง"
+  ],
+  "On Hold": [
+    "已暂停",
+    "स्थगित",
+    "En espera",
+    "معلّق",
+    "พักไว้"
+  ]
+}

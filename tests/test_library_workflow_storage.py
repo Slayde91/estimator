@@ -281,8 +281,12 @@ class LibraryWorkflowStorageTests(unittest.TestCase):
         try:
             body = self.body()
             calculation = {key: body[key] for key in ('draft', 'configuration')}
-            status, before = request('/api/penetration/calculate', calculation)
-            self.assertEqual(status, 200)
+            with patch.object(FirestoppingLibrary, 'service_types', side_effect=AssertionError('Cold technical index read')):
+                status, before = request('/api/penetration/calculate', calculation)
+                self.assertEqual(status, 200)
+                status, spec = request('/api/penetration/definition', {'configuration': {}})
+                self.assertEqual(status, 200)
+                self.assertEqual(next(field['options'] for field in spec['row_fields'] if field['column'] == 'K'), list(SERVICES))
             self.index.write_text('{malformed source library', encoding='utf-8')
             for path, body in [('/api/penetration', None), ('/api/penetration/definition', {'configuration': {}})]:
                 status, spec = request(path, body)

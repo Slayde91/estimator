@@ -10,7 +10,7 @@ import re
 import unicodedata
 import uuid
 
-from .calculator import LINES
+from .calculator import LINES, material_row_inactive
 from .catalog import ValidationError
 from .presentation import ADDITION_NAMES, MATERIAL_NAMES
 
@@ -108,7 +108,7 @@ def compile_work_summary(workflow, result):
 
     def value(cell, **options):
         if cell in errors:
-            return "unavailable (" + _text(errors[cell], "calculation error") + ")"
+            return "unavailable"
         return _number(cells.get(cell, inputs.get(cell)), **options)
 
     def active(*references):
@@ -117,6 +117,9 @@ def compile_work_summary(workflow, result):
     lines = ["Workflow: " + _text(workflow, "not recorded") + "."]
     materials = []
     for label, (row, price_row, requirement_row, labour_row, team) in zip(MATERIAL_NAMES, LINES):
+        if (f"C{row}" in inputs and f"D{row}" in inputs and material_row_inactive(inputs, row)
+                and cells.get(f"D{requirement_row}") == cells.get(f"B{requirement_row}") == 0):
+            continue
         references = [f"B{row}", f"D{requirement_row}", f"F{price_row}", f"B{requirement_row}"]
         if labour_row:
             references.append(f"F{labour_row}")

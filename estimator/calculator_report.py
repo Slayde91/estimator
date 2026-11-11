@@ -22,8 +22,7 @@ from .assessment_references import UNAVAILABLE_RESULT, schedule_report_reference
 from .excel_engine import column_name
 from .pdf_fonts import FONT_REGULAR
 from .report import _Report, _company_header, _register_fonts, _number, _numeric, _text, _LINE, _MUTED
-from .workbook_calculators import (FYREWRAP_DIRECTION_NOTE, calculator_engine,
-                                   normalize_calculator_inputs, source_model)
+from .workbook_calculators import FYREWRAP_DIRECTION_NOTE, calculator_session, source_model
 from .board_steel_area import board_net_steel_areas, steel_area_display
 from .download_disclosure import calculator_download_data, duct_schedule_outputs
 
@@ -166,9 +165,13 @@ def _material_rows(identity, summary):
 @calculation_work()
 def project_calculator_report(calculator_id, inputs=None):
     """Prepare testable raw report data without display rounding or persistence."""
+    normalized, engine, lock = calculator_session(calculator_id, inputs)
+    with lock:
+        return _project_calculator_report(calculator_id, normalized, engine)
+
+
+def _project_calculator_report(calculator_id, normalized, engine):
     model = source_model(calculator_id)
-    normalized = normalize_calculator_inputs(calculator_id, inputs)
-    engine = calculator_engine(calculator_id, normalized)
     sheets = {sheet['name']: sheet for sheet in model['sheets']}
     schedule = model['schedule']
     sheet_name = schedule['sheet']

@@ -67,6 +67,23 @@ class CoverageTeamsApiTests(unittest.TestCase):
         self.assertEqual(corrected['configuration'], saved['configuration'])
         self.assertEqual(corrected['result'], saved['result'])
 
+    def test_ignored_material_and_duplicate_round_trip_with_no_team_or_rate(self):
+        inputs = {'B15': 200, 'D2': '1 Team - 1x', 'D3': 'N/A'}
+        status, baseline = self.request('POST', '/api/calculate', {'inputs': inputs})
+        self.assertEqual(status, 200)
+        inputs.update({'B16': 25, 'C16': 0, 'D16': 'Old product'})
+        duplicate = {'id': 'ignored', 'source_row': 16,
+                     'inputs': {'B': 30, 'C': 1, 'D': 'N/A', 'E': 0}}
+        status, saved = self.request('POST', '/api/quotes', {
+            'title': 'Inactive material', 'inputs': inputs, 'work_items': [duplicate]})
+        self.assertEqual(status, 201)
+        status, reopened = self.request('GET', '/api/quotes/' + saved['id'])
+        self.assertEqual(status, 200)
+        self.assertEqual(reopened['inputs']['B16'], 25)
+        self.assertEqual(reopened['work_items'], [duplicate])
+        self.assertEqual(reopened['result']['summary'], baseline['summary'])
+        self.assertEqual(reopened['result']['error_details'], [])
+
 
 if __name__ == '__main__':
     unittest.main()

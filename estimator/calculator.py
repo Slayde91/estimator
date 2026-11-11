@@ -5,6 +5,7 @@ Nothing is rounded before presentation: the workbook uses ROUNDUP only in B30.
 Each registered calculation is keyed by its original worksheet cell.
 """
 
+from functools import lru_cache
 import json
 import math
 
@@ -27,8 +28,9 @@ DISPLAY_LABELS = {"D7": "Masking/Cleaning labour"}
 
 
 class ExcelError(Exception):
-    def __init__(self, code):
+    def __init__(self, code, *, propagated=False):
         self.code = code
+        self.propagated = propagated
 
 
 def specification():
@@ -49,10 +51,21 @@ def fields(catalog=None):
     return output
 
 
-def normalize_inputs(inputs, catalog=None, *, require_teams=True):
+@lru_cache(maxsize=1)
+def _input_schema():
+    # Options and display labels need the catalog. Input types and defaults do not.
+    return {field["cell"]: field for field in specification()["fields"]}
+
+
+def material_row_inactive(inputs, row):
+    product = inputs[f"D{row}"]
+    return inputs[f"C{row}"] in (0, "", None) or not product or product.strip().casefold() in ("", "n/a")
+
+
+def normalize_inputs(inputs, catalog=None, *, require_teams=True, skip_inactive=False):
     if not isinstance(inputs, dict):
         raise ValidationError("Calculator inputs must be an object keyed by input cell.")
-    schema = {f["cell"]: f for f in fields(catalog)}
+    schema = _input_schema()
     if set(inputs) - schema.keys():
         raise ValidationError(f"Unknown or calculated input cells: {', '.join(sorted(set(inputs) - schema.keys()))}.")
     result = {key: f["default"] for key, f in schema.items()}
@@ -74,7 +87,7 @@ def normalize_inputs(inputs, catalog=None, *, require_teams=True):
         # values but returns no calculated quote until the user selects teams.
         return result
     for row, _, _, _, team in LINES:
-        if team is None or result[f"B{row}"] in (None, "", 0):
+        if team is None or result[f"B{row}"] in (None, "", 0) or (skip_inactive and material_row_inactive(result, row)):
             continue
         selected = result[team]
         if selected is None or selected == "" or selected.casefold() == "n/a":
@@ -146,7 +159,13 @@ def labour_breakdown(result):
 def calculate(inputs=None, configuration=None):
     catalog = effective_catalog(configuration)
     inputs = normalize_inputs({} if inputs is None else inputs, catalog)
+    return calculate_normalized(inputs, catalog, skip_inactive=False)
+
+
+def calculate_normalized(inputs, catalog, *, skip_inactive):
+    """Evaluate normalized inputs with the pricing snapshot captured for this quote."""
     cells = dict(inputs)
+    root_errors = []
     expressions = {}
     errors = {}
 
@@ -162,12 +181,15 @@ def calculate(inputs=None, configuration=None):
             except ZeroDivisionError:
                 cells[cell] = "#DIV/0!"
                 errors[cell] = "#DIV/0!"
+                root_errors.append(cell)
             except ExcelError as exc:
                 cells[cell] = exc.code
                 errors[cell] = exc.code
+                if not exc.propagated:
+                    root_errors.append(cell)
         v = cells[cell]
         if cell in errors:
-            raise ExcelError(errors[cell])
+            raise ExcelError(errors[cell], propagated=True)
         return v
 
     def n(cell):
@@ -190,6 +212,17 @@ def calculate(inputs=None, configuration=None):
         raise ExcelError("#N/A")
 
     for row, price_row, req_row, labour_row, team in LINES:
+        if skip_inactive and material_row_inactive(inputs, row):
+            # Keep the original selections and coverage so the row can be enabled again.
+            cells[f"F{row}"] = None
+            cells[f"A{price_row - 1}"] = inputs[f"D{row}"]
+            for column in "ABCDF":
+                cells[f"{column}{price_row}"] = 0
+            cells[f"D{req_row}"] = cells[f"B{req_row}"] = 0
+            if labour_row:
+                for column in "ABF":
+                    cells[f"{column}{labour_row}"] = 0
+            continue
         if row not in (15, 18):
             register(f"F{row}", lambda row=row: lookup(f"D{row}", "yield"))
         else:
@@ -281,6 +314,7 @@ def calculate(inputs=None, configuration=None):
         "materials": [{"name": inputs[f"D{r}"], "quantity": cells[f"D{q}"], "price": cells[f"A{p}"], "total": cells[f"F{p}"], "days": cells[f"B{q}"], "source": f"Calculator!D{q}/F{p}"} for r,p,q,_,_ in LINES],
         "notes": cells["B30"],
     }
+    result["error_roots"] = [cell for cell in root_errors if cell in errors]
     result["masking"] = masking_breakdown(result)
     result["labour"] = labour_breakdown(result)
     return result

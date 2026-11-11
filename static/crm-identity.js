@@ -69,6 +69,9 @@
   function format(person) {
     return [person.name, person.company, person.email, person.abn_acn].filter(Boolean).join(' · ');
   }
+  function identityFields(kind) {
+    return kind === 'accounts' ? ['company','billing_address','abn_acn'] : [...contactFields,'company'];
+  }
   function suggestions(form, kind, inputs, record, request, selectedContact) {
     const area = node('details',null,'contacts-group crm-identity-section');
     const summary = label('summary','Possible duplicates'), list = node('ul');
@@ -82,8 +85,7 @@
       if (kind === 'leads' && selectedContact()) return;
       timer = setTimeout(async () => {
         const target = kind === 'accounts' ? 'accounts' : 'contacts';
-        const keys = target === 'accounts' ? ['company','billing_address','abn_acn'] : ['name','phone','company','title','email'];
-        const values = Object.fromEntries(keys.map(key=>[key,inputs[key]?.value || '']));
+        const values = Object.fromEntries(identityFields(target).map(key=>[key,inputs[key]?.value || '']));
         if (!(target === 'accounts' ? values.company : values.name).trim()) return;
         try {
           const result = await request('identity/suggestions', {kind:target,id:kind==='leads'?null:record.id,fields:values});
@@ -104,16 +106,36 @@
     if (!record.id || !(window.ClassifireAccess?.can('admin') ?? true)) return;
     const box = node('details',null,'contacts-group crm-identity-section'), section = node('div',null,'contacts-links-body');
     box.append(label('summary','Merge records'), section); form.append(box);
-    const current = directory[kind].filter(item => item.id !== record.id);
     const choose = node('select'), sourceLabel = node('label',null,'field');
     const sourceCaption = label('span','Source record');
     sourceCaption.id = 'identity-source-'+record.id;
     choose.setAttribute('aria-labelledby',sourceCaption.id);
     choose.append(new Option('—',''));
-    for (const item of current) choose.add(new Option(format(item),item.id));
+    choose.disabled = true;
     sourceLabel.append(sourceCaption,choose);
     const review = node('div'), status = node('p',null,'helper');
     status.setAttribute('role','status');
+    let loading = false, loaded = false;
+    box.addEventListener('toggle', async () => {
+      if (!box.open || loaded || loading) return;
+      loading = true;
+      try {
+        const values = Object.fromEntries(identityFields(kind).map(key=>[key,record[key] || '']));
+        const result = await request('identity/suggestions',{kind,id:record.id,fields:values});
+        if (!form.isConnected) return;
+        if (result.version !== directory.version) throw new Error('Contacts have changed. Reopen the form to review the latest values.');
+        const survivors = new Set(Object.values(directory.identity_aliases?.[kind] || {}));
+        for (const match of result.matches) {
+          if (!survivors.has(match.id)) choose.add(new Option(format(match.fields),match.id));
+        }
+        choose.disabled = choose.options.length === 1;
+        status.replaceChildren();
+        if (choose.disabled) status.append(label('span',kind === 'accounts' ? 'No matching companies.' : 'No matching Contacts.'));
+        loaded = true;
+      } catch (error) {
+        if (form.isConnected) status.replaceChildren(label('span',error.message));
+      } finally { loading = false; }
+    });
     const preview = button('Review merge', async () => {
       if (!choose.value) return;
       if (dirty()) {status.replaceChildren(label('span','Save or cancel your edits before merging records.'));return;}

@@ -139,6 +139,8 @@ def _project(row, index, data, snapshot, report_cache):
 def resolve_schedule_references(draft, library=None, *, snapshot=None):
     from .penetration_calculator import normalize_draft
     draft = normalize_draft(draft)
+    if not draft['rows']:
+        return {'row_references': {}}
     report_cache = {}
     if library is None:
         data = None

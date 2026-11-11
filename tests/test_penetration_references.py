@@ -48,6 +48,11 @@ class PenetrationReferenceTests(unittest.TestCase):
     def write(self):
         (self.root / 'library/library.json').write_text(json.dumps(self.data), encoding='utf-8')
 
+    def test_empty_schedule_has_no_references_and_needs_no_library_read(self):
+        with patch.object(self.library, '_load', side_effect=AssertionError('Unexpected library read')):
+            self.assertEqual(resolve_schedule_references({'globals': {}, 'rows': []}, self.library),
+                             {'row_references': {}})
+
     def resolve(self, **metadata):
         draft = deepcopy(self.draft)
         draft['rows'][0].update(metadata)

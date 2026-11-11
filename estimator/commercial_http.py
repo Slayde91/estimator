@@ -70,7 +70,8 @@ class CommercialHTTP:
                     handler.send_payload(200, data, 'application/octet-stream',
                                          {'Content-Disposition': "attachment; filename*=UTF-8''" + quote(item['name'], safe='')})
                     return True
-                if set(query) != {'workspace'} and not (action == 'register' and set(query) == {'workspace', 'refresh'} and query['refresh'] == ['1']):
+                option = {'register': 'refresh', 'state': 'compact'}.get(action)
+                if set(query) != {'workspace'} and not (option and set(query) == {'workspace', option} and query[option] == ['1']):
                     raise ValidationError('Choose the current project document workspace.')
                 workspace = query['workspace'][0]
                 if action == 'register' and self.saved:
@@ -81,6 +82,11 @@ class CommercialHTTP:
                     result = self.saved.projects.commercial_source_metadata()
                 elif action == 'state':
                     result = self.service.view(workspace, include_quote_totals=True)
+                    if 'compact' in query:
+                        # The editor uses the same documents inside its project snapshot.
+                        result['snapshot']['documents'] = None
+                elif action == 'snapshot':
+                    result = self.service.capture(workspace)
                 elif action == 'supplier-products' and self.pricing:
                     self.service.certifications.project_id(workspace)
                     catalog = effective_catalog(self.pricing())
@@ -147,7 +153,10 @@ class CommercialHTTP:
         if action not in fields_by_action or set(body) - common - fields_by_action[action]:
             raise ValidationError('Commercial document request contains unsupported fields.')
         workspace = body.get('workspace_id')
-        model = self.service.view(workspace)
+        identity = body.get('id')
+        if identity is not None and not isinstance(identity, str):
+            raise ValidationError('Choose a valid commercial document.')
+        project, document = self.service.document_context(workspace, identity if action in {'save', 'notes', 'issue'} else None)
         if action == 'defaults':
             self.service.certifications.require_created_project(workspace)
             profile = self.rate_defaults.read() if self.rate_defaults is not None else None
@@ -170,13 +179,13 @@ class CommercialHTTP:
             result = self._derive(body)
             result = {key: value for key, value in result.items() if key != 'scope_documents'}
         elif action == 'notes':
-            doc = next((d for d in model['documents'] if d['id'] == body.get('id') and d['kind'] in KINDS), None)
+            doc = document
             if doc is None:
                 raise ValidationError('Open the commercial document before adding a note.')
             result = self.service.save(workspace, {'id': doc['id'], 'version': body.get('version'), 'kind': doc['kind'],
                 'status': doc['status'], 'fields': {**doc['fields'], 'notes': body.get('notes')}})
         elif action == 'save':
-            if not any(document['id'] == body.get('id') for document in model['documents']):
+            if document is None:
                 self.service.certifications.require_created_project(workspace)
             fields = deepcopy(body.get('fields'))
             if isinstance(fields,dict) and 'billing' in fields and body.get('kind')=='work_order':
@@ -187,9 +196,9 @@ class CommercialHTTP:
                         raise ValidationError('The billing contact directory is unavailable.')
                     if 'project_details' in body and not isinstance(body['project_details'],dict):
                         raise ValidationError('Include the document and its project details.')
-                    prior = next((doc['fields'].get('billing',{}) for doc in model['documents'] if doc['id']==body.get('id')), {})
+                    prior = document['fields'].get('billing', {}) if document else {}
                     self.billing.validate_selection(billing,prior,(body.get('project_details') or {}).get('account_id'),
-                                                    body.get('billing_review'),model['snapshot']['project_id'],body.get('id'))
+                                                    body.get('billing_review'), project, identity)
             if 'project_details' in body:
                 if not isinstance(fields, dict) or not isinstance(fields.get('details'), dict):
                     raise ValidationError('Include the document and its project details.')
@@ -198,9 +207,12 @@ class CommercialHTTP:
                 if body.get('kind') == 'work_order':
                     if not isinstance(fields.get('order'), dict):
                         raise ValidationError('Commercial document details contain unsupported fields.')
-                    previous = next((doc for doc in model['documents'] if doc['id']==body.get('id') and doc['kind']=='work_order'), None)
-                    quote = next((doc for doc in model['documents'] if doc['id']==fields['order'].get('quote_id') and doc['kind']=='quote'), None)
-                    binding = previous if previous and (previous['fields']['order']['work_order_reference'] or previous['fields']['order']['quote_id']) else quote
+                    previous = document if document and document['kind'] == 'work_order' else None
+                    binding = previous if previous and (previous['fields']['order']['work_order_reference'] or previous['fields']['order']['quote_id']) else None
+                    quote_id = fields['order'].get('quote_id')
+                    if binding is None and isinstance(quote_id, str) and quote_id:
+                        _, quote = self.service.document_context(workspace, quote_id)
+                        binding = quote if quote and quote['kind'] == 'quote' else None
                     if binding:
                         bound_number = binding['fields']['details']['project_no']
                         if requested_number not in ((bound_number,) if previous else ('', bound_number)):
@@ -255,8 +267,6 @@ class CommercialHTTP:
             replay = self.service.replay(workspace, body.get('request_id'), body.get('id'), body.get('version'), self._company(), fingerprint, owner_key=owner_key)
             if replay:
                 return replay
-            documents = self.service.view(workspace)['documents']
-            document = next((item for item in documents if item['id'] == body.get('id')), None)
             if document is None:
                 raise ValidationError('This document is unavailable in the current project.')
             if body.get('kind') != document['kind']:

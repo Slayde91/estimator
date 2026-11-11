@@ -224,7 +224,7 @@
   };
   const clone = (value) => JSON.parse(JSON.stringify(value));
   const isNumber = (value) => typeof value === "number" && Number.isFinite(value);
-  const formatNumber = (value) => isNumber(value) ? quantity.format(value) : value == null || value === "" ? "—" : String(value);
+  const formatNumber = (value) => isNumber(value) ? quantity.format(value) : value === "N/A" ? value : "—";
   const formatMoney = (value) => isNumber(value) ? money.format(value) : "—";
   const fieldByCell = (cell) => state.fields.find((field) => field.cell === cell);
 
@@ -279,8 +279,13 @@
     return editedNumber(control, isPercent(field));
   }
 
-  function coverageNeedsTeam(cell) {
+  function coverageNeedsTeam(cell, item) {
     const team = coverageTeams[cell]; if (!team) return false;
+    const row = cell.slice(1);
+    const getInput = column => item ? item.inputs[column] :
+      Object.hasOwn(state.inputs, column + row) ? state.inputs[column + row] : fieldByCell(column + row)?.default;
+    const output = getInput("C"), product = String(getInput("D") ?? "").trim();
+    if (output == null || output === "" || output === 0 || !product || product.toLowerCase() === "n/a") return false;
     const value = Object.hasOwn(state.inputs, team) ? state.inputs[team] : fieldByCell(team)?.default;
     return value === null || value === "" || typeof value === "string" && value.toLowerCase() === "n/a";
   }
@@ -297,7 +302,7 @@
     }
     for (const item of state.workItems) {
       const key = `${item.id}:B`, value = item.inputs.B;
-      const blocked = isNumber(value) && value !== 0 && coverageNeedsTeam(`B${item.source_row}`);
+      const blocked = isNumber(value) && value !== 0 && coverageNeedsTeam(`B${item.source_row}`, item);
       if (blocked && !state.workItemDrafts.has(key)) state.workItemErrors.set(key, "Select Teams");
       else if (!blocked && state.workItemErrors.get(key) === "Select Teams") state.workItemErrors.delete(key);
       const control = $(`work-item-${item.id}-B`), error = state.workItemErrors.get(key);
@@ -611,7 +616,7 @@
     control.addEventListener("input", () => {
       state.inputRevision++;
       let value = control.value;
-      if (column === "B" && coverageNeedsTeam(`B${item.source_row}`) && value !== "" && Number.isFinite(Number(value)) && Number(value) !== 0) {
+      if (column === "B" && coverageNeedsTeam(`B${item.source_row}`, item) && value !== "" && Number.isFinite(Number(value)) && Number(value) !== 0) {
         control.value = state.workItemDrafts.has(key) ? state.workItemDrafts.get(key) : estimateControlValue(field, item.inputs[column]);
         validateCoverageTeams(); message(uiCopy("Select Teams"), true); showInputProblems(); return;
       }
@@ -889,8 +894,8 @@
     if (entries.length) {
       box.append(uiNode("strong", "", "Some estimate calculations need attention."));
       const list = node("ul");
-      const details = result.error_details || entries.map(([, code]) => ({ label: "Estimate calculation", code }));
-      for (const error of details) list.append(node("li", "", `${error.label}: ${error.code}`));
+      const details = result.error_details || [{ message: "Recalculate this estimate to see which inputs need attention." }];
+      for (const error of details) list.append(node("li", "", error.message || `${error.label} could not be calculated. Check its inputs.`));
       for (const [cell] of entries) $(`input-${cell}`)?.setAttribute("aria-invalid", "true");
       box.append(list);
     }
@@ -1874,6 +1879,12 @@
   }
 
   function renderPricing() {
+    if (state.currentView !== "pricing" || state.libraryKind !== "pricing") {
+      state.pricingRender = null;
+      if ($("pricing-body").childElementCount) $("pricing-body").replaceChildren();
+      markPricingDirty();
+      return;
+    }
     const search = $("pricing-search").value.trim().toLocaleLowerCase();
     const selectedGroup = $("rate-group").value;
     const records = (state.catalog.inventory || []).map((item) => ({ kind: "inventory", item, uses: [], key: `inventory:${item.id}` }));
@@ -2095,17 +2106,20 @@
   }
 
   function reportPayload() {
+    const penetration = window.CeasefirePenetrations?.quoteSnapshot?.();
+    return {...projectEstimate(), ...(penetration ? {penetration} : {}), ...(state.quote ? {source_quote_id:state.quote.id} : {})};
+  }
+
+  function projectEstimate(snapshot = true) {
     updateQuoteTitle();
     return {
       title: $("quote-title").value.trim(),
       ...quoteDetails(),
-      inputs: clone(state.inputs),
-      work_items: clone(state.workItems),
-      configuration: clone(state.quoteConfiguration || state.configuration),
+      inputs: snapshot ? clone(state.inputs) : state.inputs,
+      work_items: snapshot ? clone(state.workItems) : state.workItems,
+      configuration: snapshot ? clone(state.quoteConfiguration || state.configuration) : state.quoteConfiguration || state.configuration,
       workflow: state.workflow,
       measurements: $("measurements").value,
-      ...(window.CeasefirePenetrations?.quoteSnapshot?.() ? { penetration: window.CeasefirePenetrations.quoteSnapshot() } : {}),
-      ...(state.quote ? { source_quote_id: state.quote.id } : {}),
     };
   }
 
@@ -2113,13 +2127,13 @@
 
   function estimateWorkspaceRequest(workspace) {
     const result = {};
-    for (const key of estimateWorkspaceKeys) if (workspace[key] !== undefined) result[key] = clone(workspace[key]);
-    if (result.estimate) {
-      result.estimate = Object.fromEntries(["title", "workflow", "measurements", "inputs", "configuration", ...Object.keys(projectDetailControls), "work_items"].filter(key => workspace.estimate[key] !== undefined).map(key => [key, clone(workspace.estimate[key])]));
+    for (const key of estimateWorkspaceKeys) if (workspace[key] !== undefined) result[key] = workspace[key];
+    if (workspace.estimate) {
+      result.estimate = Object.fromEntries(["title", "workflow", "measurements", "inputs", "configuration", ...Object.keys(projectDetailControls), "work_items"].filter(key => workspace.estimate[key] !== undefined).map(key => [key, workspace.estimate[key]]));
     }
     if (result.penetration) result.penetration = {draft:result.penetration.draft, ...(result.penetration.composer ? {composer:result.penetration.composer} : {}), library_tracking_version:1};
     if (result.calculators) result.calculators = Object.fromEntries(Object.entries(result.calculators).map(([id, value]) => [id, {inputs: value.inputs, ...(value.schedule_rows ? {schedule_rows: value.schedule_rows} : {})}]));
-    return result;
+    return clone(result);
   }
 
   function collectionFromProject(project, captured = []) {
@@ -2265,31 +2279,27 @@
   window.CeasefireEstimates = {list:() => state.projectEstimates.map(({id,name}) => ({id,name})), activeId:() => state.activeEstimateId, select:selectEstimate,
     async capture(options) {if (state.projectBusy) throw new Error("Finish the current project operation first."); return estimateCollectionWith(await captureCurrentEstimate(options));}};
 
-  function projectEstimate() {
-    const payload = reportPayload(); delete payload.source_quote_id; delete payload.penetration; return payload;
-  }
-
-  function projectStamp() {
-    return JSON.stringify({ estimates: state.projectEstimates, active_estimate_id: state.activeEstimateId, commercial: window.CeasefireCommercial?.projectFingerprint?.(), swms: window.CeasefireSWMS?.projectFingerprint?.(), project_status: state.projectStatus, estimate: projectEstimate(), quoteContext: state.quoteContext,
+  function projectStampFields(includeCommercial = true) {
+    return { estimates: state.projectEstimates, active_estimate_id: state.activeEstimateId, commercial: includeCommercial ? window.CeasefireCommercial?.projectFingerprint?.() : undefined, swms: window.CeasefireSWMS?.projectFingerprint?.(), project_status: state.projectStatus, estimate: projectEstimate(false), quoteContext: state.quoteContext,
       quoteLoadRevision: state.quoteLoadRevision, inputRevision: state.inputRevision,
       errors: [...state.inputErrors], inputDrafts: [...state.inputDrafts],
       pricing: state.pricingScope === "project" ? state.draft : state.projectPricingDraft,
       pricingPending: (state.pricingScope === "project" ? state.draft : state.projectPricingDraft) && [...pricingPendingFields(state.pricingScope === "project" ? state.draft : state.projectPricingDraft)],
-      calculators: window.CeasefireCalculators.projectFingerprint(), penetration: window.CeasefirePenetrations?.projectFingerprint(), takeoffs: window.CeasefireTakeoffs?.projectFingerprint(), libraryDrafts: window.CeasefireLibraryEditor?.projectFingerprint?.(), certifications: window.CeasefireCertification?.projectFingerprint?.(), documentation:window.CeasefireDocumentation?.projectFingerprint?.() });
+      calculators: window.CeasefireCalculators.projectFingerprint(), penetration: window.CeasefirePenetrations?.projectFingerprint(), takeoffs: window.CeasefireTakeoffs?.projectFingerprint(), libraryDrafts: window.CeasefireLibraryEditor?.projectFingerprint?.(), certifications: window.CeasefireCertification?.projectFingerprint?.(), documentation:window.CeasefireDocumentation?.projectFingerprint?.() };
   }
+  function projectStamp() { return JSON.stringify(projectStampFields()); }
 
   function commercialDetailsGuard() {
     // Exclude only the commercial editor being discarded. Keep every other
     // Project workspace, calculator, pricing and input revision in this guard.
-    const value=JSON.parse(projectStamp());delete value.commercial;
-    return JSON.stringify(value);
+    return JSON.stringify(projectStampFields(false));
   }
 
   // Cover defaults remain global Settings. Their independent stamp protects
   // replacement races; the main Save persists their drafts after the project
   // file succeeds, without embedding cover defaults in that project file.
   function projectReplacementStamp() {
-    return JSON.stringify({project:projectStamp(),coverSheets:window.CeasefireCoverSheets?.fingerprint?.(),projectPane:window.CeasefireProjectPane?.fingerprint?.()});
+    return JSON.stringify({project:projectStampFields(),coverSheets:window.CeasefireCoverSheets?.fingerprint?.(),projectPane:window.CeasefireProjectPane?.fingerprint?.()});
   }
   function coverReplacementPending(skipProjectPane = false) {
     if (window.ClassifireContacts?.hasPendingOperation?.()) { message(uiCopy(window.ClassifireContacts.pendingMessage?.() || "Finish the current Company action first."), true); return true; }

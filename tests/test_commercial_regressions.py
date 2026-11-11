@@ -1,5 +1,6 @@
 """Independent regressions for portable numbering and HTTP project capabilities."""
 from copy import deepcopy
+from contextlib import nullcontext
 import json
 from pathlib import Path
 import tempfile
@@ -79,6 +80,52 @@ class CommercialRegressionTests(unittest.TestCase):
         next_issue = restored.issue(other_workspace, next_document['id'], next_document['version'], str(uuid.uuid4()))
         self.assertEqual(issued['number'], 'WO-01')
         self.assertEqual(next_issue['number'], 'WO-02')
+
+    def test_saved_draft_size_cache_enforces_exact_utf8_limit_and_detects_other_edits(self):
+        from estimator.commercial_documents import _json
+        first = self.create('quote')
+        second = self.create('quote')
+        def update(doc, title):
+            return self.service.save(self.workspace, {**{k: doc[k] for k in ('id','kind','version','status')},
+                'fields': {**doc['fields'], 'title':title}})
+        first = update(first, 'Café')
+        baseline = len(_json(self.service.capture(self.workspace)).encode('utf-8'))
+        # An equal-byte edit fits. A second window changing a previously cached
+        # draft must be reflected in the next save, and a failed edit stays atomic.
+        with patch('estimator.commercial_documents.MAX_SNAPSHOT_BYTES', baseline):
+            first = update(first, 'Zoës')
+            with self.assertRaisesRegex(ValidationError, '8 MiB'):
+                update(second, second['fields']['title'] + 'é')
+        second = update(second, second['fields']['title'] + 'é')
+        with patch('estimator.commercial_documents.MAX_SNAPSHOT_BYTES', baseline):
+            with self.assertRaisesRegex(ValidationError, '8 MiB'):
+                update(first, 'Zoës')
+        self.assertEqual({doc['id']:doc['version'] for doc in self.service.capture(self.workspace)['documents']},
+                         {first['id']:first['version'], second['id']:second['version']})
+
+    def test_existing_workspace_can_load_while_another_save_owns_the_write_lock(self):
+        saved = self.create('quote')
+        with self.service._connect() as writer, self.service._connect() as reader:
+            writer.execute('BEGIN IMMEDIATE')
+            reader.execute('PRAGMA query_only=ON')
+            with patch.object(self.service, '_connect', return_value=nullcontext(reader)):
+                self.assertEqual(self.service.capture(self.workspace)['documents'], [saved])
+
+    def test_editor_and_project_snapshot_routes_return_the_same_portable_documents(self):
+        self.create('quote')
+        http = CommercialHTTP(self.service)
+        def get(action, extra=''):
+            route = '/api/commercial/' + action
+            handler = Handler({})
+            handler.command, handler.path = 'GET', route + '?workspace=' + self.workspace + extra
+            self.assertTrue(http.dispatch(handler, route))
+            self.assertEqual(handler.result[0], 200)
+            return handler.result[1]
+        compact = get('state', '&compact=1')
+        self.assertIsNone(compact['snapshot']['documents'])
+        compact['snapshot']['documents'] = compact['documents']
+        self.assertEqual(compact, get('state'))
+        self.assertEqual(compact['snapshot'], get('snapshot'))
 
     def test_http_exact_retry_after_delete_uses_original_pdf_without_derivation(self):
         saved = self.create('quote')

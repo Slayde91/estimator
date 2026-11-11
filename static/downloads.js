@@ -141,7 +141,25 @@
       // receipt so its notification can open the workbook in the desktop app.
       const target = pdf ? null : window.CeasefireProject?.downloadTarget?.();
       const request = pdf ? snapshot : {...snapshot, download:{project_token:target?.project_token ?? null}};
-      const response = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) });
+      let response = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) });
+      if (!response.ok && path === '/api/pricing/export') {
+        const failure = await response.clone().json().catch(() => null);
+        if (failure?.error === 'The download could not be saved. Check the destination folder permissions and available disk space, then try again.') {
+          response = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(snapshot) });
+          if (response.ok) {
+            if (String(response.headers.get('Content-Type') || '').split(';')[0].trim().toLowerCase() !== mediaType)
+              throw new Error('The server returned an unexpected file type.');
+            const workbook = await response.blob();
+            if (!workbook.size) throw new Error('The prepared file is empty.');
+            const workbookUrl = URL.createObjectURL(workbook);
+            const link = document.createElement('a');
+            link.href = workbookUrl; link.download = filename;
+            document.body.append(link); link.click(); link.remove();
+            setTimeout(() => URL.revokeObjectURL(workbookUrl), 60000);
+            return { filename, destination: 'browser' };
+          }
+        }
+      }
       if (!response.ok) {
         const error = await response.json().catch(() => null);
         throw new Error(error?.error || window.CeasefireI18n?.translate('The file could not be prepared ({0}).', [response.status]) || `The file could not be prepared (${response.status}).`);

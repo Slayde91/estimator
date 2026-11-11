@@ -1075,6 +1075,10 @@
     if (!window.CeasefirePenetrationReferences || !state.schedule.draft) return;
     const scope = referenceScope(), key = stable(scope);
     if (scheduleReferences.key === key || scheduleReferences.pending === key) return;
+    if (!scope.payload.draft.rows.length) {
+      Object.assign(scheduleReferences, { key, rows: {}, pending: null, error: "" });
+      return;
+    }
     scheduleReferences.pending = key; scheduleReferences.error = "";
     void request("/api/penetration/references", scope.payload).then(reply => {
       if (scheduleReferences.pending !== key || scheduleReferenceKey() !== key) return;

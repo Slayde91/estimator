@@ -10,7 +10,7 @@ from estimator.catalog import ValidationError
 from estimator.native_dialogs import SaveSelection
 from estimator.penetration_calculator import source_model
 from estimator.project_file import _portable_penetration, load_project_bytes
-from estimator.project_library import ProjectLibrary, _preserve_penetration_inputs, file_fingerprint
+from estimator.project_library import ProjectLibrary, file_fingerprint
 from estimator.storage import Store
 
 
@@ -27,6 +27,8 @@ class PenetrationLibrarySaveGuardTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         self.path = self.root / 'project.cf.json'
+        self.library = ProjectLibrary(Store(self.root / 'guards.sqlite3'))
+        self.addCleanup(self.library.close)
         self.globals = {'J': 'No', 'K': None, 'L': 0, 'M': 0}
         self.row = {'id': 'line-1', 'inputs': {'T': 'Keep Ø65 原文', 'O': 2.1234567890123, 'AJ': 25},
                     'library_item_id': 'pkb-row-4'}
@@ -61,11 +63,11 @@ class PenetrationLibrarySaveGuardTests(unittest.TestCase):
             stale = deepcopy(previous)
             del stale[scope]['rows'][0]['library_item_id']
             with self.subTest(scope=scope), self.assertRaisesRegex(ValidationError, 'Refresh the application'):
-                _preserve_penetration_inputs(self.path, {'penetration': stale})
+                self.library._preserve_overwrite(before, {'penetration': stale})
             self.assertEqual(self.path.read_bytes(), before)
         for request in ({}, {'penetration': {'draft': self.draft, 'library_tracking_version': 1}}):
             with self.subTest(request=request), self.assertRaisesRegex(ValidationError, 'Refresh the application'):
-                _preserve_penetration_inputs(self.path, request)
+                self.library._preserve_overwrite(before, request)
 
     def test_aware_deletions_and_reused_row_ids_are_not_rebound(self):
         before = self.write_minimal(self.snapshot)
@@ -75,7 +77,7 @@ class PenetrationLibrarySaveGuardTests(unittest.TestCase):
                                       'composer': {'globals': self.globals, 'rows': [deepcopy(replacement)]},
                                       'library_tracking_version': 1}}
             original = deepcopy(request)
-            _preserve_penetration_inputs(self.path, request)
+            self.library._preserve_overwrite(before, request)
             self.assertEqual(request, original)
             self.assertEqual(self.path.read_bytes(), before)
             self.assertTrue(all('library_item_id' not in row for row in request['penetration']['draft']['rows']))
@@ -85,11 +87,11 @@ class PenetrationLibrarySaveGuardTests(unittest.TestCase):
         for draft in previous.values():
             del draft['rows'][0]['library_item_id']
         before = self.write_minimal(previous)
-        _preserve_penetration_inputs(self.path, {'penetration': deepcopy(previous)})
+        self.library._preserve_overwrite(before, {'penetration': deepcopy(previous)})
         self.assertEqual(self.path.read_bytes(), before)
         # Original schedule-only projects also remain editable without a composer.
-        self.write_minimal({'draft': previous['draft']})
-        _preserve_penetration_inputs(self.path, {'penetration': {'draft': previous['draft']}})
+        before = self.write_minimal({'draft': previous['draft']})
+        self.library._preserve_overwrite(before, {'penetration': {'draft': previous['draft']}})
 
     def test_native_save_and_save_as_reject_stale_clients_then_allow_intentional_removal(self):
         store = Store(self.root / 'disposable.sqlite3')

@@ -13,12 +13,13 @@ import re
 
 from .calculator_report import project_calculator_report, calculator_schedule_table
 from .catalog import ValidationError
-from .commercial_documents import linked_estimate_ids
+from .commercial_documents import MAX_DOCUMENT_AMOUNT, linked_estimate_ids
 from .commercial_documents import validate_rich_text
 from .edition import require_project_edition
 from .penetration_calculator import calculate as calculate_penetration, definition
 from .penetration_report import penetration_schedule_table
-from .project_file import CALCULATOR_IDS, export_project, load_project_bytes
+from .project_file import CALCULATOR_IDS, prepare_project_export, project_details
+from .quote_details import QUOTE_DETAIL_LIMITS
 from .project_reports import TITLES, build_project_report
 from .schedule_rows import empty_schedule_inputs, populated_schedule_rows
 
@@ -119,14 +120,21 @@ def derive_estimates(store, body, *, edition='full', company=None, library=None,
             raise ValidationError('Use the available calculators in each linked estimate.')
         request['calculators'] = {key: calculators.get(key, {'inputs': empty_schedule_inputs(key)})
                                   for key in CALCULATOR_IDS}
-        payload = export_project(store, request, edition=edition)
-        project = load_project_bytes(store, payload, edition=edition)
+        _, snapshot, prepared = prepare_project_export(store, request, edition=edition)
+        project = {**snapshot, 'estimate': prepared,
+                   'project_details': project_details({key: prepared[key] for key in QUOTE_DETAIL_LIMITS})}
         total = project['estimate']['result']['summary']['total']
         if isinstance(total, bool) or not isinstance(total, (int, float)) or not math.isfinite(total):
             raise ValidationError(f"Resolve the calculation errors in {item['name']} before quoting it.")
+        price = Decimal(str(total))
+        # Half a cent beyond either limit rounds to an unsupported line price.
+        if abs(price) >= MAX_DOCUMENT_AMOUNT + Decimal('.005'):
+            raise ValidationError(f"{item['name']} has a total outside the Quote line range of "
+                                  f"-${MAX_DOCUMENT_AMOUNT:,} to ${MAX_DOCUMENT_AMOUNT:,}. "
+                                  "Check its quantities, daily outputs and rates before linking it.")
         output['lines'].append({'estimate_id': identity, 'description': item['name'],
-                                'quantity': '1', 'unit_price': str(Decimal(str(total)).quantize(Decimal('.01'), rounding=ROUND_HALF_UP))})
-        source = json.dumps({'name': item['name'], 'workspace': json.loads(payload)},
+                                'quantity': '1', 'unit_price': str(price.quantize(Decimal('.01'), rounding=ROUND_HALF_UP))})
+        source = json.dumps({'name': item['name'], 'workspace': snapshot},
                             sort_keys=True, ensure_ascii=False, allow_nan=False, separators=(',', ':')).encode('utf-8')
         output['sources'].append({'estimate_id': identity, 'sha256': sha256(source).hexdigest()})
         tables = _scope_tables(project, item['name'], library, pending=not include_scope_tables, estimate_id=identity)

@@ -75,7 +75,7 @@ class SavedCommercial:
         workspace = self.projects.certifications.restore(manifest, path)['workspace_id']
         try:
             self.projects.commercial.files.transfer(commercial, path, restore=True)
-            self.projects.commercial.restore(workspace, commercial)
+            self.projects.commercial.restore(workspace, commercial, return_view=False)
             self.projects.certifications.activate_created_project(workspace, snapshot['estimate'].get('project_no', ''))
         except Exception:
             self.projects.certifications.discard(workspace)
@@ -114,7 +114,6 @@ class SavedCommercial:
                 import base64
                 item, raw = self.projects.commercial.read_attachment(workspace, body['id'], body['file_id'])
                 return {**item, 'content': base64.b64encode(raw).decode('ascii')}
-            model = self.projects.commercial.view(workspace, include_quote_totals=action == 'open')
             if updates is not None:
                 self._apply_project_updates(snapshot, updates, directory)
             details = project_document_details(snapshot['estimate'])
@@ -122,6 +121,7 @@ class SavedCommercial:
             if action == 'open':
                 if set(body) != {'id'}:
                     raise ValidationError('Select one linked document.')
+                model = self.projects.commercial.view(workspace, include_quote_totals=True)
                 document = next((d for d in model['documents'] if d['id'] == body['id']), None)
                 if document is None:
                     raise CommercialConflict('This document is no longer available. Reopen its board.')
@@ -155,7 +155,7 @@ class SavedCommercial:
                     if session.get('last_download', {}).get('fingerprint') == fingerprint:
                         return session['last_download']['response']
                     saved_pdf = self.projects.documentation.read(workspace, retained['item']['id'])
-                    document = next((doc for doc in model['documents'] if doc['id'] == body['id']), None)
+                    _, document = self.projects.commercial.document_context(workspace, body['id'])
                     receipt = self.projects.write_download(DownloadDestination(path.parent, 'project'), saved_pdf['item']['filename'], saved_pdf['payload'])
                     response = {'result': {**receipt, 'document': document}, 'revision': actual_revision}
                     session['last_download'] = {'fingerprint': fingerprint, 'response': response}

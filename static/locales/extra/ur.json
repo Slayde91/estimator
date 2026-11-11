@@ -3552,5 +3552,8 @@
   "Certify": "تصدیق",
   "On Hold": "زیر التوا",
   "Sign and move": "دستخط کریں اور منتقل کریں",
-  "Choose a valid next status for this order.": "اس آرڈر کے لیے اگلی درست حیثیت منتخب کریں۔"
+  "Choose a valid next status for this order.": "اس آرڈر کے لیے اگلی درست حیثیت منتخب کریں۔",
+  "Complete {0} in the owning Project before signing.": "دستخط کرنے سے پہلے متعلقہ پروجیکٹ میں {0} مکمل کریں۔",
+  "Enter a claimed percentage for at least one Quote row.": "کوٹیشن کی کم از کم ایک سطر میں دعوے کا فیصد درج کریں۔",
+  "This saved Work Order has no linked Quote. Create a Work Order from an issued Quote to track work.": "اس محفوظ شدہ ورک آرڈر سے کوئی کوٹیشن منسلک نہیں ہے۔ کام کی پیش رفت درج کرنے کے لیے جاری کردہ کوٹیشن سے ورک آرڈر بنائیں۔"
 }

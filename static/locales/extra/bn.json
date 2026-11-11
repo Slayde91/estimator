@@ -3552,5 +3552,8 @@
   "Certify": "প্রত্যয়ন",
   "On Hold": "স্থগিত",
   "Sign and move": "স্বাক্ষর করে সরান",
-  "Choose a valid next status for this order.": "এই আদেশের জন্য পরবর্তী বৈধ স্থিতি বেছে নিন।"
+  "Choose a valid next status for this order.": "এই আদেশের জন্য পরবর্তী বৈধ স্থিতি বেছে নিন।",
+  "Complete {0} in the owning Project before signing.": "স্বাক্ষর করার আগে সংশ্লিষ্ট প্রকল্পে {0} পূরণ করুন।",
+  "Enter a claimed percentage for at least one Quote row.": "কোটেশনের অন্তত একটি সারিতে দাবির শতাংশ লিখুন।",
+  "This saved Work Order has no linked Quote. Create a Work Order from an issued Quote to track work.": "এই সংরক্ষিত কার্যাদেশের সঙ্গে কোনো কোটেশন যুক্ত নেই। কাজের অগ্রগতি জানতে জারি করা কোটেশন থেকে একটি কার্যাদেশ তৈরি করুন।"
 }

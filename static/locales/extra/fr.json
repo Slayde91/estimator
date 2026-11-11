@@ -3552,5 +3552,8 @@
   "Certify": "Certification",
   "On Hold": "En attente",
   "Sign and move": "Signer et déplacer",
-  "Choose a valid next status for this order.": "Choisissez un prochain statut valide pour cet ordre."
+  "Choose a valid next status for this order.": "Choisissez un prochain statut valide pour cet ordre.",
+  "Complete {0} in the owning Project before signing.": "Renseignez {0} dans le projet concerné avant de signer.",
+  "Enter a claimed percentage for at least one Quote row.": "Saisissez le pourcentage réclamé pour au moins une ligne du devis.",
+  "This saved Work Order has no linked Quote. Create a Work Order from an issued Quote to track work.": "Aucun devis n’est lié à cet ordre de travail enregistré. Créez un ordre de travail à partir d’un devis émis pour suivre l’avancement."
 }

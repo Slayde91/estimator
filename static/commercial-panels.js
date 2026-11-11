@@ -213,7 +213,45 @@
     for(const row of linkedContacts(kind,fields,project,participants,directory))if(row.contact?.account_id)add(row.contact.account_id,'Contact company',row.contact.company);
     return rows;
   }
-  window.ClassifireCommercialDirectory={field:directorySearch,load:loadDirectory,fold,linkedContacts,linkedCompanies};
+  function recipientSearches(fields, projectDetails, change, options) {
+    let directory = {};
+    const searchOptions = {
+      isCurrent:options.isCurrent, message:options.message, allowCreate:options.allowCreate,
+      onDirectory(data) { directory = data; options.onDirectory?.(data); }
+    };
+    function accountFor(id, name, data = directory) {
+      const matches = (data.accounts || []).filter(row => id ? row.id === id : fold(row.company) === fold(name));
+      return matches.length === 1 ? matches[0] : null;
+    }
+    const documentAccount = (records) => accountFor(fields.details.account_id, fields.details.client, options.readDirectory?.() || records || directory);
+    function companyValues(account, value = '') {
+      const project = projectDetails();
+      const same = account?.id && (!project.account_id || account.id === project.account_id) && fold(account.company) === fold(project.client);
+      return {client:account?.company || value, account_id:account?.id || '',
+        billing_address:same ? project.billing_address || '' : account?.billing_address || '',
+        abn_acn:same ? project.abn_acn || '' : account?.abn_acn || ''};
+    }
+    function changeCompany(value, account = null) {
+      const changed = account ? account.id !== fields.details.account_id : value !== fields.details.client;
+      if (changed || account) change({...companyValues(account, value), ...(changed ? {contact:'', contact_id:'', phone:'', email:''} : {})});
+    }
+    const company = directorySearch(options.companyLabel || 'Company', {...searchOptions, kind:'accounts', value:fields.details.client,
+      read:() => fields.details.client, onInput:changeCompany, onSelect:account => changeCompany(account.company, account)});
+    const name = directorySearch(options.contactLabel || 'Name', {...searchOptions, kind:'contacts', value:fields.details.contact,
+      read:() => fields.details.contact, account:documentAccount,
+      filter(contact) {
+        const account = documentAccount();
+        return !fields.details.client || !!account && (contact.account_id === account.id || contact.account_id === undefined && fold(contact.company) === fold(account.company));
+      },
+      onInput(value) { if (value !== fields.details.contact) change({contact:value, contact_id:'', phone:'', email:''}); },
+      onSelect(contact, data) {
+        const account = accountFor(contact.account_id, contact.company, data);
+        change({...companyValues(account, contact.company || ''), contact:contact.name, contact_id:contact.id, phone:contact.phone || '', email:contact.email || ''});
+      }
+    });
+    return [company, name];
+  }
+  window.ClassifireCommercialDirectory={field:directorySearch,load:loadDirectory,fold,linkedContacts,linkedCompanies,recipientSearches};
   function attach(form, options) {
     const owner = form.parentElement, wrapper = el("div"), left = el("aside"), right = el("aside");
     const isPurchaseOrder=options.kind==='purchase_order';
@@ -290,25 +328,11 @@
       }
       if(!isPurchaseOrder && !rows.length){const empty=el('p','No linked contacts.');empty.className='helper';window.CeasefireI18n?.text(empty,'No linked contacts.');contactList.append(empty);}
     }
-    const documentAccount=()=>{const rows=(directory.accounts || []).filter(account=>options.fields.details.account_id
-      ? account.id===options.fields.details.account_id
-      : fold(account.company)===fold(options.fields.details.client));return rows.length===1?rows[0]:null;};
-    function change(values){options.changeDetails(values);showContact();}
-    function companyValues(account,value='') {
-      const project=projectDetails(),same=account?.id && (!project.account_id || account.id===project.account_id) && fold(account.company)===fold(project.client);
-      return {client:account?.company || value,account_id:account?.id || '',
-        billing_address:same ? project.billing_address || '' : account?.billing_address || '',abn_acn:same ? project.abn_acn || '' : account?.abn_acn || ''};
-    }
-    function changeCompany(value,account=null){const changed=account ? account.id!==options.fields.details.account_id : value!==options.fields.details.client;
-      if(!changed && !account)return;
-      change({...companyValues(account,value),...(changed?{contact:'',contact_id:'',phone:'',email:''}:{})});}
-    const company=!isPurchaseOrder && directorySearch('Company',{kind:'accounts',value:options.fields.details.client,read:()=>options.fields.details.client,isCurrent:options.canEdit,message:options.message,
-      onDirectory(data){directory=data;showContact();},onInput(value){changeCompany(value);},onSelect(account){changeCompany(account.company,account);}});
-    const name=!isPurchaseOrder && directorySearch('Name',{kind:'contacts',value:options.fields.details.contact,read:()=>options.fields.details.contact,isCurrent:options.canEdit,message:options.message,
-      account:documentAccount,filter(contact){const account=documentAccount();return !options.fields.details.client || !!account && (contact.account_id===account.id || contact.account_id===undefined && fold(contact.company)===fold(account.company));},
-      onDirectory(data){directory=data;showContact();},onInput(value){if(value===options.fields.details.contact)return;change({contact:value,contact_id:'',phone:'',email:''});},onSelect(contact,data){
-        const accounts=(data.accounts || []).filter(account=>contact.account_id ? account.id===contact.account_id : fold(account.company)===fold(contact.company));const account=accounts.length===1?accounts[0]:null;
-        change({...companyValues(account,contact.company || ''),contact:contact.name,contact_id:contact.id,phone:contact.phone || '',email:contact.email || ''});}});
+    const [company, name] = isPurchaseOrder ? [] : recipientSearches(options.fields, projectDetails,
+      values => { options.changeDetails(values); showContact(); }, {
+        isCurrent:options.canEdit, message:options.message, readDirectory:() => directory,
+        onDirectory(data) { directory=data; showContact(); }
+      });
     const site=el('label'),siteCaption=el('span','Site address'),siteInput=el('textarea');siteInput.rows=2;siteInput.maxLength=400;site.className='field commercial-site-address';
     window.CeasefireI18n?.text(siteCaption,'Site address');siteInput.value=options.fields.details.site_address || '';siteInput.setAttribute('aria-label','Site address');window.CeasefireI18n?.attr(siteInput,'aria-label','Site address');
     siteInput.readOnly=true;site.append(siteCaption,siteInput);

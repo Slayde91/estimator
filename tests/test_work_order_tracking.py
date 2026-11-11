@@ -59,6 +59,27 @@ class WorkOrderTrackingTests(unittest.TestCase):
         self.assertEqual(self.fields()['work_tracking'],before)
         self.assertEqual(self.store.read_pdf(self.workspace,self.receipt['id'])[1],self.receipt['pdf'])
 
+    def test_unfiled_legacy_work_order_opens_only_its_enrolled_issued_rows(self):
+        fields = self.fields()
+        original = fields.pop('work_tracking')
+        work = self.store.save(self.workspace, {'id':str(uuid4()), 'version':0, 'kind':'work_order',
+            'status':'Draft', 'fields':fields}, unfiled_context={})
+
+        def open_work():
+            card = next(row for row in self.store.unfiled.cards(None) if row['id'] == work['id'])
+            source = {'file_id':card['source_file'], 'revision':card['source_revision']}
+            return self.store.unfiled.perform('open', source, {'id':work['id']}, self.fail)
+
+        self.assertEqual(open_work()['quote_rows'], {})
+        changed = deepcopy(self.quote['fields'])
+        changed['lines'][0]['description'] = 'Later revision'
+        enrolled = self.store.save(self.workspace, {'id':self.quote['id'], 'version':self.quote['version'],
+            'kind':'quote', 'status':self.quote['status'], 'fields':changed}, unfiled_context={})
+        self.store.issue(self.workspace, enrolled['id'], enrolled['version'], str(uuid4()))
+        opened = open_work()
+        self.assertEqual(opened['quote_rows'], {self.quote['id']:{self.quote['last_number']:original}})
+        self.assertNotIn('work_tracking', opened['document']['fields'])
+
     def test_percentages_allow_blank_or_one_to_one_hundred_including_free_credit(self):
         fields=self.fields()
         for row,value in zip(fields['work_tracking']['rows'],['','1','37.5','100']):

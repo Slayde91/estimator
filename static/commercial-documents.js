@@ -108,13 +108,13 @@
     if (window.CeasefireProject?.requireCreatedProject) return window.CeasefireProject.requireCreatedProject();
     message("Create or load a project before creating documents.", true); return false;
   }
-  function input(value, changed, type = "text") {
+  function input(value, changed, type = "text", dirty = true) {
     const element = node("input");
     element.type = type;
     element.value = value ?? "";
     element.addEventListener("input", () => {
       changed(element.value);
-      markDirty();
+      if (dirty) markDirty();
     });
     return element;
   }
@@ -132,13 +132,13 @@
     });
     return element;
   }
-  function textarea(value, changed) {
+  function textarea(value, changed, dirty = true) {
     const element = node("textarea");
     element.value = value || "";
     element.rows = 3;
     element.addEventListener("input", () => {
       changed(element.value);
-      markDirty();
+      if (dirty) markDirty();
     });
     return element;
   }
@@ -161,10 +161,9 @@
     window.CeasefireProject?.changed?.();
     if(state.editor) updateRequiredFields();
   }
-  function readinessSpecs(action) {
-    const document=state.editor?.document;
-    const specs=document ? state.model?.requirements?.[action]?.[document.kind]?.[document.status] || [] : [];
-    return state.editor?.legacyDetailsSignoff ? specs.filter(spec=>!['signatures.details_by','order.details_by','order.details_date'].includes(spec.path)) : specs;
+  function readinessSpecs(action, document = state.editor?.document, status = document?.status, legacy = state.editor?.legacyDetailsSignoff) {
+    const specs=document ? state.model?.requirements?.[action]?.[document.kind]?.[status] || [] : [];
+    return legacy ? specs.filter(spec=>!['signatures.details_by','order.details_by','order.details_date'].includes(spec.path)) : specs;
   }
   function requirementControl(path) {
     const [group,key,rate]=path.split('.'),host=root();
@@ -175,8 +174,7 @@
     if(group==='rate_schedule')return rate ? host?.querySelector(`[data-rate-key="${rate}"]`) : host?.querySelector('.commercial-rate-schedule textarea');
     return host?.querySelector(`[data-required-path="${path}"]`);
   }
-  function requirementPresent(spec) {
-    const fields=state.editor.document.fields;
+  function requirementPresent(spec, fields = state.editor.document.fields) {
     if(spec.type==='completed' || spec.type==='claimed') {
       const key=spec.type==='completed'?'completed_percent':'claimed_percent';
       return (fields.work_tracking?.rows || []).some(row=>Number(row[key])>0 && Number(row[key])<=100);
@@ -186,6 +184,103 @@
     if(spec.type==='rich') {const parsed=document.createElement('div');parsed.innerHTML=value || '';value=parsed.textContent;}
     const present=typeof value==='string' && value.replace(/\p{Cf}/gu,'').trim().length>0;
     return present && (spec.type!=='number' || (Number.isFinite(Number(value)) && Number(value)>=0));
+  }
+  function boardRecipientFields(host, fields, source, initialFields) {
+    const project = projectDetailsSnapshot(source);
+    const details = fields.details, controls = new Map();
+    const notice = node('p','helper');
+    notice.setAttribute('role','status'); notice.hidden = true;
+    const message = text => { notice.textContent = text; notice.hidden = !text; };
+    const [company, contact] = window.ClassifireCommercialDirectory.recipientSearches(fields, () => project,
+      values => {
+        assignDocumentRecipient(fields, values, project);
+        for (const [key, control] of controls) control.value = details[key];
+        company.refresh(); contact.refresh(); company.input.setCustomValidity(''); message('');
+      }, {companyLabel:'Client', contactLabel:'Client contact', allowCreate:false, isCurrent:() => host.isConnected, message});
+    company.input.required = contact.input.required = true;
+    host.append(company.element, contact.element);
+    for (const [key,label] of [['phone','Client phone'], ['email','Client email']]) {
+      const control = node('input');
+      control.inputMode = key === 'phone' ? 'tel' : 'email';
+      control.value = details[key];
+      control.required = true; control.maxLength = 1000;
+      controls.set(key, control);
+      control.addEventListener('input', () => {
+        details[key] = control.value;
+        if (!Object.hasOwn(details,'account_id') && !fields.detail_overrides?.includes(key)) {
+          (fields.detail_overrides ||= []).push(key);
+        }
+      });
+      host.append(field(label, control));
+    }
+    host.append(notice);
+    return () => {
+      if (!details.account_id && (initialFields.details.account_id || details.client !== initialFields.details.client)) {
+        const source = 'Choose an existing Company for this Client, or add a new Company.';
+        company.input.setCustomValidity(window.CeasefireI18n?.translate(source) || source);
+        company.input.reportValidity();
+        return false;
+      }
+      for (const [key, control] of [['client',company.input], ['contact',contact.input], ...controls]) {
+        if (requirementPresent({path:'details.'+key}, fields)) continue;
+        control.value = ''; control.reportValidity(); return false;
+      }
+      return true;
+    };
+  }
+  function boardRequiredFields(host, draft, source, step, target, initialFields = draft.fields) {
+    host.replaceChildren();
+    const fields = draft.fields, legacy = isLegacyWorkOrder(draft);
+    const specs = readinessSpecs('save', draft, target, legacy);
+    const needsValue = spec => !requirementPresent(spec, initialFields) || !requirementPresent(spec, fields);
+    const controls = [];
+    const prerequisites = signingSteps[draft.kind].slice(0, signingSteps[draft.kind].indexOf(step))
+      .filter(prior => !legacy || prior.key !== 'details_by');
+    const missingSigners = prerequisites.filter(({key}) =>
+      !requirementPresent({path:'signatures.'+key,type:'signature'},fields) ||
+      !requirementPresent({path:'order.'+key},fields) || !fields.order[signatureDates[key]]);
+    const missingProject = specs.filter(spec => ['details.project_no','details.site_address'].includes(spec.path) && !requirementPresent(spec, fields));
+    const blockers = [];
+    function instruction(source, labels) {
+      if (!labels.length) return;
+      const names = labels.map(label => window.CeasefireI18n?.translate(label) || label).join(', ');
+      const text = window.CeasefireI18n?.translate(source,[names]) || source.replace('{0}',names);
+      const notice = node('p','helper', source.includes('{0}') ? text : names + ' — ' + text);
+      notice.tabIndex = -1; notice.setAttribute('role','status'); host.append(notice); blockers.push(notice);
+    }
+    instruction('Complete {0} in the owning Project before signing.', missingProject.map(spec => spec.label));
+    instruction('Sign the preceding sections first.', missingSigners.map(prior => prior.label));
+    if (prerequisites.some(prior => prior.key === 'reviewed_by') && fields.order.approval !== 'Approved') {
+      instruction('An approved review is required before signing this section.', ['Approval']);
+    }
+    let validateRecipient = () => true;
+    if (specs.some(spec => recipientNames.some(key => spec.path === 'details.'+key) && needsValue(spec))) {
+      validateRecipient = boardRecipientFields(host, fields, source, initialFields);
+    }
+    for (const spec of specs) {
+      const [group,key] = spec.path.split('.');
+      if (!['details.date','order.start_date','order.description','order.estimated_cost','order.urgency'].includes(spec.path) || !needsValue(spec)) continue;
+      const targetFields = fields[group];
+      const control = key === 'urgency' ? select(['',...workOrderUrgencies], targetFields[key], () => {}, false)
+        : node(key === 'description' ? 'textarea' : 'input');
+      if (key === 'urgency') bindStatusOptions(control);
+      else if (key === 'description') { control.rows = 2; control.maxLength = 6000; }
+      else if (spec.type === 'number') { control.type = 'number'; control.min = '0'; control.step = 'any'; }
+      else control.type = 'date';
+      control.value = targetFields[key] || '';
+      control.required = true;
+      control.addEventListener(key === 'urgency' ? 'change' : 'input', () => { targetFields[key] = control.value; });
+      host.append(field(spec.label, control)); controls.push([spec,control]);
+    }
+    return {validate() {
+      if (blockers.length) { blockers[0].focus(); return false; }
+      if (!validateRecipient()) return false;
+      for (const [spec, control] of controls) {
+        if (requirementPresent(spec, fields)) continue;
+        control.value = ''; control.reportValidity(); return false;
+      }
+      return true;
+    }};
   }
   function updateRequiredFields() {
     const specs=readinessSpecs('issue'),host=root();
@@ -644,10 +739,8 @@
     refreshQuoteIdentifiers();
     editor.panels?.refreshProjectDetails(projectDetailsSnapshot(editor.source));
   }
-  function editDocumentDetails(fields, values) {
-    const editor = state.editor;
+  function assignDocumentRecipient(fields, values, project) {
     if (!Object.hasOwn(fields.details, "account_id")) {
-      const project = projectDetailsSnapshot(editor.source);
       const sameCompany = fields.details.client === project.client;
       for (const key of recipientDirectory) fields.details[key] = sameCompany ? project[key] || "" : "";
       if (fields.details.contact !== project.contact_name) fields.details.contact_id = "";
@@ -655,6 +748,10 @@
     for (const key of [...recipientNames, ...recipientDirectory]) {
       if (Object.hasOwn(values, key)) fields.details[key] = String(values[key] ?? "");
     }
+  }
+  function editDocumentDetails(fields, values) {
+    const editor = state.editor;
+    assignDocumentRecipient(fields, values, projectDetailsSnapshot(editor.source));
     editor.recipientEdited = true;
     refreshEditorProjectDetails();
     editor.refreshClaimClient?.();
@@ -743,7 +840,7 @@
           actions.append(control);
         }
         const step = signingStep(document);
-        const destinations = signingSteps[document.kind] ? [document.status, ...(step?.next || [])] : state.model.statuses[state.kind];
+        const destinations = signingSteps[document.kind] ? [document.status, ...signingDestinations(step)] : state.model.statuses[state.kind];
         const statusSelect = select(destinations, document.status, value => void move(document, value), false);
         bindStatusOptions(statusSelect);
         statusSelect.addEventListener("change", () => {
@@ -854,7 +951,7 @@
   async function move(document, status) {
     if (state.busy || state.cardIntent || document.status === status) return;
     if (signingSteps[document.kind]) {
-      if (!signingStep(document)?.next.includes(status)) {
+      if (!signingDestinations(signingStep(document)).includes(status)) {
         message("Choose a valid next status for this order.", true);
         return;
       }
@@ -1203,25 +1300,36 @@
     if (state.kind === "quote" && document.version > 0) void refreshScopePreview();
   }
   const signatureDates = {details_by:"details_date",requested_by:"requested_date",reviewed_by:"review_date",prepared_by:"prepared_date",client_approved_by:"client_approval_date",progress_by:"progress_date",closed_by:"closed_date",claimed_by:"claim_date",sent_by:"sent_date",verified_by:"verified_date"};
+  const workOrderUrgencies = ["High Priority","Medium Priority","Low Priority"];
+  const certificationChoices = ["Certification issued","Certification not issued"];
+  const reviewOutcomes = {
+    work_order: {Approved:"OHS Docs", Denied:"Cancelled"},
+    purchase_order: {Approved:"Reviewed", Rejected:"Cancelled"}
+  };
+  const completionOutcomes = {Completed:"Completed", Ongoing:"In progress", "On hold":"On Hold", "Not completed":"In progress"};
   const signingSteps = {
     work_order: [
       {from:"Draft", key:"details_by", label:"Work order details reviewed by", next:["Review"]},
-      {from:"Review", key:"reviewed_by", label:"Reviewed by", next:["OHS Docs","Cancelled"]},
+      {from:"Review", key:"reviewed_by", label:"Reviewed by", decision:"approval", outcomes:reviewOutcomes.work_order},
       {from:"OHS Docs", key:"prepared_by", label:"Prepared by", next:["Client Approval"]},
       {from:"Client Approval", key:"client_approved_by", label:"Approved by", next:["In progress"]},
       {from:"In progress", key:"progress_by", label:"Progress signed by", next:["Claim"]},
       {from:"Claim", key:"claimed_by", label:"Claim signed by", next:["Certify"]},
-      {from:"Certify", key:"closed_by", label:"Closed by", next:["Completed","On Hold","In progress"]}
+      {from:"Certify", key:"closed_by", label:"Closed by", decision:"completion", outcomes:completionOutcomes}
     ],
     purchase_order: [
       {from:"Draft", key:"requested_by", label:"Requested by", next:["Requested"]},
-      {from:"Requested", key:"reviewed_by", label:"Approved by", next:["Reviewed","Cancelled"]},
+      {from:"Requested", key:"reviewed_by", label:"Approved by", decision:"approval", outcomes:reviewOutcomes.purchase_order},
       {from:"Reviewed", key:"sent_by", label:"Sent by", next:["Sent"]},
       {from:"Sent", key:"verified_by", label:"Verified by", next:["Completed"]}
     ]
   };
   function signingStep(document) {
     return signingSteps[document.kind]?.find(step => step.from === document.status);
+  }
+  function signingDestinations(step) {
+    if (!step) return [];
+    return step.next || [...new Set(Object.values(step.outcomes))];
   }
   function validateSigningStep(editor, key, clearing = false) {
     const {kind,fields}=editor.document, steps=signingSteps[kind].map(step=>step.key), index=steps.indexOf(key);
@@ -1280,65 +1388,110 @@
       completion:fields.order.completion, certification:fields.order.certification
     } : {})};
   }
-  async function boardSigningDialog(orderDocument, step, target, defaults, intent) {
-    const order = orderDocument.fields.order;
+  async function boardSigningDialog(draft, source, step, requested, defaults, intent) {
+    const order = draft.fields.order;
+    const initialFields = {...draft.fields, order:{...order}, details:{...draft.fields.details}};
     const dialog = node("dialog", "modal commercial-board-signing");
     const heading = statusLabel("h2", "Sign and move");
     heading.id = "commercial-board-signing-title";
     dialog.setAttribute("aria-labelledby", heading.id);
     const form = node("form");
-    const stages = node("p");
-    stages.append(statusLabel("span", orderDocument.status), " → ", statusLabel("span", target));
-    form.append(heading, node("strong","",documentTitle(orderDocument)), stages, statusLabel("h3",step.label));
+    const stages = node("p"), destination = statusLabel("span", requested);
+    stages.setAttribute("aria-live","polite");
+    stages.append(statusLabel("span", draft.status), " → ", destination);
+    form.append(heading, node("strong","",documentTitle(draft)), stages, statusLabel("h3",step.label));
+    const detailsHost = node("div","commercial-board-fields"), trackingHost = node("div","commercial-board-fields");
+    const failure = node("p","message error");
+    failure.setAttribute("role","alert");
+    failure.hidden = true;
+    let requiredFields, validateTracking, reasonField, certification;
+    function translateFields(container) {
+      const language = window.CeasefireI18n;
+      if (!language) return;
+      for (const label of container.querySelectorAll('label.field > span:first-child')) {
+        const key = language.source(label);
+        language.text(label, key);
+        const control = label.nextElementSibling;
+        if (control?.hasAttribute("aria-label")) language.attr(control, "aria-label", key);
+      }
+    }
+    function refreshRequirements() {
+      const target = step.outcomes?.[order[step.decision]] || requested;
+      destination.textContent = target;
+      window.CeasefireI18n?.text(destination, target);
+      if (reasonField) reasonField.hidden = order.approval !== "Denied" && order.approval !== "Rejected";
+      if (certification) certification.required = order.completion === "Completed";
+      requiredFields = boardRequiredFields(detailsHost, draft, source, step, target, initialFields);
+      translateFields(detailsHost);
+      validateTracking = renderBoardTracking(trackingHost, draft, source, step.key, target);
+      failure.hidden = true;
+    }
+    if (step.decision) {
+      const key = step.decision, choices = Object.keys(step.outcomes);
+      // An empty or incompatible saved decision needs an explicit choice from the signer.
+      if (!choices.includes(order[key]) || step.outcomes[order[key]] !== requested) order[key] = "";
+      const decision = select(["", ...choices], order[key], value => {
+        order[key] = value;
+        refreshRequirements();
+      }, false);
+      decision.required = true;
+      bindStatusOptions(decision);
+      form.append(field(key === "approval" ? "Approval" : "Completion", decision));
+      if (key === "approval") {
+        const purchase = draft.kind === "purchase_order";
+        const reasonKey = purchase ? "rejection_reason" : "justification";
+        const reason = node("textarea");
+        reason.rows = 2;
+        reason.value = order[reasonKey] || "";
+        if (purchase) reason.maxLength = 1000;
+        reason.addEventListener("input", () => { order[reasonKey] = reason.value; });
+        reasonField = field(purchase ? "Rejection reason" : "Justification", reason);
+        form.append(reasonField);
+      } else {
+        const choices = ["", ...certificationChoices];
+        if (order.certification && !choices.includes(order.certification)) choices.push(order.certification);
+        certification = select(choices, order.certification, value => { order.certification = value; }, false);
+        for (const option of certification.options) {
+          if (certificationChoices.includes(option.value)) window.CeasefireI18n?.text(option, option.value);
+        }
+        form.append(field("Certification details", certification));
+      }
+    }
+    form.append(detailsHost, trackingHost);
+    refreshRequirements();
     const name = node("input"), date = node("input");
     name.required = date.required = true;
     name.value = defaults.name;
     name.maxLength = 6000;
     date.type = "date";
     date.value = defaults.date;
-    form.append(field("Name",name), field("Date",date));
-
-    const decisionFields = {};
-    function decision(key, label, options, required = true) {
-      const value = options.includes(order[key]) ? order[key] : options[0];
-      const control = select(options, value, () => {}, false);
-      control.required = required;
-      bindStatusOptions(control);
-      decisionFields[key] = control;
-      form.append(field(label, control));
-    }
-    if (step.key === "reviewed_by") {
-      const rejected = orderDocument.kind === "purchase_order" ? "Rejected" : "Denied";
-      decision("approval", "Approval", [target === "Cancelled" ? rejected : "Approved"]);
-      if (target === "Cancelled") {
-        const purchase = orderDocument.kind === "purchase_order";
-        const key = purchase ? "rejection_reason" : "justification";
-        const reason = node("textarea");
-        reason.rows = 2;
-        reason.value = order[key] || "";
-        if (purchase) reason.maxLength = 1000;
-        decisionFields[key] = reason;
-        form.append(field(purchase ? "Rejection reason" : "Justification", reason));
-      }
-    }
-    if (step.key === "closed_by") {
-      const outcomes = {"Completed":["Completed"], "On Hold":["On hold"], "In progress":["Ongoing","Not completed"]};
-      decision("completion", "Completion", outcomes[target]);
-      decision("certification", "Certification details", ["","Certification issued","Certification not issued"], target === "Completed");
-    }
+    const signer = node("div","commercial-field-pair");
+    signer.append(field("Name",name), field("Date",date));
+    form.append(signer, failure);
     let result = null;
     const cancel = button("Cancel", () => dialog.close());
+    window.CeasefireI18n?.text(cancel, "Cancel");
     const submit = node("button","button primary","Sign and move");
     submit.type = "submit";
     window.CeasefireI18n?.text(submit, "Sign and move");
     const actions = node("div","actions");
     actions.append(cancel, submit);
     form.append(actions);
+    translateFields(form);
     form.addEventListener("submit", event => {
       event.preventDefault();
       if (!name.value.trim()) { name.value = ""; name.reportValidity(); return; }
-      const updates = Object.fromEntries(Object.entries(decisionFields).map(([key, control]) => [key,control.value]));
-      result = {name:name.value.trim(), date:date.value, updates};
+      if (!requiredFields.validate() || !validateTracking()) return;
+      try {
+        validateSigningStep({document:draft, legacyDetailsSignoff:isLegacyWorkOrder(draft)}, step.key);
+      } catch (error) {
+        failure.textContent = error.message;
+        window.CeasefireI18n?.text(failure, error.message);
+        failure.hidden = false;
+        failure.scrollIntoView({block:"nearest"});
+        return;
+      }
+      result = {name:name.value.trim(), date:date.value};
       dialog.close();
     });
     dialog.append(form);
@@ -1354,16 +1507,17 @@
     }
   }
   async function signBoardMove(document, source, target, current) {
-    const step = signingStep(document), fields = document.fields;
+    const step = signingStep(document), proposed = copy(document), fields = proposed.fields;
+    if (!source || !source.file_id.startsWith("local-")) applyProjectDetails(fields, commercialProjectDetails(source));
+    const projectNo = boundWorkOrderProjectNumber({document:proposed, source});
+    if (projectNo) fields.details.project_no = projectNo;
     const defaults = await signingDefaults(fields.order, step.key);
     if (!current()) return;
-    const values = await boardSigningDialog(document, step, target, defaults, state.cardIntent);
+    const values = await boardSigningDialog(proposed, source, step, target, defaults, state.cardIntent);
     if (!values || !current()) return;
-    const order = {...fields.order, ...values.updates, [step.key]:values.name, [signatureDates[step.key]]:values.date};
-    const proposed = {...document, fields:{...fields, order}};
-    const editor = {document:proposed, legacyDetailsSignoff:isLegacyWorkOrder(document)};
-    validateSigningStep(editor, step.key);
-    const action = await chooseSigningAction(proposed.fields, step.key, {...defaults,name:values.name,date:values.date}, current);
+    fields.order[step.key] = values.name;
+    fields.order[signatureDates[step.key]] = values.date;
+    const action = await chooseSigningAction(fields, step.key, {...defaults, ...values}, current);
     if (!action || !current()) return;
     openEditor(proposed, source);
     const selected = state.editor;
@@ -1730,12 +1884,7 @@
     let costControl;
     let costEdited = Boolean(fields.order.estimated_cost);
     const quoteTotals = state.editor.source?.quoteTotals || state.model.quote_totals;
-    const quoteRows = state.editor.source?.quoteRows || state.model.quote_rows;
     const trackingHosts = [];
-    const initializeTracking = () => {
-      const template=quoteRows?.[fields.order.quote_id]?.[fields.order.quote_reference];
-      if(!fields.work_tracking && template)fields.work_tracking=copy(template);
-    };
     const applyQuoteCost = (id, number) => {
       if (costEdited) return;
       fields.order.estimated_cost = quoteTotals?.[id]?.[number] || "";
@@ -1744,7 +1893,7 @@
     if (isWorkOrder) {
       const quote = choices.find(item => item.id === fields.order.quote_id);
       applyQuoteCost(fields.order.quote_id, fields.order.quote_reference || quote?.last_number);
-      initializeTracking();
+      initializeWorkTracking(fields,state.editor.source);
     }
     const linked = node("select");
     const blank = node("option", "", isWorkOrder ? "Select an issued Quote…" : "No Work Order linked");
@@ -1782,8 +1931,8 @@
           if(fields.signatures)delete fields.signatures[key];
           fields.order[key]='';fields.order[signatureDates[key]]='';
         }
-        initializeTracking();
-        trackingHosts.forEach(([host,key,label])=>renderTracking(host,key,label));
+        initializeWorkTracking(fields,state.editor.source);
+        trackingHosts.forEach(([host,key,label])=>renderTracking(host,fields,key,label));
         for(const [key,label] of [['progress_by','Progress signed by'],['claimed_by','Claim signed by']]) {
           const signature=form.querySelector(`[data-signature-field="${key}"]`);
           if(signature)signature.replaceWith(signatureField(fields,key,label));
@@ -1817,7 +1966,7 @@
       for (const [key, label] of items) {
         if(['completed_percent','claimed_percent'].includes(key)) {
           const tracking=node('div','commercial-work-tracking');tracking.dataset.trackingField=key;
-          trackingHosts.push([tracking,key,label]);renderTracking(tracking,key,label);section.append(tracking);
+          trackingHosts.push([tracking,key,label]);renderTracking(tracking,fields,key,label);section.append(tracking);
           const legacy=fields.order[key==='completed_percent'?'progress':'claim'];
           if(legacy) {
             const disclosure=node('details','commercial-tracking-legacy');
@@ -1892,8 +2041,8 @@
             }});
           search.input.dataset.orderField=key;section.append(search.element);continue;
         }
-        const choices = isWorkOrder ? (key === "urgency" ? ["High Priority","Medium Priority","Low Priority"] : key === "approval" ? ["Approved","Denied"] : key==='certification' ? ['Certification issued','Certification not issued'] : key==='completion' ? ['Completed','Ongoing','On hold','Not completed'] : null)
-          : key === "approval" ? ["Approved", "Rejected"] : key === "expense_type" ? ["Labour", "Materials", "Services", "Hire", "Other"] : key === "delivery_method" ? ["Delivery", "Pickup"] : null;
+        const choices = isWorkOrder ? (key === "urgency" ? workOrderUrgencies : key === "approval" ? Object.keys(reviewOutcomes.work_order) : key==='certification' ? certificationChoices : key==='completion' ? Object.keys(completionOutcomes) : null)
+          : key === "approval" ? Object.keys(reviewOutcomes.purchase_order) : key === "expense_type" ? ["Labour", "Materials", "Services", "Hire", "Other"] : key === "delivery_method" ? ["Delivery", "Pickup"] : null;
         let control;
         if (choices) {
           const options = ["",...choices];
@@ -1942,43 +2091,108 @@
     }
     return [field(isWorkOrder ? "Linked Quote" : "Linked Work Order", linked),
             field(isWorkOrder ? "Work order reference" : "Purchase Order No.", reference)];
-
-    function renderTracking(host,key,label) {
-      host.replaceChildren();
-      if(!fields.work_tracking) {
-        const text=fields.order.quote_id ? 'The original issued Quote rows are unavailable.' : 'Select an issued Quote to track work.';
-        const notice=node('p','helper',text);window.CeasefireI18n?.text(notice,text);host.append(notice);return;
-      }
-      const table=node('table'),head=node('thead'),headers=node('tr'),body=node('tbody');
-      const progress=key==='completed_percent';
-      ['Product / Service','Quantity',progress?'Notes':'Unit price',label].forEach(text=>{const header=node('th','',text);window.CeasefireI18n?.text(header,text);headers.append(header);});
-      head.append(headers);
-      fields.work_tracking.rows.forEach((row,index)=>{
-        const tr=node('tr');tr.dataset.trackingLine=row.line_id;
-        [row.description,row.quantity].forEach(text=>tr.append(node('td','',text)));
-        const noteCell=node('td');
-        if(progress) {
-          const note=textarea(row.notes || '',value=>{
-            const current=fields.work_tracking?.rows.find(item=>item.line_id===row.line_id);
-            if(current)current.notes=value;
-          });
-          note.rows=1;note.maxLength=2000;note.dataset.trackingNotes=row.line_id;
-          note.setAttribute('aria-label',`Notes ${index+1}`);window.CeasefireI18n?.attr(note,'aria-label','Notes {0}',[index+1]);noteCell.append(note);
-        } else noteCell.textContent=trackingMoney.format(Number(row.unit_price));
-        tr.append(noteCell);
-        const cell=node('td'),lineId=row.line_id;
-        // Saving replaces the returned row objects. Resolve the current owned
-        // row on each edit so a second Save cannot lose later percentage edits.
-        const control=input(row[key],value=>{
-          const current=fields.work_tracking?.rows.find(item=>item.line_id===lineId);
-          if(current)current[key]=value;
-        },'number');
-        control.min='1';control.max='100';control.step='any';control.setAttribute('aria-label',`${label} ${index+1}`);
-        window.CeasefireI18n?.attr(control,'aria-label',label+' {0}',[index+1]);
-        cell.append(control);tr.append(cell);body.append(tr);
-      });
-      table.append(head,body);host.append(table);
+  }
+  function initializeWorkTracking(fields, source) {
+    if (fields.work_tracking) return;
+    const quoteRows = source ? source.quoteRows : state.model.quote_rows;
+    const template = quoteRows?.[fields.order.quote_id]?.[fields.order.quote_reference];
+    if (template) fields.work_tracking = copy(template);
+  }
+  function renderTracking(host, fields, key, label, dirty = true) {
+    host.replaceChildren();
+    if (!fields.work_tracking) {
+      const text = fields.order.quote_id ? 'The original issued Quote rows are unavailable.' : 'Select an issued Quote to track work.';
+      host.append(statusLabel('p',text));
+      host.firstElementChild.className = 'helper';
+      return;
     }
+    const table = node('table'), head = node('thead'), headers = node('tr'), body = node('tbody');
+    const progress = key === 'completed_percent';
+    for (const title of ['Product / Service','Quantity',progress ? 'Notes' : 'Unit price',label])
+      headers.append(statusLabel('th',title));
+    head.append(headers);
+    fields.work_tracking.rows.forEach((row,index) => {
+      const tr = node('tr'), noteCell = node('td'), cell = node('td');
+      tr.dataset.trackingLine = row.line_id;
+      // Saving refreshes row objects in the open editor. Resolve each edit by
+      // its issued line ID so later saves keep the latest percentages and notes.
+      const write = (key,value) => {
+        const current = fields.work_tracking.rows.find(item => item.line_id === row.line_id);
+        if (current) current[key] = value;
+      };
+      if (progress) {
+        const note = textarea(row.notes || '',value => write('notes',value),dirty);
+        note.rows = 1;
+        note.maxLength = 2000;
+        note.dataset.trackingNotes = row.line_id;
+        note.setAttribute('aria-label',`Notes ${index+1}`);
+        window.CeasefireI18n?.attr(note,'aria-label','Notes {0}',[index+1]);
+        noteCell.append(note);
+      } else noteCell.textContent = trackingMoney.format(Number(row.unit_price));
+      const control = input(row[key],value => write(key,value),'number',dirty);
+      control.min = '1';
+      control.max = '100';
+      control.step = '0.000001';
+      control.setAttribute('aria-label',`${label} ${index+1}`);
+      window.CeasefireI18n?.attr(control,'aria-label',label+' {0}',[index+1]);
+      cell.append(control);
+      tr.append(node('td','',row.description), node('td','',row.quantity), noteCell, cell);
+      body.append(tr);
+    });
+    table.append(head,body);
+    host.append(table);
+  }
+  function renderBoardTracking(host, draft, source, stepKey, target) {
+    host.replaceChildren();
+    if (draft.kind !== 'work_order') return () => true;
+    const requirements = state.model.requirements.save.work_order[target] || [];
+    const specs = requirements.filter(spec => spec.type === 'completed' || spec.type === 'claimed');
+    if (!specs.length) return () => true;
+    const fields = draft.fields;
+    initializeWorkTracking(fields, source);
+    const rows = fields.work_tracking?.rows || [];
+    const hasValue = key => rows.some(row => Number(row[key]) >= 1 && Number(row[key]) <= 100);
+    const tables = specs.filter(spec =>
+      stepKey === (spec.type === 'completed' ? 'progress_by' : 'claimed_by') || !hasValue(spec.type + '_percent'));
+    if (!tables.length && fields.order.quote_id) return () => true;
+
+    const linked = node('input');
+    linked.readOnly = true;
+    linked.value = fields.order.quote_reference || '';
+    const linkedField = field('Linked Quote', linked);
+    window.CeasefireI18n?.text(linkedField.firstElementChild, 'Linked Quote');
+    window.CeasefireI18n?.attr(linked, 'aria-label', 'Linked Quote');
+    host.append(linkedField);
+    const notice = node('p','helper');
+    notice.setAttribute('role','alert');
+    notice.tabIndex = -1;
+    host.append(notice);
+    function explain(message) {
+      notice.hidden = !message;
+      notice.textContent = message;
+      if (message) window.CeasefireI18n?.text(notice, message);
+    }
+    if (!fields.order.quote_id || !rows.length) {
+      explain(fields.order.quote_id ? 'The original issued Quote rows are unavailable or changed. Reopen this Work Order.' :
+        'This saved Work Order has no linked Quote. Create a Work Order from an issued Quote to track work.');
+      return () => { notice.focus(); return false; };
+    }
+    explain('');
+    for (const spec of tables) {
+      const table = node('div','commercial-work-tracking');
+      table.dataset.trackingField = spec.type + '_percent';
+      renderTracking(table,fields,table.dataset.trackingField,spec.label,false);
+      table.addEventListener('input', () => explain(''));
+      host.append(table);
+    }
+    return () => {
+      const missing = tables.find(spec => !hasValue(spec.type + '_percent'));
+      if (!missing) return true;
+      explain(missing.type === 'completed' ? 'Record a completed percentage before signing work progress.' :
+        'Enter a claimed percentage for at least one Quote row.');
+      host.querySelector(`[data-tracking-field="${missing.type}_percent"] input`)?.focus();
+      return false;
+    };
   }
   function renderEstimateOptions() {
     const container = root()?.querySelector(".commercial-estimate-options");

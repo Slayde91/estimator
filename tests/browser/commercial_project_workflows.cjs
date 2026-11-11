@@ -149,7 +149,9 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   for(const title of ['Notes (0)','Files (0)','Linked Work Orders (1)','Linked Quotes (1)'])await expect(purchase.locator('.commercial-sidebar summary').filter({hasText:title})).toHaveCount(1);
   await expect(purchase.locator('.commercial-sidebar').first().locator('summary')).toHaveText(['Company Details','Linked Contacts']);
   await expect(purchase.locator('.commercial-details [data-project-detail=site_address]')).toHaveCount(0);
-  await expect(purchase.getByRole('combobox',{name:'Site contact',exact:true})).toHaveValue('Project Contact');await expect(purchase.getByLabel('Site contact number',{exact:true})).toHaveValue('0400 123 456');await expect(purchase.getByLabel('Ship to address',{exact:true})).toHaveValue('17 Procurement Road');
+  await expect(purchase.getByRole('combobox',{name:'Site contact',exact:true})).toHaveValue('');
+  await expect(purchase.getByLabel('Site contact number',{exact:true})).toHaveValue('');
+  await expect(purchase.getByLabel('Ship to address',{exact:true})).toHaveValue('17 Procurement Road');
   for(const label of ['Supplier','Supplier email','Supplier contact','Payment terms','Requested by name'])await expect(purchase.getByLabel(label,{exact:true})).toHaveValue('');
   await expect(purchase.getByLabel('Purchase Order No.',{exact:true})).toHaveValue('');
   assert.equal(fs.readFileSync(info.project,'utf8'),sourceFile,'Creating the PO draft leaves the source project file unchanged');
@@ -178,7 +180,10 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   await item.locator('input[type="number"]').last().fill('25');await expect(item.locator('.commercial-line-total')).toHaveText('$75.00');
   for(const width of [1600,390]){await page.setViewportSize({width,height:1000});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
     await page.screenshot({path:path.join(output,`purchase-draft-${width}.png`),fullPage:true});}
-  await page.setViewportSize({width:1600,height:1000});await save(purchase);
+  await page.setViewportSize({width:1600,height:1000});
+  await purchase.getByRole('combobox',{name:'Site contact',exact:true}).fill('Chosen delivery contact');
+  await purchase.getByLabel('Site contact number',{exact:true}).fill('0412 000 123');
+  await save(purchase);
   const persisted=await state(),po=persisted.documents.find(doc=>doc.kind==='purchase_order');assert.equal(po.reference,'PO-01');assert.equal(po.last_number,'');assert.equal(po.fields.order.work_order_id,source.id);assert.equal(po.fields.order.work_order_reference,source.reference);assert.equal(po.fields.order.expense_type,'Hire');
   await purchase.getByRole('button',{name:'New note',exact:true}).click();const note=page.getByRole('dialog',{name:'Purchase Order note',exact:true});
   await note.getByLabel('Note title',{exact:true}).fill('Owned PO note');await note.locator('[contenteditable=true]').fill('PO-specific note content');
@@ -202,7 +207,8 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   await page.getByRole('dialog',{name:'Discard the current purchase order?',exact:true}).getByRole('button',{name:'Yes',exact:true}).click();
   await openProjectSection(page,'quote');await openProjectSection(page,'purchase-orders');
   await purchase.locator(`.commercial-card[data-document-id="${po.id}"] .project-title-button`).click();
-  await expect(purchase.getByRole('combobox',{name:'Site contact',exact:true})).toHaveValue('Project Contact');
+  await expect(purchase.getByRole('combobox',{name:'Site contact',exact:true})).toHaveValue('Chosen delivery contact');
+  await expect(purchase.getByLabel('Site contact number',{exact:true})).toHaveValue('0412 000 123');
   checks.push('A changed Project snapshot while Save is in flight leaves the editor unadopted, keeps the project file intact, and recovers after explicit reopen');
   assert.deepEqual(persisted.documents.find(doc=>doc.id===source.id),source);
   checks.push('Create PO preserves unsaved source edits, then creates a linked unnumbered draft; explicit Save assigns PO reference without issuing or changing the source Work Order');
@@ -241,7 +247,7 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   const ownerFile=fs.readFileSync(info.project,'utf8'),nativeDefaults=page.waitForResponse(response=>response.url().endsWith('/api/commercial/saved-purchase-order-defaults'));
   await sourceWork.getByRole('button',{name:'Create PO',exact:true}).click();assert.equal((await nativeDefaults).status(),200);
   await expect(sourcePurchase.getByLabel('Linked Work Order',{exact:true})).toHaveValue(source.id);
-  await expect(sourcePurchase.getByRole('combobox',{name:'Site contact',exact:true})).toHaveValue('Project Contact');
+  for(const label of ['Supplier','Supplier contact','Site contact'])await expect(sourcePurchase.getByRole('combobox',{name:label,exact:true})).toHaveValue('');
   await expect(sourcePurchase.getByLabel('Ship to address',{exact:true})).toHaveValue('17 Procurement Road');
   assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),null,'Native saved-source creation does not replace the active unsaved Project');
   assert.equal(fs.readFileSync(info.project,'utf8'),ownerFile,'Native source creation leaves owner file unchanged until Save');

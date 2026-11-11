@@ -8,6 +8,18 @@
   const translate = source => window.CeasefireI18n?.translate?.(source) || source;
   const text = (element,source) => window.CeasefireI18n ? window.CeasefireI18n.text(element,source) : (element.textContent=source);
   const fields = {project_no:"project-pane-number", client:"project-pane-client", site_address:"project-pane-address", contact_name:"project-pane-contact-name", contact_phone:"project-pane-contact-phone", contact_email:"project-pane-contact-email", billing_address:"project-pane-billing-address", abn_acn:"project-pane-abn-acn"};
+  const metadataControls = [...pane.querySelectorAll("input,textarea,button")];
+  const participantSlots = [$("project-company-participants"),$("project-contact-participants")];
+  function revealField(control) {
+    const section = control.closest("details");
+    if (section) section.open = true;
+  }
+  function focusField(id) {
+    const control = $(id);
+    revealField(control);
+    control.focus();
+  }
+  $("project-details-form").addEventListener("invalid", event => revealField(event.target), true);
   const required = {project_no:"Project No.",client:"Client",site_address:"Site Address",contact_name:"Primary contact",contact_email:"Contact email",contact_phone:"Contact phone"};
   for (const key of Object.keys(required)) {
     const control = $(fields[key]);
@@ -31,7 +43,8 @@
   function busy(value) {
     pending = value; pane.setAttribute("aria-busy", String(value));
     const recovering = selected?.kind === "new" && selected.creation?.uncertain;
-    for (const control of pane.querySelectorAll("input,textarea,button")) control.disabled = value || recovering && control.id !== "project-details-save" || !!selected?.blocked && control.id !== "project-details-close";
+    for (const control of metadataControls) control.disabled = value || recovering && control.id !== "project-details-save" || !!selected?.blocked && control.id !== "project-details-close";
+    for (const slot of participantSlots) slot.inert = !!(value || recovering || selected?.blocked);
     $("project-current-details").disabled = value;
   }
   function refreshToggles() {
@@ -117,19 +130,19 @@
     if (currentRule?.context !== active.context) currentRule = {context:active.context,baseline:normalize(active.details)};
     selected = {kind:"current",context:active.context,baseline:currentRule.baseline};
     show(normalize(active.details), active.file?.title || translate("New project"));
-    $("project-pane-client").focus();
+    focusField(fields.client);
   }
   async function openNew() {
     if (snapshot().busy || !await leave()) return;
     const active = snapshot();
     selected = {kind:"new",context:active.context,baseline:normalize({}),creation:{id:crypto.randomUUID(),context:active.context}};
     dialog.append(pane); show(normalize({}),translate("New project"));
-    dialog.showModal(); $("project-pane-client").focus();
+    dialog.showModal(); focusField(fields.client);
   }
   function validateClient() {
     const value = details();
     if (value.client && value.client !== selected.baseline.client && (!value.account_id || value.client !== accountName)) {
-      $("project-pane-client").focus();
+      focusField(fields.client);
       throw new Error("Choose an existing Company for this client, or use + to create a Company.");
     }
     return value;
@@ -137,7 +150,7 @@
   function validateRequired(value, automaticNumber = false, focus = true) {
     const missing = Object.keys(required).filter(key => !(key === "project_no" && automaticNumber) && !String(value[key] || "").replace(/\p{Cf}/gu,"").trim());
     if (missing.length) {
-      if (focus && !pane.hidden) $(fields[missing.find(key => key !== "project_no") || missing[0]]).focus();
+      if (focus && !pane.hidden) focusField(fields[missing.find(key => key !== "project_no") || missing[0]]);
       throw new Error(translate("Complete required Project details: {0}.").replace("{0}",missing.map(key=>translate(required[key])).join(", ")));
     }
     if (focus && !pane.hidden && !$(fields.contact_email).checkValidity()) {
@@ -172,7 +185,7 @@
   async function save() {
     if (!selected || pending || selected.blocked) return;
     if (selected.kind === "current") { validateClient(); return; }
-    if (snapshot().busy) throw new Error("Finish the current project operation first.");
+    if (snapshot().busy || window.ClassifireProjectParticipants?.pending()) throw new Error("Finish the current project operation first.");
     if (selected.kind === "new") {
       const target = selected, value = validateRequired(validateClient(),true);
       if (target.creation.details && target.creation.details !== stamp(value)) {
@@ -393,7 +406,7 @@
     openCurrent,openNew, toggle: file => !pane.hidden && selected?.file?.id === file.id ? leave() : open(file), refreshToggles, leave, projectDetailsChanged,
     hasUnsavedChanges:dirty, hasPendingOperation:() => pending || !!selected?.creation?.uncertain, fingerprint:() => selected ? JSON.stringify({id:selected.file?.id,context:selected.context,values:details()}) : "",
     async beforeProjectSave() {
-      if (pending) throw new Error("Finish the current project details action before saving.");
+      if (pending || window.ClassifireProjectParticipants?.pending()) throw new Error("Finish the current project details action before saving.");
       if (selected?.kind === "new") throw new Error("Save or cancel the new project details first.");
       const active = snapshot();
       if (currentRule?.context === active.context && active.details.client && active.details.client !== currentRule.baseline.client && (active.details.account_id !== currentRule.account?.id || active.details.client !== currentRule.account?.company)) throw new Error("Choose an existing Company for this client, or use + to create a Company in Current project details.");

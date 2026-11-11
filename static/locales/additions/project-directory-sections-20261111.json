@@ -1,0 +1,22 @@
+{
+  "Some linked projects could not be checked.": [
+    "일부 연결된 프로젝트를 확인할 수 없습니다.",
+    "Hindi masuri ang ilang naka-link na proyekto.",
+    "Không thể kiểm tra một số dự án đã liên kết."
+  ],
+  "Participants changed. Review the updated list and try again.": [
+    "참여자가 변경되었습니다. 업데이트된 목록을 확인한 후 다시 시도하세요.",
+    "Nagbago ang mga kalahok. Suriin ang na-update na listahan at subukan muli.",
+    "Danh sách người tham gia đã thay đổi. Hãy xem danh sách mới và thử lại."
+  ],
+  "Linked Projects": [
+    "연결된 프로젝트",
+    "Mga naka-link na proyekto",
+    "Dự án đã liên kết"
+  ],
+  "No linked projects.": [
+    "연결된 프로젝트가 없습니다.",
+    "Walang naka-link na proyekto.",
+    "Không có dự án nào được liên kết."
+  ]
+}

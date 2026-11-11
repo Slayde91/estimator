@@ -884,9 +884,7 @@ class CommercialDocuments:
             if not reference:
                 raise ValidationError('Save this Work Order before creating a Purchase Order.')
             fields = default_fields('purchase_order', work_order['fields']['details'], company, rates=rates)
-            fields['order'].update(work_order_id=work_order['id'], work_order_reference=reference,
-                                   ship_to_name=fields['details']['contact'], site_contact_number=fields['details']['phone'],
-                                   ship_to_address=fields['details']['site_address'])
+            fields['order'].update(work_order_id=work_order['id'], work_order_reference=reference)
             # A customer's sale price is not a supplier purchase price. Carry
             # procurement descriptions/quantities forward, leaving prices for entry.
             fields['lines'] = [{**deepcopy(line), 'estimate_id': '', 'unit_price': '0'}

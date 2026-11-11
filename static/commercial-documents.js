@@ -799,7 +799,7 @@
         message("Download the Quote PDF to assign its number before creating a Work Order.", true);
         return;
       }
-      const details = {...document.fields.details, date: today()};
+      const details = {...commercialProjectDetails(source), date: today()};
       const {fields} = await documentRequest("defaults", {workspace_id: state.workspace, kind: "work_order", details}, source);
       if (!current()) return;
       // Navigation must be allowed to leave this clean editor. Keep its controls

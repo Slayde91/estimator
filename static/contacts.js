@@ -799,14 +799,14 @@
   }
   async function createAccount(options = {}) {
     const directory = await request("directory");
-    return dialogEditor("accounts", {company: typeof options.company === "string" ? options.company : ""}, false, {directory, standalone: true});
+    return dialogEditor("accounts", {company: typeof options.company === "string" ? options.company : ""}, false, {directory, standalone: true, isCurrent:options.isCurrent});
   }
   async function createContact(initial = {}) {
     const directory = await request('directory');
     const accountId = directory.identity_aliases?.accounts?.[initial.account_id] || initial.account_id;
     const account = accountId ? directory.accounts.find(item => item.id === accountId) : null;
     if(initial.account_id && !account)throw new Error('Choose a valid Company.');
-    return dialogEditor('contacts',{name:typeof initial.name==='string'?initial.name:'',...(account?{company:account.company,account_id:account.id}:{})},false,{directory,standalone:true});
+    return dialogEditor('contacts',{name:typeof initial.name==='string'?initial.name:'',...(account?{company:account.company,account_id:account.id}:{})},false,{directory,standalone:true,isCurrent:initial.isCurrent});
   }
   async function editContact(id, options = {}) {
     await window.ClassifireAccess?.ready;

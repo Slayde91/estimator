@@ -220,8 +220,18 @@ class UnfiledCommercial:
             raise CommercialConflict(STALE)
         with self._authorized(source):
             if action == 'open' and set(body) == {'id'}:
-                totals = self.service.view(workspace, include_quote_totals=True)['quote_totals']
+                model = self.service.view(workspace, include_quote_totals=True)
+                totals = model['quote_totals']
+                quote_rows = {}
+                if document['kind'] == 'work_order' and not document['fields'].get('work_tracking'):
+                    link = document['fields']['order']
+                    identity, reference = link['quote_id'], link['quote_reference']
+                    if identity in records:
+                        rows = model['quote_rows'].get(identity, {}).get(reference)
+                        if rows is not None:
+                            quote_rows = {identity:{reference:rows}}
                 return {'document':document, 'details':details, 'related':related, **({'project_details':project_details} if billing_project else {}),
+                        'quote_rows':quote_rows,
                         'quote_totals':{k:v for k,v in totals.items() if k in records},
                         'quote_total':totals.get(anchor,{}).get(document['last_number'],''),
                         'estimates':[{'id':item['id'],'name':item['name']} for item in captured.get('estimates',[])]}

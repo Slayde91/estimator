@@ -8,5 +8,135 @@
     "이 주문에 사용할 수 있는 다음 상태를 선택하세요.",
     "Pumili ng wastong susunod na katayuan para sa order na ito.",
     "Chọn trạng thái tiếp theo hợp lệ cho đơn này."
+  ],
+  "Complete {0} in the owning Project before signing.": [
+    "서명하기 전에 해당 프로젝트에서 {0}을(를) 입력하세요.",
+    "Kumpletuhin ang {0} sa kaugnay na proyekto bago pumirma.",
+    "Điền {0} trong dự án tương ứng trước khi ký."
+  ],
+  "Enter a claimed percentage for at least one Quote row.": [
+    "견적서의 한 개 이상 항목에 청구 비율을 입력하세요.",
+    "Ilagay ang porsiyentong sinisingil sa kahit isang linya ng sipi ng presyo.",
+    "Nhập tỷ lệ phần trăm đề nghị thanh toán cho ít nhất một dòng báo giá."
+  ],
+  "This saved Work Order has no linked Quote. Create a Work Order from an issued Quote to track work.": [
+    "이 작업 지시서에 연결된 견적서가 없습니다. 작업을 추적하려면 발행된 견적서에서 작업 지시서를 만드세요.",
+    "Walang nakaugnay na sipi ng presyo ang naka-save na utos sa trabaho. Gumawa ng utos sa trabaho mula sa naibigay na sipi ng presyo para masubaybayan ang trabaho.",
+    "Lệnh công việc đã lưu chưa liên kết với báo giá nào. Hãy tạo lệnh công việc từ một báo giá đã phát hành để theo dõi công việc."
+  ],
+  "Client email": [
+    "고객 이메일",
+    "Email ng kliyente",
+    "Email khách hàng"
+  ],
+  "Client phone": [
+    "고객 전화번호",
+    "Telepono ng kliyente",
+    "Điện thoại khách hàng"
+  ],
+  "Proposed start date": [
+    "예정 시작일",
+    "Iminungkahing petsa ng pagsisimula",
+    "Ngày bắt đầu đề xuất"
+  ],
+  "Category / urgency": [
+    "분류 / 긴급도",
+    "Kategorya / antas ng pangangailangan",
+    "Phân loại / mức độ khẩn cấp"
+  ],
+  "Description of works": [
+    "작업 내용",
+    "Paglalarawan ng mga gawain",
+    "Mô tả công việc"
+  ],
+  "Estimated cost (AUD)": [
+    "예상 비용(AUD)",
+    "Tinatayang gastos (AUD)",
+    "Chi phí ước tính (AUD)"
+  ],
+  "Document date": [
+    "문서 날짜",
+    "Petsa ng dokumento",
+    "Ngày lập tài liệu"
+  ],
+  "High Priority": [
+    "높은 우선순위",
+    "Mataas na priyoridad",
+    "Ưu tiên cao"
+  ],
+  "Medium Priority": [
+    "중간 우선순위",
+    "Katamtamang priyoridad",
+    "Ưu tiên trung bình"
+  ],
+  "Low Priority": [
+    "낮은 우선순위",
+    "Mababang priyoridad",
+    "Ưu tiên thấp"
+  ],
+  "Reviewed by": [
+    "검토자",
+    "Sinuri ni",
+    "Người rà soát"
+  ],
+  "Prepared by": [
+    "작성자",
+    "Inihanda ni",
+    "Người lập"
+  ],
+  "Approved by": [
+    "승인자",
+    "Inaprubahan ni",
+    "Người phê duyệt"
+  ],
+  "Requested by": [
+    "요청자",
+    "Hiniling ni",
+    "Người yêu cầu"
+  ],
+  "Sent by": [
+    "발송자",
+    "Ipinadala ni",
+    "Người gửi"
+  ],
+  "Verified by": [
+    "확인자",
+    "Pinatunayan ni",
+    "Người xác minh"
+  ],
+  "Approval": [
+    "승인 결정",
+    "Pasya sa pag-apruba",
+    "Quyết định phê duyệt"
+  ],
+  "Completion": [
+    "완료 상태",
+    "Kalagayan ng pagkumpleto",
+    "Tình trạng hoàn thành"
+  ],
+  "Justification": [
+    "사유",
+    "Dahilan",
+    "Lý do"
+  ],
+  "Linked Quote": [
+    "연결된 견적서",
+    "Nakaugnay na sipi ng presyo",
+    "Báo giá liên kết"
+  ],
+  "Project number": [
+    "프로젝트 번호",
+    "Blg. ng proyekto",
+    "Mã dự án"
+  ],
+  "Site address": [
+    "현장 주소",
+    "Adres ng lugar",
+    "Địa chỉ công trình"
+  ],
+  "Denied": [
+    "거절됨",
+    "Tinanggihan",
+    "Bị từ chối"
   ]
 }

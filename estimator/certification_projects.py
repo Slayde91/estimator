@@ -12,12 +12,12 @@ import os
 from pathlib import Path
 import re
 import sqlite3
-import tempfile
 from threading import RLock
 import uuid
 from zipfile import ZipFile, ZipInfo, ZIP_STORED, BadZipFile
 
 from .catalog import ValidationError
+from .project_temp import open_project_temp
 from .certification import (CertificationService, CertificationConflict, CertificationNotFound, _identity,
                             _version, _json, validate_fields, validate_options,
                             MAX_REVISION_BYTES)
@@ -95,8 +95,7 @@ def _write_archive(target, payload, digest):
     else:
         _verified(target, digest, MAX_ARCHIVE_BYTES)
         return
-    descriptor, temporary = tempfile.mkstemp(prefix='.certificate-', dir=target.parent)
-    temporary = Path(temporary)
+    descriptor, temporary = open_project_temp(target.parent)
     try:
         with os.fdopen(descriptor, 'wb') as output:
             output.write(payload); output.flush(); os.fsync(output.fileno())

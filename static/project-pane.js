@@ -203,9 +203,11 @@
       target.revision = result.revision; target.baseline = normalize(result.details); target.activeAtOpen = sharedStamp(snapshot().details) === sharedStamp(value) ? snapshot() : active; target.requestId = crypto.randomUUID(); target.requestPayload = null;
       show(target.baseline, result.file?.title || target.file.title || translate("Project"));
       notice("Project details saved.");
-      await window.CeasefireProject.refreshProjectCards();
     } catch (error) { notice(error.message, true); throw error; }
     finally { busy(false); }
+    // The write is complete. Loading the folder list has its own status and
+    // can continue while the user edits again or leaves this pane.
+    void window.CeasefireProject.refreshProjectCards();
   }
   const companyKey = value => String(value || "").trim().replace(/\s+/g," ").toLocaleLowerCase();
   function companyNamed(name) {

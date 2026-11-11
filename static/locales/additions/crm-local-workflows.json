@@ -918,5 +918,20 @@
     "직원 권한을 업데이트할 수 없습니다.",
     "Hindi ma-update ang access ng kawani.",
     "Không thể cập nhật quyền truy cập của nhân viên."
+  ],
+  "Linked Sites": [
+    "연결된 현장",
+    "Mga naka-link na lugar",
+    "Các công trường đã liên kết"
+  ],
+  "Participants and linked sites": [
+    "참여자 및 연결된 현장",
+    "Mga kalahok at naka-link na lugar",
+    "Người tham gia và các công trường đã liên kết"
+  ],
+  "No linked sites.": [
+    "연결된 현장이 없습니다.",
+    "Walang naka-link na lugar.",
+    "Chưa có công trường nào được liên kết."
   ]
 }

@@ -29,7 +29,7 @@ from .library_facets import FACETS, classify_facets, facet_options
 from .library_filter_groups import grouped_filter_options
 from .technical_service_options import options as technical_service_options
 from .technical_presentation import present_options, technical_title
-from .technical_discovery import (HIDDEN_FRL_CHOICES, canonical_frl, discovery_facets,
+from .technical_discovery import (HIDDEN_FRL_CHOICES, canonical_frl, discovery_facets, matches_browse_service,
                                   present_frl_text, present_technical,
                                   project_smoke_sampling_services)
 from .technical_fields import (FIELD_LABELS, LEGACY_LABELS,
@@ -580,6 +580,7 @@ class ReferenceLibrary:
                 chosen['substrate'] = canonical_substrate(chosen['substrate'])
             if kind == 'technical' and chosen.get('services') == 'Junction Box':
                 chosen['services'] = 'Conduits'
+            browse_service = chosen.pop('services', None) if kind == 'technical' else None
             items = []
             if data:
                 for key in data['_visible'][kind]:
@@ -588,6 +589,8 @@ class ReferenceLibrary:
                     if (reference == 'linked' and not linked) or (reference == 'unlinked' and linked):
                         continue
                     values = data['_technical_discovery'][key] if kind == 'technical' else item.get('filter_values', {})
+                    if browse_service and not matches_browse_service(item, values, browse_service):
+                        continue
                     search_text = data['_searches'][kind][key]
                     if kind == 'technical':
                         search_text += '\n' + '\n'.join(values.get('frl', []))
@@ -637,6 +640,7 @@ class ReferenceLibrary:
             if kind == 'technical':
                 display = variant_display(data, key)
                 item.update(display)
+                item['manufacturers'] = list(data['_technical_discovery'][key].get('manufacturer', []))
                 if display:
                     for field in item.get('fields', []):
                         if field['label'] == 'ID':

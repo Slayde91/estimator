@@ -91,7 +91,7 @@ class ProjectPaneTests(unittest.TestCase):
         self.assertEqual(self.save(request)["details"]["site_address"], "Updated address")
         linked = service.view(self.file["id"])
         self.assertEqual((linked["site_id"], linked["site_address"]), (site["id"], "Updated address"))
-        self.assertEqual(linked["site"]["address"], "Linked address")
+        self.assertEqual([site["address"] for site in linked["linked_sites"]], ["Updated address", "Linked address"])
 
     def test_temporary_name_collisions_preserve_existing_files_and_are_bounded(self):
         collision = self.root / ".cf-first.tmp"

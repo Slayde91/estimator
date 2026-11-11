@@ -108,7 +108,6 @@
     cursor.hidden = true;
   }
   function finish() {
-    window.CeasefireHeaderTaglineSound?.stop();
     if (closed || motion?.matches || (phrase === intelligencePhrase && document.hidden)) window.CeasefireHeaderTaglineMedia?.stop();
     else if (!complete) window.CeasefireHeaderTaglineMedia?.finish();
     clearTimeout(typingTimer);
@@ -139,7 +138,6 @@
   function close() {
     stopIntelligenceSound();
     unsubscribeAudio?.();
-    window.CeasefireHeaderTaglineSound?.close();
     window.CeasefireHeaderTaglineMedia?.close();
     closed = true;
     finish();
@@ -157,7 +155,6 @@
     displayPhrase(true);
   }
   function displayPhrase(newAppearance = false) {
-    window.CeasefireHeaderTaglineSound?.stop();
     clearTimeout(typingTimer); typingTimer = null; stopCursor();
     displayedPhrase = phraseText(phrase);
     label.textContent = displayedPhrase;
@@ -167,7 +164,7 @@
       if (newAppearance) playIntelligenceSound();
       if (motion?.matches || document.hidden) finish();
       else { window.CeasefireHeaderTaglineMedia?.start(); scrambleStarted = taglineNow(); scrambleNext(); }
-    } else if (motion?.matches) finish(); else { window.CeasefireHeaderTaglineMedia?.start(); window.CeasefireHeaderTaglineSound?.start(); typeNext(); }
+    } else if (motion?.matches) finish(); else { window.CeasefireHeaderTaglineMedia?.start(); typeNext(); }
   }
   nextPhrase();
   window.addEventListener("ceasefire:languagechange", () => { sizePhrases(); if (!closed) displayPhrase(); });

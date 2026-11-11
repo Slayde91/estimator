@@ -35,6 +35,23 @@ def text_field(value, limit, required=False):
     return value.strip()
 
 
+def project_sites(address, named, manual):
+    """Resolve the saved address and preserve a distinct explicitly linked facility."""
+    key=address_key(address)
+    if not key:
+        return ([manual],{manual['id']}) if manual else ([],set())
+    primary=named.get(key) or address_site(address)
+    if not manual or manual['id']==primary['id']:
+        return [primary],{primary['id']}
+    if address_key(manual['address'])!=key:
+        return [primary,manual],{primary['id'],manual['id']}
+    if manual['id']==address_site(address)['id']:
+        # A previously saved address-only ID can also acquire a unique facility name.
+        return [primary],{primary['id'],manual['id']}
+    # Several facilities share this address. The recorded choice identifies this Project.
+    return [manual],{manual['id']}
+
+
 class CRMParticipants:
     def __init__(self, path, projects, contacts):
         self.path, self.projects, self.contacts = Path(path), projects, contacts
@@ -87,12 +104,14 @@ class CRMParticipants:
         if not isinstance(offset,str) or not offset.isascii() or not offset.isdecimal() or len(offset)>8:
             raise ValidationError('Choose a valid site page.')
         catalog=self._catalog()
-        with self.db() as db:
-            choices={row['id']:dict(row) for row in db.execute('SELECT id,name,address FROM sites')}
+        choices=dict(catalog['sites'])
+        known={address_key(row['address']) for row in choices.values()}
         for project in catalog['projects']:
-            site=address_site(project['site_address'])
-            if site and not any(address_key(row['address'])==address_key(site['address']) for row in choices.values()):
+            key=address_key(project['site_address'])
+            if key and key not in known:
+                site=address_site(project['site_address'])
                 choices[site['id']]=site
+                known.add(key)
         rows=sorted((row for row in choices.values() if needle in address_key(row['name']+' '+row['address'])),
                     key=lambda row:(address_key(row['address']),address_key(row['name']),row['id']))
         start=int(offset)
@@ -102,34 +121,41 @@ class CRMParticipants:
     def _catalog(self):
         try:
             catalog=self.projects.participant_sites()
-            with self.db() as db:
-                manual={(row['source'],row['owner']):dict(row) for row in db.execute('''SELECT p.source,p.owner,p.project_no,s.address
-                    FROM project_roles p JOIN sites s ON s.id=p.site_id''')}
-            rows=[]
-            for row in catalog['projects']:
-                selected=manual.get((row['source'],row['owner']))
-                legacy=manual.get((row['source'],''))
-                if selected is None and row['owner'] and legacy and legacy['project_no']==row['project_no']:
-                    selected=legacy
-                rows.append({**row,'_site_address':selected['address'] if selected else row['site_address']})
-            catalog['projects']=sorted(rows,key=lambda row:(address_key(row['site_address']),row['site_address'],row['source'],row['owner']))
-            return catalog
         except (OSError,ValidationError):
-            return {'projects':[], 'scan_pending':True, 'error_count':1}
+            catalog={'projects':[], 'scan_pending':True, 'error_count':1}
+        with self.db() as db:
+            db.execute('BEGIN')
+            sites={row['id']:dict(row) for row in db.execute('SELECT id,name,address FROM sites')}
+            manual={(row['source'],row['owner']):row for row in db.execute(
+                'SELECT source,owner,project_no,site_id FROM project_roles WHERE site_id IS NOT NULL')}
+        named={}
+        for site in sites.values():
+            key=address_key(site['address'])
+            if key and site['id']!=address_site(site['address'])['id']:
+                # Never select arbitrarily between named facilities at the same address.
+                named[key]=None if key in named else site
+        rows=[]
+        for row in catalog['projects']:
+            selected=manual.get((row['source'],row['owner']))
+            if selected and not row['owner'] and selected['project_no']!=row['project_no']:
+                selected=None
+            legacy=manual.get((row['source'],''))
+            if selected is None and row['owner'] and legacy and legacy['project_no']==row['project_no']:
+                selected=legacy
+            _,ids=project_sites(row['site_address'],named,sites[selected['site_id']] if selected else None)
+            rows.append({**row,'_site_ids':ids})
+        rows.sort(key=lambda row:(address_key(row['site_address']),row['site_address'],row['source'],row['owner']))
+        return {**catalog,'projects':rows,'sites':sites,'named':named}
 
     def _decorate(self,record,project,catalog):
         """Derive same-address bids without modifying either file or sidecar."""
-        if not record['site'] and any((row['source'],row['owner'])!=(project['source'],project['owner'])
-                and address_key(row['_site_address'])==address_key(project['site_address']) for row in catalog['projects']):
-            record['site']=address_site(project['site_address'])
-        record['site_mode']='manual' if record['site_id'] else 'automatic' if record['site'] else 'none'
-        key=address_key(record['site']['address']) if record['site'] else ''
+        ids=record.pop('_site_ids')
         peers={(row['source'],row['owner']):row for row in record['linked_bids']}
         current=(project['source'],project['owner'])
         for row in catalog['projects']:
             identity=(row['source'],row['owner'])
-            if key and identity!=current and address_key(row['_site_address'])==key:
-                peers[identity]={**{name:value for name,value in row.items() if name!='_site_address'},'automatic':identity not in peers}
+            if identity!=current and not ids.isdisjoint(row['_site_ids']):
+                peers[identity]={**{name:value for name,value in row.items() if name!='_site_ids'},'automatic':identity not in peers}
         record['linked_bids']=sorted(peers.values(),key=lambda row:(row['project_no'],row['client'],row['source'],row['owner']))
         record['scan_pending']=catalog['scan_pending']
         record['error_count']=catalog.get('error_count',0)
@@ -162,7 +188,7 @@ class CRMParticipants:
         catalog=self._catalog()
         with self.db() as db:
             db.execute('BEGIN')
-            record=self._view(db,project)
+            record=self._view(db,project,catalog)
         return self._decorate(record,project,catalog)
 
     def _availability(self, rows):
@@ -186,26 +212,33 @@ class CRMParticipants:
             rows=[dict(row) for row in db.execute('''SELECT source,owner,project_no,client,site_address
                 FROM project_roles WHERE site_id=? ORDER BY project_no,client,source,owner''',(site_id,))]
         peers={(row['source'],row['owner']):row for row in rows}
-        key=address_key(site['address'])
+        ids={site_id}
+        derived=address_site(site['address'])
+        if derived and site_id==derived['id'] and (named:=catalog['named'].get(address_key(site['address']))):
+            ids.add(named['id'])
         for row in catalog['projects']:
-            if key and address_key(row['_site_address'])==key:
+            if not ids.isdisjoint(row['_site_ids']):
                 pair=(row['source'],row['owner'])
-                peers[pair]={**{name:value for name,value in row.items() if name!='_site_address'},'automatic':pair not in peers}
+                peers[pair]={**{name:value for name,value in row.items() if name!='_site_ids'},'automatic':pair not in peers}
         rows=sorted(peers.values(),key=lambda row:(row['project_no'],row['client'],row['source'],row['owner']));self._availability(rows)
         return {'site':dict(site),'linked_bids':rows,'scan_pending':catalog['scan_pending']}
 
-    def _view(self,db,project):
+    def _view(self,db,project,catalog):
         row=self._existing(db,project)
-        site=None
+        site_id=row['site_id'] if row else None
+        manual=dict(db.execute('SELECT id,name,address FROM sites WHERE id=?',(site_id,)).fetchone()) if site_id else None
+        sites,ids=project_sites(project['site_address'],catalog['named'],manual)
         peers=[]
-        if row and row['site_id']:
-            site=dict(db.execute('SELECT id,name,address FROM sites WHERE id=?',(row['site_id'],)).fetchone())
-            peers=[dict(item) for item in db.execute("""SELECT source,owner,project_no,client,site_address FROM project_roles
-                WHERE site_id=? AND NOT(source=? AND owner=?) ORDER BY project_no,client,source,owner""",
-                (row['site_id'],row['source'],row['owner']))]
+        if ids:
+            placeholders=','.join('?' for _ in ids)
+            owner=row['owner'] if row else project['owner']
+            peers=[dict(item) for item in db.execute(f"""SELECT source,owner,project_no,client,site_address FROM project_roles
+                WHERE site_id IN ({placeholders}) AND NOT(source=? AND owner=?) ORDER BY project_no,client,source,owner""",
+                (*sorted(ids),project['source'],owner))]
         return {'project_revision':project['revision'],'version':row['version'] if row else 0,
-                'participants':json.loads(row['roles']) if row else [], 'roles':ROLES,'site':site,'linked_bids':peers,
-                'site_id':row['site_id'] if row else None}
+                'participants':json.loads(row['roles']) if row else [], 'roles':ROLES,'linked_bids':peers,
+                'site':sites[0] if sites else None,'linked_sites':sites,'_site_ids':ids,
+                'site_mode':'automatic' if address_key(project['site_address']) else 'manual' if site_id else 'none','site_id':site_id}
 
     def related(self,kind,identities):
         """Follow exact party IDs, including explicitly merged aliases from the directory snapshot."""
@@ -302,7 +335,7 @@ class CRMParticipants:
                 db.execute("""INSERT INTO participant_history(source,owner,version,actor,event,snapshot)
                     VALUES(?,?,?,?,'participants updated',?)""",(project['source'],project['owner'],version+1,json.dumps(actor),
                     json.dumps({'participants':roles,'site_id':site_id})))
-            record=self._view(db,project)
+            record=self._view(db,project,catalog)
         return self._decorate(record,project,catalog)
 
 

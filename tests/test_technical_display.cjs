@@ -78,6 +78,12 @@ for (const entry of vectors) {
 const source = "With FIREFLYBatt\nInstallation through concrete —\n1. Apply minimum 50 mm with 2 fixings per 300 mm.";
 const before = detail.parse(source);
 const document = { createElement(tag) { return { tag, children: [], setAttribute() {}, append(...children) { this.children.push(...children); } }; } };
+const sections = detail.render(document,
+  '• 1 × Ø80 mm puddle flange\n• 1 × BOSS gully trap\n\nBond the tile to the panel with adhesive. Fit the square drain flush with the tile.',
+  {fieldLabel:'Service Size / Configuration'});
+assert.deepEqual(sections.map(element => element.tag), ['ul','p']);
+assert.deepEqual(sections[0].children.map(element => element.textContent), ['1 × Ø80 mm puddle flange','1 × BOSS gully trap']);
+assert.equal(sections[1].textContent, 'Bond the tile to the panel with adhesive. Fit the square drain flush with the tile.');
 const rendered = detail.render(document, source, { compact: true });
 assert.deepEqual(detail.parse(source), before);
 assert.equal(rendered.at(-1).children[0].textContent, "Apply min. 50 mm w/ 2 fixings p/ 300 mm.");

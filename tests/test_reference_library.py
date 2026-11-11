@@ -102,6 +102,7 @@ class ReferenceLibraryTests(unittest.TestCase):
         options = next(f['options'] for f in result['filters'] if f['key'] == 'manufacturer')
         self.assertEqual(options, [{'value': 'Firefly', 'label': 'Firefly'}])
         self.assertEqual(self.library.listing('technical', manufacturer='Promat')['total'], 0)
+        self.assertEqual(self.library.detail('technical', source['id'])['manufacturers'], ['Firefly'])
         self.assertEqual(self.library.detail('technical', source['id'])['technical_basis']['source_fields'], source['fields'])
         self.assertEqual((self.root / 'library.json').read_bytes(), original)
 

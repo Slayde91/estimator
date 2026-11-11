@@ -111,6 +111,46 @@ _SEAL_LABEL = 'Seal Depth / Fillet Size'
 _REPEATED_FIELDS = {'Barrier Construction', 'Service', 'Service Size / Configuration', 'Service Wrap', 'Local Protection',
                     _SEAL_LABEL}
 _CLT_CONDITION = 'FAS200363Table30;CLT independently rated60min;full timber/friction-fit installation.'
+_COMPONENT = re.compile(r'^[1-9]\d*[ \t]*[×xX][ \t]+(?![\d. ×xX]+(?:mm|cm|m)?\s*$)\S', re.I)
+_DRAIN = re.compile(
+    r'Single layer of waterproofing panel is installed around the puddle flange using board screws at '
+    r'(\d+(?:\.\d+)?) mm cent(?:er|re)s\.? Vitreous tile is then adhered to waterproofing panel using adhesive\.? '
+    r'A square drain protruded through the waterproofing panel and finish flush with the tile\. '
+    r'A small insert vitreous tile is then fit into the square drain\.?', re.I)
+
+
+def _service_configuration(value):
+    """Keep quantity lists separate from the source's installation paragraph."""
+    if '\n' not in value and 'waterproofing panel' not in value.casefold():
+        return value
+    lines = value.splitlines()
+    description = ''
+    for index, line in enumerate(lines):
+        if line.lstrip().lower().startswith('single layer of waterproofing panel'):
+            # Match the complete tested method. A changed condition must never
+            # silently inherit wording from another drain arrangement.
+            drain = _DRAIN.fullmatch(' '.join(' '.join(lines[index:]).split()))
+            if drain:
+                description = (
+                    'Fix a single layer of waterproofing panel around the puddle flange with board screws at '
+                    f'{drain[1]} mm centres. Bond the vitreous tile to the panel with adhesive. '
+                    'Fit the square drain through the panel so it sits flush with the tile. '
+                    'Fit a small vitreous tile insert into the square drain.')
+                lines = lines[:index]
+            break
+    start = next((i for i, line in enumerate(lines) if _COMPONENT.match(line.strip())), len(lines))
+    components = [line.strip() for line in lines[start:]]
+    # Only bullet unambiguous one-component-per-line lists. Wrapped alternatives,
+    # qualifications and dimension tables retain their original layout.
+    if len(components) >= 2 and all(_COMPONENT.match(line) for line in components):
+        parts = ['\n'.join(lines[:start]).strip(), '\n'.join('• ' + line for line in components)]
+    elif description:
+        parts = ['\n'.join(lines).strip()]
+    else:
+        return value
+    if description:
+        parts.append(description)
+    return '\n\n'.join(part for part in parts if part)
 
 
 def _installation(value, siblings):
@@ -151,5 +191,7 @@ def present_installation_fields(fields):
         value = field.get('value')
         if field['label'] == 'Installation Details' and isinstance(value, str):
             field['value'] = _installation(value, siblings)
+        elif field['label'] == 'Service Size / Configuration' and isinstance(value, str):
+            field['value'] = _service_configuration(value)
         elif field['label'] == _SEAL_LABEL and isinstance(value, str) and value in _SEALS:
             field['value'] = _SEALS[value]

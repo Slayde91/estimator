@@ -12,7 +12,7 @@
   const input=(length,type='text')=>{const node=el('input');node.type=type;node.maxLength=length;return node;};
   const button=(name,run)=>{const node=ui('button',name);node.type='button';node.className='button secondary';node.addEventListener('click',run);return node;};
   const box=el('details');box.id='project-participants-panel';box.hidden=true;
-  const head=ui('summary','Participants and shared site'),body=el('div'),notice=el('p');
+  const head=ui('summary','Participants and linked sites'),body=el('div'),notice=el('p');
   notice.setAttribute('role','status');notice.className='helper';box.append(head,notice,body);pane.append(box);
   let selection=null,fileRevision=null,record=null,directory=null,generation=0,busy=false,loading=false;
   const announce=msg=>{notice.textContent=msg;window.CeasefireI18n?.text(notice,msg);};
@@ -97,9 +97,13 @@
           void mutate(ticket=>save(rows,record.site_id,ticket));}));
       body.append(controls);
     }
-    body.append(ui('h3','Shared site'));
-    if(record.site)body.append(el('p',[record.site.name,record.site.address].filter(Boolean).join(' · ')));
-    else body.append(ui('p','No shared site linked.'));
+    body.append(ui('h3','Linked Sites'));
+    const linkedSites=record.linked_sites || [record.site].filter(Boolean);
+    for(const site of linkedSites){
+      const row=el('p',[...new Set([site.name,site.address].filter(Boolean))].join(' · '));
+      row.dataset.linkedSiteId=site.id;body.append(row);
+    }
+    if(!linkedSites.length)body.append(ui('p','No linked sites.'));
     if(record.site_mode==='automatic')body.append(ui('p','Bids with the same site address are linked automatically.'));
     if(record.linked_bids.length){
       body.append(ui('h4','Other bids linked to this site'),bidList(record.linked_bids));
@@ -120,12 +124,8 @@
           if(request!==ticket || !controls.isConnected || search!==find.value)return;
           for(const site of data.sites){
             const card=el('article');card.className='project-site-result';card.dataset.siteId=site.id;
-            const name=el('strong',site.name);name.id='site-name-'+crypto.randomUUID();card.append(name);
-            let address;if(site.address!==site.name){address=el('p',site.address);address.id='site-address-'+crypto.randomUUID();card.append(address);}
-            if(editable){
-              const link=button('Link',()=>void mutate(ticket=>save(compactRows(),site.id,ticket)));link.disabled=busy;
-              link.id='site-link-'+crypto.randomUUID();link.setAttribute('aria-labelledby',[link.id,name.id,address?.id].filter(Boolean).join(' '));card.append(link);
-            }
+            card.append(el('strong',site.name));
+            if(site.address!==site.name)card.append(el('p',site.address));
             results.append(card);
           }
           offset+=data.sites.length;more.hidden=!data.more;

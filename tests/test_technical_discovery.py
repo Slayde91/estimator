@@ -142,6 +142,36 @@ class DiscoveryIntegrationTests(unittest.TestCase):
     setUp = fixtures.ReferenceLibraryTests.setUp
     write = fixtures.ReferenceLibraryTests.write
 
+    def test_floorwaste_browse_cross_lists_trafalgar_bladerunner_with_its_selected_service(self):
+        technical = self.data['libraries']['technical']
+        template = technical['items'][0]
+        for key, maker, service, product, collar in (
+            ('blade-hdpe', 'Trafalgar', 'HDPE pipe', 'BladeRUNNER, FyreFLEX', ''),
+            ('blade-mini', 'Trafalgar', 'PVC stack pipe', 'FyreFLEX', 'BladeRunner® MINI'),
+            ('floorwaste', 'Promat', 'uPVC floorwaste', 'Other system', ''),
+            ('wrong-maker', 'Promat', 'HDPE pipe', 'BladeRUNNER', ''),
+            ('unrelated', 'Trafalgar', 'HDPE pipe', 'Other system', ''),
+            ('different-product', 'Trafalgar', 'HDPE pipe', 'BladeRunnerPlus', ''),
+        ):
+            item = deepcopy(template)
+            item['id'] = key
+            item['fields'] += [{'label': 'Manufacturer', 'value': maker},
+                               {'label': 'Service', 'value': service},
+                               {'label': 'System Recommendation', 'value': product},
+                               {'label': 'Collar', 'value': collar},
+                               {'label': 'Installation Details', 'value': 'See separate BladeRUNNER assessment.'}]
+            technical['items'].append(item)
+        self.write(self.data)
+        def matches(**query):
+            return {item['id'] for item in self.library.listing('technical', **query)['items']}
+        self.assertEqual(matches(services='uPVC floorwaste'), {'blade-hdpe', 'blade-mini', 'floorwaste'})
+        self.assertEqual(matches(services='uPVC floorwaste', manufacturer='Trafalgar'), {'blade-hdpe', 'blade-mini'})
+        self.assertIn('blade-hdpe', matches(services='HDPE pipe'))
+        services = self.library._load()['_technical_discovery']['blade-hdpe']['services']
+        self.assertNotIn('uPVC floorwaste', services)
+        fields = self.library.detail('technical', 'blade-hdpe')['fields']
+        self.assertEqual(next(f['value'] for f in fields if f['label'] == 'Service'), 'HDPE pipe')
+
     def test_hidden_fifteen_minute_choices_retain_records_and_saved_queries(self):
         first = self.data['libraries']['technical']['items'][0]
         first['fields'].append({'label': 'FRL', 'value': '-/15/-'})

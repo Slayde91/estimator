@@ -3501,5 +3501,8 @@
   "No matching site addresses.": "Aucune adresse de chantier correspondante.",
   "Use site address": "Utiliser l’adresse du chantier",
   "Link": "Lier",
-  "Save this Quote before creating a Work Order.": "Enregistrez ce devis avant de créer un ordre de travail."
+  "Save this Quote before creating a Work Order.": "Enregistrez ce devis avant de créer un ordre de travail.",
+  "Linked Sites": "Chantiers liés",
+  "Participants and linked sites": "Participants et chantiers liés",
+  "No linked sites.": "Aucun chantier lié."
 }

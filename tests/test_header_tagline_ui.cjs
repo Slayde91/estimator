@@ -69,7 +69,6 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
   const elements = { 'header-tagline-label': label, 'header-tagline-sizer': sizer, 'header-tagline-typed': typed };
   const motion = { matches: reduced, addEventListener(name, callback) { assert.equal(name, 'change'); preference = callback; } };
   let mediaTimer = null; const media = { playing: false, starts: 0, closed: false, start() { context.clearTimeout(mediaTimer); this.starts++; this.playing = !this.closed && !motion.matches; }, finish() { context.clearTimeout(mediaTimer); mediaTimer = context.setTimeout(() => this.stop(), 2000); }, stop() { context.clearTimeout(mediaTimer); this.playing = false; }, close() { this.closed = true; this.stop(); } };
-  const printing = { playing: false, starts: 0, stops: 0, closed: false, start() { this.starts++; this.playing = !this.closed && !motion.matches; }, stop() { this.stops++; this.playing = false; }, close() { this.closed = true; this.stop(); } };
   const context = {
     document: {
       hidden:false, addEventListener(name,callback){assert.equal(name,'visibilitychange');visibilitychange=callback;},
@@ -81,7 +80,6 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
       Audio:function(){return audio;},
       CeasefireAudioSettings:{isEnabled:()=>audioEnabled,subscribe(callback){audioChange=callback;return()=>{audioChange=null;};}},
       CeasefireHeaderTaglineMedia: media,
-      CeasefireHeaderTaglineSound: printing,
       CeasefireI18n: require('./english_i18n_fixture.cjs')(),
       localStorage: {
         getItem(key) { assert.equal(key, 'ceasefire.headerTagline.last'); if (blocked) throw Error('Storage denied'); return last; },
@@ -118,7 +116,7 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
   };
   const finish = () => { finishTyping(); advance(2000); };
   run();
-  return { label, sizer, typed, cursor, media, printing, audio, frames, timers, writes, run, tick, finishTyping, finish, advance, nextPhrase() { context.window.CeasefireHeaderTagline.next(); },
+  return { label, sizer, typed, cursor, media, audio, frames, timers, writes, run, tick, finishTyping, finish, advance, nextPhrase() { context.window.CeasefireHeaderTagline.next(); },
     mute(){audioEnabled=false;audioChange?.(false);},unmute(){audioEnabled=true;audioChange?.(true);},
     hide(){context.document.hidden=true;visibilitychange();},show(){context.document.hidden=false;visibilitychange();},
     changeLanguage(translation) { context.window.CeasefireI18n = { translate: value => translation[value] || value }; languagechange(); },
@@ -130,15 +128,11 @@ for (let index = 0; index < phrases.length-1; index++) {
   assert.equal(h.label.textContent, phrase); assert.deepEqual(h.sizer.children.map(line => line.textContent), phrases.map(line => line + '_'));
   assert.equal(h.typed.textContent, Array.from(phrase)[0]); assert.deepEqual(h.writes, [phrase]);
   assert.equal(h.media.playing, true, 'The supplied character starts with phrase typing');
-  assert.equal(h.printing.starts, 1, 'Every typed phrase starts its printing loop once');
-  assert.equal(h.printing.playing, true);
   assert.equal(h.audio.plays,0,'Ordinary phrases do not play the brand sound');
   h.finishTyping();
   assert.equal(h.now(), (Array.from(phrase).length - 1) * 35);
   assert.equal(h.cursor.hidden, true, 'Cursor stops as soon as the final character prints');
   assert.equal(h.media.playing, true, 'The supplied character continues after the final character');
-  assert.equal(h.printing.starts, 1, 'The loop stops at the final character without another playback attempt');
-  assert.equal(h.printing.playing, false);
   assert.equal(h.typed.textContent, phrase); assert.equal(h.label.textContent, phrase);
   assert.deepEqual(h.frames, ['', ...Array.from(phrase, (_, i) => Array.from(phrase).slice(0, i + 1).join(''))]);
   assert.equal(h.timers.size, 1);
@@ -158,7 +152,6 @@ for (let index = 0; index < phrases.length-1; index++) {
   assert.equal(h.label.textContent, phrases[0]); assert.equal(h.typed.textContent, phrases[0]);
   assert.deepEqual(h.frames, ['', phrases[0]]); assert.equal(h.cursor.hidden, true);
   assert.equal(h.media.playing, false, 'Reduced-motion presentation never starts character playback');
-  assert.equal(h.printing.starts, 0, 'A sentence displayed without typing never starts printing audio');
   assert.deepEqual([...h.timers.values()].map(timer => timer.delay), []);
   h.advance(999); assert.equal(h.cursor.hidden, true);
   h.advance(1); assert.equal(h.cursor.hidden, true); assert.equal(h.typed.textContent, phrases[0]); assert.equal(h.timers.size, 0); passed++;
@@ -209,7 +202,6 @@ for (let index = 0; index < phrases.length-1; index++) {
   const h = harness(); h.tick(); h.pagehide(); const frames = h.frames.slice();
   assert.equal(h.typed.textContent, h.label.textContent); assert.equal(h.cursor.hidden, true); assert.equal(h.timers.size, 0);
   assert.equal(h.media.playing, false); assert.equal(h.media.closed, true);
-  assert.equal(h.printing.playing, false); assert.equal(h.printing.closed, true);
   h.changeMotion(); h.nextPhrase(); h.advance(10000); assert.deepEqual(h.frames, frames); assert.equal(h.timers.size, 0); passed++;
 }
 {
@@ -246,13 +238,11 @@ for (let index = 0; index < phrases.length-1; index++) {
   assert.deepEqual(h.writes, writes); passed++;
 }
 {
-  const h = harness(); h.tick(); const stops = h.printing.stops;
-  h.nextPhrase(); assert.equal(h.printing.starts, 2); assert.ok(h.printing.stops > stops);
-  assert.equal(h.printing.playing, true); h.finishTyping(); assert.equal(h.printing.playing, false);
-  const original = h.label.textContent; h.changeLanguage({ [original]: 'Printing replacement' });
-  assert.equal(h.printing.starts, 3); assert.equal(h.printing.playing, true); h.changeMotion(true); assert.equal(h.printing.playing, false);
-  h.nextPhrase(); assert.equal(h.printing.playing, false); h.changeMotion(false); h.nextPhrase();
-  assert.equal(h.printing.starts, 4); assert.equal(h.printing.playing, true); h.pagehide(); assert.equal(h.printing.playing, false); passed++;
+  const h = harness(); h.tick(); h.nextPhrase(); h.finishTyping();
+  const original = h.label.textContent;
+  h.changeLanguage({ [original]: 'Replacement sentence' }); h.changeMotion(true);
+  h.changeMotion(false); h.nextPhrase(); h.pagehide();
+  assert.equal(h.audio.plays, 0, 'Navigating, translating or cancelling ordinary phrases stays silent'); passed++;
 }
 const html = fs.readFileSync('static/index.html', 'utf8');
 {
@@ -269,7 +259,6 @@ const html = fs.readFileSync('static/index.html', 'utf8');
   const h=harness({random:.999});const phrase=phrases.at(-1);
   assert.equal(h.label.textContent,phrase);assert.equal(h.typed.textContent.length,phrase.length);
   assert.notEqual(h.typed.textContent,phrase);for(let i=0;i<phrase.length;i++)if(phrase[i]===' ')assert.equal(h.typed.textContent[i],' ');
-  assert.equal(h.printing.starts,0,'Scrambling never starts the typing loop');
   assert.equal(h.audio.src,'/sounds/gameover.mp3');assert.equal(h.audio.plays,1);
   h.advance(2970);assert.notEqual(h.typed.textContent,phrase);assert.ok(!h.typed.textContent.startsWith(phrase.slice(0,7)));
   h.advance(330);assert.ok(h.typed.textContent.startsWith(phrase.slice(0,4)));assert.notEqual(h.typed.textContent,phrase);
@@ -299,7 +288,7 @@ const html = fs.readFileSync('static/index.html', 'utf8');
 }
 {
   const h=harness({random:.999,reduced:true});assert.equal(h.typed.textContent,phrases.at(-1));
-  assert.equal(h.audio.plays,1);assert.equal(h.timers.size,0);assert.equal(h.media.playing,false);assert.equal(h.printing.starts,0);passed++;
+  assert.equal(h.audio.plays,1);assert.equal(h.timers.size,0);assert.equal(h.media.playing,false);passed++;
 }
 {
   const h=harness({random:.999});h.advance(110);h.pagehide();const frames=h.frames.slice();

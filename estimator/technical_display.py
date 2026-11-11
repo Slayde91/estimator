@@ -304,4 +304,7 @@ def readable_technical_text(value):
 
 def technical_field_text(label, value):
     """Prefer full instructions for seal/installation fields and damaged prose."""
-    return _reading_text(value, always=label in {'Installation Details', 'Seal Depth / Fillet Size'})
+    components = (label == 'Service Size / Configuration' and isinstance(value, str)
+                  and (re.search(r'^• \d+[ \t]*[×xX][ \t]', value, re.M)
+                       or value.startswith('Fix a single layer of waterproofing panel')))
+    return _reading_text(value, always=components or label in {'Installation Details', 'Seal Depth / Fillet Size'})

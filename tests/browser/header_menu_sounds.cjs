@@ -11,7 +11,6 @@ const expectedSounds = [
   ["hover.mp3", "052d0d7f3fb41ddb67766dedd8f4c237b46c8b18745dfad0a73a14c8afb6fad5"],
   ["select.mp3", "60e089eeac138ce5301fb59dc9d649c0404a556499c8f78c15c81a7cdfde1969"],
   ["select-2.mp3", "37e5c8645aa76e11dc8039545940436ea9201e533b1c946fbc9dfc3845efeb7b"],
-  ["type.mp3", "0a78627d0f914dd96d222afcc27e06c8d7777a2d219cef872e8f56a16dcb1c14"],
   ["checkpoint.ogg", "60acfb941abf427378e87e7ae6660ae29491f8d5efaae2681d7eb9a52af3c935"],
   ["gameover.mp3", "547911f8e7ddc37b8df47bf44cec988ccd6116a63a9ee87d10be6c97dd66496e"],
 ];
@@ -100,9 +99,9 @@ async function noDownloadAudio() {
     if (reply.exceptionDetails) throw Error(JSON.stringify(reply.exceptionDetails));
     return reply.result.value;
   }
-  await expect.poll(() => unactivatedProbe("Boolean(window.CeasefireDesktop?.status().ready && !window.CeasefireDesktop.status().busy && window.ClassifireBoot?.state === 'ready' && window.qaMenuAudio.media.length === 9 && window.qaMenuAudio.media.every(media => media.readyState >= 2 && Number.isFinite(media.duration) && media.duration > 0))"), { timeout: 30000 }).toBe(true);
+  await expect.poll(() => unactivatedProbe("Boolean(window.CeasefireDesktop?.status().ready && !window.CeasefireDesktop.status().busy && window.ClassifireBoot?.state === 'ready' && window.qaMenuAudio.media.length === 8 && window.qaMenuAudio.media.every(media => media.readyState >= 2 && Number.isFinite(media.duration) && media.duration > 0))"), { timeout: 30000 }).toBe(true);
   evidence.checks.preloadedDecodedMedia = await unactivatedProbe("window.qaMenuAudio.media.map(media => ({source:new URL(media.src).pathname,readyState:media.readyState,duration:media.duration,preload:media.preload}))");
-  assert.deepEqual(evidence.checks.preloadedDecodedMedia.map(row => row.source).sort(), expectedSounds.map(([file]) => `/sounds/${file}`).sort(), "All nine expected sound players are present exactly once");
+  assert.deepEqual(evidence.checks.preloadedDecodedMedia.map(row => row.source).sort(), expectedSounds.map(([file]) => `/sounds/${file}`).sort(), "All eight expected sound players are present exactly once");
   assert.ok(evidence.checks.preloadedDecodedMedia.every(row => row.preload === "auto"), "Every expected sound retains automatic preload");
   for (const [file, expected] of expectedSounds) {
     const response = await page.request.get(`${origin}/sounds/${file}`), bytes = await response.body();
@@ -148,7 +147,7 @@ async function noDownloadAudio() {
   evidence.checks.keyboardClickAndNestedHover = true;
   // Main-section buttons are silent, including Home cards and global Save.
   await home.click(); await idle();
-  const buttonCalls = () => page.evaluate(() => window.qaMenuAudio.calls.filter(row => !row.source.endsWith('type.mp3') && !row.source.endsWith('gameover.mp3')).length);
+  const buttonCalls = () => page.evaluate(() => window.qaMenuAudio.calls.filter(row => !row.source.endsWith('gameover.mp3')).length);
   let silentStart = await buttonCalls();
   const homeHelp = page.locator('#view-home [data-home-view="help"]');
   await homeHelp.hover(); await homeHelp.click(); await idle();
@@ -270,13 +269,9 @@ async function noDownloadAudio() {
   const logoAttempt = await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source.endsWith('flame-whoosh.wav')).at(-1));
   assert.equal(logoAttempt.event, 'click', 'The preloaded logo clip starts in the original click handler');
   evidence.checks.logoClickTrimmedFlameWhoosh = { ...logoOnset, sameClickEvent: true, leadingSecondsRemoved: 38118 / 44100 };
-  // The brand phrase legitimately uses gameover audio instead of the typing
-  // loop. Exercise that branch deterministically, then navigate to an ordinary
-  // phrase (consecutive phrases never repeat) before checking native typing.
   const brandPhrase = 'CLASSIFIRE: Passive Fire Intelligence', tagline = page.locator('#header-tagline-label');
   if (await tagline.textContent() === brandPhrase) { await home.click(); await expect(tagline).not.toHaveText(brandPhrase); }
   const brandPrior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith('gameover.mp3')).length);
-  const typingAttempts = await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source.endsWith('type.mp3')).length);
   // The existing tagline fixture selects phrases through Math.random. Keep the
   // override only through this trusted click/label check so concurrent visual
   // callbacks cannot consume it before selection; restore it in finally.
@@ -288,34 +283,14 @@ async function noDownloadAudio() {
   try { await home.click(); await expect(tagline).toHaveText(brandPhrase); }
   finally { await page.evaluate(() => window.qaRestoreTaglineRandom?.()); }
   await played('/sounds/gameover.mp3', brandPrior);
-  assert.equal(await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source.endsWith('type.mp3')).length), typingAttempts, 'The special brand phrase does not start the ordinary typing loop');
-  evidence.checks.specialPhraseUsesOwnSound = { phrase: brandPhrase, nativePlaying: true, typingAttemptsUnchanged: true };
-  // A trusted navigation starts the supplied printing loop only for its active ordinary phrase.
-  prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith('type.mp3')).length);
-  await home.click(); await expect(tagline).not.toHaveText(brandPhrase); await played('/sounds/type.mp3', prior); await idle();
-  const printingObservation = await page.waitForFunction(() => {
-    const typed = document.getElementById("header-tagline-typed").textContent;
-    const label = document.getElementById("header-tagline-label").textContent;
-    if (!typed.length || typed === label) return false;
-    return {
-      typed, label,
-      paused: window.qaMenuAudio.media.find(audio => audio.src.endsWith("type.mp3")).paused,
-      loop: window.qaMenuAudio.media.find(audio => audio.src.endsWith("type.mp3")).loop,
-      attempts: window.qaMenuAudio.calls.filter(row => row.source.endsWith("type.mp3")).length,
-    };
-  });
-  const activePrinting = await printingObservation.jsonValue();
-  await printingObservation.dispose();
-  assert.ok(activePrinting.typed.length > 0 && activePrinting.typed !== activePrinting.label);
-  assert.equal(activePrinting.paused, false); assert.equal(activePrinting.loop, true); assert.ok(activePrinting.attempts > 0);
+  evidence.checks.specialPhraseUsesOwnSound = { phrase: brandPhrase, nativePlaying: true };
+  await home.click();
+  await expect(tagline).not.toHaveText(brandPhrase);
   await page.waitForFunction(() => document.getElementById("header-tagline-typed").textContent === document.getElementById("header-tagline-label").textContent);
-  assert.equal(await page.evaluate(() => window.qaMenuAudio.media.find(audio => audio.src.endsWith("type.mp3")).paused), true);
-  assert.equal(await page.evaluate(() => window.qaMenuAudio.media.find(audio => audio.src.endsWith("type.mp3")).currentTime), 0);
-  assert.equal(await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source.endsWith("type.mp3")).length), activePrinting.attempts, "Completing a phrase stops its loop without another playback attempt");
-  evidence.checks.taglinePrintingLoop = { ...activePrinting, stoppedAtFinish: true };
-  // These two tagline clips are phrase presentation, not delegated button
-  // feedback; their own lifecycle is covered by the header tagline fixture.
-  assert.ok((await page.evaluate(() => window.qaMenuAudio.calls.filter(row => !row.source.endsWith("type.mp3") && !row.source.endsWith("gameover.mp3"))))
+  const typingPlayers = await page.evaluate(() => window.qaMenuAudio.media.filter(audio => audio.src.endsWith("type.mp3")).length);
+  assert.equal(typingPlayers, 0, "Ordinary sentences finish typing without loading a sound");
+  evidence.checks.silentPrinting = { typingPlayers };
+  assert.ok((await page.evaluate(() => window.qaMenuAudio.calls.filter(row => !row.source.endsWith("gameover.mp3"))))
     .every(row => ["pointerenter", "pointerover", "click"].includes(row.event)), "Button playback attempts occur in their input event");
   await page.mouse.move(0, 0);
   await page.screenshot({ path: path.join(output, "header-menu-audio.png") });

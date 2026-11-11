@@ -36,6 +36,12 @@ async function plus(control,name,{disabled=false}={}){
  if(disabled)await expect(control).toBeDisabled();else await expect(control).toBeEnabled();
 }
 async function cancelDraft(host,back){await host.getByRole('button',{name:back,exact:true}).click();const confirm=page.locator('#discard-dialog');if(await confirm.isVisible())await confirm.locator('[value="confirm"]').click();}
+async function breakdownButton(control,disabled=false){
+ await expect(control).toHaveAccessibleName('Download Breakdown');await expect(control).toHaveAttribute('title','Download Breakdown');
+ await expect(control.locator('.download-format-icon[aria-hidden="true"]')).toHaveText('⇩PDF');
+ const box=await control.boundingBox();assert.equal(box.width,52);assert.equal(box.height,44);
+ if(disabled)await expect(control).toBeDisabled();else await expect(control).toBeEnabled();
+}
 function libraryStorage(){const reply=spawnSync(python,[fixture,'--snapshot-database',info.database],{cwd:root,windowsHide:true,encoding:'utf8'});assert.equal(reply.status,0,reply.stderr);return Object.fromEntries(Object.entries(JSON.parse(reply.stdout)).filter(([name])=>name==='settings'||name.startsWith('firestopping_')||name.startsWith('technical_')));}
 function libraryFiles(){const directory=path.dirname(path.dirname(info.diagram)),files={};function visit(folder){for(const entry of fs.readdirSync(folder,{withFileTypes:true})){const target=path.join(folder,entry.name);if(entry.isDirectory())visit(target);else if(entry.isFile())files[path.relative(directory,target)]=sha(fs.readFileSync(target));}}visit(directory);return files;}
 (async()=>{
@@ -86,18 +92,16 @@ function libraryFiles(){const directory=path.dirname(path.dirname(info.diagram))
  await refresh.click();await expect(left.locator(`.commercial-linked-contact[data-contact-id="${participant.id}"]`)).toContainText(participant.name);
  assert.deepEqual(await read('/api/contacts/directory'),directoryBefore);assert.deepEqual(fs.readFileSync(info.project),projectBefore);
  checks.push('The outlined refresh SVG matches the existing reset icon; clicking it reads newly linked Contacts without changing directory records or the saved Project.');
+ const quotePdf=await quote.locator('.commercial-download-pdf .download-format-icon').innerHTML();
  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await openProjectSection(page,'documentation');
- const breakdown=page.locator('button[data-document-kind="estimate.summary.pdf"]');await plus(breakdown,'Download Breakdown');
- for(const button of await page.locator('.documentation-download-button').all()){
-   await expect(button.locator('.button-symbol')).toHaveText('+');
-   await expect(button).toHaveClass(/\bpenetration-new-item-action\b/);
- }
+ const breakdown=page.locator('button[data-document-kind="estimate.summary.pdf"]');await breakdownButton(breakdown);
+ assert.equal(await breakdown.locator('.download-format-icon').innerHTML(),quotePdf);
  const snapshot=()=>page.evaluate(()=>({calculators:window.CeasefireCalculators.projectSnapshot(),penetration:window.CeasefirePenetrations.projectSnapshot(),configuration:window.CeasefireProject.configuration(),details:window.CeasefireProject.details()}));const before=await snapshot();
  const receipt=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/quote-report');await breakdown.click();const reply=await receipt;assert.equal(reply.status(),200,await reply.text());const result=await reply.json();assert.equal(result.saved,true);assert.equal(result.documentation.item.kind,'estimate.summary.pdf');
  const relative=path.relative(output,result.path);assert.ok(relative&&!relative.startsWith('..')&&!path.isAbsolute(relative));const bytes=fs.readFileSync(result.path);assert.equal(bytes.subarray(0,5).toString(),'%PDF-');assert.equal(sha(bytes),result.documentation.item.sha256);await idle();
  await expect(page.locator('button[data-revisions-kind="estimate.summary.pdf"]')).toHaveText('View Revisions (1)');assert.deepEqual(await snapshot(),before);assert.deepEqual(fs.readFileSync(info.project),projectBefore);exportReceipts.push({path:result.path,sha256:sha(bytes),kind:result.documentation.item.kind});
- checks.push('Download Breakdown keeps its accessible name and real PDF exporter/history while showing the requested plus; other downloads retain their arrow and all saved Project/input bytes stay unchanged.');
- for(const width of [1915,1101,390]){await page.setViewportSize({width,height:1000});await plus(breakdown,'Download Breakdown');await breakdown.screenshot({path:path.join(output,'breakdown-icon-'+width+'.png')});}await page.setViewportSize({width:1915,height:1000});
+ checks.push('Download Breakdown keeps its accessible name and real PDF exporter/history while showing the Quote download icon; each table uses its matching format and all saved Project/input bytes stay unchanged.');
+ for(const width of [1915,1101,390]){await page.setViewportSize({width,height:1000});await breakdownButton(breakdown);await breakdown.screenshot({path:path.join(output,'breakdown-icon-'+width+'.png')});}await page.setViewportSize({width:1915,height:1000});
  await post('/api/scheduler/setup',{name:'Icon Admin',email:'admin@example.test',password:'Fixture-admin-password'});const viewer=await post('/api/scheduler/members/save',{name:'Icon Viewer',email:'viewer@example.test',password:'Fixture-viewer-password',role:'worker',active:true,base_rate:'0'});
  await post('/api/access/login',{email:'admin@example.test',password:'Fixture-admin-password'});await post('/api/access/roles',{member_id:viewer.id,role:'viewer',version:0});const access=await read('/api/access/session');await post('/api/access/settings',{enabled:true,version:access.version});
  const masterLibraryBefore=libraryStorage(),sourceLibraryBefore=libraryFiles(),configurationBefore=(await read('/api/bootstrap')).configuration;
@@ -108,7 +112,7 @@ function libraryFiles(){const directory=path.dirname(path.dirname(info.diagram))
  const load=view.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/open');await clickProjectControl(view,'Load');assert.equal((await load).status(),200);
  const review=view.locator('#discard-dialog');await Promise.race([review.waitFor({state:'visible'}),view.waitForFunction(client=>window.CeasefireProject?.details?.().client===client,company.company)]);if(await review.isVisible())await review.locator('[value="confirm"]').click();await idle(view);assert.equal(await view.evaluate(()=>window.CeasefireProject.details().client),company.company);await openProjectSection(view,'documentation');
  assert.deepEqual(await view.evaluate(()=>window.CeasefireLibraryEditor.projectSnapshot()),localRecords);assert.deepEqual(libraryStorage(),masterLibraryBefore);assert.deepEqual(libraryFiles(),sourceLibraryBefore);assert.deepEqual((await read('/api/bootstrap')).configuration,configurationBefore);
- const viewerBreakdown=view.locator('button[data-document-kind="estimate.summary.pdf"]');await plus(viewerBreakdown,'Download Breakdown',{disabled:true});let viewerExports=0;view.on('request',r=>{if(r.method()==='POST'&&new URL(r.url()).pathname==='/api/quote-report')viewerExports++;});await viewerBreakdown.evaluate(b=>b.click());assert.equal(viewerExports,0);
+ const viewerBreakdown=view.locator('button[data-document-kind="estimate.summary.pdf"]');await breakdownButton(viewerBreakdown,true);let viewerExports=0;view.on('request',r=>{if(r.method()==='POST'&&new URL(r.url()).pathname==='/api/quote-report')viewerExports++;});await viewerBreakdown.evaluate(b=>b.click());assert.equal(viewerExports,0);
  const denied=await view.evaluate(async()=>{const response=await fetch('/api/contacts/contacts',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});return response.status;});assert.equal(denied,403);
  assert.deepEqual(fs.readFileSync(info.project),projectBefore);assert.deepEqual(await read('/api/contacts/directory'),directoryBefore);
  checks.push('Named viewers load the exact saved nonempty local Library record/PNG/pricing without changing source Library files, shared Library DB rows, master configuration or Project bytes; creation/generation stays disabled and writes are denied.');

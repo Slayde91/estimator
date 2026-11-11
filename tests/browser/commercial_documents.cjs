@@ -243,7 +243,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   let releaseProjectWrite;
   const writing=new Promise(resolve=>{releaseProjectWrite=resolve;});
   await page.route('**/api/project/save',async route=>{await writing;await route.continue();},{times:1});
-  for(const label of ['Work order details reviewed by','Reviewed by','Prepared by','Approved by']) {
+  for(const label of ['Work order details reviewed by','Reviewed by','Prepared by']) {
     await work.getByRole('button',{name:'Sign '+label,exact:true}).click();
     await expect(work.getByRole('img',{name:label+' signature',exact:true})).toBeVisible();
     if(label==='Work order details reviewed by') {
@@ -251,6 +251,30 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
       finally {releaseProjectWrite();}
     }
   }
+  await expect(work.getByLabel('Status',{exact:true})).toHaveValue('Client Approval');
+  await work.getByRole('button',{name:'Back to Work Orders',exact:true}).click();
+  const signDialog=page.getByRole('dialog',{name:'Sign and move',exact:true});
+  const column=(host,status)=>host.locator('.commercial-column').filter({has:page.getByRole('heading',{name:status,exact:true})});
+  const currentWork=()=>JSON.parse(fs.readFileSync(info.project,'utf8')).commercial_documents.documents.find(row=>row.kind==='work_order');
+  const beforeApproval=currentWork();
+  const workCard=work.locator('.commercial-card');
+  await workCard.dragTo(column(work,'In progress'));
+  await expect(signDialog.getByLabel('Name',{exact:true})).toHaveValue('Commercial fixture signer');
+  await expect(signDialog.getByLabel('Date',{exact:true})).toHaveValue(/^\d{4}-\d{2}-\d{2}$/);
+  await signDialog.getByRole('button',{name:'Cancel',exact:true}).click();
+  await expect(column(work,'Client Approval').locator('.commercial-card')).toHaveCount(1);
+  assert.deepEqual(currentWork(),beforeApproval,'Cancelling a board move preserves the entire saved order');
+  await workCard.dragTo(column(work,'In progress'));
+  await signDialog.getByLabel('Name',{exact:true}).fill('Fixture client approver');
+  await signDialog.getByLabel('Date',{exact:true}).fill('2026-11-11');
+  await signDialog.getByRole('button',{name:'Sign and move',exact:true}).click();
+  await expect(column(work,'In progress').locator('.commercial-card')).toHaveCount(1);
+  const approved=currentWork();
+  assert.equal(approved.status,'In progress');
+  assert.equal(approved.fields.order.client_approved_by,'Fixture client approver');
+  assert.equal(approved.fields.order.client_approval_date,'2026-11-11');
+  assert.ok(approved.fields.signatures.client_approved_by.strokes.length);
+  await workCard.locator('.project-title-button').click();
   await work.getByRole('button',{name:'Change Approved by',exact:true}).click();
   await page.getByRole('dialog').getByRole('button',{name:'Cancel',exact:true}).click();
   for(const panel of ['Company Details','Linked Contacts','Notes','Files','Linked Quotes','Linked Purchase Orders']) await expect(work.locator('.commercial-side-panel summary').filter({hasText:panel})).toBeVisible();
@@ -277,8 +301,10 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
     'from pypdf import PdfReader; import sys; r=PdfReader(sys.argv[1]); assert r.attachments["qa-field-record.bin"][0]==b"QA portable original"; print(len(r.pages))',workPdf.path],{encoding:'utf8'});
   assert.ok(Number(attachmentProof)>1);
   await work.getByRole('button',{name:'Back to Work Orders',exact:true}).click();
-  await work.locator('.commercial-card').dragTo(work.getByRole('region',{name:'Review',exact:true}).or(work.locator('.commercial-column[aria-label="Review"]')));
-  await expect(work.locator('.commercial-column[aria-label="Review"] .commercial-card')).toHaveCount(1);
+  await workCard.dragTo(column(work,'Review'));
+  await expect(signDialog).toHaveCount(0);
+  await expect(column(work,'In progress').locator('.commercial-card')).toHaveCount(1);
+  assert.equal(currentWork().status,'In progress');
   assert.deepEqual(await work.locator('.commercial-card').first().locator('.commercial-card-info dt').allTextContents(),
     ['Client','Contact','Address','WO No.','Total','Updated']);
   await page.screenshot({path:path.join(output,'work-order-board.png'),fullPage:true});
@@ -313,6 +339,12 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await download(purchase);
   await purchase.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();
   await expect(purchase.locator('.commercial-card .project-title-button')).toHaveText(/^PO-\d+: Example supplier$/);
+  await purchase.locator('.commercial-card').dragTo(column(purchase,'Requested'));
+  await signDialog.getByRole('button',{name:'Sign and move',exact:true}).click();
+  await expect(column(purchase,'Requested').locator('.commercial-card')).toHaveCount(1);
+  const requested=JSON.parse(fs.readFileSync(info.project,'utf8')).commercial_documents.documents.find(row=>row.kind==='purchase_order');
+  assert.equal(requested.status,'Requested');
+  assert.ok(requested.fields.signatures.requested_by.strokes.length);
   checks.push('purchase order supplier, items, GST and PDF');
   await open('quote');
   await quote.locator('.commercial-card .project-title-button').click();
@@ -359,7 +391,12 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   const clone = structuredClone(saved);
   const clonedQuote = clone.commercial_documents.documents.find(document => document.kind === 'quote');
   clonedQuote.fields.title = 'Other project quote';
-  clone.commercial_documents.documents.find(doc=>doc.kind==='work_order').fields.title='Other site order';
+  const otherWork=clone.commercial_documents.documents.find(doc=>doc.kind==='work_order');
+  otherWork.fields.title='Other site order';
+  otherWork.status='Client Approval';
+  delete otherWork.fields.signatures.client_approved_by;
+  otherWork.fields.order.client_approved_by='';
+  otherWork.fields.order.client_approval_date='';
   clone.commercial_documents.documents.find(doc=>doc.kind==='purchase_order').fields.title='Other purchase order';
   fs.writeFileSync(otherPath, JSON.stringify(clone));
   await open('quotes');
@@ -423,9 +460,9 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   // Board actions must still address the saved file selected on the card.
   await page.reload(); await idle();
   assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path), null);
-  for(const [route,host,title,target] of [
-    ['work-orders',work,'Other site order','Client Approval'],
-    ['purchase-orders',purchase,'Other purchase order','Requested']
+  for(const [route,host,title,target,signer] of [
+    ['work-orders',work,'Other site order','In progress','client_approved_by'],
+    ['purchase-orders',purchase,'Other purchase order','Cancelled','reviewed_by']
   ]){
     await open(route);
     await host.getByLabel('Search documents',{exact:true}).fill(title);
@@ -434,8 +471,16 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
     await expect(card.locator('dl')).toContainText('Total');
     await card.locator('summary').click();
     await card.getByRole('combobox',{name:'Move to'}).selectOption(target);
+    await expect(signDialog).toBeVisible();
+    if(route==='purchase-orders') await signDialog.getByLabel('Approval',{exact:true}).selectOption('Rejected');
+    await signDialog.getByLabel('Name',{exact:true}).fill('Register signer');
+    await signDialog.getByRole('button',{name:'Sign and move',exact:true}).click();
     await expect(host.locator(`.commercial-column[aria-label="${target}"] .commercial-card`)).toHaveCount(1);
-    assert.equal(owner().find(d=>d.fields.title===title).status,target);
+    const signedDocument=owner().find(d=>d.fields.title===title);
+    assert.equal(signedDocument.status,target);
+    assert.equal(signedDocument.fields.order[signer],'Register signer');
+    assert.ok(signedDocument.fields.signatures[signer].strokes.length);
+    assert.deepEqual(JSON.parse(fs.readFileSync(info.project,'utf8')).commercial_documents.documents,saved.commercial_documents.documents);
     assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),null);
     await card.locator('.project-title-button').click();
     const formTitle=host.getByLabel(route==='work-orders'?'Description of works':'Payment terms',{exact:true});

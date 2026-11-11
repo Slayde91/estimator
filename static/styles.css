@@ -506,12 +506,22 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .workspace-view :is(.page-heading,.takeoff-workspace-heading,.calculator-workspace-heading) :is(h1,h2){font-size:18px}
 .workspace-section-heading>.calculator-workspace-heading{padding:0;margin:0 0 20px;align-items:flex-start;flex-direction:row;flex-wrap:nowrap}
 .workspace-section-heading #calculator-save-status{flex:0 0 auto;margin:0;margin-inline-start:auto;max-width:45%;text-align:end}
-.workspace-section-heading>.penetration-banner-heading{z-index:5;min-height:96px;padding:0;margin:0 0 20px;gap:16px;flex-direction:row;flex-wrap:wrap;align-items:center}
-.workspace-section-heading>.penetration-banner-heading>.calculator-heading-copy{flex:1 1 330px;min-height:96px}
-.workspace-section-heading>.penetration-banner-heading>.penetration-heading-actions{position:relative;inset:auto;width:auto;max-width:100%;flex:0 0 auto;align-self:center;flex-wrap:nowrap;margin:0;gap:10px}
+/* Keep the same title-to-tabs spacing as adjacent pages. Taller buttons can
+   use this space alongside the title without pushing the tabs down. */
+.workspace-section-heading>.penetration-banner-heading,.workspace-view>.project-banner-heading{flex-flow:row wrap;align-items:flex-start;gap:0 8px;margin:0}
+.workspace-section-heading>.penetration-banner-heading{z-index:5}
+.workspace-section-heading>.penetration-banner-heading>.calculator-heading-copy,.project-banner-heading>.project-heading-copy{align-self:flex-start;flex:1 1 auto;max-width:100%}
+.workspace-section-heading>.penetration-banner-heading>.calculator-heading-copy{padding-block-end:20px}
+.project-banner-heading>.project-heading-copy{padding-block-end:30px}
+.project-banner-heading>.project-workspace-actions,.workspace-section-heading>.penetration-banner-heading>.penetration-heading-actions{width:auto;max-width:100%;justify-content:flex-end;margin-inline-start:auto}
+.workspace-section-heading>.penetration-banner-heading>.penetration-heading-actions{position:relative;inset:auto;flex:0 0 auto;flex-wrap:nowrap;gap:10px}
 #calculators-heading-slot .penetration-heading-actions .calculator-document-menu{position:static}
 #calculators-heading-slot #firestopping-item-document-actions{left:auto;right:0;inset-inline-start:auto;inset-inline-end:0;max-width:calc(100vw - 28px)}
-@media(max-width:580px){.workspace-section-heading>.penetration-banner-heading>.penetration-heading-actions{flex-basis:100%;justify-content:flex-end}}
+@media(max-width:480px){
+  #calculators-heading-slot .penetration-library-actions{gap:5px}
+  #calculators-heading-slot .calculator-document-toggle{width:48px;padding:0;gap:0;font-size:0}
+  #calculators-heading-slot .calculator-document-chevron{display:none}
+}
 /* Every inner worksheet page uses the Factor Calcs chooser's compact shape.
    Keep the page scroller flexible, so actions and Columns share its row. */
 :root #calculator-pages{height:44px;min-height:44px;flex-wrap:nowrap}

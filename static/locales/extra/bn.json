@@ -3550,5 +3550,7 @@
   "In progress": "চলমান",
   "Claim": "পেমেন্টের দাবি",
   "Certify": "প্রত্যয়ন",
-  "On Hold": "স্থগিত"
+  "On Hold": "স্থগিত",
+  "Sign and move": "স্বাক্ষর করে সরান",
+  "Choose a valid next status for this order.": "এই আদেশের জন্য পরবর্তী বৈধ স্থিতি বেছে নিন।"
 }

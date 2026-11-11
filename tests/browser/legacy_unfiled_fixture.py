@@ -36,4 +36,8 @@ fields = complete_quote(default_fields('quote', {'client': 'Unfiled fixture comp
 fields['title'] = 'Unfiled fixture quote'
 document = service.save(workspace, {'kind': 'quote', 'status': 'Draft', 'fields': fields},
                         unfiled_context={'estimates': [], 'active_estimate_id': 'estimate-1'})
-print(json.dumps({'id': document['id'], 'title': document['fields']['title']}))
+purchase = default_fields('purchase_order', fields['details'])
+purchase['order']['supplier'] = 'Unfiled fixture supplier'
+order = service.save(workspace, {'kind': 'purchase_order', 'status': 'Draft', 'fields': purchase},
+                     unfiled_context={'estimates': [], 'active_estimate_id': 'estimate-1'})
+print(json.dumps({'id': document['id'], 'title': document['fields']['title'], 'purchase_id': order['id']}))

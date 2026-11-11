@@ -79,18 +79,39 @@ async function save(page){
   assert.equal(await currentFile(other),null);
   assert.equal(fs.existsSync(info.project),false);
 
+  // Sign another workspace's recovered order without loading or filing its project.
+  await openProjectSection(other,'purchase-orders');
+  const purchases=other.locator('#commercial-purchase-order-root');
+  const requested=purchases.locator('.commercial-column').filter({has:other.getByRole('heading',{name:'Requested',exact:true})});
+  const otherWorkspace=await other.evaluate(()=>window.CeasefireCertification.sessionId());
+  await other.evaluate(()=>localStorage.setItem('ceasefire.takeoff-signature.v1',JSON.stringify({version:1,ratio:2,strokes:[[[0,.3],[.5,1],[1,0]]]})));
+  await purchases.locator('.commercial-card').dragTo(requested);
+  const signing=other.getByRole('dialog',{name:'Sign and move',exact:true});
+  await signing.getByLabel('Name',{exact:true}).fill('Unfiled fixture signer');
+  await signing.getByLabel('Date',{exact:true}).fill('2026-11-11');
+  await signing.getByRole('button',{name:'Sign and move',exact:true}).click();
+  await expect(requested.locator('.commercial-card')).toContainText('Unfiled fixture supplier');
+  assert.equal(await other.evaluate(()=>window.CeasefireCertification.sessionId()),otherWorkspace);
+  assert.equal(await currentFile(other),null);
+  assert.equal(fs.existsSync(info.project),false);
+
   const firstSave=owner.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/save-as'&&r.request().method()==='POST');
   await clickProjectControl(owner,'Save');
   const published=await firstSave;assert.equal(published.status(),200,await published.text());await idle(owner);
   const file=JSON.parse(fs.readFileSync(info.project,'utf8'));
   const documents=file.commercial_documents.documents.filter(d=>d.kind==='quote');
   assert.equal(documents.length,1);assert.equal(documents[0].fields.title,original);assert.equal(documents[0].fields.introduction,edited);assert.equal(documents[0].status,'Presented');
+  const signed=file.commercial_documents.documents.find(d=>d.id===JSON.parse(seeded.stdout).purchase_id);
+  assert.equal(signed.status,'Requested');
+  assert.equal(signed.fields.order.requested_by,'Unfiled fixture signer');
+  assert.equal(signed.fields.order.requested_date,'2026-11-11');
+  assert.ok(signed.fields.signatures.requested_by.strokes.length);
   await openProjectSection(owner,'quote');
   await board(owner).getByRole('button',{name:'New Quote',exact:true}).click();
   await expect(board(owner).locator('.commercial-editor')).toBeVisible();
   await board(owner).getByRole('button',{name:'Back to Quotes',exact:true}).click();
   await owner.locator('#discard-dialog').getByRole('button',{name:'Yes',exact:true}).click();
-  assert.equal(JSON.parse(fs.readFileSync(info.project,'utf8')).commercial_documents.documents.length,1,'An unsaved new draft never duplicates the recovered history');
+  assert.equal(JSON.parse(fs.readFileSync(info.project,'utf8')).commercial_documents.documents.length,2,'An unsaved new draft never duplicates the recovered history');
   await other.reload();await idle(other);await openProjectSection(other,'quote');
   await expect(board(other).locator('.commercial-card')).toHaveCount(1);
   await expect(card(heading)).toBeVisible();
@@ -100,9 +121,8 @@ async function save(page){
     do {const response=await fetch('/api/commercial/register?workspace='+encodeURIComponent(workspace));if(!response.ok)throw new Error(await response.text());result=await response.json();} while(result.scan_pending);
     return result.documents.map(card=>({id:card.id,title:card.fields.title,status:card.status,path:card.source_path}));
   });
-  assert.equal(registry.length,1);
-  assert.equal(registry[0].id,documents[0].id);
-  assert.equal(path.resolve(registry[0].path),path.resolve(info.project));
+  assert.deepEqual(registry.map(row=>row.id).sort(),[documents[0].id,signed.id].sort());
+  for(const row of registry)assert.equal(path.resolve(row.path),path.resolve(info.project));
   assert.equal(await currentFile(other),null);
   await card(heading).getByRole('button',{name:heading,exact:true}).click();
   await expect(board(other).getByLabel('Linked Project',{exact:true})).toHaveValue([file.estimate.project_no,file.estimate.client,file.estimate.site_address?.replace(/\s+/g,' ')].filter(Boolean).join(' · '));

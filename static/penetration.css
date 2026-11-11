@@ -148,7 +148,7 @@
 .penetration-add-band{margin-top:12px}
 .penetration-band-remove{width:42px;height:42px;padding:9px}
 .penetration-band-remove .button-symbol{font-size:18px;line-height:1}
-.penetration-row-tools .penetration-new-item-action{width:48px;min-width:48px;height:48px;padding:0}
+.penetration-new-item-action.icon-only{width:48px;min-width:48px;height:48px;padding:0}
 .penetration-diagram{margin-top:22px;padding:16px 18px 18px;border:1px solid var(--line);border-top:3px solid var(--red);border-radius:10px;background:#fffdfd}
 .penetration-diagram h4{margin:0 0 12px}
 .penetration-diagram figure{margin:0 0 14px}

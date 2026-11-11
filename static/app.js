@@ -916,6 +916,10 @@
   let confirmationQueue = Promise.resolve();
 
   function confirmReplace(title, detail, action, cancel = uiCopy("Keep editing")) {
+    return chooseReplacement(title, detail, action, cancel).then(choice => choice === "confirm");
+  }
+
+  function chooseReplacement(title, detail, action, cancel, alternate = null) {
     // An import can finish while another confirmation is open. Each operation
     // needs its own answer; one click must never confirm two replacements.
     const answer = confirmationQueue.then(() => new Promise((resolve) => {
@@ -924,7 +928,9 @@
       uiText(dialog.querySelector("p"), detail);
       uiText(dialog.querySelector('[value="cancel"]'), cancel);
       uiText(dialog.querySelector('[value="confirm"]'), action);
-      dialog.addEventListener("close", () => resolve(dialog.returnValue === "confirm"), { once: true });
+      const extra = alternate && uiNode("button", "button secondary", alternate);
+      if (extra) { extra.value = "alternate"; dialog.querySelector(".actions").append(extra); }
+      dialog.addEventListener("close", () => { extra?.remove(); resolve(dialog.returnValue); }, { once: true });
       dialog.returnValue = "cancel";
       dialog.showModal();
     }));
@@ -1563,9 +1569,9 @@
     const selection = $("rate-group").value;
     const firestopping = state.pricingUsage?.firestopping || {};
     const options = [["", "All estimator availability"], ["main-estimator", "Main Estimator"],
-      ...Object.keys(state.catalog.rate_groups || {}).map((key) => [key, uiCopy("Main Estimator — {0}", [window.CeasefireI18n.term(groups[key] || key)])]),
+      ...Object.keys(state.catalog.rate_groups || {}).map((key) => [key, uiCopy("Main Estimator — {0}", [key])]),
       ["firestopping", firestopping.label || "Firestopping Estimator"],
-      ...(firestopping.groups || []).map((group) => [`firestopping:${group.key}`, uiCopy("Firestopping Estimator — {0}", [window.CeasefireI18n.term(group.label)])]),
+      ...(firestopping.groups || []).map((group) => [`firestopping:${group.key}`, uiCopy("Firestopping Estimator — {0}", [group.key])]),
       ["not-used", "Not used in either estimator"]].map(([key, label]) => {
       const option = node("option"); uiText(option, label); option.value = key; return option;
     });
@@ -1753,14 +1759,10 @@
 
   function firestoppingGroups(record) {
     if (record.kind !== "inventory") return [];
-    if (Array.isArray(record.item.firestopping_groups)) return record.item.firestopping_groups;
+    if (Array.isArray(record.item.firestopping_groups)) return record.item.firestopping_groups.map(key => key === "mastics" ? "mastic" : key);
     const metadata = state.pricingUsage?.firestopping || {};
     const source = String(record.item[metadata.source_field || "sales_description"] || "").toLocaleLowerCase();
     return (metadata.groups || []).filter((group) => (group.keywords || []).some((keyword) => source.includes(String(keyword).toLocaleLowerCase()))).map((group) => group.key);
-  }
-  function firestoppingGroupLabels(record) {
-    const groupsByKey = new Map((state.pricingUsage?.firestopping?.groups || []).map((group) => [group.key, group.label]));
-    return firestoppingGroups(record).map((key) => groupsByKey.get(key) || key);
   }
   function usedInFirestopping(record) {
     return firestoppingGroups(record).length > 0;
@@ -1769,8 +1771,11 @@
     if (record.kind !== "inventory") throw new Error("Firestopping groups can only be assigned to inventory products.");
     if (labels.length === 1 && labels[0] === "") labels = [];
     const available = state.pricingUsage?.firestopping?.groups || [];
-    const selected = labels.map((label) => available.find((group) => group.key.toLocaleLowerCase() === label.toLocaleLowerCase() || group.label.toLocaleLowerCase() === label.toLocaleLowerCase()));
-    if (selected.some((group) => !group)) throw new Error(`Choose existing Firestopping groups: ${available.map((group) => group.label).join("; ")}.`);
+    const selected = labels.map((name) => {
+      const key = name.toLowerCase() === "mastics" ? "mastic" : name.toLowerCase();
+      return available.find(group => group.key === key || group.label.toLowerCase() === key);
+    });
+    if (selected.some((group) => !group)) throw new Error(`Choose existing Firestopping groups: ${available.map((group) => group.key).join("; ")}.`);
     const keys = selected.map((group) => group.key);
     if (new Set(keys).size !== keys.length) throw new Error("Enter each Firestopping group once.");
     editPricingCatalog((catalog) => { catalog.inventory.find((item) => item.id === record.item.id).firestopping_groups = keys; });
@@ -1812,7 +1817,7 @@
     const categories = Object.keys(state.catalog.rate_groups);
     const sharedYield = sharedPricingYield(record);
     const selected = labels.map((label) => categories.find((key) => key.toLowerCase() === label.toLowerCase() || (groups[key] || key).toLowerCase() === label.toLowerCase()));
-    if (selected.some((group) => !group)) throw new Error(`Choose existing uses: ${categories.map((key) => groups[key] || key).join("; ")}.`);
+    if (selected.some((group) => !group)) throw new Error(`Choose existing uses: ${categories.join("; ")}.`);
     if (record.kind !== "inventory" && selected.length !== 1) throw new Error("A standalone rate needs exactly one use.");
     const retained = new Set(), removed = [];
     editPricingCatalog((catalog) => {
@@ -1899,8 +1904,8 @@
         : selectedGroup.startsWith("firestopping:") ? firestoppingGroups(record).includes(selectedGroup.slice("firestopping:".length))
         : selectedGroup === "not-used" ? !record.uses.length && !firestopping
         : record.uses.some((use) => use.group === selectedGroup));
-      const firestoppingText = firestoppingGroupLabels(record).join(" ");
-      const useText = `${record.uses.map(({ group, item }) => `${groups[group] || group} ${item.name} ${item.display_name || ""}`).join(" ")} ${firestoppingText}`.toLocaleLowerCase();
+      const firestoppingText = firestoppingGroups(record).join(" ");
+      const useText = `${record.uses.map(({ group, item }) => `${group} ${groups[group] || ""} ${item.name} ${item.display_name || ""}`).join(" ")} ${firestoppingText}`.toLocaleLowerCase();
       return groupMatch && `${productText(record)} ${useText}`.includes(search);
     });
     window.CeasefireI18n.text($("pricing-count"), "{0} of {1} products and standalone rates", [matches.length, records.length]);
@@ -1938,9 +1943,9 @@
         row.append(supplier, markup, sell);
       }
       const groupCell = node("td", "pricing-availability");
-      groupCell.append(pricingListInput(record, "Main Estimator groups", uses.map(({ group }) => groups[group] || group), (values) => setPricingUses(record, values), "Not used in main Estimator"));
+      groupCell.append(pricingListInput(record, "Main Estimator groups", uses.map(({ group }) => group), (values) => setPricingUses(record, values), "Not used in main Estimator"));
       const firestoppingCell = node("td", "pricing-availability");
-      const firestoppingInput = pricingListInput(record, "Firestopping Estimator groups", firestoppingGroupLabels(record), (values) => setFirestoppingGroups(record, values), inventoryView ? "Not used in Firestopping Estimator" : "Requires an inventory product");
+      const firestoppingInput = pricingListInput(record, "Firestopping Estimator groups", firestoppingGroups(record), (values) => setFirestoppingGroups(record, values), inventoryView ? "Not used in Firestopping Estimator" : "Requires an inventory product");
       firestoppingInput.disabled = !inventoryView; firestoppingCell.append(firestoppingInput);
       row.append(groupCell, firestoppingCell);
       const shared = sharedPricingYield(record), yieldCell = node("td");
@@ -2587,7 +2592,7 @@
     if (!state.projectBusy && requireSavedProjectForFiles()) $("project-attachment-input").click();
   }
 
-  async function reviewAndLoadProject(project, file, captured, {convertedLead = false,confirmedReplacement = false,landingView = "estimate"} = {}) {
+  async function reviewAndLoadProject(project, file, captured, {convertedLead = false,confirmedReplacement = false,linkedProject = false,landingView = "estimate"} = {}) {
     let takeoffsAdopted = false, certificationAdopted = false, preparedCertification = null;
     try {
       if (coverReplacementPending(confirmedReplacement)) return;
@@ -2607,6 +2612,7 @@
       const estimate = project.estimate;
       // All validation and definition loading finish before either workspace changes.
       const inputs = clone(estimate.inputs), configuration = clone(estimate.configuration), fields = clone(project.fields);
+      if (linkedProject) window.CeasefireProjectPane?.closeAfterReplacement();
       window.CeasefireCalculators.applyProject(prepared);
       window.CeasefireCalculators.markProjectSaved(project.calculators);
       if (penetration) window.CeasefirePenetrations.applyProject(penetration);
@@ -2796,7 +2802,7 @@
 
   async function openProjectFile(file, button, estimateId = null, options = {}) {
     if (state.projectBusy || coverReplacementPending()) return;
-    if (window.CeasefireProjectPane && !await window.CeasefireProjectPane.leave()) return;
+    if (!options.linkedProject && window.CeasefireProjectPane && !await window.CeasefireProjectPane.leave()) return;
     if (estimateId && state.projectFile?.path === file.path && state.projectEstimates.some(entry => entry.id === estimateId)) {
       await selectEstimate(estimateId);
       if (state.activeEstimateId === estimateId) { selectEstimator("estimate"); showView("estimate"); }
@@ -2805,7 +2811,8 @@
     projectBusy(true); button.disabled = true; button.setAttribute("aria-busy", "true");
     try {
       const captured = projectReplacementStamp();
-      const project = await request("/api/projects/load", { method: "POST", body: JSON.stringify({ id: file.id }) });
+      const target = options.linkedProject ? {linked_project: {source:file.source, owner:file.owner, project_no:file.project_no}} : {id:file.id};
+      const project = await request("/api/projects/load", { method: "POST", body: JSON.stringify(target) });
       if (estimateId && project.estimates) {
         const selected = project.estimates.find(entry => entry.id === estimateId);
         if (!selected) throw new Error("The selected estimate is no longer available. Refresh Projects.");
@@ -2813,9 +2820,37 @@
         for (const key of [...estimateWorkspaceKeys, "fields", "project_details"]) if (selected.workspace[key] !== undefined) project[key] = selected.workspace[key];
         project.active_estimate_id = estimateId;
       }
-      await reviewAndLoadProject(project, project.file || file, captured, options);
+      return await reviewAndLoadProject(project, project.file || file, captured, options);
     } catch (error) { message(uiCopy("Project was not loaded. {0}", [error.message]), true); }
     finally { projectBusy(false); button.disabled = false; button.setAttribute("aria-busy", "false"); }
+  }
+
+  let openingLinkedProject = false;
+  async function openLinkedProject(file, button) {
+    if (openingLinkedProject || state.projectBusy || coverReplacementPending() || window.ClassifireProjectParticipants?.pending()) return;
+    openingLinkedProject = true;
+    try {
+      const pane = window.CeasefireProjectPane;
+      if (projectHasChanges() || pane?.hasUnsavedChanges() || window.CeasefireCoverSheets?.hasUnsavedChanges?.()) {
+        const captured = projectReplacementStamp();
+        const choice = await chooseReplacement(uiCopy("Save changes before opening the linked project?"),
+          uiCopy("Opening {0} will replace your current project.", [button.textContent]), uiCopy("Save"), uiCopy("Cancel"), "Open without saving");
+        if (choice !== "confirm" && choice !== "alternate") return;
+        if (captured !== projectReplacementStamp()) throw new Error("Your draft changed during review. Load the file again to keep your latest edits safe.");
+        if (choice === "confirm") {
+          await pane?.savePendingDetails();
+          if (projectHasChanges() || window.CeasefireCoverSheets?.hasUnsavedChanges?.()) {
+            const result = await saveProject();
+            if (!result?.saved || result.changed || projectHasChanges()) return;
+          }
+          if (pane?.hasUnsavedChanges()) return;
+        }
+      }
+      if (await openProjectFile(file, button, null, {linkedProject:true, confirmedReplacement:true, landingView:"quotes"})) {
+        await window.CeasefireProjectPane?.openCurrent();
+      }
+    } catch (error) { message(error.message, true); }
+    finally { openingLinkedProject = false; }
   }
 
   function projectFileIcon(entry) {
@@ -3182,7 +3217,7 @@
       return true;
     },
     refreshProjectCards: () => loadProjects(),
-    openConvertedLead,
+    openConvertedLead,openLinkedProject,
     openCommercial: kind => requestViewNavigation({quote:"quote", work_order:"work-orders", purchase_order:"purchase-orders"}[kind]),
     configuration: () => clone(state.quoteConfiguration || state.configuration),
     context: () => ({project_token:state.projectFile?.save_token || null,project_context:state.quoteContext,project_path:state.projectFile?.path || null,project_revision:state.projectFile?.revision || null}),

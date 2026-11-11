@@ -29,6 +29,8 @@ INTRODUCTION = ('We have the pleasure in providing you with the following quotat
                 'which will be supplied, installed and certified to comply with the National Construction Code and the relevant Australian '
                 'Standards AS1530.4 and AS4072.1.')
 DETAIL_FIELDS = ('project_no', 'client', 'site_address', 'contact', 'phone', 'email', 'date')
+RECIPIENT_FIELDS = ('client', 'contact', 'phone', 'email')
+RECIPIENT_DIRECTORY_FIELDS = ('account_id', 'contact_id', 'billing_address', 'abn_acn')
 PROJECT_DETAIL_FIELDS = {'project_no':'project_no', 'client':'client', 'site_address':'site_address',
                         'contact':'contact_name', 'phone':'contact_phone', 'email':'contact_email'}
 ORDER_FIELDS = ('start_date', 'end_date', 'urgency', 'quote_id', 'work_order_id', 'quote_reference', 'work_order_reference',
@@ -67,13 +69,16 @@ def default_rate_schedule():
             'acceptance': {key: '' for key in ('accepted_by', 'title', 'signature', 'date')}}
 
 
-def project_document_details(value):
-    """Copy bounded Project-owned identity, including explicit empty clears."""
+def project_document_details(value, *, with_recipient=False):
+    """Copy bounded Project metadata, optionally seeding a new document's recipient."""
     from .quote_details import QUOTE_DETAIL_LIMITS, validate_quote_details
     if not isinstance(value, dict):
         raise ValidationError('Include valid Project details for this document.')
     details = validate_quote_details({key: value.get(key, '') for key in QUOTE_DETAIL_LIMITS})
-    return {document_key: details[project_key] for document_key, project_key in PROJECT_DETAIL_FIELDS.items()}
+    result = {document_key: details[project_key] for document_key, project_key in PROJECT_DETAIL_FIELDS.items()}
+    if with_recipient:
+        result.update({key: details[key] for key in RECIPIENT_DIRECTORY_FIELDS})
+    return result
 
 
 def detail_override_keys(value):
@@ -86,10 +91,15 @@ def detail_override_keys(value):
 
 
 def apply_project_document_details(fields, details):
-    # Validate legacy override metadata before retiring it from the editable
-    # draft. Historical snapshots and already issued PDFs are never rewritten.
-    detail_override_keys(fields.get('detail_overrides', []))
-    fields['details'].update(details)
+    overrides = detail_override_keys(fields.get('detail_overrides', []))
+    # New recipient snapshots include directory IDs even when a field was
+    # deliberately cleared. Older files may only identify individual overrides.
+    keep = RECIPIENT_FIELDS if 'account_id' in fields['details'] else overrides
+    fields['details'].update({key: value for key, value in details.items()
+                              if key not in keep or key == 'site_address'})
+    if 'account_id' not in fields['details'] and overrides:
+        fields['detail_overrides'] = [key for key in overrides if key in RECIPIENT_FIELDS]
+        return
     fields.pop('detail_overrides', None)
 
 
@@ -374,12 +384,16 @@ def validate_fields(value, *, kind=None):
     for key, keys in (('details', DETAIL_FIELDS), ('order', ORDER_FIELDS)):
         fields = value[key]
         optional = ((WORK_ORDER_OPTIONAL_FIELDS if kind=='work_order' else PURCHASE_ORDER_OPTIONAL_FIELDS if kind=='purchase_order'
-                     else (*WORK_ORDER_OPTIONAL_FIELDS,*PURCHASE_ORDER_OPTIONAL_FIELDS) if kind is None else ()) if key=='order' else ())
+                     else (*WORK_ORDER_OPTIONAL_FIELDS,*PURCHASE_ORDER_OPTIONAL_FIELDS) if kind is None else ()) if key=='order'
+                    else RECIPIENT_DIRECTORY_FIELDS if kind in ('quote','work_order',None) else ())
         if not isinstance(fields, dict) or set(fields) - set(keys) - set(optional):
             raise ValidationError('Commercial document details contain unsupported fields.')
         result[key] = {name: _text(fields.get(name, ''), name, 6000 if key == 'order' else 1000) for name in keys}
         result[key].update({name:_text(fields[name], 'Site contact number' if name=='site_contact_number' else name,
-                                      60 if name=='site_contact_number' else 1000) for name in optional if name in fields})
+                                      60 if name=='site_contact_number' else 1200 if name=='billing_address' else 1000) for name in optional if name in fields})
+    for name in ('account_id', 'contact_id'):
+        if result['details'].get(name):
+            _identity(result['details'][name])
     delivery_time = result['order'].get('delivery_time', '')
     if delivery_time and not re.fullmatch(r'(?:[01][0-9]|2[0-3]):[0-5][0-9]', delivery_time):
         raise ValidationError('Use a delivery time in HH:MM format.')
@@ -549,7 +563,9 @@ def commercial_cards(snapshot):
             if kind not in KINDS or document['status'] not in STATUSES[kind] or type(document['version']) is not int or document['version'] < 1:
                 raise ValidationError('Invalid saved commercial document status or version.')
             fields = document['fields']
-            details = {key: _text(fields['details'].get(key, ''), key, 1000) for key in ('project_no', 'client', 'site_address', 'contact')}
+            details = {key: _text(fields['details'].get(key, ''), key, 1000) for key in ('project_no', 'client', 'site_address', 'contact', 'phone', 'email')}
+            if kind in ('quote', 'work_order'):
+                details.update({key: _text(fields['details'][key],key,1200) for key in RECIPIENT_DIRECTORY_FIELDS if key in fields['details']})
             order = {key: _text(fields['order'].get(key, ''), key, 6000) for key in
                      ('work_order_reference', 'quote_id', 'quote_reference', 'work_order_id', 'estimated_cost', 'supplier', 'supplier_contact')}
             if kind == 'purchase_order':
@@ -916,9 +932,25 @@ class CommercialDocuments:
             if not order.get(key):
                 order.pop(key, None)
 
+    def _validate_recipient(self, details, prior):
+        # Use the same directory and membership checks as a purchase order.
+        # A saved recipient keeps its historical name when reopened.
+        changed = set()
+        if details.get('account_id') and any(details.get(k) != prior.get(k) for k in ('account_id', 'client')):
+            changed.add('supplier_account_id')
+        if details.get('contact_id') and any(details.get(k) != prior.get(k) for k in ('account_id', 'contact_id', 'contact')):
+            changed.add('supplier_contact_id')
+        if changed:
+            if self.validate_purchase_parties is None:
+                raise ValidationError('The contact directory is unavailable. Reopen the document.')
+            self.validate_purchase_parties({'supplier_account_id':details.get('account_id',''), 'supplier':details['client'],
+                                            'supplier_contact_id':details.get('contact_id',''), 'supplier_contact':details['contact']}, changed)
+
     def _relationships(self, db, workspace, project, kind, fields, previous, *, create_retry=False):
         order = fields['order']
         prior = previous['fields']['order'] if previous else None
+        if kind == 'quote' or kind == 'work_order' and previous:
+            self._validate_recipient(fields['details'], previous['fields']['details'] if previous else {})
         if kind == 'work_order':
             if order['work_order_id']:
                 raise ValidationError('A work order cannot link to another work order.')
@@ -944,6 +976,11 @@ class CommercialDocuments:
             quote = self._record(db, workspace, order['quote_id'])
             if quote['kind'] != 'quote' or not quote['last_number']:
                 raise ValidationError('Download the linked Quote PDF before creating a work order.')
+            recipient = quote['fields']['details']
+            if ('account_id' not in fields['details'] and not fields.get('detail_overrides')
+                    and 'account_id' in recipient):
+                fields['details'].update({key: recipient.get(key, '') for key in (*RECIPIENT_FIELDS, *RECIPIENT_DIRECTORY_FIELDS)})
+            self._validate_recipient(fields['details'], recipient)
             project_no = fields['details']['project_no'].strip()
             if not project_no or any(char in project_no for char in '\r\n\t'):
                 raise ValidationError('Enter a project number before creating a work order.')

@@ -454,7 +454,6 @@
       catch (error) { message(error.message, true); return false; }
       finally { state.busy = false; setDisabled(false); }
     }
-    if(state.dirty)discardProjectDetailEdits(editor);
     if (editor?.refreshBoard) {
       const host = root();
       state.busy = true;
@@ -611,13 +610,16 @@
     const number = root()?.querySelector('[data-quote-reference]');
     if (number) number.value = documentReference(editor.document) || '';
   }
-  const projectDetailKeys={client:'client',contact:'contact_name',phone:'contact_phone',email:'contact_email',site_address:'site_address',
-    account_id:'account_id',contact_id:'contact_id',billing_address:'billing_address',abn_acn:'abn_acn'};
+  const recipientNames = ["client", "contact", "phone", "email"];
+  const recipientDirectory = ["account_id", "contact_id", "billing_address", "abn_acn"];
+  function copyQuoteRecipient(fields, quote) {
+    for (const key of [...recipientNames, ...recipientDirectory]) fields.details[key] = quote.fields.details[key] || "";
+  }
   function applyProjectDetails(fields, details) {
-    // Legacy document-only overrides remain readable in saved snapshots. The
-    // editable document now follows its Project; issued PDF bytes stay intact.
-    Object.assign(fields.details,details);
-    delete fields.detail_overrides;
+    const keep = Object.hasOwn(fields.details, "account_id") ? recipientNames : fields.detail_overrides || [];
+    for (const [key, value] of Object.entries(details)) {
+      if (key === "site_address" || !keep.includes(key)) fields.details[key] = value;
+    }
   }
   function refreshEditorProjectDetails() {
     const editor=state.editor;if(!editor)return;
@@ -629,30 +631,19 @@
     editor.panels?.refreshProjectDetails(projectDetailsSnapshot(editor.source));
   }
   function editDocumentDetails(fields, values) {
-    const editor=state.editor,previous=projectDetailsSnapshot(editor.source),patch={};
-    for(const [key,value] of Object.entries(values))if(projectDetailKeys[key])patch[projectDetailKeys[key]]=String(value ?? '').trim();
-    if(editor.source && !editor.source.file_id.startsWith('local-')) {
-      editor.source.projectDetails={...previous,...patch};
-      editor.source.projectUpdates={...editor.source.projectUpdates,...patch};
-    } else if(!editor.source) {
-      editor.projectBaseline ||= window.CeasefireProject.captureCommercialDetailsEdit();
-      editor.projectOriginal ||= {};
-      editor.projectApplied ||= {};
-      for(const key of Object.keys(patch))if(!Object.hasOwn(editor.projectOriginal,key))editor.projectOriginal[key]=previous[key] || '';
-      window.CeasefireProject.applyCommercialDetails(patch,editor.projectContext);
-      Object.assign(editor.projectApplied,patch);
-    } else {
-      // Historical unfiled records have no Project to edit.
-      for(const [key,value] of Object.entries(values))if(Object.hasOwn(fields.details,key))fields.details[key]=String(value ?? '').trim();
-      markDirty();return;
+    const editor = state.editor;
+    if (!Object.hasOwn(fields.details, "account_id")) {
+      const project = projectDetailsSnapshot(editor.source);
+      const sameCompany = fields.details.client === project.client;
+      for (const key of recipientDirectory) fields.details[key] = sameCompany ? project[key] || "" : "";
+      if (fields.details.contact !== project.contact_name) fields.details.contact_id = "";
     }
-    refreshEditorProjectDetails();markDirty();
-  }
-  function discardProjectDetailEdits(editor) {
-    if(editor?.source || !editor?.projectOriginal)return;
-    const current=projectDetailsSnapshot(),patch={};
-    for(const [key,value] of Object.entries(editor.projectOriginal))if(current[key]===editor.projectApplied[key])patch[key]=value;
-    if(Object.keys(patch).length)window.CeasefireProject.applyCommercialDetails(patch,editor.projectContext,editor.projectBaseline);
+    for (const key of [...recipientNames, ...recipientDirectory]) {
+      if (Object.hasOwn(values, key)) fields.details[key] = String(values[key] ?? "");
+    }
+    editor.recipientEdited = true;
+    refreshEditorProjectDetails();
+    markDirty();
   }
   function boundWorkOrderProjectNumber(editor) {
     const doc=editor.document;
@@ -670,9 +661,11 @@
     let all = state.model.documents.filter(document => document.kind === state.kind);
     {
       const details = commercialProjectDetails();
-      const local = state.model.activeFileChanged ? [] : all.map(card => ({
-        ...card, fields: {...card.fields, details: {...card.fields.details, ...details}}
-      }));
+      const local = state.model.activeFileChanged ? [] : all.map(card => {
+        const fields = {...card.fields, details: {...card.fields.details}};
+        applyProjectDetails(fields, details);
+        return {...card, fields};
+      });
       all = local.concat(state.savedCards.filter(card => card.kind === state.kind));
     }
     const cardInfo = doc => {
@@ -807,6 +800,7 @@
       state.busy=false;ownsBusy=false;
       if (!await window.CeasefireProject.openCommercial("work_order") || !sameScope()
           || state.kind!=="work_order" || state.editor) return;
+      copyQuoteRecipient(fields, document);
       fields.order.quote_id = document.id;
       fields.order.quote_reference = document.last_number;
       fields.order.description = document.fields.lines.map(line => line.description).join("\n");
@@ -902,6 +896,16 @@
         fields: result.fields,
         last_number: ""
       };
+      if (document.kind === "work_order" && !fromEstimate) {
+        const eligible = state.model.documents.filter(item => item.kind === "quote" && item.last_number
+          && item.fields.details.project_no.trim() === details.project_no.trim());
+        if (eligible.length === 1) {
+          const quote = eligible[0];
+          copyQuoteRecipient(document.fields, quote);
+          document.fields.order.quote_id = quote.id;
+          document.fields.order.quote_reference = quote.last_number;
+        }
+      }
       openEditor(document);
       state.dirty = true;
       const estimateId = window.CeasefireEstimates?.activeId?.() || "estimate-1";
@@ -911,7 +915,10 @@
         const eligible = state.model.documents.filter(item => item.kind === "quote" && item.last_number && item.fields.sources?.some(source => source.id === estimateId || source.estimate_id === estimateId));
         if (eligible.length === 1) fields.order.quote_id = eligible[0].id;
         if (state.kind === "work_order") {
-          if (eligible.length === 1) fields.order.quote_reference = eligible[0].last_number;
+          if (eligible.length === 1) {
+            copyQuoteRecipient(fields, eligible[0]);
+            fields.order.quote_reference = eligible[0].last_number;
+          }
           fields.order.description = fields.lines.map(line => line.description).join("\n");
         } else {
           fields.order.ship_to_address = fields.details.site_address;
@@ -1528,6 +1535,10 @@
       const selected = choices.find(item => item.id === linked.value);
       if (isWorkOrder) {
         fields.order.quote_reference = selected?.last_number || "";
+        if (selected && !state.editor.recipientEdited) {
+          copyQuoteRecipient(fields, selected);
+          refreshEditorProjectDetails();
+        }
         delete fields.work_tracking;
         state.editor.signatureActions=state.editor.signatureActions.filter(action=>!['progress_by','claimed_by'].includes(action.key));
         for(const key of ['progress_by','claimed_by']) {
@@ -1558,7 +1569,7 @@
       ["Works in Progress", [["completed_percent","% completed"],["progress_by","Progress signed by"],["progress_date","Date"]]],
       ["Work Order Claim", [["claimed_percent","% claimed"],["claimed_by","Claim signed by"],["claim_date","Date"]]],
       ["Work Order Completion", [["certification","Certification details"],["completion","Completion"],["closed_by","Closed by"],["closed_date","Date"]]]
-    ] : [["Purchase order information", [["work_order_reference", "Work order reference"], ["supplier", "Supplier"], ["payment_terms", "Payment terms"], ["supplier_contact", "Supplier contact"], ["supplier_email", "Supplier email"], ["ship_to_name", "Site contact"], ["site_contact_number", "Site contact number"], ["delivery_method", "Delivery or pickup"], ["ship_to_address", "Ship to address"], ["delivery_date", "Delivery date and time"], ["expense_type", "Type of expense"]]], ["Request", [["requested_by", "Requested by"], ["requested_date", "Request date"]]], ["Approval", [["approval", "Approval"], ["rejection_reason", "Rejection reason"], ["reviewed_by", "Approved by"], ["review_date", "Approval date"]]], ["Sent by", [["sent_by", "Sent by"], ["sent_date", "Sent date"]]], ["Procurement verification", [["verification", "Verification method, specification, result and actions"], ["verified_by", "Verified by"], ["verified_date", "Verification date"]]]];
+    ] : [["Purchase order information", [["work_order_reference", "Work order reference"], ["supplier", "Supplier company"], ["payment_terms", "Payment terms"], ["supplier_contact", "Supplier contact"], ["supplier_email", "Supplier email"], ["ship_to_name", "Site contact"], ["site_contact_number", "Site contact number"], ["delivery_method", "Delivery or pickup"], ["ship_to_address", "Ship to address"], ["delivery_date", "Delivery date and time"], ["expense_type", "Type of expense"]]], ["Request", [["requested_by", "Requested by"], ["requested_date", "Request date"]]], ["Approval", [["approval", "Approval"], ["rejection_reason", "Rejection reason"], ["reviewed_by", "Approved by"], ["review_date", "Approval date"]]], ["Sent by", [["sent_by", "Sent by"], ["sent_date", "Sent date"]]], ["Procurement verification", [["verification", "Verification method, specification, result and actions"], ["verified_by", "Verified by"], ["verified_date", "Verification date"]]]];
     for (const [title, items] of groups) {
       const section = node("section", "card commercial-order-fields");
       if(!isWorkOrder && title==='Purchase order information')section.classList.add('commercial-purchase-information');
@@ -2098,17 +2109,14 @@
       || operation.projectFingerprint!==JSON.stringify(projectDetailsSnapshot(operation.editor.source)))
       throw new Error("The Project details changed while saving. Reopen this document to use the current Project details.");
   }
-  function validateProjectDetailEdit(operation) {
-    if(operation.editor.source)return;
-    const details=operation.projectDetails,previous=operation.editor.projectOriginal;
-    const changed=previous && (Object.hasOwn(previous,'client') && details.client!==previous.client
-      || previous.account_id && !details.account_id);
-    if(changed && details.client && !details.account_id)
+  function validateRecipient(editor) {
+    const recipient = editor.document.fields.details;
+    if (editor.recipientEdited && recipient.client && !recipient.account_id)
       throw new Error("Choose an existing Company for this Client, or add a new Company.");
   }
   async function persist(captured, explicitlySaved, operation) {
     assertDocumentOperation(operation);
-    validateProjectDetailEdit(operation);
+    validateRecipient(operation.editor);
     const {editor,workspace,projectDetails}=operation, document=editor.document;
     if(editor.billingDirectory)await editor.billingDirectory;
     if(!explicitlySaved && document.kind==='work_order' && document.fields.billing?.new_contact_key &&
@@ -2129,14 +2137,13 @@
       fields,
       ...(editor.signatureActions.length ? {signature_actions:copy(editor.signatureActions)} : {}),
       ...(editor.billingReview?{billing_review:editor.billingReview}:{}),
-      ...(!editor.source ? {project_details:projectDetails} : editor.source.projectUpdates ? {project_updates:editor.source.projectUpdates} : {}),
+      ...(!editor.source ? {project_details:projectDetails} : {}),
       ...(explicitlySaved && !state.editor.source && !window.CeasefireProject.context().project_token ? {retain_unfiled:true} : {}),
       ...captured
     }, state.editor.source);
     assertDocumentOperation(operation);
     adoptSaved(saved);
-    if (state.editor.source) {state.editor.source.documentId = saved.id;delete state.editor.source.projectUpdates;}
-    delete editor.projectOriginal;delete editor.projectApplied;delete editor.projectBaseline;
+    if (state.editor.source) state.editor.source.documentId = saved.id;
     state.dirty = false;
     if (!state.editor.source) changed();
     // A board-wide file scan can take several batches. Finish the document
@@ -2181,7 +2188,7 @@
     setDisabled(true);
     try {
       if(!operation.editor.source) {
-        validateProjectDetailEdit(operation);
+        validateRecipient(operation.editor);
         await window.CeasefireProjectPane?.beforeProjectSave?.();
       }
       await flushRateDefaults();
@@ -2228,7 +2235,7 @@
     setDisabled(true);
     try {
       if(!operation.editor.source) {
-        validateProjectDetailEdit(operation);
+        validateRecipient(operation.editor);
         await window.CeasefireProjectPane?.beforeProjectSave?.();
       }
       await flushRateDefaults();

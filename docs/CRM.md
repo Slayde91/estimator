@@ -38,11 +38,13 @@ bids. An unavailable source retains its last-recorded relationships and is label
 unavailable. A moved file must be deliberately relinked rather than guessed from a
 matching name, address or copied UUID.
 
-In Project Details, use **Companies** to choose the client and **Contacts** to
+In Project Details, use **Companies** to choose the main client and **Contacts** to
 choose the primary contact. The + beside each search creates the corresponding
-directory record. Additional participants have their own roles. New Quotes and
-Work Orders use the project's primary contact. On a Purchase Order, choose the
-supplier and the relevant contacts manually, including when starting from a Work Order.
+directory record. New Quotes use the project's main client and primary contact.
+A Work Order starts with the recipient on its selected Quote. Changing a document's
+recipient keeps that selection on the document and links the selected directory
+records to the project. On a Purchase Order, choose the supplier company and
+contact under **Purchase order information**. The panels on the left show those selections.
 
 **Linked Sites** shows one **Linked Projects** list. Saving a project address
 automatically links projects at the same address. Matching ignores differences

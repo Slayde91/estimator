@@ -35,7 +35,17 @@ class SchedulerOrderSourceTests(unittest.TestCase):
                     path.write_bytes(export_project(store,{'estimate':{'client':client,'site_address':'Shared site','project_no':'PN-01'},
                         'certifications':manifest,'commercial_documents':{'version':1,'project_id':owner,'documents':[order],
                         'number_counters':{'quote':0,'work_order':0,'purchase_order':0}}}))
+                # A Work Order can be addressed to a different company while
+                # its location still follows the Project for scheduling.
+                separate=json.loads(paths['Alpha'].read_bytes())
+                saved=separate['commercial_documents']['documents'][0]['fields']['details']
+                saved.update(client='Works Company',account_id=str(uuid4()),site_address='Previous site')
+                (directory/'separate.cf.json').write_text(json.dumps(separate),encoding='utf-8')
                 rows=service.scheduler_work_orders(0)['orders']
+                assigned,=[row for row in rows if row['client']=='Works Company']
+                self.assertEqual(assigned['site_address'],'Shared site')
+                self.assertEqual(service.scheduler_work_order(assigned['id'],assigned['revision']),assigned)
+                rows=[row for row in rows if row['id']!=assigned['id']]
                 self.assertEqual({row['client'] for row in rows},{'Alpha','Beta'})
                 first,second=rows
                 self.assertNotEqual(first['id'],second['id'])

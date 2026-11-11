@@ -820,9 +820,47 @@ class ProjectLibrary:
         if not path.is_relative_to(folder) or _file_id(folder, path.relative_to(folder).as_posix()) != identifier:
             raise ValidationError("Choose a project from the linked estimates folder.")
         payload, info = _read_file(path)
+        return self._load_saved_project(path, folder, payload, info)
+
+    def _load_saved_project(self, path, folder, payload, info):
         project = load_project_bytes(self.store, payload, edition=self.edition)
         project = self._restore_takeoffs(project, path)
         return {**project, "file": self._authorize_save(path, info, payload, _metadata(path, info, project, folder, payload))}
+
+    def load_linked(self, target):
+        """Open the verified file behind a saved site relationship."""
+        if (not isinstance(target, dict) or set(target) != {'source', 'owner', 'project_no'}
+                or any(not isinstance(value, str) for value in target.values())
+                or not re.fullmatch(r'[0-9a-f]{64}', target['source'])):
+            raise ValidationError('Choose a saved project.')
+        source, owner = target['source'], target['owner']
+        with self._lock:
+            files = self.account_relation_projects()['files']
+            row = next((item for item in files if source_id(item['path']) == source), None)
+            folder = None
+            native = None
+            if row and row['id']:
+                _, path = self._project_path(row['id'])
+                folder = self._scan['folder']
+            else:
+                registered = self._commercial_sources.resolve(source)
+                if registered and registered[1] == owner and source_id(registered[0]) == source:
+                    path = Path(registered[0])
+                else:
+                    native = next((item for item in reversed(self._save_targets.values())
+                                   if source_id(item.path) == source), None)
+                    if not native:
+                        raise ValidationError('Saved project unavailable')
+                    path = _project_save_path(native)
+            payload, info = _read_file(path)
+            summary = project_summary(payload, edition=self.edition)
+            actual_owner = summary.get('source_project_id') or ''
+            if (actual_owner in self._commercial_sources.ignored_owners()
+                    or owner != actual_owner
+                    or (not owner and target['project_no'] != summary['estimate'].get('project_no', ''))
+                    or (native and native.fingerprint != _fingerprint(payload, info))):
+                raise ValidationError('Saved project unavailable')
+        return self._load_saved_project(path, folder, payload, info)
 
     def scheduler_project(self, identifier):
         """Read the current project stage and address without opening a workspace."""
@@ -1525,9 +1563,10 @@ class ProjectLibrary:
             documents = []
             for identifier, file in files.items():
                 for card in file['commercial_cards']:
-                    from .commercial_documents import project_document_details
-                    details = project_document_details(file)
-                    documents.append({**card, 'fields': {**card['fields'], 'details': {**card['fields']['details'], **details}},
+                    from .commercial_documents import apply_project_document_details, project_document_details
+                    fields = {**card['fields'], 'details': dict(card['fields']['details'])}
+                    apply_project_document_details(fields, project_document_details(file))
+                    documents.append({**card, 'fields': fields,
                                       'source_file': file['id'] or identifier, 'source_revision': file['revision'], 'source_path': file['path']})
             if self.commercial:
                 local_cards = [card for card in self.commercial.unfiled.cards(active_workspace) if card['project_id'] not in ignored]

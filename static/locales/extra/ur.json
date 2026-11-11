@@ -1,4 +1,12 @@
 {
+  "Main Client": "مرکزی کلائنٹ",
+  "Add": "شامل کریں",
+  "Supplier company": "سپلائر کمپنی",
+  "Save changes before opening the linked project?": "منسلک پروجیکٹ کھولنے سے پہلے تبدیلیاں محفوظ کریں؟",
+  "Opening {0} will replace your current project.": "{0} کھولنے پر یہ موجودہ پروجیکٹ کی جگہ لے لے گا۔",
+  "Open without saving": "محفوظ کیے بغیر کھولیں",
+  "Reopen this document to edit its recipient. Change project details in Projects.": "وصول کنندہ میں ترمیم کے لیے دستاویز دوبارہ کھولیں۔ پروجیکٹ کی تفصیلات پروجیکٹس میں تبدیل کریں۔",
+  "The contact directory is unavailable. Reopen the document.": "رابطوں کی فہرست دستیاب نہیں ہے۔ دستاویز دوبارہ کھولیں۔",
   "Some linked projects could not be checked.": "کچھ منسلک پروجیکٹس کی تصدیق نہیں ہو سکی۔",
   "Participants changed. Review the updated list and try again.": "شرکاء کی فہرست بدل گئی ہے۔ تازہ فہرست دیکھیں اور دوبارہ کوشش کریں۔",
   "Linked Projects": "منسلک پروجیکٹس",

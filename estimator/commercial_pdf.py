@@ -353,8 +353,10 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
     details, order = fields['details'], fields['order']
     story = [] if kind in {'quote', 'work_order', 'purchase_order'} else [_paragraph(KINDS[kind].upper(), styles['title'])]
     number_label = {'work_order':'Work order reference', 'purchase_order':'Purchase Order No.'}.get(kind, 'Document number')
-    _fields(story, [(number_label, number), ('Date', details['date']), ('Customer', details['client']),
-                   ('Contact', details['contact']), ('Site address', details['site_address']), ('Project number', details['project_no'])], styles)
+    recipient = [('Supplier', order['supplier']), ('Contact', order['supplier_contact'])] if kind == 'purchase_order' else [
+        ('Customer', details['client']), ('Contact', details['contact'])]
+    _fields(story, [(number_label, number), ('Date', details['date']), *recipient,
+                   ('Site address', details['site_address']), ('Project number', details['project_no'])], styles)
     story.append(Spacer(1, 12))
     if fields['introduction']:
         story.append(_paragraph(fields['introduction'], styles['body']))

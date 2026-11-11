@@ -6,7 +6,11 @@
 .project-new-dialog .project-account-options{max-height:180px}
 .project-new-dialog .actions{margin-top:18px}
 @media(max-width:520px){.project-new-dialog{width:calc(100vw - 24px)}.project-new-dialog .project-pane-fields{gap:14px 10px}.project-new-dialog .field>label,.project-new-dialog .field>span{font-size:11px}.project-new-dialog input{font-size:12px;padding-inline:10px}.project-new-dialog .project-account-search input{padding-inline-start:32px}}
+.project-details-pane .project-location-fields{grid-template-columns:minmax(0,1fr) minmax(0,3fr)}
+#project-pane-address{field-sizing:content;min-height:calc(1.4em + 22px)}
+#project-details-form+#project-participants-panel{margin-top:16px}
 #project-participants-panel{min-width:0;overflow-wrap:anywhere}
+#project-participants-panel .text-button{text-align:start;overflow-wrap:anywhere}
 #project-participants-panel h4{margin:0 0 8px}
 #project-participants-panel ul{padding-inline-start:20px;margin:0}
 #project-participants-panel li+li{margin-top:6px}

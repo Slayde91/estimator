@@ -13,6 +13,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 
 from estimator.catalog import ValidationError, baseline
+from estimator.commercial_sources import source_id
 from estimator.native_dialogs import NativeDialogs, SaveSelection
 from estimator.project_file import export_project, project_filename, project_download_header, LEGACY_CALCULATOR_IDS
 from estimator.schedule_rows import blank_schedule_defaults
@@ -89,6 +90,24 @@ class ProjectLibraryTests(unittest.TestCase):
                 return listing
             options["refresh"] = False
         self.fail("The project folder scan did not finish within 100 batches.")
+
+    def test_linked_navigation_requires_authorized_matching_file_including_native_project(self):
+        first = self.root / 'native.cf.json'
+        second = self.root / 'copy.cf.json'
+        for path in (first, second):
+            path.write_bytes(self.payload)
+        target = {'source':source_id(first), 'owner':'', 'project_no':'Project 17'}
+        with self.assertRaises(ValidationError):
+            self.library.load_linked(target)
+        self.dialogs.opened = str(first)
+        self.library.open_file()
+        self.assertEqual(self.library.load_linked(target)['file']['path'], str(first))
+        for bad in ({'source':source_id(second)}, {'owner':'wrong owner'}, {'project_no':'another bid'}):
+            with self.assertRaises(ValidationError):
+                self.library.load_linked({**target, **bad})
+        first.write_bytes(self.payload + b'\n')
+        with self.assertRaises(ValidationError):
+            self.library.load_linked(target)
 
     def test_schema_upgrade_adds_preference_without_rewriting_existing_data(self):
         database = self.root / "old.sqlite3"

@@ -372,17 +372,17 @@ let passed=0;
   audit.state.currentView='estimate';audit.renderPricing();assert.equal(productRows().length,0);
   audit.state.currentView='pricing';audit.state.libraryKind='pricing';audit.renderPricing();
   assert.deepEqual(byId('rate-group').children.map(option=>[option.value,option.textContent]),[
-    ['','All estimator availability'],['main-estimator','Main Estimator'],['primers','Main Estimator — Primers'],['topcoats','Main Estimator — Topcoats'],['labour_rates','Main Estimator — Labour'],['sprays','Main Estimator — Sprays'],
-    ['firestopping','Firestopping Estimator'],['firestopping:collars','Firestopping Estimator — Collar Type'],['firestopping:wraps','Firestopping Estimator — Wrap Type'],['firestopping:materials','Firestopping Estimator — Materials'],['not-used','Not used in either estimator']]);
+    ['','All estimator availability'],['main-estimator','Main Estimator'],['primers','Main Estimator — primers'],['topcoats','Main Estimator — topcoats'],['labour_rates','Main Estimator — labour_rates'],['sprays','Main Estimator — sprays'],
+    ['firestopping','Firestopping Estimator'],['firestopping:collars','Firestopping Estimator — collars'],['firestopping:wraps','Firestopping Estimator — wraps'],['firestopping:materials','Firestopping Estimator — materials'],['not-used','Not used in either estimator']]);
   const originalPricing=JSON.stringify(pricingFixture);
   assert.deepEqual(productRows().map(row=>row.dataset.priceId),['coat','unused','manual','team','duplicate-name']);
   assert.equal(byId('pricing-body').children.length,5);assert.ok(!pricingNodes().some(node=>node.tagName==='details'));
   assert.equal(byId('pricing-head').children[0].children.length,9);
   assert.deepEqual(byId('pricing-head').children[0].children.map(cell=>cell.textContent),['Product/Service','Manufacturer','Supplier price','Markup %','Sell price','Main Estimator groups','Firestopping Estimator groups','Yield','Actions']);
   assert.equal(productInput('coat','Product/Service').value,'Coating <literal>');assert.equal(productInput('coat','Selection name'),undefined);
-  assert.equal(productInput('coat','Main Estimator groups').value,'Primers; Topcoats');
+  assert.equal(productInput('coat','Main Estimator groups').value,'primers; topcoats');
   const firestoppingRow=productRows().find(row=>row.dataset.priceId==='unused');
-  assert.equal(productInput('unused','Firestopping Estimator groups').value,'Collar Type');
+  assert.equal(productInput('unused','Firestopping Estimator groups').value,'collars');
   assert.equal(productInput('coat','Firestopping Estimator groups').value,'');
   assert.equal(productInput('team','Firestopping Estimator groups').disabled,true);
   assert.equal(productInput('coat','Yield').value,'Mixed');assert.equal(productInput('coat','Yield unit'),undefined);assert.equal(productInput('coat','Yield').title,'m² / unit');
@@ -480,7 +480,7 @@ let passed=0;
 
   // Filters find every use, standalone rate and unused inventory item without changing membership.
   byId('rate-group').value='primers';await byId('rate-group').emit('change');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['coat']);
-  assert.equal(productInput('coat','Main Estimator groups').value,'Primers; Topcoats');
+  assert.equal(productInput('coat','Main Estimator groups').value,'primers; topcoats');
   byId('rate-group').value='main-estimator';await byId('rate-group').emit('change');assert.ok(productRows().some(row=>row.dataset.priceId==='coat'));assert.ok(!productRows().some(row=>row.dataset.priceId==='unused'));
   byId('rate-group').value='firestopping';await byId('rate-group').emit('change');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['unused']);
   byId('rate-group').value='firestopping:collars';await byId('rate-group').emit('change');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['unused']);
@@ -494,7 +494,7 @@ let passed=0;
   byId('rate-group').value='not-used';await byId('rate-group').emit('change');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['unused','manual']);
   byId('rate-group').value='';await byId('rate-group').emit('change');
   await productRows().find(row=>row.dataset.priceId==='unused').children.at(-1).children[0].emit('click');
-  assert.equal(productInput('unused','Firestopping Estimator groups').value,'Collar Type');
+  assert.equal(productInput('unused','Firestopping Estimator groups').value,'collars');
   byId('rate-group').value='';byId('pricing-search').value='Topcoat choice';await byId('pricing-search').emit('input');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['coat']);
   byId('pricing-search').value='P-2';await byId('pricing-search').emit('input');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['unused']);
   byId('pricing-search').value='no match';await byId('pricing-search').emit('input');assert.equal(productRows().length,0);
@@ -565,7 +565,7 @@ let passed=0;
   byId('pricing-search').value='';audit.renderPricing();
   const unaffected=JSON.stringify(audit.state.draft.inventory.manual);
   await productRows().find(row=>row.dataset.priceId==='coat').children.at(-1).children[0].emit('click');
-  assert.equal(audit.state.catalog.inventory[0].item_code,'P-1');assert.equal(productInput('coat','Main Estimator groups').value,'Primers; Topcoats');
+  assert.equal(audit.state.catalog.inventory[0].item_code,'P-1');assert.equal(productInput('coat','Main Estimator groups').value,'primers; topcoats');
   assert.equal(productInput('coat','Yield').value,'Mixed');assert.equal(productInput('coat','Sell rate override'),undefined);
   assert.equal(productInput('coat','Yield').title,'m² / unit');assert.equal(audit.state.draft.rates.topcoat,undefined);
   assert.equal(audit.state.draft.inventory.coat,undefined);assert.equal(JSON.stringify(audit.state.draft.inventory.manual),unaffected);

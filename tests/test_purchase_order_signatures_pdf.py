@@ -124,11 +124,15 @@ class PurchaseOrderSignaturesPdfTests(unittest.TestCase):
 
     def test_delivery_time_and_project_site_are_retained_without_timezone_conversion(self):
         output = text(render(purchase_order_fields()))
+        header, purchase_details = output.split('PURCHASE ORDER DETAILS', 1)
+        self.assertIn('Supplier Supplier fixture Contact Supplier contact fixture', header)
+        self.assertNotIn('Synthetic customer fixture', output)
+        self.assertNotIn('Project contact fixture', output)
         self.assertIn('Site address Project site fixture', output)
         self.assertIn('Delivery address Delivery site fixture', output)
         self.assertIn('Delivery date and time 2026-11-14 14:35', output)
         self.assertNotIn('T14:35', output)
-        self.assertLess(output.index('Supplier Supplier fixture'), output.index('Payment terms Thirty days fixture'))
+        self.assertLess(purchase_details.index('Supplier Supplier fixture'), purchase_details.index('Payment terms Thirty days fixture'))
         self.assertLess(output.index('Payment terms Thirty days fixture'), output.index('Supplier contact Supplier contact fixture'))
         self.assertLess(output.index('Supplier contact Supplier contact fixture'), output.index('Supplier email supplier@example.test'))
 

@@ -87,7 +87,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     commercial_rate_defaults = CommercialRateDefaults(store)
     projects.commercial = commercial
     from .saved_commercial import SavedCommercial
-    saved_commercial = SavedCommercial(projects, directory=contacts_http.store.list)
+    saved_commercial = SavedCommercial(projects)
     from .work_order_billing import WorkOrderBilling
     billing_contacts = WorkOrderBilling(contacts_http.store,projects)
     from .swms import SwmsDocuments
@@ -776,9 +776,12 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         raise ValidationError('Link folder does not accept a folder path or other fields.')
                     self.send_payload(200, projects.link_folder())
                 elif route == '/api/projects/load' and self.command == 'POST':
-                    if set(body) != {'id'}:
+                    if set(body) == {'linked_project'}:
+                        self.send_payload(200, projects.load_linked(body['linked_project']))
+                    elif set(body) == {'id'}:
+                        self.send_payload(200, projects.load(body['id']))
+                    else:
                         raise ValidationError('Choose a project file from the linked folder.')
-                    self.send_payload(200, projects.load(body['id']))
                 elif route == '/api/projects/details' and self.command == 'POST':
                     self.send_payload(200, projects.read_details(body))
                 elif route == '/api/projects/details/save' and self.command == 'POST':

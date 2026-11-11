@@ -21,8 +21,16 @@ async function plus(control,name,{disabled=false}={}){
  await expect(control).toHaveAttribute('aria-label',name);await expect(control).toHaveAttribute('title',name);
  await expect(control.locator('.button-symbol[aria-hidden="true"]')).toHaveText('+');
  assert.equal(await control.getAttribute('data-i18n'),null,'Translation never replaces the visible plus');
- const box=await control.evaluate(button=>({width:button.getBoundingClientRect().width,height:button.getBoundingClientRect().height,background:getComputedStyle(button).backgroundColor,radius:getComputedStyle(button).borderRadius}));
- assert.equal(box.width,48);assert.equal(box.height,48);assert.equal(box.background,'rgb(208, 0, 27)');assert.equal(box.radius,'10px');
+ if(await control.getAttribute('data-document-kind')){
+   const styles=await control.evaluate(button=>{
+     const reference=document.getElementById('penetration-add');
+     const appearance=node=>[getComputedStyle(node).borderRadius,getComputedStyle(node.firstElementChild).fontSize,getComputedStyle(node.firstElementChild).lineHeight];
+     const box=button.getBoundingClientRect(),symbol=button.firstElementChild.getBoundingClientRect();
+     return {actual:appearance(button),expected:appearance(reference),dx:symbol.x+symbol.width/2-box.x-box.width/2,dy:symbol.y+symbol.height/2-box.y-box.height/2};
+   });
+   assert.deepEqual(styles.actual,styles.expected);assert.ok(Math.abs(styles.dx)<=1 && Math.abs(styles.dy)<=1,JSON.stringify(styles));
+ }else await expect(control).toHaveCSS('background-color','rgb(208, 0, 27)');
+ const box=await control.boundingBox();assert.equal(box.width,48);assert.equal(box.height,48);
  if(disabled)await expect(control).toBeDisabled();else await expect(control).toBeEnabled();
 }
 async function cancelDraft(host,back){await host.getByRole('button',{name:back,exact:true}).click();const confirm=page.locator('#discard-dialog');if(await confirm.isVisible())await confirm.locator('[value="confirm"]').click();}
@@ -76,7 +84,10 @@ function libraryFiles(){const directory=path.dirname(path.dirname(info.diagram))
  checks.push('The outlined refresh SVG matches the existing reset icon; clicking it reads newly linked Contacts without changing directory records or the saved Project.');
  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await openProjectSection(page,'documentation');
  const breakdown=page.locator('button[data-document-kind="estimate.summary.pdf"]');await plus(breakdown,'Download Breakdown');
- await expect(page.locator('button[data-document-kind="project.full_product_summary.pdf"] .documentation-download-icon')).toHaveText('⇩');
+ for(const button of await page.locator('.documentation-download-button').all()){
+   await expect(button.locator('.button-symbol')).toHaveText('+');
+   await expect(button).toHaveClass(/\bpenetration-new-item-action\b/);
+ }
  const snapshot=()=>page.evaluate(()=>({calculators:window.CeasefireCalculators.projectSnapshot(),penetration:window.CeasefirePenetrations.projectSnapshot(),configuration:window.CeasefireProject.configuration(),details:window.CeasefireProject.details()}));const before=await snapshot();
  const receipt=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/quote-report');await breakdown.click();const reply=await receipt;assert.equal(reply.status(),200,await reply.text());const result=await reply.json();assert.equal(result.saved,true);assert.equal(result.documentation.item.kind,'estimate.summary.pdf');
  const relative=path.relative(output,result.path);assert.ok(relative&&!relative.startsWith('..')&&!path.isAbsolute(relative));const bytes=fs.readFileSync(result.path);assert.equal(bytes.subarray(0,5).toString(),'%PDF-');assert.equal(sha(bytes),result.documentation.item.sha256);await idle();

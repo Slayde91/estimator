@@ -285,7 +285,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await expect(purchase.getByLabel('Linked Work Order',{exact:true}).locator('option:checked')).toContainText(assignedReference);
   await expect(purchase.getByLabel('Purchase Order No.',{exact:true})).toHaveAttribute('readonly','');
   await expect(purchase.getByLabel('Document title',{exact:true})).toHaveCount(0);
-  await purchase.getByLabel('Supplier',{exact:true}).fill('Example supplier');
+  await purchase.getByLabel('Supplier company',{exact:true}).fill('Example supplier');
   await purchase.getByRole('button',{name:'Add line item',exact:true}).click();
   const catalog=await page.evaluate(async()=> (await fetch('/api/commercial/supplier-products?workspace='+window.CeasefireCertification.sessionId()).then(r=>r.json())).products);
   const supplierProduct=catalog.find(item=>item.supplier_price>0 && catalog.filter(x=>x.label===item.label).length===1);

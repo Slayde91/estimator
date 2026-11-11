@@ -23,7 +23,7 @@ from openpyxl.utils import column_index_from_string, coordinate_to_tuple, get_co
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.views import Selection
 
-from .catalog import (FIRESTOPPING_GROUPS, ValidationError, effective_catalog,
+from .catalog import (FIRESTOPPING_GROUPS, ValidationError, canonical_firestopping_group, effective_catalog,
                       validate_catalog, validate_configuration, yield_unit,
                       product_service_name)
 from .penetration_calculator import firestopping_group_keys
@@ -923,7 +923,7 @@ def _product_service_rows(sheet, text_cells, headers=PRODUCT_SERVICE_HEADERS):
             raise ValidationError(f"{label}: Unknown Group; use an exact group key from Instructions.")
         firestopping_groups = None
         if "Firestopping groups" in row:
-            firestopping_groups = [value.strip() if isinstance(value, str) else value
+            firestopping_groups = [canonical_firestopping_group(value.strip()) if isinstance(value, str) else value
                                    for value in _unpack_uses(row["Firestopping groups"], f"{label} Firestopping groups")]
             if firestopping_groups in ([None], [""]):
                 firestopping_groups = []

@@ -19,9 +19,7 @@
 .documentation-table tbody tr[data-document-kind]>td:first-child{padding-inline-start:28px}
 .documentation-download{display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap}
 .documentation-action{text-align:center}
-.documentation-download .documentation-download-button{width:44px;min-width:44px;height:44px;padding:0;display:inline-flex;align-items:center;justify-content:center}
 .documentation-download-button[aria-busy=true]::after{content:none;display:none}
-.documentation-download-icon{font-size:27px;line-height:1}
 .documentation-revisions{list-style:none;margin:0;padding:0;display:grid;gap:10px}
 .documentation-revision{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .documentation-revision time,.documentation-revision small{color:var(--muted);font-size:12px}

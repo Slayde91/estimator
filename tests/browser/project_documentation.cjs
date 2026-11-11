@@ -88,6 +88,8 @@ function checkCompanions(project,folder){
   await expect(page.locator('#documentation-xlsx-rows tr')).toHaveCount(catalog.filter(row=>row.format==='xlsx').length);
   assert.ok(catalog.some(row=>row.id==='firestopping.current_item.pdf'));assert.ok(!catalog.some(row=>row.id==='library.firestopping.item.pdf'));
   await expect(page.locator('#documentation-pdf-rows a,#documentation-xlsx-rows a')).toHaveCount(0);checks.push('PDF rows omit the three removed downloads while XLSX rows and server export identities remain available');
+  const breakdown=page.locator('button[data-document-kind="estimate.summary.pdf"]');
+  await expect(breakdown).toHaveAccessibleName('Download Breakdown');await expect(breakdown).toHaveText('+');await expect(breakdown).toHaveClass(/\bpenetration-new-item-action\b/);
   await revisions('estimate.summary.pdf',0);await expect(page.locator('#documentation-revisions-list')).toContainText('No revisions generated in this project.');
   await page.locator('#documentation-revisions-heading').press('Escape');await expect(page.locator('#documentation-revisions-pane')).toBeHidden();
   await expect(page.locator('button[data-revisions-kind="estimate.summary.pdf"]')).toBeFocused();

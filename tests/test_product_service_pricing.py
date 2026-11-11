@@ -52,6 +52,22 @@ class ProductServicePricingTests(unittest.TestCase):
 
     test_simplified_import_matches_216_native_excel_scenarios = pricing_fixtures.LegacyPricingWorkbookTests.test_unchanged_import_preserves_every_calculator_cell_and_reports_no_changes
 
+    def test_older_mastics_assignment_imports_and_exports_as_mastic(self):
+        current = self.imported(edit(self.exported, [('204', {'Firestopping groups': 'mastics;materials'})]))['configuration']
+        product = next(item for item in current['catalog']['inventory'] if item['id'] == '204')
+        self.assertEqual(product['firestopping_groups'], ['mastic', 'materials'])
+        product['firestopping_groups'][0] = 'mastics'  # A previously saved project.
+        self.assertIn(product['sales_description'], inventory_lists(current)[1]['S'])
+        with BytesIO(export_pricing_workbook(current)) as output:
+            book = load_workbook(output, read_only=True)
+            try:
+                rows = book[COMBINED_SHEET].values
+                headers = next(rows)
+                row = next(row for row in rows if row[headers.index('Inventory ID')] == '204')
+                self.assertEqual(row[headers.index('Firestopping groups')], 'mastic;materials')
+            finally:
+                book.close()
+
     def test_export_has_ten_visible_columns_and_one_numeric_yield(self):
         book = load_workbook(BytesIO(self.exported))
         try:

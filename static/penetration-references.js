@@ -5,7 +5,7 @@
   const maximum = 128;
   const labels = { report: "Report", document: "Report", category: "Category", services: "Service Type", type: "Penetration Type", orientation: "Orientation", substrate: "Substrate", frl: "FRL", manufacturer: "Manufacturer" };
   const text = value => value == null ? "" : String(value);
-  const displayTitle = item => root.LibraryDetailText?.displayTitle(item) || item.title || item.id;
+  const displayTitle = item => root.LibraryDetailText.displayTitle(item);
   const displaySubtitle = item => root.LibraryDetailText?.displaySubtitle(item) ?? item.subtitle;
   let reportOptionsRequest;
   async function reportOptions() {
@@ -59,7 +59,7 @@
   function open(options) {
     const document = options.document || root.document;
     const known = new Map((options.reference?.systems || []).filter(item => validId(item?.id)).map(item => [item.id, { id: item.id, title: displayTitle(item) }]));
-    const selected = new Map((options.selectedIds || [...known.keys()]).map(id => [id, known.get(id) || { id, title: id }]));
+    const selected = new Map((options.selectedIds || [...known.keys()]).map(id => [id, known.get(id) || { id, title: displayTitle({ id }) }]));
     validateIds([...selected.keys()]);
     const dialog = node(document, "dialog", "penetration-reference-picker"); uiAttr(dialog, "aria-label", "Choose Technical Library references");
     const heading = ui(node(document, "h2"), "Choose reports and systems"), note = ui(node(document, "p", "helper"), "Filters start with this item's recorded details. Review each Technical Library item before choosing it.");

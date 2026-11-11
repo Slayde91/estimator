@@ -45,6 +45,7 @@ from .technical_variants import (REVIEW_KEY as VARIANT_REVIEW_KEY,
     ValidatedReview as ValidatedVariantReview, plan_stamp as variant_plan_stamp,
     load_review as load_variant_review, project as project_variants,
     present_reviewed_table_captions)
+from .technical_variant_presentation import build_variant_displays, variant_display
 
 KINDS = {'penetration': 'Firestopping Library', 'technical': 'Technical Library'}
 IDENTIFIER = re.compile(r'[a-z0-9][a-z0-9_-]{0,119}\Z')
@@ -288,6 +289,8 @@ class ReferenceLibrary:
                     raise ValueError('Related Technical records are computed runtime metadata')
                 if kind == 'technical' and 'variant_source' in item:
                     raise ValueError('Technical variant sources are computed runtime metadata')
+                if kind == 'technical' and ('source_code' in item or 'configuration' in item):
+                    raise ValueError('Technical variant display values are computed runtime metadata')
                 if kind == 'technical' and 'user_authored' in item:
                     raise ValueError('Manual Technical identity is computed runtime metadata')
                 if kind == 'technical' and 'technical_basis' in item:
@@ -524,6 +527,11 @@ class ReferenceLibrary:
         data['_technical_variant_table_scopes'] = (validated_source.get('_technical_variant_table_scopes', {})
                                                    if reuse_technical else variant_projection.table_scopes)
         data['_records'], data['_searches'], data['_filters'], data['_links'], data['_assets'] = records, searches, filters, links, assets
+        data['_technical_variant_display'] = (validated_source['_technical_variant_display'] if reuse_technical
+                                               else build_variant_displays(data))
+        if not reuse_technical:
+            for key in data['_technical_variant_display']:
+                searches['technical'][key] += '\n' + variant_display(data, key)['title'].casefold()
 
     @staticmethod
     def technical_source_record(key, data):
@@ -603,7 +611,8 @@ class ReferenceLibrary:
                     {'value': 'any', 'label': 'Any'}, {'value': 'linked', 'label': 'Linked'}, {'value': 'unlinked', 'label': 'No linked reference'}]})
             shown = items[offset:offset + limit]
             if kind == 'technical':
-                shown = [present_technical(item, source_ratings=data['_records'][kind][item['id']]
+                shown = [present_technical({**item, **variant_display(data, item['id'])},
+                                           source_ratings=data['_records'][kind][item['id']]
                                            .get('filter_values', {}).get('frl', [])) for item in shown]
             return {'items': shown, 'total': len(items), 'offset': offset, 'limit': limit,
                     'counts': counts, 'filters': filters,
@@ -626,6 +635,12 @@ class ReferenceLibrary:
                 raise ReferenceNotFound()
             item = deepcopy(data['_technical_public_records'][key] if kind == 'technical' else data['_records'][kind][key])
             if kind == 'technical':
+                display = variant_display(data, key)
+                item.update(display)
+                if display:
+                    for field in item.get('fields', []):
+                        if field['label'] == 'ID':
+                            field['value'] = display['source_code']
                 item = present_technical(item)
                 if key not in data.get('_manual_technical_sources', {}):
                     item = present_reviewed_table_captions(item, data.get('_technical_variant_table_scopes', {}).get(key, {}))
@@ -635,13 +650,14 @@ class ReferenceLibrary:
             if kind == 'technical' and key in data['_technical_related_records']:
                 item['related_technical_records'] = [
                     {'kind': 'technical', 'id': target,
-                     'title': present_frl_text(data['_technical_public_records'][target]['title'],
+                     'title': present_frl_text(variant_display(data, target).get('title', data['_technical_public_records'][target]['title']),
                          known_ratings=data['_records']['technical'][target].get('filter_values', {}).get('frl', []))}
                     for target in data['_technical_related_records'][key]]
             for link in item['links']:
                 if link['kind'] == 'technical':
                     ratings = data['_records']['technical'][link['id']].get('filter_values', {}).get('frl', [])
-                    link['title'] = present_frl_text(link['title'], known_ratings=ratings)
+                    title = variant_display(data, link['id']).get('title', link['title'])
+                    link['title'] = present_frl_text(title, known_ratings=ratings)
             return item
 
     def image_replicas(self):

@@ -169,12 +169,12 @@
     for (const key of pane.deleteButtons.keys()) if (key.startsWith("list:")) pane.deleteButtons.delete(key);
     for (const key of pane.quantityBadges.keys()) if (key.startsWith("list:")) pane.quantityBadges.delete(key);
     pane.results.replaceChildren(...(items.length ? items.map(item => {
-      const card = node("article", "library-result"), title = button(display(window.LibraryDetailText.displayTitle(item)), () => navigate(pane.kind, item.id), "library-record-link");
+      const card = node("article", "library-result"), title = button(window.LibraryDetailText.displayTitle(item, display), () => navigate(pane.kind, item.id), "library-record-link");
       title.dataset.libraryRecord = item.id;
       if (pane.kind === "penetration") { const heading = node("div", "library-record-heading"); heading.append(title, quantityBadge(pane, item.id, "list")); card.append(heading); }
-      else { title.classList.add("library-frl-value"); card.append(title); }
-      const subtitle = window.LibraryDetailText.displaySubtitle(item);
-      if (subtitle) card.append(node("p", "library-subtitle library-frl-value", display(subtitle)));
+      else { title.classList.add(summaryClass(item)); card.append(title); }
+      const subtitle = window.LibraryDetailText.displaySubtitle(item, display);
+      if (subtitle) card.append(node("p", `library-subtitle ${summaryClass(item)}`, subtitle));
       if (item.price) card.append(node("p", "library-record-price", `${priceLabel(item.price)}: ${priceText(item.price)}`));
       if (item.summary) card.append(node("p", "library-excerpt", display(item.summary)));
       if (Number.isSafeInteger(item.related_count)) card.append(uiNode("p", "helper", "{0} related {1}", [item.related_count, () => window.CeasefireI18n?.translate(pane.kind === "penetration" ? "technical references" : "firestopping records") || (pane.kind === "penetration" ? "technical references" : "firestopping records")]));
@@ -226,8 +226,9 @@
     const icon = node("span", "library-trash-icon");
     icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13M10 10.5v6M14 10.5v6"></path></svg>';
     icon.setAttribute("aria-hidden", "true"); remove.append(icon);
-    uiAttr(remove, "title", "Remove {0} from the {1}", [item.title || item.id, titles[pane.kind]]);
-    uiAttr(remove, "aria-label", "Remove {0} from the {1}", [item.title || item.id, titles[pane.kind]]); remove.dataset.libraryDelete = item.id;
+    const itemTitle = window.LibraryDetailText.displayTitle(item);
+    uiAttr(remove, "title", "Remove {0} from the {1}", [itemTitle, titles[pane.kind]]);
+    uiAttr(remove, "aria-label", "Remove {0} from the {1}", [itemTitle, titles[pane.kind]]); remove.dataset.libraryDelete = item.id;
     remove.disabled = pane.deletePending.has(item.id); pane.deleteButtons.set(`${place}:${item.id}`, remove);
     add.disabled = pane.addPending.has(item.id); pane.scheduleButtons.set(`${place}:${item.id}`, add); pane.actionMessages.set(`${place}:${item.id}`, status); actions.append(remove, link, add, status); return actions;
   }
@@ -236,7 +237,8 @@
     if (pane.deletePending.has(id)) return;
     const confirm = window.CeasefirePenetrationNavigation?.confirm;
     if (!confirm) { message(pane, "The deletion confirmation is unavailable. Reload the application and try again.", true); return; }
-    if (!await confirm(`Remove ${titles[pane.kind]} item?`, uiTerm("{0} will be removed from the {1}.", [item.title || id, titles[pane.kind]]), "Remove item")) return;
+    const itemTitle = window.LibraryDetailText.displayTitle(item);
+    if (!await confirm(`Remove ${titles[pane.kind]} item?`, uiTerm("{0} will be removed from the {1}.", [itemTitle, titles[pane.kind]]), "Remove item")) return;
     pane.deletePending.add(id);
     for (const control of pane.deleteButtons.values()) if (control.dataset.libraryDelete === id) control.disabled = true;
     try {
@@ -248,7 +250,7 @@
       if (stillViewingDeletedItem) {
         pane.selected = null; pane.detail = null; state.history = [];
         await open(pane.kind, { list: true });
-        message(pane, "{0} was removed from the {1}.", false, [item.title || id, titles[pane.kind]]);
+        message(pane, "{0} was removed from the {1}.", false, [itemTitle, titles[pane.kind]]);
       }
     } catch (error) {
       message(pane, "The library item was not removed. {0}", true, [() => window.CeasefireI18n?.translate(error.message) || error.message]);
@@ -333,7 +335,10 @@
       for (const source of record.fields || []) {
         if (facetFields.has(source.label)) continue;
         const control = field(source.label, source.value, true); fields.push({ label: source.label, control });
-        if (["ID", "Technical Library ID"].includes(source.label)) { control.readOnly = true; control.parentElement.hidden = true; }
+        if (["ID", "Technical Library ID"].includes(source.label)) {
+          control.readOnly = true;
+          control.parentElement.hidden = !(record.source_code && source.value === record.source_code);
+        }
         if (fieldTables(source).length) control.parentElement.append(uiNode("small", "helper", "The existing configuration tables and source references are retained."));
       }
       const facets = {}, currentFacets = record.filter_values || {};
@@ -475,7 +480,7 @@
     session.save = uiButton("Save links", () => saveLink(pane, session), "button link-action-button"); session.save.dataset.libraryLinkSave = ""; session.save.disabled = true;
     const pages = node("nav", "library-pagination"); uiAttr(pages, "aria-label", "Technical reference choices"); pages.append(session.previous, session.next);
     const actions = node("div", "library-item-actions"); actions.append(session.save, cancel);
-    pane.linkPanel.replaceChildren(heading, node("p", "library-subtitle", item.title || item.id), uiNode("p", "helper", "Choose one or more items from {0} to link.", [titles[session.targetKind]]), controls, session.filterControls, session.message, session.count, session.selectionCount, session.results, pages, actions);
+    pane.linkPanel.replaceChildren(heading, node("p", "library-subtitle", window.LibraryDetailText.displayTitle(item)), uiNode("p", "helper", "Choose one or more items from {0} to link.", [titles[session.targetKind]]), controls, session.filterControls, session.message, session.count, session.selectionCount, session.results, pages, actions);
     renderLinkFilters(pane, session, state.metadata?.libraries?.find(library => library.id === session.targetKind)?.filters); updateLinkSave(session);
     session.searchInput.addEventListener("input", () => {
       if (session.saving || pane.linkSession !== session) return;
@@ -504,9 +509,9 @@
       uiText(session.count, ...(session.total ? ["Showing {0}–{1} of {2} technical records", [session.offset + 1, session.offset + items.length, session.total]] : ["No matching technical records.", []]));
       session.results.replaceChildren(...items.map(item => {
         const choice = node("label", "library-link-choice"), input = node("input"), description = node("span"); input.type = "checkbox"; input.value = item.id; input.checked = session.selected.has(item.id); input.dataset.libraryLinkChoice = item.id;
-        description.append(node("strong", "library-frl-value", technicalSummary(window.LibraryDetailText.displayTitle(item))));
-        const subtitle = window.LibraryDetailText.displaySubtitle(item);
-        if (subtitle) description.append(node("span", "helper library-frl-value", technicalSummary(subtitle)));
+        description.append(node("strong", summaryClass(item), window.LibraryDetailText.displayTitle(item, technicalSummary)));
+        const subtitle = window.LibraryDetailText.displaySubtitle(item, technicalSummary);
+        if (subtitle) description.append(node("span", `helper ${summaryClass(item)}`, subtitle));
         input.addEventListener("change", () => { if (pane.linkSession !== session || revision !== session.revision || session.busy || session.saving) return; if (input.checked) session.selected.add(item.id); else session.selected.delete(item.id); updateLinkSave(session); }); session.choices.push(input); choice.append(input, description); return choice;
       }));
     } catch (error) { if (pane.linkSession === session && revision === session.revision && error.name !== "AbortError") { session.total = 0; uiText(session.count, "Technical records unavailable."); linkMessage(session, `${error.message} Use Search to retry.`, true); } }
@@ -544,7 +549,7 @@
     const confirm = window.CeasefirePenetrationNavigation?.confirm;
     if (!confirm) { message(pane, "The unlink confirmation is unavailable. Reload the application and try again.", true); return; }
     const label = pane.kind === "penetration" ? "technical reference" : "firestopping record";
-    if (!await confirm(uiTerm("Unlink {0}?", [() => window.CeasefireI18n?.translate(label) || label]), uiTerm("{0} will be unlinked from this library record.", [link.title || link.id]), "Unlink")) return;
+    if (!await confirm(uiTerm("Unlink {0}?", [() => window.CeasefireI18n?.translate(label) || label]), uiTerm("{0} will be unlinked from this library record.", [window.LibraryDetailText.displayTitle(link)]), "Unlink")) return;
     pane.unlinkPending.add(key);
     for (const control of pane.unlinkButtons.values()) if (control.dataset.libraryUnlink === key) control.disabled = true;
     try {
@@ -613,6 +618,7 @@
   const compactTechnical = value => window.LibraryDetailText.compact(valueText(value));
   const technicalFieldText = (label, value) => window.LibraryDetailText.fieldText(label, valueText(value));
   const technicalSummary = value => technicalFieldText("", value);
+  const summaryClass = record => record.configuration && Object.hasOwn(record, "source_code") ? "library-variant-summary" : "library-frl-value";
   // Explicit official homepages: source text never becomes a navigable URL.
   function manufacturerHomepage(record) {
     const names = (record?.fields || []).filter(field => String(field.label).trim().toLowerCase() === "manufacturer").map(field => String(field.value).trim().toLowerCase());
@@ -894,8 +900,8 @@
       const end = Math.min(records.length, shown + (shown ? 50 : 2));
       for (const link of records.slice(shown, end)) {
         const row = node("div", "library-related-record"), details = node("div", "library-related-content");
-        const title = window.LibraryDetailText.displayTitle(link) || "Reference unavailable";
-        const action = button(display(title), () => navigate("technical", link.id), "library-record-link");
+        const title = window.LibraryDetailText.displayTitle(link, display) || "Reference unavailable";
+        const action = button(title, () => navigate("technical", link.id), "library-record-link");
         action.dataset.libraryTechnicalTarget = link.id;
         first ||= action;
         details.append(action); row.append(details); list.append(row);
@@ -912,8 +918,8 @@
     pane.documentCleanup?.();
     const display = ["technical", "penetration"].includes(pane.kind) ? compactTechnical : valueText;
     const summary = pane.kind === "technical" ? technicalSummary : display;
-    const data = pane.detail, heading = node("h3", "", summary(window.LibraryDetailText.displayTitle(data)));
-    if (pane.kind === "technical") heading.classList.add("library-frl-value");
+    const data = pane.detail, heading = node("h3", "", window.LibraryDetailText.displayTitle(data, summary));
+    if (pane.kind === "technical") heading.classList.add(summaryClass(data));
     // Legacy Firefly report imports predate the Manufacturer field.
     const firefly = /^fas19023[456]-/i.test(String(data.id)) || (data.fields || []).some(field => String(field.label).trim().toLowerCase() === "manufacturer" && /\bfirefly\b/i.test(String(field.value)));
     heading.id = `${pane.kind}-library-detail-heading`; heading.tabIndex = -1; pane.detailPanel.setAttribute("aria-labelledby", heading.id);
@@ -921,8 +927,8 @@
     const title = node("div", `library-record-heading${pane.kind === "technical" ? " library-technical-heading" : ""}`);
     title.append(heading, pane.kind === "penetration" ? quantityBadge(pane, data.id, "detail") : technicalDocumentMenu(pane, data));
     const content = [detailNavigation(pane), title];
-    const subtitle = window.LibraryDetailText.displaySubtitle(data);
-    if (subtitle) content.push(node("p", "library-subtitle library-frl-value", summary(subtitle)));
+    const subtitle = window.LibraryDetailText.displaySubtitle(data, summary);
+    if (subtitle) content.push(node("p", `library-subtitle ${summaryClass(data)}`, subtitle));
     for (const key of pane.scheduleButtons.keys()) if (key.startsWith("detail:")) { pane.scheduleButtons.delete(key); pane.actionMessages.delete(key); }
     for (const key of pane.deleteButtons.keys()) if (key.startsWith("detail:")) pane.deleteButtons.delete(key);
     pane.unlinkButtons.clear();
@@ -1002,7 +1008,8 @@
         if (installation) pair.dataset.libraryInstallation = "";
       } else if (!imageOnly && (!images.length && !tables.length && !links.length || field.value !== null && field.value !== undefined && field.value !== "")) {
         const content = pane.kind === "technical" && field.label === "FRL" ? frlDisplayValue(field, visibleFields) : field.value;
-        value.textContent = pane.kind === "technical" ? technicalFieldText(field.label, content) : display(content);
+        if (field.label === "ID" && data.source_code === content) value.textContent = content;
+        else value.textContent = pane.kind === "technical" ? technicalFieldText(field.label, content) : display(content);
       }
       if (pane.kind === "technical" && field.label === "Diagrams & Figures" && data.diagram_status) {
         value.append(node("p", "helper library-diagram-status", display(data.diagram_status))); diagramStatusShown = true;
@@ -1032,9 +1039,9 @@
       const end = Math.min(links.length, shownRelated + (shownRelated ? 50 : 2));
       for (const link of links.slice(shownRelated, end)) {
         const box = node("div", "library-related-record"), details = node("div", "library-related-content");
-        const relatedTitle = window.LibraryDetailText.displayTitle(link) || "Reference unavailable";
-        if (kinds.includes(link.kind) && validId(link.id)) { const action = button(display(relatedTitle), () => navigate(link.kind, link.id), "library-record-link"); action.dataset.libraryRelated = link.id; first ||= action; details.append(action); }
-        else details.append(node("p", "", display(relatedTitle)));
+        const relatedTitle = window.LibraryDetailText.displayTitle(link, display) || "Reference unavailable";
+        if (kinds.includes(link.kind) && validId(link.id)) { const action = button(relatedTitle, () => navigate(link.kind, link.id), "library-record-link"); action.dataset.libraryRelated = link.id; first ||= action; details.append(action); }
+        else details.append(node("p", "", relatedTitle));
         if (link.notice) details.append(node("p", "library-related-notice", display(link.notice)));
         const penetrationId = pane.kind === "penetration" ? data.id : link.id, technicalId = pane.kind === "technical" ? data.id : link.id, key = `${penetrationId}:${technicalId}`;
         const label = pane.kind === "penetration" ? `Unlink technical reference ${relatedTitle}` : `Unlink firestopping record ${relatedTitle}`;

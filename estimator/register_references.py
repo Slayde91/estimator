@@ -14,6 +14,7 @@ import re
 from .catalog import ValidationError
 from .firestopping_taxonomy import category_service, canonical_opening_type
 from .library_report_links import valid_report_url
+from .technical_variant_presentation import variant_display
 
 _DASHES = str.maketrans({value: '-' for value in '‐‑‒–—−'})
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
@@ -175,6 +176,9 @@ class ReferenceIndex:
                             self.facets['frl_minutes', parts[1]].add(identifier)
                     self.facets[name, token(value)].add(identifier)
 
+    def system_title(self, key):
+        return variant_display(self.data, key).get('title', self.records[key]['title'])
+
     def select(self, contexts):
         cache_key = _context_digest(contexts)
         if cache_key in self.matches:
@@ -272,10 +276,15 @@ class ReferenceIndex:
             result['reports'].append(deepcopy(value))
         for key in identifiers[offset:offset + limit]:
             manufacturer = self.manufacturer(key)
-            value = {'id': key, 'title': self.records[key]['title'], 'manufacturer': manufacturer, 'number': ranks[key]}
+            display = variant_display(self.data, key)
+            value = {'id': key, 'title': display.get('title', self.records[key]['title']),
+                     'manufacturer': manufacturer, 'number': ranks[key]}
+            if display:
+                value['source_code'] = display['source_code']
+                value['configuration'] = display['configuration']
             size += len(_encoded(value)) + (2 if result['systems'] else 0); _bounded(size, MAX_RESPONSE_BYTES)
             if excel:
-                caption = f"{ranks[key]} ({key})"
+                caption = _system_caption(value)
                 addition = (', ' + caption) if previous_manufacturer == manufacturer else ((' | ' if result['systems'] else '') + manufacturer + '-' + caption)
                 system_characters += _excel_length(addition); _excel_bound(system_characters)
             previous_manufacturer = manufacturer
@@ -319,10 +328,16 @@ def report_text(references):
                      for value in references)
 
 
+def _system_caption(item):
+    caption = (f"{item['source_code']} — {item['configuration']}" if item.get('source_code') and item.get('configuration')
+               else item.get('source_code') or item['id'])
+    return f"{item['number']} ({caption})"
+
+
 def system_text(reference):
     groups = OrderedDict()
     for item in reference.get('systems', []):
-        groups.setdefault(item['manufacturer'], []).append(f"{item['number']} ({item['id']})")
+        groups.setdefault(item['manufacturer'], []).append(_system_caption(item))
     return ' | '.join(f"{manufacturer}-{', '.join(items)}" for manufacturer, items in groups.items())
 
 

@@ -144,6 +144,8 @@
 .library-field-table .library-frl-value{white-space:nowrap;overflow-wrap:normal}
 .library-record-field dd.library-frl-value,.library-subtitle.library-frl-value,.library-record-link.library-frl-value,.library-technical-heading h3.library-frl-value,.library-link-choice .library-frl-value{white-space:nowrap;overflow-wrap:normal;max-width:100%;overflow-x:auto;min-width:0}
 .library-record-link.library-frl-value{display:block}
+.library-variant-summary{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.library-record-link.library-variant-summary{display:block}
 .library-field-table th{background:var(--theme-soft,var(--paper));color:var(--ink);font-weight:650}
 .library-field-table td{background:var(--paper);color:var(--ink)}
 .library-field-table caption{padding:10px 12px;text-align:left;font-weight:650;white-space:normal;overflow-wrap:anywhere}

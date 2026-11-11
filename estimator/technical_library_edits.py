@@ -13,6 +13,7 @@ from .catalog import ValidationError
 from .firestopping_library import FirestoppingLibrary, LibraryConflict, encoded, timestamp, empty_library
 from .firefly_reference_review import fingerprint
 from .reference_library import ReferenceNotFound, identifier
+from .technical_variant_presentation import variant_display
 from .library_report_links import valid_manual_report_url
 from .library_facets import (MOVED_SERVICE_CATEGORIES, canonical_services,
                              SERVICE_DISCOVERY_GENERALIZATIONS)
@@ -155,7 +156,11 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
             data['_technical_public_records'][key] = record
             data['_records']['technical'][key] = record
             data['_technical_discovery'][key] = deepcopy(record['filter_values'])
-            data['_searches']['technical'][key] = '\n'.join([*data['_groups'].get(key, [key]), record['title'], *(f.get('value', '') for f in record.get('fields', []))]).casefold()
+            display = variant_display(data, key)
+            data['_searches']['technical'][key] = '\n'.join([
+                *data['_groups'].get(key, [key]), record['title'],
+                display.get('source_code', ''), display.get('configuration', ''),
+                *(f.get('value', '') for f in record.get('fields', []))]).casefold()
             # Preserve the source-reviewed group when its canonical record
             # is edited. Only a newly authored record starts its own group.
             if edit['created']:
@@ -269,7 +274,7 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                 result['user_authored'] = key in self._load().get('_manual_technical_sources', {})
             return result
 
-    def technical_edit(self, key=None):
+    def technical_edit(self, key=None, *, for_display=True):
         with self._lock:
             data = self._load()
             saved, _ = self.technical_edits.read()
@@ -286,6 +291,11 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                 record = deepcopy(data['_technical_public_records'][key])
                 record['filter_values'] = deepcopy(data['_technical_discovery'][key])
                 revision = saved.get(key, {}).get('revision', 0)
+                if for_display and (display := variant_display(data, key)):
+                    record.update(display)
+                    for field in record.get('fields', []):
+                        if field['label'] == 'ID' and field.get('value') == key:
+                            field['value'] = display['source_code']
             return {'record': record, 'revision': revision, 'source_sha256': source,
                     'filters': deepcopy(data['_canonical_library_filters'])}
 
@@ -297,10 +307,15 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                 raise ValidationError('Start a new Technical Library form before saving.')
             if key is not None and body['request_key'] is not None:
                 raise ValidationError('Existing item saves must retain their item identity.')
-            context = self.technical_edit(key)
+            context = self.technical_edit(key, for_display=False)
             if isinstance(body['revision'], bool) or body['revision'] != context['revision'] or body['source_sha256'] != context['source_sha256']:
                 raise LibraryConflict('This Technical Library item changed. Reopen it before saving.')
-            title = text(body['title'], 1000, blank=False).strip()
+            original = context['record']
+            display = variant_display(self._load(), original['id']) if key is not None else {}
+            # An unchanged generated caption follows the selected configuration on
+            # subsequent edits. Only a title explicitly changed in the form is stored.
+            title = (original['title'] if display and body['title'] == display['title']
+                     else text(body['title'], 1000, blank=False).strip())
             fields = body['fields']
             if not isinstance(fields, list) or len(fields) > 80:
                 raise ValidationError('Include at most 80 Technical Library fields.')
@@ -314,7 +329,10 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                     raise ValidationError('Use each Technical Library field label once.')
                 labels.add(label)
                 previous = deepcopy(old_fields.get(label, {'label': label}))
-                previous['value'] = text(field['value'], 40000)
+                value = text(field['value'], 40000)
+                if not (display and label == 'ID' and previous.get('value') == original['id']
+                        and value == display['source_code']):
+                    previous['value'] = value
                 normalized.append(previous)
             facets = body['facets']
             if not isinstance(facets, dict) or set(facets) != {key for key, _ in FACETS}:

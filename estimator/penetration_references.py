@@ -130,7 +130,7 @@ def _project(row, index, data, snapshot, report_cache):
             initial[facet] = row['report_reference']
         else:
             missing_report = row['report_reference']
-    return {'reports': reports, 'systems': [{'id': key, 'title': index.records[key]['title'], 'number': number}
+    return {'reports': reports, 'systems': [{'id': key, 'title': index.system_title(key), 'number': number}
                                            for number, key in enumerate(ids, 1)],
             'basis': basis, 'initial_filters': initial, 'missing_ids': missing,
             'missing_report': missing_report}

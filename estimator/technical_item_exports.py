@@ -73,7 +73,11 @@ def prepare_technical_item(body, *, library):
         if cells > MAX_CELLS or text_bytes > MAX_TEXT_BYTES:
             raise ValidationError('This technical item exceeds the bounded item download size.')
 
-    account([record.get(name, '') for name in ('id', 'title', 'subtitle', 'notice', 'diagram_status')])
+    metadata = {name: _text(record.get(name)) for name in ('id', 'title', 'subtitle', 'notice', 'diagram_status')}
+    for name in ('source_code', 'configuration'):
+        if name in record:
+            metadata[name] = _text(record[name])
+    account(list(metadata.values()))
     for field in record.get('fields', []):
         label = field['label']
         if _hidden_field(record, field):
@@ -133,7 +137,7 @@ def prepare_technical_item(body, *, library):
     related = [[_text(link.get(name)) for name in ('title', 'id', 'relationship', 'notice')] for link in record.get('links', [])]
     for row in related:
         account(row)
-    return {'record': {name: _text(record.get(name)) for name in ('id', 'title', 'subtitle', 'notice', 'diagram_status')},
+    return {'record': metadata,
             'fields': fields, 'tables': tables, 'images': images, 'sources': sources, 'related': related}
 
 
@@ -146,6 +150,8 @@ def _field_rows(snapshot):
             for label in field['value'].splitlines():
                 if label.strip():
                     yield compact_technical_text(field['label']), compact_technical_text(label.strip()), links.get(label.strip())
+        elif field['label'] == 'ID' and field['value'] == snapshot['record'].get('source_code'):
+            yield field['label'], field['value'], None
         else:
             yield compact_technical_text(field['label']), technical_field_text(field['label'], field['value']), None
 
@@ -181,7 +187,7 @@ def _xlsx_table(sheet, row, columns, records, widths):
 
 def build_technical_item_xlsx(snapshot):
     record = snapshot['record']
-    intro = []
+    intro = [['Selected configuration', record['configuration']]] if record.get('configuration') else []
     rows = list(_field_rows(snapshot))
     # Preflight the actual emitted cell text before constructing any workbook.
     # Report-number fields may split into several cells; the PDF snapshot keeps
@@ -242,7 +248,14 @@ def render_technical_item_pdf(snapshot, *, company=None):
     width, height = A4
     margin, content = 32, width - 64
     record = snapshot['record']
-    report.story.append(report.p(compact_technical_text(display_technical_title(record) or 'Technical Library item'), 'subheading'))
+    title = display_technical_title(record)
+    if record.get('configuration'):
+        title = title or record.get('source_code')
+    else:
+        title = compact_technical_text(title)
+    report.story.append(report.p(title or 'Technical Library item', 'subheading'))
+    if record.get('configuration') and record['configuration'] not in (title or ''):
+        report.story.append(report.p(record['configuration']))
     rows = []
     for label, value, url in _field_rows(snapshot):
         cell = report.rich(f'<link href="{escape(url, quote=True)}" color="#BD0018"><u>{_escaped(value)}</u></link>') if url else report.p(value, 'cell')

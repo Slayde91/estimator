@@ -170,6 +170,33 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.doesNotMatch(text(pane.linkSession.results),/selector variants?|Australian Selector|Trafalgar selector|Firefly report|BOSS source/);
     assert.deepEqual({items,sources,fire},before);
   });
+  await check('Selected configuration and source code stay visible while variant actions keep their original target', async h => {
+    const id = 'tv-' + '1'.repeat(40), source_code = 'sys_var_1165_au';
+    const configuration = 'Pipe with minimum 25 mm wrap (see Table 7)';
+    const title = 'Promat: ' + source_code + ' — ' + configuration;
+    const fields = [{label:'ID', value:source_code}, {label:'Manufacturer', value:'Promat'}];
+    const item = {...detail('technical', id), id, title, source_code, configuration, fields, images:[]};
+    h.setRoute(path => {
+      if (path === '/api/libraries') return meta();
+      if (path.endsWith('/edit')) return {revision:0, filters:[], record:{...item, filter_values:{}}};
+      return path.includes('?') ? {...records('technical'), items:[item]} : item;
+    });
+    await h.api.open('technical');
+    const pane = h.pane('technical'), row = walk(pane.results).find(node => node.dataset.libraryRecord === id);
+    assert.equal(row.textContent, title);
+    await row.emit('click'); await flush();
+    assert.equal(pane.selected, id);
+    const nodes = walk(pane.detailPanel);
+    assert.equal(nodes.find(node => node.tagName === 'h3').textContent, title);
+    assert.ok(nodes.some(node => node.tagName === 'dd' && node.textContent === source_code));
+    assert.doesNotMatch(text(pane.detailPanel), /tv-/);
+    assert.ok(nodes.every(node => !String(node.getAttribute('aria-label') || '').includes(id)));
+    await nodes.find(node => node.dataset.libraryEdit === id).emit('click');
+    const code = walk(pane.technicalEditorPanel).find(node => node.tagName === 'textarea' && node.value === source_code);
+    assert.equal(code.readOnly, true);
+    assert.equal(code.parentElement.hidden, false);
+    assert.ok(h.calls.some(call => call.path.endsWith(id + '/edit')));
+  });
   await check('Promat and Trafalgar real technical IDs remain visible and source-information fields stay hidden in both libraries',async h=>{
     for(const kind of ['technical','penetration'])for(const id of ['promat-v11a','trafalgar-selector-h28a']){
       const source={...detail(kind,id),title:'Promat: V11A — Pipe',fields:[{label:'ID',value:'V11A'},{label:'Source information',value:'Internal source note'}]},before=copy(source);

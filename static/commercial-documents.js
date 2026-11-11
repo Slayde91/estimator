@@ -742,10 +742,12 @@
           control.className = "text-button";
           actions.append(control);
         }
-        const statusSelect = select(state.model.statuses[state.kind], document.status, value => void move(document, value), false);
+        const step = signingStep(document);
+        const destinations = signingSteps[document.kind] ? [document.status, ...(step?.next || [])] : state.model.statuses[state.kind];
+        const statusSelect = select(destinations, document.status, value => void move(document, value), false);
         bindStatusOptions(statusSelect);
         statusSelect.addEventListener("change", () => {
-          state.dirty = false;
+          statusSelect.value = document.status;
           menu.open = false;
         });
         actions.append(field("Move to", statusSelect));
@@ -769,7 +771,7 @@
     }
     if (!board.children.length) board.append(node("p", "empty-state", "Choose a column from Columns to show documents."));
   }
-  async function openCard(card, createWorkOrder = false) {
+  async function openCard(card, createWorkOrder = false, signingTarget = null) {
     if (state.busy || state.cardIntent) return;
     const source = sourceFor(card);
     const revision = state.revision;
@@ -801,6 +803,12 @@
           contact_name:document.fields.details.contact,contact_phone:document.fields.details.phone,contact_email:document.fields.details.email
         };
         source.createdProject = opened.created_project === true;
+      }
+      if (signingTarget) {
+        if (card.status !== document.status || card.version !== document.version)
+          throw new Error("This commercial document changed. Reopen it before saving.");
+        await signBoardMove(document, source, signingTarget, current);
+        return;
       }
       if (!createWorkOrder) { openEditor(document, source); return; }
       if (!requireProject(source)) return;
@@ -844,7 +852,15 @@
     }
   }
   async function move(document, status) {
-    if (state.busy) return;
+    if (state.busy || state.cardIntent || document.status === status) return;
+    if (signingSteps[document.kind]) {
+      if (!signingStep(document)?.next.includes(status)) {
+        message("Choose a valid next status for this order.", true);
+        return;
+      }
+      await openCard(document, false, status);
+      return;
+    }
     state.busy = true;
     try {
       await documentRequest("status", {
@@ -1059,6 +1075,10 @@
     } catch (error) { if (current()) message(error.message, true); }
     finally { if (state.editor === editor) { state.busy = false; setDisabled(false); } }
   }
+  function isLegacyWorkOrder(document) {
+    return document.kind === "work_order" && document.version > 0 &&
+      !["details_by","details_date"].some(key => Object.hasOwn(document.fields.order,key));
+  }
   function openEditor(document, source = null, linkedQuote = null) {
     if (state.dirty) return;
     clearPricingPickers();
@@ -1072,7 +1092,7 @@
       generatedScope: null,
       scopeTables: copy(document.fields.scope_tables || []),
       scopeRevision: 0,
-      legacyDetailsSignoff: document.kind==='work_order' && document.version>0 && !['details_by','details_date'].some(key=>Object.hasOwn(document.fields.order,key)),
+      legacyDetailsSignoff: isLegacyWorkOrder(document),
       derivedEstimates: new Map()
     };
     state.dirty = false;
@@ -1183,12 +1203,28 @@
     if (state.kind === "quote" && document.version > 0) void refreshScopePreview();
   }
   const signatureDates = {details_by:"details_date",requested_by:"requested_date",reviewed_by:"review_date",prepared_by:"prepared_date",client_approved_by:"client_approval_date",progress_by:"progress_date",closed_by:"closed_date",claimed_by:"claim_date",sent_by:"sent_date",verified_by:"verified_date"};
-  const signingOrder = {
-    work_order:['details_by','reviewed_by','prepared_by','client_approved_by','progress_by','claimed_by','closed_by'],
-    purchase_order:['requested_by','reviewed_by','sent_by','verified_by']
+  const signingSteps = {
+    work_order: [
+      {from:"Draft", key:"details_by", label:"Work order details reviewed by", next:["Review"]},
+      {from:"Review", key:"reviewed_by", label:"Reviewed by", next:["OHS Docs","Cancelled"]},
+      {from:"OHS Docs", key:"prepared_by", label:"Prepared by", next:["Client Approval"]},
+      {from:"Client Approval", key:"client_approved_by", label:"Approved by", next:["In progress"]},
+      {from:"In progress", key:"progress_by", label:"Progress signed by", next:["Claim"]},
+      {from:"Claim", key:"claimed_by", label:"Claim signed by", next:["Certify"]},
+      {from:"Certify", key:"closed_by", label:"Closed by", next:["Completed","On Hold","In progress"]}
+    ],
+    purchase_order: [
+      {from:"Draft", key:"requested_by", label:"Requested by", next:["Requested"]},
+      {from:"Requested", key:"reviewed_by", label:"Approved by", next:["Reviewed","Cancelled"]},
+      {from:"Reviewed", key:"sent_by", label:"Sent by", next:["Sent"]},
+      {from:"Sent", key:"verified_by", label:"Verified by", next:["Completed"]}
+    ]
   };
+  function signingStep(document) {
+    return signingSteps[document.kind]?.find(step => step.from === document.status);
+  }
   function validateSigningStep(editor, key, clearing = false) {
-    const {kind,fields}=editor.document, steps=signingOrder[kind], index=steps.indexOf(key);
+    const {kind,fields}=editor.document, steps=signingSteps[kind].map(step=>step.key), index=steps.indexOf(key);
     const signed=step=>Boolean(fields.signatures?.[step]);
     if (signed(key) && steps.slice(index+1).some(signed))
       throw new Error('Clear the later signatures before changing this signature.');
@@ -1223,6 +1259,119 @@
     const parts = new Intl.DateTimeFormat('en-CA',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
     return ['year','month','day'].map(type=>parts.find(part=>part.type===type).value).join('-');
   }
+  async function signingDefaults(order, key) {
+    const profile = await signatureProfile();
+    const personalName = (await signerName()).trim();
+    return {
+      profile,
+      name: order[key]?.trim() || personalName,
+      date: order[signatureDates[key]] || (personalName && signedDate(profile.timezone))
+    };
+  }
+  async function chooseSigningAction(fields, key, {profile, name, date}, current) {
+    if (!name || !date) throw new Error("Enter the signer name and date before signing.");
+    const signature = await window.ClassifirePersonalSignature.choose(fields.signatures?.[key] || null);
+    if (!signature || !current()) return null;
+    const after = await signatureProfile();
+    if (!current()) return null;
+    if ((profile.user?.id || null) !== (after.user?.id || null))
+      throw new Error("Your signature profile changed. Reopen the signature pad.");
+    return {key, signature, name, date, ...(key === "closed_by" ? {
+      completion:fields.order.completion, certification:fields.order.certification
+    } : {})};
+  }
+  async function boardSigningDialog(orderDocument, step, target, defaults, intent) {
+    const order = orderDocument.fields.order;
+    const dialog = node("dialog", "modal commercial-board-signing");
+    const heading = statusLabel("h2", "Sign and move");
+    heading.id = "commercial-board-signing-title";
+    dialog.setAttribute("aria-labelledby", heading.id);
+    const form = node("form");
+    const stages = node("p");
+    stages.append(statusLabel("span", orderDocument.status), " → ", statusLabel("span", target));
+    form.append(heading, node("strong","",documentTitle(orderDocument)), stages, statusLabel("h3",step.label));
+    const name = node("input"), date = node("input");
+    name.required = date.required = true;
+    name.value = defaults.name;
+    name.maxLength = 6000;
+    date.type = "date";
+    date.value = defaults.date;
+    form.append(field("Name",name), field("Date",date));
+
+    const decisionFields = {};
+    function decision(key, label, options, required = true) {
+      const value = options.includes(order[key]) ? order[key] : options[0];
+      const control = select(options, value, () => {}, false);
+      control.required = required;
+      bindStatusOptions(control);
+      decisionFields[key] = control;
+      form.append(field(label, control));
+    }
+    if (step.key === "reviewed_by") {
+      const rejected = orderDocument.kind === "purchase_order" ? "Rejected" : "Denied";
+      decision("approval", "Approval", [target === "Cancelled" ? rejected : "Approved"]);
+      if (target === "Cancelled") {
+        const purchase = orderDocument.kind === "purchase_order";
+        const key = purchase ? "rejection_reason" : "justification";
+        const reason = node("textarea");
+        reason.rows = 2;
+        reason.value = order[key] || "";
+        if (purchase) reason.maxLength = 1000;
+        decisionFields[key] = reason;
+        form.append(field(purchase ? "Rejection reason" : "Justification", reason));
+      }
+    }
+    if (step.key === "closed_by") {
+      const outcomes = {"Completed":["Completed"], "On Hold":["On hold"], "In progress":["Ongoing","Not completed"]};
+      decision("completion", "Completion", outcomes[target]);
+      decision("certification", "Certification details", ["","Certification issued","Certification not issued"], target === "Completed");
+    }
+    let result = null;
+    const cancel = button("Cancel", () => dialog.close());
+    const submit = node("button","button primary","Sign and move");
+    submit.type = "submit";
+    window.CeasefireI18n?.text(submit, "Sign and move");
+    const actions = node("div","actions");
+    actions.append(cancel, submit);
+    form.append(actions);
+    form.addEventListener("submit", event => {
+      event.preventDefault();
+      if (!name.value.trim()) { name.value = ""; name.reportValidity(); return; }
+      const updates = Object.fromEntries(Object.entries(decisionFields).map(([key, control]) => [key,control.value]));
+      result = {name:name.value.trim(), date:date.value, updates};
+      dialog.close();
+    });
+    dialog.append(form);
+    document.body.append(dialog);
+    intent.dismiss = () => dialog.close();
+    try {
+      dialog.showModal();
+      await new Promise(resolve => dialog.addEventListener("close", resolve, {once:true}));
+      return result;
+    } finally {
+      delete intent.dismiss;
+      dialog.remove();
+    }
+  }
+  async function signBoardMove(document, source, target, current) {
+    const step = signingStep(document), fields = document.fields;
+    const defaults = await signingDefaults(fields.order, step.key);
+    if (!current()) return;
+    const values = await boardSigningDialog(document, step, target, defaults, state.cardIntent);
+    if (!values || !current()) return;
+    const order = {...fields.order, ...values.updates, [step.key]:values.name, [signatureDates[step.key]]:values.date};
+    const proposed = {...document, fields:{...fields, order}};
+    const editor = {document:proposed, legacyDetailsSignoff:isLegacyWorkOrder(document)};
+    validateSigningStep(editor, step.key);
+    const action = await chooseSigningAction(proposed.fields, step.key, {...defaults,name:values.name,date:values.date}, current);
+    if (!action || !current()) return;
+    openEditor(proposed, source);
+    const selected = state.editor;
+    // Keep the entered details editable if a readiness check requires a correction.
+    state.dirty = true;
+    // Route through the same version-checked document and owner-file save as the signing button.
+    if (await saveEditor(action) && state.editor === selected) await leaveEditor();
+  }
   function signatureField(fields, key, label) {
     const wrap = node("div","field commercial-signature"), buttonRow = node("div","commercial-signature-actions"), preview=node("div","commercial-signature-preview");
     wrap.dataset.signatureField=key;
@@ -1245,19 +1394,10 @@
       try {validateSigningStep(selected,key);}catch(error){message(error.message,true);return;}
       state.busy=true;setDisabled(true);
       try {
-        const before=await signatureProfile();
-        const profileName=(await signerName()).trim();
+        const defaults=await signingDefaults(fields.order,key);
         if(state.editor !== selected)return;
-        const name=fields.order[key]?.trim() || profileName;
-        const date=fields.order[signatureDates[key]] || (profileName && signedDate(before.timezone));
-        if(!name || !date)throw new Error('Enter the signer name and date before signing.');
-        const result = await window.ClassifirePersonalSignature.choose(fields.signatures?.[key] || null);
-        if (state.editor !== selected || !result) return;
-        const after=await signatureProfile();
-        if(state.editor !== selected)return;
-        if((before.user?.id||null)!==(after.user?.id||null))throw new Error('Your signature profile changed. Reopen the signature pad.');
-        await saveEditor({key,signature:result,name,date,
-          ...(key==='closed_by'?{completion:fields.order.completion,certification:fields.order.certification}:{})});
+        const action=await chooseSigningAction(fields,key,defaults,()=>state.editor===selected);
+        if (action && state.editor === selected) await saveEditor(action);
       } catch (error) { message(error.message,true); }
       finally {if(state.editor === selected){state.busy=false;setDisabled(false);}}
     });
@@ -2272,7 +2412,7 @@
     state.editor.pendingBillingSignature=null;
     state.editor.pendingIssue=null;
     state.editor.pendingProjectDetails=null;
-    state.editor.legacyDetailsSignoff=saved.kind==='work_order' && !['details_by','details_date'].some(key=>Object.hasOwn(fields.order,key));
+    state.editor.legacyDetailsSignoff=isLegacyWorkOrder(saved);
     const status=root()?.querySelector('.commercial-document-status');
     if(status){status.value=saved.status;status.dataset.status=saved.status;}
     for (const wrap of root()?.querySelectorAll('[data-signature-field]') || []) {
@@ -2340,6 +2480,7 @@
       }
       message(inFile
         ? "Document saved. Its linked project file is updated." : "Document saved. It is available on the board.");
+      return true;
     } catch (error) {
       if(draftSaved && operation.editor.billingPendingKey)operation.editor.billingNotice?.('Accounts contact link pending. Save the Work Order to finish.');
       if(error.billingReview && state.editor===operation.editor) {
@@ -2450,6 +2591,7 @@
     },
     applyProject(prepared) {
       clearPricingPickers();
+      state.cardIntent?.dismiss?.();
       state.workspace = prepared?.workspace_id || null;
       state.model = null;
       state.editor = null;

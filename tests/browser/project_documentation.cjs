@@ -89,7 +89,19 @@ function checkCompanions(project,folder){
   assert.ok(catalog.some(row=>row.id==='firestopping.current_item.pdf'));assert.ok(!catalog.some(row=>row.id==='library.firestopping.item.pdf'));
   await expect(page.locator('#documentation-pdf-rows a,#documentation-xlsx-rows a')).toHaveCount(0);checks.push('PDF rows omit the three removed downloads while XLSX rows and server export identities remain available');
   const breakdown=page.locator('button[data-document-kind="estimate.summary.pdf"]');
-  await expect(breakdown).toHaveAccessibleName('Download Breakdown');await expect(breakdown).toHaveText('+');await expect(breakdown).toHaveClass(/\bpenetration-new-item-action\b/);
+  await expect(breakdown).toHaveAccessibleName('Download Breakdown');
+  for(const format of ['pdf','xlsx']){
+    const buttons=page.locator(`#documentation-${format}-rows .documentation-download-button`);
+    const reference=page.locator(format==='pdf'?'#estimate-open-quote .download-format-icon':'#calculator-excel .download-format-icon');
+    const expected=await reference.innerHTML();
+    const icons=buttons.locator('.download-format-icon[aria-hidden="true"]');
+    assert.equal(await icons.count(),await buttons.count());
+    for(const icon of await icons.all())assert.equal(await icon.innerHTML(),expected);
+    if(format==='xlsx')assert.ok(await buttons.evaluateAll(controls=>controls.every(control=>{
+      const box=control.getBoundingClientRect(),label=control.querySelector('.download-format').getBoundingClientRect();
+      return label.right<=box.right-3;
+    })), 'The XLSX label fits inside its compact download control');
+  }
   await revisions('estimate.summary.pdf',0);await expect(page.locator('#documentation-revisions-list')).toContainText('No revisions generated in this project.');
   await page.locator('#documentation-revisions-heading').press('Escape');await expect(page.locator('#documentation-revisions-pane')).toBeHidden();
   await expect(page.locator('button[data-revisions-kind="estimate.summary.pdf"]')).toBeFocused();

@@ -68,8 +68,14 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.equal(tables.length,2);
     for(const [,extra,head] of tables)assert.deepEqual([...head.matchAll(/<th[^>]*>(.*?)<\/th>/g)].map(match=>match[1]),['Document','Previous revisions','Download',...(extra.includes('documentation-pdf-table')?['PDF cover sheet','Actions']:[])]);
     await h.api.open();
-    for(const format of ['pdf','xlsx'])for(const row of h.byId('documentation-'+format+'-rows').children.filter(row=>row.dataset.documentKind))
+    for(const format of ['pdf','xlsx'])for(const row of h.byId('documentation-'+format+'-rows').children.filter(row=>row.dataset.documentKind)){
       assert.equal(row.children[2].className,'documentation-action');
+      const button=h.buttons().find(control=>control.dataset.documentKind===row.dataset.documentKind);
+      const icon=button.children[0];
+      assert.equal(icon.className,'download-format-icon');
+      assert.equal(icon.attributes['aria-hidden'],'true');
+      assert.deepEqual(icon.children.map(child=>[child.className,child.textContent]),[['download-arrow','⇩'],['download-format',format.toUpperCase()]]);
+    }
   });
   await check('PDF schedules and product summaries are grouped without changing export identities or frozen history',async h=>{
     const rows=[catalog[0],
@@ -89,11 +95,6 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const first=rendered[0];assert.equal(first.children.length,3);assert.equal(first.children[0].textContent,'Breakdown');
     assert.equal(first.children[1].children[0].textContent,'View Revisions (0)');
     assert.equal(first.children[2].className,'documentation-action');
-    assert.equal(h.buttons()[0].children[0].textContent,'+');
-    for(const button of h.buttons()){
-      assert.match(button.className,/\bpenetration-new-item-action\b/);
-      assert.equal(button.children[0].textContent,'+');
-    }
     assert.ok(rendered.filter(row=>row.children[0].tagName==='TH').every(row=>row.children[0].colSpan===5));
     assert.equal(h.buttons().find(button=>button.dataset.documentKind===legacy.kind).disabled,true);
     await h.buttons().find(button=>button.dataset.documentKind==='project.full_product_summary.pdf').emit('click');

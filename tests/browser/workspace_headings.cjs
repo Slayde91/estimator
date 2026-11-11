@@ -4,7 +4,7 @@ const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {chooseCalculator}=require('./calculator_actions.cjs');
 const {chooseLibrary,chooseTakeoff}=require('./section_navigation.cjs');
-const {prepareProjectForSave,clickProjectControl}=require('./project_actions.cjs');
+const {prepareProjectForSave,clickProjectControl,openProjectSection}=require('./project_actions.cjs');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`workspace-headings-${Date.now()}`);
 fs.mkdirSync(output,{recursive:true});
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
@@ -15,6 +15,14 @@ async function idle(){await page.waitForFunction(()=>{const s=window.CeasefireDe
 async function bounds(selector){return page.locator(selector).evaluate(el=>{const b=el.getBoundingClientRect();return{x:b.x,y:b.y,right:b.right,bottom:b.bottom,width:b.width,height:b.height};});}
 async function noOverflow(context){const g=await page.evaluate(()=>({viewport:document.documentElement.clientWidth,document:document.documentElement.scrollWidth,inner:innerWidth,scrollX}));assert.ok(g.document<=g.viewport+1&&g.inner<=g.viewport+1,`${context}: ${JSON.stringify(g)}`);}
 async function headingBefore(heading,tabs){await expect(page.locator(heading)).toBeVisible();const h=await bounds(heading),t=await bounds(tabs);assert.ok(h.bottom<=t.y+1,`${heading} must precede ${tabs}: ${JSON.stringify({h,t})}`);assert.ok(Math.abs(h.x-t.x)<2,`${heading} aligns with its main tabs`);return{h,t};}
+async function titleAndTabPositions(title,tabs){
+ const view=await page.locator(title).evaluate(el=>el.closest('.workspace-view').getBoundingClientRect().top);
+ const h=await bounds(title),t=await bounds(tabs);
+ return {left:h.x,top:h.y-view,tabTop:t.y-view};
+}
+function assertAligned(actual,peer,context){
+ for(const key of Object.keys(peer))assert.ok(Math.abs(actual[key]-peer[key])<=1,`${context} ${key}: ${actual[key]} vs ${peer[key]}`);
+}
 async function stateSnapshot(){return page.evaluate(()=>({calculators:window.CeasefireCalculators.projectSnapshot(),penetration:window.CeasefirePenetrations.projectSnapshot(),configuration:window.CeasefireProject.configuration(),details:window.CeasefireProject.details()}));}
 (async()=>{
  info=await ready;assert.notEqual(info.port,8765);browser=await chromium.launch({headless:true});
@@ -25,6 +33,17 @@ async function stateSnapshot(){return page.evaluate(()=>({calculators:window.Cea
  await expect(page.locator('#calculator-steel-hub')).toHaveCount(0);await expect(page.locator('#calculator-kind-pages button').first()).toHaveText('Firestopping');
  await headingBefore('.penetration-banner-heading','#calculator-kind-pages');
  await prepareProjectForSave(page);const saving=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/save-as');await clickProjectControl(page,'Save');assert.equal((await saving).status(),200);await idle();
+ const quotePositions=new Map(),firePositions=new Map();
+ for(const section of ['quote','quotes']){
+  await openProjectSection(page,section);
+  for(const width of [1915,1011,631,390,320]){
+   await page.setViewportSize({width,height:1000});
+   const layout=await titleAndTabPositions(section==='quote'?'#commercial-quote-root h1':'#quotes-heading','#project-pages');
+   if(section==='quote')quotePositions.set(width,layout);
+   else assertAligned(layout,quotePositions.get(width),'Projects vs Quotes at '+width);
+  }
+  await page.setViewportSize({width:1915,height:1000});
+ }
  await page.locator('#documents-navigation-toggle').click();await expect(page.locator('#view-documentation')).toBeVisible();await expect(page.locator('#view-documents')).toHaveCount(0);
  const calculators=['Firestopping','Duct','Steel (spray)','Steel (intumescent)','Steel (board)','Factor Calcs'];
  for(const title of calculators){await chooseCalculator(page,title);await idle();}
@@ -35,6 +54,11 @@ async function stateSnapshot(){return page.evaluate(()=>({calculators:window.Cea
   for(const theme of ['ceasefire','midnight','ocean','forest','slate'])for(const width of [1915,1254,631,390,320]){
    await page.setViewportSize({width,height:1000});await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);await page.mouse.move(0,0);await page.evaluate(()=>scrollTo(0,0));
    const geometry=await headingBefore(heading,'#calculator-kind-pages');await noOverflow(`${title}/${theme}/${width}`);
+   if(fire||title==='Duct'){
+    const layout=await titleAndTabPositions(fire?'#penetration-heading':'#calculator-title','#calculator-kind-pages'),key=theme+'/'+width;
+    if(fire)firePositions.set(key,layout);
+    else assertAligned(layout,firePositions.get(key),'Duct vs Firestopping at '+key);
+   }
    if(fire){const toggle=page.locator('.penetration-banner-heading [data-document-menu-toggle]');await toggle.click();const menu=page.locator('#firestopping-item-document-actions');await expect(menu).toBeVisible();const box=await menu.boundingBox();assert.ok(box.x>=0&&box.x+box.width<=width+1,'Firestopping Document menu fits its relocated heading');await menu.getByRole('button').first().click({trial:true});await page.keyboard.press('Escape');}
    if(!fire){const status=await bounds('#calculator-save-status');assert.ok(status.right<=geometry.h.right+1&&Math.abs(status.y-geometry.h.y)<2,'Live save status is at the heading top-right');}
    if(!fire&&title!=='Factor Calcs'&&width>760){

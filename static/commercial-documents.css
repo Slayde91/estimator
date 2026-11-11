@@ -23,7 +23,6 @@
 .commercial-editor { display:grid; gap:20px; }
 .commercial-editor,.commercial-editor>* { min-width:0; }
 .commercial-editor-actions { position:sticky; top:10px; z-index:2; background:var(--paper); padding:12px; border:1px solid var(--line); border-radius:10px; }
-.commercial-editor-actions .button.commercial-download-pdf { flex:0 0 52px; width:52px; min-width:52px; height:44px; padding:8px; }
 .commercial-editor-actions .commercial-action-status { display:flex; flex-direction:row; align-items:center; gap:8px; margin:0; min-width:0; }
 .commercial-action-status>span[hidden] { display:none; }
 .commercial-action-status select { width:180px; min-width:0; height:44px; }
@@ -93,6 +92,10 @@
 .commercial-note-card p{margin:0}.commercial-note-card small,.commercial-attached-file small{color:var(--muted)}
 .commercial-note-dialog{width:min(480px,100%);max-height:88vh;overflow:auto;margin:auto 18px 18px auto;padding:18px}
 .commercial-note-dialog form{display:grid;gap:12px}.commercial-note-dialog .commercial-rich-input{min-height:135px}
+.commercial-board-signing{width:min(28rem,calc(100% - 2rem));max-height:90vh;overflow:auto}
+.commercial-board-signing form{display:grid;gap:12px}
+.commercial-board-signing :is(h2,h3,p){margin:0}
+.commercial-board-signing .actions{justify-content:flex-end}
 .commercial-proposed-dates{grid-column:1}
 .commercial-work-cost-files{display:grid;gap:14px;min-width:0;align-content:start}
 .commercial-work-description{display:flex;flex-direction:column;align-self:stretch;gap:7px}

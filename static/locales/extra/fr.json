@@ -3550,5 +3550,7 @@
   "In progress": "En cours",
   "Claim": "Demande de paiement",
   "Certify": "Certification",
-  "On Hold": "En attente"
+  "On Hold": "En attente",
+  "Sign and move": "Signer et déplacer",
+  "Choose a valid next status for this order.": "Choisissez un prochain statut valide pour cet ordre."
 }

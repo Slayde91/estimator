@@ -11,3 +11,6 @@
 .document-download-progress[data-state=saved] .document-download-track{box-shadow:0 0 0 1px var(--download-success)}
 @keyframes document-download-work{from{transform:translateX(-110%)}to{transform:translateX(420%)}}
 @media(prefers-reduced-motion:reduce){.document-download-beam{animation:none;left:34%;background:var(--download-success)}}
+.commercial-editor-actions .button.commercial-download-pdf,
+.documentation-download .button.documentation-download-button{flex:0 0 52px;width:52px;min-width:52px;height:44px;padding:8px}
+.documentation-download .button.excel-button{padding-inline:0}

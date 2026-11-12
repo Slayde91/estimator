@@ -129,6 +129,8 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   await expect(page.locator('#snapshot-message')).toBeVisible();
   assert.equal(await page.locator('#project-pricing-context').textContent(),await page.locator('#header-project-name').textContent());
   await expect(page.locator('#view-estimate #snapshot-message')).toHaveCount(0);
+  await expect(page.locator('#project-list-card')).toBeHidden();
+  await page.locator('#project-details-close').click();await expect(page.locator('#project-list-card')).toBeVisible();
   await card.locator('summary').click();await expect(card.getByRole('button',{name:'Open',exact:true})).toBeEnabled();
   await loadProject(()=>card.getByRole('button',{name:'Open',exact:true}).click());
   await card.locator('.project-card-estimate select').selectOption(second);await expect(page.locator('#view-quotes')).toBeVisible();

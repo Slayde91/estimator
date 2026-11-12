@@ -189,3 +189,7 @@
   .app-header .header-project-name { margin: 0; max-width: 100%; }
   .app-header .header-project-identity { min-width: 0; text-align: end; }
 }
+
+/* The saved Project label remains compact and is now a keyboard-accessible shortcut. */
+.header-project-name{border:0;font-family:inherit;text-align:end;cursor:pointer}
+.header-project-name:focus-visible{outline:2px solid #332600;outline-offset:2px}

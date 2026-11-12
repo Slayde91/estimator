@@ -92,6 +92,7 @@
     const recovering = selected?.kind === "new" && selected.creation?.uncertain;
     for (const control of metadataControls) control.disabled = value || recovering && control.id !== "project-details-save" || !!selected?.blocked && control.id !== "project-details-close";
     for (const slot of participantSlots) slot.inert = !!(value || recovering || selected?.blocked);
+    links.inert = !!(value || recovering || selected?.blocked);
     $("project-current-details").disabled = value;
   }
   function dismissOptions() {
@@ -109,6 +110,7 @@
   }
   function hide() {
     window.ClassifireProjectParticipants?.close();
+    window.ClassifireProjectRecordPanels?.close();
     const previous = selected;
     ++ticket; selected = null; pane.hidden = true;
     side.hidden = true; links.hidden = true; pricingNotice.hidden = true;
@@ -125,7 +127,8 @@
     window.scrollTo({top:0,left:0,behavior:"instant"});
   }
   async function leave() {
-    if (pending || selected?.creation?.uncertain || window.ClassifireProjectParticipants?.pending()) { notice("Finish the current project details action first.", true); return false; }
+    if (pending || selected?.creation?.uncertain || window.ClassifireProjectParticipants?.pending() || window.ClassifireProjectRecordPanels?.pending()) { notice("Finish the current project details action first.", true); return false; }
+    if (!await (window.ClassifireProjectRecordPanels?.leave() ?? true)) return false;
     if (dirty() && !await window.CeasefireDialogs.confirm(translate("Discard unsaved project details?"), translate("The changes in this Project Details pane have not been saved. Discard them?"), translate("Yes"), translate("Cancel"))) return false;
     hide(); return true;
   }
@@ -145,6 +148,7 @@
     $("project-list-card").hidden = selected.kind !== "new";
     $("project-browser").hidden = true;
     side.hidden = selected.kind === "new"; links.hidden = selected.kind === "new";
+    if (selected.kind !== "new") window.ClassifireProjectRecordPanels?.show(selected.kind === "saved" ? selected.file : snapshot().file);
     // Pricing belongs to the active Project, not an unrelated saved-file pane.
     pricingNotice.hidden = selected.kind === "new" || selected.kind === "saved" && selected.file.path !== snapshot().file?.path;
     notice(selected.kind === "current" ? "Use the main Save button to save this project's details and estimate." : "");
@@ -241,7 +245,7 @@
   async function save() {
     if (!selected || pending || selected.blocked) return;
     if (selected.kind === "current") { validateClient(); return; }
-    if (snapshot().busy || window.ClassifireProjectParticipants?.pending()) throw new Error("Finish the current project operation first.");
+    if (snapshot().busy || window.ClassifireProjectParticipants?.pending() || window.ClassifireProjectRecordPanels?.pending()) throw new Error("Finish the current project operation first.");
     if (selected.kind === "new") {
       const target = selected, value = validateRequired(validateClient(),true);
       if (target.creation.details && target.creation.details !== stamp(value)) {
@@ -325,6 +329,7 @@
   function chooseAccount(account) {
     setAccount(account); invalidateLinkedContact(); dismissContactOptions();
     dismissOptions(); notice(); applyCurrentDraft();
+    window.ClassifireProjectParticipants?.primaryChanged();
   }
   function chooseContact(contact) {
     if (!selected || pending) return;
@@ -336,6 +341,7 @@
     $("project-pane-contact-phone").value = contact.phone || "";
     $("project-pane-contact-email").value = contact.email || "";
     dismissContactOptions(); notice(); applyCurrentDraft();
+    window.ClassifireProjectParticipants?.primaryChanged();
     returningContactFocus = true; $("project-pane-contact-name").focus(); returningContactFocus = false;
     dismissContactOptions();
   }
@@ -413,6 +419,7 @@
       renderContacts();
     }
     applyCurrentDraft();
+    if (key === "client" || key === "contact_name") window.ClassifireProjectParticipants?.primaryChanged();
   });
   $("project-pane-client").addEventListener("focus", () => { dismissContactOptions(); renderAccounts(); void loadAccounts(); });
   $("project-pane-contact-name").addEventListener("focus", () => { if (returningContactFocus) return; dismissOptions(); contactPopupRequested = true; contactLoading = true; renderContacts(); void loadAccounts(); });
@@ -479,9 +486,9 @@
     primaryParties: () => ({accounts:accountId,contacts:contactId}),
     savePendingDetails: async () => { if (dirty()) await save(); },
     closeAfterReplacement: hide,
-    hasUnsavedChanges:dirty, hasPendingOperation:() => pending || !!selected?.creation?.uncertain, fingerprint:() => selected ? JSON.stringify({id:selected.file?.id,context:selected.context,values:details()}) : "",
+    hasUnsavedChanges:()=>dirty() || Boolean(window.ClassifireProjectRecordPanels?.dirty()), hasPendingOperation:() => pending || !!selected?.creation?.uncertain || Boolean(window.ClassifireProjectRecordPanels?.pending()), fingerprint:() => selected ? JSON.stringify({id:selected.file?.id,context:selected.context,values:details(),resources:window.ClassifireProjectRecordPanels?.fingerprint()}) : "",
     async beforeProjectSave() {
-      if (pending || window.ClassifireProjectParticipants?.pending()) throw new Error("Finish the current project details action before saving.");
+      if (pending || window.ClassifireProjectParticipants?.pending() || window.ClassifireProjectRecordPanels?.pending() || window.ClassifireProjectRecordPanels?.dirty()) throw new Error("Finish the current project details action before saving.");
       if (selected?.kind === "new") throw new Error("Save or cancel the new project details first.");
       const active = snapshot();
       if (currentRule?.context === active.context && active.details.client && active.details.client !== currentRule.baseline.client && (active.details.account_id !== currentRule.account?.id || active.details.client !== currentRule.account?.company)) throw new Error("Choose an existing Company for this client, or use + to create a Company in Current project details.");

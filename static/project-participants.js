@@ -31,7 +31,7 @@
   sites.append(ui("summary", "Linked Projects"), projects, siteStatus);
   document.getElementById("project-pricing-notice").before(sites);
 
-  let selection = null, fileRevision = null, record = null, generation = 0;
+  let selection = null, fileRevision = null, record = null, generation = 0, directory = {accounts:[],contacts:[]}, roleSelection = {};
   let saving = false, loading = false, scanTimer, retriedScan = false;
   const canEdit = () => !window.ClassifireAccess || window.ClassifireAccess.can("edit");
 
@@ -140,11 +140,19 @@
         if (previous) { previous.roles.add(item.role); previous.label ||= item.label; }
         else linked.set(item.id, {label: item.label, roles: new Set([item.role])});
       }
-      if (entries.length || linked.size) {
+      const primary = partyItem(kind,primaryId);
+      if (entries.length || linked.size || primary) {
         const list = el("ul");
+        list.className = "project-party-cards";
+        if (primary && !recorded.has(primaryId)) {
+          const row = el("li");
+          row.append(partyCard(kind, primaryId, kind === "accounts" ? primary.company : primary.name,
+            [kind === "accounts" ? "Main Client" : "Primary contact"], host));
+          list.append(row);
+        }
         for (const item of entries) {
           const row = el("li");
-          row.append(el("strong", item.label), " · ", ui("span", record.roles[item.role] || item.role));
+          const card = partyCard(kind, item.id, item.label, [record.roles[item.role] || item.role], host);
           if (canEdit()) {
             const remove = ui("button", "Remove");
             remove.type = "button"; remove.className = "text-button";
@@ -152,20 +160,21 @@
               const rows = record.participants.filter(entry => entry.kind !== kind || entry.id !== item.id || entry.role !== item.role);
               void save(rows, host, rows.some(entry => entry.kind === kind && entry.id === item.id) ? null : {kind,id:item.id});
             };
-            row.append(" ", remove);
+            card.append(remove);
           }
+          row.append(card);
           list.append(row);
         }
         for (const [id,{label, roles}] of linked) {
           const row = el("li");
-          if (label) row.append(el("strong", label), " · ");
-          [...roles].forEach((role, index) => { if (index) row.append(" · "); row.append(ui("span", role)); });
+          const card = partyCard(kind, id, label, [...roles], host);
           if (canEdit()) {
             const remove = ui("button", "Remove");
             remove.type = "button"; remove.className = "text-button";
             remove.onclick = () => void save(record.participants, host, {kind,id});
-            row.append(" ",remove);
+            card.append(remove);
           }
+          row.append(card);
           list.append(row);
         }
         group.append(list);
@@ -179,6 +188,8 @@
           const option = ui("option", name); option.value = key; role.append(option);
         }
         if (kind === "contacts") role.value = "site_contact";
+        if (roleSelection[kind] && Object.hasOwn(record.roles,roleSelection[kind])) role.value = roleSelection[kind];
+        role.addEventListener("change",()=>{roleSelection[kind] = role.value;});
         const field = el("div"); field.className = "field"; field.append(label, role);
         const search = window.ClassifireCommercialDirectory.field(labelId, {
           kind, isCurrent: () => !!selection && !saving && canEdit() && !host.inert && !pane.inert,
@@ -193,6 +204,48 @@
       if (group.childElementCount) host.append(group, note);
       host.closest("details").hidden = !group.childElementCount;
     }
+  }
+
+  function partyItem(kind,id) {
+    const canonical = directory.identity_aliases?.[kind]?.[id] || id;
+    return directory[kind]?.find(item => item.id === canonical);
+  }
+
+  function partyCard(kind, id, name, roles, host) {
+    const item = partyItem(kind,id), card = el("article");
+    card.className = kind === "accounts" ? "commercial-linked-company" : "commercial-linked-contact";
+    card.dataset[kind === "accounts" ? "accountId" : "contactId"] = id;
+    const label = item ? (kind === "accounts" ? item.company : item.name) : name;
+    if (item) {
+      const open = el("button", label); open.type = "button"; open.className = "text-button project-title-button";
+      const opened = generation;
+      open.onclick = async () => {
+        const current = () => opened === generation && !!selection && !saving && !pane.inert && !host.inert && host.isConnected;
+        if (!current()) return;
+        open.disabled = true;
+        try {
+          await window.ClassifireContacts[kind === "accounts" ? "editAccount" : "editContact"](item.id,{isCurrent:current});
+          if (current()) await refreshDirectory(opened);
+        } catch (error) { if (current()) text(host.querySelector('[role="status"]'), error.message); }
+        finally { if (open.isConnected) open.disabled = false; }
+      };
+      card.append(open);
+    } else card.append(el("strong", label));
+    const role = el("p"); role.className = "helper";
+    roles.forEach((name,index) => {if(index)role.append(" · ");role.append(ui("span",name));}); card.append(role);
+    const values = kind === "accounts" ? [["Billing address",item?.billing_address],["ABN/ACN",item?.abn_acn]]
+      : [["Title",item?.title],["Phone",item?.phone],["Email",item?.email]];
+    const details = el("dl"); details.className = "commercial-card-info";
+    for (const [label,value] of values) details.append(ui("dt",label),el("dd",value || "—"));
+    card.append(details); return card;
+  }
+
+  async function refreshDirectory(opened = generation) {
+    try {
+      const latest = await window.ClassifireCommercialDirectory.load(true);
+      if (opened !== generation || !selection) return;
+      directory = latest; if (record) renderParticipants();
+    } catch (error) { if (opened === generation && selection) text(siteStatus,error.message); }
   }
 
   function contactCompanyIsLinked(contact, directory, linked) {
@@ -212,8 +265,9 @@
     try {
       await window.ClassifireAccess?.ready;
       if (ticket !== generation) return;
-      const data = await readRecord();
+      const [data, latest] = await Promise.all([readRecord(), window.ClassifireCommercialDirectory.load().catch(()=>null)]);
       if (ticket !== generation || saving || record !== previous) return;
+      if (latest) directory = latest;
       record = data;
       if (!previous || previous.version !== data.version) renderParticipants();
       showProjects(data);
@@ -227,7 +281,7 @@
   function close() {
     ++generation;
     clearTimeout(scanTimer);
-    selection = fileRevision = record = null;
+    selection = fileRevision = record = null; directory = {accounts:[],contacts:[]}; roleSelection = {};
     loading = saving = retriedScan = false;
     sites.hidden = true;
     for (const host of Object.values(hosts)) { host.hidden = true; host.closest("details").hidden = true; host.replaceChildren(); }
@@ -239,6 +293,12 @@
   });
   window.ClassifireProjectParticipants = {
     close, pending: () => saving,
+    primaryChanged() {
+      if (!record || saving) return;
+      renderParticipants();
+      const primary = window.CeasefireProjectPane?.primaryParties();
+      if (primary && Object.entries(primary).some(([kind,id])=>id && !partyItem(kind,id))) void refreshDirectory();
+    },
     scanComplete() { if (record?.scan_pending && sites.getClientRects().length) void load(); },
     show(file) {
       const selector = file?.id || (file?.save_token ? "native:" + file.save_token : null);

@@ -1,0 +1,331 @@
+{
+  "A record supports up to 16 attached files.": [
+    "每条记录最多支持 16 个附件。",
+    "एक रिकॉर्ड में अधिकतम 16 फ़ाइलें संलग्न की जा सकती हैं।",
+    "Un registro admite hasta 16 archivos adjuntos.",
+    "يدعم السجل ما يصل إلى 16 ملفًا مرفقًا.",
+    "แต่ละรายการรองรับไฟล์แนบได้สูงสุด 16 ไฟล์"
+  ],
+  "A record supports up to 200 notes.": [
+    "每条记录最多支持 200 条备注。",
+    "एक रिकॉर्ड में अधिकतम 200 नोट हो सकते हैं।",
+    "Un registro admite hasta 200 notas.",
+    "يدعم السجل ما يصل إلى 200 ملاحظة.",
+    "แต่ละรายการรองรับบันทึกได้สูงสุด 200 รายการ"
+  ],
+  "Add files": [
+    "添加文件",
+    "फ़ाइलें जोड़ें",
+    "Añadir archivos",
+    "إضافة ملفات",
+    "เพิ่มไฟล์"
+  ],
+  "Back to Companies": [
+    "返回公司",
+    "कंपनियों पर वापस जाएँ",
+    "Volver a Empresas",
+    "العودة إلى الشركات",
+    "กลับไปที่บริษัท"
+  ],
+  "Back to Contacts": [
+    "返回联系人",
+    "संपर्कों पर वापस जाएँ",
+    "Volver a Contactos",
+    "العودة إلى جهات الاتصال",
+    "กลับไปที่รายชื่อผู้ติดต่อ"
+  ],
+  "Back to Leads": [
+    "返回潜在客户",
+    "लीड पर वापस जाएँ",
+    "Volver a Clientes potenciales",
+    "العودة إلى العملاء المحتملين",
+    "กลับไปที่ผู้มุ่งหวัง"
+  ],
+  "Choose a file attached to this record.": [
+    "请选择此记录的附件。",
+    "इस रिकॉर्ड से संलग्न फ़ाइल चुनें।",
+    "Seleccione un archivo adjunto a este registro.",
+    "اختر ملفًا مرفقًا بهذا السجل.",
+    "เลือกไฟล์ที่แนบกับรายการนี้"
+  ],
+  "Choose a saved record for Notes and Files.": [
+    "请选择已保存的记录以使用备注和文件。",
+    "नोट और फ़ाइलों के लिए सहेजा गया रिकॉर्ड चुनें।",
+    "Seleccione un registro guardado para Notas y archivos.",
+    "اختر سجلًا محفوظًا للملاحظات والملفات.",
+    "เลือกรายการที่บันทึกแล้วสำหรับบันทึกและไฟล์"
+  ],
+  "Choose one saved record for Notes and Files.": [
+    "请选择一条已保存的记录以使用备注和文件。",
+    "नोट और फ़ाइलों के लिए केवल एक सहेजा गया रिकॉर्ड चुनें।",
+    "Seleccione un único registro guardado para Notas y archivos.",
+    "اختر سجلًا محفوظًا واحدًا للملاحظات والملفات.",
+    "เลือกรายการที่บันทึกแล้วเพียงหนึ่งรายการสำหรับบันทึกและไฟล์"
+  ],
+  "Delete this note?": [
+    "删除此备注？",
+    "यह नोट हटाएँ?",
+    "¿Eliminar esta nota?",
+    "هل تريد حذف هذه الملاحظة؟",
+    "ลบบันทึกนี้หรือไม่"
+  ],
+  "Discard changes to this lead?": [
+    "放弃对此潜在客户的更改？",
+    "इस लीड के बदलाव छोड़ दें?",
+    "¿Descartar los cambios de este cliente potencial?",
+    "هل تريد تجاهل تغييرات هذا العميل المحتمل؟",
+    "ละทิ้งการเปลี่ยนแปลงของผู้มุ่งหวังนี้หรือไม่"
+  ],
+  "Discard unsaved note changes?": [
+    "放弃未保存的备注更改？",
+    "नोट के बिना सहेजे बदलाव छोड़ दें?",
+    "¿Descartar los cambios de la nota sin guardar?",
+    "هل تريد تجاهل تغييرات الملاحظة غير المحفوظة؟",
+    "ละทิ้งการเปลี่ยนแปลงบันทึกที่ยังไม่ได้บันทึกหรือไม่"
+  ],
+  "Edit note": [
+    "编辑备注",
+    "नोट संपादित करें",
+    "Editar nota",
+    "تعديل الملاحظة",
+    "แก้ไขบันทึก"
+  ],
+  "Enter a title for the note.": [
+    "请输入备注标题。",
+    "नोट का शीर्षक दर्ज करें।",
+    "Introduzca un título para la nota.",
+    "أدخل عنوانًا للملاحظة.",
+    "ป้อนชื่อบันทึก"
+  ],
+  "Enter a valid note title and text.": [
+    "请输入有效的备注标题和正文。",
+    "नोट का मान्य शीर्षक और पाठ दर्ज करें।",
+    "Introduzca un título y un texto válidos para la nota.",
+    "أدخل عنوانًا ونصًا صالحين للملاحظة.",
+    "ป้อนชื่อและข้อความบันทึกที่ถูกต้อง"
+  ],
+  "Finish saving Notes or Files before leaving this record.": [
+    "请先完成备注或文件的保存，再离开此记录。",
+    "यह रिकॉर्ड छोड़ने से पहले नोट या फ़ाइलों को सहेजना पूरा करें।",
+    "Termine de guardar las notas o los archivos antes de salir de este registro.",
+    "أكمل حفظ الملاحظات أو الملفات قبل مغادرة هذا السجل.",
+    "รอให้บันทึกหรือไฟล์บันทึกเสร็จก่อนออกจากรายการนี้"
+  ],
+  "Finish the current Lead action first.": [
+    "请先完成当前潜在客户操作。",
+    "पहले लीड की मौजूदा कार्रवाई पूरी करें।",
+    "Termine primero la acción actual del cliente potencial.",
+    "أكمل إجراء العميل المحتمل الحالي أولًا.",
+    "ดำเนินการกับผู้มุ่งหวังปัจจุบันให้เสร็จก่อน"
+  ],
+  "Include a note title and text only.": [
+    "仅包含备注标题和正文。",
+    "केवल नोट का शीर्षक और पाठ शामिल करें।",
+    "Incluya únicamente el título y el texto de la nota.",
+    "أدرج عنوان الملاحظة ونصها فقط.",
+    "ระบุเฉพาะชื่อและข้อความบันทึก"
+  ],
+  "Linked Purchase Orders": [
+    "关联采购订单",
+    "लिंक किए गए खरीद आदेश",
+    "Órdenes de compra vinculadas",
+    "أوامر الشراء المرتبطة",
+    "ใบสั่งซื้อที่เชื่อมโยง"
+  ],
+  "Linked Quotes": [
+    "关联报价",
+    "लिंक किए गए कोटेशन",
+    "Presupuestos vinculados",
+    "عروض الأسعار المرتبطة",
+    "ใบเสนอราคาที่เชื่อมโยง"
+  ],
+  "Local user": [
+    "本地用户",
+    "स्थानीय उपयोगकर्ता",
+    "Usuario local",
+    "مستخدم محلي",
+    "ผู้ใช้ในเครื่อง"
+  ],
+  "Method not allowed.": [
+    "不允许此操作方式。",
+    "इस विधि की अनुमति नहीं है।",
+    "Método no permitido.",
+    "الطريقة غير مسموح بها.",
+    "ไม่อนุญาตให้ใช้วิธีนี้"
+  ],
+  "New note": [
+    "新建备注",
+    "नया नोट",
+    "Nueva nota",
+    "ملاحظة جديدة",
+    "บันทึกใหม่"
+  ],
+  "Note identifiers must be unique.": [
+    "备注标识必须唯一。",
+    "नोट के पहचानकर्ता अलग-अलग होने चाहिए।",
+    "Los identificadores de las notas deben ser únicos.",
+    "يجب أن تكون معرّفات الملاحظات فريدة.",
+    "รหัสบันทึกต้องไม่ซ้ำกัน"
+  ],
+  "Notes or Files changed. Refresh this section before trying again.": [
+    "备注或文件已更改。请刷新此部分后重试。",
+    "नोट या फ़ाइलें बदल गई हैं। फिर से प्रयास करने से पहले यह अनुभाग रीफ़्रेश करें।",
+    "Las notas o los archivos han cambiado. Actualice esta sección antes de volver a intentarlo.",
+    "تغيّرت الملاحظات أو الملفات. حدّث هذا القسم قبل المحاولة مجددًا.",
+    "บันทึกหรือไฟล์มีการเปลี่ยนแปลง รีเฟรชส่วนนี้ก่อนลองอีกครั้ง"
+  ],
+  "Notes or Files changed. Save this note using the latest record?": [
+    "备注或文件已更改。是否使用最新记录保存此备注？",
+    "नोट या फ़ाइलें बदल गई हैं। नवीनतम रिकॉर्ड के साथ यह नोट सहेजें?",
+    "Las notas o los archivos han cambiado. ¿Guardar esta nota usando el registro más reciente?",
+    "تغيّرت الملاحظات أو الملفات. هل تريد حفظ هذه الملاحظة باستخدام أحدث سجل؟",
+    "บันทึกหรือไฟล์มีการเปลี่ยนแปลง บันทึกข้อความนี้โดยใช้รายการล่าสุดหรือไม่"
+  ],
+  "Open Notes and Files in the CLASSIFIRE web app.": [
+    "请在 CLASSIFIRE 网页应用中打开备注和文件。",
+    "CLASSIFIRE वेब ऐप में नोट और फ़ाइलें खोलें।",
+    "Abra Notas y archivos en la aplicación web CLASSIFIRE.",
+    "افتح الملاحظات والملفات في تطبيق CLASSIFIRE على الويب.",
+    "เปิดบันทึกและไฟล์ในเว็บแอป CLASSIFIRE"
+  ],
+  "Open Project details?": [
+    "打开项目详情？",
+    "प्रोजेक्ट का विवरण खोलें?",
+    "¿Abrir los detalles del proyecto?",
+    "هل تريد فتح تفاصيل المشروع؟",
+    "เปิดรายละเอียดโครงการหรือไม่"
+  ],
+  "Project details could not be opened. {0}": [
+    "无法打开项目详情。{0}",
+    "प्रोजेक्ट का विवरण नहीं खोला जा सका। {0}",
+    "No se pudieron abrir los detalles del proyecto. {0}",
+    "تعذّر فتح تفاصيل المشروع. {0}",
+    "ไม่สามารถเปิดรายละเอียดโครงการได้ {0}"
+  ],
+  "Record files exceed the 32 MiB total limit.": [
+    "此记录的文件总量超过 32 MiB 限制。",
+    "रिकॉर्ड की फ़ाइलें कुल 32 MiB की सीमा से अधिक हैं।",
+    "Los archivos del registro superan el límite total de 32 MiB.",
+    "تتجاوز ملفات السجل الحد الإجمالي البالغ 32 MiB.",
+    "ไฟล์ของรายการมีขนาดรวมเกินขีดจำกัด 32 MiB"
+  ],
+  "Remove this file?": [
+    "移除此文件？",
+    "यह फ़ाइल हटाएँ?",
+    "¿Quitar este archivo?",
+    "هل تريد إزالة هذا الملف؟",
+    "นำไฟล์นี้ออกหรือไม่"
+  ],
+  "Save this Project before adding Notes or Files.": [
+    "请先保存此项目，再添加备注或文件。",
+    "नोट या फ़ाइलें जोड़ने से पहले यह प्रोजेक्ट सहेजें।",
+    "Guarde este proyecto antes de añadir notas o archivos.",
+    "احفظ هذا المشروع قبل إضافة ملاحظات أو ملفات.",
+    "บันทึกโครงการนี้ก่อนเพิ่มบันทึกหรือไฟล์"
+  ],
+  "Save this record before adding Notes or Files.": [
+    "请先保存此记录，再添加备注或文件。",
+    "नोट या फ़ाइलें जोड़ने से पहले यह रिकॉर्ड सहेजें।",
+    "Guarde este registro antes de añadir notas o archivos.",
+    "احفظ هذا السجل قبل إضافة ملاحظات أو ملفات.",
+    "บันทึกรายการนี้ก่อนเพิ่มบันทึกหรือไฟล์"
+  ],
+  "The Lead changed during review. Check the current changes and try again.": [
+    "审核期间潜在客户已更改。请检查当前更改后重试。",
+    "समीक्षा के दौरान लीड बदल गई। मौजूदा बदलाव जाँचें और फिर प्रयास करें।",
+    "El cliente potencial cambió durante la revisión. Compruebe los cambios actuales y vuelva a intentarlo.",
+    "تغيّر العميل المحتمل أثناء المراجعة. تحقّق من التغييرات الحالية وحاول مجددًا.",
+    "ผู้มุ่งหวังมีการเปลี่ยนแปลงระหว่างการตรวจสอบ ตรวจสอบการเปลี่ยนแปลงปัจจุบันแล้วลองอีกครั้ง"
+  ],
+  "The attachment could not be decoded.": [
+    "无法解码附件。",
+    "संलग्न फ़ाइल को डिकोड नहीं किया जा सका।",
+    "No se pudo decodificar el archivo adjunto.",
+    "تعذّر فك ترميز المرفق.",
+    "ไม่สามารถถอดรหัสไฟล์แนบได้"
+  ],
+  "The file could not be read.": [
+    "无法读取文件。",
+    "फ़ाइल पढ़ी नहीं जा सकी।",
+    "No se pudo leer el archivo.",
+    "تعذّرت قراءة الملف.",
+    "ไม่สามารถอ่านไฟล์ได้"
+  ],
+  "The record resources are unavailable.": [
+    "此记录的备注和文件不可用。",
+    "रिकॉर्ड के नोट और फ़ाइलें उपलब्ध नहीं हैं।",
+    "Las notas y los archivos del registro no están disponibles.",
+    "ملاحظات السجل وملفاته غير متاحة.",
+    "บันทึกและไฟล์ของรายการไม่พร้อมใช้งาน"
+  ],
+  "The record resources could not be read or saved.": [
+    "无法读取或保存此记录的备注和文件。",
+    "रिकॉर्ड के नोट और फ़ाइलें पढ़ी या सहेजी नहीं जा सकीं।",
+    "No se pudieron leer o guardar las notas y los archivos del registro.",
+    "تعذّرت قراءة ملاحظات السجل وملفاته أو حفظها.",
+    "ไม่สามารถอ่านหรือบันทึกข้อความและไฟล์ของรายการได้"
+  ],
+  "The record resources have an invalid version.": [
+    "此记录的备注和文件版本无效。",
+    "रिकॉर्ड के नोट और फ़ाइलों का संस्करण अमान्य है।",
+    "La versión de las notas y los archivos del registro no es válida.",
+    "إصدار ملاحظات السجل وملفاته غير صالح.",
+    "เวอร์ชันของบันทึกและไฟล์ในรายการไม่ถูกต้อง"
+  ],
+  "The record resources have an unsupported format.": [
+    "此记录的备注和文件格式不受支持。",
+    "रिकॉर्ड के नोट और फ़ाइलों का प्रारूप समर्थित नहीं है।",
+    "El formato de las notas y los archivos del registro no es compatible.",
+    "تنسيق ملاحظات السجل وملفاته غير مدعوم.",
+    "ไม่รองรับรูปแบบบันทึกและไฟล์ของรายการนี้"
+  ],
+  "The request could not be completed.": [
+    "无法完成请求。",
+    "अनुरोध पूरा नहीं किया जा सका।",
+    "No se pudo completar la solicitud.",
+    "تعذّر إكمال الطلب.",
+    "ไม่สามารถดำเนินการตามคำขอได้"
+  ],
+  "The saved note metadata is invalid.": [
+    "已保存备注的元数据无效。",
+    "सहेजे गए नोट का मेटाडेटा अमान्य है।",
+    "Los metadatos de la nota guardada no son válidos.",
+    "البيانات الوصفية للملاحظة المحفوظة غير صالحة.",
+    "ข้อมูลกำกับของบันทึกที่บันทึกไว้ไม่ถูกต้อง"
+  ],
+  "The saved notes are unavailable.": [
+    "已保存的备注不可用。",
+    "सहेजे गए नोट उपलब्ध नहीं हैं।",
+    "Las notas guardadas no están disponibles.",
+    "الملاحظات المحفوظة غير متاحة.",
+    "บันทึกที่บันทึกไว้ไม่พร้อมใช้งาน"
+  ],
+  "This file is already attached to the record.": [
+    "此文件已附加到记录。",
+    "यह फ़ाइल रिकॉर्ड से पहले ही संलग्न है।",
+    "Este archivo ya está adjunto al registro.",
+    "هذا الملف مرفق بالفعل بالسجل.",
+    "ไฟล์นี้แนบกับรายการแล้ว"
+  ],
+  "This record was merged. Reopen its current record.": [
+    "此记录已合并。请重新打开其当前记录。",
+    "यह रिकॉर्ड मर्ज कर दिया गया है। इसका मौजूदा रिकॉर्ड फिर से खोलें।",
+    "Este registro se fusionó. Vuelva a abrir su registro actual.",
+    "تم دمج هذا السجل. أعد فتح السجل الحالي.",
+    "รายการนี้ถูกรวมแล้ว เปิดรายการปัจจุบันอีกครั้ง"
+  ],
+  "Use the Notes and Files controls provided on this record.": [
+    "请使用此记录中的备注和文件控件。",
+    "इस रिकॉर्ड पर दिए गए नोट और फ़ाइल नियंत्रणों का उपयोग करें।",
+    "Use los controles de Notas y archivos de este registro.",
+    "استخدم عناصر تحكم الملاحظات والملفات الموجودة في هذا السجل.",
+    "ใช้ตัวควบคุมบันทึกและไฟล์ที่มีให้ในรายการนี้"
+  ],
+  "Source Notes and Files stay on the original record. Undo the merge to access them again.": [
+    "源记录的备注和文件保留在原记录中。撤销合并即可再次访问。",
+    "स्रोत के नोट और फ़ाइलें मूल रिकॉर्ड में रहती हैं। उन्हें फिर से देखने के लिए मर्ज पूर्ववत करें।",
+    "Las notas y los archivos de origen permanecen en el registro original. Deshaga la fusión para acceder de nuevo.",
+    "تبقى ملاحظات المصدر وملفاته في السجل الأصلي. تراجع عن الدمج للوصول إليها مجددًا.",
+    "บันทึกและไฟล์ของต้นทางยังอยู่ในรายการเดิม ยกเลิกการรวมเพื่อเข้าถึงอีกครั้ง"
+  ]
+}

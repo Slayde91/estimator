@@ -43,6 +43,7 @@ async function checkIdentity(page,port) {
     pane.getByRole('button',{name:'Review merge',exact:true}).click()
   ]);
   assert.equal(preview.status(),200);
+  await expect(pane.getByText('Source Notes and Files stay on the original record. Undo the merge to access them again.',{exact:true})).toBeVisible();
   await expect(pane.getByRole('cell',{name:'former@example.test',exact:true})).toBeVisible();
   await pane.getByLabel('Reason for merge').fill('Confirmed with the tender contact');
   await pane.getByRole('button',{name:'Confirm merge',exact:true}).click();
@@ -51,7 +52,7 @@ async function checkIdentity(page,port) {
   await root.getByRole('button',{name:'Leads',exact:true}).click();
   const card = root.locator('.project-kanban-card').filter({hasText:'Tender contact'});
   await card.locator('summary').click();await card.getByRole('button',{name:'Edit',exact:true}).click();
-  const dialog = page.getByRole('dialog',{name:'Edit Lead',exact:true});
+  const dialog = page.getByRole('complementary',{name:'Edit Lead',exact:true});
   const compare = dialog.locator('[data-enquiry-compare]');
   await expect(compare).toContainText('Current Person');
   await expect(compare).toContainText('Tender client');

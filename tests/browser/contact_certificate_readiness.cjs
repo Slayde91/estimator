@@ -3,7 +3,7 @@
 const {chromium,expect:baseExpect}=require('@playwright/test');
 const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-const {createNewProject,openProjectSection}=require('./project_actions.cjs');
+const {openCurrentProjectDetails,createNewProject,openProjectSection}=require('./project_actions.cjs');
 const {openCertificateEditor,generateCertificate}=require('./certification_generation.cjs');
 const expect=baseExpect.configure({timeout:30000}),root=path.resolve(__dirname,'../..');
 const output=path.join(root,'.runtime/browser-qa','contact-certificate-readiness-'+Date.now());fs.mkdirSync(output,{recursive:true});
@@ -30,7 +30,7 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
  await contact.getByRole('button',{name:'Save',exact:true}).click();await expect(contact.getByLabel('Email',{exact:true})).toBeFocused();assert.equal(posts.length,0);assert.deepEqual(await directory(),before);
  await contact.getByLabel('Email',{exact:true}).fill('required@example.test');const created=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/contacts/contacts');await contact.getByRole('button',{name:'Save',exact:true}).click();assert.equal((await created).status(),200);await expect(contact).toBeHidden();
  const saved=await directory();assert.equal(saved.contacts.length,1);assert.equal(saved.contacts[0].title,'');assert.ok(saved.accounts.some(account=>account.company==='Manual Company'));checks.push('New Contact validates four mandatory fields before POST; selected Company clears its error, manual Company is accepted and Title stays optional');
- await createNewProject(page,{client:'Certificate Requirement Company','site-address':'1 Certificate QA Road'});await openProjectSection(page,'quotes');await page.locator('#project-current-details').click();
+ await createNewProject(page,{client:'Certificate Requirement Company','site-address':'1 Certificate QA Road'});await openProjectSection(page,'quotes');await openCurrentProjectDetails(page);
  await page.locator('#project-pane-client').press('Escape');await page.locator('#project-contact-new').click();const inline=page.getByRole('dialog',{name:'New Contact',exact:true});await expect(inline).toBeVisible();const count=posts.length;
  await inline.getByRole('button',{name:'Save',exact:true}).click();await expect(inline.getByLabel('Phone',{exact:true})).toBeFocused();assert.equal(posts.length,count);await inline.getByRole('button',{name:'Cancel',exact:true}).click();await page.locator('#project-details-close').click();checks.push('The inline plus uses the same required Contact creation preflight and focuses its first missing value after inherited Name/Company');
  await openProjectSection(page,'certification');await idle();const select=page.locator('#certification-document'),plus=page.locator('#certification-editor').getByRole('button',{name:'New',exact:true}),generate=page.getByRole('button',{name:'Generate Certificate',exact:true});

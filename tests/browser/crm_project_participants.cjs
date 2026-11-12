@@ -1,7 +1,7 @@
 // Explicit project roles and automatic exact-address bid links; all files are disposable.
 const {chromium,expect}=require('@playwright/test');
 const {spawn}=require('node:child_process'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-const {createNewProject,openProjectSection}=require('./project_actions.cjs');
+const {createNewProject,openProjectSection,openCurrentProjectDetails}=require('./project_actions.cjs');
 const root=path.resolve(__dirname,'../..'),folder=path.join(root,'.runtime/browser-qa','crm-participants-'+Date.now());
 fs.mkdirSync(folder,{recursive:true});
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',folder,'--simulate-project-write-denial'],{cwd:root,windowsHide:true});
@@ -19,7 +19,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   const directory=await read('/api/contacts/directory');
   const create=await page.request.post(new URL('/api/contacts/accounts',page.url()).href,{data:{version:directory.version,fields:{company:'Consulting team'}}});
   assert.equal(create.status(),200,await create.text());const consultant=(await create.json()).id;
-  await openProjectSection(page,'quotes');await page.locator('#project-current-details').click();
+  await openProjectSection(page,'quotes');await openCurrentProjectDetails(page);
   const panel=page.locator('#project-participants-panel');
   await expect(panel.locator('summary')).toHaveText('Linked Projects');
   await expect(panel.locator('h4')).toHaveCount(0);
@@ -44,7 +44,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   await page.getByRole('dialog',{name:'New Company',exact:true}).getByRole('button',{name:'Cancel',exact:true}).click();
   await companies.getByRole('combobox',{name:'Company',exact:true}).fill('Consulting');
   await companies.getByRole('option',{name:'Consulting team',exact:true}).click();
-  await expect(companies.locator('li')).toContainText('Consulting team · Consultant');
+  await expect(companies.locator('li').filter({hasText:'Consulting team'}).locator('.helper')).toHaveText('Consultant');
   const currentPrimary=await page.locator('#project-pane-contact-name').inputValue();
 
   await contacts.getByRole('combobox',{name:'Contact',exact:true}).fill('Site manager');
@@ -56,7 +56,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   await dialog.getByLabel('Phone',{exact:true}).fill('5551234');
   await dialog.getByLabel('Email',{exact:true}).fill('site@example.test');
   await dialog.getByRole('button',{name:'Save',exact:true}).click();
-  await expect(contacts.locator('li')).toContainText('Site manager · Site contact');
+  await expect(contacts.locator('li').filter({hasText:'Site manager'}).locator('.helper')).toHaveText('Site contact');
   await expect(page.locator('#project-pane-contact-name')).toHaveValue(currentPrimary);
   await contacts.getByRole('button',{name:'Remove',exact:true}).click();
   await expect(contacts.locator('li')).toHaveCount(0);
@@ -82,7 +82,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   fs.writeFileSync(copyPath,JSON.stringify(copy));const copyBytes=fs.readFileSync(copyPath);
   await page.locator('#project-details-close').click();await page.locator('#refresh-quotes').click();
   const selected=(await read('/api/projects')).files.find(row=>row.name==='separate-builder.cf.json');assert.ok(selected);
-  await page.locator('#project-current-details').click();
+  await openCurrentProjectDetails(page);
   const targetB=panel.getByRole('button',{name:/Builder B/});
   await expect(targetB).toBeVisible();
   const currentAddress=page.locator('#project-pane-address');
@@ -126,7 +126,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
     await companies.getByRole('option',{name:'Consulting team',exact:true}).click();
   };
   await addConsultant();await expect(companies.getByRole('status')).toContainText('Review the updated list');
-  await addConsultant();await expect(companies.locator('li')).toContainText('Consulting team · Consultant');
+  await addConsultant();await expect(companies.locator('li').filter({hasText:'Consulting team'}).locator('.helper')).toHaveText('Consultant');
   // Edit a saved bid with a legacy explicit site and keep both valid relationships.
   const address=page.locator('#project-pane-address');
   const newAddress='77 Replacement Lane';
@@ -218,7 +218,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   const options=companies.getByRole('listbox');
   await expect(options).toBeVisible();const popupBox=await options.boundingBox();
   assert.ok(popupBox.width>0 && popupBox.x>=0 && popupBox.x+popupBox.width<=391,'Participant searches fit the mobile viewport');
-  await page.locator('#project-details-close').click();await page.locator('#project-current-details').click();
+  await page.locator('#project-details-close').click();await openCurrentProjectDetails(page);
   await expect(panel.getByText('Saved project unavailable',{exact:true})).toBeVisible();
   await address.fill('18 Current Project Way');
   const started=Date.now();
@@ -239,7 +239,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   await page.locator('#project-details-close').click();
   const refreshed=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/projects');
   await page.locator('#refresh-quotes').click();await refreshed;
-  await page.locator('#project-current-details').click();await expect(targetB).toBeVisible();
+  await openCurrentProjectDetails(page);await expect(targetB).toBeVisible();
   await page.locator('#project-pane-contact-phone').fill('5550101');
   await targetB.click();
   const onDisk=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/save');
@@ -253,7 +253,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
     data.linked_bids=[{project_no:'PN-older',client:'Earlier bid',site_address:'42 Example Lane'}];
     await route.fulfill({response,json:data});
   });
-  await page.locator('#project-details-close').click();await page.locator('#project-current-details').click();
+  await page.locator('#project-details-close').click();await openCurrentProjectDetails(page);
   await expect(panel.locator('summary')).toBeVisible();
   await expect(panel.getByText(/PN-older · Earlier bid/)).toBeVisible();
   assert.deepEqual(errors,[]);

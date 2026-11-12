@@ -83,7 +83,7 @@ vm.createContext(context);
   const appEnd = /  bootstrap\(\);\s*\}\)\(\);\s*$/;
   assert.ok(appEnd.test(appSource), 'Estimator test hook must replace bootstrap only');
   appSource = appSource.replace(appEnd, `
-    globalThis.appAudit = {state, saveProject, loadProject, openNativeProject, newQuote, projectStamp, saveQuote, openQuote, calculate, reportPayload, projectEstimate, downloadFullReport,
+    globalThis.appAudit = {state, openHeaderProjectDetails, saveProject, loadProject, openNativeProject, newQuote, projectStamp, saveQuote, openQuote, calculate, reportPayload, projectEstimate, downloadFullReport,
       applyProjectPricing,savePricing,switchPricingScope,useCurrentPricing,loadProjects,linkProjectFolder,openProjectFile,openProjectBrowser,loadProjectFiles,openProjectFolderFile,closeProjectBrowser,projectPricingChanged,resetProjectPricing,pricingInputProblem,updateProjectStatus,showView,requestViewNavigation,requestDocumentsNavigation,requestCalculatorNavigation,uploadProjectFiles,reviewDesktopClose,
       renderInputs, selectMainSection, changeProjectStage, changeCurrentProjectStage, renderProjectList, addProjectEstimate, selectEstimate, setRequest(fn) { request = fn; }};
   })();`);
@@ -851,6 +851,21 @@ async function penetrationCheck(name, fn) {
     h.app.state.projectBusy=false;h.app.state.projectFile=null;h.app.updateProjectStatus();assert.equal(name.textContent,'');assert.equal(name.title,'');assert.equal(name.hidden,true);
     await h.loadAccepted();assert.equal(name.textContent,project().estimate.title);assert.equal(name.title,project().estimate.title);assert.equal(name.hidden,false);
     assert.notEqual(name.textContent,projectFilename,'Imported project title comes from validated contents rather than its filename');
+  });
+  await check('Header shortcut reviews Cancel or Yes, rejects changed files and ignores repeated or busy requests', async h => {
+    let opened=0;h.context.window.CeasefireProjectPane={openCurrent:async()=>{opened++;}};
+    h.app.state.projectFile={title:'Saved A',save_token:'saved-a'};h.app.state.view='quotes';h.app.state.pricingDirty=false;h.app.state.draft=copy(h.app.state.configuration);
+    let request=h.app.openHeaderProjectDetails();await flush();
+    assert.equal(h.byId('discard-dialog').open,true);
+    assert.equal(h.byId('discard-dialog').querySelector('h2').textContent,'Open Project details?');
+    assert.equal(h.byId('header-project-name').disabled,true);
+    await h.app.openHeaderProjectDetails();await h.byId('discard-dialog').close('cancel');await request;
+    assert.equal(opened,0);assert.equal(h.byId('header-project-name').disabled,false);
+    request=h.app.openHeaderProjectDetails();await flush();await h.byId('discard-dialog').close('confirm');await request;assert.equal(opened,1);
+    request=h.app.openHeaderProjectDetails();await flush();h.app.state.projectFile={title:'Saved B',save_token:'saved-b'};
+    await h.byId('discard-dialog').close('confirm');await request;assert.equal(opened,1,'Old prompt cannot open a replacement Project');
+    h.app.state.projectBusy=true;await h.app.openHeaderProjectDetails();assert.equal(opened,1);
+    h.app.state.projectBusy=false;h.app.state.projectFile=null;await h.app.openHeaderProjectDetails();assert.equal(opened,1);
   });
   await check('Project status includes project pricing edits but excludes shared library edits', async h => {
     h.app.state.dirty=false;h.app.state.projectFile={name:'saved.cf.json'};h.app.state.projectPricingDraft=copy(h.app.state.quoteConfiguration);

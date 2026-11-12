@@ -63,6 +63,8 @@
   <script src="/commercial-documents.js" defer></script>
   <link rel="stylesheet" href="/swms.css">
   <link rel="stylesheet" href="/contacts.css">
+  <link rel="stylesheet" href="/record-resources.css">
+  <script src="/record-resources.js" defer></script>
   <script src="/crm-activity.js" defer></script>
   <script src="/contacts.js" defer></script>
   <script src="/personal-signature.js" defer></script>
@@ -70,6 +72,7 @@
   <script src="/document-workflow-board.js" defer></script>
   <script src="/swms.js" defer></script>
   <script src="/app.js" defer></script>
+  <script src="/project-record-panels.js" defer></script>
   <script src="/project-pane.js" defer></script>
   <script src="/certification.js" defer></script>
   <link rel="stylesheet" href="/games/play.css">
@@ -241,7 +244,7 @@ SOFTWARE. -->
     </nav>
 
     </div>
-    <div class="header-project-identity"><span id="header-project-name" class="header-project-name" hidden></span><span id="project-save-state" class="status-label unsaved" role="status" data-i18n="Not saved to a file">Not saved to a file</span></div>
+    <div class="header-project-identity"><button id="header-project-name" type="button" class="header-project-name" hidden></button><span id="project-save-state" class="status-label unsaved" role="status" data-i18n="Not saved to a file">Not saved to a file</span></div>
     </div>
   </header>
     <div id="header-project-actions" class="actions header-project-actions" role="group" aria-label="Project actions" hidden data-i18n-aria-label="Project actions">
@@ -492,7 +495,7 @@ SOFTWARE. -->
     <section id="view-purchase-orders" class="view workspace-view" aria-label="Purchase Orders" hidden><div id="commercial-purchase-order-root"></div></section>
     <section id="view-scheduler" class="view" aria-label="Scheduler" hidden><div id="scheduler-root"></div></section>
     <section id="view-quotes" class="view workspace-view" aria-labelledby="quotes-heading" hidden>
-      <div class="page-heading project-banner-heading"><div class="project-heading-copy"><div class="project-heading-text"><h1 id="quotes-heading" data-i18n="Projects">Projects</h1></div></div><div class="actions project-workspace-actions"><button id="project-current-details" type="button" class="button secondary" data-i18n="Current project details">Current project details</button><button id="load-project" type="button" class="button secondary" data-i18n="Load">Load</button><input id="project-import-file" type="file" accept=".cf.json" hidden><button id="link-project-folder" type="button" class="button icon-only link-action-button" aria-label="Link Project Folder" title="Link Project Folder" data-i18n-title="Link Project Folder" data-i18n-aria-label="Link Project Folder"><span class="button-symbol" aria-hidden="true">🔗︎</span><span class="sr-only" data-i18n="Link Project Folder">Link Project Folder</span></button><button id="refresh-quotes" type="button" class="button secondary refresh-button icon-only" aria-label="Refresh" title="Refresh" data-i18n-title="Refresh" data-i18n-aria-label="Refresh"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 7v5h-5"></path><path d="M4 17v-5h5"></path><path d="M6.1 8.4A7.5 7.5 0 0 1 19.2 10L20 12"></path><path d="M17.9 15.6A7.5 7.5 0 0 1 4.8 14L4 12"></path></svg><span class="sr-only" data-i18n="Refresh">Refresh</span></button></div></div>
+      <div class="page-heading project-banner-heading"><div class="project-heading-copy"><div class="project-heading-text"><h1 id="quotes-heading" data-i18n="Projects">Projects</h1></div></div><div class="actions project-workspace-actions"><button id="project-current-details" type="button" class="button secondary" hidden data-i18n="Current project details">Current project details</button><button id="load-project" type="button" class="button secondary" data-i18n="Load">Load</button><input id="project-import-file" type="file" accept=".cf.json" hidden><button id="link-project-folder" type="button" class="button icon-only link-action-button" aria-label="Link Project Folder" title="Link Project Folder" data-i18n-title="Link Project Folder" data-i18n-aria-label="Link Project Folder"><span class="button-symbol" aria-hidden="true">🔗︎</span><span class="sr-only" data-i18n="Link Project Folder">Link Project Folder</span></button><button id="refresh-quotes" type="button" class="button secondary refresh-button icon-only" aria-label="Refresh" title="Refresh" data-i18n-title="Refresh" data-i18n-aria-label="Refresh"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 7v5h-5"></path><path d="M4 17v-5h5"></path><path d="M6.1 8.4A7.5 7.5 0 0 1 19.2 10L20 12"></path><path d="M17.9 15.6A7.5 7.5 0 0 1 4.8 14L4 12"></path></svg><span class="sr-only" data-i18n="Refresh">Refresh</span></button></div></div>
       <div id="project-active-details" hidden><input id="project-no" type="text" readonly><input id="client" type="text"><textarea id="site-address"></textarea><input id="project-contact-name" type="text"><input id="project-contact-phone" type="text"><input id="project-contact-email" type="text"><input id="project-account-id" type="text"><input id="project-contact-id" type="text"><textarea id="project-billing-address"></textarea><input id="project-abn-acn" type="text"></div>
       <p id="project-folder" class="message info" hidden aria-hidden="true"></p>
       <nav id="project-pages" class="calculator-pages project-tabs" aria-label="Project pages" data-i18n-aria-label="Project pages"><button type="button" class="calculator-page" data-project-section="quotes" aria-pressed="true" data-i18n="Projects">Projects</button><button type="button" class="calculator-page" data-project-section="quote" aria-pressed="false" data-i18n="Quotes">Quotes</button><button type="button" class="calculator-page" data-project-section="work-orders" aria-pressed="false" data-i18n="Work Orders">Work Orders</button><button type="button" class="calculator-page" data-project-section="purchase-orders" aria-pressed="false" data-i18n="Purchase Orders">Purchase Orders</button></nav>

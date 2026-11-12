@@ -177,9 +177,9 @@
     if (target.dirty()) {
       const captured = target.fingerprint();
       const translate = value => window.CeasefireI18n?.translate?.(value) || value;
-      if (!await window.CeasefireDialogs.confirm(translate("Discard changes"), translate(target.kind === "contacts" ? "Discard changes to this contact?" : "Discard changes to this company?"), translate("Yes"), translate("Cancel"))) return false;
+      if (!await window.CeasefireDialogs.confirm(translate("Discard changes"), translate({contacts:"Discard changes to this contact?",accounts:"Discard changes to this company?",leads:"Discard changes to this lead?"}[target.kind]), translate("Yes"), translate("Cancel"))) return false;
       if (accountEditor !== target || target.pending()) return false;
-      if (target.fingerprint() !== captured) { target.notice(target.kind === "contacts" ? "The Contact changed during review. Check the current changes and try again." : "The Company changed during review. Check the current changes and try again.", true); return false; }
+      if (target.fingerprint() !== captured) { target.notice({contacts:"The Contact changed during review. Check the current changes and try again.",accounts:"The Company changed during review. Check the current changes and try again.",leads:"The Lead changed during review. Check the current changes and try again."}[target.kind], true); return false; }
     }
     target.close();
     return true;
@@ -192,8 +192,8 @@
     if (requestId !== editorRequest || saving || root()?.getAttribute("aria-busy") === "true") return null;
     if (options.isCurrent && !options.isCurrent()) return null;
     const readOnly = Boolean(options.lockedReadOnly || window.ClassifireAccess && !window.ClassifireAccess.can("edit"));
-    const inPane = ["accounts", "contacts"].includes(kind) && Boolean(record.id) && !options.standalone;
-    const dialog = el(inPane ? "aside" : "dialog", inPane ? "card contacts-account-pane" : "contacts-dialog");
+    const inPane = ["accounts", "contacts", "leads"].includes(kind) && Boolean(record.id) && !options.standalone;
+    const dialog = el(inPane ? "aside" : "dialog", inPane ? "contacts-account-pane" : "contacts-dialog");
     if (inPane && kind === "contacts") dialog.classList.add("contacts-contact-pane");
     const form = el("form", "contacts-form");
     const returnFocus = document.activeElement;
@@ -211,6 +211,7 @@
     staff.catch(()=>{});
     let contactId = record.contact_id || "", contactName = record.name || "", accountId = record.account_id || "";
     let accountDefaults = {};
+    let resources = null, workspaceLeft, workspaceRight, associationPanel, associationLinks;
     let resolveClosed, savedRecord = null, submitting = false, loadingLinks = false, linksReady = kind !== "accounts", contactLinkRefresh, contactLinkLoading = false;
     const closed = new Promise(resolve => { resolveClosed = resolve; });
     const heading = el("h2", "", readOnly ? (kind==='accounts' ? record.company : record.name) : (record.id ? "Edit " : "New ") + singular[kind]);
@@ -226,6 +227,7 @@
     if (newContact) form.noValidate = true;
     function group(headingText, keys) {
       const section = el("fieldset", "contacts-group");
+      if (headingText === "Follow-up") section.classList.add("contacts-follow-up");
       section.append(ui("legend", "", headingText));
       for (const key of keys) {
         const label = el("label", "field");
@@ -241,9 +243,14 @@
           input=window.ClassifireCrmActivity.ownerSelect(record);
           const ownerInput=input;
           staff.then(rows=>window.ClassifireCrmActivity.populate(ownerInput,rows)).catch(error=>feedback(form,error.message,true));
-        } else if (["description", "billing_address", "site_address"].includes(key)) {
+        } else if (["description", "billing_address", "site_address", "next_action"].includes(key)) {
           input = el("textarea");
           input.rows = key === "description" ? 3 : 2;
+          if (key === "next_action") {
+            input.maxLength = 500;
+            const grow = () => {input.style.height="auto";input.style.height=Math.max(56,input.scrollHeight)+"px";};
+            input.addEventListener("input",grow);queueMicrotask(grow);
+          }
         } else {
           input = el("input");
           input.type = key === "email" ? "email" : key === "phone" ? "tel" : key === "follow_up_date" ? "date" : "text";
@@ -272,7 +279,7 @@
       form.append(section);
     }
     if (kind === "leads") {
-      group("Lead Information", [...personFields, "abn_acn", "status", "owner_id", "region"]);
+      group("Lead Information", [...personFields, "abn_acn", "status", "owner_id"]);
       group("Address Information", ["site_address", "billing_address"]);
       group("Description", ["description"]);
       group("Follow-up", ["next_action", "follow_up_date"]);
@@ -282,6 +289,40 @@
       group("Contact Information", [...personFields, "owner_id"]);
     }
     const initialValues = Object.fromEntries(Object.entries(fields).map(([key,input]) => [key,input.value]));
+    function arrangeLinkedGroups(groups) {
+      if (!inPane || !associationLinks) return;
+      associationLinks.replaceChildren();
+      for (const group of [...groups.querySelectorAll(":scope>details[data-link-group]")]) {
+        group.classList.add("card","commercial-side-panel");
+        if (["companies","contacts"].includes(group.dataset.linkGroup)) associationLinks.append(group);
+      }
+      if (associationPanel) associationPanel.hidden = Boolean(associationLinks.querySelector('[data-link-group="companies"]'));
+    }
+    function linkedSummary(target, rows) {
+      const list=el("dl","commercial-card-info");
+      for(const [label,value] of rows)list.append(ui("dt","",label),el("dd","",value || "—"));
+      target.append(list);
+    }
+    async function openAssociation(targetKind,id) {
+      if (!await leaveAccount()) return;
+      if (!await activate(targetKind)) return;
+      const item=data[targetKind].find(row=>row.id===id);
+      if(item)void dialogEditor(targetKind,item);
+    }
+    function showAssociation() {
+      if(!associationPanel)return;
+      const account=kind === "accounts" ? record : directory.accounts.find(item=>item.id===accountId);
+      const name=kind === "accounts" ? fields.company.value : account?.company || fields.company?.value;
+      associationPanel.replaceChildren(ui("summary","","Company Details"));
+      if(name) {
+        const card=el("article","commercial-linked-company");
+        if(account && kind!=="accounts")card.append(button(name,()=>void openAssociation("accounts",account.id),"text-button project-title-button"));
+        else card.append(el("strong","",name));
+        linkedSummary(card,[["Billing address",kind==="accounts" ? fields.billing_address.value : account?.billing_address],["ABN/ACN",kind==="accounts" ? fields.abn_acn.value : account?.abn_acn]]);
+        associationPanel.append(card);
+      }
+    }
+
     function accountSelection(account, setCompany = true) {
       accountId = account.id;
       if (setCompany) {
@@ -459,6 +500,7 @@
             closeEditor(); await switchPage("contacts"); dialogEditor("contacts", person);
           }, "text-button"));
         } else label.append(el("span", "", item.label));
+        if (!inSearch && person) linkedSummary(row,[["Title",person.title],["Phone",person.phone],["Email",person.email]]);
         if (item.inherited) row.append(ui('p','helper','Linked through a merged record.'));
         else if (item.name_only) row.append(ui('p','helper','Matched by company name only.'));
         else if (item.supplier) row.append(ui("p", "helper", "Supplier"));
@@ -471,8 +513,8 @@
         return row;
       }
       function renderLinked() {
-        const expanded = new Set([...groups.querySelectorAll("details[open]")].map(group => group.dataset.linkGroup));
-        const existing = new Set([...groups.querySelectorAll("details")].map(group => group.dataset.linkGroup));
+        const expanded = new Set([...form.querySelectorAll("details[data-link-group][open]")].map(group => group.dataset.linkGroup));
+        const existing = new Set([...form.querySelectorAll("details[data-link-group]")].map(group => group.dataset.linkGroup));
         groups.replaceChildren();
         for (const [key, title] of Object.entries(linkTitles)) {
           const entries = selectedEntries(key);
@@ -501,6 +543,7 @@
         appendLeadGroup(groups, 'converted_leads', 'Converted leads', convertedLeads, conversionDetails, expanded, existing);
         appendLeadGroup(groups, 'participant_projects', 'Recorded project roles', participantProjects, participantProject, expanded, existing);
         if (!groups.children.length) groups.append(ui("p", "helper contacts-links-empty", "No linked records."));
+        arrangeLinkedGroups(groups);
       }
       function renderResults(focusEntry = null) {
         const term = find.value.trim().toLocaleLowerCase();
@@ -613,7 +656,7 @@
       // The dialog must be open before a cached or very fast response is handled.
       queueMicrotask(loadLinks);
     }
-    if (inPane && kind === "contacts") {
+    if (inPane && (kind === "contacts" || kind === "leads" && record.contact_id)) {
       const related = el("section", "contacts-related"), groups = el("div", "contacts-links");
       const linkStatus = ui("p", "helper", "Loading linked records…");
       linkStatus.setAttribute("role", "status");
@@ -629,13 +672,13 @@
         contactLinkLoading = true;
         refresh.disabled = true; copy(linkStatus, "Loading linked records…");
         try {
-          const catalog = await request("contact-links?" + new URLSearchParams({id:record.id}));
+          const catalog = await request("contact-links?" + new URLSearchParams({id:kind === "leads" ? record.contact_id : record.id}));
           if (!isOpen() || ticket !== contactLinkTicket) return;
-          const expanded = new Set([...groups.querySelectorAll("details[open]")].map(group => group.dataset.linkGroup));
-          const existing = new Set([...groups.querySelectorAll("details")].map(group => group.dataset.linkGroup));
+          const expanded = new Set([...form.querySelectorAll("details[data-link-group][open]")].map(group => group.dataset.linkGroup));
+          const existing = new Set([...form.querySelectorAll("details[data-link-group]")].map(group => group.dataset.linkGroup));
           groups.replaceChildren();
           for (const [key, title] of Object.entries({companies:"Companies", projects:"Projects", leads:"Leads", quotes:"Quotes", work_orders:"Work Orders", purchase_orders:"Purchase Orders"})) {
-            const entries = catalog.linked[key] || [];
+            const entries = (catalog.linked[key] || []).filter(item=>kind !== "leads" || key !== "leads" || item.id !== record.id);
             if (!entries.length) continue;
             const group = el("details", "contacts-links-group"), summary = el("summary"), list = el("ul", "contacts-links-list");
             group.dataset.linkGroup = key; group.open = expanded.has(key) || !existing.has(key);
@@ -649,6 +692,7 @@
               }, "text-button"));
               else if(key==='leads' && item.available) row.append(button(item.label, () => openDirectoryLead(item.id), 'text-button'));
               else row.append(el("span", "", item.label));
+              if(company)linkedSummary(row,[["Billing address",company.billing_address],["ABN/ACN",company.abn_acn]]);
               for (const role of item.roles || []) row.append(ui("p", "helper", role));
               list.append(row);
             }
@@ -657,6 +701,7 @@
           appendLeadGroup(groups, 'converted_leads', 'Converted leads', catalog.converted_leads || [], conversionDetails, expanded, existing);
           appendLeadGroup(groups, 'participant_projects', 'Recorded project roles', catalog.participant_projects || [], participantProject, expanded, existing);
           if (!groups.children.length) groups.append(ui("p", "helper contacts-links-empty", "No linked records."));
+          arrangeLinkedGroups(groups);
           unavailable.hidden = !catalog.error_count;
           copy(unavailableSummary, "Unavailable project records ({0})", [catalog.error_count || 0]);
           unavailableList.replaceChildren(...(catalog.errors || []).map(item => el("li", "", item.name)));
@@ -668,9 +713,9 @@
       }
       queueMicrotask(loadContactLinks);
     }
-    if (inPane) window.ClassifireIdentity?.management(form,kind,record,directory,request,async () => {
+    if (inPane && kind !== "leads") window.ClassifireIdentity?.management(form,kind,record,directory,request,async () => {
       closeEditor(); await activate(page);
-    },()=>Object.keys(fields).some(key=>fields[key].value!==initialValues[key]) || linksChanged() || timeline?.dirty?.());
+    },()=>Object.keys(fields).some(key=>fields[key].value!==initialValues[key]) || linksChanged() || timeline?.dirty?.() || resources?.dirty?.() || resources?.pending?.());
     const timeline = record.id && window.ClassifireCrmActivity.attach(form,{
       kind,record,request,readOnly,staff,version:()=>version,setVersion:next=>{
         if(data?.version===version)data.version=next;
@@ -728,6 +773,7 @@
     form.addEventListener("submit", async event => {
       event.preventDefault();
       if (readOnly || submitting || saving || loadingLinks || !linksReady || timeline?.pending?.()) return;
+      if (resources?.pending?.() || resources?.dirty?.()) {feedback(form,{contacts:"Finish the current Contact action first.",accounts:"Finish the current Company action first.",leads:"Finish the current Lead action first."}[kind],true);return;}
       if (timeline?.dirty?.()){feedback(form,'Log or clear the activity first.',true);return;}
       if (newContact) {
         let first;
@@ -747,7 +793,7 @@
       form.setAttribute("aria-busy", "true");
       const values = Object.fromEntries(Object.entries(fields).map(([key, input]) => [key, input.value]));
       const assignment = {owner_id:values.owner_id}; delete values.owner_id;
-      if(kind==='leads'){assignment.region=values.region;delete values.region;}
+      // Region is retained in storage; this editor no longer changes it.
       const links = kind === "accounts" ? Object.fromEntries(Object.entries(linkSelections).map(([key, selected]) => [key, [...selected]])) : undefined;
       const editable = [...form.querySelectorAll("input,textarea,select,button")].filter(input => !input.disabled);
       editable.forEach(input => { input.disabled = true; });
@@ -806,28 +852,57 @@
       if (inPane && accountEditor?.element === dialog) {
         accountEditor = null;
         dialog.parentNode?.classList.remove("contacts-account-open");
+        const list=dialog.parentNode?.querySelector(".contacts-workspace");if(list)list.hidden=false;
+        resources?.close?.();
       }
       dialog.remove(); resolveClosed(savedRecord);
       if ((inPane || options.standalone) && returnFocus?.isConnected) returnFocus.focus();
     }, {once: true});
     if (inPane) {
-      const close = button("×", () => leaveAccount(), "button secondary icon-only contacts-account-close");
-      close.setAttribute("aria-label", "Close"); close.title = "Close";
-      window.CeasefireI18n?.attr(close, "aria-label", "Close"); window.CeasefireI18n?.attr(close, "title", "Close");
-      const headingRow = el("div", "contacts-account-heading");
-      headingRow.append(heading, close); form.prepend(headingRow);
-      accountEditor = {element:dialog, kind, close:closeEditor, pending:()=>submitting || timeline?.pending?.(),
-        pendingMessage:()=>kind === "contacts" ? "Finish the current Contact action first." : "Finish the current Company action first.",
-        dirty:()=>Object.keys(fields).some(key=>fields[key].value !== initialValues[key]) || linksChanged() || timeline?.dirty?.(),
-        fingerprint:()=>JSON.stringify({id:record.id,version,fields:Object.fromEntries(Object.entries(fields).map(([key,input])=>[key,input.value])),links:Object.fromEntries(Object.entries(linkSelections).map(([key,selected])=>[key,[...selected].sort()])),activity:timeline?.fingerprint?.()}),
+      const close = button("←", () => leaveAccount(), "button secondary icon-only contacts-account-close");
+      const backLabel={accounts:"Back to Companies",contacts:"Back to Contacts",leads:"Back to Leads"}[kind];
+      close.setAttribute("aria-label",backLabel);close.title=backLabel;
+      window.CeasefireI18n?.attr(close,"aria-label",backLabel);window.CeasefireI18n?.attr(close,"title",backLabel);
+      dialog.classList.add("contacts-record-workspace");
+      const columns=el("div","contacts-record-layout"),main=el("div","contacts-record-main"),details=el("section","card contacts-record-details");
+      workspaceLeft=el("aside","commercial-sidebar contacts-record-left");workspaceRight=el("aside","commercial-sidebar contacts-record-right");
+      associationPanel=el("details","card commercial-side-panel");associationPanel.open=true;
+      associationLinks=el("div","contacts-record-associations");workspaceLeft.append(associationPanel,associationLinks);
+      if(kind === "leads" && record.contact_id) {
+        const person=directory.contacts.find(item=>item.id===record.contact_id);
+        if(person) {
+          const linkedContact=el("details","card commercial-side-panel"),body=el("article","commercial-linked-contact");linkedContact.open=true;
+          body.append(button(person.name,()=>void openAssociation("contacts",person.id),"text-button project-title-button"));
+          linkedSummary(body,[["Title",person.title],["Phone",person.phone],["Email",person.email]]);
+          linkedContact.append(ui("summary","","Linked Contacts"),body);workspaceLeft.append(linkedContact);
+        }
+      }
+      const toolbar=el("div","commercial-editor-actions contacts-record-toolbar");toolbar.append(close);
+      if(!readOnly)toolbar.append(save);
+      const originalChildren=[...form.children];
+      for(const child of originalChildren) {
+        if(child.matches(".contacts-related,.crm-identity-section,.crm-timeline"))workspaceRight.append(child);
+        else details.append(child);
+      }
+      main.append(toolbar,details);columns.append(workspaceLeft,main,workspaceRight);form.append(columns);
+      showAssociation();
+      form.addEventListener("input",showAssociation);
+      for(const groups of form.querySelectorAll(".contacts-links"))arrangeLinkedGroups(groups);
+      const resourceHost=el("div","contacts-record-resources");workspaceRight.prepend(resourceHost);
+      accountEditor = {element:dialog, kind, close:closeEditor, pending:()=>submitting || timeline?.pending?.() || resources?.pending?.(),
+        pendingMessage:()=>({contacts:"Finish the current Contact action first.",accounts:"Finish the current Company action first.",leads:"Finish the current Lead action first."}[kind]),
+        dirty:()=>Object.keys(fields).some(key=>fields[key].value !== initialValues[key]) || linksChanged() || timeline?.dirty?.() || resources?.dirty?.(),
+        fingerprint:()=>JSON.stringify({id:record.id,version,fields:Object.fromEntries(Object.entries(fields).map(([key,input])=>[key,input.value])),links:Object.fromEntries(Object.entries(linkSelections).map(([key,selected])=>[key,[...selected].sort()])),activity:timeline?.fingerprint?.(),resources:resources?.fingerprint?.()}),
         notice:(message,error)=>feedback(form,message,error)};
       const layout = root().querySelector(".contacts-directory-layout");
-      layout.classList.add("contacts-account-open"); layout.prepend(dialog);
+      layout.classList.add("contacts-account-open");layout.querySelector(".contacts-workspace").hidden=true;layout.prepend(dialog);
+      resources=window.ClassifireRecordResources?.attach(resourceHost,{owner:{kind,id:record.id},isCurrent:isOpen,
+        canEdit:()=>!readOnly&&!submitting&&!saving,message:(message,error)=>feedback(form,message,error)});
       dialog.addEventListener("keydown", event => {
         if (event.key !== "Escape" || event.defaultPrevented || event.target.closest("details[open]")) return;
         event.preventDefault(); event.stopPropagation(); void leaveAccount();
       });
-      (kind === "contacts" ? fields.name : fields.company).focus();
+      (kind === "accounts" ? fields.company : fields.name).focus();
     } else {
       (options.standalone ? document.body : root()).append(dialog);
       dialog.showModal();
@@ -1084,7 +1159,7 @@
     conversionBusy();
   }
   document.addEventListener("click", event => {
-    root()?.querySelectorAll("details[open]").forEach(menu => {if (!menu.contains(event.target)) menu.open = false;});
+    root()?.querySelectorAll(".contacts-document[open],.contacts-lead-menu[open]").forEach(menu => {if (!menu.contains(event.target)) menu.open = false;});
   });
   document.addEventListener("keydown", event => {
     if (event.key !== "Escape") return;

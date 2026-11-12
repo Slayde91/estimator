@@ -170,11 +170,10 @@ async function inspectHeader(width) {
         }
         const controls = page.locator('.project-workspace-actions'), link = await box(controls.getByRole('button', { name: 'Link Project Folder', exact: true }));
         const load = await box(controls.getByRole('button', { name: 'Load', exact: true })); assert.ok(load.height >= link.height);
-        const create = page.locator('#new-quote'), sort = await box(page.locator('#project-sort')), details = await box(page.locator('#project-current-details')), b = await box(create);
+        const create = page.locator('#new-quote'), sort = await box(page.locator('#project-sort')), b = await box(create);
         await expect(create).toHaveAccessibleName('New');assert.equal(b.height,sort.height);assert.equal(b.width,b.height);
         assert.equal(await create.evaluate(el=>el.closest('.project-list-controls')===document.querySelector('#project-sort').closest('.project-list-controls')),true,'New retains the Sort row owner');
-        assert.equal(await controls.locator('#project-current-details').evaluate(el=>el.nextElementSibling.id),'load-project');
-        assert.ok(details.x>=0 && details.x+details.width<=width+1 && (details.x+details.width<=load.x+1 || details.y+details.height<=load.y+1),'Current project details precedes Load, wrapping on narrow screens');
+        await expect(page.locator('#project-current-details')).toBeHidden();
         const sameRow=Math.abs(b.y+b.height-sort.y-sort.height)<2;
         assert.ok(sameRow?sort.x+sort.width<=b.x+1:b.y>=sort.y+sort.height-1,'Sort precedes the project action group; narrow layouts may wrap');
         assert.ok(sort.x>=0&&sort.x+sort.width<=width+1,'Sort remains in the viewport alongside or above its project action group');

@@ -1,0 +1,237 @@
+{
+  "A record supports up to 16 attached files.": [
+    "레코드당 파일을 최대 16개 첨부할 수 있습니다.",
+    "Hanggang 16 na file ang maaaring ilakip sa isang rekord.",
+    "Mỗi bản ghi hỗ trợ tối đa 16 tệp đính kèm."
+  ],
+  "A record supports up to 200 notes.": [
+    "레코드당 메모를 최대 200개 작성할 수 있습니다.",
+    "Hanggang 200 tala ang maaaring ilagay sa isang rekord.",
+    "Mỗi bản ghi hỗ trợ tối đa 200 ghi chú."
+  ],
+  "Add files": [
+    "파일 추가",
+    "Magdagdag ng mga file",
+    "Thêm tệp"
+  ],
+  "Back to Companies": [
+    "회사 목록으로 돌아가기",
+    "Bumalik sa Mga Kumpanya",
+    "Quay lại Công ty"
+  ],
+  "Back to Contacts": [
+    "연락처 목록으로 돌아가기",
+    "Bumalik sa Mga Contact",
+    "Quay lại Liên hệ"
+  ],
+  "Back to Leads": [
+    "잠재 고객 목록으로 돌아가기",
+    "Bumalik sa Mga Lead",
+    "Quay lại Khách hàng tiềm năng"
+  ],
+  "Choose a file attached to this record.": [
+    "이 레코드에 첨부된 파일을 선택하세요.",
+    "Pumili ng file na nakalakip sa rekord na ito.",
+    "Chọn tệp đính kèm của bản ghi này."
+  ],
+  "Choose a saved record for Notes and Files.": [
+    "메모와 파일을 사용할 저장된 레코드를 선택하세요.",
+    "Pumili ng naka-save na rekord para sa Mga Tala at File.",
+    "Chọn bản ghi đã lưu để sử dụng Ghi chú và Tệp."
+  ],
+  "Choose one saved record for Notes and Files.": [
+    "메모와 파일을 사용할 저장된 레코드를 하나 선택하세요.",
+    "Pumili ng isang naka-save na rekord para sa Mga Tala at File.",
+    "Chọn một bản ghi đã lưu để sử dụng Ghi chú và Tệp."
+  ],
+  "Delete this note?": [
+    "이 메모를 삭제할까요?",
+    "Tanggalin ang talang ito?",
+    "Xóa ghi chú này?"
+  ],
+  "Discard changes to this lead?": [
+    "이 잠재 고객의 변경 사항을 버릴까요?",
+    "Itapon ang mga pagbabago sa lead na ito?",
+    "Hủy thay đổi của khách hàng tiềm năng này?"
+  ],
+  "Discard unsaved note changes?": [
+    "저장하지 않은 메모 변경 사항을 버릴까요?",
+    "Itapon ang mga hindi na-save na pagbabago sa tala?",
+    "Hủy các thay đổi ghi chú chưa lưu?"
+  ],
+  "Edit note": [
+    "메모 편집",
+    "I-edit ang tala",
+    "Sửa ghi chú"
+  ],
+  "Enter a title for the note.": [
+    "메모 제목을 입력하세요.",
+    "Maglagay ng pamagat ng tala.",
+    "Nhập tiêu đề cho ghi chú."
+  ],
+  "Enter a valid note title and text.": [
+    "올바른 메모 제목과 내용을 입력하세요.",
+    "Maglagay ng wastong pamagat at teksto ng tala.",
+    "Nhập tiêu đề và nội dung ghi chú hợp lệ."
+  ],
+  "Finish saving Notes or Files before leaving this record.": [
+    "이 레코드를 떠나기 전에 메모 또는 파일 저장을 완료하세요.",
+    "Tapusin ang pag-save ng Mga Tala o File bago umalis sa rekord na ito.",
+    "Hoàn tất lưu Ghi chú hoặc Tệp trước khi rời bản ghi này."
+  ],
+  "Finish the current Lead action first.": [
+    "현재 잠재 고객 작업을 먼저 완료하세요.",
+    "Tapusin muna ang kasalukuyang aksyon sa Lead.",
+    "Hoàn tất thao tác hiện tại của khách hàng tiềm năng trước."
+  ],
+  "Include a note title and text only.": [
+    "메모 제목과 내용만 포함하세요.",
+    "Isama lamang ang pamagat at teksto ng tala.",
+    "Chỉ cung cấp tiêu đề và nội dung ghi chú."
+  ],
+  "Linked Purchase Orders": [
+    "연결된 구매 주문",
+    "Mga Naka-link na Purchase Order",
+    "Đơn mua hàng liên kết"
+  ],
+  "Linked Quotes": [
+    "연결된 견적",
+    "Mga Naka-link na Quote",
+    "Báo giá liên kết"
+  ],
+  "Local user": [
+    "로컬 사용자",
+    "Lokal na user",
+    "Người dùng cục bộ"
+  ],
+  "Method not allowed.": [
+    "허용되지 않는 메서드입니다.",
+    "Hindi pinapayagan ang paraang ito.",
+    "Phương thức không được phép."
+  ],
+  "New note": [
+    "새 메모",
+    "Bagong tala",
+    "Ghi chú mới"
+  ],
+  "Note identifiers must be unique.": [
+    "메모 식별자는 고유해야 합니다.",
+    "Dapat natatangi ang mga ID ng tala.",
+    "Mã định danh ghi chú không được trùng nhau."
+  ],
+  "Notes or Files changed. Refresh this section before trying again.": [
+    "메모 또는 파일이 변경되었습니다. 이 섹션을 새로 고친 후 다시 시도하세요.",
+    "Nagbago ang Mga Tala o File. I-refresh ang seksyong ito bago subukan muli.",
+    "Ghi chú hoặc Tệp đã thay đổi. Làm mới mục này trước khi thử lại."
+  ],
+  "Notes or Files changed. Save this note using the latest record?": [
+    "메모 또는 파일이 변경되었습니다. 최신 레코드를 사용하여 이 메모를 저장할까요?",
+    "Nagbago ang Mga Tala o File. I-save ang talang ito gamit ang pinakabagong rekord?",
+    "Ghi chú hoặc Tệp đã thay đổi. Lưu ghi chú này bằng bản ghi mới nhất?"
+  ],
+  "Open Notes and Files in the CLASSIFIRE web app.": [
+    "CLASSIFIRE 웹 앱에서 메모와 파일을 여세요.",
+    "Buksan ang Mga Tala at File sa CLASSIFIRE web app.",
+    "Mở Ghi chú và Tệp trong ứng dụng web CLASSIFIRE."
+  ],
+  "Open Project details?": [
+    "프로젝트 세부 정보를 열까요?",
+    "Buksan ang mga detalye ng Proyekto?",
+    "Mở chi tiết Dự án?"
+  ],
+  "Project details could not be opened. {0}": [
+    "프로젝트 세부 정보를 열 수 없습니다. {0}",
+    "Hindi mabuksan ang mga detalye ng Proyekto. {0}",
+    "Không thể mở chi tiết Dự án. {0}"
+  ],
+  "Record files exceed the 32 MiB total limit.": [
+    "레코드 파일의 총크기가 32 MiB 한도를 초과합니다.",
+    "Lampas sa kabuuang limitasyong 32 MiB ang mga file ng rekord.",
+    "Tệp của bản ghi vượt quá giới hạn tổng 32 MiB."
+  ],
+  "Remove this file?": [
+    "이 파일을 제거할까요?",
+    "Alisin ang file na ito?",
+    "Gỡ tệp này?"
+  ],
+  "Save this Project before adding Notes or Files.": [
+    "메모 또는 파일을 추가하기 전에 이 프로젝트를 저장하세요.",
+    "I-save ang Proyektong ito bago magdagdag ng Mga Tala o File.",
+    "Lưu Dự án này trước khi thêm Ghi chú hoặc Tệp."
+  ],
+  "Save this record before adding Notes or Files.": [
+    "메모 또는 파일을 추가하기 전에 이 레코드를 저장하세요.",
+    "I-save ang rekord na ito bago magdagdag ng Mga Tala o File.",
+    "Lưu bản ghi này trước khi thêm Ghi chú hoặc Tệp."
+  ],
+  "The Lead changed during review. Check the current changes and try again.": [
+    "검토 중 잠재 고객이 변경되었습니다. 현재 변경 사항을 확인한 후 다시 시도하세요.",
+    "Nagbago ang Lead habang sinusuri. Suriin ang kasalukuyang mga pagbabago at subukan muli.",
+    "Khách hàng tiềm năng đã thay đổi trong khi xem xét. Kiểm tra các thay đổi hiện tại rồi thử lại."
+  ],
+  "The attachment could not be decoded.": [
+    "첨부 파일을 디코딩할 수 없습니다.",
+    "Hindi ma-decode ang kalakip na file.",
+    "Không thể giải mã tệp đính kèm."
+  ],
+  "The file could not be read.": [
+    "파일을 읽을 수 없습니다.",
+    "Hindi mabasa ang file.",
+    "Không thể đọc tệp."
+  ],
+  "The record resources are unavailable.": [
+    "레코드의 메모와 파일을 사용할 수 없습니다.",
+    "Hindi available ang mga tala at file ng rekord.",
+    "Không có ghi chú và tệp của bản ghi."
+  ],
+  "The record resources could not be read or saved.": [
+    "레코드의 메모와 파일을 읽거나 저장할 수 없습니다.",
+    "Hindi mabasa o ma-save ang mga tala at file ng rekord.",
+    "Không thể đọc hoặc lưu ghi chú và tệp của bản ghi."
+  ],
+  "The record resources have an invalid version.": [
+    "레코드의 메모와 파일 버전이 올바르지 않습니다.",
+    "Hindi wasto ang bersyon ng mga tala at file ng rekord.",
+    "Phiên bản ghi chú và tệp của bản ghi không hợp lệ."
+  ],
+  "The record resources have an unsupported format.": [
+    "레코드의 메모와 파일 형식이 지원되지 않습니다.",
+    "Hindi suportado ang format ng mga tala at file ng rekord.",
+    "Định dạng ghi chú và tệp của bản ghi không được hỗ trợ."
+  ],
+  "The request could not be completed.": [
+    "요청을 완료할 수 없습니다.",
+    "Hindi makumpleto ang kahilingan.",
+    "Không thể hoàn tất yêu cầu."
+  ],
+  "The saved note metadata is invalid.": [
+    "저장된 메모의 메타데이터가 올바르지 않습니다.",
+    "Hindi wasto ang metadata ng naka-save na tala.",
+    "Siêu dữ liệu ghi chú đã lưu không hợp lệ."
+  ],
+  "The saved notes are unavailable.": [
+    "저장된 메모를 사용할 수 없습니다.",
+    "Hindi available ang mga naka-save na tala.",
+    "Không có các ghi chú đã lưu."
+  ],
+  "This file is already attached to the record.": [
+    "이 파일은 이미 레코드에 첨부되어 있습니다.",
+    "Nakalakip na ang file na ito sa rekord.",
+    "Tệp này đã được đính kèm vào bản ghi."
+  ],
+  "This record was merged. Reopen its current record.": [
+    "이 레코드가 병합되었습니다. 현재 레코드를 다시 여세요.",
+    "Pinagsama na ang rekord na ito. Buksan muli ang kasalukuyang rekord nito.",
+    "Bản ghi này đã được hợp nhất. Mở lại bản ghi hiện tại."
+  ],
+  "Use the Notes and Files controls provided on this record.": [
+    "이 레코드에 제공된 메모와 파일 컨트롤을 사용하세요.",
+    "Gamitin ang mga kontrol ng Mga Tala at File sa rekord na ito.",
+    "Sử dụng các nút điều khiển Ghi chú và Tệp trên bản ghi này."
+  ],
+  "Source Notes and Files stay on the original record. Undo the merge to access them again.": [
+    "원본 메모와 파일은 원래 레코드에 보관됩니다. 다시 접근하려면 병합을 취소하세요.",
+    "Mananatili ang Mga Tala at File ng pinagmulan sa orihinal na rekord. I-undo ang pagsasama para ma-access muli ang mga ito.",
+    "Ghi chú và Tệp của nguồn vẫn ở bản ghi gốc. Hoàn tác hợp nhất để truy cập lại."
+  ]
+}

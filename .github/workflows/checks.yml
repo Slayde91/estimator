@@ -151,6 +151,10 @@ jobs:
       - run: node tests/browser/commercial_pricing_picker.cjs
       - run: node tests/browser/commercial_directory_search.cjs
       - run: node tests/browser/commercial_linked_contacts.cjs
+      - run: node tests/browser/header_linked_projects.cjs
+      - run: node tests/browser/project_record_panels.cjs
+      - run: node tests/browser/directory_record_workspaces.cjs
+      - run: node tests/browser/record_resource_guards.cjs
       - run: node tests/browser/saved_download_links.cjs
       - run: node tests/browser/commercial_panes_signatures.cjs
       - run: node tests/browser/commercial_status_project_scope.cjs

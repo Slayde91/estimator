@@ -29,11 +29,13 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
   await page.locator('#contacts-navigation-toggle').click();const host=page.locator('#contacts-root');
   await host.getByRole('button',{name:'New Lead',exact:true}).click();let dialog=page.getByRole('dialog',{name:'New Lead',exact:true});
   await dialog.getByLabel('Name',{exact:true}).fill('Builder contact');await dialog.getByLabel('Company',{exact:true}).fill('Builder');
-  await dialog.getByLabel('Region',{exact:true}).fill('Northern NSW');await expect(dialog.getByLabel('Owner',{exact:true})).toHaveValue(staff[0].id);
+  await expect(dialog.getByLabel('Region',{exact:true})).toHaveCount(0);await expect(dialog.getByLabel('Owner',{exact:true})).toHaveValue(staff[0].id);
   await expect(dialog.getByLabel('Status',{exact:true})).toHaveValue('New');await dialog.getByRole('button',{name:'Save',exact:true}).click();
+  await expect(host.locator('[data-status="New"] .project-kanban-card')).toContainText('Builder contact');let initial=await api('/api/contacts/directory');const regional=await page.request.post(base+'/api/contacts/leads',{data:{id:initial.leads[0].id,version:initial.version,fields:{name:'Builder contact',company:'Builder'},region:'Northern NSW'},headers:{'X-CRM-Member':staff[0].id}});assert.equal(regional.status(),200,await regional.text());
+  await page.reload();await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready);await page.locator('#contacts-navigation-toggle').click();
   const card=host.locator('[data-status="New"] .project-kanban-card');await expect(card).toContainText('Northern NSW');await expect(card).toContainText(name);
   await card.getByRole('button',{name:'Builder contact',exact:true}).click();
-  dialog=page.getByRole('dialog',{name:'Edit Lead',exact:true});
+  dialog=page.getByRole('complementary',{name:'Edit Lead',exact:true});
   await dialog.locator('.crm-timeline > summary').click();const timeline=dialog.locator('.crm-timeline');
   await expect(timeline.locator('.crm-event-list')).toContainText('Created');
   await timeline.getByLabel('Activity type',{exact:true}).selectOption('Call');

@@ -99,3 +99,37 @@
 .contacts-field-error[hidden]{display:none}
 .contacts-form .notice.error,#contacts-root .notice.error{color:#a20b16;background:#fff0f2;border:1px solid #d0001b;padding:12px;border-radius:7px;overflow-wrap:anywhere}
 .contacts-form :is(input,textarea)[aria-invalid="true"]{border-color:var(--error,#ff6377);outline:1px solid var(--error,#ff6377)}
+
+/* Existing directory records use the same left/editor/right workspace as documents. */
+.contacts-directory-layout.contacts-account-open{grid-template-columns:minmax(0,1fr)}
+.contacts-directory-layout.contacts-account-open>.contacts-workspace[hidden]{display:none}
+.contacts-account-pane.contacts-record-workspace{border:0;border-radius:0;background:transparent;box-shadow:none;padding:0}
+.contacts-record-workspace>.contacts-form{padding:0;gap:0}
+.contacts-record-layout{display:grid;grid-template-columns:minmax(170px,1fr) minmax(0,3fr) minmax(200px,1.15fr);gap:16px;align-items:start}
+.contacts-record-left,.contacts-record-main,.contacts-record-right,.contacts-record-associations,.contacts-record-resources{display:grid;gap:16px;min-width:0;align-content:start}
+.contacts-record-layout .commercial-sidebar{min-width:0}
+.contacts-record-layout [hidden]{display:none}
+.contacts-record-layout .commercial-side-panel{margin:0;min-width:0}
+.contacts-record-details{display:grid;gap:18px;margin:0;min-width:0}
+.contacts-record-toolbar{margin:0;min-width:0}
+.contacts-record-toolbar>.contacts-account-close{width:42px;height:42px;min-height:42px;min-width:42px;font-size:20px}
+.contacts-record-toolbar>.button{height:42px;min-height:42px}
+.contacts-record-workspace .contacts-record-details>.contacts-group{grid-template-columns:repeat(2,minmax(0,1fr))}
+.contacts-record-workspace .contacts-group.contacts-follow-up,.contacts-form .contacts-follow-up{grid-template-columns:minmax(0,1fr)}
+.contacts-follow-up>.field{grid-column:1/-1;min-width:0;width:100%}
+.contacts-follow-up textarea{width:100%;overflow-y:hidden;resize:vertical;line-height:1.5}
+.contacts-record-workspace .contacts-dialog-actions{margin:0}
+.contacts-record-workspace .contacts-related>h3{display:none}
+.contacts-record-workspace .contacts-link-controls{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.contacts-record-workspace .contacts-link-controls .contacts-link-search{min-width:0}
+.contacts-record-workspace .contacts-links-group,.contacts-record-workspace .crm-identity-section,.contacts-record-workspace .crm-timeline{margin:0;padding:18px;border:1px solid var(--line);border-top:3px solid var(--accent);border-radius:12px;background:var(--paper);min-width:0}
+.contacts-record-workspace .contacts-links-group>summary{padding:0;margin-bottom:12px}
+.contacts-record-workspace .contacts-links-group:not([open])>summary{margin-bottom:0}
+.contacts-record-workspace .contacts-links-body{padding:0}
+.contacts-record-workspace .contacts-link-row .commercial-card-info{flex-basis:100%;font-size:12px;margin-block:6px}
+.contacts-record-workspace .contacts-links-list{max-height:360px}
+.contacts-record-workspace .contacts-related{gap:16px}
+.contacts-record-workspace .contacts-links-group .text-button{white-space:normal;overflow-wrap:anywhere;text-align:start}
+.contacts-record-workspace .crm-timeline .contacts-group{grid-template-columns:minmax(0,1fr)}
+@media(max-width:1050px){.contacts-record-layout{grid-template-columns:minmax(0,1fr)}.contacts-record-main{grid-row:1}.contacts-record-left{grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))}.contacts-record-associations{display:contents}}
+@media(max-width:560px){.contacts-record-workspace .contacts-record-details>.contacts-group{grid-template-columns:minmax(0,1fr)}.contacts-record-details{padding:16px}}

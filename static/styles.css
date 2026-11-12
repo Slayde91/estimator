@@ -607,6 +607,18 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .project-pane-fields input,.project-pane-fields textarea{width:100%;min-width:0}
 .project-directory-panels{display:grid;gap:12px;margin:0}
 .project-workspace-side .commercial-side-panel{min-width:0;margin:0;padding:14px}
+.project-record-panels{display:grid;gap:16px;min-width:0}
+.project-workspace-links .commercial-side-panel{min-width:0;margin:0;padding:14px}
+.project-workspace-links .commercial-side-panel>summary{font-weight:700;cursor:pointer}
+.project-workspace-links .commercial-side-panel>.project-title-button{display:block;margin-top:10px;text-align:start;white-space:normal;overflow-wrap:anywhere}
+.project-workspace-links .project-link-status:empty{display:none}
+.project-party-cards{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:12px}
+.project-party-cards>li{min-width:0}
+.project-party-cards .commercial-linked-contact{min-width:0;border-top:1px solid var(--line);padding-top:10px;overflow-wrap:anywhere}
+.project-party-cards .project-title-button{display:block;max-width:100%;text-align:start;white-space:normal;overflow-wrap:anywhere}
+.project-party-cards .helper{margin:4px 0}
+.project-party-cards .commercial-card-info{grid-template-columns:minmax(0,1fr);gap:3px;margin:8px 0}
+.project-party-cards .commercial-card-info dd{margin-bottom:5px;white-space:pre-wrap}
 .project-pane-fields .project-account-field{grid-column:1/-1}
 .project-account-field{position:relative}
 .project-account-field>label{display:block;margin-bottom:7px;font-size:12px;font-weight:650}

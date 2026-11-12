@@ -4,7 +4,7 @@ const {spawn} = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const {chooseTakeoff} = require('./section_navigation.cjs');
 const {renderDrawing} = require('./viewer_helpers.cjs');
-const {clickProjectControl,prepareProjectForSave,openProjectSection} = require('./project_actions.cjs');
+const {openCurrentProjectDetails,clickProjectControl,prepareProjectForSave,openProjectSection} = require('./project_actions.cjs');
 const root = path.resolve(__dirname,'../..');
 const output = path.join(root,'.runtime/browser-qa',`project-estimates-${Date.now()}`);
 fs.mkdirSync(output,{recursive:true});
@@ -125,7 +125,7 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   };
   await loadProject(()=>card.locator('.project-load-button').click());
   await expect(page.locator('#snapshot-message')).toBeHidden();
-  await page.locator('#project-current-details').click();await expect(page.locator('#project-details-pane')).toBeVisible();
+  await openCurrentProjectDetails(page);await expect(page.locator('#project-details-pane')).toBeVisible();
   await expect(page.locator('#snapshot-message')).toBeVisible();
   assert.equal(await page.locator('#project-pricing-context').textContent(),await page.locator('#header-project-name').textContent());
   await expect(page.locator('#view-estimate #snapshot-message')).toHaveCount(0);

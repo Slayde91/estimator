@@ -381,6 +381,7 @@
   }
   function render() {
     if (!state.data?.user) return auth(false);
+    const clockFocused = document.activeElement === state.root.querySelector(".scheduler-clock");
     shell();
     const top = el("div", "scheduler-top"), tabs = el("nav", "calculator-pages scheduler-tabs"); tabs.setAttribute("aria-label","Scheduler pages");
     const pages = [["schedule","Schedule"],["entries","Time entries"],...(admin() ? [["team","Team members"],["settings","Settings"]] : [])];
@@ -397,6 +398,7 @@
       catch (error) {await refresh(); notice(error.message,true);}
     })); top.append(tabs,account); state.root.append(top);
     renderClock();
+    if (clockFocused && !state.root.closest("[hidden]")) state.root.querySelector(".scheduler-clock").focus({preventScroll:true});
     if (state.page === "schedule") renderSchedule();
     if (state.page === "entries") renderEntries();
     if (state.page === "team" && admin()) renderTeam();

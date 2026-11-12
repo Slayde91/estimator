@@ -34,11 +34,16 @@ module.exports=async function peopleDefaults(root,output){
     defaults.fields.details.project_name='Saved client';defaults.fields.details.project_address='Saved site';
     const existing=await post('save',{id:crypto.randomUUID(),version:0,status:'Archived',fields:defaults.fields});
     await post('people-defaults',{section:'reviewers',rows:[{name:'Legacy shared person',position:'Legacy shared role',signature}],expected_version:1});
+    const otherFields=JSON.parse(JSON.stringify(defaults.fields));otherFields.details.project_name='Other retained statement';
+    const other=await post('save',{id:crypto.randomUUID(),version:0,status:'Draft',fields:otherFields});
     const oldSnapshot=await (await page.request.get(`${base}/api/swms/state?workspace=${workspace}`)).json();
     const legacyDefaults=(await post('defaults',{details:{}})).people_defaults;
     await page.evaluate(()=>window.CeasefireSWMS.activate());
     await expect(host.locator('.project-kanban')).toHaveCount(0);
-    await expect(host.getByRole('combobox',{name:'Saved statement',exact:true})).toHaveValue(existing.id);
+    const savedStatements=host.getByRole('combobox',{name:'Saved statement',exact:true});
+    await expect(savedStatements.locator('option')).toHaveCount(3);
+    await savedStatements.selectOption(other.id);await expect(host.getByLabel('Project Name',{exact:true})).toHaveValue('Other retained statement');
+    await savedStatements.selectOption(existing.id);
     await expect(host.getByLabel('Document title',{exact:true})).toHaveCount(0);
     await expect(host.getByLabel('Workflow status',{exact:true})).toHaveValue('Archived');
     const group=title=>host.locator(':scope > details').filter({has:page.locator(':scope > summary').filter({hasText:new RegExp('^'+title+'$')})});
@@ -48,6 +53,7 @@ module.exports=async function peopleDefaults(root,output){
     await expect(reviewers.getByLabel('Position',{exact:true})).toHaveValue('Historical role');
     await expect(reviewers.getByRole('img')).toBeVisible();
     await host.getByRole('button',{name:'Back to Documents',exact:true}).first().click();
+    await openProjectSection(page,'swms');
     await host.getByRole('button',{name:'New SWMS',exact:true}).click();
     await expect(host.getByLabel('Project Name',{exact:true})).toBeVisible();
     let fields=await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.fields);
@@ -128,7 +134,7 @@ module.exports=async function peopleDefaults(root,output){
     await page.evaluate(async()=>{window.CeasefireSWMS.applyProject({workspace_id:window.CeasefireCertification.sessionId()});await window.CeasefireSWMS.activate();});
     const oldReply=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/certifications/defaults'&&response.status()===503);
     releaseOld();await (await oldReply).finished();await page.evaluate(()=>new Promise(requestAnimationFrame));await expect(host.getByRole('button',{name:'New SWMS',exact:true})).toBeVisible();
-    assert.equal(await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor),null);
+    assert.equal((await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor)).version,other.version);
     await expect(host.locator('.swms-message')).toBeHidden();
     await host.getByRole('button',{name:'New SWMS',exact:true}).click();await expect(host.getByLabel('Project Name',{exact:true})).toBeVisible();
     assert.deepEqual(await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.fields.reviewers),[]);

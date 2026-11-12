@@ -33,6 +33,8 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
   assert.ok(pickerWidth-captionWidth<=24 && pickerWidth>=captionWidth);
   await upload.setInputFiles(info.fixture);await expect(filename).toHaveText(path.basename(info.fixture));
   await expect.poll(()=>page.evaluate(()=>window.CeasefireCoverSheets.hasUnsavedChanges())).toBe(true);
+  await expect(page.locator('#cover-sheets-dirty')).toHaveText('Unsaved changes');
+  await expect(upload.locator('xpath=ancestor::tr[1]').getByText('Unsaved changes',{exact:true})).toHaveCount(0);
   const row=upload.locator('xpath=ancestor::tr[1]');assert.equal(await row.locator('.cover-sheet-actions button').count(),1);
   await page.locator('.app-header [data-view="home"]').click();
   const dialog=page.getByRole('dialog',{name:'Unsaved changes',exact:true});await expect(dialog).toBeVisible();

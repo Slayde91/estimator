@@ -70,7 +70,8 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
   await page.unroute(savedRoute,unavailable);
   assert.equal(writes.length,2);checks.push('Certificate load errors remain visible on the form');
   await openProjectSection(page,'swms');const host=page.locator('#swms-root');
-  await host.getByRole('button',{name:'New SWMS',exact:true}).click();const back=host.getByRole('button',{name:'Back to Documents',exact:true}).first();
+  const swmsDefaults=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/swms/defaults');
+  await host.getByRole('button',{name:'New SWMS',exact:true}).click();await swmsDefaults;await expect(host).toHaveAttribute('aria-busy','false');const back=host.getByRole('button',{name:'Back to Documents',exact:true}).first();
   for(const theme of ['ceasefire','midnight','ocean','forest','slate'])for(const width of [1254,390]){
     await page.evaluate(value=>document.documentElement.dataset.theme=value,theme);await page.setViewportSize({width,height:884});
     const metric=await back.evaluate(button=>{const r=button.getBoundingClientRect();return{width:r.width,height:r.height,text:button.textContent.trim(),border:getComputedStyle(button).borderStyle};});

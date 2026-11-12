@@ -190,6 +190,8 @@ async function run(edition) {
     assert.equal(response.status(),200,JSON.stringify(result)); assert.equal(result.saved,true);
     assert.ok(result.path.startsWith(directory)); assert.equal(fs.readFileSync(result.path).subarray(0,5).toString(),'%PDF-');
     await expect(host.locator('.swms-message')).toContainText('SWMS PDF saved.'); await idle();
+    await expect(host.locator('.project-kanban')).toHaveCount(0);
+    await expect(host.locator('.swms-revisions a')).toHaveCount(1);
     assert.equal(await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.pendingIssue),null);
     // A confirmed export ends its retry receipt; a later company change must
     // generate a fresh export without reopening or editing this statement.

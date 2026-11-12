@@ -85,7 +85,7 @@ async function fresh(){await openCertificateEditor(page,{fresh:true});await expe
   await expect(coverRow('takeoff_markups')).toContainText('Cover sheet saved.');
   const additionalCoverKinds=['steel_vermiculite_product_summary','steel_intumescent_product_summary','steel_board_product_summary','ductwork_product_summary','swms','quote','work_order','purchase_order'];
   const additionalBefore=await (await fetch(base+'/api/pdf-covers')).json();
-  for(const kind of additionalCoverKinds){await expect(coverRow(kind).locator('input')).toHaveAttribute('type','file');await coverRow(kind).locator('input').setInputFiles(info.fixture);await expect(coverRow(kind)).toContainText('Unsaved changes');}
+  for(const kind of additionalCoverKinds){await expect(coverRow(kind).locator('input')).toHaveAttribute('type','file');await coverRow(kind).locator('input').setInputFiles(info.fixture);await expect(page.locator('#cover-sheets-dirty')).toHaveText('Unsaved changes');}
   const additionalStaged=await (await fetch(base+'/api/pdf-covers')).json();
   for(const kind of additionalCoverKinds)assert.deepEqual(additionalStaged.items.find(row=>row.kind===kind),additionalBefore.items.find(row=>row.kind===kind),'Uploads remain drafts until main Save');
   await clickProjectControl(page,'Save');
@@ -218,7 +218,7 @@ async function fresh(){await openCertificateEditor(page,{fresh:true});await expe
     assert.ok(labels.every(label=>label.space==='normal'&&label.scroll<=label.width+1),'Every download name wraps within its own cell');
   }
   await page.setViewportSize({width:1084,height:900});
-  await coverRow('certification').getByRole('button',{name:'Delete cover sheet for Certification',exact:true}).click();await expect(coverRow('certification')).toContainText('Unsaved changes');await clickProjectControl(page,'Save');await expect(coverRow('certification')).toContainText('Cover sheet removed.');
+  await coverRow('certification').getByRole('button',{name:'Delete cover sheet for Certification',exact:true}).click();await expect(page.locator('#cover-sheets-dirty')).toHaveText('Unsaved changes');await clickProjectControl(page,'Save');await expect(coverRow('certification')).toContainText('Cover sheet removed.');
   const afterTrash=await (await fetch(base+'/api/pdf-covers')).json();assert.equal(afterTrash.items.find(item=>item.kind==='certification').has_cover,false);assert.equal(afterTrash.items.find(item=>item.kind==='takeoff_markups').has_cover,true);
   const companyAfter=await (await fetch(base+'/api/company-settings')).json();assert.ok(companyAfter.cover_pdf);assert.equal(companyAfter.cover_pdf_name,'synthetic-drawings.pdf');
   evidence.checks.push('signer image and all cover defaults survive actual New project','Settings cover table fits desktop/mobile','main Save persists only the staged cover removal','main cover retained independently');

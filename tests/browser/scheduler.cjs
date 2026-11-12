@@ -254,8 +254,10 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   const clock=page.locator('.scheduler-clock');
   await expect(page.locator('#view-scheduler')).toBeVisible();
   await expect(clock).toBeFocused();
-  const clockBounds=await clock.boundingBox(),headerBounds=await page.locator('.app-header').boundingBox();
-  assert.ok(clockBounds.y>=headerBounds.y+headerBounds.height && clockBounds.y<884,'Open time clock scrolls the live clock below the header');
+  await expect.poll(async()=>{
+    const clockBounds=await clock.boundingBox(),headerBounds=await page.locator('.app-header').boundingBox();
+    return Boolean(clockBounds && headerBounds && clockBounds.y>=headerBounds.y+headerBounds.height && clockBounds.y<884);
+  },{message:'Open time clock scrolls the live clock below the header'}).toBe(true);
   await page.locator('#library-navigation-toggle').click();
   await page.locator('#pricing-scope').selectOption('library');
   const editedPrice=page.locator('#pricing-body [data-price-field="supplier_price"]').first();

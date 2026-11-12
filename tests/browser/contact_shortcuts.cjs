@@ -91,9 +91,10 @@ const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()
   // card already contains the retained override, so its text cannot prove that
   // the new directory version has reached the UI before Convert is clicked.
   let directoryStarted;const refreshing=new Promise(resolve=>directoryStarted=resolve),directoryGate=new Promise(resolve=>releaseDirectory=resolve);
-  await page.route('**/api/contacts/directory',async route=>{const response=await route.fetch();directoryStarted();await directoryGate;await route.fulfill({response});},{times:1});
+  await page.route('**/api/contacts/directory*',async route=>{const response=await route.fetch();directoryStarted();await directoryGate;await route.fulfill({response});},{times:1});
   const refreshed=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/contacts/directory'&&response.request().method()==='GET');refreshed.catch(()=>{});
-  await dialog.getByRole('button',{name:'Cancel',exact:true}).click();await refreshing;
+  await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
+  await Promise.race([refreshing,new Promise((_,reject)=>setTimeout(()=>reject(Error('Stale-editor close did not start a directory refresh')),10000))]);
   await expect(host).toHaveAttribute('aria-busy','true');await expect(card).toContainText('Lead phone override');
   releaseDirectory();const refreshedDirectory=await refreshed;assert.equal(refreshedDirectory.status(),200,await refreshedDirectory.text());
   const refreshedVersion=(await refreshedDirectory.json()).version;assert.ok(refreshedVersion>savedDirectory.version);

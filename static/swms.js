@@ -197,6 +197,9 @@
   async function showStatement() {
     state.editor = null; state.dirty = false;
     const latest = statements()[0];
+    if(!latest && !window.CeasefireProject?.hasCreatedProject?.()) {
+      const host=shell('SWMS'),toolbar=element('div','swms-toolbar');toolbar.append(newStatementButton());host.append(toolbar);return;
+    }
     if (latest) await open(latest);
     else await openNew(false);
   }
@@ -462,12 +465,18 @@
     actions.append(back, button("Save", () => save(), true), downloadButton);
     return actions;
   }
+  function newStatementButton() {
+    const create=iconAction('New SWMS',()=>openNew(),'add');create.classList.add('add-icon-action');
+    const access=window.ClassifireAccess;
+    if(access){create.disabled=true;void access.ready.then(()=>{if(create.isConnected)create.disabled=state.busy || !access.can('edit');});}
+    return create;
+  }
   function renderDocumentSelector(host) {
     const box = element('section', 'card swms-document-actions');
     const selector = element('select');
     selector.setAttribute('aria-label', 'Saved statement');
     window.CeasefireI18n?.attr(selector,'aria-label','Saved statement');
-    const blank = element('option', '', 'New statement');blank.value = '';selector.append(blank);
+    const blank = element('option', '', 'New statement');blank.value = '';window.CeasefireI18n?.text(blank,'New statement');selector.append(blank);
     for (const row of statements()) {
       const option = element('option', '', cardHeading(row));option.value = row.id;selector.append(option);
     }
@@ -479,10 +488,9 @@
       catch(error){notice(error.message,true);}
       if(state.editor===selected)selector.value=selected.version ? selected.id : '';
     });
-    const create=iconAction('New SWMS',()=>openNew(),'add');create.classList.add('add-icon-action');
-    const access=window.ClassifireAccess;
-    if(access){create.disabled=true;void access.ready.then(()=>{if(create.isConnected)create.disabled=state.busy || !access.can('edit');});}
-    box.append(field('Saved statement',selector),create);
+    const create=newStatementButton();
+    const savedField=field('Saved statement',selector);window.CeasefireI18n?.text(savedField.firstChild,'Saved statement');
+    box.append(savedField,create);
     if(state.editor.version)box.append(iconAction('Delete',()=>remove(state.editor),'remove'));
     host.append(box);
   }
@@ -490,7 +498,7 @@
     const box=element('section','card swms-revisions'),heading=element('h2','','SWMS revisions');
     window.CeasefireI18n?.text(heading,'SWMS revisions');box.append(heading);host.append(box);
     const editor=state.editor,current=guard();
-    const empty=element('p','helper');window.CeasefireI18n?.text(empty,'No revisions generated in this project.');
+    const empty=element('p','helper','No revisions generated in this project.');window.CeasefireI18n?.text(empty,'No revisions generated in this project.');
     box.append(empty);
     if(!editor.version || !window.CeasefireDocumentation?.revisionsFor)return;
     window.CeasefireDocumentation.revisionsFor('swms',editor.id).then(revisions=>{
@@ -500,7 +508,7 @@
       for(const label of ['Revision','Generated','Document']){const th=element('th','',label);th.scope='col';window.CeasefireI18n?.text(th,label);labels.append(th);}
       thead.append(labels);
       for(const revision of revisions.sort((a,b)=>b.revision-a.revision)){
-        const row=element('tr'),date=new Date(revision.created_at),cell=element('td'),link=element('a');
+        const row=element('tr'),date=new Date(revision.created_at),cell=element('td'),link=element('a','','Open revision '+revision.revision);
         link.href=revision.url;link.target='_blank';link.rel='noopener';
         window.CeasefireI18n?.text(link,'Open revision {0}',[revision.revision]);cell.append(link);
         row.append(element('td','',String(revision.revision)),element('td','',Number.isFinite(date.getTime())?date.toLocaleString('en-AU'):revision.created_at),cell);body.append(row);

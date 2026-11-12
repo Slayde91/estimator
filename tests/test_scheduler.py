@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 import uuid
 
 from estimator.scheduler import SchedulerStore, SchedulerError, DEFAULT_SETTINGS, calculate_payroll, _timestamp
@@ -188,7 +189,7 @@ class SchedulerTests(unittest.TestCase):
         self.assert_error(403, lambda: self.write('locations', location))
         entry = self.write('clock/in', {'location_consent': True})
         self.assert_error(400, lambda: self.write('locations', location))
-        self.now += timedelta(seconds=10)
+        self.now += timedelta(minutes=30)
         location = self.location()
         location['entry_id'] = entry['id']
         self.assertTrue(self.write('locations', location)['recorded'])
@@ -212,7 +213,7 @@ class SchedulerTests(unittest.TestCase):
         second = self.write('clock/in', {'location_consent': True}, worker_token)
         self.assert_error(409, lambda: self.write('locations', location, worker_token))
         self.assertEqual(len(self.store.read('locations', {'entry_id': second['id']}, worker_token)['locations']), 1)
-        self.now += timedelta(seconds=10)
+        self.now += timedelta(minutes=30)
         second_location = {**self.location(), 'entry_id': second['id']}
         self.assertTrue(self.write('locations', second_location, worker_token)['recorded'])
         self.now += timedelta(seconds=20)
@@ -221,6 +222,62 @@ class SchedulerTests(unittest.TestCase):
         third = self.write('clock/in', {'location_consent': True}, worker_token)
         self.assert_error(409, lambda: self.write('locations', second_location, worker_token))
         self.assertEqual(len(self.store.read('locations', {'entry_id': third['id']}, worker_token)['locations']), 1)
+
+    def test_periodic_locations_are_half_hourly_across_tabs_retries_and_restarts(self):
+        entry = self.write('clock/in')
+        first = self.location()['captured_at']
+        self.now += timedelta(minutes=29, seconds=59)
+        early = self.write('locations', {'entry_id': entry['id'], **self.location()})
+        self.assertFalse(early['recorded'])
+        self.assertEqual(_timestamp(early['captured_at']), _timestamp(first))
+        self.now += timedelta(seconds=1)
+        payload = {'entry_id': entry['id'], **self.location()}
+        reopened = SchedulerStore(self.path, now=lambda: self.now)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            responses = list(executor.map(lambda store: store.write('locations', payload, self.token), [self.store, reopened]))
+        self.assertEqual(sorted(result['recorded'] for result in responses), [False, True])
+        self.assertFalse(reopened.write('locations', payload, self.token)['recorded'])
+        self.now += timedelta(minutes=29, seconds=59)
+        self.assertFalse(self.write('locations/enable', {'entry_id': entry['id'], **self.location()})['recorded'])
+        self.now += timedelta(seconds=1)
+        self.assertTrue(self.write('locations', {'entry_id': entry['id'], **self.location()})['recorded'])
+        history = self.store.read('locations', {'entry_id': entry['id']}, self.token)
+        self.assertEqual(len(history['locations']), 3)
+        self.assertEqual(history['coverage']['gaps'], [])
+
+    def test_clock_out_final_fix_bypasses_periodic_cadence_and_is_atomic(self):
+        entry = self.write('clock/in')
+        self.now += timedelta(minutes=1)
+        payload = {'entry_id': entry['id'], 'location': self.location()}
+        for location in ({}, {**self.location(), 'accuracy': -1},
+                         {**self.location(), 'captured_at': (self.now-timedelta(minutes=3)).isoformat()}):
+            self.assert_error(400, lambda: self.write('clock/out', {**payload, 'location': location}))
+            self.assertEqual(self.state()['active_entry']['id'], entry['id'])
+        self.assert_error(409, lambda: self.write('clock/out', {**payload, 'entry_id': 'different-session'}))
+        with patch.object(self.store, '_insert_location', side_effect=RuntimeError('Synthetic storage failure')):
+            with self.assertRaises(RuntimeError):
+                self.write('clock/out', payload)
+        self.assertEqual(self.state()['active_entry']['id'], entry['id'])
+        self.assertEqual(self.state()['active_entry']['location_summary']['count'], 1)
+        closed = self.write('clock/out', payload)
+        self.assertIsNone(self.state()['active_entry'])
+        history = self.store.read('locations', {'entry_id': entry['id']}, self.token)
+        self.assertEqual(len(history['locations']), 2)
+        self.assertEqual(history['locations'][-1]['captured_at'], closed['end'])
+        self.assert_error(409, lambda: self.write('clock/out', payload))
+        self.assertEqual(len(self.store.read('locations', {'entry_id': entry['id']}, self.token)['locations']), 2)
+
+    def test_clock_out_reuses_same_second_fix_and_still_accepts_no_location(self):
+        entry = self.write('clock/in')
+        self.now += timedelta(minutes=30)
+        self.write('locations', {'entry_id': entry['id'], **self.location()})
+        self.write('clock/out', {'entry_id': entry['id'], 'location': self.location()})
+        self.assertEqual(len(self.store.read('locations', {'entry_id': entry['id']}, self.token)['locations']), 2)
+        self.now += timedelta(seconds=1)
+        next_entry = self.write('clock/in')
+        self.now += timedelta(minutes=1)
+        self.write('clock/out', {'entry_id': next_entry['id']})
+        self.assertEqual(len(self.store.read('locations', {'entry_id': next_entry['id']}, self.token)['locations']), 1)
 
     def test_clock_in_requires_a_fresh_valid_location_and_saves_it_atomically(self):
         for payload in ({}, {'location_consent': False, 'location': self.location()},
@@ -275,6 +332,9 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(self.state()['active_entry']['id'], entry['id'])
         self.assertTrue(self.state()['active_entry']['location_consent'])
         self.assertEqual(self.store.read('locations', {'entry_id': entry['id']}, self.token)['coverage']['gaps'][0]['minutes'], 60)
+        self.now += timedelta(minutes=1)
+        self.assertFalse(self.write('locations/enable', {'entry_id': entry['id'], **self.location()})['recorded'])
+        self.assertEqual(self.state()['active_entry']['location_summary']['count'], 1)
 
     def test_manual_entries_overlap_break_validation_and_audit(self):
         entry = self.write('entries/save', {'member_id': self.auth['user']['id'], 'start': '2026-11-02T08:00', 'end': '2026-11-02T16:00'})

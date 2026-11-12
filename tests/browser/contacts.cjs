@@ -34,7 +34,7 @@ const ready = new Promise((resolve, reject) => {
   await page.locator('button[data-view="contacts"]').click();
   const root=page.locator('#contacts-root');
   await expect(root.getByRole('heading',{name:'Leads',exact:true})).toBeVisible();
-  await expect(root.locator('.project-kanban-column h2')).toHaveText(['New','Qualified','Disqualified','Converted']);
+  await expect(root.locator('.project-kanban-column h2')).toHaveText(['New','Qualified','Converted','Disqualified']);
   await expect(page.locator('#contacts-navigation-menu [data-contacts-section]')).toHaveCount(3);
   await expect(page.locator('#contacts-navigation-menu [data-contacts-section="accounts"]')).toHaveText('Companies');
   await expect(root.locator('.contacts-tabs button')).toHaveText(['Leads','Contacts','Companies']);

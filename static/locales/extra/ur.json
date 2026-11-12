@@ -3598,5 +3598,6 @@
   "Back to Documents": "دستاویزات پر واپس جائیں",
   "Engage": "رابطہ",
   "Load {0}": "{0} لوڈ کریں",
-  "Status for {0}": "{0} کی حیثیت"
+  "Status for {0}": "{0} کی حیثیت",
+  "Discard unsaved Scheduler settings changes?": "کیا شیڈیولر کی ترتیبات میں غیر محفوظ تبدیلیاں ترک کرنا چاہتے ہیں؟"
 }

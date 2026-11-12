@@ -3,9 +3,9 @@
   let zone = "Australia/Sydney";
   const LOCATION_INTERVAL = 30 * 60 * 1000;
   const state = {root:null, data:null, page:"schedule", week:weekStart(today()), member:"", mine:false,
-    loading:0, busy:false, dialog:null, watch:null, lastLocation:0, locationEnabled:false, timer:null, orders:[], settingsDirty:false,
+    loading:0, busy:false, dialog:null, lastLocation:0, locationEnabled:false, timer:null, orders:[], settingsDirty:false, settingsRuleDialog:null, ruleSelection:{overtime:"",breaks:""},
     projectsLoading:false, projectsScan:null, projectsMessage:"", breakNotices:new Set(), noticeTimer:null,
-    locationTimer:null, locationEntry:null, locationPending:false, lastPoint:null, locationIssue:"", locationHealth:0, trackingBanner:null,
+    locationTimer:null, locationEntry:null, locationPending:false, lastLocationCheck:0, locationIssue:"", locationHealth:0, trackingBanner:null,
     entriesSearch:"", entriesMine:false, collapsedDays:new Set(), locationPlayback:null, authGeneration:0, mapRequest:0};
   const accountChannel = "BroadcastChannel" in window ? new BroadcastChannel("classifire-scheduler-account") : null;
   const colours = [["#2196f3","Blue"],["#b12030","Red"],["#177349","Green"],["#7544a8","Purple"],["#505966","Grey"]];
@@ -279,7 +279,7 @@
       if (!data.active_entry) stopLocation();
       else if (state.locationEntry !== data.active_entry.id) startLocation();
       updateLocationStatus();
-      if (state.dialog || state.settingsDirty) return;
+      if (state.dialog || state.settingsDirty || state.settingsRuleDialog) return;
       render();
     } catch (error) {
       if (revision !== state.loading || generation !== state.authGeneration) return;
@@ -289,7 +289,7 @@
   }
   function resetAccount() {
     state.authGeneration++; state.loading++; state.mapRequest++;
-    closeDialog(true); stopLocation(); state.data = null; state.settingsDirty = false;
+    closeDialog(true); stopLocation(); state.data = null; state.settingsDirty = false; state.settingsRuleDialog = null;
     state.busy = false; state.orders=[]; state.projectsScan=null; state.projectsLoading=false; state.projectsMessage="";
     state.page = "schedule"; state.member = ""; state.mine = false; state.entriesSearch = ""; state.entriesMine = false;
     updateLocationStatus();
@@ -379,6 +379,24 @@
     });
     card.append(form); state.root.append(card);
   }
+  let settingsReview = null;
+  async function leave() {
+    if (state.busy || state.dialog || state.settingsRuleDialog) {
+      notice("Finish or cancel the current Scheduler edit before changing views.",true);
+      return false;
+    }
+    if (!state.settingsDirty) return true;
+    if (settingsReview) return settingsReview;
+    const current = accountAction(), page = state.page;
+    settingsReview = window.CeasefireDialogs.confirm("Discard unsaved Scheduler settings changes?", "", "Discard", "Cancel")
+      .then(discard => {
+        if (!discard || !current() || state.page !== page || state.busy || state.dialog) return false;
+        state.settingsDirty = false;
+        render();
+        return true;
+      }).finally(() => { settingsReview = null; });
+    return settingsReview;
+  }
   function render() {
     if (!state.data?.user) return auth(false);
     const clockFocused = document.activeElement === state.root.querySelector(".scheduler-clock");
@@ -386,13 +404,20 @@
     const top = el("div", "scheduler-top"), tabs = el("nav", "calculator-pages scheduler-tabs"); tabs.setAttribute("aria-label","Scheduler pages");
     const pages = [["schedule","Schedule"],["entries","Time entries"],...(admin() ? [["team","Team members"],["settings","Settings"]] : [])];
     pages.forEach(([id,label]) => {
-      const tab = button(label,() => {
-        if (state.busy || state.settingsDirty) {notice("Finish saving or discard your settings changes before changing pages.",true); return;}
+      const tab = button(label,async () => {
+        if (state.page === id || !await leave()) return;
         state.page = id; render();
-      }, "calculator-page"); tab.setAttribute("aria-pressed", String(state.page === id)); tab.setAttribute("aria-current",state.page === id ? "page" : "false"); tabs.append(tab);
+      }, "calculator-page"); tab.setAttribute("aria-pressed", String(state.page === id)); tab.setAttribute("aria-current",state.page === id ? "page" : "false");
+      if (id === "settings") {
+        tab.classList.add("icon-only","scheduler-settings-tab");
+        tab.title = label; tab.setAttribute("aria-label",label);
+        window.CeasefireI18n?.attr(tab,"title",label); window.CeasefireI18n?.attr(tab,"aria-label",label);
+        tab.replaceChildren(document.querySelector('.nav-icon[data-view="settings"] svg').cloneNode(true));
+      }
+      tabs.append(tab);
     });
     const account = el("div", "scheduler-account"); account.append(el("span","",state.data.user.name),button("Sign out",async () => {
-      if (state.busy || state.settingsDirty) {notice("Finish saving or discard your settings changes before signing out.",true); return;}
+      if (!await leave()) return;
       const logout = request("/logout",{}); resetAccount(); shell(); notice("Signing out…");
       try { const result=await logout; accountChannel?.postMessage("changed"); if(result.global_session){location.replace('/');return;} auth(false); }
       catch (error) {await refresh(); notice(error.message,true);}
@@ -430,9 +455,9 @@
         const current = accountAction();
         // A failed final fix must never trap a worker in an open time entry.
         try {
-          await Promise.race([captureLocation(true,2000),new Promise(resolve => setTimeout(resolve,2200))]);
+          const location = await Promise.race([currentPosition(2000).catch(() => null),new Promise(resolve => setTimeout(() => resolve(null),2200))]);
           if(!current())return;
-          await request("/clock/out",{entry_id:active.id});
+          await request("/clock/out",{entry_id:active.id,...(location ? {location} : {})});
           if(!current())return;
           await refresh(); if(current() && !state.data?.active_entry) stopLocation();
         }
@@ -451,7 +476,7 @@
       const entry = await request("/clock/in",{...selectedOrder(project),notes:notes.value,location_consent:true,location});
       if(!current())return;
       state.data.active_entry = entry;
-      state.lastLocation = Date.now(); state.lastPoint = location;
+      state.lastLocation = Date.parse(location.captured_at);
       startLocation();
     },"button scheduler-primary-action"),"button scheduler-primary-action"));
     bar.addEventListener("click",event => {
@@ -686,32 +711,92 @@
     form.append(el("h2","","Scheduler settings"),el("p","helper",`${zone} · Rule version ${saved.version}. Saved rules recalculate time entries using their recorded hourly rates.`));
     const rounding = select([["0","No rounding"],...([5,6,10,15,30].map(value => [String(value),`${value} minutes`]))],String(saved.rounding_minutes));
     const mode = select([["nearest","Nearest interval"],["up","Round up"],["down","Round down"]],saved.rounding_mode);
-    form.append(field("Timesheet rounding",rounding),field("Rounding method",mode));
-    const overtimeRows = [], overtimeList = el("div","scheduler-rule-editors");
+    const roundingFields = el("div","scheduler-rounding-fields");
+    roundingFields.append(field("Timesheet rounding",rounding),field("Rounding method",mode));
+    form.append(roundingFields);
+    function conditionalValue(control, applies) {
+      // Inactive fields retain their edits, but the API still needs their last valid values.
+      let lastValid = control.value;
+      control.addEventListener("input",() => {if(control.validity.valid)lastValid = control.value;});
+      return () => applies() ? control.value : lastValid;
+    }
+    function rulePicker(key, label, addLabel, addRule) {
+      const group = el("div","scheduler-rule-editors"), controls = el("div","scheduler-rule-picker"), pane = el("div","scheduler-rule-pane");
+      const chooser = select([],""), rows = new Map(), desired = state.ruleSelection[key];
+      chooser.className = "scheduler-rule-select"; chooser.setAttribute("aria-label",label);
+      window.CeasefireI18n?.attr(chooser,"aria-label",label);
+      function show(id) {
+        chooser.value = id;
+        state.ruleSelection[key] = id;
+        for (const [rowId,record] of rows) record.row.hidden = rowId !== id;
+        chooser.disabled = !rows.size; pane.hidden = !rows.size;
+      }
+      chooser.addEventListener("input",event => event.stopPropagation());
+      chooser.addEventListener("change",event => {event.stopPropagation();show(chooser.value);});
+      controls.append(chooser,addIconButton(addLabel,() => {addRule();state.settingsDirty = true;}));
+      group.append(controls,pane); chooser.disabled = true; pane.hidden = true;
+      return {
+        element:group,
+        append(row,id,label,activate) {
+          const option = el("option","",label); option.value = id;
+          rows.set(id,{row,option}); chooser.append(option); pane.append(row);
+          row.addEventListener("invalid",() => {
+            // Validation reports every invalid rule; reveal the first one so the browser can focus it.
+            if(row.contains(form.querySelector("input:invalid,select:invalid")))show(id);
+          },true);
+          if(activate || id === desired || rows.size === 1)show(id);
+          else row.hidden = true;
+        },
+        rename(id,label) {rows.get(id).option.textContent = label;},
+        remove(id) {
+          const record = rows.get(id); record.row.remove(); record.option.remove(); rows.delete(id);
+          show(chooser.value || rows.keys().next().value || "");
+        }
+      };
+    }
+    function deleteRuleButton(label, name, remove) {
+      const control = button("",async () => {
+        if(state.busy || state.settingsRuleDialog)return;
+        const current = accountAction(), pending = {};
+        state.settingsRuleDialog = pending;
+        try {
+          if(!await window.CeasefireDialogs.confirm(translated(label),name(),translated("Delete"),translated("Cancel")))return;
+          if(!current() || state.settingsRuleDialog !== pending || state.busy || !form.isConnected)return;
+          remove(); state.settingsDirty = true;
+        } finally {if(state.settingsRuleDialog === pending)state.settingsRuleDialog = null;}
+      },"button secondary icon-only scheduler-danger scheduler-rule-delete");
+      control.title = label; control.setAttribute("aria-label",label);
+      window.CeasefireI18n?.attr(control,"title",label);window.CeasefireI18n?.attr(control,"aria-label",label);
+      control.append(document.querySelector("#company-logo-delete svg").cloneNode(true));
+      return control;
+    }
+    const overtimeRows = [], overtimeList = rulePicker("overtime","Overtime and penalty rules","Add overtime rule",() => addOvertime());
     function addOvertime(item = {id:crypto.randomUUID(),name:"",type:"daily",days:[0,1,2,3,4,5,6],threshold_hours:"8",multiplier:"1.5",pay_item:"",start_time:"13:00",end_time:"15:00",run_late:false,enabled:true}) {
-      const row = el("details","scheduler-rule-editor"), summary = el("summary","",item.name || "New overtime rule");
-      row.open = !item.name; row.append(summary);
+      const row = el("section","scheduler-rule-editor");
       const grid = el("div","scheduler-rule-fields"), name = input("text",item.name,{required:true,maxlength:120});
       const type = select([["daily","Daily"],["weekly","Weekly"],["time","Time of day"]],item.type);
       const threshold = input("number",item.threshold_hours,{min:0,max:168,step:"0.01",required:true});
       const multiplier = input("number",item.multiplier,{min:1,max:10,step:"0.01",required:true});
       const payItem = input("text",item.pay_item,{maxlength:120}), days = dayChoices(item.days,"Days of the week");
       const from = input("time",item.start_time,{required:true}), to = input("time",item.end_time,{required:true});
+      const timeApplies = () => type.value === "time";
+      const thresholdValue = conditionalValue(threshold,() => !timeApplies());
+      const fromValue = conditionalValue(from,timeApplies), toValue = conditionalValue(to,timeApplies);
       const runLate = check("Allow shift to run late",item.run_late), enabled = check("Enabled",item.enabled);
       const thresholdField = field("Start after hours",threshold), windowFields = el("div","scheduler-rule-window");
       windowFields.append(field("From",from),field("To",to),runLate.label,el("p","helper","Allowing a shift to run late applies the rate to the whole shift when its start falls in this window."));
       grid.append(field("Rule name",name),field("Type",type),days.element,thresholdField,windowFields,field("Rate multiplier",multiplier),field("Pay item label",payItem),enabled.label);
-      const record = {value:() => ({id:item.id,name:name.value,type:type.value,days:days.value(),threshold_hours:threshold.value,multiplier:multiplier.value,pay_item:payItem.value,start_time:from.value,end_time:to.value,run_late:runLate.control.checked,enabled:enabled.control.checked})};
-      grid.append(button("Delete overtime rule",() => {overtimeRows.splice(overtimeRows.indexOf(record),1); row.remove(); state.settingsDirty = true;},"button secondary scheduler-danger"));
-      const sync = () => {summary.textContent = name.value || "New overtime rule"; thresholdField.hidden = type.value === "time"; windowFields.hidden = type.value !== "time";};
+      const record = {value:() => ({id:item.id,name:name.value,type:type.value,days:days.value(),threshold_hours:thresholdValue(),multiplier:multiplier.value,pay_item:payItem.value,start_time:fromValue(),end_time:toValue(),run_late:runLate.control.checked,enabled:enabled.control.checked})};
+      grid.append(deleteRuleButton("Delete overtime rule",() => name.value || "New overtime rule",() => {overtimeRows.splice(overtimeRows.indexOf(record),1);overtimeList.remove(item.id);}));
+      const sync = () => {overtimeList.rename(item.id,name.value || "New overtime rule"); thresholdField.hidden = threshold.disabled = timeApplies(); windowFields.hidden = from.disabled = to.disabled = runLate.control.disabled = !timeApplies();};
+      row.append(grid); overtimeRows.push(record); overtimeList.append(row,item.id,item.name || "New overtime rule",!item.name);
       name.addEventListener("input",sync); type.addEventListener("change",sync); sync();
-      row.append(grid); overtimeRows.push(record); overtimeList.append(row);
     }
     saved.overtime_rules.forEach(addOvertime);
-    form.append(el("h3","","Overtime and penalty rules"),el("p","helper","The highest matching multiplier applies. All paid hours count toward weekly thresholds. Days and weeks start at midnight, with Monday starting the week."),overtimeList,addIconButton("Add overtime rule",() => {addOvertime(); state.settingsDirty = true;}));
-    const breakRows = [], breakList = el("div","scheduler-rule-editors");
+    form.append(el("h3","","Overtime and penalty rules"),el("p","helper","The highest matching multiplier applies. All paid hours count toward weekly thresholds. Days and weeks start at midnight, with Monday starting the week."),overtimeList.element);
+    const breakRows = [], breakList = rulePicker("breaks","Break rules","Add break rule",() => addBreakRule());
     function addBreakRule(item = {id:crypto.randomUUID(),name:"",code:"",minutes:15,paid:false,member_ids:[],automatic:false,after_hours:"4",repeat_hours:null,days:[0,1,2,3,4],placement:"middle",manual:true,auto_end:false,minimum:false,notify_minutes:0}) {
-      const row = el("details","scheduler-rule-editor"), summary = el("summary","",item.name || "New break rule"); row.open = !item.name; row.append(summary);
+      const row = el("section","scheduler-rule-editor");
       const grid = el("div","scheduler-rule-fields"), name = input("text",item.name,{required:true,maxlength:80}), code = input("text",item.code,{maxlength:20});
       const minutes = input("number",item.minutes ?? 15,{min:1,max:180,step:1,required:true}), noLength = check("No set length",item.minutes === null);
       const paid = select([["false","Unpaid"],["true","Paid"]],String(item.paid));
@@ -723,16 +808,31 @@
       const autoFields = el("div","scheduler-rule-section"); autoFields.append(field("Shift has reached hours",after),repeat.label,field("Repeat every hours",repeatHours),days.element,field("Place break",placement));
       const manual = check("Team members can start and stop this break",item.manual), autoEnd = check("End automatically when its set length is reached",item.auto_end), minimum = check("Require the full break duration before ending",item.minimum);
       const notify = input("number",item.notify_minutes,{min:0,max:179,step:1,required:true});
+      const automaticApplies = () => !noLength.control.checked && automatic.control.checked;
+      const manualApplies = () => !noLength.control.checked && manual.control.checked;
+      const afterValue = conditionalValue(after,automaticApplies);
+      const repeatValue = conditionalValue(repeatHours,() => automaticApplies() && repeat.control.checked);
+      const notifyValue = conditionalValue(notify,manualApplies);
       const manualFields = el("div","scheduler-rule-section"); manualFields.append(autoEnd.label,minimum.label,field("Notify minutes before break ends",notify,"0 turns notifications off. Browser notifications need permission and an open browser."));
       grid.append(field("Break name",name),field("Short code",code),field("Length in minutes",minutes),noLength.label,field("Type",paid),all.label,field("Apply to team members",members),automatic.label,autoFields,manual.label,manualFields);
-      const record = {value:() => ({id:item.id,name:name.value,code:code.value,minutes:noLength.control.checked ? null : Number(minutes.value),paid:paid.value === "true",member_ids:all.control.checked ? [] : [...members.selectedOptions].map(option => option.value),automatic:!noLength.control.checked && automatic.control.checked,after_hours:after.value,repeat_hours:repeat.control.checked ? repeatHours.value : null,days:days.value(),placement:placement.value,manual:manual.control.checked,auto_end:!noLength.control.checked && autoEnd.control.checked,minimum:!noLength.control.checked && minimum.control.checked,notify_minutes:noLength.control.checked ? 0 : Number(notify.value)})};
-      grid.append(button("Delete break rule",() => {breakRows.splice(breakRows.indexOf(record),1); row.remove(); state.settingsDirty = true;},"button secondary scheduler-danger"));
-      const sync = () => {summary.textContent = name.value || "New break rule"; minutes.disabled = noLength.control.checked; members.disabled = all.control.checked; members.required = !all.control.checked; automatic.control.disabled = noLength.control.checked; autoFields.hidden = noLength.control.checked || !automatic.control.checked; repeatHours.disabled = !repeat.control.checked; manualFields.hidden = !manual.control.checked; autoEnd.control.disabled = minimum.control.disabled = notify.disabled = noLength.control.checked;};
+      const record = {value:() => ({id:item.id,name:name.value,code:code.value,minutes:noLength.control.checked ? null : Number(minutes.value),paid:paid.value === "true",member_ids:all.control.checked ? [] : [...members.selectedOptions].map(option => option.value),automatic:automaticApplies(),after_hours:afterValue(),repeat_hours:repeat.control.checked ? repeatValue() : null,days:days.value(),placement:placement.value,manual:manual.control.checked,auto_end:!noLength.control.checked && autoEnd.control.checked,minimum:!noLength.control.checked && minimum.control.checked,notify_minutes:noLength.control.checked ? 0 : Number(notifyValue())})};
+      grid.append(deleteRuleButton("Delete break rule",() => name.value || "New break rule",() => {breakRows.splice(breakRows.indexOf(record),1);breakList.remove(item.id);}));
+      const sync = () => {
+        breakList.rename(item.id,name.value || "New break rule");
+        minutes.disabled = noLength.control.checked; members.disabled = all.control.checked; members.required = !all.control.checked;
+        automatic.control.disabled = noLength.control.checked; autoFields.hidden = !automaticApplies();
+        after.disabled = repeat.control.disabled = placement.disabled = !automaticApplies();
+        for (const control of days.element.querySelectorAll("input"))control.disabled = !automaticApplies();
+        repeatHours.disabled = !automaticApplies() || !repeat.control.checked;
+        manualFields.hidden = !manual.control.checked;
+        autoEnd.control.disabled = minimum.control.disabled = notify.disabled = !manualApplies();
+      };
+      row.append(grid); breakRows.push(record); breakList.append(row,item.id,item.name || "New break rule",!item.name);
       for (const control of [name,noLength.control,all.control,automatic.control,repeat.control,manual.control]) control.addEventListener("change",sync);
-      sync(); row.append(grid); breakRows.push(record); breakList.append(row);
+      name.addEventListener("input",sync); sync();
     }
     saved.breaks.forEach(addBreakRule);
-    form.append(el("h3","","Break rules"),el("p","helper","Automatic breaks are calculated when a time entry is complete. Thresholds use elapsed shift time. Repeated middle breaks are spaced evenly. A matching manual break satisfies one automatic break, and breaks never overlap."),breakList,addIconButton("Add break rule",() => {addBreakRule(); state.settingsDirty = true;}));
+    form.append(el("h3","","Break rules"),el("p","helper","Automatic breaks are calculated when a time entry is complete. Thresholds use elapsed shift time. Repeated middle breaks are spaced evenly. A matching manual break satisfies one automatic break, and breaks never overlap."),breakList.element);
     const submit = el("button","button scheduler-primary-action","Save settings"); submit.type = "submit";
     const discard = button("",() => {state.settingsDirty = false; render();},"button secondary icon-only");
     discard.title = "Discard settings changes"; discard.setAttribute("aria-label","Discard settings changes");
@@ -755,10 +855,9 @@
     state.root.append(form);
   }
   function stopLocation() {
-    if (state.watch !== null) navigator.geolocation?.clearWatch(state.watch);
     clearInterval(state.locationTimer);
-    state.watch = null; state.locationTimer = null; state.locationEnabled = false; state.locationEntry = null;
-    state.lastPoint = null; state.lastLocation = 0; state.locationIssue = ""; state.locationHealth++;
+    state.locationTimer = null; state.locationEnabled = false; state.locationEntry = null;
+    state.lastLocation = 0; state.lastLocationCheck = 0; state.locationIssue = ""; state.locationHealth++;
     updateLocationStatus();
   }
   function locationFailure(message) {
@@ -823,7 +922,7 @@
       const result = await request(enable ? "/locations/enable" : "/locations",{entry_id:entryId,...location});
       if (state.locationEntry !== entryId || state.data?.active_entry?.id !== entryId) return false;
       const captured = Date.parse(result.captured_at || location.captured_at);
-      if (captured >= state.lastLocation) {state.lastLocation = captured; state.lastPoint = location;}
+      if (captured >= state.lastLocation) state.lastLocation = state.lastLocationCheck = captured;
       // Saving an earlier observation does not prove that location access is
       // still available after a newer browser/permission failure.
       if (health === state.locationHealth) state.locationIssue = "";
@@ -836,12 +935,13 @@
       updateLocationStatus(); return false;
     }
   }
-  async function captureLocation(force = false, timeout = 20000) {
-    if (!state.locationEnabled || !state.data?.active_entry || !force && !state.locationIssue && Date.now()-state.lastLocation < LOCATION_INTERVAL) return false;
+  async function captureLocation(retry = false) {
+    if (!state.locationEnabled || !state.data?.active_entry || Date.now()-state.lastLocation < LOCATION_INTERVAL || !retry && Date.now()-state.lastLocationCheck < LOCATION_INTERVAL) return false;
     if (state.locationPending) return state.locationPending;
     const entryId = state.locationEntry, health = state.locationHealth;
+    state.lastLocationCheck = Date.now();
     state.locationPending = (async () => {
-      try {return await recordLocation(await currentPosition(timeout),entryId,health);}
+      try {return await recordLocation(await currentPosition(),entryId,health);}
       catch(error) {if (state.locationEntry === entryId && health === state.locationHealth) locationFailure(error.message); return false;}
       finally {state.locationPending = null;}
     })();
@@ -850,18 +950,11 @@
   function startLocation() {
     const active = state.data?.active_entry; if (!active) return;
     const last = Date.parse(active.location_summary?.last_at || "") || state.lastLocation;
-    stopLocation(); state.locationEnabled = true; state.locationEntry = active.id; state.lastLocation = last;
-    const entryId = active.id;
-    if (navigator.geolocation) state.watch = navigator.geolocation.watchPosition(position => {
-      if (!state.locationEnabled || state.locationEntry !== entryId || state.locationPending || Date.now()-state.lastLocation < 60000) return;
-      try {void recordLocation(positionValue(position),entryId);} catch(error) {locationFailure(error.message);}
-    },error => {if(state.locationEntry === entryId) locationFailure(locationError(error));},
-    {enableHighAccuracy:true,maximumAge:0,timeout:20000});
-    else locationFailure("Location is unavailable in this browser.");
-    // watchPosition alone need not fire when the device is stationary.
-    // This independent timer obtains a fresh fix even without movement.
+    stopLocation(); state.locationEnabled = true; state.locationEntry = active.id; state.lastLocation = state.lastLocationCheck = last;
+    // Request a fresh fix only when the half-hour interval is due. Continuous
+    // GPS watches, focus changes and reconnects must not add movement pins.
     state.locationTimer = setInterval(() => {void captureLocation(); updateLocationStatus();},60000);
-    if (!last || Date.now()-last >= LOCATION_INTERVAL || !active.location_consent) void captureLocation(true);
+    void captureLocation();
     updateLocationStatus();
   }
   async function showLocations(entry) {
@@ -1030,10 +1123,10 @@
     try {const bootstrap = await request("/bootstrap"); if(generation === state.authGeneration) {setZone(bootstrap.timezone); if(bootstrap.user) await refresh();}}
     catch (_) { /* Authentication and connection failures are shown on opening Scheduler. */ }
   }
-  document.addEventListener("visibilitychange",() => {if(!document.hidden && state.data?.user) {if(state.locationEnabled)void captureLocation(true); void refresh();void loadOrders();}});
+  document.addEventListener("visibilitychange",() => {if(!document.hidden && state.data?.user) {if(state.locationEnabled)void captureLocation(); void refresh();void loadOrders();}});
   accountChannel?.addEventListener("message",() => {resetAccount(); auth(false); void refresh();});
-  window.addEventListener("online",() => {if(state.locationEnabled) void captureLocation(true);});
+  window.addEventListener("online",() => {if(state.locationEnabled) void captureLocation();});
   window.addEventListener("pagehide",stopLocation);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded",restoreClock,{once:true}); else void restoreClock();
-  window.CeasefireScheduler = {activate,init(options = {}) {state.root = options.root || document.getElementById("scheduler-root");},hasPendingOperation() {return state.busy || !!state.dialog || state.settingsDirty;}};
+  window.CeasefireScheduler = {activate,leave,init(options = {}) {state.root = options.root || document.getElementById("scheduler-root");},hasPendingOperation() {return state.busy || !!state.dialog || state.settingsDirty || !!state.settingsRuleDialog;}};
 })();

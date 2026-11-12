@@ -3598,5 +3598,6 @@
   "Back to Documents": "Retour aux documents",
   "Engage": "Échanges",
   "Load {0}": "Charger {0}",
-  "Status for {0}": "Statut de {0}"
+  "Status for {0}": "Statut de {0}",
+  "Discard unsaved Scheduler settings changes?": "Abandonner les modifications non enregistrées des paramètres du planificateur ?"
 }

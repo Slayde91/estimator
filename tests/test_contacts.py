@@ -110,7 +110,7 @@ class DirectoryTests(unittest.TestCase):
 
     def test_lead_is_linked_to_person_and_company_through_updates(self):
         directory = self.request("directory")
-        self.assertEqual(directory["statuses"], ["New", "Qualified", "Disqualified", "Converted"])
+        self.assertEqual(directory["statuses"], ["New", "Qualified", "Converted", "Disqualified"])
         fields = {"name": "Morgan", "phone": "0401", "title": "Foreman", "email": "morgan@example.test",
                   "company": "ACME", "site_address": "First site", "billing_address": "HQ", "description": "Fitout"}
         result = self.request("leads", {"fields": fields, "version": directory["version"]})

@@ -115,7 +115,9 @@ async function contactSignature(root,output){
     await host.getByRole('button',{name:'Download PDF',exact:true}).first().click();
     const issued=await issue,result=await issued.json();assert.equal(issued.status(),200,JSON.stringify(result));assert.equal(result.saved,true);
     assert.ok(result.path.startsWith(directory));fs.copyFileSync(result.path,path.join(directory,'signed-contact.pdf'));
-    await idle();await back.click();await openProjectSection(page,'swms');
+    await idle();await expect(host.locator('.swms-revisions a')).toHaveCount(1);
+    const retainedPdf=await page.request.get(await host.locator('.swms-revisions a').getAttribute('href'));assert.equal(retainedPdf.status(),200);assert.ok((await retainedPdf.body()).subarray(0,5).equals(Buffer.from('%PDF-')));
+    await back.click();await openProjectSection(page,'swms');
     await expect(contact.getByRole('img')).toBeVisible();assert.deepEqual((await snapshot()).contact_signature,signed.contact_signature);
     await contact.getByRole('button',{name:'Clear signature',exact:true}).click();
     await expect(contact.getByRole('img')).toHaveCount(0);await expect(name).toHaveValue('');await expect(position).toHaveValue('');await expect(phone).toHaveValue('');

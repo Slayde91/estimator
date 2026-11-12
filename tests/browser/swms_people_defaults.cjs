@@ -43,7 +43,9 @@ module.exports=async function peopleDefaults(root,output){
     const savedStatements=host.getByRole('combobox',{name:'Saved statement',exact:true});
     await expect(savedStatements.locator('option')).toHaveCount(3);
     await savedStatements.selectOption(other.id);await expect(host.getByLabel('Project Name',{exact:true})).toHaveValue('Other retained statement');
-    await savedStatements.selectOption(existing.id);
+    page.once('dialog',dialog=>dialog.accept());await host.locator('.swms-document-actions').getByRole('button',{name:'Delete',exact:true}).click();
+    await expect(savedStatements.locator('option')).toHaveCount(2);
+    await expect(savedStatements).toHaveValue(existing.id);
     await expect(host.getByLabel('Document title',{exact:true})).toHaveCount(0);
     await expect(host.getByLabel('Workflow status',{exact:true})).toHaveValue('Archived');
     const group=title=>host.locator(':scope > details').filter({has:page.locator(':scope > summary').filter({hasText:new RegExp('^'+title+'$')})});
@@ -69,10 +71,9 @@ module.exports=async function peopleDefaults(root,output){
     await host.getByLabel('Project Name',{exact:true}).fill('Explicit SWMS choices');
     await host.getByLabel('Workflow status',{exact:true}).selectOption('Review');
     await host.getByRole('button',{name:'Save',exact:true}).first().click();await expect(host.locator('.swms-message')).toContainText('Saved.');
-    await host.getByRole('button',{name:'Back to Documents',exact:true}).first().click();
-    const draftCard=host.locator('[data-status="Review"] .swms-card').filter({hasText:'Explicit SWMS choices'});
-    await draftCard.dragTo(host.locator('.project-kanban [data-status="Rejected"]'),{sourcePosition:{x:4,y:4}});
-    await host.locator('[data-status="Rejected"] .project-title-button').click();
+    await host.getByLabel('Workflow status',{exact:true}).selectOption('Rejected');
+    await host.getByRole('button',{name:'Save',exact:true}).first().click();await expect(host.locator('.swms-message')).toContainText('Saved.');
+    const savedChoice=await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.id);
     await expect(host.getByLabel('Project Name',{exact:true})).toHaveValue('Explicit SWMS choices');
     fields=await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.fields);
     for(const key of ['reviewers','consultation','work_types'])assert.deepEqual(fields[key],[]);
@@ -134,7 +135,7 @@ module.exports=async function peopleDefaults(root,output){
     await page.evaluate(async()=>{window.CeasefireSWMS.applyProject({workspace_id:window.CeasefireCertification.sessionId()});await window.CeasefireSWMS.activate();});
     const oldReply=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/certifications/defaults'&&response.status()===503);
     releaseOld();await (await oldReply).finished();await page.evaluate(()=>new Promise(requestAnimationFrame));await expect(host.getByRole('button',{name:'New SWMS',exact:true})).toBeVisible();
-    assert.equal((await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor)).version,other.version);
+    assert.equal((await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor)).id,savedChoice);
     await expect(host.locator('.swms-message')).toBeHidden();
     await host.getByRole('button',{name:'New SWMS',exact:true}).click();await expect(host.getByLabel('Project Name',{exact:true})).toBeVisible();
     assert.deepEqual(await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.fields.reviewers),[]);

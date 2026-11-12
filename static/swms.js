@@ -232,7 +232,7 @@
   async function remove(row) {
     if (state.busy || !window.confirm(`Delete “${cardHeading(row)}” from this project?`)) return;
     const current = guard(); lock(true);
-    try { await request("delete", { workspace_id: state.workspace, id: row.id, version: row.version }); if (!current()) return; changed(); if (await load()) await showStatement(); }
+    try { await request("delete", { workspace_id: state.workspace, id: row.id, version: row.version }); if (!current()) return; changed(); if (await load()) {lock(false);await showStatement();} }
     finally { if (current()) lock(false); }
   }
   async function save() {

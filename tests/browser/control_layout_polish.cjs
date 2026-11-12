@@ -101,12 +101,14 @@ target.write_bytes(export_project(store,{**first,'estimates':[{'id':'estimate-1'
       return{download:rect('.documentation-pdf-table thead th:nth-child(3)'),actions:rect('.documentation-pdf-table thead th:nth-child(5)'),
         xlsxDownload:rect('.documentation-tables>.documentation-section:last-child thead th:nth-child(3)'),close:rect('#documentation-revisions-close'),overflow:document.documentElement.scrollWidth-innerWidth};
     });
-    assert.ok(Math.abs(metrics.download.width-78)<1,JSON.stringify(metrics));assert.equal(metrics.close.fontSize,'22px');assert.equal(metrics.close.width,40);assert.equal(metrics.close.height,40);assert.ok(metrics.overflow<=1);
-    if(width===390){assert.ok(Math.abs(metrics.xlsxDownload.width-62)<1);assert.ok(Math.abs(metrics.actions.width-62)<1);}
+    assert.ok(metrics.download.width>=44,JSON.stringify(metrics));
+    assert.ok(Math.abs(metrics.download.width-metrics.xlsxDownload.width)<1,JSON.stringify(metrics));
+    assert.ok(Math.abs(metrics.actions.width-metrics.download.width)<1,JSON.stringify(metrics));
+    assert.equal(metrics.close.fontSize,'22px');assert.equal(metrics.close.width,40);assert.equal(metrics.close.height,40);assert.ok(metrics.overflow<=1);
     await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:path.join(output,`documentation-${width}.png`),fullPage:true});
     await page.locator('#documentation-revisions-close').click();await expect(page.locator('#documentation-revisions-pane')).toBeHidden();evidence.documentation.push({width,...metrics});
   }
-  checks.push('PDF Download column is 78px while the revision close glyph is 22px within its retained 40px hit target');
+  checks.push('PDF and XLSX share aligned, equally sized action columns; revision close glyph is22px within its retained40px hit target');
   assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,evidence,errors},null,2));console.log('PASS control layout polish. '+output);
 })().catch(async error=>{releaseHeld?.();console.error(error);console.error(logs);if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;})
 .finally(async()=>{releaseHeld?.();await browser?.close();server.kill();});

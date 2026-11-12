@@ -519,8 +519,9 @@ SOFTWARE. -->
           </div>
       </aside>
       <div class="project-workspace-main">
+      <div id="project-details-actions" class="project-details-actions"><button id="project-details-close" type="button" class="button secondary icon-only" aria-label="Back to Projects" title="Back to Projects" data-i18n-aria-label="Back to Projects" data-i18n-title="Back to Projects"><span class="button-symbol" aria-hidden="true">←</span></button><button id="project-details-toolbar-save" type="button" class="button primary" data-i18n="Save">Save</button></div>
       <aside id="project-details-pane" class="card project-details-pane" aria-labelledby="projects-details-heading" hidden>
-        <div class="section-heading"><h2 id="projects-details-heading" data-i18n="Project Details">Project Details</h2><button id="project-details-close" type="button" class="button secondary icon-only" aria-label="Back to Projects" title="Back to Projects" data-i18n-aria-label="Back to Projects" data-i18n-title="Back to Projects"><span class="button-symbol" aria-hidden="true">←</span></button></div>
+        <div class="section-heading"><h2 id="projects-details-heading" data-i18n="Project Details">Project Details</h2></div>
         <p id="project-details-target" class="helper"></p>
         <form id="project-details-form">
           <div class="project-pane-fields project-location-fields">
@@ -553,13 +554,14 @@ SOFTWARE. -->
       <div id="certification-editor">
         <div class="certification-editor-toolbar">
           <button id="certification-back" type="button" class="button secondary icon-only" aria-label="Documentation" title="Documentation" data-i18n-aria-label="Documentation" data-i18n-title="Documentation"><span class="button-symbol" aria-hidden="true">←</span></button><button id="certification-save-draft" type="button" class="button secondary" data-i18n="Save draft">Save draft</button>
+          <button id="certification-new" type="button" class="button primary" data-i18n="New">New</button>
           <button id="certification-generate" type="button" class="button primary icon-only certification-download" aria-label="Generate Certificate" title="Generate Certificate" data-i18n-aria-label="Generate Certificate" data-i18n-title="Generate Certificate"><span class="download-format-icon" aria-hidden="true"><span class="download-arrow">⇩</span><span class="download-format">PDF</span></span></button>
           <label class="field certification-workflow"><span class="sr-only" id="certification-workflow-label" data-i18n="Workflow status">Workflow status</span><select id="certification-workflow" form="certification-form" aria-labelledby="certification-workflow-label"><option value="Draft" data-i18n="Draft">Draft</option><option value="Review" data-i18n="Review">Review</option><option value="Approved" data-i18n="Approved">Approved</option><option value="Rejected" data-i18n="Rejected">Rejected</option></select></label>
         </div>
       <form id="certification-form">
         <section class="card certification-project-card">
           <div class="certification-document-options">
-            <div class="certification-document-actions"><label class="field certification-document-select" for="certification-document"><span data-i18n="Saved certification">Saved certification</span><div class="certification-document-picker"><select id="certification-document"></select></div></label><button id="certification-new" type="button" class="button primary" data-i18n="New">New</button></div>
+            <div class="certification-document-actions"><label class="field certification-document-select" for="certification-document"><span data-i18n="Saved certification">Saved certification</span><div class="certification-document-picker"><select id="certification-document"></select></div></label></div>
             <div class="field certification-scope-field"><span id="certification-scopes-label" data-i18n="Certification scope">Certification scope</span><details id="certification-scopes" class="certification-scope-dropdown"><summary aria-labelledby="certification-scopes-label certification-scopes-summary"><span id="certification-scopes-summary">Choose…</span></summary><div class="certification-scope-choices" role="group" aria-labelledby="certification-scopes-label">
           <label><input id="certification-scope-structural_steel" type="checkbox" value="structural_steel"><span data-i18n="Structural steel">Structural steel</span></label>
           <label><input id="certification-scope-structural_steel_columns" type="checkbox" value="structural_steel_columns"><span data-i18n="Structural steel incl. columns">Structural steel incl. columns</span></label>

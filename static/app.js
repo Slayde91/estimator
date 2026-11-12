@@ -2658,6 +2658,18 @@
     }
   }
 
+  function positionProjectCardMenu(menu) {
+    if (!menu.open) return;
+    const panel = menu.querySelector(".project-menu-options"), toggle = menu.querySelector("summary");
+    const bounds = toggle.getBoundingClientRect();
+    if (bounds.bottom <= 0 || bounds.top >= innerHeight || bounds.right <= 0 || bounds.left >= innerWidth) { menu.open = false; return; }
+    panel.style.left = `${Math.max(8, Math.min(innerWidth - panel.offsetWidth - 8, bounds.right - panel.offsetWidth))}px`;
+    panel.style.top = `${bounds.bottom + panel.offsetHeight + 12 <= innerHeight ? bounds.bottom + 6 : Math.max(8, bounds.top - panel.offsetHeight - 6)}px`;
+  }
+  const positionProjectCardMenus = () => document.querySelectorAll("#project-list .project-card-menu[open]").forEach(positionProjectCardMenu);
+  window.addEventListener("resize", positionProjectCardMenus);
+  window.addEventListener("scroll", event => { if (!event.target.closest?.(".project-menu-options")) positionProjectCardMenus(); }, true);
+
   function renderProjectList() {
     const canEdit = () => !window.ClassifireAccess || window.ClassifireAccess.can("edit");
     const canMove = () => !state.projectBusy && canEdit();
@@ -2697,13 +2709,13 @@
         load.type = "button";
         window.CeasefireI18n.attr(load, "aria-label", "Load {0}", [file.title || file.name]);
         load.addEventListener("click", () => openProjectFile(file, load, estimateSelect.value, estimateSelect.value ? {} : {landingView:"quotes"}));
-        const menu = node("details", "project-card-menu"), toggle = node("summary", "button secondary calculator-document-toggle");
+        const menu = node("details", "project-card-menu"), toggle = node("summary", "project-card-menu-toggle");
         window.CeasefireI18n.attr(toggle, "aria-label", "Actions for {0}", [file.title || file.name]);
         const chevron = node("span", "calculator-document-chevron"); chevron.setAttribute("aria-hidden", "true");
         chevron.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"></path></svg>';
-        toggle.append(uiNode("span", "", "Actions"), chevron);
+        toggle.append(chevron);
         const actions = node("div", "project-menu-options"), needsEstimate = [];
-        const statusField = uiNode("label", "field project-row-status", "Status"), status = node("select");
+        const statusField = uiNode("label", "field project-row-status", "Move to"), status = node("select");
         window.CeasefireI18n.attr(status, "aria-label", "Status for {0}", [file.title || file.name]);
         for (const stage of projectStatuses) {
           const option = uiNode("option", "", stage); option.value = stage; status.append(option);
@@ -2716,9 +2728,10 @@
           menu.open = false;
           void changeProjectStage(file, next);
         });
-        statusField.append(status); actions.append(statusField);
+        statusField.append(status);
         for (const [label, action, requiresEstimate] of [
-          ["Open", button => openProjectFile(file, button, estimateSelect.value, estimateSelect.value ? {} : {landingView:"quotes"})],
+          ["Open", () => window.CeasefireProjectPane?.open(file)],
+          ["Load", button => openProjectFile(file, button, "", {landingView:"quotes"})],
           ["Edit", button => openProjectFile(file, button, estimateSelect.value), true],
           ["Delete", () => deleteProjectCard(file)], ["Browse files", () => openProjectBrowser(file)]
         ]) {
@@ -2728,11 +2741,12 @@
           actions.append(button);
         }
         estimateSelect.addEventListener("change", () => { for (const button of needsEstimate) button.disabled = !estimateSelect.value; });
+        menu.addEventListener("toggle", () => positionProjectCardMenu(menu));
         menu.addEventListener("keydown", event => { if (event.key === "Escape" && menu.open) { menu.open = false; toggle.focus(); } });
         menu.addEventListener("focusout", event => { if (!menu.contains(event.relatedTarget)) menu.open = false; });
-        menu.append(toggle, actions);
-        controls.append(load, menu);
-        row.append(details, estimateLabel, controls);
+        actions.append(statusField); menu.append(toggle, actions);
+        heading.append(menu); controls.append(estimateLabel, load);
+        row.append(details, controls);
         return row;
       }
     });

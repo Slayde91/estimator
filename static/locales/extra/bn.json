@@ -3599,5 +3599,6 @@
   "Engage": "যোগাযোগ",
   "Load {0}": "{0} লোড করুন",
   "Status for {0}": "{0}-এর অবস্থা",
-  "Discard unsaved Scheduler settings changes?": "সময়সূচির সেটিংসে সংরক্ষণ না করা পরিবর্তনগুলি বাতিল করবেন?"
+  "Discard unsaved Scheduler settings changes?": "সময়সূচির সেটিংসে সংরক্ষণ না করা পরিবর্তনগুলি বাতিল করবেন?",
+  "Move to": "এখানে সরান"
 }

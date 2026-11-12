@@ -488,11 +488,18 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 #project-list .project-list-row{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;padding:13px;margin:0 0 12px;border:1px solid var(--line);border-radius:9px}
 #project-list .project-row-details{grid-column:auto}
 #project-list .project-row-heading .project-title-button{font-size:13px;line-height:1.5;text-align:start}
+#project-list .project-row-heading .project-title-button{flex:1}
+#project-list .project-row-heading .project-card-menu{margin-inline-start:auto}
+#project-list .project-card-menu-toggle{display:grid;place-items:center;width:24px;height:24px;min-width:24px;min-height:24px;padding:0;border:0;border-radius:3px;color:var(--ink);background:transparent}
+#project-list .project-card-menu-toggle:focus-visible{outline:2px solid var(--theme-focus,var(--accent));outline-offset:2px}
+#project-list .project-card-menu-toggle .calculator-document-chevron{width:14px;height:14px;margin:0}
 #project-list .project-card-estimate{width:100%;margin:0}
 #project-list .project-row-actions{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#project-list .project-row-actions .project-card-estimate{flex:1;min-width:0}
+#project-list .project-load-button{flex:none;align-self:flex-end}
 #project-list .project-load-button{height:42px;min-height:42px;padding:8px 12px}
-#project-list .project-menu-options{inset-inline-start:auto;inset-inline-end:0}
-#project-list .project-row-status{display:block;margin:0 0 8px;font-size:12px}
+#project-list .project-menu-options{position:fixed;inset-inline-start:auto;inset-inline-end:auto;z-index:40;max-height:calc(100dvh - 16px);overflow:auto}
+#project-list .project-row-status{display:block;margin:2px 0 0;padding-top:10px;border-top:1px solid var(--line);font-size:12px}
 #project-list .project-row-status select{width:100%;margin-top:6px}
 #project-list .project-kanban-column[data-status="Quote"]>.project-column-heading{border-color:#e9b541}
 #project-list .project-kanban-column[data-status="Engage"]>.project-column-heading{border-color:#5a9ce8}
@@ -586,6 +593,9 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .project-workspace-layout.project-pane-open{grid-template-columns:minmax(170px,1fr) minmax(0,3fr) minmax(200px,1.15fr);gap:16px}
 .project-workspace-main,.project-workspace-side,.project-workspace-links,.project-details-pane{min-width:0}
 .project-workspace-main,.project-workspace-side,.project-workspace-links{display:grid;gap:16px;align-content:start}
+.project-details-actions{display:flex;align-items:center;flex-wrap:wrap;gap:12px;background:var(--paper);padding:12px;border:1px solid var(--line);border-radius:10px}
+.project-details-actions>.button{height:42px;min-height:42px}
+.project-details-actions>.icon-only{width:42px;min-width:42px;padding:0}
 #view-quotes .project-workspace-links #snapshot-message{margin:0;align-items:flex-start;flex-direction:column}
 .project-details-pane{margin:0}
 .project-details-pane .section-heading{align-items:center;gap:12px}

@@ -30,7 +30,11 @@ function projectCards(h) {
   return h.byId('project-list').children.flatMap(board =>
     board.children.flatMap(column => column.children.filter(child => child.className?.split(' ').includes('project-kanban-card'))));
 }
-function projectActions(card) { return card.children[2].children[1].children[1].children; }
+function projectPart(card, name) {
+  if(card.className?.split(' ').includes(name))return card;
+  for(const child of card.children || []){const match=projectPart(child,name);if(match)return match;}
+}
+function projectActions(card) { return projectPart(card,'project-menu-options').children; }
 
 function harness({ penetration = false } = {}) {
   const elements = new Map();
@@ -879,7 +883,7 @@ async function penetrationCheck(name, fn) {
       throw new Error(`Unexpected ${path}`);
     });
     await h.app.loadProjects();const row=projectCards(h)[0],title=row.children[0].children[0].children[0];
-    assert.equal(row.children[2].children[0].textContent,'Load');
+    assert.equal(projectPart(row,'project-load-button').textContent,'Load');
     assert.equal(title.textContent,'Quote files');assert.equal(title.getAttribute('aria-label'),'Project details for Quote files');
     await projectActions(row).find(button=>button.textContent==='Browse files').emit('click');
     assert.equal(h.byId('project-list-card').hidden,true);assert.equal(h.byId('project-browser').hidden,false);assert.equal(h.byId('project-browser-list').children.length,2);
@@ -890,14 +894,14 @@ async function penetrationCheck(name, fn) {
     await h.byId('refresh-quotes').emit('click');assert.equal(calls.at(-1).path,'/api/projects/files');assert.equal(calls.at(-1).body.relative_path,'Photos');
     await h.byId('project-browser-close').emit('click');assert.equal(h.byId('project-browser').hidden,true);assert.equal(h.byId('project-list-card').hidden,false);
   });
-  for (const control of ['Load','Open']) await check(`${control} loads a saved Project without choosing an Estimate or opening its file browser`, async h => {
+  for (const control of ['estimate row','menu']) await check(`Load from ${control} loads a saved Project without choosing an Estimate or opening its file browser`, async h => {
     const file={id:'opaque-project',name:'Project.cf.json',title:'Saved Project',path:'C:/Estimates/Project.cf.json',save_token:'receipt',modified_at:'2026-09-17T00:00:00Z'},calls=[];
     h.app.state.currentView='quotes';h.app.state.projectCards=[file];h.app.renderProjectList();
     h.app.setRequest(async(path,options)=>{calls.push({path,body:options?.body?JSON.parse(options.body):null});return path==='/api/projects/load'?{...project(),file}:{files:[file],total:1,matched:1,errors:[]};});
     const row=projectCards(h)[0],actions=projectActions(row);
     assert.notEqual(actions.find(button=>button.textContent==='Open').disabled,true);
     assert.equal(actions.find(button=>button.textContent==='Edit').disabled,true);
-    const button=control==='Load'?row.children[2].children[0]:actions.find(button=>button.textContent===control);
+    const button=control==='estimate row'?projectPart(row,'project-load-button'):actions.find(button=>button.textContent==='Load');
     const opening=button.emit('click');await flush();assert.equal(h.byId('discard-dialog').open,true);await h.byId('discard-dialog').close('confirm');await opening;await flush();
     assert.deepEqual(calls[0],{path:'/api/projects/load',body:{id:'opaque-project'}});
     assert.ok(calls.every(call=>!call.path.includes('/files')));assert.equal(h.app.state.currentView,'quotes');
@@ -905,11 +909,12 @@ async function penetrationCheck(name, fn) {
     assert.equal(h.byId('measurements').value,'Imported notes');assert.equal(h.app.state.dirty,false);
     assert.equal(h.byId('project-pricing-context').textContent,'Imported project');
   });
-  await check('Project name opens metadata without loading or changing current pricing identity',async h=>{
+  for (const control of ['Project name','Open']) await check(`${control} opens metadata without loading or changing current pricing identity`,async h=>{
     const file={id:'other-project',title:'Another Project'},loaded={title:'Loaded Project',path:'C:/Loaded.cf.json'};
     h.app.state.projectFile=loaded;h.app.state.projectCards=[file];h.app.renderProjectList();h.app.updateProjectStatus();
     let opened;h.context.window.CeasefireProjectPane={open:async selected=>{opened=selected;}};let reads=0;h.app.setRequest(async()=>{reads++;});
-    const before=h.snapshot();await projectCards(h)[0].children[0].children[0].children[0].emit('click');
+    const before=h.snapshot(),card=projectCards(h)[0];
+    await (control==='Open'?projectActions(card).find(button=>button.textContent==='Open'):projectPart(card,'project-title-button')).emit('click');
     assert.equal(opened,file);assert.equal(reads,0);assert.deepEqual(h.snapshot(),before);assert.equal(h.byId('project-pricing-context').textContent,'Loaded Project');
   });
   await check('Use current pricing cannot apply a confirmation captured for a different loaded Project',async h=>{

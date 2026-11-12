@@ -379,7 +379,11 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-signature{cursor:move}.takeoff-signature-resize{cursor:nwse-resize}
 .takeoff-workspace-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
 .takeoff-workspace-heading .takeoff-workspace-title { margin: 0; }
-@media screen { .takeoff-workspace-heading { margin-inline-start:0; } }
+/* Drawing workspaces use a compact screen heading while retaining print spacing. */
+@media screen {
+  main:has(>#view-takeoffs:not([hidden])) { padding-top:8px; }
+  .takeoff-workspace-heading { margin-inline-start:0; margin-bottom:8px; }
+}
 .takeoff-pdf-tools-menu > button { display: inline-flex; align-items: center; justify-content: space-between; gap: 24px; }
 .takeoff-pdf-tools-menu .calculator-document-actions { left: auto; right: 0; min-width: 230px; }
 .takeoff-graphic-tool svg { width: 24px; height: 24px; }

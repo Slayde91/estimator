@@ -132,9 +132,14 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   await expect(page.locator('#project-list-card')).toBeHidden();
   await page.locator('#project-details-close').click();await expect(page.locator('#project-list-card')).toBeVisible();
   await card.locator('summary').click();await expect(card.getByRole('button',{name:'Open',exact:true})).toBeEnabled();
-  await loadProject(()=>card.getByRole('button',{name:'Open',exact:true}).click());
+  await card.getByRole('button',{name:'Open',exact:true}).click();await idle();
+  await expect(page.locator('#project-details-pane')).toBeVisible();
+  await expect(page.locator('#measurements')).toHaveValue('First estimate notes');
+  assert.deepEqual(fs.readFileSync(info.project),savedBytes,'Open metadata must not rewrite its saved file');
+  await page.locator('#project-details-close').click();await card.locator('summary').click();
+  await loadProject(()=>card.locator('.project-menu-options').getByRole('button',{name:'Load',exact:true}).click());
   await card.locator('.project-card-estimate select').selectOption(second);await expect(page.locator('#view-quotes')).toBeVisible();
-  await card.locator('summary').click();await card.getByRole('button',{name:'Open',exact:true}).click();await idle();
+  await card.locator('.project-load-button').click();await idle();await expect(page.locator('#view-estimate')).toBeVisible();
   await expect(page.locator('#measurements')).toHaveValue('Second estimate notes');
   assert.equal(await page.locator('#discard-dialog').isVisible(),false);
   await openProjectSection(page,'swms');await page.locator('#swms-root').getByRole('button',{name:'New SWMS',exact:true}).click();
@@ -148,5 +153,5 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   await expect(page.locator('#commercial-quote-root').getByLabel('Project number',{exact:true})).toHaveValue('PN-01');
   await expect(page.locator('#measurements')).toHaveValue('Second estimate notes');
   await page.screenshot({path:path.join(output,'multiple-estimates.png'),fullPage:true});assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({passed:true,output,checks:['create','rename','switch keeps notes','inactive takeoff session retained','save all estimates','reload restores inactive drawings','Load and unselected Open load the Project in Projects without rewriting its file','selected-Estimate Open retains the selected notes','pricing snapshot notice belongs to the loaded Project in Projects','Document aligns with the estimate row and wraps below on mobile; its menu fits across all breakpoints'],controlHeights}));
+  console.log(JSON.stringify({passed:true,output,checks:['create','rename','switch keeps notes','inactive takeoff session retained','save all estimates','reload restores inactive drawings','Open reads metadata without loading or rewriting the file','menu Load loads Project in Projects without rewriting its file','selected-Estimate Load retains the selected notes','pricing snapshot notice belongs to the loaded Project in Projects','Document aligns with the estimate row and wraps below on mobile; its menu fits across all breakpoints'],controlHeights}));
 })().catch(async error=>{console.error(error);fs.writeFileSync(path.join(output,'failure.txt'),`${error.stack}\n${logs}`);if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();server.kill();});

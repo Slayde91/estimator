@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const state = { workspace: null, model: null, editor: null, options: null, busy: false, dirty: false, changed: false, revision: 0, search: "" };
+  const state = { workspace: null, model: null, editor: null, options: null, busy: false, dirty: false, changed: false, revision: 0 };
   const copy = value => JSON.parse(JSON.stringify(value));
   const root = () => document.getElementById("swms-root");
   const workspace = () => window.CeasefireCertification?.sessionId?.();
@@ -147,14 +147,14 @@
   async function activate() {
     if (!root()) return;
     if (state.busy) return;
-    if (state.workspace === workspace() && state.editor) { renderEditor(); return; }
+    if (state.workspace === workspace() && state.editor && state.dirty) { renderEditor(); return; }
     const revision = ++state.revision, capturedContext = context();
     shell("SWMS");
     try {
       const identity = workspace() || (await window.CeasefireCertification.projectWorkspace()).workspace_id;
       if (revision !== state.revision || capturedContext !== context() || identity !== workspace()) return;
       state.workspace = identity;
-      if (await load()) renderList();
+      if (await load()) await showStatement();
     } catch (error) { if (revision === state.revision) notice(error.message, true); }
   }
   let leavingEditor = false;
@@ -176,7 +176,7 @@
         }
       }
       if (!current() || state.editor !== editor || state.busy) return false;
-      renderList();
+      state.editor = null; state.dirty = false;
       window.CeasefireProject?.changed?.();
       return true;
     } catch (error) {
@@ -186,66 +186,45 @@
       leavingEditor = false;
     }
   }
-  function renderList() {
-    state.editor = null; state.dirty = false;
-    const host = shell("SWMS"), bar = element("div", "swms-toolbar");
-    const search = element("input"); search.type = "search"; search.value = state.search;
-    search.placeholder = "Title, project or site address…";
-    search.addEventListener("input", () => { state.search = search.value; cards(); });
-    const create=iconAction('New SWMS',openNew,'add');create.classList.add('add-icon-action');
-    const access=window.ClassifireAccess;
-    if(access){create.disabled=true;void access.ready.then(()=>{if(create.isConnected)create.disabled=state.busy || !access.can('edit');});}
-    bar.append(field("Search statements", search), create); host.append(bar, element("div", "swms-list")); cards();
-  }
   function cardHeading(row) {
     const details = row.fields.details, project = window.CeasefireProject?.details?.() || {};
     const place = [details.project_name || project.client, details.project_address || project.site_address].filter(Boolean).join(' - ');
     return [row.reference || 'SWMS', place].filter(Boolean).join(': ');
   }
-  function statementCard(row) {
-    const card = element('article', 'project-kanban-card swms-card'), heading = element('h3'), actions = element('div', 'actions');
-    const title = button(cardHeading(row), () => open(row));
-    title.className = 'text-button project-title-button'; heading.append(title);
-    actions.append(iconAction('Delete', () => remove(row), 'remove'));
-    card.append(heading, element('p', 'muted', `Revision ${row.version} · Updated ${new Date(row.updated_at).toLocaleString('en-AU')}`), actions);
-    return card;
+  function statements() {
+    return [...state.model.documents].sort((a,b) => b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id));
   }
-  async function moveStatement(row, status) {
-    if (state.busy || state.editor) return;
-    const current = guard(); lock(true);
-    try {
-      await request('save', {workspace_id:state.workspace, id:row.id, version:row.version, fields:row.fields, status});
-      if (current()) {changed(); if (await load()) renderList();}
-    } catch (error) {
-      if (current()) {if (error.status === 409 && await load()) renderList(); notice(error.message, true);}
-    } finally {if (current()) lock(false);}
+  async function showStatement() {
+    state.editor = null; state.dirty = false;
+    const latest = statements()[0];
+    if(!latest && !window.CeasefireProject?.hasCreatedProject?.()) {
+      const host=shell('SWMS'),toolbar=element('div','swms-toolbar');toolbar.append(newStatementButton());host.append(toolbar);return;
+    }
+    if (latest) await open(latest);
+    else await openNew(false);
   }
-  function cards() {
-    const needle = state.search.toLowerCase();
-    const rows = (state.model?.documents || []).filter(row =>
-      [cardHeading(row), row.fields.title, ...Object.values(row.fields.details)].join(' ').toLowerCase().includes(needle)
-    ).sort((a,b) => b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id));
-    window.ClassifireDocumentBoard.render(root().querySelector('.swms-list'), {
-      items:rows, stageOf:row => row.status, legacy:['Archived'], cardFor:statementCard,
-      move:moveStatement, onError:error=>notice(error.message,true), locked:() => state.busy || Boolean(state.editor)
-    });
+  async function discardEdits() {
+    if (!state.dirty) return true;
+    const editor=state.editor,current=guard();
+    const discard=await window.CeasefireDialogs.confirm("Discard the current SWMS?", "", "Yes", "Cancel");
+    return discard && current() && state.editor===editor && !state.busy;
   }
   async function defaults() {
     const details = window.CeasefireProject?.details?.() || {};
     return request("defaults", { workspace_id: state.workspace, details: { project_no: details.project_no || "", client: details.client || "", site_address: details.site_address || "" } });
   }
-  async function openNew() {
-    if (state.busy) return;
+  async function openNew(markChanged = true) {
+    if (state.busy || !await discardEdits()) return;
     if (!window.CeasefireProject?.requireCreatedProject?.()) return;
     const current = guard(); lock(true);
     try {
       const result = await defaults(); if (!current()) return;
       state.options = result.options; state.editor = { id: crypto.randomUUID(), version: 0, status: "Draft", fields: result.fields };
-      state.dirty = true; renderEditor(); window.CeasefireProject?.changed?.();
+      state.dirty = markChanged; renderEditor(); if(markChanged)window.CeasefireProject?.changed?.();
     } finally { if (current()) lock(false); }
   }
   async function open(row) {
-    if (state.busy) return;
+    if (state.busy || !await discardEdits()) return;
     const current = guard(); lock(true);
     try {
       const result = await defaults(); if (!current()) return; state.options = result.options;
@@ -255,8 +234,15 @@
   async function remove(row) {
     if (state.busy || !window.confirm(`Delete “${cardHeading(row)}” from this project?`)) return;
     const current = guard(); lock(true);
-    try { await request("delete", { workspace_id: state.workspace, id: row.id, version: row.version }); if (!current()) return; changed(); if (await load()) renderList(); }
-    finally { if (current()) lock(false); }
+    try {
+      await request("delete", { workspace_id: state.workspace, id: row.id, version: row.version });
+      if (!current()) return;
+      changed();
+      if (await load()) {
+        lock(false);
+        await showStatement();
+      }
+    } finally { if (current()) lock(false); }
   }
   async function save() {
     if (state.busy || !state.editor) return false;
@@ -481,12 +467,63 @@
     window.CeasefireI18n?.attr(downloadButton, "title", "Download PDF");
     window.CeasefireI18n?.attr(downloadButton, "aria-label", "Download PDF");
     downloadButton.append(document.querySelector("#estimate-open-quote .download-format-icon").cloneNode(true));
-    const back = button("", leaveEditor);
-    back.classList.add("icon-only", "swms-back-action"); back.title = "Back to statements"; back.setAttribute("aria-label", "Back to statements");
-    window.CeasefireI18n?.attr(back, "title", "Back to statements"); window.CeasefireI18n?.attr(back, "aria-label", "Back to statements");
+    const back = button("", () => document.querySelector('#document-pages [data-document-section="documentation"]')?.click());
+    back.classList.add("icon-only", "swms-back-action"); back.title = "Back to Documents"; back.setAttribute("aria-label", "Back to Documents");
+    window.CeasefireI18n?.attr(back, "title", "Back to Documents"); window.CeasefireI18n?.attr(back, "aria-label", "Back to Documents");
     const backIcon = element("span", "button-symbol", "←"); backIcon.setAttribute("aria-hidden", "true"); back.append(backIcon);
     actions.append(back, button("Save", () => save(), true), downloadButton);
     return actions;
+  }
+  function newStatementButton() {
+    const create=iconAction('New SWMS',()=>openNew(),'add');create.classList.add('add-icon-action');
+    const access=window.ClassifireAccess;
+    if(access){create.disabled=true;void access.ready.then(()=>{if(create.isConnected)create.disabled=state.busy || !access.can('edit');});}
+    return create;
+  }
+  function renderDocumentSelector(host) {
+    const box = element('section', 'card swms-document-actions');
+    const selector = element('select');
+    selector.setAttribute('aria-label', 'Saved statement');
+    window.CeasefireI18n?.attr(selector,'aria-label','Saved statement');
+    const blank = element('option', '', 'New statement');blank.value = '';window.CeasefireI18n?.text(blank,'New statement');selector.append(blank);
+    for (const row of statements()) {
+      const option = element('option', '', cardHeading(row));option.value = row.id;selector.append(option);
+    }
+    selector.value = state.editor.version ? state.editor.id : '';
+    selector.addEventListener('change',async () => {
+      const selected=state.editor;
+      const row=state.model.documents.find(item=>item.id===selector.value);
+      try {if(row)await open(row);else await openNew();}
+      catch(error){notice(error.message,true);}
+      if(state.editor===selected)selector.value=selected.version ? selected.id : '';
+    });
+    const create=newStatementButton();
+    const savedField=field('Saved statement',selector);window.CeasefireI18n?.text(savedField.firstChild,'Saved statement');
+    box.append(savedField,create);
+    if(state.editor.version)box.append(iconAction('Delete',()=>remove(state.editor),'remove'));
+    host.append(box);
+  }
+  function renderRevisionHistory(host) {
+    const box=element('section','card swms-revisions'),heading=element('h2','','SWMS revisions');
+    window.CeasefireI18n?.text(heading,'SWMS revisions');box.append(heading);host.append(box);
+    const editor=state.editor,current=guard();
+    const empty=element('p','helper','No revisions generated in this project.');window.CeasefireI18n?.text(empty,'No revisions generated in this project.');
+    box.append(empty);
+    if(!editor.version || !window.CeasefireDocumentation?.revisionsFor)return;
+    window.CeasefireDocumentation.revisionsFor('swms',editor.id).then(revisions=>{
+      if(!current() || state.editor!==editor || !box.isConnected)return;
+      if(!revisions.length)return;
+      const table=element('table'),thead=element('thead'),labels=element('tr'),body=element('tbody');
+      for(const label of ['Revision','Generated','Document']){const th=element('th','',label);th.scope='col';window.CeasefireI18n?.text(th,label);labels.append(th);}
+      thead.append(labels);
+      for(const revision of revisions.sort((a,b)=>b.revision-a.revision)){
+        const row=element('tr'),date=new Date(revision.created_at),cell=element('td'),link=element('a','','Open revision '+revision.revision);
+        link.href=revision.url;link.target='_blank';link.rel='noopener';
+        window.CeasefireI18n?.text(link,'Open revision {0}',[revision.revision]);cell.append(link);
+        row.append(element('td','',String(revision.revision)),element('td','',Number.isFinite(date.getTime())?date.toLocaleString('en-AU'):revision.created_at),cell);body.append(row);
+      }
+      table.append(thead,body);empty.replaceWith(table);
+    }).catch(error=>{if(current() && state.editor===editor && box.isConnected)empty.textContent=error.message;});
   }
   function renderEditor() {
     const editor = state.editor, fields = editor.fields, host = shell("Safe Work Method Statement");
@@ -500,6 +537,7 @@
     window.CeasefireI18n?.attr(stageInput, 'aria-label', 'Workflow status');
     for (const option of stageInput.options) window.CeasefireI18n?.text(option, option.value);
     toolbar.append(stageField); host.append(toolbar);
+    renderDocumentSelector(host);
     const details = section("Project Details", true), grid = element("div", "swms-grid"), detailInputs = {};
     for (const [key, label] of Object.entries(detailLabels)) {
       const input=required('details.' + key, control(fields.details[key], value => { fields.details[key] = value; }, key === "date" ? "date" : "text"));
@@ -556,6 +594,7 @@
     const reviews = section("Reviews"), reviewGrid = element("div", "swms-review-grid"); fields.reviews.forEach((value, index) => reviewGrid.append(field(`Review ${index + 1} initials`, control(value, text => { fields.reviews[index] = text; })))); reviews.append(reviewGrid); host.append(reviews);
     people(host, "site_signoffs", "Site Sign-Off"); const emergency = section("Emergency Response"); textFields(emergency, fields, ["emergency_requirements", "emergency_access", "emergency_notify", "emergency_contacts", "emergency_supervisor", "emergency_call", "emergency_stop", "emergency_follow"]); host.append(emergency); attachments(host, fields);
     host.append(editorActions());
+    renderRevisionHistory(host);
     updateRequiredFields();
   }
   window.CeasefireSWMS = {

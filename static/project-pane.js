@@ -4,7 +4,7 @@
   const pane = $("project-details-pane");
   if (!pane) return;
   const dialog = $("project-new-dialog"), home = pane.parentNode, homeNext = pane.nextSibling;
-  const side = $("project-workspace-side"), pricingNotice = $("project-pricing-notice");
+  const side = $("project-workspace-side"), links = $("project-workspace-links"), pricingNotice = $("project-pricing-notice");
   const translate = source => window.CeasefireI18n?.translate?.(source) || source;
   const text = (element,source) => window.CeasefireI18n ? window.CeasefireI18n.text(element,source) : (element.textContent=source);
   const fields = {project_no:"project-pane-number", client:"project-pane-client", site_address:"project-pane-address", contact_name:"project-pane-contact-name", contact_phone:"project-pane-contact-phone", contact_email:"project-pane-contact-email", billing_address:"project-pane-billing-address", abn_acn:"project-pane-abn-acn"};
@@ -118,7 +118,7 @@
     window.ClassifireProjectParticipants?.close();
     const previous = selected;
     ++ticket; selected = null; pane.hidden = true;
-    side.hidden = true; pricingNotice.hidden = true;
+    side.hidden = true; links.hidden = true; pricingNotice.hidden = true;
     if (dialog?.open) dialog.close();
     if (pane.parentNode !== home) home.insertBefore(pane, homeNext);
     if (previous?.kind === "new") void window.CeasefireProject.discardNewProject(previous.creation).catch(()=>{});
@@ -141,7 +141,7 @@
     text($("project-details-save"),selected.kind === "new" ? "Save project" : "Save project details");
     $("project-new-cancel").hidden = selected.kind !== "new";
     pane.hidden = false; $("project-workspace-layout").classList.toggle("project-pane-open",selected.kind !== "new");
-    side.hidden = selected.kind === "new";
+    side.hidden = selected.kind === "new"; links.hidden = selected.kind === "new";
     // Pricing belongs to the active Project, not an unrelated saved-file pane.
     pricingNotice.hidden = selected.kind === "new" || selected.kind === "saved" && selected.file.path !== snapshot().file?.path;
     notice(selected.kind === "current" ? "Use the main Save button to save this project's details and estimate." : "");

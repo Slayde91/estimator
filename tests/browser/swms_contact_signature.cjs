@@ -87,7 +87,7 @@ async function contactSignature(root,output){
     await expect(host.getByLabel('Contact',{exact:true})).toHaveValue('Unrelated manager contact');
     assert.deepEqual(reads.slice(-2),['/api/company-settings','/api/scheduler/bootstrap'],'Settings reads finish before the final profile guard.');
     const signed=await snapshot();assert.ok(signed.contact_signature.strokes.length);
-    const back=host.getByRole('button',{name:'Back to statements',exact:true}).first();
+    const back=host.getByRole('button',{name:'Back to Documents',exact:true}).first();
     const geometry=await back.evaluate(button=>{
       const box=button.getBoundingClientRect(),icon=button.querySelector('.button-symbol'),glyph=icon.getBoundingClientRect();
       return {width:box.width,height:box.height,text:icon.textContent,fontSize:getComputedStyle(icon).fontSize,centerX:glyph.x+glyph.width/2-box.x-box.width/2,centerY:glyph.y+glyph.height/2-box.y-box.height/2};
@@ -115,14 +115,16 @@ async function contactSignature(root,output){
     await host.getByRole('button',{name:'Download PDF',exact:true}).first().click();
     const issued=await issue,result=await issued.json();assert.equal(issued.status(),200,JSON.stringify(result));assert.equal(result.saved,true);
     assert.ok(result.path.startsWith(directory));fs.copyFileSync(result.path,path.join(directory,'signed-contact.pdf'));
-    await idle();await back.click();await host.locator('.swms-card .project-title-button').click();
+    await idle();await expect(host.locator('.swms-revisions a')).toHaveCount(1);
+    const retainedPdf=await page.request.get(new URL(await host.locator('.swms-revisions a').getAttribute('href'),page.url()).href);assert.equal(retainedPdf.status(),200);assert.ok((await retainedPdf.body()).subarray(0,5).equals(Buffer.from('%PDF-')));
+    await back.click();await expect(page.locator('#view-documentation')).toBeVisible();await page.waitForFunction(()=>!window.CeasefireDesktop.status().busy);await openProjectSection(page,'swms');
     await expect(contact.getByRole('img')).toBeVisible();assert.deepEqual((await snapshot()).contact_signature,signed.contact_signature);
     await contact.getByRole('button',{name:'Clear signature',exact:true}).click();
     await expect(contact.getByRole('img')).toHaveCount(0);await expect(name).toHaveValue('');await expect(position).toHaveValue('');await expect(phone).toHaveValue('');
     await expect(host.getByLabel('Contact',{exact:true})).toHaveValue('Unrelated manager contact');
     assert.equal((await snapshot()).contact_signature,null);
     await host.getByRole('button',{name:'Save',exact:true}).first().click();await expect(host.locator('.swms-message')).toContainText('Saved.');
-    await back.click();await host.locator('.swms-card .project-title-button').click();
+    await back.click();await expect(page.locator('#view-documentation')).toBeVisible();await page.waitForFunction(()=>!window.CeasefireDesktop.status().busy);await openProjectSection(page,'swms');
     await expect(name).toHaveValue('');await expect(phone).toHaveValue('');assert.equal((await snapshot()).contact_signature,null);
     assert.deepEqual(writes,[]);assert.deepEqual(errors,[]);
     return 'SWMS Contact Person: real pad cancel, company Settings failure and profile switch preserve the whole group; successful signing fills saved personal name/title and company phone with persisted vector ink; portable project and PDF retain ink; Clear resets only contact name/title/phone and ink across reopen; button stays beside field at 390–1915px, commercial arrow glyph is centered inside a42px Back button, no Settings writes';

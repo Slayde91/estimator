@@ -28,7 +28,7 @@
   sites.className = "card commercial-side-panel";
   sites.hidden = true;
   sites.open = true;
-  sites.append(ui("summary", "Linked Sites"), ui("h4", "Linked Projects"), projects, siteStatus);
+  sites.append(ui("summary", "Linked Projects"), projects, siteStatus);
   document.getElementById("project-pricing-notice").before(sites);
 
   let selection = null, fileRevision = null, record = null, generation = 0;

@@ -10,13 +10,14 @@
 .documentation-revisions-document{font-weight:700;overflow-wrap:anywhere}
 .documentation-revisions-pane .documentation-revision{display:grid;gap:4px;padding:12px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
 .documentation-view-revisions{font-size:13px;white-space:normal;text-align:start}
-.documentation-revision-count{color:var(--error)}
-:root:is(:not([data-theme]),[data-theme="ceasefire"],[data-theme="midnight"]) .documentation-revision-count{color:#ff7688}
+.documentation-revision-count{color:#846000}
+:root:is(:not([data-theme]),[data-theme="ceasefire"],[data-theme="midnight"]) .documentation-revision-count{color:#ffdd53}
 @media(max-width:900px){.documentation-layout.has-revisions{grid-template-columns:minmax(0,1fr)}}
 .documentation-section{margin-top:24px}
 .documentation-table{width:100%;table-layout:fixed}
-.documentation-table thead th:first-child{width:34%}
-.documentation-table thead th:last-child{width:78px;text-align:center}
+.documentation-table col.documentation-name-col{width:28%}
+.documentation-table col:not(.documentation-name-col){width:18%}
+.documentation-table thead th:nth-child(n+3){text-align:center}
 .documentation-table td{vertical-align:middle;overflow-wrap:anywhere;padding-block:5px}
 .documentation-table tr[hidden]{display:none}
 .documentation-table tbody tr[data-document-kind]>td:first-child{padding-inline-start:28px}
@@ -33,12 +34,12 @@
 .documentation-group-toggle[aria-expanded=true]::before{transform:rotate(90deg)}
 :dir(rtl) .documentation-group-toggle[aria-expanded=true]::before{transform:rotate(-90deg)}
 .documentation-group-heading{margin:0;font-size:15px;color:inherit}
-@media(max-width:600px){.documentation-table thead th:first-child{width:33%}.documentation-table thead th:last-child{width:62px}.documentation-table th,.documentation-table td{padding:10px 6px}.documentation-revision{display:block}.documentation-revision time,.documentation-revision small{display:block;margin-top:3px}}
+@media(max-width:600px){.documentation-table th,.documentation-table td{padding:10px 6px}.documentation-revision{display:block}.documentation-revision time,.documentation-revision small{display:block;margin-top:3px}}
 
-.documentation-pdf-table{min-width:850px}
-.documentation-pdf-table thead th:nth-child(3){width:78px;text-align:center}
-.documentation-pdf-table .document-cover-file{width:27%;min-width:180px}
-.documentation-pdf-table .document-cover-actions{width:10%}
+.documentation-table{min-width:850px}
+.documentation-section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.documentation-section-heading h2,.documentation-section-heading p{margin:0}
+.documentation-section-heading p{text-align:end}
 .document-cover-picker{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .document-cover-file .helper{margin:0;overflow-wrap:anywhere}
 .document-cover-picker .helper:empty{display:none}

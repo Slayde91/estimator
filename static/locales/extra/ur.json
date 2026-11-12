@@ -3591,5 +3591,9 @@
   "Overwrite": "تبدیل کریں",
   "Keep saved value": "محفوظ شدہ قدر برقرار رکھیں",
   "Project saved. Directory details still need syncing. {0}": "پروجیکٹ محفوظ ہو گیا۔ ڈائریکٹری کی تفصیلات ابھی ہم آہنگ کرنا باقی ہے۔ {0}",
-  "The project changed. Reopen its details before saving.": "پروجیکٹ بدل گیا ہے۔ محفوظ کرنے سے پہلے اس کی تفصیلات دوبارہ کھولیں۔"
+  "The project changed. Reopen its details before saving.": "پروجیکٹ بدل گیا ہے۔ محفوظ کرنے سے پہلے اس کی تفصیلات دوبارہ کھولیں۔",
+  "Saved statement": "محفوظ بیان",
+  "New statement": "نیا بیان",
+  "SWMS revisions": "SWMS کی نظرثانی",
+  "Back to Documents": "دستاویزات پر واپس جائیں"
 }

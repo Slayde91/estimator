@@ -381,6 +381,7 @@
   }
   function render() {
     if (!state.data?.user) return auth(false);
+    const clockFocused = document.activeElement === state.root.querySelector(".scheduler-clock");
     shell();
     const top = el("div", "scheduler-top"), tabs = el("nav", "calculator-pages scheduler-tabs"); tabs.setAttribute("aria-label","Scheduler pages");
     const pages = [["schedule","Schedule"],["entries","Time entries"],...(admin() ? [["team","Team members"],["settings","Settings"]] : [])];
@@ -397,13 +398,14 @@
       catch (error) {await refresh(); notice(error.message,true);}
     })); top.append(tabs,account); state.root.append(top);
     renderClock();
+    if (clockFocused && !state.root.closest("[hidden]")) state.root.querySelector(".scheduler-clock").focus({preventScroll:true});
     if (state.page === "schedule") renderSchedule();
     if (state.page === "entries") renderEntries();
     if (state.page === "team" && admin()) renderTeam();
     if (state.page === "settings" && admin()) renderSettings();
   }
   function renderClock() {
-    const active = state.data.active_entry, bar = el("section", "scheduler-clock card"); bar.setAttribute("aria-label","Your time clock");
+    const active = state.data.active_entry, bar = el("section", "scheduler-clock card"); bar.setAttribute("aria-label","Your time clock"); bar.tabIndex = -1;
     const summary = el("div"); summary.append(el("strong","",active ? "You are clocked in" : "Your time clock"));
     if (active) summary.append(el("p","helper",`Started ${dateFormatter.format(new Date(active.start))} · ${hours(duration(active.start))}`));
     else summary.append(el("p","helper",`Record your working time in ${zone}.`));
@@ -780,11 +782,26 @@
       },error => reject(new Error(locationError(error))),{enableHighAccuracy:true,maximumAge:0,timeout});
     });
   }
+  async function openTimeClock(event) {
+    const control = event.currentTarget;
+    if (control.disabled) return;
+    control.disabled = true;
+    try {
+      if (!await window.CeasefireProject?.openScheduler?.()) return;
+      const clock = state.root?.querySelector(".scheduler-clock");
+      if (!clock || state.root.closest("[hidden]")) return;
+      clock.focus({preventScroll:true});
+      const header = document.querySelector(".app-header");
+      const offset = header?.getBoundingClientRect().bottom || 0;
+      window.scrollTo({top:Math.max(0,window.scrollY + clock.getBoundingClientRect().top - offset - 12), behavior:"instant"});
+    } catch (error) { notice(error.message, true); }
+    finally { control.disabled = false; }
+  }
   function updateLocationStatus() {
     const active = state.data?.active_entry;
     if (!state.trackingBanner && document.body) {
       state.trackingBanner = el("aside","scheduler-tracking-banner"); state.trackingBanner.setAttribute("aria-label","Shift location recording");
-      state.trackingBanner.append(el("span","scheduler-tracking-text"),button("Open time clock",() => document.querySelector('[data-project-section="scheduler"]')?.click(),"text-button"));
+      state.trackingBanner.append(el("span","scheduler-tracking-text"),button("Open time clock",openTimeClock,"text-button"));
       document.body.append(state.trackingBanner);
     }
     const last = state.lastLocation || Date.parse(active?.location_summary?.last_at || "");

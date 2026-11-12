@@ -80,7 +80,7 @@ const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()
   await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog).not.toBeVisible();
   const savedDirectory=await directory(),lead=savedDirectory.leads[0];assert.equal(lead.contact_id,original.id);assert.equal(lead.account_id,second.id);assert.equal(lead.company,second.company);assert.equal(lead.phone,'Lead phone override');assert.deepEqual(savedDirectory.contacts,canonicalBefore);
   const card=host.locator('.project-kanban-card').filter({hasText:original.name}),convert=card.locator('.contacts-lead-convert');await expect(convert).toBeVisible();await expect(convert).toBeEnabled();await page.mouse.move(0,0);
-  const style=await convert.evaluate(button=>{const css=getComputedStyle(button),box=button.getBoundingClientRect();return {background:css.backgroundColor,border:css.borderColor,color:css.color,width:box.width,height:box.height,src:button.querySelector('img').getAttribute('src')};});assert.deepEqual(style,{background:'rgb(255, 221, 83)',border:'rgb(188, 0, 34)',color:'rgb(173, 0, 29)',width:48,height:48,src:'/icons/takeoff-transfer.png'});
+  const style=await convert.evaluate(button=>{const css=getComputedStyle(button),box=button.getBoundingClientRect();return {background:css.backgroundColor,border:css.borderColor,color:css.color,width:box.width,height:box.height,src:button.querySelector('img').getAttribute('src')};});assert.deepEqual(style,{background:'rgb(208, 0, 27)',border:'rgb(235, 50, 74)',color:'rgb(255, 255, 255)',width:48,height:48,src:'/icons/takeoff-transfer.png'});
   checks.push('Lead results show only names; duplicate names retain distinct canonical IDs and accessible positions, with keyboard selection and canonical company defaults unchanged');
   await card.screenshot({path:path.join(output,'lead-convert-card.png')});
   // The same Contact cannot silently acquire a duplicate active Lead.
@@ -91,9 +91,10 @@ const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()
   // card already contains the retained override, so its text cannot prove that
   // the new directory version has reached the UI before Convert is clicked.
   let directoryStarted;const refreshing=new Promise(resolve=>directoryStarted=resolve),directoryGate=new Promise(resolve=>releaseDirectory=resolve);
-  await page.route('**/api/contacts/directory',async route=>{const response=await route.fetch();directoryStarted();await directoryGate;await route.fulfill({response});},{times:1});
+  await page.route('**/api/contacts/directory*',async route=>{const response=await route.fetch();directoryStarted();await directoryGate;await route.fulfill({response});},{times:1});
   const refreshed=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/contacts/directory'&&response.request().method()==='GET');refreshed.catch(()=>{});
-  await dialog.getByRole('button',{name:'Cancel',exact:true}).click();await refreshing;
+  await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
+  await Promise.race([refreshing,new Promise((_,reject)=>setTimeout(()=>reject(Error('Stale-editor close did not start a directory refresh')),10000))]);
   await expect(host).toHaveAttribute('aria-busy','true');await expect(card).toContainText('Lead phone override');
   releaseDirectory();const refreshedDirectory=await refreshed;assert.equal(refreshedDirectory.status(),200,await refreshedDirectory.text());
   const refreshedVersion=(await refreshedDirectory.json()).version;assert.ok(refreshedVersion>savedDirectory.version);

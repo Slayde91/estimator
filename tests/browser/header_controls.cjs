@@ -34,6 +34,7 @@ async function inspectHeader(width) {
     const header = await box(page.locator('.app-header')), brand = await box(page.locator('.brand-stack')),
       nav = await box(page.getByRole('navigation', { name: 'Main navigation' })), actions = await box(page.locator('#header-project-actions')),
       name = await box(page.locator('#header-project-name')), identity = await box(page.locator('.header-project-identity')), status = await box(page.locator('#project-save-state')), logo = await box(page.locator('.brand-logo')), tagline = await box(page.locator('#header-tagline'));
+    await expect(page.getByRole('navigation', { name: 'Main navigation' })).toHaveCSS('border-bottom-right-radius','0px');
     assert.ok(nav.y >= header.y && nav.y + nav.height <= header.y + header.height + 1, `Navigation stays in the header at ${width}`);
     if (width > 1150) assert.ok(nav.x >= brand.x + brand.width, `Navigation sits to the right of the logo at ${width}`);
     assert.ok(actions.y > header.y + header.height && actions.y + actions.height <= 1000, `Project actions overlay the viewport bottom at ${width}`);
@@ -170,7 +171,7 @@ async function inspectHeader(width) {
         const controls = page.locator('.project-workspace-actions'), link = await box(controls.getByRole('button', { name: 'Link Project Folder', exact: true }));
         const load = await box(controls.getByRole('button', { name: 'Load', exact: true })); assert.ok(load.height >= link.height);
         const create = page.locator('#new-quote'), sort = await box(page.locator('#project-sort')), details = await box(page.locator('#project-current-details')), b = await box(create);
-        await expect(create).toHaveAccessibleName('New');assert.ok(b.height >= link.height);
+        await expect(create).toHaveAccessibleName('New');assert.equal(b.height,sort.height);assert.equal(b.width,b.height);
         assert.equal(await create.evaluate(el=>el.closest('.project-list-controls')===document.querySelector('#project-sort').closest('.project-list-controls')),true,'New retains the Sort row owner');
         assert.equal(await controls.locator('#project-current-details').evaluate(el=>el.nextElementSibling.id),'load-project');
         assert.ok(details.x>=0 && details.x+details.width<=width+1 && (details.x+details.width<=load.x+1 || details.y+details.height<=load.y+1),'Current project details precedes Load, wrapping on narrow screens');

@@ -29,6 +29,7 @@ async function reveal(kind){
 }
 async function revisions(kind,count){await documentation();await reveal(kind);const button=page.locator(`button[data-revisions-kind="${kind}"]`);await expect(button).toHaveText(`View Revisions (${count})`);await button.click();
   await expect(button.locator('.documentation-revision-count')).toHaveCount(count>0?1:0);
+  if(count>0)await expect(button.locator('.documentation-revision-count')).toHaveCSS('color','rgb(255, 221, 83)');
   await expect(button).toHaveAttribute('aria-expanded','true');await expect(page.locator('#documentation-revisions-pane')).toBeVisible();await expect(page.locator('#documentation-revisions-list a')).toHaveCount(count);}
 async function snapshots(){return page.evaluate(()=>({calculators:window.CeasefireCalculators.projectSnapshot(),penetration:window.CeasefirePenetrations.projectSnapshot(),
   configuration:window.CeasefireProject.configuration(),details:window.CeasefireProject.details()}));}
@@ -53,7 +54,10 @@ async function holdFinalHistory(trigger){
   }finally{clearTimeout(timer);release();await heldRequest;await page.unroute(matcher);}
   if(routeError)throw routeError;
 }
-async function download(kind,endpoint,{reviewPending=false}={}){await documentation();const before=await snapshots(),savedBefore=fs.readFileSync(info.project);
+async function download(kind,endpoint,{reviewPending=false}={}){await documentation();
+  const tableColumns=await page.locator('.documentation-table').evaluateAll(tables=>tables.map(table=>[...table.querySelectorAll('thead th')].map(cell=>{const box=cell.getBoundingClientRect();return {left:box.left,width:box.width};})));
+  assert.ok(Math.abs(tableColumns[0][2].left-tableColumns[1][2].left)<1,'PDF and XLSX downloads align');
+  assert.ok(tableColumns[0].slice(1).every(column=>Math.abs(column.width-tableColumns[0][1].width)<1),'PDF action columns have equal widths');const before=await snapshots(),savedBefore=fs.readFileSync(info.project);
   const waiting=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname===endpoint,{timeout:180000});waiting.catch(()=>{});
   await reveal(kind);const trigger=()=>page.locator(`button[data-document-kind="${kind}"]`).click();if(reviewPending)await holdFinalHistory(trigger);else await trigger();const response=await waiting;assert.equal(response.status(),200,await response.text());const saved=await response.json();
   assert.equal(saved.saved,true);assert.ok(saved.documentation?.item,JSON.stringify(saved));assert.equal(saved.documentation.item.kind,kind);

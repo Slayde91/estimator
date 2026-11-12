@@ -30,12 +30,19 @@
   // Saved rows contain metadata only. Uploads and deletions remain drafts
   // until the main Save action, including safe retries after lost replies.
   const changed=row=>row.conflicted||row.draft!==undefined;
+  function dirtyStatus() {
+    const target=document.getElementById('cover-sheets-dirty');
+    if(!target)return;
+    const unsaved=[...state.rows.values()].some(changed);
+    text(target,unsaved?'Unsaved changes':'');target.hidden=!unsaved;
+  }
   function render(row){
     const present=row.draft===undefined?row.current.has_cover:!!row.draft;
     row.filename.textContent=present?(row.name||'Cover sheet.pdf'):'';
     row.file.disabled=state.saving||row.reading||row.busy||!!row.pending;
     row.remove.disabled=state.saving||row.reading||row.busy||!!row.pending||!present;
     row.fileCell.setAttribute('aria-busy',String(row.reading||row.busy));
+    dirtyStatus();
   }
   function createRow(item){
     const fileCell=node('td'),actionCell=node('td'),file=node('input'),filename=node('p'),notice=node('p'),actions=node('div'),remove=node('button');
@@ -58,7 +65,7 @@
       // Cancelling a new upload leaves no operation to reconcile. A cover
       // created by another window must not become an implicit deletion.
       if(row.draft===undefined)row.conflicted=false;
-      message(row.notice,changed(row)?'Unsaved changes':'');render(row);
+      text(row.notice,'');render(row);
     });render(row);return row;
   }
   async function upload(row){
@@ -71,7 +78,7 @@
       const value=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('The PDF cover sheet could not be read.'));reader.readAsDataURL(file);});
       const next='data:application/pdf;base64,'+String(value).split(',')[1];
       if(!/^data:application\/pdf;base64,[A-Za-z0-9+/=]+$/.test(next))throw new Error('The PDF cover sheet could not be read.');
-      row.draft=next;row.name=file.name;row.revision++;message(row.notice,'Unsaved changes');
+      row.draft=next;row.name=file.name;row.revision++;text(row.notice,'');
     }catch(error){message(row.notice,error.message,true);}
     finally{row.reading=false;row.file.value='';render(row);endActivity?.();}
   }

@@ -8,13 +8,11 @@
 #swms-root .swms-section[open] > summary { margin-bottom:18px; }
 #swms-root .swms-section > .field { display:flex; flex-direction:column; gap:8px; margin:16px 0; max-width:none; }
 #swms-root .swms-section textarea { min-height:80px; width:100%; resize:vertical; }
-#swms-root .swms-list { min-width:0; }
 .document-workflow-board .project-kanban-column { flex:1 0 min(205px,80vw); }
 .document-workflow-board .project-kanban-column[data-status="Approved"] .project-column-heading { border-color:#36ad7d; }
 .document-workflow-board .project-kanban-column[data-status="Rejected"] .project-column-heading { border-color:#d96373; }
 .document-workflow-board h3 { margin:0; font-size:15px; overflow-wrap:anywhere; }
 .document-workflow-board .project-title-button { white-space:normal; text-align:start; overflow-wrap:anywhere; }
-#swms-root .swms-card p { overflow-wrap:anywhere; }
 #swms-root .swms-check-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:18px 0; }
 #swms-root .swms-check { display:flex; align-items:start; gap:8px; font-size:13px; }
 #swms-root .swms-check input { width:16px; height:16px; flex:none; margin-top:2px; }
@@ -56,3 +54,10 @@
 #swms-root [aria-invalid="true"] { outline:2px solid var(--accent, #d0001b); outline-offset:2px; }
 @media(max-width:850px) { #swms-root .swms-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:600px) { #swms-root .swms-grid, #swms-root .swms-check-grid { grid-template-columns:1fr; } #swms-root .swms-section { padding:12px; } }
+
+#swms-root .swms-document-actions{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:16px 0}
+#swms-root .swms-document-actions .field{flex:1 1 260px;min-width:0;margin:0}
+#swms-root .swms-document-actions select{width:100%;min-width:0}
+#swms-root .swms-revisions{margin:16px 0;overflow-x:auto}
+#swms-root .swms-revisions table{width:100%;border-collapse:collapse}
+#swms-root .swms-revisions th,#swms-root .swms-revisions td{padding:10px;text-align:start;overflow-wrap:anywhere;border-bottom:1px solid var(--line)}

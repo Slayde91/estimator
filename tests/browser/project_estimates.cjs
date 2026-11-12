@@ -137,7 +137,7 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   assert.equal(await page.locator('#discard-dialog').isVisible(),false);
   await openProjectSection(page,'swms');await page.locator('#swms-root').getByRole('button',{name:'New SWMS',exact:true}).click();
   await expect(page.locator('#swms-root').getByLabel('Job Reference',{exact:true})).toHaveValue('PN-01');
-  await page.locator('#swms-root').getByRole('button',{name:'Back to statements'}).first().click();
+  await page.locator('#swms-root').getByRole('button',{name:'Back to Documents'}).first().click();
   await page.locator('#discard-dialog [value="confirm"]').click();
   await estimate(); await documentToggle.click();await page.locator('#estimate-open-quote').click();
   await expect(page.locator('#view-quote')).toBeVisible();

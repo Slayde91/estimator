@@ -24,9 +24,20 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   await expect(panel.locator('summary')).toHaveText('Linked Sites');
   await expect(panel.getByText('No linked projects.',{exact:true})).toBeVisible();
   const companies=page.locator('#project-company-participants'), contacts=page.locator('#project-contact-participants');
+  for(const [host,label] of [[companies,'Company'],[contacts,'Contact']]){
+    await expect(host.locator('details')).toHaveCount(0);
+    await expect(host.getByLabel('Role',{exact:true})).toBeVisible();
+    await expect(host.getByRole('combobox',{name:label,exact:true})).toBeVisible();
+    const ownPanel=host.locator('..');
+    await ownPanel.locator(':scope > summary').click();
+    await expect(host.getByRole('combobox',{name:label,exact:true})).toBeHidden();
+    await expect(page.locator('#project-pane-client')).toBeVisible();
+    await expect(page.locator('#project-pane-contact-name')).toBeVisible();
+    await ownPanel.locator(':scope > summary').click();
+  }
   const siteWrites=[];
   page.on('request',r=>{if(r.method()==='POST' && new URL(r.url()).pathname==='/api/crm/project-participants')siteWrites.push(r.postDataJSON());});
-  await companies.getByText('Add',{exact:true}).click();
+
   await companies.getByLabel('Role',{exact:true}).selectOption('consultant');
   await companies.getByRole('button',{name:'New Company',exact:true}).click();
   await page.getByRole('dialog',{name:'New Company',exact:true}).getByRole('button',{name:'Cancel',exact:true}).click();
@@ -34,7 +45,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   await companies.getByRole('option',{name:'Consulting team',exact:true}).click();
   await expect(companies.locator('li')).toContainText('Consulting team · Consultant');
   const currentPrimary=await page.locator('#project-pane-contact-name').inputValue();
-  await contacts.getByText('Add',{exact:true}).click();
+
   await contacts.getByRole('combobox',{name:'Contact',exact:true}).fill('Site manager');
   await contacts.getByRole('button',{name:'New Contact'}).click();
   const dialog=page.getByRole('dialog',{name:'New Contact',exact:true});
@@ -52,7 +63,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
     version:(await read('/api/contacts/directory')).version,fields:{name:'Site manager elsewhere',company:'Unrelated team',phone:'123',email:'other@example.test'}
   }});
   assert.equal(stray.status(),200,await stray.text());
-  await contacts.getByText('Add',{exact:true}).click();
+
   await contacts.getByRole('combobox',{name:'Contact',exact:true}).fill('Site manager');
   await expect(contacts.getByRole('listbox').getByRole('option')).toHaveText(['Site manager']);
   await contacts.getByRole('combobox',{name:'Contact',exact:true}).press('Escape');
@@ -106,7 +117,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   assert.deepEqual(fs.readFileSync(info.project),original);assert.deepEqual(fs.readFileSync(copyPath),copyBytes);
   // The older open form must recover its version before adding a role and retain the explicit site.
   const addConsultant=async()=>{
-    await companies.getByText('Add',{exact:true}).click();
+
     await companies.getByLabel('Role',{exact:true}).selectOption('consultant');
     await companies.getByRole('combobox',{name:'Company',exact:true}).fill('Consulting');
     await companies.getByRole('option',{name:'Consulting team',exact:true}).click();
@@ -197,7 +208,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   await page.setViewportSize({width:390,height:884});await earlierBid.scrollIntoViewIfNeeded();
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)<=1,'Linked projects fit the mobile viewport');
   await page.screenshot({path:path.join(folder,'participants-mobile.png')});
-  await companies.getByText('Add',{exact:true}).click();
+
   await companies.getByRole('combobox',{name:'Company',exact:true}).focus();
   const options=companies.getByRole('listbox');
   await expect(options).toBeVisible();const popupBox=await options.boundingBox();

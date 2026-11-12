@@ -182,6 +182,25 @@ const ready = new Promise((resolve, reject) => {
   const convertedCard=root.locator('[data-status="Converted"] article').filter({hasText:'Robin Sample'});
   await expect(convertedCard).toContainText(receipt.project_no);
   await expect(convertedCard.getByRole('button',{name:new RegExp(receipt.project_no)})).toBeVisible();
+  const conversionFields=convertedCard.locator('.contacts-conversion-fields');
+  await expect(conversionFields.locator('dt')).toHaveText(['Project No.','Site address','Date']);
+  await expect(conversionFields.locator('dd').nth(0)).toHaveText(receipt.project_no);
+  await expect(conversionFields.locator('dd').nth(1)).toHaveText('QA Site Street');
+  const convertedHistory=await (await page.request.get('http://127.0.0.1:'+port+'/api/contacts/directory?board=1')).json();
+  const recordedConversion=convertedHistory.converted_leads.find(item=>item.project_no===receipt.project_no);
+  await expect(conversionFields.locator('time')).toHaveAttribute('datetime',new Date(recordedConversion.converted_at).toISOString());
+  await expect(conversionFields.getByRole('button',{name:receipt.project_no,exact:true})).toBeVisible();
+  for(const width of [1915,390]){
+    await page.setViewportSize({width,height:884});
+    const rows=await conversionFields.locator('dd').evaluateAll(values=>values.map(value=>{
+      const box=value.getBoundingClientRect(),label=value.previousElementSibling.getBoundingClientRect();
+      return {top:box.top,bottom:box.bottom,left:box.left,labelRight:label.right};
+    }));
+    assert.ok(rows.every((row,index)=>row.left>=row.labelRight && (!index||row.top>=rows[index-1].bottom)));
+  }
+  await page.setViewportSize({width:1101,height:884});
+  await convertedCard.locator('.contacts-conversion-snapshot summary').click();
+  await expect(convertedCard.locator('.contacts-conversion-snapshot')).toContainText('Technician');
   await root.getByRole('searchbox',{name:'Search leads'}).fill(receipt.project_no);
   await expect(convertedCard).toBeVisible();
   await root.getByRole('searchbox',{name:'Search leads'}).fill('');

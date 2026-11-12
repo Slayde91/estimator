@@ -171,7 +171,7 @@
         group.append(list);
       }
       if (canEdit()) {
-        const add = el("details"), role = el("select"), label = ui("label", "Role");
+        const role = el("select"), label = ui("label", "Role");
         const labelId = kind === "accounts" ? "Company" : "Contact";
         role.id = "project-participant-role-" + kind;
         label.htmlFor = role.id;
@@ -188,8 +188,7 @@
             !entries.some(entry => entry.id === item.id && entry.role === role.value),
           onSelect: item => void save([...record.participants, {role: role.value, kind, id: item.id}], host)
         });
-        add.append(ui("summary", "Add"), field, search.element);
-        group.append(add);
+        group.prepend(field, search.element);
       }
       if (group.childElementCount) host.append(group, note);
     }
@@ -230,7 +229,7 @@
     selection = fileRevision = record = null;
     loading = saving = retriedScan = false;
     sites.hidden = true;
-    for (const host of Object.values(hosts)) { host.hidden = true; host.replaceChildren(); }
+    for (const host of Object.values(hosts)) { host.hidden = true; host.closest("details").hidden = true; host.replaceChildren(); }
     projects.replaceChildren();
     text(siteStatus, "");
   }
@@ -247,7 +246,7 @@
       if (!selector) return;
       selection = selector; fileRevision = file.revision;
       sites.hidden = false;
-      for (const host of Object.values(hosts)) host.hidden = false;
+      for (const host of Object.values(hosts)) { host.hidden = false; host.closest("details").hidden = false; }
       text(siteStatus, "Loading…");
       void load();
     }

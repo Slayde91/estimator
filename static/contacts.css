@@ -36,6 +36,10 @@
 .contacts-board .project-kanban-card[draggable="true"] { cursor:grab; }
 .contacts-board .project-title-button,.contacts-table .text-button { text-align:left; }
 .contacts-board .project-kanban-card p { margin:6px 0; overflow-wrap:anywhere; }
+.contacts-conversion { min-width:0; }
+.contacts-conversion-fields { grid-template-columns:minmax(0,.6fr) minmax(0,1fr); margin:10px 0; }
+.contacts-conversion-fields .text-button { padding:0; max-width:100%; font:inherit; text-align:start; overflow-wrap:anywhere; }
+.contacts-conversion-snapshot>summary { cursor:pointer; font-size:11px; }
 .contacts-lead-actions { display:flex; justify-content:flex-end; margin-top:12px; }
 #contacts-root .button.contacts-lead-convert { display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box; flex:0 0 48px; width:48px; min-width:48px; height:48px; min-height:48px; padding:8px; border:1px solid #bc0022; border-radius:9px; background:#ffdd53; color:#ad001d; box-shadow:none; }
 #contacts-root .button.contacts-lead-convert:hover:not(:disabled) { background:#ffe886; border-color:#970020; }

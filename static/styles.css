@@ -499,8 +499,8 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 #project-list .project-load-button{flex:none;align-self:flex-end}
 #project-list .project-load-button{height:42px;min-height:42px;padding:8px 12px}
 #project-list .project-menu-options{position:fixed;inset-inline-start:auto;inset-inline-end:auto;z-index:40;max-height:calc(100dvh - 16px);overflow:auto}
-#project-list .project-row-status{display:block;margin:2px 0 0;padding-top:10px;border-top:1px solid var(--line);font-size:12px}
-#project-list .project-row-status select{width:100%;margin-top:6px}
+#project-list .project-row-status{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;min-width:0;white-space:normal;margin:2px 0 0;padding-top:10px;border-top:1px solid var(--line);font-size:12px}
+#project-list .project-row-status select{width:100%;min-width:0;margin-top:0}
 #project-list .project-kanban-column[data-status="Quote"]>.project-column-heading{border-color:#e9b541}
 #project-list .project-kanban-column[data-status="Engage"]>.project-column-heading{border-color:#5a9ce8}
 #project-list .project-kanban-column[data-status="Won"]>.project-column-heading{border-color:#36ad7d}

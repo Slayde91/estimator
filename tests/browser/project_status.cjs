@@ -125,16 +125,28 @@ async function idle() {
   await projects(); await page.locator('#project-search').fill('');
   await expect(page.locator('.project-list-row')).toHaveCount(6);
   await page.screenshot({path:path.join(output,'projects-list-desktop.png'),fullPage:true});
-  await page.setViewportSize({width:390,height:844});
-  await first.locator('summary').click();
-  await expect.poll(async()=>{
-    const menuBounds=await first.locator('.project-menu-options').boundingBox();
-    return menuBounds&&menuBounds.x>=0&&menuBounds.y>=0&&menuBounds.x+menuBounds.width<=390&&menuBounds.y+menuBounds.height<=844 ? 'bounded' : JSON.stringify({menuBounds,toggle:await actions.boundingBox(),open:await first.locator('details').getAttribute('open')});
-  },{message:'Open card menu fits mobile viewport'}).toBe('bounded');
-  await first.getByRole('combobox',{name:/Status for/}).press('Escape');
-  await expect(first.locator('summary')).toBeFocused();
-  await page.screenshot({path:path.join(output,'projects-list-mobile.png'),fullPage:true});
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),true);
+  for(const width of [1254,390,320]){
+    await page.setViewportSize({width,height:844});
+    await first.locator('summary').click();
+    await expect.poll(async()=>{
+      const menuBounds=await first.locator('.project-menu-options').boundingBox();
+      return menuBounds&&menuBounds.x>=0&&menuBounds.y>=0&&menuBounds.x+menuBounds.width<=width&&menuBounds.y+menuBounds.height<=844 ? 'bounded' : JSON.stringify({menuBounds,toggle:await actions.boundingBox(),open:await first.locator('details').getAttribute('open')});
+    },{message:'Open card menu fits viewport at '+width}).toBe('bounded');
+    const menuContent=await first.locator('.project-menu-options').evaluate(panel=>{
+      const label=panel.querySelector('.project-row-status'),select=label.querySelector('select'),range=document.createRange();
+      range.selectNodeContents(label.firstChild);
+      const bounds=panel.getBoundingClientRect(),style=getComputedStyle(panel);
+      return {scrollWidth:panel.scrollWidth,clientWidth:panel.clientWidth,panel:bounds.toJSON(),contentLeft:bounds.left+parseFloat(style.borderLeftWidth)+parseFloat(style.paddingLeft),contentRight:bounds.right-parseFloat(style.borderRightWidth)-parseFloat(style.paddingRight),select:select.getBoundingClientRect().toJSON(),label:range.getBoundingClientRect().toJSON()};
+    });
+    assert.ok(menuContent.scrollWidth<=menuContent.clientWidth,'Card menu content has no horizontal overflow at '+width+': '+JSON.stringify(menuContent));
+    assert.ok(menuContent.select.left>=menuContent.contentLeft&&menuContent.select.right<=menuContent.contentRight,'Status dropdown fits inside its menu content at '+width);
+    assert.ok(menuContent.select.top>=menuContent.label.bottom,'Move to label appears above its dropdown at '+width);
+    await page.screenshot({path:path.join(output,`project-menu-${width}.png`)});
+    await first.getByRole('combobox',{name:/Status for/}).press('Escape');
+    await expect(first.locator('summary')).toBeFocused();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),true);
+    if(width===390)await page.screenshot({path:path.join(output,'projects-list-mobile.png'),fullPage:true});
+  }
   await page.setViewportSize({width:1575,height:1000});
   const second = page.locator('.project-list-row').filter({hasText:'Project 2'});
   await second.locator('summary').click();

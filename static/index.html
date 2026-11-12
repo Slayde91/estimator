@@ -40,6 +40,8 @@
   <script src="/theme.js" defer></script>
   <script src="/downloads.js" defer></script>
   <script src="/documentation.js" defer></script>
+  <script src="/passive-fire-register.js" defer></script>
+  <link rel="stylesheet" href="/passive-fire-register.css">
   <link rel="stylesheet" href="/documentation.css">
   <script src="/main-layout.js" defer></script>
   <script src="/header-tagline-media.js" defer></script>
@@ -248,6 +250,7 @@ SOFTWARE. -->
     </div>
   </header>
     <div id="header-project-actions" class="actions header-project-actions" role="group" aria-label="Project actions" hidden data-i18n-aria-label="Project actions">
+      <button id="open-time-clock" type="button" class="button secondary icon-only" hidden aria-label="Open time clock" title="Open time clock" data-i18n-aria-label="Open time clock" data-i18n-title="Open time clock"><svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg></button>
       <span class="project-save-actions"><button id="save-current-project" type="button" class="button save-button icon-only" aria-label="Save" title="Save" data-i18n-title="Save" data-i18n-aria-label="Save"><span class="button-symbol save-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M5 3h12l3 3v15H4V3z"></path><path d="M8 3v6h8V3M8 21v-7h8v7M10 17h4"></path></svg></span><span class="sr-only" data-i18n="Save">Save</span></button></span>
       <div class="project-attachments"><button id="project-attachment-zone" type="button" class="button secondary icon-only project-attachment-zone" aria-label="Project files" title="Drag or drop files" aria-describedby="project-attachment-status" data-i18n-title="Drag or drop files" data-i18n-aria-label="Project files"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 3H5v18h14V8l-5-5zm0 0v5h5M12 18v-7m-3 3 3-3 3 3"></path></svg></button><small id="project-attachment-status" class="sr-only" role="status" data-i18n="Files save beside the current project.">Files save beside the current project.</small></div><input id="project-attachment-input" type="file" multiple hidden>
     </div>
@@ -581,9 +584,13 @@ SOFTWARE. -->
       </form>
       </div>
     </section>
+    <section id="view-passive-fire-register" class="view workspace-view" aria-labelledby="passive-register-heading" hidden>
+      <div class="page-heading"><div><h1 id="passive-register-heading" data-i18n="Passive Fire Register">Passive Fire Register</h1></div></div>
+      <div id="passive-register-root"></div>
+    </section>
     <section id="view-documentation" class="view workspace-view" aria-labelledby="documentation-heading" hidden>
       <div class="page-heading"><div><h1 id="documentation-heading" data-i18n="Documentation">Documentation</h1></div></div>
-      <nav id="document-pages" class="calculator-pages document-tabs" aria-label="Documents" data-i18n-aria-label="Documents" hidden><button type="button" class="calculator-page" data-document-section="documentation" aria-pressed="false" data-i18n="Documentation">Documentation</button><button type="button" class="calculator-page" data-document-section="swms" aria-pressed="false">SWMS</button><button type="button" class="calculator-page" data-document-section="certification" aria-pressed="false" data-i18n="Certification">Certification</button></nav>
+      <nav id="document-pages" class="calculator-pages document-tabs" aria-label="Documents" data-i18n-aria-label="Documents" hidden><button type="button" class="calculator-page" data-document-section="documentation" aria-pressed="false" data-i18n="Documentation">Documentation</button></nav>
       <p class="helper" data-i18n="Only documents generated in the current project appear here. Save the project to retain its revision history with the project file.">Only documents generated in the current project appear here. Save the project to retain its revision history with the project file.</p>
       <p id="documentation-status" class="helper" role="status" aria-live="polite"></p>
       <div id="documentation-layout" class="documentation-layout">

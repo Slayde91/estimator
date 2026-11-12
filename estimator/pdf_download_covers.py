@@ -13,6 +13,7 @@ KINDS = (
     ('technical_library_item', 'Technical Library item'),
     ('firestopping_library_item', 'Firestopping Library item'),
     ('firestopping_schedule', 'Firestopping Schedule'),
+    ('passive_fire_register', 'Passive Fire Register'),
     ('steel_vermiculite_schedule', 'Steel Schedule | Spray'),
     ('steel_vermiculite_product_summary', 'Steel spray product summary'),
     ('steel_intumescent_schedule', 'Steel Schedule | Paint'),

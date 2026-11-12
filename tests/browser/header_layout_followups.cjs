@@ -37,7 +37,7 @@ async function navigationScale(){
  });
 }
 async function dock(){
- const value=await page.locator('#header-project-actions').evaluate(el=>{const r=el.getBoundingClientRect();return{position:getComputedStyle(el).position,parent:el.parentElement.tagName,x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,viewport:[innerWidth,innerHeight],hit:[...el.querySelectorAll('button')].every(b=>{const r=b.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return b===hit||b.contains(hit);})};});
+ const value=await page.locator('#header-project-actions').evaluate(el=>{const r=el.getBoundingClientRect();return{position:getComputedStyle(el).position,parent:el.parentElement.tagName,x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,viewport:[innerWidth,innerHeight],hit:[...el.querySelectorAll('button:not([hidden])')].every(b=>{const r=b.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return b===hit||b.contains(hit);})};});
  assert.equal(value.position,'fixed');assert.equal(value.parent,'BODY');assert.ok(value.x>=0&&value.right<=value.viewport[0]);assert.ok(value.y>value.viewport[1]/2&&value.bottom<=value.viewport[1]);assert.ok(value.viewport[0]-value.right<=17&&value.viewport[1]-value.bottom<=17);assert.equal(value.hit,true,'Both existing controls are reachable');
  await expect(page.locator('#save-current-project')).toBeVisible();await expect(page.locator('#project-attachment-zone')).toBeVisible();return value;
 }

@@ -27,7 +27,22 @@ async function expectSavedProjects() {
 async function expectDocumentDestination(section='documentation') {
   await expect(page.locator('#view-documents')).toHaveCount(0);
   await expect(page.locator('#view-'+section)).toBeVisible();
-  await expect(page.locator('#document-pages [aria-current="page"]')).toHaveAttribute('data-document-section',section);
+  await expect(page.locator(`#documents-navigation-menu [data-document-section="${section}"]`)).toHaveAttribute('aria-pressed','true');
+  await expect(page.locator('#document-pages [aria-current="page"]')).toHaveCount(section==='documentation' ? 1 : 0);
+}
+async function openPdfForm(section) {
+  await openProjectSection(page,'documentation');
+  const table=page.locator('#documentation-pdf-rows');
+  const group=table.getByRole('button',{name:'Other documents',exact:true});
+  await expect(group).toBeVisible();
+  if(await group.getAttribute('aria-expanded')==='false')await group.click();
+  const download=table.locator(`button.documentation-download-button[data-document-kind="${section}"]`);
+  await expect(download).toBeEnabled();
+  await download.click();
+  await expectDocumentDestination(section);
+  await idle();
+  if(section==='swms')await expect(page.locator('#swms-root').getByLabel('Project Name',{exact:true})).toBeEnabled();
+  else await expect(page.locator('#certification-client')).toBeEnabled();
 }
 async function home() { await idle();await page.locator('nav .nav-button[data-view="home"]').click();await expect(page.locator('#view-home')).toBeVisible(); }
 async function headerDestination(section) {
@@ -69,7 +84,7 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   assert.equal(JSON.parse(fs.readFileSync(info.project)).estimate.project_no,receipt.file.project_no);
   assert.ok(receipt.file.project_no);
   await page.locator('#documents-navigation-toggle').click();await expectDocumentDestination();
-  await page.locator('#document-pages [data-document-section="certification"]').click();
+  await openPdfForm('certification');
   await expect(page.locator('#view-certification')).toBeVisible();
   await expect(page.locator('#certification-board')).toHaveCount(0);await expect(page.locator('#certification-editor')).toBeVisible();
   await openCertificateEditor(page);
@@ -78,7 +93,7 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   const draftBefore=await snapshot();
   await page.locator('#certification-back').click();await expect(page.locator('#view-documentation')).toBeVisible();
   await expect(page.locator('#certification-editor')).toBeHidden();
-  await page.locator('#document-pages [data-document-section="certification"]').click();await openCertificateEditor(page);await expect(page.locator('#certification-client')).toHaveValue('Navigation draft retained');
+  await openPdfForm('certification');await openCertificateEditor(page);await expect(page.locator('#certification-client')).toHaveValue('Navigation draft retained');
   assert.deepEqual(await snapshot(),draftBefore,'Back and Resume preserve the exact certificate draft and project state');
   await headerDestination('certification');
   const menu = page.locator('#projects-navigation-menu'), documentsMenu = page.locator('#documents-navigation-menu');
@@ -139,34 +154,31 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   await expect(page.locator('#projects-navigation-menu [data-project-section="scheduler"]')).toHaveCount(0);
   await headerDestination('documentation');await headerDestination('quotes');
   assert.deepEqual(await snapshot(),draftBefore);
-  const documentTabs=page.locator('#document-pages'),documentSections=['documentation','swms','certification'];
-  for(const section of documentSections){
-    await openProjectSection(page,section);await idle();
+  const documentTabs=page.locator('#document-pages');
+  for(const section of ['swms','certification']){
+    await openPdfForm(section);
     await expect(documentTabs).toBeVisible();
-    assert.deepEqual(await documentTabs.locator('button').allTextContents(),['Documentation','SWMS','Certification']);
-    await expect(documentTabs.locator('[aria-current="page"]')).toHaveAttribute('data-document-section',section);
+    assert.deepEqual(await documentTabs.locator('button').allTextContents(),['Documentation']);
     assert.equal(await documentTabs.count(),1,'Only one document navigation element is retained');
     assert.equal(await documentTabs.evaluate(nav=>Boolean(nav.closest('#swms-root'))),false,'SWMS cannot replace its navigation when rendering');
     await expect(page.locator('#view-'+section+' .eyebrow').filter({hasText:'DOCUMENTS'})).toHaveCount(0);
-    const next=documentSections[(documentSections.indexOf(section)+1)%documentSections.length];
-    const button=documentTabs.locator(`[data-document-section="${next}"]`);await button.focus();await button.press('Enter');
-    await expect(page.locator('#view-'+next)).toBeVisible();
-    await expect(documentTabs.locator('[aria-current="page"]')).toHaveAttribute('data-document-section',next);
+    const button=documentTabs.getByRole('button',{name:'Documentation',exact:true});await button.focus();await button.press('Enter');
+    await expectDocumentDestination('documentation');
   }
-  await documentTabs.locator('[data-document-section="swms"]').click();
+  await openPdfForm('swms');
   const swms=page.locator('#swms-root');await swms.getByRole('button',{name:'New SWMS',exact:true}).click();
   await swms.getByLabel('Project Name',{exact:true}).fill('Document tab guard QA');
   await documentTabs.locator('[data-document-section="documentation"]').click();
   await page.locator('#discard-dialog').getByRole('button',{name:'Cancel',exact:true}).click();
   await expect(page.locator('#view-swms')).toBeVisible();await expect(documentTabs).toBeVisible();
-  await expect(documentTabs.locator('[aria-current="page"]')).toHaveAttribute('data-document-section','swms');
+  await expectDocumentDestination('swms');
   await expect(swms.getByLabel('Project Name',{exact:true})).toHaveValue('Document tab guard QA');
   await documentTabs.locator('[data-document-section="documentation"]').click();
   await page.locator('#discard-dialog').getByRole('button',{name:'Yes',exact:true}).click();
   await expect(page.locator('#view-documentation')).toBeVisible();await expect(documentTabs).toBeVisible();
   await expect(documentTabs.locator('[aria-current="page"]')).toHaveAttribute('data-document-section','documentation');
   await openProjectSection(page,'quotes');assert.deepEqual(await snapshot(),draftBefore);
-  evidence.checks.push('Three shared Document tabs retain active state through real keyboard navigation and SWMS list/editor rebuilds; Cancel preserves an unsaved statement and Yes discards only after confirmation');
+  evidence.checks.push('Documentation PDF buttons open SWMS and Certification. The Documentation return tab supports keyboard navigation and preserves the SWMS discard confirmation.');
   evidence.checks.push('saved Projects opens first, with independent remembered destinations','Contacts beside Home and Documents beside Projects','Home entry and Documents navigation retain their last child','Certification draft survives all navigation','Cover sheets live only in Documentation','standalone Scheduler clock navigation','keyboard navigation and Escape');
   for (const width of [390,671,825,1084,1864]) {
     await page.setViewportSize({width,height:900});
@@ -188,7 +200,7 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
     evidence.widths.push({owner:'document-tabs',width,...documentGeometry});
     if([390,1864].includes(width)){
       await page.screenshot({path:path.join(output,`documentation-tabs-${width}.png`)});
-      await documentTabs.locator('[data-document-section="swms"]').click();
+      await openPdfForm('swms');
       await expect(page.locator('#swms-root').getByRole('button',{name:'New SWMS',exact:true})).toBeVisible();
       assert.equal(await documentTabs.evaluate(nav=>nav.previousElementSibling?.classList.contains('page-heading')),true,'Document tabs consistently follow the page heading');
       await page.screenshot({path:path.join(output,`swms-tabs-${width}.png`)});

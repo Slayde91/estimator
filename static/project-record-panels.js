@@ -90,7 +90,7 @@
       resources = window.ClassifireRecordResources.attach(resourcesHost,{
         owner:selector(file) ? {kind:"projects",id:selector(file),project_id:file.source_project_id} : null,
         isCurrent:()=>opened === generation && !host.hidden && host.isConnected,
-        canEdit, message:value=>message(value)
+        canEdit, showRefresh:false, message:value=>message(value)
       });
       resetPanels([],!selector(file)); void loadDocuments();
     },

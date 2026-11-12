@@ -49,6 +49,7 @@ async function idle() {
   await expect(first.locator('.project-details-toggle')).toHaveCount(0);
   const load=first.locator('.project-load-button'), actions=first.locator('summary');
   await expect(load).toHaveText('Load');
+  await expect(load).toHaveCSS('background-color','rgb(208, 0, 27)');
   await expect(actions).toHaveText('');
   const [loadBox,estimateBox,titleBox,actionsBox]=await Promise.all([load.boundingBox(),first.locator('.project-card-estimate select').boundingBox(),first.locator('.project-title-button').boundingBox(),actions.boundingBox()]);
   assert.ok(estimateBox.x+estimateBox.width<=loadBox.x && Math.abs(loadBox.y+loadBox.height-estimateBox.y-estimateBox.height)<1,'Estimate Load sits immediately right of its dropdown');

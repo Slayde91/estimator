@@ -297,6 +297,8 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await page.getByRole('button',{name:'Save settings',exact:true}).click();
   await expect(page.locator('.scheduler-notice')).toHaveText('Scheduler settings saved.');
   await tab('Schedule');
+  const openClock = page.getByRole('button',{name:'Open time clock',exact:true});
+  await expect(openClock).toBeHidden();
   await page.getByRole('button',{name:'Clock in',exact:true}).click();
   await expect(page.locator('dialog[open]')).toContainText('Location is required');
   await submit('Clock in');
@@ -308,13 +310,36 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await page.reload();
   await page.waitForFunction(() => window.CeasefireDesktop?.status()?.ready);
   await scheduler();
-  await expect(page.locator('.scheduler-clock')).toContainText('Location recording is on');
+  const clock=page.locator('.scheduler-clock');
+  await expect(clock).toContainText('You are clocked in');
+  await expect(clock).not.toContainText(/Location recording is (on|required)/);
+  await expect(clock.locator('.scheduler-account')).toContainText('Scheduler Admin');
+  await expect(clock.locator('time')).toBeVisible();
+  await expect(clock.getByRole('button',{name:'Sign out'})).toBeVisible();
+  for (const width of [1915,943,390]) {
+    await page.setViewportSize({width,height:884});
+    const bounds = await clock.boundingBox();
+    const navigation = await page.locator('.scheduler-tabs').boundingBox();
+    const signOut = await clock.getByRole('button',{name:'Sign out'}).boundingBox();
+    const checkLocation = await clock.getByRole('button',{name:'Check location now'}).boundingBox();
+    const shownTime = await clock.locator('time').boundingBox();
+    assert.ok(bounds.x>=0 && bounds.x+bounds.width<=width);
+    assert.ok(signOut.y>=checkLocation.y+checkLocation.height && shownTime.y>=checkLocation.y+checkLocation.height);
+    if (width===1915) {
+      assert.ok(bounds.x>=navigation.x+navigation.width && bounds.x<width*0.4);
+      assert.ok(bounds.y<=navigation.y && bounds.height<=172);
+    }
+    await page.screenshot({path:path.join(output,`active-clock-${width}.png`)});
+  }
+  await page.setViewportSize({width:1575,height:884});
   await page.locator('.nav-button[data-view="home"]').click();
-  const openClock=page.locator('.scheduler-tracking-banner').getByRole('button',{name:'Open time clock',exact:true});
   await expect(openClock).toBeVisible();
+  const shortcutBounds = await openClock.boundingBox(), saveBounds = await page.locator('#save-current-project').boundingBox();
+  assert.ok(shortcutBounds.x+shortcutBounds.width<=saveBounds.x && Math.abs(shortcutBounds.y-saveBounds.y)<1);
+  await expect(openClock.locator('svg')).toHaveCount(1);
+  await expect(page.locator('.scheduler-tracking-banner')).toHaveCount(0);
   await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));
   await openClock.click();
-  const clock=page.locator('.scheduler-clock');
   await expect(page.locator('#view-scheduler')).toBeVisible();
   await expect(clock).toBeFocused();
   await expect.poll(async()=>{
@@ -334,7 +359,7 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await expect(editedPrice).toHaveValue('987.65');
   await openClock.click();await pricingReview.getByRole('button',{name:'Continue',exact:true}).click();
   await expect(page.locator('#view-scheduler')).toBeVisible();await expect(clock).toBeFocused();
-  checks.push('Tracking banner opens and focuses the time clock, while unsaved pricing navigation can be cancelled');
+  checks.push('The clock fits the annotated desktop area and narrow screens. The active-shift icon beside Save opens and focuses it while respecting unsaved pricing edits.');
   const stateRoute = '**/api/scheduler/state*';
   const hideManualBreaks = async route => {
     const response = await route.fetch();
@@ -355,6 +380,7 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await expect(page.getByRole('button',{name:'Start break',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Clock out',exact:true}).click();
   await expect(page.getByRole('button',{name:'Clock in',exact:true})).toBeVisible();
+  await expect(openClock).toBeHidden();
   await tab('Time entries');
   await page.getByRole('button',{name:/Locations for Scheduler Admin/}).first().click();
   await expect.poll(() => page.locator('.scheduler-location-map svg circle').count()).toBeGreaterThanOrEqual(1);

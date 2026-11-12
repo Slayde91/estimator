@@ -173,6 +173,7 @@ jobs:
       - run: node tests/browser/swms.cjs
       - run: node tests/browser/swms_contact_signature.cjs
       - run: node tests/browser/project_documentation.cjs
+      - run: node tests/browser/passive_fire_register.cjs
       - run: node tests/browser/control_layout_polish.cjs
       - run: node tests/browser/pricing_manufacturers.cjs
       - run: node tests/browser/certification_defaults.cjs

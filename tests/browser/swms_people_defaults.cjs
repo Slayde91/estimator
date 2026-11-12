@@ -23,6 +23,11 @@ module.exports=async function peopleDefaults(root,output){
     const firstSave=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/project/save-as');await clickProjectControl(page,'Save');assert.equal((await firstSave).status(),200);await page.waitForFunction(()=>{const status=window.CeasefireDesktop?.status();return status?.ready&&!status.busy;});
     await openProjectSection(page,'swms');const host=page.locator('#swms-root');await expect(host.getByRole('button',{name:'New SWMS',exact:true})).toBeVisible();
     const workspace=await page.evaluate(()=>window.CeasefireCertification.sessionId());
+    async function newStatement() {
+      const response=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/swms/defaults');
+      await host.getByRole('button',{name:'New SWMS',exact:true}).click();
+      await response;await expect(host).toHaveAttribute('aria-busy','false');
+    }
     async function post(action,data){const response=await page.request.post(`${base}/api/swms/${action}`,{data:{workspace_id:workspace,...data}});assert.equal(response.status(),200,await response.text());return response.json();}
     async function profile(fields){const current=await (await page.request.get(base+'/api/certifications/defaults')).json();const response=await page.request.post(base+'/api/certifications/defaults',{data:{fields,expected_version:current.version}});assert.equal(response.status(),200,await response.text());return response.json();}
     const savedProfile={name:'Settings person',position:'Site supervisor',qualification:'Qualification as entered',accreditation:'Accreditation as entered'};
@@ -56,7 +61,7 @@ module.exports=async function peopleDefaults(root,output){
     await expect(reviewers.getByRole('img')).toBeVisible();
     await host.getByRole('button',{name:'Back to Documents',exact:true}).first().click();
     await openProjectSection(page,'swms');
-    await host.getByRole('button',{name:'New SWMS',exact:true}).click();
+    await newStatement();
     await expect(host.getByLabel('Project Name',{exact:true})).toBeVisible();
     let fields=await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.fields);
     for(const key of ['reviewers','consultation','work_types'])assert.deepEqual(fields[key],[]);
@@ -123,7 +128,7 @@ module.exports=async function peopleDefaults(root,output){
     assert.equal(signed.reviewers[0].signature,null);assert.ok(signed.consultation[0].signature.strokes.length);assert.ok(signed.site_signoffs[0].signature.strokes.length);
     assert.deepEqual((await post('defaults',{details:{}})).people_defaults,legacyDefaults);
     const stateAfter=await (await page.request.get(`${base}/api/swms/state?workspace=${workspace}`)).json();assert.deepEqual(stateAfter.documents.find(row=>row.id===existing.id),oldSnapshot.documents.find(row=>row.id===existing.id));
-    await host.getByRole('button',{name:'Back to Documents',exact:true}).first().click();await openProjectSection(page,'swms');await host.getByRole('button',{name:'New SWMS',exact:true}).click();await expect(host.getByLabel('Project Name',{exact:true})).toBeVisible();
+    await host.getByRole('button',{name:'Back to Documents',exact:true}).first().click();await expect(page.locator('#view-documentation')).toBeVisible();await openProjectSection(page,'swms');await newStatement();await expect(host.getByLabel('Project Name',{exact:true})).toBeVisible();
     fields=await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.fields);assert.deepEqual(fields.reviewers,[]);assert.deepEqual(fields.consultation,[]);assert.deepEqual(fields.work_types,[]);assert.equal(fields.manager_signature,null);assert.deepEqual(fields.site_signoffs,[]);
     await page.screenshot({path:path.join(directory,'new-people-blank.png')});
     // A response for a replaced editor must not sign or fill the replacement.
@@ -137,7 +142,7 @@ module.exports=async function peopleDefaults(root,output){
     releaseOld();await (await oldReply).finished();await page.evaluate(()=>new Promise(requestAnimationFrame));await expect(host.getByRole('button',{name:'New SWMS',exact:true})).toBeVisible();
     assert.equal((await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor)).id,savedChoice);
     await expect(host.locator('.swms-message')).toBeHidden();
-    await host.getByRole('button',{name:'New SWMS',exact:true}).click();await expect(host.getByLabel('Project Name',{exact:true})).toBeVisible();
+    await newStatement();await expect(host.getByLabel('Project Name',{exact:true})).toBeVisible();
     assert.deepEqual(await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.fields.reviewers),[]);
     assert.deepEqual(writes,[]);assert.deepEqual(errors,[]);
     return 'SWMS defaults: no automatic people, no selected works or tables, final work choice can be removed and empty choices survive Save/reopen; people are added explicitly, cancel leaves blank, successful signatures read latest saved Personal Details into empty applicable fields only, manual values preserved across delayed profile reads, Clear resets associated name/position, manager and site signoff fill, no shared profile/people writes, and old signed statement snapshots unchanged';

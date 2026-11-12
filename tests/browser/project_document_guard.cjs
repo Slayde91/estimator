@@ -88,7 +88,7 @@ async function discard(root,label){
     await expect(host.locator('.commercial-editor')).toBeVisible();await discard(host,back);await expect(host.getByRole('button',{name:label,exact:true})).toBeVisible();
   }
   await openProjectSection(page,'swms');await page.locator('#swms-root').getByRole('button',{name:'New SWMS',exact:true}).click();
-  await expect(page.locator('#swms-root').getByLabel('Workflow status',{exact:true})).toBeVisible();await discard(page.locator('#swms-root'),'Back to statements');
+  await expect(page.locator('#swms-root').getByLabel('Workflow status',{exact:true})).toBeVisible();await discard(page.locator('#swms-root'),'Back to Documents');
   await openProjectSection(page,'certification');await openCertificateEditor(page,{fresh:true});
   await expect(page.locator('#certification-client')).toHaveValue('Project guard account');
   // A genuinely committed draft with a lost reply must still block navigation;

@@ -116,15 +116,15 @@ async function contactSignature(root,output){
     const issued=await issue,result=await issued.json();assert.equal(issued.status(),200,JSON.stringify(result));assert.equal(result.saved,true);
     assert.ok(result.path.startsWith(directory));fs.copyFileSync(result.path,path.join(directory,'signed-contact.pdf'));
     await idle();await expect(host.locator('.swms-revisions a')).toHaveCount(1);
-    const retainedPdf=await page.request.get(await host.locator('.swms-revisions a').getAttribute('href'));assert.equal(retainedPdf.status(),200);assert.ok((await retainedPdf.body()).subarray(0,5).equals(Buffer.from('%PDF-')));
-    await back.click();await openProjectSection(page,'swms');
+    const retainedPdf=await page.request.get(new URL(await host.locator('.swms-revisions a').getAttribute('href'),page.url()).href);assert.equal(retainedPdf.status(),200);assert.ok((await retainedPdf.body()).subarray(0,5).equals(Buffer.from('%PDF-')));
+    await back.click();await expect(page.locator('#view-documentation')).toBeVisible();await page.waitForFunction(()=>!window.CeasefireDesktop.status().busy);await openProjectSection(page,'swms');
     await expect(contact.getByRole('img')).toBeVisible();assert.deepEqual((await snapshot()).contact_signature,signed.contact_signature);
     await contact.getByRole('button',{name:'Clear signature',exact:true}).click();
     await expect(contact.getByRole('img')).toHaveCount(0);await expect(name).toHaveValue('');await expect(position).toHaveValue('');await expect(phone).toHaveValue('');
     await expect(host.getByLabel('Contact',{exact:true})).toHaveValue('Unrelated manager contact');
     assert.equal((await snapshot()).contact_signature,null);
     await host.getByRole('button',{name:'Save',exact:true}).first().click();await expect(host.locator('.swms-message')).toContainText('Saved.');
-    await back.click();await openProjectSection(page,'swms');
+    await back.click();await expect(page.locator('#view-documentation')).toBeVisible();await page.waitForFunction(()=>!window.CeasefireDesktop.status().busy);await openProjectSection(page,'swms');
     await expect(name).toHaveValue('');await expect(phone).toHaveValue('');assert.equal((await snapshot()).contact_signature,null);
     assert.deepEqual(writes,[]);assert.deepEqual(errors,[]);
     return 'SWMS Contact Person: real pad cancel, company Settings failure and profile switch preserve the whole group; successful signing fills saved personal name/title and company phone with persisted vector ink; portable project and PDF retain ink; Clear resets only contact name/title/phone and ink across reopen; button stays beside field at 390–1915px, commercial arrow glyph is centered inside a42px Back button, no Settings writes';

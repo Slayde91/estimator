@@ -209,6 +209,7 @@ async function run(edition) {
     assert.ok(await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.pendingIssue));
     await page.evaluate(()=>{window.CeasefireDownloads.save=window.originalSWMSDownload;});
     await host.getByRole('button',{name:'Back to Documents',exact:true}).last().click();
+    await expect(page.locator('#view-documentation')).toBeVisible();await idle();
     await openProjectSection(page,'swms');
     await expect(host.getByRole('img',{name:'Project manager drawn signature'})).toBeVisible();
     await expect(host.locator('.swms-step-table tbody tr')).toHaveCount(46);

@@ -205,7 +205,9 @@
   }
   async function discardEdits() {
     if (!state.dirty) return true;
-    return window.CeasefireDialogs.confirm("Discard the current SWMS?", "", "Yes", "Cancel");
+    const editor=state.editor,current=guard();
+    const discard=await window.CeasefireDialogs.confirm("Discard the current SWMS?", "", "Yes", "Cancel");
+    return discard && current() && state.editor===editor && !state.busy;
   }
   async function defaults() {
     const details = window.CeasefireProject?.details?.() || {};
@@ -232,8 +234,15 @@
   async function remove(row) {
     if (state.busy || !window.confirm(`Delete “${cardHeading(row)}” from this project?`)) return;
     const current = guard(); lock(true);
-    try { await request("delete", { workspace_id: state.workspace, id: row.id, version: row.version }); if (!current()) return; changed(); if (await load()) {lock(false);await showStatement();} }
-    finally { if (current()) lock(false); }
+    try {
+      await request("delete", { workspace_id: state.workspace, id: row.id, version: row.version });
+      if (!current()) return;
+      changed();
+      if (await load()) {
+        lock(false);
+        await showStatement();
+      }
+    } finally { if (current()) lock(false); }
   }
   async function save() {
     if (state.busy || !state.editor) return false;

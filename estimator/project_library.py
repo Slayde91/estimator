@@ -882,7 +882,7 @@ class ProjectLibrary:
         from .scheduler_orders import resolve
         return resolve(self, identity, revision)
 
-    def participant_project(self, selector, *, directory_only=False):
+    def participant_project(self, selector, *, directory_only=False, activity_only=False):
         """Resolve an authorized saved file locally; a path is never a request parameter."""
         if not isinstance(selector, str) or len(selector) > 200:
             raise ValidationError('Choose a saved project.')
@@ -901,7 +901,7 @@ class ProjectLibrary:
                     raise ProjectDetailsConflict('The project changed. Reopen its details before changing participants.')
             else:
                 _, path = self._project_path(selector)
-                payload, _ = _read_file(path)
+                payload, info = _read_file(path)
             summary = project_summary(payload, edition=self.edition)
             details = summary['estimate']
             owner = summary.get('source_project_id') or ''
@@ -910,6 +910,12 @@ class ProjectLibrary:
             revision = hashlib.sha256(payload).hexdigest()
             if directory_only:
                 return {'revision':revision, 'directory_details':details}
+            if activity_only:
+                if any(card['project_id'] != owner for card in summary['commercial_cards']):
+                    raise ValidationError('Commercial documents belong to a different project.')
+                return {'source':source_id(str(path)), 'owner':owner, 'project_no':details.get('project_no',''),
+                        'revision':revision, 'modified_at':datetime.fromtimestamp(info.st_mtime, timezone.utc).isoformat(),
+                        'commercial_cards':summary['commercial_cards']}
             # Save As copies have independent ownership, even with the same
             # portable project and document IDs.
             from .project_relationships import project_link_id, project_parties

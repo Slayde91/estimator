@@ -33,6 +33,7 @@
 
   let selection = null, fileRevision = null, record = null, generation = 0, directory = {accounts:[],contacts:[]}, roleSelection = {};
   let saving = false, loading = false, scanTimer, retriedScan = false;
+  let history = null;
   const canEdit = () => !window.ClassifireAccess || window.ClassifireAccess.can("edit");
 
   async function api(path, data) {
@@ -105,6 +106,7 @@
       record = data;
       renderParticipants();
       showProjects(data);
+      void history?.refresh();
     } catch (error) {
       if (ticket !== generation) return;
       let message = error.message;
@@ -280,6 +282,7 @@
 
   function close() {
     ++generation;
+    history?.element.remove(); history = null;
     clearTimeout(scanTimer);
     selection = fileRevision = record = null; directory = {accounts:[],contacts:[]}; roleSelection = {};
     loading = saving = retriedScan = false;
@@ -304,6 +307,12 @@
       const selector = file?.id || (file?.save_token ? "native:" + file.save_token : null);
       if (selector && selector === selection && file.revision === fileRevision) return;
       close();
+      const ticket = generation;
+      history = window.ClassifireCrmActivity.historyPanel(() => {
+        if (!selector) return {events:[]};
+        return api("crm/project-activity?" + new URLSearchParams({project:selector, revision:file.revision}));
+      }, () => ticket === generation);
+      hosts.contacts.closest("details").after(history.element);
       if (!selector) return;
       selection = selector; fileRevision = file.revision;
       sites.hidden = false;

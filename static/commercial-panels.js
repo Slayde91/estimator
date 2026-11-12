@@ -293,9 +293,10 @@
       if(copy){const note=el("p",copy);note.className="helper";window.CeasefireI18n?.text(note,copy);linkedProjects.append(note);}
     }
     let controls=[],refreshDetails=()=>{},refreshDirectory=async()=>{};
+    const history=window.ClassifireCrmActivity.historyPanel(options.readActivity,panelCurrent);
     {
-    const accountPanel = panel("Company Details"), contactPanel = panel("Linked Contacts");
-    left.append(accountPanel,contactPanel);
+    const accountPanel = panel("Linked Companies"), contactPanel = panel("Linked Contacts");
+    left.append(accountPanel,contactPanel,history.element);
     let directory = {},participants=null,participantsKey='',participantTicket=0;
     const contactList=el('div'),companyList=el('div'),linkedNotice=el('p');contactList.className='commercial-linked-contacts';companyList.className='commercial-linked-companies';
     linkedNotice.className='helper';linkedNotice.setAttribute('role','status');
@@ -453,7 +454,7 @@
     }
     relatedPanels.forEach(([,block])=>right.append(block));right.append(linkedProjects);showRelated();
     form.querySelector("[data-order-link]")?.addEventListener("change",showRelated);
-    return {repaintFiles,refreshDirectory,closeSearches(){controls.forEach(control=>control.close());},refreshProjectDetails(value){options.projectDetails=value;refreshDetails();}};
+    return {repaintFiles,refreshDirectory,refreshHistory:history.refresh,closeSearches(){controls.forEach(control=>control.close());},refreshProjectDetails(value){options.projectDetails=value;refreshDetails();}};
   }
   window.ClassifireWorkOrderPanels = {attach};
 })();

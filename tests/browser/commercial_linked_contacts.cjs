@@ -70,7 +70,7 @@ const checks=[],errors=[];
  await expect(dialog).toBeVisible();await expect(dialog.getByLabel('Phone',{exact:true})).toHaveValue('Unsaved conflict value');assert.equal((await read('/api/contacts/directory')).contacts.find(c=>c.id===participant.id).phone,'222 edited');
  await dialog.getByRole('button',{name:'Cancel',exact:true}).click();checks.push('Concurrent directory change rejects stale modal Save, retaining typed values and the current saved record.');
  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await openProjectSection(page,'purchase-orders');const po=page.locator('#commercial-purchase-order-root');await po.getByRole('button',{name:'New Purchase Order',exact:true}).click();
- const poLeft=po.locator('.commercial-sidebar').first();await expect(poLeft.locator('summary')).toHaveText(['Company Details','Linked Contacts']);
+ const poLeft=po.locator('.commercial-sidebar').first();await expect(poLeft.locator('summary')).toHaveText(['Linked Companies','Linked Contacts','Activity history']);
  const information=po.locator('.commercial-purchase-information');
  await expect(poLeft.locator('.commercial-linked-company, .commercial-linked-contact')).toHaveCount(0);
  await expect(poLeft.getByRole('combobox')).toHaveCount(0);

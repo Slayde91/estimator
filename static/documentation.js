@@ -156,25 +156,31 @@
         const tr=node('tr'), name=node('td','documentation-name',row.label), action=node('td','documentation-action'), history=node('td'), controls=node('div','documentation-download');
         if(groupRows){groupRows.push(tr);tr.hidden=!groupExpanded;}
         tr.dataset.documentKind=row.id;
-        const breakdown=row.id==='estimate.summary.pdf';
+        const breakdown=row.id==='estimate.summary.pdf', commercial=row.adapter==='commercial';
         const variant = format === 'pdf' ? 'primary' : 'excel-button';
-        const button = node('button', `button ${variant} icon-only documentation-download-button`);
+        const button = node('button', `button ${variant} ${commercial ? 'documentation-new-button' : 'icon-only documentation-download-button'}`);
         button.type = 'button';
         button.dataset.documentKind = row.id;
-        const icon = node('span', 'download-format-icon');
-        icon.setAttribute('aria-hidden', 'true');
-        const arrow = node('span', 'download-arrow'), extension = node('span', 'download-format');
-        arrow.textContent = '⇩';
-        extension.textContent = format.toUpperCase();
-        icon.append(arrow, extension);
-        button.append(icon);
-        if(window.CeasefireI18n) {
-          window.CeasefireI18n.attr(button,'aria-label','Download {0}',[row.label]);
-          window.CeasefireI18n.attr(button,'title','Download {0}',[row.label]);
-        } else {button.setAttribute('aria-label',`Download ${row.label}`);button.title=`Download ${row.label}`;}
+        if(commercial) {
+          const plus=node('span','button-symbol add-symbol');plus.textContent='+';plus.setAttribute('aria-hidden','true');
+          button.append(plus,node('span','','New'));
+        } else {
+          const icon = node('span', 'download-format-icon');
+          icon.setAttribute('aria-hidden', 'true');
+          const arrow = node('span', 'download-arrow'), extension = node('span', 'download-format');
+          arrow.textContent = '⇩';
+          extension.textContent = format.toUpperCase();
+          icon.append(arrow, extension);
+          button.append(icon);
+        }
+        const actionLabel=commercial ? 'New ' + row.label : 'Download {0}', actionArgs=commercial ? [] : [row.label];
+        for(const attribute of ['aria-label','title']){
+          if(window.CeasefireI18n)window.CeasefireI18n.attr(button,attribute,actionLabel,actionArgs);
+          else button.setAttribute(attribute,actionLabel.replace('{0}',row.label));
+        }
         button.disabled=!!state.action||row.historyOnly;
         const access=window.ClassifireAccess;
-        if(breakdown && access){button.disabled=true;void access.ready.then(()=>{if(button.isConnected)button.disabled=!!state.action||row.historyOnly||!access.can('edit');});}
+        if((breakdown || commercial) && access){button.disabled=true;void access.ready.then(()=>{if(button.isConnected)button.disabled=!!state.action||row.historyOnly||!access.can('edit');});}
         button.addEventListener('click',()=>run(row,button));controls.append(button);
         if(row.adapter==='firestopping'&&row.spec.scope==='current_item') {
           const select=node('select');

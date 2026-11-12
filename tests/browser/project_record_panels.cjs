@@ -19,6 +19,9 @@ const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()
   await page.goto(base);await idle();await createNewProject(page,{client:'Panel owner A','site-address':'10 Sidebar Street'});
   await openProjectSection(page,'quote');const quote=page.locator('#commercial-quote-root');
   await quote.getByRole('button',{name:'New Quote',exact:true}).click();
+  const quoteHistory=quote.locator('.record-activity-history');
+  await quoteHistory.locator('summary').click();
+  await expect(quoteHistory).toContainText('No activity recorded.');
   await quote.getByLabel('Introduction',{exact:true}).fill('Source A quote');
   await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();
   await expect(quote.locator('.commercial-message')).toContainText('Document saved.');await idle();
@@ -46,6 +49,12 @@ const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()
   const open=async file=>{await page.locator(`.project-kanban-card[data-project-id="${file.id}"] .project-title-button`).click();await expect(page.locator('#project-details-pane')).toHaveAttribute('aria-busy','false');await expect(resources.getByRole('button',{name:'New note',exact:true})).toBeEnabled();};
   const back=async()=>{await page.locator('#project-details-close').click();await expect(page.locator('#project-list-card')).toBeVisible();};
   await open(a);
+  const history=page.locator('#project-workspace-side .record-activity-history');
+  await expect(history.locator('xpath=preceding-sibling::details[1]/summary')).toHaveText('Contacts');
+  await history.locator('summary').click();
+  await expect(history).toContainText('Participants updated');
+  await expect(history).toContainText('Project file modified');
+  await expect(history).toContainText('Quote');
   await expect(files.getByRole('button',{name:'Refresh',exact:true})).toHaveCount(0);
   await expect(docs.locator('[data-document-kind="quote"] summary')).toHaveText('Linked Quotes (1)');
   await expect(docs.locator('[data-document-kind="work_order"] summary')).toHaveText('Linked Work Orders (0)');
@@ -69,6 +78,9 @@ const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()
   await expect(files.getByRole('link',{name:'owner-a.txt',exact:true})).toBeVisible();
   const original=fs.readFileSync(info.project),otherBytes=fs.readFileSync(siblingPath);
   await back();await open(b);
+  await history.locator('summary').click();
+  await expect(history).toContainText('Source B quote');
+  await expect(history).not.toContainText('Participants updated');
   assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),info.project,'Opening details does not load B into active estimates');
   await expect(notes.locator('summary')).toHaveText('Notes (0)');await expect(files.locator('summary')).toHaveText('Files (0)');
   await expect(docs).toContainText('Source B quote');await expect(docs).not.toContainText('Source A quote');
@@ -104,6 +116,9 @@ const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()
   await page.unroute('**/api/commercial/state?*');
   await expect(quote.locator('.commercial-editor')).toBeVisible();await expect(quote.getByLabel('Introduction',{exact:true})).toHaveValue('Source A quote');
   await expect(quote.getByLabel('Linked Project',{exact:true})).toHaveValue(/Panel owner B/);
+  await quoteHistory.locator('summary').click();
+  await expect(quoteHistory.locator('li strong')).toContainText(['Created']);
+  await expect(quoteHistory.locator('xpath=preceding-sibling::details[1]/summary')).toContainText('Linked Contacts');
   assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),info.project,'Related document retains active estimate owner');
   assert.equal((await read('/api/commercial/register')).documents.filter(row=>row.source_path===siblingPath&&row.id===documentId).length,1);
   await quote.getByLabel('Introduction',{exact:true}).fill('Independent edit after linked activation');

@@ -152,6 +152,11 @@ class SavedQuoteTests(unittest.TestCase):
         stored = next(row for row in json.loads(contents)['commercial_documents']['documents'] if row['id'] == purchase['id'])
         self.assertEqual((stored['status'], stored['version'], stored['fields']['signatures']), ('Requested', 2, {'requested_by': INK}))
         self.assertEqual(result['result']['status'], stored['status'])
+        activity = self.saved.activity(source['file_id'], result['revision'], purchase['id'])['events']
+        self.assertEqual([item['label'] for item in activity], ['Signatures updated','Stage changed','Created'])
+        self.assertEqual((activity[1]['previous_status'],activity[1]['status']), ('Draft','Requested'))
+        with self.assertRaises(CommercialConflict):
+            self.saved.activity(source['file_id'], source['revision'], purchase['id'])
         with self.assertRaises(CommercialConflict):
             self.saved.perform('save', dict(body), self.http.execute)
         self.assertEqual(self.path.read_bytes(), contents)

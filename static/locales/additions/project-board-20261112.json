@@ -1,4 +1,12 @@
 {
+  "New Quote": ["새 견적서", "Bagong quotation", "Báo giá mới"],
+  "New Work Order": ["새 작업 지시서", "Bagong utos sa trabaho", "Lệnh công việc mới"],
+  "New Purchase Order": ["새 구매 주문서", "Bagong purchase order", "Đơn đặt hàng mới"],
+  "Project file modified": ["프로젝트 파일 수정됨", "Binago ang file ng proyekto", "Đã sửa tệp dự án"],
+  "Linked Companies": ["연결된 회사", "Mga naka-link na kumpanya", "Các công ty được liên kết"],
+  "Participants updated": ["참여자 업데이트됨", "Na-update ang mga kalahok", "Đã cập nhật bên tham gia"],
+  "Signatures updated": ["서명 업데이트됨", "Na-update ang mga lagda", "Đã cập nhật chữ ký"],
+  "PDF issued": ["PDF 발행됨", "Inisyu ang PDF", "Đã phát hành PDF"],
   "Engage": [
     "협의",
     "Pakikipag-ugnayan",

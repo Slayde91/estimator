@@ -74,6 +74,32 @@ class CommercialTests(unittest.TestCase):
         with self.assertRaises(CommercialConflict):
             self.store.status(self.workspace, saved['id'], saved['version'], 'Completed')
 
+    def test_activity_follows_selected_version_across_reopens_and_divergent_copies(self):
+        doc = self.store.save(self.workspace, self.payload('quote'))
+        identity = doc['id']
+        base = self.store.capture(self.workspace)
+        other = self.projects.add(base['project_id'])
+        self.store.restore(other, base)
+        self.store.issue(self.workspace, identity, doc['version'], str(uuid.uuid4()))
+        changed = deepcopy(doc['fields'])
+        changed['title'] = 'Copy-only title'
+        self.store.save(other, {'kind':'quote', 'id':identity, 'version':doc['version'],
+                                'status':doc['status'], 'fields':changed})
+        events = self.store.activity(self.workspace, identity)['events']
+        self.assertEqual([event['label'] for event in events], ['PDF issued','Created'])
+        self.assertTrue(events[0]['subject'])
+        events = self.store.saved_activity(self.store.capture(other), identity)['events']
+        self.assertEqual([event['label'] for event in events], ['Updated','Created'])
+        self.assertEqual([event['label'] for event in self.store.saved_activity(base, identity)['events']], ['Created'])
+        unknown = deepcopy(base)
+        unknown['project_id'] = str(uuid.uuid4())
+        unknown['documents'][0]['updated_at'] = '2026-11-12T00:00:00Z'
+        fallback = self.store.saved_activity(unknown, identity)['events']
+        self.assertEqual(fallback, [{'label':'Updated', 'at':'2026-11-12T00:00:00Z'},
+                                    {'label':'Created', 'at':doc['created_at']}])
+        with self.assertRaises(ValidationError):
+            self.store.activity(self.projects.add(), identity)
+
     def test_delayed_create_retry_cannot_restore_a_deleted_document(self):
         payload = self.payload()
         saved = self.store.save(self.workspace, payload)

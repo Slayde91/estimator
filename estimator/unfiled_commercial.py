@@ -122,6 +122,18 @@ class UnfiledCommercial:
             raise CommercialConflict(STALE)
         return row
 
+    def activity(self, source, identity):
+        with self.service._connect() as db:
+            db.execute('BEGIN')
+            owner = self._owner(db, source)
+            self._check_pending(db, owner['workspace'])
+            row = db.execute('''SELECT d.data FROM local_commercial_documents m
+                JOIN commercial_drafts d USING(workspace,id) WHERE m.workspace=? AND m.id=?''',
+                (owner['workspace'], identity)).fetchone()
+            if not row:
+                raise CommercialConflict(STALE)
+            return self.service._document_activity(db, owner['project_id'], json.loads(row['data']))
+
     def scheduler_order(self, source, revision, project, identity):
         """Verify exactly one explicitly saved board record, including an interrupted file handover."""
         with self.service._connect() as db:

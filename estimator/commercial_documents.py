@@ -659,6 +659,7 @@ class CommercialDocuments:
                 CREATE TABLE IF NOT EXISTS commercial_issued (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, document_id TEXT NOT NULL, request_id TEXT UNIQUE NOT NULL, fingerprint TEXT NOT NULL, number TEXT NOT NULL, filename TEXT NOT NULL, pdf BLOB NOT NULL, document TEXT NOT NULL);
                 CREATE INDEX IF NOT EXISTS commercial_issued_document_number ON commercial_issued(project_id,document_id,number);
                 CREATE TABLE IF NOT EXISTS commercial_audit (sequence INTEGER PRIMARY KEY, workspace TEXT NOT NULL, document_id TEXT NOT NULL, action TEXT NOT NULL, before_data TEXT, after_data TEXT, created_at TEXT NOT NULL);
+                CREATE INDEX IF NOT EXISTS commercial_audit_document ON commercial_audit(document_id,sequence);
             ''')
             from .unfiled_commercial import UnfiledCommercial
             self.unfiled = UnfiledCommercial(self, db)
@@ -925,6 +926,64 @@ class CommercialDocuments:
         db.execute('DELETE FROM local_commercial_publications WHERE workspace=?', (workspace,))
         db.execute('INSERT INTO commercial_audit(workspace,document_id,action,before_data,after_data,created_at) VALUES(?,?,?,?,?,?)',
                    (workspace, identity, action, _json(before) if before else None, _json(after) if after else None, datetime.now(timezone.utc).isoformat()))
+
+    def activity(self, workspace, identity):
+        with self._connect() as db:
+            project = self._workspace(db, workspace)
+            if not self.unfiled.permits_document(db, workspace, identity):
+                raise ValidationError('This commercial document is unavailable in the current project.')
+            return self._document_activity(db, project, self._record(db, workspace, identity))
+
+    def saved_activity(self, snapshot, identity):
+        identity = _identity(identity)
+        document = next((row for row in (snapshot or {}).get('documents', []) if row['id'] == identity), None)
+        if document is None:
+            raise ValidationError('This commercial document is unavailable in the current project.')
+        with self._connect() as db:
+            return self._document_activity(db, snapshot['project_id'], document)
+
+    @staticmethod
+    def _document_activity(db, project, document):
+        # Workspace IDs change on reopen. Save As copies may share both the
+        # portable project ID and document ID. Follow only the exact before /
+        # after snapshots leading to the selected version, including across
+        # workspaces. Never expose an audit payload to the browser.
+        expected = _json(document)
+        events = []
+        rows = db.execute("""
+            SELECT a.action,a.created_at,a.before_data,a.after_data,s.created_at AS signed_at
+            FROM commercial_audit a JOIN commercial_workspaces w ON w.workspace=a.workspace
+            LEFT JOIN commercial_audit s ON s.sequence=a.sequence+1 AND s.action='signatures'
+                AND s.workspace=a.workspace AND s.document_id=a.document_id
+            WHERE a.document_id=? AND w.project_id=? AND a.action IN ('save','status','issue')
+            ORDER BY a.sequence DESC""", (document['id'], project))
+        for row in rows:
+            if row['after_data'] != expected:
+                continue
+            before = json.loads(row['before_data']) if row['before_data'] else None
+            after = json.loads(expected)
+            transition = before and before['status'] != after['status']
+            label = ('PDF issued' if row['action'] == 'issue' else 'Stage changed' if transition
+                     else 'Updated' if before else 'Created')
+            if row['signed_at']:
+                events.append({'label':'Signatures updated', 'at':row['signed_at']})
+            event = {'label':label, 'at':row['created_at']}
+            if transition:
+                event.update(previous_status=before['status'], status=after['status'])
+            if row['action'] == 'issue':
+                event['subject'] = after['last_number']
+            events.append(event)
+            expected = row['before_data']
+            if not expected:
+                break
+        # Imported or older portable records can predate this machine's log.
+        if expected:
+            earliest = json.loads(expected)
+            if earliest['updated_at'] and earliest['updated_at'] != earliest['created_at']:
+                events.append({'label':'Updated', 'at':earliest['updated_at']})
+            if earliest['created_at']:
+                events.append({'label':'Created', 'at':earliest['created_at']})
+        return {'events':events}
 
     def purchase_order_defaults(self, workspace, work_order_id, version, *, company=None, rates=None):
         """Prepare a linked draft from a saved Work Order without saving or numbering it."""

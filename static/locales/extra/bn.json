@@ -1,4 +1,12 @@
 {
+  "New Quote": "নতুন কোটেশন",
+  "New Work Order": "নতুন কার্যাদেশ",
+  "New Purchase Order": "নতুন ক্রয়াদেশ",
+  "Project file modified": "প্রকল্পের ফাইল পরিবর্তিত হয়েছে",
+  "Linked Companies": "সংযুক্ত কোম্পানি",
+  "Participants updated": "অংশগ্রহণকারীদের তথ্য হালনাগাদ হয়েছে",
+  "Signatures updated": "স্বাক্ষর হালনাগাদ হয়েছে",
+  "PDF issued": "পিডিএফ জারি করা হয়েছে",
   "Main Client": "প্রধান ক্লায়েন্ট",
   "Add": "যোগ করুন",
   "Supplier company": "সরবরাহকারী প্রতিষ্ঠান",

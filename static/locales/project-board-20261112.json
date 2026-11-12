@@ -1,4 +1,12 @@
 {
+  "New Quote": ["新建报价单", "नया कोटेशन", "Nueva cotización", "عرض سعر جديد", "ใบเสนอราคาใหม่"],
+  "New Work Order": ["新建工单", "नया कार्य आदेश", "Nueva orden de trabajo", "أمر عمل جديد", "ใบสั่งงานใหม่"],
+  "New Purchase Order": ["新建采购订单", "नया खरीद आदेश", "Nueva orden de compra", "أمر شراء جديد", "ใบสั่งซื้อใหม่"],
+  "Project file modified": ["项目文件已修改", "परियोजना फ़ाइल में बदलाव हुआ", "Archivo de proyecto modificado", "تم تعديل ملف المشروع", "แก้ไขไฟล์โครงการแล้ว"],
+  "Linked Companies": ["关联公司", "संबद्ध कंपनियाँ", "Empresas vinculadas", "الشركات المرتبطة", "บริษัทที่เชื่อมโยง"],
+  "Participants updated": ["参与方已更新", "प्रतिभागी अपडेट किए गए", "Participantes actualizados", "تم تحديث المشاركين", "อัปเดตผู้เข้าร่วมแล้ว"],
+  "Signatures updated": ["签名已更新", "हस्ताक्षर अपडेट किए गए", "Firmas actualizadas", "تم تحديث التوقيعات", "อัปเดตลายเซ็นแล้ว"],
+  "PDF issued": ["PDF 已签发", "PDF जारी किया गया", "PDF emitido", "تم إصدار ملف PDF", "ออกเอกสาร PDF แล้ว"],
   "Engage": [
     "接洽",
     "संपर्क",

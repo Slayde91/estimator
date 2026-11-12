@@ -89,9 +89,9 @@ class SavedCommercial:
                 document = next((d for d in model['documents'] if d['id'] == body['id']), None)
                 if document is None:
                     raise CommercialConflict('This document is no longer available. Reopen its board.')
-                bound_number = document['fields']['details']['project_no'] if document['kind']=='work_order' and (document['fields']['order']['work_order_reference'] or document['fields']['order']['quote_id']) else None
+                bound_number = document['fields']['details']['project_no'] if document['kind']=='work_order' else None
                 apply_project_document_details(document['fields'], details)
-                if bound_number is not None:
+                if bound_number:
                     document['fields']['details']['project_no'] = bound_number
                 quote_total = model['quote_totals'].get(document['id'], {}).get(document['last_number'], '')
                 return {'document': document, 'details': details, 'project_details': {

@@ -9,6 +9,7 @@ from .certification_projects import ProjectWorkspaceUnavailable
 from .crm_identity import DuplicateReview
 from .commercial_documents import KINDS, STATUSES, CommercialConflict, default_fields, linked_estimate_ids, project_document_details, apply_project_document_details
 from .commercial_requirements import requirements
+from .work_order_signing import SECTION_INPUTS
 from .unfiled_commercial import quote_context
 
 
@@ -77,7 +78,8 @@ class CommercialHTTP:
                 # estimate or certificate. Mutations keep their source/revision checks.
                 if action == 'register' and self.saved and query in ({}, {'refresh': ['1']}):
                     result = self.saved.projects.commercial_register(refresh='refresh' in query)
-                    handler.send_payload(200, {**result, 'statuses': STATUSES, 'requirements': requirements(STATUSES)})
+                    handler.send_payload(200, {**result, 'statuses': STATUSES, 'requirements': requirements(STATUSES),
+                                               'signature_section_inputs': SECTION_INPUTS})
                     return True
                 option = {'register': 'refresh', 'state': 'compact'}.get(action)
                 unscoped_products = action == 'supplier-products' and not query
@@ -224,14 +226,18 @@ class CommercialHTTP:
                     if not isinstance(fields.get('order'), dict):
                         raise ValidationError('Commercial document details contain unsupported fields.')
                     previous = document if document and document['kind'] == 'work_order' else None
-                    binding = previous if previous and (previous['fields']['order']['work_order_reference'] or previous['fields']['order']['quote_id']) else None
+                    bound_number = previous['fields']['details']['project_no'] if previous else ''
                     quote_id = fields['order'].get('quote_id')
-                    if binding is None and isinstance(quote_id, str) and quote_id:
+                    first_link = not previous or not previous['fields']['order']['quote_id']
+                    if first_link and isinstance(quote_id, str) and quote_id:
                         _, quote = self.service.document_context(workspace, quote_id)
-                        binding = quote if quote and quote['kind'] == 'quote' else None
-                    if binding:
-                        bound_number = binding['fields']['details']['project_no']
-                        if requested_number not in ((bound_number,) if previous else ('', bound_number)):
+                        if quote and quote['kind'] == 'quote':
+                            quote_number = quote['fields']['details']['project_no']
+                            if bound_number and quote_number and bound_number != quote_number:
+                                raise ValidationError('Choose an issued Quote from this Project.')
+                            bound_number = bound_number or quote_number
+                    if bound_number:
+                        if requested_number not in (('', bound_number) if first_link else (bound_number,)):
                             raise ValidationError('The project number cannot change after a work order reference is assigned.')
                         fields['details']['project_no'] = bound_number
             if body.get('kind') == 'quote':

@@ -13,6 +13,16 @@ const errors=[],posts=[],checks=[];
 async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready&&!window.CeasefireProject.hasPendingOperation()&&!document.querySelector('dialog[open],[aria-busy="true"],.commercial-editor-actions button:disabled'));}
 async function model(){const workspace=await page.evaluate(()=>window.CeasefireCertification.sessionId());return(await page.request.get(new URL('/api/commercial/state?workspace='+workspace,page.url()).href)).json();}
 async function saved(host){const pending=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/commercial/save'&&reply.request().method()==='POST');await host.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();const response=await pending;assert.equal(response.status(),200,await response.text());await idle();return (await model()).documents;}
+async function downloadWork(host) {
+  const response = page.waitForResponse(reply => new URL(reply.url()).pathname === '/api/commercial/issue' && reply.request().method() === 'POST');
+  await host.getByRole('button',{name:'Download PDF',exact:true}).click();
+  const result = await response;
+  assert.equal(result.status(),200,await result.text());
+  const receipt = await result.json();
+  assert.equal(receipt.saved,true);
+  assert.equal(fs.readFileSync(receipt.path).subarray(0,5).toString(),'%PDF-');
+  await idle();
+}
 async function blocked(host,action,labels){const count=posts.length;await host.locator('.commercial-editor-actions').getByRole('button',{name:action,exact:true}).click();for(const label of labels)await expect(host.locator('.commercial-message')).toContainText(label);await idle();assert.equal(posts.length,count,'Preflight must block before any commercial Save/Issue POST');}
 async function rich(host,key,text,collapse=false){const details=host.locator(`details.commercial-rich:has([data-required-path="${key}"])`);if(!await details.evaluate(element=>element.open))await details.locator('summary').click();await host.locator(`[data-required-path="${key}"]`).fill(text);if(collapse)await details.locator('summary').click();return details;}
 (async()=>{
@@ -27,16 +37,60 @@ async function rich(host,key,text,collapse=false){const details=host.locator(`de
  const terms=quote.locator('[data-required-path="terms"]');await expect(terms).toBeFocused();await expect(quote.locator('details.commercial-rich:has([data-required-path="terms"])')).toHaveAttribute('open','');await terms.fill('Entered QA terms.');
  documents=await saved(quote);document=documents.find(row=>row.kind==='quote');assert.equal(document.status,'Review');assert.equal(document.fields.rate_schedule.rates.ordinary_time,'0');checks.push('Quote Review/PDF preflight blocks before POST; missing collapsed Terms opens and receives focus; zero rate is valid');
  const issue=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/commercial/issue'&&reply.request().method()==='POST');await quote.getByRole('button',{name:'Download PDF',exact:true}).click();const issuedResponse=await issue;assert.equal(issuedResponse.status(),200,await issuedResponse.text());await idle();document=(await model()).documents.find(row=>row.kind==='quote');assert.ok(document.last_number);
- await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await openProjectSection(page,'work-orders');const work=page.locator('#commercial-work-order-root');await work.getByRole('button',{name:'New Work Order',exact:true}).click();await idle();await expect(work.getByLabel('Document title',{exact:true})).toHaveCount(0);await work.getByLabel('Linked Quote',{exact:true}).selectOption(document.id);
- documents=await saved(work);let order=documents.find(row=>row.kind==='work_order');assert.equal(order.status,'Draft');assert.equal(order.fields.order.start_date,'');assert.equal(order.fields.order.urgency,'');assert.equal(order.fields.order.description,'');checks.push('A linked Work Order Draft saves while future workflow fields/signatures remain incomplete');
- await work.getByLabel('Status',{exact:true}).selectOption('Review');await blocked(work,'Save',['Proposed start date','Category / urgency','Description of works','Work order details reviewed by']);
+ await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await openProjectSection(page,'work-orders');const work=page.locator('#commercial-work-order-root');await work.getByRole('button',{name:'New Work Order',exact:true}).click();await idle();await expect(work.getByLabel('Document title',{exact:true})).toHaveCount(0);const link=work.getByLabel('Linked Quote',{exact:true});
+ await link.selectOption('');
+ let order=(await saved(work)).find(row=>row.kind==='work_order');
+ const number=order.reference;
+ assert.ok(number);assert.equal(order.status,'Draft');assert.equal(order.fields.order.quote_id,'');
+ await downloadWork(work);
+ await expect(link).toBeEnabled();
+ await link.selectOption(document.id);
+ const cost=work.getByLabel('Estimated cost (AUD)',{exact:true});
+ await expect(cost).not.toHaveValue('');
+ await cost.fill('');
+ const status=work.getByLabel('Status',{exact:true});
+ await status.selectOption('Review');
+ order=(await saved(work)).find(row=>row.kind==='work_order');
+ assert.equal(order.status,'Draft');assert.equal(order.reference,number);assert.equal(order.fields.order.quote_id,document.id);
+ await expect(status).toHaveValue('Draft');await expect(link).toBeDisabled();
+ assert.equal(order.fields.order.estimated_cost,'');assert.equal(order.fields.estimated_cost_cleared,true);
+ await downloadWork(work);await expect(cost).toHaveValue('');
+ assert.equal((await model()).documents.find(row=>row.id===order.id).fields.order.estimated_cost,'');
+ assert.equal(order.fields.order.start_date,'');assert.equal(order.fields.order.urgency,'');
+ checks.push('An incomplete Work Order saves and downloads, then links to the issued Quote without changing its number');
  await work.getByLabel('Proposed start date',{exact:true}).fill('2026-12-10');await work.getByLabel('Category / urgency',{exact:true}).selectOption('High Priority');await work.getByLabel('Description of works',{exact:true}).fill('Synthetic installation work');await work.getByLabel('Estimated cost (AUD)',{exact:true}).fill('0');await work.getByLabel('Approval',{exact:true}).selectOption('Approved');
- await blocked(work,'Save',['Work order details reviewed by']);const profile=await(await page.request.get(new URL('/api/certifications/defaults',page.url()).href)).json();const person=await page.request.post(new URL('/api/certifications/defaults',page.url()).href,{data:{expected_version:profile.version,fields:{...profile.fields,name:'QA Review Signer'}}});assert.equal(person.status(),200);
+ const profile=await(await page.request.get(new URL('/api/certifications/defaults',page.url()).href)).json();const person=await page.request.post(new URL('/api/certifications/defaults',page.url()).href,{data:{expected_version:profile.version,fields:{...profile.fields,name:'QA Review Signer'}}});assert.equal(person.status(),200);
  await page.evaluate(()=>{window.ClassifirePersonalSignature={...window.ClassifirePersonalSignature,choose:async()=>({version:1,ratio:3,strokes:[[[.1,.2],[.7,.8]]]})};});
  await work.getByRole('button',{name:'Sign Work order details reviewed by',exact:true}).click();await idle();await expect(work.getByLabel('Work order details reviewed by name',{exact:true})).toHaveValue('QA Review Signer');await expect(work.locator('[data-order-field="details_date"]')).toHaveValue(/\d{4}-\d{2}-\d{2}/);
  documents=await saved(work);order=documents.find(row=>row.kind==='work_order');assert.equal(order.status,'Review');assert.equal(order.fields.order.estimated_cost,'0');assert.ok(order.fields.signatures.details_by);checks.push('Work Order Review requires base data and the details vector signature/name/date; signing copies current Settings and zero cost remains valid');
- await work.getByLabel('Status',{exact:true}).selectOption('OHS Docs');await blocked(work,'Save',['Reviewed by']);await work.getByRole('button',{name:'Sign Reviewed by',exact:true}).click();await idle();await saved(work);
- await work.getByLabel('Status',{exact:true}).selectOption('Client Approval');await blocked(work,'Save',['Prepared by']);await blocked(work,'Download PDF',['Prepared by']);await expect(work.locator('[data-signature-field="prepared_by"] button').first()).toBeFocused();
- await page.screenshot({path:path.join(output,'missing-prepared-stage.png'),fullPage:false});checks.push('Client Approval stage requires completed OHS Prepared by evidence after prior stages; Save and PDF block without a POST');
+ const sign=async(label,stage)=>{
+   await work.getByRole('button',{name:'Sign '+label,exact:true}).click();
+   await expect(status).toHaveValue(stage);await idle();
+ };
+ await sign('Reviewed by','OHS Docs');
+ await sign('Prepared by','Client Approval');
+ await sign('Approved by','In progress');
+ await work.getByLabel('Description of works',{exact:true}).fill('');
+ await status.selectOption('Claim');
+ order=(await saved(work)).find(row=>row.kind==='work_order');
+ assert.equal(order.fields.order.description,'');assert.equal(order.status,'In progress');
+ await expect(status).toHaveValue('In progress');
+ await status.selectOption('Claim');
+ await downloadWork(work);
+ await expect(status).toHaveValue('In progress');
+ assert.equal((await model()).documents.find(row=>row.id===order.id).fields.signatures.progress_by,undefined);
+ checks.push('Save and PDF both return a Claim without its progress signature to In progress and keep blank fields');
+ await work.getByLabel('Proposed start date',{exact:true}).fill('');
+ await work.getByRole('button',{name:'Clear Approved by',exact:true}).click();
+ await page.getByRole('dialog',{name:'Clear section and later sections?',exact:true}).getByRole('button',{name:'Clear section',exact:true}).click();
+ await expect(status).toHaveValue('Client Approval');await idle();
+ await saved(work);await downloadWork(work);
+ await work.getByRole('button',{name:'Back to Work Orders',exact:true}).click();
+ const column=work.locator('.commercial-column').filter({has:page.getByRole('heading',{name:'Client Approval',exact:true})});
+ await column.getByRole('button',{name:new RegExp(number)}).first().click();
+ await expect(work.getByLabel('Status',{exact:true})).toHaveValue('Client Approval');
+ await expect(work.getByLabel('Approved by name',{exact:true})).toHaveValue('');
+ await expect(work.getByLabel('Proposed start date',{exact:true})).toHaveValue('');
+ checks.push('Clearing Client Approval while other fields are blank survives Save, PDF, and reopening from its board column');
  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,posts,errors},null,2));console.log('PASS commercial required fields: '+output);
 })().catch(async error=>{console.error(error);console.error(logs);if(page){console.error(await page.locator('.commercial-message').allTextContents().catch(()=>[]));await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});}process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

@@ -276,7 +276,25 @@ class WorkOrderSigningTests(unittest.TestCase):
         self.assertNotIn('claimed_by', opened['document']['fields']['signatures'])
         self.assertEqual(opened['document']['fields']['work_tracking'], doc['fields']['work_tracking'])
 
-    def test_historical_gaps_do_not_block_clearing_but_cannot_be_introduced_by_it(self):
+    def test_unfiled_order_can_add_only_a_quote_available_to_its_board(self):
+        fields = default_fields('work_order', {'project_no':'PN-01'})
+        order = self.store.save(self.workspace, self.payload(fields), unfiled_context={})
+        edit = deepcopy(order['fields'])
+        edit['order']['quote_id'] = self.fixture.quote['id']
+        def link():
+            card = next(row for row in self.store.unfiled.cards(None) if row['id'] == order['id'])
+            source = {'file_id':card['source_file'], 'revision':card['source_revision']}
+            return self.store.unfiled.perform('save', source, self.payload(edit, order), CommercialHTTP(self.store).execute)
+        with self.assertRaises((ValidationError, CommercialConflict)):
+            link()
+        self.assertEqual(self.store.document_context(self.workspace, order['id'])[1], order)
+        quote = self.fixture.quote
+        self.store.save(self.workspace, {key:quote[key] for key in ('id','version','kind','status','fields')}, unfiled_context={})
+        linked = link()['result']
+        self.assertEqual(linked['fields']['order']['quote_reference'], quote['last_number'])
+        self.assertEqual(linked['reference'], order['reference'])
+
+    def test_clearing_a_signature_saves_existing_and_newly_blank_fields_together(self):
         doc = self.store.save(self.workspace, {**self.payload(), 'status':'Completed'})
         snapshot = self.store.capture(self.workspace)
         legacy = next(row for row in snapshot['documents'] if row['id'] == doc['id'])
@@ -286,13 +304,74 @@ class WorkOrderSigningTests(unittest.TestCase):
         action = [{'key':'reviewed_by', 'clear':True}]
         fields = deepcopy(legacy['fields'])
         fields['order']['urgency'] = ''
-        with self.assertRaisesRegex(ValidationError, 'Category / urgency'):
-            self.store.save(target, self.payload(fields, legacy, action))
-        changed = self.store.save(target, self.payload(legacy['fields'], legacy, action))
+        changed = self.store.save(target, self.payload(fields, legacy, action))
         self.assertEqual(changed['status'],'Review')
         self.assertEqual(changed['fields']['details']['phone'], '')
-        with self.assertRaisesRegex(ValidationError, 'Client phone'):
-            self.store.save(target, self.payload(changed['fields'], changed))
+        self.assertEqual(changed['fields']['order']['urgency'], '')
+        self.assertEqual(set(changed['fields']['signatures']), {'details_by'})
+        edited = deepcopy(changed['fields'])
+        edited['order']['description'] = 'Ready for the next review'
+        saved = self.store.save(target, self.payload(edited, changed))
+        self.assertEqual(saved['status'], 'Review')
+        issued = self.store.issue(target, saved['id'], saved['version'], str(uuid4()))
+        self.assertEqual(issued['document']['fields']['details']['phone'], '')
+
+    def test_historical_unrecognised_completion_does_not_authorise_completed_status(self):
+        completed = self.store.save(self.workspace, {**self.payload(), 'status':'Completed'})
+        snapshot = self.store.capture(self.workspace)
+        historical = next(row for row in snapshot['documents'] if row['id'] == completed['id'])
+        historical['fields']['order']['completion'] = 'Legacy completion text'
+        target = self.fixture.projects.add(snapshot['project_id'])
+        self.store.restore(target, snapshot)
+        saved = self.store.save(target, self.payload(historical['fields'], historical))
+        self.assertEqual(saved['status'], 'Certify')
+        self.assertEqual(saved['fields']['order']['completion'], 'Legacy completion text')
+        self.assertEqual(saved['fields']['signatures'], historical['fields']['signatures'])
+
+    def test_save_and_pdf_repair_claim_with_missing_progress_signature(self):
+        fields = complete_work_order(self.fixture.fields(), 'In progress')
+        fields['work_tracking']['rows'][0].update(notes='Inspection in progress', completed_percent='35')
+        existing = self.store.save(self.workspace, {**self.payload(fields), 'status': 'In progress'})
+        snapshot = self.store.capture(self.workspace)
+        recorded = next(row for row in snapshot['documents'] if row['id'] == existing['id'])
+        recorded['status'] = 'Claim'
+        recorded['fields']['details']['email'] = ''
+        for operation in ('save', 'issue'):
+            with self.subTest(operation=operation):
+                target = self.fixture.projects.add(snapshot['project_id'])
+                self.store.restore(target, snapshot)
+                if operation == 'save':
+                    corrected = self.store.save(target, self.payload(recorded['fields'], recorded))
+                else:
+                    corrected = self.store.issue(target, recorded['id'], recorded['version'], str(uuid4()))['document']
+                self.assertEqual(corrected['status'], 'In progress')
+                self.assertEqual(corrected['fields']['signatures'], recorded['fields']['signatures'])
+                self.assertEqual(corrected['fields']['details']['email'], '')
+                self.assertEqual(corrected['fields']['work_tracking'], recorded['fields']['work_tracking'])
+                card = next(row for row in commercial_cards(self.store.capture(target)) if row['id'] == existing['id'])
+                self.assertEqual(card['status'], 'In progress')
+
+    def test_cleared_client_approval_persists_when_incomplete_order_is_saved_and_printed(self):
+        fields = complete_work_order(self.fixture.fields(), 'Claim')
+        existing = self.store.save(self.workspace, {**self.payload(fields), 'status': 'Claim'})
+        first = self.store.issue(self.workspace, existing['id'], existing['version'], str(uuid4()))
+        order = first['document']
+        cleared = self.store.save(self.workspace, self.payload(order['fields'], order, [{'key':'client_approved_by', 'clear':True}]))
+        incomplete = deepcopy(cleared['fields'])
+        incomplete['details']['phone'] = ''
+        incomplete['order']['start_date'] = ''
+        updated = self.store.save(self.workspace, self.payload(incomplete, cleared))
+        self.assertEqual(updated['status'], 'Client Approval')
+        issued = self.store.issue(self.workspace, updated['id'], updated['version'], str(uuid4()))
+        self.assertEqual(issued['document']['status'], 'Client Approval')
+        snapshot = self.store.capture(self.workspace)
+        target = self.fixture.projects.add(snapshot['project_id'])
+        self.store.restore(target, snapshot)
+        reopened = next(row for row in self.store.view(target)['documents'] if row['id'] == order['id'])
+        self.assertEqual(reopened['status'], 'Client Approval')
+        self.assertEqual(reopened['fields']['details']['phone'], '')
+        self.assertNotIn('client_approved_by', reopened['fields']['signatures'])
+        self.assertEqual(self.store.read_pdf(target, first['id'])[1], first['pdf'])
 
     def test_old_completed_record_can_edit_and_issue_without_retroactive_details_signoff(self):
         document=self.store.save(self.workspace,self.payload())

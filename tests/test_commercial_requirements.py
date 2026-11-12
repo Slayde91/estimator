@@ -124,6 +124,21 @@ class CommercialReadinessTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, 'signing details'):
             self.save('work_order', fields, saved, 'Client Approval')
 
+    def test_saving_incomplete_order_does_not_allow_a_signature_to_advance_it(self):
+        fields, _ = self.work_fields()
+        fields['order']['description'] = ''
+        saved = self.save('work_order', fields)
+        fields = deepcopy(saved['fields'])
+        self.sign(fields, 'details_by', 'details_date')
+        action = {'key':'details_by', 'name':fields['order']['details_by'],
+                  'date':fields['order']['details_date'], 'signature':INK}
+        before = self.store.capture(self.workspace)
+        for envelope in ({'signature_actions':[action]}, {}):
+            with self.subTest(explicit=bool(envelope)), self.assertRaisesRegex(ValidationError, 'Description of works'):
+                self.store.save(self.workspace, {'id':saved['id'], 'version':saved['version'],
+                    'kind':'work_order', 'status':'Review', 'fields':fields, **envelope})
+            self.assertEqual(self.store.capture(self.workspace), before)
+
     def test_progress_claim_and_completion_need_their_rows_and_signers(self):
         fields, quote = self.work_fields()
         fields['order']['approval'] = 'Approved'
@@ -151,15 +166,21 @@ class CommercialReadinessTests(unittest.TestCase):
         issued = self.store.issue(self.workspace, saved['id'], saved['version'], str(uuid4()))
         self.assertEqual(issued['pdf'], self.renderer.return_value)
 
-    def test_draft_work_order_pdf_and_pause_cancel_require_base_only(self):
+    def test_partial_work_order_pdf_preserves_draft_pause_and_cancel(self):
         fields, _ = self.work_fields()
         saved = self.save('work_order', fields)
         issued = self.store.issue(self.workspace, saved['id'], saved['version'], str(uuid4()))
         self.assertEqual(issued['document']['status'], 'Draft')
         for status in ('On Hold', 'Canceled'):
-            saved = self.store.status(self.workspace, issued['document']['id'], issued['document']['version'], status)
-            issued = self.store.issue(self.workspace, saved['id'], saved['version'], str(uuid4()))
-        self.assertNotIn('signatures', issued['document']['fields'])
+            with self.subTest(status=status):
+                new = self.save('work_order', fields)
+                moved = self.store.status(self.workspace, new['id'], new['version'], status)
+                edited = deepcopy(moved['fields'])
+                edited['details']['email'] = ''
+                partial = self.save('work_order', edited, moved, moved['status'])
+                issued = self.store.issue(self.workspace, partial['id'], partial['version'], str(uuid4()))
+                self.assertEqual(issued['document']['status'], moved['status'])
+                self.assertNotIn('signatures', issued['document']['fields'])
 
     def test_blank_or_identical_signature_points_and_empty_tracking_do_not_meet_stage_readiness(self):
         fields, _ = self.work_fields()

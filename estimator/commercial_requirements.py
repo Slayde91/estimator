@@ -139,13 +139,8 @@ def missing(kind, status, fields, operation='save', *, legacy_details=False):
     return absent
 
 
-def require_ready(kind, status, fields, operation='save', *, legacy_details=False, before_clear=None):
+def require_ready(kind, status, fields, operation='save', *, legacy_details=False):
     absent = missing(kind, status, fields, operation, legacy_details=legacy_details)
-    if absent and before_clear is not None:
-        # Withdraw a historical signature even if the earlier saved stages
-        # predate today's requirements. Reject newly missing earlier inputs.
-        existing = {item['path'] for item in missing(kind, status, before_clear, operation, legacy_details=legacy_details)}
-        absent = [item for item in absent if item['path'] not in existing]
     if absent:
         label = {'quote': 'Quote', 'work_order': 'Work Order'}[kind]
         raise ValidationError('Complete required ' + label + ' fields: ' + ', '.join(entry['label'] for entry in absent) + '.')

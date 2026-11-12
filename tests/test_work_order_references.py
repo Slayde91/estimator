@@ -55,22 +55,51 @@ class WorkOrderReferences(unittest.TestCase):
         self.assertEqual(second['fields']['order']['work_order_reference'], 'WO-02')
         self.assertEqual(self.store.capture(self.workspace)['reference_counters']['work_order'], {'WO': 2})
 
-    def test_requires_project_and_issued_quote_and_rejects_injected_reference(self):
+    def test_optional_quote_link_rejects_unissued_quotes_and_injected_references(self):
         unissued = self.create_quote(False)
         attempts = [self.payload(quote=unissued)]
-        for field, value in [('quote_id', ''), ('quote_reference', 'Q-999999'), ('work_order_reference', 'CF-123-Q-000001-50'), ('work_order_id', self.quote['id'])]:
+        for field, value in [('quote_reference', 'Q-999999'), ('work_order_reference', 'CF-123-Q-000001-50'), ('work_order_id', self.quote['id'])]:
             payload = self.payload()
             payload['fields']['order'][field] = value
             attempts.append(payload)
-        for project_no in ('', '  ', 'CF-123\nInjected'):
-            payload = self.payload()
-            payload['fields']['details']['project_no'] = project_no
-            attempts.append(payload)
+        payload = self.payload()
+        payload['fields']['details']['project_no'] = 'CF-123\nInjected'
+        attempts.append(payload)
         for payload in attempts:
             with self.subTest(payload=payload['fields']['order']):
                 with self.assertRaises(ValidationError):
                     self.store.save(self.workspace, payload)
         self.assertEqual(self.store.capture(self.workspace)['work_order_counters'], {})
+
+    def test_incomplete_order_can_be_saved_printed_reopened_and_linked_later(self):
+        fields = default_fields('work_order')
+        fields['order']['description'] = 'First site inspection'
+        payload = {**self.payload(), 'fields': fields}
+        saved = self.store.save(self.workspace, payload)
+        self.assertEqual(self.store.save(self.workspace, payload), saved)
+        self.assertEqual(saved['status'], 'Draft')
+        reference = saved['fields']['order']['work_order_reference']
+        self.assertTrue(reference)
+        request = str(uuid.uuid4())
+        issued = self.store.issue(self.workspace, saved['id'], saved['version'], request)
+        content = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(issued['pdf'])).pages)
+        self.assertIn(reference, content)
+        self.assertIn('First site inspection', content)
+        snapshot = self.store.capture(self.workspace)
+        reopened = self.projects.add(snapshot['project_id'])
+        self.store.restore(reopened, snapshot)
+        self.assertEqual(self.store.read_pdf(reopened, issued['id'])[1], issued['pdf'])
+        order = next(row for row in self.store.view(reopened)['documents'] if row['id'] == saved['id'])
+        self.assertEqual(order['fields']['order']['quote_id'], '')
+        self.assertEqual(order['fields']['details']['project_no'], '')
+        edit = self.edit(order)
+        edit['fields']['order']['quote_id'] = self.quote['id']
+        edit['fields']['details']['project_no'] = self.quote['fields']['details']['project_no']
+        linked = self.store.save(reopened, edit)
+        self.assertEqual(linked['fields']['order']['quote_reference'], self.quote['last_number'])
+        self.assertEqual(linked['fields']['order']['work_order_reference'], reference)
+        self.assertEqual(self.store.capture(reopened)['reference_counters']['work_order'], {'WO': 1})
+        self.assertEqual(self.store.issue(self.workspace, saved['id'], saved['version'], request)['pdf'], issued['pdf'])
 
     def test_compact_reference_and_gst_inclusive_default_with_editable_cost(self):
         quote = self.edit(self.quote)
@@ -126,6 +155,29 @@ class WorkOrderReferences(unittest.TestCase):
                 self.assertEqual(documents[kind]['fields']['order']['work_order_reference'], 'WO-01')
         next_order = self.store.save(portable, self.payload())
         self.assertEqual(next_order['fields']['order']['work_order_reference'], 'WO-02')
+
+    def test_cleared_estimated_cost_stays_blank_in_download_and_reopened_order(self):
+        edit = self.edit(self.quote)
+        edit['fields']['lines'] = [{'description': 'Site works', 'quantity':'1', 'unit_price':'250'}]
+        quote = self.store.save(self.workspace, edit)
+        quote = self.store.issue(self.workspace, quote['id'], quote['version'], str(uuid.uuid4()))['document']
+        work = self.store.save(self.workspace, self.payload(quote=quote))
+        self.assertEqual(work['fields']['order']['estimated_cost'], '275.00')
+        edit = self.edit(work)
+        edit['fields']['order']['estimated_cost'] = ''
+        saved = self.store.save(self.workspace, edit)
+        self.assertEqual(saved['fields']['order']['estimated_cost'], '')
+        issued = self.store.issue(self.workspace, saved['id'], saved['version'], str(uuid.uuid4()))
+        self.assertEqual(issued['document']['fields']['order']['estimated_cost'], '')
+        text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(issued['pdf'])).pages)
+        self.assertIn(saved['reference'], text)
+        self.assertNotIn('275.00', text)
+        snapshot = self.store.capture(self.workspace)
+        target = self.projects.add(snapshot['project_id'])
+        self.store.restore(target, snapshot)
+        reopened = next(doc for doc in self.store.view(target)['documents'] if doc['id'] == work['id'])
+        self.assertEqual(reopened['fields']['order']['quote_id'], quote['id'])
+        self.assertEqual(self.store.save(target, self.edit(reopened))['fields']['order']['estimated_cost'], '')
 
     def test_cost_follows_pinned_issue_through_draft_edits_reissue_and_portable_restore(self):
         def set_price(document, amount):

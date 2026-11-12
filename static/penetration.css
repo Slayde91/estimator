@@ -86,10 +86,10 @@
 #penetration-schedule-summary-notes,#penetration-schedule-message{white-space:pre-line}
 .penetration-item-heading{align-items:flex-start;flex-wrap:wrap}
 #penetration-current-item-card .penetration-item-heading{margin-bottom:8px}
-.penetration-input-tabs{flex-wrap:wrap;align-items:end}
+#penetration-current-item-card .penetration-input-tabs{flex-wrap:wrap;align-items:end}
 .penetration-tab-actions{margin-inline-start:auto;align-items:end;flex-wrap:wrap;max-width:100%}
-.penetration-input-tabs>.penetration-group-choices{flex:1 1 18rem}
-@media(max-width:640px){.penetration-input-tabs>.penetration-group-choices{flex-basis:calc(100% - 60px)}}
+#penetration-current-item-card .penetration-input-tabs>.penetration-group-choices{flex:1 1 18rem}
+@media(max-width:640px){#penetration-current-item-card .penetration-input-tabs>.penetration-group-choices{flex-basis:calc(100% - 60px)}}
 .penetration-item-heading h3{flex:1 1 300px}
 .penetration-item-heading>.actions{align-items:flex-end;flex-wrap:wrap;max-width:100%}
 .penetration-library-actions{display:flex;align-items:flex-end;gap:10px;flex:0 0 auto}

@@ -167,12 +167,15 @@ class WorkOrderTrackingTests(unittest.TestCase):
 
     def test_progress_signature_requires_positive_completion_and_closure_requires_previous_signoffs(self):
         fields=complete_work_order(self.fields(), 'In progress');fields['signatures']['progress_by']=INK
+        fields['order'].update(progress_by='Progress Signer',progress_date='2026-11-09')
         with self.assertRaisesRegex(ValidationError,'completed percentage'):self.save('work_order',fields)
-        fields['work_tracking']['rows'][1]['completed_percent']='1';fields['order'].update(progress_by='Progress Signer',progress_date='2026-11-09')
+        fields['work_tracking']['rows'][1]['completed_percent']='1'
         saved=self.save('work_order',fields)
         self.assertEqual(saved['fields']['signatures']['progress_by'],INK)
         changed=deepcopy(saved['fields']);changed['work_tracking']['rows'][1]['completed_percent']=''
-        with self.assertRaisesRegex(ValidationError,'completed percentage'):self.save('work_order',changed,saved)
+        saved=self.save('work_order',changed,saved)
+        self.assertEqual(saved['fields']['signatures']['progress_by'],INK)
+        self.assertEqual(saved['fields']['work_tracking']['rows'][1]['completed_percent'],'')
         changed['signatures']={'closed_by':INK};changed['order'].update(progress_by='',progress_date='',closed_by='Closure Signer',closed_date='2026-11-10')
         with self.assertRaisesRegex(ValidationError, 'later signatures'):
             self.save('work_order',changed,saved)

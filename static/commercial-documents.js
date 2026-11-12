@@ -581,7 +581,7 @@
     window.CeasefireProject?.changed?.();
     return true;
   }
-  async function activate(kind) {
+  async function activate(kind, draftOwner = null) {
     if (!names[kind]) return;
     if (state.busy || (state.dirty && !await leaveEditor())) return;
     const revision = ++state.revision;
@@ -598,7 +598,15 @@
         state.editor = null;
         state.changed = false;
       }
-      if (await load(revision,true)) renderBoard();
+      if (await load(revision,true)) {
+        renderBoard();
+        if (draftOwner) {
+          await window.ClassifireAccess?.ready;
+          if (draftOwner.context === window.CeasefireProject?.runtimeContext?.() && draftOwner.workspace === currentWorkspace()
+              && draftOwner.actor === window.ClassifireAccess?.user?.id && revision === state.revision
+              && !root().closest('.view').hidden) await openNew();
+        }
+      }
     } catch (error) {
       if (revision === state.revision && context === window.CeasefireProject?.runtimeContext?.()) message(error.message, true);
     }
@@ -996,7 +1004,7 @@
     }
   }
   async function openNew(fromEstimate = false) {
-    if (state.busy || !requireProject()) return;
+    if (state.busy || (window.ClassifireAccess && !window.ClassifireAccess.can('edit')) || !requireProject()) return;
     const revision=state.revision,workspace=state.workspace,kind=state.kind,context=window.CeasefireProject?.runtimeContext?.(),
       projectDetails=projectDetailsSnapshot(),projectFingerprint=JSON.stringify(projectDetails);
     const current=()=>revision===state.revision && workspace===state.workspace && workspace===currentWorkspace() && kind===state.kind
@@ -1671,6 +1679,14 @@
       canEdit:()=>current() && !state.busy && (!window.ClassifireAccess || window.ClassifireAccess.can('edit')),
       changeDetails:values=>{if(current() && !state.busy)editDocumentDetails(fields,values);}, projectDetails:projectDetailsSnapshot(editor.source), isSaved:()=>Boolean(doc.version),
       readProjectDetails:()=>projectDetailsSnapshot(editor.source),
+      readActivity() {
+        if (!doc.version) return {events:[]};
+        const query = new URLSearchParams({document:doc.id});
+        if (editor.source) {
+          query.set('file',editor.source.file_id); query.set('revision',editor.source.revision);
+        } else query.set('workspace',panelWorkspace);
+        return request('activity?' + query);
+      },
       participantSource() {
         if(!current())return null;
         if(editor.source)return editor.source.file_id.startsWith('local-') ? null : {selector:editor.source.file_id,revision:editor.source.revision};
@@ -1691,6 +1707,7 @@
           const saved = await documentRequest("notes",{workspace_id:state.workspace,id:doc.id,version:doc.version,notes},editor.source);
           if (!current()) return;
           fields.notes=saved.fields.notes || []; doc.version=saved.version; editor.pendingIssue=null;editor.pendingProjectDetails=null;
+          void editor.panels.refreshHistory();
           if (!editor.source) changed();
           await load();
           if (!editor.source && !state.dirty) await saveActiveProject();

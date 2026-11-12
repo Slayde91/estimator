@@ -164,7 +164,7 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   const purchase=page.locator('#commercial-purchase-order-root');await expect(purchase.getByLabel('Linked Work Order',{exact:true})).toHaveValue(source.id);
   await expect(purchase.locator('.commercial-work-layout>.commercial-sidebar')).toHaveCount(2);
   for(const title of ['Notes (0)','Files (0)','Linked Work Orders (1)','Linked Quotes (1)'])await expect(purchase.locator('.commercial-sidebar summary').filter({hasText:title})).toHaveCount(1);
-  await expect(purchase.locator('.commercial-sidebar').first().locator('summary')).toHaveText(['Company Details','Linked Contacts']);
+  await expect(purchase.locator('.commercial-sidebar').first().locator('summary')).toHaveText(['Linked Companies','Linked Contacts','Activity history']);
   await expect(purchase.locator('.commercial-details [data-project-detail=site_address]')).toHaveCount(0);
   await expect(purchase.getByRole('combobox',{name:'Site contact',exact:true})).toHaveValue('');
   await expect(purchase.getByLabel('Site contact number',{exact:true})).toHaveValue('');

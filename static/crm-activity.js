@@ -120,5 +120,48 @@
     box.addEventListener('toggle',()=>{if(box.open&&!seen)void load();});
     return {pending:()=>busy,dirty:()=>Boolean(note.value || due.value || occurred.value),fingerprint:()=>[type.value,note.value,due.value,owner.value,occurred.value]};
   }
-  window.ClassifireCrmActivity={attach,ownerSelect,populate};
+  function historyPanel(read, isCurrent) {
+    const panel = el('details'), heading = el('summary', term('Activity history'));
+    panel.className = 'card commercial-side-panel record-activity-history';
+    window.CeasefireI18n?.text(heading, 'Activity history');
+    const list = el('ol'), message = el('p');
+    list.className = 'crm-event-list'; message.className = 'helper'; message.setAttribute('role','status');
+    const earlier = button('Load earlier activity', showMore);
+    earlier.hidden = true;
+    panel.append(heading, list, earlier, message);
+    let serial = 0, events = [], shown = 0;
+    const kinds = {quote:'Quote', work_order:'Work Order', purchase_order:'Purchase Order'};
+    function showMore() {
+      const next = Math.min(shown + 25, events.length);
+      for (const event of events.slice(shown, next)) {
+        const row = el('li'), time = el('time', stamp(event.at)), meta = el('p');
+        time.dateTime = event.at; meta.className = 'helper'; meta.append(time);
+        if (event.actor) meta.append(' · ', event.actor);
+        row.append(el('strong', term(event.label)), meta);
+        const subject = [kinds[event.kind] && term(kinds[event.kind]), event.subject].filter(Boolean);
+        if (subject.length) row.append(el('p', subject.join(' · ')));
+        if (event.previous_status) row.append(el('p', term(event.previous_status) + ' → ' + term(event.status)));
+        list.append(row);
+      }
+      shown = next; earlier.hidden = shown >= events.length;
+    }
+    async function refresh() {
+      const ticket = ++serial;
+      if (!panel.open || !panel.isConnected || !isCurrent()) return;
+      const current = () => ticket === serial && panel.open && panel.isConnected && isCurrent();
+      list.replaceChildren(); earlier.hidden = true; message.textContent = term('Loading…');
+      try {
+        const data = await read();
+        if (!current()) return;
+        events = data.events.slice().sort((a,b) => Date.parse(b.at) - Date.parse(a.at));
+        shown = 0; showMore();
+        message.textContent = events.length ? '' : term('No activity recorded.');
+      } catch (error) {
+        if (current()) message.textContent = term(error.message);
+      }
+    }
+    panel.addEventListener('toggle', refresh);
+    return {element:panel, refresh};
+  }
+  window.ClassifireCrmActivity={attach,ownerSelect,populate,historyPanel};
 })();

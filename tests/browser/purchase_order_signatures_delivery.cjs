@@ -24,7 +24,7 @@ async function reopen(){await host.getByRole('button',{name:'Back to Purchase Or
   await openProjectSection(page,'purchase-orders');host=page.locator('#commercial-purchase-order-root');await host.getByRole('button',{name:'New Purchase Order',exact:true}).click();await idle();
   await expect(host.getByLabel('Document title',{exact:true})).toHaveCount(0);
   await expect(host.locator('.commercial-work-layout>.commercial-sidebar')).toHaveCount(2);
-  await expect(host.locator('.commercial-side-panel summary')).toHaveText(['Company Details','Linked Contacts','Notes (0)','Files (0)','Linked Work Orders (0)','Linked Quotes (0)']);
+  await expect(host.locator('.commercial-side-panel summary')).toHaveText(['Linked Companies','Linked Contacts','Activity history','Notes (0)','Files (0)','Linked Work Orders (0)','Linked Quotes (0)',/^Linked Projects(?: \(\d+\))?$/]);
   await expect(host.locator('.commercial-details [data-project-detail=site_address]')).toHaveCount(0);
   await expect(host.getByLabel('Ship to address',{exact:true})).toHaveValue('Current Project site\nSynthetic address');
   const information=host.locator('.commercial-purchase-information'),supplier=information.getByRole('combobox',{name:'Supplier company',exact:true}),terms=information.getByLabel('Payment terms',{exact:true}),contact=information.getByRole('combobox',{name:'Supplier contact',exact:true}),email=information.getByLabel('Supplier email',{exact:true});

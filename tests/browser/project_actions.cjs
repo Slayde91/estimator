@@ -88,15 +88,10 @@ async function createNewProject(page, values = {}) {
 }
 
 async function openCurrentProjectDetails(page) {
-  const name=page.locator('#header-project-name');
-  if(await name.isVisible()){
-    await name.click();
-    await page.locator('#discard-dialog').getByRole('button',{name:'Yes',exact:true}).click();
-  } else {
-    // Tests for legacy/unfiled drafts exercise the existing public pane API.
-    // Filed Projects use the same confirmation shortcut available to users.
-    await page.evaluate(()=>window.CeasefireProjectPane.openCurrent());
-  }
+  await openProjectSection(page,'quotes');
+  // These editor tests use the full current-estimate pane, including native
+  // and unfiled drafts. The header now provides a separate in-place dialog.
+  await page.evaluate(()=>window.CeasefireProjectPane.openCurrent());
   await expect(page.locator('#project-details-pane')).toBeVisible();
 }
 

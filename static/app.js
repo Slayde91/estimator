@@ -405,6 +405,14 @@
   }
 
   const projectStatuses = ["New", "Quote", "Engage", "Won", "Lost"];
+  const projectColumnsKey = "classifire.projectBoard.hiddenStages.v1";
+  const hiddenProjectStages = new Set();
+  try {
+    const stored = JSON.parse(localStorage.getItem(projectColumnsKey));
+    if (Array.isArray(stored)) {
+      for (const stage of projectStatuses) if (stored.includes(stage)) hiddenProjectStages.add(stage);
+    }
+  } catch { /* The board remains usable when preferences are unavailable. */ }
   const projectPages = $("project-pages");
   const documentPages = $("document-pages");
 
@@ -474,7 +482,6 @@
     label.textContent = state.projectFile?.title || $("quote-title").value;
   }
 
-  let projectHeaderReview = false;
   function updateProjectStatus() {
     renderEstimateControls();
     updateProjectPricingContext();
@@ -490,7 +497,7 @@
     if (projectName) {
       const title = typeof file?.title === "string" ? file.title.trim() : "";
       projectName.textContent = title; projectName.title = title; projectName.hidden = !title;
-      projectName.disabled = state.projectBusy || projectHeaderReview;
+      projectName.disabled = state.projectBusy;
     }
     if (file?.path || file?.relative_path) $("project-file-location").textContent = file.path || file.relative_path;
     else window.CeasefireI18n.text($("project-file-location"), file ? "Imported file · choose a folder with Save" : "Choose a folder with Save");
@@ -1125,7 +1132,7 @@
     return view === "projects" ? state.lastProjectSection || "quotes" : view === "documents" ? "documentation" : view;
   }
 
-  async function showView(view, librarySelection, calculatorId) {
+  async function showView(view, librarySelection, calculatorId, commercialDraftOwner) {
     view = resolveView(view);
     const previousView = state.currentView;
     if (view !== previousView && previousView === "contacts" && window.ClassifireContacts?.leave && !await window.ClassifireContacts.leave()) return;
@@ -1165,7 +1172,7 @@
     if (view === "contacts" && previousView !== "contacts") estimatorReady = window.ClassifireContacts?.activate().catch(error => message(error.message, true));
     if (view === "passive-fire-register") window.ClassifirePassiveRegister.open();
     if (view === "swms") estimatorReady = window.CeasefireSWMS?.activate().catch(error => message(error.message, true));
-    if (["quote", "work-orders", "purchase-orders"].includes(view)) estimatorReady = window.CeasefireCommercial?.activate({quote:"quote", "work-orders":"work_order", "purchase-orders":"purchase_order"}[view]).catch(error => message(error.message, true));
+    if (["quote", "work-orders", "purchase-orders"].includes(view)) estimatorReady = window.CeasefireCommercial?.activate({quote:"quote", "work-orders":"work_order", "purchase-orders":"purchase_order"}[view], commercialDraftOwner).catch(error => message(error.message, true));
     if (view === "pricing") selectLibrary(state.libraryKind, librarySelection);
     if (view === "certification") estimatorReady = window.CeasefireCertification?.open().catch(error => message(error.message, true));
     if (view === "documentation") estimatorReady = Promise.all([window.CeasefireDocumentation?.open(), window.CeasefireCoverSheets?.open?.()]).catch(error => message(error.message, true));
@@ -1213,7 +1220,7 @@
     }
     return true;
   }
-  async function requestViewNavigation(view, librarySelection) {
+  async function requestViewNavigation(view, librarySelection, commercialDraftOwner) {
     view = resolveView(view);
     if (view === state.currentView && view === state.lastProjectSection) {
       closeNavigationMenus();
@@ -1222,7 +1229,7 @@
     }
     if (["documentation", "passive-fire-register"].includes(view) && !requireCreatedProject()) return false;
     if (view !== state.currentView && !await confirmLeavePricingLibrary()) return false;
-    await showView(view, librarySelection);
+    await showView(view, librarySelection, undefined, commercialDraftOwner);
     if (state.currentView === view) window.CeasefireHeaderTagline?.next();
     return state.currentView === view;
   }
@@ -2680,6 +2687,12 @@
   window.addEventListener("resize", positionProjectCardMenus);
   window.addEventListener("scroll", event => { if (!event.target.closest?.(".project-menu-options")) positionProjectCardMenus(); }, true);
 
+  function applyProjectColumnVisibility() {
+    for (const column of $("project-list").querySelectorAll(".project-kanban-column")) {
+      column.hidden = hiddenProjectStages.has(column.dataset.status);
+    }
+  }
+
   function renderProjectList() {
     const canEdit = () => !window.ClassifireAccess || window.ClassifireAccess.can("edit");
     const canMove = () => !state.projectBusy && canEdit();
@@ -2760,6 +2773,7 @@
         return row;
       }
     });
+    applyProjectColumnVisibility();
   }
 
   async function changeProjectStage(file, status) {
@@ -3091,18 +3105,13 @@
     button.append(icon, uiNode("span", "", label)); button.addEventListener("click", () => downloadFullReport(materials, button));
     $("firestopping-document-actions").append(button);
   }
-  const headerProjectIdentity = () => JSON.stringify([state.quoteContext,state.projectFile?.save_token || state.projectFile?.path || "",state.projectFile?.title || ""]);
-  async function openHeaderProjectDetails() {
-    if (projectHeaderReview || state.projectBusy || !state.projectFile?.title) return;
-    const identity = headerProjectIdentity(), title = state.projectFile.title;
-    projectHeaderReview = true; updateProjectStatus();
-    try {
-      if (!await confirmReplace(uiCopy("Open Project details?"),title,uiCopy("Yes"),uiCopy("Cancel"))) return;
-      if (identity !== headerProjectIdentity() || state.projectBusy) return;
-      if (!await requestViewNavigation("quotes") || identity !== headerProjectIdentity() || state.projectBusy) return;
-      await window.CeasefireProjectPane?.openCurrent();
-    } catch (error) { message(uiCopy("Project details could not be opened. {0}",[error.message]),true); }
-    finally { projectHeaderReview = false; updateProjectStatus(); }
+  // Keep pointer activation from moving the editor's caret before the modal
+  // opens. Native dialog focus restoration returns to the invoking control.
+  $("header-project-name").addEventListener("mousedown",event => {
+    if (event.button === 0) event.preventDefault();
+  });
+  function openHeaderProjectDetails() {
+    if (!state.projectBusy && state.projectFile?.title) window.CeasefireProjectPane.showHeaderDetails();
   }
   $("header-project-name").addEventListener("click",openHeaderProjectDetails);
   $("save-current-project").addEventListener("click", saveProject);
@@ -3125,6 +3134,22 @@
     state.projectsTimer = setTimeout(() => loadProjects({ offset: 0 }), 250);
   });
   $("project-sort").addEventListener("change", () => loadProjects({ offset: 0 }));
+  const projectColumnOptions = $("project-columns").querySelector(".commercial-menu-options");
+  for (const stage of projectStatuses) {
+    const label = node("label", "commercial-check");
+    const checkbox = node("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = !hiddenProjectStages.has(stage);
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) hiddenProjectStages.delete(stage);
+      else hiddenProjectStages.add(stage);
+      applyProjectColumnVisibility();
+      try { localStorage.setItem(projectColumnsKey, JSON.stringify([...hiddenProjectStages])); }
+      catch { /* Keep this session's selection when storage is unavailable. */ }
+    });
+    label.append(checkbox, uiNode("span", "", stage));
+    projectColumnOptions.append(label);
+  }
   const currentEstimateName = $("project-estimate-current-name");
   currentEstimateName.addEventListener("input", () => {
     editingEstimateName = state.projectEstimates.find(entry => entry.id === state.activeEstimateId);
@@ -3321,7 +3346,11 @@
   window.CeasefireDocumentationApp = { async run(adapter, spec, button) {
     if (adapter === "passive_fire_register") { window.ClassifirePassiveRegister.setOptions(spec.options); await requestViewNavigation("passive-fire-register"); return {selectionRequired:true}; }
     if (adapter === "swms") { await requestViewNavigation("swms"); return {selectionRequired:true}; }
-    if (adapter === "commercial") { await requestViewNavigation({quote:"quote",work_order:"work-orders",purchase_order:"purchase-orders"}[spec.kind]); return {selectionRequired:true}; }
+    if (adapter === "commercial") {
+      const owner = {context:state.quoteContext, workspace:window.CeasefireCertification.sessionId(), actor:window.ClassifireAccess?.user?.id};
+      const opened = await requestViewNavigation({quote:"quote",work_order:"work-orders",purchase_order:"purchase-orders"}[spec.kind], undefined, owner);
+      return {selectionRequired:opened};
+    }
     if (adapter === "pricing") return exportPricing(button);
     if (adapter === "estimate") {
       if (spec.action === "summary") return downloadQuotePdf(button);

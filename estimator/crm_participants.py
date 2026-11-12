@@ -71,6 +71,7 @@ class CRMParticipants:
               PRIMARY KEY(kind,party_id,source,owner,role));
             CREATE TABLE IF NOT EXISTS participant_history(sequence INTEGER PRIMARY KEY, source TEXT, owner TEXT, version INTEGER,
               actor TEXT NOT NULL, event TEXT NOT NULL, snapshot TEXT NOT NULL, recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+            CREATE INDEX IF NOT EXISTS participant_history_source ON participant_history(source,owner,sequence);
             """)
             if db.execute('PRAGMA user_version').fetchone()[0]==0:
                 db.execute("""INSERT OR IGNORE INTO party_lookup
@@ -219,6 +220,28 @@ class CRMParticipants:
             db.execute('BEGIN')
             record=self._view(db,project,catalog)
         return self._decorate(record,project,catalog)
+
+    def activity(self, selector, revision):
+        project = self.projects.participant_project(selector, activity_only=True)
+        if project['revision'] != revision:
+            raise ParticipantConflict('The project changed. Reopen its details before changing participants.')
+        events = [{'label':'Project file modified', 'at':project['modified_at']}]
+        with self.db() as db:
+            db.execute('BEGIN')
+            row = self._existing(db, project)
+            if row:
+                for item in db.execute("""SELECT actor,recorded_at FROM participant_history
+                        WHERE source=? AND owner=? AND event='participants updated' ORDER BY sequence DESC""",
+                        (row['source'], row['owner'])):
+                    actor = json.loads(item['actor']) or {}
+                    events.append({'label':'Participants updated', 'at':item['recorded_at'].replace(' ', 'T') + 'Z',
+                                   'actor':actor.get('name', '')})
+        for card in project['commercial_cards']:
+            subject = ' · '.join(filter(None, [card['reference'] or card['last_number'], card['fields']['title']]))
+            for field, label in [('created_at', 'Created'), ('updated_at', 'Updated')]:
+                if card[field] and (field == 'created_at' or card[field] != card['created_at']):
+                    events.append({'label':label, 'at':card[field], 'kind':card['kind'], 'subject':subject})
+        return {'events':events}
 
     def _availability(self, rows):
         try:
@@ -393,7 +416,7 @@ class ParticipantsHTTP:
         self.service=service
 
     def dispatch(self,handler,route):
-        if route not in {'/api/crm/sites','/api/crm/project-participants'}:
+        if route not in {'/api/crm/sites','/api/crm/project-participants','/api/crm/project-activity'}:
             return False
         try:
             query=parse_qs(urlsplit(handler.path).query,keep_blank_values=True)
@@ -406,7 +429,9 @@ class ParticipantsHTTP:
                 value=self.service.sites(**args)
             elif handler.command=='GET' and set(args)=={'project'} and route.endswith('/project-participants'):
                 value=self.service.view(args['project'])
-            elif handler.command=='POST' and not args:
+            elif handler.command=='GET' and set(args)=={'project','revision'} and route.endswith('/project-activity'):
+                value=self.service.activity(args['project'], args['revision'])
+            elif handler.command=='POST' and not args and not route.endswith('/project-activity'):
                 if handler.headers.get('Sec-Fetch-Site')=='cross-site':
                     handler.send_payload(403,{'error':'Open the project in CLASSIFIRE.'})
                     return True

@@ -81,7 +81,9 @@ class ScopePaginationFollowupTests(unittest.TestCase):
             self.assertEqual(combined.count(f'ScopeMember{index:04}'), 1)
         expected = [('Large estimate fixture', 'STEEL | SPRAY', 'ScopeMember0000'),
                     ('Second estimate fixture', 'STEEL | BOARD', 'SecondEstimateBoard')]
-        scope_pages = pages[next(index for index, page in enumerate(pages) if 'SCOPE OF WORKS' in page):]
+        scope_start = next(index for index, page in enumerate(pages) if 'SCOPE OF WORKS' in page)
+        scope_end = next(index for index in range(scope_start + 1, len(pages)) if 'ALLOWANCES' in pages[index])
+        scope_pages = pages[scope_start:scope_end]
         for estimate, title, row in expected:
             # Quote Summary also lists each estimate. Only the actual scope
             # heading must occur once and remain with its first schedule.
@@ -91,7 +93,7 @@ class ScopePaginationFollowupTests(unittest.TestCase):
             self.assertIn(row, matches[0].replace(' ', ''))
         # Each later schedule is its own document/page, never appended after
         # the previous schedule's final table, even if that page has room.
-        starts = [(index, page) for index, page in enumerate(pages)
+        starts = [(index, page) for index, page in enumerate(scope_pages)
                   if any(title in page for title in ('STEEL | SPRAY', 'STEEL | BOARD', 'DUCT | SPRAY / WRAP'))]
         self.assertEqual(len(starts), 4)
         self.assertEqual(len({index for index, _ in starts}), 4)

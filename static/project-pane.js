@@ -32,6 +32,34 @@
   const stamp = details => JSON.stringify(normalize(details));
   const sharedStamp = details => { const value = normalize(details); delete value.project_no; return JSON.stringify(value); };
   const snapshot = () => window.CeasefireProject.projectPaneSnapshot();
+  const headerDetails = $("header-project-details");
+  headerDetails.querySelector("button").addEventListener("click", () => headerDetails.close());
+  function showHeaderDetails() {
+    const current = snapshot();
+    if (current.busy || !current.file?.title || headerDetails.open) return;
+    const list = headerDetails.querySelector("dl");
+    const rows = [];
+    for (const [key,id] of Object.entries(fields)) {
+      const row = document.createElement("div"), term = document.createElement("dt"), value = document.createElement("dd");
+      const label = $(id).labels[0];
+      term.textContent = (label.querySelector("span") || label).textContent;
+      value.textContent = current.details[key] || "—";
+      row.append(term,value); rows.push(row);
+    }
+    list.replaceChildren(...rows);
+    headerDetails.querySelector(".header-project-details-title").textContent = current.file.title;
+    const editor = document.activeElement;
+    const selection = typeof editor?.selectionStart === "number"
+      ? [editor.selectionStart,editor.selectionEnd,editor.selectionDirection] : null;
+    const left = window.scrollX, top = window.scrollY;
+    headerDetails.addEventListener("close",() => {
+      if (!editor?.isConnected || editor.closest("[hidden]")) return;
+      editor.focus({preventScroll:true});
+      if (selection) editor.setSelectionRange(...selection);
+      if (window.scrollX !== left || window.scrollY !== top) window.scrollTo({left,top,behavior:"instant"});
+    },{once:true});
+    headerDetails.showModal();
+  }
   let selected = null, ticket = 0, pending = false, accounts = [], accountId = "", accountName = "", optionIndex = -1, options = [], directoryTicket = 0, currentRule = null;
   let contacts = [], contactId = "", contactName = "", contactOptions = [], contactOptionIndex = -1, contactLoading = false, contactPopupRequested = false, returningContactFocus = false;
   function details() { return {...Object.fromEntries(Object.entries(fields).map(([key,id]) => [key,$(id).value.trim()])), account_id:accountId, contact_id:contactId}; }
@@ -477,7 +505,7 @@
     finally { busy(false); }
   });
   window.CeasefireProjectPane = Object.freeze({
-    directoryEdits, syncDirectory,
+    directoryEdits, syncDirectory, showHeaderDetails,
     currentDirectoryEdits(values) {
       const active = snapshot();
       return currentRule?.context === active.context ? directoryEdits(values,currentRule.baseline) : [];

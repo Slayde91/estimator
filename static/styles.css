@@ -574,7 +574,7 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 #project-list-card .project-list-controls>.field{min-width:0}
 .project-list-options{display:flex;align-items:flex-end;flex-wrap:wrap;gap:12px;min-width:0}
 .project-list-options>.project-sort-field{flex:1 1 180px;min-width:0;margin:0}
-.project-list-actions{display:flex;align-items:center;flex-wrap:wrap;gap:9px;min-width:0}
+.project-list-actions{display:flex;align-items:center;flex-wrap:wrap;gap:9px;min-width:0;margin-inline-start:auto}
 .project-list-actions>.button{min-height:48px}
 .project-list{display:grid;gap:0;min-width:0}
 .project-list-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,220px) var(--project-action-width);align-items:end;gap:var(--project-row-gap);padding:20px 0;border-bottom:1px solid var(--line);min-width:0}

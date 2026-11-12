@@ -96,6 +96,25 @@ async function idle() {
   await page.reload(); await idle(); await projects();
   await expect(board.locator('.project-kanban-card')).toHaveCount(6);
   await expect(columns).toHaveCount(5);
+  const chooser = page.locator('#project-columns');
+  const toggle = chooser.locator('summary');
+  const [newBox, columnsBox] = await Promise.all([page.locator('#new-quote').boundingBox(), toggle.boundingBox()]);
+  assert.ok(columnsBox.x >= newBox.x + newBox.width && Math.abs(columnsBox.y+columnsBox.height/2-newBox.y-newBox.height/2)<2, 'Columns sits directly right of New');
+  await toggle.click();
+  await expect(chooser.locator('label')).toHaveText(['New','Quote','Engage','Won','Lost']);
+  const won = chooser.getByRole('checkbox', {name:'Won', exact:true});
+  await won.uncheck();
+  await expect(board.locator('[data-status="Won"]')).toBeHidden();
+  await won.press('Escape');
+  await expect(toggle).toBeFocused();
+  await page.reload(); await idle(); await projects();
+  await expect(board.locator('[data-status="Won"]')).toBeHidden();
+  await toggle.click();
+  await expect(won).not.toBeChecked();
+  await won.check();
+  await expect(board.locator('[data-status="Won"]')).toContainText('Project 1');
+  await page.locator('#project-search').click();
+  await expect(won).toBeHidden();
   await page.locator('#project-search').fill('Project 1');
   await expect(board.locator('.project-kanban-card')).toHaveCount(1);
   await page.locator('#project-sort').selectOption('name_asc');
@@ -128,6 +147,10 @@ async function idle() {
   await page.screenshot({path:path.join(output,'projects-list-desktop.png'),fullPage:true});
   for(const width of [1254,390,320]){
     await page.setViewportSize({width,height:844});
+    await toggle.click();
+    const menuBox = await chooser.locator('.commercial-menu-options').boundingBox();
+    assert.ok(menuBox.x >= 0 && menuBox.x + menuBox.width <= width, 'Columns menu fits at ' + width + ': ' + JSON.stringify(menuBox));
+    await toggle.press('Escape');
     await first.locator('summary').click();
     await expect.poll(async()=>{
       const menuBounds=await first.locator('.project-menu-options').boundingBox();

@@ -67,6 +67,15 @@ class CommercialHTTP:
                 handler.send_payload(200, result)
                 return True
             if handler.command == 'GET':
+                if action == 'activity':
+                    if set(query) == {'workspace', 'document'}:
+                        result = self.service.activity(query['workspace'][0], query['document'][0])
+                    elif self.saved and set(query) == {'file', 'revision', 'document'}:
+                        result = self.saved.activity(query['file'][0], query['revision'][0], query['document'][0])
+                    else:
+                        raise ValidationError('Choose the current project document workspace.')
+                    handler.send_payload(200, result)
+                    return True
                 if action.startswith('attachment/') and set(query) == {'workspace', 'document'}:
                     from urllib.parse import quote
                     item, data = self.service.read_attachment(query['workspace'][0], query['document'][0], action[11:])

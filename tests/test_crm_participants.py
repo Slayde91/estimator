@@ -16,7 +16,7 @@ class Projects:
         self.rows={id:{'source':id,'owner':str(uuid4()),'project_no':'PN-'+id,'client':'Builder '+id,
                        'site_address':'Shared address','revision':'current'} for id in ('A','B','C')}
 
-    def participant_project(self, id):
+    def participant_project(self, id, *, activity_only=False):
         if id not in self.rows:
             raise ValidationError('Unknown project')
         return self.rows[id]
@@ -63,6 +63,22 @@ class ParticipantTests(unittest.TestCase):
             self.service.save(remove,self.actor)
         self.assertEqual(self.link('A',1,rows=[self.participant])['linked_parties'],[evidence])
         self.assertEqual(self.projects.rows,before)
+
+    def test_activity_is_scoped_to_file_owner_and_exact_revision(self):
+        for project in self.projects.rows.values():
+            project.update(modified_at='2026-10-12T00:00:00Z', commercial_cards=[])
+        self.projects.rows['B']['owner'] = self.projects.rows['A']['owner']
+        self.projects.rows['A']['commercial_cards'] = [
+            {'kind':'quote','reference':'Q100','last_number':'','fields':{'title':'Fixture'},
+             'created_at':'2026-10-11T00:00:00Z','updated_at':'2026-10-12T00:00:00Z'}]
+        self.link('A', rows=[self.participant])
+        events = self.service.activity('A', 'current')['events']
+        self.assertEqual([row['label'] for row in events], ['Project file modified','Participants updated','Created','Updated'])
+        self.assertEqual(events[1]['actor'], self.actor['name'])
+        self.assertEqual(events[2]['subject'], 'Q100 · Fixture')
+        self.assertEqual([row['label'] for row in self.service.activity('B', 'current')['events']], ['Project file modified'])
+        with self.assertRaises(ParticipantConflict):
+            self.service.activity('A', 'old')
 
     def test_explicit_site_cross_bid_links_preserve_project_and_directory_records(self):
         before=deepcopy(self.projects.rows),self.contacts.list()

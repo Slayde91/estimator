@@ -60,6 +60,17 @@ class IdentityTests(unittest.TestCase):
     def person(self, name, company):
         return self.save('contacts', {'name':name,'company':company,'email':'office@example.test','phone':'123'})
 
+    def test_short_company_names_and_whole_word_extensions_suggest_each_other(self):
+        names = ('Ceasefire','Ceasefire PFP','Ambient','Ambient Services Group','Ambiental','Services','Services Group')
+        ids = {name:self.save('accounts',{'company':name}) for name in names}
+        with self.store.connection() as db:
+            for name, expected in [('Ceasefire',['Ceasefire PFP']), ('Ceasefire PFP',['Ceasefire']),
+                                   ('Ambient',['Ambient Services Group']), ('Ambient Services Group',['Ambient']),
+                                   ('Ambiental',[]), ('Services',[])]:
+                rows = crm_identity.suggestions(db,'accounts',{'company':name},ids[name])['matches']
+                self.assertEqual([item['id'] for item in rows],[ids[item] for item in expected],name)
+                self.assertFalse(any(item['strong'] for item in rows))
+
     def test_company_merge_and_saved_form_do_not_reparent_people_or_copy_manual_links(self):
         old = self.save('accounts',{'company':'Previous firm','abn_acn':'Example 123456'})
         new = self.save('accounts',{'company':'Current firm','abn_acn':'Example 123456'})

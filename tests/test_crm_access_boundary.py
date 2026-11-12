@@ -11,6 +11,7 @@ from unittest.mock import patch
 from uuid import uuid4
 from PIL import Image
 
+from test_pdf_download_covers import signed_options
 from estimator.crm_access import CRMAccess
 from estimator.certification import CertificationService, SIGNER_FIELDS, FIELDS
 from estimator.company_settings import DEFAULTS
@@ -63,7 +64,7 @@ class AccessBoundaryTests(unittest.TestCase):
 
     def test_frozen_pdf_export_progress_preserves_auth_and_viewer_read_only_policy(self):
         fields=dict.fromkeys(FIELDS,'N/A')
-        created=self.signers.create(fields)
+        created=self.signers.create(fields, options=signed_options())
         generated=self.signers.generate(created['id'],fields,1,str(uuid4()),DEFAULTS)
         route=generated['revision']['pdf_url']
         status,_,receipt=self.call('/api/download-progress',{},cookie=self.editor,member=self.editor_id)

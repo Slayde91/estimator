@@ -1,0 +1,67 @@
+{
+  "Choose file": [
+    "파일 선택",
+    "Pumili ng file",
+    "Chọn tệp"
+  ],
+  "Assigned on Save": [
+    "저장 시 배정",
+    "Itatalaga kapag na-save",
+    "Được cấp khi lưu"
+  ],
+  "Choose a Company before adding a Contact.": [
+    "연락처를 추가하기 전에 회사를 선택하세요.",
+    "Pumili muna ng kumpanya bago magdagdag ng contact.",
+    "Hãy chọn công ty trước khi thêm người liên hệ."
+  ],
+  "Clear section and later sections?": [
+    "이 섹션과 이후 섹션을 지울까요?",
+    "I-clear ang seksyong ito at ang mga kasunod?",
+    "Xóa phần này và các phần tiếp theo?"
+  ],
+  "Clear inputs and signatures from this section onward and return the order to {0}?": [
+    "이 섹션부터 입력값과 서명을 지우고 주문 상태를 {0}(으)로 되돌릴까요?",
+    "I-clear ang mga entry at lagda mula rito at ibalik ang order sa {0}?",
+    "Xóa dữ liệu và chữ ký từ phần này trở đi rồi đưa đơn về trạng thái {0}?"
+  ],
+  "Clear inputs and signatures from this section onward? The order will stay in {0}.": [
+    "이 섹션부터 입력값과 서명을 지울까요? 주문 상태는 {0}(으)로 유지됩니다.",
+    "I-clear ang mga entry at lagda mula rito? Mananatili ang order sa {0}.",
+    "Xóa dữ liệu và chữ ký từ phần này trở đi? Đơn sẽ giữ trạng thái {0}."
+  ],
+  "Clear section": [
+    "섹션 지우기",
+    "I-clear ang seksyon",
+    "Xóa phần này"
+  ],
+  "Update {0} for {1}?": [
+    "{1}의 {0} 값을 업데이트할까요?",
+    "I-update ang {0} para sa {1}?",
+    "Cập nhật {0} cho {1}?"
+  ],
+  "Saved: {0}\nEntered: {1}": [
+    "저장값: {0}\n입력값: {1}",
+    "Naka-save: {0}\nInilagay: {1}",
+    "Đã lưu: {0}\nVừa nhập: {1}"
+  ],
+  "Overwrite": [
+    "덮어쓰기",
+    "Palitan",
+    "Ghi đè"
+  ],
+  "Keep saved value": [
+    "저장된 값 유지",
+    "Panatilihin ang naka-save na halaga",
+    "Giữ giá trị đã lưu"
+  ],
+  "Project saved. Directory details still need syncing. {0}": [
+    "프로젝트를 저장했습니다. 디렉터리 정보를 동기화해야 합니다. {0}",
+    "Na-save ang proyekto. Kailangan pang i-sync ang mga detalye sa direktoryo. {0}",
+    "Đã lưu dự án. Thông tin danh bạ vẫn cần được đồng bộ. {0}"
+  ],
+  "The project changed. Reopen its details before saving.": [
+    "프로젝트가 변경되었습니다. 저장하기 전에 세부 정보를 다시 여세요.",
+    "Nagbago ang proyekto. Buksang muli ang mga detalye bago mag-save.",
+    "Dự án đã thay đổi. Hãy mở lại phần chi tiết trước khi lưu."
+  ]
+}

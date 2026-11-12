@@ -28,7 +28,7 @@ async function settings(){await page.getByRole('button',{name:'Settings',exact:t
   const saved=await defaults();assert.deepEqual(saved.fields,first);assert.equal(saved.signature_image,signature);assert.equal(saved.signature_name,'Saved signer.png');
   checks.push('Personal text saves through existing signer-default API without changing signature artwork');
   await openProjectSection(page,'certification');await idle();
-  await expect(page.locator('#certification-list')).toBeVisible();await expect(page.locator('#certification-editor')).toBeHidden();
+  await expect(page.locator('#certification-board')).toHaveCount(0);await expect(page.locator('#certification-editor')).toBeVisible();
   await openCertificateEditor(page);
   for(const name of Object.keys(first))await expect(page.locator('#certification-'+name)).toHaveValue('');
   async function sign(){await page.locator('#certification-signature-use').click();const dialog=page.getByRole('dialog',{name:'Signatures',exact:true}),box=await dialog.getByLabel('Signature drawing pad').boundingBox();await page.mouse.move(box.x+25,box.y+50);await page.mouse.down();await page.mouse.move(box.x+120,box.y+15,{steps:5});await page.mouse.up();await dialog.getByRole('button',{name:'Insert signature',exact:true}).click();await expect(page.locator('#certification-signature-preview')).toBeVisible();}

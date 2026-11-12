@@ -105,7 +105,7 @@ async function exported(extension){
     await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
     const add=page.locator('#penetration-add-to-schedule');await add.scrollIntoViewIfNeeded();const box=await add.boundingBox();assert.equal(box.width,48);assert.equal(box.height,48);
     const colors=await contrast('#penetration-add-to-schedule');assert.ok(colors.ratio>=4.5,`${theme} composer schedule control contrast`);
-    const source=await contrast('#penetration-diagram-empty');assert.ok(source.ratio>=4.5,`${theme} Source diagram text contrast`);
+    const source=await contrast('#penetration-diagram-heading');assert.ok(source.ratio>=4.5,`${theme} Source diagram text contrast`);
     scheduleContrast.push({theme,control:'composer',...colors},{theme,control:'source diagram',...source});
     await page.locator('#penetration-diagram').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,`firestopping-diagram-${theme}.png`)});
     if(theme==='ceasefire'){

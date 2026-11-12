@@ -782,7 +782,7 @@
       const fields = doc.fields, details = fields.details, order = fields.order;
       const po = doc.kind === "purchase_order", wo = doc.kind === "work_order";
       const number = documentReference(doc);
-      const cost = wo ? order.estimated_cost || doc.grand_total || state.model.quote_totals?.[order.quote_id]?.[order.quote_reference] || "" : doc.grand_total;
+      const cost = wo ? order.estimated_cost || (fields.estimated_cost_cleared ? '' : doc.grand_total || state.model.quote_totals?.[order.quote_id]?.[order.quote_reference]) || "" : doc.grand_total;
       const grand = cost === undefined ? summary(fields).money(summary(fields).total)
         : cost && Number.isFinite(Number(cost)) ? new Intl.NumberFormat("en-AU", {style:"currency",currency:"AUD"}).format(Number(cost)) : cost;
       return [
@@ -1179,6 +1179,7 @@
     clearPricingPickers();
     state.editor = {
       document: copy(document),
+      savedStatus: document.version ? document.status : 'Draft',
       projectContext:window.CeasefireProject?.runtimeContext?.(),
       source,
       linkedQuote,
@@ -1337,12 +1338,11 @@
       requirementPresent({path:'signatures.'+key,type:'signature'}, fields) &&
       requirementPresent({path:'order.'+key}, fields);
   }
-  function validateSigningStep(editor, key, clearing = false) {
+  function validateSigningStep(editor, key) {
     const {kind,fields}=editor.document, steps=signingSteps[kind].map(step=>step.key), index=steps.indexOf(key);
     const signed=step=>Boolean(fields.signatures?.[step]);
     if (signed(key) && steps.slice(index+1).some(signed))
       throw new Error('Clear the later signatures before changing this signature.');
-    if (clearing) return;
     const predecessors=steps.slice(0,index).filter(step=>step!=='details_by' || !editor.legacyDetailsSignoff);
     if (predecessors.some(step=>!signerComplete(fields,step)))
       throw new Error('Sign the preceding sections first.');
@@ -1517,7 +1517,7 @@
     if (!source || !source.file_id.startsWith("local-")) applyProjectDetails(fields, commercialProjectDetails(source));
     const projectNo = boundWorkOrderProjectNumber({document:proposed, source});
     if (projectNo) fields.details.project_no = projectNo;
-    if (proposed.kind === 'work_order' && !fields.order.estimated_cost) {
+    if (proposed.kind === 'work_order' && !fields.order.estimated_cost && !fields.estimated_cost_cleared) {
       fields.order.estimated_cost = issuedQuoteCost(fields.order, source);
     }
     const defaults = await signingDefaults(fields.order, step.key);
@@ -1534,6 +1534,28 @@
     state.dirty = true;
     // Route through the same version-checked document and owner-file save as the signing button.
     if (await saveEditor(action) && state.editor === selected) await leaveEditor();
+  }
+  function resetSectionFields(fields, kind, first) {
+    const steps = signingSteps[kind];
+    const order = {...fields.order}, signatures = {...fields.signatures};
+    for (const {key} of steps.slice(steps.findIndex(step => step.key === first))) {
+      delete signatures[key];
+      for (const name of [key, signatureDates[key], ...(state.model.signature_section_inputs[kind][key] || [])]) {
+        if (Object.hasOwn(order,name)) order[name] = '';
+      }
+    }
+    return {...fields, order, signatures, ...(first === 'details_by' ? {estimated_cost_cleared:true} : {})};
+  }
+  function refreshClearedSection(fields) {
+    for (const control of root().querySelectorAll('[data-order-field]')) {
+      control.value = fields.order[control.dataset.orderField] || '';
+    }
+    const reason = root().querySelector('[data-order-field="rejection_reason"]')?.closest('label');
+    if (reason) reason.hidden = fields.order.approval !== 'Rejected';
+    if (!fields.order.attachments) root().querySelector('.commercial-work-cost-files label small')?.remove();
+    for (const disclosure of root().querySelectorAll('.commercial-tracking-legacy')) {
+      if (!fields.order[disclosure.dataset.legacyField]) disclosure.remove();
+    }
   }
   function signatureField(fields, key, label) {
     const wrap = node("div","field commercial-signature"), buttonRow = node("div","commercial-signature-actions"), preview=node("div","commercial-signature-preview");
@@ -1568,14 +1590,32 @@
     sign.title = (value ? "Change " : "Sign ") + label;sign.setAttribute("aria-label",sign.title);
     window.CeasefireI18n?.attr(sign,'title',sign.title);window.CeasefireI18n?.attr(sign,'aria-label',sign.title);
     sign.append(node("span"));
-    function updateControls() {
-      for(const control of root().querySelectorAll('[data-order-field]'))if([key,signatureDates[key]].includes(control.dataset.orderField))control.value=fields.order[control.dataset.orderField]||'';
-    }
-    function reset() {
+    async function reset() {
       if(state.busy || state.editor!==selected)return;
-      try {validateSigningStep(selected,key,true);}catch(error){message(error.message,true);return;}
-      delete (fields.signatures ||= {})[key];fields.order[key]='';fields.order[signatureDates[key]]='';
-      updateControls();markDirty();wrap.replaceWith(signatureField(fields,key,label));
+      const doc = selected.document, steps = signingSteps[doc.kind], start = steps.findIndex(step => step.key === key);
+      const status = selected.savedStatus;
+      const position = status === 'Cancelled' ? steps.findIndex(step => step.key === 'reviewed_by') + 1
+        : steps.findIndex(step => step.from === status);
+      const target = position === -1 || start < position ? steps[start].from : status;
+      const detail = target === status ? 'Clear inputs and signatures from this section onward? The order will stay in {0}.'
+        : 'Clear inputs and signatures from this section onward and return the order to {0}?';
+      const version = doc.version;
+      state.busy = true; setDisabled(true);
+      try {
+        const confirmed = await window.CeasefireDialogs.confirm('Clear section and later sections?',
+          {i18nSource:detail, i18nArgs:[window.CeasefireI18n.term(target)]}, 'Clear section', 'Cancel');
+        if (!confirmed || state.editor !== selected || doc.version !== version) return;
+        if (version) await saveEditor({key, clear:true});
+        else {
+          Object.assign(fields, resetSectionFields(fields,doc.kind,key));
+          refreshClearedSection(fields);
+          const cost = root().querySelector('[data-order-cost]');
+          if (cost) cost.value = fields.order.estimated_cost;
+          markDirty();
+        }
+      } finally {
+        if (state.editor === selected) {state.busy = false; setDisabled(false);}
+      }
     }
     function resetButton(action,path) {
       const control=button('',reset);control.classList.add('icon-only');control.title=action+' '+label;control.setAttribute('aria-label',control.title);
@@ -1592,6 +1632,17 @@
     const editor = state.editor, doc = editor.document, fields = doc.fields;
     const related = editor.source?.related || state.model.documents;
     const staged = new Map();
+    function quoteFiles() {
+      const quoteId = fields.order.quote_id;
+      if (doc.kind !== "work_order" || !quoteId) return [];
+      const quote = editor.linkedQuote?.id === quoteId ? editor.linkedQuote : related.find(row => row.kind === "quote" && row.id === quoteId);
+      return quote?.fields.files || [];
+    }
+    function visibleFiles() {
+      const attached = fields.files || [];
+      const hidden = new Set([...attached.map(file => file.id), ...(fields.excluded_quote_files || [])]);
+      return [...attached, ...quoteFiles().filter(file => !hidden.has(file.id))];
+    }
     const source = () => ({file_id:editor.source.file_id,revision:editor.source.revision});
     const panelWorkspace=state.workspace,panelContext=window.CeasefireProject?.runtimeContext?.();
     const current = () => state.editor === editor && state.workspace===panelWorkspace && panelWorkspace===currentWorkspace() && panelContext===window.CeasefireProject?.runtimeContext?.();
@@ -1600,7 +1651,7 @@
       reader.onload=()=>resolve(reader.result.split(",")[1]); reader.readAsDataURL(blob);
     });
     editor.panels=window.ClassifireWorkOrderPanels.attach(form, {
-      fields, kind:doc.kind, id:doc.id, related, message, richEditor, isCurrent:current,
+      fields, kind:doc.kind, id:doc.id, related, visibleFiles, message, richEditor, isCurrent:current,
       canEdit:()=>current() && !state.busy && (!window.ClassifireAccess || window.ClassifireAccess.can('edit')),
       changeDetails:values=>{if(current() && !state.busy)editDocumentDetails(fields,values);}, projectDetails:projectDetailsSnapshot(editor.source), isSaved:()=>Boolean(doc.version),
       readProjectDetails:()=>projectDetailsSnapshot(editor.source),
@@ -1633,7 +1684,7 @@
         if (!current() || state.busy) throw new Error("Finish the current document operation first.");
         state.busy=true;
         try {
-          const existing=fields.files || [];
+          const existing=visibleFiles();
           if(existing.length+files.length>16 || files.some(f=>f.size>12*1024*1024) ||
               [...existing,...files].reduce((n,f)=>n+f.size,0)>32*1024*1024) throw new Error("Choose up to 16 files, 12 MiB per file and 32 MiB per document.");
           const incoming=[];
@@ -1645,22 +1696,25 @@
             if (![...existing,...incoming].some(f=>f.id===record.id)) incoming.push(record);
             staged.set(record.id,file);
           }
-          if(incoming.length) {fields.files=[...existing,...incoming];markDirty();}
+          if(incoming.length) {fields.files=[...(fields.files || []),...incoming];markDirty();}
         } finally {state.busy=false;}
       },
       async download(file) {
+        const fileOwner = (fields.files || []).some(item => item.id === file.id) ? doc.id : fields.order.quote_id;
         let href, objectUrl=false;
         if(staged.has(file.id)) {href=URL.createObjectURL(staged.get(file.id));objectUrl=true;}
         else if(editor.source) {
-          const data=await request("saved-read-attachment",{source:source(),id:doc.id,file_id:file.id});
+          const data=await request("saved-read-attachment",{source:source(),id:fileOwner,file_id:file.id});
           const raw=atob(data.content), bytes=Uint8Array.from(raw, ch=>ch.charCodeAt(0));
           href=URL.createObjectURL(new Blob([bytes],{type:data.mime}));objectUrl=true;
-        } else href=`/api/commercial/attachment/${encodeURIComponent(file.id)}?workspace=${encodeURIComponent(state.workspace)}&document=${encodeURIComponent(doc.id)}`;
+        } else href=`/api/commercial/attachment/${encodeURIComponent(file.id)}?workspace=${encodeURIComponent(state.workspace)}&document=${encodeURIComponent(fileOwner)}`;
         const link=node("a"); link.href=href; link.download=file.name; link.click();
         if(objectUrl) setTimeout(()=>URL.revokeObjectURL(href),30000);
       },
       removeFile(file) {
         if (!current() || state.busy) return;
+        if (quoteFiles().some(item => item.id === file.id))
+          fields.excluded_quote_files = [...new Set([...(fields.excluded_quote_files || []), file.id])];
         fields.files=(fields.files || []).filter(f=>f.id!==file.id); staged.delete(file.id); markDirty();
       },
       async openRelated(card) {
@@ -1719,7 +1773,8 @@
     const defaults=()=>editor.document.version===0 || editor.billingRebound ? {
       address:fields.details.billing_address || (clientId()===project().account_id && project().billing_address) || '',
       abn_acn:fields.details.abn_acn || (clientId()===project().account_id && project().abn_acn) || ''} : {};
-    const value=key=>(fields.billing || defaults())[key] || '';
+    let directoryDefaults = {};
+    const value=key=>(fields.billing || defaults())[key] || (editor.billingEdits?.has(key) ? '' : directoryDefaults[key]) || '';
     const notice=text=>{status.hidden=!text;status.textContent=text; if(text)window.CeasefireI18n?.text(status,text);};
     function repaint(){for(const [key,control] of Object.entries(controls))control.value=value(key);}
     function set(values, keys=Object.keys(values).filter(key=>Object.hasOwn(controls,key)), billingChoice=false) {
@@ -1750,9 +1805,16 @@
     for(const [key,label,type,max] of [['address','Billing address','text',1200],['abn_acn','ABN/ACN','text',80],
       ['name','Accounts name','text',160],['email','Accounts email','email',254],['phone','Accounts phone','tel',60]]) {
       if(key==='name'){
-        const picker=window.ClassifireCommercialDirectory.field(label,{kind:'contacts',allowCreate:false,value:value(key),read:()=>value(key),
-          isCurrent:current,message,filter:(person,dir)=>{const owner=ownerId();return !!owner && person.account_id===(dir.identity_aliases?.accounts?.[owner] || owner);},
-          onInput:text=>edit(key,text),onSelect:choose});
+        const belongsToCompany = (person, dir) => !!ownerId() && person.account_id === (dir.identity_aliases?.accounts?.[ownerId()] || ownerId());
+        const picker=window.ClassifireCommercialDirectory.field(label,{kind:'contacts',value:value(key),read:()=>value(key),
+          account:dir=>{
+            const id=ownerId();
+            if(!id)throw new Error('Choose a Company before adding a Contact.');
+            return {id:dir.identity_aliases?.accounts?.[id] || id};
+          },
+          isCurrent:current,message,filter:belongsToCompany,onInput:text=>edit(key,text),
+          onSelect:(person,dir)=>{if(belongsToCompany(person,dir))choose(person);}
+        });
         controls[key]=picker.input;panel.append(picker.element);
       }else{
         const control=key==='address'?textarea(value(key),text=>edit(key,text)):input(value(key),text=>edit(key,text),type);
@@ -1839,6 +1901,11 @@
       editor.billingDirectory=window.ClassifireCommercialDirectory.load().then(dir=>{
         if(!panel.isConnected || fields.billing?.contact_id!==id || editor.billingEdits?.size || rebindHistoricalClient(dir))return;
         const owners=[ownerId(),clientId()].map(id=>dir.identity_aliases?.accounts?.[id] || id);
+        const company=dir.accounts.find(account=>account.id===owners[0]);
+        if(company){
+          directoryDefaults={address:company.billing_address,abn_acn:company.abn_acn};
+          repaint();
+        }
         if(fields.billing?.sync_key && dir.accounts.some(a=>owners.includes(a.id))){
           editor.billingPendingKey=fields.billing.sync_key;notice('');
         }else if(dir.contacts.some(person=>person.id===(dir.identity_aliases?.contacts?.[id] || id))){
@@ -1875,6 +1942,7 @@
       if(lastClient===clientId())return;
       if(!clientId() && fields.details.client)return; // Wait for the Company lookup selection.
       lastClient=clientId();
+      directoryDefaults={};
       if(fields.billing?.company_key)return; // The user explicitly chose a separate bill-to Company.
       editor.billingRebound=true;editor.billingPendingKey='';delete editor.billingEdits;delete editor.billingReview;
       delete fields.billing;
@@ -1906,7 +1974,7 @@
     let costEdited = Boolean(fields.order.estimated_cost);
     const trackingHosts = [];
     const applyQuoteCost = () => {
-      if (costEdited) return;
+      if (costEdited || fields.estimated_cost_cleared) return;
       fields.order.estimated_cost = issuedQuoteCost(fields.order, state.editor.source, state.editor.linkedQuote);
       if (costControl) costControl.value = fields.order.estimated_cost;
     };
@@ -1934,13 +2002,16 @@
     linked.disabled = !!state.editor.linkedQuote || (isWorkOrder && state.editor.document.version > 0 && !!fields.order.work_order_reference);
     const reference = input(state.editor.document.reference || (isWorkOrder ? fields.order.work_order_reference : ""), () => {});
     reference.readOnly = true;
-    reference.placeholder = "Assigned on first save";
+    reference.placeholder = "Assigned on Save";
+    window.CeasefireI18n?.attr(reference,"placeholder","Assigned on Save");
     reference.dataset.orderReference = "true";
     linked.addEventListener("change", () => {
       fields.order[linkKey] = linked.value;
       const selected = choices.find(item => item.id === linked.value);
       if (isWorkOrder) {
         fields.order.quote_reference = selected?.last_number || "";
+        delete fields.excluded_quote_files;
+        state.editor.panels?.repaintFiles();
         if (selected && !state.editor.recipientEdited) {
           copyQuoteRecipient(fields, selected);
           refreshEditorProjectDetails();
@@ -1989,6 +2060,7 @@
           const legacy=fields.order[key==='completed_percent'?'progress':'claim'];
           if(legacy) {
             const disclosure=node('details','commercial-tracking-legacy');
+            disclosure.dataset.legacyField = key === 'completed_percent' ? 'progress' : 'claim';
             const summary=node('summary','','Previous notes');window.CeasefireI18n?.text(summary,'Previous notes');
             disclosure.append(summary,node('p','',legacy));section.append(disclosure);
           }
@@ -1998,6 +2070,7 @@
         if (key === "estimated_cost") {
           costControl = input(fields.order.estimated_cost, value => {
             fields.order.estimated_cost = value;
+            if (value) delete fields.estimated_cost_cleared;
             costEdited = Boolean(value);
           }, "number");
           costControl.step = "0.01";
@@ -2600,7 +2673,9 @@
     // Quote saves regenerate schedules and source hashes from the captured
     // estimates on the server. Old generated tables can be several MiB.
     let fields = document.kind === 'quote' ? {...document.fields, scope_tables: [], sources: []} : document.fields;
-    if (signatureAction) {
+    if (signatureAction?.clear) {
+      fields = resetSectionFields(fields, document.kind, signatureAction.key);
+    } else if (signatureAction) {
       const {key,signature,name,date}=signatureAction;
       fields={...fields, signatures:{...fields.signatures,[key]:signature},
         order:{...fields.order,[key]:name,[signatureDates[key]]:date}};
@@ -2620,6 +2695,7 @@
     }, state.editor.source);
     assertDocumentOperation(operation);
     adoptSaved(saved);
+    if (signatureAction?.clear) refreshClearedSection(editor.document.fields);
     if (state.editor.source) state.editor.source.documentId = saved.id;
     state.dirty = false;
     if (!state.editor.source) changed();
@@ -2638,6 +2714,9 @@
     state.editor.derivedEstimates.clear();
     ++state.editor.scopeRevision;
     Object.assign(fields, saved.fields);
+    if (!saved.fields.signatures) delete fields.signatures;
+    if (!saved.fields.estimated_cost_cleared) delete fields.estimated_cost_cleared;
+    state.editor.savedStatus = saved.status;
     state.editor.scopeTables = copy(fields.scope_tables || []);
     Object.assign(state.editor.document, saved, {
       fields

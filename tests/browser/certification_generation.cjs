@@ -3,28 +3,28 @@ const assert=require('node:assert/strict');
 const {expect}=require('@playwright/test');
 
 async function openCertificateEditor(page,{fresh=false}={}){
-  const editor=page.locator('#certification-editor');
-  if(await editor.isVisible()){
-    if(!fresh)return;
-    await page.locator('#certification-back').click();
-  }
-  const resume=page.locator('#certification-resume');
-  const current=await page.locator('#certification-document').inputValue();
-  const card=current?page.locator('#certification-board [data-document-id='+JSON.stringify(current)+'] .project-title-button'):null;
-  if(!fresh && await resume.isVisible())await resume.click();
-  else if(!fresh && card && await card.isVisible())await card.click();
-  else{
-    await expect(page.locator('#certification-new')).toBeEnabled();await page.locator('#certification-new').click();
+  await expect(page.locator('#certification-editor')).toBeVisible();
+  await expect(page.locator('#certification-client')).toBeEnabled();
+  if(fresh){
+    await page.locator('#certification-new').click();
     const discard=page.getByRole('button',{name:'Continue without saving',exact:true});
-    await expect.poll(async()=>await editor.isVisible() || await discard.isVisible()).toBe(true);
     if(await discard.isVisible())await discard.click();
+    await expect(page.locator('#certification-document')).toHaveValue('');
   }
-  await expect(editor).toBeVisible();await expect(page.locator('#certification-client')).toBeEnabled();
 }
 
 async function generateCertificate(page, revision){
   // The committed revision response is stable across browser and native-save
   // builds. Notices can legitimately change again after automatic Project Save.
+  if(!await page.locator('#certification-signature-preview').isVisible()){
+    await page.locator('#certification-signature-use').click();
+    const dialog=page.getByRole('dialog',{name:'Signatures',exact:true});
+    const pad=await dialog.getByLabel('Signature drawing pad').boundingBox();
+    await page.mouse.move(pad.x+15,pad.y+30);await page.mouse.down();
+    await page.mouse.move(pad.x+95,pad.y+10,{steps:5});await page.mouse.up();
+    await dialog.getByRole('button',{name:'Insert signature',exact:true}).click();
+    await expect(page.locator('#certification-signature-preview')).toBeVisible();
+  }
   const receipt=page.waitForResponse(response=>response.request().method()==='POST'&&
     /^\/api\/certifications\/[^/]+\/revisions$/.test(new URL(response.url()).pathname));
   await page.locator('#certification-generate').click();

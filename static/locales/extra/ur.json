@@ -3578,5 +3578,18 @@
   "Linked Quote": "منسلک کوٹیشن",
   "Project number": "منصوبہ نمبر",
   "Site address": "سائٹ کا پتہ",
-  "Denied": "مسترد"
+  "Denied": "مسترد",
+  "Choose file": "فائل منتخب کریں",
+  "Assigned on Save": "محفوظ کرنے پر تفویض ہوگا",
+  "Choose a Company before adding a Contact.": "رابطہ شامل کرنے سے پہلے کمپنی منتخب کریں۔",
+  "Clear section and later sections?": "کیا یہ حصہ اور اس کے بعد کے حصے صاف کریں؟",
+  "Clear inputs and signatures from this section onward and return the order to {0}?": "کیا اس حصے سے آگے کے تمام اندراجات اور دستخط صاف کر کے آرڈر کو {0} پر واپس لائیں؟",
+  "Clear inputs and signatures from this section onward? The order will stay in {0}.": "کیا اس حصے سے آگے کے اندراجات اور دستخط صاف کریں؟ آرڈر {0} کی حالت میں رہے گا۔",
+  "Clear section": "حصہ صاف کریں",
+  "Update {0} for {1}?": "کیا {1} کے لیے {0} اپ ڈیٹ کریں؟",
+  "Saved: {0}\nEntered: {1}": "محفوظ شدہ: {0}\nدرج کردہ: {1}",
+  "Overwrite": "تبدیل کریں",
+  "Keep saved value": "محفوظ شدہ قدر برقرار رکھیں",
+  "Project saved. Directory details still need syncing. {0}": "پروجیکٹ محفوظ ہو گیا۔ ڈائریکٹری کی تفصیلات ابھی ہم آہنگ کرنا باقی ہے۔ {0}",
+  "The project changed. Reopen its details before saving.": "پروجیکٹ بدل گیا ہے۔ محفوظ کرنے سے پہلے اس کی تفصیلات دوبارہ کھولیں۔"
 }

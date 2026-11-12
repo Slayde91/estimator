@@ -96,7 +96,7 @@ async function itemColumn(body, theme, width, entry='calculator') {
   await page.evaluate(async () => { const api = window.CeasefirePenetrations, state = api.projectSnapshot(); state.draft.rows[1].report_reference = 'SYN-06 Rev A'; api.applyProject(await api.prepareProject(state)); await api.open(); }); await settled();
   await row('line-2').getByRole('button', { name: 'Edit firestopping item 2', exact: true }).click(); await settled();
   await expect(page.locator('[data-penetration-report]')).toHaveCount(0);
-  await expect(page.locator('#penetration-diagram-heading')).toHaveText('Image/Diagram'); await expect(page.locator('#penetration-diagram-empty')).toHaveText('No image/diagram is attached to this item.');
+  await expect(page.locator('#penetration-diagram-heading')).toHaveText('Image/Diagram'); await expect(page.locator('#penetration-diagram-empty')).toHaveCount(0);
   await expect(page.getByLabel('Choose image/diagram', { exact: true })).toHaveAttribute('type', 'file'); await expect(page.locator('#penetration-diagram-image')).toHaveAttribute('alt', 'Current item image/diagram preview');
   assert.equal((await snapshot()).composer.rows[0].report_reference, 'SYN-06 Rev A'); assert.deepEqual((await snapshot()).composer.rows[0].inputs, beforeReport.draft.rows[1].inputs);
   await page.locator('#penetration-update-schedule').click(); await settled();

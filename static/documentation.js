@@ -9,6 +9,7 @@
   const state = { epoch:0, scope:null, model:null, baseline:0, opening:null, catalog:null, catalogLoading:null,
     refreshRevision:0, action:null, uncertain:false, pending:new Map(), sources:new Map(), revisions:null };
   const revisionButtons = new Map();
+  const expandedGroups = new Set();
   const captures = new WeakMap();
   const projectAvailable = () => Boolean(window.CeasefireProject?.hasCreatedProject?.());
   function requireProject() {
@@ -135,12 +136,24 @@
     for(const format of ['pdf','xlsx']) {
       const host=$("documentation-"+format+"-rows");if(!host)continue;
       const documents=rows.filter(row=>row.format===format&&!omittedRows.has(row.id));
+      let groupRows, groupExpanded;
       host.replaceChildren(...(format==='pdf'?groupedPdfRows(documents):documents).map(row=>{
         if(row.groupHeading) {
-          const tr=node('tr','documentation-group'),cell=node('th');cell.colSpan=format==='pdf'?5:3;
-          cell.append(node('h3','documentation-group-heading',row.groupHeading));tr.append(cell);return tr;
+          const tr=node('tr','documentation-group'),cell=node('th');cell.colSpan=5;
+          const heading=node('h3','documentation-group-heading'), toggle=node('button','documentation-group-toggle',row.groupHeading);
+          const members=groupRows=[];
+          groupExpanded=expandedGroups.has(row.groupHeading);
+          toggle.type='button';toggle.setAttribute('aria-expanded',String(groupExpanded));
+          toggle.addEventListener('click',()=>{
+            const expanded=!expandedGroups.has(row.groupHeading);
+            if(expanded)expandedGroups.add(row.groupHeading);else expandedGroups.delete(row.groupHeading);
+            members.forEach(member=>{member.hidden=!expanded;});
+            toggle.setAttribute('aria-expanded',String(expanded));
+          });
+          heading.append(toggle);cell.append(heading);tr.append(cell);return tr;
         }
         const tr=node('tr'), name=node('td','documentation-name',row.label), action=node('td','documentation-action'), history=node('td'), controls=node('div','documentation-download');
+        if(groupRows){groupRows.push(tr);tr.hidden=!groupExpanded;}
         tr.dataset.documentKind=row.id;
         const breakdown=row.id==='estimate.summary.pdf';
         const variant = format === 'pdf' ? 'primary' : 'excel-button';
@@ -221,6 +234,7 @@
     return {scope,model};
   }
   function applyProject(prepared) {
+    expandedGroups.clear();
     state.epoch++;state.scope=prepared?checkedScope(prepared.scope):null;
     state.model=prepared?checkedModel(prepared.model,state.scope):null;
     state.baseline=state.model?.workspace_revision||0;state.opening=null;state.refreshRevision++;

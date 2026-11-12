@@ -212,11 +212,11 @@ async function inspectHeader(width) {
   const penetrationBanner=page.locator('#calculators-heading-slot > .penetration-banner-heading'),headingActions=penetrationBanner.locator(':scope > .penetration-heading-actions'),currentItem=page.locator('#penetration-current-item-card > .penetration-item-heading');
   for(const id of ['penetration-clear','penetration-add-to-library'])await expect(headingActions.locator('#'+id)).toHaveCount(1);
   const penetrationDocument=headingActions.getByRole('button',{name:'Document',exact:true});await expect(penetrationDocument).toHaveCount(1);
-  await expect(headingActions.locator('#penetration-add-to-schedule')).toHaveCount(0);await expect(currentItem.locator('#penetration-add-to-schedule')).toBeVisible();
+  await expect(headingActions.locator('#penetration-add-to-schedule')).toHaveCount(0);await expect(page.locator('.penetration-input-tabs #penetration-add-to-schedule')).toBeVisible();
   const firestoppingWidths=[];
   for(const width of [1440,825,390]){
     await page.setViewportSize({width,height:1000});
-    const clear=await box(headingActions.locator('#penetration-clear')),document=await box(penetrationDocument),library=await box(headingActions.locator('#penetration-add-to-library')),banner=await box(penetrationBanner),item=await box(currentItem),add=await box(currentItem.locator('#penetration-add-to-schedule'));
+    const clear=await box(headingActions.locator('#penetration-clear')),document=await box(penetrationDocument),library=await box(headingActions.locator('#penetration-add-to-library')),banner=await box(penetrationBanner),item=await box(currentItem),add=await box(page.locator('.penetration-input-tabs #penetration-add-to-schedule'));
     assert.ok(document.x+document.width<=clear.x&&clear.x+clear.width<=library.x&&Math.abs(clear.y-document.y)<1&&Math.abs(document.y-library.y)<1,'Document, Clear and Library stay ordered on the same first row at '+width);
     assert.ok(Math.abs(clear.height-document.height)<1&&Math.abs(document.height-library.height)<1&&Math.abs(add.height-library.height)<1,'Firestopping action buttons retain equal heights at '+width);
     assert.ok(document.x>=banner.x&&library.x+library.width<=banner.x+banner.width+1&&clear.y>=banner.y&&library.y+library.height<=banner.y+banner.height+1&&library.y+library.height<=item.y,'The first-row actions fit within the banner above current-item controls at '+width);

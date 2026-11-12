@@ -525,7 +525,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
   });
   await check('Current-item source diagram is saved with its new library record and follows that identity into the schedule',async h=>{
     h.context.crypto={randomUUID:()=>`source-diagram-${'1'.repeat(24)}`};h.audit.state.draft.rows[0].inputs={T:'Diagram item',O:1};
-    assert.equal(h.byId('penetration-diagram').hidden,false);assert.equal(h.byId('penetration-diagram-empty').textContent,'No image/diagram is attached to this item.');h.audit.queueDiagram('site detail.png','QUFB');assert.match(h.api.inputProblem(),/image\/diagram/);assert.equal(h.byId('penetration-add-to-schedule').disabled,true);assert.match(h.byId('penetration-diagram-image').src,/^data:image\/png;base64,QUFB$/);
+    assert.equal(h.byId('penetration-diagram').hidden,false);assert.equal(h.byId('penetration-diagram-preview').hidden,true);h.audit.queueDiagram('site detail.png','QUFB');assert.match(h.api.inputProblem(),/image\/diagram/);assert.equal(h.byId('penetration-add-to-schedule').disabled,true);assert.match(h.byId('penetration-diagram-image').src,/^data:image\/png;base64,QUFB$/);
     h.audit.state.group='Products and labour';h.audit.renderFields();assert.equal(h.byId('penetration-diagram').hidden,true);assert.equal(h.audit.state.diagramChange.filename,'site detail.png');
     h.audit.state.group='Additional Allowances';h.audit.renderFields();assert.equal(h.byId('penetration-diagram').hidden,true);assert.equal(h.audit.state.diagramChange.content_base64,'QUFB');
     h.audit.state.group='Penetration';h.audit.renderFields();assert.equal(h.byId('penetration-diagram').hidden,false);assert.match(h.byId('penetration-diagram-image').src,/^data:image\/png;base64,QUFB$/);

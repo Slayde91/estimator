@@ -24,7 +24,7 @@ async function signalWithin(signal,label){
   finally{clearTimeout(timer);}
 }
 async function discard(root,label){
-  await root.getByRole('button',{name:label,exact:true}).click();
+  await root.getByRole('button',{name:label,exact:true}).first().click();
   await page.locator('#discard-dialog').getByRole('button',{name:'Yes',exact:true}).click();
 }
 (async()=>{
@@ -56,7 +56,7 @@ async function discard(root,label){
   }
   await openProjectSection(page,'swms');await page.locator('#swms-root').getByRole('button',{name:'New SWMS',exact:true}).click();await notified();
   await expect(page.locator('#swms-root').getByLabel('Workflow status',{exact:true})).toHaveCount(0);
-  await openProjectSection(page,'certification');await expect(page.locator('#certification-list')).toBeVisible();await expect(page.locator('#certification-editor')).toBeHidden();await expect(page.locator('#certification-document')).toBeDisabled();
+  await openProjectSection(page,'certification');await expect(page.locator('#certification-board')).toHaveCount(0);await expect(page.locator('#certification-editor')).toBeVisible();await expect(page.locator('#certification-document')).toBeDisabled();
   await expect(page.locator('#certification-document option')).toHaveCount(0);await expect(page.locator('#certification-new')).toBeEnabled();
   await page.locator('#certification-new').click();await expect(page.locator('#certification-editor')).toBeVisible();
   await page.locator('#certification-client').fill('Keep incomplete unfiled certificate draft');

@@ -472,14 +472,19 @@
     });
     box.append(element("p", "muted", "PDF (up to 25 pages / 10 MB), PNG or JPEG (up to 2 MB). All SWMS documents and encoded attachments share a 12 MiB project storage budget. Attachments are included at the end of the PDF."), list, field("Add files", input)); render(); host.append(box);
   }
-  function renderEditor() {
-    const editor = state.editor, fields = editor.fields, host = shell("Safe Work Method Statement"), actions = element("div", "swms-toolbar");
+  function editorActions() {
+    const actions = element("div", "swms-toolbar");
     const downloadButton = button("Download PDF", download, true); downloadButton.classList.add("swms-download");
     const back = button("", leaveEditor);
     back.classList.add("icon-only", "swms-back-action"); back.title = "Back to statements"; back.setAttribute("aria-label", "Back to statements");
     window.CeasefireI18n?.attr(back, "title", "Back to statements"); window.CeasefireI18n?.attr(back, "aria-label", "Back to statements");
     const backIcon = element("span", "button-symbol", "←"); backIcon.setAttribute("aria-hidden", "true"); back.append(backIcon);
-    actions.append(back, button("Save", () => save(), true), downloadButton, element("span", "muted", editor.version ? `Revision ${editor.version}` : "New statement")); host.append(actions);
+    actions.append(back, button("Save", () => save(), true), downloadButton);
+    return actions;
+  }
+  function renderEditor() {
+    const editor = state.editor, fields = editor.fields, host = shell("Safe Work Method Statement");
+    host.append(editorActions());
     const stages = [...window.ClassifireDocumentBoard.stages];
     if (editor.status === 'Archived') stages.push('Archived');
     const identity = element('div', 'swms-grid swms-identity');
@@ -505,7 +510,8 @@
       }
       grid.append(item);
       if (key === "job_reference") {
-        const ref = element("input"); ref.readOnly = true; ref.value = editor.reference || ""; ref.placeholder = "Assigned on first save";
+        const ref = element("input"); ref.readOnly = true; ref.value = editor.reference || ""; ref.placeholder = "Assigned on Save";
+        window.CeasefireI18n?.attr(ref, 'placeholder', 'Assigned on Save');
         grid.append(field("SWMS Reference", ref));
       }
     }
@@ -543,6 +549,7 @@
     const acknowledgment = section("Employee acknowledgement"); textFields(acknowledgment, fields, ["acknowledgement"]); host.append(acknowledgment);
     const reviews = section("Reviews"), reviewGrid = element("div", "swms-review-grid"); fields.reviews.forEach((value, index) => reviewGrid.append(field(`Review ${index + 1} initials`, control(value, text => { fields.reviews[index] = text; })))); reviews.append(reviewGrid); host.append(reviews);
     people(host, "site_signoffs", "Site Sign-Off"); const emergency = section("Emergency Response"); textFields(emergency, fields, ["emergency_requirements", "emergency_access", "emergency_notify", "emergency_contacts", "emergency_supervisor", "emergency_call", "emergency_stop", "emergency_follow"]); host.append(emergency); attachments(host, fields);
+    host.append(editorActions());
     updateRequiredFields();
   }
   window.CeasefireSWMS = {

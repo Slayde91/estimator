@@ -3578,5 +3578,18 @@
   "Linked Quote": "Devis lié",
   "Project number": "N° de projet",
   "Site address": "Adresse du chantier",
-  "Denied": "Rejeté"
+  "Denied": "Rejeté",
+  "Choose file": "Choisir un fichier",
+  "Assigned on Save": "Attribué à l’enregistrement",
+  "Choose a Company before adding a Contact.": "Choisissez une entreprise avant d’ajouter un contact.",
+  "Clear section and later sections?": "Effacer cette section et les suivantes ?",
+  "Clear inputs and signatures from this section onward and return the order to {0}?": "Effacer les saisies et les signatures à partir de cette section et ramener la commande à l’état {0} ?",
+  "Clear inputs and signatures from this section onward? The order will stay in {0}.": "Effacer les saisies et les signatures à partir de cette section ? La commande restera à l’état {0}.",
+  "Clear section": "Effacer la section",
+  "Update {0} for {1}?": "Mettre à jour {0} pour {1} ?",
+  "Saved: {0}\nEntered: {1}": "Valeur enregistrée : {0}\nValeur saisie : {1}",
+  "Overwrite": "Remplacer",
+  "Keep saved value": "Conserver la valeur enregistrée",
+  "Project saved. Directory details still need syncing. {0}": "Projet enregistré. Les données de l’annuaire restent à synchroniser. {0}",
+  "The project changed. Reopen its details before saving.": "Le projet a changé. Rouvrez ses détails avant d’enregistrer."
 }

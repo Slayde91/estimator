@@ -47,7 +47,7 @@ function harness(){
   host.querySelectorAll=()=>host.children;
   const context={window,document:{getElementById:id=>id==='documentation-pdf-rows'?host:status,createElement:element},FileReader,fetch,JSON,Map,Set,Array,Object,Number,Error,encodeURIComponent};
   vm.createContext(context);vm.runInContext(fs.readFileSync('static/cover-sheets.js','utf8'),context);
-  function row(kind){const e=host.children.find(el=>el.dataset.coverKind===kind);return {element:e,file:e.children[3].children[0],filename:e.children[3].children[1],notice:e.children[3].children[2],actions:e.children[4].children[0],remove:e.children[4].children[0].children[0]};}
+  function row(kind){const e=host.children.find(el=>el.dataset.coverKind===kind);return {element:e,file:e.children[3].children[0].children[0].children[1],filename:e.children[3].children[0].children[1],notice:e.children[3].children[1],actions:e.children[4].children[0],remove:e.children[4].children[0].children[0]};}
   return {api:window.CeasefireCoverSheets,row,records,calls,host,status,window,response,serverError,metadata,
     override:fn=>{override=fn;},approve:value=>{approve=value;},loseReply:()=>{lostReply=true;},
     upload:async(kind,file={})=>{const input=row(kind).file;input.files=[{name:'Selected.pdf',type:'application/pdf',size:123,...file}];await input.emit('change');},
@@ -62,7 +62,7 @@ async function check(name,fn){const h=harness();await h.api.open();await fn(h);c
     await h.upload('certification',{name:'<literal name>.pdf'});
     assert.equal(h.records.get('certification').cover_pdf,null);
     assert.equal(h.api.hasUnsavedChanges(),true);
-    assert.equal(h.row('certification').filename.textContent,'Cover sheet: <literal name>.pdf');
+    assert.equal(h.row('certification').filename.textContent,'<literal name>.pdf');
     await h.api.saveAll();assert.equal(h.records.get('certification').cover_pdf,cover);
     assert.equal(h.records.get('certification').cover_pdf_name,'<literal name>.pdf');
     assert.equal(h.api.hasUnsavedChanges(),false);
@@ -71,7 +71,7 @@ async function check(name,fn){const h=harness();await h.api.open();await fn(h);c
   await check('Trash stages removal until main Save, without touching another row',async h=>{
     await h.upload('certification');await h.remove('takeoff_markups');
     assert.equal(h.records.get('takeoff_markups').cover_pdf,cover);
-    assert.equal(h.row('takeoff_markups').filename.textContent,'No cover sheet selected.');
+    assert.equal(h.row('takeoff_markups').filename.textContent,'');
     await h.api.saveAll();assert.equal(h.records.get('takeoff_markups').cover_pdf,null);
     assert.equal(h.records.get('certification').cover_pdf,cover);
     assert.equal(h.api.hasUnsavedChanges(),false);
@@ -81,14 +81,14 @@ async function check(name,fn){const h=harness();await h.api.open();await fn(h);c
     const stamp=h.api.fingerprint();h.approve(false);assert.equal(await h.api.leave(),false);
     assert.equal(h.api.fingerprint(),stamp);h.approve(true);assert.equal(await h.api.leave(),true);
     assert.equal(h.api.hasUnsavedChanges(),false);assert.equal(h.records.get('takeoff_markups').cover_pdf,cover);
-    assert.equal(h.row('takeoff_markups').filename.textContent,'Cover sheet: Saved.pdf');
+    assert.equal(h.row('takeoff_markups').filename.textContent,'Saved.pdf');
     assert.equal(h.calls.filter(call=>call.body).length,0);
   });
   await check('Invalid or unreadable uploads retain the saved cover',async h=>{
     await h.upload('takeoff_markups',{name:'bad.exe',type:'application/octet-stream'});
     assert.match(h.row('takeoff_markups').notice.textContent,/Choose a PDF/);
     await h.upload('takeoff_markups',{fail:true});assert.equal(h.api.hasUnsavedChanges(),false);
-    assert.equal(h.row('takeoff_markups').filename.textContent,'Cover sheet: Saved.pdf');
+    assert.equal(h.row('takeoff_markups').filename.textContent,'Saved.pdf');
   });
   await check('Main Save cannot race a pending read',async h=>{
     const upload=h.upload('certification',{hold:true});await flush();
@@ -116,7 +116,7 @@ async function check(name,fn){const h=harness();await h.api.open();await fn(h);c
     Object.assign(h.records.get('certification'),{cover_pdf:cover+'X',cover_pdf_name:'Other window.pdf',version:2});
     await assert.rejects(h.api.saveAll());h.approve(false);await assert.rejects(h.api.saveAll());
     assert.equal(h.records.get('certification').cover_pdf_name,'Other window.pdf');
-    assert.equal(h.row('certification').filename.textContent,'Cover sheet: My selection.pdf');
+    assert.equal(h.row('certification').filename.textContent,'My selection.pdf');
     h.approve(true);await h.api.saveAll();assert.equal(h.calls.at(-1).body.expected_version,2);
     assert.equal(h.records.get('certification').cover_pdf_name,'My selection.pdf');
   });

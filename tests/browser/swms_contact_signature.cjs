@@ -45,7 +45,7 @@ async function contactSignature(root,output){
     const contact=host.locator('.swms-contact-field');
     const name=host.getByLabel('Contact Person',{exact:true}),position=host.getByLabel('Position',{exact:true}).first(),phone=host.getByLabel('Phone',{exact:true});
     const snapshot=()=>page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.fields);
-    const idle=()=>expect(host.getByRole('button',{name:'Save',exact:true})).toBeEnabled();
+    const idle=()=>expect(host.getByRole('button',{name:'Save',exact:true}).first()).toBeEnabled();
     async function sign(){
       await contact.getByRole('button',{name:/^(Draw|Replace) signature$/}).click();
       const dialog=page.getByRole('dialog',{name:'Signatures',exact:true}),pad=await dialog.getByLabel('Signature drawing pad').boundingBox();
@@ -87,7 +87,7 @@ async function contactSignature(root,output){
     await expect(host.getByLabel('Contact',{exact:true})).toHaveValue('Unrelated manager contact');
     assert.deepEqual(reads.slice(-2),['/api/company-settings','/api/scheduler/bootstrap'],'Settings reads finish before the final profile guard.');
     const signed=await snapshot();assert.ok(signed.contact_signature.strokes.length);
-    const back=host.getByRole('button',{name:'Back to statements',exact:true});
+    const back=host.getByRole('button',{name:'Back to statements',exact:true}).first();
     const geometry=await back.evaluate(button=>{
       const box=button.getBoundingClientRect(),icon=button.querySelector('.button-symbol'),glyph=icon.getBoundingClientRect();
       return {width:box.width,height:box.height,text:icon.textContent,fontSize:getComputedStyle(icon).fontSize,centerX:glyph.x+glyph.width/2-box.x-box.width/2,centerY:glyph.y+glyph.height/2-box.y-box.height/2};
@@ -105,14 +105,14 @@ async function contactSignature(root,output){
       if(width===390||width===1915)await page.screenshot({path:path.join(directory,`contact-${width}.png`)});
     }
     await page.setViewportSize({width:1915,height:884});
-    await host.getByRole('button',{name:'Save',exact:true}).click();await expect(host.locator('.swms-message')).toContainText('Saved.');
+    await host.getByRole('button',{name:'Save',exact:true}).first().click();await expect(host.locator('.swms-message')).toContainText('Saved.');
     const save=page.waitForResponse(response=>/\/api\/project\/save(?:-as)?$/.test(new URL(response.url()).pathname));
     await clickProjectControl(page,'Save');assert.equal((await save).status(),200);
     const portable=JSON.parse(fs.readFileSync(info.project,'utf8'));
     assert.deepEqual(portable.swms.documents[0].fields.contact_signature,signed.contact_signature);
     await require('./swms_actions.cjs').prepareSwmsForIssue(page);
     const issue=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/swms/issue');
-    await host.getByRole('button',{name:'Download PDF',exact:true}).click();
+    await host.getByRole('button',{name:'Download PDF',exact:true}).first().click();
     const issued=await issue,result=await issued.json();assert.equal(issued.status(),200,JSON.stringify(result));assert.equal(result.saved,true);
     assert.ok(result.path.startsWith(directory));fs.copyFileSync(result.path,path.join(directory,'signed-contact.pdf'));
     await idle();await back.click();await host.locator('.swms-card .project-title-button').click();
@@ -121,7 +121,7 @@ async function contactSignature(root,output){
     await expect(contact.getByRole('img')).toHaveCount(0);await expect(name).toHaveValue('');await expect(position).toHaveValue('');await expect(phone).toHaveValue('');
     await expect(host.getByLabel('Contact',{exact:true})).toHaveValue('Unrelated manager contact');
     assert.equal((await snapshot()).contact_signature,null);
-    await host.getByRole('button',{name:'Save',exact:true}).click();await expect(host.locator('.swms-message')).toContainText('Saved.');
+    await host.getByRole('button',{name:'Save',exact:true}).first().click();await expect(host.locator('.swms-message')).toContainText('Saved.');
     await back.click();await host.locator('.swms-card .project-title-button').click();
     await expect(name).toHaveValue('');await expect(phone).toHaveValue('');assert.equal((await snapshot()).contact_signature,null);
     assert.deepEqual(writes,[]);assert.deepEqual(errors,[]);

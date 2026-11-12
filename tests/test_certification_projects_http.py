@@ -1,6 +1,7 @@
 """HTTP project membership, explicit recovery and native save/reopen contracts."""
 import base64
 import json
+from test_pdf_download_covers import signed_options
 from pathlib import Path
 import tempfile
 import threading
@@ -50,6 +51,8 @@ class CertificationProjectsHTTPTests(unittest.TestCase):
         self.assertEqual(self.request('POST', path + '/revisions' + a, request)[0], 400)
         self.assertEqual(self.json('GET', path + a)['version'], 1)
         request.update(fields=doc['fields'], request_id=str(uuid.uuid4()))
+        self.assertIn('signature', self.json('POST',path+'/revisions'+a,request,expected=400)['error'])
+        request['options'] = signed_options()
         generated = self.json('POST', path + '/revisions' + a, request, expected=201)
         url = generated['revision']['pdf_url']
         self.assertTrue(url.endswith(a))
@@ -66,7 +69,7 @@ class CertificationProjectsHTTPTests(unittest.TestCase):
     def test_native_save_reopen_retains_draft_and_revisions_cancellation_and_missing_companion(self):
         workspace = self.created_workspace()
         scope = '?workspace=' + workspace['workspace_id']
-        document = self.json('POST', '/api/certifications' + scope, {'fields': fields()}, expected=201)
+        document = self.json('POST', '/api/certifications' + scope, {'fields': fields(), 'options':signed_options()}, expected=201)
         generated = self.json('POST', '/api/certifications/' + document['id'] + '/revisions' + scope,
             {'fields': document['fields'], 'expected_version': 1, 'request_id': str(uuid.uuid4())}, expected=201)
         frozen = self.request('GET', generated['revision']['pdf_url'])[2]

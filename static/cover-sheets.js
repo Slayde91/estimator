@@ -32,7 +32,7 @@
   const changed=row=>row.conflicted||row.draft!==undefined;
   function render(row){
     const present=row.draft===undefined?row.current.has_cover:!!row.draft;
-    text(row.filename,present?'Cover sheet: {0}':'No cover sheet selected.',present?[row.name||'Cover sheet.pdf']:[]);
+    row.filename.textContent=present?(row.name||'Cover sheet.pdf'):'';
     row.file.disabled=state.saving||row.reading||row.busy||!!row.pending;
     row.remove.disabled=state.saving||row.reading||row.busy||!!row.pending||!present;
     row.fileCell.setAttribute('aria-busy',String(row.reading||row.busy));
@@ -47,7 +47,10 @@
     attr(remove,'aria-label','Delete cover sheet for {0}',[term(item.label)]);attr(remove,'title','Delete cover sheet for {0}',[term(item.label)]);
     // Constant application artwork, never user-supplied markup.
     remove.innerHTML='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"></path></svg>';
-    fileCell.append(file,filename,notice);actions.append(remove);actionCell.append(actions);
+    const line=node('div'),picker=node('label'),caption=node('span');
+    line.className='document-cover-picker';picker.className='compact-file-picker';text(caption,'Choose file');
+    filename.id=file.id+'-name';file.setAttribute('aria-describedby',filename.id);
+    picker.append(caption,file);line.append(picker,filename);fileCell.append(line,notice);actions.append(remove);actionCell.append(actions);
     const row={current:item,draft:undefined,name:item.cover_pdf_name,revision:0,reading:false,busy:false,pending:null,conflicted:false,fileCell,actionCell,file,filename,notice,remove};
     file.addEventListener('change',()=>upload(row));remove.addEventListener('click',()=>{
       if(row.remove.disabled)return;

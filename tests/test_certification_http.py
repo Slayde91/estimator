@@ -1,5 +1,6 @@
 """Real HTTP contract for revision storage and the shared PDF cover boundary."""
 import base64
+from test_pdf_download_covers import signed_options
 from io import BytesIO
 import json
 from pathlib import Path
@@ -139,7 +140,7 @@ class CertificationHTTPTests(unittest.TestCase):
     def test_revision_pdf_is_frozen_and_generation_retries_do_not_duplicate(self):
         self.json('POST','/api/company-settings',{**DEFAULTS,'name':'Original company',
                   'cover_pdf':cover('ORIGINAL COVER'),'cover_pdf_name':'Original.pdf'})
-        doc = self.legacy_certificate(self.fields, request_id='36a7dfcb-d73e-4536-aa24-df04827c63f3')
+        doc = self.legacy_certificate(self.fields, options=signed_options(), request_id='36a7dfcb-d73e-4536-aa24-df04827c63f3')
         path = '/api/certifications/'+doc['id']
         operation = {'fields':self.fields,'expected_version':doc['version'],
                      'request_id':'f00f8afe-b53b-4a8a-bb12-ef3ca677bdb4'}
@@ -205,7 +206,7 @@ class CertificationHTTPTests(unittest.TestCase):
         path = '/api/certifications/' + doc['id']
         self.assertEqual(doc['options'], selected)
         self.assertEqual(self.json('GET', path)['options'], selected)
-        revised = {**selected, 'scopes': ['structural_steel_columns']}
+        revised = signed_options(**{**selected, 'scopes': ['structural_steel_columns']})
         saved = self.json('POST', path, {'fields': self.fields, 'options': revised, 'expected_version': 1})
         self.assertEqual(saved['version'], 2)
         self.assertEqual(saved['revisions'], [])

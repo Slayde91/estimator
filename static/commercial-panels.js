@@ -382,12 +382,16 @@
       if(all.length>3) notes.append(action(showAllNotes?"Show less":"View all notes",()=>{showAllNotes=!showAllNotes;repaintNotes();}));
     }
     function repaintFiles() {
-      const attached = options.fields.files || [];
+      const attached = options.visibleFiles ? options.visibleFiles() : options.fields.files || [];
       files.replaceChildren(panelSummary('Files',attached.length));
       files.append(action("Add files",()=>upload.click(),"button secondary"));
       for(const file of attached){
         const row=el("div"); row.className="commercial-attached-file";
-        row.append(action(file.name,()=>options.download(file).catch(e=>options.message(e.message,true))),el("small",`${(file.size/1024).toLocaleString("en-AU",{maximumFractionDigits:1})} KB`), action("Remove",()=>{options.removeFile(file);repaintFiles();}));
+        const remove=action("",()=>{options.removeFile(file);repaintFiles();},"button secondary icon-only library-delete-button");
+        remove.setAttribute("aria-label","Remove "+file.name); remove.title="Remove "+file.name;
+        for(const attr of ["aria-label","title"])window.CeasefireI18n?.attr(remove,attr,"Remove {0}",[file.name]);
+        const icon=el("span");icon.className="library-trash-icon";icon.setAttribute("aria-hidden","true");remove.append(icon);
+        row.append(action(file.name,()=>options.download(file).catch(e=>options.message(e.message,true))),el("small",`${(file.size/1024).toLocaleString("en-AU",{maximumFractionDigits:1})} KB`), remove);
         files.append(row);
       }
     }

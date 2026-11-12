@@ -85,6 +85,11 @@
 .penetration-summary #penetration-summary-notes { white-space: pre-line; }
 #penetration-schedule-summary-notes,#penetration-schedule-message{white-space:pre-line}
 .penetration-item-heading{align-items:flex-start;flex-wrap:wrap}
+#penetration-current-item-card .penetration-item-heading{margin-bottom:8px}
+.penetration-input-tabs{flex-wrap:wrap;align-items:end}
+.penetration-tab-actions{margin-inline-start:auto;align-items:end;flex-wrap:wrap;max-width:100%}
+.penetration-input-tabs>.penetration-group-choices{flex:1 1 18rem}
+@media(max-width:640px){.penetration-input-tabs>.penetration-group-choices{flex-basis:calc(100% - 60px)}}
 .penetration-item-heading h3{flex:1 1 300px}
 .penetration-item-heading>.actions{align-items:flex-end;flex-wrap:wrap;max-width:100%}
 .penetration-library-actions{display:flex;align-items:flex-end;gap:10px;flex:0 0 auto}
@@ -93,7 +98,7 @@
 .penetration-header-quantity{width:112px;gap:4px;text-align:left}
 .penetration-header-quantity>span{font-size:11px;line-height:1.2}
 .penetration-header-quantity input{min-width:0;height:48px;min-height:48px;text-align:right;font-variant-numeric:tabular-nums}
-.penetration-item-heading>.actions>.button{height:48px;min-height:48px;flex-shrink:0;margin:0}
+.penetration-item-heading>.actions>.button,.penetration-tab-actions>.button{height:48px;min-height:48px;flex-shrink:0;margin:0}
 .penetration-clear-action{width:48px;min-width:48px;padding:0;display:inline-grid;place-items:center}
 .penetration-clear-action svg,.penetration-add-action svg{display:block;width:28px;height:28px}
 .button:is(.penetration-clear-action,.penetration-add-action){padding:0;display:inline-flex;align-items:center;justify-content:center}
@@ -154,10 +159,11 @@
 .penetration-diagram figure{margin:0 0 14px}
 .penetration-diagram img{display:block;width:66.666667%;max-width:413.333333px;max-height:253.333333px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff}
 .penetration-diagram figcaption{margin-top:8px}
-.penetration-image-field{max-width:620px}
 .penetration-diagram .actions{margin-top:10px}
 @media(max-width:580px){.penetration-settings{gap:18px}.penetration-band-settings{padding-inline:12px}}
-#penetration-add-to-schedule{width:48px;min-width:48px;height:48px;min-height:48px;padding:8px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text);box-sizing:border-box}
+#penetration-add-to-schedule{width:48px;min-width:48px;height:48px;min-height:48px;padding:8px;border:1px solid #c60020;border-radius:9px;background:#c60020;color:white;box-sizing:border-box}
+#penetration-add-to-schedule:hover:not(:disabled){background:#990018}
+#penetration-add-to-schedule .takeoff-transfer-icon{filter:brightness(0) invert(1)}
 
 .penetration-field-pair{display:grid;grid-template-columns:1fr 1fr;gap:16px;min-width:0;align-items:end}
 .penetration-mastic-pair{grid-template-columns:minmax(0,3fr) minmax(70px,1fr);align-items:start}

@@ -35,7 +35,7 @@ target.write_bytes(export_project(store,{**first,'estimates':[{'id':'estimate-1'
   const people=swms.locator('details.swms-section:has(button[aria-label="Add person"])').first();
   if(!await people.evaluate(item=>item.open))await people.locator(':scope>summary').click();
   evidence.swmsAdd=await people.getByRole('button',{name:'Add person',exact:true}).boundingBox();
-  await swms.getByRole('button',{name:'Back to statements',exact:true}).click();await page.locator('#discard-dialog').getByRole('button',{name:'Yes',exact:true}).click();
+  await swms.getByRole('button',{name:'Back to statements',exact:true}).last().click();await page.locator('#discard-dialog').getByRole('button',{name:'Yes',exact:true}).click();
   await page.getByRole('button',{name:'Estimates',exact:true}).click();
   for(const width of widths){
     await page.setViewportSize({width,height:1000});

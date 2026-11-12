@@ -20,8 +20,8 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
   assert.equal(writes.length,0,'Opening a certificate editor never saves document or personal values');
   await page.locator('#certification-client').fill('Retained certificate draft');
   const fingerprint=await page.evaluate(()=>window.CeasefireCertification.fingerprint());
-  await page.locator('#certification-back').click();await expect(page.locator('#certification-list')).toBeVisible();
-  await expect(page.locator('#certification-resume')).toBeVisible();await page.locator('#certification-resume').click();
+  await page.locator('#certification-back').click();await expect(page.locator('#view-documentation')).toBeVisible();
+  await openProjectSection(page,'certification');
   await expect(page.locator('#certification-client')).toHaveValue('Retained certificate draft');
   assert.equal(await page.evaluate(()=>window.CeasefireCertification.fingerprint()),fingerprint);assert.equal(writes.length,0);
   checks.push('Back returns to certificate board, Resume retains the exact unsaved draft, and neither saves');
@@ -60,18 +60,17 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
   assert.equal(writes.length,2);assert.deepEqual(writes[0],writes[1]);
   checks.push('Back stays disabled during Save and uncertain retry; retry uses the exact captured request and retains fields');
   const savedId=await page.locator('#certification-document').inputValue();assert.ok(savedId);
-  await page.locator('#certification-back').click();
+  await page.locator('#certification-new').click();
   const unavailable=async route=>route.fulfill({status:404,contentType:'application/json',body:JSON.stringify({error:'Synthetic unavailable certificate'})});
   const savedRoute=url=>url.pathname==='/api/certifications/'+savedId;
   await page.route(savedRoute,unavailable);
-  const savedCard=page.locator('#certification-board [data-document-id='+JSON.stringify(savedId)+'] .project-title-button');
-  await savedCard.click();await expect(page.locator('#certification-list-status')).toBeVisible();
-  await expect(page.locator('#certification-list-status')).toContainText('Synthetic unavailable certificate');
-  await expect(page.locator('#certification-list')).toBeVisible();await expect(page.locator('#certification-editor')).toBeHidden();
+  await page.locator('#certification-document').selectOption(savedId);
+  await expect(page.locator('#certification-status')).toContainText('Synthetic unavailable certificate');
+  await expect(page.locator('#certification-editor')).toBeVisible();
   await page.unroute(savedRoute,unavailable);
-  assert.equal(writes.length,2);checks.push('Certificate load errors remain visible on the board after moving editor status into its details card');
+  assert.equal(writes.length,2);checks.push('Certificate load errors remain visible on the form');
   await openProjectSection(page,'swms');const host=page.locator('#swms-root');
-  await host.getByRole('button',{name:'New SWMS',exact:true}).click();const back=host.getByRole('button',{name:'Back to statements',exact:true});
+  await host.getByRole('button',{name:'New SWMS',exact:true}).click();const back=host.getByRole('button',{name:'Back to statements',exact:true}).first();
   for(const theme of ['ceasefire','midnight','ocean','forest','slate'])for(const width of [1254,390]){
     await page.evaluate(value=>document.documentElement.dataset.theme=value,theme);await page.setViewportSize({width,height:884});
     const metric=await back.evaluate(button=>{const r=button.getBoundingClientRect();return{width:r.width,height:r.height,text:button.textContent.trim(),border:getComputedStyle(button).borderStyle};});

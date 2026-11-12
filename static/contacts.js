@@ -24,6 +24,12 @@
     return node;
   }
   const ui = (tag, cls, source, args) => copy(el(tag, cls), source, args);
+  function confirmDirectoryChange(label, name, saved, entered) {
+    const format = (key,args=[]) => window.CeasefireI18n?.translate(key,args) ??
+      key.replace(/\{(\d+)\}/g,(match,index)=>args[index] ?? match);
+    return window.CeasefireDialogs.confirm(format('Update {0} for {1}?',[format(label),name]),
+      format('Saved: {0}\nEntered: {1}',[saved,entered]),format('Overwrite'),format('Keep saved value'));
+  }
   function button(text, action, cls = "button secondary") {
     const node = el("button", cls, text);
     node.type = "button";
@@ -76,15 +82,24 @@
     body.append(list); group.append(summary, body); groups.append(group);
   }
 
-  function conversionDetails(receipt) {
+  function conversionDetails(receipt, openProject = false) {
+    const title = [receipt.project_no, receipt.snapshot?.site_address,
+      receipt.converted_at && new Date(receipt.converted_at).toLocaleString(document.documentElement.lang || undefined)].filter(Boolean).join(' · ');
+    const projectName = openProject && receipt.project_source ? button(title, async event => {
+      const control = event.currentTarget;
+      control.disabled = true;
+      try { await window.CeasefireProject.openConvertedLead(receipt, control); }
+      catch (error) { feedback(root(), error.message, true); }
+      finally { control.disabled = false; }
+    }, 'text-button') : el('span','',title);
     if (!receipt.snapshot) {
       const legacy = el('div');
-      legacy.append(el('span', '', receipt.project_no), ui('p', 'helper', 'Earlier conversion details were not recorded.'));
+      legacy.append(projectName, ui('p', 'helper', 'Earlier conversion details were not recorded.'));
       return legacy;
     }
     const detail = el('details'), fields = el('dl', 'kanban-card-details');
-    const when = new Date(receipt.converted_at).toLocaleString(document.documentElement.lang || undefined);
-    detail.append(el('summary', '', [receipt.project_no, receipt.snapshot.site_address, when].filter(Boolean).join(' · ')));
+    const summary = el('summary');
+    summary.append(projectName); detail.append(summary);
     if(receipt.actor_name)fields.append(ui('dt','','Logged by'),el('dd','',receipt.actor_name));
     for (const [key, label] of Object.entries(labels)) {
       const value = receipt.snapshot[key];
@@ -643,6 +658,9 @@
       }
       queueMicrotask(loadContactLinks);
     }
+    if (inPane) window.ClassifireIdentity?.management(form,kind,record,directory,request,async () => {
+      closeEditor(); await activate(page);
+    },()=>Object.keys(fields).some(key=>fields[key].value!==initialValues[key]) || linksChanged() || timeline?.dirty?.());
     const timeline = record.id && window.ClassifireCrmActivity.attach(form,{
       kind,record,request,readOnly,staff,version:()=>version,setVersion:next=>{
         if(data?.version===version)data.version=next;
@@ -651,9 +669,6 @@
       },
       locked:()=>submitting||saving,isOpen
     });
-    if (inPane) window.ClassifireIdentity?.management(form,kind,record,directory,request,async () => {
-      closeEditor(); await activate(page);
-    },()=>Object.keys(fields).some(key=>fields[key].value!==initialValues[key]) || linksChanged() || timeline?.dirty?.());
     form.append(actions);
     // Keep Save as the default for Enter, even when a match is under review.
     const review = el('fieldset', 'contacts-group'), separate = ui('button', 'button secondary', 'Create a separate Contact');
@@ -731,6 +746,18 @@
       const keepSeparateLead = !review.hidden && event.submitter === separateLead;
       review.hidden = true;
       try {
+        if (kind === 'leads') {
+          const companyKey = name => String(name || '').trim().replace(/\s+/g,' ').toLowerCase();
+          const company = directory.accounts.find(item => accountId ? item.id === accountId : companyKey(item.company) === companyKey(values.company));
+          const changed = !record.id || company?.id !== record.account_id || values.abn_acn !== record.abn_acn;
+          if (changed && company?.abn_acn && values.abn_acn.trim() && company.abn_acn !== values.abn_acn.trim()) {
+            if (await confirmDirectoryChange('ABN/ACN', company.company, company.abn_acn, values.abn_acn.trim())) {
+              assignment.replace_company_abn = {id:company.id,expected:company.abn_acn};
+            } else {
+              fields.abn_acn.value = values.abn_acn = company.abn_acn;
+            }
+          }
+        }
         const result = await request(kind, {id: record.id, fields: values, version, ...assignment, ...(kind==='leads'?{contact_id:contactId,account_id:accountId}:{}), ...(Object.keys(identityReviews).length ? {identity_reviews:identityReviews} : {}), ...(keepSeparateLead ? {keep_separate_lead:true} : {}), ...(links ? {links,identity_version:1} : {})});
         savedRecord = kind === "accounts" ? result.account : kind === 'contacts' ? result.contact : null;
         closeEditor();
@@ -868,7 +895,7 @@
         const card = el("article", "project-kanban-card");
         if (status === 'Converted') {
           if (lead.name) card.append(el('strong', 'project-card-heading', lead.name));
-          card.append(conversionDetails(lead.receipt));
+          card.append(conversionDetails(lead.receipt, true));
           column.append(card);
           continue;
         }
@@ -1054,7 +1081,7 @@
     const menu = event.target.closest?.("#contacts-root details[open]");
     if (menu) {menu.open = false; menu.querySelector("summary").focus();}
   });
-  window.ClassifireContacts = {activate, createAccount, createContact, editContact, editAccount, leave:leaveAccount,
+  window.ClassifireContacts = {activate, createAccount, createContact, editContact, editAccount, confirmDirectoryChange, leave:leaveAccount,
     pendingMessage:()=>accountEditor?.pendingMessage() || "Finish the current Company action first.",
     hasUnsavedChanges:()=>Boolean(accountEditor?.dirty()), hasPendingOperation:()=>Boolean(accountEditor?.pending()),
     fingerprint:()=>accountEditor?.fingerprint() || ""};

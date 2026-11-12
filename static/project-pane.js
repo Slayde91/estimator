@@ -36,6 +36,53 @@
   let contacts = [], contactId = "", contactName = "", contactOptions = [], contactOptionIndex = -1, contactLoading = false, contactPopupRequested = false, returningContactFocus = false;
   function details() { return {...Object.fromEntries(Object.entries(fields).map(([key,id]) => [key,$(id).value.trim()])), account_id:accountId, contact_id:contactId}; }
   function dirty() { return !!selected && ["saved","new"].includes(selected.kind) && stamp(details()) !== stamp(selected.baseline); }
+  const directoryFields = {abn_acn:'ABN/ACN',billing_address:'Billing address',contact_email:'Email',contact_phone:'Phone'};
+  const pendingDirectoryFields = new Map();
+  function directoryEdits(values, baseline) {
+    return Object.keys(directoryFields).filter(key => {
+      const party = key.startsWith('contact_') ? 'contact_id' : 'account_id';
+      return values?.[party] && values[key] && (values[key] !== baseline?.[key] || values[party] !== baseline?.[party]);
+    });
+  }
+  async function syncDirectory(file, edits) {
+    const project = file?.save_token ? 'native:' + file.save_token : file?.id;
+    if (!project || !file.revision) return;
+    const identity = file.path || project;
+    let fields = [...new Set([...(pendingDirectoryFields.get(identity) || []), ...edits])];
+    const accepted = {}, identityReviews = {};
+    while (fields.length) {
+      pendingDirectoryFields.set(identity, fields);
+      let result;
+      try {
+        result = await request('/api/contacts/sync-project-details', {project, revision:file.revision, fields, accepted,identity_reviews:identityReviews});
+      } catch (error) {
+        const review = error.duplicateReview;
+        if (!review) throw error;
+        const names = review.matches.filter(match=>match.strong)
+          .map(({fields})=>[fields.name || fields.company,fields.abn_acn || fields.email].filter(Boolean).join(' · '));
+        if (await window.CeasefireDialogs.confirm(translate('Review possible duplicate records before saving.'),names.join('\n'),
+          translate('Keep these records separate'),translate('Keep saved value'))) {
+          identityReviews[review.kind] = review.review_token;
+        } else {
+          const skipped = fields.filter(key => key.startsWith('contact_') === (review.kind === 'contacts'));
+          fields = fields.filter(key=>!skipped.includes(key));
+          for (const key of skipped) delete accepted[key];
+        }
+        continue;
+      }
+      if (!result.conflicts.length) break;
+      for (const conflict of result.conflicts) {
+        const key = conflict.field;
+        if (await window.ClassifireContacts.confirmDirectoryChange(directoryFields[key], conflict.name, conflict.saved, conflict.entered)) {
+          accepted[key] = {id:conflict.id,expected:conflict.saved};
+        } else {
+          fields = fields.filter(field => field !== key);
+          delete accepted[key];
+        }
+      }
+    }
+    pendingDirectoryFields.delete(identity);
+  }
   function notice(value = "", error = false) {
     text($("project-details-status"), value);
     $("project-details-status").classList.toggle("error", error);
@@ -103,7 +150,11 @@
   async function request(url, body) {
     const response = await fetch(url, body === undefined ? undefined : {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     const value = await response.json();
-    if (!response.ok) throw new Error(value.error || "Project details could not be updated.");
+    if (!response.ok) {
+      const error = new Error(value.error || "Project details could not be updated.");
+      error.duplicateReview = value.duplicate_review;
+      throw error;
+    }
     return value;
   }
   async function open(file) {
@@ -205,6 +256,7 @@
       return;
     }
     const value = validateRequired(validateClient()), active = snapshot(), target = selected;
+    const edits = directoryEdits(value,target.baseline);
     if (active.file?.path === target.file.path && (active.file.revision !== target.revision || active.context !== target.activeAtOpen.context || stamp(active.details) !== stamp(target.activeAtOpen.details))) throw new Error("The open project's details changed. Close and reopen this pane before saving.");
     if (target.requestPayload && target.requestPayload !== stamp(value)) target.requestId = crypto.randomUUID();
     target.requestPayload = stamp(value);
@@ -215,6 +267,11 @@
       target.file = {...target.file,...result.file,id:result.id || target.file.id};
       target.revision = result.revision; target.baseline = normalize(result.details); target.activeAtOpen = sharedStamp(snapshot().details) === sharedStamp(value) ? snapshot() : active; target.requestId = crypto.randomUUID(); target.requestPayload = null;
       show(target.baseline, result.file?.title || target.file.title || translate("Project"));
+      try { await syncDirectory(target.file, edits); }
+      catch (error) {
+        const warning = translate("Project saved. Directory details still need syncing. {0}").replace("{0}",error.message);
+        throw new Error(warning);
+      }
       notice("Project details saved.");
     } catch (error) { notice(error.message, true); throw error; }
     finally { busy(false); }
@@ -403,6 +460,11 @@
     finally { busy(false); }
   });
   window.CeasefireProjectPane = Object.freeze({
+    directoryEdits, syncDirectory,
+    currentDirectoryEdits(values) {
+      const active = snapshot();
+      return currentRule?.context === active.context ? directoryEdits(values,currentRule.baseline) : [];
+    },
     openCurrent,openNew, toggle: file => !pane.hidden && selected?.file?.id === file.id ? leave() : open(file), refreshToggles, leave, projectDetailsChanged,
     primaryParties: () => ({accounts:accountId,contacts:contactId}),
     savePendingDetails: async () => { if (dirty()) await save(); },

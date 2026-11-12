@@ -178,58 +178,10 @@ async function takeoffHeading(name,route,themes=['ceasefire','midnight','ocean',
   await theme(themeId,'takeoff:'+name);
   for(const width of widths){
    await page.setViewportSize({width,height:764});await page.evaluate(()=>scrollTo(0,0));
-   await expect(heading.locator('.takeoff-heading-art:visible')).toHaveCount(1);
-   const frame=heading.locator('.takeoff-heading-art:visible');
-   await expect.poll(()=>frame.locator('img').evaluate(img=>img.complete&&img.naturalWidth>0)).toBe(true);
-   const value=await heading.evaluate(el=>{
-    const box=n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};};
-    const copy=el.querySelector('.takeoff-heading-copy'),title=el.querySelector('h1'),slot=el.querySelector('.takeoff-heading-art-slot'),actions=el.querySelector('.takeoff-document-tools'),frame=[...slot.children].find(n=>getComputedStyle(n).display!=='none'),img=frame.querySelector('img');
-    // Layout can materialise an empty style attribute in Blink. It carries no
-    // CSS; compare every real attribute, node and style value without treating
-    // that serialization detail as a change to the restored heading.
-    const markup=()=>el.outerHTML.replace(/ style=""/g,'');
-    const restoreStyle=(node,value)=>{node.style.cssText=value||'';if(value===null){node.getAttribute('style');node.removeAttribute('style');}};
-    const layout=()=>({workspace:box(el.parentElement),drawing:box(el.parentElement.querySelector('.takeoff-drawing-layout')),viewport:box(el.parentElement.querySelector('.takeoff-viewport')),toolbar:box(el.parentElement.querySelector('.takeoff-viewer-top')),main:box(document.querySelector('main')),scrollHeight:document.documentElement.scrollHeight,scrollWidth:document.documentElement.scrollWidth});
-    const actual={heading:box(el),title:box(title),actions:box(actions)},actualLayout=layout(),html=markup(),actionStyle=actions.getAttribute('style'),copyStyle=copy.getAttribute('style'),titleNextSibling=title.nextSibling,frameStyle=frame.getAttribute('style');let baseline,previousArt;
-    // The previously shipped artwork was exactly the copy row's height and
-    // centred vertically. Probe those original CSS values on the same source
-    // nodes without changing page flow, then restore their exact inline state.
-    try{frame.style.setProperty('height','100%','important');frame.style.setProperty('inset-block','50% auto','important');previousArt={frame:box(frame),paint:box(img),layout:layout()};}
-    finally{restoreStyle(frame,frameStyle);}
-    // Restore the exact pre-art title/actions flow temporarily, then put the
-    // original nodes and inline styles back. This measures the old contract,
-    // rather than treating the new wrapper's layout as the baseline.
-    // The old stylesheet used a physical left auto margin in both directions.
-    // Keep that original rule in the baseline; the new logical-end RTL position
-    // is checked separately rather than disguised as unchanged geometry.
-    try{copy.before(title);copy.style.setProperty('display','none','important');actions.style.setProperty('margin','0 0 0 auto','important');baseline={heading:box(el),title:box(title),actions:box(actions)};}
-    finally{copy.insertBefore(title,titleNextSibling);restoreStyle(actions,actionStyle);restoreStyle(copy,copyStyle);}
-    const css=getComputedStyle(frame),imageCSS=getComputedStyle(img);
-    const f=box(frame),paint=box(img),scale=paint.width/img.naturalWidth,left=Math.max(f.x,paint.x),right=Math.min(f.right,paint.right),top=Math.max(f.y,paint.y),bottom=Math.min(f.bottom,paint.bottom);
-    const restoredHTML=markup();let markupDifference=null;
-    if(html!==restoredHTML){let index=0;while(html[index]===restoredHTML[index]&&index<html.length)index++;markupDifference={index,before:html.slice(Math.max(0,index-80),index+220),after:restoredHTML.slice(Math.max(0,index-80),index+220)};}
-    return{mode:el.dataset.takeoffMode,actual,actualLayout,previousArt,baseline,restored:html===restoredHTML&&title.parentElement===copy&&title.nextSibling===titleNextSibling,markupDifference,frame:f,slot:box(slot),src:img.getAttribute('src'),natural:[img.naturalWidth,img.naturalHeight],paint,sourceCrop:{left:(left-paint.x)/scale,top:(top-paint.y)/scale,width:(right-left)/scale,height:(bottom-top)/scale},alt:img.alt,hidden:slot.getAttribute('aria-hidden'),imageHidden:img.getAttribute('aria-hidden'),pointer:css.pointerEvents,imagePointer:imageCSS.pointerEvents,mask:css.maskImage,imageMask:imageCSS.maskImage,composite:css.maskComposite,position:css.position,objectPosition:imageCSS.objectPosition,direction:getComputedStyle(el).direction,overflow:document.documentElement.scrollWidth-innerWidth};
-   });
-   assert.equal(value.src,route);assert.deepEqual(value.natural,assetContract[route].natural);assert.equal(value.alt,'');assert.equal(value.hidden,'true');assert.equal(value.imageHidden,'true');assert.equal(value.pointer,'none');assert.equal(value.imagePointer,'none');assert.equal(value.position,'absolute');assert.match(value.mask,/linear-gradient/);assert.match(value.composite,/intersect/);assert.equal(value.restored,true,'Baseline probe restores the original nodes and exact inline markup: '+JSON.stringify({name,themeId,width,difference:value.markupDifference}));
-   for(const part of ['heading','title','actions'])for(const axis of ['x','y','width','height'])if(!(value.direction==='rtl'&&part==='actions'&&axis==='x'))assert.ok(Math.abs(value.actual[part][axis]-value.baseline[part][axis])<.1,`${name}/${themeId}/${width} retains pre-art ${part}.${axis}: ${JSON.stringify(value)}`);
-   if(value.direction==='rtl'){assert.ok(Math.abs(value.actual.actions.x-value.actual.heading.x)<.1,'RTL controls mirror to the logical end of the original row');value.rtlActionEndPlacement={originalPhysicalMarginX:value.baseline.actions.x,actualLogicalMarginX:value.actual.actions.x,intentional:true};}
-   assert.deepEqual(value.actualLayout,value.previousArt.layout,'Wider art preserves workspace, drawing, canvas, toolbar and overall page geometry');
-   const extraHeight=width<=570?40:48;
-   assert.ok(Math.abs(value.frame.height-value.previousArt.frame.height-extraHeight)<.1,'Art borrows only existing vertical whitespace: '+JSON.stringify(value));
-   assert.ok(Math.abs((value.frame.y+value.frame.height/2)-(value.previousArt.frame.y+value.previousArt.frame.height/2)+4)<.1,'The larger frame is centred four pixels above the original frame');
-   assert.ok(value.frame.width>=value.previousArt.frame.width-.1,'Every Takeoffs image is at least as wide as the shipped framing');
-   const availableArtWidth=Math.max(0,value.slot.width-8);
-   if(width>570){const expectedWidth=Math.min(value.previousArt.frame.width*2,availableArtWidth);assert.ok(Math.abs(value.frame.width-expectedWidth)<.1,'Tablet/desktop artwork doubles its original width up to the available slot: '+JSON.stringify({name,themeId,width,actual:value.frame.width,expected:expectedWidth,availableArtWidth}));}
-   assert.ok(value.direction==='rtl'?value.frame.right<=value.slot.right-7.9&&value.frame.x>=value.slot.x-.1:value.frame.x>=value.slot.x+7.9&&value.frame.right<=value.slot.right+.1,'Artwork retains its 8px logical inset inside the available slot: '+JSON.stringify(value));
-   assert.ok(Math.abs(value.direction==='rtl'?value.actual.heading.right-value.actualLayout.drawing.right:value.actual.heading.x-value.actualLayout.drawing.x)<.1,'Heading aligns with the section tabs and full drawing workspace edge: '+JSON.stringify(value));
-   assert.ok(value.frame.width>0&&value.frame.height>0&&value.frame.x>=value.slot.x-16.1&&value.frame.right<=value.slot.right+16.1&&value.frame.y>=value.actualLayout.main.y&&value.frame.bottom<=value.actualLayout.drawing.y+.1,'Image uses existing whitespace without entering the app header or drawing workspace');
-   assert.ok(value.direction==='rtl'?value.frame.right<=value.actual.title.x+.1:value.frame.x>=value.actual.title.right-.1,'Artwork is beside the actual heading text');assert.ok(value.overflow<=1);
-   if(value.actual.actions.y<value.actual.title.bottom)assert.ok(value.direction==='rtl'?value.frame.x>=value.actual.actions.right-.1:value.frame.right<=value.actual.actions.x+.1,'Artwork leaves the original controls clear on their shared row');
-   else assert.ok(value.frame.bottom<=value.actual.actions.y+.1,'Wrapped phone art stays above the original controls');
-   assert.match(value.imageMask,/linear-gradient/);assert.ok(Math.abs(value.paint.height-value.paint.width*value.natural[1]/value.natural[0])<.02,'Original pixels keep their natural aspect ratio within one layout subpixel: '+JSON.stringify(value));
-   if(name==='Service Plans'){assert.ok(value.sourceCrop.width>=value.natural[0]-.5&&value.sourceCrop.height>=value.natural[1]-.5,'Service Plans retains the complete supplied landscape scene');}
-   else if(name==='Steel'){assert.ok(value.sourceCrop.height>=723&&value.sourceCrop.left<=1000&&value.sourceCrop.left+value.sourceCrop.width>=2171,'The steel scene keeps its full height and the complete maquette after trimming empty left canvas');}
-   else{assert.ok(value.sourceCrop.width>=value.natural[0]-.5&&value.sourceCrop.top<=560&&value.sourceCrop.top+value.sourceCrop.height>=1250,'Portrait framing keeps the complete object width and the recognizable lower scene, rather than a thin cover slice');}
+   await expect(heading.locator('img[src*="takeoff-header-"]')).toHaveCount(0);
+   await expect(heading.locator('h1')).toBeVisible();
+   const value=await heading.evaluate(el=>({direction:getComputedStyle(el).direction,overflow:document.documentElement.scrollWidth-innerWidth}));
+   assert.ok(value.overflow<=1,'Takeoff header fits the viewport');
    const menuChecks=[];
    for(const toggle of await heading.locator('.calculator-document-toggle:visible').all()){
     const label=(await toggle.textContent()).trim();await toggle.click();const list=page.locator('#'+await toggle.getAttribute('aria-controls'));await expect(list).toBeVisible();const items=list.locator('button:visible:not(:disabled)');assert.ok(await items.count()>0,'Native Takeoffs disclosure retains available actions');

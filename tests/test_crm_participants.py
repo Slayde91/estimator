@@ -47,6 +47,23 @@ class ParticipantTests(unittest.TestCase):
         return self.service.save({'project':project,'project_revision':revision,'version':version,
             'participants':rows or [],'site_id':site},self.actor)
 
+    def test_remove_and_readd_document_derived_participant_only_for_selected_project(self):
+        party={'kind':self.participant['kind'],'id':self.participant['id']}
+        evidence={**party,'label':'Engineering Co','role':'Supplier'}
+        for key in ('A','B'):
+            self.projects.rows[key]['linked_parties']=[evidence]
+        before=deepcopy(self.projects.rows)
+        remove={'project':'A','project_revision':'current','version':0,'participants':[],'site_id':None,'remove_party':party}
+        with self.assertRaises(ValidationError):
+            self.service.save({**remove,'remove_party':{**party,'id':str(uuid4())}},self.actor)
+        self.assertEqual(self.service.save(remove,self.actor)['linked_parties'],[])
+        self.assertEqual(self.service.view('A')['linked_parties'],[])
+        self.assertEqual(self.service.view('B')['linked_parties'],[evidence])
+        with self.assertRaises(ParticipantConflict):
+            self.service.save(remove,self.actor)
+        self.assertEqual(self.link('A',1,rows=[self.participant])['linked_parties'],[evidence])
+        self.assertEqual(self.projects.rows,before)
+
     def test_explicit_site_cross_bid_links_preserve_project_and_directory_records(self):
         before=deepcopy(self.projects.rows),self.contacts.list()
         site={'id':str(uuid4()),'name':'School','address':'Shared address'}

@@ -9,6 +9,7 @@ from unittest.mock import Mock
 
 from reportlab.pdfgen.canvas import Canvas
 
+from test_pdf_download_covers import signed_options
 from estimator.catalog import ValidationError
 from estimator.certification import CertificationService, FIELDS, REQUIRED_GENERATION_FIELDS
 from estimator.company_settings import DEFAULTS
@@ -60,9 +61,9 @@ class CertificateGenerationRequirementsTests(unittest.TestCase):
 
     def generate(self, document, fields, request_id=None):
         return self.service.generate(document['id'], fields, document['version'],
-            request_id or str(uuid.uuid4()), deepcopy(DEFAULTS))
+            request_id or str(uuid.uuid4()), deepcopy(DEFAULTS), options=signed_options())
 
-    def test_generation_minima_exclude_qualification_accreditation_and_signature(self):
+    def test_generation_requires_signature_and_excludes_qualification_and_accreditation(self):
         document = self.service.create({})
         draft = self.service.save(document['id'], {**document['fields'], 'client': 'Draft'}, document['version'])
         self.assertEqual(draft['revisions'], [])
@@ -74,11 +75,13 @@ class CertificateGenerationRequirementsTests(unittest.TestCase):
                         self.generate(draft, {**self.fields, field: blank})
                     self.assertEqual(self.service.get(draft['id']), draft)
         self.renderer.assert_not_called(); self.precommit.assert_not_called()
+        with self.assertRaisesRegex(ValidationError, 'signature'):
+            self.service.generate(draft['id'], self.fields, draft['version'], str(uuid.uuid4()), DEFAULTS)
         result = self.generate(draft, self.fields)
         self.assertEqual(result['revision']['revision'], 1)
         self.assertEqual(result['document']['fields']['qualification'], '')
         self.assertEqual(result['document']['fields']['accreditation'], '')
-        self.assertFalse(result['document']['options'].get('signature_image'))
+        self.assertTrue(result['document']['options'].get('signature_image'))
 
     def test_zero_text_and_na_are_meaningful(self):
         document = self.service.create({})

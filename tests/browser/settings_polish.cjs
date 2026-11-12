@@ -64,6 +64,7 @@ async function idle(){await page.waitForFunction(()=>{const status=window.Ceasef
   await openProjectSection(page,'documentation');
   const covered=page.locator('#documentation-pdf-rows tr[data-cover-kind]');
   await expect(covered).toHaveCount(labels.length);
+  for(const label of ['Schedules','Product summaries','Other documents'])await page.getByRole('button',{name:label,exact:true}).click();
   for(const row of await covered.all()){
     await expect(row.locator('td').nth(2).getByRole('button')).toBeVisible();
     await expect(row.locator('td').nth(3).locator('input[type=file]')).toHaveCount(1);
@@ -81,7 +82,7 @@ async function idle(){await page.waitForFunction(()=>{const status=window.Ceasef
   await page.getByRole('button',{name:'Play FIRELINE',exact:false}).click();await expect(page.locator('#play-session')).toBeVisible();await expect(page.locator('#play-messages')).toHaveCount(0);
   await page.locator('#play-back').click();await page.getByRole('button',{name:'Back to Settings',exact:false}).click();
   await openProjectSection(page,'certification');
-  await expect(page.locator('#certification-list')).toBeVisible();await expect(page.locator('#certification-editor')).toBeHidden();
+  await expect(page.locator('#certification-board')).toHaveCount(0);await expect(page.locator('#certification-editor')).toBeVisible();
   await openCertificateEditor(page);
   const signature=page.getByRole('button',{name:'Insert signature',exact:true});
   await expect(signature).toBeVisible();

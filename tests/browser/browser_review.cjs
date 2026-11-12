@@ -23,9 +23,17 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
   await createNewProject(page,{client:'SYNTHETIC COVER REVIEW'});
   assert.equal(await page.evaluate(()=>window.CeasefireProject.hasCreatedProject()),true);
   await openProjectSection(page,'documentation');await idle();
-  const upload=page.locator('#cover-sheet-full_schedule');await upload.setInputFiles(info.fixture);
+  const upload=page.locator('#cover-sheet-full_schedule');
+  for(const group of ['Schedules','Product summaries','Other documents'])
+    await expect(page.getByRole('button',{name:group,exact:true})).toHaveAttribute('aria-expanded','false');
+  await expect(upload).toBeHidden();await page.getByRole('button',{name:'Schedules',exact:true}).click();
+  const picker=upload.locator('xpath=..'),caption=picker.locator('span'),filename=page.locator('#cover-sheet-full_schedule-name');
+  await expect(caption).toHaveText('Choose file');await expect(filename).toBeEmpty();
+  const pickerWidth=(await picker.boundingBox()).width,captionWidth=(await caption.boundingBox()).width;
+  assert.ok(pickerWidth-captionWidth<=24 && pickerWidth>=captionWidth);
+  await upload.setInputFiles(info.fixture);await expect(filename).toHaveText(path.basename(info.fixture));
   await expect.poll(()=>page.evaluate(()=>window.CeasefireCoverSheets.hasUnsavedChanges())).toBe(true);
-  const row=upload.locator('xpath=..').locator('xpath=..');assert.equal(await row.locator('.cover-sheet-actions button').count(),1);
+  const row=upload.locator('xpath=ancestor::tr[1]');assert.equal(await row.locator('.cover-sheet-actions button').count(),1);
   await page.locator('.app-header [data-view="home"]').click();
   const dialog=page.getByRole('dialog',{name:'Unsaved changes',exact:true});await expect(dialog).toBeVisible();
   await dialog.getByRole('button',{name:'Cancel',exact:true}).click();await expect(page.locator('#view-documentation')).toBeVisible();

@@ -17,7 +17,7 @@ const owned=['contacts.js','commercial-documents.js','commercial-panels.js','swm
 const sources=Object.fromEntries(owned.map(file=>[file,sha(fs.readFileSync(path.join(root,'static',file)))]));
 async function idle(target=page){await target.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready&&!window.CeasefireDesktop.status().busy);await target.evaluate(()=>window.ClassifireAccess.ready);}
 async function contacts(target,kind){await target.locator('#contacts-navigation-toggle').hover();await target.locator(`#contacts-navigation-menu [data-contacts-section="${kind}"]`).click();await expect(target.locator('#contacts-root .contacts-controls')).toBeVisible();}
-async function plus(control,name,{disabled=false}={}){
+async function plus(control,name,{disabled=false,size=48}={}){
  await expect(control).toHaveAttribute('aria-label',name);await expect(control).toHaveAttribute('title',name);
  await expect(control.locator('.button-symbol[aria-hidden="true"]')).toHaveText('+');
  assert.equal(await control.getAttribute('data-i18n'),null,'Translation never replaces the visible plus');
@@ -33,7 +33,7 @@ async function plus(control,name,{disabled=false}={}){
    return {styleMatches:appearance(button).every((value,index)=>value===appearance(reference)[index]),
      centredX:Math.abs(symbol.x+symbol.width/2-box.x-box.width/2)<=1,centredY:Math.abs(symbol.y+symbol.height/2-box.y-box.height/2)<=1};
  }),{message:name}).toEqual({styleMatches:true,centredX:true,centredY:true});
- const box=await control.boundingBox();assert.equal(box.width,48);assert.equal(box.height,48);
+ const box=await control.boundingBox();assert.equal(box.width,size);assert.equal(box.height,size);
  if(disabled)await expect(control).toBeDisabled();else await expect(control).toBeEnabled();
 }
 async function cancelDraft(host,back){await host.getByRole('button',{name:back,exact:true}).first().click();const confirm=page.locator('#discard-dialog');if(await confirm.isVisible())await confirm.locator('[value="confirm"]').click();}
@@ -65,7 +65,8 @@ function libraryFiles(){const directory=path.dirname(path.dirname(info.diagram))
  checks.push('All three directory creation controls are accessible red plus buttons; real cancelled dialogs create no records and language changes retain the glyph.');
  const sections=[['quote','New Quote','#commercial-quote-root','Back to Quotes'],['work-orders','New Work Order','#commercial-work-order-root','Back to Work Orders'],['purchase-orders','New Purchase Order','#commercial-purchase-order-root','Back to Purchase Orders']];
  let defaults=0;const countDefaults=request=>{if(request.method()==='POST'&&/\/api\/(?:commercial|swms)\/defaults$/.test(new URL(request.url()).pathname))defaults++;};page.on('request',countDefaults);
- for(const [section,name,selector] of sections){await openProjectSection(page,section);const host=page.locator(selector),control=host.getByRole('button',{name,exact:true});await plus(control,name);await control.click();await expect(page.locator('#app-message')).toContainText('Create or load a project');await expect(host.locator('.commercial-editor')).toHaveCount(0);}
+ for(const [section,name,selector] of sections){await openProjectSection(page,section);const host=page.locator(selector),control=host.getByRole('button',{name,exact:true});await plus(control,name,{size:42});
+  const sort=host.getByLabel("Sort by",{exact:true});assert.equal((await sort.boundingBox()).height,(await control.boundingBox()).height);await control.click();await expect(page.locator('#app-message')).toContainText('Create or load a project');await expect(host.locator('.commercial-editor')).toHaveCount(0);}
  await openProjectSection(page,'swms');await plus(page.getByRole('button',{name:'New SWMS',exact:true}),'New SWMS');await page.getByRole('button',{name:'New SWMS',exact:true}).click();assert.equal(defaults,0);page.off('request',countDefaults);
  checks.push('Commercial and SWMS creation buttons retain their unsaved-project guard and start no defaults/export operation without a Project.');
  const create=async(kind,fields)=>post('/api/contacts/'+kind,{version:(await read('/api/contacts/directory')).version,fields});

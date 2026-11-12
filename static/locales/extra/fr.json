@@ -3591,5 +3591,9 @@
   "Overwrite": "Remplacer",
   "Keep saved value": "Conserver la valeur enregistrée",
   "Project saved. Directory details still need syncing. {0}": "Projet enregistré. Les données de l’annuaire restent à synchroniser. {0}",
-  "The project changed. Reopen its details before saving.": "Le projet a changé. Rouvrez ses détails avant d’enregistrer."
+  "The project changed. Reopen its details before saving.": "Le projet a changé. Rouvrez ses détails avant d’enregistrer.",
+  "Saved statement": "Déclaration enregistrée",
+  "New statement": "Nouvelle déclaration",
+  "SWMS revisions": "Révisions SWMS",
+  "Back to Documents": "Retour aux documents"
 }

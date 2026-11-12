@@ -64,6 +64,7 @@
   }
   .app-header .header-project-identity .status-label.unsaved { background: #fff1bf; color: #775300; }
   .app-header nav {
+    border-bottom-right-radius: 0;
     display: flex;
     flex-wrap: wrap;
     gap: 4px;

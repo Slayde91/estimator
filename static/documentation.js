@@ -139,7 +139,7 @@
       let groupRows, groupExpanded;
       host.replaceChildren(...groupedRows(format,documents).map(row=>{
         if(row.groupHeading) {
-          const tr=node('tr','documentation-group'),cell=node('th');cell.colSpan=format==='pdf'?5:3;
+          const tr=node('tr','documentation-group'),cell=node('th');cell.colSpan=5;
           const heading=node('h3','documentation-group-heading'), toggle=node('button','documentation-group-toggle',row.groupHeading);
           const members=groupRows=[];
           const groupKey=format+'.'+row.groupHeading;
@@ -208,7 +208,9 @@
           state.revisions={id:row.id,label:row.label};render();$("documentation-revisions-heading")?.focus();
         });
         revisionButtons.set(row.id,view);history.append(view);
-        tr.append(name,history,action);if(format==='pdf')window.CeasefireCoverSheets?.attach(tr,row.id);return tr;
+        tr.append(name,history,action);if(format==='pdf')window.CeasefireCoverSheets?.attach(tr,row.id);
+        else {const spacer=node('td');spacer.colSpan=2;spacer.setAttribute('aria-hidden','true');tr.append(spacer);}
+        return tr;
       }));
     }
     renderRevisions();
@@ -235,6 +237,11 @@
       else status("");
     } catch(error) {if(current(scope,epoch))status(error.message,true);}
     finally {if(epoch===state.epoch){state.action=null;button.removeAttribute('aria-busy');render();}}
+  }
+  async function revisionsFor(kind,logicalKey) {
+    const scope=await ensureWorkspace(), model=await refresh(scope);
+    if(!model || !current(scope))return [];
+    return copy(model.items.filter(item=>item.kind===kind && item.logical_key===logicalKey));
   }
   async function open() {requireProject();await catalog();await ensureWorkspace();await refresh();requireProject();render();}
   async function prepareProject(manifest,workspaceId) {
@@ -297,6 +304,6 @@
   $("documentation-revisions-pane")?.addEventListener('keydown',event=>{
     if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closeRevisions(true);}
   });
-  window.CeasefireDocumentation={open,prepareProject,applyProject,completeProjectSnapshot,markProjectSaved,projectFingerprint,
+  window.CeasefireDocumentation={open,revisionsFor,prepareProject,applyProject,completeProjectSnapshot,markProjectSaved,projectFingerprint,
     hasProjectChanges:()=>state.uncertain||!!state.model&&state.model.workspace_revision!==state.baseline,hasPendingOperation,downloadHeaders,downloadCompleted};
 })();

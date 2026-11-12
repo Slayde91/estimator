@@ -21,7 +21,8 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   assert.equal(create.status(),200,await create.text());const consultant=(await create.json()).id;
   await openProjectSection(page,'quotes');await page.locator('#project-current-details').click();
   const panel=page.locator('#project-participants-panel');
-  await expect(panel.locator('summary')).toHaveText('Linked Sites');
+  await expect(panel.locator('summary')).toHaveText('Linked Projects');
+  await expect(panel.locator('h4')).toHaveCount(0);
   await expect(panel.getByText('No linked projects.',{exact:true})).toBeVisible();
   const companies=page.locator('#project-company-participants'), contacts=page.locator('#project-contact-participants');
   for(const [host,label] of [[companies,'Company'],[contacts,'Contact']]){
@@ -99,7 +100,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   await page.locator(`[data-project-details-id="${selected.id}"]`).click();
   await expect(page.locator('#project-details-pane')).toHaveAttribute('aria-busy','false');
   await expect(page.locator('#project-pane-client')).toHaveValue('Builder B');
-  await expect(panel.getByRole('heading',{name:'Linked Projects',exact:true})).toBeVisible();
+  await expect(panel.locator('summary')).toBeVisible();
   await expect(panel.locator('li').filter({hasText:'Builder A'})).toHaveCount(1);
   const auto=await read('/api/crm/project-participants?project='+encodeURIComponent(selected.id));assert.equal(auto.site_mode,'automatic');assert.equal(auto.site_id,null);
   const sites=await read('/api/crm/sites?search=school');assert.equal(sites.sites.length,1);
@@ -112,7 +113,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   assert.equal(manual.site_id,site.id);assert.equal(manual.linked_sites.length,1);
   const persisted=await read('/api/crm/project-participants?project='+encodeURIComponent(selected.id));
   assert.equal(persisted.site_id,site.id);assert.equal(persisted.version,manual.version);
-  await expect(panel.getByRole('heading',{name:'Linked Projects'})).toBeVisible();
+  await expect(panel.locator('summary')).toBeVisible();
   await expect(panel.locator('li').filter({hasText:'Builder A'})).toHaveCount(1);
   assert.deepEqual(fs.readFileSync(info.project),original);assert.deepEqual(fs.readFileSync(copyPath),copyBytes);
   // The older open form must recover its version before adding a role and retain the explicit site.
@@ -183,7 +184,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   assert.deepEqual(afterAddressEdit.linked_sites.map(link=>link.address),[newAddress,'42 Example Lane']);
   assert.equal(afterAddressEdit.linked_bids.length,0);
   assert.deepEqual(afterAddressEdit.other_site_bids.map(item=>item.client),['Builder A']);
-  await expect(panel.getByRole('heading',{name:'Linked Projects'})).toBeVisible();
+  await expect(panel.locator('summary')).toBeVisible();
   const earlierBid=panel.getByText(/PN-.*Builder A.*42 Example Lane/);
   await expect(earlierBid).toBeVisible();
   await expect(panel.locator('li')).toHaveCount(1);
@@ -249,7 +250,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
     await route.fulfill({response,json:data});
   });
   await page.locator('#project-details-close').click();await page.locator('#project-current-details').click();
-  await expect(panel.getByRole('heading',{name:'Linked Projects'})).toBeVisible();
+  await expect(panel.locator('summary')).toBeVisible();
   await expect(panel.getByText(/PN-older · Earlier bid/)).toBeVisible();
   assert.deepEqual(errors,[]);
   fs.writeFileSync(path.join(folder,'result.json'),JSON.stringify({passed:true,checks:['Automatic site for the first project at an address','Unique named site reused','No Link button or automatic writes','Exact-address peers','Permission denial preserves edits and previous links','Successful retry permits continued editing during list refresh','Current and selected projects follow saved address changes','Historical explicit site retained alongside the current address','Distinct bid files and unavailable explicit sources remain recorded'],timings,output:folder},null,2));

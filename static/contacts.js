@@ -184,13 +184,14 @@
     target.close();
     return true;
   }
-  async function dialogEditor(kind, record = {}, readOnly = false, options = {}) {
+  async function dialogEditor(kind, record = {}, options = {}) {
     const requestId = ++editorRequest;
     if (!accountEditor && (saving || root()?.getAttribute("aria-busy") === "true")) return null;
     if (!await leaveAccount()) return null;
     await window.ClassifireAccess?.ready;
     if (requestId !== editorRequest || saving || root()?.getAttribute("aria-busy") === "true") return null;
     if (options.isCurrent && !options.isCurrent()) return null;
+    const readOnly = Boolean(options.lockedReadOnly || window.ClassifireAccess && !window.ClassifireAccess.can("edit"));
     const inPane = ["accounts", "contacts"].includes(kind) && Boolean(record.id) && !options.standalone;
     const dialog = el(inPane ? "aside" : "dialog", inPane ? "card contacts-account-pane" : "contacts-dialog");
     if (inPane && kind === "contacts") dialog.classList.add("contacts-contact-pane");
@@ -376,7 +377,6 @@
     copy(cancel, "Cancel");
     if (readOnly) {
       actions.append(button("Close", closeEditor));
-      if (!options.lockedReadOnly) actions.append(button("Edit", () => {closeEditor(); dialogEditor(kind, record);}, "button primary"));
     }
     else actions.append(cancel, save);
     const linkSelections = {};
@@ -836,14 +836,14 @@
   }
   async function createAccount(options = {}) {
     const directory = await request("directory");
-    return dialogEditor("accounts", {company: typeof options.company === "string" ? options.company : ""}, false, {directory, standalone: true, isCurrent:options.isCurrent});
+    return dialogEditor("accounts", {company: typeof options.company === "string" ? options.company : ""}, {directory, standalone: true, isCurrent:options.isCurrent});
   }
   async function createContact(initial = {}) {
     const directory = await request('directory');
     const accountId = directory.identity_aliases?.accounts?.[initial.account_id] || initial.account_id;
     const account = accountId ? directory.accounts.find(item => item.id === accountId) : null;
     if(initial.account_id && !account)throw new Error('Choose a valid Company.');
-    return dialogEditor('contacts',{name:typeof initial.name==='string'?initial.name:'',...(account?{company:account.company,account_id:account.id}:{})},false,{directory,standalone:true,isCurrent:initial.isCurrent});
+    return dialogEditor('contacts',{name:typeof initial.name==='string'?initial.name:'',...(account?{company:account.company,account_id:account.id}:{})},{directory,standalone:true,isCurrent:initial.isCurrent});
   }
   async function editContact(id, options = {}) {
     await window.ClassifireAccess?.ready;
@@ -852,7 +852,7 @@
     const contact = directory.contacts.find(person=>person.id===id);
     if (!contact) throw new Error('The selected directory record is unavailable.');
     const readOnly = Boolean(window.ClassifireAccess && !window.ClassifireAccess.can('edit'));
-    return dialogEditor('contacts',contact,readOnly,{directory,standalone:true,lockedReadOnly:readOnly,isCurrent:options.isCurrent});
+    return dialogEditor('contacts',contact,{directory,standalone:true,lockedReadOnly:readOnly,isCurrent:options.isCurrent});
   }
   async function editAccount(id, options = {}) {
     await window.ClassifireAccess?.ready;
@@ -861,7 +861,7 @@
     const account = directory.accounts.find(company=>company.id===id);
     if (!account) throw new Error('The selected directory record is unavailable.');
     const readOnly = Boolean(window.ClassifireAccess && !window.ClassifireAccess.can('edit'));
-    return dialogEditor('accounts',account,readOnly,{directory,standalone:true,lockedReadOnly:readOnly,isCurrent:options.isCurrent});
+    return dialogEditor('accounts',account,{directory,standalone:true,lockedReadOnly:readOnly,isCurrent:options.isCurrent});
   }
   function matches(row) {
     const keys = page === "accounts" ? ["company", "abn_acn", "billing_address", "owner_name"] :
@@ -919,8 +919,8 @@
         const toggle = el("summary", "", "▾");
         toggle.setAttribute("aria-label", `Actions for ${lead.name}`);
         const options = el("div", "commercial-menu-options");
-        for (const [name, open] of [["Open", true], ["Edit", false]]) {
-          options.append(button(name, () => {menu.open = false; dialogEditor("leads", lead, open);}, "text-button"));
+        for (const name of ["Open", "Edit"]) {
+          options.append(button(name, () => {menu.open = false; dialogEditor("leads", lead);}, "text-button"));
         }
         const convertMenu=button('Convert',()=>{menu.open=false;void convertLead(lead);},'text-button');convertMenu.dataset.leadConvert=lead.id;options.append(convertMenu);
         menu.append(toggle, options);
@@ -930,7 +930,7 @@
           options.style.left = `${Math.max(8, Math.min(innerWidth - options.offsetWidth - 8, rect.right - options.offsetWidth))}px`;
           options.style.top = `${rect.bottom + options.offsetHeight + 12 <= innerHeight ? rect.bottom + 6 : Math.max(8, rect.top - options.offsetHeight - 6)}px`;
         });
-        row.append(button(lead.name, () => dialogEditor("leads", lead, true), "text-button project-title-button"), menu);
+        row.append(button(lead.name, () => dialogEditor("leads", lead), "text-button project-title-button"), menu);
         card.append(row);
         const details = el("dl", "kanban-card-details");
         for (const key of ["company", "site_address", "region", "owner_name", "title", "phone", "email", "next_action", "follow_up_date","last_interaction_at"]) {
@@ -938,7 +938,7 @@
           details.append(ui("dt", "", labels[key]), el("dd", "", key==='last_interaction_at'?new Date(lead[key]).toLocaleString():lead[key] || "—"));
         }
         card.append(details);
-        const actions=el('div','contacts-lead-actions'),convert=button('',()=>void convertLead(lead),'button secondary icon-only contacts-lead-convert takeoff-preview-transfer');
+        const actions=el('div','contacts-lead-actions'),convert=button('',()=>void convertLead(lead),'button primary icon-only contacts-lead-convert takeoff-preview-transfer');
         convert.dataset.leadConvert=lead.id;convert.title='Convert';convert.setAttribute('aria-label','Convert lead '+lead.name);
         window.CeasefireI18n?.attr(convert,'title','Convert');window.CeasefireI18n?.attr(convert,'aria-label','Convert lead {0}',[lead.name]);
         const symbol=el('img','takeoff-transfer-icon');symbol.src='/icons/takeoff-transfer.png';symbol.alt='';symbol.width=symbol.height=24;symbol.setAttribute('aria-hidden','true');convert.append(symbol);actions.append(convert);card.append(actions);

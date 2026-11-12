@@ -150,8 +150,10 @@ const ready = new Promise((resolve, reject) => {
   await accountPane.getByRole('button',{name:'Cancel'}).click();
   await root.getByRole('button',{name:'Leads',exact:true}).click();
   await card.locator('summary').click(); await card.getByRole('button',{name:'Open',exact:true}).click();
-  await expect(dlg.getByLabel('Site address')).toHaveAttribute('readonly','');
-  await dlg.getByRole('button',{name:'Close',exact:true}).click();
+  await expect(dlg).toHaveAccessibleName('Edit Lead');
+  await expect(dlg.getByLabel('Site address')).toBeEditable();
+  await expect(dlg.getByRole('button',{name:'Edit',exact:true})).toHaveCount(0);
+  await dlg.getByRole('button',{name:'Cancel',exact:true}).click();
   await card.locator('summary').click(); await card.getByRole('button',{name:'Edit',exact:true}).click();
   await dlg.getByLabel('Title',{exact:true}).fill('Technician');
   await dlg.getByRole('button',{name:'Save',exact:true}).click();

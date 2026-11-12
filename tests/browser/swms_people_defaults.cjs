@@ -37,8 +37,8 @@ module.exports=async function peopleDefaults(root,output){
     const oldSnapshot=await (await page.request.get(`${base}/api/swms/state?workspace=${workspace}`)).json();
     const legacyDefaults=(await post('defaults',{details:{}})).people_defaults;
     await page.evaluate(()=>window.CeasefireSWMS.activate());
-    await expect(host.locator('.project-kanban > section > .project-column-heading h2')).toHaveText(['Draft','Review','Approved','Rejected']);
-    await host.locator('.document-workflow-history').getByRole('button',{name:existing.reference+': Saved client - Saved site',exact:true}).click();
+    await expect(host.locator('.project-kanban')).toHaveCount(0);
+    await expect(host.getByRole('combobox',{name:'Saved statement',exact:true})).toHaveValue(existing.id);
     await expect(host.getByLabel('Document title',{exact:true})).toHaveCount(0);
     await expect(host.getByLabel('Workflow status',{exact:true})).toHaveValue('Archived');
     const group=title=>host.locator(':scope > details').filter({has:page.locator(':scope > summary').filter({hasText:new RegExp('^'+title+'$')})});
@@ -47,7 +47,7 @@ module.exports=async function peopleDefaults(root,output){
     await expect(reviewers.getByLabel('Name',{exact:true})).toHaveValue('Historical reviewer');
     await expect(reviewers.getByLabel('Position',{exact:true})).toHaveValue('Historical role');
     await expect(reviewers.getByRole('img')).toBeVisible();
-    await host.getByRole('button',{name:'Back to statements',exact:true}).first().click();
+    await host.getByRole('button',{name:'Back to Documents',exact:true}).first().click();
     await host.getByRole('button',{name:'New SWMS',exact:true}).click();
     await expect(host.getByLabel('Project Name',{exact:true})).toBeVisible();
     let fields=await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.fields);
@@ -63,7 +63,7 @@ module.exports=async function peopleDefaults(root,output){
     await host.getByLabel('Project Name',{exact:true}).fill('Explicit SWMS choices');
     await host.getByLabel('Workflow status',{exact:true}).selectOption('Review');
     await host.getByRole('button',{name:'Save',exact:true}).first().click();await expect(host.locator('.swms-message')).toContainText('Saved.');
-    await host.getByRole('button',{name:'Back to statements',exact:true}).first().click();
+    await host.getByRole('button',{name:'Back to Documents',exact:true}).first().click();
     const draftCard=host.locator('[data-status="Review"] .swms-card').filter({hasText:'Explicit SWMS choices'});
     await draftCard.dragTo(host.locator('.project-kanban [data-status="Rejected"]'),{sourcePosition:{x:4,y:4}});
     await host.locator('[data-status="Rejected"] .project-title-button').click();
@@ -116,7 +116,7 @@ module.exports=async function peopleDefaults(root,output){
     assert.equal(signed.reviewers[0].signature,null);assert.ok(signed.consultation[0].signature.strokes.length);assert.ok(signed.site_signoffs[0].signature.strokes.length);
     assert.deepEqual((await post('defaults',{details:{}})).people_defaults,legacyDefaults);
     const stateAfter=await (await page.request.get(`${base}/api/swms/state?workspace=${workspace}`)).json();assert.deepEqual(stateAfter.documents.find(row=>row.id===existing.id),oldSnapshot.documents.find(row=>row.id===existing.id));
-    await host.getByRole('button',{name:'Back to statements',exact:true}).first().click();await host.getByRole('button',{name:'New SWMS',exact:true}).click();await expect(host.getByLabel('Project Name',{exact:true})).toBeVisible();
+    await host.getByRole('button',{name:'Back to Documents',exact:true}).first().click();await openProjectSection(page,'swms');await host.getByRole('button',{name:'New SWMS',exact:true}).click();await expect(host.getByLabel('Project Name',{exact:true})).toBeVisible();
     fields=await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.fields);assert.deepEqual(fields.reviewers,[]);assert.deepEqual(fields.consultation,[]);assert.deepEqual(fields.work_types,[]);assert.equal(fields.manager_signature,null);assert.deepEqual(fields.site_signoffs,[]);
     await page.screenshot({path:path.join(directory,'new-people-blank.png')});
     // A response for a replaced editor must not sign or fill the replacement.

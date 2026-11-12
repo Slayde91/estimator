@@ -70,8 +70,7 @@ const ready = new Promise((resolve,reject)=>{
     await page.setViewportSize({width,height:884});
     const boxes=await page.evaluate(()=>({pane:document.querySelector('#project-details-pane').getBoundingClientRect().toJSON(),browser:document.querySelector('#project-browser').getBoundingClientRect().toJSON(),heading:document.querySelector('#project-browser>.section-heading').getBoundingClientRect().toJSON(),back:document.querySelector('#project-browser-close').getBoundingClientRect().toJSON(),inside:!!document.querySelector('.project-workspace-main>#project-browser'),width:document.documentElement.scrollWidth,viewport:innerWidth}));
     assert.ok(boxes.inside);assert.ok(boxes.width<=boxes.viewport,JSON.stringify(boxes));
-    if(width>900)assert.ok(boxes.pane.right<=boxes.browser.left,JSON.stringify(boxes));
-    else assert.ok(boxes.pane.bottom<=boxes.browser.top,JSON.stringify(boxes));
+    assert.ok(boxes.pane.bottom<=boxes.browser.top && Math.abs(boxes.pane.left-boxes.browser.left)<1,JSON.stringify(boxes));
     assert.ok(boxes.back.top>=boxes.heading.bottom);assert.ok(boxes.back.left<boxes.browser.left+35);
     await page.screenshot({path:path.join(output,`browser-pane-${width}.png`),fullPage:true});
   }
@@ -113,9 +112,9 @@ const ready = new Promise((resolve,reject)=>{
   await expect(page.locator('#project-pricing-context')).toHaveText(active.file.title);
   const pane=page.locator('#project-details-pane');
   const geometry={pane:await pane.boundingBox(),list:await page.locator('#project-list-card').boundingBox()};
-  assert.ok(geometry.pane.x+geometry.pane.width<=geometry.list.x);
-  const companyPanel=pane.locator('details').filter({has:page.locator('#project-company-participants')});
-  const contactPanel=pane.locator('details').filter({has:page.locator('#project-contact-participants')});
+  assert.ok(geometry.pane.y+geometry.pane.height<=geometry.list.y && Math.abs(geometry.pane.x-geometry.list.x)<1);
+  const companyPanel=page.locator('#project-workspace-side details').filter({has:page.locator('#project-company-participants')});
+  const contactPanel=page.locator('#project-workspace-side details').filter({has:page.locator('#project-contact-participants')});
   await expect(companyPanel.locator(':scope > summary')).toHaveText('Companies');
   await expect(contactPanel.locator(':scope > summary')).toHaveText('Contacts');
   const metadataOrder=await pane.locator('#project-details-form > .project-pane-fields').evaluateAll(groups=>
@@ -173,6 +172,9 @@ const ready = new Promise((resolve,reject)=>{
     await page.setViewportSize({width,height:884});
     const box=await page.evaluate(()=>({width:document.documentElement.scrollWidth,viewport:innerWidth,columns:getComputedStyle(document.querySelector('.project-pane-fields')).gridTemplateColumns.split(' ').length,pane:document.querySelector('#project-details-pane').getBoundingClientRect().toJSON(),list:document.querySelector('#project-list-card').getBoundingClientRect().toJSON()}));
     assert.ok(box.width<=box.viewport,JSON.stringify(box));assert.equal(box.columns,2);
+    const panes=await page.evaluate(()=>Object.fromEntries(['project-workspace-side','project-details-pane','project-workspace-links'].map(id=>[id,document.getElementById(id).getBoundingClientRect().toJSON()])));
+    if(width>1050){assert.ok(panes['project-workspace-side'].right<=panes['project-details-pane'].left && panes['project-details-pane'].right<=panes['project-workspace-links'].left,JSON.stringify(panes));}
+    else assert.ok(panes['project-details-pane'].bottom<=panes['project-workspace-side'].top && panes['project-workspace-side'].bottom<=panes['project-workspace-links'].top,JSON.stringify(panes));
     const numberWidth=(await page.locator('#project-pane-number').boundingBox()).width;
     assert.ok((await page.locator('#project-pane-address').boundingBox()).width >= numberWidth*2);
     const fields=await page.evaluate(()=>{

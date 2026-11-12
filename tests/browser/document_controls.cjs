@@ -70,7 +70,7 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
   await page.unroute(savedRoute,unavailable);
   assert.equal(writes.length,2);checks.push('Certificate load errors remain visible on the form');
   await openProjectSection(page,'swms');const host=page.locator('#swms-root');
-  await host.getByRole('button',{name:'New SWMS',exact:true}).click();const back=host.getByRole('button',{name:'Back to statements',exact:true}).first();
+  await host.getByRole('button',{name:'New SWMS',exact:true}).click();const back=host.getByRole('button',{name:'Back to Documents',exact:true}).first();
   for(const theme of ['ceasefire','midnight','ocean','forest','slate'])for(const width of [1254,390]){
     await page.evaluate(value=>document.documentElement.dataset.theme=value,theme);await page.setViewportSize({width,height:884});
     const metric=await back.evaluate(button=>{const r=button.getBoundingClientRect();return{width:r.width,height:r.height,text:button.textContent.trim(),border:getComputedStyle(button).borderStyle};});
@@ -79,7 +79,7 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
   await host.getByLabel('Project Address',{exact:true}).fill('Retained SWMS edit');await back.click();
   const discard=page.getByRole('dialog',{name:'Discard the current SWMS?',exact:true});await discard.getByRole('button',{name:'Cancel',exact:true}).click();
   await expect(host.getByLabel('Project Address',{exact:true})).toHaveValue('Retained SWMS edit');
-  await back.click();await discard.getByRole('button',{name:'Yes',exact:true}).click();await expect(host.getByRole('button',{name:'New SWMS',exact:true})).toBeVisible();
+  await back.click();await discard.getByRole('button',{name:'Yes',exact:true}).click();await expect(page.locator('#view-documentation')).toBeVisible();
   checks.push('SWMS Back uses matching42px outlined arrow in all themes/widths and preserves the existing Cancel/discard guard');
   assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,layouts,errors},null,2));console.log(JSON.stringify({passed:true,output,checks:checks.length,layoutScenarios:layouts.length}));
 })().catch(async error=>{releaseHeld?.();console.error(error);if(page)await page.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});process.exitCode=1;})

@@ -64,9 +64,9 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   });
   await check('Both document tables place their download action after names and revision history',async h=>{
     const html=fs.readFileSync('static/index.html','utf8');
-    const tables=[...html.matchAll(/<table class="documentation-table([^"]*)"><thead><tr>(.*?)<\/tr><\/thead>/g)];
+    const tables=[...html.matchAll(/<table class="documentation-table([^"]*)"><colgroup>.*?<\/colgroup><thead><tr>(.*?)<\/tr><\/thead>/g)];
     assert.equal(tables.length,2);
-    for(const [,extra,head] of tables)assert.deepEqual([...head.matchAll(/<th[^>]*>(.*?)<\/th>/g)].map(match=>match[1]),['Document','Previous revisions','Download',...(extra.includes('documentation-pdf-table')?['PDF cover sheet','Actions']:[])]);
+    for(const [,extra,head] of tables)assert.deepEqual([...head.matchAll(/<th[^>]*>(.*?)<\/th>/g)].map(match=>match[1]),['Document','Previous revisions','Download',...(extra.includes('documentation-pdf-table')?['PDF cover sheet','Actions']:[''])]);
     await h.api.open();
     for(const format of ['pdf','xlsx'])for(const row of h.byId('documentation-'+format+'-rows').children.filter(row=>row.dataset.documentKind)){
       assert.equal(row.children[2].className,'documentation-action');

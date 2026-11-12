@@ -79,8 +79,8 @@ async function run(edition) {
     await expect(host.getByLabel('Template ID',{exact:true})).toHaveCount(0);
     await expect(host.getByLabel('Template Version',{exact:true})).toHaveCount(0);
     await expect(host.locator('summary').filter({hasText:/^Employees Sign-Off/})).toHaveCount(0);
-    for(const label of ['Back to statements','Save','Download PDF'])await expect(host.getByRole('button',{name:label,exact:true})).toHaveCount(2);
-    await expect(host.getByRole('button',{name:'Back to statements',exact:true}).last()).toHaveClass(/icon-only/);
+    for(const label of ['Back to Documents','Save','Download PDF'])await expect(host.getByRole('button',{name:label,exact:true})).toHaveCount(2);
+    await expect(host.getByRole('button',{name:'Back to Documents',exact:true}).last()).toHaveClass(/icon-only/);
     await host.locator('summary').filter({hasText:'Risk Matrix and High Risk Work'}).click();
     const falls = 'Risk of falls from greater than 2 metres';
     const electrical = 'Work on or near energised electrical installations or services';
@@ -206,8 +206,8 @@ async function run(edition) {
     await expect(host.locator('.swms-message')).toContainText('PDF download cancelled.');
     assert.ok(await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.pendingIssue));
     await page.evaluate(()=>{window.CeasefireDownloads.save=window.originalSWMSDownload;});
-    await host.getByRole('button',{name:'Back to statements',exact:true}).last().click();
-    await host.locator('.swms-card .project-title-button').click();
+    await host.getByRole('button',{name:'Back to Documents',exact:true}).last().click();
+    await openProjectSection(page,'swms');
     await expect(host.getByRole('img',{name:'Project manager drawn signature'})).toBeVisible();
     await expect(host.locator('.swms-step-table tbody tr')).toHaveCount(46);
     await additionalSection.locator(':scope > summary').click();
@@ -232,11 +232,12 @@ async function run(edition) {
     await discard.getByRole('button',{name:'Yes',exact:true}).click();
     await expect(page.locator('#view-home')).toBeVisible();
     await openProjectSection(page,'swms');
-    await expect(host.locator('.swms-card h3')).toContainText(lastSavedTitle);
-    await host.locator('.swms-card .project-title-button').click();
+    await expect(host.getByRole('combobox',{name:'Saved statement',exact:true})).toContainText(lastSavedTitle);
+    await openProjectSection(page,'swms');
     await expect(title).toHaveValue(lastSavedTitle);
-    await host.getByRole('button',{name:'Back to statements',exact:true}).first().click();
-    await expect(host.locator('.swms-card h3')).toContainText(lastSavedTitle);
+    await host.getByRole('button',{name:'Back to Documents',exact:true}).first().click();
+    await openProjectSection(page,'swms');
+    await expect(host.getByRole('combobox',{name:'Saved statement',exact:true})).toContainText(lastSavedTitle);
     assert.equal(await host.locator('img').count(),0);
     // Saved ink is selected only by an explicit click in each document.
     const signatureProfiles=require('./personal_signature_profiles.cjs');

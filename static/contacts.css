@@ -41,9 +41,9 @@
 .contacts-conversion-fields .text-button { padding:0; max-width:100%; font:inherit; text-align:start; overflow-wrap:anywhere; }
 .contacts-conversion-snapshot>summary { cursor:pointer; font-size:11px; }
 .contacts-lead-actions { display:flex; justify-content:flex-end; margin-top:12px; }
-#contacts-root .button.contacts-lead-convert { display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box; flex:0 0 48px; width:48px; min-width:48px; height:48px; min-height:48px; padding:8px; border:1px solid #bc0022; border-radius:9px; background:#ffdd53; color:#ad001d; box-shadow:none; }
-#contacts-root .button.contacts-lead-convert:hover:not(:disabled) { background:#ffe886; border-color:#970020; }
-#contacts-root .contacts-lead-convert .takeoff-transfer-icon { filter:brightness(0) saturate(100%) invert(10%) sepia(97%) saturate(4000%) hue-rotate(338deg); }
+#contacts-root .button.contacts-lead-convert { display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box; flex:0 0 48px; width:48px; min-width:48px; height:48px; min-height:48px; padding:8px; border:1px solid #eb324a; border-radius:9px; background:#d0001b; color:#fff; box-shadow:none; }
+#contacts-root .button.contacts-lead-convert:hover:not(:disabled) { background:#b90018; border-color:#ee5065; }
+#contacts-root .contacts-lead-convert .takeoff-transfer-icon { filter:brightness(0) invert(1); }
 .contacts-lookup { position:relative; min-width:0; }
 .contacts-lookup-options { position:absolute; z-index:8; top:100%; inset-inline:0; max-height:240px; overflow:auto; padding:4px; border:1px solid var(--line); border-radius:7px; background:var(--paper); box-shadow:0 8px 18px #0006; }
 .contacts-lookup-options[hidden] { display:none; }

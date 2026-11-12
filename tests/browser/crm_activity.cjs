@@ -32,7 +32,7 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
   await dialog.getByLabel('Region',{exact:true}).fill('Northern NSW');await expect(dialog.getByLabel('Owner',{exact:true})).toHaveValue(staff[0].id);
   await expect(dialog.getByLabel('Status',{exact:true})).toHaveValue('New');await dialog.getByRole('button',{name:'Save',exact:true}).click();
   const card=host.locator('[data-status="New"] .project-kanban-card');await expect(card).toContainText('Northern NSW');await expect(card).toContainText(name);
-  await card.getByRole('button',{name:'Builder contact',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Edit',exact:true}).click();
+  await card.getByRole('button',{name:'Builder contact',exact:true}).click();
   dialog=page.getByRole('dialog',{name:'Edit Lead',exact:true});
   await dialog.locator('.crm-timeline > summary').click();const timeline=dialog.locator('.crm-timeline');
   await expect(timeline.locator('.crm-event-list')).toContainText('Created');

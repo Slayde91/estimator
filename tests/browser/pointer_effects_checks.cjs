@@ -76,7 +76,7 @@ async function checkPointerEffects(page,output) {
   await page.locator('#estimate-navigation-menu [data-estimator-kind="estimate"]').click();
   const tab=page.locator('#main-section-tabs [role="tab"]').first();await expect(tab).toBeVisible();
   await expect(page.locator('html')).not.toHaveClass(/\bapp-busy\b/,{timeout:60000});
-  await tab.hover();assert.match(await cursor(tab),/cursors\/link\.png/,'Ordinary tabs use the red link cursor');
+  await tab.hover();await expect.poll(()=>cursor(tab),{message:'Ordinary tabs use the red link cursor'}).toMatch(/cursors\/link\.png/);
   const input=page.locator('#measurements');
   assert.doesNotMatch(await cursor(input),/laser-reticle/,'Text fields keep their editing cursor');
   const originalDisabled=await tab.evaluate(el=>{const before=el.disabled;el.disabled=true;return before;});

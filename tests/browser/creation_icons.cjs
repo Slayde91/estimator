@@ -35,7 +35,7 @@ async function plus(control,name,{disabled=false}={}){
  const box=await control.boundingBox();assert.equal(box.width,48);assert.equal(box.height,48);
  if(disabled)await expect(control).toBeDisabled();else await expect(control).toBeEnabled();
 }
-async function cancelDraft(host,back){await host.getByRole('button',{name:back,exact:true}).click();const confirm=page.locator('#discard-dialog');if(await confirm.isVisible())await confirm.locator('[value="confirm"]').click();}
+async function cancelDraft(host,back){await host.getByRole('button',{name:back,exact:true}).first().click();const confirm=page.locator('#discard-dialog');if(await confirm.isVisible())await confirm.locator('[value="confirm"]').click();}
 async function breakdownButton(control,disabled=false){
  await expect(control).toHaveAccessibleName('Download Breakdown');await expect(control).toHaveAttribute('title','Download Breakdown');
  await expect(control.locator('.download-format-icon[aria-hidden="true"]')).toHaveText('⇩PDF');
@@ -77,8 +77,8 @@ function libraryFiles(){const directory=path.dirname(path.dirname(info.diagram))
  const localSave=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/project/save');await clickProjectControl(page,'Save');const localSaved=await localSave;assert.equal(localSaved.status(),200,await localSaved.text());await idle();
  const portable=JSON.parse(fs.readFileSync(info.project)),localRecords=portable.library_drafts;assert.equal(localRecords.records.length,1);assert.equal(localRecords.records[0].id,info.item_id);assert.equal(localRecords.records[0].draft.rows[0].inputs.T,'Icon Project local record with original PNG');assert.deepEqual(Buffer.from(localRecords.records[0].diagram.content_base64,'base64'),fs.readFileSync(info.diagram));
  checks.push('A real Library edit and Project Save capture one valid project-local record with its exact original PNG and captured pricing.');
- await openProjectSection(page,'certification');const certificate=page.locator('#certification-new');await plus(certificate,'Create Certificate');await certificate.click();await expect(page.locator('#certification-editor')).toBeVisible();await page.locator('#certification-back').click();await expect(page.locator('#certification-list')).toBeVisible();
- checks.push('Create Certificate is the same accessible 48px red plus and opens its separate fields page; Back returns to the list without generating a document.');
+ await openProjectSection(page,'certification');const certificate=page.locator('#certification-new');await plus(certificate,'Create Certificate');await certificate.click();await expect(page.locator('#certification-editor')).toBeVisible();await page.locator('#certification-back').click();await expect(page.locator('#view-documentation')).toBeVisible();
+ checks.push('Create Certificate uses the accessible 48px red plus. Back returns to Documentation.');
  for(const [section,name,selector,back] of sections){await openProjectSection(page,section);const host=page.locator(selector);await host.getByRole('button',{name,exact:true}).click();await expect(host.locator('.commercial-editor')).toBeVisible();await cancelDraft(host,back);}
  await openProjectSection(page,'swms');await page.getByRole('button',{name:'New SWMS',exact:true}).click();await expect(page.locator('#swms-root .swms-identity')).toBeVisible();await cancelDraft(page.locator('#swms-root'),'Back to statements');
  checks.push('The same plus controls open and discard the correct Quote, Work Order, Purchase Order and SWMS editors after a real numbered Project exists.');

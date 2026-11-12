@@ -88,8 +88,11 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const legacy=item(1,1,{kind:'calculator.legacy.schedule.pdf',label:'Legacy schedule'});h.models.set(token(1),model(1,[legacy]));
     await h.api.open();
     const rendered=h.byId('documentation-pdf-rows').children;
-    assert.deepEqual(rendered.filter(row=>row.children[0].tagName==='TH').map(row=>row.children[0].children[0].textContent),['Schedules','Product summaries','Other documents']);
+    assert.deepEqual(rendered.filter(row=>row.children[0].tagName==='TH').map(row=>row.children[0].children[0].children[0].textContent),['Schedules','Product summaries','Other documents']);
     assert.deepEqual(rendered.filter(row=>row.dataset.documentKind).map(row=>row.dataset.documentKind),['estimate.summary.pdf','project.full_schedule.pdf','firestopping.schedule.pdf','calculator.legacy.schedule.pdf','calculator.ductwork.product_summary.pdf','project.full_product_summary.pdf','certification']);
+    const toggle=rendered[1].children[0].children[0].children[0];
+    assert.equal(toggle.attributes['aria-expanded'],'false');assert.equal(rendered[2].hidden,true);
+    await toggle.emit('click');assert.equal(toggle.attributes['aria-expanded'],'true');assert.equal(rendered[2].hidden,false);
     assert.deepEqual(h.links(),[]);assert.deepEqual(h.tableLinks(),[]);
     await h.revisions(legacy.kind).emit('click');assert.deepEqual(h.links().map(link=>link.href),[legacy.url]);assert.equal(h.buttons()[0].attributes['aria-label'],'Download Breakdown');
     const first=rendered[0];assert.equal(first.children.length,3);assert.equal(first.children[0].textContent,'Breakdown');

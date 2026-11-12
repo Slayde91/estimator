@@ -97,7 +97,7 @@ class SavedCommercial:
                 return {'document': document, 'details': details, 'project_details': {
                             key: snapshot['estimate'].get(key, '') for key in QUOTE_DETAIL_LIMITS}, 'quote_total': quote_total,
                         'created_project': self.projects.certifications.view(workspace)['created_project'],
-                        'related': commercial_cards(model['snapshot']), 'quote_totals': model['quote_totals'], 'quote_rows':model['quote_rows'],
+                        'related': commercial_cards(model['snapshot'], include_quote_files=True), 'quote_totals': model['quote_totals'], 'quote_rows':model['quote_rows'],
                         'estimates': [{'id': item['id'], 'name': item['name']} for item in captured['estimates']]}
             if action == 'save':
                 if body.get('kind') not in KINDS:

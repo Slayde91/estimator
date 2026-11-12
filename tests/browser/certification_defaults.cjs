@@ -58,7 +58,7 @@ async function fresh(){await openCertificateEditor(page,{fresh:true});await expe
   await expect(page.locator('#certification-exclusions')).toHaveValue('Project No.: PN-01');
   await expect(page.locator('#certification-name')).toHaveValue('');
   await expect(page.locator('#certification-statement_of_compliance')).toHaveValue("This is to certify that the fire rated materials have been installed according to the manufacturer's specifications to provide the nominated fire resistance level for the items listed in the relevant schedule.\n\nAll materials have been installed at the above location and comply with:");
-  await expect(page.locator('#certification-back')).toBeVisible();await expect(page.locator('#certification-new')).toBeHidden();await expect(page.locator('#certification-reload')).toHaveCount(0);
+  await expect(page.locator('#certification-back')).toBeVisible();await expect(page.locator('#certification-new')).toBeVisible();await expect(page.locator('#certification-reload')).toHaveCount(0);
   await expect(page.locator('#certification-cover-pdf')).toHaveCount(0);
   for(const name of ['approved_design','additional_standards','other_references']){
     await expect(page.locator('#certification-'+name)).toHaveValue('N/A');await expect(page.locator('#certification-'+name)).toHaveAttribute('rows','1');
@@ -72,6 +72,7 @@ async function fresh(){await openCertificateEditor(page,{fresh:true});await expe
   await openProjectSection(page,'documentation');
   const coverRow=kind=>page.locator('#documentation-pdf-rows tr[data-cover-kind="'+kind+'"]');
   await expect(page.locator('#documentation-pdf-rows tr[data-cover-kind]')).toHaveCount(18);
+  for(const label of ['Schedules','Product summaries','Other documents'])await page.getByRole('button',{name:label,exact:true}).click();
   const kindsResponse=await fetch(base+'/api/pdf-covers'),kinds=await kindsResponse.json();
   assert.ok(kinds.items.every(item=>!Object.hasOwn(item,'cover_pdf')&&typeof item.has_cover==='boolean'));
   await expect(coverRow('certification').getByRole('button',{name:'Save cover sheet for Certification',exact:true})).toHaveCount(0);
@@ -97,7 +98,7 @@ async function fresh(){await openCertificateEditor(page,{fresh:true});await expe
   assert.equal(otherWindow.status,200);await coverRow('certification').locator('input').setInputFiles(info.fixture);
   await clickProjectControl(page,'Save');await expect(coverRow('certification')).toContainText('changed in another window');
   await clickProjectControl(page,'Save');await page.getByRole('dialog',{name:'Cover sheet changed',exact:true}).getByRole('button',{name:'Keep editing',exact:true}).click();
-  await expect(coverRow('certification')).toContainText('Cover sheet: synthetic-drawings.pdf');await expect(page.locator('#save-current-project')).toBeEnabled();
+  await expect(coverRow('certification')).toContainText('synthetic-drawings.pdf');await expect(page.locator('#save-current-project')).toBeEnabled();
   const afterCancel=await (await fetch(base+'/api/pdf-covers')).json();assert.equal(afterCancel.items.find(item=>item.kind==='certification').cover_pdf_name,'Other window cover.pdf');
   await clickProjectControl(page,'Save');await page.getByRole('dialog',{name:'Cover sheet changed',exact:true}).getByRole('button',{name:'Apply cover-sheet change',exact:true}).click();await expect(coverRow('certification')).toContainText('Cover sheet saved.');
   await page.getByRole('button',{name:'Settings',exact:true}).click();
@@ -206,7 +207,9 @@ async function fresh(){await openCertificateEditor(page,{fresh:true});await expe
   assert.deepEqual(fs.readFileSync(info.project),originalProject,'Creating the second Project keeps the original saved file unchanged');
   await expect(page.locator('#client')).toHaveValue('Second certification project',{timeout:90000});await page.waitForFunction(token=>window.CeasefireCertification.sessionId()!==token,workspaceA);await idle();
   await certification();assert.notEqual(await page.evaluate(()=>window.CeasefireCertification.sessionId()),workspaceA);await expect(page.locator('#certification-document option[value="'+id+'"]')).toHaveCount(0);await fresh();await expect(page.locator('#certification-signature-preview')).toBeHidden();await expect(page.locator('#certification-name')).toHaveValue('');
-  await openProjectSection(page,'documentation');await expect(coverRow('certification')).toContainText('synthetic-drawings.pdf');await expect(coverRow('takeoff_markups')).toContainText('synthetic-board.pdf');
+  await openProjectSection(page,'documentation');
+  if(!await coverRow('certification').isVisible())await page.getByRole('button',{name:'Other documents',exact:true}).click();
+  await expect(coverRow('certification')).toContainText('synthetic-drawings.pdf');await expect(coverRow('takeoff_markups')).toContainText('synthetic-board.pdf');
   for(const width of [1084,390]){
     await page.setViewportSize({width,height:900});await page.locator('#cover-sheets-heading').scrollIntoViewIfNeeded();
     const filename=path.join(output,`cover-sheets-${width}.png`);await page.screenshot({path:filename,fullPage:true});evidence.screenshots.push(filename);

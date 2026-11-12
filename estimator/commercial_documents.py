@@ -13,11 +13,12 @@ import sqlite3
 import uuid
 
 from .catalog import ValidationError
-from .commercial_files import WorkOrderFiles, validate_files
+from .commercial_files import MAX_FILES, WorkOrderFiles, validate_files
 from .document_numbers import DocumentNumbers, valid_reference, validated_counters
 from .company_settings import DEFAULTS as COMPANY_DEFAULTS
 from .evidence_files import _directory
 from .commercial_requirements import require_ready, requirements
+from .work_order_signing import SECTION_INPUTS
 
 KINDS = {'quote': 'Quote', 'work_order': 'Work Order', 'purchase_order': 'Purchase Order'}
 STATUSES = {
@@ -321,7 +322,7 @@ def default_fields(kind, details=None, company=None, *, rates=None):
 
 
 def validate_fields(value, *, kind=None):
-    if not isinstance(value, dict) or set(value) - {'rate_schedule', 'notes', 'signatures', 'files', 'work_tracking', 'detail_overrides', 'billing'} != FIELD_KEYS:
+    if not isinstance(value, dict) or set(value) - {'rate_schedule', 'notes', 'signatures', 'files', 'work_tracking', 'detail_overrides', 'billing', 'estimated_cost_cleared', 'excluded_quote_files'} != FIELD_KEYS:
         raise ValidationError('Commercial document fields use an unsupported format.')
     result = {'title': _text(value['title'], 'Title', 300)}
     if 'billing' in value:
@@ -440,6 +441,18 @@ def validate_fields(value, *, kind=None):
         result['sources'].append({'estimate_id': _text(source['estimate_id'], 'Estimate identity', 100), 'sha256': source['sha256']})
     if kind in ('work_order', 'purchase_order'):
         _normalise_legacy_reference(kind, result)
+    if 'excluded_quote_files' in value:
+        excluded = value['excluded_quote_files']
+        if (kind not in ('work_order', None) or not isinstance(excluded, list) or len(excluded) > MAX_FILES
+                or any(not isinstance(key, str) or not re.fullmatch('[a-f0-9]{64}', key) for key in excluded)):
+            raise ValidationError('Invalid excluded Quote attachment.')
+        if excluded:
+            result['excluded_quote_files'] = sorted(set(excluded))
+    if 'estimated_cost_cleared' in value:
+        if kind not in ('work_order', None) or value['estimated_cost_cleared'] is not True:
+            raise ValidationError('Invalid Work Order cost override.')
+        if not result['order']['estimated_cost']:
+            result['estimated_cost_cleared'] = True
     tracking = result.get('work_tracking')
     if tracking and (tracking['quote_id'],tracking['quote_reference']) != (result['order']['quote_id'],result['order']['quote_reference']):
         raise ValidationError("Work tracking must use this Work Order's linked issued Quote.")
@@ -560,7 +573,7 @@ def _work_order_sequence(fields):
     return quote_number, int(suffix)
 
 
-def commercial_cards(snapshot):
+def commercial_cards(snapshot, *, include_quote_files=False):
     """Index board fields without loading large scopes or editable document content."""
     if not snapshot:
         return []
@@ -603,6 +616,8 @@ def commercial_cards(snapshot):
                           'last_number': _text(document['last_number'], 'Document number', 100),
                           'reference': _text(document.get('reference', ''), 'Reference', 300),
                           'fields': {'title': _text(fields['title'], 'Document title', 300), 'order': order, 'details': details,
+                                     **({'files': validate_files(fields['files'])} if include_quote_files and kind == 'quote' and fields.get('files') else {}),
+                                     **({'estimated_cost_cleared': True} if fields.get('estimated_cost_cleared') is True else {}),
                                      **({'detail_overrides':detail_override_keys(fields['detail_overrides'])} if 'detail_overrides' in fields else {})}})
         except (TypeError, KeyError, AttributeError) as error:
             raise ValidationError('Invalid saved commercial document details.') from error
@@ -717,7 +732,8 @@ class CommercialDocuments:
             quotes = {(c['source_file'], c['id'], c['last_number']): c['grand_total']
                       for c in cards if c['kind'] == 'quote' and c.get('source_file') and c['last_number']}
             for card in cards:
-                if card['kind'] == 'work_order' and not card.get('grand_total') and card.get('source_file'):
+                if (card['kind'] == 'work_order' and not card.get('grand_total') and card.get('source_file')
+                        and not card['fields'].get('estimated_cost_cleared')):
                     order = card['fields']['order']
                     if order.get('quote_id') and order.get('quote_reference'):
                         amount = self._linked_quote_total(db, '', card['project_id'], order['quote_id'], order['quote_reference'])
@@ -831,7 +847,7 @@ class CommercialDocuments:
             snapshot = self._snapshot(db, workspace, project)
             documents = snapshot['documents']
             result = {'workspace_id': workspace, 'project_id': project, 'documents': documents, 'snapshot': snapshot, 'statuses': STATUSES,
-                      'requirements': requirements(STATUSES)}
+                      'requirements': requirements(STATUSES), 'signature_section_inputs': SECTION_INPUTS}
             if include_quote_totals:
                 links = {(doc['id'], doc['last_number']) for doc in documents if doc['kind'] == 'quote' and doc['last_number']}
                 for doc in documents:
@@ -981,7 +997,7 @@ class CommercialDocuments:
                         order[key] = prior[key]
                     if create_retry and not order['estimated_cost']:
                         order['estimated_cost'] = prior['estimated_cost']
-                    elif not prior['estimated_cost'] and not order['estimated_cost']:
+                    elif not prior['estimated_cost'] and not order['estimated_cost'] and not fields.get('estimated_cost_cleared'):
                         order['estimated_cost'] = self._linked_quote_total(db, workspace, project, order['quote_id'], order['quote_reference'])
                 return
             if not order['quote_id']:
@@ -1002,7 +1018,7 @@ class CommercialDocuments:
             if order['quote_reference'] not in ('', quote_number) or order['work_order_reference']:
                 raise ValidationError('Work order references are assigned automatically when first saved.')
             order['quote_reference'] = quote_number
-            if not order['estimated_cost']:
+            if not order['estimated_cost'] and not fields.get('estimated_cost_cleared'):
                 order['estimated_cost'] = self._linked_quote_total(db, workspace, project, quote['id'], quote_number)
         elif kind == 'purchase_order':
             self._purchase_parties(order, prior)
@@ -1039,6 +1055,34 @@ class CommercialDocuments:
             if order['work_order_reference'] not in ('', reference):
                 raise ValidationError('The linked work order reference is automatic and cannot be edited.')
             order['work_order_reference'] = reference
+
+    def _inherit_quote_files(self, db, workspace, fields, previous=None):
+        quote_id = fields['order']['quote_id']
+        if not quote_id or not self.unfiled.permits_document(db, workspace, quote_id):
+            return
+        row = db.execute("""SELECT json_extract(data, '$.fields.files') FROM commercial_drafts
+                            WHERE workspace=? AND id=? AND json_extract(data, '$.kind')='quote'""",
+                         (workspace, quote_id)).fetchone()
+        if not row or not row[0]:
+            return
+        source = validate_files(json.loads(row[0]))
+        source_ids = {item['id'] for item in source}
+        attached = fields.get('files', [])
+        attached_ids = {item['id'] for item in attached}
+        excluded = set(fields.get('excluded_quote_files', []))
+        if previous and previous['fields']['order']['quote_id'] == quote_id:
+            old = previous['fields']
+            excluded.update(old.get('excluded_quote_files', []))
+            excluded.update(item['id'] for item in old.get('files', []) if item['id'] not in attached_ids)
+        excluded = (excluded & source_ids) - attached_ids
+        if excluded:
+            fields['excluded_quote_files'] = sorted(excluded)
+        else:
+            fields.pop('excluded_quote_files', None)
+        retained_ids = attached_ids | excluded
+        combined = attached + [item for item in source if item['id'] not in retained_ids]
+        if combined:
+            fields['files'] = validate_files(combined)
 
     def read_attachment(self, workspace, document_id, file_id):
         with self._connect() as db:
@@ -1092,8 +1136,6 @@ class CommercialDocuments:
             self.numbering.attach(db)
             db.execute('BEGIN IMMEDIATE')
             project = self._workspace(db, workspace)
-            for item in fields.get('files', []):
-                self.files.read(project, item)
             previous = None
             if payload.get('id'):
                 _identity(payload['id'])
@@ -1108,16 +1150,18 @@ class CommercialDocuments:
                     raise ValidationError('A commercial document cannot change its kind.')
                 if payload.get('version') != 0:
                     self._version(previous, payload.get('version'))
+                if kind == 'work_order' and 'files' not in payload['fields'] and previous['fields'].get('files'):
+                    fields['files'] = deepcopy(previous['fields']['files'])
+                if kind == 'work_order' and not fields['order']['estimated_cost'] and previous['fields'].get('estimated_cost_cleared'):
+                    fields['estimated_cost_cleared'] = True
+                if kind in ('work_order', 'purchase_order') and 'signatures' not in payload['fields'] and previous['fields'].get('signatures'):
+                    fields['signatures'] = deepcopy(previous['fields']['signatures'])
                 # Older open windows omit new editable fields. Preserve them
                 # unless the current client deliberately sends an empty clear.
                 if kind=='purchase_order':
                     for key in PURCHASE_ORDER_OPTIONAL_DEFAULTS:
                         if key not in fields['order'] and key in previous['fields']['order']:
                             fields['order'][key]=previous['fields']['order'][key]
-                    # Older PO editors do not know vector signatures. Absence
-                    # preserves saved ink; an explicit empty map clears it.
-                    if 'signatures' not in payload['fields'] and previous['fields'].get('signatures'):
-                        fields['signatures']=deepcopy(previous['fields']['signatures'])
                 if kind=='work_order' and not any(key in payload['fields']['order'] for key in ('claimed_by','claim_date')):
                     for key in ('claimed_by','claim_date'):
                         if key in previous['fields']['order']:
@@ -1138,6 +1182,10 @@ class CommercialDocuments:
                         if 'notes' not in raw and row['line_id'] in previous_rows:
                             row['notes']=previous_rows[row['line_id']].get('notes','')
             self._relationships(db, workspace, project, kind, fields, previous, create_retry=payload.get('version') == 0)
+            if kind == 'work_order':
+                self._inherit_quote_files(db, workspace, fields, previous if payload.get('version') else None)
+            for item in fields.get('files', []):
+                self.files.read(project, item)
             legacy_details = (kind=='work_order' and previous is not None
                               and not any(key in previous['fields']['order'] for key in ('details_by','details_date'))
                               and not any(item['key']=='details_by' for item in signed))
@@ -1156,7 +1204,8 @@ class CommercialDocuments:
                         self.unfiled.enroll(db, workspace, previous['id'], unfiled_context)
                     return previous
                 raise CommercialConflict('This new document was already saved with different content. Reopen it before editing.')
-            require_ready(kind, status, fields, legacy_details=legacy_details)
+            require_ready(kind, status, fields, legacy_details=legacy_details,
+                          before_clear=previous['fields'] if previous and signed and signed[0].get('clear') else None)
             now = datetime.now(timezone.utc).isoformat()
             document = {'id': previous['id'] if previous else payload.get('id') or str(uuid.uuid4()), 'kind': kind,
                         'version': previous['version'] + 1 if previous else 1, 'status': status, 'fields': fields,
@@ -1275,12 +1324,13 @@ class CommercialDocuments:
             previous = deepcopy(document)
             order = document['fields']['order']
             if kind=='work_order':
+                self._inherit_quote_files(db, workspace, document['fields'])
                 if 'work_tracking' not in document['fields'] and order['quote_id']:
                     tracking = self._quote_tracking(db, project, order['quote_id'],order['quote_reference'],document)
                     if tracking is not None:
                         document['fields']['work_tracking'] = tracking
                 self._validate_tracking(db, project, document['fields'], previous)
-            if kind == 'work_order' and order['quote_id'] and not order['estimated_cost']:
+            if kind == 'work_order' and order['quote_id'] and not order['estimated_cost'] and not document['fields'].get('estimated_cost_cleared'):
                 order['estimated_cost'] = self._linked_quote_total(db, workspace, project, order['quote_id'], order['quote_reference'])
             require_ready(kind, document['status'], document['fields'], operation='issue',
                           legacy_details=kind=='work_order' and not any(key in order for key in ('details_by','details_date')))

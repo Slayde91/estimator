@@ -89,7 +89,7 @@
     return data;
   }
 
-  async function save(rows, host) {
+  async function save(rows, host, removed) {
     if (saving || !record || !canEdit()) return;
     const ticket = generation;
     clearTimeout(scanTimer);
@@ -98,7 +98,8 @@
     try {
       const data = await api("crm/project-participants", {
         project: selection, project_revision: record.project_revision, version: record.version,
-        participants: rows.map(({role, kind, id}) => ({role, kind, id})), site_id: record.site_id
+        participants: rows.map(({role, kind, id}) => ({role, kind, id})), site_id: record.site_id,
+        ...(removed ? {remove_party:removed} : {})
       });
       if (ticket !== generation) return;
       record = data;
@@ -147,16 +148,24 @@
           if (canEdit()) {
             const remove = ui("button", "Remove");
             remove.type = "button"; remove.className = "text-button";
-            remove.onclick = () => void save(record.participants.filter(entry =>
-              entry.kind !== kind || entry.id !== item.id || entry.role !== item.role), host);
+            remove.onclick = () => {
+              const rows = record.participants.filter(entry => entry.kind !== kind || entry.id !== item.id || entry.role !== item.role);
+              void save(rows, host, rows.some(entry => entry.kind === kind && entry.id === item.id) ? null : {kind,id:item.id});
+            };
             row.append(" ", remove);
           }
           list.append(row);
         }
-        for (const {label, roles} of linked.values()) {
+        for (const [id,{label, roles}] of linked) {
           const row = el("li");
           if (label) row.append(el("strong", label), " · ");
           [...roles].forEach((role, index) => { if (index) row.append(" · "); row.append(ui("span", role)); });
+          if (canEdit()) {
+            const remove = ui("button", "Remove");
+            remove.type = "button"; remove.className = "text-button";
+            remove.onclick = () => void save(record.participants, host, {kind,id});
+            row.append(" ",remove);
+          }
           list.append(row);
         }
         group.append(list);

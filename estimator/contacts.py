@@ -25,6 +25,12 @@ CONTACT_CREATION_REQUIRED_FIELDS = ("name", "phone", "company", "email")
 CONTACT_CREATION_REQUIRED_MESSAGE = "Complete Name, Phone, Company and Email before creating this Contact."
 LINK_KINDS = ("contacts", "projects", "quotes", "work_orders", "purchase_orders")
 FIELDS = {"leads": LEAD_FIELDS, "contacts": PERSON_FIELDS, "accounts": ACCOUNT_FIELDS}
+PROJECT_DIRECTORY_FIELDS = {
+    'abn_acn': ('accounts', 'account_id', 'abn_acn'),
+    'billing_address': ('accounts', 'account_id', 'billing_address'),
+    'contact_email': ('contacts', 'contact_id', 'email'),
+    'contact_phone': ('contacts', 'contact_id', 'phone'),
+}
 LIMITS = {"name": 160, "phone": 60, "company": 240, "title": 160, "email": 254,
           "site_address": 1200, "billing_address": 1200, "description": 8000, "status": 100, "abn_acn": 80,
           "next_action": 500, "follow_up_date": 10}
@@ -256,6 +262,54 @@ class ContactsStore:
     def _version(db):
         return db.execute("SELECT version FROM revision WHERE id=1").fetchone()[0]
 
+    def sync_project_details(self, project, body, actor=None):
+        """Copy edited values from a committed Project to its own linked directory records."""
+        if body.get('revision') != project['revision']:
+            raise ContactsConflict("The project changed. Reopen its details before saving.")
+        fields, accepted = body.get('fields'), body.get('accepted', {})
+        if (not isinstance(fields, list) or len(fields) > len(PROJECT_DIRECTORY_FIELDS)
+            or any(not isinstance(key,str) or key not in PROJECT_DIRECTORY_FIELDS for key in fields)
+            or len(fields) != len(set(fields)) or not isinstance(accepted,dict) or set(accepted) - set(fields)):
+            raise ValidationError("Use the fields provided on this form.")
+        details = project['directory_details']
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            changes, records, conflicts = {}, {}, []
+            mapping = crm_identity.aliases(db)
+            for key in fields:
+                kind, identity, column = PROJECT_DIRECTORY_FIELDS[key]
+                ident, entered = details.get(identity), details.get(key)
+                if not ident or not entered:
+                    continue
+                ident = mapping[kind].get(ident, ident)
+                party = (kind,ident)
+                if party not in records:
+                    # Imported files may retain an ID from another directory.
+                    records[party] = crm_identity.record(db,kind,ident,optional=True)
+                saved = records[party]
+                if saved is None:
+                    continue
+                prior = saved[column]
+                if prior == entered:
+                    continue
+                if prior and accepted.get(key) != {'id':ident,'expected':prior}:
+                    conflicts.append({'field':key, 'id':ident, 'name':saved.get('name') or saved.get('company'),
+                                      'saved':prior, 'entered':entered})
+                changes.setdefault(party, {})[column] = entered
+            if conflicts or not changes:
+                return {'conflicts':conflicts}
+            crm_activity.begin_tracking(db)
+            for (kind,ident), edits in changes.items():
+                saved = records[kind,ident]
+                values = checked_fields(kind, {field:edits.get(field, saved[field]) for field in FIELDS[kind]})
+                crm_identity.check_save(db,kind,values,ident,{'identity_reviews':body.get('identity_reviews')},saved.get('account_id'))
+                assignments = ','.join(column+'=?' for column in edits)
+                db.execute(f'UPDATE {kind} SET {assignments} WHERE id=?', (*edits.values(),ident))
+            crm_activity.finish_tracking(db,actor)
+            crm_identity.index_changes(db)
+            db.execute("UPDATE revision SET version=version+1 WHERE id=1")
+        return {'conflicts':[]}
+
     @contextmanager
     def writing(self, version, actor=None):
         with self.connection() as db:
@@ -277,17 +331,19 @@ class ContactsStore:
         if found:
             if found['id'] in crm_identity.aliases(db)['accounts']:
                 raise crm_identity.IdentityConflict('This company was merged. Select its current directory entry.')
+            replace_abn = False
             if abn_acn and found["abn_acn"] and abn_acn != found["abn_acn"]:
                 prior = crm_identity.keys('accounts',dict(found))['ABN/ACN']
                 if not prior or prior != crm_identity.keys('accounts',{'abn_acn':abn_acn})['ABN/ACN']:
-                    raise ValidationError("Company already has a different ABN/ACN. Edit its company details first.")
-            if abn_acn and not found["abn_acn"]:
+                    if (identity_review or {}).get('replace_company_abn') != {'id':found['id'], 'expected':found['abn_acn']}:
+                        raise ValidationError("Company already has a different ABN/ACN. Edit its company details first.")
+                    replace_abn = True
+            if abn_acn and (replace_abn or not found["abn_acn"]):
                 crm_identity.check_save(db,'accounts',{'company':found['company'],'billing_address':billing_address or found['billing_address'],
                     'abn_acn':abn_acn},found['id'],identity_review or {})
+                db.execute("UPDATE accounts SET abn_acn=? WHERE id=?", (abn_acn, found["id"]))
             if billing_address and not found["billing_address"]:
                 db.execute("UPDATE accounts SET billing_address=? WHERE id=?", (billing_address, found["id"]))
-            if abn_acn and not found["abn_acn"]:
-                db.execute("UPDATE accounts SET abn_acn=? WHERE id=?", (abn_acn, found["id"]))
             return found["id"]
         ident = str(uuid4())
         db.execute("INSERT INTO accounts(id,company,lookup_key,billing_address,abn_acn) VALUES (?,?,?,?,?)",
@@ -335,12 +391,19 @@ class ContactsStore:
             group = crm_identity.group_ids(crm_identity.aliases(db)['contacts' if contact_id else 'accounts'], value)
             placeholders = ','.join('?' for _ in group)
             where, values = f'WHERE r.{column} IN ({placeholders})', tuple(group)
-        rows = db.execute(f"""SELECT r.lead_id,r.project_no,d.converted_at,d.snapshot,e.actor_id,e.actor_name
+        from .commercial_sources import source_id
+        rows = db.execute(f"""SELECT r.lead_id,r.project_no,r.path,d.converted_at,d.snapshot,e.actor_id,e.actor_name
             FROM converted_leads r LEFT JOIN lead_conversion_details d ON d.lead_id=r.lead_id
             LEFT JOIN crm_events e ON e.lead_id=r.lead_id AND e.event_type='Converted'
             {where} ORDER BY d.converted_at DESC,r.project_no,r.lead_id""", values)
-        return [{key:val for key,val in {**dict(row),'snapshot':json.loads(row['snapshot']) if row['snapshot'] else None}.items()
-                 if val is not None or key not in ('actor_id','actor_name')} for row in rows]
+        history = []
+        for row in rows:
+            item = {key:row[key] for key in row.keys() if key != 'path' and (row[key] is not None or key not in ('actor_id','actor_name'))}
+            if not contact_id and not account_id:
+                item['project_source'] = source_id(row['path'])
+            item['snapshot'] = json.loads(row['snapshot']) if row['snapshot'] else None
+            history.append(item)
+        return history
 
     @staticmethod
     def _checked_links(db, ident, raw, catalog):

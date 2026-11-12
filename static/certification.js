@@ -13,7 +13,7 @@
   const selector = $('certification-document'), saveButton = $('certification-save') || $('certification-save-draft'), generateButton = $('certification-generate');
   const workflow = $('certification-workflow');
   const newButton = $('certification-new');
-  const searchInput = $('certification-search'), backButton = $('certification-back'), resumeButton = $('certification-resume');
+  const backButton = $('certification-back');
   const signatureButton = $('certification-signature-use');
   const statement = "This is to certify that the fire rated materials have been installed according to the manufacturer's specifications to provide the nominated fire resistance level for the items listed in the relevant schedule.\n\nAll materials have been installed at the above location and comply with:";
   // These are the user's exact editable presets, not a determination of compliance.
@@ -34,7 +34,7 @@
   const state = {id:null, version:null, baseline:null, busy:false, mutating:false, pending:null, loaded:false,
     items:[], listRevision:0, companyName:'', opening:null, conflicted:false,
     workspaceId:null, projectId:null, workspaceOpening:null, workspaceEpoch:0, projectBaseline:null,
-    options:emptyOptions(), signatureRevision:0, readingSignature:false, touched:new Set(), editorVisible:false, search:'', draftAvailable:false, restoredDraft:false,
+    options:emptyOptions(), signatureRevision:0, readingSignature:false, touched:new Set(), restoredDraft:false,
     managed:{australian_standards:[], ncc_clauses:[]}, managedByDocument:new Map()};
   const fields = () => Object.fromEntries(fieldNames.map(name => [name, controls[name].value]));
   const options = () => ({...state.options, scopes:[...state.options.scopes]});
@@ -50,12 +50,7 @@
   function message(source, error = false) {
     text($('certification-status'), source);
     $('certification-status').className = error ? 'message error certification-save-status' : 'helper certification-save-status';
-    const listStatus = $('certification-list-status');
-    if (listStatus) {
-      text(listStatus, source);
-      listStatus.className = $('certification-status').className;
-    }
-    window.CeasefireNotifications?.show(!state.editorVisible && listStatus ? listStatus : $('certification-status'));
+    window.CeasefireNotifications?.show($('certification-status'));
   }
   function dirty() {
     return state.conflicted || !equal(fields(),state.baseline.fields) ||
@@ -70,9 +65,6 @@
     selector.disabled = locked || !state.items.length;
     if(newButton)newButton.disabled=locked;
     if(backButton)backButton.disabled=state.busy || state.readingSignature || !!state.pending;
-    if(resumeButton){resumeButton.disabled=locked;resumeButton.hidden=state.editorVisible || !(state.draftAvailable || dirty());}
-    if($('certification-list'))$('certification-list').hidden=state.editorVisible;
-    if($('certification-editor'))$('certification-editor').hidden=!state.editorVisible;
     if(workflow){workflow.value=state.options.workflow_status || 'Draft';workflow.disabled=locked;}
     signatureButton.disabled = locked;
     $('certification-signature-clear').disabled = locked || (!state.options.signature_image && !signerNames.some(name=>controls[name].value));
@@ -112,50 +104,13 @@
     const value=item.fields||item;
     return [item.reference,value.project,value.client,value.address].filter(Boolean).join(' · ') || 'Certificate '+item.id.slice(0,8);
   }
-  function showEditor(visible,focus=true) {
-    state.editorVisible=visible;updateControls();
-    if(focus)(visible?$('certification-editor-heading'):searchInput)?.focus();
-  }
   function renderDocuments() {
     const saved=state.items.map(item=>{const option=node('option',label(item));option.value=item.id;return option;});
     selector.replaceChildren(...saved);selector.value=state.id||'';
-    const board=$('certification-board');
-    if (board && window.ClassifireDocumentBoard) window.ClassifireDocumentBoard.render(board,{
-      items:state.items.filter(item=>label(item).toLocaleLowerCase().includes(state.search.trim().toLocaleLowerCase())), stageOf:item=>item.options?.workflow_status || item.workflow_status || 'Draft',
-      locked:()=>!state.loaded || state.busy || !!state.pending || !!state.opening || state.readingSignature || state.restoredDraft || dirty(),
-      move:moveCertificate, onError:error=>message(error.message,true),
-      cardFor:item=>{
-        const card=node('article'), heading=node('h3'), title=node('button',label(item));
-        card.className='project-kanban-card';card.dataset.documentId=item.id; title.className='text-button project-title-button';title.type='button';
-        title.addEventListener('click',()=>{
-          if(state.id===item.id && (dirty() || state.restoredDraft)){showEditor(true);return;}
-          return loadDocument(item.id);
-        });
-        heading.append(title);card.append(heading);
-        const revisions=node('p');text(revisions,'{0} ({1})',[window.CeasefireI18n?.term('Certificate revisions') || 'Certificate revisions',item.revision_count ?? item.revisions?.length ?? 0]);card.append(revisions);
-        return card;
-      }
-    });
-  }
-  async function moveCertificate(item, status) {
-    if (state.busy || state.pending || state.opening || state.readingSignature || state.restoredDraft || dirty()) return;
-    const token=state.workspaceId, route=scoped('/api/certifications/'+encodeURIComponent(item.id),token);
-    state.busy=true;state.mutating=true;updateControls();
-    try {
-      const current=await request(route);
-      if (state.workspaceId!==token) return;
-      if (current.version!==item.version) {await loadList();throw new Error('This certification changed in another window. Reload it before saving again.');}
-      const saved=await post(route,{expected_version:item.version,fields:current.fields,options:{...current.options,workflow_status:status}});
-      if (state.workspaceId!==token) return;
-      if (state.id===saved.id) applyDocument(saved,{preserveManaged:true});
-      else {state.items=state.items.map(row=>row.id===saved.id?saved:row);renderDocuments();}
-      message('Certification details saved.');
-      window.CeasefireProject?.changed?.();
-    } catch(error){message(error.message,true);}
-    finally {state.busy=false;state.mutating=false;updateControls();}
   }
   function renderSignature() {
     const preview=$('certification-signature-preview');
+    $('certification-signature-error').hidden=true;signatureButton.removeAttribute('aria-invalid');
     preview.hidden=!state.options.signature_image;
     if(state.options.signature_image)preview.src=state.options.signature_image;
     else preview.removeAttribute('src');
@@ -233,7 +188,7 @@
     return result;
   }
   function applyDocument(saved, {preserveManaged=false}={}) {
-    state.draftAvailable=false;state.restoredDraft=false;
+    state.restoredDraft=false;
     clearFieldErrors();
     const cached=state.managedByDocument.get(saved.id);
     const known=preserveManaged?state.managed:cached?.version===saved.version?cached.managed:null;
@@ -283,7 +238,7 @@
     return true;
   }
   function freshFields() {
-    state.draftAvailable=false;state.restoredDraft=false;
+    state.restoredDraft=false;
     clearFieldErrors();
     for(const name of fieldNames)controls[name].value='';
     Object.entries(inheritedFields()).forEach(([name,value])=>{controls[name].value=value;});
@@ -297,10 +252,10 @@
     if(state.busy||state.pending||state.opening||state.readingSignature){selector.value=state.id||'';return;}
     state.busy=true;updateControls();
     try{
-      if(!id){freshFields();state.draftAvailable=true;showEditor(true);return;}
-      message('Loading certification…');applyDocument(await request(scoped('/api/certifications/'+encodeURIComponent(id))));showEditor(true);message('Saved certification details');
+      if(!id){freshFields();return;}
+      message('Loading certification…');applyDocument(await request(scoped('/api/certifications/'+encodeURIComponent(id))));message('Saved certification details');
     }catch(error){selector.value=state.id||'';message(error.message,true);}
-    finally{state.busy=false;updateControls();if(!id && state.editorVisible)controls.client.focus?.();}
+    finally{state.busy=false;updateControls();if(!id)controls.client.focus?.();}
   }
   async function loadList() {
     const revision=++state.listRevision,data=await request(scoped('/api/certifications'));
@@ -359,7 +314,6 @@
     if(state.busy||state.pending||state.opening)throw new Error('Finish the current certificate operation before changing projects.');
     workspaceIdentity(prepared);
     ++state.listRevision;++state.workspaceEpoch;state.workspaceId=prepared.workspace_id;state.projectId=prepared.project_id;
-    state.editorVisible=false;state.search='';if(searchInput)searchInput.value='';
     state.items=prepared.items||[];state.id=state.version=null;state.conflicted=false;state.pending=null;state.managedByDocument.clear();state.loaded=true;
     freshFields();
     if(prepared.draft){
@@ -370,7 +324,6 @@
         state.options=normalizeOptions(draft.options);state.signatureRevision++;state.touched=new Set(fieldNames);
         renderSignature();renderScopes();renderRevisions([]);state.baseline=snapshot();
       }
-      state.draftAvailable=true;
       state.restoredDraft=true;
       if(draft.id){
         const captured={...normalizeOptions(draft.options),workflow_status:draft.options?.workflow_status || 'Draft'};
@@ -457,9 +410,9 @@
   generateButton.addEventListener('click',event=>{if(!(event.detail>1))return perform('generate');});
   selector.addEventListener('change',()=>{if(selector.value)return loadDocument(selector.value);});
   newButton?.addEventListener('click',()=>loadDocument(null));
-  backButton?.addEventListener('click',()=>{if(!state.busy&&!state.readingSignature&&!state.pending)showEditor(false);});
-  resumeButton?.addEventListener('click',()=>{if(!resumeButton.disabled)showEditor(true);});
-  searchInput?.addEventListener('input',()=>{state.search=searchInput.value;renderDocuments();});
+  backButton?.addEventListener('click',()=>{
+    if(!backButton.disabled)document.querySelector('#document-pages [data-document-section="documentation"]')?.click();
+  });
   window.addEventListener('ceasefire:company-settings-saved',event=>{if(typeof event.detail?.name==='string')companyText(event.detail.name);});
   window.addEventListener('ceasefire:languagechange',()=>{renderScopes();renderDocuments();});
   window.CeasefireCertification={open,projectWorkspace,completeProjectSnapshot,prepareProject,applyProject,markProjectSaved,discardPreparedSession,
@@ -484,6 +437,9 @@
       if(invalid){control.setAttribute('aria-invalid','true');fieldErrors.get(name)?.removeAttribute('hidden');first ||= control;}
       else{control.removeAttribute('aria-invalid');fieldErrors.get(name)?.setAttribute('hidden','');}
     }
+    const missingSignature=!state.options.signature_image;
+    $('certification-signature-error').hidden=!missingSignature;
+    if(missingSignature){signatureButton.setAttribute('aria-invalid','true');first ||= signatureButton;}
     if(!first)return true;
     for(let section=first.parentElement;section;section=section.parentElement)if(section.tagName==='DETAILS')section.open=true;
     message('Complete all required certificate fields.',true);first.focus();return false;
@@ -492,7 +448,7 @@
     control.required=requiredNames.includes(name);
     if(!control.required)continue;
     const label=control.parentElement?.querySelector('span');
-    if(label){label.id='certification-'+name+'-label';control.setAttribute('aria-labelledby',label.id);}
+    if(label){label.classList.add('certification-required');label.id='certification-'+name+'-label';control.setAttribute('aria-labelledby',label.id);}
     control.setAttribute('aria-required','true');
     const error=node('span');error.className='certification-field-error';error.id='certification-'+name+'-error';error.hidden=true;text(error,'This field is required.');
     control.setAttribute('aria-describedby',error.id);control.parentElement?.append(error);fieldErrors.set(name,error);

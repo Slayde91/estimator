@@ -1,5 +1,6 @@
 """Immutable project export history never guesses ownership from filenames."""
 import base64
+from test_pdf_download_covers import signed_options
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from copy import deepcopy
@@ -292,7 +293,7 @@ class ProjectDocumentationTests(unittest.TestCase):
         finally:
             library.close()
         service = self.certificates.service(self.workspace)
-        document = service.create(fields(project='Current project'))
+        document = service.create(fields(project='Current project'), options=signed_options())
         generated = service.generate(document['id'], document['fields'], 1, str(uuid.uuid4()), self.store.company_settings())
         frozen = service.revision_pdf(document['id'], 1)
         view = self.docs.view(self.workspace)

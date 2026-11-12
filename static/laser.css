@@ -116,17 +116,6 @@
     color: #fff;
     border-color: #ff6377;
   }
-  /* Match the composer's existing ID rule so its white surface cannot hide the light icon. */
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) #penetration-add-to-schedule {
-    background: #20252d;
-    color: var(--ink);
-    border-color: #d04659;
-  }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) #penetration-add-to-schedule:hover:not(:disabled) {
-    background: #303846;
-    color: #fff;
-    border-color: #ff6377;
-  }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) #penetration-settings[aria-pressed=true],
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .secondary:is([aria-pressed=true], [aria-expanded=true]):not(.penetration-settings-table *, .takeoff-control-menu *) {
     background: #3f1d29;

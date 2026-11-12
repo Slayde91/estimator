@@ -181,13 +181,7 @@ const ready = new Promise((resolve, reject) => {
   await root.getByRole('button',{name:'Leads',exact:true}).click();
   const convertedCard=root.locator('[data-status="Converted"] article').filter({hasText:'Robin Sample'});
   await expect(convertedCard).toContainText(receipt.project_no);
-  await expect(convertedCard.getByRole('button')).toHaveCount(0);
-  const freshPage=await browser.newPage();
-  await freshPage.goto('http://127.0.0.1:'+port+'/');
-  await freshPage.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready);
-  await freshPage.locator('#contacts-navigation-toggle').click();
-  await expect(freshPage.locator('[data-status="Converted"] article')).toContainText(receipt.project_no);
-  await freshPage.close();
+  await expect(convertedCard.getByRole('button',{name:new RegExp(receipt.project_no)})).toBeVisible();
   await root.getByRole('searchbox',{name:'Search leads'}).fill(receipt.project_no);
   await expect(convertedCard).toBeVisible();
   await root.getByRole('searchbox',{name:'Search leads'}).fill('');
@@ -213,6 +207,26 @@ const ready = new Promise((resolve, reject) => {
   await expect(page.locator('#measurements')).toHaveValue('Keep these unsaved project notes');
   await expect(page.locator('#project-no')).toHaveValue(receipt.project_no);
   await require('./crm_identity_checks.cjs').checkIdentity(page,port);
+  const freshPage=await browser.newPage();
+  await freshPage.goto('http://127.0.0.1:'+port+'/');
+  await freshPage.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready);
+  await freshPage.locator('#contacts-navigation-toggle').click();
+  const convertedProject = freshPage.locator('[data-status="Converted"] article').getByRole('button',{name:new RegExp(receipt.project_no)});
+  await convertedProject.click();
+  await expect(freshPage.locator('#project-pane-number')).toHaveValue(receipt.project_no);
+  await expect(freshPage.locator('#project-pane-contact-name')).toHaveValue('Robin Sample');
+  await freshPage.locator('#project-pane-contact-phone').fill('0401 111 222');
+  await freshPage.locator('#save-current-project').click();
+  const directoryPhone = async()=>(await (await freshPage.request.get('http://127.0.0.1:'+port+'/api/contacts/directory')).json())
+    .contacts.find(contact=>contact.name==='Robin Sample').phone;
+  await expect.poll(directoryPhone,{timeout:30000}).toBe('0401 111 222');
+  await freshPage.locator('#project-pane-contact-phone').fill('0402 333 444');
+  await freshPage.locator('#save-current-project').click();
+  const directoryReview = freshPage.getByRole('dialog',{name:'Update Phone for Robin Sample?'});
+  await expect(directoryReview).toContainText('0402 333 444',{timeout:30000});
+  await directoryReview.getByRole('button',{name:'Overwrite',exact:true}).click();
+  await expect.poll(directoryPhone,{timeout:30000}).toBe('0402 333 444');
+  await freshPage.close();
   assert.deepEqual(errors, []);
   console.log('Contacts browser acceptance passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; })

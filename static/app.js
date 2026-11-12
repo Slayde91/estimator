@@ -2392,6 +2392,7 @@
       if (commercial) payload.commercial_documents = commercial;
       Object.assign(payload, estimateCollectionWith(payload));
       if (!saveAs) payload.save_token = target.save_token;
+      const directoryEdits = window.CeasefireProjectPane?.currentDirectoryEdits(payload.estimate) || [];
       const captured = projectStamp();
       if (saveAs) {
         if (!window.CeasefireProjectDetails?.prepareSave) throw new Error("Refresh the application before saving a new project.");
@@ -2453,7 +2454,11 @@
         } else updateDirty();
       }
       if (!automatic) await window.CeasefireCoverSheets?.saveAll?.();
+      let directoryWarning = "";
+      try { await window.CeasefireProjectPane?.syncDirectory(saved.file,directoryEdits); }
+      catch (error) { directoryWarning = uiCopy("Project saved. Directory details still need syncing. {0}", [error.message]); }
       const saveWarnings = [
+        directoryWarning,
         pricing?.conflict ? window.CeasefireI18n.translate("The other pricing draft is still available and was not included.") : "",
         changed ? window.CeasefireI18n.translate("Later edits are not included and still need saving.") : "",
         saved.warning || "",
@@ -2551,6 +2556,8 @@
       const project = {...saved.project,certification_workspace_id:operation.certification.workspace_id};
       const adopted = await reviewAndLoadProject(project,saved.file,captured,{confirmedReplacement:true,landingView:"quotes"});
       window.CeasefireProjectDetails.saved(operation.id);
+      try { await window.CeasefireProjectPane?.syncDirectory(saved.file,window.CeasefireProjectPane.directoryEdits(details,{})); }
+      catch (error) { message(uiCopy("Project saved. Directory details still need syncing. {0}", [error.message]),true); }
       if (!adopted) message(uiCopy("The new project was saved. Your current draft was kept; open the saved project from Projects."),true);
       return {saved:true,adopted:!!adopted,file:saved.file};
     } catch (error) {
@@ -3147,15 +3154,19 @@
     return !!target && target.project_context === state.quoteContext &&
       typeof target.project_path === "string" && target.project_path === state.projectFile?.path;
   }
-  async function openConvertedLead(receipt) {
-    if (!receipt || typeof receipt.project_no !== "string" || typeof receipt.path !== "string") throw new Error("The converted project could not be identified. Open it from Projects.");
+  async function openConvertedLead(receipt, button) {
+    if (!receipt || typeof receipt.project_no !== "string" || (!receipt.project_source && typeof receipt.path !== "string")) throw new Error("The converted project could not be identified. Open it from Projects.");
     if (state.projectBusy) throw new Error("The project was saved. Finish the current project action and open it from Projects.");
     // Conversion returns the saved receipt, never a caller-selected file path.
     // Resolve its opaque identity through the normal linked-folder listing.
     for (let attempt = 0; attempt < 100; attempt++) {
       const listing = await request(`/api/projects?search=${encodeURIComponent(receipt.project_no)}`);
-      const file = listing.files?.find(file => file.path === receipt.path && file.project_no === receipt.project_no);
-      if (file) { await openProjectFile(file, node("button"), null, {convertedLead:true}); return; }
+      const file = listing.files?.find(file => file.project_no === receipt.project_no &&
+        (receipt.project_source ? file.source === receipt.project_source : file.path === receipt.path));
+      if (file) {
+        if (button) return openLinkedProject({source:file.source, owner:file.source_project_id || "", project_no:file.project_no}, button);
+        return openProjectFile(file, node("button"), null, {convertedLead:true});
+      }
       if (!listing.scan_pending) break;
       await new Promise(resolve => setTimeout(resolve, 50));
     }

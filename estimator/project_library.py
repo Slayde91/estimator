@@ -258,7 +258,7 @@ def _metadata(path, info, project, folder, payload):
     inside = folder is not None and path.is_relative_to(folder)
     relative = path.relative_to(folder).as_posix() if inside else path.name
     return {"id": _file_id(folder, relative) if inside else None, "name": path.name,
-            "path": str(path), "relative_path": relative,
+            "path": str(path), "source": source_id(path), "relative_path": relative,
             "relative_folder": str(Path(relative).parent).replace("\\", "/") if inside else "",
             "title": estimate["title"], "project_no": estimate.get("project_no", ""),
             "client": estimate.get("client", ""), "site_address": estimate.get("site_address", ""),
@@ -880,7 +880,7 @@ class ProjectLibrary:
         from .scheduler_orders import resolve
         return resolve(self, identity, revision)
 
-    def participant_project(self, selector):
+    def participant_project(self, selector, *, directory_only=False):
         """Resolve an authorized saved file locally; a path is never a request parameter."""
         if not isinstance(selector, str) or len(selector) > 200:
             raise ValidationError('Choose a saved project.')
@@ -890,23 +890,31 @@ class ProjectLibrary:
                 if not selection:
                     raise ValidationError('Reopen the saved project.')
                 path = _project_save_path(selection)
-                if file_fingerprint(path) != selection.fingerprint:
+                try:
+                    path.lstat()
+                except FileNotFoundError as error:
+                    raise ProjectDetailsConflict('The project changed. Reopen its details before changing participants.') from error
+                payload, info = _read_file(path)
+                if _fingerprint(payload, info) != selection.fingerprint:
                     raise ProjectDetailsConflict('The project changed. Reopen its details before changing participants.')
             else:
                 _, path = self._project_path(selector)
-            payload, _ = _read_file(path)
+                payload, _ = _read_file(path)
             summary = project_summary(payload, edition=self.edition)
             details = summary['estimate']
             owner = summary.get('source_project_id') or ''
             if owner and owner in self._commercial_sources.ignored_owners():
                 raise ValidationError('The selected project is unavailable.')
+            revision = hashlib.sha256(payload).hexdigest()
+            if directory_only:
+                return {'revision':revision, 'directory_details':details}
             # Save As copies have independent ownership, even with the same
             # portable project and document IDs.
             from .project_relationships import project_link_id, project_parties
             source = source_id(str(path))
             return {'source':source, 'owner':owner, 'project_no':details.get('project_no',''),
                     'client':details.get('client',''), 'site_address':details.get('site_address',''),
-                    'revision':hashlib.sha256(payload).hexdigest(), 'account_link_id':project_link_id(source),
+                    'revision':revision, 'account_link_id':project_link_id(source),
                     'linked_parties':project_parties(json.loads(payload.decode('utf-8-sig')), details, owner)}
 
     def participant_sites(self):

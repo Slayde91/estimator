@@ -44,7 +44,7 @@ module.exports = async function signatureProfiles(page, edition) {
   assert.deepEqual(await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.fields.manager_signature),personal);
   await managerControls.getByRole('button',{name:'Replace signature',exact:true}).click();
   await page.getByRole('dialog').getByRole('button',{name:'Cancel'}).click();
-  await swms.getByRole('button',{name:'Save',exact:true}).click();
+  await swms.getByRole('button',{name:'Save',exact:true}).last().click();
   await expect(swms.locator('.swms-message')).toContainText('Saved.');
 
   await openProjectSection(page,'certification');

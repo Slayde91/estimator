@@ -68,6 +68,39 @@ class PurchaseOrderSignatureDeliveryTests(unittest.TestCase):
         self.assertEqual(self.store.read_pdf(restored_workspace, issued['id'])[1], issued['pdf'])
         self.assertEqual(self.store.issue(self.workspace, purchase['id'], issued_version, operation)['pdf'], issued['pdf'])
 
+    def test_rewind_purchase_sections_on_approved_and_rejected_orders(self):
+        for decision in ('Approved', 'Rejected'):
+            with self.subTest(decision=decision):
+                fields = default_fields('purchase_order')
+                fields['order'].update(approval=decision, rejection_reason='Review notes',
+                                       verification='Checked onsite', payment_terms='30 days')
+                fields['signatures'] = {}
+                for key, date_key in SIGNERS.items():
+                    fields['signatures'][key] = deepcopy(INK)
+                    fields['order'].update({key: 'Purchasing', date_key: '2026-11-12'})
+                    if key == 'reviewed_by' and decision == 'Rejected':
+                        break
+                document = self.store.save(self.workspace, {'kind': 'purchase_order', 'fields': fields,
+                    'status': 'Completed' if decision == 'Approved' else 'Cancelled'})
+                def clear(previous, key):
+                    return self.store.save(self.workspace, {**self.payload(previous),
+                        'signature_actions': [{'key': key, 'clear': True}]})
+                if decision == 'Rejected':
+                    document = clear(document, 'verified_by')
+                    self.assertEqual(document['status'], 'Cancelled')
+                    self.assertEqual(document['fields']['order']['approval'], 'Rejected')
+                saved = clear(document, 'reviewed_by')
+                self.assertEqual(saved['status'], 'Requested')
+                self.assertEqual(set(saved['fields']['signatures']), {'requested_by'})
+                for name in ('approval', 'rejection_reason', 'verification', 'reviewed_by', 'review_date',
+                             'sent_by', 'sent_date', 'verified_by', 'verified_date'):
+                    self.assertEqual(saved['fields']['order'][name], '')
+                self.assertEqual(saved['fields']['order']['requested_by'], 'Purchasing')
+                self.assertEqual(saved['fields']['order']['payment_terms'], '30 days')
+                self.assertEqual(clear(saved, 'requested_by')['status'], 'Draft')
+                with self.assertRaises(CommercialConflict):
+                    clear(document, 'requested_by')
+
     def test_ordered_signatures_save_one_stage_at_a_time_and_rejection_cancels(self):
         from estimator.commercial_documents import commercial_cards, validate_commercial_documents
         for decision in ('Approved', 'Rejected'):

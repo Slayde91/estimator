@@ -1,5 +1,6 @@
 """Certificate options and signer defaults preserve old source snapshots/retries."""
 import base64
+from test_pdf_download_covers import signed_options
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from hashlib import sha256
@@ -83,7 +84,7 @@ class CertificationOptionsTests(unittest.TestCase):
         self.assertEqual(saved['version'], 3)
 
     def test_global_specific_cover_follows_main_and_frozen_options_keep_legacy_data(self):
-        first_options = options('FIRST LOCAL', ['structural_steel_columns'])
+        first_options = signed_options(**options('FIRST LOCAL', ['structural_steel_columns']))
         chosen = options('SETTINGS COVER')
         self.service.covers.save('certification', chosen['cover_pdf'], chosen['cover_pdf_name'], 1)
         document = self.service.create(fields(project='Original'), options=first_options)
@@ -100,7 +101,7 @@ class CertificationOptionsTests(unittest.TestCase):
         self.assertEqual(json.loads(frozen_company)['cover_pdf'], self.company['cover_pdf'])
         # Clearing Settings is authoritative; legacy document covers stay data.
         self.service.covers.save('certification', None, '', 2)
-        next_options = options(scopes=['ductwork'])
+        next_options = signed_options(scopes=['ductwork'])
         self.company.update(cover_pdf=options('NEW GLOBAL')['cover_pdf'], cover_pdf_name='New global.pdf')
         second = self.service.generate(document['id'], generated['document']['fields'], 2,
             str(uuid.uuid4()), self.company, options=next_options)
@@ -123,7 +124,7 @@ class CertificationOptionsTests(unittest.TestCase):
 
     def test_parallel_generation_replay_freezes_one_options_snapshot(self):
         document = self.service.create(fields(project='Parallel')); gate = Barrier(2)
-        selected = options('PARALLEL COVER', ['service_penetrations'])
+        selected = signed_options(**options('PARALLEL COVER', ['service_penetrations']))
         self.service.covers.save('certification', selected['cover_pdf'], selected['cover_pdf_name'], 1)
         def render(*args, **kwargs):
             gate.wait(timeout=10); return pdf('PARALLEL BODY')
@@ -142,7 +143,7 @@ class CertificationOptionsTests(unittest.TestCase):
                          ['GLOBAL\n', 'PARALLEL COVER\n', 'PARALLEL BODY\n'])
 
     def test_options_change_during_render_cannot_be_overwritten_or_publish_a_revision(self):
-        document = self.service.create(fields(project='Race'), options=options(scopes=['ductwork']))
+        document = self.service.create(fields(project='Race'), options=signed_options(scopes=['ductwork']))
         newer = options(scopes=['service_penetrations'])
         def render(*args, **kwargs):
             self.service.save(document['id'], document['fields'], 1, options=newer)
@@ -157,7 +158,7 @@ class CertificationOptionsTests(unittest.TestCase):
         self.assertEqual(after['revisions'], [])
 
     def test_signer_defaults_persist_with_cas_but_never_rewrite_documents_or_revisions(self):
-        document = self.service.create(fields(name='Document signer'))
+        document = self.service.create(fields(name='Document signer'), options=signed_options())
         self.service.generate(document['id'], document['fields'], 1, str(uuid.uuid4()), self.company)
         before = self.service.get(document['id']); frozen = self.service.revision_pdf(document['id'], 1)
         initial = self.service.get_defaults()

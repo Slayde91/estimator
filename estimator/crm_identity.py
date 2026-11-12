@@ -3,6 +3,7 @@
 import hashlib
 import json
 import re
+from itertools import chain
 from uuid import UUID
 
 from .catalog import ValidationError
@@ -93,18 +94,35 @@ def group_ids(mapping, ident):
     return {root, *(source for source, survivor in mapping.items() if survivor == root)}
 
 
-def record(db, kind, ident):
+def record(db, kind, ident, *, optional=False):
     if not isinstance(kind, str) or kind not in KINDS or not isinstance(ident, str):
         raise ValidationError('Choose an existing directory record.')
     query = PERSON + ' WHERE c.id=?' if kind == 'contacts' else COMPANY + ' WHERE id=?'
     result = db.execute(query, (ident,)).fetchone()
     if not result:
+        if optional:
+            return None
         raise ValidationError('Choose an existing directory record.')
     return dict(result)
 
 
 def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
+def company_name_candidates(db, name):
+    """Find whole-name extensions, using the existing normalized-name index in both directions."""
+    words = name.split()
+    generic = {'a','an','the','and','group','services','service','company','australia','australian','pty','ltd'}
+    prefixes = [' '.join(words[:end]) for end in range(1, len(words))
+                if any(len(word) >= 3 and word not in generic for word in words[:end])]
+    if not any(len(word) >= 3 and word not in generic for word in words):
+        return
+    query = "SELECT record_id FROM crm_identity_keys WHERE kind='accounts' AND field='Similar company name' AND "
+    if prefixes:
+        yield from db.execute(query + 'value IN ('+','.join('?' for _ in prefixes)+')', prefixes)
+    # '!' sorts immediately after the space separating the base name from its extra words.
+    yield from db.execute(query + 'value>=? AND value<?', (name+' ',name+'!'))
 
 
 def suggestions(db, kind, data, ident=None, account_id=None):
@@ -117,8 +135,11 @@ def suggestions(db, kind, data, ident=None, account_id=None):
     for field, value in signals.items():
         if not value:
             continue
-        for (candidate,) in db.execute('SELECT record_id FROM crm_identity_keys WHERE kind=? AND field=? AND value=?',
-                                       (kind, field, value)):
+        candidates = db.execute('SELECT record_id FROM crm_identity_keys WHERE kind=? AND field=? AND value=?',
+                                (kind, field, value))
+        if kind == 'accounts' and field == 'Similar company name':
+            candidates = chain(candidates, company_name_candidates(db, value))
+        for (candidate,) in candidates:
             if candidate not in excluded:
                 root = mapping[kind].get(candidate, candidate)
                 found.setdefault(root, {}).setdefault(candidate, set()).add(field)

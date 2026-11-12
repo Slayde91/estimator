@@ -157,6 +157,12 @@ class ContactsHTTP:
                                      {"Content-Disposition": f'attachment; filename="CLASSIFIRE-{kind.title()}-Template.xlsx"'})
             elif handler.command == "POST" and handler.headers.get("Sec-Fetch-Site") == "cross-site":
                 handler.send_payload(403, {"error": "Open Contacts in the CLASSIFIRE web app."})
+            elif handler.command == "POST" and action == 'sync-project-details':
+                body = handler.read_json()
+                if not isinstance(body,dict):
+                    raise ValidationError("Use the fields provided on this form.")
+                project = self.projects.participant_project(body.get('project'),directory_only=True)
+                handler.send_payload(200,self.store.sync_project_details(project,body,actor))
             elif handler.command == "POST" and action.startswith('identity/'):
                 operation = action.split('/', 1)[1]
                 body = handler.read_json()

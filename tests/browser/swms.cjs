@@ -33,6 +33,7 @@ async function run(edition) {
     await clickProjectControl(page,'Save');assert.equal((await firstSave).status(),200);await idle();
     const projectNumber = await page.locator('#project-no').inputValue();
     await openProjectSection(page, 'documentation');
+    await page.getByRole('button',{name:'Other documents',exact:true}).click();
     const documentRow = page.locator('#documentation-pdf-rows tr').filter({hasText:'Safe Work Method Statement'});
     await documentRow.locator('.documentation-download-button').click();
     const host = page.locator('#swms-root'); await expect(host).toBeVisible();
@@ -48,7 +49,7 @@ async function run(edition) {
     const swmsWrites = [];
     page.on('request', request => { if (/\/api\/swms\/(save|issue)$/.test(new URL(request.url()).pathname) && request.method() === 'POST') swmsWrites.push(request.url()); });
     const beforeGate = await page.evaluate(() => window.CeasefireSWMS.projectFingerprint());
-    await host.getByRole('button', {name: 'Download PDF', exact: true}).click();
+    await host.getByRole('button',{name:'Download PDF',exact:true}).first().click();
     await expect(host.locator('.swms-message')).toContainText('Complete required SWMS fields:');
     await expect(host.getByLabel('Contact Person', {exact: true})).toBeFocused();
     assert.equal(await page.evaluate(() => window.CeasefireSWMS.projectFingerprint()), beforeGate, 'Invalid PDF action does not save a draft or allocate a SWMS number.');
@@ -73,7 +74,8 @@ async function run(edition) {
     await expect(host.getByLabel('Template ID',{exact:true})).toHaveCount(0);
     await expect(host.getByLabel('Template Version',{exact:true})).toHaveCount(0);
     await expect(host.locator('summary').filter({hasText:/^Employees Sign-Off/})).toHaveCount(0);
-    await expect(host.getByRole('button',{name:'Back to statements',exact:true})).toHaveClass(/icon-only/);
+    for(const label of ['Back to statements','Save','Download PDF'])await expect(host.getByRole('button',{name:label,exact:true})).toHaveCount(2);
+    await expect(host.getByRole('button',{name:'Back to statements',exact:true}).last()).toHaveClass(/icon-only/);
     await host.locator('summary').filter({hasText:'Risk Matrix and High Risk Work'}).click();
     const falls = 'Risk of falls from greater than 2 metres';
     const electrical = 'Work on or near energised electrical installations or services';
@@ -148,18 +150,18 @@ async function run(edition) {
       };
     });
     await host.getByLabel('Add files',{exact:true}).setInputFiles({name:'pixel.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC','base64')});
-    await expect(host.getByRole('button',{name:'Save',exact:true})).toBeDisabled();
-    await expect(host.getByRole('button',{name:'Download PDF',exact:true})).toBeDisabled();
+    await expect(host.getByRole('button',{name:'Save',exact:true}).first()).toBeDisabled();
+    await expect(host.getByRole('button',{name:'Download PDF',exact:true}).first()).toBeDisabled();
     assert.equal(await page.evaluate(()=>window.CeasefireSWMS.hasPendingOperation()),true);
     assert.equal(await page.evaluate(async()=>{try{await window.CeasefireSWMS.completeProjectSnapshot();return false;}catch{return true;}}),true);
     await page.evaluate(()=>window.releaseSWMSRead());
     await expect(host.getByText('pixel.png',{exact:true})).toBeVisible();
-    await expect(host.getByRole('button',{name:'Save',exact:true})).toBeEnabled();
+    await expect(host.getByRole('button',{name:'Save',exact:true}).first()).toBeEnabled();
     await host.getByLabel('Add files',{exact:true}).setInputFiles({name:'over-budget.pdf',mimeType:'application/pdf',buffer:Buffer.alloc(9.5*1024*1024)});
     await expect(host.locator('.swms-message')).toContainText('12 MiB SWMS storage budget');
     await expect(host.getByText('over-budget.pdf',{exact:true})).toHaveCount(0);
-    await expect(host.getByRole('button',{name:'Save',exact:true})).toBeEnabled();
-    await host.getByRole('button',{name:'Save',exact:true}).click();
+    await expect(host.getByRole('button',{name:'Save',exact:true}).first()).toBeEnabled();
+    await host.getByRole('button',{name:'Save',exact:true}).first().click();
     await expect(host.locator('.swms-message')).toContainText('Saved.');
     const incomplete = await page.evaluate(() => JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor);
     const workspace = await page.evaluate(() => window.CeasefireCertification.sessionId());
@@ -178,7 +180,7 @@ async function run(edition) {
     assert.match(saved.swms.documents[0].fields.high_risk_steps[electrical][0].controls,/Electrical review/);
     await require('./swms_actions.cjs').prepareSwmsForIssue(page);
     const downloadResponse = page.waitForResponse(response=>response.url().endsWith('/api/swms/issue') && response.request().method()==='POST');
-    await host.getByRole('button',{name:'Download PDF',exact:true}).click();
+    await host.getByRole('button',{name:'Download PDF',exact:true}).first().click();
     const response = await downloadResponse, result = await response.json();
     assert.equal(response.status(),200,JSON.stringify(result)); assert.equal(result.saved,true);
     assert.ok(result.path.startsWith(directory)); assert.equal(fs.readFileSync(result.path).subarray(0,5).toString(),'%PDF-');
@@ -190,16 +192,16 @@ async function run(edition) {
     const updatedCompany = await page.request.post(`http://127.0.0.1:${info.port}/api/company-settings`,{data:{...company,name:'UPDATED SWMS COMPANY'}});
     assert.equal(updatedCompany.status(),200,await updatedCompany.text());
     const secondResponse = page.waitForResponse(response=>response.url().endsWith('/api/swms/issue') && response.request().method()==='POST');
-    await host.getByRole('button',{name:'Download PDF',exact:true}).click();
+    await host.getByRole('button',{name:'Download PDF',exact:true}).first().click();
     const second = await secondResponse;
     assert.equal(second.status(),200,await second.text());
     await expect(host.locator('.swms-message')).toContainText('SWMS PDF saved.'); await idle();
     await page.evaluate(()=>{window.originalSWMSDownload=window.CeasefireDownloads.save;window.CeasefireDownloads.save=async()=>({cancelled:true});});
-    await host.getByRole('button',{name:'Download PDF',exact:true}).click();
+    await host.getByRole('button',{name:'Download PDF',exact:true}).first().click();
     await expect(host.locator('.swms-message')).toContainText('PDF download cancelled.');
     assert.ok(await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.pendingIssue));
     await page.evaluate(()=>{window.CeasefireDownloads.save=window.originalSWMSDownload;});
-    await host.getByRole('button',{name:'Back to statements',exact:true}).click();
+    await host.getByRole('button',{name:'Back to statements',exact:true}).last().click();
     await host.locator('.swms-card .project-title-button').click();
     await expect(host.getByRole('img',{name:'Project manager drawn signature'})).toBeVisible();
     await expect(host.locator('.swms-step-table tbody tr')).toHaveCount(46);
@@ -211,7 +213,7 @@ async function run(edition) {
     await page.screenshot({path:path.join(directory,'swms-editor.png'),fullPage:false});
     // Raw user text is rendered through DOM text/value properties, never HTML.
     await host.getByLabel('Project Name',{exact:true}).fill('<img src=x onerror=alert(1)>');
-    await host.getByRole('button',{name:'Save',exact:true}).click(); await expect(host.locator('.swms-message')).toContainText('Saved.');
+    await host.getByRole('button',{name:'Save',exact:true}).first().click(); await expect(host.locator('.swms-message')).toContainText('Saved.');
     const lastSavedTitle = '<img src=x onerror=alert(1)>';
     const title = host.getByLabel('Project Name',{exact:true});
     await title.fill('Unsaved site changes');
@@ -228,7 +230,7 @@ async function run(edition) {
     await expect(host.locator('.swms-card h3')).toContainText(lastSavedTitle);
     await host.locator('.swms-card .project-title-button').click();
     await expect(title).toHaveValue(lastSavedTitle);
-    await host.getByRole('button',{name:'Back to statements',exact:true}).click();
+    await host.getByRole('button',{name:'Back to statements',exact:true}).first().click();
     await expect(host.locator('.swms-card h3')).toContainText(lastSavedTitle);
     assert.equal(await host.locator('img').count(),0);
     // Saved ink is selected only by an explicit click in each document.

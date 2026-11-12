@@ -2,7 +2,7 @@ const {fillProjectDetails}=require('./project_actions.cjs');
 // Real authored exports and portable current-project history on private storage.
 const {chromium,expect}=require('@playwright/test');
 const {openProjectSection,clickProjectControl,createNewProject}=require('./project_actions.cjs');
-const {openCertificateEditor}=require('./certification_generation.cjs');
+const {openCertificateEditor,generateCertificate}=require('./certification_generation.cjs');
 const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),{createHash}=require('node:crypto');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`project-documentation-${Date.now()}`);
@@ -21,7 +21,13 @@ const choose=file=>fs.writeFileSync(path.join(output,'dialog-mode.json'),JSON.st
 async function idle(){await page.waitForFunction(()=>{const state=window.CeasefireDesktop?.status();return state?.ready&&!state.busy;},null,{timeout:180000});}
 async function api(route){const response=await page.request.get(base+route);assert.equal(response.status(),200,await response.text());return response.json();}
 async function documentation(){await openProjectSection(page,'documentation');await expect(page.locator('#documentation-pdf-rows button')).not.toHaveCount(0,{timeout:30000});await idle();}
-async function revisions(kind,count){await documentation();const button=page.locator(`button[data-revisions-kind="${kind}"]`);await expect(button).toHaveText(`View Revisions (${count})`);await button.click();
+async function reveal(kind){
+  const row=page.locator('#documentation-pdf-rows tr[data-document-kind="'+kind+'"]');
+  if(await row.count() && !await row.isVisible()){
+    await row.locator('xpath=preceding-sibling::tr[contains(@class,"documentation-group")][1]').getByRole('button').click();
+  }
+}
+async function revisions(kind,count){await documentation();await reveal(kind);const button=page.locator(`button[data-revisions-kind="${kind}"]`);await expect(button).toHaveText(`View Revisions (${count})`);await button.click();
   await expect(button).toHaveAttribute('aria-expanded','true');await expect(page.locator('#documentation-revisions-pane')).toBeVisible();await expect(page.locator('#documentation-revisions-list a')).toHaveCount(count);}
 async function snapshots(){return page.evaluate(()=>({calculators:window.CeasefireCalculators.projectSnapshot(),penetration:window.CeasefirePenetrations.projectSnapshot(),
   configuration:window.CeasefireProject.configuration(),details:window.CeasefireProject.details()}));}
@@ -48,7 +54,7 @@ async function holdFinalHistory(trigger){
 }
 async function download(kind,endpoint,{reviewPending=false}={}){await documentation();const before=await snapshots(),savedBefore=fs.readFileSync(info.project);
   const waiting=page.waitForResponse(response=>response.request().method()==='POST'&&new URL(response.url()).pathname===endpoint,{timeout:180000});waiting.catch(()=>{});
-  const trigger=()=>page.locator(`button[data-document-kind="${kind}"]`).click();if(reviewPending)await holdFinalHistory(trigger);else await trigger();const response=await waiting;assert.equal(response.status(),200,await response.text());const saved=await response.json();
+  await reveal(kind);const trigger=()=>page.locator(`button[data-document-kind="${kind}"]`).click();if(reviewPending)await holdFinalHistory(trigger);else await trigger();const response=await waiting;assert.equal(response.status(),200,await response.text());const saved=await response.json();
   assert.equal(saved.saved,true);assert.ok(saved.documentation?.item,JSON.stringify(saved));assert.equal(saved.documentation.item.kind,kind);
   const relative=path.relative(output,saved.path);assert.ok(relative&&!relative.startsWith('..')&&!path.isAbsolute(relative),'Generated export stays inside private fixture');
   const bytes=fs.readFileSync(saved.path),item=saved.documentation.item;assert.equal(digest(bytes),item.sha256);
@@ -113,12 +119,12 @@ function checkCompanions(project,folder){
 
   // Certification is an existing validated preparation workflow, not a second
   // renderer or an unreviewed auto-filled compliance statement.
-  await page.locator('button[data-document-kind="certification"]').click();await expect(page.locator('#view-certification')).toBeVisible();await idle();
-  await expect(page.locator('#certification-list')).toBeVisible();await expect(page.locator('#certification-editor')).toBeHidden();
+  await reveal('certification');await page.locator('button[data-document-kind="certification"]').click();await expect(page.locator('#view-certification')).toBeVisible();await idle();
+  await expect(page.locator('#certification-board')).toHaveCount(0);await expect(page.locator('#certification-editor')).toBeVisible();
   await openCertificateEditor(page);
   const required=['client','project','address','location_area','statement_of_compliance','australian_standards','ncc_clauses','approved_design','additional_standards','other_references','exclusions','materials_manufacturers','fire_resistance_level','name','position','qualification','accreditation'];
   for(const field of required)await page.locator('#certification-'+field).fill(field==='client'?'SYNTHETIC DOCUMENTATION QA':'N/A - synthetic browser fixture');
-  await page.locator('#certification-generate').click();await expect(page.locator('#certification-status')).toContainText('Revision 1 saved',{timeout:60000});await idle();
+  await generateCertificate(page,1);await idle();
   const certificateId=await page.locator('#certification-document').inputValue();assert.ok(certificateId);
   await documentation();await revisions('certification',1);const historyA=await api('/api/documentation?workspace='+a);
   assert.equal(historyA.workspace_revision,3);assert.equal(historyA.items.length,4);assert.equal(historyA.items.filter(item=>item.kind==='certification').length,1);

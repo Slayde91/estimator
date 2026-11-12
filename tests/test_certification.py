@@ -1,4 +1,5 @@
 """Durable certification revisions never alter estimates or saved PDF history."""
+from test_pdf_download_covers import signed_options
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from io import BytesIO
@@ -39,7 +40,7 @@ class CertificationTests(unittest.TestCase):
         self.company = {**DEFAULTS, 'name': 'Example Contractor'}
 
     def create(self, **values):
-        return self.service.create(fields(client='Client', project='Project', **values))
+        return self.service.create(fields(client='Client', project='Project', **values), options=signed_options())
 
     def generate(self, document, **values):
         return self.service.generate(document['id'], fields(**{**document['fields'], **values}),
@@ -101,8 +102,8 @@ class CertificationTests(unittest.TestCase):
 
     def test_create_and_generate_replays_are_idempotent_even_after_version_changes(self):
         request = str(uuid.uuid4())
-        document = self.service.create(fields(project='Retry'), request)
-        self.assertEqual(self.service.create(fields(project='Retry'), request), document)
+        document = self.service.create(fields(project='Retry'), request, options=signed_options())
+        self.assertEqual(self.service.create(fields(project='Retry'), request, options=signed_options()), document)
         with self.assertRaises(CertificationConflict): self.service.create({'project':'Different'},request)
         operation = str(uuid.uuid4())
         generated = self.service.generate(document['id'],document['fields'],1,operation,self.company)

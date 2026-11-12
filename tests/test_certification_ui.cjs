@@ -14,7 +14,7 @@ function harness({legacySave=true}={}) {
   let project={}, defaults={fields:Object.fromEntries(['name','position','qualification','accreditation'].map(key=>[key,''])),signature_image:null,signature_name:'',version:1};
   let serial = 0, creates = 0, approve = true, routeOverride = null, loseGeneratedReply = false, loseCreatedReply = false;
   let canvasData=signature;
-  const element = tag => ({tagName:tag,value:'',textContent:'',children:[],listeners:{},disabled:false,attributes:{},dataset:{},files:[],checked:false,open:false,captures:new Set(),width:900,height:270,
+  const element = tag => ({tagName:tag,hidden:false,value:'',textContent:'',children:[],listeners:{},disabled:false,attributes:{},dataset:{},files:[],checked:false,open:false,captures:new Set(),width:900,height:270,
     contains(target){return target===this;},querySelector(){return {focus(){}};},focus(){this.focused=true;},
     append(...items){this.children.push(...items);},replaceChildren(...items){this.children=items;},
     setAttribute(k,v){this.attributes[k]=v;},removeAttribute(k){delete this.attributes[k];delete this[k];},addEventListener(k,fn){(this.listeners[k]||=[]).push(fn);},
@@ -75,7 +75,7 @@ function harness({legacySave=true}={}) {
     addEventListener(k,fn){(events[k]||=[]).push(fn);},CeasefireProject:{details:()=>copy(project),requireCreatedProject:()=>true},
     dispatchEvent(event){for(const fn of events[event.type]||[])fn(event);return true;},
     CeasefireDialogs:{confirm:async()=>approve},CeasefireActivity:{begin:()=>()=>{}}};
-  const context={setTimeout:fn=>{const id=++serial;timers.set(id,fn);return id;},clearTimeout:id=>timers.delete(id),window,document:{getElementById:id=>id==='certification-save'&&!legacySave?null:byId(id),createElement:element},fetch,console,Date,JSON,Object,Array,Number,Error,encodeURIComponent,CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}}};
+  const context={setTimeout:fn=>{const id=++serial;timers.set(id,fn);return id;},clearTimeout:id=>timers.delete(id),window,document:{querySelector:()=>({click:()=>byId('documentation-tab').visited=true}),getElementById:id=>id==='certification-save'&&!legacySave?null:byId(id),createElement:element},fetch,console,Date,JSON,Object,Array,Number,Error,encodeURIComponent,CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}}};
   vm.createContext(context);vm.runInContext(fs.readFileSync('static/certification.js','utf8'),context);
   const api=window.CeasefireCertification;
   const fillRequired=()=>fieldNames.forEach(key=>{const field=byId('certification-'+key);if(!field.value.trim()){field.value='Required fixture '+key;void field.emit('input');}});
@@ -84,7 +84,7 @@ function harness({legacySave=true}={}) {
     autoSave:async()=>{for(const [id,fn]of timers){timers.delete(id);fn();}await flush();},
     scope:async(ids)=>{for(const id of ['structural_steel','structural_steel_columns','ductwork','service_penetrations'])byId('certification-scope-'+id).checked=ids.includes(id);await byId('certification-scope-'+(ids[0]||'structural_steel')).emit('change');},
     saveSignature:()=>byId('certification-signature-use').emit('click'),
-    generate:()=>{fillRequired();return byId('certification-generate').emit('click');},save:()=>{fillRequired();return byId('certification-save').emit('click');},
+    generate:async()=>{fillRequired();if(byId('certification-signature-preview').hidden)await byId('certification-signature-use').emit('click');return byId('certification-generate').emit('click');},save:()=>{fillRequired();return byId('certification-save').emit('click');},
     select:async id=>{if(!id)return byId('certification-new').emit('click');byId('certification-document').value=id;await byId('certification-document').emit('change');},
     approve:value=>{approve=value;},override:fn=>{routeOverride=fn;},loseNextGeneratedReply:()=>{loseGeneratedReply=true;},loseNextCreatedReply:()=>{loseCreatedReply=true;},serverError,response};
 }
@@ -196,7 +196,7 @@ async function check(name,fn,{open=true,legacySave=true}={}){const h=harness({le
     assert.equal(h.api.hasPendingOperation(),false);assert.match(h.byId('certification-status').textContent,/Revision 1 saved/);
   });
   await check('Second click in a browser double-click does not create a second fast revision',async h=>{
-    h.field('project','Fast document');h.fillRequired();await h.byId('certification-generate').emit('click',{detail:1});
+    h.field('project','Fast document');h.fillRequired();await h.saveSignature();await h.byId('certification-generate').emit('click',{detail:1});
     await h.byId('certification-generate').emit('click',{detail:2});
     assert.equal([...h.documents.values()][0].revisions.length,1);
     await h.byId('certification-generate').emit('click',{detail:1});assert.equal([...h.documents.values()][0].revisions.length,2);
@@ -437,7 +437,7 @@ async function check(name,fn,{open=true,legacySave=true}={}){const h=harness({le
     assert.equal(h.byId('certification-scopes-summary').textContent,'Structural steel, Service penetrations');
     await h.scope([]);assert.equal(h.byId('certification-scopes-summary').textContent,'Choose…');
   });
-  await check('Only first-section details and signer name/position are required at generation; incomplete drafts save',async h=>{
+  await check('First-section details and signer name, position and signature are required at generation; incomplete drafts save',async h=>{
     for(const key of fieldNames)assert.equal(h.byId('certification-'+key).required,requiredNames.includes(key),key);
     await h.byId('certification-save').emit('click');assert.equal(h.documents.size,1);
     h.fillRequired();h.field('materials_manufacturers',' \n\t');
@@ -445,7 +445,7 @@ async function check(name,fn,{open=true,legacySave=true}={}){const h=harness({le
     assert.match(h.byId('certification-materials_manufacturers').validationMessage,/This field is required/);
     h.field('materials_manufacturers','Explicit manufacturer');await h.byId('certification-save').emit('click');
     assert.equal(h.documents.size,1);assert.equal([...h.documents.values()][0].revisions.length,0);
-    h.field('qualification','');h.field('accreditation','');await h.byId('certification-generate').emit('click');
+    h.field('qualification','');h.field('accreditation','');await h.saveSignature();await h.byId('certification-generate').emit('click');
     assert.equal([...h.documents.values()][0].revisions.length,1);
   });
   await check('Every required certificate field blocks generation when whitespace-only',async h=>{
@@ -522,51 +522,27 @@ async function check(name,fn,{open=true,legacySave=true}={}){const h=harness({le
     assert.notEqual(h.api.sessionId(),identity.workspace_id);await h.api.open();
     assert.equal(h.calls.filter(call=>call.path==='/api/certifications/workspaces').length,1);
   },{open:false});
-  await check('Certification starts on its board, creates an editor only explicitly and preserves a draft on Back and Resume',async h=>{
-    assert.equal(h.byId('certification-list').hidden,false);assert.equal(h.byId('certification-editor').hidden,true);
-    const before=h.calls.filter(call=>call.path==='/api/certifications'&&call.body).length;
-    await h.select('');assert.equal(h.byId('certification-editor').hidden,false);assert.equal(h.byId('certification-list').hidden,true);
-    h.field('location_area','Uncommitted editor draft');const stamp=h.api.projectFingerprint();
-    await h.byId('certification-back').emit('click');assert.equal(h.byId('certification-list').hidden,false);
-    assert.equal(h.byId('certification-resume').hidden,false);assert.equal(h.api.projectFingerprint(),stamp);
-    await h.byId('certification-resume').emit('click');assert.equal(h.byId('certification-editor').hidden,false);
-    assert.equal(h.byId('certification-location_area').value,'Uncommitted editor draft');
-    assert.equal(h.calls.filter(call=>call.path==='/api/certifications'&&call.body).length,before);
+  await check('Certification opens on the form and generation requires the signer artwork',async h=>{
+    h.fillRequired();await h.byId('certification-generate').emit('click');
+    assert.equal(h.byId('certification-signature-use').attributes['aria-invalid'],'true');
+    assert.equal(h.documents.size,0);await h.save();assert.equal(h.documents.size,1);
+    await h.byId('certification-back').emit('click');assert.equal(h.byId('documentation-tab').visited,true);
   });
-  await check('Back cannot hide an uncertain committed save or a signature choice',async h=>{
-    await h.select('');h.loseNextCreatedReply();await h.save();
-    assert.equal(h.byId('certification-back').disabled,true);await h.byId('certification-back').emit('click');assert.equal(h.byId('certification-editor').hidden,false);
-    await h.save();const choosing=deferred();h.window.ClassifirePersonalSignature.choose=()=>choosing.promise;
-    const signing=h.saveSignature();await flush();await h.byId('certification-back').emit('click');assert.equal(h.byId('certification-editor').hidden,false);
-    choosing.resolve(null);await signing;await h.byId('certification-back').emit('click');assert.equal(h.byId('certification-list').hidden,false);
+  await check('An uncertain save blocks Back until recovered',async h=>{
+    h.loseNextCreatedReply();await h.save();await h.byId('certification-back').emit('click');
+    assert.equal(h.byId('documentation-tab').visited,undefined);await h.save();
+    await h.byId('certification-back').emit('click');assert.equal(h.byId('documentation-tab').visited,true);
   });
-  await check('A portable project draft is resumable from the board and cannot be silently replaced by Create',async h=>{
-    const prepared=await h.api.prepareProject();prepared.draft={id:null,version:null,fields:{...blank(),client:'Portable client',location_area:'Portable unsaved certificate area'},options:{cover_pdf:null,cover_pdf_name:'',scopes:[]}};
-    h.api.applyProject(prepared);assert.equal(h.byId('certification-editor').hidden,true);assert.equal(h.byId('certification-resume').hidden,false);
-    h.approve(false);await h.select('');assert.equal(h.byId('certification-location_area').value,'Portable unsaved certificate area');assert.equal(h.byId('certification-editor').hidden,true);
-    await h.byId('certification-resume').emit('click');assert.equal(h.byId('certification-editor').hidden,false);assert.equal(h.byId('certification-client').value,'Portable client');
+  await check('The form opens a portable draft and Create requires consent to discard it',async h=>{
+    const prepared=await h.api.prepareProject();prepared.draft={id:null,version:null,fields:{...blank(),client:'Portable client',location_area:'Portable unsaved area'},options:{cover_pdf:null,cover_pdf_name:'',scopes:[]}};
+    h.api.applyProject(prepared);assert.equal(h.byId('certification-location_area').value,'Portable unsaved area');
+    h.approve(false);await h.select('');assert.equal(h.byId('certification-client').value,'Portable client');
   });
-  await check('Identical portable certificate fields with a different JSON key order do not lock board status changes',async h=>{
+  await check('Restoring identical fields with a different JSON key order keeps the form clean',async h=>{
     await h.save();const current=copy([...h.documents.values()][0]),prepared=await h.api.prepareProject();
     prepared.items=[current];prepared.current=current;prepared.draft={id:current.id,version:current.version,
       fields:Object.fromEntries(Object.entries(current.fields).reverse()),options:copy(current.options)};
-    let board;h.window.ClassifireDocumentBoard={render:(_host,options)=>{board=options;}};h.api.applyProject(prepared);
-    assert.equal(h.api.hasUnsavedChanges(),false);assert.equal(board.locked(),false);
-  });
-  await check('Search filters board metadata across all stages without changing the stored documents',async h=>{
-    let board;h.window.ClassifireDocumentBoard={render:(_host,options)=>{board=options;}};
-    for(const [index,status]of ['Draft','Review','Approved','Rejected'].entries()){
-      const doc={id:'search-'+index,version:1,reference:'CERT-'+index,fields:{...blank(),client:status+' client',project:'PN-'+index,address:'Site '+index},options:{cover_pdf:null,cover_pdf_name:'',scopes:[],workflow_status:status},revisions:[]};
-      h.documents.set(doc.id,doc);
-    }
-    await h.api.open();assert.equal(board.items.length,4);const before=copy([...h.documents.values()]);
-    for(const term of ['CERT-2','Approved client','PN-2','Site 2']){
-      h.byId('certification-search').value=term;await h.byId('certification-search').emit('input');
-      assert.equal(board.items.length,1);assert.equal(board.items[0].id,'search-2');assert.equal(board.stageOf(board.items[0]),'Approved');
-    }
-    h.byId('certification-search').value='No matching certificate';await h.byId('certification-search').emit('input');assert.equal(board.items.length,0);
-    h.byId('certification-search').value='';await h.byId('certification-search').emit('input');assert.equal(board.items.length,4);
-    assert.deepEqual(copy([...h.documents.values()]),before);assert.equal(h.byId('certification-editor').hidden,true);
+    h.api.applyProject(prepared);assert.equal(h.api.hasUnsavedChanges(),false);
   });
   await check('Concurrent capability requests share creation and reject malformed scope replies before adoption',async h=>{
     const held=deferred();h.override(path=>path==='/api/certifications/workspaces'?held.promise:undefined);
@@ -597,16 +573,6 @@ async function check(name,fn,{open=true,legacySave=true}={}){const h=harness({le
     assert.equal(h.api.hasPendingOperation(),false);assert.equal(h.api.hasPendingNavigationOperation(),false);
     assert.equal(h.documents.size,0);assert.equal(h.api.hasUnsavedChanges(),false);
   },{open:false});
-  await check('A certificate board status write remains navigation-blocking even before its save request starts',async h=>{
-    await h.save();let board;
-    h.window.ClassifireDocumentBoard={render:(_element,options)=>{board=options;}};
-    await h.api.open();const document=[...h.documents.values()][0],held=deferred();
-    h.override((path,body)=>path==='/api/certifications/'+document.id&&!body?held.promise:undefined);
-    const moving=board.move(document,'Review');await flush();
-    assert.equal(h.api.hasPendingNavigationOperation(),true);
-    held.resolve(h.serverError(400,'Fixture stopped'));await moving;
-    assert.equal(h.api.hasPendingNavigationOperation(),false);assert.equal(document.options.workflow_status,undefined);
-  });
   await check('An older pending workspace response cannot replace an adopted project scope',async h=>{
     const held=deferred();let first=true;h.override(path=>{if(path==='/api/certifications/workspaces'&&first){first=false;return held.promise;}});
     const pending=h.api.projectWorkspace();await flush();const newer=await h.api.prepareProject();h.api.applyProject(newer);
@@ -634,14 +600,14 @@ async function check(name,fn,{open=true,legacySave=true}={}){const h=harness({le
     ['quotes','quote','work-orders','purchase-orders']);
   for(const key of fieldNames)assert.ok(html.includes('id="certification-'+key+'"'));
   assert.ok(html.includes('id="certification-new"'));assert.ok(!html.includes('id="certification-reload"'));
-  assert.ok(!html.includes('id="certification-save"'),'Generate Certificate is the only certificate save action in the current page');
+  assert.ok(html.includes('id="certification-save-draft"'));assert.ok(!html.includes('id="certification-board"'));
   assert.ok(!html.includes('id="certification-legacy-open"'));assert.ok(!html.includes('id="certification-legacy-dialog"'));
   assert.ok(html.includes('<details id="certification-scopes"'));assert.ok(!html.includes('id="certification-cover-pdf"'));
   assert.ok(!html.includes('id="certification-signature-image"'));assert.ok(!html.includes('id="certification-signature-canvas"'));assert.ok(html.includes('id="certification-signature-use"'));assert.ok(!html.includes('id="certification-signer-delete"'));assert.ok(html.includes('id="cover-sheets-settings"'));
   for(const key of ['approved_design','additional_standards','other_references','exclusions','materials_manufacturers','fire_resistance_level','name','position','qualification','accreditation'])assert.match(html,new RegExp('id="certification-'+key+'" name="'+key+'" rows="1"'));
   for(const key of requiredNames)assert.match(html,new RegExp('<textarea id="certification-'+key+'"[^>]* required>'));
   for(const key of ['qualification','accreditation'])assert.doesNotMatch(html,new RegExp('<textarea id="certification-'+key+'"[^>]* required>'));
-  const form=html.slice(html.indexOf('<form id="certification-form">'),html.indexOf('</form>',html.indexOf('<form id="certification-form">')));
-  assert.ok(form.lastIndexOf('<button')===form.indexOf('<button id="certification-generate"'));
+  const actions=html.slice(html.indexOf('id="certification-back"'),html.indexOf('<form id="certification-form">'));
+  assert.ok(actions.indexOf('id="certification-save-draft"')>=0);assert.ok(actions.indexOf('id="certification-generate"')>actions.indexOf('id="certification-save-draft"'));
   console.log(passed+' Certification UI regression checks passed.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

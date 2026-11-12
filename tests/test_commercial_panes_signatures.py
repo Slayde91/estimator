@@ -110,6 +110,83 @@ class CommercialPaneSignerTests(unittest.TestCase):
         purchase = default_fields('purchase_order'); purchase.update(notes=fields['notes'], files=fields['files'])
         self.assertEqual(validate_fields(purchase, kind='purchase_order')['notes'], fields['notes'])
 
+    def test_linked_order_inherits_quote_files_on_save_and_issue_and_exclusions_stay_local(self):
+        pdf = BytesIO()
+        canvas = Canvas(pdf)
+        canvas.drawString(25, 50, 'Original supplier drawing')
+        canvas.save()
+        def upload(name, content):
+            return self.store.files.add(self.project, name, base64.b64encode(content).decode())
+        drawing = upload('drawing.pdf', pdf.getvalue())
+        instructions = upload('installer.txt', b'Install instructions for the crew')
+        local = upload('order-only.txt', b'Foreman contact')
+        fields = complete_quote(default_fields('quote'))
+        fields['files'] = [drawing]
+        quote = self.save('quote', fields)
+        quote = self.store.issue(self.workspace, quote['id'], quote['version'], str(uuid4()))['document']
+        fields = complete_work_order(default_fields('work_order'))
+        fields['order']['quote_id'] = quote['id']
+        fields['files'] = [local]
+        work = self.save('work_order', fields)
+        self.assertCountEqual(work['fields']['files'], [local, drawing])
+        self.assertEqual(self.store.read_attachment(self.workspace, work['id'], drawing['id'])[1], pdf.getvalue())
+
+        fields = deepcopy(quote['fields'])
+        fields['files'].append(instructions)
+        quote = self.save('quote', fields, quote)
+        issue_id = str(uuid4())
+        issued = self.store.issue(self.workspace, work['id'], work['version'], issue_id)
+        pdf_reader = PdfReader(BytesIO(issued['pdf']))
+        self.assertIn('Original supplier drawing', '\n'.join(page.extract_text() for page in pdf_reader.pages))
+        self.assertEqual(pdf_reader.attachments['installer.txt'], [b'Install instructions for the crew'])
+        self.assertEqual(pdf_reader.attachments['order-only.txt'], [b'Foreman contact'])
+        self.assertCountEqual(issued['document']['fields']['files'], [drawing, instructions, local])
+
+        fields = deepcopy(issued['document']['fields'])
+        del fields['files']
+        after_old_editor = self.save('work_order', fields, issued['document'])
+        self.assertCountEqual(after_old_editor['fields']['files'], [drawing, instructions, local])
+        fields = deepcopy(after_old_editor['fields'])
+        fields['files'].remove(drawing)
+        changed = self.save('work_order', fields, after_old_editor)
+        self.assertEqual(changed['fields']['excluded_quote_files'], [drawing['id']])
+        changed = self.save('work_order', changed['fields'], changed)
+        self.assertCountEqual(changed['fields']['files'], [instructions, local])
+        fields = deepcopy(changed['fields'])
+        fields['files'] = []
+        emptied = self.save('work_order', fields, changed)
+        self.assertFalse(emptied['fields'].get('files'))
+        self.assertCountEqual(emptied['fields']['excluded_quote_files'], [drawing['id'], instructions['id']])
+        self.assertEqual(self.store.read_attachment(self.workspace, quote['id'], drawing['id'])[1], pdf.getvalue())
+        self.assertEqual(self.store.issue(self.workspace, work['id'], work['version'], issue_id)['pdf'], issued['pdf'])
+
+    def test_unfiled_work_order_only_inherits_from_an_enrolled_quote(self):
+        fields = complete_quote(default_fields('quote'))
+        quote = self.save('quote', fields)
+        quote = self.store.issue(self.workspace, quote['id'], quote['version'], str(uuid4()))['document']
+        fields = complete_work_order(default_fields('work_order'))
+        fields['details']['project_no'] = quote['fields']['details']['project_no']
+        fields['order']['quote_id'] = quote['id']
+        work = self.store.save(self.workspace, {'kind':'work_order', 'status':'Draft', 'fields':fields}, unfiled_context={})
+        attachment = self.store.files.add(self.project,'latest.txt', base64.b64encode(b'Latest Quote evidence').decode())
+        fields = deepcopy(quote['fields'])
+        fields['files'] = [attachment]
+        quote = self.save('quote', fields, quote)
+        http = CommercialHTTP(self.store)
+        for enrolled in (False, True):
+            if enrolled:
+                self.store.save(self.workspace, {key:deepcopy(quote[key]) for key in
+                    ('kind','status','id','version','fields')}, unfiled_context={})
+            card = next(row for row in self.store.unfiled.cards(None) if row['id'] == work['id'])
+            source = {'file_id':card['source_file'], 'revision':card['source_revision']}
+            open_order = self.store.unfiled.perform('open',source,{'id':work['id']},http.execute)
+            related = [item for item in open_order['related'] if item['id'] == quote['id']]
+            self.assertEqual([item['fields']['files'] for item in related], [[attachment]] if enrolled else [])
+            saved = self.store.unfiled.perform('save',source,{key:deepcopy(work[key]) for key in
+                ('kind','status','id','version','fields')},http.execute)
+            work = saved['result']
+            self.assertEqual(work['fields'].get('files', []), [attachment] if enrolled else [])
+
     def test_claim_signature_is_optional_portable_and_old_windows_cannot_erase_it(self):
         fields = default_fields('work_order')
         for key in ('claimed_by', 'claim_date'):

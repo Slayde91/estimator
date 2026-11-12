@@ -7,7 +7,8 @@ from uuid import uuid4
 from pypdf import PdfReader
 
 from estimator.catalog import ValidationError
-from estimator.commercial_documents import CommercialConflict, default_fields, validate_fields
+from estimator.commercial_documents import CommercialConflict, commercial_cards, default_fields, validate_fields
+from estimator.commercial_http import CommercialHTTP
 from estimator.work_order_signing import STEPS, actions
 from estimator.commercial_pdf import render_commercial_pdf
 from estimator.company_settings import DEFAULTS
@@ -214,6 +215,84 @@ class WorkOrderSigningTests(unittest.TestCase):
         normalized=validate_fields(fields,kind='work_order')
         self.assertNotIn('details_by',normalized['order'])
         self.assertNotIn('signatures',normalized)
+
+    def test_clearing_each_section_rewinds_and_retains_tracking_billing_and_issued_files(self):
+        fields = deepcopy(self.fields)
+        fields['order'].update(end_date='2027-01-20', attachments='Drawing 21', justification='Ready',
+                               swms='SWMS-4', sds='SDS-3', sop='SOP-1', other_documents='Plan',
+                               client_approval='Initial approval', progress='Existing progress note', claim='Legacy claim',
+                               certification='Certification issued', completion='Completed')
+        fields['work_tracking']['rows'][0]['notes'] = 'Retain this note'
+        fields['billing'] = {'address':'17 Retain Street','abn_acn':'123456','name':'A. Example',
+                             'email':'a@example.com','phone':'5550123','account_id':str(uuid4()),'contact_id':str(uuid4())}
+        targets = ['Draft', 'Review', 'OHS Docs', 'Client Approval', 'In progress', 'Claim', 'Certify']
+        for index, (key, target) in enumerate(zip(STEPS, targets)):
+            with self.subTest(key=key):
+                doc = self.store.save(self.workspace, {**self.payload(fields), 'status':'Completed'})
+                issued = self.store.issue(self.workspace,doc['id'],doc['version'],str(uuid4()))
+                doc = issued['document']
+                save = self.payload(doc['fields'], doc, [{'key':key,'clear':True}])
+                changed = self.store.save(self.workspace, save)
+                self.assertEqual(changed['status'],target)
+                result = changed['fields']
+                self.assertEqual(set(result.get('signatures',{})), set(list(STEPS)[:index]))
+                for signer in list(STEPS)[index:]:
+                    self.assertEqual(result['order'][signer], '')
+                    self.assertEqual(result['order'][STEPS[signer][0]], '')
+                self.assertEqual(result['billing'], doc['fields']['billing'])
+                self.assertEqual(result['work_tracking'], doc['fields']['work_tracking'])
+                self.assertEqual(result['order']['progress'], 'Existing progress note')
+                self.assertEqual(result['order']['certification'], '')
+                self.assertEqual(result['order']['completion'], '')
+                self.assertEqual(result['order']['justification'], '' if index <= 1 else 'Ready')
+                self.assertEqual(result['order']['sds'], '' if index <= 2 else 'SDS-3')
+                if index == 0:
+                    self.assertEqual(result['order']['attachments'], '')
+                    self.assertEqual(result['order']['estimated_cost'], '')
+                    self.assertTrue(result['estimated_cost_cleared'])
+                    reopened = self.store.save(self.workspace,self.payload(result,changed))
+                    self.assertEqual(reopened['fields']['order']['estimated_cost'],'')
+                    cards = commercial_cards(self.store.capture(self.workspace))
+                    card = next(card for card in cards if card['id'] == doc['id'])
+                    card['source_file'] = 'Saved Project'
+                    self.store.apply_register_numbers([card])
+                    self.assertFalse(card['grand_total'])
+                self.assertEqual(self.store.read_pdf(self.workspace,issued['id'])[1],issued['pdf'])
+                with self.assertRaises(CommercialConflict):
+                    self.store.save(self.workspace, save)
+
+    def test_clearing_an_unfiled_order_updates_its_board_and_reopened_editor(self):
+        doc = self.store.save(self.workspace, {**self.payload(), 'status':'Completed'}, unfiled_context={})
+        card, = self.store.unfiled.cards(None)
+        source = {'file_id':card['source_file'], 'revision':card['source_revision']}
+        save = self.payload(doc['fields'], doc, [{'key':'claimed_by', 'clear':True}])
+        http = CommercialHTTP(self.store)
+        saved = self.store.unfiled.perform('save', source, save, http.execute)
+        self.assertEqual(saved['result']['status'], 'Claim')
+        card, = self.store.unfiled.cards(None)
+        self.assertEqual(card['status'], 'Claim')
+        opened = self.store.unfiled.perform('open', {**source, 'revision':saved['revision']}, {'id':doc['id']}, http.execute)
+        self.assertEqual(opened['document'], saved['result'])
+        self.assertNotIn('claimed_by', opened['document']['fields']['signatures'])
+        self.assertEqual(opened['document']['fields']['work_tracking'], doc['fields']['work_tracking'])
+
+    def test_historical_gaps_do_not_block_clearing_but_cannot_be_introduced_by_it(self):
+        doc = self.store.save(self.workspace, {**self.payload(), 'status':'Completed'})
+        snapshot = self.store.capture(self.workspace)
+        legacy = next(row for row in snapshot['documents'] if row['id'] == doc['id'])
+        legacy['fields']['details']['phone'] = ''
+        target = self.fixture.projects.add(snapshot['project_id'])
+        self.store.restore(target, snapshot)
+        action = [{'key':'reviewed_by', 'clear':True}]
+        fields = deepcopy(legacy['fields'])
+        fields['order']['urgency'] = ''
+        with self.assertRaisesRegex(ValidationError, 'Category / urgency'):
+            self.store.save(target, self.payload(fields, legacy, action))
+        changed = self.store.save(target, self.payload(legacy['fields'], legacy, action))
+        self.assertEqual(changed['status'],'Review')
+        self.assertEqual(changed['fields']['details']['phone'], '')
+        with self.assertRaisesRegex(ValidationError, 'Client phone'):
+            self.store.save(target, self.payload(changed['fields'], changed))
 
     def test_old_completed_record_can_edit_and_issue_without_retroactive_details_signoff(self):
         document=self.store.save(self.workspace,self.payload())

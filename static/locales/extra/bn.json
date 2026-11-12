@@ -3578,5 +3578,18 @@
   "Linked Quote": "সংযুক্ত কোটেশন",
   "Project number": "প্রকল্প নম্বর",
   "Site address": "সাইটের ঠিকানা",
-  "Denied": "প্রত্যাখ্যাত"
+  "Denied": "প্রত্যাখ্যাত",
+  "Choose file": "ফাইল বেছে নিন",
+  "Assigned on Save": "সংরক্ষণের সময় বরাদ্দ হবে",
+  "Choose a Company before adding a Contact.": "পরিচিতি যোগ করার আগে একটি কোম্পানি বেছে নিন।",
+  "Clear section and later sections?": "এই অংশ এবং পরবর্তী অংশগুলি সাফ করবেন?",
+  "Clear inputs and signatures from this section onward and return the order to {0}?": "এই অংশ থেকে সব তথ্য ও স্বাক্ষর সাফ করে অর্ডারটি {0} অবস্থায় ফেরাবেন?",
+  "Clear inputs and signatures from this section onward? The order will stay in {0}.": "এই অংশ থেকে সব তথ্য ও স্বাক্ষর সাফ করবেন? অর্ডারটি {0} অবস্থায় থাকবে।",
+  "Clear section": "অংশটি সাফ করুন",
+  "Update {0} for {1}?": "{1}-এর {0} আপডেট করবেন?",
+  "Saved: {0}\nEntered: {1}": "সংরক্ষিত: {0}\nলিখিত: {1}",
+  "Overwrite": "প্রতিস্থাপন করুন",
+  "Keep saved value": "সংরক্ষিত মান রাখুন",
+  "Project saved. Directory details still need syncing. {0}": "প্রকল্প সংরক্ষিত হয়েছে। ডিরেক্টরির তথ্য এখনও সিঙ্ক করতে হবে। {0}",
+  "The project changed. Reopen its details before saving.": "প্রকল্প বদলেছে। সংরক্ষণের আগে তার বিবরণ আবার খুলুন।"
 }

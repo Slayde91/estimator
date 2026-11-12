@@ -11,6 +11,7 @@ from unittest.mock import patch
 import uuid
 
 from pypdf import PdfReader
+from test_pdf_download_covers import signed_options
 from estimator.catalog import ValidationError
 from estimator.certification import CertificationService, FIELDS
 from estimator.certification_projects import CertificationProjects
@@ -104,7 +105,7 @@ class DocumentNumberingTests(unittest.TestCase):
         cert = service.create(values,request)
         self.assertEqual(cert['reference'],'INST-10')
         self.assertEqual(service.create(values,request)['reference'],'INST-10')
-        rev = service.generate(cert['id'], values, cert['version'], uid(), DEFAULTS)
+        rev = service.generate(cert['id'], values, cert['version'], uid(), DEFAULTS, options=signed_options())
         self.assertIn('INST-10', PdfReader(BytesIO(service.revision_pdf(cert['id'],rev['revision']['revision']))).pages[0].extract_text())
         archive = self.certs.capture({'workspace_id':self.workspace,'draft':None})
         self.assertEqual(self.certs.restore(archive)['items'][0]['reference'],'INST-10')

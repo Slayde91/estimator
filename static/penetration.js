@@ -437,7 +437,7 @@
     const section = $("penetration-diagram"); if (!section) return;
     section.hidden = !state.draft || state.group !== "Penetration";
     if (section.hidden) return;
-    const preview = $("penetration-diagram-preview"), image = $("penetration-diagram-image"), caption = $("penetration-diagram-caption"), empty = $("penetration-diagram-empty"), remove = $("penetration-diagram-remove");
+    const preview = $("penetration-diagram-preview"), image = $("penetration-diagram-image"), caption = $("penetration-diagram-caption"), remove = $("penetration-diagram-remove");
     const pending = state.diagramChange, libraryId = selected()?.library_item_id;
     let source = "", text = "";
     if (pending && typeof pending === "object") {
@@ -448,12 +448,12 @@
       source = `/api/libraries/penetration/${encodeURIComponent(libraryId)}/image${version ? `?v=${version}` : ""}`;
       text = "Saved Firestopping Library image/diagram.";
     }
-    preview.hidden = !source; empty.hidden = !!source;
+    preview.hidden = !source;
     image.onerror = null;
     if (source) {
       image.src = source; caption.textContent = text;
-      if (libraryId && pending === undefined) image.onerror = () => { preview.hidden = true; empty.hidden = false; uiText(empty, "No image/diagram is saved for this library item."); };
-    } else { image.removeAttribute?.("src"); uiText(caption, "", []); uiText(empty, "No image/diagram is attached to this item."); }
+      if (libraryId && pending === undefined) image.onerror = () => { preview.hidden = true; };
+    } else { image.removeAttribute?.("src"); uiText(caption, "", []); }
     remove.hidden = !(pending && typeof pending === "object");
     $("penetration-diagram-file").disabled = state.creatingLibrary;
   }

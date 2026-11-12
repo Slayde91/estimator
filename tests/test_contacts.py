@@ -54,6 +54,60 @@ class DirectoryTests(unittest.TestCase):
         self.assertEqual(saved['contact']['title'], '')
         self.assertEqual(saved['contact']['company'], 'Manual Company')
 
+    def test_lead_abn_overwrite_requires_matching_company_and_value(self):
+        company = self.request('accounts', {'version':0,'fields':{'company':'Builder','abn_acn':'Old'}})
+        lead = {'version':1,'account_id':company['id'],'fields':{'name':'Ada','company':'Builder','abn_acn':'New'}}
+        self.request('leads',lead,400)
+        self.request('leads',{**lead,'replace_company_abn':{'id':company['id'],'expected':'Older'}},400)
+        self.assertEqual(self.request('directory')['accounts'][0]['abn_acn'],'Old')
+        self.request('leads',{**lead,'replace_company_abn':{'id':company['id'],'expected':'Old'}})
+        directory = self.request('directory')
+        self.assertEqual(directory['accounts'][0]['abn_acn'],'New')
+        self.assertEqual(directory['leads'][0]['abn_acn'],'New')
+
+    def test_project_directory_sync_reviews_nonempty_fields_together_and_checks_the_revision(self):
+        from estimator.project_library import ProjectLibrary
+        person = self.request('contacts', {'version':0,'fields':{
+            'name':'Ada','company':'Builder','phone':'111','email':'first@example.test'}})['contact']
+        project = {'revision':'new','directory_details':{'account_id':person['account_id'],'contact_id':person['id'],
+                   'billing_address':'Street','abn_acn':'123','contact_phone':'222','contact_email':'next@example.test'}}
+        fields = ['billing_address','abn_acn','contact_phone','contact_email']
+        body = {'project':'known','revision':'new','fields':fields}
+        with patch.object(ProjectLibrary,'participant_project',return_value=project):
+            self.request('sync-project-details',{**body,'revision':'stale'},409)
+            differences = self.request('sync-project-details',body)['conflicts']
+            self.assertEqual({c['field'] for c in differences},{'contact_phone','contact_email'})
+            self.assertEqual(self.request('directory')['accounts'][0]['billing_address'],'')
+            accepted = {'contact_phone':{'id':person['id'],'expected':'111'}}
+            self.assertTrue(self.request('sync-project-details',{**body,'fields':fields[:-1],
+                'accepted':{'contact_phone':{'id':person['id'],'expected':'000'}}})['conflicts'])
+            approved = {**body,'fields':fields[:-1],'accepted':accepted}
+            self.assertEqual(self.request('sync-project-details',approved)['conflicts'],[])
+            directory = self.request('directory')
+            person = directory['contacts'][0]
+            self.assertEqual((person['phone'],person['email']),('222','first@example.test'))
+            self.assertEqual(directory['accounts'][0]['billing_address'],'Street')
+            self.assertEqual(directory['accounts'][0]['abn_acn'],'123')
+            self.request('sync-project-details',approved)
+            self.assertEqual(self.request('directory'),directory)
+
+    def test_project_sync_missing_imported_contact_and_matching_abn_review(self):
+        from uuid import uuid4
+        from estimator.project_library import ProjectLibrary
+        company = self.request('accounts', {'version':0,'fields':{'company':'Builder'}})
+        other = self.request('accounts', {'version':1,'fields':{'company':'Independent entity','abn_acn':'123456789'}})
+        project = {'revision':'saved','directory_details':{
+            'account_id':company['id'],'abn_acn':'123456789','contact_id':str(uuid4()),'contact_phone':'555'}}
+        body = {'project':'selected','revision':'saved','fields':['abn_acn','contact_phone']}
+        with patch.object(ProjectLibrary,'participant_project',return_value=project):
+            review = self.request('sync-project-details',body,409)['duplicate_review']
+            self.assertEqual([m['id'] for m in review['matches']],[other['id']])
+            self.assertEqual(self.request('directory')['version'],2)
+            self.request('sync-project-details',{**body,'identity_reviews':{'accounts':review['review_token']}})
+            directory = self.request('directory')
+            self.assertEqual([a['abn_acn'] for a in directory['accounts']],['123456789','123456789'])
+            self.assertEqual(directory['contacts'],[])
+
     def test_lead_is_linked_to_person_and_company_through_updates(self):
         directory = self.request("directory")
         self.assertEqual(directory["statuses"], ["New", "Qualified", "Disqualified", "Converted"])
@@ -142,6 +196,9 @@ class DirectoryTests(unittest.TestCase):
         current = self.request("directory")
         self.assertFalse(current["leads"])
         converted, = self.request("directory?board=1")["converted_leads"]
+        from estimator.commercial_sources import source_id
+        self.assertEqual(converted['project_source'], source_id(saved['path']))
+        self.assertNotIn('path',converted)
         self.assertEqual((converted["lead_id"], converted["project_no"], converted["snapshot"]),
                          (lead["id"], saved["project_no"], lead))
         self.assertEqual(current["contacts"][0]["account_id"],current["accounts"][0]["id"])

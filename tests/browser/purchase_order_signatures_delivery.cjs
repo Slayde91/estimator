@@ -59,8 +59,26 @@ async function reopen(){await host.getByRole('button',{name:'Back to Purchase Or
   await reopen();for(const [key,label] of signers)await expect(host.locator(`[data-signature-field="${key}"]`).getByRole('img',{name:label+' signature',exact:true})).toBeVisible();
   await host.getByRole('button',{name:'Change Verified by',exact:true}).click();await page.getByRole('dialog',{name:'Signatures',exact:true}).getByRole('button',{name:'Cancel',exact:true}).click();await idle();await expect(host.getByLabel('Verified by name',{exact:true})).toHaveValue('Verified by Person');
   for(const width of [1915,1213,390]){await page.setViewportSize({width,height:1000});const metrics=await host.locator('.commercial-purchase-layout').evaluate(layout=>({width:document.documentElement.scrollWidth,viewport:innerWidth,columns:getComputedStyle(layout).gridTemplateColumns.split(' ').length}));assert.ok(metrics.width<=metrics.viewport,JSON.stringify(metrics));assert.equal(metrics.columns,width>1050?3:1);geometry.push({width,...metrics});await page.screenshot({path:path.join(output,'purchase-signatures-'+width+'.png'),fullPage:true});}
-  await page.setViewportSize({width:1915,height:1000});for(const [key,label,date] of [...signers].reverse()){await host.getByRole('button',{name:'Clear '+label,exact:true}).click();await expect(host.getByLabel(label+' name',{exact:true})).toHaveValue('');await expect(host.locator(`[data-order-field="${date}"]`)).toHaveValue('');await expect(host.locator(`[data-signature-field="${key}"] svg[role=img]`)).toHaveCount(0);}
-  await host.getByLabel('Status',{exact:true}).selectOption('Draft');
+  await page.setViewportSize({width:1915,height:1000});
+  async function clearPurchase(label,choice='Clear section') {
+    await host.getByRole('button',{name:'Clear '+label,exact:true}).click();
+    await page.getByRole('dialog',{name:'Clear section and later sections?',exact:true}).getByRole('button',{name:choice,exact:true}).click();
+    await idle();
+  }
+  await clearPurchase('Approved by','Cancel');
+  await expect(host.getByLabel('Status',{exact:true})).toHaveValue('Completed');
+  await clearPurchase('Approved by');
+  await expect(host.getByLabel('Status',{exact:true})).toHaveValue('Requested');
+  await expect(approval).toHaveValue('');await expect(reason).toBeHidden();
+  await reopen();
+  await expect(host.getByLabel('Requested by name',{exact:true})).toHaveValue('Hand-entered requester');
+  for(const [key,label,date] of signers.slice(1)){
+    await expect(host.getByLabel(label+' name',{exact:true})).toHaveValue('');
+    await expect(host.locator(`[data-order-field="${date}"]`)).toHaveValue('');
+    await expect(host.locator(`[data-signature-field="${key}"] svg[role=img]`)).toHaveCount(0);
+  }
+  await expect(host.getByLabel('Ship to address',{exact:true})).toHaveValue('Manual delivery destination\nKeep this PO override');
+  await clearPurchase('Requested by');await expect(host.getByLabel('Status',{exact:true})).toHaveValue('Draft');
   saved=await save();assert.deepEqual(saved.fields.signatures||{},{});await reopen();for(const [key,label,date] of signers){await expect(host.getByLabel(label+' name',{exact:true})).toHaveValue('');await expect(host.locator(`[data-order-field="${date}"]`)).toHaveValue('');await expect(host.locator(`[data-signature-field="${key}"] svg[role=img]`)).toHaveCount(0);}
   checks.push('All four PO roles deliberately sign using current Settings name and organization date, preserve vector ink through Save/reopen, cancel changes safely, and Clear persists removal of ink/name/date without writing Settings');
   // Older project data has no delivery_time/rejection_reason and free-text approval.

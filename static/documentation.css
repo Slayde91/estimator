@@ -15,7 +15,8 @@
 .documentation-table{width:100%;table-layout:fixed}
 .documentation-table thead th:first-child{width:34%}
 .documentation-table thead th:last-child{width:78px;text-align:center}
-.documentation-table td{vertical-align:top;overflow-wrap:anywhere}
+.documentation-table td{vertical-align:middle;overflow-wrap:anywhere;padding-block:5px}
+.documentation-table tr[hidden]{display:none}
 .documentation-table tbody tr[data-document-kind]>td:first-child{padding-inline-start:28px}
 .documentation-download{display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap}
 .documentation-action{text-align:center}
@@ -24,7 +25,11 @@
 .documentation-revision{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .documentation-revision time,.documentation-revision small{color:var(--muted);font-size:12px}
 .documentation-empty{color:var(--muted);font-size:13px;margin:0}
-.documentation-table .documentation-group th:first-child{width:auto;padding-top:22px;border-bottom:1px solid var(--line);background:transparent}
+.documentation-table .documentation-group th:first-child{width:auto;padding-block:0;border-bottom:1px solid var(--line);background:transparent}
+.documentation-group-toggle{display:flex;align-items:center;gap:8px;width:100%;min-height:38px;padding:4px 0;color:inherit;background:none;border:0;font:inherit;text-align:start;cursor:pointer}
+.documentation-group-toggle::before{content:'';width:0;height:0;border:4px solid transparent;border-inline-start:6px solid currentColor;border-inline-end:0}
+.documentation-group-toggle[aria-expanded=true]::before{transform:rotate(90deg)}
+:dir(rtl) .documentation-group-toggle[aria-expanded=true]::before{transform:rotate(-90deg)}
 .documentation-group-heading{margin:0;font-size:15px;color:inherit}
 @media(max-width:600px){.documentation-table thead th:first-child{width:33%}.documentation-table thead th:last-child{width:62px}.documentation-table th,.documentation-table td{padding:10px 6px}.documentation-revision{display:block}.documentation-revision time,.documentation-revision small{display:block;margin-top:3px}}
 
@@ -32,5 +37,7 @@
 .documentation-pdf-table thead th:nth-child(3){width:78px;text-align:center}
 .documentation-pdf-table .document-cover-file{width:27%;min-width:180px}
 .documentation-pdf-table .document-cover-actions{width:10%}
-.document-cover-file input{width:100%;min-width:0}
+.document-cover-picker{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.document-cover-file .helper{margin:0;overflow-wrap:anywhere}
+.document-cover-picker .helper:empty{display:none}
 .document-cover-file p:empty{display:none}

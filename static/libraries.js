@@ -74,7 +74,6 @@
       scheduleButtons: new Map(), actionMessages: new Map(), quantityBadges: new Map(), documentCleanup: null, documentPending: null, documentControls: [] };
     const root = $(kind + "-library-workspace");
     pane.message = node("div", "message"); pane.message.hidden = true; pane.message.setAttribute("role", "status");
-    pane.notice = node("p", "helper library-notice"); pane.notice.hidden = true;
     pane.projectDrafts = node("section", "card library-project-drafts"); pane.projectDrafts.hidden = true; uiAttr(pane.projectDrafts, "aria-label", "Project library drafts");
     pane.summary = node("section", "card library-summary"); pane.summary.hidden = true; pane.summary.dataset.librarySummary = kind;
     pane.linkPanel = node("section", "card library-link-picker"); pane.linkPanel.hidden = true; pane.linkPanel.dataset.libraryLinkPicker = kind;
@@ -98,7 +97,7 @@
     const pagination = node("nav", "library-pagination"); uiAttr(pagination, "aria-label", "{0} result pages", [() => window.CeasefireI18n?.translate(titles[kind]) || titles[kind]]); pagination.append(pane.previous, pane.next);
     pane.list.append(controls, pane.filterControls, pane.count, pane.results, pagination);
     pane.detailPanel = node("section", "card library-detail"); pane.detailPanel.hidden = true; pane.detailPanel.dataset.libraryDetail = kind;
-    root.replaceChildren(pane.message, pane.projectDrafts, pane.summary, ...(kind === "technical" ? [] : [pane.notice]), pane.linkPanel, pane.list, pane.detailPanel);
+    root.replaceChildren(pane.message, pane.projectDrafts, pane.summary, pane.linkPanel, pane.list, pane.detailPanel);
     pane.searchInput.addEventListener("input", () => {
       pane.search = pane.searchInput.value.trim(); pane.offset = 0;
       invalidateList(pane); uiText(pane.count, "Searching…");
@@ -570,10 +569,6 @@
     catch (error) { message(pane, "The library item could not be opened for editing. {0}", true, [() => window.CeasefireI18n?.translate(error.message) || error.message]); }
   }
   function libraryInfo(pane) { return state.metadata?.libraries?.find(library => library.id === pane.kind); }
-  function updateNotice(pane, data = pane.data) {
-    const info = libraryInfo(pane), notes = [state.metadata?.notice, info?.notice, data?.notice].filter(Boolean);
-    pane.notice.textContent = [...new Set(notes)].join("\n"); pane.notice.hidden = !pane.notice.textContent;
-  }
   async function loadList(pane) {
     invalidateList(pane); const revision = pane.listRevision, query = queryFor(pane);
     pane.listAbort = new AbortController(); setBusy(pane, true); message(pane);
@@ -584,7 +579,7 @@
         pane.offset = Math.floor((data.total - 1) / pane.limit) * pane.limit;
         await loadList(pane); return;
       }
-      pane.data = data; renderList(pane); pane.dataQuery = queryFor(pane); updateNotice(pane, data);
+      pane.data = data; renderList(pane); pane.dataQuery = queryFor(pane);
     } catch (error) {
       if (revision !== pane.listRevision || error.name === "AbortError") return;
       pane.data = null;
@@ -611,7 +606,7 @@
     pane.documentCleanup?.();
     closeLinkPicker(pane);
     ++pane.detailRevision; pane.detailAbort?.abort(); pane.selected = null; pane.detail = null;
-    pane.detailPanel.hidden = true; pane.list.hidden = false; message(pane); updateNotice(pane);
+    pane.detailPanel.hidden = true; pane.list.hidden = false; message(pane);
     if (!pane.data || pane.dataQuery !== queryFor(pane)) return loadList(pane);
     renderFilters(pane, pane.data.filters || libraryInfo(pane)?.filters || []); setBusy(pane, false);
   }
@@ -1061,8 +1056,7 @@
     if (links.length > 2) related.append(moreRelated);
     content.push(related);
     // Item qualifications belong in the card that receives navigation focus;
-    // keep only the general library notices above that card.
-    pane.detailPanel.replaceChildren(...content); updateNotice(pane, {});
+    pane.detailPanel.replaceChildren(...content);
     if (state.current === pane.kind && $("library-" + pane.kind)?.hidden === false && $("view-pricing")?.hidden === false) {
       heading.focus({ preventScroll: true }); pane.detailPanel.scrollIntoView?.({ block: "start" });
     }
@@ -1100,7 +1094,7 @@
       if (!pane.count.textContent) uiText(pane.count, "Loading library…");
       const data = await metadata();
       if (revision !== pane.openRevision) return;
-      const info = data.libraries?.find(library => library.id === kind); updateNotice(pane); renderSummary(pane);
+      const info = data.libraries?.find(library => library.id === kind); renderSummary(pane);
       if (info?.available === false) {
         pane.data = null;
         pane.list.hidden = false; pane.detailPanel.hidden = true; uiText(pane.count, "Library unavailable.");

@@ -1,4 +1,5 @@
 """Final authored bytes, immutable retries and current-project HTTP isolation."""
+from test_pdf_download_covers import signed_options
 from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor
 from hashlib import sha256
@@ -120,7 +121,7 @@ class DocumentationHTTPTests(unittest.TestCase):
         a,b=self.created_workspace()['workspace_id'],self.workspace();scope='?workspace='+a
         document=self.json('POST','/api/certifications'+scope,{'fields':self.fields},expected=201)
         generated=self.json('POST','/api/certifications/'+document['id']+'/revisions'+scope,
-            {'fields':self.fields,'expected_version':1,'request_id':str(uuid.uuid4())},expected=201)
+            {'fields':self.fields,'options':signed_options(),'expected_version':1,'request_id':str(uuid.uuid4())},expected=201)
         view=self.retained(a)
         self.assertEqual(view['workspace_revision'],0,'Certificate PDFs remain in their existing store.')
         self.assertEqual(len(view['items']),1)

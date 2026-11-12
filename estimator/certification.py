@@ -98,7 +98,7 @@ def validate_complete_fields(value):
     """A new issued revision requires the first section and signer name/position.
 
     Draft persistence and historical reads use validate_fields instead.
-    Qualification, accreditation and signature artwork remain optional.
+    Qualification and accreditation are optional. Signature artwork is checked against the selected revision options.
     """
     fields = validate_fields(value, partial=True)
     missing = [key.replace('_', ' ') for key in REQUIRED_GENERATION_FIELDS if not ''.join(
@@ -386,6 +386,8 @@ class CertificationService:
                 raise CertificationConflict('This certification changed in another window. Reload it before generating again.')
             revision = max((item['revision'] for item in current['revisions']), default=0) + 1
             selected_options = deepcopy(_draft_options(options, current['options']))
+            if not selected_options.get('signature_image'):
+                raise ValidationError('Complete all required certification fields before generating: signature.')
         from .company_settings import validate_company_settings
         company = deepcopy(company)
         company = validate_company_settings(company)
@@ -393,7 +395,7 @@ class CertificationService:
         from .certification_report import render_certificate_pdf
         from .pdf_cover import prepend_cover_pdf
         timestamp = _now()
-        signature = {'signature': selected_options['signature_image']} if selected_options.get('signature_image') else {}
+        signature = {'signature': selected_options['signature_image']}
         if self.renderer is None and current.get('reference'):
             signature['reference'] = current['reference']
         payload = (self.renderer or render_certificate_pdf)(deepcopy(fields), company=deepcopy(company),

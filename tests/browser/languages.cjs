@@ -34,7 +34,7 @@ async function snapshot(){await idle();return page.evaluate(()=>({project:window
  await expect(page.locator('#project-no')).toHaveAttribute('readonly','');await fillProjectDetails(page,{'client':'Home'});await fillProjectDetails(page,{'site-address':'原始ข้อมูล العربية हिन्दी <literal>'});await page.locator('#site-address').evaluate(el=>el.blur());await idle();
  const baseline=await snapshot();
  await openProjectSection(page,'certification');
- await expect(page.locator('#certification-list')).toBeVisible();await expect(page.locator('#certification-editor')).toBeHidden();
+ await expect(page.locator('#certification-board')).toHaveCount(0);await expect(page.locator('#certification-editor')).toBeVisible();
  assert.equal(await page.evaluate(()=>window.CeasefireProject.hasCreatedProject()),false);
  const certificateWrites=()=>evidence.requests.filter(item=>/^\/api\/certifications(?:$|\/[^/]+\/revisions$)/.test(new URL(item.url).pathname)).length;
  const beforeCompose=certificateWrites();

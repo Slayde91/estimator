@@ -139,6 +139,12 @@ class UnfiledCommercial:
                     return {**card, 'source_file':source, 'source_revision':revision}
             return None
 
+    def permits_document(self, db, workspace, identity):
+        if self._access.get() is None:
+            return True
+        return db.execute('SELECT 1 FROM local_commercial_documents WHERE workspace=? AND id=?',
+                          (workspace, identity)).fetchone() is not None
+
     def verified_project(self, db, workspace):
         # Only this request's internal adapter may reopen a durable commercial
         # owner after the interactive certificate session expires or restarts.
@@ -202,7 +208,7 @@ class UnfiledCommercial:
                 return self.service.files.add(project, body['name'], body['content'])
             if not document:
                 raise CommercialConflict(STALE)
-            related = commercial_cards({'project_id':project, 'documents':[json.loads(row['data']) for row in records.values()]})
+            related = commercial_cards({'project_id':project, 'documents':[json.loads(row['data']) for row in records.values()]}, include_quote_files=action == 'open')
             entry = db.execute('SELECT estimates FROM local_commercial_documents WHERE workspace=? AND id=?',(workspace,anchor)).fetchone()
             captured = json.loads(zlib.decompress(entry[0])) if entry[0] else {}
         details = {key:document['fields']['details'][key] for key in ('project_no','client','site_address')}

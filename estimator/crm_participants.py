@@ -63,6 +63,9 @@ class CRMParticipants:
               site_address TEXT NOT NULL, site_id TEXT REFERENCES sites(id), roles TEXT NOT NULL, version INTEGER NOT NULL,
               PRIMARY KEY(source,owner));
             CREATE INDEX IF NOT EXISTS shared_site_projects ON project_roles(site_id);
+            CREATE TABLE IF NOT EXISTS excluded_project_parties(
+              source TEXT NOT NULL, owner TEXT NOT NULL, kind TEXT NOT NULL, party_id TEXT NOT NULL,
+              PRIMARY KEY(source,owner,kind,party_id));
             CREATE TABLE IF NOT EXISTS party_lookup(source TEXT NOT NULL, owner TEXT NOT NULL,
               role TEXT NOT NULL, kind TEXT NOT NULL, party_id TEXT NOT NULL,
               PRIMARY KEY(kind,party_id,source,owner,role));
@@ -182,15 +185,20 @@ class CRMParticipants:
         record['scan_pending']=catalog['scan_pending']
         record['error_count']=catalog.get('error_count',0)
         record['site_address']=project['site_address']
-        record['linked_parties']=list(project.get('linked_parties',[]))
+        excluded = set(record.pop('_excluded', ()))
+        record['linked_parties'] = [item for item in self._derived_parties(project) if (item['kind'],item['id']) not in excluded]
+        return record
+
+    def _derived_parties(self,project):
+        parties = list(project.get('linked_parties',[]))
         # Company-side manual Project links use the exact file-derived token.
         # Portable owner IDs alone are ambiguous when Save As copies exist.
         if project.get('account_link_id'):
             with self.contacts.connection() as db:
-                record['linked_parties'].extend({'kind':'accounts','id':row[0],'label':row[1],'role':'Linked company'}
+                parties.extend({'kind':'accounts','id':row[0],'label':row[1],'role':'Linked company'}
                     for row in db.execute('''SELECT a.id,a.company FROM account_links l JOIN accounts a ON a.id=l.account_id
                         WHERE l.kind='projects' AND l.target_id=? ORDER BY a.company,a.id''',(project['account_link_id'],)))
-        return record
+        return parties
 
     @staticmethod
     def _existing(db, project):
@@ -256,7 +264,10 @@ class CRMParticipants:
             peers=[dict(item) for item in db.execute(f"""SELECT source,owner,project_no,client,site_address FROM project_roles
                 WHERE site_id IN ({placeholders}) AND NOT(source=? AND owner=?) ORDER BY project_no,client,source,owner""",
                 (*sorted(ids),project['source'],owner))]
-        return {'project_revision':project['revision'],'version':row['version'] if row else 0,
+        excluded = [(item[0],item[1]) for item in db.execute(
+            'SELECT kind,party_id FROM excluded_project_parties WHERE source=? AND owner=?',
+            (row['source'],row['owner']))] if row else []
+        return {'project_revision':project['revision'],'version':row['version'] if row else 0,'_excluded':excluded,
                 'participants':json.loads(row['roles']) if row else [], 'roles':ROLES,'linked_bids':peers,
                 'site':sites[0] if sites else None,'linked_sites':sites,'_site_ids':ids,
                 'site_mode':'automatic' if address_key(project['site_address']) else 'manual' if site_id else 'none','site_id':site_id}
@@ -317,7 +328,7 @@ class CRMParticipants:
         return rows
 
     def save(self,data,actor):
-        if (not isinstance(data,dict) or set(data)!={'project','project_revision','version','participants','site_id'}
+        if (not isinstance(data,dict) or set(data)-{'remove_party'}!={'project','project_revision','version','participants','site_id'}
                 or type(data['version']) is not int or not isinstance(data['participants'],list) or len(data['participants'])>200):
             raise ValidationError('Choose up to 200 participants for the selected project.')
         selector=data['project']
@@ -326,6 +337,11 @@ class CRMParticipants:
             raise ParticipantConflict('The project changed. Reopen its details before changing participants.')
         site_id=identity(data['site_id']) if data['site_id'] is not None else None
         catalog=self._catalog()
+        removed = data.get('remove_party')
+        if removed is not None:
+            if not isinstance(removed,dict) or set(removed) != {'kind','id'} or removed['kind'] not in ('accounts','contacts'):
+                raise ValidationError('Choose a participant role and directory record.')
+            removed = (removed['kind'], identity(removed['id']))
         with self.db() as db:
             db.execute('BEGIN IMMEDIATE')
             row=self._existing(db,project)
@@ -341,12 +357,24 @@ class CRMParticipants:
                 db.execute('INSERT INTO sites VALUES(?,?,?,?)',(site['id'],site['name'],site['address'],(site['name']+' '+site['address']).casefold()))
             prior={(r['role'],r['kind'],r['id']):r for r in json.loads(row['roles'])} if row else {}
             roles=self._validated_rows(data['participants'],prior)
-            changed = (row['site_id'] if row else None)!=site_id or roles!=list(prior.values())
+            previous_ids = {(kind,ident) for _,kind,ident in prior}
+            retained = {(r['kind'],r['id']) for r in roles}
+            if removed:
+                known = previous_ids | {(r['kind'],r['id']) for r in self._derived_parties(project)}
+                if removed not in known or removed in retained:
+                    raise ValidationError('Choose a participant role and directory record.')
+            changed = removed is not None or (row['site_id'] if row else None)!=site_id or roles!=list(prior.values())
             if changed:
                 if row:
                     db.execute('DELETE FROM party_lookup WHERE source=? AND owner=?',(row['source'],row['owner']))
                 if row and row['owner']!=project['owner']:
                     db.execute('UPDATE project_roles SET owner=? WHERE source=? AND owner=?',(project['owner'],row['source'],row['owner']))
+                    db.execute('UPDATE excluded_project_parties SET owner=? WHERE source=? AND owner=?',(project['owner'],row['source'],row['owner']))
+                scope = (project['source'],project['owner'])
+                if removed:
+                    db.execute('INSERT OR IGNORE INTO excluded_project_parties VALUES(?,?,?,?)',(*scope,*removed))
+                db.executemany('DELETE FROM excluded_project_parties WHERE source=? AND owner=? AND kind=? AND party_id=?',
+                               [(*scope,*party) for party in retained - previous_ids])
                 db.execute('''INSERT INTO project_roles VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(source,owner) DO UPDATE SET
                     project_no=excluded.project_no,client=excluded.client,site_address=excluded.site_address,
                     site_id=excluded.site_id,roles=excluded.roles,version=excluded.version''',
@@ -355,7 +383,7 @@ class CRMParticipants:
                                [(project['source'],project['owner'],r['role'],r['kind'],r['id']) for r in roles])
                 db.execute("""INSERT INTO participant_history(source,owner,version,actor,event,snapshot)
                     VALUES(?,?,?,?,'participants updated',?)""",(project['source'],project['owner'],version+1,json.dumps(actor),
-                    json.dumps({'participants':roles,'site_id':site_id})))
+                    json.dumps({'participants':roles,'site_id':site_id,**({'remove_party':data['remove_party']} if removed else {})})))
             record=self._view(db,project,catalog)
         return self._decorate(record,project,catalog)
 

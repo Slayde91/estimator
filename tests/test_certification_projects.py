@@ -1,4 +1,5 @@
 """Project certificate snapshots retain exact PDFs without global ownership guesses."""
+from test_pdf_download_covers import signed_options
 from copy import deepcopy
 from contextlib import contextmanager
 from hashlib import sha256
@@ -71,7 +72,7 @@ class CertificationProjectTests(unittest.TestCase):
         legacy = self.legacy.create({'project': 'Legacy global, unassigned'})
         workspace, service = self.prepared()
         other, other_service = self.prepared()
-        document = service.create(fields(), str(uuid.uuid4()))
+        document = service.create(fields(), str(uuid.uuid4()), options=signed_options())
         request = str(uuid.uuid4())
         generated = service.generate(document['id'], document['fields'], 1, request, DEFAULTS)
         original_pdf = service.revision_pdf(document['id'], 1)
@@ -98,7 +99,7 @@ class CertificationProjectTests(unittest.TestCase):
 
     def test_review_status_survives_old_clients_portable_restore_and_pdf_replay(self):
         workspace, service = self.prepared()
-        doc = service.create(fields(), str(uuid.uuid4()))
+        doc = service.create(fields(), str(uuid.uuid4()), options=signed_options())
         self.assertNotIn('workflow_status', doc['options'])
         options = {**doc['options'], 'workflow_status': 'Review'}
         reviewed = service.save(doc['id'], doc['fields'], doc['version'], options=options)
@@ -225,7 +226,7 @@ class CertificationProjectTests(unittest.TestCase):
             self.legacy.generate(doc['id'], doc['fields'], 2, str(uuid.uuid4()), DEFAULTS)
 
     def test_explicit_legacy_import_is_idempotent_portable_and_source_unchanged(self):
-        source = self.legacy.create(fields(project='Consciously selected older certificate'), str(uuid.uuid4()))
+        source = self.legacy.create(fields(project='Consciously selected older certificate'), str(uuid.uuid4()), options=signed_options())
         operation = str(uuid.uuid4())
         generated = self.legacy.generate(source['id'], source['fields'], 1, operation, DEFAULTS)
         before = self.legacy.get(source['id'])
@@ -257,7 +258,7 @@ class CertificationProjectTests(unittest.TestCase):
             self.projects.import_legacy(collision['workspace_id'], source['id'])
 
     def test_overlimit_legacy_import_rejects_before_reading_pdf_blobs(self):
-        source = self.legacy.create(fields())
+        source = self.legacy.create(fields(), options=signed_options())
         self.legacy.generate(source['id'], source['fields'], 1, str(uuid.uuid4()), DEFAULTS)
         workspace, _ = self.prepared()
         connect, statements = self.store.connect, []
@@ -281,7 +282,7 @@ class CertificationProjectTests(unittest.TestCase):
         writer.add_metadata({'/RetainedEvidence': 'x' * 120000}); writer.write(buffer)
         frozen = buffer.getvalue()
         self.legacy.renderer = lambda *args, **kwargs: frozen
-        source = self.legacy.create(fields())
+        source = self.legacy.create(fields(), options=signed_options())
         # This deliberately tight limit measures PDF deduplication, independent
         # of the application's real default logo and optional cover artwork.
         company = {'name': 'Archive fixture', 'abn': '', 'phone': '', 'email': '',
@@ -356,7 +357,7 @@ class CertificationProjectTests(unittest.TestCase):
 
     def test_scoped_generation_and_save_budget_rejection_are_transactional_and_replay_safe(self):
         workspace, service = self.prepared()
-        document = service.create(fields())
+        document = service.create(fields(), options=signed_options())
         operation = str(uuid.uuid4())
         original = service.generate(document['id'], document['fields'], 1, operation, DEFAULTS)
         frozen = service.revision_pdf(document['id'], 1)
@@ -379,7 +380,7 @@ class CertificationProjectTests(unittest.TestCase):
     def test_dedup_never_substitutes_a_good_pdf_for_corrupted_historical_bytes(self):
         frozen = pdf('IDENTICAL HISTORICAL CERTIFICATES')
         self.legacy.renderer = lambda *args, **kwargs: frozen
-        source = self.legacy.create(fields())
+        source = self.legacy.create(fields(), options=signed_options())
         self.legacy.generate(source['id'], source['fields'], 1, str(uuid.uuid4()), DEFAULTS)
         self.legacy.generate(source['id'], source['fields'], 2, str(uuid.uuid4()), DEFAULTS)
         workspace, service = self.prepared()

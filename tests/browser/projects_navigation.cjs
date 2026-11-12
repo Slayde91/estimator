@@ -71,14 +71,14 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   await page.locator('#documents-navigation-toggle').click();await expectDocumentDestination();
   await page.locator('#document-pages [data-document-section="certification"]').click();
   await expect(page.locator('#view-certification')).toBeVisible();
-  await expect(page.locator('#certification-list')).toBeVisible();await expect(page.locator('#certification-editor')).toBeHidden();
+  await expect(page.locator('#certification-board')).toHaveCount(0);await expect(page.locator('#certification-editor')).toBeVisible();
   await openCertificateEditor(page);
   await expect(page.locator('#certification-client')).toBeEnabled();
   await page.locator('#certification-client').fill('Navigation draft retained');
   const draftBefore=await snapshot();
-  await page.locator('#certification-back').click();await expect(page.locator('#certification-list')).toBeVisible();
+  await page.locator('#certification-back').click();await expect(page.locator('#view-documentation')).toBeVisible();
   await expect(page.locator('#certification-editor')).toBeHidden();
-  await openCertificateEditor(page);await expect(page.locator('#certification-client')).toHaveValue('Navigation draft retained');
+  await page.locator('#document-pages [data-document-section="certification"]').click();await openCertificateEditor(page);await expect(page.locator('#certification-client')).toHaveValue('Navigation draft retained');
   assert.deepEqual(await snapshot(),draftBefore,'Back and Resume preserve the exact certificate draft and project state');
   await headerDestination('certification');
   const menu = page.locator('#projects-navigation-menu'), documentsMenu = page.locator('#documents-navigation-menu');

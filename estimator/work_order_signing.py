@@ -25,6 +25,22 @@ PURCHASE_STEPS = {
 WORKFLOWS = {'work_order': STEPS, 'purchase_order': PURCHASE_STEPS}
 COMPLETIONS = ('Completed', 'Ongoing', 'On hold', 'Not completed')
 CYCLE_SIGNERS = ('progress_by', 'claimed_by', 'closed_by')
+# Additional inputs owned by each signed section. Tracking rows and claim
+# billing belong to the ongoing job and survive a sign-off being withdrawn.
+SECTION_INPUTS = {
+    'work_order': {
+        'details_by': ('start_date', 'end_date', 'urgency', 'description', 'estimated_cost', 'attachments'),
+        'reviewed_by': ('approval', 'justification'),
+        'prepared_by': ('swms', 'sds', 'sop', 'other_documents'),
+        'client_approved_by': ('client_approval',),
+        'claimed_by': ('claim',),
+        'closed_by': ('certification', 'completion'),
+    },
+    'purchase_order': {
+        'reviewed_by': ('approval', 'rejection_reason'),
+        'verified_by': ('verification',),
+    },
+}
 
 
 def _valid_date(value):
@@ -45,6 +61,9 @@ def actions(value, kind):
     for item in value:
         if not isinstance(item, dict) or not isinstance(item.get('key'), str) or item['key'] not in WORKFLOWS[kind]:
             raise ValidationError('Choose a valid commercial document signature.')
+        if set(item) == {'key', 'clear'} and item['clear'] is True:
+            result.append({'key': item['key'], 'clear': True})
+            continue
         keys = {'key', 'signature', 'name', 'date'}
         if item['key'] == 'closed_by':
             keys.update(('completion', 'certification'))
@@ -80,6 +99,26 @@ def _outcome(kind, key, order):
     return WORKFLOWS[kind][key][1]
 
 
+def _clear_from(kind, key, fields, status):
+    steps = WORKFLOWS[kind]
+    sequence = list(steps)
+    start = sequence.index(key)
+    for signer in sequence[start:]:
+        fields.get('signatures', {}).pop(signer, None)
+        for name in (signer, steps[signer][0], *SECTION_INPUTS[kind].get(signer, ())):
+            if name in fields['order']:
+                fields['order'][name] = ''
+    if not fields.get('signatures'):
+        fields.pop('signatures', None)
+    if key == 'details_by':
+        fields['estimated_cost_cleared'] = True
+        fields['order'].update(details_by='', details_date='')
+    stages = ['Draft', *(target for _, target in steps.values())]
+    reached = (sequence.index('reviewed_by') + 1 if status == 'Cancelled' else
+               len(sequence) if status == 'On Hold' else stages.index(status))
+    return stages[start] if start < reached else status
+
+
 def apply(kind, fields, status, signed, previous, *, legacy_details=False):
     """Advance only deliberate actions; unchanged historical signoffs remain readable."""
     if kind not in WORKFLOWS:
@@ -92,11 +131,20 @@ def apply(kind, fields, status, signed, previous, *, legacy_details=False):
     order = fields['order']
     changed = {key for key, value in ink.items() if value and value != old_ink.get(key)}
     active = {key for key in steps if _ink(old_ink.get(key)) and ink.get(key) == old_ink[key]}
+    clear_action = signed and signed[0].get('clear')
+    reset = signed[0]['key'] if clear_action else None
     action_keys = {item['key'] for item in signed}
-    if signed and changed - action_keys:
+    if signed and (changed if clear_action else changed - action_keys):
         raise ValidationError('Save each signature using its signing button.')
     cleared = {key for key in steps if old_ink.get(key) and not ink.get(key)}
-    for key in active - action_keys:
+    if clear_action:
+        if not previous or cleared.intersection(sequence[:sequence.index(reset)]):
+            raise ValidationError('The signature changed. Sign it again before saving.')
+    elif cleared and not signed and not changed:
+        # Older clients send the edited ink map without a signing action.
+        reset = next(key for key in sequence if key in cleared)
+    rollback_keys = set(sequence[sequence.index(reset):]) if reset else set()
+    for key in active - action_keys - rollback_keys:
         evidence = [key, steps[key][0]]
         if key == 'reviewed_by':
             evidence.append('approval')
@@ -104,6 +152,8 @@ def apply(kind, fields, status, signed, previous, *, legacy_details=False):
             evidence.extend(('completion', 'certification'))
         if any(prior['order'].get(field) != order.get(field) for field in evidence):
             raise ValidationError('Sign this section again or clear its signature to change its signing details.')
+    if reset:
+        return _clear_from(kind, reset, fields, previous['status'])
     for key in cleared:
         if any(ink.get(later) for later in sequence[sequence.index(key) + 1:]):
             raise ValidationError('Clear the later signatures before changing this signature.')

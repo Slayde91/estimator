@@ -37,6 +37,11 @@ def signature(colour='black', format='PNG', size=(180,60)):
     return 'data:image/'+('png' if format=='PNG' else 'jpeg')+';base64,'+base64.b64encode(output.getvalue()).decode()
 
 
+def signed_options(**values):
+    return {'cover_pdf': None, 'cover_pdf_name': '', 'scopes': [], **values,
+            'signature_image': signature(), 'signature_name': 'Fixture signature.png'}
+
+
 def text_pages(payload):
     return [page.extract_text().strip() for page in PdfReader(BytesIO(payload)).pages]
 
@@ -121,7 +126,7 @@ class PdfDownloadCoverTests(unittest.TestCase):
         self.assertEqual(self.covers.list(),before)
 
     def test_legacy_cover_seeds_once_without_rewriting_documents_or_pdf(self):
-        selected={'cover_pdf':cover('LEGACY'),'cover_pdf_name':'Legacy.pdf','scopes':[]}
+        selected=signed_options(cover_pdf=cover('LEGACY'),cover_pdf_name='Legacy.pdf')
         old=self.service.create({**dict.fromkeys(FIELDS, 'N/A'),'name':'Entered signer'},options=selected)
         generated=self.service.generate(old['id'],old['fields'],1,str(uuid.uuid4()),DEFAULTS)
         frozen=self.service.revision_pdf(old['id'],1)

@@ -665,7 +665,7 @@ let passed=0;
   assert.match(penetrationBanner,/class="actions penetration-heading-actions"><div class="penetration-library-actions"><div class="calculator-document-menu">[\s\S]*?<\/div><\/div><button id="penetration-clear"[\s\S]*?<\/button><button id="penetration-add-to-library"/,'Document, Clear and Library belong to the first row of the Firestopping card');
   assert.doesNotMatch(penetrationBanner,/id="penetration-add-to-schedule"/);
   assert.doesNotMatch(html,/id="pricing-help"/);
-  assert.match(html,/<div class="section-heading penetration-item-heading">[\s\S]*?id="penetration-add-to-schedule"/,'Schedule remains with the current-item controls');
+  assert.match(html,/<div class="penetration-input-tabs">[\s\S]*?id="penetration-add-to-schedule"/,'Schedule is next to the input tabs');
   for(const id of ['penetration-new-item','penetration-recalculate'])assert.match(html,new RegExp(`id="${id}"[^>]*hidden`));
   assert.ok(html.indexOf('id="input-sections"')<html.indexOf('id="materials-heading"'));assert.ok(html.indexOf('id="materials-heading"')<html.indexOf('id="post-material-input-sections"'));
   const appHeader=html.slice(html.indexOf('<header class="app-header">'),html.indexOf('</header>'));

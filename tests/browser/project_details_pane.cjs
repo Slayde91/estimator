@@ -114,16 +114,21 @@ const ready = new Promise((resolve,reject)=>{
   const pane=page.locator('#project-details-pane');
   const geometry={pane:await pane.boundingBox(),list:await page.locator('#project-list-card').boundingBox()};
   assert.ok(geometry.pane.x+geometry.pane.width<=geometry.list.x);
-  const companyPanel=pane.locator('details').filter({has:page.locator('#project-pane-client')});
-  const contactPanel=pane.locator('details').filter({has:page.locator('#project-pane-contact-name')});
+  const companyPanel=pane.locator('details').filter({has:page.locator('#project-company-participants')});
+  const contactPanel=pane.locator('details').filter({has:page.locator('#project-contact-participants')});
   await expect(companyPanel.locator(':scope > summary')).toHaveText('Companies');
   await expect(contactPanel.locator(':scope > summary')).toHaveText('Contacts');
-  await expect(companyPanel.locator('#project-pane-billing-address')).toBeVisible();
-  await expect(contactPanel.locator('#project-pane-contact-email')).toBeVisible();
-  await companyPanel.locator(':scope > summary').click();
-  await expect(companyPanel.locator('#project-pane-client')).toBeHidden();
-  await expect(contactPanel.locator('#project-pane-contact-name')).toBeVisible();
-  await companyPanel.locator(':scope > summary').click();
+  const metadataOrder=await pane.locator('#project-details-form > .project-pane-fields').evaluateAll(groups=>
+    groups.flatMap(group=>[...group.querySelectorAll('input[id],textarea[id]')].map(control=>control.id)));
+  assert.deepEqual(metadataOrder,['project-pane-number','project-pane-address','project-pane-client','project-pane-billing-address',
+    'project-pane-abn-acn','project-pane-contact-name','project-pane-contact-email','project-pane-contact-phone']);
+  for(const panel of [companyPanel,contactPanel]){
+    await expect(panel.locator('details')).toHaveCount(0);
+    await panel.locator(':scope > summary').click();
+    for(const id of ['project-pane-client','project-pane-billing-address','project-pane-abn-acn',
+      'project-pane-contact-name','project-pane-contact-email','project-pane-contact-phone'])await expect(pane.locator('#'+id)).toBeVisible();
+    await panel.locator(':scope > summary').click();
+  }
   await page.locator('#project-pane-address').fill('20 Other Project Road');
   await page.locator('#project-pane-contact-name').fill('Other Project Person');
   response=saved();await page.locator('#project-details-save').click();assert.equal((await response).status(),200);await idle();
@@ -170,6 +175,17 @@ const ready = new Promise((resolve,reject)=>{
     assert.ok(box.width<=box.viewport,JSON.stringify(box));assert.equal(box.columns,2);
     const numberWidth=(await page.locator('#project-pane-number').boundingBox()).width;
     assert.ok((await page.locator('#project-pane-address').boundingBox()).width >= numberWidth*2);
+    const fields=await page.evaluate(()=>{
+      const ids=['project-pane-number','project-pane-address','project-pane-client','project-pane-billing-address','project-pane-abn-acn',
+        'project-pane-contact-name','project-pane-contact-email','project-pane-contact-phone'];
+      return Object.fromEntries(ids.map(id=>[id,document.getElementById(id).getBoundingClientRect().toJSON()]));
+    });
+    const [number,addressBox,client,billing,abn,primary,email,phone]=Object.values(fields);
+    assert.ok(client.top>=Math.max(number.bottom,addressBox.bottom) && billing.top>=client.bottom &&
+      abn.top>=billing.bottom && primary.top>=abn.bottom && email.top>=primary.bottom && phone.top>=primary.bottom,JSON.stringify(fields));
+    assert.ok(Math.abs(client.width-billing.width)<1 && Math.abs(billing.width-abn.width)<1 &&
+      Math.abs(primary.width-client.width)<1,JSON.stringify(fields));
+    for(const control of Object.values(fields))assert.ok(control.left>=box.pane.left && control.right<=box.pane.right,JSON.stringify(fields));
     if(width===800)assert.ok(box.pane.bottom<=box.list.top);
     await page.screenshot({path:path.join(output,`pane-${width}.png`),fullPage:true});
   }

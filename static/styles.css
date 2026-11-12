@@ -581,7 +581,7 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .project-pane-fields input,.project-pane-fields textarea{width:100%;min-width:0}
 .project-directory-panels{display:grid;gap:12px;margin-top:16px}
 .project-details-pane .commercial-side-panel{min-width:0;margin:0;padding:14px}
-.project-directory-panels .project-account-field{grid-column:1/-1}
+.project-pane-fields .project-account-field{grid-column:1/-1}
 .project-account-field{position:relative}
 .project-account-field>label{display:block;margin-bottom:7px;font-size:12px;font-weight:650}
 .project-account-search{position:relative;display:flex;align-items:center}

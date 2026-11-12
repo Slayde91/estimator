@@ -83,23 +83,32 @@
   }
 
   function conversionDetails(receipt, openProject = false) {
-    const title = [receipt.project_no, receipt.snapshot?.site_address,
-      receipt.converted_at && new Date(receipt.converted_at).toLocaleString(document.documentElement.lang || undefined)].filter(Boolean).join(' · ');
-    const projectName = openProject && receipt.project_source ? button(title, async event => {
+    const conversion = el('div', 'contacts-conversion');
+    const projectName = openProject && receipt.project_source ? button(receipt.project_no || "Project", async event => {
       const control = event.currentTarget;
       control.disabled = true;
       try { await window.CeasefireProject.openConvertedLead(receipt, control); }
       catch (error) { feedback(root(), error.message, true); }
       finally { control.disabled = false; }
-    }, 'text-button') : el('span','',title);
+    }, 'text-button') : el('span', '', receipt.project_no || '—');
+    const identity = el('dl', 'kanban-card-details contacts-conversion-fields');
+    const date = receipt.converted_at ? new Date(receipt.converted_at) : null;
+    const convertedAt = el('time', '', date && Number.isFinite(date.getTime())
+      ? date.toLocaleString(document.documentElement.lang || undefined) : '—');
+    if (date && Number.isFinite(date.getTime())) convertedAt.dateTime = date.toISOString();
+    const project = el('dd'), dateValue = el('dd');
+    project.append(projectName);
+    dateValue.append(convertedAt);
+    identity.append(ui('dt', '', 'Project No.'), project,
+      ui('dt', '', 'Site address'), el('dd', '', receipt.snapshot?.site_address || '—'),
+      ui('dt', '', 'Date'), dateValue);
+    conversion.append(identity);
     if (!receipt.snapshot) {
-      const legacy = el('div');
-      legacy.append(projectName, ui('p', 'helper', 'Earlier conversion details were not recorded.'));
-      return legacy;
+      conversion.append(ui('p', 'helper', 'Earlier conversion details were not recorded.'));
+      return conversion;
     }
-    const detail = el('details'), fields = el('dl', 'kanban-card-details');
-    const summary = el('summary');
-    summary.append(projectName); detail.append(summary);
+    const detail = el('details', 'contacts-conversion-snapshot'), fields = el('dl', 'kanban-card-details');
+    detail.append(ui('summary', '', 'Lead Information'));
     if(receipt.actor_name)fields.append(ui('dt','','Logged by'),el('dd','',receipt.actor_name));
     for (const [key, label] of Object.entries(labels)) {
       const value = receipt.snapshot[key];
@@ -107,7 +116,8 @@
         key === 'status' ? ui('dd', '', value) : el('dd', '', value));
     }
     detail.append(fields);
-    return detail;
+    conversion.append(detail);
+    return conversion;
   }
   async function request(path, body) {
     const options = body === undefined ? {} : {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)};

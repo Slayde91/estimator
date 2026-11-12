@@ -290,7 +290,7 @@ def prepare_project_export(store, request, *, edition='full'):
 def _export_project_snapshot(store, request, *, edition, tree_checked=False):
     """Normalize nested estimates without separate JSON round trips."""
     require_project_edition(request, edition)
-    if not isinstance(request, dict) or set(request) - {"estimate", "calculators", "penetration", "takeoffs", "library_drafts", "certifications", "documentation", "project_status", "estimates", "active_estimate_id", "commercial_documents", "swms"} or "estimate" not in request:
+    if not isinstance(request, dict) or set(request) - {"estimate", "calculators", "penetration", "takeoffs", "library_drafts", "certifications", "documentation", "project_status", "estimates", "active_estimate_id", "commercial_documents", "swms", "passive_fire_register"} or "estimate" not in request:
         raise ValidationError("Include the current estimate and optional calculator drafts to save a project.")
     if not tree_checked:
         _check_tree(request)
@@ -350,6 +350,9 @@ def _export_project_snapshot(store, request, *, edition, tree_checked=False):
         from .takeoff_model import validate_snapshot
         snapshot["takeoffs"] = validate_snapshot(request["takeoffs"])
         snapshot["version"] = TAKEOFF_PROJECT_VERSION
+    if "passive_fire_register" in request:
+        from .passive_fire_register import normalize_register
+        snapshot["passive_fire_register"] = normalize_register(request["passive_fire_register"])
     if "swms" in request:
         from .swms import validate_swms_snapshot
         snapshot["swms"] = validate_swms_snapshot(request["swms"])
@@ -415,7 +418,7 @@ def _load_project_snapshot(store, snapshot, *, edition):
     """Validate sub-workspaces within the already decoded, tree-checked file."""
     require_project_edition(snapshot, edition)
     required = {"format", "version", "estimate", "calculators"}
-    if not isinstance(snapshot, dict) or not required <= set(snapshot) or set(snapshot) - required - {"penetration", "takeoffs", "library_drafts", "certifications", "documentation", "project_status", "estimates", "active_estimate_id", "commercial_documents", "swms"}:
+    if not isinstance(snapshot, dict) or not required <= set(snapshot) or set(snapshot) - required - {"penetration", "takeoffs", "library_drafts", "certifications", "documentation", "project_status", "estimates", "active_estimate_id", "commercial_documents", "swms", "passive_fire_register"}:
         raise ValidationError("The project file contains missing or unsupported fields.")
     if snapshot["format"] != PROJECT_FORMAT or type(snapshot["version"]) is not int or snapshot["version"] not in {PROJECT_VERSION, TAKEOFF_PROJECT_VERSION}:
         raise ValidationError("This project file format or version is not supported.")
@@ -478,6 +481,9 @@ def _load_project_snapshot(store, snapshot, *, edition):
     if "takeoffs" in snapshot:
         from .takeoff_model import validate_snapshot
         result["takeoffs"] = validate_snapshot(snapshot["takeoffs"])
+    if "passive_fire_register" in snapshot:
+        from .passive_fire_register import normalize_register
+        result["passive_fire_register"] = normalize_register(snapshot["passive_fire_register"])
     if "swms" in snapshot:
         from .swms import validate_swms_snapshot
         result["swms"] = validate_swms_snapshot(snapshot["swms"])

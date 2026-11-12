@@ -5,7 +5,7 @@
   const state = {root:null, data:null, page:"schedule", week:weekStart(today()), member:"", mine:false,
     loading:0, busy:false, dialog:null, lastLocation:0, locationEnabled:false, timer:null, orders:[], settingsDirty:false, settingsRuleDialog:null, ruleSelection:{overtime:"",breaks:""},
     projectsLoading:false, projectsScan:null, projectsMessage:"", breakNotices:new Set(), noticeTimer:null,
-    locationTimer:null, locationEntry:null, locationPending:false, lastLocationCheck:0, locationIssue:"", locationHealth:0, trackingBanner:null,
+    locationTimer:null, locationEntry:null, locationPending:false, lastLocationCheck:0, locationIssue:"", locationHealth:0,
     entriesSearch:"", entriesMine:false, collapsedDays:new Set(), locationPlayback:null, authGeneration:0, mapRequest:0};
   const accountChannel = "BroadcastChannel" in window ? new BroadcastChannel("classifire-scheduler-account") : null;
   const colours = [["#2196f3","Blue"],["#b12030","Red"],["#177349","Green"],["#7544a8","Purple"],["#505966","Grey"]];
@@ -313,6 +313,7 @@
     heading.append(el("h1","","Scheduler"),clock); state.root.append(heading); renderHeaderTime();
     const status = el("p", "scheduler-notice message"); status.setAttribute("role","status"); status.hidden = true;
     state.root.append(status);
+    return heading;
   }
   function closeDialog(force = false) { if(state.busy && force !== true)return; clearInterval(state.locationPlayback); state.locationPlayback = null; state.dialog?.close(); state.dialog?.remove(); state.dialog = null; }
   function dialog(title, build, saveLabel, save, submitClass = "button", draftLabel = "") {
@@ -400,7 +401,7 @@
   function render() {
     if (!state.data?.user) return auth(false);
     const clockFocused = document.activeElement === state.root.querySelector(".scheduler-clock");
-    shell();
+    const heading = shell();
     const top = el("div", "scheduler-top"), tabs = el("nav", "calculator-pages scheduler-tabs"); tabs.setAttribute("aria-label","Scheduler pages");
     const pages = [["schedule","Schedule"],["entries","Time entries"],...(admin() ? [["team","Team members"],["settings","Settings"]] : [])];
     pages.forEach(([id,label]) => {
@@ -421,8 +422,21 @@
       const logout = request("/logout",{}); resetAccount(); shell(); notice("Signing out…");
       try { const result=await logout; accountChannel?.postMessage("changed"); if(result.global_session){location.replace('/');return;} auth(false); }
       catch (error) {await refresh(); notice(error.message,true);}
-    })); top.append(tabs,account); state.root.append(top);
-    renderClock();
+    }));
+    const clock = renderClock();
+    if (state.data.active_entry) {
+      const localTime = heading.querySelector("time");
+      const navigation = el("div","scheduler-clock-navigation");
+      navigation.append(heading.querySelector("h1"),tabs);
+      account.prepend(localTime);
+      clock.append(account);
+      heading.classList.add("scheduler-clock-heading");
+      heading.replaceChildren(navigation,clock);
+    } else {
+      top.append(tabs,account);
+      state.root.append(top,clock);
+    }
+    updateLocationStatus();
     if (clockFocused && !state.root.closest("[hidden]")) state.root.querySelector(".scheduler-clock").focus({preventScroll:true});
     if (state.page === "schedule") renderSchedule();
     if (state.page === "entries") renderEntries();
@@ -464,8 +478,7 @@
         catch(error) {if(current())notice(error.message,true);}
         finally {if(current()) {control.disabled = false; state.busy = false;}}
       },"button scheduler-add-action"));
-      bar.append(el("p","helper scheduler-clock-note",openBreak ? "You are on a break. Shift location recording remains active." : "Location recording is required throughout this shift."));
-      const tracking = el("p","helper scheduler-location-status"); tracking.setAttribute("role","status"); bar.append(tracking);
+      const tracking = el("p","helper scheduler-location-error"); tracking.setAttribute("role","status"); tracking.hidden = true; bar.append(tracking);
     } else bar.append(button("Clock in",() => dialog("Clock in",host => {
       const project = orderSelect(), notes = el("textarea"); notes.maxLength = 2000;
       host.append(field(translated("Work Order"),project.element),field("Notes",notes),el("p","message scheduler-location-required","Location is required to clock in. Your location is recorded during the shift, including a check every 30 minutes. You and your administrator can view the history."),el("p","helper","Allow location access when your browser asks. Keep CLASSIFIRE open and this computer awake. Missing updates are shown as gaps; they cannot be recovered after the browser was closed or suspended.")); return {project,notes};
@@ -480,10 +493,9 @@
       startLocation();
     },"button scheduler-primary-action"),"button scheduler-primary-action"));
     bar.addEventListener("click",event => {
-      if(state.settingsDirty) {event.stopImmediatePropagation(); notice("Save or discard your settings changes before using the time clock.",true);}
+      if(state.settingsDirty && !event.target.closest(".scheduler-account")) {event.stopImmediatePropagation(); notice("Save or discard your settings changes before using the time clock.",true);}
     },true);
-    state.root.append(bar);
-    updateLocationStatus();
+    return bar;
   }
   function checkBreakNotification() {
     const entry = state.data?.active_entry, item = entry?.breaks?.find(value => !value.end);
@@ -898,22 +910,18 @@
   }
   function updateLocationStatus() {
     const active = state.data?.active_entry;
-    if (!state.trackingBanner && document.body) {
-      state.trackingBanner = el("aside","scheduler-tracking-banner"); state.trackingBanner.setAttribute("aria-label","Shift location recording");
-      state.trackingBanner.append(el("span","scheduler-tracking-text"),button("Open time clock",openTimeClock,"text-button"));
-      document.body.append(state.trackingBanner);
-    }
     const last = state.lastLocation || Date.parse(active?.location_summary?.last_at || "");
     const late = active && (!last || Date.now()-last > LOCATION_INTERVAL+5*60000);
-    const text = !active ? "" : state.locationIssue ? `${state.locationIssue} Your clock continues; this gap will be visible in the history.` :
-      `Location recording is on · checks every 30 minutes${last ? ` · last recorded ${timeFormatter.format(new Date(last))}` : " · obtaining first location"}${late ? " · update overdue" : ""}.`;
-    if (state.trackingBanner) {
-      state.trackingBanner.hidden = !active || !state.root?.closest("[hidden]");
-      state.trackingBanner.classList.toggle("error",!!state.locationIssue || !!late);
-      state.trackingBanner.querySelector(".scheduler-tracking-text").textContent = text;
+    const issue = !active ? "" : state.locationIssue || (late ? translated("Location update overdue.") : "");
+    const shortcut = document.getElementById("open-time-clock");
+    if (shortcut) {
+      shortcut.hidden = !active;
+      shortcut.classList.toggle("scheduler-clock-warning",!!issue);
+      if (issue) shortcut.setAttribute("aria-description",issue);
+      else shortcut.removeAttribute("aria-description");
     }
-    const target = state.root?.querySelector(".scheduler-location-status");
-    if (target) {target.textContent = text; target.classList.toggle("error",!!state.locationIssue || !!late);}
+    const target = state.root?.querySelector(".scheduler-location-error");
+    if (target) {target.textContent = issue; target.hidden = !issue;}
   }
   async function recordLocation(location, entryId, health = state.locationHealth) {
     if (!state.locationEnabled || state.locationEntry !== entryId || state.data?.active_entry?.id !== entryId) return false;
@@ -1116,8 +1124,7 @@
   initializeOrganizationSettings();
   async function restoreClock() {
     state.root ||= document.getElementById("scheduler-root"); if(!state.root)return;
-    const view = state.root.closest('[id^="view-"]');
-    if (view) new MutationObserver(updateLocationStatus).observe(view,{attributes:true,attributeFilter:["hidden"]});
+    document.getElementById("open-time-clock")?.addEventListener("click",openTimeClock);
     beginPolling();
     const generation = state.authGeneration;
     try {const bootstrap = await request("/bootstrap"); if(generation === state.authGeneration) {setZone(bootstrap.timezone); if(bootstrap.user) await refresh();}}

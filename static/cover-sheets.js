@@ -130,6 +130,7 @@
   const kinds = {
     'certification':'certification', 'estimate.summary.pdf':'estimate', 'project.full_schedule.pdf':'full_schedule',
     'project.full_product_summary.pdf':'full_product_summary','firestopping.schedule.pdf':'firestopping_schedule',
+    'passive_fire_register.pdf':'passive_fire_register',
     'calculator.steel_vermiculite.schedule.pdf':'steel_vermiculite_schedule','calculator.steel_intumescent.schedule.pdf':'steel_intumescent_schedule',
     'calculator.steel_board.schedule.pdf':'steel_board_schedule','calculator.ductwork.schedule.pdf':'ductwork_schedule',
     'calculator.steel_vermiculite.product_summary.pdf':'steel_vermiculite_product_summary',

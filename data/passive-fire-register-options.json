@@ -1,0 +1,174 @@
+{
+  "seal_type": [
+    "Acoustic Seal",
+    "Fire Seal",
+    "Smoke Seal"
+  ],
+  "frl": [
+    "-/60/-",
+    "-/60/60",
+    "-/90/-",
+    "-/90/90",
+    "-/120/-",
+    "-/120/120",
+    "-/180/-",
+    "-/180/180",
+    "-/240/-",
+    "-/240/240",
+    "N/A"
+  ],
+  "substrate": [
+    "Masonry",
+    "Plasterboard",
+    "Speedpanel",
+    "Bondek",
+    "Hebel",
+    "Other",
+    "CLT",
+    "Dincel",
+    "Duct",
+    "Steel"
+  ],
+  "orientation": [
+    "Horizontal",
+    "Vertical"
+  ],
+  "installation_type": [
+    "Access panel",
+    "Bulkhead",
+    "Collar",
+    "Core Hole",
+    "Duct",
+    "Fire Damper",
+    "Floor Seal",
+    "Linear Seal",
+    "Service Penetration",
+    "Steel Penetration",
+    "Timber Penetration",
+    "Wall Seal"
+  ],
+  "service_types": [
+    "Cable bundle",
+    "Cable Tray(s)",
+    "Cable(s)",
+    "Conduit(s)",
+    "Control joint",
+    "Copper pipe(s)",
+    "Damper",
+    "Duct",
+    "Gap / perimeter seal",
+    "Junction box",
+    "Metal Pipe",
+    "Mixed Cable Bundle",
+    "Mixed Service Bundle",
+    "N/A",
+    "Pair Coils",
+    "PEX Pipe(s)",
+    "Purlin",
+    "PVC pipe",
+    "Smoke Damper",
+    "Smoke seal",
+    "Steel Angle",
+    "Steel Beam",
+    "Steel Column"
+  ],
+  "manufacturer": [
+    "BOSS Fire",
+    "BUNNINGS",
+    "CSR",
+    "DPO",
+    "DULUX",
+    "FENDIX",
+    "FIREFLY",
+    "FM INSULATION",
+    "HILTI",
+    "KILARGO",
+    "PRIORITY STEEL",
+    "PROMAT",
+    "PROTECTIVE FILM",
+    "SCROOZ",
+    "TRAFALGAR",
+    "TREMCO"
+  ],
+  "products": [
+    "BladeRUNNER Collar",
+    "Brush Grade Mastic Coating",
+    "Cast-In Collar",
+    "Conduit Collar",
+    "Fire Rated Batt",
+    "Fire Rated Board",
+    "Fire Rated Mortar",
+    "Fire Rated Pillows",
+    "Fire Rated Plug/Block",
+    "Fire Rated Sealant",
+    "Fire Rated Service Transit Box",
+    "Fire Rated Wrap/Insulation",
+    "Floorwaste Collar",
+    "FyreCAP",
+    "FyreHAT",
+    "Intumescent Damper",
+    "Intumescent Fire Strip",
+    "Retrofit Collar",
+    "Unicollar",
+    "Wall Collar"
+  ],
+  "reports": {
+    "BOSS Fire": [
+      "BOSS Fire Transit Box: FC12925-001"
+    ],
+    "FIREFLY": [
+      "Firefly Batt/Services: FAS190234/190235",
+      "Firefly Core Holes: FAS190236"
+    ],
+    "HILTI": [
+      "Hilti Blocks: UL-AU-230001-R1",
+      "Hilti Plugs: UL-AU-230004-R3"
+    ],
+    "KILARGO": [
+      "Kilargo IFD44-LL: FAS200229"
+    ],
+    "TRAFALGAR": [
+      "Servowrap/FyreBatt: FAS210123/FAS200363",
+      "Trafalgar Bladerunner: FSP 2317",
+      "Trafalgar Cast-in: FCO3475",
+      "Trafalgar Control Joints/Mastic: FAS210386",
+      "Trafalgar FyreCollars: FC11190-01-3",
+      "Trafalgar FyreHAT: FCO3605",
+      "Trafalgar Pillows/Twrap: FAS200048",
+      "Trafalgar Twrap/Batt: FAS210023",
+      "Trafalgar Twrap/HP Mastic: FAR4849",
+      "Trafalgar Twrap/Mastic: FCO1579",
+      "Trafalgar Twrap/Maxilite: FAS210378",
+      "Trafalgar Twrap/Steel & Purlins: FAS210378",
+      "Trafalgar Unicorn Collar: FCO-3527",
+      "Trafalgar Uniguard: FRT200257"
+    ],
+    "PROMAT": [
+      "Promasil 1100: FSRG A-13-856, FAR4810",
+      "Promat Cast-in Collar: FAS180527",
+      "Promat Floorwaste Retrofit: 21405-02",
+      "Promat Pillows/Sealant: 25948-07",
+      "Promat Retrofit Collar: 29592300.5",
+      "Promat Sealant: 45821 R2.1",
+      "Promat Steel/Purlin Penetrations: FC15477-01-02",
+      "Promat Supawrap: FAS220026",
+      "Promat Unicollar/Grafitex: FCO2458",
+      "Promat Unicollars: C91611",
+      "Promat Wall Collar: C91513"
+    ],
+    "FENDIX": [
+      "Slimline Retrofit Collar: RTL FA 2981.03"
+    ]
+  },
+  "access": [
+    "Yes",
+    "No",
+    "NA"
+  ],
+  "solution": [
+    "Topside only",
+    "Underside only",
+    "Bulkhead",
+    "Single side solution"
+  ]
+}

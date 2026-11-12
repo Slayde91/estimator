@@ -496,8 +496,8 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 #project-list .project-card-estimate{width:100%;margin:0}
 #project-list .project-row-actions{display:flex;align-items:center;justify-content:space-between;gap:8px}
 #project-list .project-row-actions .project-card-estimate{flex:1;min-width:0}
-#project-list .project-load-button{flex:none;align-self:flex-end}
-#project-list .project-load-button{height:42px;min-height:42px;padding:8px 12px}
+#project-list .project-load-button{flex:none;align-self:flex-end;height:42px;min-height:42px;padding:8px 12px;background:#d0001b;border-color:#a80016;color:#fff}
+#project-list .project-load-button:hover:not(:disabled){background:#b90018}
 #project-list .project-menu-options{position:fixed;inset-inline-start:auto;inset-inline-end:auto;z-index:40;max-height:calc(100dvh - 16px);overflow:auto}
 #project-list .project-row-status{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;min-width:0;white-space:normal;margin:2px 0 0;padding-top:10px;border-top:1px solid var(--line);font-size:12px}
 #project-list .project-row-status select{width:100%;min-width:0;margin-top:0}

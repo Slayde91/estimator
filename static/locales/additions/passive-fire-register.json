@@ -1,0 +1,167 @@
+{
+  "Passive Fire Register": [
+    "수동식 화재 방호 대장",
+    "Talaan ng pasibong proteksiyon sa sunog",
+    "Sổ đăng ký phòng cháy thụ động"
+  ],
+  "Add entry": [
+    "항목 추가",
+    "Magdagdag ng tala",
+    "Thêm mục"
+  ],
+  "Remove entry": [
+    "항목 삭제",
+    "Alisin ang tala",
+    "Xóa mục"
+  ],
+  "Entry {0}": [
+    "항목 {0}",
+    "Tala {0}",
+    "Mục {0}"
+  ],
+  "Level/Location": [
+    "층/위치",
+    "Palapag/Lokasyon",
+    "Tầng/Vị trí"
+  ],
+  "Seal Type": [
+    "밀봉 유형",
+    "Uri ng selyo",
+    "Loại bịt kín"
+  ],
+  "Installation Type": [
+    "설치 유형",
+    "Uri ng pagkakabit",
+    "Loại lắp đặt"
+  ],
+  "Report/Assessment": [
+    "보고서/평가",
+    "Ulat/Pagtatasa",
+    "Báo cáo/Đánh giá"
+  ],
+  "Products": [
+    "제품",
+    "Mga produkto",
+    "Sản phẩm"
+  ],
+  "Side 1": [
+    "1번 면",
+    "Panig 1",
+    "Mặt 1"
+  ],
+  "Side 2": [
+    "2번 면",
+    "Panig 2",
+    "Mặt 2"
+  ],
+  "Before Photo": [
+    "시공 전 사진",
+    "Larawan bago ang pagkakabit",
+    "Ảnh trước khi thi công"
+  ],
+  "During Photo": [
+    "시공 중 사진",
+    "Larawan habang ikinakabit",
+    "Ảnh trong khi thi công"
+  ],
+  "After Photo": [
+    "시공 후 사진",
+    "Larawan pagkatapos ng pagkakabit",
+    "Ảnh sau khi thi công"
+  ],
+  "Label Photo": [
+    "라벨 사진",
+    "Larawan ng etiketa",
+    "Ảnh nhãn"
+  ],
+  "ID Number": [
+    "식별 번호",
+    "Numero ng pagkakakilanlan",
+    "Số định danh"
+  ],
+  "Is the other side accessible?": [
+    "반대쪽에 접근할 수 있습니까?",
+    "Mapupuntahan ba ang kabilang panig?",
+    "Có thể tiếp cận phía bên kia không?"
+  ],
+  "Photos": [
+    "사진",
+    "Mga larawan",
+    "Ảnh"
+  ],
+  "Comments": [
+    "의견",
+    "Mga komento",
+    "Nhận xét"
+  ],
+  "Solution": [
+    "해결 방안",
+    "Solusyon",
+    "Giải pháp"
+  ],
+  "Remove photo": [
+    "사진 삭제",
+    "Alisin ang larawan",
+    "Xóa ảnh"
+  ],
+  "Register entry": [
+    "대장 항목",
+    "Tala sa rehistro",
+    "Mục trong sổ đăng ký"
+  ],
+  "Register entries": [
+    "대장 항목 목록",
+    "Mga tala sa rehistro",
+    "Các mục trong sổ đăng ký"
+  ],
+  "Remove this register entry?": [
+    "대장에서 이 항목을 삭제하시겠습니까?",
+    "Alisin ang talang ito sa rehistro?",
+    "Xóa mục này khỏi sổ đăng ký?"
+  ],
+  "Remove entry and its photos?": [
+    "항목과 첨부 사진을 삭제하시겠습니까?",
+    "Alisin ang tala kasama ang mga larawan nito?",
+    "Xóa mục này và các ảnh đính kèm?"
+  ],
+  "Add photos": [
+    "사진 추가",
+    "Magdagdag ng mga larawan",
+    "Thêm ảnh"
+  ],
+  "Save the project to keep this register.": [
+    "이 대장을 보관하려면 프로젝트를 저장하세요.",
+    "I-save ang proyekto upang mapanatili ang rehistrong ito.",
+    "Hãy lưu dự án để giữ lại sổ đăng ký này."
+  ],
+  "Preparing photos…": [
+    "사진 준비 중…",
+    "Inihahanda ang mga larawan…",
+    "Đang chuẩn bị ảnh…"
+  ],
+  "Finish adding photos before continuing.": [
+    "사진 추가를 마친 후 계속하세요.",
+    "Tapusin muna ang pagdaragdag ng mga larawan bago magpatuloy.",
+    "Hoàn tất việc thêm ảnh trước khi tiếp tục."
+  ],
+  "Select JPEG, PNG or WebP photos up to 20 MB each.": [
+    "사진당 20 MB 이하인 JPEG, PNG 또는 WebP 파일을 선택하세요.",
+    "Pumili ng mga larawang JPEG, PNG o WebP na hanggang 20 MB bawat isa.",
+    "Chọn ảnh JPEG, PNG hoặc WebP, tối đa 20 MB mỗi ảnh."
+  ],
+  "The register photo limit has been reached.": [
+    "대장의 사진 한도에 도달했습니다.",
+    "Naabot na ang limitasyon ng mga larawan sa rehistro.",
+    "Đã đạt giới hạn ảnh của sổ đăng ký."
+  ],
+  "Entry {0} is incomplete.": [
+    "항목 {0}이(가) 완성되지 않았습니다.",
+    "Hindi kumpleto ang tala {0}.",
+    "Mục {0} chưa hoàn chỉnh."
+  ],
+  "NA": [
+    "해당 없음",
+    "Hindi naaangkop",
+    "Không áp dụng"
+  ]
+}

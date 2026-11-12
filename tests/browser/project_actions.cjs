@@ -27,7 +27,9 @@ async function openProjectSection(page, section) {
 
 async function openProjectTools(page) {
   const active = page.locator('#project-pages [aria-current="page"], #document-pages [aria-current="page"]').filter({visible:true});
+  const editor = page.locator('#view-swms:visible, #view-certification:visible');
   const previous = await active.count() ? await active.evaluate(button=>button.dataset.projectSection || button.dataset.documentSection)
+    : await editor.count() ? (await editor.getAttribute('id')).slice('view-'.length)
     : await page.locator('.nav-button[aria-current="page"]').getAttribute('data-view');
   if (previous !== 'quotes') await openProjectSection(page, 'quotes');
   await expect(page.locator('#quotes-heading')).toBeVisible();

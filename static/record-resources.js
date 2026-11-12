@@ -131,7 +131,10 @@
         const size=node('small');size.textContent=(item.size/1024).toFixed(1)+' KB';
         const remove=button('Remove',()=>void removeFile(item),'text-button');remove.disabled=!editable();row.append(link,size,remove);files.append(row);
       }
-      const reload=button('Refresh',()=>void refresh());reload.disabled=busy || !owner;files.append(reload,hint);
+      if(options.showRefresh!==false){
+        const reload=button('Refresh',()=>void refresh());reload.disabled=busy || !owner;files.append(reload);
+      }
+      files.append(hint);
       if(!owner)message('Save this record before adding Notes or Files.');
       notes.open=notesOpen;files.open=filesOpen;
     }

@@ -47,7 +47,7 @@ def download_route(route):
     """Only generation/export routes may consume a progress capability."""
     frozen_id=r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
     if route in {'/api/quote-report','/api/pricing/export','/api/project/export',
-            '/api/project/full-schedule.pdf','/api/project/full-product-summary.pdf',
+            '/api/project/full-schedule.pdf','/api/project/full-product-summary.pdf','/api/project/passive-fire-register.pdf',
             '/api/technical/item.pdf','/api/technical/item.xlsx','/api/penetration/item.pdf','/api/penetration/item.xlsx',
             '/api/penetration/report.pdf','/api/penetration/register.xlsx','/api/commercial/issue','/api/commercial/saved-issue','/api/swms/issue'}:
         return True

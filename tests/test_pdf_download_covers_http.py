@@ -14,7 +14,7 @@ from estimator.project_library import ProjectLibrary
 from estimator.takeoff_workspace import TakeoffService
 import test_certification_http as helpers
 from test_certification_http import pdf,cover,texts
-from test_pdf_download_covers import signature
+from test_pdf_download_covers import signature, signed_options
 from commercial_ready_fixtures import complete_quote, complete_work_order
 from swms_ready_fixtures import complete_swms
 
@@ -62,6 +62,7 @@ class PdfDownloadCoversHTTPTests(unittest.TestCase):
         scope='?workspace='+self.created_workspace()['workspace_id']
         body=pdf('BODY CONTENT');session=self.json('POST','/api/takeoffs/sessions',{})['session_id'];covered=set()
         cases=[('estimate','/api/quote-report',{'inputs':{}}),
+               ('passive_fire_register','/api/project/passive-fire-register.pdf',{'register':{'entries':[]}}),
                ('full_schedule','/api/project/full-schedule.pdf',{}),
                ('full_product_summary','/api/project/full-product-summary.pdf',{}),
                ('technical_library_item','/api/technical/item.pdf',{}),
@@ -77,6 +78,7 @@ class PdfDownloadCoversHTTPTests(unittest.TestCase):
                       ('pdf_tools',prefix+'/pdf-tools',{})])
         with ExitStack() as stack:
             for target in ('estimator.report.render_quote_pdf','estimator.project_reports.build_project_report',
+                    'estimator.passive_fire_register.render_register_pdf',
                     'estimator.technical_item_exports.render_technical_item_pdf','estimator.penetration_item_exports.render_item_pdf',
                     'estimator.penetration_report.render_penetration_pdf','estimator.calculator_report.build_calculator_report',
                     'estimator.calculator_report.build_calculator_summary_report','estimator.certification_report.render_certificate_pdf'):
@@ -94,7 +96,7 @@ class PdfDownloadCoversHTTPTests(unittest.TestCase):
                     self.assertEqual([t.strip() for t in texts(payload)],['COMPANY MAIN','SPECIFIC '+kind,'BODY CONTENT'])
                     covered.add(kind)
             document=self.json('POST','/api/certifications'+scope,{'fields':self.fields},expected=201)
-            generated=self.json('POST','/api/certifications/'+document['id']+'/revisions'+scope,{'fields':self.fields,'expected_version':1,'request_id':str(uuid.uuid4())},expected=201)
+            generated=self.json('POST','/api/certifications/'+document['id']+'/revisions'+scope,{'fields':self.fields,'options':signed_options(),'expected_version':1,'request_id':str(uuid.uuid4())},expected=201)
             self.assertEqual([t.strip() for t in texts(self.request('GET',generated['revision']['pdf_url'])[2])],['COMPANY MAIN','SPECIFIC certification','BODY CONTENT'])
             covered.add('certification')
             workspace=scope.split('=',1)[1]

@@ -21,7 +21,18 @@
 .scheduler-clock { padding:16px 20px; }
 .scheduler-clock>div:first-child { margin-right:auto; }
 .scheduler-clock .helper { margin-top:5px; }
-.scheduler-clock-note { width:100%; }
+.scheduler-clock-heading { display:grid; grid-template-columns:minmax(385px,30%) minmax(0,1fr); align-items:stretch; }
+.scheduler-clock-navigation { display:flex; flex-direction:column; justify-content:space-between; align-items:flex-start; gap:14px; min-width:0; }
+.scheduler-clock-navigation .scheduler-tabs { flex:0 1 auto; max-width:100%; }
+.scheduler-clock-heading .scheduler-clock { margin:0; align-content:center; }
+.scheduler-clock-heading .scheduler-account { flex-basis:100%; justify-content:flex-end; }
+.scheduler-account .scheduler-local-time { color:var(--ink); }
+.scheduler-location-error { flex-basis:100%; color:var(--error); }
+#open-time-clock[hidden] { display:none; }
+#open-time-clock.scheduler-clock-warning { box-shadow:inset 0 0 0 2px var(--error); }
+@media(max-width:1100px) {
+  .scheduler-clock-heading { grid-template-columns:minmax(0,1fr); gap:14px; }
+}
 .scheduler-toolbar { margin:18px 0 8px; }
 .scheduler-toolbar input[type="date"] { width:155px; }
 .scheduler-toolbar select { width:auto; max-width:240px; }
@@ -148,10 +159,6 @@
 .scheduler-location-gaps { border-top:1px solid var(--line); padding-top:12px; }
 .scheduler-location-gaps strong { color:var(--error); font-size:12px; }
 .scheduler-selected-location { font-size:12px; overflow-wrap:anywhere; margin:12px 0!important; }
-.scheduler-location-status { width:100%; margin:4px 0 0; font-size:12px; color:var(--muted); }
-.scheduler-location-status.error,.scheduler-tracking-banner.error { color:var(--error); }
-.scheduler-tracking-banner { position:fixed; left:20px; right:150px; bottom:16px; z-index:60; display:flex; flex-wrap:wrap; justify-content:space-between; gap:10px; padding:12px 16px; border:1px solid var(--line); border-radius:8px; background:var(--paper); color:var(--ink); box-shadow:0 3px 16px #0003; font-size:12px; }
-.scheduler-tracking-banner[hidden] { display:none; }
 .scheduler-entries-title { margin:20px 0 0; }
 .scheduler-toolbar input[type="search"] { flex:1 1 230px; max-width:330px; }
 .scheduler-toolbar [aria-pressed="true"] { background:#1767b2; border-color:#1767b2; color:white; }
@@ -169,10 +176,11 @@
 @media(max-width:700px) {
   .scheduler-location-layout { grid-template-columns:1fr; }
   .scheduler-location-sidebar { border-left:0; border-top:1px solid var(--line); padding:16px 0 0; }
-  .scheduler-tracking-banner { left:10px; right:10px; bottom:90px; }
   .scheduler-rule-fields,.scheduler-rule-section,.scheduler-rule-window,.scheduler-rule-editors,.scheduler-rounding-fields { grid-template-columns:1fr; }
   .scheduler-top,.scheduler-clock { align-items:stretch; }
   .scheduler-account { width:100%; justify-content:space-between; }
+  .scheduler-clock-heading .scheduler-account { justify-content:flex-start; }
+  .scheduler-clock-heading .scheduler-local-time { flex-basis:100%; }
   .scheduler-tabs { width:100%; }
   .scheduler-tabs .button { flex:1 1 auto; padding:10px; }
   .scheduler-form-fields { grid-template-columns:1fr; }

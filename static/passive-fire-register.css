@@ -1,0 +1,14 @@
+.register-form { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 1rem; }
+.register-form .card { margin: 0; min-width: 0; }
+.register-form [role=status]:empty { display: none; }
+.register-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: .65rem; }
+.register-toolbar .field { flex: 1 1 14rem; min-width: 0; }
+.register-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,18rem),1fr)); gap: 1rem; }
+.register-form input, .register-form select, .register-form textarea { max-width: 100%; }
+.register-form section > .register-grid { margin-top: .8rem; }
+.register-choices { min-width: 0; padding: .65rem; grid-column: 1/-1; display: flex; flex-wrap: wrap; gap: .4rem 1rem; }
+.register-choices label { display: inline-flex; align-items: center; gap: .35rem; }
+.register-choices input { width: auto; }
+.register-photo-field figure { display: inline-flex; vertical-align: top; flex-direction: column; gap: .25rem; margin: .35rem; }
+.register-photo-field img { width: 7rem; height: 5rem; object-fit: contain; }
+.register-signature { display: block; background: white; max-width: 12rem; max-height: 4rem; margin: .5rem 0; }

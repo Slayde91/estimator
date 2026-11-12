@@ -61,7 +61,8 @@ class SavedCommercial:
             return self.projects.commercial.unfiled.activity(source, identity)
         with self.projects.commercial_file(file_id, revision) as (_, snapshot, _, _):
             commercial = snapshot.get('commercial_documents')
-            owner = (snapshot.get('certifications') or {}).get('project_id')
+            certificates = snapshot.get('certifications')
+            owner = certificates.get('project_id') if isinstance(certificates, dict) else None
             if not commercial or commercial['project_id'] != owner or owner in self.projects._commercial_sources.ignored_owners():
                 raise ValidationError('This commercial document is unavailable in the current project.')
             return self.projects.commercial.saved_activity(commercial, identity)

@@ -408,6 +408,10 @@ class SavedQuoteTests(unittest.TestCase):
         self.assertEqual(set(cards), {quote['id'], purchase['id']})
         self.assertFalse(any(c['current_workspace'] for c in cards.values()))
         source = {'file_id':cards[quote['id']]['source_file'], 'revision':cards[quote['id']]['source_revision']}
+        history = saved.activity(source['file_id'], source['revision'], quote['id'])['events']
+        self.assertEqual([item['label'] for item in history], ['Created'])
+        with self.assertRaises(CommercialConflict):
+            saved.activity(source['file_id'], source['revision'], transient['id'])
         def act(action, **fields):
             return saved.perform(action, {'source':source, **fields}, execute)
         self.assertEqual(cards[purchase['id']]['status'], 'Completed')

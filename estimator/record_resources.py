@@ -49,6 +49,10 @@ def _notes(value):
         if not item['title'].strip():
             raise ValidationError('Enter a title for the note.')
         result.append({'id': identity, 'title': item['title'].strip(), 'body': item['body']})
+    # Bound encoded storage as well as character counts. Multi-byte text and
+    # JSON escapes must not create a collection too large to reopen safely.
+    if len(json.dumps(result, ensure_ascii=False).encode('utf-8')) > 1024 * 1024:
+        raise ValidationError('Enter a valid note title and text.')
     return result
 
 
@@ -57,7 +61,8 @@ class RecordResources:
         self.root, self.projects, self.contacts = Path(root), projects, contacts
 
     def _target(self, owner):
-        if not isinstance(owner, dict) or set(owner) != {'kind', 'id'}:
+        if (not isinstance(owner, dict)
+                or set(owner) != ({'kind', 'id', 'project_id'} if owner.get('kind') == 'projects' else {'kind', 'id'})):
             raise ValidationError('Choose a saved record for Notes and Files.')
         kind, identity = owner['kind'], owner['id']
         if kind == 'projects':
@@ -68,6 +73,11 @@ class RecordResources:
                 if not project['owner']:
                     raise ValidationError('Save this Project before adding Notes or Files.')
                 project_id = _uuid(project['owner'])
+                # A linked listing ID identifies a path. Bind it to the portable
+                # owner the pane actually opened, even before its initial read.
+                # Replacing that path must never retarget an old note or link.
+                if _uuid(owner['project_id']) != project_id:
+                    raise ResourceConflict('The selected project is unavailable.')
                 if identity.startswith('native:'):
                     path = Path(self.projects._save_targets[identity[7:]].path)
                 else:
@@ -76,7 +86,7 @@ class RecordResources:
                 name = hashlib.sha256(path.name.encode('utf-8')).hexdigest()
                 folder = path.parent / '.ceasefire-evidence' / project_id / 'record-resources' / name
             return folder, project_id
-        if kind not in {'accounts', 'contacts', 'leads'}:
+        if not isinstance(kind, str) or kind not in {'accounts', 'contacts', 'leads'}:
             raise ValidationError('Choose a saved record for Notes and Files.')
         identity = _uuid(identity)
         with self.contacts.connection() as db:
@@ -216,10 +226,10 @@ class RecordResourcesHTTP:
         try:
             if handler.command == 'GET' and route in {prefix, prefix + '/file'}:
                 query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
-                keys = {'kind', 'id'} | ({'file'} if route.endswith('/file') else set())
+                keys = {'kind', 'id'} | ({'project_id'} if query.get('kind') == ['projects'] else set()) | ({'file'} if route.endswith('/file') else set())
                 if set(query) != keys or any(len(v) != 1 for v in query.values()):
                     raise ValidationError('Choose one saved record for Notes and Files.')
-                owner = {key: query[key][0] for key in ('kind', 'id')}
+                owner = {key: query[key][0] for key in ('kind', 'id', 'project_id') if key in query}
                 if route.endswith('/file'):
                     item, payload = self.store.file(owner, query['file'][0])
                     from .project_file import project_download_header

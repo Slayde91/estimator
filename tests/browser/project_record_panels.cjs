@@ -83,6 +83,12 @@ const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()
   await seen;await back();await open(b);release();await completed;await expect(notes.getByRole('button',{name:'B only note',exact:true})).toBeVisible();await expect(notes).not.toContainText('A only note');await page.unroute('**/api/record-resources?*');
   await page.setViewportSize({width:390,height:884});await resources.scrollIntoViewIfNeeded();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)<=1,'Project sidebars fit narrow screens');await page.screenshot({path:path.join(output,'project-sidebar-mobile.png'),fullPage:true});
   await page.setViewportSize({width:1915,height:884});
+  // A refreshed listing can reuse a path ID for an unrelated replacement.
+  // Clear old Notes/Files immediately instead of retaining the old helper.
+  await page.evaluate(file=>ClassifireProjectRecordPanels.show({...file,source_project_id:crypto.randomUUID()}),b);
+  await expect(notes.locator('summary')).toHaveText('Notes (0)');await expect(files.locator('summary')).toHaveText('Files (0)');
+  await expect(resources.locator('[role="status"]')).toHaveText('The selected project is unavailable.');await expect(resources.getByRole('button',{name:'New note',exact:true})).toBeDisabled();
+  await page.evaluate(file=>ClassifireProjectRecordPanels.show(file),b);await expect(notes.getByRole('button',{name:'B only note',exact:true})).toBeVisible();
   // A second public linked-document request cannot open an editor during the
   // first navigation's board activation, then have that editor replaced.
   const linkedCard=(await read('/api/commercial/register')).documents.find(row=>row.source_path===siblingPath&&row.id===documentId);

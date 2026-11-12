@@ -146,11 +146,11 @@ class ResourceTests(unittest.TestCase):
                 self.write('notes', 0, notes=[note])
 
     def test_project_companions_move_together_and_save_as_owns_separate_resources(self):
-        self.owner = {'kind': 'projects', 'id': 'a' * 64}
+        self.owner = {'kind': 'projects', 'id': 'a' * 64, 'project_id': self.projects.owner}
         original = self.projects.path.read_bytes()
         saved = self.write('notes', 0, notes=[self.note()])
         self.assertEqual(self.projects.path.read_bytes(), original)
-        self.assertEqual(self.store.read({'kind': 'projects', 'id': 'native:capability'}), saved)
+        self.assertEqual(self.store.read({**self.owner, 'id': 'native:capability'}), saved)
         source = self.projects.path.parent
         moved = self.root / 'moved'
         moved.mkdir()
@@ -163,10 +163,42 @@ class ResourceTests(unittest.TestCase):
         self.assertEqual(self.store.read(self.owner)['notes'], [])
         self.projects.path = moved / 'Project.cf.json'
         self.projects.owner = str(uuid4())
-        self.assertEqual(self.store.read(self.owner)['notes'], [])
+        with self.assertRaises(ResourceConflict):
+            self.store.read(self.owner)
+        self.assertEqual(self.store.read({**self.owner, 'project_id': self.projects.owner})['notes'], [])
         self.projects.owner = ''
         with self.assertRaisesRegex(ValidationError, 'Save this Project'):
             self.store.read(self.owner)
+
+    def test_same_path_replaced_owner_rejects_initial_reads_writes_and_file_links(self):
+        old = {'kind': 'projects', 'id': 'a' * 64, 'project_id': self.projects.owner}
+        self.assertEqual(self.store.read(old)['version'], 0)
+        self.projects.owner = str(uuid4())
+        new = {**old, 'project_id': self.projects.owner}
+        # Both collections start at version zero; a version check alone cannot
+        # distinguish unrelated Projects which occupy the same saved pathname.
+        with self.assertRaises(ResourceConflict):
+            self.store.write('notes', {'owner': old, 'version': 0, 'notes': [self.note('Wrong owner')]})
+        self.assertEqual(self.store.read(new)['notes'], [])
+        saved = self.store.write('upload', {'owner': new, 'version': 0, 'filename': 'New owner.txt',
+            'content_base64': base64.b64encode(b'Current Project only').decode()})
+        for selector in ('a'*64, 'native:capability'):
+            stale = {**old, 'id': selector}
+            with self.assertRaises(ResourceConflict):
+                self.store.read(stale)
+            with self.assertRaises(ResourceConflict):
+                self.store.file(stale, saved['files'][0]['id'])
+        with self.assertRaises(ValidationError):
+            self.store.read({'kind': 'projects', 'id': 'a'*64})
+        self.assertEqual(self.store.file(new, saved['files'][0]['id'])[1], b'Current Project only')
+
+    def test_malformed_kind_and_oversize_encoded_note_collection_fail_without_losing_state(self):
+        for kind in ([], {}, 42, None):
+            with self.assertRaises(ValidationError):
+                self.store.read({'kind': kind, 'id': self.account})
+        with self.assertRaises(ValidationError):
+            self.write('notes', 0, notes=[self.note('Large', '\u2603' * 8000) for _ in range(50)])
+        self.assertEqual(self.store.read(self.owner), {'version': 0, 'notes': [], 'files': []})
 
 
 class ResourceHTTPAccessTests(unittest.TestCase):

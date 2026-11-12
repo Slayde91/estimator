@@ -81,14 +81,14 @@
   }
   window.ClassifireProjectRecordPanels = {
     show(file) {
-      if(selector(file) && selector(file) === selector(selected)) {
+      if(selector(file) && selector(file) === selector(selected) && file.source_project_id === selected.source_project_id) {
         if(file.path === selected.path && file.revision === selected.revision)return;
         selected = file; void loadDocuments(); return;
       }
       close(); selected = file || null;
       const opened = generation;
       resources = window.ClassifireRecordResources.attach(resourcesHost,{
-        owner:selector(file) ? {kind:"projects",id:selector(file)} : null,
+        owner:selector(file) ? {kind:"projects",id:selector(file),project_id:file.source_project_id} : null,
         isCurrent:()=>opened === generation && !host.hidden && host.isConnected,
         canEdit, message:value=>message(value)
       });

@@ -1127,7 +1127,7 @@
     if (view !== previousView && previousView === "contacts" && window.ClassifireContacts?.leave && !await window.ClassifireContacts.leave()) return;
     if (view !== state.currentView && state.currentView === "quotes" && window.CeasefireProjectPane && !await window.CeasefireProjectPane.leave()) return;
     if (view !== state.currentView && window.CeasefireCommercial?.hasPendingOperation?.() && !await window.CeasefireCommercial.leaveEditor()) return;
-    if (view !== state.currentView && window.CeasefireScheduler?.hasPendingOperation?.()) { message("Finish or cancel the current Scheduler edit before changing views.", true); return; }
+    if (view !== state.currentView && window.CeasefireScheduler?.hasPendingOperation?.() && !await window.CeasefireScheduler.leave()) return;
     if (view !== state.currentView && window.CeasefireCoverSheets?.hasPendingOperation?.()) { message(uiCopy("Finish or retry the current cover-sheet operation before changing views."), true); return; }
     if (view !== state.currentView && window.CeasefireCoverSheets?.hasUnsavedChanges?.() && !await window.CeasefireCoverSheets.leave()) return;
     if (view !== state.currentView && (window.CeasefireCertification?.hasPendingNavigationOperation?.() ?? window.CeasefireCertification?.hasPendingOperation?.())) { message(uiCopy("Finish or retry the current certification operation before changing views."), true); return; }

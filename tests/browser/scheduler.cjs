@@ -23,7 +23,14 @@ async function scheduler() {
   await page.locator('#scheduler-navigation').click();
   await expect(page.locator('#scheduler-root')).toBeVisible();
 }
-async function tab(name) {await page.locator('.scheduler-tabs').getByRole('button',{name,exact:true}).click();}
+async function tab(name) {
+  const control=page.locator('.scheduler-tabs').getByRole('button',{name,exact:true});
+  if(name==='Settings') {
+    await expect(control).toHaveAttribute('title','Settings');
+    await expect(control.locator('svg')).toHaveCount(1);
+  }
+  await control.click();
+}
 async function openAdd(label) {
   const action=page.getByRole('button',{name:label,exact:true});
   for (const width of [1915,631,390]) {
@@ -224,12 +231,68 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await expect(page.locator('.scheduler-payroll')).toContainText('2×');
   checks.push('manual 12-hour entry gives eight ordinary, two 1.5x, two 2x hours and $600 total');
   await tab('Settings');
-  await page.getByLabel('Timesheet rounding',{exact:true}).selectOption('5');
+  const originalSettings=(await api('/state')).settings;
+  const overtimePicker=page.getByRole('combobox',{name:'Overtime and penalty rules',exact:true});
+  const breakPicker=page.getByRole('combobox',{name:'Break rules',exact:true});
+  const visibleOvertimeName=page.locator('.scheduler-rule-editor:visible').getByLabel('Rule name',{exact:true});
+  const visibleBreakName=page.locator('.scheduler-rule-editor:visible').getByLabel('Break name',{exact:true});
+  const overtimeRule=originalSettings.overtime_rules.at(-1),breakRule=originalSettings.breaks.at(-1);
+  await overtimePicker.selectOption(overtimeRule.id);
+  await breakPicker.selectOption(breakRule.id);
+  await expect(page.locator('.scheduler-rule-editor:visible')).toHaveCount(2);
+  await expect(visibleOvertimeName).toHaveValue(overtimeRule.name);
+  await expect(visibleBreakName).toHaveValue(breakRule.name);
+  assert.equal(await page.evaluate(() => window.CeasefireScheduler.hasPendingOperation()),false,'Selecting a saved rule does not create unsaved settings');
   await tab('Schedule');
+  await expect(page.locator('.scheduler-grid')).toBeVisible();
+  await expect(page.locator('dialog[open]')).toHaveCount(0);
+  checks.push('Settings gear keeps its accessible name; selecting overtime and break rules displays only those panes without unsaved changes');
+
+  await tab('Settings');
+  await page.getByLabel('Timesheet rounding',{exact:true}).selectOption('5');
+  await visibleOvertimeName.fill('Unsaved overtime rule');
+  await tab('Schedule');
+  const settingsReview=page.getByRole('dialog',{name:'Discard unsaved Scheduler settings changes?',exact:true});
+  await expect(settingsReview).toBeVisible();
   await expect(page.locator('.scheduler-settings')).toBeVisible();
   assert.equal(await page.evaluate(() => window.CeasefireScheduler.hasPendingOperation()),true);
+  await settingsReview.getByRole('button',{name:'Cancel',exact:true}).click();
+  await expect(page.getByLabel('Timesheet rounding',{exact:true})).toHaveValue('5');
+  await expect(visibleOvertimeName).toHaveValue('Unsaved overtime rule');
+  await tab('Schedule');
+  await settingsReview.getByRole('button',{name:'Discard',exact:true}).click();
+  await expect(page.locator('.scheduler-grid')).toBeVisible();
+  assert.equal(await page.evaluate(() => window.CeasefireScheduler.hasPendingOperation()),false);
+  await tab('Settings');
+  await expect(page.getByLabel('Timesheet rounding',{exact:true})).toHaveValue(String(originalSettings.rounding_minutes));
+  await expect(visibleOvertimeName).toHaveValue(overtimeRule.name);
+  assert.equal((await api('/state')).settings.version,originalSettings.version,'Discarding navigation never writes settings');
+  checks.push('Dirty internal Scheduler navigation asks to discard; Cancel preserves rounding and rule edits, Discard restores saved settings and changes tab');
+
+  await page.getByLabel('Timesheet rounding',{exact:true}).selectOption('6');
+  await page.locator('.nav-button[data-view="home"]').click();
+  await expect(settingsReview).toBeVisible();
+  await settingsReview.getByRole('button',{name:'Cancel',exact:true}).click();
+  await expect(page.locator('#view-scheduler')).toBeVisible();
+  await expect(page.getByLabel('Timesheet rounding',{exact:true})).toHaveValue('6');
+  await page.locator('.nav-button[data-view="home"]').click();
+  await settingsReview.getByRole('button',{name:'Discard',exact:true}).click();
+  await expect(page.locator('#view-home')).toBeVisible();
+  assert.equal(await page.evaluate(() => window.CeasefireScheduler.hasPendingOperation()),false);
+  await scheduler();
+  await tab('Settings');
+  await expect(page.getByLabel('Timesheet rounding',{exact:true})).toHaveValue(String(originalSettings.rounding_minutes));
+  checks.push('Global header navigation shares the settings discard dialog; Cancel stays on Scheduler and Discard opens the requested page');
+
+  await page.getByLabel('Timesheet rounding',{exact:true}).selectOption('10');
+  await page.getByRole('button',{name:'Sign out',exact:true}).click();
+  await expect(settingsReview).toBeVisible();
+  await settingsReview.getByRole('button',{name:'Cancel',exact:true}).click();
+  await expect(page.locator('.scheduler-account')).toContainText('Scheduler Admin');
+  await expect(page.getByLabel('Timesheet rounding',{exact:true})).toHaveValue('10');
   await page.getByRole('button',{name:'Discard settings changes',exact:true}).click();
-  await expect(page.getByLabel('Timesheet rounding',{exact:true})).toHaveValue('0');
+  await expect(page.getByLabel('Timesheet rounding',{exact:true})).toHaveValue(String(originalSettings.rounding_minutes));
+  checks.push('Cancelling sign-out preserves the signed-in account and settings draft');
   await page.getByLabel('Timesheet rounding',{exact:true}).selectOption('5');
   await page.getByRole('button',{name:'Save settings',exact:true}).click();
   await expect(page.locator('.scheduler-notice')).toHaveText('Scheduler settings saved.');

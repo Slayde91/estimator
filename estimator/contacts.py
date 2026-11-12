@@ -15,7 +15,7 @@ from . import crm_activity
 
 
 ACTIVE_LEAD_STATUSES = ("New", "Qualified", "Disqualified")
-LEAD_STATUSES = (*ACTIVE_LEAD_STATUSES, "Converted")
+LEAD_STATUSES = ("New", "Qualified", "Converted", "Disqualified")
 PERSON_FIELDS = ("name", "phone", "company", "title", "email")
 ACCOUNT_FIELDS = ("company", "billing_address", "abn_acn")
 LEAD_FIELDS = (*PERSON_FIELDS, "site_address", "billing_address", "description", "status", "abn_acn", "next_action", "follow_up_date")

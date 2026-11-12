@@ -55,7 +55,7 @@ WRITE_FIELDS = {
     'settings': set(DEFAULT_SETTINGS),
     'organization': {'timezone', 'version'},
     'clock/in': {'project_id', 'project_name', 'work_order', 'notes', 'location_consent', 'location'},
-    'clock/out': {'entry_id', 'version'},
+    'clock/out': {'entry_id', 'version', 'location'},
     'clock/break': {'entry_id', 'version', 'action', 'paid', 'rule_id'},
     'locations': {'entry_id', 'latitude', 'longitude', 'accuracy', 'captured_at'},
     'locations/enable': {'entry_id', 'latitude', 'longitude', 'accuracy', 'captured_at'},
@@ -845,9 +845,14 @@ class SchedulerStore:
         open_break = value['breaks'][-1] if value['breaks'] and value['breaks'][-1]['end'] is None else None
         if now <= _timestamp(value['start']):
             raise SchedulerError('Clock time must follow the entry start.', 409)
+        final_location = None
         if action == 'clock/out':
             if open_break and open_break.get('min_end_at') and now < _timestamp(open_break['min_end_at']):
                 raise SchedulerError('Complete the required break duration before clocking out.', 409)
+            if 'location' in payload:
+                final_location = self._validated_location(payload['location'], ZoneInfo(self._read_settings(db)['timezone']), freshness=timedelta(minutes=2))
+                if final_location[3] < _timestamp(value['start']):
+                    raise SchedulerError('Location timestamps must be current and inside this clock session.')
             value['end'] = _iso(now)
             if open_break:
                 open_break['end'] = _iso(now)
@@ -894,7 +899,14 @@ class SchedulerStore:
                 raise SchedulerError('Choose start or end for the break.')
         else:
             raise SchedulerError('Clock action not found.', 404)
-        return self._save_record(db, user, 'entry', value, previous)
+        saved = self._save_record(db, user, 'entry', value, previous)
+        if final_location:
+            # The clock-out fix is an explicit shift boundary, independent of
+            # the periodic cadence. Save it atomically with the closed entry.
+            latest = db.execute('SELECT captured_at FROM scheduler_locations WHERE entry_id=? ORDER BY captured_at DESC LIMIT 1', (saved['id'],)).fetchone()
+            if not latest or final_location[3] > _timestamp(latest['captured_at']):
+                self._insert_location(db, saved, user, final_location)
+        return saved
 
     def _validated_location(self, payload, zone, *, freshness=timedelta(minutes=5)):
         keys = {'latitude', 'longitude', 'accuracy', 'captured_at'}
@@ -930,7 +942,8 @@ class SchedulerStore:
         if not entry['location_consent']:
             entry = self._save_record(db, user, 'entry', {**entry, 'location_consent': True}, entry)
         latest = db.execute('SELECT captured_at FROM scheduler_locations WHERE entry_id=? ORDER BY captured_at DESC LIMIT 1', (entry['id'],)).fetchone()
-        if latest and captured < _timestamp(latest['captured_at']) + timedelta(seconds=10):
+        # This transaction also coalesces retries and independent browser tabs.
+        if latest and captured < _timestamp(latest['captured_at']) + timedelta(minutes=30):
             return {'recorded': False, 'reason': 'A recent location is already recorded.', 'captured_at': latest['captured_at']}
         return self._insert_location(db, entry, user, location)
 

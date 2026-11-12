@@ -102,10 +102,19 @@
 .scheduler-break-row>.field { flex:1 1 160px; }
 .scheduler-break-row>.scheduler-check { padding-bottom:12px; }
 .scheduler-rule-list { display:grid; gap:10px; font-size:13px; padding-left:22px; line-height:1.6; }
-.scheduler-rule-editors { display:grid; gap:12px; }
+.scheduler-rule-editors { display:grid; grid-template-columns:minmax(190px,1fr) minmax(0,3fr); gap:20px; align-items:start; }
+.scheduler-rule-picker { display:flex; align-items:start; gap:10px; min-width:0; }
+.scheduler-rule-picker select { flex:1; min-width:0; width:100%; }
+.scheduler-rule-picker .button { flex:0 0 42px; width:42px; min-width:42px; height:42px; }
+.scheduler-rule-pane { min-width:0; }
+.scheduler-rule-editor[hidden],.scheduler-rule-pane[hidden] { display:none; }
+.scheduler-rounding-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
+.scheduler-rule-fields>.scheduler-rule-delete { grid-column:1/-1; justify-self:end; align-self:end; width:42px; height:42px; min-height:42px; padding:9px; }
+.scheduler-rule-delete svg { width:22px; height:22px; }
+.scheduler-tabs>.scheduler-settings-tab { width:48px; min-width:48px; padding:11px; }
+.scheduler-settings-tab svg { width:20px; height:20px; }
 .scheduler-rule-editor { border:1px solid var(--line); border-radius:8px; padding:14px; }
-.scheduler-rule-editor>summary { cursor:pointer; font-weight:700; }
-.scheduler-rule-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:18px; }
+.scheduler-rule-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
 .scheduler-rule-fields>.scheduler-days,.scheduler-rule-fields>.scheduler-rule-section,.scheduler-rule-fields>.scheduler-rule-window { grid-column:1/-1; }
 .scheduler-rule-section,.scheduler-rule-window { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; padding:14px; border-left:3px solid var(--accent); }
 .scheduler-rule-section>.scheduler-days,.scheduler-rule-window>.helper { grid-column:1/-1; }
@@ -161,7 +170,7 @@
   .scheduler-location-layout { grid-template-columns:1fr; }
   .scheduler-location-sidebar { border-left:0; border-top:1px solid var(--line); padding:16px 0 0; }
   .scheduler-tracking-banner { left:10px; right:10px; bottom:90px; }
-  .scheduler-rule-fields,.scheduler-rule-section,.scheduler-rule-window { grid-template-columns:1fr; }
+  .scheduler-rule-fields,.scheduler-rule-section,.scheduler-rule-window,.scheduler-rule-editors,.scheduler-rounding-fields { grid-template-columns:1fr; }
   .scheduler-top,.scheduler-clock { align-items:stretch; }
   .scheduler-account { width:100%; justify-content:space-between; }
   .scheduler-tabs { width:100%; }

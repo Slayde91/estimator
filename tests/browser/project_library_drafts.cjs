@@ -61,7 +61,7 @@ async function editorLayout(width, height) {
     return{settings:bounds('#library-editor-settings'),tabs:bounds('#library-editor-groups'),quantity:bounds('#library-editor-item-quantity'),fields:bounds('#library-editor-fields'),diagram:bounds('.library-editor-diagram'),diagramFollowsFields:!!(fields.compareDocumentPosition(diagram)&Node.DOCUMENT_POSITION_FOLLOWING),overflow:document.documentElement.scrollWidth-innerWidth,overflowRegions:[...document.querySelectorAll('#firestopping-library-editor *')].map(element=>({tag:element.tagName,id:element.id,className:element.className,x:element.getBoundingClientRect().x,right:element.getBoundingClientRect().right,width:element.getBoundingClientRect().width})).filter(element=>element.right>innerWidth+1)};
   });
   fs.writeFileSync(path.join(output,`library-editor-layout-${width}.json`),JSON.stringify(measured,null,2));
-  assert.ok(Math.abs(measured.settings.y-measured.tabs.y)<1,'Settings aligns with the input tab strip');
+  assert.ok(Math.abs(measured.settings.bottom-measured.tabs.bottom)<1,'Settings aligns with the bottom edge of the input tab strip');
   assert.ok(measured.quantity.bottom<=measured.tabs.y,'Item QTY sits above the input tabs');
   assert.ok(measured.diagram.y>=measured.fields.bottom,'Source diagram sits below the active item inputs');
   assert.equal(measured.diagramFollowsFields,true);assert.ok(measured.overflow<=1,`Library editor overflows at ${width}px`);

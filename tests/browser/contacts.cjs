@@ -69,7 +69,7 @@ const ready = new Promise((resolve, reject) => {
   await expect(page.locator('#project-status')).toHaveCount(0);
   await expect(page.locator('#estimate-open-quote .download-format')).toHaveText('PDF');
   await root.getByRole('button',{name:'New Lead',exact:true}).click();
-  const dlg=page.getByRole('dialog');
+  let dlg=page.getByRole('dialog',{name:'New Lead',exact:true});
   await dlg.getByLabel('Name',{exact:true}).fill('Robin Sample');
   await dlg.getByLabel('Company',{exact:true}).fill('Sample Company');
   await dlg.getByLabel('ABN/ACN',{exact:true}).fill('12 345 678 901');
@@ -102,6 +102,7 @@ const ready = new Promise((resolve, reject) => {
   assert.equal(convertRequests,0,'Incomplete Lead icon and menu never send a conversion request');
   assert.deepEqual(await page.evaluate(async()=>await(await fetch('/api/contacts/directory')).json()),partialDirectory);
   await card.locator('summary').click();await card.getByRole('button',{name:'Edit',exact:true}).click();
+  dlg=page.getByRole('complementary',{name:'Edit Lead',exact:true});
   await dlg.getByLabel('Phone',{exact:true}).fill('0400');
   await expect(dlg.getByLabel('Status',{exact:true})).toHaveValue('Qualified');
   await dlg.getByLabel('Email',{exact:true}).fill('robin@example.test');
@@ -207,6 +208,7 @@ const ready = new Promise((resolve, reject) => {
   await expect(convertedCard).toBeVisible();
   await root.getByRole('searchbox',{name:'Search leads'}).fill('');
   await root.getByRole('button',{name:'New Lead',exact:true}).click();
+  dlg=page.getByRole('dialog',{name:'New Lead',exact:true});
   await dlg.getByLabel('Name',{exact:true}).fill('Second Lead');
   await dlg.getByLabel('Company',{exact:true}).fill('Second Company');
   await dlg.getByLabel('Phone',{exact:true}).fill('0401');

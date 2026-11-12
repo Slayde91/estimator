@@ -159,6 +159,8 @@
           body.insertRow().append(label('th', kinds[key] || key),node('td',pair.source_links.counts[key]),node('td',pair.survivor_links.counts[key]));
         }
         review.append(table);
+        const resourcesNotice = label('p','Source Notes and Files stay on the original record. Undo the merge to access them again.');
+        resourcesNotice.className = 'helper'; review.append(resourcesNotice);
         if ([pair.source_links,pair.survivor_links].some(state=>state.scan_pending || state.error_count))
           review.append(label('p','Some project records are still loading or unavailable.'));
         const why = node('label',null,'field'), reason = node('input');

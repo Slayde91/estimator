@@ -85,10 +85,23 @@ async function createNewProject(page, values = {}) {
   return result;
 }
 
+async function openCurrentProjectDetails(page) {
+  const name=page.locator('#header-project-name');
+  if(await name.isVisible()){
+    await name.click();
+    await page.locator('#discard-dialog').getByRole('button',{name:'Yes',exact:true}).click();
+  } else {
+    // Tests for legacy/unfiled drafts exercise the existing public pane API.
+    // Filed Projects use the same confirmation shortcut available to users.
+    await page.evaluate(()=>window.CeasefireProjectPane.openCurrent());
+  }
+  await expect(page.locator('#project-details-pane')).toBeVisible();
+}
+
 async function fillProjectDetails(page, values, {waitForIdle = true} = {}) {
   const previous = await page.locator('.view').evaluateAll(nodes => nodes.find(node => !node.hidden)?.id.replace(/^view-/, ''));
   await openProjectSection(page, 'quotes');
-  await page.locator('#project-current-details').click();
+  await openCurrentProjectDetails(page);
   await expect(page.locator('#project-details-pane')).toBeVisible();
   for (const [id, value] of Object.entries(values)) {
     const ids={client:'project-pane-client','site-address':'project-pane-address',contact_name:'project-pane-contact-name',contact_phone:'project-pane-contact-phone',contact_email:'project-pane-contact-email'};
@@ -146,4 +159,4 @@ async function prepareProjectForSave(page) {
   return after;
 }
 
-module.exports = { clickProjectControl, openProjectTools, openProjectSection, fillProjectDetails,createNewProject,prepareProjectForSave };
+module.exports = { openCurrentProjectDetails, clickProjectControl, openProjectTools, openProjectSection, fillProjectDetails,createNewProject,prepareProjectForSave };

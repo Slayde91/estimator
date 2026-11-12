@@ -260,9 +260,38 @@
   window.ClassifireCommercialDirectory={field:directorySearch,load:loadDirectory,fold,linkedContacts,linkedCompanies,recipientSearches};
   function attach(form, options) {
     const owner = form.parentElement, wrapper = el("div"), left = el("aside"), right = el("aside");
+    const panelActor=window.ClassifireAccess?.user?.id || null;
+    const panelCurrent=()=>wrapper.isConnected && panelActor===(window.ClassifireAccess?.user?.id || null) && (options.isCurrent?.() ?? true);
     const isPurchaseOrder=options.kind==='purchase_order';
     wrapper.className = "commercial-work-layout"+(isPurchaseOrder?' commercial-purchase-layout':''); left.className = right.className = "commercial-sidebar";
     owner.insertBefore(wrapper,form); wrapper.append(left,form,right);
+    const linkedProjects=panel("Linked Projects");
+    linkedProjects.classList.add("commercial-linked-projects");
+    function showLinkedProjects(data, message="") {
+      const sourceIdentity=JSON.stringify(options.participantSource?.());
+      const rows=[],seen=new Set();
+      for(const bid of [...(data?.linked_bids || []),...(data?.other_site_bids || [])]) {
+        const identity=JSON.stringify([bid.source || "",bid.owner || "",bid.project_no || "",bid.site_address || ""]);
+        if(seen.has(identity))continue;seen.add(identity);rows.push(bid);
+      }
+      linkedProjects.replaceChildren(panelSummary("Linked Projects",data ? rows.length : undefined));
+      for(const bid of rows) {
+        const label=[bid.project_no,bid.client,bid.site_address].filter(Boolean).join(" · ");
+        if(bid.availability==="available" && bid.source) {
+          linkedProjects.append(action(label,async event=>{
+            if(!panelCurrent() || sourceIdentity!==JSON.stringify(options.participantSource?.()))return;
+            await window.CeasefireCommercial?.openLinkedProject(bid,event.currentTarget);
+          }));
+        } else {
+          const item=el("p",label);item.className="helper";
+          if(bid.availability==="unavailable"){const note=el("span","Saved project unavailable");window.CeasefireI18n?.text(note,"Saved project unavailable");item.append(" · ",note);}
+          else if(bid.availability==="unverified"){const note=el("span","Availability not yet verified");window.CeasefireI18n?.text(note,"Availability not yet verified");item.append(" · ",note);}
+          linkedProjects.append(item);
+        }
+      }
+      const copy=message || (data?.error_count || data?.scan_pending ? "Some linked projects could not be checked." : data && !rows.length ? "No linked projects." : "");
+      if(copy){const note=el("p",copy);note.className="helper";window.CeasefireI18n?.text(note,copy);linkedProjects.append(note);}
+    }
     let controls=[],refreshDetails=()=>{},refreshDirectory=async()=>{};
     {
     const accountPanel = panel("Company Details"), contactPanel = panel("Linked Contacts");
@@ -270,23 +299,24 @@
     let directory = {},participants=null,participantsKey='',participantTicket=0;
     const contactList=el('div'),companyList=el('div'),linkedNotice=el('p');contactList.className='commercial-linked-contacts';companyList.className='commercial-linked-companies';
     linkedNotice.className='helper';linkedNotice.setAttribute('role','status');
-    const current=()=>wrapper.isConnected && (options.isCurrent?.() ?? true);
+    const current=panelCurrent;
     // A Project save can rehydrate canonical IDs after the document was saved.
     // Always read the captured editor owner; never infer its contact by name.
     const projectDetails=()=>options.readProjectDetails?.() || options.projectDetails || {};
     async function refreshParticipants(force=false) {
-      if(isPurchaseOrder || !current())return;
+      if(!current())return;
       const identity=options.participantSource?.(),key=JSON.stringify(identity);
       if(!force && key===participantsKey)return;
       participantsKey=key;const ticket=++participantTicket;participants=null;linkedNotice.textContent='';
-      if(!identity){showContact();return;}
+      if(!identity){showLinkedProjects(null,"Save the Project to view linked projects.");showContact();return;}
+      showLinkedProjects(null,"Loading…");
       try {
         const response=await fetch('/api/crm/project-participants?project='+encodeURIComponent(identity.selector),{cache:'no-store'}),data=await response.json();
         if(!response.ok)throw Error(data.error || 'Linked contacts could not be loaded.');
         if(!current() || ticket!==participantTicket || key!==JSON.stringify(options.participantSource?.()))return;
         if(identity.revision && data.project_revision!==identity.revision)throw Error('The project changed. Reopen its details before changing participants.');
-        participants=data;showContact();
-      }catch(error){if(current() && ticket===participantTicket){linkedNotice.textContent=error.message;showContact();}}
+        participants=data;showContact();showLinkedProjects(data);
+      }catch(error){if(current() && ticket===participantTicket){linkedNotice.textContent=error.message;showContact();showLinkedProjects(null,error.message);}}
     }
     refreshDirectory=async function(value) {
       const latest=value || await loadDirectory(true);if(!current())return;directory=latest;showContact();
@@ -353,6 +383,7 @@
     else refreshSymbol.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M20 7v5h-5"></path><path d="M4 17v-5h5"></path><path d="M6.1 8.4A7.5 7.5 0 0 1 19.2 10L20 12"></path><path d="M17.9 15.6A7.5 7.5 0 0 1 4.8 14L4 12"></path></svg>';
     refreshContacts.append(refreshSymbol);contactPanel.append(contactList,linkedNotice,refreshContacts);
     contactPanel.addEventListener('toggle',()=>{if(contactPanel.open)void refreshParticipants(true);});
+    linkedProjects.addEventListener('toggle',()=>{if(linkedProjects.open)void refreshParticipants(true);});
     function showContact() {
       showLinkedCompanies();showLinkedContacts();
       controls.forEach(control=>control.refresh());
@@ -420,7 +451,7 @@
         for(const doc of rows) block.append(action([doc.reference || doc.last_number,doc.fields.title].filter(Boolean).join(" · "),()=>options.openRelated(doc)));
       }
     }
-    relatedPanels.forEach(([,block])=>right.append(block));showRelated();
+    relatedPanels.forEach(([,block])=>right.append(block));right.append(linkedProjects);showRelated();
     form.querySelector("[data-order-link]")?.addEventListener("change",showRelated);
     return {repaintFiles,refreshDirectory,closeSearches(){controls.forEach(control=>control.close());},refreshProjectDetails(value){options.projectDetails=value;refreshDetails();}};
   }

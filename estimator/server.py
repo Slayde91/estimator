@@ -60,6 +60,9 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     from .crm_participants import CRMParticipants, ParticipantsHTTP
     participants = CRMParticipants(store.path.with_name(store.path.stem + '-crm-participants.sqlite3'), projects, contacts_http.store)
     participants_http = ParticipantsHTTP(participants)
+    from .record_resources import RecordResources, RecordResourcesHTTP
+    resources_http = RecordResourcesHTTP(RecordResources(
+        store.path.parent / (store.path.stem + '-record-resources'), projects, contacts_http.store))
     contacts_http.participants = participants
     from .download_progress import DownloadProgress
     download_progress = DownloadProgress()
@@ -339,7 +342,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 page = 'scheduler-only.html' if self.crm_user else 'access-login.html'
                 self.send_payload(200, (ROOT / 'static' / page).read_bytes(), 'text/html; charset=utf-8')
                 return
-            if self.command == 'GET' and route in {'/crm-access.js', '/crm-access.css', '/crm-identity.js', '/project-participants.js', '/scheduler-only.js'}:
+            if self.command == 'GET' and route in {'/record-resources.js', '/record-resources.css', '/project-record-panels.js', '/crm-access.js', '/crm-access.css', '/crm-identity.js', '/project-participants.js', '/scheduler-only.js'}:
                 path = ROOT / 'static' / route[1:]
                 if not path.is_file():
                     self.send_payload(404, {'error': 'Not found.'})
@@ -385,6 +388,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             if contacts_http.dispatch(self, route):
                 return
             if participants_http.dispatch(self, route):
+                return
+            if resources_http.dispatch(self, route):
                 return
             commercial_http = CommercialHTTP(commercial,
                 derive=lambda body, include_pdfs=False: derive_estimates(store, body, edition=edition,

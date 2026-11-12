@@ -3,7 +3,7 @@ const {showEstimateNotes}=require('./estimate_notes.cjs');
 const {chromium, expect} = require('@playwright/test');
 const {spawn} = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
-const {openProjectSection,fillProjectDetails} = require('./project_actions.cjs');
+const {openProjectSection,fillProjectDetails,openCurrentProjectDetails} = require('./project_actions.cjs');
 const root = path.resolve(__dirname,'../..'), output = path.join(root,'.runtime/browser-qa','project-pane-'+Date.now());
 fs.mkdirSync(output,{recursive:true});
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
@@ -24,7 +24,7 @@ const ready = new Promise((resolve,reject)=>{
   const idle=()=>page.waitForFunction(()=>window.CeasefireDesktop?.status().ready&&!window.CeasefireDesktop.status().busy);
   await page.goto(`http://127.0.0.1:${info.port}/`);await idle();
   await fillProjectDetails(page,{client:'Pane Alpha Account','site-address':'10 Synthetic Street'});
-  await openProjectSection(page,'quotes');await page.locator('#project-current-details').click();
+  await openProjectSection(page,'quotes');await openCurrentProjectDetails(page);
   const address=page.locator('#project-pane-address');await expect(address).toHaveJSProperty('tagName','TEXTAREA');
   await expect(address).toHaveAttribute('rows','1');await expect(address).toHaveAttribute('maxlength','400');
   const shortAddressHeight=(await address.boundingBox()).height;
@@ -216,7 +216,7 @@ const ready = new Promise((resolve,reject)=>{
   await expect(page.locator('#project-details-toolbar-save')).toBeDisabled();
   await expect(page.locator('#project-details-close')).toBeEnabled();
   assert.equal((await page.evaluate(()=>window.CeasefireProject.projectPaneSnapshot())).file.save_token,active.file.save_token);
-  await page.locator('#project-details-close').click();await page.locator('#project-current-details').click();
+  await page.locator('#project-details-close').click();await openCurrentProjectDetails(page);
   await expect(page.locator('#project-pane-client')).toBeEnabled();await expect(page.locator('#project-pane-contact-name')).toBeEnabled();
   await page.locator('#project-details-close').click();
   response=page.waitForResponse(r=>r.url().endsWith('/api/project/save'));

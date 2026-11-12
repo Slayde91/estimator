@@ -3,7 +3,7 @@
 const {chromium,expect}=require('@playwright/test');
 const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-const {openProjectSection}=require('./project_actions.cjs');
+const {openCurrentProjectDetails,openProjectSection}=require('./project_actions.cjs');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa','project-required-'+Date.now());
 fs.mkdirSync(output,{recursive:true});
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
@@ -35,7 +35,7 @@ const values={client:'Synthetic Required Company',site_address:'1 Synthetic Requ
  await page.locator('#project-pane-contact-email').fill('not-an-email');await page.locator('#project-details-save').click();await expect(page.locator('#project-pane-contact-email')).toBeFocused();assert.equal(writes.length,0);await page.locator('#project-pane-contact-email').fill(values.contact_email);
  const saving=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/project/save-as');await page.locator('#project-details-save').click();const reply=await saving;assert.equal(reply.status(),200,await reply.text());const saved=await reply.json();assert.equal(saved.file.project_no,initial);await expect(modal).toBeHidden();
  await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready&&!window.CeasefireDesktop.status().busy);await expect(page.locator('#app-message')).not.toContainText('Project saved to');
- await openProjectSection(page,'quotes');await page.locator('#project-current-details').click();await expect(page.locator('#snapshot-message')).toBeVisible();
+ await openProjectSection(page,'quotes');await openCurrentProjectDetails(page);await expect(page.locator('#snapshot-message')).toBeVisible();
  for(const width of [1915,1213,390]){
   await page.setViewportSize({width,height:1000});const boxes=await page.evaluate(()=>{const pane=document.querySelector('#project-details-pane').getBoundingClientRect(),notice=document.querySelector('#snapshot-message').getBoundingClientRect();return{width:innerWidth,documentWidth:document.documentElement.scrollWidth,pane:{x:pane.x,right:pane.right,bottom:pane.bottom},notice:{x:notice.x,right:notice.right,top:notice.top},inRightPane:document.querySelector('#project-workspace-links').contains(document.querySelector('#snapshot-message'))};});
   assert.ok(boxes.inRightPane);if(width>1050)assert.ok(boxes.notice.x>=boxes.pane.right);else assert.ok(boxes.notice.top>=boxes.pane.bottom);assert.ok(boxes.documentWidth<=boxes.width);geometry.push(boxes);await page.screenshot({path:path.join(output,'project-required-'+width+'.png'),fullPage:true});

@@ -474,6 +474,7 @@
     label.textContent = state.projectFile?.title || $("quote-title").value;
   }
 
+  let projectHeaderReview = false;
   function updateProjectStatus() {
     renderEstimateControls();
     updateProjectPricingContext();
@@ -489,6 +490,7 @@
     if (projectName) {
       const title = typeof file?.title === "string" ? file.title.trim() : "";
       projectName.textContent = title; projectName.title = title; projectName.hidden = !title;
+      projectName.disabled = state.projectBusy || projectHeaderReview;
     }
     if (file?.path || file?.relative_path) $("project-file-location").textContent = file.path || file.relative_path;
     else window.CeasefireI18n.text($("project-file-location"), file ? "Imported file · choose a folder with Save" : "Choose a folder with Save");
@@ -3081,6 +3083,20 @@
     button.append(icon, uiNode("span", "", label)); button.addEventListener("click", () => downloadFullReport(materials, button));
     $("firestopping-document-actions").append(button);
   }
+  const headerProjectIdentity = () => JSON.stringify([state.quoteContext,state.projectFile?.save_token || state.projectFile?.path || "",state.projectFile?.title || ""]);
+  async function openHeaderProjectDetails() {
+    if (projectHeaderReview || state.projectBusy || !state.projectFile?.title) return;
+    const identity = headerProjectIdentity(), title = state.projectFile.title;
+    projectHeaderReview = true; updateProjectStatus();
+    try {
+      if (!await confirmReplace(uiCopy("Open Project details?"),title,uiCopy("Yes"),uiCopy("Cancel"))) return;
+      if (identity !== headerProjectIdentity() || state.projectBusy) return;
+      if (!await requestViewNavigation("quotes") || identity !== headerProjectIdentity() || state.projectBusy) return;
+      await window.CeasefireProjectPane?.openCurrent();
+    } catch (error) { message(uiCopy("Project details could not be opened. {0}",[error.message]),true); }
+    finally { projectHeaderReview = false; updateProjectStatus(); }
+  }
+  $("header-project-name").addEventListener("click",openHeaderProjectDetails);
   $("save-current-project").addEventListener("click", saveProject);
   $("load-project").addEventListener("click", async () => { if (await confirmLeavePricingLibrary()) openNativeProject(); });
   $("project-import-file").addEventListener("change", loadProject);

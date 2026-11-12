@@ -1,4 +1,4 @@
-// Account edits remain beside their directory, with explicit save/discard and
+// Account edits open a full record workspace, with explicit save/discard and
 // the existing atomic linked-record contract. All writes use private fixtures.
 const {chromium,expect}=require('@playwright/test'),assert=require('node:assert/strict');
 const {spawn}=require('node:child_process'),fs=require('node:fs'),path=require('node:path');
@@ -25,10 +25,13 @@ const checks=[],errors=[],geometry=[];
   assert.equal(await page.evaluate(()=>window.ClassifireContacts.hasUnsavedChanges()),false,'Rendering imported CRLF addresses does not create an unsaved edit');
   const unchanged=await page.evaluate(()=>window.CeasefireProject.context());
   for(const width of [1915,1101,825,390]){
-    await page.setViewportSize({width,height:1000});const bounds=await page.evaluate(()=>{const pane=document.querySelector('.contacts-account-pane').getBoundingClientRect(),list=document.querySelector('.contacts-workspace').getBoundingClientRect();return{pane:pane.toJSON(),list:list.toJSON(),width:document.documentElement.scrollWidth,viewport:innerWidth};});
-    assert.ok(bounds.width<=bounds.viewport,JSON.stringify(bounds));if(width>1000)assert.ok(bounds.pane.right<=bounds.list.left);else assert.ok(bounds.pane.bottom<=bounds.list.top);geometry.push({width,...bounds});await page.screenshot({path:path.join(output,'pane-'+width+'.png'),fullPage:true});
+    await page.setViewportSize({width,height:1000});const bounds=await page.evaluate(()=>{const box=selector=>document.querySelector(selector).getBoundingClientRect().toJSON();return{left:box('.contacts-record-left'),main:box('.contacts-record-main'),right:box('.contacts-record-right'),listHidden:document.querySelector('.contacts-workspace').hidden,width:document.documentElement.scrollWidth,viewport:innerWidth};});
+    assert.ok(bounds.width<=bounds.viewport,JSON.stringify(bounds));assert.equal(bounds.listHidden,true);
+    if(width>1050){assert.ok(bounds.left.right<=bounds.main.left&&bounds.main.right<=bounds.right.left,JSON.stringify(bounds));}
+    else assert.ok(bounds.main.bottom<=bounds.left.top&&bounds.left.bottom<=bounds.right.top,JSON.stringify(bounds));
+    geometry.push({width,...bounds});await page.screenshot({path:path.join(output,'pane-'+width+'.png'),fullPage:true});
   }
-  checks.push('Edit Account opens a labelled left pane with the main list accessible; existing layout stacks at1000px without page overflow');
+  checks.push('Edit Account opens a labelled three-pane record workspace, hides the directory until Back, and stacks editor first at1050px without overflow');
   await page.setViewportSize({width:1915,height:1000});
   await pane.getByLabel('ABN/ACN',{exact:true}).fill('12 345 678 901');await pane.getByLabel('Billing address',{exact:true}).fill('Changed address');
   assert.equal(await page.evaluate(()=>window.ClassifireContacts.hasUnsavedChanges()),true);
@@ -46,12 +49,12 @@ const checks=[],errors=[],geometry=[];
     new URL(response.url()).searchParams.get('search')==='Pane Link Contact');
   await find.fill('Pane Link Contact');await updatedLinks;
   const option=pane.locator('.contacts-link-search-results').getByRole('checkbox',{name:/Link Pane Link Contact/});await option.check();await option.press('Escape');
-  await expect(pane.locator('.contacts-links').getByRole('checkbox',{name:/Link Pane Link Contact/})).toBeChecked();
+  await expect(pane.locator('[data-link-group=contacts]').getByRole('checkbox',{name:/Link Pane Link Contact/})).toBeChecked();
   let saveEntered=false;const gate=new Promise(resolve=>releaseSave=resolve);
   await page.route('**/api/contacts/accounts',async route=>{const response=await route.fetch();saveEntered=true;await gate;await route.fulfill({response});});
   await pane.getByRole('button',{name:'Save',exact:true}).click();
   await expect.poll(()=>saveEntered,{timeout:30000}).toBe(true);assert.equal(await page.evaluate(()=>window.ClassifireContacts.hasPendingOperation()),true);await expect(pane.getByRole('button',{name:'Cancel',exact:true})).toBeDisabled();
-  await host.locator('.contacts-results').getByRole('button',{name:'Second Account',exact:true}).click();await expect(pane.getByLabel('Company',{exact:true})).toHaveValue('Pane Account');await expect(pane.locator('[data-contacts-notice]')).toContainText('Finish the current Company action');
+  await host.locator('.contacts-results').getByRole('button',{name:'Second Account',exact:true,includeHidden:true}).evaluate(button=>button.click());await expect(pane.getByLabel('Company',{exact:true})).toHaveValue('Pane Account');await expect(pane.locator('[data-contacts-notice]')).toContainText('Finish the current Company action');
   await page.locator('.nav-button[data-view="home"]').click();await expect(page.locator('#view-contacts')).toBeVisible();
   releaseSave();await expect(pane).toBeHidden();await page.unroute('**/api/contacts/accounts');await expect(host.locator('.contacts-results')).toContainText('12 345 678 901');
   state=await directory();const saved=state.accounts.find(item=>item.id===first.id);assert.equal(saved.billing_address,'Concurrent review edit');assert.equal(state.contacts.find(item=>item.id===person.id).account_id,first.id);

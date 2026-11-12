@@ -1,7 +1,7 @@
 const {chromium,expect:baseExpect}=require('@playwright/test');
 const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-const {openProjectSection,fillProjectDetails,clickProjectControl}=require('./project_actions.cjs');
+const {openCurrentProjectDetails,openProjectSection,fillProjectDetails,clickProjectControl}=require('./project_actions.cjs');
 const expect=baseExpect.configure({timeout:30000}),root=path.resolve(__dirname,'../..');
 const output=path.join(root,'.runtime/browser-qa',`commercial-project-workflows-${Date.now()}`);fs.mkdirSync(output,{recursive:true});
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
@@ -26,7 +26,7 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   }
   checks.push('all commercial New actions notify without creating drafts or making mutation/default requests when no project exists');
   await fillProjectDetails(page,{client:'Procurement receiver','site-address':'17 Procurement Road'});
-  await openProjectSection(page,'quotes');await page.locator('#project-current-details').click();
+  await openProjectSection(page,'quotes');await openCurrentProjectDetails(page);
   for(const [id,value] of Object.entries({'project-pane-contact-name':'Project Contact','project-pane-contact-phone':'0400 123 456',
     'project-pane-contact-email':'project-contact@example.test','project-pane-billing-address':'Billing floor 2\nSynthetic company office','project-pane-abn-acn':'ABN 12 345'}))await page.locator('#'+id).fill(value);
   await page.locator('#project-details-close').click();

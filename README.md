@@ -279,6 +279,31 @@ The Estimator accepts whole-number edits for Access Qty, Sqm/Items, Masking/clea
 opens its hub first, then returns to its most recently selected subpage in the
 current session. **Scheduler** has its own clock button in the header.
 
+The saved Project name in the yellow header tab opens Project details after a
+Cancel/Yes confirmation. Project details use the same three-pane layout as
+commercial documents: Companies and Contacts with their Role selectors on the
+left; the main Project details in the centre; Notes, Files, linked documents and
+Linked Projects on the right. Quotes, Work Orders and Purchase Orders also show
+Linked Projects for their exact saved source.
+
+Existing Companies, Contacts and Leads open as record pages with Back/Save,
+linked records, merge/activity tools and Notes/Files. Quick-create controls used
+inside other workflows remain dialogs. Lead follow-up uses a growing Next
+action field with the date below it. Historical Region values are retained.
+
+Notes and Files save independently of core record edits, using version checks
+to reject stale changes. Directory record resources are stored beside the
+application database. Project record resources live in the existing
+`.ceasefire-evidence/<Project UUID>/record-resources/<filename hash>` companion
+folder beside the saved file. Keep that folder with the Project when moving it.
+Save As or copying a Project under a different filename starts a separate Notes
+and Files collection; these resources are not embedded in the Project JSON.
+Existing commercial-document attachments retain their normal storage and links.
+Directory merges retain source Notes and Files on their original record rather
+than copying them to the survivor. The merge preview explains that Undo merge
+restores access. Deleting a directory record also retains its resource bytes;
+the removed record cannot be used to open those resources through the API.
+
 New projects receive a read-only reference such as **PN-00001** on their first
 successful save. **Settings → Project Details** sets the prefix and starting
 number for future projects; issued numbers are not reused. Existing and imported

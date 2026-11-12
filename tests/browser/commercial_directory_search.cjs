@@ -3,7 +3,7 @@ const {chromium,expect:baseExpect}=require('@playwright/test');
 const expect=baseExpect.configure({timeout:30000});
 const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-const {createNewProject,openProjectSection}=require('./project_actions.cjs');
+const {openCurrentProjectDetails,createNewProject,openProjectSection}=require('./project_actions.cjs');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`commercial-directory-${Date.now()}`);
 fs.mkdirSync(output,{recursive:true});
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
@@ -64,7 +64,7 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
   await expect(quote.locator('.commercial-sidebar').first().getByRole('combobox',{name:'Company',exact:true})).toHaveValue('Beta Company');await expect(quote.locator('.commercial-sidebar').first().getByLabel('Site address',{exact:true})).toHaveCount(0);
   checked('Document recipient and directory IDs survive repeated saves and reopening, without changing the Project client or primary contact');
   await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await openProjectSection(page,'quotes');
-  await page.locator('#project-current-details').click();await expect(page.locator('#project-pane-client')).toHaveValue(projectBefore.client);
+  await openCurrentProjectDetails(page);await expect(page.locator('#project-pane-client')).toHaveValue(projectBefore.client);
   await expect(page.locator('#project-pane-contact-name')).toHaveValue(projectBefore.contact_name);await expect(page.locator('#project-pane-address')).toHaveValue(projectBefore.site_address);
   await page.locator('#project-pane-address').fill('Project edited site\nLevel 2');
   await page.locator('#project-pane-contact-phone').fill('333');await page.locator('#project-pane-contact-email').fill('project-edit@example.test');

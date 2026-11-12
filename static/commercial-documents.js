@@ -537,7 +537,7 @@
     state.model = result;
     return true;
   }
-  let leavingEditor = null;
+  let leavingEditor = null, linkedNavigation = false;
   function leaveEditor() {
     // The user may select another board just after confirming discard. Let
     // that navigation finish when the pending board refresh completes.
@@ -2915,6 +2915,29 @@
   }
   window.CeasefireCommercial = {
     activate, leaveEditor,
+    async openLinkedProject(bid, button) {
+      if (!bid?.source || state.busy || linkedNavigation) return false;
+      linkedNavigation=true;
+      try {
+        const context=window.CeasefireProject?.runtimeContext?.(),actor=window.ClassifireAccess?.user?.id;
+        if (!await leaveEditor() || context!==window.CeasefireProject?.runtimeContext?.() || actor!==window.ClassifireAccess?.user?.id) return false;
+        await window.CeasefireProject?.openLinkedProject(bid,button);
+        return true;
+      } finally { linkedNavigation=false; }
+    },
+    async openLinkedCard(card) {
+      if (!card || !names[card.kind] || typeof card.id !== "string" || !card.source_file || state.busy || linkedNavigation) return false;
+      linkedNavigation=true;
+      try {
+        const context=window.CeasefireProject?.runtimeContext?.(),actor=window.ClassifireAccess?.user?.id;
+        if (state.dirty && !await leaveEditor()) return false;
+        if (context!==window.CeasefireProject?.runtimeContext?.() || !await window.CeasefireProject.openCommercial(card.kind)) return false;
+        if (context!==window.CeasefireProject?.runtimeContext?.() || actor!==window.ClassifireAccess?.user?.id || state.kind!==card.kind || state.busy || state.dirty) return false;
+        const actual=state.savedCards.find(item=>item.id===card.id && item.source_file===card.source_file);
+        await openCard(actual || card);
+        return state.editor?.document?.id===card.id && state.editor?.source?.file_id===card.source_file;
+      } finally { linkedNavigation=false; }
+    },
     projectDetailsChanged() {
       if(state.editor && !state.editor.source)refreshEditorProjectDetails();
       else if(!state.editor && state.model)renderCards();

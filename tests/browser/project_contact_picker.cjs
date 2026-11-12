@@ -2,7 +2,7 @@
 const {chromium, expect: browserExpect} = require('@playwright/test');
 const {spawn} = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
-const {openProjectSection, fillProjectDetails, clickProjectControl} = require('./project_actions.cjs');
+const {openCurrentProjectDetails,openProjectSection, fillProjectDetails, clickProjectControl} = require('./project_actions.cjs');
 const expect = browserExpect.configure({timeout:30000});
 const root=path.resolve(__dirname,'../..'), output=path.join(root,'.runtime/browser-qa','contact-picker-'+Date.now());
 fs.mkdirSync(output,{recursive:true});
@@ -35,7 +35,7 @@ const ready=new Promise((resolve,reject)=>{
   const idle=()=>page.waitForFunction(()=>window.CeasefireDesktop?.status().ready&&!window.CeasefireDesktop.status().busy);
   await page.goto(base+'/');await idle();
   await fillProjectDetails(page,{client:'', 'site-address':'1 Project Street'});
-  await openProjectSection(page,'quotes');await page.locator('#project-current-details').click();
+  await openProjectSection(page,'quotes');await openCurrentProjectDetails(page);
   const baselineDirectory=await directory();
   const name=page.locator('#project-pane-contact-name'), phone=page.locator('#project-pane-contact-phone'), email=page.locator('#project-pane-contact-email');
   const options=page.locator('#project-contact-options');
@@ -76,7 +76,7 @@ const ready=new Promise((resolve,reject)=>{
   assert.equal(saved.estimate.contact_id,second.id);assert.equal(saved.estimate.contact_phone,'Manual project phone');
   await page.reload();await idle();await clickProjectControl(page,'Load');
   await page.locator('#discard-dialog').getByRole('button',{name:'Load Project',exact:true}).click();await idle();
-  await openProjectSection(page,'quotes');await page.locator('#project-current-details').click();
+  await openProjectSection(page,'quotes');await openCurrentProjectDetails(page);
   await expect(name).toHaveValue('Alex Same');await expect(phone).toHaveValue('Manual project phone');await expect(email).toHaveValue('override@example.test');
   response=page.waitForResponse(r=>r.url().endsWith('/api/contacts/directory'));
   await name.focus();await response;await expect(options.getByRole('option')).toHaveCount(1);
@@ -142,7 +142,7 @@ const ready=new Promise((resolve,reject)=>{
     finally { finished(); }
   });
   await name.focus();await started;await page.locator('#project-details-close').click();
-  await page.locator('#project-current-details').click();await client.fill('');await name.focus();await name.fill('Alex');
+  await openCurrentProjectDetails(page);await client.fill('');await name.focus();await name.fill('Alex');
   await expect(options.getByRole('option')).toHaveCount(2);release();await completed;
   await page.unroute('**/api/contacts/directory');await expect(options).not.toContainText('Stale Ghost');await expect(phone).toHaveValue('Manual 9');
   await page.setViewportSize({width:390,height:844});

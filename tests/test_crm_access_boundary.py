@@ -82,6 +82,26 @@ class AccessBoundaryTests(unittest.TestCase):
         self.assertEqual(self.call('/api/download-progress/'+token,cookie=self.editor)[2],{'percent':0,'state':'waiting'},
                          'Auth denial must occur before claiming the single-use progress receipt.')
 
+    def test_directory_sync_requires_editor_and_records_its_fixed_route(self):
+        route='/api/contacts/sync-project-details'
+        directory=self.call('/api/contacts/directory',cookie=self.editor)[2]
+        status,_,account=self.call('/api/contacts/accounts',{'version':directory['version'],'fields':{'company':'Test Company'}},
+                                   cookie=self.editor,member=self.editor_id)
+        self.assertEqual(status,200)
+        project={'revision':'saved-revision','directory_details':{'account_id':account['id'],'billing_address':'Office A'}}
+        body={'project':'test-project','revision':project['revision'],'fields':['billing_address']}
+        with patch('estimator.project_library.ProjectLibrary.participant_project',return_value=project) as resolve:
+            self.assertEqual(self.call(route,body,cookie=self.editor,member=self.admin_id)[0],409)
+            self.assertEqual(self.call(route,body,cookie=self.editor,member=self.editor_id)[0],200)
+            self.assertEqual(self.call('/api/access/roles',{'member_id':self.editor_id,'role':'viewer','version':1},
+                                       cookie=self.admin,member=self.admin_id)[0],200)
+            self.assertEqual(self.call(route,body,cookie=self.editor,member=self.editor_id)[0],403)
+            resolve.assert_called_once_with(body['project'],directory_only=True)
+        saved=self.call('/api/contacts/directory',cookie=self.editor)[2]['accounts']
+        self.assertEqual(next(row for row in saved if row['id']==account['id'])['billing_address'],'Office A')
+        ledger=self.call('/api/access/audit',cookie=self.admin)[2]['requests']
+        self.assertTrue(any(row['route']==route and row['actor_name']=='Sales' and row['status']==200 for row in ledger))
+
     def test_editor_cannot_run_native_number_migration_and_switched_tab_cannot_administer_access(self):
         with patch('estimator.document_numbers.migrate_saved_orders') as migrate:
             status,_,_=self.call('/api/document-numbering/migrate-orders',{},cookie=self.editor,member=self.editor_id)

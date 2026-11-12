@@ -29,7 +29,7 @@ READ_POSTS = frozenset(('/api/calculate', '/api/calculators/calculate',
 EDIT_GETS = frozenset(('/api/libraries/technical/new',))
 ADMIN_READS = frozenset(('/api/certifications/defaults/legacy',))
 IDENTITY_READS = frozenset(('/api/certifications/defaults','/api/certifications/defaults/legacy','/api/scheduler/bootstrap'))
-AUDIT_SEGMENTS = frozenset(('api','contacts','accounts','leads','activity','identity','merge','undo','preview','suggestions',
+AUDIT_SEGMENTS = frozenset(('api','contacts','accounts','leads','activity','identity','merge','undo','preview','suggestions','sync-project-details',
     'crm','project-participants','sites','commercial','saved-save','saved-status','saved-issue','saved-delete',
     'save','save-as','status','issue','delete','derive','notes','attachment','ignore-source','restore-source',
     'project','projects','details','export','import','load','open','files','open-file','link-folder','estimate','prepare',

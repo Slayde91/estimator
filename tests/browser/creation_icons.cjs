@@ -21,17 +21,18 @@ async function plus(control,name,{disabled=false}={}){
  await expect(control).toHaveAttribute('aria-label',name);await expect(control).toHaveAttribute('title',name);
  await expect(control.locator('.button-symbol[aria-hidden="true"]')).toHaveText('+');
  assert.equal(await control.getAttribute('data-i18n'),null,'Translation never replaces the visible plus');
- const styles=await control.evaluate(button=>{
+ // The directory refresh can replace the control between locating it and measuring it.
+ await expect.poll(()=>control.evaluate(button=>{
+   if(!button.isConnected)return false;
    const reference=document.getElementById('penetration-estimator-add');
    const appearance=node=>{
      const icon=getComputedStyle(node.firstElementChild);
      return [getComputedStyle(node).borderRadius,icon.fontFamily,icon.fontSize,icon.fontWeight,icon.lineHeight];
    };
    const box=button.getBoundingClientRect(),symbol=button.firstElementChild.getBoundingClientRect();
-   return {actual:appearance(button),expected:appearance(reference),dx:symbol.x+symbol.width/2-box.x-box.width/2,dy:symbol.y+symbol.height/2-box.y-box.height/2};
- });
- assert.deepEqual(styles.actual,styles.expected,name);
- assert.ok(Math.abs(styles.dx)<=1 && Math.abs(styles.dy)<=1,name+' '+JSON.stringify(styles));
+   return {styleMatches:appearance(button).every((value,index)=>value===appearance(reference)[index]),
+     centredX:Math.abs(symbol.x+symbol.width/2-box.x-box.width/2)<=1,centredY:Math.abs(symbol.y+symbol.height/2-box.y-box.height/2)<=1};
+ }),{message:name}).toEqual({styleMatches:true,centredX:true,centredY:true});
  const box=await control.boundingBox();assert.equal(box.width,48);assert.equal(box.height,48);
  if(disabled)await expect(control).toBeDisabled();else await expect(control).toBeEnabled();
 }
@@ -77,10 +78,10 @@ function libraryFiles(){const directory=path.dirname(path.dirname(info.diagram))
  const localSave=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/project/save');await clickProjectControl(page,'Save');const localSaved=await localSave;assert.equal(localSaved.status(),200,await localSaved.text());await idle();
  const portable=JSON.parse(fs.readFileSync(info.project)),localRecords=portable.library_drafts;assert.equal(localRecords.records.length,1);assert.equal(localRecords.records[0].id,info.item_id);assert.equal(localRecords.records[0].draft.rows[0].inputs.T,'Icon Project local record with original PNG');assert.deepEqual(Buffer.from(localRecords.records[0].diagram.content_base64,'base64'),fs.readFileSync(info.diagram));
  checks.push('A real Library edit and Project Save capture one valid project-local record with its exact original PNG and captured pricing.');
- await openProjectSection(page,'certification');const certificate=page.locator('#certification-new');await plus(certificate,'Create Certificate');await certificate.click();await expect(page.locator('#certification-editor')).toBeVisible();await page.locator('#certification-back').click();await expect(page.locator('#view-documentation')).toBeVisible();
- checks.push('Create Certificate uses the accessible 48px red plus. Back returns to Documentation.');
+ await openProjectSection(page,'certification');const certificate=page.locator('#certification-new');await expect(certificate).toHaveText('New');await expect(certificate).toHaveAccessibleName('New');await certificate.click();await expect(page.locator('#certification-editor')).toBeVisible();await page.locator('#certification-back').click();await expect(page.locator('#view-documentation')).toBeVisible();
+ checks.push('New opens the certificate form. Back returns to Documentation.');
  for(const [section,name,selector,back] of sections){await openProjectSection(page,section);const host=page.locator(selector);await host.getByRole('button',{name,exact:true}).click();await expect(host.locator('.commercial-editor')).toBeVisible();await cancelDraft(host,back);}
- await openProjectSection(page,'swms');await page.getByRole('button',{name:'New SWMS',exact:true}).click();await expect(page.locator('#swms-root .swms-identity')).toBeVisible();await cancelDraft(page.locator('#swms-root'),'Back to statements');
+ await openProjectSection(page,'swms');await page.getByRole('button',{name:'New SWMS',exact:true}).click();await expect(page.locator('#swms-root .swms-workflow')).toBeVisible();await cancelDraft(page.locator('#swms-root'),'Back to statements');
  checks.push('The same plus controls open and discard the correct Quote, Work Order, Purchase Order and SWMS editors after a real numbered Project exists.');
  await openProjectSection(page,'quote');const quote=page.locator('#commercial-quote-root');await quote.getByRole('button',{name:'New Quote',exact:true}).click();
  const left=quote.locator('.commercial-sidebar').first();await left.getByRole('combobox',{name:'Name',exact:true}).fill(primary.name);await left.getByRole('option',{name:primary.name,exact:true}).click();
@@ -94,6 +95,7 @@ function libraryFiles(){const directory=path.dirname(path.dirname(info.diagram))
  checks.push('The outlined refresh SVG matches the existing reset icon; clicking it reads newly linked Contacts without changing directory records or the saved Project.');
  const quotePdf=await quote.locator('.commercial-download-pdf .download-format-icon').innerHTML();
  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await openProjectSection(page,'documentation');
+ await page.locator('#documentation-pdf-rows').getByRole('button',{name:'Other documents',exact:true}).click();
  const breakdown=page.locator('button[data-document-kind="estimate.summary.pdf"]');await breakdownButton(breakdown);
  assert.equal(await breakdown.locator('.download-format-icon').innerHTML(),quotePdf);
  const snapshot=()=>page.evaluate(()=>({calculators:window.CeasefireCalculators.projectSnapshot(),penetration:window.CeasefirePenetrations.projectSnapshot(),configuration:window.CeasefireProject.configuration(),details:window.CeasefireProject.details()}));const before=await snapshot();
@@ -112,6 +114,7 @@ function libraryFiles(){const directory=path.dirname(path.dirname(info.diagram))
  const load=view.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/open');await clickProjectControl(view,'Load');assert.equal((await load).status(),200);
  const review=view.locator('#discard-dialog');await Promise.race([review.waitFor({state:'visible'}),view.waitForFunction(client=>window.CeasefireProject?.details?.().client===client,company.company)]);if(await review.isVisible())await review.locator('[value="confirm"]').click();await idle(view);assert.equal(await view.evaluate(()=>window.CeasefireProject.details().client),company.company);await openProjectSection(view,'documentation');
  assert.deepEqual(await view.evaluate(()=>window.CeasefireLibraryEditor.projectSnapshot()),localRecords);assert.deepEqual(libraryStorage(),masterLibraryBefore);assert.deepEqual(libraryFiles(),sourceLibraryBefore);assert.deepEqual((await read('/api/bootstrap')).configuration,configurationBefore);
+ await view.locator('#documentation-pdf-rows').getByRole('button',{name:'Other documents',exact:true}).click();
  const viewerBreakdown=view.locator('button[data-document-kind="estimate.summary.pdf"]');await breakdownButton(viewerBreakdown,true);let viewerExports=0;view.on('request',r=>{if(r.method()==='POST'&&new URL(r.url()).pathname==='/api/quote-report')viewerExports++;});await viewerBreakdown.evaluate(b=>b.click());assert.equal(viewerExports,0);
  const denied=await view.evaluate(async()=>{const response=await fetch('/api/contacts/contacts',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});return response.status;});assert.equal(denied,403);
  assert.deepEqual(fs.readFileSync(info.project),projectBefore);assert.deepEqual(await read('/api/contacts/directory'),directoryBefore);

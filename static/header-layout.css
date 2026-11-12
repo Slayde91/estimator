@@ -29,6 +29,7 @@
     max-width: 100%;
     gap: 8px;
   }
+  .app-header .header-navigation-stack:has(.header-project-name:not([hidden])) { gap: 0; }
   .app-header .header-navigation {
     width: fit-content;
     min-width: 0;
@@ -48,7 +49,15 @@
     gap: 4px;
     text-align: end;
   }
-  .app-header .header-project-name { max-width: 100%; margin: 0; }
+  .app-header .header-project-name {
+    max-width: 100%;
+    margin: 0;
+    box-sizing: border-box;
+    padding: 2px 9px 3px;
+    border-radius: 0 0 6px 6px;
+    background: #ffe38a;
+    color: #332600;
+  }
   .app-header .header-project-identity .status-label {
     max-width: 100%; margin: 0; white-space: normal; overflow-wrap: anywhere;
     background: #e6f4ec; color: #1b653c;

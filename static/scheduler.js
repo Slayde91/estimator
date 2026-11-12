@@ -410,15 +410,16 @@
     bar.append(summary);
     if (active) {
       const openBreak = active.breaks?.find(item => !item.end);
-      bar.append(button(openBreak ? "End break" : "Start break",() => {
-        if (openBreak) return mutate("/clock/break",{entry_id:active.id,version:active.version,action:"end",paid:openBreak.paid});
-        dialog("Start a break",host => {
-          const available = state.data.settings.breaks.filter(item => item.manual && (!item.member_ids.length || item.member_ids.includes(state.data.user.id)));
+      const available = state.data.settings.breaks.filter(rule => rule.manual && (!rule.member_ids.length || rule.member_ids.includes(state.data.user.id)));
+      if (openBreak) {
+        bar.append(button("End break",() => mutate("/clock/break",{entry_id:active.id,version:active.version,action:"end",paid:openBreak.paid})));
+      } else if (available.length && (active.breaks || []).length < 50) {
+        bar.append(button("Start break",() => dialog("Start a break",host => {
           const choices = available.map(item => [item.id,`${item.name} · ${item.minutes === null ? "no set length" : `${item.minutes} min`} · ${item.paid ? "paid" : "unpaid"}`]);
-          const kind = select(choices,choices[0]?.[0] || ""); kind.required = true;
-          host.append(field("Break",kind),el("p","helper",available.length ? "Minimum duration and automatic end settings follow the selected break rule." : "No manual break rules apply to your account today.")); return {kind};
-        },"Start break",async ({kind}) => request("/clock/break",{entry_id:active.id,version:active.version,action:"start",rule_id:kind.value}));
-      }));
+          const kind = select(choices,choices[0][0]); kind.required = true;
+          host.append(field("Break",kind),el("p","helper","Minimum duration and automatic end settings follow the selected break rule.")); return {kind};
+        },"Start break",async ({kind}) => request("/clock/break",{entry_id:active.id,version:active.version,action:"start",rule_id:kind.value}))));
+      }
       if (openBreak?.expected_end_at) bar.append(el("p","helper",`${openBreak.name || "Break"} · expected end ${timeFormatter.format(new Date(openBreak.expected_end_at))}${openBreak.min_end_at ? " · minimum duration required" : ""}${openBreak.auto_end_at ? " · ends automatically" : ""}`));
       if (openBreak?.notify_at && "Notification" in window && Notification.permission !== "granted") bar.append(button("Enable break notifications",async () => {await Notification.requestPermission(); render();}));
       bar.append(button("Check location now",() => {void captureLocation(true);},"button secondary scheduler-location-retry"));

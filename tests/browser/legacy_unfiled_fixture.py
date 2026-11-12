@@ -40,4 +40,4 @@ purchase = default_fields('purchase_order', fields['details'])
 purchase['order']['supplier'] = 'Unfiled fixture supplier'
 order = service.save(workspace, {'kind': 'purchase_order', 'status': 'Draft', 'fields': purchase},
                      unfiled_context={'estimates': [], 'active_estimate_id': 'estimate-1'})
-print(json.dumps({'id': document['id'], 'title': document['fields']['title'], 'purchase_id': order['id']}))
+print(json.dumps({'id': document['id'], 'reference': document['reference'], 'title': document['fields']['title'], 'purchase_id': order['id']}))

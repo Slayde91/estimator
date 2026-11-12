@@ -30,10 +30,7 @@ async function pdfControl(host,kind){const pdf=host.locator('.commercial-editor-
    {
      const labels=kind==='quote'?['Document date','Project number','Linked Project','Quote No.']:kind==='work_order'?['Document date','Project number','Linked Quote','Work order reference']:['Document date','Project number','Linked Work Order','Purchase Order No.'];
      const [date,second,third,fourth]=await Promise.all(labels.map(label=>host.locator('.commercial-details').getByLabel(label,{exact:true}).locator('..').boundingBox()));
-     if(width===1515 && kind!=='purchase_order'){
-       assert.equal(date.y,second.y);assert.equal(third.y,fourth.y);assert.ok(third.y>=date.y+date.height);
-       assert.equal(date.x,third.x);assert.equal(second.x,fourth.x);
-     }else if(width===1515){
+     if(width===1515){
        assert.ok([second,third,fourth].every(control=>control.y===date.y));
        assert.ok(date.x<second.x && second.x<third.x && third.x<fourth.x);
      }else assert.ok(date.y<second.y && second.y<third.y && third.y<fourth.y);
@@ -50,7 +47,23 @@ async function appearance(control){return control.evaluate(element=>({background
  const info=await ready;assert.notEqual(info.port,8765);browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1515,height:1000}});page.setDefaultTimeout(60000);page.on('pageerror',error=>errors.push(error.message));await page.goto('http://127.0.0.1:'+info.port);await idle();await createNewProject(page,{client:'Toolbar Company','site-address':'14 Synthetic Toolbar Road'});
  await page.getByRole('button',{name:'Estimates',exact:true}).click();for(const id of ['project-estimate-create','project-estimate-quote','project-estimate-swms'])await expect(page.locator('#'+id)).toHaveCount(0);await expect(page.locator('#project-estimate-new')).toBeVisible();await expect(page.locator('[aria-controls="firestopping-document-actions"]')).toBeVisible();
  checks.push('Estimate keeps its compact inline New shortcut and Document menu without the three removed standalone actions');
- await openProjectSection(page,'quote');let host=page.locator('#commercial-quote-root');await host.getByRole('button',{name:'New Quote',exact:true}).click();await idle();await pdfControl(host,'quote');await save(host);const quoteIssue=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/commercial/issue'&&reply.request().method()==='POST');await host.getByRole('button',{name:'Download PDF',exact:true}).click();const issued=await quoteIssue;assert.equal(issued.status(),200,await issued.text());await idle();const issuedModel=await(await page.request.get(new URL('/api/commercial/state?workspace='+await page.evaluate(()=>window.CeasefireCertification.sessionId()),page.url()).href)).json(),issuedQuote=issuedModel.documents.find(item=>item.kind==='quote'),quoteId=issuedQuote.id;await host.getByRole('button',{name:'Back to Quotes',exact:true}).click();await expect(host.locator('.commercial-card .project-title-button')).toHaveText(issuedQuote.last_number+': Toolbar Company');
+ const quoteRoot=page.locator('#commercial-quote-root');
+ await quoteRoot.evaluate(root=>{
+   window.qaQuoteBoardHeadings=[];
+   const observer=new MutationObserver(records=>{
+     for(const record of records)for(const added of record.addedNodes){
+       const heading=added.querySelector?.('h1');
+       if(heading)window.qaQuoteBoardHeadings.push(heading.textContent);
+     }
+   });
+   observer.observe(root,{childList:true});
+   window.qaQuoteHeadingObserver=observer;
+ });
+ await openProjectSection(page,'quote');
+ await expect(quoteRoot.getByLabel('Search documents',{exact:true})).toBeVisible();
+ const boardHeadings=await page.evaluate(()=>{window.qaQuoteHeadingObserver.disconnect();return window.qaQuoteBoardHeadings;});
+ assert.ok(boardHeadings.length>0 && boardHeadings.every(title=>title==='Quotes'),JSON.stringify(boardHeadings));
+ let host=quoteRoot;await host.getByRole('button',{name:'New Quote',exact:true}).click();await idle();await pdfControl(host,'quote');await save(host);const quoteIssue=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/commercial/issue'&&reply.request().method()==='POST');await host.getByRole('button',{name:'Download PDF',exact:true}).click();const issued=await quoteIssue;assert.equal(issued.status(),200,await issued.text());await idle();const issuedModel=await(await page.request.get(new URL('/api/commercial/state?workspace='+await page.evaluate(()=>window.CeasefireCertification.sessionId()),page.url()).href)).json(),issuedQuote=issuedModel.documents.find(item=>item.kind==='quote'),quoteId=issuedQuote.id;await host.getByRole('button',{name:'Back to Quotes',exact:true}).click();await expect(host.locator('.commercial-card .project-title-button')).toHaveText(issuedQuote.last_number+': Toolbar Company');
  await openProjectSection(page,'work-orders');host=page.locator('#commercial-work-order-root');await host.getByRole('button',{name:'New Work Order',exact:true}).click();await idle();await expect(host.getByLabel('Document title',{exact:true})).toHaveCount(0);await expect(host.locator('.commercial-editor-actions').getByLabel('Status',{exact:true})).toHaveValue('Draft');await pdfControl(host,'work_order');await host.getByLabel('Linked Quote',{exact:true}).selectOption(quoteId);
  const toolbar=await host.locator('.commercial-editor-actions').evaluate(actions=>{const status=actions.querySelector('select').getBoundingClientRect(),pdf=actions.querySelector('.commercial-download-pdf').getBoundingClientRect();return{status:{x:status.x,y:status.y,height:status.height},pdf:{x:pdf.x,y:pdf.y,height:pdf.height}};});assert.ok(toolbar.status.x>toolbar.pdf.x);assert.equal(toolbar.status.y,toolbar.pdf.y);assert.equal(toolbar.status.height,toolbar.pdf.height);
  await save(host);const model=await(await page.request.get(new URL('/api/commercial/state?workspace='+await page.evaluate(()=>window.CeasefireCertification.sessionId()),page.url()).href)).json(),record=model.documents.find(item=>item.kind==='work_order');assert.ok(record.reference);assert.equal(record.fields.title,'Work Order');const title=record.reference+': '+record.fields.details.client;

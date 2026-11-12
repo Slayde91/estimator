@@ -65,6 +65,7 @@ class DocumentNumberingTests(unittest.TestCase):
     def test_configured_independent_numbers_retries_and_portable_certification(self):
         self.configure(quote=('qt',41), work_order=('job',7), purchase_order=('buy',8), swms=('safe',9), certification=('inst',10))
         q = self.order('quote')
+        self.assertEqual(q['reference'], 'QT-41')
         self.assertEqual(q['last_number'], '')
         with patch.object(self.commercial,'renderer',side_effect=ValueError('unavailable')):
             with self.assertRaises(ValueError):
@@ -125,6 +126,7 @@ class DocumentNumberingTests(unittest.TestCase):
         self.assertEqual(issued['number'],'Q-01')
         snapshot = self.commercial.capture(self.workspace)
         legacy = deepcopy(snapshot); legacy.pop('short_quote_counters',None)
+        legacy['documents'][0].pop('reference')
         legacy['number_counters']['quote'] = 100
         legacy['reference_counters'] = {'quote':{'Q':100}}
         legacy['documents'][0]['last_number'] = 'Q-000100'
@@ -137,6 +139,10 @@ class DocumentNumberingTests(unittest.TestCase):
     def test_short_quote_deleted_high_watermark_survives_portable_restore(self):
         quote = self.order('quote'); first = self.issue(quote); second = self.issue(first['document'])
         self.assertEqual((first['number'],second['number']),('Q-01','Q-02'))
+        self.assertEqual(second['document']['reference'], quote['reference'])
+        text = PdfReader(BytesIO(second['pdf'])).pages[0].extract_text()
+        self.assertIn(quote['reference'], text)
+        self.assertIn(second['number'], text)
         self.commercial.delete(self.workspace,quote['id'],second['document']['version'])
         snapshot = self.commercial.capture(self.workspace)
         self.assertEqual(snapshot['documents'],[])
@@ -170,7 +176,9 @@ class DocumentNumberingTests(unittest.TestCase):
         self.assertEqual(self.issue(self.order('quote'))['number'],'Q-200001')
 
     def test_concurrent_short_quote_issues_and_exact_retries_use_distinct_numbers(self):
-        quotes = [self.order('quote') for _ in range(3)]
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            quotes = list(pool.map(lambda _:self.order('quote'),range(3)))
+        self.assertEqual({q['reference'] for q in quotes}, {'Q-01','Q-02','Q-03'})
         requests = [uid() for _ in quotes]
         def issue(pair):
             quote, request = pair
@@ -181,7 +189,27 @@ class DocumentNumberingTests(unittest.TestCase):
         for pair,result in zip(zip(quotes,requests),issued):
             replay=issue(pair)
             self.assertEqual((replay['number'],replay['pdf']),(result['number'],result['pdf']))
+            self.assertEqual(result['number'], pair[0]['reference'])
         self.assertEqual(self.numbers.settings()['quote']['next_reference'],'Q-04')
+
+    def test_quote_first_save_retry_and_two_open_sessions_keep_distinct_pdf_revisions(self):
+        payload = {'id': uid(), 'kind': 'quote', 'version': 0, 'status': 'Draft',
+                   'fields': complete_quote(default_fields('quote'))}
+        with patch.object(self.commercial, '_validate_draft_save', side_effect=ValidationError('Project is full')):
+            with self.assertRaises(ValidationError):
+                self.commercial.save(self.workspace, payload)
+        self.assertEqual(self.numbers.settings()['quote']['next_reference'], 'Q-01')
+        saved = self.commercial.save(self.workspace, payload)
+        self.assertEqual(self.commercial.save(self.workspace, payload), saved)
+        snapshot = self.commercial.capture(self.workspace)
+        other = self.certs.restore(self.certs.capture({'workspace_id': self.workspace, 'draft': None}))['workspace_id']
+        self.commercial.restore(other, snapshot)
+        first = self.issue(saved)
+        second = self.commercial.issue(other, saved['id'], saved['version'], uid())
+        self.assertEqual(first['number'], saved['reference'])
+        self.assertNotEqual(first['number'], second['number'])
+        self.assertEqual(second['document']['reference'], saved['reference'])
+        self.assertEqual(self.numbers.settings()['quote']['next_reference'], 'Q-03')
 
     def test_folder_migration_is_repeatable_preserves_content_and_updates_linked_po(self):
         folder = self.root / 'projects'; folder.mkdir()

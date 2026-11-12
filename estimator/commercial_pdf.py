@@ -359,7 +359,10 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
     number_label = {'work_order':'Work order reference', 'purchase_order':'Purchase Order No.'}.get(kind, 'Document number')
     recipient = [('Supplier', order['supplier']), ('Contact', order['supplier_contact'])] if kind == 'purchase_order' else [
         ('Customer', details['client']), ('Contact', details['contact'])]
-    _fields(story, [(number_label, number), ('Date', details['date']), *recipient,
+    identifiers = [(number_label, number)]
+    if kind == 'quote' and document.get('reference') and document['reference'] != number:
+        identifiers = [('Quote No.', document['reference']), ('Revision number', number)]
+    _fields(story, [*identifiers, ('Date', details['date']), *recipient,
                    ('Site address', details['site_address']), ('Project number', details['project_no'])], styles)
     story.append(Spacer(1, 12))
     if fields['introduction']:

@@ -246,6 +246,19 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await page.waitForFunction(() => window.CeasefireDesktop?.status()?.ready);
   await scheduler();
   await expect(page.locator('.scheduler-clock')).toContainText('Location recording is on');
+  const stateRoute = '**/api/scheduler/state*';
+  const hideManualBreaks = async route => {
+    const response = await route.fetch();
+    const data = await response.json();
+    data.settings.breaks = data.settings.breaks.map(rule => ({...rule,manual:false}));
+    await route.fulfill({response,json:data});
+  };
+  await page.route(stateRoute,hideManualBreaks);
+  await page.reload(); await scheduler();
+  await expect(page.getByRole('button',{name:'Clock out',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Start break',exact:true})).toHaveCount(0);
+  await page.unroute(stateRoute,hideManualBreaks);
+  await page.reload(); await scheduler();
   await page.getByRole('button',{name:'Start break',exact:true}).click();
   await submit('Start break');
   await page.waitForTimeout(1200); // Stored clock timestamps have one-second precision.

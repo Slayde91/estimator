@@ -135,6 +135,28 @@ async function download(host) {
   await work.getByLabel('Proposed start date', {exact:true}).fill('2026-11-10');
   await work.getByLabel('Category / urgency', {exact:true}).selectOption('Medium Priority');
   await work.getByLabel('Description of works', {exact:true}).fill('Synthetic tracking fixture installation');
+  const profileUrl = new URL('/api/certifications/defaults', page.url()).href;
+  const profile = await (await page.request.get(profileUrl)).json();
+  const personal = await page.request.post(profileUrl, {data:{
+    expected_version:profile.version, fields:{...profile.fields, name:'Tracking fixture'}
+  }});
+  assert.equal(personal.status(), 200);
+  await page.evaluate(() => {
+    window.ClassifirePersonalSignature = {...window.ClassifirePersonalSignature,
+      choose:async () => ({version:1,ratio:2,strokes:[[[0,0],[1,1]]]})};
+  });
+  async function sign(label, next) {
+    await work.getByRole('button',{name:'Sign '+label,exact:true}).click();
+    await expect(work.getByLabel('Status',{exact:true})).toHaveValue(next);
+    await idle();
+  }
+  await sign('Work order details reviewed by','Review');
+  await work.getByLabel('Approval',{exact:true}).selectOption('Approved');
+  await sign('Reviewed by','OHS Docs');
+  await sign('Prepared by','Client Approval');
+  await sign('Approved by','In progress');
+  await trackingRows(work,'completed_percent').nth(1).locator('input').fill('1');
+  await sign('Progress signed by','Claim');
   const directory=async()=>(await page.request.get(new URL('/api/contacts/directory',page.url()).href)).json();
   const billing=work.locator('[data-claim-billing]'), initialDirectory=await directory();
   await expect(billing.locator('input,textarea')).toHaveCount(5);
@@ -164,6 +186,7 @@ async function download(host) {
   }
   const noteWidths=await work.locator('[data-tracking-field=completed_percent] th').evaluateAll(headers=>headers.slice(2).map(header=>header.getBoundingClientRect().width));
   assert.ok(Math.abs(noteWidths[0]-noteWidths[1])<2,'Notes and % completed share equal column widths');
+  await sign('Claim signed by','Certify');
   const certification = work.getByLabel('Certification details', {exact:true}), completion = work.getByLabel('Completion', {exact:true});
   assert.deepEqual(await certification.locator('option').allTextContents(), ['', 'Certification issued', 'Certification not issued']);
   assert.deepEqual(await completion.locator('option').allTextContents(), ['', 'Completed', 'Ongoing', 'On hold', 'Not completed']);
@@ -228,7 +251,7 @@ async function download(host) {
         headingSource:window.CeasefireI18n.source(host.parentElement.querySelector('h2')),
         action:signature.title, actionSource:window.CeasefireI18n.source(signature, 'title')};
     });
-    assert.equal(labels.headingSource, 'Works in Progress'); assert.equal(labels.actionSource, 'Sign Progress signed by');
+    assert.equal(labels.headingSource, 'Works in Progress'); assert.equal(labels.actionSource, 'Change Progress signed by');
     const english = ['Product / Service', 'Quantity', 'Notes', '% completed'];
     if (language === 'en') {assert.deepEqual(labels.headers, english); assert.equal(labels.heading, 'Works in Progress'); assert.equal(labels.action, labels.actionSource);}
     else {assert.ok(labels.headers.every((value, index) => value !== english[index]), JSON.stringify(labels)); assert.notEqual(labels.heading, 'Works in Progress'); assert.notEqual(labels.action, labels.actionSource);}
@@ -321,10 +344,15 @@ async function download(host) {
   delete legacyWork.fields.work_tracking;
   legacyWork.fields.order.progress = 'Historic progress narrative must stay unchanged'; legacyWork.fields.order.claim = 'Historic claim narrative must stay unchanged';
   legacyWork.fields.order.certification = 'Historical certification narrative'; legacyWork.fields.order.completion = 'Historical completion narrative';
-  for (const key of ['progress_by', 'progress_date', 'closed_date']) delete legacyWork.fields.order[key];
+  delete legacyWork.fields.signatures.details_by;
+  for (const key of ['details_by', 'details_date', 'progress_by', 'progress_date', 'closed_date']) delete legacyWork.fields.order[key];
   fs.writeFileSync(cold.project, JSON.stringify(legacy)); await loadProject(); work = await openDocument('work-orders', workTitle);
   const notes = work.locator('details.commercial-tracking-legacy'); await expect(notes).toHaveCount(2);
-  for (const disclosure of await notes.all()) {await disclosure.locator('summary').click(); await expect(disclosure.locator('p')).toBeVisible(); await expect(disclosure.locator('textarea,input,[contenteditable]')).toHaveCount(0);}
+  await expect(work.locator('[data-signing-section="reviewed_by"]')).toBeVisible();
+  await notes.first().locator('summary').click();
+  await expect(notes.first().locator('p')).toBeVisible();
+  await expect(notes.last()).toBeHidden();
+  for (const disclosure of await notes.all()) await expect(disclosure.locator('textarea,input,[contenteditable]')).toHaveCount(0);
   await expect(notes.nth(0)).toContainText(legacyWork.fields.order.progress); await expect(notes.nth(1)).toContainText(legacyWork.fields.order.claim);
   await expect(work.getByLabel('Certification details', {exact:true})).toHaveValue('Historical certification narrative');
   await expect(work.getByLabel('Completion', {exact:true})).toHaveValue('Historical completion narrative');

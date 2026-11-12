@@ -25,8 +25,8 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
   await openProjectSection(page,'documentation');await idle();
   const upload=page.locator('#cover-sheet-full_schedule');
   for(const group of ['Schedules','Product summaries','Other documents'])
-    await expect(page.getByRole('button',{name:group,exact:true})).toHaveAttribute('aria-expanded','false');
-  await expect(upload).toBeHidden();await page.getByRole('button',{name:'Schedules',exact:true}).click();
+    await expect(page.locator('#documentation-pdf-rows').getByRole('button',{name:group,exact:true})).toHaveAttribute('aria-expanded','false');
+  await expect(upload).toBeHidden();await page.locator('#documentation-pdf-rows').getByRole('button',{name:'Schedules',exact:true}).click();
   const picker=upload.locator('xpath=..'),caption=picker.locator('span'),filename=page.locator('#cover-sheet-full_schedule-name');
   await expect(caption).toHaveText('Choose file');await expect(filename).toBeEmpty();
   const pickerWidth=(await picker.boundingBox()).width,captionWidth=(await caption.boundingBox()).width;

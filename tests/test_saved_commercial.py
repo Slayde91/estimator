@@ -111,6 +111,7 @@ class SavedQuoteTests(unittest.TestCase):
         snapshot = json.loads(original)
         purchase = {**self.document, 'id': str(uuid.uuid4()), 'kind':'purchase_order', 'status':'Requested',
                     'fields': default_fields('purchase_order')}
+        purchase.pop('reference')  # An old unnumbered PO has no Quote reference.
         purchase['fields']['order'].update(supplier='Fixture Materials', supplier_contact='Morgan')
         purchase['fields']['lines'] = [{'description':'Collars', 'quantity':'3', 'unit_price':'25.50',
                                         'estimate_id':'', 'size':'', 'comments':''}]
@@ -134,6 +135,7 @@ class SavedQuoteTests(unittest.TestCase):
         snapshot = json.loads(self.path.read_bytes())
         purchase = {**self.document, 'id': str(uuid.uuid4()), 'kind': 'purchase_order',
                     'status': 'Draft', 'fields': default_fields('purchase_order')}
+        purchase.pop('reference')
         snapshot['commercial_documents']['documents'].append(purchase)
         self.path.write_text(json.dumps(snapshot), encoding='utf8')
         self.library.commercial_register(refresh=True)

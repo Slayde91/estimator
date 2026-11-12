@@ -474,7 +474,13 @@
   }
   function editorActions() {
     const actions = element("div", "swms-toolbar");
-    const downloadButton = button("Download PDF", download, true); downloadButton.classList.add("swms-download");
+    const downloadButton = button("", download, true);
+    downloadButton.classList.add("icon-only", "swms-download");
+    downloadButton.title = "Download PDF";
+    downloadButton.setAttribute("aria-label", "Download PDF");
+    window.CeasefireI18n?.attr(downloadButton, "title", "Download PDF");
+    window.CeasefireI18n?.attr(downloadButton, "aria-label", "Download PDF");
+    downloadButton.append(document.querySelector("#estimate-open-quote .download-format-icon").cloneNode(true));
     const back = button("", leaveEditor);
     back.classList.add("icon-only", "swms-back-action"); back.title = "Back to statements"; back.setAttribute("aria-label", "Back to statements");
     window.CeasefireI18n?.attr(back, "title", "Back to statements"); window.CeasefireI18n?.attr(back, "aria-label", "Back to statements");
@@ -484,16 +490,16 @@
   }
   function renderEditor() {
     const editor = state.editor, fields = editor.fields, host = shell("Safe Work Method Statement");
-    host.append(editorActions());
+    const toolbar = editorActions();
     const stages = [...window.ClassifireDocumentBoard.stages];
     if (editor.status === 'Archived') stages.push('Archived');
-    const identity = element('div', 'swms-grid swms-identity');
     const stageInput = select(stages, editor.status, value => { editor.status = value; });
     const stageField = field('Workflow status', stageInput);
+    stageField.classList.add('swms-workflow');
     window.CeasefireI18n?.text(stageField.firstChild, 'Workflow status');
     window.CeasefireI18n?.attr(stageInput, 'aria-label', 'Workflow status');
     for (const option of stageInput.options) window.CeasefireI18n?.text(option, option.value);
-    identity.append(stageField); host.append(identity);
+    toolbar.append(stageField); host.append(toolbar);
     const details = section("Project Details", true), grid = element("div", "swms-grid"), detailInputs = {};
     for (const [key, label] of Object.entries(detailLabels)) {
       const input=required('details.' + key, control(fields.details[key], value => { fields.details[key] = value; }, key === "date" ? "date" : "text"));

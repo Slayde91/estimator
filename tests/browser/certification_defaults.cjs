@@ -72,7 +72,7 @@ async function fresh(){await openCertificateEditor(page,{fresh:true});await expe
   await openProjectSection(page,'documentation');
   const coverRow=kind=>page.locator('#documentation-pdf-rows tr[data-cover-kind="'+kind+'"]');
   await expect(page.locator('#documentation-pdf-rows tr[data-cover-kind]')).toHaveCount(18);
-  for(const label of ['Schedules','Product summaries','Other documents'])await page.getByRole('button',{name:label,exact:true}).click();
+  for(const label of ['Schedules','Product summaries','Other documents'])await page.locator('#documentation-pdf-rows').getByRole('button',{name:label,exact:true}).click();
   const kindsResponse=await fetch(base+'/api/pdf-covers'),kinds=await kindsResponse.json();
   assert.ok(kinds.items.every(item=>!Object.hasOwn(item,'cover_pdf')&&typeof item.has_cover==='boolean'));
   await expect(coverRow('certification').getByRole('button',{name:'Save cover sheet for Certification',exact:true})).toHaveCount(0);

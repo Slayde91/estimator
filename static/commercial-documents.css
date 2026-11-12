@@ -42,7 +42,7 @@
 .commercial-editor textarea { min-height:72px; resize:vertical; }
 .commercial-editor textarea.commercial-line-description { min-height:42px; height:42px; overflow-y:hidden; resize:none; line-height:20px; }
 .commercial-purchase-identifiers { grid-column:1/-1; grid-template-columns:repeat(4,minmax(0,1fr)); }
-.commercial-work-identifiers,.commercial-quote-identifiers { display:grid; gap:12px; min-width:0; }
+.commercial-work-identifiers,.commercial-quote-identifiers { display:grid; grid-column:1/-1; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; min-width:0; }
 .commercial-purchase-identifiers select,.commercial-work-identifiers select { width:100%; min-width:0; }
 .commercial-rate-schedule { display:grid; gap:18px; margin:0; }
 .commercial-rate-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:1px; padding:1px; background:var(--red); border:1px solid var(--red); }
@@ -156,6 +156,7 @@
 @media(max-width:650px) {
   .commercial-purchase-identifiers { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .commercial-details,.commercial-order-fields { grid-template-columns:1fr; padding:16px; }
+  .commercial-work-identifiers,.commercial-quote-identifiers { grid-template-columns:1fr; gap:12px; }
   .commercial-editor-actions { position:static; }
   .commercial-editor-actions .button { flex:1 1 auto; }
   .commercial-column { flex-basis:260px; }
@@ -171,10 +172,5 @@
 .commercial-directory-options { inset-inline:0; text-align:start; }
 .commercial-directory-options button { text-align:start; }
 .commercial-refresh-contacts { margin-block-start:8px; }
-.commercial-site-address { display:block; margin-top:14px; }
-.commercial-site-address>span { display:block; margin-bottom:7px; font-size:12px; font-weight:650; }
 .commercial-purchase-information textarea { min-height:42px; height:42px; line-height:20px; resize:vertical; }
 .commercial-purchase-information .commercial-directory-field { margin-top:0; }
-
-.commercial-site-address textarea { resize:vertical; min-height:42px; }
-.commercial-editor textarea.commercial-project-address { min-height:42px; height:42px; resize:vertical; }

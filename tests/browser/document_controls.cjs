@@ -21,6 +21,36 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
   await page.locator('#certification-client').fill('Retained certificate draft');
   const fingerprint=await page.evaluate(()=>window.CeasefireCertification.fingerprint());
   await page.locator('#certification-back').click();await expect(page.locator('#view-documentation')).toBeVisible();
+  const pdfRows=page.locator('#documentation-pdf-rows');
+  await pdfRows.getByRole('button',{name:'Schedules',exact:true}).click();
+  const revisions=pdfRows.locator('tr[data-document-kind="project.full_schedule.pdf"] .documentation-view-revisions');
+  await expect(revisions).toHaveCount(1);
+  for(const width of [1254,390]){
+    await page.setViewportSize({width,height:884});
+    for(const selected of [false,true]){
+      if(selected){await revisions.click();await expect(revisions).toHaveAttribute('aria-expanded','true');}
+      const alignment=await page.locator('.documentation-pdf-table').evaluate(table=>{
+        const th=[...table.querySelectorAll('thead th')],row=table.querySelector('tr[data-document-kind]:not([hidden])');
+        const textStart=cell=>{const range=document.createRange();range.selectNodeContents(cell);return range.getBoundingClientRect().left;};
+        const picker=row.querySelector('.document-cover-picker'),remove=row.querySelector('.document-cover-actions button'),download=row.querySelector('.documentation-download-button');
+        const middle=node=>{const box=node.getBoundingClientRect();return box.left+box.width/2;};
+        return{coverHeading:textStart(th[3]),cover:picker.getBoundingClientRect().left,actionsHeading:textStart(th[4]),actions:remove.getBoundingClientRect().left,downloadHeading:middle(th[2]),download:middle(download)};
+      });
+      assert.ok(Math.abs(alignment.coverHeading-alignment.cover)<1,'PDF cover heading starts with its Choose file control');
+      assert.ok(Math.abs(alignment.actionsHeading-alignment.actions)<1,'Actions heading starts with its trash control');
+      assert.ok(Math.abs(alignment.downloadHeading-alignment.download)<1,'Download heading stays centered over its PDF control');
+      layouts.push({kind:'Documentation',width,selected,...alignment});
+      if(selected){
+        await expect(revisions).toHaveCSS('border-top-color','rgb(226, 182, 0)');
+        assert.ok((await revisions.evaluate(button=>getComputedStyle(button).boxShadow)).includes('255, 221, 83'));
+        await revisions.focus();await page.keyboard.press('Tab');await page.keyboard.press('Shift+Tab');await expect(revisions).toBeFocused();await expect(revisions).toHaveCSS('outline-style','solid');
+        await page.locator('#documentation-revisions-close').click();await expect(revisions).toHaveAttribute('aria-expanded','false');
+        assert.notEqual(await revisions.evaluate(button=>getComputedStyle(button).borderTopColor),'rgb(226, 182, 0)');
+      }
+    }
+  }
+  checks.push('Documentation cover/actions headings align with their controls at desktop and narrow widths, with and without revision pane; selected revisions glow yellow and retain keyboard focus');
+  await page.setViewportSize({width:1254,height:884});
   await openProjectSection(page,'certification');
   await expect(page.locator('#certification-client')).toHaveValue('Retained certificate draft');
   assert.equal(await page.evaluate(()=>window.CeasefireCertification.fingerprint()),fingerprint);assert.equal(writes.length,0);
@@ -35,10 +65,11 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
         return{back:rect(back),backText:back.textContent.trim(),backBorder:getComputedStyle(back).borderStyle,
           scope:rect(scope.querySelector('summary')),scopeContainer:rect(scope.parentElement),scopePadding:getComputedStyle(scope.querySelector('summary')).paddingTop,
           workflow:rect(workflow),workflowForm:workflow.form.id,
-          save:rect(editor.querySelector('#certification-save-draft')),generate:rect(editor.querySelector('#certification-generate')),
+          save:rect(editor.querySelector('#certification-save-draft')),create:rect(editor.querySelector('#certification-new')),generate:rect(editor.querySelector('#certification-generate')),newBeforePDF:editor.querySelector('#certification-new').nextElementSibling.id==="certification-generate",newInToolbar:editor.querySelector('#certification-new').parentElement.classList.contains('certification-editor-toolbar'),
           statusInsideDetailsCard:!!editor.querySelector('.certification-details-card>#certification-status'),overflow:document.documentElement.scrollWidth-innerWidth};
       });
       assert.equal(metrics.back.width,42);assert.equal(metrics.back.height,42);assert.equal(metrics.backText,'←');assert.equal(metrics.backBorder,'solid');
+      assert.equal(metrics.generate.height,42);assert.equal(metrics.newBeforePDF,true);assert.equal(metrics.newInToolbar,true);assert.ok(metrics.create.right<=metrics.generate.x);assert.ok(Math.abs(metrics.create.y+metrics.create.height-metrics.generate.y-metrics.generate.height)<1);
       assert.equal(metrics.scope.height,42);assert.ok(Math.abs(metrics.scope.width-Math.min(420,metrics.scopeContainer.width))<1);assert.equal(metrics.scopePadding,'10.6px');
       if(width>700){assert.ok(metrics.workflow.x>=metrics.generate.right);assert.ok(Math.abs(metrics.workflow.y+metrics.workflow.height-metrics.generate.y-metrics.generate.height)<1);}
       assert.equal(metrics.workflowForm,'certification-form');assert.equal(metrics.statusInsideDetailsCard,true);
@@ -53,10 +84,10 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
   await page.setViewportSize({width:1254,height:884});
   let first=true,announce;const held=new Promise(resolve=>announce=resolve),release=new Promise(resolve=>releaseHeld=resolve);
   await page.route('**/api/certifications?*',async route=>{if(route.request().method()==='POST'&&new URL(route.request().url()).pathname==='/api/certifications'&&first){first=false;announce();await release;await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Synthetic uncertain Save'})});}else await route.continue();});
-  await page.locator('#certification-save-draft').click();await held;await expect(page.locator('#certification-back')).toBeDisabled();releaseHeld();
+  await page.locator('#certification-save-draft').click();await held;await expect(page.locator('#certification-back')).toBeDisabled();await expect(page.locator('#certification-new')).toBeDisabled();releaseHeld();
   await expect(page.locator('#certification-status')).toContainText('Retry the same button');await expect(page.locator('#certification-back')).toBeDisabled();
   await expect(page.locator('#certification-client')).toHaveValue('Retained certificate draft');await page.locator('#certification-save-draft').click();
-  await expect(page.locator('#certification-back')).toBeEnabled();await expect(page.locator('#certification-status')).toContainText('Certification details saved.');
+  await expect(page.locator('#certification-back')).toBeEnabled();await expect(page.locator('#certification-new')).toBeEnabled();await expect(page.locator('#certification-status')).toContainText('Certification details saved.');
   assert.equal(writes.length,2);assert.deepEqual(writes[0],writes[1]);
   checks.push('Back stays disabled during Save and uncertain retry; retry uses the exact captured request and retains fields');
   const savedId=await page.locator('#certification-document').inputValue();assert.ok(savedId);
@@ -76,6 +107,12 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
     await page.evaluate(value=>document.documentElement.dataset.theme=value,theme);await page.setViewportSize({width,height:884});
     const metric=await back.evaluate(button=>{const r=button.getBoundingClientRect();return{width:r.width,height:r.height,text:button.textContent.trim(),border:getComputedStyle(button).borderStyle};});
     assert.equal(metric.width,42);assert.equal(metric.height,42);assert.equal(metric.text,'←');assert.equal(metric.border,'solid');layouts.push({kind:'SWMS',theme,width,...metric});
+    const toolbar=host.locator('.swms-toolbar').first(),pdf=toolbar.getByRole('button',{name:'Download PDF',exact:true});
+    assert.ok(await host.locator('.swms-download').evaluateAll(buttons=>buttons.every(button=>button.getBoundingClientRect().height===42)),'Both SWMS PDF actions are42px high');
+    await expect(toolbar.getByRole('combobox',{name:'Workflow status',exact:true})).toBeVisible();
+    assert.equal(await toolbar.locator('.swms-workflow>span').evaluate(label=>getComputedStyle(label).position),'absolute','Workflow label remains available to assistive technology without visible text');
+    const pdfBox=await pdf.boundingBox(),workflowBox=await toolbar.getByRole('combobox',{name:'Workflow status',exact:true}).boundingBox();
+    if(width>700)assert.ok(Math.abs(pdfBox.y+pdfBox.height-workflowBox.y-workflowBox.height)<1);
   }
   await host.getByLabel('Project Address',{exact:true}).fill('Retained SWMS edit');await back.click();
   const discard=page.getByRole('dialog',{name:'Discard the current SWMS?',exact:true});await discard.getByRole('button',{name:'Cancel',exact:true}).click();

@@ -181,6 +181,7 @@ jobs:
       - run: node tests/browser/header_layout_followups.cjs
       - run: node tests/browser/navigation_stack.cjs
       - run: node tests/browser/workspace_headings.cjs
+      - run: node tests/browser/workspace_layout_followups.cjs
       - run: node tests/browser/appearance_theme_followups.cjs
       - run: node tests/browser/active_tools_lightning.cjs
       - run: node tests/browser/travel_editor_followups.cjs

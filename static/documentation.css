@@ -10,6 +10,8 @@
 .documentation-revisions-document{font-weight:700;overflow-wrap:anywhere}
 .documentation-revisions-pane .documentation-revision{display:grid;gap:4px;padding:12px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
 .documentation-view-revisions{font-size:13px;white-space:normal;text-align:start}
+#documentation-layout .documentation-view-revisions[aria-expanded=true]{border-color:#e2b600;box-shadow:0 0 0 1px #ffdd53,0 0 10px #ffdd5366}
+#documentation-layout .documentation-view-revisions[aria-expanded=true]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
 .documentation-revision-count{color:#846000}
 :root:is(:not([data-theme]),[data-theme="ceasefire"],[data-theme="midnight"]) .documentation-revision-count{color:#ffdd53}
 @media(max-width:900px){.documentation-layout.has-revisions{grid-template-columns:minmax(0,1fr)}}
@@ -17,7 +19,8 @@
 .documentation-table{width:100%;table-layout:fixed}
 .documentation-table col.documentation-name-col{width:28%}
 .documentation-table col:not(.documentation-name-col){width:18%}
-.documentation-table thead th:nth-child(n+3){text-align:center}
+.documentation-table thead th:nth-child(3){text-align:center}
+.documentation-table thead th:nth-child(n+4){text-align:start}
 .documentation-table td{vertical-align:middle;overflow-wrap:anywhere;padding-block:5px}
 .documentation-table tr[hidden]{display:none}
 .documentation-table tbody tr[data-document-kind]>td:first-child{padding-inline-start:28px}

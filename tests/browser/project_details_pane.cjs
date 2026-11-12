@@ -35,9 +35,9 @@ const ready = new Promise((resolve,reject)=>{
   await page.locator('#project-pane-contact-email').fill('alpha@example.test');
   await page.locator('#project-pane-billing-address').fill('Project accounts\nPO Box 42');
   await page.locator('#project-pane-abn-acn').fill('Project ABN');
-  await page.locator('#project-details-close').click();
   let response=page.waitForResponse(r=>r.url().endsWith('/api/project/save-as'));
-  await page.locator('#save-current-project').click();const initialSave=await response;assert.equal(initialSave.status(),200,await initialSave.text());await idle();
+  await page.locator('#project-details-toolbar-save').click();const initialSave=await response;assert.equal(initialSave.status(),200,await initialSave.text());await idle();
+  await page.locator('#project-details-close').click();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   assert.equal(JSON.parse(fs.readFileSync(info.project,'utf8')).estimate.billing_address,'Project accounts\nPO Box 42');
   assert.equal(JSON.parse(fs.readFileSync(info.project,'utf8')).estimate.site_address,'10 Synthetic Street\nLevel 2');
@@ -59,6 +59,11 @@ const ready = new Promise((resolve,reject)=>{
   const saved=()=>page.waitForResponse(r=>r.url().endsWith('/api/projects/details/save'));
   // Clean active-project metadata saves stay clean and rotate its writable target.
   await openDetails(first);
+  const toolbar=page.locator('#project-details-actions');
+  await expect(toolbar.locator('button')).toHaveCount(2);
+  assert.equal(await page.locator('#project-details-pane #project-details-close').count(),0);
+  const [barBox,detailsBox,backBox,saveBox]=await Promise.all([toolbar.boundingBox(),page.locator('#project-details-pane').boundingBox(),toolbar.getByRole('button',{name:'Back to Projects',exact:true}).boundingBox(),page.locator('#project-details-toolbar-save').boundingBox()]);
+  assert.ok(barBox.y+barBox.height<detailsBox.y&&Math.abs(backBox.y-saveBox.y)<1&&backBox.x+backBox.width<saveBox.x,'Back and Save share a separate toolbar above Project Details');
   const plusStyles = await page.evaluate(() => ['project-estimate-new','project-account-new'].map(id => {
     const style=getComputedStyle(document.getElementById(id));
     return Object.fromEntries(['backgroundColor','color','fontFamily','fontSize','fontWeight','width','height','borderTopWidth','borderRadius'].map(key=>[key,style[key]]));
@@ -94,7 +99,7 @@ const ready = new Promise((resolve,reject)=>{
   await openProjectSection(page,'quotes');
   await openDetails(first);
   await page.locator('#project-pane-contact-name').fill('Updated Alpha Person');
-  response=saved();await page.locator('#project-details-save').click();assert.equal((await response).status(),200);await idle();
+  response=saved();await page.locator('#project-details-toolbar-save').click();assert.equal((await response).status(),200);await idle();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   assert.equal((await page.evaluate(()=>window.CeasefireProject.details())).contact_name,'Updated Alpha Person');
   // A confirmed Account change in the active saved pane rebases the Current
@@ -208,6 +213,8 @@ const ready = new Promise((resolve,reject)=>{
   await openDetails(first);
   await expect(page.locator('#project-details-status')).toContainText('changed outside this open estimate');
   await expect(page.locator('#project-details-save')).toBeDisabled();
+  await expect(page.locator('#project-details-toolbar-save')).toBeDisabled();
+  await expect(page.locator('#project-details-close')).toBeEnabled();
   assert.equal((await page.evaluate(()=>window.CeasefireProject.projectPaneSnapshot())).file.save_token,active.file.save_token);
   await page.locator('#project-details-close').click();await page.locator('#project-current-details').click();
   await expect(page.locator('#project-pane-client')).toBeEnabled();await expect(page.locator('#project-pane-contact-name')).toBeEnabled();

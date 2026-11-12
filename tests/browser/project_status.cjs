@@ -49,8 +49,20 @@ async function idle() {
   await expect(first.locator('.project-details-toggle')).toHaveCount(0);
   const load=first.locator('.project-load-button'), actions=first.locator('summary');
   await expect(load).toHaveText('Load');
-  const [loadBox,actionsBox]=await Promise.all([load.boundingBox(),actions.boundingBox()]);
-  assert.ok(loadBox.x+loadBox.width<=actionsBox.x && Math.abs(loadBox.y-actionsBox.y)<1,'Load sits immediately left of Actions');
+  await expect(actions).toHaveText('');
+  const [loadBox,estimateBox,titleBox,actionsBox]=await Promise.all([load.boundingBox(),first.locator('.project-card-estimate select').boundingBox(),first.locator('.project-title-button').boundingBox(),actions.boundingBox()]);
+  assert.ok(estimateBox.x+estimateBox.width<=loadBox.x && Math.abs(loadBox.y+loadBox.height-estimateBox.y-estimateBox.height)<1,'Estimate Load sits immediately right of its dropdown');
+  assert.ok(titleBox.x+titleBox.width<=actionsBox.x && Math.abs(titleBox.y-actionsBox.y)<1,'Small action arrow sits in the top-right of the card');
+  let fileLoads=0;page.on('request',request=>{if(new URL(request.url()).pathname==='/api/projects/load')fileLoads++;});
+  await actions.click();
+  await expect(first.locator('.project-menu-options > button')).toHaveText(['Open','Load','Edit','Delete','Browse files']);
+  await expect(first.locator('.project-menu-options > :last-child')).toHaveClass(/project-row-status/);
+  await expect(first.locator('.project-menu-options > :last-child')).toContainText('Move to');
+  await first.getByRole('button',{name:'Open',exact:true}).click();
+  await expect(page.locator('#project-details-pane')).toBeVisible();
+  await expect(page.locator('#project-details-actions')).toBeVisible();
+  assert.equal(fileLoads,0,'Open reads metadata without loading the project file');
+  await page.getByRole('button',{name:'Back to Projects',exact:true}).click();
   await first.locator('.project-title-button').click();
   await expect(page.locator('#project-details-pane')).toBeVisible();
   await expect(page.locator('#project-list-card')).toBeHidden();
@@ -73,7 +85,7 @@ async function idle() {
   const toolbarGeometry=await page.locator('#project-list-card .project-list-controls').evaluate(el=>{const box=node=>node.getBoundingClientRect().toJSON();return{controls:box(el),options:box(el.querySelector('.project-list-options')),sort:box(el.querySelector('#project-sort')),create:box(el.querySelector('#new-quote')),viewport:innerWidth};});
   assert.ok(searchBox.x>=toolbarGeometry.controls.left&&searchBox.x+searchBox.width<=toolbarGeometry.options.left+1&&toolbarGeometry.options.right<=toolbarGeometry.controls.right+1&&toolbarGeometry.controls.left>=0&&toolbarGeometry.controls.right<=toolbarGeometry.viewport+1,'Search and Sort/action group remain bounded: '+JSON.stringify({searchBox,...toolbarGeometry}));
   assert.ok(toolbarGeometry.sort.right<=toolbarGeometry.create.left+1&&Math.abs(toolbarGeometry.sort.bottom-toolbarGeometry.create.bottom)<1,'Sort and New share the same row: '+JSON.stringify(toolbarGeometry));
-  await first.locator('.project-load-button').click();
+  await first.locator('summary').click();await first.locator('.project-menu-options').getByRole('button',{name:'Load',exact:true}).click();
   await page.locator('#discard-dialog').getByRole('button',{name:'Load Project',exact:true}).click();
   await expect(page.locator('#view-quotes')).toBeVisible();
   await idle();
@@ -114,6 +126,13 @@ async function idle() {
   await expect(page.locator('.project-list-row')).toHaveCount(6);
   await page.screenshot({path:path.join(output,'projects-list-desktop.png'),fullPage:true});
   await page.setViewportSize({width:390,height:844});
+  await first.locator('summary').click();
+  await expect.poll(async()=>{
+    const menuBounds=await first.locator('.project-menu-options').boundingBox();
+    return menuBounds&&menuBounds.x>=0&&menuBounds.y>=0&&menuBounds.x+menuBounds.width<=390&&menuBounds.y+menuBounds.height<=844 ? 'bounded' : JSON.stringify({menuBounds,toggle:await actions.boundingBox(),open:await first.locator('details').getAttribute('open')});
+  },{message:'Open card menu fits mobile viewport'}).toBe('bounded');
+  await first.getByRole('combobox',{name:/Status for/}).press('Escape');
+  await expect(first.locator('summary')).toBeFocused();
   await page.screenshot({path:path.join(output,'projects-list-mobile.png'),fullPage:true});
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),true);
   await page.setViewportSize({width:1575,height:1000});
@@ -125,7 +144,7 @@ async function idle() {
   assert.equal(fs.existsSync(path.join(output,'Project-2.cf.json')),false);
   assert.ok(fs.readdirSync(output).some(name=>name.startsWith('.ceasefire-deleted-')));
   assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({passed:true,output,toolbarGeometry,checks:['five mapped Project stages retain every record','drag and keyboard status changes persist','Project name opens separate metadata page','Load precedes Actions and loads file/selected estimate','obsolete column preferences do not hide projects','search and sort','responsive layout','recoverable deletion','no browser errors']}));
+  console.log(JSON.stringify({passed:true,output,toolbarGeometry,checks:['five mapped Project stages retain every record','drag and keyboard status changes persist','Project name and Open open metadata without file load','top-right arrow and bottom status menu','estimate dropdown and Load share a row','menu Load opens project file','mobile card menu is bounded and supports Escape','obsolete column preferences do not hide projects','search and sort','responsive layout','recoverable deletion','no browser errors']}));
 })().catch(async error => {
   console.error(error);
   fs.writeFileSync(path.join(output,'failure.txt'),`${error.stack}\n${logs}`);

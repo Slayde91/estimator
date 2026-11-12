@@ -8,7 +8,7 @@
   const translate = source => window.CeasefireI18n?.translate?.(source) || source;
   const text = (element,source) => window.CeasefireI18n ? window.CeasefireI18n.text(element,source) : (element.textContent=source);
   const fields = {project_no:"project-pane-number", client:"project-pane-client", site_address:"project-pane-address", contact_name:"project-pane-contact-name", contact_phone:"project-pane-contact-phone", contact_email:"project-pane-contact-email", billing_address:"project-pane-billing-address", abn_acn:"project-pane-abn-acn"};
-  const metadataControls = [...pane.querySelectorAll("input,textarea,button")];
+  const metadataControls = [...pane.querySelectorAll("input,textarea,button"),...$("project-details-actions").querySelectorAll("button")];
   const participantSlots = [$("project-company-participants"),$("project-contact-participants")];
   function revealField(control) {
     const section = control.closest("details");
@@ -389,6 +389,11 @@
   }
   $("project-current-details").addEventListener("click", openCurrent);
   $("project-details-close").addEventListener("click", leave);
+  $("project-details-toolbar-save").addEventListener("click", () => {
+    if (!selected || pending || selected.blocked || snapshot().busy) return;
+    if (selected.kind === "current") $("save-current-project").click();
+    else $("project-details-form").requestSubmit();
+  });
   $("project-new-cancel").addEventListener("click", leave);
   dialog.addEventListener("cancel",event=>{event.preventDefault();void leave();});
   $("project-details-form").addEventListener("submit", event => { event.preventDefault(); void save().catch(error => notice(error.message,true)); });

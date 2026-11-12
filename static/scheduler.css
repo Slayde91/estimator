@@ -93,7 +93,7 @@
 .scheduler-row-actions button+button { margin-left:8px; }
 .scheduler-payroll { margin-top:24px; }
 .scheduler-pay-row { display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); }
-.scheduler-settings { display:grid; gap:20px; max-width:950px; }
+.scheduler-settings { display:grid; gap:20px; width:100%; min-width:0; }
 .scheduler-settings>.field { max-width:400px; }
 .scheduler-settings>.button { justify-self:start; }
 .scheduler-settings .helper { margin-top:0; }

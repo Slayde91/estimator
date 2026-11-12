@@ -58,5 +58,6 @@
 .certification-required::after{content:" *";color:var(--accent);font-weight:700}
 .certification-editor-toolbar{display:flex;flex-wrap:wrap;align-items:end;gap:12px;margin-block:0 20px}
 .certification-editor-toolbar>.certification-workflow{width:fit-content;max-width:100%;margin:0}
+.certification-editor-toolbar .button.certification-download{height:42px;min-height:42px}
 #certification-back{display:inline-grid;place-items:center;flex:0 0 42px;box-sizing:border-box;width:42px;min-width:42px;max-width:42px;height:42px;min-height:42px;padding:0}
 .certification-details-card>.certification-save-status{margin-block:0 16px}

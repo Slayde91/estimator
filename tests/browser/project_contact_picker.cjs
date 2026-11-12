@@ -65,7 +65,13 @@ const ready=new Promise((resolve,reject)=>{
   await phone.fill('Manual project phone');await email.fill('override@example.test');
   await page.locator('#project-details-close').click();
   let response=page.waitForResponse(r=>r.url().endsWith('/api/project/save-as'));
-  await clickProjectControl(page,'Save');const firstSaved=await response;assert.equal(firstSaved.status(),200,await firstSaved.text());await idle();
+  await clickProjectControl(page,'Save');const firstSaved=await response;assert.equal(firstSaved.status(),200,await firstSaved.text());
+  for(const label of ['Email','Phone']){
+    const review=page.getByRole('dialog',{name:`Update ${label} for Alex Same?`,exact:true});
+    await expect(review).toBeVisible();
+    await review.getByRole('button',{name:'Keep saved value',exact:true}).click();
+  }
+  await idle();
   let saved=JSON.parse(fs.readFileSync(info.project));
   assert.equal(saved.estimate.contact_id,second.id);assert.equal(saved.estimate.contact_phone,'Manual project phone');
   await page.reload();await idle();await clickProjectControl(page,'Load');

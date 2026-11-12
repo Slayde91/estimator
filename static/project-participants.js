@@ -191,6 +191,7 @@
         group.prepend(field, search.element);
       }
       if (group.childElementCount) host.append(group, note);
+      host.closest("details").hidden = !group.childElementCount;
     }
   }
 
@@ -246,7 +247,7 @@
       if (!selector) return;
       selection = selector; fileRevision = file.revision;
       sites.hidden = false;
-      for (const host of Object.values(hosts)) { host.hidden = false; host.closest("details").hidden = false; }
+      for (const host of Object.values(hosts)) host.hidden = false;
       text(siteStatus, "Loading…");
       void load();
     }

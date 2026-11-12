@@ -25,7 +25,8 @@ async function oldDraft(){return page.evaluate(()=>({context:window.CeasefirePro
   await page.locator('#new-quote').click();await expect(modal).toBeVisible();await page.locator('#project-account-new').click();
   const account=page.getByRole('dialog',{name:'New Company',exact:true});await account.getByLabel('Company',{exact:true}).fill('Popup Account');await account.getByRole('button',{name:'Save',exact:true}).click();await expect(account).toBeHidden();
   await expect(page.locator('#project-pane-client')).toHaveValue('Popup Account');await page.locator('#project-pane-address').fill('12 Popup Road');
-  assert.equal(await page.locator('#project-contact-new .button-symbol svg').innerHTML(),await page.locator('#project-account-new .button-symbol svg').innerHTML());
+  assert.equal(await page.locator('#project-contact-new .button-symbol').innerHTML(),await page.locator('#project-account-new .button-symbol').innerHTML());
+  await expect(page.locator('#project-contact-new .button-symbol')).toHaveText('+');
   await page.locator('#project-contact-new').click();const contact=page.getByRole('dialog',{name:'New Contact',exact:true});
   await expect(contact.getByLabel('Company',{exact:true})).toHaveValue('Popup Account');
   await contact.getByLabel('Name',{exact:true}).fill('Popup Contact');await contact.getByLabel('Phone',{exact:true}).fill('12345678');await contact.getByLabel('Email',{exact:true}).fill('popup@example.test');

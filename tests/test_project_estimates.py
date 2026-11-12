@@ -151,7 +151,7 @@ class ProjectEstimatesTests(unittest.TestCase):
         changed = json.loads(self.path.read_bytes())
         changed['project_status'] = 'Accepted'
         self.path.write_text(json.dumps(changed), encoding='utf-8')
-        self.assertEqual(self.library.scheduler_project(listed['id'])['project_status'], 'Accepted')
+        self.assertEqual(self.library.scheduler_project(listed['id'])['project_status'], 'Won')
 
     def test_commercial_download_requires_the_same_saved_project_identity(self):
         project_id = '11111111-1111-4111-8111-111111111111'

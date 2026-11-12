@@ -40,6 +40,10 @@ async function clickProjectControl(page, name) {
     return;
   }
   const previous = await openProjectTools(page);
+  if(name==='New' && await page.locator('#project-details-pane').isVisible()) {
+    await page.locator('#project-details-close').click();
+    await expect(page.locator('#project-list-card')).toBeVisible();
+  }
   const control = name === 'New' ? page.locator('#new-quote') : page.locator('.project-workspace-actions').getByRole('button', { name, exact: true });
   await control.click();
   // Do not wait for a save response here: failure/held-response tests deliberately

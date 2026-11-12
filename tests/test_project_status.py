@@ -39,25 +39,53 @@ class ProjectStatusTests(unittest.TestCase):
         selected = file or self.file
         return self.library.update_status({"id": selected["id"], "revision": selected["revision"], "project_status": status})["file"]
 
-    def test_legacy_projects_default_to_draft_and_invalid_status_is_rejected(self):
+    def test_legacy_projects_default_to_new_and_invalid_status_is_rejected(self):
         snapshot = json.loads(self.payload)
         snapshot.pop("project_status")
         legacy = json.dumps(snapshot).encode()
-        self.assertEqual(project_summary(legacy)["project_status"], "Draft")
-        self.assertEqual(load_project_bytes(self.store, legacy)["project_status"], "Draft")
+        self.assertEqual(project_summary(legacy)["project_status"], "New")
+        self.assertEqual(load_project_bytes(self.store, legacy)["project_status"], "New")
         snapshot["project_status"] = "Paid"
         with self.assertRaises(ValidationError):
             project_summary(json.dumps(snapshot).encode())
 
+    def test_legacy_statuses_are_canonical_on_read_without_rewriting_files(self):
+        for legacy, current in [('Draft', 'New'), ('Review', 'Quote'), ('Presented', 'Engage'),
+                                ('Accepted', 'Won'), ('Lost', 'Lost')]:
+            with self.subTest(legacy=legacy):
+                snapshot = json.loads(self.payload)
+                snapshot['project_status'] = legacy
+                payload = json.dumps(snapshot).encode()
+                self.path.write_bytes(payload)
+                self.assertEqual(project_summary(payload)['project_status'], current)
+                self.assertEqual(load_project_bytes(self.store, payload)['project_status'], current)
+                listed = self.library.listing(refresh=True)['files'][0]
+                self.assertEqual(listed['project_status'], current)
+                self.assertEqual(self.library.scheduler_project(listed['id'])['project_status'], current)
+                self.assertEqual(self.path.read_bytes(), payload)
+
+    def test_new_statuses_round_trip_and_legacy_exports_use_current_names(self):
+        selected = self.file
+        for status in ['Quote', 'Engage', 'Won', 'Lost', 'New']:
+            with self.subTest(status=status):
+                selected = self.change(status, selected)
+                self.assertEqual(json.loads(self.path.read_bytes())['project_status'], status)
+                self.assertEqual(self.library.load(selected['id'])['project_status'], status)
+        for legacy, status in [('Draft', 'New'), ('Review', 'Quote'), ('Presented', 'Engage'),
+                               ('Accepted', 'Won')]:
+            with self.subTest(legacy=legacy):
+                exported = export_project(self.store, {'project_status': legacy, 'estimate': {'title': 'Older save client'}})
+                self.assertEqual(json.loads(exported)['project_status'], status)
+
     def test_status_round_trip_preserves_all_project_values_and_rotates_revision(self):
         original = json.loads(self.path.read_bytes())
-        file = self.change("Review")
+        file = self.change("Quote")
         expected = copy.deepcopy(original)
-        expected["project_status"] = "Review"
+        expected["project_status"] = "Quote"
         self.assertEqual(json.loads(self.path.read_bytes()), expected)
         self.assertNotEqual(file["revision"], self.file["revision"])
-        self.assertEqual(self.library.load(file["id"])["project_status"], "Review")
-        self.assertEqual(self.library.listing()["files"][0]["project_status"], "Review")
+        self.assertEqual(self.library.load(file["id"])["project_status"], "Quote")
+        self.assertEqual(self.library.listing()["files"][0]["project_status"], "Quote")
         with self.assertRaises(ValidationError):
             self.change("Lost")
         self.assertEqual(json.loads(self.path.read_bytes()), expected)
@@ -78,7 +106,7 @@ class ProjectStatusTests(unittest.TestCase):
                    "calculators": {key: {"inputs": value["inputs"], "schedule_rows": value["schedule_rows"]}
                                    for key, value in snapshot["calculators"].items()}}
         saved = self.library.save(request)
-        self.assertEqual(saved["project"]["project_status"], "Presented")
+        self.assertEqual(saved["project"]["project_status"], "Engage")
 
     def test_native_selection_updates_status_without_a_folder_scan(self):
         class Dialogs:
@@ -91,7 +119,7 @@ class ProjectStatusTests(unittest.TestCase):
         self.assertIsNone(unscanned._scan)
         request = {"save_token": selected["save_token"], "revision": selected["revision"], "project_status": "Accepted"}
         result = unscanned.update_status(request)
-        self.assertEqual(result["file"]["project_status"], "Accepted")
+        self.assertEqual(result["file"]["project_status"], "Won")
         with self.assertRaises(ValidationError):
             unscanned.update_status(request)
 

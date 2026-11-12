@@ -48,12 +48,17 @@ const ready = new Promise((resolve,reject)=>{
   const listing=await (await page.request.get(new URL('/api/projects',page.url()).href)).json();assert.equal(listing.files.length,2);
   const first=listing.files.find(file=>path.resolve(file.path)===path.resolve(info.project));
   const second=listing.files.find(file=>file.id!==first.id);
-  const toggle=file=>page.locator(`[data-project-details-id="${file.id}"]`);
+  const title=file=>page.locator(`.project-kanban-card[data-project-id="${file.id}"] .project-title-button`);
+  const back=async()=>{await page.locator('#project-details-close').click();await expect(page.locator('#project-list-card')).toBeVisible();};
+  const openDetails=async file=>{
+    if(await page.locator('#project-details-pane').isVisible())await back();
+    await title(file).click();await idle();
+    await expect(page.locator('#project-details-pane')).toBeVisible();
+    await expect(page.locator('#project-list-card')).toBeHidden();
+  };
   const saved=()=>page.waitForResponse(r=>r.url().endsWith('/api/projects/details/save'));
-  await expect(toggle(first)).toHaveCSS('color','rgb(208, 0, 27)');
   // Clean active-project metadata saves stay clean and rotate its writable target.
-  await toggle(first).click();await idle();await expect(toggle(first)).toHaveText('>');
-  await expect(toggle(first)).toHaveCSS('color','rgb(255, 221, 83)');
+  await openDetails(first);
   const plusStyles = await page.evaluate(() => ['project-estimate-new','project-account-new'].map(id => {
     const style=getComputedStyle(document.getElementById(id));
     return Object.fromEntries(['backgroundColor','color','fontFamily','fontSize','fontWeight','width','height','borderTopWidth','borderRadius'].map(key=>[key,style[key]]));
@@ -63,21 +68,22 @@ const ready = new Promise((resolve,reject)=>{
   await expect(page.locator('#project-tools')).toBeHidden();
   const symbols=await page.locator('#project-estimate-new .add-symbol,#project-account-new .add-symbol').evaluateAll(nodes=>nodes.map(node=>node.innerHTML.trim()));
   assert.equal(symbols.length,2);assert.equal(symbols[0],symbols[1]);
-  const firstRow=toggle(first).locator('xpath=ancestor::article');
+  await back();
+  const firstRow=title(first).locator('xpath=ancestor::article');
   await firstRow.locator('summary').click();await firstRow.getByRole('button',{name:'Browse files',exact:true}).click();await idle();
-  await expect(page.locator('#project-browser')).toBeVisible();await expect(page.locator('#project-details-pane')).toBeVisible();
+  await expect(page.locator('#project-browser')).toBeVisible();await expect(page.locator('#project-details-pane')).toBeHidden();
   for(const width of [1915,1101,800,390]){
     await page.setViewportSize({width,height:884});
-    const boxes=await page.evaluate(()=>({pane:document.querySelector('#project-details-pane').getBoundingClientRect().toJSON(),browser:document.querySelector('#project-browser').getBoundingClientRect().toJSON(),heading:document.querySelector('#project-browser>.section-heading').getBoundingClientRect().toJSON(),back:document.querySelector('#project-browser-close').getBoundingClientRect().toJSON(),inside:!!document.querySelector('.project-workspace-main>#project-browser'),width:document.documentElement.scrollWidth,viewport:innerWidth}));
+    const boxes=await page.evaluate(()=>({pane:document.querySelector('#project-details-pane').getBoundingClientRect().toJSON(),browser:document.querySelector('#project-browser').getBoundingClientRect().toJSON(),heading:document.querySelector('#project-browser>.section-heading').getBoundingClientRect().toJSON(),back:document.querySelector('#project-browser-close').getBoundingClientRect().toJSON(),inside:!!document.querySelector('#view-quotes>#project-browser'),width:document.documentElement.scrollWidth,viewport:innerWidth}));
     assert.ok(boxes.inside);assert.ok(boxes.width<=boxes.viewport,JSON.stringify(boxes));
-    assert.ok(boxes.pane.bottom<=boxes.browser.top && Math.abs(boxes.pane.left-boxes.browser.left)<1,JSON.stringify(boxes));
+    assert.equal(boxes.pane.width,0,'Project metadata remains on its separate detail page');
     assert.ok(boxes.back.top>=boxes.heading.bottom);assert.ok(boxes.back.left<boxes.browser.left+35);
     await page.screenshot({path:path.join(output,`browser-pane-${width}.png`),fullPage:true});
   }
   await expect(page.locator('#project-browser-close')).toHaveText('←');
   await expect(page.locator('#project-browser-close')).toHaveAttribute('aria-label','Back to Projects');
   await page.setViewportSize({width:1915,height:884});await page.locator('#project-browser-close').click();
-  await expect(page.locator('#project-list-card')).toBeVisible();await expect(page.locator('#project-details-pane')).toBeVisible();assert.equal(calls.length,0);
+  await expect(page.locator('#project-list-card')).toBeVisible();await expect(page.locator('#project-details-pane')).toBeHidden();assert.equal(calls.length,0);
   await page.locator('.nav-button[data-view="estimate"]').click();
   await expect(page.locator('#project-tools')).toBeHidden();await expect(page.locator('.estimate-heading-art-slot')).toHaveCount(0);
   const estimateControls=page.locator('.project-estimate-controls');
@@ -86,7 +92,7 @@ const ready = new Promise((resolve,reject)=>{
   const plusBox=await page.locator('#project-estimate-new').evaluate(button=>{const b=button.getBoundingClientRect(),s=button.querySelector('.add-symbol').getBoundingClientRect();return {offset:Math.abs((b.top+b.bottom)/2-(s.top+s.bottom)/2),left:b.left,select:document.querySelector('#project-estimate-select').getBoundingClientRect().left};});
   assert.ok(plusBox.offset<=1.1,JSON.stringify(plusBox));assert.ok(plusBox.left<plusBox.select+5);
   await openProjectSection(page,'quotes');
-  await toggle(first).click();await idle();
+  await openDetails(first);
   await page.locator('#project-pane-contact-name').fill('Updated Alpha Person');
   response=saved();await page.locator('#project-details-save').click();assert.equal((await response).status(),200);await idle();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
@@ -101,18 +107,17 @@ const ready = new Promise((resolve,reject)=>{
   response=page.waitForResponse(r=>r.url().endsWith('/api/project/save'));
   await page.locator('#save-current-project').click();const afterMetadataSave=await response;assert.equal(afterMetadataSave.status(),200,await afterMetadataSave.text());await idle();
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
-  await toggle(first).click();await expect(page.locator('#project-details-pane')).toBeHidden();await expect(toggle(first)).toHaveText('<');
-  await expect(toggle(first)).toHaveCSS('color','rgb(208, 0, 27)');
+  await back();await expect(page.locator('#project-details-pane')).toBeHidden();
   // Editing another file cannot replace the open estimate or its unsaved notes.
   await page.locator('.nav-button[data-view="estimate"]').click();await showEstimateNotes(page);await page.locator('#measurements').fill('Unsaved active estimate note');
   await openProjectSection(page,'quotes');await idle();
   const active=await page.evaluate(()=>window.CeasefireProject.projectPaneSnapshot());
   const original=fs.readFileSync(info.project);
-  await toggle(second).click();await idle();
+  await openDetails(second);
   await expect(page.locator('#project-pricing-context')).toHaveText(active.file.title);
   const pane=page.locator('#project-details-pane');
-  const geometry={pane:await pane.boundingBox(),list:await page.locator('#project-list-card').boundingBox()};
-  assert.ok(geometry.pane.y+geometry.pane.height<=geometry.list.y && Math.abs(geometry.pane.x-geometry.list.x)<1);
+  const geometry={pane:await pane.boundingBox()};
+  await expect(page.locator('#project-list-card')).toBeHidden();
   const companyPanel=page.locator('#project-workspace-side details').filter({has:page.locator('#project-company-participants')});
   const contactPanel=page.locator('#project-workspace-side details').filter({has:page.locator('#project-contact-participants')});
   await expect(companyPanel.locator(':scope > summary')).toHaveText('Companies');
@@ -166,8 +171,9 @@ const ready = new Promise((resolve,reject)=>{
   const discard=page.getByRole('dialog',{name:'Discard unsaved project details?',exact:true});await expect(discard).toBeVisible();
   await discard.getByRole('button',{name:'Cancel',exact:true}).click();await expect(page.locator('#view-quotes')).toBeVisible();
   await page.locator('#project-details-close').click();await discard.getByRole('button',{name:'Yes',exact:true}).click();
+  await expect(page.locator('#project-list-card')).toBeVisible();
   await page.unroute('**/api/projects/details/save');
-  await toggle(second).click();await idle();
+  await openDetails(second);
   for(const width of [1101,800,390]){
     await page.setViewportSize({width,height:884});
     const box=await page.evaluate(()=>({width:document.documentElement.scrollWidth,viewport:innerWidth,columns:getComputedStyle(document.querySelector('.project-pane-fields')).gridTemplateColumns.split(' ').length,pane:document.querySelector('#project-details-pane').getBoundingClientRect().toJSON(),list:document.querySelector('#project-list-card').getBoundingClientRect().toJSON()}));
@@ -188,10 +194,10 @@ const ready = new Promise((resolve,reject)=>{
     assert.ok(Math.abs(client.width-billing.width)<1 && Math.abs(billing.width-abn.width)<1 &&
       Math.abs(primary.width-client.width)<1,JSON.stringify(fields));
     for(const control of Object.values(fields))assert.ok(control.left>=box.pane.left && control.right<=box.pane.right,JSON.stringify(fields));
-    if(width===800)assert.ok(box.pane.bottom<=box.list.top);
+    assert.equal(box.list.width,0,'The register remains hidden on the detail page');
     await page.screenshot({path:path.join(output,`pane-${width}.png`),fullPage:true});
   }
-  await expect(toggle(second)).toHaveAttribute('aria-expanded','true');
+  await expect(page.locator('#project-list-card')).toBeHidden();
   // Fresh metadata must not grant write access to a stale open workspace.
   await page.setViewportSize({width:1915,height:884});await page.locator('#project-details-close').click();
   const external=JSON.parse(fs.readFileSync(info.project,'utf8'));
@@ -199,7 +205,7 @@ const ready = new Promise((resolve,reject)=>{
   external.estimates.find(entry=>entry.id===external.active_estimate_id).workspace.estimate.measurements='External saved estimate note';
   fs.writeFileSync(info.project,JSON.stringify(external,null,2));
   const externalBytes=fs.readFileSync(info.project);
-  await toggle(first).click();await idle();
+  await openDetails(first);
   await expect(page.locator('#project-details-status')).toContainText('changed outside this open estimate');
   await expect(page.locator('#project-details-save')).toBeDisabled();
   assert.equal((await page.evaluate(()=>window.CeasefireProject.projectPaneSnapshot())).file.save_token,active.file.save_token);

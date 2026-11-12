@@ -26,6 +26,12 @@ function project() {
     calculators: Object.fromEntries(ids.map(id => [id, { source_sha256: 'matching-source', inputs: { CALCULATOR: { A9: `Imported ${id}` } } }])) };
 }
 
+function projectCards(h) {
+  return h.byId('project-list').children.flatMap(board =>
+    board.children.flatMap(column => column.children.filter(child => child.className?.split(' ').includes('project-kanban-card'))));
+}
+function projectActions(card) { return card.children[2].children[1].children[1].children; }
+
 function harness({ penetration = false } = {}) {
   const elements = new Map();
   function element(tagName = 'div') {
@@ -57,6 +63,7 @@ function harness({ penetration = false } = {}) {
 vm.createContext(context);
   vm.runInContext(fs.readFileSync('static/calculation-queue.js','utf8'),context);
   vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
+  vm.runInContext(fs.readFileSync('static/document-workflow-board.js','utf8'),context);
   let calculatorSource = fs.readFileSync('static/calculators.js', 'utf8');
   const bridge = '  window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };';
   assert.ok(calculatorSource.includes(bridge), 'Calculator test hook must match the actual project bridge');
@@ -855,8 +862,8 @@ async function penetrationCheck(name, fn) {
     h.app.setRequest(async path=>{calls.push(path);return {folder:'C:/Estimates',files:[{id:'nested',name:'Quote.cf.json',relative_path:'Client/north/Quote.cf.json',title:'Quote',modified_at:'2026-09-17T00:00:00Z'}],total:500,matched:120,offset:100,errors:[],scan_pending:true,scanned_entries:2000};});
     await h.app.loadProjects({offset:100});
     assert.equal(calls[0],'/api/projects?search=Client%20%26%20north&sort=name_asc');
-    const details=h.byId('project-list').children[0].children[0];
-    assert.equal(details.children.length,3);
+    const details=projectCards(h)[0].children[0];
+    assert.equal(details.children.length,2);
     assert.ok(details.children.every(child=>!child.textContent.includes('Client/north/Quote.cf.json')));
     assert.match(h.byId('project-list-status').textContent,/120 matching projects/);assert.equal(h.byId('project-continue').hidden,false);
     assert.equal(h.byId('project-previous').disabled,true);assert.equal(h.byId('project-next').disabled,true);
@@ -871,10 +878,10 @@ async function penetrationCheck(name, fn) {
       if(path==='/api/projects/open-file')return {opened:true,name:'site.jpg',relative_path:'Photos/site.jpg'};
       throw new Error(`Unexpected ${path}`);
     });
-    await h.app.loadProjects();const row=h.byId('project-list').children[0],heading=row.children[0].children[0],title=heading.children[1];
-    assert.equal(heading.children[0].textContent,'<');assert.equal(heading.children[0].getAttribute('aria-expanded'),'false');
-    assert.equal(title.textContent,'Quote files');assert.equal(title.getAttribute('aria-label'),'Open Quote files');
-    await row.children[2].children[0].children[1].children.find(button=>button.textContent==='Browse files').emit('click');
+    await h.app.loadProjects();const row=projectCards(h)[0],title=row.children[0].children[0].children[0];
+    assert.equal(row.children[2].children[0].textContent,'Load');
+    assert.equal(title.textContent,'Quote files');assert.equal(title.getAttribute('aria-label'),'Project details for Quote files');
+    await projectActions(row).find(button=>button.textContent==='Browse files').emit('click');
     assert.equal(h.byId('project-list-card').hidden,true);assert.equal(h.byId('project-browser').hidden,false);assert.equal(h.byId('project-browser-list').children.length,2);
     await h.byId('project-browser-list').children[0].emit('click');assert.equal(h.app.state.projectBrowserPath,'Photos');
     const file=h.byId('project-browser-list').children[0];assert.equal(file.children[1].textContent,'site.jpg');await file.emit('click');
@@ -883,14 +890,14 @@ async function penetrationCheck(name, fn) {
     await h.byId('refresh-quotes').emit('click');assert.equal(calls.at(-1).path,'/api/projects/files');assert.equal(calls.at(-1).body.relative_path,'Photos');
     await h.byId('project-browser-close').emit('click');assert.equal(h.byId('project-browser').hidden,true);assert.equal(h.byId('project-list-card').hidden,false);
   });
-  for (const control of ['title','Open']) await check(`${control} loads a saved Project without choosing an Estimate or opening its file browser`, async h => {
+  for (const control of ['Load','Open']) await check(`${control} loads a saved Project without choosing an Estimate or opening its file browser`, async h => {
     const file={id:'opaque-project',name:'Project.cf.json',title:'Saved Project',path:'C:/Estimates/Project.cf.json',save_token:'receipt',modified_at:'2026-09-17T00:00:00Z'},calls=[];
     h.app.state.currentView='quotes';h.app.state.projectCards=[file];h.app.renderProjectList();
     h.app.setRequest(async(path,options)=>{calls.push({path,body:options?.body?JSON.parse(options.body):null});return path==='/api/projects/load'?{...project(),file}:{files:[file],total:1,matched:1,errors:[]};});
-    const row=h.byId('project-list').children[0],actions=row.children[2].children[0].children[1].children;
+    const row=projectCards(h)[0],actions=projectActions(row);
     assert.notEqual(actions.find(button=>button.textContent==='Open').disabled,true);
     assert.equal(actions.find(button=>button.textContent==='Edit').disabled,true);
-    const button=control==='title'?row.children[0].children[0].children[1]:actions.find(button=>button.textContent===control);
+    const button=control==='Load'?row.children[2].children[0]:actions.find(button=>button.textContent===control);
     const opening=button.emit('click');await flush();assert.equal(h.byId('discard-dialog').open,true);await h.byId('discard-dialog').close('confirm');await opening;await flush();
     assert.deepEqual(calls[0],{path:'/api/projects/load',body:{id:'opaque-project'}});
     assert.ok(calls.every(call=>!call.path.includes('/files')));assert.equal(h.app.state.currentView,'quotes');
@@ -898,12 +905,12 @@ async function penetrationCheck(name, fn) {
     assert.equal(h.byId('measurements').value,'Imported notes');assert.equal(h.app.state.dirty,false);
     assert.equal(h.byId('project-pricing-context').textContent,'Imported project');
   });
-  await check('A cancelled Project pane leave blocks title loading and preserves current pricing identity',async h=>{
+  await check('Project name opens metadata without loading or changing current pricing identity',async h=>{
     const file={id:'other-project',title:'Another Project'},loaded={title:'Loaded Project',path:'C:/Loaded.cf.json'};
     h.app.state.projectFile=loaded;h.app.state.projectCards=[file];h.app.renderProjectList();h.app.updateProjectStatus();
-    h.context.window.CeasefireProjectPane={leave:async()=>false};let reads=0;h.app.setRequest(async()=>{reads++;});
-    const before=h.snapshot();await h.byId('project-list').children[0].children[0].children[0].children[1].emit('click');
-    assert.equal(reads,0);assert.deepEqual(h.snapshot(),before);assert.equal(h.byId('project-pricing-context').textContent,'Loaded Project');
+    let opened;h.context.window.CeasefireProjectPane={open:async selected=>{opened=selected;}};let reads=0;h.app.setRequest(async()=>{reads++;});
+    const before=h.snapshot();await projectCards(h)[0].children[0].children[0].children[0].emit('click');
+    assert.equal(opened,file);assert.equal(reads,0);assert.deepEqual(h.snapshot(),before);assert.equal(h.byId('project-pricing-context').textContent,'Loaded Project');
   });
   await check('Use current pricing cannot apply a confirmation captured for a different loaded Project',async h=>{
     h.app.switchPricingScope('project');h.app.state.draft.rates.frozen.price=777;
@@ -932,26 +939,26 @@ async function penetrationCheck(name, fn) {
     assert.equal(h.byId('project-list').getAttribute('aria-busy'),'false');
   });
   await check('Project list fetches all project pages and ignores obsolete page offsets', async h => {
-    const paths=[];h.app.setRequest(async path=>{paths.push(path);return {folder:'C:/estimates',files:[{id:paths.length===1?'first':'second',name:'Quote.cf.json',project_status:paths.length===1?'Draft':'Review',modified_at:'2026-09-17T00:00:00Z'}],total:2,matched:2,scan_pending:false,errors:[]};});
+    const paths=[];h.app.setRequest(async path=>{paths.push(path);return {folder:'C:/estimates',files:[{id:paths.length===1?'first':'second',name:'Quote.cf.json',project_status:paths.length===1?'New':'Quote',modified_at:'2026-09-17T00:00:00Z'}],total:2,matched:2,scan_pending:false,errors:[]};});
     await h.app.loadProjects({offset:200});assert.deepEqual(paths,['/api/projects','/api/projects?offset=1']);
     assert.equal(h.app.state.projectsOffset,0);assert.equal(h.app.state.projectCards.length,2);
-    assert.equal(h.byId('project-list').children.length,2);
-    assert.deepEqual(h.app.state.projectCards.map(file=>file.project_status),['Draft','Review']);
+    assert.equal(projectCards(h).length,2);
+    assert.deepEqual(h.app.state.projectCards.map(file=>file.project_status),['New','Quote']);
     assert.match(h.byId('project-list-status').textContent,/2 matching projects/);
   });
   await check('Status changes refresh only the matching current project revision and retain drafts', async h => {
-    const file={id:'first',path:'C:/estimates/First.cf.json',revision:'original',project_status:'Draft'};
-    h.app.state.projectFile=file;h.app.state.projectStatus='Draft';
+    const file={id:'first',path:'C:/estimates/First.cf.json',revision:'original',project_status:'New'};
+    h.app.state.projectFile=file;h.app.state.projectStatus='New';
     const before=h.snapshot();
     h.app.setRequest(async(path,options)=>{
-      if(path==='/api/projects/status'){assert.deepEqual(JSON.parse(options.body),{id:'first',revision:'original',project_status:'Review'});return {file:{...file,revision:'updated',save_token:'new-token',project_status:'Review'}};}
+      if(path==='/api/projects/status'){assert.deepEqual(JSON.parse(options.body),{id:'first',revision:'original',project_status:'Quote'});return {file:{...file,revision:'updated',save_token:'new-token',project_status:'Quote'}};}
       return {files:[],errors:[]};
     });
-    await h.app.changeProjectStage(file,'Review');
-    assert.equal(h.app.state.projectFile.save_token,'new-token');assert.equal(h.app.state.projectStatus,'Review');assert.deepEqual(h.snapshot(),before);
-    h.app.state.projectFile={...file,revision:'older'};h.app.state.projectStatus='Draft';
-    await h.app.changeProjectStage(file,'Review');
-    assert.equal(h.app.state.projectFile.revision,'older');assert.equal(h.app.state.projectStatus,'Draft');
+    await h.app.changeProjectStage(file,'Quote');
+    assert.equal(h.app.state.projectFile.save_token,'new-token');assert.equal(h.app.state.projectStatus,'Quote');assert.deepEqual(h.snapshot(),before);
+    h.app.state.projectFile={...file,revision:'older'};h.app.state.projectStatus='New';
+    await h.app.changeProjectStage(file,'Quote');
+    assert.equal(h.app.state.projectFile.revision,'older');assert.equal(h.app.state.projectStatus,'New');
   });
   await check('Editing an estimate name keeps the selected identity even when two names match', async h => {
     const secondId='estimate-'+'2'.repeat(32);
@@ -975,9 +982,9 @@ async function penetrationCheck(name, fn) {
   });
   await check('Unsaved project status participates in save and replacement fingerprints', async h => {
     const before=h.app.projectStamp();
-    await h.app.changeCurrentProjectStage('Accepted');assert.equal(h.app.state.projectStatus,'Accepted');assert.notEqual(h.app.projectStamp(),before);
-    h.app.setRequest(async(path,options)=>{const request=JSON.parse(options.body);assert.equal(request.project_status,'Accepted');return {cancelled:true};});
-    await h.app.saveProject();assert.equal(h.app.state.projectStatus,'Accepted');
+    await h.app.changeCurrentProjectStage('Won');assert.equal(h.app.state.projectStatus,'Won');assert.notEqual(h.app.projectStamp(),before);
+    h.app.setRequest(async(path,options)=>{const request=JSON.parse(options.body);assert.equal(request.project_status,'Won');return {cancelled:true};});
+    await h.app.saveProject();assert.equal(h.app.state.projectStatus,'Won');
   });
   await check('Loaded schedule row lists survive project saving for every calculator', async h => {
     const incoming=project();
@@ -1405,7 +1412,7 @@ async function penetrationCheck(name, fn) {
     h.app.state.initialized=true;h.app.state.dirty=false;h.app.state.estimatesDirty=false;
     h.app.state.configuration={inventory:{},rates:{}};h.app.state.draft=copy(h.app.state.configuration);
     h.app.state.quoteConfiguration=null;h.app.state.projectPricingDraft=null;h.context.window.CeasefireCalculators.hasUnsavedChanges=()=>false;
-    h.app.state.projectFile={path:'C:/Project/A.cf.json',revision:'old',save_token:'old-token',project_status:'Draft'};
+    h.app.state.projectFile={path:'C:/Project/A.cf.json',revision:'old',save_token:'old-token',project_status:'New'};
     h.app.state.projectEstimates=[{id:'estimate-1',workspace:{estimate:{...copy(h.context.window.CeasefireProject.details()),inputs:{B15:123}}}},{id:'legacy-estimate',workspace:{estimate:{project_no:'PN-LEGACY',inputs:{B15:456}}}}];
     const before=h.context.window.CeasefireProject.projectPaneSnapshot(),inputs=copy(h.app.state.inputs);
     const result={file:{...before.file,revision:'new',save_token:'new-token'},details:{...before.details,contact_name:'Robin Sample',contact_phone:'0400000000',billing_address:'Project accounts\nPO Box 42',abn_acn:'ABN 123'}};
@@ -1418,7 +1425,7 @@ async function penetrationCheck(name, fn) {
     assert.equal(h.app.state.projectEstimates[1].workspace.estimate.project_no,'PN-LEGACY');assert.equal(h.app.state.projectEstimates[1].workspace.estimate.inputs.B15,456);
   });
   await check('Metadata saves preserve dirty estimates and later identity edits and ignore another active file',async h=>{
-    h.app.state.projectFile={path:'C:/Project/A.cf.json',revision:'old',save_token:'old-token',project_status:'Draft'};
+    h.app.state.projectFile={path:'C:/Project/A.cf.json',revision:'old',save_token:'old-token',project_status:'New'};
     const before=h.context.window.CeasefireProject.projectPaneSnapshot(),inputs=copy(h.app.state.inputs);
     h.byId('client').value='Later client edit';
     const result={file:{...before.file,revision:'new',save_token:'new-token'},details:{...before.details,client:'Saved client',contact_name:'Robin Sample'}};
@@ -1429,7 +1436,7 @@ async function penetrationCheck(name, fn) {
     assert.deepEqual(copy(h.app.state.projectFile),active);
   });
   await check('Metadata cannot grant a refreshed file capability to a stale open workspace',async h=>{
-    h.app.state.projectFile={path:'C:/Project/A.cf.json',revision:'open-revision',save_token:'open-token',project_status:'Draft'};
+    h.app.state.projectFile={path:'C:/Project/A.cf.json',revision:'open-revision',save_token:'open-token',project_status:'New'};
     const before=h.context.window.CeasefireProject.projectPaneSnapshot();
     const result={file:{...before.file,revision:'new-revision',save_token:'fresh-token'},details:{...before.details,contact_name:'Saved person'}};
     assert.equal(h.context.window.CeasefireProject.applyProjectPaneSaved(before,result,'different-disk-revision'),false);

@@ -42,7 +42,7 @@ function harness(){
   const context={window,document:{getElementById:byId,createElement:element},fetch,console,Date,JSON,Object,Array,Number,Error,Set,Map,WeakMap,
     crypto:{randomUUID:()=>identity(++serial)}};
   vm.createContext(context);vm.runInContext(fs.readFileSync('static/documentation.js','utf8'),context);
-  const descendants=(host,predicate)=>host.children.flatMap(child=>[...(predicate(child)?[child]:[]),...descendants(child,predicate)]);
+  const descendants=(host,predicate)=>host.children.filter(child=>typeof child==='object').flatMap(child=>[...(predicate(child)?[child]:[]),...descendants(child,predicate)]);
   return {api:window.CeasefireDocumentation,window,calls,adapters,models,byId,response,events,
     override:fn=>{override=fn;},adapterOverride:fn=>{adapterOverride=fn;},scope:n=>{selected=n;},created:value=>{created=value;},changed:()=>changed,
     links:()=>descendants(byId('documentation-revisions-list'),e=>e.tagName==='A'),
@@ -89,13 +89,13 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     await h.api.open();
     const rendered=h.byId('documentation-pdf-rows').children;
     assert.deepEqual(rendered.filter(row=>row.children[0].tagName==='TH').map(row=>row.children[0].children[0].children[0].textContent),['Schedules','Product summaries','Other documents']);
-    assert.deepEqual(rendered.filter(row=>row.dataset.documentKind).map(row=>row.dataset.documentKind),['estimate.summary.pdf','project.full_schedule.pdf','firestopping.schedule.pdf','calculator.legacy.schedule.pdf','calculator.ductwork.product_summary.pdf','project.full_product_summary.pdf','certification']);
-    const toggle=rendered[1].children[0].children[0].children[0];
-    assert.equal(toggle.attributes['aria-expanded'],'false');assert.equal(rendered[2].hidden,true);
-    await toggle.emit('click');assert.equal(toggle.attributes['aria-expanded'],'true');assert.equal(rendered[2].hidden,false);
+    assert.deepEqual(rendered.filter(row=>row.dataset.documentKind).map(row=>row.dataset.documentKind),['project.full_schedule.pdf','firestopping.schedule.pdf','calculator.legacy.schedule.pdf','calculator.ductwork.product_summary.pdf','project.full_product_summary.pdf','estimate.summary.pdf','certification']);
+    const toggle=rendered[0].children[0].children[0].children[0];
+    assert.equal(toggle.attributes['aria-expanded'],'false');assert.equal(rendered[1].hidden,true);
+    await toggle.emit('click');assert.equal(toggle.attributes['aria-expanded'],'true');assert.equal(rendered[1].hidden,false);
     assert.deepEqual(h.links(),[]);assert.deepEqual(h.tableLinks(),[]);
-    await h.revisions(legacy.kind).emit('click');assert.deepEqual(h.links().map(link=>link.href),[legacy.url]);assert.equal(h.buttons()[0].attributes['aria-label'],'Download Breakdown');
-    const first=rendered[0];assert.equal(first.children.length,3);assert.equal(first.children[0].textContent,'Breakdown');
+    await h.revisions(legacy.kind).emit('click');assert.deepEqual(h.links().map(link=>link.href),[legacy.url]);
+    const first=rendered.find(row=>row.dataset.documentKind==='estimate.summary.pdf');assert.equal(first.children.length,3);assert.equal(first.children[0].textContent,'Breakdown');assert.equal(first.hidden,true);
     assert.equal(first.children[1].children[0].textContent,'View Revisions (0)');
     assert.equal(first.children[2].className,'documentation-action');
     assert.ok(rendered.filter(row=>row.children[0].tagName==='TH').every(row=>row.children[0].colSpan===5));
@@ -105,7 +105,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   });
   await check('Catalog separates PDF and XLSX and displays exact project-scoped immutable revision links',async h=>{
     h.models.set(token(1),model(1,[item(1),item(2,1,{kind:'calculator.ductwork.register.xlsx',media_type:XLSX,filename:'Ductwork.xlsx'})]));
-    await h.api.open();assert.equal(h.byId('documentation-pdf-rows').children.length,1);assert.equal(h.byId('documentation-xlsx-rows').children.length,3);
+    await h.api.open();assert.equal(h.byId('documentation-pdf-rows').children.length,2);assert.equal(h.byId('documentation-xlsx-rows').children.length,4);
     assert.deepEqual(h.tableLinks(),[]);await h.revisions('estimate.summary.pdf').emit('click');assert.deepEqual(h.links().map(link=>link.href),[item(1).url]);
     await h.revisions('calculator.ductwork.register.xlsx').emit('click');assert.deepEqual(h.links().map(link=>link.href),[item(2).url]);assert.ok(h.links().every(link=>link.target==='_blank'&&link.rel==='noopener'));
     assert.equal(h.api.hasProjectChanges(),false);assert.equal(h.api.hasPendingOperation(),false);
@@ -114,7 +114,7 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const kinds=['firestopping.current_item.pdf','library.technical.item.pdf','takeoff.pdf_tools.pdf'];
     const history=kinds.map((kind,index)=>item(index+1,1,{kind}));
     h.models.set(token(1),model(1,history));await h.api.open();
-    const rows=h.byId('documentation-pdf-rows').children.map(row=>row.dataset.documentKind);
+    const rows=h.byId('documentation-pdf-rows').children.map(row=>row.dataset.documentKind).filter(Boolean);
     assert.deepEqual(rows,['estimate.summary.pdf']);assert.deepEqual(h.links(),[]);
     assert.ok(h.buttons().some(button=>button.dataset.documentKind==='firestopping.current_item.xlsx'));
     assert.ok(h.buttons().some(button=>button.dataset.documentKind==='library.technical.item.xlsx'));

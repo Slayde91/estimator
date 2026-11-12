@@ -37,11 +37,12 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   await quote.getByRole('button',{name:'Create WO',exact:true}).click();
   await expect(quote.locator('.commercial-message')).toHaveText('Save this Quote before creating a Work Order.');
   assert.equal((await state()).documents.filter(doc=>doc.kind==='work_order').length,0);
-  const identityBoxes=await Promise.all(['Document date','Site address','Client','Client contact'].map(label=>quote.locator('.commercial-details').getByLabel(label,{exact:true}).boundingBox()));
+  await expect(quote.getByLabel('Site address',{exact:true})).toHaveCount(0);
+  const identityBoxes=await Promise.all(['Document date','Linked Project','Client','Client contact'].map(label=>quote.locator('.commercial-details').getByLabel(label,{exact:true}).boundingBox()));
   assert.ok(Math.abs(identityBoxes[0].y-identityBoxes[1].y)<2 && identityBoxes[1].x>identityBoxes[0].x);
   assert.ok(identityBoxes[2].y>identityBoxes[0].y && Math.abs(identityBoxes[2].y-identityBoxes[3].y)<2);
   for(const [label,value] of [['Client','Procurement receiver'],['Client contact','Project Contact'],['Client phone','0400 123 456'],
-    ['Client email','project-contact@example.test'],['Site address','17 Procurement Road']]){
+    ['Client email','project-contact@example.test']]){
     const projectField=quote.locator('.commercial-details').getByLabel(label,{exact:true});
     await expect(projectField).toHaveValue(value);await expect(projectField).toHaveAttribute('readonly','');
   }
@@ -187,7 +188,8 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   await page.setViewportSize({width:1600,height:1000});
   await expect(sections.locator('h2')).toHaveText(['Purchase order information','Request','Approval','Sent by','Procurement verification']);
   for(const [title,fields] of [['Request',['requested_by','requested_date']],['Approval',['approval','rejection_reason','reviewed_by','review_date']],['Sent by',['sent_by','sent_date']],['Procurement verification',['verification','verified_by','verified_date']]]) {
-    const section=sections.filter({has:page.getByRole('heading',{name:title,exact:true})});
+    const section=sections.filter({has:page.locator('h2').filter({hasText:new RegExp('^'+title+'$')})});
+    if(title==='Request')await expect(section).toBeVisible();else await expect(section).toBeHidden();
     assert.deepEqual(await section.locator('[data-order-field]').evaluateAll(controls=>controls.map(control=>control.dataset.orderField)),fields);
   }
   const item=purchase.locator('.commercial-lines tbody tr');await expect(item).toHaveCount(1);

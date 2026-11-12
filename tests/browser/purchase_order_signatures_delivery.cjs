@@ -35,19 +35,22 @@ async function reopen(){await host.getByRole('button',{name:'Back to Purchase Or
   await expect(host.getByRole('group',{name:'Delivery date and time',exact:true})).toBeHidden();await host.getByLabel('Delivery or pickup',{exact:true}).selectOption('Delivery');
   await expect(host.getByRole('group',{name:'Delivery date and time',exact:true})).toBeVisible();await expect(host.getByLabel('Delivery time',{exact:true})).toHaveValue('');
   await host.getByLabel('Delivery date',{exact:true}).fill('2026-12-10');await host.getByLabel('Delivery time',{exact:true}).fill('14:35');await host.getByLabel('Ship to address',{exact:true}).fill('Manual delivery destination\nKeep this PO override');
-  const approval=host.getByLabel('Approval',{exact:true}),reason=host.getByLabel('Rejection reason',{exact:true});await expect(approval.locator('option')).toHaveText(['','Approved','Rejected']);await expect(reason).toBeHidden();
-  await approval.selectOption('Rejected');await expect(reason).toBeVisible();await reason.fill('Wrong quantities; please revise.');
-  let saved=await save();assert.equal(saved.fields.details.site_address,'Current Project site\nSynthetic address');assert.equal(saved.fields.order.delivery_time,'14:35');assert.equal(saved.fields.order.rejection_reason,'Wrong quantities; please revise.');
-  await reopen();await expect(reason).toHaveValue('Wrong quantities; please revise.');await approval.selectOption('Approved');await expect(reason).toBeHidden();saved=await save();assert.equal(saved.fields.order.rejection_reason,'Wrong quantities; please revise.');
-  checks.push('PO collects its supplier, contact, terms and email in Purchase order information; shipping is seeded once, editable, and separate from canonical Project site; Approval controls a persisted rejection reason without erasing it when hidden');
-  await host.getByRole('button',{name:'Sign Verified by',exact:true}).click();await expect(host.locator('.commercial-message')).toHaveText('Sign the preceding sections first.');
+  const approval=host.getByLabel('Approval',{exact:true}),reason=host.getByLabel('Rejection reason',{exact:true});
   await personal('');await host.getByRole('button',{name:'Sign Requested by',exact:true}).click();await expect(host.locator('.commercial-message')).toHaveText('Enter the signer name and date before signing.');await idle();
   await host.getByLabel('Requested by name',{exact:true}).fill('Hand-entered requester');
   await host.getByRole('button',{name:'Sign Requested by',exact:true}).click();await expect(host.locator('.commercial-message')).toHaveText('Enter the signer name and date before signing.');await idle();
   await host.locator('[data-order-field=requested_date]').fill('2026-11-04');
+  let saved;
+  await expect(approval).toBeHidden();await expect(host.getByRole('button',{name:'Sign Verified by',exact:true})).toBeHidden();
   const expectedStatus={requested_by:'Requested',reviewed_by:'Reviewed',sent_by:'Sent',verified_by:'Completed'};
   for(const [key,label,date] of signers){await expect(host.locator(`[data-signature-field="${key}"] button`)).toHaveCount(2);
     if(key==='reviewed_by') {
+      await expect(approval.locator('option')).toHaveText(['','Approved','Rejected']);await expect(reason).toBeHidden();
+      await approval.selectOption('Rejected');await expect(reason).toBeVisible();await reason.fill('Wrong quantities; please revise.');
+      saved=await save();assert.equal(saved.fields.details.site_address,'Current Project site\nSynthetic address');assert.equal(saved.fields.order.delivery_time,'14:35');assert.equal(saved.fields.order.rejection_reason,'Wrong quantities; please revise.');
+      await reopen();await expect(reason).toHaveValue('Wrong quantities; please revise.');await approval.selectOption('Approved');await expect(reason).toBeHidden();saved=await save();assert.equal(saved.fields.order.rejection_reason,'Wrong quantities; please revise.');
+      checks.push('PO collects its supplier, contact, terms and email in Purchase order information; shipping is seeded once, editable, and separate from canonical Project site; Approval controls a persisted rejection reason without erasing it when hidden');
+
       await approval.selectOption('');await host.getByRole('button',{name:'Sign Approved by',exact:true}).click();
       await expect(host.locator('.commercial-message')).toHaveText('Choose an approval decision before signing.');await approval.selectOption('Approved');
     }
@@ -87,12 +90,12 @@ async function reopen(){await host.getByRole('button',{name:'Back to Purchase Or
   await expect(host.getByLabel('Status',{exact:true})).toHaveValue('Completed');
   await expect(approval).toHaveValue('Legacy finance review');await expect(approval.locator('option')).toHaveText(['','Approved','Rejected','Legacy finance review']);await expect(reason).toBeHidden();await expect(host.getByLabel('Delivery date',{exact:true})).toHaveValue('2026-12-11');await expect(host.getByLabel('Delivery time',{exact:true})).toHaveValue('');await expect(host.getByLabel('Ship to address',{exact:true})).toHaveValue('Manual delivery destination\nKeep this PO override');
   await host.getByLabel('Payment terms',{exact:true}).fill('Legacy terms kept');saved=await save();assert.equal(saved.fields.order.approval,'Legacy finance review');assert.equal(saved.fields.order.delivery_date,'2026-12-11');assert.equal(saved.fields.order.delivery_time??'','');assert.equal(saved.fields.order.ship_to_address,'Manual delivery destination\nKeep this PO override');assert.equal(saved.fields.details.site_address,'Current Project site\nSynthetic address');
+  await host.getByRole('button',{name:'Sign Requested by',exact:true}).click();await idle();
   await approval.selectOption('Rejected');await reason.fill('Updated explicit decision');await host.getByLabel('Delivery time',{exact:true}).fill('08:05');saved=await save();assert.equal(saved.fields.order.approval,'Rejected');assert.equal(saved.fields.order.delivery_time,'08:05');assert.equal(saved.fields.order.rejection_reason,'Updated explicit decision');
   checks.push('An older free-text approval and date-only delivery survive an unrelated edit unchanged; an explicit new decision/time replaces them, while manual shipping and canonical Project address remain separate');
-  await host.getByRole('button',{name:'Sign Requested by',exact:true}).click();await idle();
   await host.getByRole('button',{name:'Sign Approved by',exact:true}).click();await idle();
   await expect(host.getByLabel('Status',{exact:true})).toHaveValue('Cancelled');
-  await host.getByRole('button',{name:'Sign Sent by',exact:true}).click();await expect(host.locator('.commercial-message')).toHaveText('An approved review is required before signing this section.');
+  await expect(host.getByRole('button',{name:'Sign Sent by',exact:true})).toBeHidden();
   await host.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();await expect(host.locator('.commercial-column[data-status="Cancelled"]')).toContainText('PO-01: Signature Supplier');
   checks.push('Historical Verified is displayed as Completed. A rejected review auto-saves to the Cancelled board column and blocks sending.');
   assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,geometry,errors},null,2));console.log('PASS Purchase Order signatures and delivery: '+output);

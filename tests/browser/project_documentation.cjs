@@ -22,12 +22,13 @@ async function idle(){await page.waitForFunction(()=>{const state=window.Ceasefi
 async function api(route){const response=await page.request.get(base+route);assert.equal(response.status(),200,await response.text());return response.json();}
 async function documentation(){await openProjectSection(page,'documentation');await expect(page.locator('#documentation-pdf-rows button')).not.toHaveCount(0,{timeout:30000});await idle();}
 async function reveal(kind){
-  const row=page.locator('#documentation-pdf-rows tr[data-document-kind="'+kind+'"]');
+  const row=page.locator('.documentation-table tr[data-document-kind="'+kind+'"]');
   if(await row.count() && !await row.isVisible()){
     await row.locator('xpath=preceding-sibling::tr[contains(@class,"documentation-group")][1]').getByRole('button').click();
   }
 }
 async function revisions(kind,count){await documentation();await reveal(kind);const button=page.locator(`button[data-revisions-kind="${kind}"]`);await expect(button).toHaveText(`View Revisions (${count})`);await button.click();
+  await expect(button.locator('.documentation-revision-count')).toHaveCount(count>0?1:0);
   await expect(button).toHaveAttribute('aria-expanded','true');await expect(page.locator('#documentation-revisions-pane')).toBeVisible();await expect(page.locator('#documentation-revisions-list a')).toHaveCount(count);}
 async function snapshots(){return page.evaluate(()=>({calculators:window.CeasefireCalculators.projectSnapshot(),penetration:window.CeasefirePenetrations.projectSnapshot(),
   configuration:window.CeasefireProject.configuration(),details:window.CeasefireProject.details()}));}
@@ -91,10 +92,17 @@ function checkCompanions(project,folder){
   await expect(page.locator('#documentation-pdf-rows tr[data-document-kind]')).toHaveCount(catalog.filter(row=>row.format==='pdf'&&!omittedPdfRows.has(row.id)).length);
   await expect(page.locator('#documentation-pdf-rows .documentation-group-heading')).toHaveText(['Schedules','Product summaries','Other documents']);
   for(const kind of omittedPdfRows)await expect(page.locator(`tr[data-document-kind="${kind}"]`)).toHaveCount(0);
-  await expect(page.locator('#documentation-xlsx-rows tr')).toHaveCount(catalog.filter(row=>row.format==='xlsx').length);
+  await expect(page.locator('#documentation-xlsx-rows tr[data-document-kind]')).toHaveCount(catalog.filter(row=>row.format==='xlsx').length);
+  const sheets=page.locator('#documentation-xlsx-rows'),schedules=sheets.getByRole('button',{name:'Schedules',exact:true});
+  await expect(schedules).toHaveAttribute('aria-expanded','false');
+  await expect(sheets.locator('tr[data-document-kind="firestopping.schedule.xlsx"]')).toBeHidden();
+  await schedules.click();
+  await expect(sheets.locator('tr[data-document-kind="firestopping.schedule.xlsx"]')).toBeVisible();
+  await expect(page.locator('#documentation-pdf-rows').getByRole('button',{name:'Schedules',exact:true})).toHaveAttribute('aria-expanded','false');
   assert.ok(catalog.some(row=>row.id==='firestopping.current_item.pdf'));assert.ok(!catalog.some(row=>row.id==='library.firestopping.item.pdf'));
   await expect(page.locator('#documentation-pdf-rows a,#documentation-xlsx-rows a')).toHaveCount(0);checks.push('PDF rows omit the three removed downloads while XLSX rows and server export identities remain available');
   const breakdown=page.locator('button[data-document-kind="estimate.summary.pdf"]');
+  await expect(breakdown).toBeHidden();await reveal('estimate.summary.pdf');
   await expect(breakdown).toHaveAccessibleName('Download Breakdown');
   for(const format of ['pdf','xlsx']){
     const buttons=page.locator(`#documentation-${format}-rows .documentation-download-button`);
@@ -105,7 +113,8 @@ function checkCompanions(project,folder){
     for(const icon of await icons.all())assert.equal(await icon.innerHTML(),expected);
     if(format==='xlsx')assert.ok(await buttons.evaluateAll(controls=>controls.every(control=>{
       const box=control.getBoundingClientRect(),label=control.querySelector('.download-format').getBoundingClientRect();
-      return label.right<=box.right-3;
+      const [red,green,blue]=getComputedStyle(control).backgroundColor.match(/\d+/g).map(Number);
+      return label.right<=box.right-3&&green>red&&green>blue;
     })), 'The XLSX label fits inside its compact download control');
   }
   await revisions('estimate.summary.pdf',0);await expect(page.locator('#documentation-revisions-list')).toContainText('No revisions generated in this project.');

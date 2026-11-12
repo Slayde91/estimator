@@ -2,7 +2,7 @@
 #swms-root .swms-toolbar { display:flex; align-items:end; gap:12px; flex-wrap:wrap; margin:18px 0; }
 #swms-root .swms-toolbar .field { flex:1; max-width:650px; }
 #swms-root .swms-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin:14px 0; }
-#swms-root .swms-grid.swms-identity { grid-template-columns:minmax(0,1fr); }
+#swms-root .swms-toolbar .swms-workflow { flex:0 1 auto; width:fit-content; max-width:100%; }
 #swms-root .swms-section { margin:16px 0; padding:20px; }
 #swms-root .swms-section > summary { cursor:pointer; font-weight:700; font-size:15px; }
 #swms-root .swms-section[open] > summary { margin-bottom:18px; }

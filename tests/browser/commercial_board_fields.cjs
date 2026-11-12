@@ -47,9 +47,20 @@ async function move(pane, from, to) {
   await expect(dialog()).toBeVisible();
 }
 async function submit(pane, kind, status) {
+  await pane.evaluate(root => {
+    window.fixtureEditorMounts = 0;
+    const observer = new MutationObserver(changes => {
+      for (const change of changes) for (const child of change.addedNodes) {
+        if (child.matches?.('.commercial-editor') || child.querySelector?.('.commercial-editor')) window.fixtureEditorMounts++;
+      }
+    });
+    observer.observe(root, {childList:true, subtree:true});
+    window.stopBoardObserver = () => observer.disconnect();
+  });
   await button(dialog(), 'Sign and move').click();
   await expect(column(pane, status).locator('.commercial-card')).toHaveCount(1);
   await expect.poll(() => order(kind)?.status).toBe(status);
+  assert.equal(await page.evaluate(() => { window.stopBoardObserver(); return window.fixtureEditorMounts; }), 0);
   return order(kind);
 }
 async function assertBlocked(kind, original, signCount) {
@@ -203,6 +214,27 @@ async function test() {
   assert.equal(cancelled.fields.order.rejection_reason, 'Different materials required');
   assert.equal(cancelled.fields.order.approval, 'Rejected');
   assert.ok(cancelled.fields.signatures.reviewed_by);
+  await column(purchase, 'Cancelled').locator('.project-title-button').click();
+  await expect(field(purchase, 'Approval')).toBeVisible();
+  await expect(button(purchase, 'Sign Sent by')).toBeHidden();
+  await button(purchase, 'Clear Approved by').click();
+  await button(page.getByRole('dialog', {name:'Clear section and later sections?'}), 'Clear section').click();
+  await expect(field(purchase, 'Status')).toHaveValue('Requested');
+  await button(purchase, 'Back to Purchase Orders').click();
+  await move(purchase, 'Requested', 'Reviewed');
+  await approval.selectOption('Approved');
+  await submit(purchase, 'purchase_order', 'Reviewed');
+  await move(purchase, 'Reviewed', 'Sent');
+  await submit(purchase, 'purchase_order', 'Sent');
+  await move(purchase, 'Sent', 'Completed');
+  const verificationLabel = 'Verification method, specification, result and actions';
+  await field(dialog(), verificationLabel).fill('Discarded verification');
+  await button(dialog(), 'Cancel').click();
+  assert.equal(order('purchase_order').fields.order.verification, '');
+  await move(purchase, 'Sent', 'Completed');
+  await field(dialog(), verificationLabel).fill('Checked delivery against specification');
+  const verified = await submit(purchase, 'purchase_order', 'Completed');
+  assert.equal(verified.fields.order.verification, 'Checked delivery against specification');
   assert.deepEqual(errors, []);
   console.log('PASS board signing fields, outcomes, issued rows and cancellation: ' + output);
 }

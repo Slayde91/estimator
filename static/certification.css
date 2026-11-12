@@ -14,7 +14,8 @@
 .certification-document-select select{width:auto;max-width:100%;min-width:0}
 .certification-document-actions{display:flex;align-items:end;flex-wrap:wrap;gap:16px}
 .certification-document-actions>.field{margin:0;min-width:0}
-.certification-document-actions>.certification-workflow{flex:0 1 240px;max-width:100%}
+.certification-project-card{display:grid;grid-template-columns:minmax(15rem,1fr) minmax(0,2fr);gap:1.5rem;align-items:start}
+.certification-document-options{min-width:0}
 .certification-document-picker{position:relative;display:flex;align-items:center;max-width:100%;min-width:160px}
 .certification-document-picker .project-account-add{position:absolute;inset-inline-start:4px;top:50%;transform:translateY(-50%);z-index:1;width:28px;height:28px;padding:0;display:grid;place-items:center}
 .certification-document-picker select{min-height:42px;min-width:160px}
@@ -22,7 +23,7 @@
 .certification-field-error[hidden]{display:none}
 .certification-fields :is(input,textarea)[aria-invalid="true"]{border-color:var(--error,#ff6377);outline:1px solid var(--error,#ff6377)}
 .certification-save-status{min-height:1.6em}
-@media(max-width:700px){.projects-section-cards,.certification-fields{grid-template-columns:1fr}.certification-fields .field.certification-wide{grid-column:auto}}
+@media(max-width:700px){.projects-section-cards,.certification-fields,.certification-project-card{grid-template-columns:1fr}.certification-fields .field.certification-wide{grid-column:auto}}
 
 .certification-fields textarea[rows="2"]{min-height:74px}
 #company-cover-name{overflow-wrap:anywhere;min-width:0;flex:1 1 20rem;max-width:100%}
@@ -55,6 +56,7 @@
 .certification-signature-row .certification-signature-preview{flex:0 1 200px;width:200px;height:80px;max-width:100%;margin:0;padding:8px}
 .certification-signature-row .certification-signature-actions{display:flex;gap:8px;margin:0;flex:0 0 auto}
 .certification-required::after{content:" *";color:var(--accent);font-weight:700}
-.certification-editor-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-block:0 20px}
+.certification-editor-toolbar{display:flex;flex-wrap:wrap;align-items:end;gap:12px;margin-block:0 20px}
+.certification-editor-toolbar>.certification-workflow{width:fit-content;max-width:100%;margin:0}
 #certification-back{display:inline-grid;place-items:center;flex:0 0 42px;box-sizing:border-box;width:42px;min-width:42px;max-width:42px;height:42px;min-height:42px;padding:0}
 .certification-details-card>.certification-save-status{margin-block:0 16px}

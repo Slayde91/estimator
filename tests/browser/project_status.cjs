@@ -49,9 +49,9 @@ async function idle() {
   await expect(first.locator('.project-row-status')).toHaveCount(0);
   await expect(first.getByRole('combobox',{name:/Status/})).toHaveCount(0);
   const searchBox=await page.locator('#project-search').boundingBox(), selector=await first.locator('.project-card-estimate select').boundingBox(), actionBox=await first.locator('summary').boundingBox();
-  const toolbarGeometry=await page.locator('#project-list-card .project-list-controls').evaluate(el=>{const box=node=>node.getBoundingClientRect().toJSON();return{controls:box(el),options:box(el.querySelector('.project-list-options')),sort:box(el.querySelector('#project-sort')),details:box(el.querySelector('#project-current-details')),create:box(el.querySelector('#new-quote')),viewport:innerWidth};});
+  const toolbarGeometry=await page.locator('#project-list-card .project-list-controls').evaluate(el=>{const box=node=>node.getBoundingClientRect().toJSON();return{controls:box(el),options:box(el.querySelector('.project-list-options')),sort:box(el.querySelector('#project-sort')),create:box(el.querySelector('#new-quote')),viewport:innerWidth};});
   assert.ok(searchBox.x>=toolbarGeometry.controls.left&&searchBox.x+searchBox.width<=toolbarGeometry.options.left+1&&toolbarGeometry.options.right<=toolbarGeometry.controls.right+1&&toolbarGeometry.controls.left>=0&&toolbarGeometry.controls.right<=toolbarGeometry.viewport+1,'Search and its separate Sort/action group remain bounded without overlap: '+JSON.stringify({searchBox,...toolbarGeometry}));
-  assert.ok(toolbarGeometry.sort.right<=toolbarGeometry.details.left+1&&toolbarGeometry.details.right<=toolbarGeometry.create.left+1&&Math.abs(toolbarGeometry.sort.bottom-toolbarGeometry.details.bottom)<1&&Math.abs(toolbarGeometry.details.bottom-toolbarGeometry.create.bottom)<1,'Sort, Current project details and New share the requested desktop order and bottom alignment: '+JSON.stringify(toolbarGeometry));
+  assert.ok(toolbarGeometry.sort.right<=toolbarGeometry.create.left+1&&Math.abs(toolbarGeometry.sort.bottom-toolbarGeometry.create.bottom)<1,'Sort and New share the same row: '+JSON.stringify(toolbarGeometry));
   assert.ok(Math.abs(actionBox.y-selector.y)<1);
   await first.getByRole('button',{name:'Open',exact:true}).click();
   await page.locator('#discard-dialog').getByRole('button',{name:'Load Project',exact:true}).click();

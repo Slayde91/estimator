@@ -88,16 +88,16 @@
     state.model=model;state.uncertain=false;render();window.CeasefireProject?.changed?.();
     return model;
   }
-  function groupedPdfRows(rows) {
-    const primary=[],schedules=[],summaries=[],other=[];
+  function groupedRows(format,rows) {
+    const schedules=[],summaries=[],other=[];
     for(const row of rows) {
-      if(row.id==='estimate.summary.pdf')primary.push(row);
-      else if(row.id==='project.full_schedule.pdf'||row.id==='firestopping.schedule.pdf'||/^calculator\.[^.]+\.schedule\.pdf$/.test(row.id))schedules.push(row);
+      if(row.id==='project.full_schedule.pdf'||/^firestopping\.schedule\.(pdf|xlsx)$/.test(row.id)||/^calculator\.[^.]+\.(schedule\.pdf|register\.xlsx)$/.test(row.id))schedules.push(row);
       else if(row.id==='project.full_product_summary.pdf'||/^calculator\.[^.]+\.product_summary\.pdf$/.test(row.id))summaries.push(row);
       else other.push(row);
     }
     const section=(label,items)=>items.length?[{groupHeading:label},...items]:[];
-    return [...primary,...section('Schedules',schedules),...section('Product summaries',summaries),...section('Other documents',other)];
+    if(format==='xlsx')return [...other,...section('Schedules',schedules)];
+    return [...section('Schedules',schedules),...section('Product summaries',summaries),...section('Other documents',other)];
   }
   function closeRevisions(restoreFocus=false) {
     const kind=state.revisions?.id;state.revisions=null;render();
@@ -137,16 +137,17 @@
       const host=$("documentation-"+format+"-rows");if(!host)continue;
       const documents=rows.filter(row=>row.format===format&&!omittedRows.has(row.id));
       let groupRows, groupExpanded;
-      host.replaceChildren(...(format==='pdf'?groupedPdfRows(documents):documents).map(row=>{
+      host.replaceChildren(...groupedRows(format,documents).map(row=>{
         if(row.groupHeading) {
-          const tr=node('tr','documentation-group'),cell=node('th');cell.colSpan=5;
+          const tr=node('tr','documentation-group'),cell=node('th');cell.colSpan=format==='pdf'?5:3;
           const heading=node('h3','documentation-group-heading'), toggle=node('button','documentation-group-toggle',row.groupHeading);
           const members=groupRows=[];
-          groupExpanded=expandedGroups.has(row.groupHeading);
+          const groupKey=format+'.'+row.groupHeading;
+          groupExpanded=expandedGroups.has(groupKey);
           toggle.type='button';toggle.setAttribute('aria-expanded',String(groupExpanded));
           toggle.addEventListener('click',()=>{
-            const expanded=!expandedGroups.has(row.groupHeading);
-            if(expanded)expandedGroups.add(row.groupHeading);else expandedGroups.delete(row.groupHeading);
+            const expanded=!expandedGroups.has(groupKey);
+            if(expanded)expandedGroups.add(groupKey);else expandedGroups.delete(groupKey);
             members.forEach(member=>{member.hidden=!expanded;});
             toggle.setAttribute('aria-expanded',String(expanded));
           });
@@ -188,6 +189,17 @@
         if(row.historyOnly)action.append(node('p','helper',"This download is not available in this edition."));
         const items=(state.model?.items||[]).filter(item=>item.kind===row.id);
         const view=node('button','button secondary documentation-view-revisions','View Revisions ({0})',[items.length]);
+        if(items.length){
+          const highlightCount=()=>{
+            const label=view.textContent, suffix=label.match(/[(（]\d+[)）]$/);
+            if(!suffix)return;
+            const count=node('span','documentation-revision-count');
+            count.textContent=suffix[0];
+            view.replaceChildren(label.slice(0,suffix.index),count);
+          };
+          if(window.CeasefireI18n?.decorateText)window.CeasefireI18n.decorateText(view,highlightCount);
+          else highlightCount();
+        }
         view.type='button';view.dataset.revisionsKind=row.id;view.setAttribute('aria-controls','documentation-revisions-pane');
         view.setAttribute('aria-expanded',String(state.revisions?.id===row.id));view.title=row.label;
         const scope=state.scope,epoch=state.epoch;

@@ -36,7 +36,7 @@ async function save(page){
     assert.equal(await currentFile(page),null);
     return page;
   }
-  const original='Unfiled fixture quote',heading='Quote: Unfiled fixture company',edited='Changed from another window';
+  const original='Unfiled fixture quote',edited='Changed from another window';
   const owner=await newWindow();
   await owner.getByRole('button',{name:'Estimates',exact:true}).click();
   await fillProjectDetails(owner,{'client':'Unfiled fixture company'});
@@ -51,6 +51,7 @@ async function save(page){
   assert.equal(scope.created_project,false);
   const seeded=spawnSync(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'legacy_unfiled_fixture.py'),directory,workspace,scope.project_id],{cwd:root,windowsHide:true,encoding:'utf8'});
   assert.equal(seeded.status,0,seeded.stderr);assert.equal(JSON.parse(seeded.stdout).title,original);
+  const heading=JSON.parse(seeded.stdout).reference+': Unfiled fixture company';
   await owner.evaluate(()=>window.CeasefireCommercial.activate('quote'));
   await expect(board(owner).getByRole('button',{name:heading,exact:true})).toBeVisible();
   await board(owner).getByRole('button',{name:'New Quote',exact:true}).click();
@@ -66,7 +67,7 @@ async function save(page){
   await expect(card(heading)).toHaveCount(1);
   await card(heading).getByRole('button',{name:heading,exact:true}).click();
   await expect(board(other).getByLabel('Client',{exact:true})).toHaveValue('Unfiled fixture company');
-  await expect(board(other).locator('.commercial-details').getByLabel('Site address',{exact:true})).toHaveValue('21 Fixture Street');
+  await expect(board(other).locator('.commercial-details').getByLabel('Site address',{exact:true})).toHaveCount(0);
   await expect(board(other).getByLabel('Linked Project',{exact:true})).toHaveValue('');
   await expect(board(other).getByLabel('Linked Project',{exact:true})).toHaveAttribute('placeholder','No linked Project');
   await expect(board(other).getByLabel('Linked Project',{exact:true})).toHaveAttribute('readonly','');

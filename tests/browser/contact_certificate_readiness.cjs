@@ -33,8 +33,18 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
  await createNewProject(page,{client:'Certificate Requirement Company','site-address':'1 Certificate QA Road'});await openProjectSection(page,'quotes');await page.locator('#project-current-details').click();
  await page.locator('#project-pane-client').press('Escape');await page.locator('#project-contact-new').click();const inline=page.getByRole('dialog',{name:'New Contact',exact:true});await expect(inline).toBeVisible();const count=posts.length;
  await inline.getByRole('button',{name:'Save',exact:true}).click();await expect(inline.getByLabel('Phone',{exact:true})).toBeFocused();assert.equal(posts.length,count);await inline.getByRole('button',{name:'Cancel',exact:true}).click();await page.locator('#project-details-close').click();checks.push('The inline plus uses the same required Contact creation preflight and focuses its first missing value after inherited Name/Company');
- await openProjectSection(page,'certification');await idle();const select=page.locator('#certification-document'),plus=page.getByRole('button',{name:'Create Certificate',exact:true}),generate=page.getByRole('button',{name:'Generate Certificate',exact:true});
+ await openProjectSection(page,'certification');await idle();const select=page.locator('#certification-document'),plus=page.locator('#certification-editor').getByRole('button',{name:'New',exact:true}),generate=page.getByRole('button',{name:'Generate Certificate',exact:true});
  await expect(page.locator('#certification-board')).toHaveCount(0);await expect(page.locator('#certification-editor')).toBeVisible();
+ await expect(page.locator('.certification-editor-toolbar #certification-generate + .certification-workflow select')).toHaveAccessibleName('Workflow status');
+ assert.equal(await generate.locator('.download-format-icon').innerHTML(),await page.locator('#estimate-open-quote .download-format-icon').innerHTML());
+ await expect(page.locator('.certification-project-card textarea')).toHaveCount(4);
+ const identity=page.locator('#certification-client'),options=page.locator('.certification-document-options');
+ for(const width of [1915,390]){
+   await page.setViewportSize({width,height:884});const inputBox=await identity.boundingBox(),settingsBox=await options.boundingBox();
+   if(width===1915)assert.ok(inputBox.x>=settingsBox.x+settingsBox.width);
+   else assert.ok(inputBox.y>=settingsBox.y+settingsBox.height&&inputBox.x+inputBox.width<=width);
+ }
+ await page.setViewportSize({width:1915,height:884});
  await expect(page.getByLabel('Saved certification',{exact:true})).toHaveAttribute('id','certification-document');
  await expect(select.locator('option')).toHaveCount(0);await expect(select).toBeDisabled();await expect(plus).toBeEnabled();
  await plus.click();await expect(page.locator('#certification-client')).toBeFocused();await expect(select.locator('option')).toHaveCount(0);

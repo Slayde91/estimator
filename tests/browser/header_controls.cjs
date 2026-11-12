@@ -54,6 +54,7 @@ async function inspectHeader(width) {
     assert.ok(tagline.y>=logoInk.rendered.bottom-.1,'The character/quote clears the actual logo ink while sharing its transparent canvas: '+JSON.stringify({width,logo,tagline,logoInk}));
     await expect(page.locator('#header-project-name')).toHaveText(longName);
     await expect(page.locator('#header-project-name')).toHaveAttribute('title', longName);
+    await expect(page.locator('#header-project-name')).toHaveCSS('background-color','rgb(255, 227, 138)');
     assert.equal(await page.locator('#header-project-name').evaluate(el => getComputedStyle(el).textOverflow), 'ellipsis');
     const buttons = await page.locator('nav[aria-label="Main navigation"] .nav-icon').evaluateAll(nodes => nodes.map(el => {
       const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, width: b.width, height: b.height };
@@ -171,9 +172,10 @@ async function inspectHeader(width) {
         const create = page.locator('#new-quote'), sort = await box(page.locator('#project-sort')), details = await box(page.locator('#project-current-details')), b = await box(create);
         await expect(create).toHaveAccessibleName('New');assert.ok(b.height >= link.height);
         assert.equal(await create.evaluate(el=>el.closest('.project-list-controls')===document.querySelector('#project-sort').closest('.project-list-controls')),true,'New retains the Sort row owner');
-        assert.ok(details.x>=0&&b.x+b.width<=width+1&&details.x+details.width<=b.x+1,'Current project details and New fit in their requested order');
+        assert.equal(await controls.locator('#project-current-details').evaluate(el=>el.nextElementSibling.id),'load-project');
+        assert.ok(details.x>=0 && details.x+details.width<=width+1 && (details.x+details.width<=load.x+1 || details.y+details.height<=load.y+1),'Current project details precedes Load, wrapping on narrow screens');
         const sameRow=Math.abs(b.y+b.height-sort.y-sort.height)<2;
-        assert.ok(sameRow?sort.x+sort.width<=details.x+1:details.y>=sort.y+sort.height-1,'Sort precedes the project action group; narrow layouts may wrap');
+        assert.ok(sameRow?sort.x+sort.width<=b.x+1:b.y>=sort.y+sort.height-1,'Sort precedes the project action group; narrow layouts may wrap');
         assert.ok(sort.x>=0&&sort.x+sort.width<=width+1,'Sort remains in the viewport alongside or above its project action group');
       } else for (const name of ['New', 'Load']) await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0);
     }

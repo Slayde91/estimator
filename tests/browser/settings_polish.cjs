@@ -64,7 +64,7 @@ async function idle(){await page.waitForFunction(()=>{const status=window.Ceasef
   await openProjectSection(page,'documentation');
   const covered=page.locator('#documentation-pdf-rows tr[data-cover-kind]');
   await expect(covered).toHaveCount(labels.length);
-  for(const label of ['Schedules','Product summaries','Other documents'])await page.getByRole('button',{name:label,exact:true}).click();
+  for(const label of ['Schedules','Product summaries','Other documents'])await page.locator('#documentation-pdf-rows').getByRole('button',{name:label,exact:true}).click();
   for(const row of await covered.all()){
     await expect(row.locator('td').nth(2).getByRole('button')).toBeVisible();
     await expect(row.locator('td').nth(3).locator('input[type=file]')).toHaveCount(1);

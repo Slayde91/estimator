@@ -539,8 +539,8 @@ def validate_commercial_documents(value):
             row[key] = _text(row[key], key, 100)
         if row['last_number'] and not valid_reference(row['last_number']):
             raise ValidationError('The last commercial document number is invalid.')
-        if 'reference' in row and (row['kind'] == 'quote' or not valid_reference(row['reference'])):
-            raise ValidationError('The saved order number is invalid.')
+        if 'reference' in row and not valid_reference(row['reference']):
+            raise ValidationError('The saved document number is invalid.')
         if row.get('reference') and row['kind'] == 'work_order' and row['fields']['order']['work_order_reference'] != row['reference']:
             raise ValidationError('The work order reference differs from its assigned number.')
         if row['kind'] == 'work_order' and row['fields']['order']['quote_id'] and not row.get('reference'):
@@ -582,6 +582,10 @@ def commercial_cards(snapshot, *, include_quote_files=False):
             status = _canonical_status(kind, document['status'])
             if kind not in KINDS or status not in STATUSES[kind] or type(document['version']) is not int or document['version'] < 1:
                 raise ValidationError('Invalid saved commercial document status or version.')
+            if kind == 'quote' and any(
+                document.get(key) and not valid_reference(document[key]) for key in ('reference', 'last_number')
+            ):
+                raise ValidationError('Invalid saved Quote number.')
             fields = document['fields']
             details = {key: _text(fields['details'].get(key, ''), key, 1000) for key in ('project_no', 'client', 'site_address', 'contact', 'phone', 'email')}
             if kind in ('quote', 'work_order'):
@@ -712,6 +716,15 @@ class CommercialDocuments:
         return [(r['project_id'], ' · '.join(s for s in (r['number'],r['client']) if s))
                 for r in rows if r['number'] and r['number'].strip()]
 
+    def _restore_quote_numbers(self, db, project, quote):
+        if quote['last_number']:
+            self.numbering.observe_reference(db, 'quote', quote['last_number'])
+        if quote.get('reference'):
+            # An independently copied project can contain the same document ID
+            # and reference. Give its new owner a number while preserving its receipts.
+            quote['reference'] = self.numbering.assign(db, 'quote', project + ':' + quote['id'],
+                                                      quote['reference'], reconcile=True)
+
     def apply_register_numbers(self, cards):
         with self._connect() as db:
             self.numbering.attach(db)
@@ -721,8 +734,8 @@ class CommercialDocuments:
             # anyone opens that project on this computer.
             for card in cards:
                 card['status'] = _canonical_status(card['kind'], card['status'])
-                if card['kind'] == 'quote' and valid_reference(card.get('last_number', '')):
-                    self.numbering.observe_reference(db, 'quote', card['last_number'])
+                if card['kind'] == 'quote':
+                    self._restore_quote_numbers(db, card['project_id'], card)
             # Old work orders can have no cost until opened. Display the issued
             # quote amount on their cards, using the same portable fallback as the editor.
             quotes = {(c['source_file'], c['id'], c['last_number']): c['grand_total']
@@ -872,8 +885,8 @@ class CommercialDocuments:
                 self._number_orders(db, [(project,doc) for doc in snapshot['documents']])
                 self.numbering.observe(db, 'quote', 'Q', snapshot['number_counters']['quote'])
                 for doc in snapshot['documents']:
-                    if doc['kind'] == 'quote' and doc['last_number']:
-                        self.numbering.observe_reference(db, 'quote', doc['last_number'])
+                    if doc['kind'] == 'quote':
+                        self._restore_quote_numbers(db, project, doc)
             current = self._snapshot(db, workspace, project)
             if current['documents']:
                 if snapshot != current:
@@ -1228,8 +1241,10 @@ class CommercialDocuments:
                         'version': previous['version'] + 1 if previous else 1, 'status': status, 'fields': fields,
                         'created_at': previous['created_at'] if previous else now, 'updated_at': now,
                         'last_number': previous['last_number'] if previous else ''}
-            if kind in ('work_order','purchase_order'):
-                document['reference'] = self.numbering.assign(db, kind, project + ':' + document['id'], (previous or {}).get('reference',''))
+            # Older issued Quotes have immutable issue numbers but no separate draft reference.
+            prior_reference = (previous or {}).get('reference', '')
+            if kind != 'quote' or not document['last_number'] or prior_reference:
+                document['reference'] = self.numbering.assign(db, kind, project + ':' + document['id'], prior_reference)
                 if kind == 'work_order':
                     fields['order']['work_order_reference'] = document['reference']
             self._validate_draft_save(db, workspace, project, document)
@@ -1354,7 +1369,18 @@ class CommercialDocuments:
                     legacy_details=not any(key in order for key in ('details_by','details_date')))
             else:
                 require_ready(kind, document['status'], document['fields'], operation='issue')
-            label = (self.numbering.assign(db, kind, project + ':issue:' + request_id) if kind == 'quote' else document['reference'])
+            label = document.get('reference')
+            if kind == 'quote':
+                if not document['last_number']:
+                    # This also handles a pre-existing unnumbered draft downloaded before its next save.
+                    label = document['reference'] = self.numbering.assign(db, kind, project + ':' + identity, label)
+                # Another session may have issued the first PDF from the same portable draft.
+                # Each later receipt needs a distinct number for Work Orders pinned to that revision.
+                if document['last_number'] or db.execute(
+                    'SELECT 1 FROM commercial_issued WHERE project_id=? AND document_id=? AND number=?',
+                    (project, identity, label)
+                ).fetchone():
+                    label = self.numbering.assign(db, kind, project + ':issue:' + request_id)
             if self.renderer is None:
                 from .commercial_pdf import render_commercial_pdf
                 renderer = render_commercial_pdf

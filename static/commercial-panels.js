@@ -339,11 +339,8 @@
         isCurrent:options.canEdit, message:options.message, readDirectory:() => directory,
         onDirectory(data) { directory=data; showContact(); }
       });
-    const site=el('label'),siteCaption=el('span','Site address'),siteInput=el('textarea');siteInput.rows=2;siteInput.maxLength=400;site.className='field commercial-site-address';
-    window.CeasefireI18n?.text(siteCaption,'Site address');siteInput.value=options.fields.details.site_address || '';siteInput.setAttribute('aria-label','Site address');window.CeasefireI18n?.attr(siteInput,'aria-label','Site address');
-    siteInput.readOnly=true;site.append(siteCaption,siteInput);
     if(!isPurchaseOrder){accountPanel.append(company.element);contactPanel.append(name.element);controls=[company,name];}
-    accountPanel.append(companyList);if(!isPurchaseOrder)accountPanel.append(site);
+    accountPanel.append(companyList);
     const refreshContacts=action('',async()=>{
       if(!current())return;
       try {await refreshDirectory();await refreshParticipants(true);}catch(error){if(current())options.message(error.message,true);}
@@ -357,9 +354,8 @@
     refreshContacts.append(refreshSymbol);contactPanel.append(contactList,linkedNotice,refreshContacts);
     contactPanel.addEventListener('toggle',()=>{if(contactPanel.open)void refreshParticipants(true);});
     function showContact() {
-      const details=options.fields.details;
       showLinkedCompanies();showLinkedContacts();
-      controls.forEach(control=>control.refresh());if(document.activeElement!==siteInput)siteInput.value=details.site_address || '';
+      controls.forEach(control=>control.refresh());
     }
     showContact();
     loadDirectory().then(data=>{if(!current())return;directory=data;showContact();}).catch(error=>{if(current())linkedNotice.textContent=error.message;});

@@ -93,6 +93,7 @@ target.write_bytes(export_project(store,{**first,'estimates':[{'id':'estimate-1'
   checks.push('closed-picker Add custom row updates totals; held selection preserves manual quantities/descriptions/custom amounts and full schedules remain lazy and cached');
   await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await page.locator('#discard-dialog').getByRole('button',{name:'Yes',exact:true}).click();
   await openProjectSection(page,'documentation');await idle();
+  await page.locator('#documentation-pdf-rows').getByRole('button',{name:'Other documents',exact:true}).click();
   for(const width of widths){
     await page.setViewportSize({width,height:1000});await page.locator('button[data-revisions-kind="estimate.summary.pdf"]').click();
     const metrics=await page.evaluate(()=>{

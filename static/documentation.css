@@ -10,6 +10,8 @@
 .documentation-revisions-document{font-weight:700;overflow-wrap:anywhere}
 .documentation-revisions-pane .documentation-revision{display:grid;gap:4px;padding:12px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
 .documentation-view-revisions{font-size:13px;white-space:normal;text-align:start}
+.documentation-revision-count{color:var(--error)}
+:root:is(:not([data-theme]),[data-theme="ceasefire"],[data-theme="midnight"]) .documentation-revision-count{color:#ff7688}
 @media(max-width:900px){.documentation-layout.has-revisions{grid-template-columns:minmax(0,1fr)}}
 .documentation-section{margin-top:24px}
 .documentation-table{width:100%;table-layout:fixed}

@@ -83,13 +83,13 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await page.locator('#estimate-open-quote').click();
   const quote=page.locator('#commercial-quote-root');
   await expect(quote.getByLabel('Client',{exact:true})).toHaveValue('Unsaved project client');
-  await expect(quote.locator('.commercial-details').getByLabel('Site address',{exact:true})).toHaveValue('25 Current Estimate Street');
+  await expect(quote.locator('.commercial-details').getByLabel('Site address',{exact:true})).toHaveCount(0);
   await expect(quote.getByLabel('Project number',{exact:true})).toHaveValue(projectNumber);
   await expect(quote.getByLabel('Linked Project',{exact:true})).toHaveValue(projectNumber+' · Unsaved project client · 25 Current Estimate Street');
   await expect(quote.getByLabel('Linked Project',{exact:true})).toHaveAttribute('readonly','');
   await expect(quote.getByLabel('Quote No.',{exact:true})).toHaveValue('');
   await expect(quote.getByLabel('Quote No.',{exact:true})).toHaveAttribute('readonly','');
-  await expect(quote.getByLabel('Quote No.',{exact:true})).toHaveAttribute('placeholder','Assigned when downloaded');
+  await expect(quote.getByLabel('Quote No.',{exact:true})).toHaveAttribute('placeholder','Assigned on Save');
   await expect(quote.locator('.commercial-lines tbody tr')).toHaveCount(1);
   const introBox = await quote.getByLabel('Introduction',{exact:true}).boundingBox();
   const detailBox = await quote.locator('.commercial-details').boundingBox();
@@ -112,11 +112,13 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   assert.equal(firstSaved.commercial_documents.documents[0].fields.introduction,'Quote prepared after first project save');
   assert.equal(firstSaved.estimate.client,'Unsaved project client');
   await expect(quote.getByLabel('Project number',{exact:true})).toHaveValue(firstSaved.estimate.project_no);
-  await expect(quote.getByLabel('Quote No.',{exact:true})).toHaveValue('');
+  const savedQuoteNumber=firstSaved.commercial_documents.documents[0].reference;
+  assert.match(savedQuoteNumber,/^Q-\d+$/);
+  await expect(quote.getByLabel('Quote No.',{exact:true})).toHaveValue(savedQuoteNumber);
   await download(quote);
   const numberedQuote=JSON.parse(fs.readFileSync(info.project,'utf8')).commercial_documents.documents[0];
   await expect(quote.getByLabel('Quote No.',{exact:true})).toHaveValue(numberedQuote.last_number);
-  assert.ok(numberedQuote.last_number,'The field adopts the official issued number without allocating one during Save');
+  assert.equal(numberedQuote.last_number,savedQuoteNumber,'The first PDF uses the number assigned by Save');
   checks.push('unsaved Estimate Document → Quote is blocked until native Project Save; the new quote then inherits details and retains its saved draft and PDF');
   let releaseState, notifyStateHeld, notifyStateCompleted;
   const stateRelease=new Promise(resolve=>releaseState=resolve);
@@ -164,7 +166,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await expect(quote.locator('.commercial-lines tbody tr')).toHaveCount(1);
   await expect(quote.locator('.commercial-message')).toBeHidden();
   await expect(quote.getByLabel('Client',{exact:true})).toHaveValue('Example construction');
-  await expect(quote.locator('.commercial-details').getByLabel('Site address',{exact:true})).toHaveValue('10 Example Street');
+  await expect(quote.locator('.commercial-details').getByLabel('Site address',{exact:true})).toHaveCount(0);
   await quote.locator('.commercial-estimate-picker summary').click();
   await quote.getByRole('checkbox',{name:'Additional scope',exact:true}).check();
   await expect(quote.locator('.commercial-lines tbody tr')).toHaveCount(2);
@@ -234,7 +236,6 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await work.getByLabel('Proposed start date',{exact:true}).fill('2026-11-10');
   await expect(work.getByLabel('SWMS',{exact:true})).toHaveCount(0);
   await work.getByLabel('Category / urgency',{exact:true}).selectOption('High Priority');
-  await work.getByLabel('Approval',{exact:true}).selectOption('Approved');
   await page.evaluate(()=>localStorage.setItem('ceasefire.takeoff-signature.v1',JSON.stringify({version:1,ratio:2,strokes:[[[0,.3],[.5,1],[1,0]]]})));
   const personalUrl=new URL('/api/certifications/defaults',page.url()).href;
   const personalDefaults=await(await page.request.get(personalUrl)).json();
@@ -244,6 +245,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   const writing=new Promise(resolve=>{releaseProjectWrite=resolve;});
   await page.route('**/api/project/save',async route=>{await writing;await route.continue();},{times:1});
   for(const label of ['Work order details reviewed by','Reviewed by','Prepared by']) {
+    if(label==='Reviewed by') await work.getByLabel('Approval',{exact:true}).selectOption('Approved');
     await work.getByRole('button',{name:'Sign '+label,exact:true}).click();
     await expect(work.getByRole('img',{name:label+' signature',exact:true})).toBeVisible();
     if(label==='Work order details reviewed by') {
@@ -414,8 +416,8 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await otherCard.locator('.project-title-button').click();
   await expect(quote.getByLabel('Linked Project',{exact:true})).toHaveValue([clone.estimate.project_no,clone.estimate.client,clone.estimate.site_address.replace(/\s+/g,' ')].filter(Boolean).join(' · '));
   await expect(quote.getByLabel('Linked Project',{exact:true})).toHaveAttribute('readonly','');
-  await expect(quote.getByLabel('Quote No.',{exact:true})).toHaveValue(clonedQuote.last_number);
-  for (const label of ['Project number','Site address','Client']) await expect(quote.locator('.commercial-details').getByLabel(label,{exact:true})).toHaveAttribute('readonly','');
+  await expect(quote.getByLabel('Quote No.',{exact:true})).toHaveValue(clonedQuote.reference);
+  for (const label of ['Project number','Client']) await expect(quote.locator('.commercial-details').getByLabel(label,{exact:true})).toHaveAttribute('readonly','');
   await quote.locator('.commercial-estimate-picker summary').click();
   await quote.getByRole('button',{name:'Add custom row'}).click();
   const custom = quote.locator('.commercial-lines tbody tr').last();

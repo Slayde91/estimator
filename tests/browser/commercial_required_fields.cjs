@@ -58,7 +58,7 @@ async function rich(host,key,text,collapse=false){const details=host.locator(`de
  assert.equal((await model()).documents.find(row=>row.id===order.id).fields.order.estimated_cost,'');
  assert.equal(order.fields.order.start_date,'');assert.equal(order.fields.order.urgency,'');
  checks.push('An incomplete Work Order saves and downloads, then links to the issued Quote without changing its number');
- await work.getByLabel('Proposed start date',{exact:true}).fill('2026-12-10');await work.getByLabel('Category / urgency',{exact:true}).selectOption('High Priority');await work.getByLabel('Description of works',{exact:true}).fill('Synthetic installation work');await work.getByLabel('Estimated cost (AUD)',{exact:true}).fill('0');await work.getByLabel('Approval',{exact:true}).selectOption('Approved');
+ await work.getByLabel('Proposed start date',{exact:true}).fill('2026-12-10');await work.getByLabel('Category / urgency',{exact:true}).selectOption('High Priority');await work.getByLabel('Description of works',{exact:true}).fill('Synthetic installation work');await work.getByLabel('Estimated cost (AUD)',{exact:true}).fill('0');
  const profile=await(await page.request.get(new URL('/api/certifications/defaults',page.url()).href)).json();const person=await page.request.post(new URL('/api/certifications/defaults',page.url()).href,{data:{expected_version:profile.version,fields:{...profile.fields,name:'QA Review Signer'}}});assert.equal(person.status(),200);
  await page.evaluate(()=>{window.ClassifirePersonalSignature={...window.ClassifirePersonalSignature,choose:async()=>({version:1,ratio:3,strokes:[[[.1,.2],[.7,.8]]]})};});
  await work.getByRole('button',{name:'Sign Work order details reviewed by',exact:true}).click();await idle();await expect(work.getByLabel('Work order details reviewed by name',{exact:true})).toHaveValue('QA Review Signer');await expect(work.locator('[data-order-field="details_date"]')).toHaveValue(/\d{4}-\d{2}-\d{2}/);
@@ -67,6 +67,7 @@ async function rich(host,key,text,collapse=false){const details=host.locator(`de
    await work.getByRole('button',{name:'Sign '+label,exact:true}).click();
    await expect(status).toHaveValue(stage);await idle();
  };
+ await work.getByLabel('Approval',{exact:true}).selectOption('Approved');
  await sign('Reviewed by','OHS Docs');
  await sign('Prepared by','Client Approval');
  await sign('Approved by','In progress');

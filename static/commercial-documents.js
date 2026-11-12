@@ -64,7 +64,6 @@
     control.append(icon); return control;
   }
   function documentReference(document) {
-    if (document.kind === "quote") return document.last_number;
     return document.reference || (document.kind === "work_order" && document.fields.order.work_order_reference) || document.last_number;
   }
   function documentTitle(document) {
@@ -589,7 +588,7 @@
     const context = window.CeasefireProject?.runtimeContext?.();
     state.kind = kind;
     if (!root()) return;
-    shell(names[kind] + (kind === "quote" ? "" : "s"));
+    shell(names[kind] + "s");
     try {
       const workspace = currentWorkspace() || (await window.CeasefireCertification.projectWorkspace()).workspace_id;
       if (revision !== state.revision || context !== window.CeasefireProject?.runtimeContext?.() || workspace !== currentWorkspace()) return;
@@ -911,7 +910,7 @@
       if (!createWorkOrder) { openEditor(document, source); return; }
       if (!requireProject(source)) return;
       if (!document.last_number) {
-        message("Download the Quote PDF to assign its number before creating a Work Order.", true);
+        message("Download the Quote PDF before creating a Work Order.", true);
         return;
       }
       const details = {...commercialProjectDetails(source), date: today()};
@@ -1223,9 +1222,7 @@
     const details = node("section", "card commercial-details");
     details.append(node("h2", "", "Project details"));
     const detailField = (key, label) => {
-      const control = key === 'site_address' ? textarea(fields.details[key],value=>fields.details[key]=value)
-        : input(fields.details[key], value => fields.details[key] = value, key === "date" ? "date" : "text");
-      if(key==='site_address'){control.rows=1;control.classList.add('commercial-project-address');}
+      const control = input(fields.details[key], value => fields.details[key] = value, key === "date" ? "date" : "text");
       control.dataset.projectDetail=key;
       if (key !== "date") control.readOnly = true;
       return field(label, control);
@@ -1243,8 +1240,8 @@
       const linkedProject = node("input"), quoteNumber = node("input");
       for (const control of [linkedProject, quoteNumber]) {control.type = 'text';control.readOnly = true;}
       linkedProject.dataset.quoteProject = 'true';linkedProject.placeholder = 'No linked Project';
-      quoteNumber.dataset.quoteReference = 'true';quoteNumber.placeholder = 'Assigned when downloaded';
-      for (const [control, source] of [[linkedProject, 'No linked Project'], [quoteNumber, 'Assigned when downloaded']]) {
+      quoteNumber.dataset.quoteReference = 'true';quoteNumber.placeholder = 'Assigned on Save';
+      for (const [control, source] of [[linkedProject, 'No linked Project'], [quoteNumber, 'Assigned on Save']]) {
         window.CeasefireI18n?.attr(control, 'placeholder', source);
       }
       for (const [label, control] of [['Linked Project', linkedProject], ['Quote No.', quoteNumber]]) {
@@ -1257,7 +1254,6 @@
       identifiers.append(projectIdentifiers, references);
     }
     if (state.kind !== "purchase_order") {
-      details.append(detailField("site_address", "Site address"));
       details.append(detailPair([["client", "Client"], ["contact", "Client contact"]]));
       details.append(detailPair([["phone", "Client phone"], ["email", "Client email"]]));
     }
@@ -1467,6 +1463,14 @@
         form.append(field("Certification details", certification));
       }
     }
+    if (step.key === "verified_by") {
+      const verification = node("textarea");
+      verification.rows = 2;
+      verification.maxLength = 6000;
+      verification.value = order.verification || "";
+      verification.addEventListener("input", () => { order.verification = verification.value; });
+      form.append(field("Verification method, specification, result and actions", verification));
+    }
     form.append(detailsHost, trackingHost);
     refreshRequirements();
     const name = node("input"), date = node("input");
@@ -1532,12 +1536,20 @@
     fields.order[signatureDates[step.key]] = values.date;
     const action = await chooseSigningAction(fields, step.key, {...defaults, ...values}, current);
     if (!action || !current()) return;
-    openEditor(proposed, source);
-    const selected = state.editor;
-    // Keep the entered details editable if a readiness check requires a correction.
-    state.dirty = true;
-    // Route through the same version-checked document and owner-file save as the signing button.
-    if (await saveEditor(action) && state.editor === selected) await leaveEditor();
+    if (!source) await window.CeasefireProjectPane?.beforeProjectSave?.();
+    if (!current()) return;
+    await saveDocumentFields(proposed, fields, source, {workspace:state.workspace, signatureAction:action, explicitlySaved:true});
+    if (!current()) return;
+    try {
+      if (!source) {
+        changed();
+        if (!await load(state.revision, false, true) || !current()) return;
+        await saveActiveProject();
+      }
+    } finally {
+      // Refresh the register in place, including when saving the owner file needs a retry.
+      if (current() && await load()) renderCards();
+    }
   }
   function resetSectionFields(fields, kind, first) {
     const steps = signingSteps[kind];
@@ -2036,6 +2048,7 @@
         fields.details.project_no=linkedNumber;
         const number=root()?.querySelector('[data-project-detail="project_no"]');if(number)number.value=linkedNumber;
         applyQuoteCost();
+        updateOrderSectionVisibility(form);
       } else {
         fields.order.work_order_reference = selected?.fields.order.work_order_reference || "";
       }
@@ -2085,6 +2098,7 @@
           continue;
         }
         if (Object.hasOwn(signatureDates,key)) {
+          section.dataset.signingSection = key;
           const row=node('div','commercial-signer-row'),name=input(fields.order[key],value=>fields.order[key]=value);
           name.dataset.orderField=key;
           name.dataset.signingRequired='';
@@ -2186,8 +2200,22 @@
         }), node("div", "commercial-totals"));
       }
     }
+    updateOrderSectionVisibility(form);
     return [field(isWorkOrder ? "Linked Quote" : "Linked Work Order", linked),
             field(isWorkOrder ? "Work order reference" : "Purchase Order No.", reference)];
+  }
+  function updateOrderSectionVisibility(host) {
+    const editor = state.editor;
+    const steps = signingSteps[editor.document.kind];
+    if (!steps) return;
+    const fields = editor.document.fields;
+    let visible = true;
+    for (const {key} of steps) {
+      const section = host.querySelector(`[data-signing-section="${key}"]`);
+      if (section) section.hidden = !visible;
+      if (key === "details_by" && editor.legacyDetailsSignoff) continue;
+      visible = visible && signerComplete(fields, key) && (key !== "reviewed_by" || fields.order.approval === "Approved");
+    }
   }
   function initializeWorkTracking(fields, source) {
     if (fields.work_tracking) return;
@@ -2669,6 +2697,7 @@
     validateRecipient(operation.editor);
     const {editor,workspace,projectDetails}=operation, document=editor.document;
     if(editor.billingDirectory)await editor.billingDirectory;
+    assertDocumentOperation(operation);
     const billingKey=document.fields.billing?.sync_key || document.fields.billing?.new_contact_key;
     if(!explicitlySaved && document.kind==='work_order' && billingKey && billingKey===editor.billingPendingKey && editor.billingEdits?.size)
       throw new Error('Save the Work Order before issuing it with a new accounts contact.');
@@ -2677,27 +2706,11 @@
     if(lockedNumber)document.fields.details.project_no=lockedNumber;
     // Quote saves regenerate schedules and source hashes from the captured
     // estimates on the server. Old generated tables can be several MiB.
-    let fields = document.kind === 'quote' ? {...document.fields, scope_tables: [], sources: []} : document.fields;
-    if (signatureAction?.clear) {
-      fields = resetSectionFields(fields, document.kind, signatureAction.key);
-    } else if (signatureAction) {
-      const {key,signature,name,date}=signatureAction;
-      fields={...fields, signatures:{...fields.signatures,[key]:signature},
-        order:{...fields.order,[key]:name,[signatureDates[key]]:date}};
-    }
-    const saved = await documentRequest("save", {
-      workspace_id: workspace,
-      id: document.id,
-      version: document.version,
-      kind: document.kind,
-      status: document.status,
-      fields,
-      ...(signatureAction ? {signature_actions:[signatureAction]} : {}),
-      ...(editor.billingReview?{billing_review:editor.billingReview}:{}),
-      ...(!editor.source ? {project_details:projectDetails} : {}),
-      ...(explicitlySaved && !state.editor.source && !window.CeasefireProject.context().project_token ? {retain_unfiled:true} : {}),
-      ...captured
-    }, state.editor.source);
+    const fields = document.kind === 'quote' ? {...document.fields, scope_tables: [], sources: []} : document.fields;
+    const saved = await saveDocumentFields(document, fields, editor.source, {
+      workspace, signatureAction, explicitlySaved, projectDetails, captured,
+      billingReview:editor.billingReview
+    });
     assertDocumentOperation(operation);
     adoptSaved(saved);
     if (signatureAction?.clear) refreshClearedSection(editor.document.fields);
@@ -2713,6 +2726,28 @@
     }
     assertDocumentOperation(operation);
     return saved;
+  }
+  function saveDocumentFields(document, fields, source, {workspace, signatureAction, explicitlySaved, projectDetails, captured, billingReview}) {
+    if (signatureAction?.clear) {
+      fields = resetSectionFields(fields, document.kind, signatureAction.key);
+    } else if (signatureAction) {
+      const {key,signature,name,date}=signatureAction;
+      fields={...fields, signatures:{...fields.signatures,[key]:signature},
+        order:{...fields.order,[key]:name,[signatureDates[key]]:date}};
+    }
+    return documentRequest("save", {
+      workspace_id: workspace,
+      id: document.id,
+      version: document.version,
+      kind: document.kind,
+      status: document.status,
+      fields,
+      ...(signatureAction ? {signature_actions:[signatureAction]} : {}),
+      ...(billingReview ? {billing_review:billingReview} : {}),
+      ...(!source ? {project_details:projectDetails || projectDetailsSnapshot()} : {}),
+      ...(explicitlySaved && !source && !window.CeasefireProject.context().project_token ? {retain_unfiled:true} : {}),
+      ...captured
+    }, source);
   }
   function adoptSaved(saved) {
     const fields = state.editor.document.fields;
@@ -2731,6 +2766,7 @@
     state.editor.pendingIssue=null;
     state.editor.pendingProjectDetails=null;
     state.editor.legacyDetailsSignoff=isLegacyWorkOrder(saved);
+    updateOrderSectionVisibility(root());
     const status=root()?.querySelector('.commercial-document-status');
     if(status){status.value=saved.status;status.dataset.status=saved.status;}
     for (const wrap of root()?.querySelectorAll('[data-signature-field]') || []) {

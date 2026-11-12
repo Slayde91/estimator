@@ -123,12 +123,14 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
     assert.equal((await page.evaluate(()=>window.CeasefireProject.context())).project_path,path.resolve(info.project));
     assert.deepEqual(fs.readFileSync(info.project),savedBytes,'Loading must not rewrite its saved file');
   };
-  await loadProject(()=>card.locator('.project-title-button').click());
+  await loadProject(()=>card.locator('.project-load-button').click());
   await expect(page.locator('#snapshot-message')).toBeHidden();
   await page.locator('#project-current-details').click();await expect(page.locator('#project-details-pane')).toBeVisible();
   await expect(page.locator('#snapshot-message')).toBeVisible();
   assert.equal(await page.locator('#project-pricing-context').textContent(),await page.locator('#header-project-name').textContent());
   await expect(page.locator('#view-estimate #snapshot-message')).toHaveCount(0);
+  await expect(page.locator('#project-list-card')).toBeHidden();
+  await page.locator('#project-details-close').click();await expect(page.locator('#project-list-card')).toBeVisible();
   await card.locator('summary').click();await expect(card.getByRole('button',{name:'Open',exact:true})).toBeEnabled();
   await loadProject(()=>card.getByRole('button',{name:'Open',exact:true}).click());
   await card.locator('.project-card-estimate select').selectOption(second);await expect(page.locator('#view-quotes')).toBeVisible();
@@ -146,5 +148,5 @@ async function save(){const response=page.waitForResponse(r=>/\/api\/project\/sa
   await expect(page.locator('#commercial-quote-root').getByLabel('Project number',{exact:true})).toHaveValue('PN-01');
   await expect(page.locator('#measurements')).toHaveValue('Second estimate notes');
   await page.screenshot({path:path.join(output,'multiple-estimates.png'),fullPage:true});assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({passed:true,output,checks:['create','rename','switch keeps notes','inactive takeoff session retained','save all estimates','reload restores inactive drawings','title and unselected Open load the Project in Projects without rewriting its file','selected-Estimate Open retains the selected notes','pricing snapshot notice belongs to the loaded Project in Projects','Document aligns with the estimate row and wraps below on mobile; its menu fits across all breakpoints'],controlHeights}));
+  console.log(JSON.stringify({passed:true,output,checks:['create','rename','switch keeps notes','inactive takeoff session retained','save all estimates','reload restores inactive drawings','Load and unselected Open load the Project in Projects without rewriting its file','selected-Estimate Open retains the selected notes','pricing snapshot notice belongs to the loaded Project in Projects','Document aligns with the estimate row and wraps below on mobile; its menu fits across all breakpoints'],controlHeights}));
 })().catch(async error=>{console.error(error);fs.writeFileSync(path.join(output,'failure.txt'),`${error.stack}\n${logs}`);if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();server.kill();});

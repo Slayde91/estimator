@@ -97,7 +97,9 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   assert.deepEqual(fs.readFileSync(info.project),original);
   await panel.getByRole('button',{name:/Builder A/}).click();
   await expect(page.locator('#project-pane-client')).toHaveValue('Builder A');
-  await page.locator(`[data-project-details-id="${selected.id}"]`).click();
+  await page.locator('#project-details-close').click();
+  await expect(page.locator('#project-list-card')).toBeVisible();
+  await page.locator(`.project-kanban-card[data-project-id="${selected.id}"] .project-title-button`).click();
   await expect(page.locator('#project-details-pane')).toHaveAttribute('aria-busy','false');
   await expect(page.locator('#project-pane-client')).toHaveValue('Builder B');
   await expect(panel.locator('summary')).toBeVisible();
@@ -196,7 +198,9 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   await navigation.getByRole('button',{name:'Save',exact:true}).click();
   await expect(page.locator('#project-pane-client')).toHaveValue('Builder A');
   assert.equal(JSON.parse(fs.readFileSync(copyPath)).estimate.contact_phone,'5550987');
-  await page.locator(`[data-project-details-id="${selected.id}"]`).click();
+  await page.locator('#project-details-close').click();
+  await expect(page.locator('#project-list-card')).toBeVisible();
+  await page.locator(`.project-kanban-card[data-project-id="${selected.id}"] .project-title-button`).click();
   await expect(earlierBid).toBeVisible();
   const updatedCopy=fs.readFileSync(copyPath);
   // Removing the saved copy outside CLASSIFIRE must not erase or rebind the recorded site relationship.

@@ -270,7 +270,7 @@ def _metadata(path, info, project, folder, payload):
             "certification_manifest": project.get('certification_manifest', project.get('certifications')),
             "clients": project.get("clients", [estimate.get("client", "")]),
             "project_numbers": project.get("project_numbers", [estimate.get("project_no", "")]),
-            "project_status": project.get("project_status", "Draft"),
+            "project_status": validate_project_status(project.get("project_status", "New")),
             "estimates": [{"id": entry["id"], "name": entry["name"]} for entry in project.get("estimates", [{"id": "estimate-1", "name": "Estimate 1"}])],
             "active_estimate_id": project.get("active_estimate_id", "estimate-1"),
             "revision": hashlib.sha256(payload).hexdigest(),

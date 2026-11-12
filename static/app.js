@@ -187,7 +187,7 @@
     result: null, revision: 0, timer: null, pricingExpanded: new Set(), mainSection: "access-travel", mainOutputSection: "material-breakdown", legacyTitle: "",
     workflow: "", defaultWorkflow: "Intumescent spray to ductwork", inputErrors: new Map(), inputDrafts: new Map(), inputRevision: 0, projectBusy: false,
     pricingScope: "library", libraryDraft: null, projectPricingDraft: null, pricingRevision: 0,
-    projectFile: null, projectEstimates: [{id:"estimate-1", name:"Estimate 1"}], activeEstimateId: "estimate-1", estimatesDirty: false, projectStatus: "Draft", projectCards: [], projectsRevision: 0, initialized: false, currentView: "home", lastProjectSection: null, lastDocumentSection: null, projectsOffset: 0, projectsTimer: null, desktopRequests: 0,
+    projectFile: null, projectEstimates: [{id:"estimate-1", name:"Estimate 1"}], activeEstimateId: "estimate-1", estimatesDirty: false, projectStatus: "New", projectCards: [], projectsRevision: 0, initialized: false, currentView: "home", lastProjectSection: null, lastDocumentSection: null, projectsOffset: 0, projectsTimer: null, desktopRequests: 0,
     projectBrowserProject: null, projectBrowserPath: "", projectBrowserRevision: 0,
     pricingRender: null, estimatorKind: "estimate", calculatorKind: "penetration", libraryKind: "pricing",
     workItems: [], workItemErrors: new Map(), workItemDrafts: new Map(), nextWorkItem: 1,
@@ -404,7 +404,7 @@
     updateProjectStatus();
   }
 
-  const projectStatuses = ["Draft", "Review", "Presented", "Accepted", "Lost"];
+  const projectStatuses = ["New", "Quote", "Engage", "Won", "Lost"];
   const projectPages = $("project-pages");
   const documentPages = $("document-pages");
 
@@ -964,7 +964,7 @@
     state.quoteContext++;
     state.quoteLoadRevision++;
     state.inputErrors.clear(); state.inputDrafts.clear(); state.workItemErrors.clear(); state.workItemDrafts.clear();
-    state.quote = null; state.quoteConfiguration = null; state.projectFile = null; state.projectStatus = "Draft"; resetEstimateCollection();
+    state.quote = null; state.quoteConfiguration = null; state.projectFile = null; state.projectStatus = "New"; resetEstimateCollection();
     resetProjectPricing();
     state.fields = clone(state.currentFields);
     // Start notes blank without changing workbook defaults or saved-quote inputs.
@@ -1062,7 +1062,7 @@
       state.quoteContext++;
       state.inputErrors.clear(); state.inputDrafts.clear(); state.workItemErrors.clear(); state.workItemDrafts.clear();
       state.quote = quote;
-      state.projectFile = null; state.projectStatus = "Draft"; resetEstimateCollection();
+      state.projectFile = null; state.projectStatus = "New"; resetEstimateCollection();
       window.CeasefireCalculators.applyProject(prepared);
       if (penetration) window.CeasefirePenetrations.applyProject(penetration);
       if (takeoffs) window.CeasefireTakeoffs.applyProject(takeoffs);
@@ -1399,7 +1399,7 @@
   function projectPricingChanged() { return draftChanged(state.pricingScope === "project" ? state.draft : state.projectPricingDraft, state.quoteConfiguration || state.configuration); }
   function projectHasChanges() {
     if (editingEstimateName && $("project-estimate-current-name").value.trim() !== editingEstimateName.name) return true;
-    return state.estimatesDirty || window.CeasefireSWMS?.hasProjectChanges?.() || window.CeasefireCommercial?.hasProjectChanges?.() || state.projectStatus !== (state.projectFile?.project_status || "Draft") || window.CeasefireDownloads?.hasUnsavedProjectSave?.() || state.dirty || projectPricingChanged() || window.CeasefireCalculators?.hasUnsavedChanges() || window.CeasefirePenetrations?.hasUnsavedChanges() || window.CeasefireTakeoffs?.hasUnsavedChanges() || window.CeasefireLibraryEditor?.hasProjectChanges?.() || window.CeasefireCertification?.hasProjectChanges?.() || window.CeasefireDocumentation?.hasProjectChanges?.();
+    return state.estimatesDirty || window.CeasefireSWMS?.hasProjectChanges?.() || window.CeasefireCommercial?.hasProjectChanges?.() || state.projectStatus !== (state.projectFile?.project_status || "New") || window.CeasefireDownloads?.hasUnsavedProjectSave?.() || state.dirty || projectPricingChanged() || window.CeasefireCalculators?.hasUnsavedChanges() || window.CeasefirePenetrations?.hasUnsavedChanges() || window.CeasefireTakeoffs?.hasUnsavedChanges() || window.CeasefireLibraryEditor?.hasProjectChanges?.() || window.CeasefireCertification?.hasProjectChanges?.() || window.CeasefireDocumentation?.hasProjectChanges?.();
   }
   function pricingScopeUi() {
     $("pricing-scope").value = state.pricingScope;
@@ -2542,7 +2542,7 @@
         if (!operation.certification) operation.certification = await window.CeasefireCertification.prepareProject();
         const saveRequest = await window.CeasefireProjectDetails.prepareSave(operation.id);
         const configuration = clone(state.configuration);
-        operation.request = {project_status:"Draft", estimate:{...details, configuration, workflow:state.defaultWorkflow, measurements:"", work_items:[],
+        operation.request = {project_status:"New", estimate:{...details, configuration, workflow:state.defaultWorkflow, measurements:"", work_items:[],
           inputs:Object.fromEntries(state.currentFields.map(field=>[field.cell,field.cell === "B12" ? "" : field.default ?? ""]))}, calculators:{},
           certifications:{workspace_id:operation.certification.workspace_id,draft:null}};
         operation.request.project_save_request = saveRequest;
@@ -2634,7 +2634,7 @@
       state.projectEstimates = collectionFromProject(project);
       state.activeEstimateId = project.active_estimate_id || "estimate-1";
       state.estimatesDirty = !!file.active_estimate_id && file.active_estimate_id !== state.activeEstimateId;
-      state.projectStatus = project.project_status || "Draft";
+      state.projectStatus = project.project_status || "New";
       state.projectFile = { ...file, title: estimate.title, project_status: state.projectStatus }; resetProjectPricing("project");
       state.legacyTitle = [estimate.project_no, estimate.client, estimate.site_address].some(Boolean) ? "" : estimate.title || "";
       applyQuoteDetails(estimate);
@@ -2659,61 +2659,87 @@
   }
 
   function renderProjectList() {
-    const rows = state.projectCards.map(file => {
-      const row = node("article", "project-list-row"); row.dataset.projectId = file.id;
-      const title = node("button", "project-title-button", file.title || file.name);
-      title.type = "button";
-      window.CeasefireI18n.attr(title, "aria-label", "Open {0}", [file.title || file.name]);
-      title.addEventListener("click", () => openProjectFile(file, title, null, {landingView:"quotes"}));
-      const heading = node("div", "project-row-heading");
-      const detailsToggle = node("button", "project-details-toggle", "<");
-      detailsToggle.type = "button";
-      detailsToggle.dataset.projectDetailsId = file.id;
-      detailsToggle.setAttribute("aria-controls", "project-details-pane");
-      detailsToggle.setAttribute("aria-expanded", "false");
-      window.CeasefireI18n.attr(detailsToggle, "aria-label", "Project details for {0}", [file.title || file.name]);
-      detailsToggle.addEventListener("click", () => window.CeasefireProjectPane?.toggle(file));
-      heading.append(detailsToggle, title);
-      const details = node("div", "project-row-details");
-      details.append(heading,
-        node("p", "helper", [file.project_no, file.client, file.site_address].filter(Boolean).join(" · ")),
-        uiNode("p", "helper", "Updated {0}", [new Date(file.modified_at).toLocaleString("en-AU", {year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false})]));
-      const estimateLabel = uiNode("label", "field project-card-estimate", "Estimate"), estimateSelect = node("select");
-      estimateSelect.setAttribute("aria-label", `Estimate for ${file.title || file.name}`);
-      const prompt = uiNode("option", "", "Select estimate"); prompt.value = ""; estimateSelect.append(prompt);
-      for (const entry of file.estimates || [{id:"estimate-1",name:"Estimate 1"}]) {
-        const option = node("option", "", entry.name); option.value = entry.id; estimateSelect.append(option);
+    const canEdit = () => !window.ClassifireAccess || window.ClassifireAccess.can("edit");
+    const canMove = () => !state.projectBusy && canEdit();
+    window.ClassifireDocumentBoard.render($("project-list"), {
+      items: state.projectCards,
+      stages: projectStatuses,
+      emptyLabel: "No projects",
+      stageOf: file => file.project_status || "New",
+      locked: () => !canMove(),
+      move: changeProjectStage,
+      onError: error => message(error.message, true),
+      cardFor: file => {
+        const row = node("article", "project-kanban-card project-list-row");
+        row.dataset.projectId = file.id;
+        const title = node("button", "project-title-button", file.title || file.name);
+        title.type = "button";
+        window.CeasefireI18n.attr(title, "aria-label", "Project details for {0}", [file.title || file.name]);
+        title.addEventListener("click", () => window.CeasefireProjectPane?.open(file));
+        const heading = node("div", "project-row-heading");
+        heading.append(title);
+        const details = node("div", "project-row-details");
+        const information = node("dl", "kanban-card-details");
+        for (const [label, value] of [
+          ["Project No.", file.project_no], ["Client", file.client], ["Site address", file.site_address],
+          ["Updated", new Date(file.modified_at).toLocaleString("en-AU", {year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false})]
+        ]) information.append(uiNode("dt", "", label), node("dd", "", value || "—"));
+        details.append(heading, information);
+        const estimateLabel = uiNode("label", "field project-card-estimate", "Estimate"), estimateSelect = node("select");
+        estimateSelect.setAttribute("aria-label", `Estimate for ${file.title || file.name}`);
+        const prompt = uiNode("option", "", "Select estimate"); prompt.value = ""; estimateSelect.append(prompt);
+        for (const entry of file.estimates || [{id:"estimate-1",name:"Estimate 1"}]) {
+          const option = node("option", "", entry.name); option.value = entry.id; estimateSelect.append(option);
+        }
+        estimateSelect.value = ""; estimateLabel.append(estimateSelect);
+        const controls = node("div", "project-row-actions");
+        const load = uiNode("button", "button secondary project-load-button", "Load");
+        load.type = "button";
+        window.CeasefireI18n.attr(load, "aria-label", "Load {0}", [file.title || file.name]);
+        load.addEventListener("click", () => openProjectFile(file, load, estimateSelect.value, estimateSelect.value ? {} : {landingView:"quotes"}));
+        const menu = node("details", "project-card-menu"), toggle = node("summary", "button secondary calculator-document-toggle");
+        window.CeasefireI18n.attr(toggle, "aria-label", "Actions for {0}", [file.title || file.name]);
+        const chevron = node("span", "calculator-document-chevron"); chevron.setAttribute("aria-hidden", "true");
+        chevron.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"></path></svg>';
+        toggle.append(uiNode("span", "", "Actions"), chevron);
+        const actions = node("div", "project-menu-options"), needsEstimate = [];
+        const statusField = uiNode("label", "field project-row-status", "Status"), status = node("select");
+        window.CeasefireI18n.attr(status, "aria-label", "Status for {0}", [file.title || file.name]);
+        for (const stage of projectStatuses) {
+          const option = uiNode("option", "", stage); option.value = stage; status.append(option);
+        }
+        status.value = file.project_status || "New";
+        status.disabled = !canEdit();
+        status.addEventListener("change", () => {
+          const next = status.value;
+          status.value = file.project_status || "New";
+          menu.open = false;
+          void changeProjectStage(file, next);
+        });
+        statusField.append(status); actions.append(statusField);
+        for (const [label, action, requiresEstimate] of [
+          ["Open", button => openProjectFile(file, button, estimateSelect.value, estimateSelect.value ? {} : {landingView:"quotes"})],
+          ["Edit", button => openProjectFile(file, button, estimateSelect.value), true],
+          ["Delete", () => deleteProjectCard(file)], ["Browse files", () => openProjectBrowser(file)]
+        ]) {
+          const button = uiNode("button", "text-button", label); button.type = "button";
+          if (requiresEstimate) { button.disabled = true; needsEstimate.push(button); }
+          button.addEventListener("click", () => { if (requiresEstimate && !estimateSelect.value) return; menu.open = false; return action(button); });
+          actions.append(button);
+        }
+        estimateSelect.addEventListener("change", () => { for (const button of needsEstimate) button.disabled = !estimateSelect.value; });
+        menu.addEventListener("keydown", event => { if (event.key === "Escape" && menu.open) { menu.open = false; toggle.focus(); } });
+        menu.addEventListener("focusout", event => { if (!menu.contains(event.relatedTarget)) menu.open = false; });
+        menu.append(toggle, actions);
+        controls.append(load, menu);
+        row.append(details, estimateLabel, controls);
+        return row;
       }
-      estimateSelect.value = ""; estimateLabel.append(estimateSelect);
-      const controls = node("div", "project-row-actions");
-      const menu = node("details", "project-card-menu"), toggle = node("summary", "button secondary calculator-document-toggle");
-      window.CeasefireI18n.attr(toggle, "aria-label", "Actions for {0}", [file.title || file.name]);
-      const chevron = node("span", "calculator-document-chevron"); chevron.setAttribute("aria-hidden", "true");
-      chevron.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"></path></svg>';
-      toggle.append(uiNode("span", "", "Actions"), chevron);
-      const actions = node("div", "project-menu-options"), needsEstimate = [];
-      for (const [label, action, requiresEstimate] of [
-        ["Open", button => openProjectFile(file, button, estimateSelect.value, estimateSelect.value ? {} : {landingView:"quotes"})],
-        ["Edit", button => openProjectFile(file, button, estimateSelect.value), true],
-        ["Delete", () => deleteProjectCard(file)], ["Browse files", () => openProjectBrowser(file)]
-      ]) {
-        const button = uiNode("button", "text-button", label); button.type = "button";
-        if (requiresEstimate) { button.disabled = true; needsEstimate.push(button); }
-        button.addEventListener("click", () => { if (requiresEstimate && !estimateSelect.value) return; menu.open = false; return action(button); });
-        actions.append(button);
-      }
-      estimateSelect.addEventListener("change", () => { for (const button of needsEstimate) button.disabled = !estimateSelect.value; });
-      menu.addEventListener("keydown", event => { if (event.key === "Escape" && menu.open) { menu.open = false; toggle.focus(); } });
-      menu.addEventListener("focusout", event => { if (!menu.contains(event.relatedTarget)) menu.open = false; });
-      menu.append(toggle, actions); controls.append(menu); row.append(details, estimateLabel, controls);
-      return row;
     });
-    $("project-list").replaceChildren(...(rows.length ? rows : [uiNode("p", "empty-state", "No projects")]));
-    window.CeasefireProjectPane?.refreshToggles();
   }
 
   async function changeProjectStage(file, status) {
-    if (state.projectBusy || status === (file.project_status || "Draft")) return;
+    if (state.projectBusy || !projectStatuses.includes(status) || status === (file.project_status || "New")) return;
     projectBusy(true);
     try {
       const selection = file.save_token ? {save_token: file.save_token} : {id: file.id};
@@ -2886,7 +2912,12 @@
   function closeProjectBrowser() {
     ++state.projectBrowserRevision;
     state.projectBrowserProject = null; state.projectBrowserPath = "";
-    $("project-browser").hidden = true; $("project-list-card").hidden = false; $("project-file-errors").hidden = !$("project-file-errors").textContent;
+    $("project-browser").hidden = true;
+    $("project-list-card").hidden = false;
+    $("project-register").hidden = false;
+    $("project-workspace-layout").hidden = true;
+    $("project-file-errors").hidden = !$("project-file-errors").textContent;
+    window.scrollTo({top:0,left:0,behavior:"instant"});
   }
 
   function renderProjectBreadcrumbs(project, relativePath) {
@@ -2924,7 +2955,11 @@
   async function loadProjectFiles(project, relativePath = "") {
     const revision = ++state.projectBrowserRevision, list = $("project-browser-list");
     state.projectBrowserProject = project; state.projectBrowserPath = relativePath;
-    $("project-list-card").hidden = true; $("project-file-errors").hidden = true; $("project-browser").hidden = false;
+    $("project-list-card").hidden = true;
+    $("project-register").hidden = true;
+    $("project-workspace-layout").hidden = true;
+    $("project-file-errors").hidden = true;
+    $("project-browser").hidden = false;
     $("project-browser-title").textContent = project.title || project.name;
     window.CeasefireI18n.text($("project-browser-status"), "Reading project folder…"); $("project-browser-message").hidden = true;
     list.setAttribute("aria-busy", "true"); list.replaceChildren(uiNode("p", "empty-state", "Reading files and folders…"));

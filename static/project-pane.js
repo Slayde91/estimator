@@ -94,13 +94,6 @@
     for (const slot of participantSlots) slot.inert = !!(value || recovering || selected?.blocked);
     $("project-current-details").disabled = value;
   }
-  function refreshToggles() {
-    for (const button of document.querySelectorAll("[data-project-details-id]")) {
-      const expanded = !pane.hidden && selected?.kind === "saved" && selected.file.id === button.dataset.projectDetailsId;
-      button.textContent = expanded ? ">" : "<";
-      button.setAttribute("aria-expanded", String(expanded));
-    }
-  }
   function dismissOptions() {
     $("project-account-options").hidden = true;
     $("project-pane-client").setAttribute("aria-expanded", "false");
@@ -119,12 +112,17 @@
     const previous = selected;
     ++ticket; selected = null; pane.hidden = true;
     side.hidden = true; links.hidden = true; pricingNotice.hidden = true;
+    $("project-workspace-layout").hidden = true;
+    $("project-register").hidden = false;
+    $("project-list-card").hidden = false;
+    $("project-browser").hidden = true;
     if (dialog?.open) dialog.close();
     if (pane.parentNode !== home) home.insertBefore(pane, homeNext);
     if (previous?.kind === "new") void window.CeasefireProject.discardNewProject(previous.creation).catch(()=>{});
     busy(false);
     $("project-workspace-layout").classList.remove("project-pane-open");
-    dismissOptions(); dismissContactOptions(); refreshToggles();
+    dismissOptions(); dismissContactOptions();
+    window.scrollTo({top:0,left:0,behavior:"instant"});
   }
   async function leave() {
     if (pending || selected?.creation?.uncertain || window.ClassifireProjectParticipants?.pending()) { notice("Finish the current project details action first.", true); return false; }
@@ -140,12 +138,17 @@
     $("project-details-save").hidden = selected.kind === "current";
     text($("project-details-save"),selected.kind === "new" ? "Save project" : "Save project details");
     $("project-new-cancel").hidden = selected.kind !== "new";
-    pane.hidden = false; $("project-workspace-layout").classList.toggle("project-pane-open",selected.kind !== "new");
+    pane.hidden = false;
+    $("project-workspace-layout").hidden = selected.kind === "new";
+    $("project-workspace-layout").classList.toggle("project-pane-open",selected.kind !== "new");
+    $("project-register").hidden = selected.kind !== "new";
+    $("project-list-card").hidden = selected.kind !== "new";
+    $("project-browser").hidden = true;
     side.hidden = selected.kind === "new"; links.hidden = selected.kind === "new";
     // Pricing belongs to the active Project, not an unrelated saved-file pane.
     pricingNotice.hidden = selected.kind === "new" || selected.kind === "saved" && selected.file.path !== snapshot().file?.path;
     notice(selected.kind === "current" ? "Use the main Save button to save this project's details and estimate." : "");
-    dismissOptions(); dismissContactOptions(); refreshToggles();
+    dismissOptions(); dismissContactOptions();
   }
   async function request(url, body) {
     const response = await fetch(url, body === undefined ? undefined : {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
@@ -162,6 +165,7 @@
     const generation = ++ticket;
     selected = {kind:"saved",file,baseline:normalize({})};
     show({}, file.title || file.name || translate("Project")); busy(true); notice("Loading project details…");
+    window.scrollTo({top:0,left:0,behavior:"instant"});
     try {
       const result = await request("/api/projects/details", {id:file.id});
       if (generation !== ticket) return;
@@ -182,6 +186,7 @@
     selected = {kind:"current",context:active.context,baseline:currentRule.baseline};
     show(normalize(active.details), active.file?.title || translate("New project"));
     focusField(fields.client);
+    window.scrollTo({top:0,left:0,behavior:"instant"});
   }
   async function openNew() {
     if (snapshot().busy || !await leave()) return;
@@ -465,7 +470,7 @@
       const active = snapshot();
       return currentRule?.context === active.context ? directoryEdits(values,currentRule.baseline) : [];
     },
-    openCurrent,openNew, toggle: file => !pane.hidden && selected?.file?.id === file.id ? leave() : open(file), refreshToggles, leave, projectDetailsChanged,
+    open,openCurrent,openNew, toggle: file => !pane.hidden && selected?.file?.id === file.id ? leave() : open(file), leave, projectDetailsChanged,
     primaryParties: () => ({accounts:accountId,contacts:contactId}),
     savePendingDetails: async () => { if (dirty()) await save(); },
     closeAfterReplacement: hide,

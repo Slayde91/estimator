@@ -31,7 +31,8 @@ MAX_PROJECT_FILE = 16 * 1_048_576
 LEGACY_CALCULATOR_IDS = ("steel_vermiculite", "steel_board", "ductwork")
 CALCULATOR_IDS = (*LEGACY_CALCULATOR_IDS, "steel_intumescent")
 OPTIONAL_CALCULATOR_IDS = ("steel_intumescent",)
-PROJECT_STATUSES = ("Draft", "Review", "Presented", "Accepted", "Lost")
+PROJECT_STATUSES = ("New", "Quote", "Engage", "Won", "Lost")
+_LEGACY_PROJECT_STATUSES = {"Draft": "New", "Review": "Quote", "Presented": "Engage", "Accepted": "Won"}
 WORKSPACE_FIELDS = {"estimate", "calculators", "penetration", "takeoffs", "library_drafts"}
 MAX_PROJECT_ESTIMATES = 50
 # Contact/account metadata is optional in historical portable files.
@@ -40,9 +41,11 @@ ESTIMATE_FIELDS = {*ESTIMATE_REQUIRED_FIELDS, *QUOTE_DETAIL_LIMITS, "work_items"
 
 
 def validate_project_status(value):
-    if not isinstance(value, str) or value not in PROJECT_STATUSES:
-        raise ValidationError("Choose Draft, Review, Presented, Accepted or Lost for the project status.")
-    return value
+    if isinstance(value, str):
+        value = _LEGACY_PROJECT_STATUSES.get(value, value)
+        if value in PROJECT_STATUSES:
+            return value
+    raise ValidationError("Choose New, Quote, Engage, Won or Lost for the project status.")
 
 
 def estimate_descriptors(value, active_id):
@@ -165,7 +168,7 @@ def project_summary(payload, *, edition='full'):
     from .directory_documents import snapshot_cards
     result = {"source_project_id": source_project_id, "commercial_cards": commercial_cards(snapshot.get("commercial_documents")), "estimate": {"title": title, **details},
               "directory_cards": snapshot_cards(snapshot, source_project_id), "certification_manifest": certificate,
-              "project_status": validate_project_status(snapshot.get("project_status", "Draft")),
+              "project_status": validate_project_status(snapshot.get("project_status", "New")),
               "clients": [details["client"]], "project_numbers": [details["project_no"]]}
     if "estimates" in snapshot or "active_estimate_id" in snapshot:
         entries = estimate_descriptors(snapshot.get("estimates"), snapshot.get("active_estimate_id"))
@@ -326,7 +329,7 @@ def _export_project_snapshot(store, request, *, edition, tree_checked=False):
     snapshot = {
         "format": PROJECT_FORMAT,
         "version": PROJECT_VERSION,
-        "project_status": validate_project_status(request.get("project_status", "Draft")),
+        "project_status": validate_project_status(request.get("project_status", "New")),
         "estimate": {key: prepared[key] for key in sorted(ESTIMATE_FIELDS)},
         "calculators": calculators,
     }
@@ -457,7 +460,7 @@ def _load_project_snapshot(store, snapshot, *, edition):
     prepared["id"] = None
     metadata = fields(effective_catalog(prepared["configuration"]))
     result = {"estimate": prepared, "fields": metadata, "calculators": normalized,
-              "project_status": validate_project_status(snapshot.get("project_status", "Draft")),
+              "project_status": validate_project_status(snapshot.get("project_status", "New")),
               "project_details": project_details({key: prepared[key] for key in QUOTE_DETAIL_LIMITS})}
     if penetration is not None:
         result["penetration"] = penetration
@@ -500,7 +503,7 @@ def _load_project_snapshot(store, snapshot, *, edition):
                 # location its own mutable data, as a normal JSON decode does.
                 prepared = {key: deepcopy(value) for key, value in result.items()
                             if key in WORKSPACE_FIELDS | {'fields', 'project_details'}}
-                prepared['project_status'] = 'Draft'
+                prepared['project_status'] = 'New'
             else:
                 prepared = _load_project_snapshot(store, child, edition=edition)
             normalized.append({"id": entry["id"], "name": entry["name"], "workspace": prepared})

@@ -52,7 +52,7 @@ async function submit(name) {await page.locator('dialog[open]').getByRole('butto
   const projects = (await api('projects')).body.files;
   const [order] = (await api('scheduler/work-orders')).body.orders;
   assert.equal(order.status,'Draft');assert.equal(order.reference,'WO-02');
-  const draft = projects.find(item => item.project_status === 'Draft');
+  const draft = projects.find(item => item.project_status === 'New');
   // Synthetic role-safe listing rows exercise list bounds and identical labels.
   // Only the genuine server-resolvable second row is ever assigned or saved.
   const copiedOrder={...order,id:'f'.repeat(64)+':'+order.project_id+':'+order.document_id};

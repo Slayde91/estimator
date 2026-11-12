@@ -1,8 +1,8 @@
 (() => {
   'use strict';
   const stages = Object.freeze(['Draft', 'Review', 'Approved', 'Rejected']);
-  function render(host, {items, stageOf, cardFor, move, locked, onError, legacy=[]}) {
-    const columns = [...stages, ...legacy.filter(stage => items.some(row => stageOf(row) === stage))];
+  function render(host, {items, stageOf, cardFor, move, locked, onError, legacy=[], stages:boardStages=stages, emptyLabel="No documents"}) {
+    const columns = [...boardStages, ...legacy.filter(stage => items.some(row => stageOf(row) === stage))];
     let dragging = null;
     host.replaceChildren();
     const board = document.createElement('div');
@@ -19,8 +19,8 @@
       header.append(heading, count); column.append(header);
       if (!rows.length) {
         const empty = document.createElement('p');
-        empty.className = 'project-column-empty'; empty.textContent = 'No documents';
-        window.CeasefireI18n?.text(empty, 'No documents'); column.append(empty);
+        empty.className = 'project-column-empty'; empty.textContent = emptyLabel;
+        window.CeasefireI18n?.text(empty, emptyLabel); column.append(empty);
       }
       for (const row of rows) {
         const card = cardFor(row);
@@ -33,7 +33,7 @@
         card.addEventListener('dragend', () => { dragging = null; });
         column.append(card);
       }
-      if (stages.includes(stage)) {
+      if (boardStages.includes(stage)) {
         column.addEventListener('dragover', event => {if (dragging && !locked()) event.preventDefault();});
         column.addEventListener('drop', event => {
           if (!dragging || locked()) return;
@@ -42,7 +42,7 @@
           if (stageOf(row) !== stage) Promise.resolve().then(() => move(row, stage)).catch(onError);
         });
       }
-      if (stages.includes(stage)) board.append(column);
+      if (boardStages.includes(stage)) board.append(column);
       else {
         const historical = document.createElement('div');
         historical.className = 'document-workflow-board document-workflow-history';

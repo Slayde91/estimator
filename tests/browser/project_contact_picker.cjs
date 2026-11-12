@@ -114,7 +114,7 @@ const ready=new Promise((resolve,reject)=>{
   await page.locator('#refresh-quotes').click();await idle();
   const listing=await api('/api/projects'), other=listing.files.find(file=>path.resolve(file.path)===path.resolve(secondPath));assert.ok(other);
   const before=fs.readFileSync(info.project), active=await page.evaluate(()=>window.CeasefireProject.details());
-  const toggle=page.locator(`[data-project-details-id="${other.id}"]`);await toggle.click();await idle();
+  const title=page.locator(`.project-kanban-card[data-project-id="${other.id}"] .project-title-button`);await title.click();await idle();
   await client.fill('');
   await name.focus();await name.fill('Alex');await expect(options.getByRole('option')).toHaveCount(2);
   await options.locator(`[data-contact-id="${first.id}"]`).click();
@@ -132,7 +132,7 @@ const ready=new Promise((resolve,reject)=>{
   await expect(phone).toHaveValue('Unsaved conflict phone');await page.locator('#project-details-close').click();await discard.getByRole('button',{name:'Yes',exact:true}).click();
   await page.unroute('**/api/projects/details/save');
   // A directory reply from a closed pane cannot populate the next pane.
-  await toggle.click();await idle();let release,entered,finished;
+  await title.click();await idle();let release,entered,finished;
   const held=new Promise(resolve=>{release=resolve;}), started=new Promise(resolve=>{entered=resolve;}), completed=new Promise(resolve=>{finished=resolve;});let requestCount=0;
   await page.route('**/api/contacts/directory',async route=>{
     if(++requestCount!==1){await route.continue();return;}

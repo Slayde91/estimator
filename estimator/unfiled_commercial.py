@@ -247,6 +247,10 @@ class UnfiledCommercial:
             if action == 'save':
                 if not isinstance(body.get('fields'),dict) or not isinstance(body['fields'].get('details'),dict):
                     raise ValidationError('Include the document and its project details.')
+                if (body.get('kind') == 'work_order' and isinstance(order, dict) and order.get('quote_id')
+                        and order['quote_id'] != document['fields']['order'].get('quote_id')
+                        and (not isinstance(order['quote_id'], str) or order['quote_id'] not in records)):
+                    raise ValidationError('Choose a saved Quote from this project.')
                 apply_project_document_details(body['fields'], details)
                 if billing_project:
                     body['project_details'] = project_details

@@ -3,7 +3,7 @@ from copy import deepcopy
 from datetime import date
 
 from .catalog import ValidationError
-from .commercial_requirements import meaningful
+from .commercial_requirements import WORK_STAGES, meaningful, missing, require_ready
 from .swms import validate_signature
 
 
@@ -119,7 +119,29 @@ def _clear_from(kind, key, fields, status):
     return stages[start] if start < reached else status
 
 
-def apply(kind, fields, status, signed, previous, *, legacy_details=False):
+def reconciled_status(status, fields, *, legacy_details=False):
+    """Cap the recorded stage at the first incomplete sign-off, without signing or clearing anything."""
+    if status == 'Draft' or status in ('On Hold', 'Cancelled'):
+        return status
+    absent = {entry['path'] for entry in missing('work_order', status, fields, legacy_details=legacy_details)}
+    current = 'Draft'
+    order = fields['order']
+    by_stage = dict(WORK_STAGES)
+    for signer, (date_key, target) in STEPS.items():
+        if not (legacy_details and signer == 'details_by'):
+            if any(field['path'] in absent for field in by_stage[target]) or not _valid_date(order.get(date_key)):
+                return current
+            if signer == 'reviewed_by' and order.get('approval') != 'Approved':
+                return 'Cancelled' if order.get('approval') == 'Denied' else current
+            if signer == 'closed_by':
+                return _outcome('work_order', signer, order) if order.get('completion') in COMPLETIONS else current
+        current = target
+        if current == status:
+            break
+    return current
+
+
+def apply(kind, fields, status, signed, previous, *, legacy_details=False, create_retry=False):
     """Advance only deliberate actions; unchanged historical signoffs remain readable."""
     if kind not in WORKFLOWS:
         return status
@@ -153,7 +175,8 @@ def apply(kind, fields, status, signed, previous, *, legacy_details=False):
         if any(prior['order'].get(field) != order.get(field) for field in evidence):
             raise ValidationError('Sign this section again or clear its signature to change its signing details.')
     if reset:
-        return _clear_from(kind, reset, fields, previous['status'])
+        restored = _clear_from(kind, reset, fields, previous['status'])
+        return reconciled_status(restored, fields, legacy_details=legacy_details) if kind == 'work_order' else restored
     for key in cleared:
         if any(ink.get(later) for later in sequence[sequence.index(key) + 1:]):
             raise ValidationError('Clear the later signatures before changing this signature.')
@@ -184,6 +207,10 @@ def apply(kind, fields, status, signed, previous, *, legacy_details=False):
                 or key == 'closed_by' and signed and
                 (order['completion'] != item['completion'] or order['certification'] != item['certification'])):
             raise ValidationError('The signing details changed. Sign this section again.')
+        if key == 'progress_by':
+            from .work_order_tracking import has_completion
+            if not has_completion(fields.get('work_tracking')):
+                raise ValidationError('Record a completed percentage before signing work progress.')
         target = _outcome(kind, key, order)
         active.add(key)
         if signed:
@@ -193,4 +220,14 @@ def apply(kind, fields, status, signed, previous, *, legacy_details=False):
                     ink.pop(signer, None)
                     order[signer] = order[steps[signer][0]] = ''
                     active.discard(signer)
+    if kind == 'work_order' and not signed:
+        stages = ('Draft', *(target for _, target in steps.values()))
+        if events and status != (previous['status'] if previous else 'Draft'):
+            # An older editor can still submit a new signature and its outgoing stage together.
+            require_ready(kind, status, fields, legacy_details=legacy_details)
+        if previous and not create_retry and not events and status in stages:
+            saved = previous['status']
+            if saved not in stages or stages.index(saved) < stages.index(status):
+                status = saved
+        return reconciled_status(status, fields, legacy_details=legacy_details)
     return status

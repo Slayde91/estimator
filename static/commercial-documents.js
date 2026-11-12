@@ -302,6 +302,9 @@
     }
   }
   function validateReadiness(action) {
+    // Work Order completeness governs signing. Saving or exporting a partial
+    // order uses the stage confirmed by the server.
+    if (state.editor.document.kind === 'work_order') return;
     const missing=readinessSpecs(action).filter(spec=>!requirementPresent(spec));
     if(!missing.length)return;
     for(const spec of missing) {
@@ -515,7 +518,7 @@
       result = {registerOnly:true, workspace_id:workspace,
         snapshot:state.model?.workspace_id === workspace ? state.model.snapshot : undefined,
         documents:[], statuses:register.statuses,
-        requirements:register.requirements, quote_totals:{}, quote_rows:{}};
+        requirements:register.requirements, signature_section_inputs:register.signature_section_inputs, quote_totals:{}, quote_rows:{}};
     }
     if (!register || !current()) return false;
     if (result.registerOnly) {
@@ -760,7 +763,7 @@
     if(doc.kind!=='work_order')return '';
     const related=editor.source?.related || state.model.documents;
     const stored=related.find(item=>item.id===doc.id && item.kind==='work_order');
-    if(stored && (stored.fields.order.work_order_reference || stored.fields.order.quote_id))return stored.fields.details.project_no;
+    if(stored?.fields.details.project_no && (stored.fields.order.work_order_reference || stored.fields.order.quote_id))return stored.fields.details.project_no;
     const quote=related.find(item=>item.id===doc.fields.order.quote_id && item.kind==='quote');
     return quote?.fields.details.project_no || (doc.fields.order.work_order_reference ? doc.fields.details.project_no : '');
   }
@@ -1180,6 +1183,7 @@
     state.editor = {
       document: copy(document),
       savedStatus: document.version ? document.status : 'Draft',
+      quoteLinkLocked: Boolean(linkedQuote || (document.version && document.fields.order.quote_id)),
       projectContext:window.CeasefireProject?.runtimeContext?.(),
       source,
       linkedQuote,
@@ -1966,9 +1970,9 @@
   function renderOrderFields(form, fields) {
     const isWorkOrder = state.kind === "work_order";
     const linkKey = isWorkOrder ? "quote_id" : "work_order_id";
-    const projectNo=commercialProjectDetails(state.editor.source).project_no.trim();
+    const projectNo=fields.details.project_no.trim();
     const choices = (state.editor.linkedQuote ? [state.editor.linkedQuote] : state.editor.source?.related || state.model.documents).filter(item => isWorkOrder
-      ? item.kind === "quote" && item.last_number && item.fields.details.project_no.trim()===projectNo
+      ? item.kind === "quote" && item.last_number && (!projectNo || item.fields.details.project_no.trim()===projectNo)
       : item.kind === "work_order" && item.fields.order.work_order_reference);
     let costControl;
     let costEdited = Boolean(fields.order.estimated_cost);
@@ -1999,7 +2003,7 @@
     }
     linked.value = fields.order[linkKey] || "";
     linked.dataset.orderLink = linkKey;
-    linked.disabled = !!state.editor.linkedQuote || (isWorkOrder && state.editor.document.version > 0 && !!fields.order.work_order_reference);
+    linked.disabled = isWorkOrder && state.editor.quoteLinkLocked;
     const reference = input(state.editor.document.reference || (isWorkOrder ? fields.order.work_order_reference : ""), () => {});
     reference.readOnly = true;
     reference.placeholder = "Assigned on Save";
@@ -2069,9 +2073,10 @@
         if (["quote_reference", "work_order_reference"].includes(key)) continue;
         if (key === "estimated_cost") {
           costControl = input(fields.order.estimated_cost, value => {
+            if (value === '' && fields.order.estimated_cost) fields.estimated_cost_cleared = true;
+            else if (value !== '') delete fields.estimated_cost_cleared;
             fields.order.estimated_cost = value;
-            if (value) delete fields.estimated_cost_cleared;
-            costEdited = Boolean(value);
+            costEdited = value !== '';
           }, "number");
           costControl.step = "0.01";
           costControl.dataset.orderCost = "true";
@@ -2266,7 +2271,7 @@
     }
     if (!fields.order.quote_id || !rows.length) {
       explain(fields.order.quote_id ? 'The original issued Quote rows are unavailable or changed. Reopen this Work Order.' :
-        'This saved Work Order has no linked Quote. Create a Work Order from an issued Quote to track work.');
+        'Select an issued Quote to track work.');
       return () => { notice.focus(); return false; };
     }
     explain('');
@@ -2636,7 +2641,7 @@
     if(disabled)state.editor?.panels?.closeSearches();
     root()?.querySelectorAll(".commercial-work-layout button,.commercial-work-layout input,.commercial-work-layout textarea,.commercial-work-layout select").forEach(control => control.disabled = disabled);
     root()?.querySelectorAll(".commercial-rich-input").forEach(control => control.contentEditable = String(!disabled));
-    if (!disabled && state.kind === "work_order" && (state.editor?.linkedQuote || (state.editor?.document.version > 0 && state.editor.document.fields.order.work_order_reference))) {
+    if (!disabled && state.kind === "work_order" && state.editor?.quoteLinkLocked) {
       const linked = root()?.querySelector('[data-order-link="quote_id"]');
       if (linked) linked.disabled = true;
       const number = root()?.querySelector('input[aria-label="Project number"]');
@@ -2717,6 +2722,7 @@
     if (!saved.fields.signatures) delete fields.signatures;
     if (!saved.fields.estimated_cost_cleared) delete fields.estimated_cost_cleared;
     state.editor.savedStatus = saved.status;
+    state.editor.quoteLinkLocked = Boolean(saved.fields.order.quote_id);
     state.editor.scopeTables = copy(fields.scope_tables || []);
     Object.assign(state.editor.document, saved, {
       fields

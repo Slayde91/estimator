@@ -18,7 +18,7 @@ from .document_numbers import DocumentNumbers, valid_reference, validated_counte
 from .company_settings import DEFAULTS as COMPANY_DEFAULTS
 from .evidence_files import _directory
 from .commercial_requirements import require_ready, requirements
-from .work_order_signing import SECTION_INPUTS
+from .work_order_signing import SECTION_INPUTS, reconciled_status
 
 KINDS = {'quote': 'Quote', 'work_order': 'Work Order', 'purchase_order': 'Purchase Order'}
 STATUSES = {
@@ -352,12 +352,8 @@ def validate_fields(value, *, kind=None):
     if 'work_tracking' in value:
         if kind not in ('work_order', None):
             raise ValidationError('Work tracking belongs to a Work Order.')
-        from .work_order_tracking import validate, has_completion
+        from .work_order_tracking import validate
         result['work_tracking'] = validate(value['work_tracking'])
-    if signatures.get('progress_by'):
-        from .work_order_tracking import has_completion
-        if not has_completion(result.get('work_tracking')):
-            raise ValidationError('Record a completed percentage before signing work progress.')
     notes = value.get('notes', [])
     if not isinstance(notes, list) or len(notes) > 200 or (notes and kind not in (*KINDS, None)):
         raise ValidationError('Commercial documents support up to 200 notes.')
@@ -983,39 +979,56 @@ class CommercialDocuments:
         if kind == 'work_order':
             if order['work_order_id']:
                 raise ValidationError('A work order cannot link to another work order.')
-            if not previous or prior['quote_id']:
-                fields['details']['project_no'] = fields['details']['project_no'].strip()
+            project_no = fields['details']['project_no']
+            if any(char in project_no for char in '\r\n\t'):
+                raise ValidationError('Enter a valid project number.')
+            fields['details']['project_no'] = project_no.strip()
+            prior_ref = prior['work_order_reference'] if prior else ''
+            if order['work_order_reference'] != prior_ref and not (create_retry and not order['work_order_reference']):
+                raise ValidationError('Work order and Quote references are assigned automatically and cannot be edited.')
+            order['work_order_reference'] = prior_ref
             if previous:
-                if order['quote_id'] != prior['quote_id']:
-                    raise ValidationError('The linked Quote cannot change after a work order is created.')
-                if prior['quote_id']:
-                    if fields['details']['project_no'] != previous['fields']['details']['project_no']:
+                bound_no = previous['fields']['details']['project_no']
+                if bound_no and bound_no != fields['details']['project_no']:
+                    if create_retry and not fields['details']['project_no']:
+                        fields['details']['project_no'] = bound_no
+                    else:
                         raise ValidationError('The project number cannot change after a work order reference is assigned.')
-                    for key in ('quote_reference', 'work_order_reference'):
-                        if order[key] != prior[key] and not (create_retry and not order[key]):
-                            raise ValidationError('Work order and Quote references are assigned automatically and cannot be edited.')
-                        order[key] = prior[key]
+                if prior['quote_id']:
+                    if order['quote_id'] != prior['quote_id']:
+                        raise ValidationError('The linked Quote cannot change after a work order is created.')
+                    if order['quote_reference'] != prior['quote_reference'] and not (create_retry and not order['quote_reference']):
+                        raise ValidationError('Work order and Quote references are assigned automatically and cannot be edited.')
+                    order['quote_reference'] = prior['quote_reference']
                     if create_retry and not order['estimated_cost']:
                         order['estimated_cost'] = prior['estimated_cost']
                     elif not prior['estimated_cost'] and not order['estimated_cost'] and not fields.get('estimated_cost_cleared'):
                         order['estimated_cost'] = self._linked_quote_total(db, workspace, project, order['quote_id'], order['quote_reference'])
-                return
+                    return
             if not order['quote_id']:
-                raise ValidationError('Select an issued Quote before creating a work order.')
+                if order['quote_reference'] != (prior['quote_reference'] if prior else ''):
+                    raise ValidationError('Select an issued Quote to set its reference automatically.')
+                if not previous:
+                    self._validate_recipient(fields['details'], {})
+                return
+            if not self.unfiled.permits_document(db, workspace, order['quote_id']):
+                raise ValidationError('Choose a saved Quote from this project.')
             quote = self._record(db, workspace, order['quote_id'])
             if quote['kind'] != 'quote' or not quote['last_number']:
                 raise ValidationError('Download the linked Quote PDF before creating a work order.')
             recipient = quote['fields']['details']
+            if previous and previous['fields']['details']['project_no'] and recipient['project_no'] and fields['details']['project_no'] != recipient['project_no']:
+                raise ValidationError('Choose an issued Quote from this Project.')
             if ('account_id' not in fields['details'] and not fields.get('detail_overrides')
                     and 'account_id' in recipient):
                 fields['details'].update({key: recipient.get(key, '') for key in (*RECIPIENT_FIELDS, *RECIPIENT_DIRECTORY_FIELDS)})
             self._validate_recipient(fields['details'], recipient)
-            project_no = fields['details']['project_no'].strip()
-            if not project_no or any(char in project_no for char in '\r\n\t'):
-                raise ValidationError('Enter a project number before creating a work order.')
-            fields['details']['project_no'] = project_no
+            if not fields['details']['project_no']:
+                if any(char in recipient['project_no'] for char in '\r\n\t'):
+                    raise ValidationError('Enter a valid project number.')
+                fields['details']['project_no'] = recipient['project_no'].strip()
             quote_number = quote['last_number']
-            if order['quote_reference'] not in ('', quote_number) or order['work_order_reference']:
+            if order['quote_reference'] not in ('', quote_number):
                 raise ValidationError('Work order references are assigned automatically when first saved.')
             order['quote_reference'] = quote_number
             if not order['estimated_cost'] and not fields.get('estimated_cost_cleared'):
@@ -1152,8 +1165,11 @@ class CommercialDocuments:
                     self._version(previous, payload.get('version'))
                 if kind == 'work_order' and 'files' not in payload['fields'] and previous['fields'].get('files'):
                     fields['files'] = deepcopy(previous['fields']['files'])
-                if kind == 'work_order' and not fields['order']['estimated_cost'] and previous['fields'].get('estimated_cost_cleared'):
-                    fields['estimated_cost_cleared'] = True
+                if kind == 'work_order' and not fields['order']['estimated_cost']:
+                    explicitly_cleared = (payload.get('version') != 0 and 'estimated_cost' in payload['fields']['order']
+                                          and previous['fields']['order']['estimated_cost'])
+                    if explicitly_cleared or previous['fields'].get('estimated_cost_cleared'):
+                        fields['estimated_cost_cleared'] = True
                 if kind in ('work_order', 'purchase_order') and 'signatures' not in payload['fields'] and previous['fields'].get('signatures'):
                     fields['signatures'] = deepcopy(previous['fields']['signatures'])
                 # Older open windows omit new editable fields. Preserve them
@@ -1197,15 +1213,16 @@ class CommercialDocuments:
                     if fields['order'][key] and fields['order'][key] not in choices and (previous is None or fields['order'][key]!=previous['fields']['order'][key]):
                         raise ValidationError('Choose a listed certification or completion status.')
                 self._validate_tracking(db, project, fields, previous)
-            status = apply_signing(kind, fields, status, signed, previous, legacy_details=legacy_details)
+            status = apply_signing(kind, fields, status, signed, previous, legacy_details=legacy_details,
+                                   create_retry=payload.get('version') == 0)
             if payload.get('version') == 0 and previous:
                 if previous['fields'] == fields and previous['status'] == status:
                     if unfiled_context is not None:
                         self.unfiled.enroll(db, workspace, previous['id'], unfiled_context)
                     return previous
                 raise CommercialConflict('This new document was already saved with different content. Reopen it before editing.')
-            require_ready(kind, status, fields, legacy_details=legacy_details,
-                          before_clear=previous['fields'] if previous and signed and signed[0].get('clear') else None)
+            if kind != 'work_order' or signed and not signed[0].get('clear'):
+                require_ready(kind, status, fields, legacy_details=legacy_details)
             now = datetime.now(timezone.utc).isoformat()
             document = {'id': previous['id'] if previous else payload.get('id') or str(uuid.uuid4()), 'kind': kind,
                         'version': previous['version'] + 1 if previous else 1, 'status': status, 'fields': fields,
@@ -1332,8 +1349,11 @@ class CommercialDocuments:
                 self._validate_tracking(db, project, document['fields'], previous)
             if kind == 'work_order' and order['quote_id'] and not order['estimated_cost'] and not document['fields'].get('estimated_cost_cleared'):
                 order['estimated_cost'] = self._linked_quote_total(db, workspace, project, order['quote_id'], order['quote_reference'])
-            require_ready(kind, document['status'], document['fields'], operation='issue',
-                          legacy_details=kind=='work_order' and not any(key in order for key in ('details_by','details_date')))
+            if kind == 'work_order':
+                document['status'] = reconciled_status(document['status'], document['fields'],
+                    legacy_details=not any(key in order for key in ('details_by','details_date')))
+            else:
+                require_ready(kind, document['status'], document['fields'], operation='issue')
             label = (self.numbering.assign(db, kind, project + ':issue:' + request_id) if kind == 'quote' else document['reference'])
             if self.renderer is None:
                 from .commercial_pdf import render_commercial_pdf

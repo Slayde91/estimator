@@ -8,7 +8,7 @@ Risk classification: **high** for location privacy, account/session handling, po
 
 ## Commercial references and saved projects
 
-New Work Orders link to an issued Quote. The first successful save assigns an organisation-wide Work Order number and fills Estimated cost with the linked issue's GST-inclusive grand total. Purchase Orders have their own numbers and retain their Work Order links. The default series start at **WO-01** and **PO-01**. Retries keep their original numbers. New Quote downloads advance the Quote series.
+Work Orders can be saved and downloaded as PDFs while fields and signatures are incomplete. The first save assigns an organisation-wide Work Order number. An issued Quote can be linked then or later. Linking supplies the Quote's GST-inclusive grand total when the estimated cost is blank. Purchase Orders have their own numbers and retain their Work Order links. The default series start at **WO-01** and **PO-01**. Retries keep their original numbers. New Quote downloads advance the Quote series.
 
 **Settings → Project Details** sets the prefix and starting number for each series. Existing orders can be renumbered in their source files. The migration checks the source revision before writing and keeps historical issued PDFs available under their original numbers. SWMS and Certification references remain attached to the same document across revisions.
 

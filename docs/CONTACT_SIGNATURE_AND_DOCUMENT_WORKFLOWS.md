@@ -32,6 +32,12 @@ the document and its new stage together. The signer's name and date must be
 present; explicitly entered values take precedence over Personal Details.
 The review signature also requires an approval decision.
 
+Work Order Save and Download PDF accept incomplete fields. If the selected
+stage is ahead of the signatures, the order returns to the first stage
+waiting for a signature. For example, clearing Client approval returns the
+order to Client Approval. Signing and moving a card on the board still
+check the requirements for the stage being entered.
+
 | Document | Signed steps and resulting stages |
 | --- | --- |
 | Purchase Order | Request → Requested; approve → Reviewed (reject → Cancelled); send → Sent; verify → Completed. Older Verified orders appear under Completed. |

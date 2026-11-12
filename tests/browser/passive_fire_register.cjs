@@ -39,6 +39,7 @@ async function run() {
   const info = await ready;
   assert.notEqual(info.port,8765);
   browser = await chromium.launch({headless:true});
+  await require('./passive_fire_register_limits.cjs').checkRegisterLimits(browser);
   page = await browser.newPage({viewport:{width:1280,height:900}});
   const errors = [];
   page.on('pageerror',error => errors.push(error.message));
@@ -89,9 +90,25 @@ async function run() {
   await page.mouse.down(); await page.mouse.move(box.x+70,box.y+45,{steps:6}); await page.mouse.up();
   await page.getByRole('dialog').getByRole('button',{name:'Insert signature'}).click();
   await expect(form.getByRole('img',{name:'Signature',exact:true})).toBeVisible();
+  const pdfRoute = '**/api/project/passive-fire-register.pdf';
+  let releaseExport, exportStarted;
+  const hold = new Promise(resolve => { releaseExport = resolve; });
+  const started = new Promise(resolve => { exportStarted = resolve; });
+  await page.route(pdfRoute, async route => {
+    exportStarted();
+    await hold;
+    await route.continue();
+  });
   const exportReceipt = page.waitForResponse(r => new URL(r.url()).pathname === '/api/project/passive-fire-register.pdf');
   await form.getByRole('button',{name:'Download PDF'}).click();
+  try {
+    await started;
+    await access.selectOption('Yes');
+    await expect(form.getByRole('button',{name:'Download PDF'})).toBeDisabled();
+    await access.selectOption('NA');
+  } finally { releaseExport(); }
   const response = await exportReceipt;
+  await page.unroute(pdfRoute);
   assert.equal(response.status(),200,await response.text());
   const receipt = await response.json();
   assert.equal(receipt.documentation.item.kind,'passive_fire_register.pdf');

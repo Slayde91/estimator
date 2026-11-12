@@ -10,7 +10,8 @@
     service_types:[], manufacturer:'', report:'', products:[], side1:newSide(), side2:newSide(),
     access:'', photos:[], comments:'', solution:'', signature:null});
   let entries = [], current = 0, placeholder = newEntry(), revision = 0, saved = 0;
-  let options, pending = false, hasRegister = false, message = '', entrySelect, removeEntry;
+  let options, pending = false, exporting = false, hasRegister = false, message = '', entrySelect, removeEntry, exportButton;
+  const photoPixels = new Map();
   let fieldIndex = 0;
   const editedEntry = () => entries[current] || placeholder;
   function changed() {
@@ -113,8 +114,34 @@
       ctx.fillStyle = '#fff';
       ctx.fillRect(0,0,canvas.width,canvas.height);
       ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
-      return canvas.toDataURL('image/jpeg', 0.78);
+      const jpeg = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.78));
+      if (!jpeg || jpeg.size > 1024 * 1024) throw new Error('The register photo limit has been reached.');
+      const url = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(jpeg);
+      });
+      return {url, pixels:canvas.width * canvas.height};
     } finally { bitmap.close(); }
+  }
+  async function photoTotals() {
+    const total = {encoded:0, pixels:0};
+    for (const entry of entries) {
+      for (const group of photoGroups(entry)) {
+        for (const url of group) {
+          if (!photoPixels.has(url)) {
+            const image = new Image();
+            image.src = url;
+            await image.decode();
+            photoPixels.set(url, image.naturalWidth * image.naturalHeight);
+          }
+          total.encoded += url.length;
+          total.pixels += photoPixels.get(url);
+        }
+      }
+    }
+    return total;
   }
   function photoList(record, key, label) {
     const group = el('div','register-photo-field'), input = el('input');
@@ -127,14 +154,22 @@
       try {
         if (files.length + record[key].length > 20) throw new Error('The register photo limit has been reached.');
         const added = [];
-        let bytes = entries.reduce((sum, row) => sum + photoGroups(row).flat().reduce((n, photo) => n + photo.length, 0), 0);
+        const total = await photoTotals();
         for (const file of files) {
           const photo = await readPhoto(file);
-          bytes += photo.length;
-          if (bytes > 10 * 1024 * 1024) throw new Error('The register photo limit has been reached.');
+          total.encoded += photo.url.length;
+          total.pixels += photo.pixels;
+          if (total.encoded > 10 * 1024 * 1024 || total.pixels > 128_000_000)
+            throw new Error('The register photo limit has been reached.');
           added.push(photo);
         }
-        if (entry === editedEntry()) { record[key].push(...added); changed(); }
+        if (entry === editedEntry()) {
+          for (const {url, pixels} of added) {
+            record[key].push(url);
+            photoPixels.set(url, pixels);
+          }
+          changed();
+        }
         message = '';
       } catch(error) { message = error.message; }
       finally { pending = false; render(); }
@@ -143,7 +178,9 @@
     record[key].forEach((url, index) => {
       const figure = el('figure'), img = el('img');
       img.src = url; img.alt = label + ' ' + (index + 1); img.loading = 'lazy';
-      figure.append(img, action('Remove photo', () => { record[key].splice(index,1); changed(); render(); }));
+      figure.append(img, action('Remove photo', () => {
+        record[key].splice(index,1); photoPixels.delete(url); changed(); render();
+      }));
       group.append(figure);
     });
     return group;
@@ -160,16 +197,17 @@
     return card;
   }
   async function download(button) {
-    if (pending) return;
+    if (pending || exporting) return;
     if (!entries.length) { setStatus(window.CeasefireI18n.translate('Entry {0} is incomplete.', [1])); return; }
     const snapshot = capture().value;
+    exporting = true;
     button.disabled = true;
     try {
       const result = await window.CeasefireDownloads.save('/api/project/passive-fire-register.pdf',
         {register:snapshot, project_details:window.CeasefireProject.details()}, {button});
       if (result?.saved) setStatus('Document saved. Its revision is available in this project.');
     } catch(error) { setStatus(error.message); }
-    finally { button.disabled = false; }
+    finally { exporting = false; exportButton.disabled = false; }
   }
   function render() {
     if (!root || !options) return;
@@ -188,14 +226,16 @@
       if (!entries.length || !await window.CeasefireDialogs.confirm('Remove this register entry?', 'Remove entry and its photos?', 'Remove entry')) return;
       if (entry !== editedEntry()) return;
       entries.splice(current,1);
+      for (const group of photoGroups(entry)) for (const url of group) photoPixels.delete(url);
       current = Math.max(0, current - 1);
       placeholder = newEntry();
       hasRegister = true; revision++; window.CeasefireProject.changed(); message = ''; render();
     });
     remove.disabled = !entries.length;
     removeEntry = remove;
-    const output = action('Download PDF', e => download(e.currentTarget), 'primary');
-    toolbar.append(field('Register entry',entrySelect), add, remove, output);
+    exportButton = action('Download PDF', e => download(e.currentTarget), 'primary');
+    exportButton.disabled = exporting;
+    toolbar.append(field('Register entry',entrySelect), add, remove, exportButton);
     const status = el('p','helper',message);
     status.setAttribute('role','status');
     const card = el('section','card register-grid');
@@ -237,6 +277,7 @@
     hasProjectChanges:() => saved !== revision,
     markSaved(snapshot) { if (snapshot?.revision === revision) saved = revision; },
     applyProject(snapshot) {
+      photoPixels.clear();
       entries = structuredClone(snapshot?.entries || []);
       current = 0; placeholder = newEntry(); message = ''; hasRegister = Boolean(snapshot);
       saved = ++revision;

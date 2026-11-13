@@ -1561,7 +1561,7 @@ window.CeasefireScheduleColumns = (() => {
         }
         if (!selectOptions.some(({ value: existing }) => String(existing) === String(item))) appendOption(item);
       };
-      const deferredOptions = options.length > 40;
+      const deferredOptions = options.length > 40 && !sourceSheet.endsWith("SETTINGS");
       let optionsLoaded = !deferredOptions;
       const populate = () => {
         if (optionsLoaded) return;
@@ -2517,6 +2517,7 @@ window.CeasefireScheduleColumns = (() => {
       const { body, definition, columns: groupColumns } = renderedGroup;
       const responsive = definition?.table_kind === "form" || matrix && group !== "matrix";
       const table = node("table", schedule ? "calculator-schedule-table" : `calculator-form-table${responsive ? " calculator-responsive-form" : group === "matrix" || definition?.table_kind === "comparison" ? " calculator-comparison-table" : ""}`);
+      if (!schedule && entry.sheet.endsWith("SETTINGS")) table.classList.add("calculator-settings-fields");
       if (virtualSchedule) table.classList.add("calculator-virtual-schedule");
       if (dynamicSchedule) { window.CeasefireI18n.attr(table, "aria-label", "{0} schedule", [entry.definition.title]); table.setAttribute("aria-rowcount", String(entry.scheduleRows.length + 1)); }
       const colgroup = node("colgroup");

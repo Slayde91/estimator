@@ -71,9 +71,10 @@ async function fresh(){await openCertificateEditor(page,{fresh:true});await expe
 
   await openProjectSection(page,'documentation');
   const coverRow=kind=>page.locator('#documentation-pdf-rows tr[data-cover-kind="'+kind+'"]');
-  await expect(page.locator('#documentation-pdf-rows tr[data-cover-kind]')).toHaveCount(18);
-  for(const label of ['Schedules','Product summaries','Other documents'])await page.locator('#documentation-pdf-rows').getByRole('button',{name:label,exact:true}).click();
   const kindsResponse=await fetch(base+'/api/pdf-covers'),kinds=await kindsResponse.json();
+  const expectedKinds=kinds.items.map(item=>item.kind).sort();
+  await expect.poll(()=>page.locator('#documentation-pdf-rows tr[data-cover-kind]').evaluateAll(rows=>rows.map(row=>row.dataset.coverKind).sort())).toEqual(expectedKinds);
+  for(const label of ['Schedules','Product summaries','Other documents'])await page.locator('#documentation-pdf-rows').getByRole('button',{name:label,exact:true}).click();
   assert.ok(kinds.items.every(item=>!Object.hasOwn(item,'cover_pdf')&&typeof item.has_cover==='boolean'));
   await expect(coverRow('certification').getByRole('button',{name:'Save cover sheet for Certification',exact:true})).toHaveCount(0);
   await coverRow('certification').locator('input').setInputFiles(info.fixture);
@@ -106,7 +107,7 @@ async function fresh(){await openCertificateEditor(page,{fresh:true});await expe
   const initialCovers=await (await fetch(base+'/api/pdf-covers')).json();
   assert.equal(initialCovers.items.find(item=>item.kind==='certification').has_cover,true);
   assert.equal(initialCovers.items.find(item=>item.kind==='takeoff_markups').has_cover,true);
-  evidence.checks.push('18 independent Documentation cover rows','saved cover metadata excludes PDF bytes','main and specific covers saved independently','stale cover Save blocks silent overwrite','cancelled conflicted main Save retains selected file','explicit approved conflict retry uses current version');
+  evidence.checks.push('Every supported cover has an independent Documentation row','saved cover metadata excludes PDF bytes','main and specific covers saved independently','stale cover Save blocks silent overwrite','cancelled conflicted main Save retains selected file','explicit approved conflict retry uses current version');
   await certification();
 
   await page.locator('#certification-client').fill('Custom certificate client');

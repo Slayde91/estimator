@@ -10,10 +10,14 @@
   const requiredNames = fieldNames.filter(name => !['qualification','accreditation'].includes(name));
   const meaningful = value => Boolean(value.replace(/\p{Cf}/gu, '').trim());
   const controls = Object.fromEntries(fieldNames.map(name => [name, $('certification-' + name)]));
-  const selector = $('certification-document'), saveButton = $('certification-save') || $('certification-save-draft'), generateButton = $('certification-generate');
-  const workflow = $('certification-workflow');
-  const newButton = $('certification-new');
-  const backButton = $('certification-back');
+  const selector = $('certification-document');
+  const toolbars = ['certification-', 'certification-revisions-'].map(prefix => ({
+    back: $(prefix + 'back'),
+    save: (prefix === 'certification-' && $('certification-save')) || $(prefix + 'save-draft'),
+    newDocument: $(prefix + 'new'),
+    generate: $(prefix + 'generate'),
+    workflow: $(prefix + 'workflow')
+  }));
   const signatureButton = $('certification-signature-use');
   const statement = "This is to certify that the fire rated materials have been installed according to the manufacturer's specifications to provide the nominated fire resistance level for the items listed in the relevant schedule.\n\nAll materials have been installed at the above location and comply with:";
   // These are the user's exact editable presets, not a determination of compliance.
@@ -60,16 +64,20 @@
       !equal(state.options.scopes,state.baseline.options.scopes);
   }
   function updateControls() {
-    const locked = !state.loaded || !!state.opening || state.busy || !!state.pending || state.readingSignature;
+    const waiting = !state.loaded || !!state.opening || state.busy || state.readingSignature;
+    const locked = waiting || !!state.pending;
     for (const control of [...Object.values(controls), ...scopeControls]) control.disabled = locked;
     selector.disabled = locked || !state.items.length;
-    if(newButton)newButton.disabled=locked;
-    if(backButton)backButton.disabled=state.busy || state.readingSignature || !!state.pending;
-    if(workflow){workflow.value=state.options.workflow_status || 'Draft';workflow.disabled=locked;}
+    for (const {back, save, newDocument, generate, workflow} of toolbars) {
+      back.disabled = state.busy || state.readingSignature || !!state.pending;
+      save.disabled = waiting || (!!state.pending && state.pending.kind !== 'save');
+      newDocument.disabled = locked;
+      generate.disabled = waiting || (!!state.pending && state.pending.kind !== 'generate');
+      workflow.value = state.options.workflow_status || 'Draft';
+      workflow.disabled = locked;
+    }
     signatureButton.disabled = locked;
     $('certification-signature-clear').disabled = locked || (!state.options.signature_image && !signerNames.some(name=>controls[name].value));
-    if(saveButton)saveButton.disabled = !state.loaded || !!state.opening || state.busy || state.readingSignature || (!!state.pending && state.pending.kind !== 'save');
-    generateButton.disabled = !state.loaded || !!state.opening || state.busy || state.readingSignature || (!!state.pending && state.pending.kind !== 'generate');
     form.setAttribute('aria-busy', String(state.busy || !!state.opening || state.readingSignature));
   }
   function companyText(name) {
@@ -402,17 +410,22 @@
   });
   for(const id of ['client','site-address','project-no'])$(id)?.addEventListener('input',refreshInheritedFields);
   form.addEventListener('submit',event=>event.preventDefault());
-  workflow?.addEventListener('change',()=>{
-    if(workflow.disabled || !window.ClassifireDocumentBoard?.stages.includes(workflow.value))return;
-    state.options.workflow_status=workflow.value;updateControls();message('Unsaved certification details');window.CeasefireProject?.changed?.();
-  });
-  saveButton?.addEventListener('click',()=>perform('save'));
-  generateButton.addEventListener('click',event=>{if(!(event.detail>1))return perform('generate');});
+  for (const {back, save, newDocument, generate, workflow} of toolbars) {
+    workflow.addEventListener('change', () => {
+      if (workflow.disabled || !window.ClassifireDocumentBoard?.stages.includes(workflow.value)) return;
+      state.options.workflow_status = workflow.value;
+      updateControls();
+      message('Unsaved certification details');
+      window.CeasefireProject?.changed?.();
+    });
+    save.addEventListener('click', () => perform('save'));
+    generate.addEventListener('click', event => { if (!(event.detail > 1)) return perform('generate'); });
+    newDocument.addEventListener('click', () => loadDocument(null));
+    back.addEventListener('click', () => {
+      if (!back.disabled) document.querySelector('#document-pages [data-document-section="documentation"]')?.click();
+    });
+  }
   selector.addEventListener('change',()=>{if(selector.value)return loadDocument(selector.value);});
-  newButton?.addEventListener('click',()=>loadDocument(null));
-  backButton?.addEventListener('click',()=>{
-    if(!backButton.disabled)document.querySelector('#document-pages [data-document-section="documentation"]')?.click();
-  });
   window.addEventListener('ceasefire:company-settings-saved',event=>{if(typeof event.detail?.name==='string')companyText(event.detail.name);});
   window.addEventListener('ceasefire:languagechange',()=>{renderScopes();renderDocuments();});
   window.CeasefireCertification={open,projectWorkspace,completeProjectSnapshot,prepareProject,applyProject,markProjectSaved,discardPreparedSession,

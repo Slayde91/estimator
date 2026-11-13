@@ -275,7 +275,10 @@ async function check(name,fn){const h=harness();h.projectApi.applyProject(await 
     const route=walk(h.byId('library-editor-fields')).find(node=>node.dataset.libraryEditorServiceRoute==='lagged_pipes');route.value='Lagged Pipes; Insulated Pipes';await route.emit('input');assert.deepEqual(copy(h.audit.state.draft.globals.service_routes.lagged_pipes),['Lagged Pipes','Insulated Pipes']);
     let maximum=walk(h.byId('library-editor-fields')).find(node=>node.dataset.libraryEditorBand==='labour_bands.board.0.maximum');maximum.value='.2';await maximum.emit('input');
     let hours=walk(h.byId('library-editor-fields')).find(node=>node.dataset.libraryEditorBand==='labour_bands.board.0.hours');hours.value='.75';await hours.emit('input');assert.deepEqual(copy(h.audit.state.draft.globals.labour_bands.board[0]),{maximum:.2,hours:.75});
-    const add=walk(h.byId('library-editor-fields')).find(node=>node.textContent==='+ Add band');await add.emit('click');assert.equal(h.audit.state.draft.globals.labour_bands.board.length,3);
+    const add=walk(h.byId('library-editor-fields')).find(node=>node.getAttribute('aria-label')==='Add band');
+    assert.equal(add.children[0].textContent, '+');
+    assert.equal(add.title, 'Add band');
+    await add.emit('click');assert.equal(h.audit.state.draft.globals.labour_bands.board.length,3);
     const remove=walk(h.byId('library-editor-fields')).find(node=>/^Remove Board Task Hours band/.test(node.getAttribute('aria-label')||''));assert.equal(remove.title,remove.getAttribute('aria-label'));assert.match(remove.innerHTML, /<svg [^>]*aria-hidden="true"/);assert.notEqual(remove.textContent,'Remove');await remove.emit('click');assert.equal(h.audit.state.draft.globals.labour_bands.board.length,2);
     let capture;h.audit.setRequest(async(id,action,payload)=>{capture=copy(payload);return fixture(payload.draft,{definition:metadata,result:result(payload.draft,metadata)});});await h.audit.save();assert.deepEqual(capture.draft.globals.service_routes.lagged_pipes,['Lagged Pipes','Insulated Pipes']);assert.equal(capture.draft.globals.labour_bands.board[0].maximum,50);
   });

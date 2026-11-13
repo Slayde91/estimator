@@ -1,4 +1,5 @@
 const {showEstimateNotes}=require('./estimate_notes.cjs');
+const {checkTrashAlignment}=require('./trash_alignment.cjs');
 const {chromium, expect: defaultExpect} = require('@playwright/test');
 const expect = defaultExpect.configure({timeout:30000});
 const {spawn,execFileSync} = require('node:child_process');
@@ -291,6 +292,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await expect(work.locator('.commercial-note-card')).toContainText('Site observation');
   await work.getByLabel('Attach files',{exact:true}).setInputFiles({name:'qa-field-record.bin',mimeType:'application/octet-stream',buffer:Buffer.from('QA portable original')});
   await expect(work.locator('.commercial-attached-file')).toContainText('qa-field-record.bin');
+  await checkTrashAlignment(work.getByRole('button',{name:'Remove qa-field-record.bin',exact:true}));
   await expect(work.getByLabel('Proposed start date',{exact:true})).toHaveAttribute('type','date');
   const pdfBox=await work.getByRole('button',{name:'Download PDF',exact:true}).boundingBox(),statusBox=await work.getByLabel('Status',{exact:true}).boundingBox();
   assert.ok(statusBox.x>pdfBox.x && Math.abs(statusBox.y-pdfBox.y)<2,'Status aligns with the PDF action in the toolbar');

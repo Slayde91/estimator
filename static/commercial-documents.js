@@ -2634,7 +2634,7 @@
           markDirty();
           renderLines();
         });
-        remove.classList.add("icon-only", "commercial-remove-row");
+        remove.classList.add("icon-only", "commercial-remove-row", "trash-button");
         remove.setAttribute("aria-label", "Remove row"); remove.title = "Remove row";
         window.CeasefireI18n?.attr(remove, "aria-label", "Remove row");
         window.CeasefireI18n?.attr(remove, "title", "Remove row");
@@ -2656,7 +2656,7 @@
           markDirty();
           renderLines();
         });
-        remove.classList.add("icon-only", "commercial-remove-line");
+        remove.classList.add("icon-only", "commercial-remove-line", "trash-button");
         remove.setAttribute("aria-label", "Remove line item"); remove.title = "Remove line item";
         remove.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 6h18M8 6V3h8v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg>';
         actions.append(remove);

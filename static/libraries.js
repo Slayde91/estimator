@@ -36,7 +36,7 @@
   const button = (text, action, className = "button secondary") => { const el = node("button", className, text); el.type = "button"; el.addEventListener("click", action); return el; };
   const symbolButton = (symbol, label, action) => {
     const el = button("", action, "button secondary icon-only");
-    const icon = node("span", symbol === "+" ? "button-symbol add-symbol" : "button-symbol", symbol); icon.setAttribute("aria-hidden", "true");
+    const icon = symbol ? node("span", symbol === "+" ? "button-symbol add-symbol" : "button-symbol", symbol) : node("span", "trash-artwork"); icon.setAttribute("aria-hidden", "true");
     el.append(icon); uiAttr(el, "title", label); uiAttr(el, "aria-label", label); return el;
   };
   async function request(path, signal, payload) {
@@ -221,7 +221,7 @@
     add.append(transfer, uiNode("span", "sr-only", "Add to Schedule"));
     add.dataset.libraryAdd = item.id; uiAttr(add, "title", "Add to Schedule"); uiAttr(add, "aria-label", "Add to Schedule");
     const status = node("p", "message error library-action-message", pane.addErrors.get(item.id) || ""); status.hidden = !status.textContent; status.setAttribute("role", "status");
-    const remove = button("", () => deleteItem(pane, item), "button library-delete library-delete-button");
+    const remove = button("", () => deleteItem(pane, item), "button library-delete library-delete-button trash-button");
     const icon = node("span", "library-trash-icon");
     icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13M10 10.5v6M14 10.5v6"></path></svg>';
     icon.setAttribute("aria-hidden", "true"); remove.append(icon);
@@ -1045,7 +1045,7 @@
         if (link.notice) details.append(node("p", "library-related-notice", display(link.notice)));
         const penetrationId = pane.kind === "penetration" ? data.id : link.id, technicalId = pane.kind === "technical" ? data.id : link.id, key = `${penetrationId}:${technicalId}`;
         const label = pane.kind === "penetration" ? `Unlink technical reference ${relatedTitle}` : `Unlink firestopping record ${relatedTitle}`;
-        const remove = symbolButton("🗑", label, () => unlinkReference(pane, data, link)); remove.className += " library-unlink"; remove.dataset.libraryUnlink = key; remove.disabled = pane.unlinkPending.has(key); pane.unlinkButtons.set(`${data.id}:${key}`, remove);
+        const remove = symbolButton(null, label, () => unlinkReference(pane, data, link)); remove.className += " library-unlink trash-button"; remove.dataset.libraryUnlink = key; remove.disabled = pane.unlinkPending.has(key); pane.unlinkButtons.set(`${data.id}:${key}`, remove);
         box.append(details, remove);
         relatedList.append(box);
       }

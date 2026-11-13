@@ -201,7 +201,7 @@ window.CeasefireTakeoffGraphicsUI = function (host) {
         value.geometry.exclusions.forEach((hole,index)=>{const row=node("section","takeoff-area-exclusion");row.append(uiNode("h4","", "Exclusion {0}", [index+1]),node("p","helper",hole.note),uiButton("Edit exclusion note",()=>editExclusion(hole.id)),uiButton("Remove exclusion",()=>editExclusion(hole.id,true)));section.append(row);});controls.append(section);
       }
     }
-    const actions=node("div","actions takeoff-appearance-actions"), removeButton=uiButton("Delete markup",remove); removeButton.classList.add("takeoff-markup-delete");window.CeasefireI18n.attr(removeButton, "title", "Delete markup");window.CeasefireI18n.attr(removeButton, "aria-label", "Delete markup");
+    const actions=node("div","actions takeoff-appearance-actions"), removeButton=uiButton("Delete markup",remove); removeButton.classList.add("takeoff-markup-delete", "trash-button");window.CeasefireI18n.attr(removeButton, "title", "Delete markup");window.CeasefireI18n.attr(removeButton, "aria-label", "Delete markup");
     const trash=svg("svg",{viewBox:"0 0 24 24",width:20,height:20,fill:"none",stroke:"currentColor","stroke-width":1.8,"stroke-linecap":"round","stroke-linejoin":"round","aria-hidden":"true"});trash.append(svg("path",{d:"M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"}));removeButton.replaceChildren(trash);
     editor.visibility=currentVisibilityControl("graphic",value.id);actions.append(editor.visibility,removeButton);controls.append(actions,uiNode("p","helper", "PDF drawing mark only."));
   }

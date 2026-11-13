@@ -3,9 +3,10 @@
 const {chromium,expect}=require('@playwright/test');
 const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),{createHash,randomUUID}=require('node:crypto');
-const {chooseTakeoff}=require('./section_navigation.cjs');
+const {chooseTakeoff,chooseLibrary}=require('./section_navigation.cjs');
 const {chooseCalculator}=require('./calculator_actions.cjs');
 const {checkSettingsLayout}=require('./firestopping_settings_layout.cjs');
+const {checkTrashAlignment}=require('./trash_alignment.cjs');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`classifire-layout-${Date.now()}`);
 fs.mkdirSync(output,{recursive:true});
 const hash=file=>createHash('sha256').update(fs.readFileSync(path.join(root,file))).digest('hex');
@@ -13,7 +14,7 @@ const protectedFiles=['data/penetration.json.gz','estimator/penetration_calculat
 const protectedHashes=Object.fromEntries(protectedFiles.map(file=>[file,hash(file)]));
 const assets=['static/main-layout.js','static/styles.css','static/theme.css','static/penetration.js','static/penetration-presentation.js','static/takeoff-physical.js','static/takeoffs.css'];
 const assetHashes=Object.fromEntries(assets.map(file=>[file,hash(file)]));
-const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
+const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'project_library_fixture.py'),'--directory',output],{cwd:root,windowsHide:true});
 let logs='',browser,page;server.stderr.on('data',data=>logs+=data);
 const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()=>reject(Error(logs||'Fixture timeout')),120000);server.stdout.on('data',data=>{text+=data;if(text.includes('\n')){clearTimeout(timer);resolve(JSON.parse(text.split('\n')[0]));}});server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(Error(`Fixture exit ${code}: ${logs}`));});});
 const errors=[],evidence={themes:[],fieldLayouts:[]};
@@ -27,6 +28,9 @@ async function contrast(locator){return locator.evaluate(el=>{const s=getCompute
 (async()=>{
  const fixture=await ready;assert.notEqual(fixture.port,8765);browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1600,height:1000}});page.setDefaultTimeout(30000);page.on('pageerror',e=>errors.push(e.message));
  await page.goto(`http://127.0.0.1:${fixture.port}/`);await idle();await main();
+ const trashAsset=await page.request.get(new URL('/icons/trash.svg',page.url()).href);assert.equal(trashAsset.status(),200);assert.match(trashAsset.headers()['content-type'],/image\/svg\+xml/);
+ await page.locator('#main-tab-materials').click();await page.locator('.work-item-action').first().click();
+ const duplicateRemove=page.locator('.remove-work-item').first();evidence.trashAlignment=[await checkTrashAlignment(duplicateRemove)];await duplicateRemove.click();await idle();
  const divider=page.locator('#main-summary-divider'),summary=page.locator('#main-estimate-summary');await expect(divider).toBeVisible();await expect(divider).toHaveAttribute('role','separator');await expect(divider).toHaveAttribute('data-layout-ready','true');
  const mainBefore=await page.evaluate(()=>window.CeasefireProject.details()),calculatorBefore=await page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());
  const before=await box(summary),grip=await box(divider);await page.mouse.move(grip.x+grip.width/2,grip.y+90);await page.mouse.down();await page.mouse.move(grip.x-120,grip.y+90,{steps:5});await page.mouse.up();await expect.poll(async()=>(await box(summary)).width).toBeGreaterThan(before.width+80);
@@ -42,12 +46,19 @@ async function contrast(locator){return locator.evaluate(el=>{const s=getCompute
   await theme(id);await main();const tab=page.locator('#main-section-tabs .main-section-tab').first();await tab.hover();const c=await contrast(tab);assert.ok(c.ratio>=4.5,JSON.stringify({id,...c}));
   const logo=await page.locator('.brand-logo').evaluate(el=>({filter:getComputedStyle(el).filter,background:getComputedStyle(el).backgroundColor}));assert.equal(logo.background,'rgba(0, 0, 0, 0)');
   await chooseTakeoff(page,'physical');await idle();const palette=await page.locator('.takeoff-physical-register').evaluate(el=>{const th=el.querySelector('thead th');return{background:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color,headBackground:getComputedStyle(th).backgroundColor,headColor:getComputedStyle(th).color};});const expectedPalette=await page.locator('html').evaluate(el=>{const probe=document.createElement('div');probe.style.background='var(--theme-surface)';probe.style.color='var(--ink)';el.append(probe);const c=getComputedStyle(probe),value={background:c.backgroundColor,color:c.color};probe.remove();return value;});assert.equal(palette.background,expectedPalette.background);assert.equal(palette.color,expectedPalette.color);const headingContrast=await contrast(page.locator('.takeoff-physical-register thead th').first());assert.ok(headingContrast.ratio>=4.5);
-  await chooseCalculator(page,'Firestopping');await idle();await page.locator('#penetration-settings').click();const settings=await page.locator('.penetration-settings-table').first().evaluate(el=>({background:getComputedStyle(el).backgroundColor,heading:getComputedStyle(el.querySelector('thead th')).backgroundColor}));assert.equal(settings.background,'rgb(255, 255, 255)');assert.equal(settings.heading,'rgb(185, 10, 21)');evidence.themes.push({id,hover:c,palette,settings});
+  await chooseCalculator(page,'Firestopping');await idle();await page.locator('#penetration-settings').click();const settings=await page.locator('.penetration-settings-table').first().evaluate(el=>({background:getComputedStyle(el.querySelector('tbody td')).backgroundColor,heading:getComputedStyle(el.querySelector('thead th')).backgroundColor}));assert.equal(settings.background,'rgb(255, 255, 255)');assert.equal(settings.heading,'rgb(185, 10, 21)');evidence.themes.push({id,hover:c,palette,settings});
   await checkSettingsLayout(page,output,id);
+  const bandButton=page.locator('#penetration-row-fields .penetration-band-remove').first();
+  evidence.trashAlignment.push({theme:id,...await checkTrashAlignment(bandButton)});
+  await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('button',{name:'Settings',exact:true}).click();
+  evidence.trashAlignment.push({theme:id,...await checkTrashAlignment(page.locator('#company-logo-delete'))});
  }
  await theme('ceasefire');await chooseCalculator(page,'Firestopping');await idle();const beforeFields=await page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot());
  for(const width of [1600,390]){await page.setViewportSize({width,height:1000});await group('Products and labour');const positions=await page.locator('#penetration-row-fields').evaluate(el=>Object.fromEntries(['AB','AC','Y','Z'].map(column=>{const r=el.querySelector('[data-penetration-field='+column+']').getBoundingClientRect();return[column,{x:r.x,y:r.y,width:r.width,height:r.height}];})));assert.equal(positions.AB.y,positions.AC.y);assert.ok(positions.Y.y>positions.AB.y);await group('Additional Allowances');assert.deepEqual(await page.locator('#penetration-row-fields [data-penetration-field]').evaluateAll(nodes=>nodes.map(el=>el.dataset.penetrationField)),['AE','AF','AI','AH','AJ']);const other=await page.locator('#penetration-row-fields').evaluate(el=>Object.fromEntries(['AE','AF','AH','AI','AJ'].map(column=>{const r=el.querySelector('[data-penetration-field='+column+']').getBoundingClientRect();return[column,{x:r.x,y:r.y,width:r.width,height:r.height}];})));assert.equal(other.AE.y,other.AF.y);assert.ok(other.AI.y>other.AE.y);assert.ok(other.AJ.y>other.AH.y);if(width>580){assert.equal(other.AE.y,other.AH.y);assert.equal(other.AI.y,other.AJ.y);assert.equal(other.AE.x,other.AI.x);assert.equal(other.AH.x,other.AJ.x);}else{assert.ok(other.AH.y>other.AI.y);}evidence.fieldLayouts.push({width,products:positions,other});await page.screenshot({path:path.join(output,`firestopping-layout-${width}.png`)});}
  assert.deepEqual(await page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot()),beforeFields);
+ await page.setViewportSize({width:1600,height:1000});
+ await page.getByRole('button',{name:'Libraries',exact:true}).click();await chooseLibrary(page,'penetration');await page.locator(`[data-library-edit="${fixture.item_id}"]`).first().click();
+ await page.locator('#library-editor-settings').click();await checkSettingsLayout(page,output,'ceasefire','library');
  // A literal historic FRL is retained as a source value, without interpretation.
  await page.setViewportSize({width:1600,height:1000});await chooseTakeoff(page,'physical');await idle();
  const session=await page.evaluate(()=>window.CeasefireTakeoffs.sessionId()),origin=new URL(page.url()).origin;

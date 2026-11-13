@@ -2,6 +2,7 @@
 const { chromium, expect } = require('@playwright/test');
 const { chooseTakeoff } = require('./section_navigation.cjs');
 const { chooseCalculator } = require('./calculator_actions.cjs');
+const { checkTrashAlignment } = require('./trash_alignment.cjs');
 const { renderDrawing } = require('./viewer_helpers.cjs');
 const { spawn } = require('node:child_process');
 const { createHash, randomUUID } = require('node:crypto');
@@ -54,7 +55,7 @@ function recorded(value, restoredId) {
   }) };
 }
 async function reviewDelete(id, action, suffix = '/commands', status = 200) {
-  const button = page.locator(`button[data-takeoff-delete-item="${id}"]`); await expect(button).toHaveCount(1); await expect(button.locator('svg')).toHaveCount(1); await button.click();
+  const button = page.locator(`button[data-takeoff-delete-item="${id}"]`); await expect(button).toHaveCount(1); await checkTrashAlignment(button); await button.click();
   const dialog = page.getByRole('dialog'); await expect(dialog.getByRole('heading')).toHaveText('Are you sure you want to delete this item?'); await expect(dialog.getByRole('button', { name: 'Yes', exact: true })).toBeVisible(); await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeVisible();
   if (action === 'Cancel') { await dialog.getByRole('button', { name: action, exact: true }).click(); await expect(dialog).toBeHidden(); await idle(); return; }
   return response(() => dialog.getByRole('button', { name: 'Yes', exact: true }).click(), suffix, suffix === '/commands' ? 'delete_items' : undefined, status);

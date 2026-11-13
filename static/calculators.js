@@ -1107,7 +1107,7 @@ window.CeasefireScheduleColumns = (() => {
 
   function scheduleDeleteButton(row, entry, context) {
     const item = row - entry.definition.schedule.first_row + 1;
-    const remove = node("button", "button secondary calculator-remove-row"), icon = node("span", "calculator-trash-icon");
+    const remove = node("button", "button secondary calculator-remove-row trash-button"), icon = node("span", "calculator-trash-icon");
     icon.setAttribute("aria-hidden", "true");
     icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/></svg>';
     remove.append(icon); window.CeasefireI18n.attr(remove, "title", "Delete line {0}", [item]);

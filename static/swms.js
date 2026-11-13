@@ -73,7 +73,7 @@
       result.classList.add("penetration-new-item-action");
       const symbol = element("span", "button-symbol add-symbol", "+"); symbol.setAttribute("aria-hidden", "true"); result.append(symbol);
     } else {
-      // Reuse the application's existing trash-can artwork.
+      result.classList.add("trash-button");
       result.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"></path></svg>';
     }
     return result;

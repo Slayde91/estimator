@@ -508,7 +508,7 @@ class DesktopPackagingTests(unittest.TestCase):
 
     def test_personal_signature_assets_are_shared_and_takeoff_tools_are_full_edition_only(self):
         from estimator.edition import TAKEOFF_ASSETS
-        for asset in ('icons/signature.svg', 'personal-signature.js'):
+        for asset in ('icons/signature.svg', 'icons/trash.svg', 'personal-signature.js'):
             self.assertIn(asset, STATIC_FILES)
             self.assertNotIn('/' + asset, TAKEOFF_ASSETS)
         for asset in ('takeoff-signatures.js', 'takeoff-graphics.js', 'takeoff-graphics-ui.js',

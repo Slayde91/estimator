@@ -475,7 +475,7 @@
           control.addEventListener("blur", () => { if (!state.invalid.has(structuredSettingKey(name))) control.value = String(state.draft.globals.labour_bands[definition.key][index][property]); });
           problem.hidden = true; cell.append(control, problem); row.append(cell);
         }
-        const action = node("td"), remove = node("button", "button secondary icon-only penetration-band-remove"); remove.type = "button"; remove.disabled = rows.length === 1;
+        const action = node("td"), remove = node("button", "button secondary icon-only penetration-band-remove trash-button"); remove.type = "button"; remove.disabled = rows.length === 1;
         uiAttr(remove, "title", "Remove {0} band {1}", [() => window.CeasefireI18n?.translate(definition.label) || definition.label, index + 1]);
         uiAttr(remove, "aria-label", "Remove {0} band {1}", [() => window.CeasefireI18n?.translate(definition.label) || definition.label, index + 1]);
         remove.innerHTML = window.CeasefirePenetrationPresentation.trashIcon;
@@ -486,7 +486,14 @@
         action.append(remove); row.append(action); body.append(row);
       });
       table.append(body); scroll.append(table); details.append(scroll);
-      const add = uiNode("button", "button secondary penetration-add-band", "+ Add band"); add.type = "button"; add.addEventListener("click", () => {
+      const add = node("button", "button primary icon-only add-icon-action penetration-add-band");
+      add.type = "button";
+      uiAttr(add, "aria-label", "Add band");
+      uiAttr(add, "title", "Add band");
+      const plus = node("span", "button-symbol add-symbol", "+");
+      plus.setAttribute("aria-hidden", "true");
+      add.append(plus);
+      add.addEventListener("click", () => {
         const bands = clone(state.draft.globals.labour_bands), current = bands[definition.key], last = current.at(-1), previous = current.at(-2);
         const increment = previous ? last.maximum - previous.maximum : Math.max(last.maximum * .1, 1);
         if (!(increment > 0) || last.maximum + increment > 1e12) return;

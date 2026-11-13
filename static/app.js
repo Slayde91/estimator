@@ -178,6 +178,53 @@
 // HEADER_TAGLINE:END
 
 (() => {
+  const brand = document.querySelector(".app-header .brand");
+  const credit = document.getElementById("brand-credit");
+  const phrase = document.getElementById("brand-credit-description")?.textContent;
+  if (!brand || !credit || !phrase) return;
+  const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const alphabet = "0123456789@#$%&*+=?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+  const step = 58, hold = 1600, reveal = phrase.length * step;
+  let timer;
+  function clear() {
+    clearTimeout(timer);
+    credit.textContent = "";
+  }
+  function play() {
+    clear();
+    if (motion.matches) {
+      credit.textContent = phrase;
+      timer = setTimeout(clear, hold);
+      return;
+    }
+    const start = performance.now();
+    function frame() {
+      const elapsed = performance.now() - start;
+      if (elapsed >= 2 * reveal + hold) { clear(); return; }
+      if (elapsed >= reveal && elapsed < reveal + hold) {
+        credit.textContent = phrase;
+        timer = setTimeout(frame, reveal + hold - elapsed);
+        return;
+      }
+      const forward = elapsed < reveal;
+      const resolved = forward ? Math.floor(elapsed / step)
+        : phrase.length - 1 - Math.floor((elapsed - reveal - hold) / step);
+      const visible = Math.min(phrase.length, resolved + 3);
+      let value = phrase.slice(0, resolved);
+      for (let i = resolved; i < visible; i++) {
+        value += phrase[i] === " " ? " " : alphabet[Math.floor(Math.random() * alphabet.length)];
+      }
+      credit.textContent = value;
+      timer = setTimeout(frame, step);
+    }
+    frame();
+  }
+  brand.addEventListener("click", play);
+  motion.addEventListener("change", () => { if (motion.matches && credit.textContent) play(); });
+  window.addEventListener("pagehide", clear);
+})();
+
+(() => {
   const $ = (id) => document.getElementById(id);
   const calculationQueue = window.CeasefireCalculationQueue.create();
   const state = {
@@ -657,7 +704,9 @@
   function workItemAction(label, symbol, action, className = "") {
     const button = node("button", `button secondary icon-only work-item-action ${className}`.trim());
     button.type = "button"; if (label?.i18nSource) { window.CeasefireI18n.attr(button, "title", label.i18nSource, label.i18nArgs); window.CeasefireI18n.attr(button, "aria-label", label.i18nSource, label.i18nArgs); }
-    const accessibleLabel = node("span", "sr-only"); uiText(accessibleLabel, label); button.append(node("span", "button-symbol", symbol), accessibleLabel);
+    const accessibleLabel = node("span", "sr-only"); uiText(accessibleLabel, label);
+    const art = symbol ? node("span", "button-symbol", symbol) : node("span", "trash-artwork");
+    art.setAttribute("aria-hidden", "true"); button.append(art, accessibleLabel);
     button.addEventListener("click", action); return button;
   }
 
@@ -682,7 +731,7 @@
     value.id = item ? `yield-work-item-${item.id}` : `yield-${sourceRow}`; yieldCell.append(value); tr.append(yieldCell);
     const actions = node("td", "work-item-actions");
     actions.append(workItemAction(uiCopy("Duplicate {0} work item", [window.CeasefireI18n.term(name)]), "⧉", () => addWorkItem(sourceRow, item?.inputs)));
-    if (item) actions.append(workItemAction(uiCopy("Remove {0} duplicated work item", [window.CeasefireI18n.term(name)]), "🗑", () => removeWorkItem(item), "remove-work-item"));
+    if (item) actions.append(workItemAction(uiCopy("Remove {0} duplicated work item", [window.CeasefireI18n.term(name)]), null, () => removeWorkItem(item), "remove-work-item trash-button"));
     tr.append(actions); return tr;
   }
 
@@ -1966,9 +2015,9 @@
       yieldCell.append(input);
       if (shared.mixed || shared.units.length > 1) yieldCell.append(uiNode("small", "subtext", "Different saved yields: enter one value to apply it to all uses."));
       row.append(yieldCell);
-      const reset = node("td", "pricing-row-actions"), remove = node("button", "button secondary icon-only");
+      const reset = node("td", "pricing-row-actions"), remove = node("button", "button secondary icon-only trash-button");
       remove.type = "button"; remove.dataset.pricingRemove = item.id; window.CeasefireI18n.attr(remove, "title", "Remove {0}", [productServiceName(record) || item.name]); window.CeasefireI18n.attr(remove, "aria-label", "Remove {0}", [productServiceName(record) || item.name]);
-      const removeIcon = node("span", "button-symbol", "🗑︎"); removeIcon.setAttribute("aria-hidden", "true"); remove.append(removeIcon);
+      const removeIcon = node("span", "trash-artwork"); removeIcon.setAttribute("aria-hidden", "true"); remove.append(removeIcon);
       remove.addEventListener("click", () => removePricingItem(record)); reset.append(resetButton(kind, item), remove); row.append(reset);
       rows.push(row);
     }

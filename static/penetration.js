@@ -687,7 +687,7 @@
           control.addEventListener("blur", () => { if (!state.schedule.invalid.has(structuredSettingKey(name))) control.value = String(state.schedule.draft.globals.labour_bands[definition.key][index][property]); });
           problem.hidden = true; cell.append(control, problem); row.append(cell);
         }
-        const action = node("td"), remove = node("button", "button secondary icon-only penetration-band-remove"); remove.type = "button"; remove.disabled = rows.length === 1;
+        const action = node("td"), remove = node("button", "button secondary icon-only penetration-band-remove trash-button"); remove.type = "button"; remove.disabled = rows.length === 1;
         uiAttr(remove, "title", "Remove {0} band {1}", [uiTerm(definition.label), index + 1]);
         uiAttr(remove, "aria-label", "Remove {0} band {1}", [uiTerm(definition.label), index + 1]);
         remove.innerHTML = window.CeasefirePenetrationPresentation.trashIcon;
@@ -698,7 +698,14 @@
         action.append(remove); row.append(action); body.append(row);
       });
       table.append(body); scroll.append(table); details.append(scroll);
-      const add = uiNode("button", "button secondary penetration-add-band", "+ Add band"); add.type = "button"; add.addEventListener("click", () => {
+      const add = node("button", "button primary icon-only add-icon-action penetration-add-band");
+      add.type = "button";
+      uiAttr(add, "aria-label", "Add band");
+      uiAttr(add, "title", "Add band");
+      const plus = node("span", "button-symbol add-symbol", "+");
+      plus.setAttribute("aria-hidden", "true");
+      add.append(plus);
+      add.addEventListener("click", () => {
         const bands = clone(state.schedule.draft.globals.labour_bands), current = bands[definition.key], last = current.at(-1), previous = current.at(-2);
         const increment = previous ? last.maximum - previous.maximum : Math.max(last.maximum * .1, 1);
         if (!(increment > 0) || last.maximum + increment > 1e12) return;
@@ -1203,7 +1210,7 @@
       if (!quantityField) tr.children[6].textContent = display(row.inputs.O);
       for (const control of tr.children[6].querySelectorAll("[data-penetration-field]")) uiAttr(control, "aria-label", "Item {0}: {1}", [line, uiTerm(fieldLabel(quantityField))]);
       const actions = node("td", "penetration-item-actions"), edit = uiNode("button", "button secondary", "Edit"); edit.type = "button"; uiAttr(edit, "aria-label", "Edit firestopping item {0}", [line]); edit.addEventListener("click", () => selectRow(row.id));
-      const remove = node("button", "button secondary penetration-remove"), icon = node("span"); icon.setAttribute("aria-hidden", "true");
+      const remove = node("button", "button secondary penetration-remove trash-button"), icon = node("span"); icon.setAttribute("aria-hidden", "true");
       icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/></svg>';
       const deletion = node("td", "penetration-item-actions penetration-item-delete");
       const deleteContext = state.context, deleteEpoch = state.rowEpochs.get(row.id), deleteRow = rowStamp(row);

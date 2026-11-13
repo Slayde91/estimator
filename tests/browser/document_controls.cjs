@@ -84,14 +84,22 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
   await page.setViewportSize({width:1254,height:884});
   let first=true,announce;const held=new Promise(resolve=>announce=resolve),release=new Promise(resolve=>releaseHeld=resolve);
   await page.route('**/api/certifications?*',async route=>{if(route.request().method()==='POST'&&new URL(route.request().url()).pathname==='/api/certifications'&&first){first=false;announce();await release;await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Synthetic uncertain Save'})});}else await route.continue();});
-  await page.locator('#certification-save-draft').click();await held;await expect(page.locator('#certification-back')).toBeDisabled();await expect(page.locator('#certification-new')).toBeDisabled();releaseHeld();
-  await expect(page.locator('#certification-status')).toContainText('Retry the same button');await expect(page.locator('#certification-back')).toBeDisabled();
-  await expect(page.locator('#certification-client')).toHaveValue('Retained certificate draft');await page.locator('#certification-save-draft').click();
+  await page.locator('#certification-save-draft').click();await held;
+  for(const prefix of ['certification-','certification-revisions-']){
+    for(const control of ['back','save-draft','new','generate','workflow'])await expect(page.locator('#'+prefix+control)).toBeDisabled();
+  }
+  releaseHeld();
+  await expect(page.locator('#certification-status')).toContainText('Retry the same button');
+  for(const prefix of ['certification-','certification-revisions-']){
+    await expect(page.locator('#'+prefix+'save-draft')).toBeEnabled();
+    for(const control of ['back','new','generate','workflow'])await expect(page.locator('#'+prefix+control)).toBeDisabled();
+  }
+  await expect(page.locator('#certification-client')).toHaveValue('Retained certificate draft');await page.locator('#certification-revisions-save-draft').click();
   await expect(page.locator('#certification-back')).toBeEnabled();await expect(page.locator('#certification-new')).toBeEnabled();await expect(page.locator('#certification-status')).toContainText('Certification details saved.');
   assert.equal(writes.length,2);assert.deepEqual(writes[0],writes[1]);
   checks.push('Back stays disabled during Save and uncertain retry; retry uses the exact captured request and retains fields');
   const savedId=await page.locator('#certification-document').inputValue();assert.ok(savedId);
-  await page.locator('#certification-new').click();
+  await page.locator('#certification-revisions-new').click();await expect(page.locator('#certification-client')).toBeFocused();
   const unavailable=async route=>route.fulfill({status:404,contentType:'application/json',body:JSON.stringify({error:'Synthetic unavailable certificate'})});
   const savedRoute=url=>url.pathname==='/api/certifications/'+savedId;
   await page.route(savedRoute,unavailable);

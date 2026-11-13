@@ -108,6 +108,7 @@ function checkCompanions(project,folder){
   const breakdown=page.locator('button[data-document-kind="estimate.summary.pdf"]');
   await expect(breakdown).toBeHidden();await reveal('estimate.summary.pdf');
   await expect(breakdown).toHaveAccessibleName('Download Breakdown');
+  await expect(page.locator('#documentation-pdf-rows tr[data-document-kind="estimate.summary.pdf"] + tr')).toHaveAttribute('data-document-kind','takeoff.markups.pdf');
   for(const format of ['pdf','xlsx']){
     const buttons=page.locator(`#documentation-${format}-rows .documentation-download-button`);
     const reference=page.locator(format==='pdf'?'#estimate-open-quote .download-format-icon':'#calculator-excel .download-format-icon');

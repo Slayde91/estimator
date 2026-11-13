@@ -588,6 +588,7 @@
     const context = window.CeasefireProject?.runtimeContext?.();
     state.kind = kind;
     if (!root()) return;
+    if (kind === "quote") window.CeasefireButtonSounds?.prepareQuote?.();
     shell(names[kind] + "s");
     try {
       const workspace = currentWorkspace() || (await window.CeasefireCertification.projectWorkspace()).workspace_id;
@@ -970,7 +971,7 @@
     }
     state.busy = true;
     try {
-      await documentRequest("status", {
+      const saved = await documentRequest("status", {
         workspace_id: state.workspace,
         id: document.id,
         version: document.version,
@@ -979,6 +980,7 @@
       if (!document.source_file) changed();
       await load();
       if (!document.source_file) await saveActiveProject();
+      acceptedQuoteFeedback(document.status, saved);
       renderBoard();
     } catch (error) {
       message(error.message, true);
@@ -1192,6 +1194,7 @@
     state.editor = {
       document: copy(document),
       savedStatus: document.version ? document.status : 'Draft',
+      confirmedQuoteStatus: document.status,
       quoteLinkLocked: Boolean(linkedQuote || (document.version && document.fields.order.quote_id)),
       projectContext:window.CeasefireProject?.runtimeContext?.(),
       source,
@@ -2790,6 +2793,8 @@
       billingReview:editor.billingReview
     });
     assertDocumentOperation(operation);
+    // A PDF action saves the document first; it can commit an edited status, too.
+    if (!explicitlySaved) confirmEditorStatus(editor, saved);
     adoptSaved(saved);
     if (signatureAction?.clear) refreshClearedSection(editor.document.fields);
     if (state.editor.source) state.editor.source.documentId = saved.id;
@@ -2826,6 +2831,14 @@
       ...(explicitlySaved && !source && !window.CeasefireProject.context().project_token ? {retain_unfiled:true} : {}),
       ...captured
     }, source);
+  }
+  function acceptedQuoteFeedback(previousStatus, saved) {
+    if (saved.kind === "quote" && saved.status === "Accepted" && previousStatus !== saved.status)
+      window.CeasefireButtonSounds?.quoteAccepted?.();
+  }
+  function confirmEditorStatus(editor, saved) {
+    acceptedQuoteFeedback(editor.confirmedQuoteStatus, saved);
+    editor.confirmedQuoteStatus = saved.status;
   }
   function adoptSaved(saved) {
     const fields = state.editor.document.fields;
@@ -2889,6 +2902,7 @@
       draftSaved=true;
       const source = state.editor.source;
       const inFile = source ? !source.file_id.startsWith("local-") : await saveActiveProject();
+      confirmEditorStatus(operation.editor, operation.editor.document);
       const document=operation.editor.document,billing=document.fields.billing;
       const billingKey=billing?.sync_key || billing?.new_contact_key;
       if(document.kind==='work_order' && billingKey && billingKey===operation.editor.billingPendingKey) {

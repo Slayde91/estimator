@@ -3,6 +3,7 @@ const {chromium,expect}=require('@playwright/test');
 const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),assert=require('node:assert/strict');
 const {chooseCalculator}=require('./calculator_actions.cjs');
+const {checkCalculatorLayouts}=require('./calculator_settings_layout.cjs');
 const root=path.resolve(__dirname,'../..'), output=fs.mkdtempSync(path.join(os.tmpdir(),'classifire-calculator-cleanup-'));
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'monokote_fixture.py'),'--directory',output],{cwd:root,windowsHide:true});
 let logs='',browser,page;server.stderr.on('data',data=>logs+=data);
@@ -229,6 +230,7 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
  await chooseCalculator(page,'Steel (spray)');await idle();
  const ordinaryStripe=await page.locator('#calculator-workspace>.calculator-sheet-heading').boundingBox();
  assert.ok(ordinaryStripe.width>100&&ordinaryStripe.height>20,'ordinary worksheet heading restores after Factor Calcs');
+ await checkCalculatorLayouts(page,output);assert.deepEqual(errors,[]);
  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({completed:true,unchangedInputs:true,requestedSprayInstructions:startChecks,requestedDuctNotes:noteChecks,
    requestedIntumescentSettings:intumSettingsChecks,intumescentSummary:{columns:15,allFullHeadingsRetained:true,summaryLayout,narrowLayout,summaryLocales,valuesUnchanged:true},errors},null,2));console.log(`PASS calculator cleanup: ${output}`);
 })().catch(async error=>{console.error(error);console.error(logs.slice(-3000));if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();server.kill();});

@@ -13,7 +13,7 @@ async function openCertificateEditor(page,{fresh=false}={}){
   }
 }
 
-async function generateCertificate(page, revision){
+async function generateCertificate(page, revision, button=page.locator('#certification-generate')){
   // The committed revision response is stable across browser and native-save
   // builds. Notices can legitimately change again after automatic Project Save.
   if(!await page.locator('#certification-signature-preview').isVisible()){
@@ -27,7 +27,7 @@ async function generateCertificate(page, revision){
   }
   const receipt=page.waitForResponse(response=>response.request().method()==='POST'&&
     /^\/api\/certifications\/[^/]+\/revisions$/.test(new URL(response.url()).pathname));
-  await page.locator('#certification-generate').click();
+  await button.click();
   const response=await receipt;assert.equal(response.ok(),true,await response.text());
   const generated=await response.json();assert.equal(generated.revision.revision,revision);
   await page.waitForFunction(()=>{

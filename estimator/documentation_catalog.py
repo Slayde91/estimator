@@ -27,6 +27,8 @@ def document_catalog(edition='full'):
     def add(kind_id, label, file_format, adapter, **spec):
         rows.append({'id':kind_id, 'label':label, 'format':file_format, 'adapter':adapter, 'spec':spec})
     add('estimate.summary.pdf','Breakdown','pdf','estimate',action='summary')
+    if edition == 'full':
+        add('takeoff.markups.pdf','Markups','pdf','takeoff',action='markups')
     add('project.full_schedule.pdf','Full Schedule','pdf','estimate',action='full_schedule')
     add('project.full_product_summary.pdf','Full Product Summary','pdf','estimate',action='full_product_summary')
     for calculator_id, title in CALCULATORS.items():
@@ -59,7 +61,6 @@ def document_catalog(edition='full'):
             add(f'takeoff.{mode}.register.xlsx',f'{title} Takeoff register','xlsx','takeoff',action='register',mode=mode)
         for scope, title in [('defect_reports','Passive fire matrix'),('service_plans','Service plans matrix')]:
             add(f'takeoff.{scope}.matrix.pdf',title,'pdf','takeoff',action='matrix',scope=scope)
-        add('takeoff.markups.pdf','Markups','pdf','takeoff',action='markups')
         add('takeoff.pdf_tools.pdf','PDF tools','pdf','takeoff',action='pdf_tools')
     return rows
 

@@ -23,6 +23,14 @@ const checks=[],errors=[],geometry=[];
   const beforeRead=await directory();
   await page.goto(base);await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready&&!window.CeasefireDesktop.status().busy);
   await page.locator('#contacts-navigation-toggle').click();const host=page.locator('#contacts-root');await host.locator('.contacts-tabs').getByRole('button',{name:'Contacts',exact:true}).click();
+  const initialViewport=page.viewportSize();
+  for (const width of [1915,390]) {
+    await page.setViewportSize({...initialViewport,width});
+    const toggle=await host.locator('.contacts-document > summary').boundingBox();
+    const create=await host.getByRole('button',{name:'New Contact',exact:true}).boundingBox();
+    assert.ok(toggle.height>0 && Math.abs(create.height-toggle.height)<1, JSON.stringify({width,toggle,create}));
+  }
+  await page.setViewportSize(initialViewport);
   const owner=host.locator('.contacts-results').getByRole('button',{name:person.name,exact:true});await owner.click();
   const pane=page.getByRole('complementary',{name:'Edit Contact',exact:true});await expect(pane).toBeVisible();await expect(page.getByRole('dialog')).toHaveCount(0);await expect(pane.getByLabel('Name',{exact:true})).toBeFocused();
   await expect(pane.locator('.contacts-links-group > summary')).toHaveText(['Companies (1)','Projects (1)','Converted leads (1)']);

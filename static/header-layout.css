@@ -17,7 +17,8 @@
      participates in layout or changes the home link's hit target. */
   #brand-credit {
     position: absolute;
-    left: 6%;
+    /* The C begins at x=446 on the 2172px-wide logo artwork. */
+    left: 20.53%;
     top: 73%;
     z-index: 1;
     font: 600 10px/11px "Courier New", monospace;

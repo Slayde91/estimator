@@ -61,9 +61,11 @@ async function checkLogoCredit() {
     const position = await credit.evaluate(line => {
       const box = line.getBoundingClientRect(), logo = document.querySelector('.brand-logo').getBoundingClientRect();
       const character = document.querySelector('#header-tagline-character').getBoundingClientRect();
-      return {top:box.top,bottom:box.bottom,logoInkBottom:logo.top+logo.height*(510/724),characterTop:character.top};
+      return {left:box.left,wordmarkStart:logo.left+logo.width*(446/2172),
+        top:box.top,bottom:box.bottom,logoInkBottom:logo.top+logo.height*(510/724),characterTop:character.top};
     });
     assert.ok(position.top>=position.logoInkBottom && position.bottom<=position.characterTop,'Credit clears the logo ink and tagline character');
+    assert.ok(Math.abs(position.left-position.wordmarkStart)<1, 'Credit starts directly under the C');
     await expect(credit).toBeEmpty();
     assert.ok(await page.evaluate(value=>window.logoFrames.every(frame=>frame===''||frame===value),phrase));
   }

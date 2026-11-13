@@ -9,8 +9,9 @@
 .contacts-lead-menu { z-index:2; }
 .contacts-controls { align-items:end; margin-bottom:18px; }
 .contacts-controls>.field { flex:1 1 220px; }
-#contacts-root .contacts-document>summary { box-sizing:border-box; display:flex; align-items:center; height:calc(1.5em + 24px); min-height:0; padding-block:0; }
-@media(max-width:570px) { #contacts-root .contacts-document>summary { height:calc(1.5em + 22px); } }
+.contacts-controls:has(.contacts-document) { --add-icon-size:calc(1.5em + 24px); }
+#contacts-root .contacts-document>summary { box-sizing:border-box; display:flex; align-items:center; height:var(--add-icon-size); min-height:0; padding-block:0; }
+@media(max-width:570px) { .contacts-controls:has(.contacts-document) { --add-icon-size:calc(1.5em + 22px); } }
 .contacts-workspace,.contacts-results { min-width:0; }
 .crm-timeline { min-width:0; border:1px solid var(--border); border-radius:8px; padding:10px; overflow-wrap:anywhere; }
 .crm-timeline>summary { font-weight:700; cursor:pointer; }

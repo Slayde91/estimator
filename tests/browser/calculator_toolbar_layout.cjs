@@ -44,6 +44,42 @@ async function checkWorkbookControls(page, factor) {
   }
 }
 
+async function checkWorkbookDivider(page, title, output) {
+  const pages = page.locator('#calculator-pages');
+  if(title==='Factor Calcs'){
+    await expect(pages).toHaveCSS('box-shadow','none');
+    return;
+  }
+  const original=page.viewportSize();
+  for(const width of [1440,390]){
+    await page.setViewportSize({width,height:original.height});
+    await pages.evaluate(el=>el.scrollIntoView({block:'center',behavior:'instant'}));
+    const metric=await pages.evaluate(el=>{
+      const rect=el.getBoundingClientRect(),bar=el.parentElement,style=getComputedStyle(bar);
+      const actions=bar.querySelector('.calculator-toolbar-actions').getBoundingClientRect();
+      const end=actions.top<rect.bottom ? actions.left-parseFloat(style.columnGap) : bar.getBoundingClientRect().right-parseFloat(style.paddingRight);
+      return {left:Math.round(rect.left),top:Math.round(rect.bottom),width:Math.round(rect.right)-Math.round(rect.left),
+        startGap:rect.left-bar.getBoundingClientRect().left-parseFloat(style.paddingLeft),endGap:end-rect.right,
+        marker:getComputedStyle(el.querySelector('[aria-pressed=true]')).borderBottomColor};
+    });
+    assert.ok(Math.abs(metric.startGap)<1&&Math.abs(metric.endGap)<1,JSON.stringify(metric));
+    assert.equal(metric.marker,'rgb(255, 255, 255)');
+    // Inspect painted pixels across the whole row, including below selected and offscreen tabs.
+    const shot=await page.screenshot({clip:{x:metric.left,y:metric.top,width:metric.width,height:1}});
+    const unpainted=await page.evaluate(async encoded=>{
+      const img=new Image();img.src='data:image/png;base64,'+encoded;await img.decode();
+      const canvas=document.createElement('canvas');canvas.width=img.width;canvas.height=1;
+      const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0);
+      const pixels=ctx.getImageData(0,0,img.width,1).data;
+      for(let x=0;x<img.width;x++)if(pixels[x*4]<200||pixels[x*4+1]>25||pixels[x*4+2]>45)return x;
+      return -1;
+    },shot.toString('base64'));
+    assert.equal(unpainted,-1,`${title} at ${width}px, first gap in the red divider`);
+    if(title==='Steel (spray)')await page.screenshot({path:path.join(output,`workbook-divider-${width}.png`)});
+  }
+  await page.setViewportSize(original);
+}
+
 async function checkToolbar(page, width, output) {
   const toolbar = page.locator('.calculator-workspace-toolbar');
   const controls = toolbar.locator('.schedule-column-toggle,#calculator-document-toggle,#calculator-reset,#calculator-recalculate');
@@ -72,4 +108,4 @@ async function checkToolbar(page, width, output) {
   return metrics;
 }
 
-module.exports = {checkAllowances,checkToolbar,checkWorkbookControls};
+module.exports = {checkAllowances,checkToolbar,checkWorkbookControls,checkWorkbookDivider};

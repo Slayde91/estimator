@@ -127,7 +127,16 @@ async function clear() {
     await outputTabs.getByRole('tab', { name: 'Firestopping Breakdown', exact: true }).click();
     await expect(page.locator('#main-panel-firestopping-breakdown')).toBeVisible();
     await expect(page.locator('#penetration-main-schedule-breakdown table')).toHaveCount(1);
-    for (const suffix of ['breakdown', 'summary', 'summary-notes']) {
+    const breakdown = calculations.findLast(entry => entry.payload.draft.rows.some(row => row.id === beforeDelete.firestopping.draft.rows[0].id))?.response.schedule_breakdown;
+    assert.ok(breakdown?.rows.length);
+    const costShown = value => !Number.isFinite(value) || Math.abs(value) >= 0.005;
+    const retained = breakdown.rows.filter(row => costShown(row.material_costs) || costShown(row.labour_costs));
+    assert.ok(retained.length < breakdown.rows.length, 'Fixture contains zero-cost schedule tasks');
+    const estimateTable = page.locator('#penetration-main-schedule-breakdown table');
+    await expect(estimateTable.locator('tbody th')).toHaveText(retained.map(row => row.label));
+    await expect(estimateTable.locator('tfoot th')).toHaveCount(costShown(breakdown.totals.material_costs) || costShown(breakdown.totals.labour_costs) ? 1 : 0);
+    await expect(page.locator('#penetration-schedule-breakdown tbody th')).toHaveText(breakdown.rows.map(row => row.label));
+    for (const suffix of ['summary', 'summary-notes']) {
       assert.equal(await page.locator(`#penetration-main-schedule-${suffix}`).textContent(), await page.locator(`#penetration-schedule-${suffix}`).textContent());
     }
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'Estimate output stays inside the viewport');

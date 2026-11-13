@@ -1305,9 +1305,9 @@
   }
   function renderBreakdown(scope = state) {
     if (scope === state.schedule) {
-      for (const id of ["penetration-schedule-breakdown", "penetration-main-schedule-breakdown"]) {
-        $(id).replaceChildren(window.CeasefirePenetrationBreakdown.renderSchedule(state.definition, scope.result));
-      }
+      const { renderSchedule } = window.CeasefirePenetrationBreakdown;
+      $("penetration-schedule-breakdown").replaceChildren(renderSchedule(state.definition, scope.result));
+      $("penetration-main-schedule-breakdown").replaceChildren(renderSchedule(state.definition, scope.result, { hideZeroCosts: true }));
     }
     else $("penetration-breakdown").replaceChildren(window.CeasefirePenetrationBreakdown.render(state.definition, state.result?.rows.find(row => row.id === state.selected)));
   }

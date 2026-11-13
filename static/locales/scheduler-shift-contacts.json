@@ -1,0 +1,16 @@
+{
+  "Choose an In progress Work Order for this shift.": [
+    "请为此班次选择进行中的工作单。",
+    "इस शिफ्ट के लिए प्रगति पर चल रहा कार्य आदेश चुनें।",
+    "Elige una orden de trabajo en curso para este turno.",
+    "اختر أمر عمل قيد التنفيذ لهذه الوردية.",
+    "เลือกใบสั่งงานที่กำลังดำเนินการสำหรับกะนี้"
+  ],
+  "Site contact details do not fit in Notes.": [
+    "备注中没有足够空间填写现场联系人的详细信息。",
+    "नोट्स में साइट संपर्क की जानकारी के लिए पर्याप्त जगह नहीं है।",
+    "No hay espacio suficiente en las notas para los datos del contacto de obra.",
+    "لا تتسع الملاحظات لبيانات جهة الاتصال في الموقع.",
+    "พื้นที่ในบันทึกไม่เพียงพอสำหรับข้อมูลผู้ติดต่อหน้างาน"
+  ]
+}

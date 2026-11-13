@@ -1,4 +1,6 @@
 {
+  "Choose an In progress Work Order for this shift.": "اس شفٹ کے لیے کوئی جاری ورک آرڈر منتخب کریں۔",
+  "Site contact details do not fit in Notes.": "نوٹس میں سائٹ کے رابطے کی تفصیلات کے لیے کافی جگہ نہیں ہے۔",
   "Checking location…": "مقام کی جانچ جاری ہے…",
   "Location checked. The next history point is due at {0}.": "مقام کی جانچ ہو گئی۔ اگلا مقام {0} پر درج کرنے کا وقت ہے۔",
   "Location recorded at {0}.": "مقام {0} پر درج ہو گیا۔",
@@ -2765,7 +2767,7 @@
   "technical reference": "تکنیکی حوالہ",
   "technical references": "تکنیکی حوالے",
   "the inputs and pricing captured when you clicked Estimate Summary": "تخمینے کا خلاصہ کلک کرتے وقت محفوظ اندراجات اور قیمتیں",
-  "{0}\nProject No.: {1}\nClient: {2}\nSite Address: {3}\n\nThis replaces the Quote, Firestopping items, {4}project library drafts, their pricing and all three specialist calculator drafts. Shared libraries stay unchanged.": "{0}\nمنصوبہ نمبر: {1}\nکلائنٹ: {2}\nسائٹ پتہ: {3}\n\nیہ کوٹیشن، فائر اسٹاپنگ آئٹمز، {4}منصوبے کی لائبریری کے مسودے، ان کی قیمتیں اور تینوں خصوصی کیلکولیٹرز کے مسودے بدل دیتا ہے۔ مشترکہ لائبریریاں نہیں بدلتیں۔",
+  "{0}\nProject No.: {1}\nClient: {2}\nSite Address: {3}": "{0}\nمنصوبہ نمبر: {1}\nکلائنٹ: {2}\nسائٹ پتہ: {3}",
   "{0} (required)": "{0} (ضروری)",
   "{0} (unavailable)": "{0} (دستیاب نہیں)",
   "{0} ({1} pages)": "{0} ({1} صفحات)",

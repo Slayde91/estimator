@@ -1,4 +1,6 @@
 {
+  "Choose an In progress Work Order for this shift.": "এই শিফটের জন্য চলমান একটি কাজের আদেশ বেছে নিন।",
+  "Site contact details do not fit in Notes.": "নোটে সাইটের যোগাযোগের ব্যক্তির তথ্য রাখার জন্য যথেষ্ট জায়গা নেই।",
   "Checking location…": "অবস্থান যাচাই করা হচ্ছে…",
   "Location checked. The next history point is due at {0}.": "অবস্থান যাচাই করা হয়েছে। পরবর্তী অবস্থান নথিভুক্ত করার সময় {0}।",
   "Location recorded at {0}.": "{0}-এ অবস্থান নথিভুক্ত হয়েছে।",
@@ -2765,7 +2767,7 @@
   "technical reference": "প্রযুক্তিগত রেফারেন্স",
   "technical references": "প্রযুক্তিগত রেফারেন্সসমূহ",
   "the inputs and pricing captured when you clicked Estimate Summary": "প্রাক্কলনের সারাংশে ক্লিক করার সময় নেওয়া ইনপুট ও মূল্য",
-  "{0}\nProject No.: {1}\nClient: {2}\nSite Address: {3}\n\nThis replaces the Quote, Firestopping items, {4}project library drafts, their pricing and all three specialist calculator drafts. Shared libraries stay unchanged.": "{0}\nপ্রকল্প নম্বর: {1}\nগ্রাহক: {2}\nসাইটের ঠিকানা: {3}\n\nএতে কোটেশন, ফায়ারস্টপিং আইটেম, {4}প্রকল্পের লাইব্রেরির খসড়া, তাদের মূল্য এবং তিনটি বিশেষায়িত ক্যালকুলেটরের খসড়া প্রতিস্থাপিত হবে। ভাগ করা লাইব্রেরি অপরিবর্তিত থাকবে।",
+  "{0}\nProject No.: {1}\nClient: {2}\nSite Address: {3}": "{0}\nপ্রকল্প নম্বর: {1}\nগ্রাহক: {2}\nসাইটের ঠিকানা: {3}",
   "{0} (required)": "{0} (আবশ্যক)",
   "{0} (unavailable)": "{0} (উপলব্ধ নয়)",
   "{0} ({1} pages)": "{0} ({1} পৃষ্ঠা)",

@@ -1119,10 +1119,10 @@
     "Nagbago ang draft mo habang sinusuri ang pagsasara. Isara muli kapag handa na upang mapanatiling ligtas ang pinakabagong pag-edit.",
     "Bản nháp thay đổi khi xem xét đóng. Đóng lại khi sẵn sàng để bảo vệ chỉnh sửa mới nhất."
   ],
-  "{0}\nProject No.: {1}\nClient: {2}\nSite Address: {3}\n\nThis replaces the Quote, Firestopping items, {4}project library drafts, their pricing and all three specialist calculator drafts. Shared libraries stay unchanged.": [
-    "{0}\n프로젝트 번호: {1}\n고객: {2}\n현장 주소: {3}\n\n견적, 방화 관통부 밀봉 항목, {4}프로젝트 라이브러리 초안, 해당 가격 및 세 가지 전문 계산기 초안을 모두 대체합니다. 공유 라이브러리는 바뀌지 않습니다.",
-    "{0}\nBlg. ng proyekto: {1}\nKliyente: {2}\nAdres ng lugar: {3}\n\nPinapalitan nito ang sipi, mga item ng pagseselyong panlaban sa sunog, {4}mga draft ng library ng proyekto, kanilang presyo at lahat ng tatlong draft ng espesyalistang kalkulador. Hindi mababago ang mga ibinabahaging library.",
-    "{0}\nMã dự án: {1}\nKhách hàng: {2}\nĐịa chỉ công trình: {3}\n\nThao tác này thay Báo giá, hạng mục bịt kín chống cháy, {4}bản nháp thư viện dự án, đơn giá của chúng và cả ba bản nháp bộ tính chuyên dụng. Thư viện dùng chung không đổi."
+  "{0}\nProject No.: {1}\nClient: {2}\nSite Address: {3}": [
+    "{0}\n프로젝트 번호: {1}\n고객: {2}\n현장 주소: {3}",
+    "{0}\nBlg. ng proyekto: {1}\nKliyente: {2}\nAdres ng lugar: {3}",
+    "{0}\nMã dự án: {1}\nKhách hàng: {2}\nĐịa chỉ công trình: {3}"
   ],
   "{0} The current estimate will be replaced. Save can then save them together.": [
     "{0} 현재 견적이 대체됩니다. 이후 저장하면 함께 저장할 수 있습니다.",

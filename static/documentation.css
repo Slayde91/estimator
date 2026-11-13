@@ -9,7 +9,8 @@
 .documentation-revisions-heading button{flex:none;width:40px;min-width:40px;height:40px;min-height:40px;padding:0;font-size:22px;line-height:1;display:inline-grid;place-items:center}
 .documentation-revisions-document{font-weight:700;overflow-wrap:anywhere}
 .documentation-revisions-pane .documentation-revision{display:grid;gap:4px;padding:12px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
-.documentation-view-revisions{font-size:13px;white-space:normal;text-align:start}
+.documentation-view-revisions{height:42px;padding-block:0;font-size:13px;white-space:normal;text-align:start}
+.documentation-table .document-cover-actions .trash-button{height:42px;min-height:42px;padding:0}
 #documentation-layout .documentation-view-revisions[aria-expanded=true]{border-color:#e2b600;box-shadow:0 0 0 1px #ffdd53,0 0 10px #ffdd5366}
 #documentation-layout .documentation-view-revisions[aria-expanded=true]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
 .documentation-revision-count{color:#846000}

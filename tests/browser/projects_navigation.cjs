@@ -196,7 +196,8 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
     await openProjectSection(page,'documentation');await idle();await headerDestination('documentation');await idle();
     const documentGeometry=await documentTabs.evaluate(nav=>({width:nav.getBoundingClientRect().width,left:nav.getBoundingClientRect().left,viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth,buttons:[...nav.children].map(button=>({height:button.getBoundingClientRect().height}))}));
     assert.ok(documentGeometry.left>=0&&documentGeometry.width<=width&&documentGeometry.scrollWidth<=width,JSON.stringify(documentGeometry));
-    assert.ok(documentGeometry.buttons.every(button=>button.height===40),JSON.stringify(documentGeometry));
+    assert.equal(await documentTabs.evaluate(nav=>nav.getBoundingClientRect().height),42);
+    assert.ok(documentGeometry.buttons.every(button=>button.height===42),JSON.stringify(documentGeometry));
     evidence.widths.push({owner:'document-tabs',width,...documentGeometry});
     if([390,1864].includes(width)){
       await page.screenshot({path:path.join(output,`documentation-tabs-${width}.png`)});

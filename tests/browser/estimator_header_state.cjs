@@ -95,7 +95,8 @@ async function checkEstimateHeadingAndTabs() {
         });
         assert.deepEqual(divider,{left:0,right:0,top:0,height:1,color:'rgb(237, 0, 27)'});
         await expect(strip).toHaveCSS('border-bottom-width','0px');
-        await expect(tabs.first()).toHaveCSS('box-shadow','none');
+        await expect(tabs.first()).toHaveCSS('border-bottom-color','rgb(255, 255, 255)');
+        await expect(tabs.first()).toHaveCSS('box-shadow',/rgb\(255, 255, 255\).*inset/);
         if(id==='main-output-tabs') assert.equal((await strip.boundingBox()).height,42);
         assert.ok(paint.corners.every(radius => parseFloat(radius) > 0));
         assert.equal(paint.inactiveFill, 'rgba(0, 0, 0, 0)');

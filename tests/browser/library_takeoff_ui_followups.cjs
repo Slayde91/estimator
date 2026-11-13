@@ -5,6 +5,7 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
 const {chooseCalculator}=require('./calculator_actions.cjs');
 const {chooseLibrary,chooseTakeoff}=require('./section_navigation.cjs');
 const {renderDrawing}=require('./viewer_helpers.cjs');
+const {checkLibraryControlSizes}=require('./library_control_sizes.cjs');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa','library-takeoff-ui-'+Date.now());
 fs.mkdirSync(output,{recursive:true});
 const python=process.env.CEASEFIRE_PYTHON||'python',drawing=path.join(output,'synthetic-drawing.pdf');
@@ -48,6 +49,8 @@ async function activePaint(label){
  const info=await ready;assert.notEqual(info.port,8765);
  browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1384,height:900}});page.setDefaultTimeout(60000);page.on('pageerror',error=>errors.push(error.message));
  await page.goto('http://127.0.0.1:'+info.port+'/');await idle();
+ evidence.libraryControls=await checkLibraryControlSizes(page,output);
+ await page.setViewportSize({width:1384,height:900});
  await chooseLibrary(page,'technical');await page.locator('[data-library-record="report-a-v1"]').click();
  const table=page.locator('[data-library-detail="technical"] .library-field-table').first();await expect(table).toBeVisible();
  const sourceText=await table.textContent();

@@ -206,7 +206,7 @@
     border-top: 2px solid #ed001b;
   }
   .main-output-tabs { padding-top: 0; }
-  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .main-section-tabs { padding-top: 0; gap: 0; background: #14181e; color: var(--ink); border-color: #a32c40; }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) .main-section-tabs { padding-top: 0; gap: 0; color: var(--ink); border-color: #a32c40; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) .main-section-tab { background: transparent; color: #c1c8d2; padding-block: 15px; }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.main-section-tab[aria-selected=true], .calculator-page[aria-pressed=true], .calculator-settings-choice[aria-expanded=true], .penetration-group[aria-pressed=true], .penetration-group[aria-selected=true], .takeoff-mode[aria-selected=true], .tab.active) {
     background: linear-gradient(120deg, #d9001b, #a90018);

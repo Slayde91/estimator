@@ -44,6 +44,58 @@ async function headerTitle(title) {
   assert.equal(await label.locator('*').count(), 0, 'Quote names must remain plain text');
 }
 function retainedScopes(value) { return { pricing: value.pricing, calculators: value.calculators, globals: value.penetration.composer.globals, schedule: value.penetration.draft }; }
+async function checkEstimateHeadingAndTabs() {
+  await chooseCalculator(page, 'Duct');
+  await expect(page.locator('#calculator-title')).toBeVisible();
+  const titleSize = await page.locator('#calculator-title').evaluate(el => getComputedStyle(el).fontSize);
+  await page.getByRole('button', { name: 'Estimates', exact: true }).click();
+  await settledEstimate();
+  const heading = page.getByRole('heading', { name: 'Estimate', level: 1, exact: true });
+  await expect(heading).toBeVisible();
+  await expect(page.locator('.estimate-banner-heading .eyebrow')).toHaveCount(0);
+  const paints = [];
+  for (const width of [1915, 913, 390]) {
+    await page.setViewportSize({ width, height: 930 });
+    for (const theme of ['ceasefire', 'midnight', 'ocean', 'forest', 'slate']) {
+      await page.evaluate(name => { document.documentElement.dataset.theme = name; }, theme);
+      await expect(heading).toHaveCSS('font-size', titleSize);
+      for (const [id, background] of [['main-section-tabs', 'rgb(13, 11, 14)'], ['main-output-tabs', 'rgb(9, 11, 14)']]) {
+        const strip = page.locator('#' + id), tabs = strip.getByRole('tab');
+        await tabs.first().focus();
+        await tabs.first().press('End');
+        await expect(tabs.last()).toBeFocused();
+        await expect(tabs.last()).toHaveAttribute('aria-selected', 'true');
+        await expect(tabs.last()).toHaveCSS('outline-color', 'rgb(255, 255, 255)');
+        await expect(tabs.last()).toBeInViewport();
+        await tabs.last().press('Home');
+        await expect(tabs.first()).toBeFocused();
+        const paint = await strip.evaluate(el => {
+          const s = getComputedStyle(el), tab = getComputedStyle(el.querySelector('[aria-selected=false]'));
+          return { background:s.backgroundColor, corners:[s.borderTopLeftRadius,s.borderTopRightRadius,s.borderBottomLeftRadius,s.borderBottomRightRadius],
+            inactiveFill:tab.backgroundColor, inactiveText:tab.color, scroll:s.overflowX };
+        });
+        assert.equal(paint.background, background);
+        assert.ok(paint.corners.every(radius => parseFloat(radius) > 0));
+        assert.equal(paint.inactiveFill, 'rgba(0, 0, 0, 0)');
+        assert.ok(paint.inactiveText.match(/\d+/g).slice(0,3).every(channel => Number(channel) >= 180), 'Light inactive text on the dark strip');
+        assert.equal(paint.scroll, 'auto');
+        paints.push({ width, theme, id, paint });
+      }
+      if (theme === 'ceasefire' && (width === 1915 || width === 390)) {
+        for (const id of ['main-section-tabs', 'main-output-tabs']) {
+          await page.locator('#' + id).screenshot({path:path.join(output, id + '-' + width + '.png')});
+        }
+        if (width === 1915) {
+          await page.evaluate(() => window.scrollTo(0, 0));
+          await page.screenshot({path:path.join(output, 'estimate-heading-and-inputs.png')});
+        }
+      }
+    }
+  }
+  checks.estimateHeadingAndTabPaint = { titleSize, paints };
+  await page.evaluate(() => { document.documentElement.dataset.theme = 'ceasefire'; });
+  await page.setViewportSize({width:1440,height:1100});
+}
 (async () => {
   info = await ready; assert.notEqual(info.port, 8765);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1440, height: 1100 }, deviceScaleFactor: 1 }); page.setDefaultTimeout(45000);
@@ -56,7 +108,7 @@ function retainedScopes(value) { return { pricing: value.pricing, calculators: v
     assert.equal(served.status(), 200); assert.equal(sha256(await served.body()), assetHashes[asset]);
   }
   await headerTitle(''); await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()); await idle();
-  await page.getByRole('button', { name: 'Estimates', exact: true }).click(); await settledEstimate();
+  await checkEstimateHeadingAndTabs();
   await mainTab('teams-crews');
   const masking = page.locator('#input-D7'), active = await masking.locator('option').evaluateAll(options => options.find(option => option.value && option.value.trim().toLowerCase() !== 'n/a').value);
   const inactive = await masking.locator('option').evaluateAll(options => options.find(option => option.value.trim().toLowerCase() === 'n/a').value);

@@ -51,16 +51,24 @@ async function run() {
     const host = page.locator('#commercial-' + hostId + '-root');
     const openRow = async () => {
       await openProjectSection(page, 'documentation');
-      const button = page.locator('button[data-document-kind="commercial.' + kind + '"]');
-      await button.waitFor({state:'attached'});
-      if (!await button.isVisible()) await page.locator('#documentation-pdf-rows').getByRole('button', {name:'Other documents', exact:true}).click();
+      const rows = page.locator('#documentation-pdf-rows');
+      const group = rows.getByRole('button', {name:'Other documents', exact:true});
+      const button = rows.locator('button[data-document-kind="commercial.' + kind + '"]');
+      await expect.poll(() => group.evaluate((toggle, kind) => {
+        if (toggle.getAttribute('aria-expanded') !== 'true') toggle.click();
+        let newSize, pdfSize;
+        for (let row = toggle.closest('tr').nextElementSibling; row && !row.classList.contains('documentation-group'); row = row.nextElementSibling) {
+          const create = row.querySelector(`button[data-document-kind="commercial.${kind}"]`);
+          const download = row.querySelector('.documentation-download-button');
+          if (create) newSize = create.getBoundingClientRect();
+          if (download && !pdfSize) pdfSize = download.getBoundingClientRect();
+        }
+        return [newSize?.width, newSize?.height, pdfSize?.width, pdfSize?.height];
+      }, kind)).toEqual([52, 44, 52, 44]);
       const title = {quote:'New Quote',work_order:'New Work Order',purchase_order:'New Purchase Order'}[kind];
       await expect(button).toHaveAccessibleName(title);
       await expect(button).toHaveAttribute('title',title);
       await expect(button).toContainText('New');
-      const pdfButton = page.locator('#documentation-pdf-rows .documentation-download-button:visible').first();
-      const [newSize, pdfSize] = await Promise.all([button.boundingBox(), pdfButton.boundingBox()]);
-      assert.deepEqual([newSize.width, newSize.height], [pdfSize.width, pdfSize.height]);
       await expect(page.locator('button[data-revisions-kind="commercial.' + kind + '"]')).toBeVisible();
       await expect(button).toBeEnabled();
       await button.evaluate(el => { el.click(); el.click(); });

@@ -25,6 +25,8 @@ async function oldDraft(){return page.evaluate(()=>({context:window.CeasefirePro
   await page.locator('#new-quote').click();await expect(modal).toBeVisible();await page.locator('#project-account-new').click();
   const account=page.getByRole('dialog',{name:'New Company',exact:true});await account.getByLabel('Company',{exact:true}).fill('Popup Account');await account.getByRole('button',{name:'Save',exact:true}).click();await expect(account).toBeHidden();
   await expect(page.locator('#project-pane-client')).toHaveValue('Popup Account');await page.locator('#project-pane-address').fill('12 Popup Road');
+  await modal.getByLabel('Next action',{exact:true}).fill('Arrange initial inspection');
+  await modal.getByLabel('Follow-up due',{exact:true}).fill('2028-02-29');
   assert.equal(await page.locator('#project-contact-new .button-symbol').innerHTML(),await page.locator('#project-account-new .button-symbol').innerHTML());
   await expect(page.locator('#project-contact-new .button-symbol')).toHaveText('+');
   await page.locator('#project-contact-new').click();const contact=page.getByRole('dialog',{name:'New Contact',exact:true});
@@ -53,6 +55,7 @@ async function oldDraft(){return page.evaluate(()=>({context:window.CeasefirePro
   await page.locator('#project-details-save').click();assert.equal((await response).status(),200);await expect(modal).toBeHidden();await idle();
   assert.equal(await page.evaluate(()=>window.CeasefireProject.hasCreatedProject()),true);await expect(page.locator('#view-quotes')).toBeVisible();
   const file=JSON.parse(fs.readFileSync(info.project));assert.equal(file.estimate.client,'Popup Account');assert.equal(file.estimate.contact_name,'Popup Contact');assert.equal(file.estimate.contact_phone,'12345678');assert.ok(file.estimate.contact_id);assert.match(file.estimate.project_no,/^PN-/);
+  assert.deepEqual(file.project_follow_up,{next_action:'Arrange initial inspection',follow_up_date:'2028-02-29'});
   await openProjectSection(page,'documentation');await expect(page.locator('#view-documentation')).toBeVisible();
   checks.push('Dirty review and picker Cancel retain modal/draft; confirmed Save assigns a real usable Project before Documentation');
   // A new modal starts focused in Client. Use a complete, distinct project to

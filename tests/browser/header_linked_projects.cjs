@@ -20,7 +20,10 @@ const errors=[],checks=[];
  const header=page.locator('#header-project-name'),review=page.locator('#discard-dialog');
  const headerDialog=page.getByRole('dialog',{name:'Project Details',exact:true});
  await header.focus();await page.keyboard.press('Enter');assert.deepEqual(errors,[]);
- await expect(headerDialog).toBeVisible();await expect(headerDialog.locator('dd')).toHaveCount(8);
+ await expect(headerDialog).toBeVisible();await expect(headerDialog.locator('dt')).toHaveText([
+   'Project No.','Main Client','Site Address','Billing address','ABN/ACN','Primary contact','Contact email','Contact phone','Next action','Follow-up due'
+ ]);
+ await expect(headerDialog.locator('dd')).toHaveCount(10);
  await expect(headerDialog.getByText('42 Linked Workspace Street',{exact:true})).toBeVisible();
  await expect(headerDialog.getByText('Header owner A',{exact:true})).toBeVisible();
  await expect(review).toBeHidden();await expect(page.locator('#view-home')).toBeVisible();

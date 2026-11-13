@@ -94,6 +94,23 @@ class ProjectEstimatesTests(unittest.TestCase):
         legacy = json.dumps(self.snapshot).encode()
         self.assertNotIn('estimates', load_project_bytes(self.store, legacy))
 
+    def test_switching_estimates_preserves_project_follow_up_on_older_client_save(self):
+        follow_up = {'next_action': 'Confirm access with the client', 'follow_up_date': '2026-11-18'}
+        self.path.write_bytes(export_project(self.store, {**self.request, 'project_follow_up': follow_up}))
+        self.store.set_project_folder(self.root)
+        file_id = self.library.listing()['files'][0]['id']
+        opened = self.library.load(file_id)
+
+        # An older client can switch named estimates without sending this project-level field.
+        request = {**copy.deepcopy(self.request), **self.second, 'active_estimate_id': self.other_id,
+                   'save_token': opened['file']['save_token']}
+        self.library.save(complete_save_metadata(request))
+
+        reopened = load_project_bytes(self.store, self.path.read_bytes())
+        self.assertEqual(reopened['project_follow_up'], follow_up)
+        self.assertEqual(reopened['active_estimate_id'], self.other_id)
+        self.assertEqual(reopened['estimate']['measurements'], 'Alternative scope')
+
     def test_active_mirror_does_not_repeat_expensive_quote_preparation(self):
         # Two distinct estimates should be prepared twice, not once again for
         # the active estimate duplicated at the project root.

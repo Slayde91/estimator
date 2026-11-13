@@ -1,7 +1,6 @@
 """Company-wide leads, people and accounts in the local application database."""
 
 from contextlib import closing, contextmanager
-from datetime import date
 import json
 from pathlib import Path
 import re
@@ -10,6 +9,7 @@ import unicodedata
 from uuid import uuid4
 
 from .catalog import ValidationError
+from .follow_up import FOLLOW_UP_LIMITS, validate_follow_up_date
 from . import crm_identity
 from . import crm_activity
 
@@ -33,7 +33,7 @@ PROJECT_DIRECTORY_FIELDS = {
 }
 LIMITS = {"name": 160, "phone": 60, "company": 240, "title": 160, "email": 254,
           "site_address": 1200, "billing_address": 1200, "description": 8000, "status": 100, "abn_acn": 80,
-          "next_action": 500, "follow_up_date": 10}
+          **FOLLOW_UP_LIMITS}
 
 
 def active_lead_status(status, fields, *, selected_contact=False):
@@ -62,12 +62,7 @@ def checked_fields(kind, values):
     if clean.get("email") and not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", clean["email"]):
         raise ValidationError("Enter a valid email address.")
     if kind == "leads":
-        if clean["follow_up_date"]:
-            try:
-                if date.fromisoformat(clean["follow_up_date"]).isoformat() != clean["follow_up_date"]:
-                    raise ValueError
-            except ValueError:
-                raise ValidationError("Enter a valid follow-up date.") from None
+        validate_follow_up_date(clean["follow_up_date"])
         clean["status"] = clean["status"] or LEAD_STATUSES[0]
         if clean["status"] not in ACTIVE_LEAD_STATUSES:
             raise ValidationError("Choose a status from the lead board.")

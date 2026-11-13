@@ -7,7 +7,10 @@
   const side = $("project-workspace-side"), links = $("project-workspace-links"), pricingNotice = $("project-pricing-notice");
   const translate = source => window.CeasefireI18n?.translate?.(source) || source;
   const text = (element,source) => window.CeasefireI18n ? window.CeasefireI18n.text(element,source) : (element.textContent=source);
-  const fields = {project_no:"project-pane-number", client:"project-pane-client", site_address:"project-pane-address", contact_name:"project-pane-contact-name", contact_phone:"project-pane-contact-phone", contact_email:"project-pane-contact-email", billing_address:"project-pane-billing-address", abn_acn:"project-pane-abn-acn"};
+  const fields = {project_no:"project-pane-number", client:"project-pane-client", site_address:"project-pane-address",
+    billing_address:"project-pane-billing-address", abn_acn:"project-pane-abn-acn", contact_name:"project-pane-contact-name",
+    contact_email:"project-pane-contact-email", contact_phone:"project-pane-contact-phone",
+    next_action:"project-pane-next-action", follow_up_date:"project-pane-follow-up-date"};
   const metadataControls = [...pane.querySelectorAll("input,textarea,button"),...$("project-details-actions").querySelectorAll("button")];
   const participantSlots = [$("project-company-participants"),$("project-contact-participants")];
   function revealField(control) {
@@ -145,6 +148,7 @@
     $("project-workspace-layout").hidden = true;
     $("project-register").hidden = false;
     $("project-list-card").hidden = false;
+    window.ClassifireDocumentBoard.refreshFollowUps();
     $("project-browser").hidden = true;
     if (dialog?.open) dialog.close();
     if (pane.parentNode !== home) home.insertBefore(pane, homeNext);

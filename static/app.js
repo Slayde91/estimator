@@ -274,6 +274,9 @@
   const fieldByCell = (cell) => state.fields.find((field) => field.cell === cell);
 
   const projectDetailControls = {project_no:"project-no", client:"client", site_address:"site-address", contact_name:"project-contact-name", contact_phone:"project-contact-phone", contact_email:"project-contact-email", account_id:"project-account-id", contact_id:"project-contact-id", billing_address:"project-billing-address", abn_acn:"project-abn-acn"};
+  function followUpFields({next_action = "", follow_up_date = ""} = {}) { return {next_action, follow_up_date}; }
+  let projectFollowUp = followUpFields();
+  let savedProjectFollowUp = projectFollowUp;
   function quoteDetails() {
     return Object.fromEntries(Object.entries(projectDetailControls).map(([key, id]) => [key, $(id).value.trim()]));
   }
@@ -1026,7 +1029,7 @@
     state.quoteContext++;
     state.quoteLoadRevision++;
     state.inputErrors.clear(); state.inputDrafts.clear(); state.workItemErrors.clear(); state.workItemDrafts.clear();
-    state.quote = null; state.quoteConfiguration = null; state.projectFile = null; state.projectStatus = "New"; resetEstimateCollection();
+    state.quote = null; state.quoteConfiguration = null; state.projectFile = null; state.projectStatus = "New"; savedProjectFollowUp = projectFollowUp = followUpFields(); resetEstimateCollection();
     resetProjectPricing();
     state.fields = clone(state.currentFields);
     // Start notes blank without changing workbook defaults or saved-quote inputs.
@@ -1125,7 +1128,7 @@
       state.quoteContext++;
       state.inputErrors.clear(); state.inputDrafts.clear(); state.workItemErrors.clear(); state.workItemDrafts.clear();
       state.quote = quote;
-      state.projectFile = null; state.projectStatus = "New"; resetEstimateCollection();
+      state.projectFile = null; state.projectStatus = "New"; savedProjectFollowUp = projectFollowUp = followUpFields(); resetEstimateCollection();
       window.CeasefireCalculators.applyProject(prepared);
       if (penetration) window.CeasefirePenetrations.applyProject(penetration);
       if (takeoffs) window.CeasefireTakeoffs.applyProject(takeoffs);
@@ -1463,6 +1466,7 @@
   }
   function projectPricingChanged() { return draftChanged(state.pricingScope === "project" ? state.draft : state.projectPricingDraft, state.quoteConfiguration || state.configuration); }
   function projectHasChanges() {
+    if (projectFollowUp.next_action !== savedProjectFollowUp.next_action || projectFollowUp.follow_up_date !== savedProjectFollowUp.follow_up_date) return true;
     if (editingEstimateName && $("project-estimate-current-name").value.trim() !== editingEstimateName.name) return true;
     return state.estimatesDirty || window.ClassifirePassiveRegister?.hasProjectChanges() || window.CeasefireSWMS?.hasProjectChanges?.() || window.CeasefireCommercial?.hasProjectChanges?.() || state.projectStatus !== (state.projectFile?.project_status || "New") || window.CeasefireDownloads?.hasUnsavedProjectSave?.() || state.dirty || projectPricingChanged() || window.CeasefireCalculators?.hasUnsavedChanges() || window.CeasefirePenetrations?.hasUnsavedChanges() || window.CeasefireTakeoffs?.hasUnsavedChanges() || window.CeasefireLibraryEditor?.hasProjectChanges?.() || window.CeasefireCertification?.hasProjectChanges?.() || window.CeasefireDocumentation?.hasProjectChanges?.();
   }
@@ -2348,7 +2352,7 @@
 
   function projectStampFields(includeCommercial = true) {
     return { passiveRegister: window.ClassifirePassiveRegister?.revision(), estimates: state.projectEstimates, active_estimate_id: state.activeEstimateId, commercial: includeCommercial ? window.CeasefireCommercial?.projectFingerprint?.() : undefined, swms: window.CeasefireSWMS?.projectFingerprint?.(), project_status: state.projectStatus, estimate: projectEstimate(false), quoteContext: state.quoteContext,
-      quoteLoadRevision: state.quoteLoadRevision, inputRevision: state.inputRevision,
+      project_follow_up: projectFollowUp, quoteLoadRevision: state.quoteLoadRevision, inputRevision: state.inputRevision,
       errors: [...state.inputErrors], inputDrafts: [...state.inputDrafts],
       pricing: state.pricingScope === "project" ? state.draft : state.projectPricingDraft,
       pricingPending: (state.pricingScope === "project" ? state.draft : state.projectPricingDraft) && [...pricingPendingFields(state.pricingScope === "project" ? state.draft : state.projectPricingDraft)],
@@ -2449,6 +2453,7 @@
       if (certificationStamp !== window.CeasefireCertification?.projectFingerprint?.()) throw new Error("Project certificates changed while preparing the file. Save again when ready.");
       if (documentationStamp !== window.CeasefireDocumentation?.projectFingerprint?.()) throw new Error("Project documents changed while preparing the file. Save again when ready.");
       const payload = { project_status: state.projectStatus, estimate: projectEstimate(), calculators, ...(penetration ? { penetration } : {}), ...(libraryDrafts ? { library_drafts: libraryDrafts } : {}), ...(certifications ? { certifications } : {}), ...(documentation ? {documentation} : {}), ...(takeoffs ? { takeoffs, takeoffs_session_id: window.CeasefireTakeoffs.sessionId() } : {}) };
+      payload.project_follow_up = {...projectFollowUp};
       if (pricing) payload.estimate.configuration = clone(pricing.configuration);
       const beforeCommercial = projectStamp();
       const commercial = await window.CeasefireCommercial?.completeProjectSnapshot?.();
@@ -2477,6 +2482,7 @@
       if (context === state.quoteContext) {
         const savedStage = saved.file.project_status ?? saved.project.project_status ?? payload.project_status;
         state.projectFile = {...saved.file, project_status:savedStage};
+        savedProjectFollowUp = followUpFields(saved.project.project_follow_up ?? payload.project_follow_up);
         if (state.projectStatus === payload.project_status) state.projectStatus = savedStage;
         if (!changed) {
           state.projectEstimates = collectionFromProject(saved.project, payload.estimates);
@@ -2496,7 +2502,7 @@
         }
         $("project-no").value = assigned.get(state.activeEstimateId) ?? saved.project.estimate.project_no ?? "";
         updateQuoteTitle();
-        window.CeasefireProjectPane?.projectSaved?.(saved.project.estimate);
+        window.CeasefireProjectPane?.projectSaved?.({...saved.project.estimate,...savedProjectFollowUp});
         window.CeasefireProjectDetails?.saved(context);
         if (commercial) window.CeasefireCommercial?.markProjectSaved?.(saved.project.commercial_documents, commercial);
         window.CeasefireCommercial?.projectNumberAssigned?.(quoteDetails());
@@ -2613,7 +2619,8 @@
         if (!operation.certification) operation.certification = await window.CeasefireCertification.prepareProject();
         const saveRequest = await window.CeasefireProjectDetails.prepareSave(operation.id);
         const configuration = clone(state.configuration);
-        operation.request = {project_status:"New", estimate:{...details, configuration, workflow:state.defaultWorkflow, measurements:"", work_items:[],
+        const {next_action, follow_up_date, ...identity} = details;
+        operation.request = {project_status:"New", project_follow_up:followUpFields({next_action,follow_up_date}), estimate:{...identity, configuration, workflow:state.defaultWorkflow, measurements:"", work_items:[],
           inputs:Object.fromEntries(state.currentFields.map(field=>[field.cell,field.cell === "B12" ? "" : field.default ?? ""]))}, calculators:{},
           certifications:{workspace_id:operation.certification.workspace_id,draft:null}};
         operation.request.project_save_request = saveRequest;
@@ -2706,6 +2713,7 @@
       state.activeEstimateId = project.active_estimate_id || "estimate-1";
       state.estimatesDirty = !!file.active_estimate_id && file.active_estimate_id !== state.activeEstimateId;
       state.projectStatus = project.project_status || "New";
+      savedProjectFollowUp = projectFollowUp = followUpFields(project.project_follow_up);
       state.projectFile = { ...file, title: estimate.title, project_status: state.projectStatus }; resetProjectPricing("project");
       state.legacyTitle = [estimate.project_no, estimate.client, estimate.site_address].some(Boolean) ? "" : estimate.title || "";
       applyQuoteDetails(estimate);
@@ -2746,6 +2754,7 @@
     for (const column of $("project-list").querySelectorAll(".project-kanban-column")) {
       column.hidden = hiddenProjectStages.has(column.dataset.status);
     }
+    window.ClassifireDocumentBoard.refreshFollowUps();
   }
 
   function renderProjectList() {
@@ -2762,6 +2771,7 @@
       cardFor: file => {
         const row = node("article", "project-kanban-card project-list-row");
         row.dataset.projectId = file.id;
+        window.ClassifireDocumentBoard.addFollowUpMarker(row, file.follow_up_date);
         const title = node("button", "project-title-button", file.title || file.name);
         title.type = "button";
         window.CeasefireI18n.attr(title, "aria-label", "Project details for {0}", [file.title || file.name]);
@@ -3326,13 +3336,15 @@
     throw new Error("The project was saved, but could not be opened automatically. Open it from Projects.");
   }
   window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus, scheduleChanged, hasCreatedProject, requireCreatedProject, createProject, discardNewProject, refreshPages: refreshProjectPages,
-    projectPaneSnapshot: () => ({details:quoteDetails(), context:state.quoteContext, file:state.projectFile ? clone(state.projectFile) : null, busy:state.projectBusy}),
+    projectPaneSnapshot: () => ({details:{...quoteDetails(),...projectFollowUp}, context:state.quoteContext, file:state.projectFile ? clone(state.projectFile) : null, busy:state.projectBusy}),
     applyProjectPaneDraft(details, context) {
       if (context !== state.quoteContext) throw new Error("The current project changed. Open its details again.");
-      applyQuoteDetails(details);
+      const {next_action, follow_up_date, ...identity} = details;
+      projectFollowUp = followUpFields({next_action,follow_up_date});
+      applyQuoteDetails(identity);
       for(const entry of state.projectEstimates)if(entry.workspace?.estimate) {
         const number=entry.workspace.estimate.project_no;
-        Object.assign(entry.workspace.estimate,details,{project_no:number});
+        Object.assign(entry.workspace.estimate,identity,{project_no:number});
         entry.workspace.estimate.title=[number,details.client,(details.site_address || '').replace(/\s+/g,' ')].filter(Boolean).join('- ') || entry.workspace.estimate.title;
       }
       updateQuoteTitle(); updateDirty();
@@ -3369,13 +3381,18 @@
       // Metadata saves must never mark an estimate, calculator or pricing draft saved.
       // Rebase only identity fields; every other workspace value stays untouched.
       state.projectFile = result.file;
+      const {next_action, follow_up_date, ...identity} = result.details;
+      savedProjectFollowUp = followUpFields({next_action,follow_up_date});
       for (const entry of state.projectEstimates) if (entry.workspace?.estimate) {
         const estimate = entry.workspace.estimate;
         const projectNo = estimate.project_no;
-        Object.assign(estimate, result.details, {project_no:projectNo});
+        Object.assign(estimate, identity, {project_no:projectNo});
         estimate.title = [estimate.project_no, estimate.client, (estimate.site_address || "").replace(/\s+/g," ")].filter(Boolean).join("- ") || estimate.title;
       }
-      if (JSON.stringify(quoteDetails()) === JSON.stringify(snapshot.details)) applyQuoteDetails({...result.details,project_no:snapshot.details.project_no});
+      if (JSON.stringify({...quoteDetails(),...projectFollowUp}) === JSON.stringify(snapshot.details)) {
+        applyQuoteDetails({...identity,project_no:snapshot.details.project_no});
+        projectFollowUp = savedProjectFollowUp;
+      }
       updateQuoteTitle(); updateProjectStatus();
       window.CeasefireCommercial?.projectDetailsChanged?.();
       return true;

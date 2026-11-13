@@ -50,5 +50,28 @@
       }
     }
   }
-  window.ClassifireDocumentBoard = {stages, render};
+  let followUpTimer;
+  function addFollowUpMarker(card, date) {
+    if (!date) return;
+    const marker = document.createElement('span');
+    marker.className = 'board-follow-up-due'; marker.textContent = '!'; marker.hidden = true;
+    marker.dataset.followUpDate = date;
+    marker.setAttribute('role', 'img'); marker.setAttribute('aria-label', 'Follow-up due'); marker.title = 'Follow-up due';
+    window.CeasefireI18n?.attr(marker, 'aria-label', 'Follow-up due');
+    window.CeasefireI18n?.attr(marker, 'title', 'Follow-up due');
+    card.append(marker);
+  }
+  function refreshFollowUps() {
+    clearTimeout(followUpTimer);
+    if (document.hidden) return;
+    const visible = [...document.querySelectorAll('.board-follow-up-due')].filter(marker => !marker.parentElement.closest('[hidden]'));
+    if (!visible.length) return;
+    const today = window.CeasefireScheduler.organizationToday();
+    for (const marker of visible) marker.hidden = marker.dataset.followUpDate > today;
+    followUpTimer = setTimeout(refreshFollowUps, 60000 - Date.now() % 60000);
+  }
+  document.addEventListener('visibilitychange', refreshFollowUps);
+  window.addEventListener('pageshow', refreshFollowUps);
+  window.addEventListener('ceasefire:organization-timezone-changed', refreshFollowUps);
+  window.ClassifireDocumentBoard = {stages, render, addFollowUpMarker, refreshFollowUps};
 })();

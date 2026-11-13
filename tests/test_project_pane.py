@@ -135,6 +135,31 @@ class ProjectPaneTests(unittest.TestCase):
         result = self.save(self.request(client=account["company"], account_id=account["id"]))
         self.assertEqual(result["file"]["account_id"], account["id"])
 
+    def test_project_reminder_retains_legacy_edits_and_checks_dates(self):
+        self.assertEqual(self.read()["details"]["follow_up_date"], "")
+        other = self.other.read_bytes()
+        reminder = {"next_action": "Call\nsite manager", "follow_up_date": "2028-02-29"}
+        result = self.save(self.request(**reminder))
+        self.assertEqual(result["file"]["follow_up_date"], reminder["follow_up_date"])
+        before = self.path.read_bytes()
+        for change in ({"follow_up_date": "2027-02-29"}, {"follow_up_date": "20271025"},
+                       {"follow_up_date": 1}, {"next_action": "A" * 501}):
+            with self.subTest(change=change), self.assertRaises(ValidationError):
+                self.save(self.request(**change))
+            self.assertEqual(self.path.read_bytes(), before)
+        legacy = self.request(contact_phone="234")
+        for key in reminder:
+            del legacy["details"][key]
+        self.save(legacy)
+        native = json.loads(self.path.read_bytes())
+        self.assertEqual(native["project_follow_up"], reminder)
+        for entry in native["estimates"]:
+            self.assertFalse(reminder.keys() & entry["workspace"]["estimate"].keys())
+        cleared = self.save(self.request(follow_up_date=""))
+        self.assertEqual(cleared["details"]["next_action"], reminder["next_action"])
+        self.assertEqual(cleared["file"]["follow_up_date"], "")
+        self.assertEqual(self.other.read_bytes(), other)
+
     def test_project_billing_overrides_round_trip_all_estimates_without_changing_company(self):
         self.accounts.save("accounts", {"version": 0, "fields": {"company": "Known Company", "billing_address": "Company HQ", "abn_acn": "Company ABN"}})
         directory = self.accounts.list()

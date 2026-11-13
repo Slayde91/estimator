@@ -36,6 +36,9 @@ async function checkSettingsLayout(page, output, theme, editor = 'calculator') {
   const widths = theme === 'ceasefire' ? [1600, 390] : [1600];
   const viewport = page.viewportSize();
   assert.ok(await tables.count() >= 4);
+  for (const section of await settings.locator('.penetration-settings-section').all()) {
+    if (!await section.evaluate(el => el.open)) await section.locator(':scope > summary').click();
+  }
   await expect(bands.locator('summary > strong')).toContainText(['Pipe Labour', 'Board Task Hours']);
   for (const band of await bands.all()) {
     if (!await band.evaluate(el => el.open)) await band.locator('summary').click();
@@ -115,7 +118,7 @@ async function checkSettingsLayout(page, output, theme, editor = 'calculator') {
     assert.deepEqual(await remove.evaluate(paint), await page.locator('#company-cover-delete').evaluate(paint));
     if (theme === 'ceasefire') {
       if (editor === 'calculator' && width === 1600) {
-        const routeSection = settings.locator('.penetration-settings-section').first();
+        const routeSection = settings.locator('.penetration-settings-section').filter({ has: settings.page().locator('.penetration-route-table') });
         for (const [section,name] of [[routeSection,'service-routes'],[bands.first(),'pipe-labour']]) {
           const clip = await section.evaluate(el => {
             el.scrollIntoView({ block: 'start', behavior: 'instant' });

@@ -4,10 +4,13 @@ const {expect} = require('@playwright/test');
 
 async function checkAllowances(page, fields, output, screenshotName) {
   const section = fields.locator('.penetration-settings-section').first();
-  const heading = section.getByRole('heading', {name:'Waste & Allowances', exact:true});
-  const routing = fields.getByRole('heading', {name:'SERVICE-TAB ROUTING', exact:true});
+  const heading = section.locator(':scope > summary');
+  const routing = fields.locator('summary.penetration-settings-subheading', {hasText:'SERVICE-TAB ROUTING'});
+  await expect(heading).toHaveAccessibleName('Waste & Allowances');
   await expect(heading).toBeVisible();
-  await expect(section.locator('h4 + .table-scroll table')).toBeVisible();
+  await expect(section).toHaveJSProperty('open',false);
+  await heading.focus();await heading.press('Enter');
+  await expect(section.locator('.table-scroll table')).toBeVisible();
   await expect(section.getByRole('rowheader', {name:'Labour allowances', exact:true})).toBeVisible();
   for (const property of ['background-color','color','padding','border-radius','font-size','font-weight','text-transform']) {
     await expect(heading).toHaveCSS(property, await routing.evaluate((el, key) => getComputedStyle(el).getPropertyValue(key), property));
@@ -15,8 +18,9 @@ async function checkAllowances(page, fields, output, screenshotName) {
   await heading.evaluate(el=>el.scrollIntoView({block:'center',behavior:'instant'}));
   await page.screenshot({path:path.join(output,screenshotName)});
   await page.evaluate(()=>window.CeasefireI18n.setLanguage('fr',false));
-  await expect(section.getByRole('heading')).toHaveText('Pertes et provisions');
+  await expect(heading).toHaveAccessibleName('Pertes et provisions');
   await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));
+  await heading.press('Space');await expect(section.locator('table')).toBeHidden();
 }
 
 async function checkWorkbookControls(page, factor) {
@@ -51,10 +55,17 @@ async function checkToolbar(page, width, output) {
   }));
   for(const metric of metrics){
     assert.equal(metric.height,42,JSON.stringify(metric));
-    assert.ok(metric.top>=4 && metric.bottom>=4,JSON.stringify(metric));
+    assert.ok(metric.top>=8 && metric.bottom>=8,JSON.stringify(metric));
     if(width>760)assert.ok(Math.abs(metric.bottom-metric.top)<=1,JSON.stringify(metric));
     assert.ok(Math.abs(metric.iconOffset)<=1,JSON.stringify(metric));
   }
+  const geometry = await toolbar.evaluate(el => {
+    const bar = el.getBoundingClientRect(), pages = el.querySelector('#calculator-pages').getBoundingClientRect();
+    return {top:pages.top-bar.top,bottom:pages.bottom-bar.top};
+  });
+  assert.equal(geometry.top,8,'Tabs have the same top inset on single and wrapped rows');
+  assert.equal(Math.min(...metrics.map(metric=>metric.bottom)),8,'Final action row has an 8 px bottom inset');
+  if(width<=760)assert.ok(Math.min(...metrics.map(metric=>metric.top))-geometry.bottom>=8,'Wrapped tabs and actions have a row gap');
   await toolbar.evaluate(el=>el.scrollIntoView({block:'center',behavior:'instant'}));
   await page.screenshot({path:path.join(output,`calculator-toolbar-${width}.png`)});
   return metrics;

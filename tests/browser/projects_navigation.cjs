@@ -190,7 +190,7 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
     await openProjectSection(page,'quotes');await headerDestination('quotes');
     const tabGeometry=await tabs.evaluate(nav=>({width:nav.getBoundingClientRect().width,left:nav.getBoundingClientRect().left,viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth,buttons:[...nav.children].map(button=>({height:button.getBoundingClientRect().height,padding:getComputedStyle(button).padding,font:getComputedStyle(button).font,background:getComputedStyle(button).backgroundColor}))}));
     assert.ok(tabGeometry.left>=0&&tabGeometry.width<=width&&tabGeometry.scrollWidth<=width,JSON.stringify(tabGeometry));
-    assert.ok(tabGeometry.buttons.every(button=>button.height===tabGeometry.buttons[0].height),JSON.stringify(tabGeometry));
+    assert.ok(tabGeometry.buttons.every(button=>button.height===42),JSON.stringify(tabGeometry));
     evidence.widths.push({owner:'project-tabs',width,...tabGeometry});
     await openProjectSection(page,'certification');await headerDestination('certification');
     await openProjectSection(page,'documentation');await idle();await headerDestination('documentation');await idle();

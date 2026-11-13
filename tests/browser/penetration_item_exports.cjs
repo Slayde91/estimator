@@ -38,6 +38,7 @@ async function fill(column, value) { const field = page.locator(`[data-penetrati
   const pipe = () => page.locator('details.penetration-band-settings').filter({ has: page.locator(':scope > summary', { hasText: 'Pipe Labour' }) });
   const settingsBefore = (await snapshot()).penetration.draft.globals;
   await page.locator('#penetration-settings').click(); await expect(pipe()).toHaveJSProperty('open', false);
+  await page.locator('.penetration-settings-subheading', {hasText:'PRECALCULATED TASK-HOUR BANDS'}).click();
   await pipe().locator(':scope > summary').click(); await expect(pipe()).toHaveJSProperty('open', true);
   await detailsTab(); await page.locator('#penetration-settings').click(); await expect(pipe()).toHaveJSProperty('open', true);
   await pipe().locator(':scope > summary').click(); await expect(pipe()).toHaveJSProperty('open', false);

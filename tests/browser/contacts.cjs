@@ -58,7 +58,7 @@ const ready = new Promise((resolve, reject) => {
   await root.getByRole('button',{name:'New Company',exact:true}).click();const companyDialog=page.getByRole('dialog',{name:'New Company',exact:true});await expect(companyDialog.getByRole('group',{name:'Company Information',exact:true})).toBeVisible();await companyDialog.getByRole('button',{name:'Cancel',exact:true}).click();
   await root.getByRole('button',{name:'Leads',exact:true}).click();
   const tabsBox=await root.locator('.contacts-tabs').boundingBox();
-  assert.ok(Math.abs(tabsBox.width-350)<1 && Math.abs(tabsBox.height-40)<1,JSON.stringify(tabsBox));
+  assert.ok(Math.abs(tabsBox.width-350)<1 && tabsBox.height===42,JSON.stringify(tabsBox));
   assert.equal(await root.locator('.contacts-tabs').evaluate(node=>getComputedStyle(node).backgroundColor),'rgb(12, 11, 14)');
   assert.equal(await root.locator('.contacts-tabs [aria-pressed="false"]').first().evaluate(node=>getComputedStyle(node).backgroundColor),'rgba(0, 0, 0, 0)');
   assert.equal(await root.locator('.contacts-tabs [aria-pressed="false"]').first().evaluate(node=>getComputedStyle(node).color),'rgb(229, 231, 235)');

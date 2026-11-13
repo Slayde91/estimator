@@ -19,7 +19,7 @@
     revision: 0, context: 0, requestRevision: 0, invalid: new Map(), removed: [], timer: null,
     loading: false, calculating: false, downloading: false, downloadKind: null, page: 0, pendingFields: false, scheduleView: "schedule",
     creatingLibrary: false, addingLibrary: false, addingSchedule: false, updatingSchedule: false, libraryCapture: null, edit: null, composerEpoch: 0,
-    tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false, openSettingsBand: null, multiplierDefaults: new Map(), pendingDeletes: new Set(),
+    tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false, expandedSettings: new Set(), multiplierDefaults: new Map(), pendingDeletes: new Set(),
     diagramChange: undefined, diagramRead: 0, diagramReading: null, diagramVersion: 0, takeoffLease: null, takeoffApplying: false,
     schedule: { draft: null, result: null, revision: 0, requestRevision: 0, invalid: new Map(), timer: null, calculating: false }, rowEpochs: new Map(), nextEpoch: 0 };
   const definitions = new Map(), diagramVersions = new Map(), pageSize = 50;
@@ -199,7 +199,7 @@
     const composer = clone(prepared.composer || prepared.definition.defaults);
     Object.assign(state, { definition: prepared.definition, draft: composer, saved: prepared.saved || stable(canonicalSnapshot({ draft: prepared.draft, composer }, prepared.definition)),
       selected: composer.rows[0].id, group: prepared.definition.groups[0], result: null, edit: null, diagramChange: undefined, diagramRead: state.diagramRead + 1, diagramReading: null, diagramVersion: 0,
-      revision: 0, invalid: new Map(), removed: [], page: 0, pendingFields: false, calculating: false, rowEpochs: new Map(), tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false, multiplierDefaults: new Map(), pendingDeletes: new Set(), scheduleView: "schedule" });
+      revision: 0, invalid: new Map(), removed: [], page: 0, pendingFields: false, calculating: false, expandedSettings: new Set(), rowEpochs: new Map(), tabAdvisoryAcknowledgement: null, additionalLabourAdvisory: false, multiplierDefaults: new Map(), pendingDeletes: new Set(), scheduleView: "schedule" });
     Object.assign(state.schedule, { draft: clone(prepared.draft), result: null, revision: 0, requestRevision: state.schedule.requestRevision + 1, invalid: new Map(), calculating: false });
     for (const row of state.schedule.draft.rows) state.rowEpochs.set(row.id, ++state.nextEpoch);
     render(); message(); message("", false, state.schedule);
@@ -618,7 +618,7 @@
     return section;
   }
   function renderServiceRoutes() {
-    const section = node("section", "penetration-settings-section"), heading = uiNode("h4", "penetration-settings-subheading", "SERVICE-TAB ROUTING");
+    const section = window.CeasefirePenetrationPresentation.settingsSection("SERVICE-TAB ROUTING", state.expandedSettings);
     const scroll = node("div", "table-scroll"), table = node("table", "penetration-settings-table penetration-route-table"), head = node("thead"), header = node("tr");
     for (const label of ["Service Tab", "Service Types"] ) { const cell = uiNode("th", "", label); cell.scope = "col"; header.append(cell); }
     head.append(header); table.append(head); const body = node("tbody"), routes = state.schedule.draft.globals.service_routes || {};
@@ -627,7 +627,8 @@
       const value = node("td"), editor = node("textarea"), problem = node("small", "penetration-field-error");
       editor.rows = 2; editor.maxLength = 10000; editor.value = (routes[route.key] || []).join("; ");
       editor.dataset.penetrationServiceRoute = route.key; uiAttr(editor, "aria-label", "{0} service types", [() => window.CeasefireI18n?.translate(route.label) || route.label]);
-      const name = `service_routes.${route.key}`;
+      const name = `service_routes.${route.key}`, pending = state.schedule.invalid.get(structuredSettingKey(name));
+      if (pending) editor.value = pending.value;
       editor.addEventListener("input", () => {
         if (state.takeoffLease) return;
         const services = editor.value.split(";").map(item => item.trim()).filter(Boolean), seen = new Set();
@@ -636,10 +637,11 @@
         structuredProblem(name, editor.value, error, editor, problem);
         if (!error) { const next = clone(state.schedule.draft.globals.service_routes); next[route.key] = unique; updateStructuredSetting("service_routes", next); }
       });
-      editor.addEventListener("blur", () => { if (!state.schedule.invalid.has(structuredSettingKey(name))) renderFields(); });
-      problem.hidden = true; value.append(editor, problem); row.append(label, value); body.append(row);
+      editor.addEventListener("blur", () => { if (!state.schedule.invalid.has(structuredSettingKey(name))) renderInputTabs(); });
+      editor.setAttribute("aria-invalid", String(!!pending)); uiText(problem, pending?.error || ""); problem.hidden = !pending;
+      value.append(editor, problem); row.append(label, value); body.append(row);
     }
-    table.append(body); scroll.append(table); section.append(heading, scroll); return section;
+    table.append(body); scroll.append(table); section.append(scroll); return section;
   }
   function bandNumber(text, minimum, label, exclusive = false) {
     const value = String(text).trim();
@@ -651,16 +653,10 @@
     return { value: number };
   }
   function renderLabourBands() {
-    const section = node("section", "penetration-settings-section"), heading = uiNode("h4", "penetration-settings-subheading", "PRECALCULATED TASK-HOUR BANDS");
-    section.append(heading);
+    const section = window.CeasefirePenetrationPresentation.settingsSection("PRECALCULATED TASK-HOUR BANDS", state.expandedSettings);
     for (const definition of state.definition.settings?.labour_bands || []) {
       const rows = state.schedule.draft.globals.labour_bands?.[definition.key] || [], details = node("details", "penetration-band-settings");
-      details.open = state.openSettingsBand === definition.key;
-      details.addEventListener("toggle", () => {
-        if (!details.isConnected) return;
-        if (details.open) state.openSettingsBand = definition.key;
-        else if (state.openSettingsBand === definition.key) state.openSettingsBand = null;
-      });
+      window.CeasefirePenetrationPresentation.rememberDisclosure(details, definition.key, state.expandedSettings);
       const summary = node("summary"); summary.append(uiNode("strong", "", definition.label), uiNode("span", "status-label", "{0} bands", [rows.length])); details.append(summary);
       const context = uiNode("p", "helper", "{0}. {1}", [uiTerm(definition.basis), uiTerm(definition.overflow === "manual" ? "Values above the final band require manual Pipe Labour hours." : "Values above the final band use its hours.")]); details.append(context);
       const scroll = node("div", "table-scroll"), table = node("table", "penetration-settings-table penetration-band-table"), head = node("thead"), header = node("tr");
@@ -670,7 +666,8 @@
         const row = node("tr");
         for (const property of ["maximum", "hours"]) {
           const cell = node("td"), control = node("input"), problem = node("small", "penetration-field-error"), name = `labour_bands.${definition.key}.${index}.${property}`;
-          control.type = "number"; control.step = "any"; control.inputMode = "decimal"; control.value = String(band[property]); control.dataset.penetrationBand = name;
+          const pending = state.schedule.invalid.get(structuredSettingKey(name));
+          control.type = "number"; control.step = "any"; control.inputMode = "decimal"; control.value = pending?.value ?? String(band[property]); control.dataset.penetrationBand = name;
           uiAttr(control, "aria-label", "{0} band {1} {2}", [uiTerm(definition.label), index + 1, property === "maximum" ? uiTerm("maximum {0}", [definition.units]) : uiTerm("hours")]);
           control.addEventListener("input", () => {
       if (state.takeoffLease) return;
@@ -685,7 +682,8 @@
             if (!error) { const bands = clone(state.schedule.draft.globals.labour_bands); bands[definition.key][index][property] = parsed.value; updateStructuredSetting("labour_bands", bands); }
           });
           control.addEventListener("blur", () => { if (!state.schedule.invalid.has(structuredSettingKey(name))) control.value = String(state.schedule.draft.globals.labour_bands[definition.key][index][property]); });
-          problem.hidden = true; cell.append(control, problem); row.append(cell);
+          control.setAttribute("aria-invalid", String(!!pending)); uiText(problem, pending?.error || ""); problem.hidden = !pending;
+          cell.append(control, problem); row.append(cell);
         }
         const action = node("td"), remove = node("button", "button secondary icon-only penetration-band-remove trash-button"); remove.type = "button"; remove.disabled = rows.length === 1;
         uiAttr(remove, "title", "Remove {0} band {1}", [uiTerm(definition.label), index + 1]);
@@ -693,7 +691,7 @@
         remove.innerHTML = window.CeasefirePenetrationPresentation.trashIcon;
         remove.addEventListener("click", () => {
           const bands = clone(state.schedule.draft.globals.labour_bands); if (bands[definition.key].length === 1) return;
-          bands[definition.key].splice(index, 1); clearStructuredProblems(`labour_bands.${definition.key}.`); state.openSettingsBand = definition.key; updateStructuredSetting("labour_bands", bands); renderFields();
+          bands[definition.key].splice(index, 1); clearStructuredProblems(`labour_bands.${definition.key}.`); state.expandedSettings.add(definition.key); updateStructuredSetting("labour_bands", bands); renderFields();
         });
         action.append(remove); row.append(action); body.append(row);
       });
@@ -709,7 +707,7 @@
         const bands = clone(state.schedule.draft.globals.labour_bands), current = bands[definition.key], last = current.at(-1), previous = current.at(-2);
         const increment = previous ? last.maximum - previous.maximum : Math.max(last.maximum * .1, 1);
         if (!(increment > 0) || last.maximum + increment > 1e12) return;
-        current.push({ maximum: last.maximum + increment, hours: last.hours }); clearStructuredProblems(`labour_bands.${definition.key}.`); state.openSettingsBand = definition.key; updateStructuredSetting("labour_bands", bands); renderFields();
+        current.push({ maximum: last.maximum + increment, hours: last.hours }); clearStructuredProblems(`labour_bands.${definition.key}.`); state.expandedSettings.add(definition.key); updateStructuredSetting("labour_bands", bands); renderFields();
       });
       details.append(add); section.append(details);
     }
@@ -729,14 +727,13 @@
       }
       table.append(body);
     }
-    const allowances = node("section", "penetration-settings-section");
+    const allowances = window.CeasefirePenetrationPresentation.settingsSection("Waste & Allowances", state.expandedSettings);
     scroll.append(table);
-    allowances.append(uiNode("h4", "penetration-settings-subheading", "Waste & Allowances"), scroll);
+    allowances.append(scroll);
     root.append(intro, allowances, renderServiceRoutes(), renderLabourBands()); return root;
   }
-  function renderFields() {
-    if (!state.draft) return;
-    const row = selected(), groups = visibleGroups(row.inputs);
+  function renderInputTabs() {
+    const groups = visibleGroups(selected().inputs);
     if (!groups.includes(state.group)) state.group = groups[0];
     const buttons = groups.filter(group => group !== "SETTINGS").map(group => {
       const button = uiNode("button", "penetration-group", state.definition.group_labels?.[group] || group); button.type = "button"; button.dataset.penetrationGroup = group;
@@ -746,6 +743,11 @@
     });
     $("penetration-input-groups").replaceChildren(...buttons);
     $("penetration-settings").setAttribute("aria-pressed", String(state.group === "SETTINGS"));
+  }
+  function renderFields() {
+    if (!state.draft) return;
+    const row = selected();
+    renderInputTabs();
     const shown = window.CeasefirePenetrationPresentation?.details(row.inputs) || row.inputs;
     const identity = [shown.J, shown.K].filter(value => value !== null && value !== undefined && String(value).trim()).join(" · ");
     uiText($("penetration-row-heading"), state.edit ? "Editing schedule item · {0}" : "Current item · {0}", [identity || (() => window.CeasefireI18n?.translate("Item details") || "Item details")]);
@@ -759,6 +761,7 @@
     else {
       const fields = node("div", "penetration-fields");
       if (state.group === "Penetration") fields.className += " penetration-detail-fields";
+      if (state.group === "Products and labour") fields.className += " penetration-product-fields";
       if (state.group === "Additional Allowances") fields.className += " penetration-additional-fields";
       for (const group of window.CeasefirePenetrationPresentation.fieldGroups(visible)) {
         const host = group.length > 1 ? node("div", "penetration-field-pair" + (group[0].column === "AB" ? " penetration-mastic-pair" : "")) : fields;

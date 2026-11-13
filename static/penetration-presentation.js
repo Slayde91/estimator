@@ -68,7 +68,27 @@
     control.addEventListener("input", grow);
     root?.requestAnimationFrame?.(grow);
   }
-  const api = Object.freeze({ labels, trashIcon, serviceLabel, optionLabel, openingType, details, choiceOptions, orientation, serviceSize, fieldGroups, growTextarea });
+  function rememberDisclosure(details, key, expanded) {
+    details.open = expanded.has(key);
+    details.addEventListener("toggle", () => {
+      if (!details.isConnected) return;
+      if (details.open) expanded.add(key);
+      else expanded.delete(key);
+    });
+    return details;
+  }
+  function settingsSection(heading, expanded) {
+    const details = document.createElement("details"), summary = document.createElement("summary");
+    details.className = "penetration-settings-section";
+    summary.className = "penetration-settings-subheading";
+    const title = document.createElement("h4");
+    if (root.CeasefireI18n) root.CeasefireI18n.text(title, heading);
+    else title.textContent = heading;
+    summary.append(title);
+    details.append(summary);
+    return rememberDisclosure(details, heading, expanded);
+  }
+  const api = Object.freeze({ labels, trashIcon, serviceLabel, optionLabel, openingType, details, choiceOptions, orientation, serviceSize, fieldGroups, growTextarea, rememberDisclosure, settingsSection });
   if (typeof module === "object" && module.exports) module.exports = api;
   if (root) root.CeasefirePenetrationPresentation = api;
 })(typeof window === "object" ? window : null);

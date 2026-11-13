@@ -34,6 +34,32 @@
   let selection = null, fileRevision = null, record = null, generation = 0, directory = {accounts:[],contacts:[]}, roleSelection = {};
   let saving = false, loading = false, scanTimer, retriedScan = false;
   let history = null;
+  const listObservers = new Map();
+
+  function sizeList(list, count, heading) {
+    stopSizing(list);
+    if (list.childElementCount <= count) {
+      list.style.removeProperty('max-height');
+      list.removeAttribute('tabindex');
+      return;
+    }
+    const rows = Array.from(list.children).slice(0, count);
+    list.tabIndex = 0;
+    list.setAttribute('aria-labelledby', heading.id);
+    const measure = () => {
+      const first = rows[0].getBoundingClientRect(), last = rows.at(-1).getBoundingClientRect();
+      if (first.height) list.style.maxHeight = `${last.bottom - first.top}px`;
+    };
+    const observer = new ResizeObserver(measure);
+    rows.forEach(row => observer.observe(row));
+    listObservers.set(list, observer);
+    measure();
+  }
+
+  function stopSizing(list) {
+    listObservers.get(list)?.disconnect();
+    listObservers.delete(list);
+  }
   const canEdit = () => !window.ClassifireAccess || window.ClassifireAccess.can("edit");
 
   async function api(path, data) {
@@ -130,31 +156,38 @@
     const companyIds = new Set([...record.participants, ...(record.linked_parties || [])]
       .filter(item => item.kind === "accounts").map(item => item.id));
     for (const [kind, host] of Object.entries(hosts)) {
+      stopSizing(host.querySelector('.project-party-cards'));
       host.replaceChildren();
       const entries = record.participants.filter(item => item.kind === kind);
       const group = el("fieldset"), note = status();
-      const primaryId = window.CeasefireProjectPane?.primaryParties()[kind];
-      const recorded = new Set(entries.map(item => item.id));
+      const aliases = directory.identity_aliases?.[kind] || {};
+      const canonicalId = id => aliases[id] || id;
+      const primaryId = canonicalId(window.CeasefireProjectPane?.primaryParties()[kind]);
+      const isPrimary = item => canonicalId(item.id) === primaryId;
+      const recorded = new Set(entries.map(item => canonicalId(item.id)));
       const linked = new Map();
       for (const item of record.linked_parties || []) {
-        if (item.kind !== kind || item.id === primaryId || recorded.has(item.id)) continue;
+        if (item.kind !== kind || isPrimary(item) || recorded.has(canonicalId(item.id))) continue;
         const previous = linked.get(item.id);
         if (previous) { previous.roles.add(item.role); previous.label ||= item.label; }
         else linked.set(item.id, {label: item.label, roles: new Set([item.role])});
       }
       const primary = partyItem(kind,primaryId);
+      const primaryRole = kind === "accounts" ? "Main Client" : "Primary contact";
       if (entries.length || linked.size || primary) {
         const list = el("ul");
         list.className = "project-party-cards";
         if (primary && !recorded.has(primaryId)) {
           const row = el("li");
           row.append(partyCard(kind, primaryId, kind === "accounts" ? primary.company : primary.name,
-            [kind === "accounts" ? "Main Client" : "Primary contact"], host));
+            [primaryRole], host));
           list.append(row);
         }
-        for (const item of entries) {
+        const ordered = [...entries.filter(isPrimary), ...entries.filter(item => !isPrimary(item))];
+        for (const item of ordered) {
           const row = el("li");
-          const card = partyCard(kind, item.id, item.label, [record.roles[item.role] || item.role], host);
+          const role = record.roles[item.role] || item.role;
+          const card = partyCard(kind, item.id, item.label, isPrimary(item) ? [primaryRole, role] : [role], host);
           if (canEdit()) {
             const remove = ui("button", "Remove");
             remove.type = "button"; remove.className = "text-button";
@@ -205,6 +238,12 @@
       }
       if (group.childElementCount) host.append(group, note);
       host.closest("details").hidden = !group.childElementCount;
+      const list = group.querySelector('.project-party-cards');
+      if (list) {
+        const heading = host.closest('details').querySelector('summary');
+        heading.id = host.id + '-heading';
+        sizeList(list, 1, heading);
+      }
     }
   }
 
@@ -282,6 +321,7 @@
 
   function close() {
     ++generation;
+    for (const list of listObservers.keys()) stopSizing(list);
     history?.element.remove(); history = null;
     clearTimeout(scanTimer);
     selection = fileRevision = record = null; directory = {accounts:[],contacts:[]}; roleSelection = {};
@@ -311,7 +351,11 @@
       history = window.ClassifireCrmActivity.historyPanel(() => {
         if (!selector) return {events:[]};
         return api("crm/project-activity?" + new URLSearchParams({project:selector, revision:file.revision}));
-      }, () => ticket === generation);
+      }, () => ticket === generation, list => {
+        const heading = list.closest('details').querySelector('summary');
+        heading.id = 'project-activity-heading';
+        sizeList(list, 5, heading);
+      });
       hosts.contacts.closest("details").after(history.element);
       if (!selector) return;
       selection = selector; fileRevision = file.revision;

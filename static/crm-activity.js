@@ -120,7 +120,7 @@
     box.addEventListener('toggle',()=>{if(box.open&&!seen)void load();});
     return {pending:()=>busy,dirty:()=>Boolean(note.value || due.value || occurred.value),fingerprint:()=>[type.value,note.value,due.value,owner.value,occurred.value]};
   }
-  function historyPanel(read, isCurrent) {
+  function historyPanel(read, isCurrent, onListChanged) {
     const panel = el('details'), heading = el('summary', term('Activity history'));
     panel.className = 'card commercial-side-panel record-activity-history';
     window.CeasefireI18n?.text(heading, 'Activity history');
@@ -144,12 +144,14 @@
         list.append(row);
       }
       shown = next; earlier.hidden = shown >= events.length;
+      onListChanged?.(list);
     }
     async function refresh() {
       const ticket = ++serial;
       if (!panel.open || !panel.isConnected || !isCurrent()) return;
       const current = () => ticket === serial && panel.open && panel.isConnected && isCurrent();
       list.replaceChildren(); earlier.hidden = true; message.textContent = term('Loading…');
+      onListChanged?.(list);
       try {
         const data = await read();
         if (!current()) return;

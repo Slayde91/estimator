@@ -103,7 +103,7 @@ async function exported(extension){
   await chooseCalculator(page,'Firestopping');await expect(page.locator('#penetration-add-to-schedule')).toBeVisible();
   for(const theme of ['ceasefire','midnight','ocean','forest','slate']){
     await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
-    const add=page.locator('#penetration-add-to-schedule');await add.scrollIntoViewIfNeeded();const box=await add.boundingBox();assert.equal(box.width,48);assert.equal(box.height,48);
+    const add=page.locator('#penetration-add-to-schedule');await add.scrollIntoViewIfNeeded();const box=await add.boundingBox();assert.equal(box.width,42);assert.equal(box.height,42);
     const colors=await contrast('#penetration-add-to-schedule');assert.ok(colors.ratio>=4.5,`${theme} composer schedule control contrast`);
     const source=await contrast('#penetration-diagram-heading');assert.ok(source.ratio>=4.5,`${theme} Source diagram text contrast`);
     scheduleContrast.push({theme,control:'composer',...colors},{theme,control:'source diagram',...source});

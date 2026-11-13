@@ -757,6 +757,7 @@
     if (settings) $("penetration-row-fields").replaceChildren(renderSettings(visible));
     else {
       const fields = node("div", "penetration-fields");
+      if (state.group === "Penetration") fields.className += " penetration-detail-fields";
       if (state.group === "Additional Allowances") fields.className += " penetration-additional-fields";
       for (const group of window.CeasefirePenetrationPresentation.fieldGroups(visible)) {
         const host = group.length > 1 ? node("div", "penetration-field-pair" + (group[0].column === "AB" ? " penetration-mastic-pair" : "")) : fields;

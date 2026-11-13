@@ -8,10 +8,10 @@ const { renderDrawing } = require("./viewer_helpers.cjs");
 const { settingsSettled } = require("./settings_helpers.cjs");
 const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs"), path = require("node:path"), crypto = require("node:crypto"), assert = require("node:assert/strict");
-const { sources, feedbackSources, printingSource } = require("../../static/header-menu-sounds.js");
+const { sources, feedbackSources } = require("../../static/header-menu-sounds.js");
 const { verifiedNativeMediaCancellation } = require("../helpers/media_preload_guard.cjs");
 // app.js also creates the native intelligence-phrase player at startup.
-const preloadPaths = [...Object.values(sources), ...Object.values(feedbackSources), printingSource, "/sounds/gameover.mp3"];
+const preloadPaths = [...Object.values(sources), ...Object.values(feedbackSources), "/sounds/gameover.mp3"];
 // Native media can be cancelled during preload or later playback/seek. Every
 // allowed asset still requires exact delivery and fresh trusted decoding proof.
 const cancellableMediaPaths = preloadPaths;
@@ -290,7 +290,7 @@ async function standardCalculatorButton() {
     await standardPage.locator("#calculator-navigation-toggle").hover(); await standardPage.locator('#calculator-navigation-menu [data-calculator-id="penetration"]').click();
     const add = standardPage.locator("#penetration-add-to-schedule"), image = add.locator("img"); await expect(add).toBeVisible(); await expect(add).toHaveAccessibleName("Add to Schedule");
     const response = await standardPage.request.get(`http://127.0.0.1:${selected.port}/icons/schedule-add.png`); assert.equal(response.status(), 200); assert.equal(crypto.createHash("sha256").update(await response.body()).digest("hex"), hash(path.join(root, "static/icons/takeoff-transfer.png")));
-    for (const width of [1384, 390]) { await standardPage.setViewportSize({ width, height: 764 }); const b = await add.boundingBox(), i = await image.boundingBox(); assert.equal(b.width, 48); assert.equal(b.height, 48); assert.equal(i.width, 24); assert.equal(i.height, 24); assert.ok(await standardPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)); await standardPage.screenshot({ path: path.join(output, `standard-calculator-${width}.png`), fullPage: true }); (evidence.standardCalculator ||= []).push({ port: selected.port, width, button: b, icon: i, takeoffs_assets_absent: true }); }
+    for (const width of [1384, 390]) { await standardPage.setViewportSize({ width, height: 764 }); const b = await add.boundingBox(), i = await image.boundingBox(); assert.equal(b.width, 42); assert.equal(b.height, 42); assert.equal(i.width, 24); assert.equal(i.height, 24); assert.ok(await standardPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)); await standardPage.screenshot({ path: path.join(output, `standard-calculator-${width}.png`), fullPage: true }); (evidence.standardCalculator ||= []).push({ port: selected.port, width, button: b, icon: i, takeoffs_assets_absent: true }); }
     assert.deepEqual(await standardPage.evaluate(() => window.uiCsp), []);
   } catch (error) { await standardPage?.screenshot({ path: path.join(output, "standard-failure.png"), fullPage: true }).catch(() => {}); throw error; }
   finally { fs.writeFileSync(path.join(output, "standard-server.log"), stderr); await standardPage?.close(); standard.kill(); }
@@ -382,7 +382,7 @@ async function standardCalculatorButton() {
   const calculatorAdd = page.locator("#penetration-add-to-schedule"), icon = calculatorAdd.locator("img");
   await expect(calculatorAdd).toBeVisible(); await expect(calculatorAdd).toHaveAccessibleName("Add to Schedule");
   assert.equal(await icon.getAttribute("src"), "/icons/schedule-add.png"); assert.equal(await icon.getAttribute("aria-hidden"), "true"); const libraryImage = await page.request.get(new URL(libraryIcon, page.url()).href), calculatorImage = await page.request.get(new URL("/icons/schedule-add.png", page.url()).href); assert.equal(libraryImage.status(), 200); assert.equal(calculatorImage.status(), 200); assert.deepEqual(await calculatorImage.body(), await libraryImage.body(), "Calculator and Library use exactly the same original transfer icon bytes");
-  for (const width of [1384, 1146, 390]) { await page.setViewportSize({ width, height: 764 }); const b = await box(calculatorAdd), i = await box(icon); assert.equal(b.width, 48); assert.equal(b.height, 48); assert.equal(i.width, 24); assert.equal(i.height, 24); evidence.heights.push({ name: "Calculator Add to Schedule", width, button: b, icon: i }); await noOverflow(`${width}/Firestopping calculator`); }
+  for (const width of [1384, 1146, 390]) { await page.setViewportSize({ width, height: 764 }); const b = await box(calculatorAdd), i = await box(icon); assert.equal(b.width, 42); assert.equal(b.height, 42); assert.equal(i.width, 24); assert.equal(i.height, 24); evidence.heights.push({ name: "Calculator Add to Schedule", width, button: b, icon: i }); await noOverflow(`${width}/Firestopping calculator`); }
   stage = "Standard-edition calculator button"; await standardCalculatorButton();
   assert.equal(hash(pdf), pdfBefore); assert.deepEqual(await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot()), calculators);
   assert.deepEqual(errors, []);

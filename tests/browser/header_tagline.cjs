@@ -281,7 +281,7 @@ async function presentationNavigation(initial) {
     assert.ok(accessibility.includes(phrase)); assert.ok(!accessibility.includes('_'));
     const expiry = await expireCursor(initial, phrase);
     await page.screenshot({ path: path.join(output, `tagline-${width}.png`), fullPage: false });
-    evidence[width] = { sampleCount: samples.length, typingBlink, media, initial, final: samples.at(-1), expiry, accessibility, dirty: false, beneathLogo: true };
+    evidence[width] = { sampleCount: samples.length, typingBlink, media, initial, final: samples.at(-1), expiry, accessibility, dirty: false, besideLogo: true };
     if (width === 1146) {
       evidence.navigation = await presentationNavigation(initial);
       const previous = await page.locator('#header-tagline-label').textContent();

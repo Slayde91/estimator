@@ -741,6 +741,7 @@
     const buttons = groups.filter(group => group !== "SETTINGS").map(group => {
       const button = uiNode("button", "penetration-group", state.definition.group_labels?.[group] || group); button.type = "button"; button.dataset.penetrationGroup = group;
       button.setAttribute("role", "tab"); button.setAttribute("aria-selected", String(group === state.group));
+      button.addEventListener("focus", () => button.scrollIntoView({ block: "nearest", inline: "nearest" }));
       button.addEventListener("click", () => selectGroup(group)); return button;
     });
     $("penetration-input-groups").replaceChildren(...buttons);

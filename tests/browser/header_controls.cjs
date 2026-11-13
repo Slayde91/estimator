@@ -224,7 +224,8 @@ async function inspectHeader(width) {
     await page.setViewportSize({width,height:1000});
     const clear=await box(headingActions.locator('#penetration-clear')),document=await box(penetrationDocument),library=await box(headingActions.locator('#penetration-add-to-library')),banner=await box(penetrationBanner),item=await box(currentItem),add=await box(page.locator('.penetration-input-tabs #penetration-add-to-schedule'));
     assert.ok(document.x+document.width<=clear.x&&clear.x+clear.width<=library.x&&Math.abs(clear.y-document.y)<1&&Math.abs(document.y-library.y)<1,'Document, Clear and Library stay ordered on the same first row at '+width);
-    assert.ok(Math.abs(clear.height-document.height)<1&&Math.abs(document.height-library.height)<1&&Math.abs(add.height-library.height)<1,'Firestopping action buttons retain equal heights at '+width);
+    assert.ok(Math.abs(clear.height-document.height)<1&&Math.abs(document.height-library.height)<1,'Firestopping banner actions retain equal heights at '+width);
+    assert.equal(add.height,42,'Add to Schedule matches its input tabs at '+width);
     assert.ok(document.x>=banner.x&&library.x+library.width<=banner.x+banner.width+1&&clear.y>=banner.y&&library.y+library.height<=banner.y+banner.height+1&&library.y+library.height<=item.y,'The first-row actions fit within the banner above current-item controls at '+width);
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Firestopping header fits the viewport at '+width);firestoppingWidths.push(width);
   }

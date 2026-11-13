@@ -14,6 +14,7 @@
   function setZone(value) {
     if (!value || (zone === value && clockFormatter)) return;
     const currentWeek = weekStart(today());
+    const changed = zone !== value;
     zone = value;
     dayFormatter = new Intl.DateTimeFormat("en-AU", {timeZone:zone,weekday:"short",day:"numeric",month:"short"});
     dateFormatter = new Intl.DateTimeFormat("en-AU", {timeZone:zone,day:"numeric",month:"short",hour:"numeric",minute:"2-digit"});
@@ -21,6 +22,7 @@
     clockFormatter = new Intl.DateTimeFormat("en-AU", {timeZone:zone,hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"});
     if (state.week === currentWeek) state.week = weekStart(today());
     renderHeaderTime();
+    if (changed) window.dispatchEvent(new Event("ceasefire:organization-timezone-changed"));
   }
   setZone(zone);
   function renderHeaderTime() {
@@ -1135,5 +1137,5 @@
   window.addEventListener("online",() => {if(state.locationEnabled) void captureLocation();});
   window.addEventListener("pagehide",stopLocation);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded",restoreClock,{once:true}); else void restoreClock();
-  window.CeasefireScheduler = {activate,leave,init(options = {}) {state.root = options.root || document.getElementById("scheduler-root");},hasPendingOperation() {return state.busy || !!state.dialog || state.settingsDirty || !!state.settingsRuleDialog;}};
+  window.CeasefireScheduler = {activate,leave,organizationToday:today,init(options = {}) {state.root = options.root || document.getElementById("scheduler-root");},hasPendingOperation() {return state.busy || !!state.dialog || state.settingsDirty || !!state.settingsRuleDialog;}};
 })();

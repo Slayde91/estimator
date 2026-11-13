@@ -1,4 +1,7 @@
 {
+  "No material or labour costs.": ["자재비나 인건비가 없습니다.", "Walang gastos sa materyales o paggawa.", "Không có chi phí vật liệu hoặc nhân công."],
+  "No labour days.": ["투입 작업일이 없습니다.", "Walang araw ng paggawa.", "Không có ngày công."],
+  "No material costs.": ["자재비가 없습니다.", "Walang gastos sa materyales.", "Không có chi phí vật liệu."],
   "Register allowance": [
     "대장 작업시간 할증",
     "Allowance ng rehistro",

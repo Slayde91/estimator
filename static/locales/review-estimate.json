@@ -1,4 +1,7 @@
 {
+  "No material or labour costs.": ["没有材料或人工费用。", "सामग्री या श्रम की कोई लागत नहीं है।", "No hay costes de materiales ni de mano de obra.", "لا توجد تكاليف للمواد أو العمالة.", "ไม่มีค่าวัสดุหรือค่าแรง"],
+  "No labour days.": ["没有人工工日。", "कोई श्रम दिवस नहीं है।", "No hay jornadas de trabajo.", "لا توجد أيام عمل.", "ไม่มีวันทำงาน"],
+  "No material costs.": ["没有材料费用。", "सामग्री की कोई लागत नहीं है।", "No hay costes de materiales.", "لا توجد تكاليف للمواد.", "ไม่มีค่าวัสดุ"],
   "Register allowance": ["登记工时预留", "रजिस्टर भत्ता", "Previsión para el registro", "مخصص السجل", "เวลาเผื่อสำหรับทะเบียน"],
   "Other": ["其他", "अन्य", "Otros", "أخرى", "อื่น ๆ"],
   "Bulkhead": ["封堵隔板", "बल्कहेड", "Mamparo", "حاجز", "แผงกั้น"],

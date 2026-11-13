@@ -1,4 +1,5 @@
 const {showEstimateNotes}=require('./estimate_notes.cjs');
+const {checkFollowUpBoard}=require('./lead_followup_board.cjs');
 // Exercise the Contacts directory with the full browser and a disposable server.
 const {chromium, expect} = require('@playwright/test');
 const {spawn, execFileSync} = require('node:child_process');
@@ -252,6 +253,7 @@ const ready = new Promise((resolve, reject) => {
   await directoryReview.getByRole('button',{name:'Overwrite',exact:true}).click();
   await expect.poll(directoryPhone,{timeout:30000}).toBe('0402 333 444');
   await freshPage.close();
+  await checkFollowUpBoard(browser,'http://127.0.0.1:'+port,tmp);
   assert.deepEqual(errors, []);
   console.log('Contacts browser acceptance passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; })

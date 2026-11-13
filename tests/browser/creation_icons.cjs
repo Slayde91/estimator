@@ -55,13 +55,13 @@ function libraryFiles(){const directory=path.dirname(path.dirname(info.diagram))
  await chooseLibrary(page,'technical');await plus(page.getByRole('button',{name:'Add Technical Library item',exact:true}),'Add Technical Library item');
  const originalDirectory=await read('/api/contacts/directory');
  for(const [kind,name] of [['leads','New Lead'],['contacts','New Contact'],['accounts','New Company']]){
-  await contacts(page,kind);const control=page.locator('#contacts-root .contacts-controls .add-icon-action');await plus(control,name);await control.click();
+  await contacts(page,kind);const control=page.locator('#contacts-root .contacts-controls .add-icon-action');await plus(control,name,{size:42});await control.click();
   const dialog=page.getByRole('dialog',{name,exact:true});await expect(dialog).toBeVisible();await dialog.getByRole('button',{name:'Cancel',exact:true}).click();await expect(dialog).toBeHidden();
  }
  assert.deepEqual(await read('/api/contacts/directory'),originalDirectory);
  await page.evaluate(()=>window.CeasefireI18n.setLanguage('es',false));
  const translated=page.locator('#contacts-root .contacts-controls .add-icon-action');await expect(translated.locator('.button-symbol')).toHaveText('+');assert.notEqual(await translated.getAttribute('aria-label'),'New Company');
- await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));await plus(translated,'New Company');
+ await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));await plus(translated,'New Company',{size:42});
  checks.push('All three directory creation controls are accessible red plus buttons; real cancelled dialogs create no records and language changes retain the glyph.');
  const sections=[['quote','New Quote','#commercial-quote-root','Back to Quotes'],['work-orders','New Work Order','#commercial-work-order-root','Back to Work Orders'],['purchase-orders','New Purchase Order','#commercial-purchase-order-root','Back to Purchase Orders']];
  let defaults=0;const countDefaults=request=>{if(request.method()==='POST'&&/\/api\/(?:commercial|swms)\/defaults$/.test(new URL(request.url()).pathname))defaults++;};page.on('request',countDefaults);
@@ -109,7 +109,7 @@ function libraryFiles(){const directory=path.dirname(path.dirname(info.diagram))
  await post('/api/access/login',{email:'admin@example.test',password:'Fixture-admin-password'});await post('/api/access/roles',{member_id:viewer.id,role:'viewer',version:0});const access=await read('/api/access/session');await post('/api/access/settings',{enabled:true,version:access.version});
  const masterLibraryBefore=libraryStorage(),sourceLibraryBefore=libraryFiles(),configurationBefore=(await read('/api/bootstrap')).configuration;
  const viewerContext=await browser.newContext({viewport:{width:1915,height:1000}}),view=await viewerContext.newPage();view.setDefaultTimeout(45000);view.on('pageerror',e=>errors.push(e.message));await view.goto(base);await view.getByLabel('Email',{exact:true}).fill('viewer@example.test');await view.getByLabel('Password',{exact:true}).fill('Fixture-viewer-password');await view.getByRole('button',{name:'Sign in',exact:true}).click();await idle(view);
- for(const [kind,name] of [['leads','New Lead'],['contacts','New Contact'],['accounts','New Company']]){await contacts(view,kind);await plus(view.locator('#contacts-root .contacts-controls .add-icon-action'),name,{disabled:true});}
+ for(const [kind,name] of [['leads','New Lead'],['contacts','New Contact'],['accounts','New Company']]){await contacts(view,kind);await plus(view.locator('#contacts-root .contacts-controls .add-icon-action'),name,{disabled:true,size:42});}
  for(const [section,name,selector] of sections){await openProjectSection(view,section);await plus(view.locator(selector).getByRole('button',{name,exact:true}),name,{disabled:true,size:42});}
  await openProjectSection(view,'swms');await plus(view.getByRole('button',{name:'New SWMS',exact:true}),'New SWMS',{disabled:true});
  const load=view.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/open');await clickProjectControl(view,'Load');assert.equal((await load).status(),200);

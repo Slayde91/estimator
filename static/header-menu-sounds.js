@@ -84,8 +84,14 @@
   function createFeedback(document, host = root, menu = silent) {
     if (!document?.addEventListener || typeof host?.Audio !== "function") return silent;
     const players = createPlayers(feedbackSources, host);
+    let acceptedQuotePlayer, closed = false, pointer = null;
+    function prepareQuote() {
+      if (!closed) acceptedQuotePlayer ||= createPlayers({accepted:"/sounds/money.mp3"}, host);
+    }
+    function quoteAccepted() {
+      if (!closed && !document.hidden) acceptedQuotePlayer?.play("accepted");
+    }
     const selector = 'button, a.button, [role="button"], input[type="button"], input[type="submit"], input[type="reset"], input[type="image"], summary';
-    let closed = false, pointer = null;
     const element = target => target?.nodeType === 3 ? target.parentElement : target;
     function position(event) {
       return Number.isFinite(event.clientX) && Number.isFinite(event.clientY)
@@ -143,7 +149,7 @@
       }
       route(target?.closest?.(selector), true);
     }
-    function stop() { clearPointer(); players.stop(); menu.stop?.(); }
+    function stop() { clearPointer(); players.stop(); acceptedQuotePlayer?.stop(); menu.stop?.(); }
     function visibility() { if (document.hidden) stop(); }
     // Delegation covers buttons created after load, including dialogs and
     // library results. Capture plays before their navigation/render handlers.
@@ -155,7 +161,7 @@
     host.addEventListener?.("blur", clearPointer);
     host.addEventListener?.("pagehide", stop);
     function close() {
-      closed = true; clearPointer(); players.close(); menu.stop?.();
+      closed = true; clearPointer(); players.close(); acceptedQuotePlayer?.close(); menu.stop?.();
       document.removeEventListener("pointerover", over, true);
       document.removeEventListener("pointermove", move, true);
       document.removeEventListener("pointerleave", leave, true);
@@ -164,7 +170,7 @@
       host.removeEventListener?.("blur", clearPointer);
       host.removeEventListener?.("pagehide", stop);
     }
-    return Object.freeze({ stop, close });
+    return Object.freeze({ stop, close, prepareQuote, quoteAccepted });
   }
 
   function createDownloadSound() {

@@ -1,4 +1,5 @@
 const {showEstimateNotes}=require('./estimate_notes.cjs');
+const {observeQuoteSound,exerciseQuoteSound}=require('./quote_acceptance_audio.cjs');
 const {checkTrashAlignment}=require('./trash_alignment.cjs');
 const {chromium, expect: defaultExpect} = require('@playwright/test');
 const expect = defaultExpect.configure({timeout:30000});
@@ -65,6 +66,7 @@ destination.write_bytes(export_project(store,{**first,'estimates':entries,'activ
 print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepare_quote(entry['workspace']['estimate'])['result']['summary']['total'] for entry in entries]}))`;
   browser=await chromium.launch({headless:true});
   page=await browser.newPage({viewport:{width:1575,height:1000}});
+  await observeQuoteSound(page);
   page.setDefaultTimeout(60000);
   page.on('pageerror',error=>errors.push(error.message));
   await page.goto(`http://127.0.0.1:${info.port}/`);
@@ -432,6 +434,8 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await save(quote);
   const owner = () => JSON.parse(fs.readFileSync(otherPath,'utf8')).commercial_documents.documents;
   const ownerQuote = () => owner().find(doc=>doc.kind==='quote');
+  await exerciseQuoteSound(page,quote,{initialStatus:ownerQuote().status,saveEndpoint:'/api/commercial/saved-save',statusEndpoint:'/api/commercial/saved-status',title:'Other project quote'});
+  checks.push('A saved peer Quote plays once on each confirmed acceptance, through its own editor, board menu and drag writes');
   assert.equal(ownerQuote().fields.lines.at(-1).unit_price,'140.50');
   assert.equal(ownerQuote().fields.title,'Other project quote','Editing the saved copy keeps its historic title');
   assert.deepEqual(fs.readFileSync(second.path),retainedQuotePDF,'Editing the copy preserves the original issued PDF exactly');

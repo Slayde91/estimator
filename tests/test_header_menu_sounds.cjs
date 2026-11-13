@@ -205,6 +205,22 @@ function element(parent, { control = false, zone = "", brand = false } = {}) {
   };
 }
 
+test("Quote acceptance preloads once and shares the audio preference and page lifecycle", () => {
+  const h = audioHarness(), settings = h.host.CeasefireAudioSettings = createAudioSettings(h.host);
+  const sounds = createFeedback(h.document, h.host, h.menu);
+  sounds.prepareQuote(); sounds.prepareQuote();
+  const [clip] = h.players.filter(player => player.src === '/sounds/money.mp3');
+  assert.equal(h.calls.filter(([action,src]) => action === 'load' && src === clip.src).length, 1);
+  assert.equal(h.plays().length, 0);
+  sounds.quoteAccepted(); assert.equal(clip.paused, false);
+  settings.setEnabled(false); assert.equal(clip.paused, true);
+  sounds.quoteAccepted(); settings.setEnabled(true); assert.equal(h.plays().length, 1);
+  sounds.quoteAccepted(); assert.equal(h.plays().length, 2);
+  h.document.hidden = true; h.document.emit('visibilitychange'); assert.equal(clip.paused, true);
+  sounds.quoteAccepted(); assert.equal(h.plays().length, 2);
+  sounds.close(); settings.close();
+});
+
 test("delegated feedback covers dynamic buttons, icons and button-like links once in the current event", () => {
   const h = audioHarness(), controller = createFeedback(h.document, h.host, h.menu);
   assert.equal(h.players.length, 5); assert.equal(h.plays().length, 0);

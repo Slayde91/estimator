@@ -9,12 +9,14 @@ let logs='',browser,page;server.stderr.on('data',value=>logs+=value);
 const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()=>reject(Error(logs||'Fixture timeout')),120000);
   server.stdout.on('data',value=>{text+=value;if(text.includes('\n')){clearTimeout(timer);resolve(JSON.parse(text.split('\n')[0]));}});
   server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(Error('Fixture exited '+code));});});
+const {observeQuoteSound,exerciseQuoteSound}=require('./quote_acceptance_audio.cjs');
 const errors=[],checks=[],writes=[];
 async function idle(){await page.waitForFunction(()=>{const value=window.CeasefireDesktop?.status();return value?.ready&&!value.busy;});}
 async function save(host){await host.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();await expect(host.locator('.commercial-message')).toContainText('Document saved.');await idle();}
 async function state(){const id=await page.evaluate(()=>window.CeasefireCertification.sessionId());return (await page.request.get(new URL('/api/commercial/state?workspace='+id,page.url()).href)).json();}
 (async()=>{
   const info=await ready;browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1600,height:1000}});page.setDefaultTimeout(60000);
+  await observeQuoteSound(page);
   page.on('pageerror',error=>errors.push(error.message));page.on('request',request=>{if(request.method()==='POST')writes.push({path:new URL(request.url()).pathname,body:request.postDataJSON()});});
   await page.goto(`http://127.0.0.1:${info.port}/`);await idle();
   for(const [section,name] of [['quote','Quote'],['work-orders','Work Order'],['purchase-orders','Purchase Order']]){
@@ -99,6 +101,8 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   await expect(page.locator('#project-save-state')).toHaveText('Saved project');
   assert.equal(writes.filter(write=>write.path==='/api/project/save').length,beforeStageSave+1);
   checks.push('Saving a Quote stage in the active editor updates the owning project file and its current board metadata');
+  await exerciseQuoteSound(page,quote,{initialStatus:'Review',saveEndpoint:'/api/commercial/save',statusEndpoint:'/api/commercial/status'});
+  checks.push('Confirmed Quote acceptance plays the supplied MP3 once per transition across editor, menu and drag; mute, rejected saves, opening and ordinary saves stay silent');
   const issue=page.waitForResponse(response=>response.url().endsWith('/api/commercial/issue'));
   await quote.getByRole('button',{name:'Download PDF',exact:true}).click();assert.equal((await issue).status(),200);await expect(quote.locator('.commercial-message')).toContainText('PDF saved');await idle();
   const sourceQuote=(await state()).documents.find(doc=>doc.kind==='quote');

@@ -9,9 +9,12 @@
 .penetration-group{flex:0 0 auto;padding:16px 18px 13px;border:0;border-bottom:4px solid transparent;border-radius:10px 10px 0 0;background:transparent;color:#66565f;font-size:12px;font-weight:750;text-transform:uppercase;white-space:nowrap}
 .penetration-group:hover{background:#fff8f3;color:var(--accent-dark)}
 .penetration-group[aria-pressed=true],.penetration-group[aria-selected=true]{background:#fff5ee;color:var(--accent-dark);border-bottom-color:#ef3028}
+.penetration-schedule-view-tabs,#penetration-input-groups{height:var(--calculator-control-height);border-block:0;box-shadow:inset 0 1px var(--line),inset 0 -1px var(--line)}
+#penetration-input-groups{scrollbar-width:none;overflow-y:hidden}
+.penetration-schedule-view-tabs .penetration-group,#penetration-input-groups .penetration-group{height:var(--calculator-control-height);padding-block:0}
+.penetration-schedule-view-tabs .penetration-group:focus-visible,#penetration-input-groups .penetration-group:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
 .penetration-schedule-view-tabs{margin-block:0 18px}
-.penetration-schedule-view-tabs .penetration-group{flex:0 1 auto;min-width:0;min-height:44px;white-space:normal;cursor:pointer}
-.penetration-schedule-view-tabs .penetration-group:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
+.penetration-schedule-view-tabs .penetration-group{flex:0 1 auto;min-width:0;white-space:normal;cursor:pointer}
 .penetration-schedule-view-panel[hidden]{display:none!important}
 .penetration-schedule-view-panel>.firestopping-breakdown{margin:0;padding:0;border:0;box-shadow:none;background:transparent}
 .penetration-settings-toggle[aria-pressed=true]{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -19,6 +22,7 @@
 .button.penetration-header-action.icon-only{display:grid;place-items:center;width:48px;height:48px;padding:0}
 .button.penetration-header-action:hover:not(:disabled){background:#fff7f5;border-color:#ddabad;color:var(--accent)}
 #penetration-settings[aria-pressed=true]{background:#fff;border-color:#dcd3d7;color:#51414a;box-shadow:inset 0 0 0 2px #51414a}
+#penetration-settings{flex-basis:var(--calculator-control-height);width:var(--calculator-control-height);height:var(--calculator-control-height)}
 .penetration-field-error{color:var(--error);font-size:11px;overflow-wrap:anywhere}
 .penetration-field-error[hidden]{display:none}
 .penetration-required-fields{margin:0 0 16px;color:var(--accent-dark)}
@@ -98,6 +102,8 @@
 .penetration-header-quantity{width:112px;gap:4px;text-align:left}
 .penetration-header-quantity>span{font-size:11px;line-height:1.2}
 .penetration-header-quantity input{min-width:0;height:48px;min-height:48px;text-align:right;font-variant-numeric:tabular-nums}
+#penetration-item-quantity input,#penetration-row-fields .penetration-detail-fields :is(input,select,textarea){height:var(--calculator-control-height);min-height:var(--calculator-control-height)}
+.penetration-detail-fields>.field:has([data-penetration-field="T"]){grid-column-start:1}
 .penetration-item-heading>.actions>.button,.penetration-tab-actions>.button{height:48px;min-height:48px;flex-shrink:0;margin:0}
 .penetration-clear-action{width:48px;min-width:48px;padding:0;display:inline-grid;place-items:center}
 .penetration-clear-action svg,.penetration-add-action svg{display:block;width:28px;height:28px}
@@ -111,6 +117,8 @@
 .penetration-estimator-schedule{margin-top:22px}
 .penetration-item-heading .schedule-download-button{flex:0 0 auto}
 .penetration-row-tools :is(#penetration-undo,#penetration-estimator-undo){width:48px;min-width:48px;height:48px;padding:0}
+#penetration-schedule-panel-schedule .penetration-row-tools .button{height:var(--calculator-control-height);min-height:var(--calculator-control-height);padding-block:0}
+#penetration-schedule-panel-schedule .penetration-row-tools .icon-only{width:var(--calculator-control-height);min-width:var(--calculator-control-height);padding:0}
 .firestopping-breakdown-part>summary{cursor:pointer;list-style-position:outside}
 .firestopping-breakdown-part>summary h3{display:inline}
 .firestopping-breakdown-part{margin-top:18px;padding:14px 18px 16px;border:1px solid var(--line);border-top:3px solid var(--red);border-radius:10px;background:#fff}
@@ -160,13 +168,14 @@
 .penetration-band-remove{display:inline-grid;place-items:center;width:44px;height:44px;padding:0}
 .penetration-new-item-action.icon-only{width:48px;min-width:48px;height:48px;padding:0}
 .penetration-diagram{margin-top:22px;padding:16px 18px 18px;border:1px solid var(--line);border-top:3px solid var(--red);border-radius:10px;background:#fffdfd}
+#penetration-diagram{padding:0;border:0;border-radius:0;background:transparent}
 .penetration-diagram h4{margin:0 0 12px}
 .penetration-diagram figure{margin:0 0 14px}
 .penetration-diagram img{display:block;width:66.666667%;max-width:413.333333px;max-height:253.333333px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff}
 .penetration-diagram figcaption{margin-top:8px}
 .penetration-diagram .actions{margin-top:10px}
 @media(max-width:580px){.penetration-settings{gap:18px}.penetration-band-settings{--band-inset:12px}}
-#penetration-add-to-schedule{width:48px;min-width:48px;height:48px;min-height:48px;padding:8px;border:1px solid #c60020;border-radius:9px;background:#c60020;color:white;box-sizing:border-box}
+#penetration-add-to-schedule{width:var(--calculator-control-height);min-width:var(--calculator-control-height);height:var(--calculator-control-height);min-height:var(--calculator-control-height);padding:0;border:1px solid #c60020;border-radius:9px;background:#c60020;color:white;box-sizing:border-box}
 #penetration-add-to-schedule:hover:not(:disabled){background:#990018}
 #penetration-add-to-schedule .takeoff-transfer-icon{filter:brightness(0) invert(1)}
 

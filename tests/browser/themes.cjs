@@ -10,7 +10,7 @@ const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtim
 fs.mkdirSync(output, { recursive:true });
 const measureAsset='static/icons/takeoff-measure.png',measureSha256='fc053970adcdb00965ae9aba71063f1b659a2391f57a39f8301ed0573f1d8130';
 // Sentence typing is silent; the CLASSIFIRE brand phrase retains its own clip.
-const soundPaths=new Set(['/sounds/gameover.mp3','/sounds/flame-whoosh.wav','/sounds/mgs1-menu-move.mp3','/sounds/mgs-confirm2.mp3','/sounds/hover.mp3','/sounds/select.mp3','/sounds/select-2.mp3','/sounds/checkpoint.ogg']);
+const soundPaths=new Set(['/sounds/gameover.mp3','/sounds/flame-whoosh.wav','/sounds/mgs1-menu-move.mp3','/sounds/mgs-confirm2.mp3','/sounds/select.mp3','/sounds/select-2.mp3','/sounds/checkpoint.ogg']);
 const assets = ['tests/browser/themes.cjs','static/theme.js','static/theme.css','static/index.html','static/app.js','static/calculators.js','static/takeoffs.js','static/takeoff-physical.js','static/takeoffs.css','static/header-menu-sounds.js','static/icons/document.png','static/icons/takeoff-transfer.png','static/icons/takeoff-visibility.png','static/icons/takeoff-callout.png','static/icons/takeoff-legend.png','static/icons/takeoff-colour-wheel.png','static/ceasefire-logo.png',measureAsset,...[...soundPaths].map(source=>'static'+source)];
 const hashes = () => Object.fromEntries(assets.map(name => [name,crypto.createHash('sha256').update(fs.readFileSync(path.join(root,name))).digest('hex')]));
 const assetHashes = hashes();

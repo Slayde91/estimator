@@ -69,7 +69,12 @@ async function fill(column, value) { const field = page.locator(`[data-penetrati
   const scheduleNodes=await page.locator('#penetration-estimator-schedule-body').elementHandle(),breakdownNode=await page.locator('#penetration-schedule-breakdown').elementHandle();
   const renderedBefore=await page.locator('#penetration-schedule-breakdown-card').textContent(),requestsBeforeTabs=calculationRequests.length;
   for(const width of [1146,390]){
-    await page.setViewportSize({width,height:900});await breakdownTab.click();await expect(breakdownPanel).toBeVisible();await expect(schedulePanel).toBeHidden();
+    await page.setViewportSize({width,height:900});await scheduleTab.click();
+    for(const button of [schedulePanel.getByRole('button',{name:'Recalculate Schedule'}),schedulePanel.getByRole('button',{name:'Columns'}),page.locator('#penetration-estimator-add'),page.locator('#penetration-estimator-undo')]){
+      assert.equal((await button.boundingBox()).height,42,'The schedule buttons share a 42px height at '+width);
+    }
+    await breakdownTab.click();await expect(breakdownPanel).toBeVisible();await expect(schedulePanel).toBeHidden();
+    for(const control of [page.locator('#penetration-schedule-view-tabs'),scheduleTab,breakdownTab])assert.equal((await control.boundingBox()).height,42);
     await expect(breakdownTab).toHaveAttribute('aria-selected','true');await expect(scheduleTab).toHaveAttribute('tabindex','-1');
     assert.equal(await page.locator('#penetration-schedule-view-tabs').evaluate(tabs=>tabs.scrollWidth<=tabs.clientWidth),true,'Both Schedule tabs fit without horizontal clipping');
     await expect(breakdownPanel.getByRole('table')).toHaveCount(1);await expect(breakdownPanel.getByRole('table')).toContainText('Subtotal');

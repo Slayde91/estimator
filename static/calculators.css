@@ -8,12 +8,15 @@
 /* Worksheet pages and their actions share one row; narrow screens wrap the
    actions below the page scroller without clipping either dropdown popup. */
 .calculator-workspace-toolbar{display:flex;align-items:flex-end;flex-wrap:nowrap;gap:0 16px;padding-inline:25px;background:var(--theme-surface,#1b2028);color:var(--ink)}
-.calculator-workspace-toolbar>#calculator-pages{flex:1 1 0;min-width:0;padding:0;align-self:flex-end;align-items:stretch;background:transparent}
+.calculator-workspace-toolbar>#calculator-pages{flex:1 1 0;min-width:0;padding:0;align-self:center;align-items:center;flex-wrap:nowrap;background:transparent}
+#calculator-pages>.calculator-page{flex:0 0 auto;display:flex;align-items:center;white-space:nowrap;font-size:11px;line-height:1.4}
+#calculator-pages>.calculator-page,.calculator-workspace[data-factor-view="true"] .calculator-settings-choice{height:var(--calculator-control-height);padding-block:0}
+#calculator-pages>.calculator-page:focus-visible,.calculator-workspace[data-factor-view="true"] .calculator-settings-choice:focus-visible{outline-offset:-4px}
 .calculator-toolbar-actions{display:flex;flex:0 0 auto;align-items:center;justify-content:flex-end;flex-wrap:nowrap;gap:9px;min-width:0;max-width:100%;margin-inline-start:auto;padding-block:4px}
 .calculator-toolbar-actions>.calculator-header-actions{position:relative;gap:9px;flex-wrap:nowrap;max-width:100%}
 .calculator-toolbar-actions .calculator-tools{background:transparent}
 .calculator-toolbar-actions .calculator-primary-actions{gap:9px}
-.calculator-toolbar-actions :is(.schedule-column-toggle,.calculator-document-toggle,.calculator-primary-actions>.button){height:36px;min-height:36px;padding-block:0}
+.calculator-toolbar-actions :is(.schedule-column-toggle,.calculator-document-toggle,.calculator-primary-actions>.button){height:var(--calculator-control-height);min-height:var(--calculator-control-height);padding-block:0}
 .calculator-toolbar-actions>.schedule-column-chooser{flex:0 0 auto}
 .calculator-toolbar-actions .calculator-document-menu{position:static}
 .calculator-toolbar-actions .calculator-document-actions{inset-inline-start:auto;inset-inline-end:0;max-width:100%}

@@ -270,8 +270,8 @@ async function presentationNavigation(initial) {
     await finishBootFrames();
     const initial = await layout(); assert.equal(initial.accessible, phrase); assert.equal(initial.italic, 'italic');
     assert.ok(phrase.startsWith(initial.typed)); assert.notEqual(initial.typed, phrase, 'Actual typing must still be in progress');
-    assert.ok(initial.tagline.y >= initial.logo.bottom - (width > 720 ? 20 : 0) && initial.tagline.x >= initial.brand.x && initial.tagline.x + initial.tagline.width <= initial.brand.x + initial.brand.width + .1, 'Tagline remains directly beneath the CLASSIFIRE logo in its left group'); assert.ok(initial.overflow <= 1);
-    assert.equal(initial.alignment, 'start'); assert.ok(initial.tagline.bottom <= initial.header.bottom && initial.tagline.y >= initial.header.y, 'Tagline remains within the header beneath the logo');
+    assert.ok(initial.tagline.x >= initial.logo.x + initial.logo.width && initial.tagline.x + initial.tagline.width <= initial.brand.x + initial.brand.width + .1, 'The entire tagline stays to the right of the CLASSIFIRE logo'); assert.ok(initial.overflow <= 1);
+    assert.equal(initial.alignment, 'start'); assert.ok(initial.tagline.bottom <= initial.header.bottom && initial.tagline.y >= initial.header.y, 'The tagline fits within the header');
     const typingBlink = await blinking(initial, phrase, 'during typing');
     const media = width === 1146 ? await characterMotion(initial) : { state: initial.mediaState, leftOfSentence: initial.character.x + initial.character.width <= initial.visual.x }; assert.equal(initial.mediaState, 'playing'); assert.equal(media.leftOfSentence ?? true, true);
     await page.screenshot({ path: path.join(output, `tagline-typing-${width}.png`), fullPage: false });
@@ -281,7 +281,7 @@ async function presentationNavigation(initial) {
     assert.ok(accessibility.includes(phrase)); assert.ok(!accessibility.includes('_'));
     const expiry = await expireCursor(initial, phrase);
     await page.screenshot({ path: path.join(output, `tagline-${width}.png`), fullPage: false });
-    evidence[width] = { sampleCount: samples.length, typingBlink, media, initial, final: samples.at(-1), expiry, accessibility, dirty: false, beneathLogo: true };
+    evidence[width] = { sampleCount: samples.length, typingBlink, media, initial, final: samples.at(-1), expiry, accessibility, dirty: false, besideLogo: true };
     if (width === 1146) {
       evidence.navigation = await presentationNavigation(initial);
       const previous = await page.locator('#header-tagline-label').textContent();

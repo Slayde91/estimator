@@ -741,6 +741,7 @@
     const buttons = groups.filter(group => group !== "SETTINGS").map(group => {
       const button = uiNode("button", "penetration-group", state.definition.group_labels?.[group] || group); button.type = "button"; button.dataset.penetrationGroup = group;
       button.setAttribute("role", "tab"); button.setAttribute("aria-selected", String(group === state.group));
+      button.addEventListener("focus", () => button.scrollIntoView({ block: "nearest", inline: "nearest" }));
       button.addEventListener("click", () => selectGroup(group)); return button;
     });
     $("penetration-input-groups").replaceChildren(...buttons);
@@ -757,6 +758,7 @@
     if (settings) $("penetration-row-fields").replaceChildren(renderSettings(visible));
     else {
       const fields = node("div", "penetration-fields");
+      if (state.group === "Penetration") fields.className += " penetration-detail-fields";
       if (state.group === "Additional Allowances") fields.className += " penetration-additional-fields";
       for (const group of window.CeasefirePenetrationPresentation.fieldGroups(visible)) {
         const host = group.length > 1 ? node("div", "penetration-field-pair" + (group[0].column === "AB" ? " penetration-mastic-pair" : "")) : fields;

@@ -3,7 +3,7 @@ const { chooseLibrary } = require('./section_navigation.cjs');
 // keyboard and touch must select the existing workspaces without replacing drafts.
 const { chromium, expect } = require('@playwright/test');
 const { chooseCalculator } = require('./calculator_actions.cjs');
-const { checkAllowances, checkToolbar } = require('./calculator_toolbar_layout.cjs');
+const { checkAllowances, checkToolbar, checkWorkbookControls } = require('./calculator_toolbar_layout.cjs');
 const { clickProjectControl,prepareProjectForSave} = require('./project_actions.cjs');
 const { referenceExport } = require('./reference_export.cjs');
 const { spawn, spawnSync } = require('node:child_process');
@@ -128,7 +128,10 @@ async function workbook(title) {
     await chooseCalculator(page, title); await idle();
     await page.getByRole('button', { name: 'Home', exact: true }).click(); await toggle.click(); await idle();
     if (title === 'Firestopping') { await expect(page.locator('#estimator-penetration')).toBeVisible(); await expect(page.locator('#calculator-workspace')).toBeHidden(); }
-    else await workbook(title);
+    else {
+      await workbook(title);
+      await checkWorkbookControls(page,title==='Factor Calcs');
+    }
     assert.deepEqual(await snapshots(), retained);
     await page.getByRole('button', { name: 'Home', exact: true }).click(); await page.locator('[data-home-view="calculators"]').click(); await idle();
     if (title === 'Firestopping') await expect(page.locator('#estimator-penetration')).toBeVisible(); else await workbook(title);
@@ -288,7 +291,8 @@ async function workbook(title) {
     await page.setViewportSize({width,height:width===913?884:1000});
     const actions=page.locator('#calculator-toolbar-actions .calculator-header-actions'),columns=page.locator('#calculator-toolbar-actions .schedule-column-toggle');
     await expect(actions).toBeVisible();await expect(columns).toBeVisible();
-    if([1915,913].includes(width))evidence.calculatorTabs[width]=await checkToolbar(page,width,output);
+    evidence.calculatorTabs[width]=await checkToolbar(page,width,output);
+    await checkWorkbookControls(page,false);
     assert.equal(await page.locator('.calculator-workspace-heading #calculator-document-toggle').count(),0);
     const actionBox=await actions.boundingBox(),columnBox=await columns.boundingBox();
     assert.ok(actionBox.x>=0&&actionBox.x+actionBox.width<=width+1,'Actions stay in the viewport');
@@ -314,6 +318,7 @@ async function workbook(title) {
   evidence.touch = { disclosureTap: true, chosenCalculator: 'Steel (board)' };
   await touch.locator('#calculator-kind-pages').getByRole('button',{name:'Factor Calcs',exact:true}).tap();
   await expect(touch.locator('#calculator-title')).toHaveText('Factor Calcs');
+  await checkWorkbookControls(touch,true);
   await expect(touch.locator('#calculator-kind-pages [aria-pressed="true"]')).toHaveText('Factor Calcs');
   evidence.touch.calculatorStrip=true;
   assert.deepEqual(await touch.evaluate(() => window.qaCsp), []); await touchContext.close();

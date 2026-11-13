@@ -15,6 +15,28 @@ async function idle(){await page.waitForFunction(()=>{const s=window.CeasefireDe
 async function bounds(selector){return page.locator(selector).evaluate(el=>{const b=el.getBoundingClientRect();return{x:b.x,y:b.y,right:b.right,bottom:b.bottom,width:b.width,height:b.height};});}
 async function noOverflow(context){const g=await page.evaluate(()=>({viewport:document.documentElement.clientWidth,document:document.documentElement.scrollWidth,inner:innerWidth,scrollX}));assert.ok(g.document<=g.viewport+1&&g.inner<=g.viewport+1,`${context}: ${JSON.stringify(g)}`);}
 async function headingBefore(heading,tabs){await expect(page.locator(heading)).toBeVisible();const h=await bounds(heading),t=await bounds(tabs);assert.ok(h.bottom<=t.y+1,`${heading} must precede ${tabs}: ${JSON.stringify({h,t})}`);assert.ok(Math.abs(h.x-t.x)<2,`${heading} aligns with its main tabs`);return{h,t};}
+async function checkWorkspaceTabs(id,width,saveScreenshot) {
+ const strip=page.locator('#'+id);
+ const paint=await strip.evaluate(el=>{
+   const rule=el.nextElementSibling,view=el.parentElement.getBoundingClientRect(),line=rule.getBoundingClientRect(),bar=el.getBoundingClientRect();
+   const active=el.querySelector('[aria-pressed=true]');
+   return {width:bar.width,height:bar.height,lineX:line.x,lineY:line.y,lineWidth:line.width,lineHeight:line.height,
+     viewX:view.x,viewWidth:view.width,barBottom:bar.bottom,color:getComputedStyle(rule).backgroundColor,
+     activeMarker:getComputedStyle(active).borderBottomColor,buttons:[...el.children].map(b=>b.getBoundingClientRect().height)};
+ });
+ assert.ok(Math.abs(paint.lineX-paint.viewX)<1&&Math.abs(paint.lineWidth-paint.viewWidth)<1&&Math.abs(paint.lineY-paint.barBottom)<1,JSON.stringify(paint));
+ assert.equal(paint.lineHeight,1);assert.match(paint.color,/^rgb\((237, 0, 27|241, 13, 27)\)$/);assert.equal(paint.activeMarker,'rgb(255, 255, 255)');
+ if(id==='calculator-kind-pages'){assert.equal(paint.height,42);assert.ok(paint.buttons.every(h=>h===42));}
+ if(width===1915)assert.ok(paint.lineWidth>paint.width+30,'Divider extends beyond the tab buttons');
+ if(width===320) {
+   const tabs=strip.getByRole('button');await tabs.first().focus();await tabs.first().press('End');await expect(tabs.last()).toBeFocused();
+   await expect(tabs.last()).toBeInViewport({ratio:0.95});await tabs.last().press('Home');await expect(tabs.first()).toBeFocused();await expect(tabs.first()).toBeInViewport({ratio:0.95});
+ }
+ if(saveScreenshot){
+   const bar=await strip.boundingBox();await page.screenshot({path:path.join(output,id+'-'+width+'.png'),clip:{x:paint.lineX,y:bar.y,width:paint.lineWidth,height:bar.height+4}});
+ }
+ return paint;
+}
 async function titleAndTabPositions(title,tabs){
  const view=await page.locator(title).evaluate(el=>el.closest('.workspace-view').getBoundingClientRect().top);
  const h=await bounds(title),t=await bounds(tabs);
@@ -54,6 +76,7 @@ async function stateSnapshot(){return page.evaluate(()=>({calculators:window.Cea
   for(const theme of ['ceasefire','midnight','ocean','forest','slate'])for(const width of [1915,1254,631,390,320]){
    await page.setViewportSize({width,height:1000});await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);await page.mouse.move(0,0);await page.evaluate(()=>scrollTo(0,0));
    const geometry=await headingBefore(heading,'#calculator-kind-pages');await noOverflow(`${title}/${theme}/${width}`);
+   if(fire)geometry.tabs=await checkWorkspaceTabs('calculator-kind-pages',width,theme==='ceasefire'&&[320,1915].includes(width));
    if(fire||title==='Duct'){
     const layout=await titleAndTabPositions(fire?'#penetration-heading':'#calculator-title','#calculator-kind-pages'),key=theme+'/'+width;
     if(fire)firePositions.set(key,layout);
@@ -84,7 +107,7 @@ async function stateSnapshot(){return page.evaluate(()=>({calculators:window.Cea
  }
  for(const mode of ['Steel','Duct','Walls/Floors','Defect Reports','Service Plans']){
   await chooseTakeoff(page,mode);await idle();
-  for(const width of [1915,631,390,320]){await page.setViewportSize({width,height:1000});await page.evaluate(()=>scrollTo(0,0));const geometry=await headingBefore('.takeoff-workspace-heading','#takeoff-pages');await noOverflow(`${mode}/${width}`);evidence.takeoffLayouts.push({mode,width,geometry});}
+  for(const width of [1915,631,390,320]){await page.setViewportSize({width,height:1000});await page.evaluate(()=>scrollTo(0,0));const geometry=await headingBefore('.takeoff-workspace-heading','#takeoff-pages');await noOverflow(`${mode}/${width}`);geometry.tabs=await checkWorkspaceTabs('takeoff-pages',width,mode==='Steel'&&[320,1915].includes(width));evidence.takeoffLayouts.push({mode,width,geometry});}
  }
  // Reproduce the hosted navigation-stack overflow boundary with native touch hit testing.
  for(const width of [320,390,671]){

@@ -40,10 +40,10 @@ async function inspectHeader(width) {
     assert.ok(actions.y > header.y + header.height && actions.y + actions.height <= 1000, `Project actions overlay the viewport bottom at ${width}`);
     assert.ok(actions.x + actions.width <= width + 1, `Project actions fit at ${width}`);
     assert.ok(name.x >= identity.x && name.x + name.width <= identity.x + identity.width + 1 && name.y>=nav.y+nav.height, `Long quote name stays beneath navigation in its own column at ${width}`);assert.ok(status.y>=name.y+name.height&&Math.abs(status.x+status.width-nav.x-nav.width)<1,'Save state remains beneath project name at the right');
-    const compact=width<=720,logoWidth=Math.min(compact?(width<=420?100:130):250,brand.width);
+    const compact=width<=720,logoWidth=Math.min(compact?(width<=420?100:130):width<=980?180:250,brand.width);
     assert.ok(Math.abs(logo.width-logoWidth)<.1&&Math.abs(logo.height-logoWidth*(compact?1/3:83.8/250))<.1,'Logo retains the requested desktop box and original compact phone proportions');
-    assert.ok(Math.abs(tagline.y-(logo.y+logo.height+(compact?4:6)-(compact?0:20)))<.1,'The requested desktop20px overlap keeps the normal4px phone gap');
-    assert.ok(Math.abs(tagline.x-brand.x-(compact?0:15))<.1&&tagline.x+tagline.width<=brand.x+brand.width+.1,'The requested desktop15px inset stays within the brand; phone alignment is unchanged');
+    assert.ok(tagline.x>=logo.x+logo.width&&tagline.x+tagline.width<=brand.x+brand.width+.1,'The character and text fit to the right of the wordmark');
+    assert.ok(Math.abs(tagline.y+tagline.height/2-logo.y-logo.height/2)<1,'The two brand elements are vertically centred together');
     const logoInk=await page.locator('.brand-logo').evaluate(img=>{
       // The PNG contains nearly transparent raster noise outside the mark.
       // Alpha>8 includes every visible letter/symbol and excludes that noise.
@@ -52,7 +52,7 @@ async function inspectHeader(width) {
       const r=img.getBoundingClientRect(),style=getComputedStyle(img),scale=Math.min(r.width/canvas.width,r.height/canvas.height),position=style.objectPosition.split(' ').map(v=>parseFloat(v)/100),x=r.x+(r.width-canvas.width*scale)*position[0],y=r.y+(r.height-canvas.height*scale)*position[1];return{alphaThreshold:8,natural:[canvas.width,canvas.height],source:{left,top,right,bottom},fit:style.objectFit,rendered:{left:x+left*scale,top:y+top*scale,right:x+right*scale,bottom:y+bottom*scale}};
     });
     assert.equal(logoInk.fit,'contain');assert.ok(logoInk.source.right>logoInk.source.left&&logoInk.source.bottom>logoInk.source.top,'Actual supplied logo has visible artwork');
-    assert.ok(tagline.y>=logoInk.rendered.bottom-.1,'The character/quote clears the actual logo ink while sharing its transparent canvas: '+JSON.stringify({width,logo,tagline,logoInk}));
+    assert.ok(tagline.x>=logoInk.rendered.right-.1,'The character and quote clear the right edge of the actual artwork');
     await expect(page.locator('#header-project-name')).toHaveText(longName);
     await expect(page.locator('#header-project-name')).toHaveAttribute('title', longName);
     await expect(page.locator('#header-project-name')).toHaveCSS('background-color','rgb(255, 227, 138)');
@@ -224,7 +224,8 @@ async function inspectHeader(width) {
     await page.setViewportSize({width,height:1000});
     const clear=await box(headingActions.locator('#penetration-clear')),document=await box(penetrationDocument),library=await box(headingActions.locator('#penetration-add-to-library')),banner=await box(penetrationBanner),item=await box(currentItem),add=await box(page.locator('.penetration-input-tabs #penetration-add-to-schedule'));
     assert.ok(document.x+document.width<=clear.x&&clear.x+clear.width<=library.x&&Math.abs(clear.y-document.y)<1&&Math.abs(document.y-library.y)<1,'Document, Clear and Library stay ordered on the same first row at '+width);
-    assert.ok(Math.abs(clear.height-document.height)<1&&Math.abs(document.height-library.height)<1&&Math.abs(add.height-library.height)<1,'Firestopping action buttons retain equal heights at '+width);
+    assert.ok(Math.abs(clear.height-document.height)<1&&Math.abs(document.height-library.height)<1,'Firestopping banner actions retain equal heights at '+width);
+    assert.equal(add.height,42,'Add to Schedule matches its input tabs at '+width);
     assert.ok(document.x>=banner.x&&library.x+library.width<=banner.x+banner.width+1&&clear.y>=banner.y&&library.y+library.height<=banner.y+banner.height+1&&library.y+library.height<=item.y,'The first-row actions fit within the banner above current-item controls at '+width);
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Firestopping header fits the viewport at '+width);firestoppingWidths.push(width);
   }

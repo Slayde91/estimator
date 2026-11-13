@@ -31,7 +31,7 @@ const errors=[],checks=[];
     window.__gpsMode='denied';window.__gpsCalls=0;window.__gpsWatches=new Map();window.__gpsCleared=0;window.__gpsLatitude=-33.8688;let id=0;
     const fix=()=>({coords:{latitude:window.__gpsLatitude,longitude:151.2093,accuracy:10},timestamp:Date.now()-(window.__gpsMode==='stale'?180000:0)});
     Object.defineProperty(navigator,'geolocation',{value:{
-      getCurrentPosition(ok,bad,options){window.__gpsCalls++;window.__gpsOptions=options;queueMicrotask(()=>window.__gpsMode==='denied'?bad({code:1}):ok(fix()));},
+      getCurrentPosition(ok,bad,options){window.__gpsCalls++;window.__gpsOptions=options;const code={denied:1,unavailable:2,timeout:3}[window.__gpsMode];queueMicrotask(()=>code?bad({code}):ok(fix()));},
       watchPosition(ok,bad){window.__gpsWatches.set(++id,{ok,bad});return id;},
       clearWatch(key){window.__gpsCleared++;window.__gpsWatches.delete(key);}
     }});
@@ -91,8 +91,14 @@ const errors=[],checks=[];
   const before=await page.evaluate(()=>window.__gpsCalls);
   await page.clock.fastForward(29*60000);
   await page.evaluate(()=>{window.__gpsLatitude=-33.8708;for(let i=0;i<4;i++){window.__gpsMovement();document.dispatchEvent(new Event('visibilitychange'));window.dispatchEvent(new Event('online'));}});
-  await page.locator('#scheduler-navigation').click();await page.getByRole('button',{name:'Check location now',exact:true}).click();
-  assert.equal(await page.evaluate(()=>window.__gpsCalls),before);assert.equal(points.length,1);
+  await page.locator('#scheduler-navigation').click();
+  const checkNow=page.getByRole('button',{name:'Check location now',exact:true}),feedback=page.locator('.scheduler-location-status');
+  for(const [mode,content] of [['denied','Location access is blocked'],['unavailable','A location could not be obtained'],['timeout','The location request timed out'],['granted','The next history point is due at']]) {
+    await page.evaluate(mode=>window.__gpsMode=mode,mode);
+    await checkNow.click();await expect(feedback).toContainText(content);
+  }
+  assert.equal(await page.evaluate(()=>window.__gpsCalls),before+4);assert.equal(points.length,1);
+  assert.equal(requests.filter(row=>row.action==='locations').length,0,'Early checks stay on the device');
   await page.getByRole('button',{name:'Home',exact:true}).click();
   await page.clock.fastForward(60000);await expect.poll(()=>points.length).toBe(2);
   await expect.poll(()=>page.evaluate(()=>window.__gpsAcknowledgements)).toBe(1);
@@ -113,7 +119,10 @@ const errors=[],checks=[];
   assert.equal(await page.evaluate(()=>window.__gpsCalls),deniedCalls);assert.equal(points.length,3);
   await openClock.click();
   await expect(page.locator('.scheduler-location-error')).toContainText('Location access is blocked');
-  await page.getByRole('button',{name:'Check location now',exact:true}).click();await expect.poll(()=>points.length).toBe(4);
+  let finishCheck;locationGate=new Promise(resolve=>finishCheck=resolve);
+  await checkNow.click();await expect.poll(()=>points.length).toBe(4);
+  await expect(feedback).toHaveText('Checking location…');await expect(checkNow).toBeDisabled();
+  finishCheck();await expect(feedback).toContainText('Location recorded at');await expect(checkNow).toBeEnabled();
   await expect(page.locator('.scheduler-location-error')).toBeHidden();
   await expect(openClock).not.toHaveAttribute('aria-description',/.+/);
   checks.push('a failed scheduled check keeps its warning and waits half an hour before automatic retry; explicit retry after restoring access saves the missing due fix');

@@ -307,6 +307,11 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   const activeId = model.active_entry.id;
   await context.setGeolocation({latitude:-33.8688,longitude:151.2093,accuracy:10});
   await expect.poll(async () => (await api('/locations?entry_id='+activeId)).locations.length).toBeGreaterThan(0);
+  assert.deepEqual(await page.evaluate(async()=>({secure:isSecureContext,allowed:document.featurePolicy.allowsFeature('geolocation'),permission:(await navigator.permissions.query({name:'geolocation'})).state})),{secure:true,allowed:true,permission:'granted'});
+  const shiftPins=(await api('/locations?entry_id='+activeId)).locations.length;
+  await page.getByRole('button',{name:'Check location now'}).click();
+  await expect(page.locator('.scheduler-location-status')).toContainText('The next history point is due at');
+  assert.equal((await api('/locations?entry_id='+activeId)).locations.length,shiftPins);
   await page.reload();
   await page.waitForFunction(() => window.CeasefireDesktop?.status()?.ready);
   await scheduler();
@@ -316,6 +321,7 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await expect(clock.locator('.scheduler-account')).toContainText('Scheduler Admin');
   await expect(clock.locator('time')).toBeVisible();
   await expect(clock.getByRole('button',{name:'Sign out'})).toBeVisible();
+  const controlGeometry=[];
   for (const width of [1915,943,390]) {
     await page.setViewportSize({width,height:884});
     const bounds = await clock.boundingBox();
@@ -323,6 +329,16 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
     const signOut = await clock.getByRole('button',{name:'Sign out'}).boundingBox();
     const checkLocation = await clock.getByRole('button',{name:'Check location now'}).boundingBox();
     const shownTime = await clock.locator('time').boundingBox();
+    const tabs = await page.locator('.scheduler-tabs button').evaluateAll(buttons=>buttons.map(button=>button.getBoundingClientRect().height));
+    const clockOut=(await clock.getByRole('button',{name:'Clock out',exact:true}).boundingBox()).height;
+    const date=(await page.getByLabel('Week containing date').boundingBox()).height;
+    const arrows=await page.locator('.scheduler-week-arrow').evaluateAll(buttons=>buttons.map(button=>{
+      const box=button.getBoundingClientRect(),icon=button.querySelector('svg').getBoundingClientRect();
+      return {size:icon.width,x:(icon.left+icon.right-box.left-box.right)/2,y:(icon.top+icon.bottom-box.top-box.bottom)/2};
+    }));
+    assert.deepEqual(tabs,[42,42,42,42]);assert.equal(clockOut,42);assert.equal(date,42);
+    assert.deepEqual(arrows,[{size:22,x:0,y:0},{size:22,x:0,y:0}]);
+    controlGeometry.push({width,tabs,clockOut,date,arrows});
     assert.ok(bounds.x>=0 && bounds.x+bounds.width<=width);
     assert.ok(signOut.y>=checkLocation.y+checkLocation.height && shownTime.y>=checkLocation.y+checkLocation.height);
     if (width===1915) {
@@ -331,6 +347,10 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
     }
     await page.screenshot({path:path.join(output,`active-clock-${width}.png`)});
   }
+  await tab('Settings');
+  await expect(page.getByRole('button',{name:'Save settings',exact:true})).toHaveCSS('height','42px');
+  await tab('Schedule');
+  fs.writeFileSync(path.join(output,'scheduler-control-geometry.json'),JSON.stringify({controlGeometry,saveSettings:42},null,2));
   await page.setViewportSize({width:1575,height:884});
   await page.locator('.nav-button[data-view="home"]').click();
   await expect(openClock).toBeVisible();

@@ -5,7 +5,7 @@
   const state = {root:null, data:null, page:"schedule", week:weekStart(today()), member:"", mine:false,
     loading:0, busy:false, dialog:null, lastLocation:0, locationEnabled:false, timer:null, orders:[], settingsDirty:false, settingsRuleDialog:null, ruleSelection:{overtime:"",breaks:""},
     projectsLoading:false, projectsScan:null, projectsMessage:"", breakNotices:new Set(), noticeTimer:null,
-    locationTimer:null, locationEntry:null, locationPending:false, lastLocationCheck:0, locationIssue:"", locationHealth:0,
+    locationTimer:null, locationEntry:null, locationPending:null, lastLocationCheck:0, locationIssue:"", locationFeedback:"", locationHealth:0,
     entriesSearch:"", entriesMine:false, collapsedDays:new Set(), locationPlayback:null, authGeneration:0, mapRequest:0};
   const accountChannel = "BroadcastChannel" in window ? new BroadcastChannel("classifire-scheduler-account") : null;
   const colours = [["#2196f3","Blue"],["#b12030","Red"],["#177349","Green"],["#7544a8","Purple"],["#505966","Grey"]];
@@ -465,7 +465,7 @@
       }
       if (openBreak?.expected_end_at) bar.append(el("p","helper",`${openBreak.name || "Break"} · expected end ${timeFormatter.format(new Date(openBreak.expected_end_at))}${openBreak.min_end_at ? " · minimum duration required" : ""}${openBreak.auto_end_at ? " · ends automatically" : ""}`));
       if (openBreak?.notify_at && "Notification" in window && Notification.permission !== "granted") bar.append(button("Enable break notifications",async () => {await Notification.requestPermission(); render();}));
-      bar.append(button("Check location now",() => {void captureLocation(true);},"button secondary scheduler-location-retry"));
+      bar.append(button("Check location now",checkLocationNow,"button secondary scheduler-location-retry"));
       bar.append(button("Clock out",async event => {
         const control = event.currentTarget; if (control.disabled || state.busy) return; control.disabled = true; state.busy = true;
         const current = accountAction();
@@ -479,8 +479,8 @@
         }
         catch(error) {if(current())notice(error.message,true);}
         finally {if(current()) {control.disabled = false; state.busy = false;}}
-      },"button scheduler-add-action"));
-      const tracking = el("p","helper scheduler-location-error"); tracking.setAttribute("role","status"); tracking.hidden = true; bar.append(tracking);
+      },"button scheduler-add-action scheduler-clock-out"));
+      const tracking = el("p","helper scheduler-location-status"); tracking.setAttribute("role","status"); tracking.hidden = true; bar.append(tracking);
     } else bar.append(button("Clock in",() => dialog("Clock in",host => {
       const project = orderSelect(), notes = el("textarea"); notes.maxLength = 2000;
       host.append(field(translated("Work Order"),project.element),field("Notes",notes),el("p","message scheduler-location-required","Location is required to clock in. Your location is recorded during the shift, including a check every 30 minutes. You and your administrator can view the history."),el("p","helper","Allow location access when your browser asks. Keep CLASSIFIRE open and this computer awake. Missing updates are shown as gaps; they cannot be recovered after the browser was closed or suspended.")); return {project,notes};
@@ -513,8 +513,16 @@
     const controls = el("div", "scheduler-toolbar");
     const date = input("date",state.week,{"aria-label":"Week containing date"});
     date.addEventListener("change",() => { if (date.value) { state.week = weekStart(date.value); refresh(); } });
-    controls.append(button("Today",() => {state.week = weekStart(today()); refresh();}),button("←",() => {state.week = addDays(state.week,-7); refresh();}),date,button("→",() => {state.week = addDays(state.week,7); refresh();}));
-    controls.children[1].setAttribute("aria-label","Previous week"); controls.children[3].setAttribute("aria-label","Next week");
+    function weekArrow(label,days) {
+      const control = button("",() => {state.week = addDays(state.week,days); refresh();},"button secondary scheduler-week-arrow");
+      control.setAttribute("aria-label",label); window.CeasefireI18n?.attr(control,"aria-label",label);
+      const icon = document.createElementNS("http://www.w3.org/2000/svg","svg");
+      icon.setAttribute("viewBox","0 0 24 24"); icon.setAttribute("aria-hidden","true");
+      const path = document.createElementNS(icon.namespaceURI,"path");
+      path.setAttribute("d",days < 0 ? "M20 12H4m7-7-7 7 7 7" : "M4 12h16m-7-7 7 7-7 7");
+      icon.append(path); control.append(icon); return control;
+    }
+    controls.append(button("Today",() => {state.week = weekStart(today()); refresh();}),weekArrow("Previous week",-7),date,weekArrow("Next week",7));
     controls.append(el("strong", "scheduler-week",`${calendarDay.format(new Date(`${state.week}T12:00:00Z`))} – ${calendarDay.format(new Date(`${addDays(state.week,6)}T12:00:00Z`))}`));
     return controls;
   }
@@ -871,28 +879,28 @@
   function stopLocation() {
     clearInterval(state.locationTimer);
     state.locationTimer = null; state.locationEnabled = false; state.locationEntry = null;
-    state.lastLocation = 0; state.lastLocationCheck = 0; state.locationIssue = ""; state.locationHealth++;
+    state.lastLocation = 0; state.lastLocationCheck = 0; state.locationIssue = ""; state.locationFeedback = ""; state.locationPending = null; state.locationHealth++;
     updateLocationStatus();
   }
   function locationFailure(message) {
-    state.locationHealth++; state.locationIssue = message; updateLocationStatus();
+    state.locationHealth++; state.locationIssue = message; state.locationFeedback = ""; updateLocationStatus();
   }
   function locationError(error) {
     if (error.code === 1) return "Location access is blocked. Enable location for CLASSIFIRE in your browser, then check location again.";
     if (error.code === 3) return "The location request timed out. Check this computer's location services and try again.";
-    return error.message || "A location could not be obtained. Enable location services and try again.";
+    return "A location could not be obtained. Enable location services and try again.";
   }
   function positionValue(position) {
     const value = {latitude:position.coords.latitude,longitude:position.coords.longitude,accuracy:position.coords.accuracy,captured_at:new Date(position.timestamp).toISOString()};
-    if (![value.latitude,value.longitude,value.accuracy].every(Number.isFinite) || Date.now()-position.timestamp > 120000 || position.timestamp > Date.now()+1000) throw new Error("The browser returned an old or invalid location. Obtain a new location and try again.");
+    if (![value.latitude,value.longitude,value.accuracy].every(Number.isFinite) || Date.now()-position.timestamp > 120000 || position.timestamp > Date.now()+1000) throw new Error(translated("The browser returned an old or invalid location. Obtain a new location and try again."));
     return value;
   }
   function currentPosition(timeout = 20000) {
     return new Promise((resolve,reject) => {
-      if (!navigator.geolocation) return reject(new Error("Location is unavailable in this browser. Use a browser with location services enabled."));
+      if (!navigator.geolocation) return reject(new Error(translated("Location is unavailable in this browser. Use a browser with location services enabled.")));
       navigator.geolocation.getCurrentPosition(position => {
         try {resolve(positionValue(position));} catch(error) {reject(error);}
-      },error => reject(new Error(locationError(error))),{enableHighAccuracy:true,maximumAge:0,timeout});
+      },error => reject(new Error(translated(locationError(error)))),{enableHighAccuracy:true,maximumAge:0,timeout});
     });
   }
   async function openTimeClock(event) {
@@ -914,7 +922,7 @@
     const active = state.data?.active_entry;
     const last = state.lastLocation || Date.parse(active?.location_summary?.last_at || "");
     const late = active && (!last || Date.now()-last > LOCATION_INTERVAL+5*60000);
-    const issue = !active ? "" : state.locationIssue || (late ? translated("Location update overdue.") : "");
+    const issue = !active ? "" : translated(state.locationIssue || (late ? "Location update overdue." : ""));
     const shortcut = document.getElementById("open-time-clock");
     if (shortcut) {
       shortcut.hidden = !active;
@@ -922,8 +930,17 @@
       if (issue) shortcut.setAttribute("aria-description",issue);
       else shortcut.removeAttribute("aria-description");
     }
-    const target = state.root?.querySelector(".scheduler-location-error");
-    if (target) {target.textContent = issue; target.hidden = !issue;}
+    const target = state.root?.querySelector(".scheduler-location-status");
+    if (target) {
+      const feedback = state.locationFeedback;
+      let text = issue;
+      if (feedback === "checking") text = translated("Checking location…");
+      else if (!issue && feedback) text = feedback.recorded ? translated("Location recorded at {0}.",[timeFormatter.format(feedback.captured)])
+        : translated("Location checked. The next history point is due at {0}.",[timeFormatter.format(feedback.captured + LOCATION_INTERVAL)]);
+      if (target.textContent !== text) target.textContent = text;
+      target.hidden = !text; target.classList.toggle("scheduler-location-error",Boolean(issue) && feedback !== "checking");
+      state.root.querySelector(".scheduler-location-retry").disabled = feedback === "checking";
+    }
   }
   async function recordLocation(location, entryId, health = state.locationHealth) {
     if (!state.locationEnabled || state.locationEntry !== entryId || state.data?.active_entry?.id !== entryId) return false;
@@ -935,9 +952,12 @@
       if (captured >= state.lastLocation) state.lastLocation = state.lastLocationCheck = captured;
       // Saving an earlier observation does not prove that location access is
       // still available after a newer browser/permission failure.
-      if (health === state.locationHealth) state.locationIssue = "";
+      if (health === state.locationHealth) {
+        state.locationIssue = "";
+        if (state.locationFeedback !== "checking") state.locationFeedback = "";
+      }
       if (enable) {state.data.active_entry.location_consent = true; void refresh();}
-      updateLocationStatus(); return true;
+      updateLocationStatus(); return {recorded:result.recorded,captured};
     } catch(error) {
       if (state.locationEntry !== entryId || health !== state.locationHealth) return false;
       locationFailure(error.message);
@@ -945,17 +965,34 @@
       updateLocationStatus(); return false;
     }
   }
-  async function captureLocation(retry = false) {
-    if (!state.locationEnabled || !state.data?.active_entry || Date.now()-state.lastLocation < LOCATION_INTERVAL || !retry && Date.now()-state.lastLocationCheck < LOCATION_INTERVAL) return false;
+  async function captureLocation(manual = false) {
+    if (!state.locationEnabled || !state.data?.active_entry) return false;
+    if (!manual && (Date.now()-state.lastLocation < LOCATION_INTERVAL || Date.now()-state.lastLocationCheck < LOCATION_INTERVAL)) return false;
     if (state.locationPending) return state.locationPending;
-    const entryId = state.locationEntry, health = state.locationHealth;
-    state.lastLocationCheck = Date.now();
-    state.locationPending = (async () => {
-      try {return await recordLocation(await currentPosition(),entryId,health);}
+    const entryId = state.locationEntry, health = state.locationHealth, current = accountAction();
+    if (Date.now()-state.lastLocation >= LOCATION_INTERVAL) state.lastLocationCheck = Date.now();
+    const pending = (async () => {
+      try {
+        const location = await currentPosition();
+        if (!current() || state.locationEntry !== entryId || health !== state.locationHealth) return false;
+        if (Date.parse(location.captured_at)-state.lastLocation < LOCATION_INTERVAL) {
+          state.locationIssue = "";
+          return {recorded:false,captured:state.lastLocation};
+        }
+        return await recordLocation(location,entryId,health);
+      }
       catch(error) {if (state.locationEntry === entryId && health === state.locationHealth) locationFailure(error.message); return false;}
-      finally {state.locationPending = null;}
     })();
-    return state.locationPending;
+    state.locationPending = pending;
+    try {return await pending;} finally {if (state.locationPending === pending) state.locationPending = null;}
+  }
+  async function checkLocationNow() {
+    const entryId = state.locationEntry, current = accountAction();
+    state.locationFeedback = "checking"; updateLocationStatus();
+    const result = await captureLocation(true);
+    if (!current() || state.locationEntry !== entryId) return;
+    state.locationFeedback = result || "";
+    updateLocationStatus();
   }
   function startLocation() {
     const active = state.data?.active_entry; if (!active) return;

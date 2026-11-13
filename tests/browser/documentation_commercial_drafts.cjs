@@ -58,6 +58,9 @@ async function run() {
       await expect(button).toHaveAccessibleName(title);
       await expect(button).toHaveAttribute('title',title);
       await expect(button).toContainText('New');
+      const pdfButton = page.locator('#documentation-pdf-rows .documentation-download-button:visible').first();
+      const [newSize, pdfSize] = await Promise.all([button.boundingBox(), pdfButton.boundingBox()]);
+      assert.deepEqual([newSize.width, newSize.height], [pdfSize.width, pdfSize.height]);
       await expect(page.locator('button[data-revisions-kind="commercial.' + kind + '"]')).toBeVisible();
       await expect(button).toBeEnabled();
       await button.evaluate(el => { el.click(); el.click(); });

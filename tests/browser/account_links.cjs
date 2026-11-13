@@ -73,7 +73,11 @@ const ready = new Promise((resolve, reject) => {
   await foundPerson.press('Space');
   await expect(foundPerson).toBeChecked();
   await expect(foundPerson).toBeFocused();
+  await foundPerson.press('Escape');
   const contactLink = linkedGroups.getByRole('checkbox', {name: /Link Link Person/});
+  const contactsGroup = linkedGroups.locator('[data-link-group="contacts"]');
+  await expect(contactsGroup).toHaveJSProperty('open', false);
+  await contactsGroup.locator('summary').click();
   await expect(contactLink).toBeChecked();
   await expect(dialog).toContainText('Saving will move this contact from Original Company.');
   await search.fill(project.project_no);
@@ -93,6 +97,7 @@ const ready = new Promise((resolve, reject) => {
   await foundPerson.click();
   await expect(foundPerson).toBeChecked();
   await foundPerson.press('Escape');
+  await contactsGroup.locator('summary').click();
   // The immediate cached results render before the debounced directory request.
   // Await that request so Save cannot race the link-refresh submit guard on CI.
   const noMatchRefresh = page.waitForResponse(reply => {
@@ -143,6 +148,9 @@ const ready = new Promise((resolve, reject) => {
   await page.locator('#contacts-root .contacts-tabs').getByRole('button',{name:'Companies',exact:true}).click();
   await page.locator('#contacts-root').getByRole('button',{name:'Source Company',exact:true}).click();
   const sourceEditor=page.getByRole('complementary',{name:'Edit Company',exact:true});
+  for (const group of ['contacts','projects','converted_leads']) {
+    await expect(sourceEditor.locator('[data-link-group="' + group + '"]')).toHaveJSProperty('open', false);
+  }
   await expect(sourceEditor.locator('.contacts-links [data-link-group="projects"] input')).toBeDisabled();
   const projectFile=(await api('/api/projects')).files.find(item=>path.resolve(item.path)===path.resolve(project.path));
   async function primaryAccount(target) {
@@ -234,6 +242,7 @@ const ready = new Promise((resolve, reject) => {
   await expect(dialog.locator('[data-contacts-notice]')).toContainText(/changed|reload/i);
   await expect(dialog.getByLabel('Company', {exact: true})).toHaveValue('Conflict Company');
   await expect(dialog.getByLabel('ABN/ACN', {exact: true})).toHaveValue('Keep this draft');
+  await contactsGroup.locator('summary').click();
   await expect(contactLink).toBeChecked();
   assert.equal((await directory()).contacts.find(item=>item.id===person.id).account_id,account.id);
   await dialog.getByRole('button', {name: 'Cancel', exact: true}).click();

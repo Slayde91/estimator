@@ -117,11 +117,15 @@ async function checkSettingsLayout(page, output, theme, editor = 'calculator') {
       if (editor === 'calculator' && width === 1600) {
         const routeSection = settings.locator('.penetration-settings-section').first();
         for (const [section,name] of [[routeSection,'service-routes'],[bands.first(),'pipe-labour']]) {
-          await section.evaluate(el => {
-            const top = document.querySelector('.app-header').getBoundingClientRect().bottom + 12;
-            window.scrollBy(0, el.getBoundingClientRect().top - top);
+          const clip = await section.evaluate(el => {
+            el.scrollIntoView({ block: 'start', behavior: 'instant' });
+            const top = document.querySelector('.app-header').getBoundingClientRect().bottom + 15;
+            window.scrollBy({ top: el.getBoundingClientRect().top - top, behavior: 'instant' });
+            const rect = el.getBoundingClientRect();
+            return { x: Math.floor(rect.x), y: Math.floor(rect.y),
+              width: Math.ceil(rect.width), height: Math.min(Math.floor(innerHeight - rect.y), Math.ceil(rect.height)) };
           });
-          await section.screenshot({ path: path.join(output, name + '.png') });
+          await page.screenshot({ clip, path: path.join(output, name + '.png') });
         }
       }
       for (const [i, table] of (await tables.all()).entries()) {

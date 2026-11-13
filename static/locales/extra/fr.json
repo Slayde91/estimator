@@ -1,4 +1,6 @@
 {
+  "Choose an In progress Work Order for this shift.": "Choisissez un ordre de travail en cours pour ce poste.",
+  "Site contact details do not fit in Notes.": "Les notes ne peuvent pas contenir toutes les coordonnées du contact sur site.",
   "Checking location…": "Vérification de la position…",
   "Location checked. The next history point is due at {0}.": "Position vérifiée. Le prochain relevé est prévu à {0}.",
   "Location recorded at {0}.": "Position enregistrée à {0}.",
@@ -2765,7 +2767,7 @@
   "technical reference": "référence technique",
   "technical references": "références techniques",
   "the inputs and pricing captured when you clicked Estimate Summary": "les données et les prix relevés au clic sur Récapitulatif du devis",
-  "{0}\nProject No.: {1}\nClient: {2}\nSite Address: {3}\n\nThis replaces the Quote, Firestopping items, {4}project library drafts, their pricing and all three specialist calculator drafts. Shared libraries stay unchanged.": "{0}\nN° de projet : {1}\nClient : {2}\nAdresse du chantier : {3}\n\nCela remplace le devis, les éléments coupe-feu, {4}les brouillons de bibliothèque du projet, leurs prix et les brouillons des trois calculateurs spécialisés. Les bibliothèques partagées restent inchangées.",
+  "{0}\nProject No.: {1}\nClient: {2}\nSite Address: {3}": "{0}\nN° de projet : {1}\nClient : {2}\nAdresse du chantier : {3}",
   "{0} (required)": "{0} (obligatoire)",
   "{0} (unavailable)": "{0} (indisponible)",
   "{0} ({1} pages)": "{0} ({1} pages)",

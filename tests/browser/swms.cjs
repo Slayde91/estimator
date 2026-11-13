@@ -43,11 +43,9 @@ async function run(edition) {
     await expect(host.getByLabel('Project Address',{exact:true})).toHaveValue('10 Test Street');
     await expect(host.getByLabel('Document title',{exact:true})).toHaveCount(0);
     const swmsToolbar=host.locator('.swms-toolbar').first();
-    await expect(swmsToolbar.locator('.swms-download + .swms-workflow select')).toHaveAccessibleName('Workflow status');
+    await expect(swmsToolbar.getByLabel('Workflow status')).toHaveCount(0);
     const pdfIcon=await page.locator('#estimate-open-quote .download-format-icon').innerHTML();
     for(const icon of await host.locator('.swms-download .download-format-icon').all())assert.equal(await icon.innerHTML(),pdfIcon);
-    assert.ok((await swmsToolbar.getByLabel('Workflow status').boundingBox()).width<200);
-    await host.getByLabel('Workflow status',{exact:true}).selectOption('Review');
     await expect(host.getByLabel('Status',{exact:true})).toHaveCount(0);
     await expect(host.locator('.swms-people .swms-person')).toHaveCount(0);
     await expect(host.locator('.swms-step-table tbody tr')).toHaveCount(0);

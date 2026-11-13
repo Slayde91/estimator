@@ -65,6 +65,7 @@ class ContactRelationsTests(unittest.TestCase):
         expected = self.project(self.contact["id"])
         other = self.project(self.other["id"])
         legacy = self.project("")
+        expected["revision"] = "fixture-only-revision"
         docs = [self.document(expected, kind) for kind in ("quote", "work_order", "purchase_order")]
         self.document(other)
         self.document(legacy)
@@ -73,8 +74,13 @@ class ContactRelationsTests(unittest.TestCase):
         result = self.relations.view(self.contact["id"])
         self.assertEqual([row["id"] for row in result["linked"]["companies"]], [self.contact["account_id"]])
         self.assertEqual([row["id"] for row in result["linked"]["projects"]], [expected["account_link_id"]])
+        self.assertEqual(result["linked"]["projects"][0]["project"], {
+            "source": source_id(expected["path"]), "owner": expected["source_project_id"], "project_no": expected["project_no"]})
         for key, doc in zip(("quotes", "work_orders", "purchase_orders"), docs):
             self.assertEqual([row["id"] for row in result["linked"][key]], [f'{expected["source_project_id"]}:{doc["id"]}'])
+            self.assertEqual(result["linked"][key][0]["document"], {
+                "source_file": source_id(expected["path"]), "source_revision": expected["revision"],
+                "id": doc["id"], "kind": doc["kind"], "project_id": expected["source_project_id"]})
         self.assertEqual(result["version"], before["version"])
         self.assertEqual(self.store.list(), before)
         self.assertEqual(self.path.read_bytes(), raw)

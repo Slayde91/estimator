@@ -4,6 +4,7 @@ from uuid import UUID
 
 from .catalog import ValidationError
 from .commercial_documents import apply_project_document_details, commercial_cards, project_document_details
+from .commercial_sources import source_id
 
 
 def choice(card):
@@ -24,6 +25,17 @@ def listing(projects, offset):
 
 
 def resolve(projects, identity, revision):
+    return _resolve(projects, identity, revision)[0]
+
+
+def shift_site_contacts(projects, participants, identity, revision):
+    order, project = _resolve(projects, identity, revision)
+    if order['status'] != 'In progress':
+        raise ValidationError('Choose an In progress Work Order for this shift.')
+    return participants.site_contacts(project) if project else []
+
+
+def _resolve(projects, identity, revision):
     """Recheck the selected source on assignment; a similarly numbered copy never qualifies."""
     try:
         source, owner, document_id = identity.split(':')
@@ -32,6 +44,7 @@ def resolve(projects, identity, revision):
             raise ValueError
     except (ValueError, TypeError):
         raise ValidationError('Choose a saved Work Order from the list.') from None
+    path = None
     with projects._lock:
         if owner in projects._commercial_sources.ignored_owners():
             raise ValidationError('This Work Order is unavailable. Refresh the list.')
@@ -39,7 +52,7 @@ def resolve(projects, identity, revision):
             projects.recover_commercial_publications()
             item = projects.commercial.unfiled.scheduler_order(source,revision,owner,document_id)
         else:
-            with projects.commercial_file(source, revision) as (_, snapshot, _, _):
+            with projects.commercial_file(source, revision) as (path, snapshot, _, _):
                 commercial = snapshot.get('commercial_documents') or {}
                 if commercial.get('project_id') != owner or (snapshot.get('certifications') or {}).get('project_id') != owner:
                     raise ValidationError('The selected Work Order no longer belongs to this project.')
@@ -50,4 +63,6 @@ def resolve(projects, identity, revision):
         if item is None:
             raise ValidationError('This Work Order changed or is unavailable. Refresh the list.')
         projects.commercial.apply_register_numbers([item])
-        return choice(item)
+        order = choice(item)
+        project = {'source':source_id(path), 'owner':owner, 'project_no':order['project_no']} if path else None
+        return order, project

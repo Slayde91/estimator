@@ -25,7 +25,7 @@ const ready=new Promise((resolve,reject)=>{let buffer='';server.on('exit',()=>re
     return listing.scan_pending;
   },{timeout:30000}).toBe(false);
   assert.equal(listing.error_count,0);
-  assert.deepEqual(listing.orders.map(item=>[item.reference,item.status]),[['WO-02','Draft']]);
+  assert.deepEqual(listing.orders.map(item=>[item.reference,item.status]),[['WO-02','In progress'],['WO-03','Completed'],['WO-04','Draft']]);
   const [order]=listing.orders;
   const zone=(await (await admin.request.get(origin+'/api/scheduler/bootstrap')).json()).timezone;
   const today=new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
@@ -47,6 +47,7 @@ const ready=new Promise((resolve,reject)=>{let buffer='';server.on('exit',()=>re
   assert.deepEqual(state.entries.map(x=>x.member_id),[member.id]);
   assert.equal(state.entries[0].work_order.document_id,order.document_id);
   assert.equal((await staff.request.get(origin+'/api/contacts/directory')).status(),403);
+  assert.equal((await staff.request.get(origin+'/api/scheduler/shift-site-contacts?'+new URLSearchParams({id:order.id,revision:order.revision}))).status(),403);
   assert.equal((await staff.request.post(origin+'/api/scheduler/shifts/save',{data:{...base,title:'Unauthorised'}})).status(),403);
   await page.getByRole('button',{name:'Sign out',exact:true}).click();
   await expect(page.locator('#staff-login')).toBeVisible();

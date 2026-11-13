@@ -81,7 +81,10 @@ async function inspectHeader(width) {
   page.setDefaultTimeout(60000); page.on('pageerror', e => { errors.push(e.message); console.error('Browser error:', e.message); });
   await page.addInitScript(() => { window.qaCsp = []; document.addEventListener('securitypolicyviolation', e => window.qaCsp.push(e.effectiveDirective)); });
   await page.goto(`http://127.0.0.1:${info.port}/`); await idle(); await page.evaluate(() => document.fonts.ready);
-  await expect(page.locator('#header-project-name')).toBeHidden();
+  await expect(page.locator('#header-project-name')).toHaveText('Projects');
+  await expect(page.locator('#header-project-name')).toHaveCSS('text-transform','uppercase');
+  await page.locator('#header-project-name').click();
+  await expect(page.locator('#project-list-card')).toBeVisible();
   evidence.pointerEffects = await checkPointerEffects(page, output);
   await page.mouse.move(241, 173, { steps: 8 });
   await expect(page.locator('#cursor-position')).toHaveCount(0);

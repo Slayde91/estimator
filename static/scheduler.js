@@ -126,7 +126,7 @@
     const legacy=record.project_name || record.project_id;
     return record.work_order ? orderLabel(record.work_order) : legacy ? translated('{0} (legacy project)',[legacy]) : '';
   }
-  function orderSelect(record = {}) {
+  function orderSelect(record = {}, shiftOnly = false) {
     const held = record.work_order;
     const key = order => order.id + '@' + order.revision;
     const current = held ? key(held) : record.project_id || record.project_name ? 'legacy' : '';
@@ -146,7 +146,7 @@
     const listeners = [];
     function options() {
       const choices = [{value:'',label:translated('No Work Order assigned'),order:null},
-        ...state.orders.map(order => ({value:key(order),label:orderLabel(order),order}))];
+        ...state.orders.filter(order => !shiftOnly || order.status === 'In progress').map(order => ({value:key(order),label:orderLabel(order),order}))];
       if(current && !choices.some(item => item.value === current))choices.push({value:current,
         label:held ? translated('{0} (saved assignment)',[assignmentLabel(record)]) : assignmentLabel(record),order:held || null});
       return choices;
@@ -565,6 +565,51 @@
     table.append(body); scroll.append(table); state.root.append(scroll);
     if (state.data.members.length === 0) state.root.append(el("p","helper","Add your team in Team members, then select a day to schedule a shift."));
   }
+  function shiftContactNotes(project, notes, hint, originalBlock = '') {
+    let selection = project.value(), inserted = originalBlock, restore = originalBlock, pending = Promise.resolve(), generation = 0;
+    const currentAccount = accountAction();
+    const hasPrefix = block => block && (notes.value === block || notes.value.startsWith(block + '\n'));
+    function add(block) {
+      if (!block || hasPrefix(block)) return;
+      const combined = notes.value ? block + '\n\n' + notes.value : block;
+      if (combined.length <= notes.maxLength) {
+        notes.value = combined;
+        inserted = block;
+      } else {
+        hint.textContent = translated('Site contact details do not fit in Notes.');
+        hint.hidden = false;
+      }
+    }
+    project.onChange(() => {
+      if (project.value() === selection) return;
+      if (selection === project.original) restore = hasPrefix(inserted) ? inserted : '';
+      selection = project.value();
+      const version = ++generation, order = project.order();
+      // Only withdraw a prefix inserted by the app and left intact by the user.
+      if (inserted && notes.value === inserted) notes.value = '';
+      else if (inserted && notes.value.startsWith(inserted + '\n')) notes.value = notes.value.slice(inserted.length).replace(/^\n\n?/, '');
+      inserted = '';
+      hint.hidden = true;
+      pending = Promise.resolve();
+      if (selection === project.original) {add(restore); return;}
+      if (!order || order.status !== 'In progress') return;
+      const active = () => version === generation && currentAccount() && notes.isConnected;
+      const query = new URLSearchParams({id:order.id, revision:order.revision});
+      pending = request('/shift-site-contacts?' + query).then(({contacts}) => {
+        if (!active()) return;
+        const block = contacts.map(contact => translated('Site contact') + ': ' +
+          [contact.name,contact.phone,contact.email].filter(Boolean).join(' · ')).join('\n');
+        add(block);
+      }).catch(error => {
+        if (active()) {hint.textContent = translated(error.message); hint.hidden = false;}
+      });
+    });
+    return {prefix:() => hasPrefix(inserted) ? inserted : '', ready:async () => {
+      let latest;
+      do {latest = pending; await latest;} while (latest !== pending && currentAccount());
+      return currentAccount() && notes.isConnected;
+    }};
+  }
   function editShift(shift = null,date = today(),memberId = "") {
     const inputZone = zone, requestId = shift ? null : crypto.randomUUID();
     void loadOrders();
@@ -577,7 +622,7 @@
       const end = input("datetime-local",shift ? localParts(shift.end) : `${date}T15:30`,{required:true});
       const color = shiftColours(shift?.color || "#2196f3");
       const initialProject = shift?.work_order;
-      const project = orderSelect(shift || {}), location = input("text",shift?.location || initialProject?.site_address || "",{maxlength:400});
+      const project = orderSelect(shift || {}, true), location = input("text",shift?.location || initialProject?.site_address || "",{maxlength:400});
       let titleOrder = project.order()?.id || '';
       project.onChange(() => {
         const selected = project.order(), nextOrder = selected?.id || '';
@@ -588,20 +633,24 @@
         titleOrder = nextOrder;
       });
       const notes = el("textarea"); notes.value = shift?.notes || ""; notes.maxLength = 2000;
+      const hint = el('small','helper'); hint.hidden = true; hint.setAttribute('role','status');
+      const contactNotes = shiftContactNotes(project, notes, hint, shift?.site_contact_note);
       const members = el("fieldset","scheduler-members"); members.append(el("legend","","Team members"));
       const selected = new Set(shift?.member_ids || (memberId ? [memberId] : []));
       const memberChecks = state.data.members.filter(item => item.active || selected.has(item.id)).map(member => {
         const item = check(member.name,selected.has(member.id)); members.append(item.label); return {id:member.id,control:item.control};
       });
       host.append(field("Title",title),color,field("Start",start,zone),field("End",end,zone),members,field(translated("Work Order"),project.element),field("Location",location),field("Notes",notes));
+      host.append(hint);
       if (shift) host.append(button("Delete shift",() => {
         deleteRecord("/shifts/delete",{id:shift.id,version:shift.version},`Delete “${shift.title}” from the schedule?`);
       },"button secondary scheduler-danger"));
-      return {title,start,end,color,project,location,notes,memberChecks};
+      return {title,start,end,color,project,location,notes,memberChecks,contactNotes};
     },translated("Publish shift"),async (controls,intent) => {
+      if (!await controls.contactNotes.ready()) return;
       await request("/shifts/save",{input_timezone:inputZone,...(shift ? {id:shift.id,version:shift.version} : {request_id:requestId}),title:controls.title.value,
         start:editedTime(controls.start,shift?.start),end:editedTime(controls.end,shift?.end),color:controls.color.querySelector("input:checked").value,
-        ...selectedOrder(controls.project),location:controls.location.value,notes:controls.notes.value,published:intent === "publish",
+        ...selectedOrder(controls.project),location:controls.location.value,notes:controls.notes.value,site_contact_note:controls.contactNotes.prefix(),published:intent === "publish",
         member_ids:controls.memberChecks.filter(item => item.control.checked).map(item => item.id)});
     },"button scheduler-primary-action",translated("Create draft"));
     editor.classList.add("scheduler-shift-editor");

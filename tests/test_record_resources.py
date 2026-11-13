@@ -71,6 +71,20 @@ class ResourceTests(unittest.TestCase):
         self.assertEqual(self.write('notes', 2, notes=[])['notes'], [])
         self.assertEqual(self.contacts.list()['version'], 2)
 
+    def test_rich_project_notes_reopen_alongside_literal_legacy_text(self):
+        self.owner = {'kind': 'projects', 'id': 'a' * 64, 'project_id': self.projects.owner}
+        legacy = self.note('Plain text', '<b>literal markup</b>\nsecond line')
+        rich = dict(self.note('Formatted', '<div><b>Heading</b><br>Next line</div>'), format='rich')
+        self.write('notes', 0, notes=[legacy])
+        saved = self.write('notes', 1, notes=[rich, legacy])
+        self.assertEqual(self.store.read(self.owner), saved)
+        self.assertEqual(saved['notes'][1]['body'], legacy['body'])
+        self.assertNotIn('format', saved['notes'][1])
+        self.assertEqual(saved['notes'][0]['body'], rich['body'])
+        with self.assertRaises(ValidationError):
+            self.write('notes', 2, notes=[dict(rich, body='<p style="color:red">unsupported</p>'), legacy])
+        self.assertEqual(self.store.read(self.owner), saved)
+
     def test_concurrent_instances_reject_stale_versions_and_keep_winning_content(self):
         second = RecordResources(self.root / 'resources', self.projects, self.contacts)
         payloads = [{'owner': self.owner, 'version': 0, 'notes': [self.note(title)]} for title in ('First', 'Second')]

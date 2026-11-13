@@ -211,7 +211,7 @@
     staff.catch(()=>{});
     let contactId = record.contact_id || "", contactName = record.name || "", accountId = record.account_id || "";
     let accountDefaults = {};
-    let resources = null, workspaceLeft, workspaceRight, associationPanel, associationLinks;
+    let resources = null, workspaceLeft, workspaceRight, associationPanel, associationLinks, leadHistory;
     let resolveClosed, savedRecord = null, submitting = false, loadingLinks = false, linksReady = kind !== "accounts", contactLinkRefresh, contactLinkLoading = false;
     const closed = new Promise(resolve => { resolveClosed = resolve; });
     const heading = el("h2", "", readOnly ? (kind==='accounts' ? record.company : record.name) : (record.id ? "Edit " : "New ") + singular[kind]);
@@ -292,9 +292,11 @@
     function arrangeLinkedGroups(groups) {
       if (!inPane || !associationLinks) return;
       associationLinks.replaceChildren();
+      leadHistory.replaceChildren();
       for (const group of [...groups.querySelectorAll(":scope>details[data-link-group]")]) {
         group.classList.add("card","commercial-side-panel");
         if (["companies","contacts"].includes(group.dataset.linkGroup)) associationLinks.append(group);
+        else if (group.dataset.linkGroup === "converted_leads" || kind === "leads" && group.dataset.linkGroup === "leads") leadHistory.append(group);
       }
       if (associationPanel) associationPanel.hidden = Boolean(associationLinks.querySelector('[data-link-group="companies"]'));
     }
@@ -655,7 +657,8 @@
       // The dialog must be open before a cached or very fast response is handled.
       queueMicrotask(loadLinks);
     }
-    if (inPane && (kind === "contacts" || kind === "leads" && record.contact_id)) {
+    if (inPane && (kind === "contacts" || kind === "leads")) {
+      const leadWorkspace = kind === "leads";
       const related = el("section", "contacts-related"), groups = el("div", "contacts-links");
       const linkStatus = ui("p", "helper", "Loading linked records…");
       linkStatus.setAttribute("role", "status");
@@ -664,22 +667,37 @@
       copy(refresh, "Refresh linked records");
       const unavailable = el("details", "contacts-link-errors"), unavailableSummary = el("summary"), unavailableList = el("ul");
       unavailable.hidden = true; unavailable.append(unavailableSummary, unavailableList);
-      related.append(ui("h3", "", "Linked records"), refresh, linkStatus, unavailable, groups); form.append(related);
+      if (!leadWorkspace) related.append(ui("h3", "", "Linked records"), refresh);
+      related.append(linkStatus, unavailable, groups); form.append(related);
       let contactLinkTicket = 0;
-      async function loadContactLinks() {
+      async function loadContactLinks(attempt = 0) {
         const ticket = ++contactLinkTicket;
         contactLinkLoading = true;
         refresh.disabled = true; copy(linkStatus, "Loading linked records…");
         try {
-          const catalog = await request("contact-links?" + new URLSearchParams({id:kind === "leads" ? record.contact_id : record.id}));
+          const id = leadWorkspace ? record.contact_id : record.id;
+          const catalog = id ? await request("contact-links?" + new URLSearchParams({id})) : {linked:{}};
           if (!isOpen() || ticket !== contactLinkTicket) return;
           const expanded = new Set([...form.querySelectorAll("details[data-link-group][open]")].map(group => group.dataset.linkGroup));
           const existing = new Set([...form.querySelectorAll("details[data-link-group]")].map(group => group.dataset.linkGroup));
           const groupOpen = key => expanded.has(key) || !existing.has(key);
           groups.replaceChildren();
-          for (const [key, title] of Object.entries({companies:"Companies", projects:"Projects", leads:"Leads", quotes:"Quotes", work_orders:"Work Orders", purchase_orders:"Purchase Orders"})) {
-            const entries = (catalog.linked[key] || []).filter(item=>kind !== "leads" || key !== "leads" || item.id !== record.id);
-            if (!entries.length) continue;
+          const titles = leadWorkspace
+            ? {companies:"Companies", leads:"Leads", quotes:"Linked Quotes", work_orders:"Linked Work Orders", purchase_orders:"Linked Purchase Orders", projects:"Linked Projects"}
+            : {companies:"Companies", projects:"Projects", leads:"Leads", quotes:"Quotes", work_orders:"Work Orders", purchase_orders:"Purchase Orders"};
+          for (const [key, title] of Object.entries(titles)) {
+            let entries = (catalog.linked[key] || []).filter(item=>!leadWorkspace || key !== "leads" || item.id !== record.id);
+            if (leadWorkspace && key === "projects") {
+              entries = [...entries];
+              const seen = new Set(entries.map(item => item.project?.source));
+              for (const peer of catalog.participant_projects || []) {
+                if (!peer.source || seen.has(peer.source)) continue;
+                seen.add(peer.source);
+                entries.push({label:[peer.project_no, peer.client, peer.site_address].filter(Boolean).join(" · "),
+                  project:peer.availability === "available" ? peer : null, roles:[peer.role_label]});
+              }
+            }
+            if (!entries.length && (!leadWorkspace || key === "companies" || key === "leads")) continue;
             const group = el("details", "contacts-links-group"), summary = el("summary"), list = el("ul", "contacts-links-list");
             group.dataset.linkGroup = key; group.open = groupOpen(key);
             copy(summary, "{0} ({1})", [window.CeasefireI18n?.term(title) || title, entries.length]);
@@ -691,6 +709,14 @@
                 await switchPage("accounts"); dialogEditor("accounts", company);
               }, "text-button"));
               else if(key==='leads' && item.available) row.append(button(item.label, () => openDirectoryLead(item.id), 'text-button'));
+              else if(leadWorkspace && (item.document || item.project)) row.append(button(item.label, async event => {
+                const control = event.currentTarget;
+                if (!isOpen() || !await leaveAccount()) return;
+                try {
+                  if (item.document) await window.CeasefireCommercial.openLinkedCard(item.document);
+                  else await window.CeasefireProject.openLinkedProject(item.project,control);
+                } catch(error) {feedback(root(),error.message,true);}
+              }, "text-button project-title-button"));
               else row.append(el("span", "", item.label));
               if(company)linkedSummary(row,[["Billing address",company.billing_address],["ABN/ACN",company.abn_acn]]);
               for (const role of item.roles || []) row.append(ui("p", "helper", role));
@@ -699,13 +725,16 @@
             const body = el("div", "contacts-links-body"); body.append(list); group.append(summary, body); groups.append(group);
           }
           appendLeadGroup(groups, 'converted_leads', 'Converted leads', catalog.converted_leads || [], conversionDetails, groupOpen('converted_leads'));
-          appendLeadGroup(groups, 'participant_projects', 'Recorded project roles', catalog.participant_projects || [], participantProject, groupOpen('participant_projects'));
+          if (!leadWorkspace) appendLeadGroup(groups, 'participant_projects', 'Recorded project roles', catalog.participant_projects || [], participantProject, groupOpen('participant_projects'));
           if (!groups.children.length) groups.append(ui("p", "helper contacts-links-empty", "No linked records."));
           arrangeLinkedGroups(groups);
           unavailable.hidden = !catalog.error_count;
           copy(unavailableSummary, "Unavailable project records ({0})", [catalog.error_count || 0]);
           unavailableList.replaceChildren(...(catalog.errors || []).map(item => el("li", "", item.name)));
-          copy(linkStatus, catalog.error_count ? "Some project records are unavailable. Refresh to check the Contact's links." :
+          if (leadWorkspace) {
+            copy(linkStatus,catalog.error_count || catalog.scan_pending && attempt >= 6 ? "Some saved sources are unavailable." : catalog.scan_pending ? "Loading…" : "");
+            if (catalog.scan_pending && attempt < 6) setTimeout(() => {if(isOpen() && ticket === contactLinkTicket) void loadContactLinks(attempt+1);},600);
+          } else copy(linkStatus, catalog.error_count ? "Some project records are unavailable. Refresh to check the Contact's links." :
             catalog.scan_pending ? "Project records are still loading. Refresh to list more records." : "Saved records linked to this Contact are shown here.");
         } catch (error) {
           if (isOpen() && ticket === contactLinkTicket) linkStatus.textContent = error.message;
@@ -867,7 +896,7 @@
       const columns=el("div","contacts-record-layout"),main=el("div","contacts-record-main"),details=el("section","card contacts-record-details");
       workspaceLeft=el("aside","commercial-sidebar contacts-record-left");workspaceRight=el("aside","commercial-sidebar contacts-record-right");
       associationPanel=el("details","card commercial-side-panel");associationPanel.open=true;
-      associationLinks=el("div","contacts-record-associations");workspaceLeft.append(associationPanel,associationLinks);
+      associationLinks=el("div","contacts-record-associations");leadHistory=el("div","contacts-record-associations");workspaceLeft.append(associationPanel,associationLinks);
       if(kind === "leads" && record.contact_id) {
         const person=directory.contacts.find(item=>item.id===record.contact_id);
         if(person) {
@@ -878,10 +907,13 @@
         }
       }
       const toolbar=el("div","commercial-editor-actions contacts-record-toolbar");toolbar.append(close);
+      workspaceLeft.append(leadHistory);
       if(!readOnly)toolbar.append(save);
       const originalChildren=[...form.children];
       for(const child of originalChildren) {
-        if(child.matches(".contacts-related,.crm-identity-section,.crm-timeline"))workspaceRight.append(child);
+        if(child.matches(".crm-merge-records,.crm-timeline"))workspaceLeft.append(child);
+        else if(child.matches(".crm-identity-section") && kind === "leads")details.append(child);
+        else if(child.matches(".contacts-related,.crm-identity-section"))workspaceRight.append(child);
         else details.append(child);
       }
       main.append(toolbar,details);columns.append(workspaceLeft,main,workspaceRight);form.append(columns);
@@ -897,7 +929,7 @@
       const layout = root().querySelector(".contacts-directory-layout");
       layout.classList.add("contacts-account-open");layout.querySelector(".contacts-workspace").hidden=true;layout.prepend(dialog);
       resources=window.ClassifireRecordResources?.attach(resourceHost,{owner:{kind,id:record.id},isCurrent:isOpen,
-        canEdit:()=>!readOnly&&!submitting&&!saving,message:(message,error)=>feedback(form,message,error)});
+        canEdit:()=>!readOnly&&!submitting&&!saving,showRefresh:kind!=="leads",message:(message,error)=>feedback(form,message,error)});
       dialog.addEventListener("keydown", event => {
         if (event.key !== "Escape" || event.defaultPrevented || event.target.closest("details[open]")) return;
         event.preventDefault(); event.stopPropagation(); void leaveAccount();
@@ -978,13 +1010,13 @@
       column.append(heading);
       for (const lead of group) {
         const card = el("article", "project-kanban-card");
-        window.ClassifireDocumentBoard.addFollowUpMarker(card, lead.follow_up_date);
         if (status === 'Converted') {
           if (lead.name) card.append(el('strong', 'project-card-heading', lead.name));
           card.append(conversionDetails(lead.receipt, true));
           column.append(card);
           continue;
         }
+        window.ClassifireDocumentBoard.addFollowUpMarker(card, lead.follow_up_date);
         card.draggable = true;
         card.addEventListener("dragstart", event => {
           if(saving||converting||event.target.closest('button,summary,input,select')){event.preventDefault();return;}

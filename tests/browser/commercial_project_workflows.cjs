@@ -249,7 +249,7 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   checks.push('A changed Project snapshot while Save is in flight leaves the editor unadopted, keeps the project file intact, and recovers after explicit reopen');
   assert.deepEqual(persisted.documents.find(doc=>doc.id===source.id),source);
   checks.push('Create PO preserves unsaved source edits, then creates a linked unnumbered draft; explicit Save assigns PO reference without issuing or changing the source Work Order');
-  checks.push('Purchase Order retains Notes/Files/actual linked Work Order and Quote panes without a Company/Contact sidebar, preserving bounded attachments and CAS-autosaved notes');
+  checks.push('Purchase Order retains Notes/Files/actual linked Work Order and Quote panes without a Company/Contact sidebar, preserving bounded attachments and version-checked notes');
   await purchase.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();await openProjectSection(page,'work-orders');
   await work.getByRole('button',{name:workTitle,exact:true}).click();await expect(work.locator('summary').filter({hasText:'Linked Purchase Orders (1)'})).toHaveCount(1);
   checks.push('PO Request summary follows information, expense categories use a dropdown, and the saved relationship appears in the Work Order reverse list');

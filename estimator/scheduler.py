@@ -48,7 +48,7 @@ WRITE_FIELDS = {
     'login': {'email', 'password'},
     'logout': set(),
     'members/save': {'timezone', 'id', 'version', 'name', 'email', 'password', 'role', 'active', 'base_rate'},
-    'shifts/save': {'input_timezone', 'id', 'version', 'updated_at', 'title', 'start', 'end', 'member_ids', 'project_id', 'project_name', 'work_order', 'location', 'notes', 'color', 'published', 'request_id'},
+    'shifts/save': {'input_timezone', 'id', 'version', 'updated_at', 'title', 'start', 'end', 'member_ids', 'project_id', 'project_name', 'work_order', 'location', 'notes', 'site_contact_note', 'color', 'published', 'request_id'},
     'entries/save': {'input_timezone', 'id', 'version', 'updated_at', 'member_id', 'start', 'end', 'breaks', 'project_id', 'project_name', 'work_order', 'notes', 'base_rate', 'source', 'location_consent'},
     'shifts/delete': {'id', 'version'},
     'entries/delete': {'id', 'version'},
@@ -60,7 +60,7 @@ WRITE_FIELDS = {
     'locations': {'entry_id', 'latitude', 'longitude', 'accuracy', 'captured_at'},
     'locations/enable': {'entry_id', 'latitude', 'longitude', 'accuracy', 'captured_at'},
 }
-READ_FIELDS = {'work-orders': {'offset'}, 'bootstrap': set(), 'organization': set(), 'state': {'start', 'end'}, 'locations': {'entry_id'}}
+READ_FIELDS = {'work-orders': {'offset'}, 'shift-site-contacts': {'id','revision'}, 'bootstrap': set(), 'organization': set(), 'state': {'start', 'end'}, 'locations': {'entry_id'}}
 
 
 class SchedulerError(ValueError):
@@ -268,6 +268,7 @@ class SchedulerStore:
         self.now = now or (lambda: datetime.now(UTC))
         self.work_orders = work_orders
         self.work_order_lookup = work_order_lookup
+        self.shift_site_contacts = None
         with self.connect() as db:
             db.executescript('''
                 CREATE TABLE IF NOT EXISTS scheduler_members (
@@ -373,6 +374,15 @@ class SchedulerStore:
             raise SchedulerError('The Scheduler request contains unknown filters.')
         with self.connect() as db:
             user = self._user(db, token, required=action not in {'bootstrap', 'organization'})
+            if action == 'shift-site-contacts':
+                self._admin(user)
+                identity = _text(query.get('id'), 'Work Order', 175, True)
+                revision = _text(query.get('revision'), 'Work Order revision', 64, True)
+                try:
+                    contacts = self.shift_site_contacts(identity, revision) if self.shift_site_contacts else []
+                except (ValueError, OSError) as error:
+                    raise SchedulerError('This Work Order changed or is unavailable. Refresh the list and select it again.', 409) from error
+                return {'contacts':contacts}
             if action == 'work-orders':
                 raw = str(query.get('offset', '0'))
                 if not re.fullmatch(r'0|[1-9][0-9]{0,8}', raw):
@@ -700,6 +710,14 @@ class SchedulerStore:
                  'notes': _text(payload.get('notes', ''), 'Notes', 4000)}
         selected_order = self._assignment(value, payload, previous)
         if kind == 'shift':
+            if selected_order and selected_order['status'] != 'In progress':
+                raise SchedulerError('Choose an In progress Work Order for this shift.', 409)
+            # Remember only an intact auto-inserted prefix for this assignment.
+            # Older editors may omit the marker when updating unrelated fields.
+            old_prefix = (previous or {}).get('site_contact_note', '') if not selected_order else ''
+            prefix = _text(payload.get('site_contact_note',old_prefix), 'Notes', 4000)
+            if value.get('work_order') and prefix and (value['notes'] == prefix or value['notes'].startswith(prefix + '\n')):
+                value['site_contact_note'] = prefix
             member_ids = payload.get('member_ids', [])
             if not isinstance(member_ids, list) or len(member_ids) > 500 or any(not isinstance(x, str) for x in member_ids):
                 raise SchedulerError('Select valid team members.')

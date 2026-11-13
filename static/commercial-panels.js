@@ -31,56 +31,58 @@
     const template = el("template"); template.innerHTML = html;
     return template.content.textContent.trim();
   }
-  function openNote(existing, options, repaint) {
-    const dialog = el("dialog"), content = el("form"), title = el("input"), hint = el("span");
-    const noteLabel = {quote:"Quote note",work_order:"Work Order note",purchase_order:"Purchase Order note"}[options.kind];
-    dialog.className = "commercial-note-dialog"; dialog.setAttribute("aria-label", noteLabel);
-    window.CeasefireI18n?.attr(dialog,'aria-label',noteLabel);
-    title.maxLength = 300; title.setAttribute("aria-label", "Note title");
-    title.value = existing?.title || "";
-    const note = existing ? {...existing} : {id:crypto.randomUUID(),title:"",body:"",author:"Local user",updated_at:""};
-    const label = el("label","Title"); label.className = "field"; label.append(title);
-    hint.setAttribute("role", "status");
-    let timer, pending = false, saving = null, removing = false;
-    const author = fetch("/api/scheduler/bootstrap", {cache:"no-store"}).then(r => r.ok ? r.json() : {}).then(data=>data.user?.name || "Local user").catch(()=>"Local user");
-    async function flush() {
-      clearTimeout(timer);
-      if (saving) { await saving; if (!pending) return; }
-      if (!pending || !title.value.trim()) return;
-      pending = false;
-      saving = (async()=>{
-        note.title = title.value.trim(); note.updated_at = new Date().toISOString(); note.author = await author;
-        await options.writeNotes([note, ...(options.fields.notes || []).filter(x=>x.id!==note.id)]);
-        hint.textContent = options.isSaved() ? "Saved" : "Saved to this draft"; repaint();
-      })();
-      try { await saving; } catch (e) { pending=true; hint.textContent=e.message; throw e; } finally { saving=null; }
+  function noteDialog({existing, label, richEditor, save, remove, onClose}) {
+    const dialog=el("dialog"), form=el("form"), title=el("input"), status=el("span");
+    const text=(item,key)=>{item.textContent=key;window.CeasefireI18n?.text(item,key);return item;};
+    const attr=(item,key,value)=>{item.setAttribute(key,value);window.CeasefireI18n?.attr(item,key,value);};
+    dialog.className="commercial-note-dialog";attr(dialog,"aria-label",label);
+    title.value=existing?.title || "";title.maxLength=300;attr(title,"aria-label","Note title");
+    const titleLabel=el("label");titleLabel.className="field";titleLabel.append(text(el("span"),"Title"),title);
+    const original={title:title.value,body:existing?.body || ""};
+    let body=original.body,busy=false;
+    const dirty=()=>title.value!==original.title || body!==original.body;
+    const changed=()=>text(status,"Unsaved changes");
+    const editor=richEditor("Compose text",body,value=>{body=value;},changed);
+    title.addEventListener("input",changed);status.setAttribute("role","status");
+    const actions=el("div");actions.className="actions";
+    const close=()=>{if(!busy && dialog.open)dialog.close();};
+    async function finish(deleting){
+      if(busy)return;
+      if(!deleting && !dirty()){close();return;}
+      if(!deleting && !title.value.trim()){text(status,"Enter a title for the note.");title.focus();return;}
+      if(deleting && !await window.CeasefireDialogs.confirm("Delete this note?",original.title,"Delete","Cancel"))return;
+      if(!dialog.open || busy)return;
+      busy=true;form.inert=true;dialog.setAttribute("aria-busy","true");
+      try{
+        const saved=deleting ? await remove() : await save({title:title.value.trim(),body},body!==original.body);
+        if(saved!==false && dialog.open)dialog.close();
+      }catch(error){status.textContent=error.message;}
+      finally{busy=false;form.inert=false;dialog.removeAttribute("aria-busy");}
     }
-    function edit() {
-      pending = true; hint.textContent = "Unsaved changes"; clearTimeout(timer);
-      timer = setTimeout(()=>flush().catch(()=>{}),750);
-    }
-    async function done() {
-      if (removing) return;
-      if (pending && !title.value.trim() && plain(note.body)) { hint.textContent="Enter a title for the note."; title.focus(); return; }
-      try { await flush(); if (pending && title.value.trim()) await flush(); dialog.close(); }
-      catch (error) { hint.textContent = error.message; }
-    }
-    title.addEventListener("input", edit);
-    const body = options.richEditor("Compose text", note.body, value=>{ note.body=value; }, edit);
-    const actions = el("div"); actions.className = "actions";
-    actions.append(action("Delete", async()=>{
-      if (!window.confirm("Delete this note?")) return;
-      removing = true; clearTimeout(timer);
-      try {
-        if (saving) await saving;
-        await options.writeNotes((options.fields.notes || []).filter(x=>x.id!==note.id)); repaint(); dialog.close();
-      } catch (error) { removing=false; hint.textContent=error.message; }
-    }, "button secondary"), hint, action("Done", done, "button primary"));
-    content.addEventListener("submit",event=>{event.preventDefault();void done();});
-    content.append(el("h2",existing ? "Edit note" : "New note"),label,body,actions); dialog.append(content);
-    document.body.append(dialog); dialog.addEventListener("close",()=>{clearTimeout(timer);dialog.remove();});
-    dialog.addEventListener("cancel",event=>{event.preventDefault();void done();});
-    dialog.showModal(); title.focus();
+    const control=(name,run,style)=>text(action(name,run,style),name);
+    const del=control("Delete",()=>existing ? void finish(true) : close(),"button secondary");
+    const done=control("Done",()=>void finish(false),"button primary"), cancel=control("Cancel",close,"button secondary");
+    actions.append(del,cancel,status,done);
+    form.addEventListener("submit",event=>{event.preventDefault();void finish(false);});
+    form.append(text(el("h2"),existing ? "Edit note" : "New note"),titleLabel,editor,actions);
+    dialog.append(form);document.body.append(dialog);
+    dialog.addEventListener("cancel",event=>{event.preventDefault();close();});
+    dialog.addEventListener("close",()=>{dialog.remove();onClose?.();},{once:true});
+    dialog.showModal();title.focus();
+    return {dialog,dirty,fingerprint:()=>JSON.stringify([title.value,body])};
+  }
+  function openNote(existing,options,repaint) {
+    const label={quote:"Quote note",work_order:"Work Order note",purchase_order:"Purchase Order note"}[options.kind];
+    const id=existing?.id || crypto.randomUUID();
+    return noteDialog({existing,label,richEditor:options.richEditor,
+      async save(values){
+        const response=await fetch("/api/scheduler/bootstrap",{cache:"no-store"}).catch(()=>null);
+        const profile=response?.ok ? await response.json().catch(()=>null) : null;
+        const note={...values,id,author:profile?.user?.name || "Local user",updated_at:new Date().toISOString()};
+        await options.writeNotes([note,...(options.fields.notes || []).filter(item=>item.id!==id)]);repaint();
+      },
+      async remove(){await options.writeNotes((options.fields.notes || []).filter(item=>item.id!==id));repaint();}
+    });
   }
   // Shared, editable directory searches use the same +/clear pattern as Projects.
   // Values are copied into this document only; the directory and Project stay unchanged.
@@ -457,5 +459,5 @@
     form.querySelector("[data-order-link]")?.addEventListener("change",showRelated);
     return {repaintFiles,refreshDirectory,refreshHistory:history.refresh,closeSearches(){controls.forEach(control=>control.close());},refreshProjectDetails(value){options.projectDetails=value;refreshDetails();}};
   }
-  window.ClassifireWorkOrderPanels = {attach};
+  window.ClassifireWorkOrderPanels = {attach,noteDialog,plain};
 })();

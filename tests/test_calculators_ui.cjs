@@ -1710,7 +1710,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
     return body.sheet==='SETTINGS'?virtualResult(body.inputs):result(copy(body.inputs),{sheet:body.sheet,rows:[]});
   };
   audit.setRequest(serveVirtual);audit.setRender(realRender);await audit.selectCalculator('steel_vermiculite');entry=audit.current();
-  const virtualButtons=()=>descendants(byId('calculator-grid')).filter(node=>node.className?.startsWith('calculator-settings-choice'));
+  const virtualButtons=()=>descendants(byId(entry.factorView?'calculator-pages':'calculator-grid')).filter(node=>node.className?.startsWith('calculator-settings-choice'));
   const virtualPanels=()=>byId('calculator-grid').children.filter(node=>node.className==='calculator-settings-panel');
   const virtualOutputs=()=>byId('calculator-grid').querySelectorAll('[data-calculator-output]').map(node=>node.dataset.calculatorOutput);
   assert.equal(entry.page,'SCHEDULE');assert.equal(entry.sheet,'SCHEDULE');assert.equal(byId('calculator-sheet-title').textContent,'SCHEDULE');
@@ -1734,7 +1734,7 @@ const deadline = setTimeout(() => { console.error(`Calculator UI checks stalled 
   const factorDocumentRoot=element();
   byId('calculator-document-toggle').closest=selector=>selector==='.calculator-document-menu'?factorDocumentRoot:null;
   byId('calculator-document-menu').hidden=false;byId('calculator-document-toggle').setAttribute('aria-expanded','true');
-  await audit.selectCalculator('steel_factors');assert.equal(audit.current(),entry);assert.equal(audit.state.entries.size,1);assert.equal(audit.state.current,'steel_vermiculite');assert.equal(byId('calculator-title').textContent,'Factor Calcs');assert.equal(byId('calculator-workspace').dataset.factorView,'true');assert.equal(byId('calculator-pages').hidden,true);assert.equal(virtualButtons().length,2);assert.equal(virtualPanels()[0].hidden,false);assert.equal(virtualPanels()[1].hidden,true);assert.equal(renderedControls().length,2);assert.equal(virtualButtons()[1].textContent,'HOLLOW SECTIONS');assert.equal(audit.sourceDisplayText('Original hollow title',entry,'A356'),'HOLLOW SECTIONS');
+  await audit.selectCalculator('steel_factors');assert.equal(audit.current(),entry);assert.equal(audit.state.entries.size,1);assert.equal(audit.state.current,'steel_vermiculite');assert.equal(byId('calculator-title').textContent,'Factor Calcs');assert.equal(byId('calculator-workspace').dataset.factorView,'true');assert.equal(byId('calculator-pages').hidden,false);assert.equal(virtualButtons().length,2);assert.equal(virtualPanels()[0].hidden,false);assert.equal(virtualPanels()[1].hidden,true);assert.equal(renderedControls().length,2);assert.equal(virtualButtons()[1].textContent,'HOLLOW SECTIONS');assert.equal(audit.sourceDisplayText('Original hollow title',entry,'A356'),'HOLLOW SECTIONS');
   assert.equal(factorDocumentRoot.hidden,true);assert.equal(byId('calculator-document-menu').hidden,true);assert.equal(byId('calculator-document-toggle').getAttribute('aria-expanded'),'false');
   assert.ok(!virtualOutputs().includes('A1'));for(const address of ['A9','A31','A270','D42'])assert.ok(!virtualOutputs().includes(address));
   const virtualFactor=renderedControls().find(control=>control.dataset.calculatorCell==='D342');

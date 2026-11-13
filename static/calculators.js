@@ -148,7 +148,7 @@ window.CeasefireScheduleColumns = (() => {
       CALCULATOR: { hide: ["A1"], text: { A1: "" }, center: ["A6:F24", "H6:N24"], split_status: ["H9", "H20"] }, // 4–5
       BAGS: { center: ["A6:N15", "A19:I25"] }, // Manual quantities and all six product totals
       SETTINGS: {
-        omit: ["A1", "A10:N12", "A15:N15", "A27:N27", "A292:L295", "A308:L315"],
+        omit: ["A1", "A10:N12", "A15:N15", "A27:N27", "A292:L295", "A308:L315", "A343"],
         text: {
           A356: "HOLLOW SECTIONS",
           A273: "Select product, exposure, steel temperature and input method. Enter the exact section or verified factor. Lower-web input is only for Fendolite castellated beams.",
@@ -2625,7 +2625,14 @@ window.CeasefireScheduleColumns = (() => {
       } else append(scroll);
     }
     if (dynamicSchedule) content.push(renderScheduleTools(entry));
-    if (settings) content.push(settings.chooser, ...settings.panels.values());
+    if (settings) {
+      if (entry.factorView) {
+        const pages = $("calculator-pages");
+        pages.replaceChildren(...settings.chooser.children);
+        pages.hidden = false;
+      } else content.push(settings.chooser);
+      content.push(...settings.panels.values());
+    }
     grid.replaceChildren(...content); grid.scrollLeft = scrollLeft; grid.scrollTop = scrollTop;
     if (settings) observeSettingsWidths(grid);
     if (dynamicSchedule) for (const scroll of grid.querySelectorAll("[data-schedule-viewport]")) { scroll.scrollTop = entry.scheduleViewport?.top || 0; scroll.scrollLeft = entry.scheduleViewport?.left || 0; }
@@ -2665,6 +2672,7 @@ window.CeasefireScheduleColumns = (() => {
     if (!cache || state.gridEntry !== entry || entry.invalid.size || entry.pendingResult || entry.needsRender || cache.sheets.get(entry.sheet) !== entry.result || entry.renderedPage !== currentPage(entry)) return;
     const grid = $("calculator-grid");
     retainRecent(cache.pages, currentPage(entry), { nodes: [...grid.children], result: entry.result, signature: entry.choiceSignature,
+      factorButtons: entry.factorView ? [...$("calculator-pages").children] : null,
       totals: entry.productTotalsElement, steelNotes: entry.boardSteelNotesElement, scrollLeft: grid.scrollLeft, scrollTop: grid.scrollTop,
       optionNodes: [...$("calculator-option-lists").children], optionLists: new Map(state.optionLists), optionKeys: state.optionKeys,
       expanded: grid.classList.contains("calculator-grid-expanded") }, 3);
@@ -2697,6 +2705,10 @@ window.CeasefireScheduleColumns = (() => {
       entry.result = result; latestCells(entry, result);
       if (view && view.result === result) {
         const grid = $("calculator-grid"); grid.replaceChildren(...view.nodes);
+        if (view.factorButtons) {
+          $("calculator-pages").replaceChildren(...view.factorButtons);
+          $("calculator-pages").hidden = false;
+        }
         observeSettingsWidths(grid);
         $("calculator-option-lists").replaceChildren(...view.optionNodes); state.optionLists = new Map(view.optionLists); state.optionKeys = view.optionKeys;
         grid.classList.toggle("calculator-grid-expanded", view.expanded);
@@ -2769,12 +2781,13 @@ window.CeasefireScheduleColumns = (() => {
   }
 
   function renderPages(entry) {
-    const buttons = displayPages(entry.definition, entry.factorView).map((page) => {
+    const buttons = entry.factorView ? [] : displayPages(entry.definition, false).map((page) => {
       const button = uiNode("button", "calculator-page", page.label); button.type = "button";
       button.dataset.calculatorPage = page.id;
       button.setAttribute("aria-pressed", String(page.id === currentPage(entry))); button.addEventListener("click", () => selectPage(page.id)); return button;
     });
     $("calculator-pages").replaceChildren(...buttons);
+    window.CeasefireI18n.attr($("calculator-pages"), "aria-label", entry.factorView ? "Factor Calcs" : "Calculator pages");
     $("calculator-pages").hidden = Boolean(entry.factorView);
     const documentActions = $("calculator-document-toggle")?.closest?.(".calculator-document-menu");
     if (documentActions) {

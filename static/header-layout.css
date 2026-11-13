@@ -1,7 +1,7 @@
 /* Application chrome only. Keep the original controls and their event owners. */
 @media screen {
   .app-header {
-    grid-template-columns: minmax(460px, 2fr) minmax(0, 3fr);
+    grid-template-columns: minmax(460px, 1fr) fit-content(60%);
     align-items: start;
     gap: 18px;
   }
@@ -10,9 +10,8 @@
     grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
     direction: ltr;
-    gap: 14px;
+    column-gap: 18px;
     width: 100%;
-    max-width: 670px;
   }
   .app-header .brand { position: relative; max-width: 100%; color: inherit; }
   .app-header .brand-logo {
@@ -36,6 +35,8 @@
   }
   .app-header .brand-stack > .header-tagline {
     margin: 0;
+    width: min(100%, 340px);
+    justify-self: center;
     text-align: start;
   }
   html[dir="rtl"] .app-header .header-tagline { direction: rtl; }
@@ -175,7 +176,7 @@
     .app-header nav { max-width: 100%; }
   }
   @media (min-width: 721px) and (max-width: 980px) {
-    .app-header { grid-template-columns: minmax(330px, 2fr) minmax(0, 3fr); }
+    .app-header { grid-template-columns: minmax(330px, 1fr) fit-content(60%); }
     .app-header .brand-logo { width: 180px; }
   }
   @media (max-width: 720px) {

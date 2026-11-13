@@ -147,7 +147,7 @@ async function download(host) {
   });
   async function sign(label, next) {
     await work.getByRole('button',{name:'Sign '+label,exact:true}).click();
-    await expect(work.getByLabel('Status',{exact:true})).toHaveValue(next);
+    await expect.poll(() => ownedWork(info)?.status).toBe(next);
     await idle();
   }
   await sign('Work order details reviewed by','Review');

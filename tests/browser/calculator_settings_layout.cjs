@@ -63,7 +63,7 @@ async function checkCalculatorLayouts(page,output) {
   const ready = () => expect(grid).toHaveAttribute('aria-busy','false');
   async function tab(label) { await page.locator('#calculator-pages').getByRole('button',{name:label,exact:true}).click(); await ready(); }
   async function section(id) {
-    const button = grid.locator('[data-calculator-settings-section="'+id+'"]');
+    const button = page.locator('#calculator-workspace [data-calculator-settings-section="'+id+'"]');
     if (await button.getAttribute('aria-expanded')!=='true') await button.click();
     return page.locator('#'+await button.getAttribute('aria-controls'));
   }
@@ -101,7 +101,11 @@ async function checkCalculatorLayouts(page,output) {
   await tab('PRODUCT SETTINGS');
   for (const id of ['A6','A48','A94']) {
     const panel=await section(id);
-    if(id==='A94') for(const title of ['FYREWRAP ELITE 1.5','FYREWRAP APPLICATION TABLE']) await heading(panel.getByRole('heading',{name:title,exact:true}));
+    if(id==='A94') {
+      const title=panel.getByRole('heading',{name:'FYREWRAP ELITE 1.5',exact:true});
+      await heading(title);await expect(title).toHaveCSS('height','56px');await expect(title).toHaveCSS('font-size','14px');
+      await heading(panel.getByRole('heading',{name:'FYREWRAP APPLICATION TABLE',exact:true}));
+    }
     else await heading(panel.locator('.calculator-section-anchor').first());
     await checkFields(panel);
     if(id==='A6') await screenshot(page,panel,path.join(output,'duct-settings-layout.png'));
@@ -112,6 +116,7 @@ async function checkCalculatorLayouts(page,output) {
   await chooseCalculator(page,'Factor Calcs'); await ready();
   for(const id of ['A341','A356']) {
     const panel=await section(id);await heading(panel.locator('.calculator-section-anchor').first());await checkFields(panel);
+    if(id==='A341') await expect(panel.locator('[data-calculator-output="A343"]')).toHaveCount(0);
     if(id==='A356') {
       await checkFieldGroup(page,panel,['D358','D359','D360','D361','D362'],'D358',output,'hollow-values');
       const select=panel.locator('select:visible').first(),input=panel.locator('input.calculator-number:visible').first();

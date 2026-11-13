@@ -23,22 +23,16 @@
 .commercial-editor { display:grid; gap:20px; }
 .commercial-editor,.commercial-editor>* { min-width:0; }
 .commercial-editor-actions { position:sticky; top:10px; z-index:2; background:var(--paper); padding:12px; border:1px solid var(--line); border-radius:10px; }
-.commercial-editor-actions .commercial-action-status { display:flex; flex-direction:row; align-items:center; gap:8px; margin:0; min-width:0; }
-.commercial-action-status>span[hidden] { display:none; }
-.commercial-action-status select { width:180px; min-width:0; height:44px; }
 .commercial-delivery-field[hidden] { display:none; }
 .commercial-editor>.field { max-width:none; }
 .commercial-required-label::after{content:' *';color:var(--accent,#d0001b);font-weight:700}
 .commercial-requirement-invalid{outline:2px solid #d0001b;outline-offset:2px}
-:root[data-theme] select.commercial-document-status:is([data-status="Draft"]),.commercial-document-status option[data-status="Draft"]{background:#30343c;color:#fff}
-:root[data-theme] select.commercial-document-status:is([data-status="Review"],[data-status="Requested"]),.commercial-document-status option:is([data-status="Review"],[data-status="Requested"]){background:#6b4d00;color:#fff}
-:root[data-theme] select.commercial-document-status:is([data-status="Presented"],[data-status="Reviewed"],[data-status="Sent"],[data-status="OHS Docs"],[data-status="Client Approval"],[data-status="In progress"],[data-status="Claim"]),.commercial-document-status option:is([data-status="Presented"],[data-status="Reviewed"],[data-status="Sent"],[data-status="OHS Docs"],[data-status="Client Approval"],[data-status="In progress"],[data-status="Claim"]){background:#194b78;color:#fff}
-:root[data-theme] select.commercial-document-status:is([data-status="Accepted"],[data-status="Certify"],[data-status="Completed"]),.commercial-document-status option:is([data-status="Accepted"],[data-status="Certify"],[data-status="Completed"]){background:#126c46;color:#fff}
-:root[data-theme] select.commercial-document-status:is([data-status="Lost"],[data-status="On Hold"],[data-status="Cancelled"]),.commercial-document-status option:is([data-status="Lost"],[data-status="On Hold"],[data-status="Cancelled"]){background:#a40020;color:#fff}
 .commercial-details,.commercial-order-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; margin:0; }
 .commercial-details>h2,.commercial-order-fields>h2 { grid-column:1/-1; }
 .commercial-field-pair { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; min-width:0; align-items:start; }
 .commercial-field-pair>.field { min-width:0; margin:0; }
+.commercial-editor input[type=date] { height:42px; min-height:42px; padding-block:0; }
+.commercial-editor .commercial-claim-billing textarea { height:42px; min-height:42px; }
 .commercial-editor textarea { min-height:72px; resize:vertical; }
 .commercial-editor textarea.commercial-line-description { min-height:42px; height:42px; overflow-y:hidden; resize:none; line-height:20px; }
 .commercial-purchase-identifiers { grid-column:1/-1; grid-template-columns:repeat(4,minmax(0,1fr)); }
@@ -51,8 +45,8 @@
   .commercial-rate-grid { grid-template-columns:repeat(6,minmax(0,1fr)); }
   .commercial-rate-grid>.field>span:first-child { min-height:30px; }
 }
-.commercial-estimate-controls { display:grid; grid-template-columns:36px minmax(0,1fr); gap:10px; align-items:start; }
-.commercial-estimate-controls>.commercial-add-custom-row { width:36px; min-width:36px; height:36px; min-height:36px; margin-top:3px; padding:0; border-radius:8px; }
+.commercial-estimate-controls { display:grid; grid-template-columns:42px minmax(0,1fr); gap:10px; align-items:start; }
+.commercial-estimate-controls>.commercial-add-custom-row { width:42px; min-width:42px; height:42px; min-height:42px; padding:0; border-radius:8px; }
 .commercial-estimate-picker { min-width:0; }
 .commercial-estimate-picker>summary { width:261px; max-width:100%; box-sizing:border-box; min-height:42px; padding:10px 12px; line-height:20px; cursor:pointer; list-style-position:inside; }
 .commercial-estimate-options { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:12px; margin-top:12px; padding:12px; border:1px solid var(--line); border-radius:10px; }
@@ -152,7 +146,7 @@
 .commercial-totals p:last-child { border-top:1px solid var(--line); padding-top:12px; font-size:17px; }
 .commercial-purchase-summary { display:flex; flex-wrap:wrap; gap:18px; align-items:start; min-width:0; }
 .commercial-purchase-summary>.commercial-purchase-request { flex:1 1 340px; min-width:0; }
-.commercial-purchase-summary>.commercial-totals { flex:0 1 300px; width:300px; min-width:0; max-width:100%; margin-inline-start:auto; box-sizing:border-box; }
+.commercial-purchase-summary>.commercial-totals { flex:0 1 300px; width:300px; min-width:0; max-width:100%; min-height:187px; border-top:3px solid var(--red); margin-inline-start:auto; box-sizing:border-box; overflow-wrap:anywhere; }
 @media(max-width:650px) {
   .commercial-purchase-identifiers { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .commercial-details,.commercial-order-fields { grid-template-columns:1fr; padding:16px; }
@@ -172,5 +166,6 @@
 .commercial-directory-options { inset-inline:0; text-align:start; }
 .commercial-directory-options button { text-align:start; }
 .commercial-refresh-contacts { margin-block-start:8px; }
+#commercial-purchase-order-root .commercial-refresh-contacts { height:42px; min-height:42px; padding-block:0; }
 .commercial-purchase-information textarea { min-height:42px; height:42px; line-height:20px; resize:vertical; }
 .commercial-purchase-information .commercial-directory-field { margin-top:0; }

@@ -15,6 +15,9 @@ const signers=[['requested_by','Requested by','requested_date'],['reviewed_by','
 async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready&&!window.CeasefireProject.hasPendingOperation()&&!document.querySelector('dialog[open],[aria-busy="true"],.commercial-editor-actions button:disabled'));}
 async function personal(name){const url=new URL('/api/certifications/defaults',page.url()).href,current=await(await page.request.get(url)).json();const reply=await page.request.post(url,{data:{expected_version:current.version,fields:{...current.fields,name}}});assert.equal(reply.status(),200,await reply.text());}
 async function save(){await host.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();await expect(host.locator('.commercial-message')).toContainText('Document saved.');await idle();return JSON.parse(fs.readFileSync(info.project,'utf8')).commercial_documents.documents.find(item=>item.kind==='purchase_order');}
+function savedOrderStatus() {
+ return JSON.parse(fs.readFileSync(info.project,'utf8')).commercial_documents.documents.find(doc=>doc.kind==='purchase_order')?.status;
+}
 async function reopen(){await host.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();await host.getByRole('button',{name:'PO-01: Signature Supplier',exact:true}).click();await idle();}
 (async()=>{
   info=await ready;assert.notEqual(info.port,8765);browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1915,height:1000}});page.setDefaultTimeout(60000);
@@ -44,6 +47,7 @@ async function reopen(){await host.getByRole('button',{name:'Back to Purchase Or
   await expect(approval).toBeHidden();await expect(host.getByRole('button',{name:'Sign Verified by',exact:true})).toBeHidden();
   const expectedStatus={requested_by:'Requested',reviewed_by:'Reviewed',sent_by:'Sent',verified_by:'Completed'};
   for(const [key,label,date] of signers){await expect(host.locator(`[data-signature-field="${key}"] button`)).toHaveCount(2);
+    await expect(host.locator(`[data-order-field="${date}"]`)).toHaveCSS("height","42px");
     if(key==='reviewed_by') {
       await expect(approval.locator('option')).toHaveText(['','Approved','Rejected']);await expect(reason).toBeHidden();
       await approval.selectOption('Rejected');await expect(reason).toBeVisible();await reason.fill('Wrong quantities; please revise.');
@@ -69,8 +73,17 @@ async function reopen(){await host.getByRole('button',{name:'Back to Purchase Or
     await idle();
   }
   await clearPurchase('Approved by','Cancel');
-  await expect(host.getByLabel('Status',{exact:true})).toHaveValue('Completed');
-  const rewind=page.getByRole('dialog',{name:'Sign and move',exact:true}), status=host.getByLabel('Status',{exact:true});
+  await expect.poll(savedOrderStatus).toBe('Completed');
+  const signedHistory=host.locator('.record-activity-history');
+  await signedHistory.locator('summary').click();
+  await expect(signedHistory.locator('li').first()).toBeVisible();
+  await require('./purchase_summary_history.cjs').checkHistoryWindow(signedHistory,Math.min(5,await signedHistory.locator('li').count()));
+  await signedHistory.locator('summary').click();
+  await host.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();
+  const rewind=page.getByRole('dialog',{name:'Sign and move',exact:true});
+  const orderCard=host.locator('.commercial-card').filter({hasText:'PO-01: Signature Supplier'});
+  await orderCard.locator('summary').click();
+  const status=orderCard.getByLabel('Move to',{exact:true});
   const beforeRewind=fs.readFileSync(info.project);
   await status.selectOption('Requested');
   await expect(rewind.locator('li')).toHaveCount(3);
@@ -78,8 +91,11 @@ async function reopen(){await host.getByRole('button',{name:'Back to Purchase Or
   await expect(rewind.locator('ul')).not.toContainText('Requested by');
   await page.keyboard.press('Escape');await idle();await expect(status).toHaveValue('Completed');
   assert.deepEqual(fs.readFileSync(info.project),beforeRewind);
+  await expect(orderCard.locator('details.commercial-card-menu')).not.toHaveAttribute('open','');
+  await orderCard.locator('summary').click();
   await status.selectOption('Requested');await rewind.getByRole('button',{name:'Clear section'}).click();await idle();
-  await expect(host.getByLabel('Status',{exact:true})).toHaveValue('Requested');
+  await expect(host.locator('.commercial-column[data-status=Requested]')).toContainText('PO-01: Signature Supplier');
+  await orderCard.getByRole('button',{name:'PO-01: Signature Supplier',exact:true}).click();await idle();
   await expect(approval).toHaveValue('');await expect(reason).toBeHidden();
   await reopen();
   await expect(host.getByLabel('Requested by name',{exact:true})).toHaveValue('Hand-entered requester');
@@ -89,20 +105,21 @@ async function reopen(){await host.getByRole('button',{name:'Back to Purchase Or
     await expect(host.locator(`[data-signature-field="${key}"] svg[role=img]`)).toHaveCount(0);
   }
   await expect(host.getByLabel('Ship to address',{exact:true})).toHaveValue('Manual delivery destination\nKeep this PO override');
-  await clearPurchase('Requested by');await expect(host.getByLabel('Status',{exact:true})).toHaveValue('Draft');
+  await clearPurchase('Requested by');await expect.poll(savedOrderStatus).toBe('Draft');
   saved=await save();assert.deepEqual(saved.fields.signatures||{},{});await reopen();for(const [key,label,date] of signers){await expect(host.getByLabel(label+' name',{exact:true})).toHaveValue('');await expect(host.locator(`[data-order-field="${date}"]`)).toHaveValue('');await expect(host.locator(`[data-signature-field="${key}"] svg[role=img]`)).toHaveCount(0);}
   checks.push('All four PO roles deliberately sign using current Settings name and organization date, preserve vector ink through Save/reopen, cancel changes safely, and Clear persists removal of ink/name/date without writing Settings');
   // Older project data has no delivery_time/rejection_reason and free-text approval.
   await host.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();const file=JSON.parse(fs.readFileSync(info.project,'utf8')),legacy=file.commercial_documents.documents.find(item=>item.id===saved.id);legacy.status='Verified';legacy.fields.order.approval='Legacy finance review';legacy.fields.order.delivery_date='2026-12-11';delete legacy.fields.order.delivery_time;delete legacy.fields.order.rejection_reason;fs.writeFileSync(info.project,JSON.stringify(file));
-  await page.reload();await idle();await openProjectSection(page,'purchase-orders');await host.getByRole('button',{name:'PO-01: Signature Supplier',exact:true}).click();await idle();
-  await expect(host.getByLabel('Status',{exact:true})).toHaveValue('Completed');
+  await page.reload();await idle();await openProjectSection(page,'purchase-orders');
+  const historicalOrder=host.locator('.commercial-column[data-status=Completed]').getByRole('button',{name:'PO-01: Signature Supplier',exact:true});
+  await expect(historicalOrder).toBeVisible();await historicalOrder.click();await idle();
   await expect(approval).toHaveValue('Legacy finance review');await expect(approval.locator('option')).toHaveText(['','Approved','Rejected','Legacy finance review']);await expect(reason).toBeHidden();await expect(host.getByLabel('Delivery date',{exact:true})).toHaveValue('2026-12-11');await expect(host.getByLabel('Delivery time',{exact:true})).toHaveValue('');await expect(host.getByLabel('Ship to address',{exact:true})).toHaveValue('Manual delivery destination\nKeep this PO override');
   await host.getByLabel('Payment terms',{exact:true}).fill('Legacy terms kept');saved=await save();assert.equal(saved.fields.order.approval,'Legacy finance review');assert.equal(saved.fields.order.delivery_date,'2026-12-11');assert.equal(saved.fields.order.delivery_time??'','');assert.equal(saved.fields.order.ship_to_address,'Manual delivery destination\nKeep this PO override');assert.equal(saved.fields.details.site_address,'Current Project site\nSynthetic address');
   await host.getByRole('button',{name:'Sign Requested by',exact:true}).click();await idle();
   await approval.selectOption('Rejected');await reason.fill('Updated explicit decision');await host.getByLabel('Delivery time',{exact:true}).fill('08:05');saved=await save();assert.equal(saved.fields.order.approval,'Rejected');assert.equal(saved.fields.order.delivery_time,'08:05');assert.equal(saved.fields.order.rejection_reason,'Updated explicit decision');
   checks.push('An older free-text approval and date-only delivery survive an unrelated edit unchanged; an explicit new decision/time replaces them, while manual shipping and canonical Project address remain separate');
   await host.getByRole('button',{name:'Sign Approved by',exact:true}).click();await idle();
-  await expect(host.getByLabel('Status',{exact:true})).toHaveValue('Cancelled');
+  await expect.poll(savedOrderStatus).toBe('Cancelled');
   await expect(host.getByRole('button',{name:'Sign Sent by',exact:true})).toBeHidden();
   await host.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();await expect(host.locator('.commercial-column[data-status="Cancelled"]')).toContainText('PO-01: Signature Supplier');
   checks.push('Historical Verified is displayed as Completed. A rejected review auto-saves to the Cancelled board column and blocks sending.');
@@ -120,6 +137,6 @@ async function reopen(){await host.getByRole('button',{name:'Back to Purchase Or
   assert.equal(saved.status,'Requested');assert.deepEqual(Object.keys(saved.fields.signatures),['requested_by']);
   await card.locator('summary').click();await move.selectOption('Draft');await rewind.getByRole('button',{name:'Clear section'}).click();
   await expect(host.locator('.commercial-column[data-status="Draft"]')).toContainText('PO-01: Signature Supplier');
-  checks.push('Editor, board menu and drag rollback show the affected signers before confirmation. Cancelling preserves the owner file. Multi-stage and rejected-order rollback preserve earlier sign-offs.');
+  checks.push('Board menu and drag rollback show the affected signers before confirmation. Cancelling preserves the owner file. Multi-stage and rejected-order rollback preserve earlier sign-offs.');
   assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,geometry,errors},null,2));console.log('PASS Purchase Order signatures and delivery: '+output);
 })().catch(async error=>{console.error(error);console.error(logs);if(page){console.error(await page.locator('.commercial-message').allTextContents().catch(()=>[]));await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});}process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

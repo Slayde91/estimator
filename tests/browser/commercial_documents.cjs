@@ -97,7 +97,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   const introBox = await quote.getByLabel('Introduction',{exact:true}).boundingBox();
   const detailBox = await quote.locator('.commercial-details').boundingBox();
   assert.ok(Math.abs(introBox.width-detailBox.width)<2,'Introduction spans the Project details width');
-  assert.ok((await quote.getByLabel('Status',{exact:true}).boundingBox()).width<=220);
+  await expect(quote.getByLabel('Status',{exact:true})).toHaveCount(0);
   const shortDescription=quote.locator('.commercial-line-description').first();
   await expect(shortDescription).toHaveJSProperty('rows',1);
   assert.ok((await shortDescription.boundingBox()).height<60,'short description uses one row');
@@ -256,7 +256,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
       finally {releaseProjectWrite();}
     }
   }
-  await expect(work.getByLabel('Status',{exact:true})).toHaveValue('Client Approval');
+  await expect.poll(() => JSON.parse(fs.readFileSync(info.project,'utf8')).commercial_documents.documents.find(doc=>doc.kind==='work_order')?.status).toBe('Client Approval');
   await work.getByRole('button',{name:'Back to Work Orders',exact:true}).click();
   const signDialog=page.getByRole('dialog',{name:'Sign and move',exact:true});
   const column=(host,status)=>host.locator('.commercial-column').filter({has:page.getByRole('heading',{name:status,exact:true})});
@@ -296,8 +296,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await expect(work.locator('.commercial-attached-file')).toContainText('qa-field-record.bin');
   await checkTrashAlignment(work.getByRole('button',{name:'Remove qa-field-record.bin',exact:true}));
   await expect(work.getByLabel('Proposed start date',{exact:true})).toHaveAttribute('type','date');
-  const pdfBox=await work.getByRole('button',{name:'Download PDF',exact:true}).boundingBox(),statusBox=await work.getByLabel('Status',{exact:true}).boundingBox();
-  assert.ok(statusBox.x>pdfBox.x && Math.abs(statusBox.y-pdfBox.y)<2,'Status aligns with the PDF action in the toolbar');
+  await expect(work.getByLabel('Status',{exact:true})).toHaveCount(0);
   await save(work);
   const assignedReference=await work.getByLabel('Work order reference',{exact:true}).inputValue();
   assert.match(assignedReference,/^WO-\d{2,}$/);
@@ -435,7 +434,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   const owner = () => JSON.parse(fs.readFileSync(otherPath,'utf8')).commercial_documents.documents;
   const ownerQuote = () => owner().find(doc=>doc.kind==='quote');
   await exerciseQuoteSound(page,quote,{initialStatus:ownerQuote().status,saveEndpoint:'/api/commercial/saved-save',statusEndpoint:'/api/commercial/saved-status',title:'Other project quote'});
-  checks.push('A saved peer Quote plays once on each confirmed acceptance, through its own editor, board menu and drag writes');
+  checks.push('A saved peer Quote plays once per confirmed board acceptance, with editor saves and rejected moves silent');
   assert.equal(ownerQuote().fields.lines.at(-1).unit_price,'140.50');
   assert.equal(ownerQuote().fields.title,'Other project quote','Editing the saved copy keeps its historic title');
   assert.deepEqual(fs.readFileSync(second.path),retainedQuotePDF,'Editing the copy preserves the original issued PDF exactly');

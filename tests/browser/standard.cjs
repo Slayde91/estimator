@@ -141,7 +141,7 @@ async function worksheetReady(title, label) {
   assert.equal(navigationRequests.filter(value=>value.endsWith('/worksheet')).length,beforeRevisit);
   assert.deepEqual(await page.evaluate(()=>window.CeasefireCalculators.projectSnapshot()),snapshot);
   await chooseCalculator(page,'Factor Calcs');await worksheetReady('Factor Calcs','Factor Calcs');
-  await expect(page.locator('#calculator-pages')).toBeHidden();
+  await expect(page.locator('#calculator-pages .calculator-settings-choice')).toHaveCount(2);
   await expect(page.locator('#calculator-workspace')).toHaveAttribute('data-calculator-kind','steel_vermiculite');
   await expect(page.locator('[data-calculator-settings-section="A341"]')).toHaveAttribute('aria-expanded','true');
   await expect(page.locator('[data-calculator-cell="D346"]')).toBeVisible();

@@ -20,10 +20,9 @@ async function checkQuoteSound(page, expected) {
 }
 
 async function exerciseQuoteSound(page, quote, {initialStatus, saveEndpoint, statusEndpoint, title}) {
-  const status = quote.getByLabel('Status',{exact:true}), save = quote.getByRole('button',{name:'Save',exact:true});
+  const save = quote.getByRole('button',{name:'Save',exact:true});
   const card = quote.locator('.commercial-card').first();
-  async function saveStatus(value) {
-    await status.selectOption(value);
+  async function saveUnchanged() {
     const response = page.waitForResponse(reply => new URL(reply.url()).pathname === saveEndpoint);
     await save.click(); assert.equal((await response).status(), 200);
     await expect(save).toBeEnabled();
@@ -38,20 +37,22 @@ async function exerciseQuoteSound(page, quote, {initialStatus, saveEndpoint, sta
     await expect(card).toBeVisible();
     await expect(card.locator('..')).toHaveAttribute('data-status',value);
   }
-  await expect(status).toHaveValue(initialStatus);
+  const board = async () => {
+    await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
+    if (title) await quote.getByLabel('Search documents',{exact:true}).fill(title);
+  };
+  await expect(quote.getByLabel('Status',{exact:true})).toHaveCount(0);
   await checkQuoteSound(page,0);
   const reject = route => route.fulfill({status:503,json:{error:'Test write failure'}});
   await page.route('**'+saveEndpoint,reject,{times:1});
-  await status.selectOption('Accepted'); await checkQuoteSound(page,0);
   await save.click(); await expect(quote.locator('.commercial-message')).toContainText('Test write failure');
   await checkQuoteSound(page,0);
-  await saveStatus('Accepted'); await checkQuoteSound(page,1);
-  await saveStatus('Accepted'); await checkQuoteSound(page,1);
-  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
-  if (title) await quote.getByLabel('Search documents',{exact:true}).fill(title);
-  await card.locator('.project-title-button').click(); await expect(status).toHaveValue('Accepted'); await checkQuoteSound(page,1);
-  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
-  if (title) await quote.getByLabel('Search documents',{exact:true}).fill(title);
+  await saveUnchanged(); await board();
+  await expect(card.locator('..')).toHaveAttribute('data-status',initialStatus);
+  if(initialStatus==='Accepted') await moveTo('Presented');
+  await moveTo('Accepted'); await checkQuoteSound(page,1);
+  await card.locator('.project-title-button').click(); await expect(save).toBeEnabled(); await checkQuoteSound(page,1);
+  await saveUnchanged(); await checkQuoteSound(page,1); await board();
   await moveTo('Presented'); await checkQuoteSound(page,1);
   await page.route('**'+statusEndpoint,reject,{times:1});
   await card.locator('summary').click(); await card.getByLabel('Move to').selectOption('Accepted');
@@ -61,7 +62,9 @@ async function exerciseQuoteSound(page, quote, {initialStatus, saveEndpoint, sta
   await moveTo('Presented'); await moveTo('Accepted'); await checkQuoteSound(page,2);
   await page.evaluate(() => window.CeasefireAudioSettings.setEnabled(true));
   await checkQuoteSound(page,2); await moveTo('Presented'); await moveTo('Accepted'); await checkQuoteSound(page,3);
-  await moveTo(initialStatus); await card.locator('.project-title-button').click(); await expect(status).toHaveValue(initialStatus);
+  if(initialStatus!=='Accepted') await moveTo(initialStatus);
+  await expect(card.locator('..')).toHaveAttribute('data-status',initialStatus);
+  await card.locator('.project-title-button').click(); await expect(save).toBeEnabled();
 }
 
 module.exports = {observeQuoteSound, checkQuoteSound, exerciseQuoteSound};

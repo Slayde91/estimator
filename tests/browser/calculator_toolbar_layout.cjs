@@ -25,11 +25,12 @@ async function checkAllowances(page, fields, output, screenshotName) {
 
 async function checkWorkbookControls(page, factor) {
   const pages = page.locator('#calculator-pages button:visible');
-  const choices = page.locator('#calculator-grid .calculator-settings-choice:visible');
+  const choices = page.locator('#calculator-pages .calculator-settings-choice:visible');
   const actions = page.locator('#calculator-toolbar-actions')
     .locator('.schedule-column-toggle:visible,#calculator-document-toggle:visible,#calculator-reset:visible,#calculator-recalculate:visible');
   if (factor) {
-    await expect(pages).toHaveCount(0);
+    await expect(pages).toHaveCount(2);
+    await expect(page.locator('#calculator-grid .calculator-settings-chooser')).toHaveCount(0);
     await expect(choices).toHaveCount(2);
   } else {
     assert.ok(await pages.count() > 0);

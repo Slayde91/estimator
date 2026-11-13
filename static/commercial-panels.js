@@ -293,7 +293,8 @@
       if(copy){const note=el("p",copy);note.className="helper";window.CeasefireI18n?.text(note,copy);linkedProjects.append(note);}
     }
     let controls=[],refreshDetails=()=>{},refreshDirectory=async()=>{};
-    const history=window.ClassifireCrmActivity.historyPanel(options.readActivity,panelCurrent);
+    const history=window.ClassifireCrmActivity.historyPanel(options.readActivity,panelCurrent,
+      isPurchaseOrder ? 'purchase-order-activity-heading' : null);
     {
     const accountPanel = panel("Linked Companies"), contactPanel = panel("Linked Contacts");
     left.append(accountPanel,contactPanel,history.element);

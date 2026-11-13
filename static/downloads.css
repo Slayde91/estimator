@@ -11,7 +11,7 @@
 .document-download-progress[data-state=saved] .document-download-track{box-shadow:0 0 0 1px var(--download-success)}
 @keyframes document-download-work{from{transform:translateX(-110%)}to{transform:translateX(420%)}}
 @media(prefers-reduced-motion:reduce){.document-download-beam{animation:none;left:34%;background:var(--download-success)}}
-.commercial-editor-actions .button.commercial-download-pdf,
+.commercial-editor-actions .button.commercial-download-pdf{flex:0 0 52px;width:52px;min-width:52px;height:42px;padding:8px}
 .swms-toolbar .button.swms-download,
 .certification-editor-toolbar .button.certification-download,
 .documentation-download .button:is(.documentation-download-button,.documentation-new-button){flex:0 0 52px;width:52px;min-width:52px;height:44px;padding:8px}

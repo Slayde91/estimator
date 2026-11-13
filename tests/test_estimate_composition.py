@@ -1,7 +1,6 @@
 """Whole-quote Firestopping inclusion without rewriting either source model."""
 
 from copy import deepcopy
-import http.client
 from io import BytesIO
 import json
 from pathlib import Path
@@ -12,6 +11,7 @@ from unittest.mock import patch
 
 from pypdf import PdfReader
 
+from feature_client import StaffConnection
 from estimator.calculator import calculate as base_calculate
 from estimator.catalog import ValidationError, baseline
 from estimator.estimate_composition import calculate
@@ -341,7 +341,7 @@ class EstimateCompositionRouteTests(unittest.TestCase):
         cls.temporary.cleanup()
 
     def request(self, method, path, body=None):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=30)
+        connection = StaffConnection(self.server, timeout=30)
         try:
             connection.request(method, path, json.dumps(body) if body is not None else None,
                                {'Content-Type': 'application/json'})

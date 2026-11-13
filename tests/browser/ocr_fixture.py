@@ -46,7 +46,7 @@ def make_label_pdf(path):
 
 
 if __name__ == '__main__':
-    from estimator.server import create_server
+    from feature_server import create_server
     parser = argparse.ArgumentParser()
     parser.add_argument('--directory', required=True)
     folder = Path(parser.parse_args().directory).resolve()

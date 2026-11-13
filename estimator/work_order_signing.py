@@ -23,6 +23,7 @@ PURCHASE_STEPS = {
     'verified_by': ('verified_date', 'Completed'),
 }
 WORKFLOWS = {'work_order': STEPS, 'purchase_order': PURCHASE_STEPS}
+QUOTE_SIGNERS = {'quoted_by': 'quoted_date', 'reviewed_by': 'review_date'}
 PURCHASE_STAGE_ORDER = ('Draft', *(target for _, target in PURCHASE_STEPS.values()))
 COMPLETIONS = ('Completed', 'Ongoing', 'On hold', 'Not completed')
 CYCLE_SIGNERS = ('progress_by', 'claimed_by', 'closed_by')
@@ -55,12 +56,19 @@ def _ink(signature):
     return bool(signature and any(len({tuple(point) for point in stroke}) > 1 for stroke in signature['strokes']))
 
 
+def validate_quote_signers(fields):
+    for key, signature in fields.get('signatures', {}).items():
+        if not (_ink(signature) and meaningful(fields['order'].get(key)) and _valid_date(fields['order'].get(QUOTE_SIGNERS[key]))):
+            raise ValidationError('Enter the signer name and date before signing.')
+
+
 def actions(value, kind):
-    if not isinstance(value, list) or len(value) > 1 or (value and kind not in WORKFLOWS):
+    signers = QUOTE_SIGNERS if kind == 'quote' else WORKFLOWS.get(kind, {})
+    if not isinstance(value, list) or len(value) > 1 or (value and not signers):
         raise ValidationError('Invalid commercial document signing actions.')
     result = []
     for item in value:
-        if not isinstance(item, dict) or not isinstance(item.get('key'), str) or item['key'] not in WORKFLOWS[kind]:
+        if not isinstance(item, dict) or not isinstance(item.get('key'), str) or item['key'] not in signers:
             raise ValidationError('Choose a valid commercial document signature.')
         if set(item) == {'key', 'clear'} and item['clear'] is True:
             result.append({'key': item['key'], 'clear': True})
@@ -161,6 +169,30 @@ def reconciled_status(status, fields, *, legacy_details=False):
 
 def apply(kind, fields, status, signed, previous, *, legacy_details=False, create_retry=False):
     """Advance only deliberate actions; unchanged historical signoffs remain readable."""
+    if kind == 'quote':
+        prior = previous['fields'] if previous else {}
+        retained = dict(prior.get('signatures', {}))
+        action = signed[0] if signed else {}
+        for key, date_key in QUOTE_SIGNERS.items():
+            if action.get('key') == key:
+                if action.get('clear'):
+                    retained.pop(key, None)
+                    fields['order'].update({key: '', date_key: ''})
+                else:
+                    retained[key] = action['signature']
+                    fields['order'].update({key: action['name'], date_key: action['date']})
+            elif fields.get('signatures', {}).get(key) not in (None, retained.get(key)):
+                raise ValidationError('Save each signature using its signing button.')
+            elif key in retained:
+                # Older editors may omit newer signer fields. Keep the original
+                # signer, date and ink together until an explicit replacement or clear.
+                for name in (key, date_key):
+                    fields['order'][name] = prior['order'][name]
+        if retained:
+            fields['signatures'] = retained
+        else:
+            fields.pop('signatures', None)
+        return status
     if kind not in WORKFLOWS:
         return status
     steps = WORKFLOWS[kind]

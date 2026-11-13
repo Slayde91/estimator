@@ -1,4 +1,10 @@
 {
+  "Quoted by": ["견적 작성자","Naghanda ng sipi ng presyo","Người lập báo giá"],
+  "Sign Quoted by": ["견적 작성자로 서명","Lumagda bilang naghanda ng sipi ng presyo","Ký với tư cách người lập báo giá"],
+  "Change Quoted by": ["견적 작성자 서명 변경","Palitan ang lagda ng naghanda ng sipi ng presyo","Đổi chữ ký của người lập báo giá"],
+  "Clear Quoted by": ["견적 작성자 서명 지우기","Alisin ang lagda ng naghanda ng sipi ng presyo","Xóa chữ ký của người lập báo giá"],
+  "Create administrator account": ["관리자 계정 만들기","Gumawa ng account ng administrador","Tạo tài khoản quản trị viên"],
+  "Staff sign-in is required.": ["직원 로그인이 필요합니다.","Kailangang mag-sign in ang kawani.","Nhân viên phải đăng nhập."],
   "New certificates start with blank signer details. Signing fills these details from Settings for that certificate only.": [
     "새 인증서의 서명자 정보는 비어 있습니다. 서명하면 설정의 정보가 해당 인증서에만 입력됩니다.",
     "Blangko ang detalye ng lumalagda sa mga bagong sertipiko. Kapag nilagdaan, kinokopya ang detalye mula sa Settings para lang sa sertipikong iyon.",

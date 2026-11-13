@@ -267,9 +267,9 @@ class AccessBoundaryTests(unittest.TestCase):
             self.assertEqual(tuple(db.execute('SELECT * FROM certification_signer_defaults').fetchone()),original)
         configuration=self.access.settings()
         self.assertEqual(self.call('/api/access/settings',{'enabled':False,'version':configuration['version']},
-                                   cookie=self.admin,member=self.admin_id)[0],200)
+                                   cookie=self.admin,member=self.admin_id)[0],403)
         self.assertEqual(self.call(route+'/legacy')[0],401)
-        self.assertEqual(self.call(route,member='anonymous')[2],legacy)
+        self.assertEqual(self.call(route,member='anonymous')[0],401)
         self.assertEqual(self.call(route,member=self.admin_id)[0],409)
         self.assertEqual(self.call(route,first,member=self.admin_id)[0],409)
         self.assertEqual(self.call(route,second,cookie=self.admin,member='anonymous')[0],409)

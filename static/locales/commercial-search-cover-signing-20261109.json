@@ -1,4 +1,10 @@
 {
+  "Quoted by": ["报价人","कोटेशन तैयार करने वाला","Cotizado por","أعدّ عرض السعر","ผู้จัดทำใบเสนอราคา"],
+  "Sign Quoted by": ["以报价人身份签名","कोटेशन तैयार करने वाले के रूप में हस्ताक्षर करें","Firmar como autor del presupuesto","التوقيع بصفتك مُعدّ عرض السعر","ลงนามในฐานะผู้จัดทำใบเสนอราคา"],
+  "Change Quoted by": ["更改报价人签名","कोटेशन तैयार करने वाले के हस्ताक्षर बदलें","Cambiar la firma del autor del presupuesto","تغيير توقيع مُعدّ عرض السعر","เปลี่ยนลายเซ็นผู้จัดทำใบเสนอราคา"],
+  "Clear Quoted by": ["清除报价人签名","कोटेशन तैयार करने वाले के हस्ताक्षर मिटाएँ","Borrar la firma del autor del presupuesto","مسح توقيع مُعدّ عرض السعر","ล้างลายเซ็นผู้จัดทำใบเสนอราคา"],
+  "Create administrator account": ["创建管理员账户","व्यवस्थापक खाता बनाएँ","Crear cuenta de administrador","إنشاء حساب مسؤول","สร้างบัญชีผู้ดูแลระบบ"],
+  "Staff sign-in is required.": ["员工必须登录。","कर्मचारियों का साइन इन करना आवश्यक है।","El personal debe iniciar sesión.","يجب على الموظفين تسجيل الدخول.","พนักงานต้องลงชื่อเข้าใช้"],
   "New certificates start with blank signer details. Signing fills these details from Settings for that certificate only.": [
     "新证书的签署人资料默认为空。签署时，仅将设置中的资料填入该证书。",
     "नए प्रमाणपत्रों में हस्ताक्षरकर्ता का विवरण खाली रहता है। हस्ताक्षर करने पर सेटिंग्स से विवरण केवल उसी प्रमाणपत्र में भरा जाता है।",

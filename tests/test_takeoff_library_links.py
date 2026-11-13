@@ -6,7 +6,6 @@ These tests exercise the retained transaction protocol, not inferred matching.
 
 from copy import deepcopy
 import csv
-import http.client
 from io import BytesIO, StringIO
 import json
 from pathlib import Path
@@ -20,6 +19,7 @@ from zipfile import ZipFile
 from openpyxl import load_workbook
 from pypdf import PdfReader
 
+from feature_client import StaffConnection
 from estimator.catalog import ValidationError
 from estimator.firestopping_library import FirestoppingLibrary
 from estimator.penetration_calculator import normalize_draft
@@ -923,7 +923,7 @@ class TakeoffLibraryLinkApiTests(unittest.TestCase):
         cls.server.shutdown(); cls.server.server_close(); cls.thread.join(); cls.temp.cleanup()
 
     def request(self, path, body=None, method='POST', headers=None):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=30)
+        connection = StaffConnection(self.server, timeout=30)
         try:
             connection.request(method, path, body=json.dumps(body) if body is not None else None,
                 headers={'Content-Type': 'application/json', **(headers or {})})

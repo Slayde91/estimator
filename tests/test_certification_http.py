@@ -7,12 +7,12 @@ from pathlib import Path
 import tempfile
 import threading
 import unittest
-import http.client
 from unittest.mock import patch
 
 from pypdf import PdfReader
 from reportlab.pdfgen.canvas import Canvas
 
+from feature_client import StaffConnection
 from estimator.certification import CertificationService, FIELDS, SIGNER_FIELDS, REQUIRED_GENERATION_FIELDS
 from estimator.native_dialogs import SaveSelection
 from estimator.company_settings import DEFAULTS
@@ -58,7 +58,7 @@ class CertificationHTTPTests(unittest.TestCase):
         self.temp.cleanup()
 
     def request(self, method, path, value=None, headers=None):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=60)
+        connection = StaffConnection(self.server, timeout=60)
         try:
             data = json.dumps(value) if value is not None else None
             connection.request(method, path, data, {'Content-Type':'application/json', **(headers or {})})

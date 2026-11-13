@@ -28,7 +28,14 @@ const errors = [], checks = [];
   await expect(page.locator('#personal-details-save')).toBeEnabled();
   for (const form of ['company-settings-form','organization-timezone-form','personal-details-form','document-number-settings'])
     await expect(page.locator('#'+form).getByRole('button',{name:'Save',exact:true})).toHaveCount(1);
-  await expect(page.locator('#document-number-settings').getByRole('button',{name:'Update existing records',exact:true})).toHaveId('migrate-order-numbers');
+  await expect(page.locator('#document-number-settings').getByRole('button',{name:'Update existing records',exact:true})).toHaveCount(0);
+  let migrations=0;
+  page.on('request',request=>{if(new URL(request.url()).pathname==='/api/document-numbering/migrate-orders')migrations++;});
+  await page.getByLabel('Projects prefix',{exact:true}).fill('QA');
+  await page.locator('#document-number-settings').getByRole('button',{name:'Save',exact:true}).click();
+  await expect(page.locator('#project-details-settings-status')).toContainText('Saved');
+  assert.equal((await (await page.request.get(base+'/api/numbering-settings')).json()).project.prefix,'QA');
+  assert.equal(migrations,0,'Changing numbering preferences does not renumber existing files');
   await expect(page.locator('#language-help')).toHaveCount(0);
   await expect(page.locator('[aria-describedby~="language-help"]')).toHaveCount(0);
   assert.equal(await page.locator('#organization-timezone-form').evaluate(form => form.closest('section.card').querySelector('h2').textContent), 'Company Details');

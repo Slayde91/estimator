@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  let session={enabled:false,user:null,version:1}, resolveReady;
+  let session={enabled:true,user:null,version:1}, resolveReady;
   const ready=new Promise(resolve=>resolveReady=resolve);
   const nativeFetch=window.fetch.bind(window);
   window.fetch=async (input,options={})=>{
@@ -15,28 +15,56 @@
     }
     return nativeFetch(input,options);
   };
-  const can=permission=>!session.enabled || !!session.user && (session.user.role==='admin' ||
+  const can=permission=>!!session.user && (session.user.role==='admin' ||
     permission==='view' && ['viewer','editor'].includes(session.user.role) ||
     permission==='edit' && session.user.role==='editor');
-  window.ClassifireAccess={ready,can,get user(){return session.user;},get enabled(){return session.enabled;}};
+  function reloadSession(){
+    if(window.chrome?.webview)window.chrome.webview.postMessage({type:'classifire.staff-session'});
+    else location.replace('/');
+  }
+  function requestClose(nonce){
+    const host=window.chrome?.webview;
+    if(!host || !/^[a-f0-9]{64}$/.test(nonce))return;
+    const auxiliaryPage=document.getElementById('staff-login') || document.getElementById('staff-scheduler-page');
+    const allowed=!!auxiliaryPage && !window.CeasefireScheduler?.hasPendingOperation();
+    host.postMessage({type:'ceasefire.close',action:'resolve',nonce,allowed});
+  }
+  window.ClassifireAccess={ready,can,reloadSession,requestClose,get user(){return session.user;},get enabled(){return session.enabled;}};
   function el(tag,value,className){const node=document.createElement(tag);if(value!==undefined){node.textContent=value;if(window.CeasefireMessages?.[value])window.CeasefireI18n?.text(node,value);}if(className)node.className=className;return node;}
   function text(node,value){node.textContent=value;window.CeasefireI18n?.text(node,value);}
   async function request(action,body){
     const response=await fetch('/api/access/'+action,{cache:'no-store',...(body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});
     const data=await response.json();if(!response.ok)throw new Error(data.error||'Staff access could not be updated.');return data;
   }
-  async function logout(){await request('logout',{});location.assign('/');}
+  async function logout(){await request('logout',{});reloadSession();}
   const login=document.getElementById('staff-login');
   if(login){
+    const submit=login.querySelector('[type=submit]'),message=document.getElementById('staff-login-message');
+    let setup=false;
+    async function load(){
+      session=await request('session');resolveReady(session);
+      if(session.user){reloadSession();return;}
+      const bootstrap=await fetch('/api/scheduler/bootstrap',{cache:'no-store'});
+      const state=await bootstrap.json();
+      if(!bootstrap.ok)throw new Error(state.error || 'Staff access could not be updated.');
+      setup=state.setup_required;
+      const name=login.elements.namedItem('name');
+      name.closest('label').hidden=!setup;name.disabled=!setup;name.required=setup;
+      login.elements.password.autocomplete=setup?'new-password':'current-password';
+      login.elements.password.minLength=setup?12:0;
+      document.getElementById('staff-login-help').hidden=setup;
+      text(document.getElementById('staff-login-heading'),setup?'Create administrator account':'Staff sign in');
+      text(submit,setup?'Create administrator account':'Sign in');
+      submit.disabled=false;
+    }
     login.addEventListener('submit',async event=>{
-      event.preventDefault();const button=login.querySelector('[type=submit]'),message=document.getElementById('staff-login-message');
-      button.disabled=true;text(message,'Signing in…');
-      try{session=await request('login',{email:login.elements.email.value,password:login.elements.password.value});login.elements.password.value='';
-        location.assign('/');
-      }catch(error){text(message,error.message);}finally{button.disabled=false;}
+      event.preventDefault();if(submit.disabled)return;submit.disabled=true;text(message,'Signing in…');
+      try{await request(setup?'setup':'login',{...(setup?{name:login.elements.namedItem('name').value}:{}),
+        email:login.elements.email.value,password:login.elements.password.value});login.elements.password.value='';
+        reloadSession();
+      }catch(error){text(message,error.message);await load().catch(()=>{});}
     });
-    document.getElementById('staff-login-signout').addEventListener('click',()=>void logout());
-    request('session').then(value=>{session=value;if(value.user)location.assign('/');resolveReady(value);}).catch(()=>resolveReady(session));
+    load().catch(error=>text(message,error.message)).finally(()=>{resolveReady(session);void window.ClassifireBoot?.ready();});
     return;
   }
   async function render(){
@@ -53,15 +81,12 @@
       password.type='password';password.autocomplete='current-password';password.required=true;password.setAttribute('aria-label','Staff password');button.type='submit';
       const emailField=el('label',undefined,'field'),passwordField=el('label',undefined,'field');
       emailField.append(el('span','Email'),email);passwordField.append(el('span','Password'),password);form.append(emailField,passwordField,button);
-      form.addEventListener('submit',async event=>{event.preventDefault();button.disabled=true;try{session=await request('login',{email:email.value,password:password.value});password.value='';location.assign('/');}catch(error){text(message,error.message);button.disabled=false;}});
+      form.addEventListener('submit',async event=>{event.preventDefault();button.disabled=true;try{session=await request('login',{email:email.value,password:password.value});password.value='';reloadSession();}catch(error){text(message,error.message);button.disabled=false;}});
       card.append(form,message);return;
     }
     card.append(el('p',session.user.name+' · '+({admin:'Administrator',editor:'Editor',viewer:'View only',none:'Scheduler only'}[session.user.role]||session.user.role)));
     const out=el('button','Sign out','button secondary');out.type='button';out.addEventListener('click',()=>void logout());actions.append(out);card.append(actions,message);
     if(session.user.role!=='admin')return;
-    const setting=el('label',undefined,'field'),input=el('input'),save=el('button','Save','button primary');input.type='checkbox';input.checked=session.enabled;
-    setting.append(el('span','Require staff sign-in'),input);save.type='button';card.append(setting,save);
-    save.addEventListener('click',async()=>{save.disabled=true;try{const value=await request('settings',{enabled:input.checked,version:session.version});session={...session,...value};text(message,'Staff access saved.');await render();}catch(error){text(message,error.message);}finally{save.disabled=false;}});
     card.append(el('p','Manage staff names, passwords and team administrator roles in Scheduler. Editors can update CRM records; viewers can read records; Scheduler-only staff have no CRM access.','helper'));
     try{
       const result=await request('members'),scroll=el('div',undefined,'table-scroll'),table=el('table',undefined,'staff-access-table'),thead=el('thead'),tr=el('tr'),tbody=el('tbody');

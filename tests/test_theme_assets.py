@@ -1,12 +1,12 @@
 """Theme assets are presentation-only in full and standard editions."""
 
 import hashlib
-import http.client
 from pathlib import Path
 import tempfile
 import threading
 import unittest
 
+from feature_client import StaffConnection
 from estimator.server import DEFAULT_CONTENT_SECURITY_POLICY, create_server
 
 
@@ -38,7 +38,7 @@ class ThemeAssetTests(unittest.TestCase):
         cls.temporary.cleanup()
 
     def get(self, edition, route):
-        connection = http.client.HTTPConnection('127.0.0.1', self.servers[edition].server_port, timeout=30)
+        connection = StaffConnection(self.servers[edition], timeout=30)
         try:
             connection.request('GET', route)
             response = connection.getresponse()

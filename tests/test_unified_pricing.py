@@ -4,7 +4,6 @@ import base64
 from copy import deepcopy
 import csv
 import hashlib
-import http.client
 from io import BytesIO, StringIO
 import json
 from pathlib import Path
@@ -14,6 +13,7 @@ import unittest
 
 from openpyxl import load_workbook
 
+from feature_client import StaffConnection
 from estimator.calculator import specification
 from estimator.catalog import baseline, effective_catalog
 from estimator.estimate_composition import calculate
@@ -73,7 +73,7 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
         self.temp.cleanup()
 
     def request(self, method, path, payload=None, *, expected_status=(200, 201)):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=30)
+        connection = StaffConnection(self.server, timeout=30)
         try:
             connection.request(method, path, None if payload is None else json.dumps(payload),
                                {'Content-Type': 'application/json'})

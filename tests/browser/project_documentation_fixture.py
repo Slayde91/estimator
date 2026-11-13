@@ -13,7 +13,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--directory', type=Path, required=True)
     args = parser.parse_args()
-    from estimator.server import create_server
+    from feature_server import create_server
     from estimator.native_dialogs import SaveSelection
     from estimator.project_library import file_fingerprint
     folder = args.directory.resolve()

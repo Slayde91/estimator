@@ -1,13 +1,13 @@
 """Shared future-document rates never become mutable document snapshots."""
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
-import http.client
 import json
 from pathlib import Path
 import tempfile
 import threading
 import unittest
 
+from feature_client import StaffConnection
 from estimator.catalog import ValidationError
 from estimator.commercial_documents import CommercialConflict, RATE_DEFAULTS, default_fields
 from estimator.commercial_rate_defaults import CommercialRateDefaults, PREFERENCE
@@ -98,7 +98,7 @@ class RateDefaultsHTTPTests(unittest.TestCase):
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
             def request(path, body=None):
-                connection = http.client.HTTPConnection('127.0.0.1', server.server_port, timeout=30)
+                connection = StaffConnection(server, timeout=30)
                 try:
                     headers = {'Content-Type': 'application/json', 'Origin': f'http://127.0.0.1:{server.server_port}'}
                     connection.request('GET' if body is None else 'POST', path,

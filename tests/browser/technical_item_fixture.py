@@ -70,7 +70,7 @@ def main():
         print(json.dumps(inspect(*args.inspect)))
         return
     from technical_item_fixture_data import technical_library
-    from estimator.server import create_server
+    from feature_server import create_server
     from estimator.storage import Store
     from estimator.native_dialogs import SaveSelection
     from estimator.project_library import file_fingerprint

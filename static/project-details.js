@@ -99,19 +99,6 @@
     render(value.project); renderNumbers(value.documents);
   }
   numberForm.addEventListener('input', () => { numberDirty = true; numberGeneration++; message('Unsaved changes'); });
-  document.getElementById('migrate-order-numbers').addEventListener('click', async event => {
-    const button = event.currentTarget;
-    if (saving) return;
-    button.disabled = true;
-    try {
-      let result;
-      do {
-        result = await request('/api/document-numbering/migrate-orders', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
-      } while (result.scan_pending);
-      text(status, '{0} orders updated in {1} files. {2} files need review.', [result.updated_orders,result.updated_files,result.errors.length+result.unreadable_files]);
-    } catch (error) { message(error.message, true); }
-    finally { button.disabled = saving || !current; }
-  });
   numberForm.addEventListener('submit', async event => {
     event.preventDefault();
     if (saving || !current || fields.size !== Object.keys(labels).length || !form.reportValidity()) return;

@@ -49,6 +49,45 @@ class CommercialPaneSignerTests(unittest.TestCase):
         self.assertEqual(restored['order']['prepared_date'], '')
         self.assertNotIn('signatures', restored)
 
+    def test_quote_signers_are_independent_preserved_with_legacy_saves_and_printed_on_new_revisions(self):
+        fields = complete_quote(default_fields('quote'))
+        fields['order'].pop('quoted_by')
+        fields['order'].pop('quoted_date')
+        document = self.save('quote', fields)
+        first = self.store.issue(self.workspace, document['id'], document['version'], str(uuid4()))
+        original = first['pdf']
+        document = first['document']
+        def save(draft, actions=()):
+            return self.store.save(self.workspace, dict(kind='quote', id=document['id'], version=document['version'],
+                status=document['status'], fields=draft, signature_actions=list(actions)))
+        status = document['status']
+        for key, date_key, person in [('reviewed_by','review_date','Reviewer One'),('quoted_by','quoted_date','Estimator Two')]:
+            action = dict(key=key, date='2026-11-14', name=person, signature=INK)
+            document = save(document['fields'], [action])
+            self.assertEqual(document['status'], status)
+            self.assertEqual(document['fields']['order'][key], person)
+            self.assertEqual(document['fields']['order'][date_key], action['date'])
+        legacy = deepcopy(document['fields'])
+        legacy.pop('signatures')
+        for key in ('quoted_by','quoted_date','reviewed_by','review_date'):
+            legacy['order'].pop(key)
+        document = save(legacy)
+        self.assertEqual(document['fields']['order']['quoted_by'], 'Estimator Two')
+        self.assertEqual(document['fields']['signatures'], dict(quoted_by=INK,reviewed_by=INK))
+        signed = self.store.issue(self.workspace, document['id'], document['version'], str(uuid4()))
+        content = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(signed['pdf'])).pages)
+        for label in ('Quoted by', 'Reviewed by', 'Reviewer One', 'Estimator Two', '2026-11-14'):
+            self.assertIn(label, content)
+        reopened = self.projects.add(self.project)
+        self.store.restore(reopened, self.store.capture(self.workspace))
+        self.assertEqual(self.store.read_pdf(reopened, first['id'])[1], original)
+        self.assertEqual(self.store.view(reopened)['documents'][0]['fields']['signatures'],document['fields']['signatures'])
+        document = signed['document']
+        document = save(document['fields'], [{'key':'quoted_by', 'clear':True}])
+        self.assertEqual(document['fields']['signatures'], {'reviewed_by':INK})
+        self.assertEqual(document['fields']['order']['quoted_by'], '')
+        self.assertEqual(document['fields']['order']['quoted_date'], '')
+
     def test_three_signer_names_dates_and_vector_ink_persist_in_pdf_without_global_defaults(self):
         fields = complete_work_order(default_fields('work_order'))
         quote_fields = complete_quote(default_fields('quote')); quote_fields['terms'] = '<p>N / A</p>'

@@ -1,9 +1,9 @@
 'use strict';
-// Named access is enabled only in this disposable fixture, never on the live server.
+// Test mandatory staff access and one-time provisioning on a disposable site.
 const {chromium,expect}=require('@playwright/test'),{spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'../..'),out=path.join(root,'.runtime/browser-qa','crm-access-'+Date.now());fs.mkdirSync(out,{recursive:true});
-const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',out],{cwd:root,windowsHide:true});
+const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',out,'--real-auth'],{cwd:root,windowsHide:true});
 let logs='',text='',browser;server.stderr.on('data',x=>logs+=x);
 const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error(logs||'Fixture timeout')),120000);server.stdout.on('data',x=>{text+=x;if(text.includes('\n')){clearTimeout(timer);resolve(JSON.parse(text.split('\n')[0]));}});server.once('error',reject);server.once('exit',x=>{clearTimeout(timer);reject(Error('Fixture exited '+x));});});
 (async()=>{
@@ -11,14 +11,25 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
  browser=await chromium.launch({headless:true});const admin=await browser.newContext(),page=await admin.newPage(),errors=[];
  page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(45000);
  async function post(context,route,data){let headers={};if(['/api/access/settings','/api/access/roles'].includes(route)){const session=await(await context.request.get(base+'/api/access/session')).json();if(session.user)headers={'X-CRM-Member':session.user.id};}const r=await context.request.post(base+route,{data,headers});assert.equal(r.status(),200,await r.text());return r.json();}
- const manager=await post(admin,'/api/scheduler/setup',{name:'CRM Manager',email:'manager@example.test',password:'Fixture-manager-password'});
+ await page.goto(base);await expect(page.getByRole('heading',{name:'Create administrator account'})).toBeVisible();
+ for(const path of ['/api/bootstrap','/api/contacts/directory','/api/scheduler/organization','/api/projects']){
+   assert.equal((await admin.request.get(base+path)).status(),401,path);
+ }
+ await page.getByLabel('Name',{exact:true}).fill('CRM Manager');
+ await page.getByLabel('Email',{exact:true}).fill('manager@example.test');
+ await page.getByLabel('Password',{exact:true}).fill('Fixture-manager-password');
+ await page.getByRole('button',{name:'Create administrator account'}).click();
+ await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready);
+ assert.equal((await admin.request.post(base+'/api/access/setup',{data:{name:'Second',email:'second@example.test',password:'Fixture-admin-password'}})).status(),409);
  const worker=await post(admin,'/api/scheduler/members/save',{name:'CRM Viewer',email:'viewer@example.test',password:'Fixture-viewer-password',role:'worker',active:true,base_rate:'0'});
- await post(admin,'/api/access/login',{email:'manager@example.test',password:'Fixture-manager-password'});
  await post(admin,'/api/access/roles',{member_id:worker.id,role:'viewer',version:0});
- await post(admin,'/api/access/settings',{enabled:true,version:1});
+ const identity=await(await admin.request.get(base+'/api/access/session')).json();
+ assert.equal((await admin.request.post(base+'/api/access/settings',{headers:{'X-CRM-Member':identity.user.id},data:{enabled:false,version:identity.version}})).status(),403);
  await page.goto(base);await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready);
  await page.locator('nav [data-view=settings]').click();const access=page.locator('#staff-access-settings');
  await expect(access.getByRole('heading',{name:'Staff access'})).toBeVisible();await expect(access).toContainText('CRM Manager');
+ await expect(access.getByRole('checkbox')).toHaveCount(0);
+ await expect(access.locator(':scope > button')).toHaveCount(0);
  await expect(access.getByRole('combobox',{name:'CRM Viewer CRM access'})).toHaveValue('viewer');
  assert.ok((await admin.cookies()).find(c=>c.name==='classifire_access').httpOnly);
  assert.ok(!await page.evaluate(()=>document.cookie.includes('classifire_access')));
@@ -42,6 +53,6 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
  await post(admin,'/api/access/roles',{member_id:worker.id,role:'none',version:1});await view.reload();
  await expect(view.locator('#scheduler-root').getByRole('heading',{name:'Scheduler',exact:true})).toBeVisible();await expect(view.locator('.scheduler-account')).toContainText('CRM Viewer');
  assert.equal((await viewers.request.get(base+'/api/contacts/directory')).status(),403);
- assert.deepEqual(errors,[]);fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({passed:true,manager_id:manager.user.id,errors,viewer_responses:requests,checks:['real sign-in','HttpOnly root cookie','staff roles','viewer boot','server mutation denial','role revocation','phone layout']},null,2));console.log('PASS CRM access '+out);
+ assert.deepEqual(errors,[]);fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({passed:true,manager_id:identity.user.id,errors,viewer_responses:requests,checks:['first-run project data gate and one-time setup','mandatory sign-in without an opt-out control','real sign-in','HttpOnly root cookie','staff roles','viewer boot','server mutation denial','role revocation','phone layout']},null,2));console.log('PASS CRM access '+out);
 })().catch(e=>{console.error(e);console.error(logs);process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});
 

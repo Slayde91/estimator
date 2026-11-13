@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..');
 const output = path.join(root, '.runtime/browser-qa', `scheduler-${Date.now()}`);
 fs.mkdirSync(output, {recursive:true});
-const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname,'fixtures.py'),'--directory',output], {cwd:root,windowsHide:true});
+const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname,'fixtures.py'),'--directory',output,'--real-auth'], {cwd:root,windowsHide:true});
 let logs = '', browser, page;
 server.stderr.on('data',value => logs += value);
 const ready = new Promise((resolve,reject) => {
@@ -72,7 +72,6 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await page.exposeFunction('captureSchedulerCsp',directive => csp.push(directive));
   await page.addInitScript(() => document.addEventListener('securitypolicyviolation',event => window.captureSchedulerCsp(event.effectiveDirective)));
   await page.goto(`http://127.0.0.1:${info.port}/`);
-  await page.waitForFunction(() => window.CeasefireDesktop?.status()?.ready);
   let releaseProjects, projectRequests = 0, projectsDelivered = false;
   const projectGate = new Promise(resolve => {releaseProjects = resolve;});
   await page.route('**/api/scheduler/work-orders?offset=*',async route => {
@@ -82,13 +81,14 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
     await route.fulfill({response});
     projectsDelivered = true;
   });
-  await scheduler();
-  await expect(page.getByLabel('Your name',{exact:true})).toBeVisible({timeout:2500});
+  await expect(page.getByLabel('Name',{exact:true})).toBeVisible({timeout:2500});
   assert.equal(projectRequests,0,'Work Order choices are not requested before staff sign in');
-  await page.getByLabel('Your name',{exact:true}).fill('Scheduler Admin');
-  await page.locator('#scheduler-root').getByLabel('Email',{exact:true}).fill('scheduler-admin@example.test');
+  await page.getByLabel('Name',{exact:true}).fill('Scheduler Admin');
+  await page.getByLabel('Email',{exact:true}).fill('scheduler-admin@example.test');
   await page.getByLabel('Password',{exact:true}).fill(password);
   await page.getByRole('button',{name:'Create administrator account'}).click();
+  await page.waitForFunction(() => window.CeasefireDesktop?.status()?.ready);
+  await scheduler();
   await expect(page.locator('.scheduler-grid')).toBeVisible();
   assert.equal(await page.locator('.scheduler-tabs').evaluate(node=>getComputedStyle(node).backgroundColor),'rgb(9, 11, 14)');
   assert.ok((await context.cookies()).some(cookie => cookie.httpOnly && cookie.sameSite === 'Strict'));
@@ -432,7 +432,7 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   assert.ok(localized.members.every(member=>member.timezone==='Asia/Kathmandu'));
   checks.push('Application Settings zone changes every team member and the live local clock with seconds');
   await page.getByRole('button',{name:'Sign out',exact:true}).click();
-  await page.locator('#scheduler-root').getByLabel('Email',{exact:true}).fill('jordan@example.test');
+  await page.locator('#staff-login').getByLabel('Email',{exact:true}).fill('jordan@example.test');
   await page.getByLabel('Password',{exact:true}).fill(password);
   await page.getByRole('button',{name:'Sign in',exact:true}).click();
   await expect(page.locator('.scheduler-account')).toContainText('Jordan QA');

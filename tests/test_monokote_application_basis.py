@@ -3,7 +3,6 @@
 from copy import deepcopy
 from io import BytesIO
 import base64
-import http.client
 import json
 import math
 from pathlib import Path
@@ -14,6 +13,7 @@ import unittest
 from openpyxl import load_workbook
 from pypdf import PdfReader
 
+from feature_client import StaffConnection
 from estimator.calculator_defaults import default_calculator_inputs
 from estimator.calculator_register import build_calculator_register
 from estimator.calculator_report import build_calculator_report, build_calculator_summary_report, project_calculator_report
@@ -257,7 +257,7 @@ class MonokoteApplicationBasisHttpTests(unittest.TestCase):
             db.execute('DELETE FROM calculator_states')
 
     def request(self, method, action, payload, expected=200):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=120)
+        connection = StaffConnection(self.server, timeout=120)
         try:
             connection.request(method, f'/api/calculators/{IDENTITY}/{action}', json.dumps(payload),
                                {'Content-Type': 'application/json'})

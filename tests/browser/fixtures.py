@@ -264,13 +264,17 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--fixture-only')
     parser.add_argument('--directory')
+    parser.add_argument('--real-auth', action='store_true', help='Start at the real first-run staff sign-in screen.')
     parser.add_argument('--physical-legacy', action='store_true')
     parser.add_argument('--simulate-project-write-denial', action='store_true')
     args = parser.parse_args()
     if args.fixture_only:
         make_pdf(args.fixture_only)
     else:
-        from estimator.server import create_server
+        if args.real_auth:
+            from estimator.server import create_server
+        else:
+            from feature_server import create_server
         from estimator.native_dialogs import SaveSelection
         from estimator.project_library import file_fingerprint
         folder = Path(args.directory or tempfile.mkdtemp(prefix='ceasefire-takeoffs-browser-')).resolve()

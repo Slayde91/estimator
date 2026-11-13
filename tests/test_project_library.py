@@ -1,6 +1,5 @@
 import copy
 import base64
-import http.client
 import json
 import os
 from pathlib import Path
@@ -12,6 +11,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch, MagicMock
 
+from feature_client import StaffConnection
 from estimator.catalog import ValidationError, baseline
 from estimator.commercial_sources import source_id
 from estimator.native_dialogs import NativeDialogs, SaveSelection
@@ -1046,7 +1046,7 @@ class ProjectLibraryApiTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def request(self, method, path, body=None, headers=None):
-        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=60)
+        connection = StaffConnection(self.server, timeout=60)
         try:
             connection.request(method, path, json.dumps(body) if body is not None else None,
                                {"Content-Type": "application/json", **(headers or {})})

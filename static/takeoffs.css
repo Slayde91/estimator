@@ -456,7 +456,7 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
   .takeoff-viewer > .takeoff-viewer-bottom { grid-area:3/1; position:relative; inset:auto; margin:6px; }
 }
 .takeoff-document-tools { position:relative; display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; margin:0 0 0 auto; }
-.takeoff-document-tools .calculator-document-toggle { height:48px; min-height:48px; }
+.takeoff-document-tools .calculator-document-toggle { height:42px; min-height:42px; padding-block:0; }
 .takeoff-document-tools .takeoff-document-menu { position:static; flex-basis:auto; }
 .takeoff-document-tools .takeoff-document-menu .calculator-document-actions { left:auto; right:0; }
 .takeoff-workspace-heading { flex-wrap:wrap; }

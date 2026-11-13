@@ -6,7 +6,6 @@ authoritative workbooks, or the separate manual QA server are modified.
 
 import base64
 import hashlib
-import http.client
 from io import BytesIO
 import json
 from pathlib import Path
@@ -16,6 +15,7 @@ import unittest
 
 from openpyxl import load_workbook
 
+from feature_client import StaffConnection
 from estimator.catalog import ROOT
 from estimator.schedule_rows import blank_schedule_defaults, empty_schedule_inputs
 from estimator.pricing_workbook import _serialize_exact
@@ -56,7 +56,7 @@ class WorkbookCalculatorApiTests(unittest.TestCase):
             db.execute("DELETE FROM calculator_states")
 
     def request(self, method, path, body=None, headers=None):
-        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=60)
+        connection = StaffConnection(self.server, timeout=60)
         try:
             connection.request(method, path, body=json.dumps(body) if isinstance(body, dict) else body,
                                headers={"Content-Type": "application/json", **(headers or {})})

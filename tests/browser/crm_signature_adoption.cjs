@@ -6,7 +6,7 @@ const fs = require('node:fs'),path = require('node:path');
 
 const root = path.resolve(__dirname,'../..'),out = path.join(root,'.runtime/browser-qa','crm-signature-adoption-'+Date.now());
 fs.mkdirSync(out,{recursive:true});
-const server = spawn(process.env.CEASEFIRE_PYTHON || 'python',[path.join(__dirname,'fixtures.py'),'--directory',out],{cwd:root,windowsHide:true});
+const server = spawn(process.env.CEASEFIRE_PYTHON || 'python',[path.join(__dirname,'fixtures.py'),'--real-auth','--directory',out],{cwd:root,windowsHide:true});
 let browser,logs='',stdout='';
 server.stderr.on('data',chunk=>logs+=chunk);
 const fixture = new Promise((resolve,reject)=>{

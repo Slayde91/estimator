@@ -12,7 +12,7 @@ fs.mkdirSync(output, {recursive:true});
 const checks = [];
 async function run(edition) {
   const directory = path.join(output, edition);
-  const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname,'swms_fixture.py'),'--directory',directory,'--edition',edition], {cwd:root,windowsHide:true});
+  const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname,'swms_fixture.py'),'--directory',directory,'--edition',edition,'--real-auth'], {cwd:root,windowsHide:true});
   let logs = '', browser;
   server.stderr.on('data', value => logs += value);
   try {
@@ -22,11 +22,17 @@ async function run(edition) {
       server.once('error',reject); server.once('exit',code=>{clearTimeout(timer);reject(Error(`Fixture exited ${code}`));});
     });
     browser = await chromium.launch({headless:true});
-    const page = await browser.newPage({viewport:{width:1575,height:1000}}), errors = [], external = [];
+    const context = await browser.newContext({viewport:{width:1575,height:1000}});
+    const page = await context.newPage(), errors = [], external = [];
     page.on('pageerror', error => errors.push(error.message));
     page.on('request', request => { if(!request.url().startsWith('http://127.0.0.1:') && !request.url().startsWith('data:')) external.push(request.url()); });
     const idle = () => page.waitForFunction(()=>{const value=window.CeasefireDesktop?.status();return value?.ready && !value.busy;});
-    await page.goto(`http://127.0.0.1:${info.port}/`); await idle();
+    const base=`http://127.0.0.1:${info.port}`,admin={email:'qa-'+edition+'@example.test',password:'Isolated-QA-signature-2026'};
+    const setup=await page.request.post(base+'/api/scheduler/setup',{data:{...admin,name:'Signature QA'}});
+    assert.ok(setup.ok(),await setup.text());
+    const login=await page.request.post(base+'/api/access/login',{data:admin});assert.ok(login.ok(),await login.text());
+    await page.goto(base); await idle();
+    const staffHeaders={'X-CRM-Member':await page.evaluate(()=>window.ClassifireAccess.user.id)};
     await page.getByRole('button',{name:'Estimates',exact:true}).click();
     await fillProjectDetails(page,{'client':'Example builder'}); await fillProjectDetails(page,{'site-address':'10 Test Street'});
     const firstSave=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/project/save-as');
@@ -169,7 +175,7 @@ async function run(edition) {
     const incomplete = await page.evaluate(() => JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor);
     const workspace = await page.evaluate(() => window.CeasefireCertification.sessionId());
     const beforeRejectedIssue = await (await page.request.get(`http://127.0.0.1:${info.port}/api/swms/state?workspace=${workspace}`)).json();
-    const rejectedIssue = await page.request.post(`http://127.0.0.1:${info.port}/api/swms/issue`, {data: {workspace_id: workspace, id: incomplete.id, version: incomplete.version, request_id: require('node:crypto').randomUUID()}});
+    const rejectedIssue = await page.request.post(`http://127.0.0.1:${info.port}/api/swms/issue`, {headers:staffHeaders,data: {workspace_id: workspace, id: incomplete.id, version: incomplete.version, request_id: require('node:crypto').randomUUID()}});
     assert.equal(rejectedIssue.status(), 400, await rejectedIssue.text());
     assert.deepEqual(await (await page.request.get(`http://127.0.0.1:${info.port}/api/swms/state?workspace=${workspace}`)).json(), beforeRejectedIssue, 'Direct issue cannot bypass readiness or advance the review register.');
     const saveResponse = page.waitForResponse(response=>/\/api\/project\/save(?:-as)?$/.test(new URL(response.url()).pathname));
@@ -194,7 +200,7 @@ async function run(edition) {
     // A confirmed export ends its retry receipt; a later company change must
     // generate a fresh export without reopening or editing this statement.
     const company = await (await page.request.get(`http://127.0.0.1:${info.port}/api/company-settings`)).json();
-    const updatedCompany = await page.request.post(`http://127.0.0.1:${info.port}/api/company-settings`,{data:{...company,name:'UPDATED SWMS COMPANY'}});
+    const updatedCompany = await page.request.post(`http://127.0.0.1:${info.port}/api/company-settings`,{headers:staffHeaders,data:{...company,name:'UPDATED SWMS COMPANY'}});
     assert.equal(updatedCompany.status(),200,await updatedCompany.text());
     const secondResponse = page.waitForResponse(response=>response.url().endsWith('/api/swms/issue') && response.request().method()==='POST');
     await host.getByRole('button',{name:'Download PDF',exact:true}).first().click();
@@ -242,7 +248,7 @@ async function run(edition) {
     assert.equal(await host.locator('img').count(),0);
     // Saved ink is selected only by an explicit click in each document.
     const signatureProfiles=require('./personal_signature_profiles.cjs');
-    await signatureProfiles(page, edition);
+    await signatureProfiles(page, admin);
     assert.deepEqual(errors,[]); assert.deepEqual(external,[]);
     checks.push(`${edition}: Documents entry, project defaults, 45 work steps, conditional high-risk tables and retained edits, compact expanding rows and saved additional controls grow on parent reopen, ten reviews on one row, removed legacy UI, back icon, drawn signature, delayed attachment lock and encoded budget, save/reopen, portable project, real PDF download after company change, cleared successful export receipt and retained cancellation receipt, escaped text, no external location requests`);
   } catch(error) { fs.mkdirSync(directory,{recursive:true});fs.writeFileSync(path.join(directory,'server.log'),logs);throw error; }

@@ -1,7 +1,6 @@
 """Only a trusted file Save/Load, never browser identity fields, permits creation."""
 import base64
 from copy import deepcopy
-import http.client
 import json
 from pathlib import Path
 import tempfile
@@ -9,6 +8,7 @@ import threading
 import unittest
 from uuid import uuid4
 
+from feature_client import StaffConnection
 from estimator.certification import CertificationService, FIELDS
 from estimator.certification_projects import PROJECT_REQUIRED
 from estimator.commercial_documents import default_fields as commercial_fields
@@ -55,7 +55,7 @@ class ProjectDocumentGuardTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def json(self, route, body=None, expected=200):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=60)
+        connection = StaffConnection(self.server, timeout=60)
         try:
             connection.request('GET' if body is None else 'POST', route, None if body is None else json.dumps(body),
                 {'Content-Type': 'application/json', 'Origin': f'http://127.0.0.1:{self.server.server_port}'})

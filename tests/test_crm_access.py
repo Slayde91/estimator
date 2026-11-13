@@ -35,15 +35,19 @@ class AccessTests(unittest.TestCase):
         with self.assertRaises(AccessError) as caught:self.access.authorize(handler,route)
         self.assertEqual(caught.exception.status,code)
 
-    def test_enable_is_explicit_admin_guarded_and_preserves_original_member_rows(self):
+    def test_signin_is_mandatory_for_new_and_previously_disabled_installations(self):
         with self.scheduler.connect() as db:before=[tuple(r) for r in db.execute('SELECT * FROM scheduler_members ORDER BY id')]
-        self.access.authorize(self.handler(),'/api/contacts/directory')
+        self.assert_denied(401,self.handler(),'/api/contacts/directory')
         with self.assertRaises(AccessError):self.access.configure({'enabled':True,'version':1},None)
         with self.assertRaises(AccessError):self.access.configure({'enabled':True,'version':1},self.login['token'])
-        self.enable();self.assert_denied(401,self.handler(),'/api/contacts/directory')
+        self.enable()
+        with self.access.connect() as db:db.execute('UPDATE crm_access_settings SET enabled=0')
+        self.assert_denied(401,self.handler(),'/api/contacts/directory')
+        self.assertTrue(self.access.session(None)['enabled'])
+        self.access=CRMAccess(self.access.path,self.scheduler)
         with self.scheduler.connect() as db:self.assertEqual(before,[tuple(r) for r in db.execute('SELECT * FROM scheduler_members ORDER BY id')])
         self.assertEqual(self.access.settings(),{'enabled':1,'version':2})
-        with self.assertRaises(AccessError):self.access.configure({'enabled':False,'version':1},self.admin['token'])
+        with self.assertRaises(AccessError):self.access.configure({'enabled':False,'version':2},self.admin['token'])
 
     def test_roles_default_to_scheduler_only_and_minimal_roster_never_exposes_pay_or_credentials(self):
         self.enable()

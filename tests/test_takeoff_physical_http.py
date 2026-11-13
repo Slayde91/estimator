@@ -1,7 +1,6 @@
 """Real local HTTP integration with disposable synthetic PDF image evidence."""
 
 import hashlib
-import http.client
 from io import BytesIO
 import json
 from pathlib import Path
@@ -12,6 +11,7 @@ from uuid import uuid4
 
 from openpyxl import load_workbook
 
+from feature_client import StaffConnection
 from estimator.server import create_server
 from tests.test_takeoff_images_worker import make_pdf
 
@@ -29,7 +29,7 @@ class PhysicalHTTPTests(unittest.TestCase):
         cls.server.shutdown(); cls.server.server_close(); cls.thread.join(); cls.tmp.cleanup()
 
     def request(self, method, route, value=None, headers=None):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=90)
+        connection = StaffConnection(self.server, timeout=90)
         try:
             body = json.dumps(value).encode() if isinstance(value, dict) else value
             connection.request(method, route, body, {'Content-Type': 'application/json', **(headers or {})})

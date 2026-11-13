@@ -3,7 +3,6 @@
 import base64
 import builtins
 from copy import deepcopy
-import http.client
 import json
 from pathlib import Path
 import tempfile
@@ -12,6 +11,7 @@ import unittest
 from unittest.mock import patch
 from uuid import uuid4
 
+from feature_client import StaffConnection
 from estimator.catalog import ROOT, ValidationError
 from estimator.edition import (TAKEOFF_ASSETS, TAKEOFF_PROJECT_ERROR, excluded_route,
                                features, render_index, require_project_edition)
@@ -298,7 +298,7 @@ class StandardHTTPTests(unittest.TestCase):
         cls.temporary.cleanup()
 
     def request(self, method, path, body=None):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=60)
+        connection = StaffConnection(self.server, timeout=60)
         try:
             connection.request(method, path, json.dumps(body) if body is not None else None,
                                {'Content-Type': 'application/json'})

@@ -6,7 +6,7 @@ import sys
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from estimator.server import create_server
+from feature_server import create_server
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

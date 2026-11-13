@@ -14,6 +14,7 @@
   const uiTerm = (source, args = []) => window.CeasefireI18n?.term ? window.CeasefireI18n.term(source, args) : String(source).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index]));
 
   const $ = id => document.getElementById(id), clone = value => JSON.parse(JSON.stringify(value));
+  const settingsTab = $("penetration-settings");
   const cloneOptional = value => value === undefined ? undefined : clone(value);
   const state = { definition: null, draft: null, saved: null, selected: null, group: null, result: null,
     revision: 0, context: 0, requestRevision: 0, invalid: new Map(), removed: [], timer: null,
@@ -735,14 +736,23 @@
   function renderInputTabs() {
     const groups = visibleGroups(selected().inputs);
     if (!groups.includes(state.group)) state.group = groups[0];
+    const focusedGroup = document.activeElement?.dataset?.penetrationGroup;
     const buttons = groups.filter(group => group !== "SETTINGS").map(group => {
       const button = uiNode("button", "penetration-group", state.definition.group_labels?.[group] || group); button.type = "button"; button.dataset.penetrationGroup = group;
-      button.setAttribute("role", "tab"); button.setAttribute("aria-selected", String(group === state.group));
-      button.addEventListener("focus", () => button.scrollIntoView({ block: "nearest", inline: "nearest" }));
+      button.id = "penetration-input-tab-" + state.definition.groups.indexOf(group);
+      button.setAttribute("role", "tab"); button.setAttribute("aria-controls", "penetration-row-fields");
       button.addEventListener("click", () => selectGroup(group)); return button;
     });
+    if (groups.includes("SETTINGS")) buttons.push(settingsTab);
+    const focusedTab = buttons.find(button => button.dataset.penetrationGroup === focusedGroup);
+    for (const button of buttons) {
+      const active = button.dataset.penetrationGroup === state.group;
+      button.setAttribute("aria-selected", String(active));
+      button.tabIndex = (focusedTab ? button === focusedTab : active) ? 0 : -1;
+      if (active) $("penetration-row-fields").setAttribute("aria-labelledby", button.id);
+    }
     $("penetration-input-groups").replaceChildren(...buttons);
-    $("penetration-settings").setAttribute("aria-pressed", String(state.group === "SETTINGS"));
+    focusedTab?.focus({preventScroll:true});
   }
   function renderFields() {
     if (!state.draft) return;
@@ -1439,7 +1449,18 @@
   $("penetration-new-item").addEventListener("click", addRow);
   $("penetration-clear").addEventListener("click", clearCurrentItem);
   $("penetration-recalculate").addEventListener("click", () => calculate());
-  $("penetration-settings").addEventListener("click", () => selectGroup("SETTINGS"));
+  settingsTab.addEventListener("click", () => selectGroup("SETTINGS"));
+  $("penetration-input-groups").addEventListener("keydown", event => {
+    const tabs = [...event.currentTarget.children], index = tabs.indexOf(event.target);
+    if (index < 0) return;
+    const next = {ArrowRight:(index + 1) % tabs.length, ArrowLeft:(index + tabs.length - 1) % tabs.length,
+      Home:0, End:tabs.length - 1}[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    for (const tab of tabs) tab.tabIndex = tab === tabs[next] ? 0 : -1;
+    tabs[next].focus();
+    tabs[next].scrollIntoView({block:"nearest", inline:"nearest"});
+  });
   $("penetration-diagram-file").addEventListener("change", async event => {
     const input = event.target, file = input.files?.[0]; input.value = "";
     try { await chooseDiagram(file); } catch (error) { message(error.message, true); }

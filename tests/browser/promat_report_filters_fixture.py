@@ -100,7 +100,7 @@ def main():
     folder.mkdir(parents=True)
     library = folder / 'reference-library'
     metadata = make_library(library)
-    from estimator.server import create_server
+    from feature_server import create_server
     server = create_server(0, folder / 'qa.sqlite3', library_directory=library)
     if server.server_port == 8765:
         raise ValueError('The live application port is forbidden')

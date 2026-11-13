@@ -2,7 +2,6 @@
 
 from copy import deepcopy
 from io import BytesIO
-import http.client
 import json
 from pathlib import Path
 import tempfile
@@ -13,6 +12,7 @@ from unittest.mock import patch
 from openpyxl import load_workbook
 from pypdf import PdfReader
 
+from feature_client import StaffConnection
 from estimator.catalog import ValidationError
 from estimator.native_dialogs import SaveSelection
 from estimator.penetration_calculator import calculate, definition
@@ -48,7 +48,7 @@ class PenetrationIntegrationTests(unittest.TestCase):
         cls.temp.cleanup()
 
     def request(self, method, path, body=None, headers=None):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=30)
+        connection = StaffConnection(self.server, timeout=30)
         try:
             connection.request(method, path, body=json.dumps(body) if body is not None else None,
                                headers={'Content-Type': 'application/json', **(headers or {})})

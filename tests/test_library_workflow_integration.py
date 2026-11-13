@@ -6,13 +6,13 @@ the application database.
 
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
-import http.client
 import json
 from pathlib import Path
 import tempfile
 import threading
 import unittest
 
+from feature_client import StaffConnection
 from estimator.catalog import validate_configuration
 from estimator.library_facets import SERVICES
 from estimator.penetration_calculator import definition, normalize_draft
@@ -58,7 +58,7 @@ class LibraryWorkflowIntegrationTests(unittest.TestCase):
         self.start_server()
 
     def request(self, method, path, body=None, headers=None, *, headers_only=False):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port,
+        connection = StaffConnection(self.server,
                                                timeout=5 if headers_only else 30)
         try:
             payload = json.dumps(body).encode('utf-8') if body is not None else None

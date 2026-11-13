@@ -4,7 +4,7 @@ const {chromium,expect}=require('@playwright/test'),{spawn,spawnSync}=require('n
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {createNewProject,openProjectSection}=require('./project_actions.cjs');
 const root=path.resolve(__dirname,'../..'),out=path.join(root,'.runtime/browser-qa','commercial-linked-contacts-'+Date.now());fs.mkdirSync(out,{recursive:true});
-const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',out],{cwd:root,windowsHide:true});
+const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',out,'--real-auth'],{cwd:root,windowsHide:true});
 let logs='',browser,page;server.stderr.on('data',x=>logs+=x);
 const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()=>reject(Error(logs||'Fixture timeout')),120000);
   server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(Error('Fixture exited '+code));});
@@ -14,8 +14,9 @@ const checks=[],errors=[];
  const info=await ready;assert.notEqual(info.port,8765);const base='http://127.0.0.1:'+info.port;
  browser=await chromium.launch({headless:true});const admin=await browser.newContext({viewport:{width:1915,height:1000}});page=await admin.newPage();page.setDefaultTimeout(45000);page.on('pageerror',e=>errors.push(e.message));
  const read=async route=>{const r=await admin.request.get(base+route);assert.equal(r.status(),200,await r.text());return r.json();};
- async function post(route,data){let headers={};if(['/api/access/settings','/api/access/roles'].includes(route)){const session=await read('/api/access/session');headers={'X-CRM-Member':session.user.id};}
-   const r=await admin.request.post(base+route,{data,headers});assert.equal(r.status(),200,await r.text());return r.json();}
+ const setup=await admin.request.post(base+'/api/access/setup',{data:{name:'Fixture Admin',email:'admin@example.test',password:'Fixture-admin-password'}});
+ assert.equal(setup.status(),200,await setup.text());const actor=(await setup.json()).user.id;
+ async function post(route,data){const r=await admin.request.post(base+route,{data,headers:{'X-CRM-Member':actor}});assert.equal(r.status(),200,await r.text());return r.json();}
  const create=async(kind,fields)=>post('/api/contacts/'+kind,{version:(await read('/api/contacts/directory')).version,fields});
  const builder=(await create('accounts',{company:'Linked Builder',billing_address:'Builder office',abn_acn:'BUILDER'})).account;
  const supplier=(await create('accounts',{company:'Linked Supplier',billing_address:'Supplier office',abn_acn:'SUPPLIER'})).account;
@@ -111,10 +112,9 @@ const checks=[],errors=[];
  await quote.locator('.commercial-sidebar').first().getByRole('button',{name:'Refresh linked contacts',exact:true}).click();await expect(quote.locator('.commercial-linked-contacts')).not.toContainText(participant.name);
  assert.equal(historyParticipantReads,0,'Unfiled history never asks for the active saved Project participants');assert.deepEqual(await page.evaluate(()=>window.CeasefireProject.context()),activeBeforeHistory);assert.deepEqual(fs.readFileSync(path.join(out,'other-project.cf.json')),otherFileBytes);page.off('request',observeRequest);await history.close();
  checks.push('Opening real unfiled history while another saved Project is active reads no current-project participants and leaves that Project and file unchanged.');
- // Enable named permissions only in this private fixture and inspect the real modal as a viewer.
- await post('/api/scheduler/setup',{name:'Fixture Admin',email:'admin@example.test',password:'Fixture-admin-password'});
+ // Give a second staff account read-only access and inspect the real modal as that viewer.
  const viewer=await post('/api/scheduler/members/save',{name:'Fixture Viewer',email:'viewer@example.test',password:'Fixture-viewer-password',role:'worker',active:true,base_rate:'0'});
- await post('/api/access/login',{email:'admin@example.test',password:'Fixture-admin-password'});await post('/api/access/roles',{member_id:viewer.id,role:'viewer',version:0});await post('/api/access/settings',{enabled:true,version:1});
+ await post('/api/access/roles',{member_id:viewer.id,role:'viewer',version:0});
  const viewerContext=await browser.newContext(),view=await viewerContext.newPage();view.setDefaultTimeout(45000);view.on('pageerror',e=>errors.push(e.message));
  await view.goto(base);await view.getByLabel('Email',{exact:true}).fill('viewer@example.test');await view.getByLabel('Password',{exact:true}).fill('Fixture-viewer-password');await view.getByRole('button',{name:'Sign in',exact:true}).click();await view.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready);
  // The standalone entry point uses exactly the same permission decision when

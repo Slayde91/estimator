@@ -1,7 +1,7 @@
 """Named local access, reusing Scheduler identities without exposing payroll or credentials.
 
-This is a workstation permission boundary. It does not make loopback HTTP a
-remote/team hosting service. Existing records are never rewritten when enabling it.
+Staff sign-in is required on this workstation. First-run provisioning uses the
+same one-time administrator setup as Scheduler.
 """
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -87,9 +87,9 @@ class CRMAccess:
         with self.connect() as db:
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS crm_access_settings (
-                    id INTEGER PRIMARY KEY CHECK(id=1), enabled INTEGER NOT NULL DEFAULT 0,
+                    id INTEGER PRIMARY KEY CHECK(id=1), enabled INTEGER NOT NULL DEFAULT 1,
                     version INTEGER NOT NULL DEFAULT 1);
-                INSERT OR IGNORE INTO crm_access_settings(id) VALUES(1);
+                INSERT OR IGNORE INTO crm_access_settings(id,enabled) VALUES(1,1);
                 CREATE TABLE IF NOT EXISTS crm_access_roles (
                     member_id TEXT PRIMARY KEY, role TEXT NOT NULL CHECK(role IN ('none','viewer','editor')),
                     version INTEGER NOT NULL);
@@ -104,6 +104,8 @@ class CRMAccess:
                     method TEXT NOT NULL, route TEXT NOT NULL, status INTEGER, target_id TEXT,
                     UNIQUE(request_id,event));
             """)
+            # Carry forward earlier installations where sign-in could be disabled.
+            db.execute('UPDATE crm_access_settings SET enabled=1,version=version+1 WHERE id=1 AND enabled=0')
 
     @contextmanager
     def connect(self):
@@ -145,7 +147,7 @@ class CRMAccess:
 
     def session(self, token):
         config=self.settings()
-        return {'enabled':bool(config['enabled']), 'version':config['version'], 'user':self.user(token)}
+        return {'enabled':True, 'version':config['version'], 'user':self.user(token)}
 
     def _admin(self, token):
         user=self.user(token)
@@ -205,32 +207,22 @@ class CRMAccess:
             return result
 
     def configure(self,payload,token):
-        user=self._admin(token)
+        self._admin(token)
         if not isinstance(payload,dict) or set(payload)!={'enabled','version'} or type(payload['enabled']) is not bool or type(payload['version']) is not int:
             raise AccessError('Include the sign-in preference and current version.',400)
-        return self._configure(payload,user)
-
-    def _configure(self,payload,user):
-        with self.connect() as db:
-            db.execute('BEGIN IMMEDIATE')
-            old=dict(db.execute('SELECT enabled,version FROM crm_access_settings WHERE id=1').fetchone())
-            if old['version'] != payload['version']:
-                raise AccessError('Staff access changed in another window. Reload before saving.',409)
-            if bool(old['enabled'])==payload['enabled']:
-                return {'enabled':bool(old['enabled']),'version':old['version']}
-            new={'enabled':payload['enabled'],'version':old['version']+1}
-            db.execute('UPDATE crm_access_settings SET enabled=?,version=? WHERE id=1',(int(new['enabled']),new['version']))
-            self._audit(db,user,'access.require_signin','application',old,new)
-            return new
+        if not payload['enabled']:
+            raise AccessError('Staff sign-in is required.')
+        settings=self.settings()
+        if settings['version']!=payload['version']:
+            raise AccessError('Staff access changed in another window. Reload before saving.',409)
+        return settings
 
     def activate_named_access(self):
         """Release cutover only: do not invent an administrator or reset credentials."""
         with self.scheduler.connect() as db:
             if not db.execute("SELECT 1 FROM scheduler_members WHERE role='admin' AND active=1").fetchone():
                 raise AccessError('Set up an active team administrator before requiring sign-in.',400)
-        current=self.settings()
-        return self._configure({'enabled':True,'version':current['version']},
-                               {'id':'system:release','name':'Release activation'})
+        return self.settings()
 
     def begin_request(self,user,method,route):
         # Commit the attribution before attempting a mutation in another store.
@@ -282,7 +274,6 @@ class CRMAccess:
         handler.crm_user=user
         expected=handler.headers.get('X-CRM-Member')
         identity=user['id'] if user else 'anonymous'
-        enabled=bool(self.settings()['enabled'])
         read_operation=handler.command == 'POST' and route in READ_POSTS
         if handler.command in ('GET','HEAD') and route in IDENTITY_READS and expected is not None and expected != identity:
             raise AccessError('The signed-in staff account changed. Reload this tab before continuing.',409)
@@ -295,7 +286,7 @@ class CRMAccess:
                 raise AccessError('Sign in to review previous personal details.',401)
             if user['role'] != 'admin':
                 raise AccessError('An administrator account is required.')
-        if not enabled or route.startswith('/api/scheduler/'):
+        if route.startswith('/api/scheduler/'):
             return
         protected=route.startswith(('/api/','/download-files/'))
         if not protected:
@@ -342,10 +333,10 @@ class AccessHTTP:
                     user=self.access._admin(token)
                     if handler.headers.get('X-CRM-Member') != user['id']:
                         raise AccessError('The signed-in staff account changed. Reload this tab before saving.',409)
-                if action=='login':
-                    if not isinstance(body,dict) or set(body)!={'email','password'}:
+                if action in {'login','setup'}:
+                    if action=='login' and (not isinstance(body,dict) or set(body)!={'email','password'}):
                         raise AccessError('Enter your staff email and password.',400)
-                    value=self.access.scheduler.write('login',body)
+                    value=self.access.scheduler.write(action,body)
                     session=value['token']
                     headers['Set-Cookie']=f'classifire_access={session}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000'
                     result=self.access.session(session)

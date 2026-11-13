@@ -1,4 +1,10 @@
 {
+  "Quoted by": "Devis établi par",
+  "Sign Quoted by": "Signer en tant qu’auteur du devis",
+  "Change Quoted by": "Modifier la signature de l’auteur du devis",
+  "Clear Quoted by": "Effacer la signature de l’auteur du devis",
+  "Create administrator account": "Créer un compte administrateur",
+  "Staff sign-in is required.": "Le personnel doit se connecter.",
   "Choose an In progress Work Order for this shift.": "Choisissez un ordre de travail en cours pour ce poste.",
   "Site contact details do not fit in Notes.": "Les notes ne peuvent pas contenir toutes les coordonnées du contact sur site.",
   "Checking location…": "Vérification de la position…",

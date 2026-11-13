@@ -239,7 +239,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await work.getByLabel('Proposed start date',{exact:true}).fill('2026-11-10');
   await expect(work.getByLabel('SWMS',{exact:true})).toHaveCount(0);
   await work.getByLabel('Category / urgency',{exact:true}).selectOption('High Priority');
-  await page.evaluate(()=>localStorage.setItem('ceasefire.takeoff-signature.v1',JSON.stringify({version:1,ratio:2,strokes:[[[0,.3],[.5,1],[1,0]]]})));
+  await page.evaluate(()=>localStorage.setItem('ceasefire.takeoff-signature.v1.'+window.ClassifireAccess.user.id,JSON.stringify({version:1,ratio:2,strokes:[[[0,.3],[.5,1],[1,0]]]})));
   const personalUrl=new URL('/api/certifications/defaults',page.url()).href;
   const personalDefaults=await(await page.request.get(personalUrl)).json();
   const savedPersonal=await page.request.post(personalUrl,{data:{expected_version:personalDefaults.version,fields:{...personalDefaults.fields,name:'Commercial fixture signer'}}});

@@ -103,7 +103,7 @@ class DesktopTests(unittest.TestCase):
         self.assertFalse(controller._approved)
 
     def test_guard_installs_without_calling_loaded_decorated_api(self):
-        control = SimpleNamespace(NavigationStarting=Event(), WebMessageReceived=Event())
+        control = SimpleNamespace(NavigationStarting=Event(), WebMessageReceived=Event(), CoreWebView2=Mock())
         window = SimpleNamespace(native=SimpleNamespace(webview=control, browser=SimpleNamespace(on_script_notify=Mock())), events=SimpleNamespace(loaded=Event()),
                                  get_current_url=Mock(side_effect=AssertionError('must not wait for loaded')), run_js=Mock())
         controller = Mock()
@@ -123,6 +123,18 @@ class DesktopTests(unittest.TestCase):
             control.WebMessageReceived.emit(None, SimpleNamespace(Source='https://example.com/', WebMessageAsJson='{}'))
             control.WebMessageReceived.emit(None, SimpleNamespace(Source=self.origin + '/', WebMessageAsJson='{"type":"ceasefire.close","command":"delete"}'))
             thread.assert_not_called()
+        for source, message in [('https://example.com/', '{"type":"classifire.staff-session"}'),
+                                (self.origin+'/', '{"type":"classifire.staff-session","url":"https://example.com/"}')]:
+            control.WebMessageReceived.emit(None, SimpleNamespace(Source=source,WebMessageAsJson=message))
+        control.CoreWebView2.Navigate.assert_not_called()
+        control.WebMessageReceived.emit(None,SimpleNamespace(Source=self.origin+'/',WebMessageAsJson='{"type":"classifire.staff-session"}'))
+        control.CoreWebView2.Navigate.assert_called_once_with(self.origin+'/')
+        next_page = SimpleNamespace(Uri=self.origin+'/',Cancel=False)
+        control.NavigationStarting.emit(None,next_page)
+        self.assertFalse(next_page.Cancel)
+        with patch('estimator.desktop.threading.Thread'):
+            control.NavigationStarting.emit(None,next_page)
+            self.assertTrue(next_page.Cancel)
         window.get_current_url.assert_not_called()
 
     def test_installer_mutex_names_match_and_active_setup_refuses_launch(self):

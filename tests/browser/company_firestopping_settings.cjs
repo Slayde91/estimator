@@ -131,7 +131,7 @@ async function inputGroup(group){await page.locator(`#penetration-input-groups [
   await page.getByRole('dialog').getByRole('button',{name:'Load Project',exact:true}).click();await idle();
   await chooseCalculator(page,'Firestopping');await penetrationSettled();
   assert.deepEqual(await page.evaluate(()=>window.CeasefirePenetrations.projectSnapshot()),retained,'Native save/reopen retains hidden lists, current inputs and the unrelated setting exactly.');
-  if(await page.locator('#penetration-settings').getAttribute('aria-pressed')!=='true')await page.locator('#penetration-settings').click();
+  if(await page.locator('#penetration-settings').getAttribute('aria-selected')!=='true')await page.locator('#penetration-settings').click();
   await expect(page.locator('[data-penetration-detail-options]')).toHaveCount(0);
   assert.equal(await wasteSetting.evaluate(node=>Number(node.value)),12.5);
   await page.getByRole('tab',{name:'DETAILS',exact:true}).click();

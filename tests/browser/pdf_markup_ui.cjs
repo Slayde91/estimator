@@ -297,7 +297,7 @@ async function historicalLengthPrecision() {
   evidence.historicalLength = { id: seed.item.id, calibration_id: seed.calibrationId, stored_distance: seed.distance, derived_length: seed.result.length_m, displayed_length: await length.inputValue(), unrelated_edit_preserves_precision: true }; await chooseTakeoff(page, "steel");
 }
 async function standardCalculatorButton() {
-  const source = "import json,sys;from pathlib import Path;from estimator.server import create_server;s=create_server(0,Path(sys.argv[1]),library_directory=Path(sys.argv[2]),edition='standard');print(json.dumps({'port':s.server_port}),flush=True);s.serve_forever()";
+  const source = "import json,sys;from pathlib import Path;sys.path.insert(0,'tests/browser');from feature_server import create_server;s=create_server(0,Path(sys.argv[1]),library_directory=Path(sys.argv[2]),edition='standard');print(json.dumps({'port':s.server_port}),flush=True);s.serve_forever()";
   const standard = spawn(python, ["-c", source, path.join(output, "standard-qa.sqlite3"), info.library], { cwd: root, windowsHide: true }); let standardPage, stderr = "";
   standard.stderr.on("data", value => { stderr += value; });
   try {

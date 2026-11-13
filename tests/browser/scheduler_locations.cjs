@@ -4,14 +4,14 @@ const {spawn} = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname,'../..'), output = path.join(root,'.runtime/browser-qa',`scheduler-locations-${Date.now()}`);
 fs.mkdirSync(output,{recursive:true});
-const server = spawn(process.env.CEASEFIRE_PYTHON || 'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
+const server = spawn(process.env.CEASEFIRE_PYTHON || 'python',[path.join(__dirname,'fixtures.py'),'--directory',output,'--real-auth'],{cwd:root,windowsHide:true});
 let logs='',browser,page; server.stderr.on('data',chunk=>logs+=chunk);
 const ready = new Promise((resolve,reject)=>{let text='';const timeout=setTimeout(()=>reject(Error(logs||'Fixture timeout')),120000);server.stdout.on('data',chunk=>{text+=chunk;if(text.includes('\n')){clearTimeout(timeout);resolve(JSON.parse(text.split('\n')[0]));}});server.once('error',reject);server.once('exit',code=>{clearTimeout(timeout);reject(Error(`Fixture exited ${code}`));});});
 const errors=[],checks=[];
 (async()=>{
   const info=await ready;assert.notEqual(info.port,8765);const base=`http://127.0.0.1:${info.port}`;
   browser=await chromium.launch({headless:true});const context=await browser.newContext({viewport:{width:1575,height:884}});
-  const setup=await context.request.post(base+'/api/scheduler/setup',{data:{name:'Location QA Admin',email:'location-qa@example.test',password:'Disposable-location-password-2026'}});assert.equal(setup.status(),200);
+  const setup=await context.request.post(base+'/api/access/setup',{data:{name:'Location QA Admin',email:'location-qa@example.test',password:'Disposable-location-password-2026'}});assert.equal(setup.status(),200);
   const state=await (await context.request.get(base+'/api/scheduler/state?start=2026-11-02&end=2026-11-09')).json();
   const points=[],requests=[],tiles=[];let sequence=0,mapOffline=false,locationGate=null;
   page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',error=>errors.push(error.message));
@@ -183,7 +183,7 @@ const errors=[],checks=[];
   // affect the real backend's GPS freshness validation.
   const raceContext=await browser.newContext({storageState:await context.storageState(),viewport:{width:1575,height:884}});
   const realPost=async(action,data)=>{
-    const response=await raceContext.request.post(base+'/api/scheduler/'+action,{data});
+    const response=await raceContext.request.post(base+(action==='login'?'/api/access/':'/api/scheduler/')+action,{data});
     assert.equal(response.status(),200,await response.text());return response.json();
   };
   const worker=await realPost('members/save',{name:'Account race worker',email:'account-race@example.test',password:'Disposable-account-race-2026',base_rate:'40.00'});

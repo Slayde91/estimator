@@ -1,5 +1,12 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>CLASSIFIRE — Staff sign in</title><link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/language.css"><link rel="stylesheet" href="/crm-access.css"><script defer src="/language-catalog.js"></script><script defer src="/language.js"></script><script defer src="/crm-access.js"></script></head>
-<body class="staff-login-page"><main class="card staff-login-card"><h1>CLASSIFIRE</h1><h2 data-i18n="Staff sign in">Staff sign in</h2><p data-i18n="Use your existing Scheduler staff account.">Use your existing Scheduler staff account.</p>
-<form id="staff-login"><label class="field"><span data-i18n="Email">Email</span><input name="email" type="email" autocomplete="username" required maxlength="254"></label><label class="field"><span data-i18n="Password">Password</span><input name="password" type="password" autocomplete="current-password" required></label><div class="actions"><button class="button primary" type="submit" data-i18n="Sign in">Sign in</button><button class="button secondary" id="staff-login-signout" type="button" hidden data-i18n="Sign out">Sign out</button></div></form>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>CLASSIFIRE — Staff sign in</title><link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/language.css"><link rel="stylesheet" href="/crm-access.css"><script defer src="/brand-boot.js"></script><script defer src="/language-catalog.js"></script><script defer src="/language.js"></script><script defer src="/crm-access.js"></script></head>
+<body class="staff-login-page"><main class="card staff-login-card">
+<h1>CLASSIFIRE</h1><h2 id="staff-login-heading" data-i18n="Staff sign in">Staff sign in</h2>
+<p id="staff-login-help" data-i18n="Use your existing Scheduler staff account.">Use your existing Scheduler staff account.</p>
+<form id="staff-login">
+  <label class="field" hidden><span data-i18n="Name">Name</span><input name="name" autocomplete="name" maxlength="120" disabled></label>
+  <label class="field"><span data-i18n="Email">Email</span><input name="email" type="email" autocomplete="username" required maxlength="254"></label>
+  <label class="field"><span data-i18n="Password">Password</span><input name="password" type="password" autocomplete="current-password" required></label>
+  <div class="actions"><button class="button primary" type="submit" data-i18n="Sign in" disabled>Sign in</button></div>
+</form>
 <p id="staff-login-message" class="helper" role="status"></p><p class="helper">Staff access applies to this computer. Remote hosting is configured separately.</p></main></body></html>

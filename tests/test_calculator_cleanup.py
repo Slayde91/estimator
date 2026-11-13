@@ -3,13 +3,13 @@
 import base64
 from copy import deepcopy
 import hashlib
-import http.client
 import json
 from pathlib import Path
 import tempfile
 import threading
 import unittest
 
+from feature_client import StaffConnection
 from estimator.calculator_defaults import default_calculator_inputs
 from estimator.catalog import ROOT, ValidationError
 from estimator.excel_engine import coordinates
@@ -55,7 +55,7 @@ class CalculatorCleanupTests(unittest.TestCase):
             db.execute("DELETE FROM calculator_states")
 
     def request(self, method, action="", payload=None, expected=200, identity=IDENTITY):
-        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=120)
+        connection = StaffConnection(self.server, timeout=120)
         try:
             connection.request(method, f"/api/calculators/{identity}{action}",
                                None if payload is None else json.dumps(payload),

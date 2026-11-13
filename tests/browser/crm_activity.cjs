@@ -3,7 +3,7 @@ const {chromium,expect:baseExpect}=require('@playwright/test'),assert=require('n
 const {spawn}=require('node:child_process'),fs=require('node:fs'),path=require('node:path');
 const expect=baseExpect.configure({timeout:30000}),root=path.resolve(__dirname,'../..');
 const output=path.join(root,'.runtime/browser-qa','crm-activity-'+Date.now());fs.mkdirSync(output,{recursive:true});
-const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
+const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--real-auth','--directory',output],{cwd:root,windowsHide:true});
 let browser,page,stdout='',stderr='';
 server.stderr.on('data',chunk=>stderr+=chunk);
 const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error(stderr||'Fixture timeout')),120000);

@@ -85,7 +85,7 @@ async function save(page){
   const purchases=other.locator('#commercial-purchase-order-root');
   const requested=purchases.locator('.commercial-column').filter({has:other.getByRole('heading',{name:'Requested',exact:true})});
   const otherWorkspace=await other.evaluate(()=>window.CeasefireCertification.sessionId());
-  await other.evaluate(()=>localStorage.setItem('ceasefire.takeoff-signature.v1',JSON.stringify({version:1,ratio:2,strokes:[[[0,.3],[.5,1],[1,0]]]})));
+  await other.evaluate(()=>localStorage.setItem('ceasefire.takeoff-signature.v1.'+window.ClassifireAccess.user.id,JSON.stringify({version:1,ratio:2,strokes:[[[0,.3],[.5,1],[1,0]]]})));
   await purchases.locator('.commercial-card').dragTo(requested);
   const signing=other.getByRole('dialog',{name:'Sign and move',exact:true});
   await signing.getByLabel('Name',{exact:true}).fill('Unfiled fixture signer');

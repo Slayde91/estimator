@@ -45,7 +45,7 @@ class SchedulerTests(unittest.TestCase):
 
     def test_organization_zone_reassigns_members_and_recalculates_recorded_work(self):
         worker = self.member()
-        original = self.store.read('organization')
+        original = self.store.read('organization',token=self.token)
         self.assertEqual(original['timezone'], 'Australia/Sydney')
         self.assertIn('Asia/Kathmandu', original['zones'])
         entry = self.write('entries/save', {'member_id': worker['id'], 'start': '2026-11-06T14:00:00Z',

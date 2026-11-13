@@ -104,7 +104,7 @@
 
   function management(form, kind, record, directory, request, done, dirty) {
     if (!record.id || !(window.ClassifireAccess?.can('admin') ?? true)) return;
-    const box = node('details',null,'contacts-group crm-identity-section'), section = node('div',null,'contacts-links-body');
+    const box = node('details',null,'contacts-group crm-identity-section crm-merge-records'), section = node('div',null,'contacts-links-body');
     box.append(label('summary','Merge records'), section); form.append(box);
     const choose = node('select'), sourceLabel = node('label',null,'field');
     const sourceCaption = label('span','Source record');

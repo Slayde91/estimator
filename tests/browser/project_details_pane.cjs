@@ -216,6 +216,14 @@ const ready = new Promise((resolve,reject)=>{
       Math.abs(primary.width-addressBox.width)<1,JSON.stringify(fields));
     for(const control of Object.values(fields))assert.ok(control.left>=box.pane.left && control.right<=box.pane.right,JSON.stringify(fields));
     assert.equal(box.list.width,0,'The register remains hidden on the detail page');
+    const next=page.locator('#project-pane-next-action'),due=page.locator('#project-pane-follow-up-date');
+    const original=await next.inputValue();await next.fill('');
+    const empty=await next.boundingBox(),date=await due.boundingBox();
+    if(width===390)assert.ok(date.y>=empty.y+empty.height);
+    else assert.ok(date.x>=empty.x+empty.width && Math.abs(date.y-empty.y)<=1);
+    await next.fill('A single action');assert.equal((await next.boundingBox()).height,empty.height);
+    await next.fill('A longer follow-up action that needs more room.\n'.repeat(9));assert.ok((await next.boundingBox()).height>empty.height);
+    await next.fill(original);
     await page.screenshot({path:path.join(output,`pane-${width}.png`),fullPage:true});
   }
   await expect(page.locator('#project-list-card')).toBeHidden();

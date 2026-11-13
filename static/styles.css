@@ -28,7 +28,7 @@ a{color:inherit}
 .brand-stack .status-label{max-width:calc(100% - 20px);margin:0 0 0 20px;background:#e6f4ec;color:#1b653c;white-space:normal;overflow-wrap:anywhere}
 .brand-stack .status-label.unsaved{background:#fff1bf;color:#775300}
 .header-project-name{display:block;max-width:calc(100% - 20px);margin-left:20px;font-size:12px;font-weight:650;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.header-project-name[hidden]{display:none}
+.header-projects-link{text-transform:uppercase}
 .brand-logo{display:block;width:190px;max-width:100%;height:auto}
 .header-navigation{min-width:0;max-width:100%;width:fit-content;justify-self:center}
 .header-tagline{display:grid;grid-template-columns:32px minmax(0,1fr);column-gap:8px;align-items:center;contain:inline-size;min-width:0;min-height:48px;margin:8px 6px 0;font-size:12px;line-height:1.5;font-style:italic;text-align:center;color:var(--muted);overflow-wrap:anywhere}
@@ -550,6 +550,8 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 @media screen {
   #project-pages.project-tabs,#document-pages.document-tabs{height:42px;min-height:42px;overflow-y:hidden;scrollbar-width:none}
   #document-pages>.calculator-page:focus-visible{outline-offset:-4px}
+  #library-pages.library-tabs,#document-pages.document-tabs{box-shadow:0 1px var(--red)}
+  #document-pages.document-tabs{width:100%;background:transparent}
   #calculator-kind-pages.calculator-kind-tabs,#takeoff-pages.takeoff-tabs{margin-bottom:0}
   #calculator-kind-pages.calculator-kind-tabs{height:auto;min-height:var(--calculator-control-height)}
   #calculator-kind-pages>.calculator-page{height:var(--calculator-control-height)}
@@ -568,7 +570,7 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .workspace-section-heading>.penetration-banner-heading,.workspace-view>.project-banner-heading{flex-flow:row wrap;align-items:flex-start;gap:0 8px;margin:0}
 .workspace-section-heading>.penetration-banner-heading{z-index:5}
 .workspace-section-heading>.penetration-banner-heading>.calculator-heading-copy,.project-banner-heading>.project-heading-copy{align-self:flex-start;flex:1 1 auto;max-width:100%}
-.workspace-section-heading>.penetration-banner-heading>.calculator-heading-copy{padding-block-end:20px}
+.workspace-section-heading>.penetration-banner-heading>.calculator-heading-copy{align-items:flex-start;min-block-size:48px;padding-block-end:20px}
 .project-banner-heading>.project-heading-copy{padding-block-end:30px}
 .project-banner-heading>.project-workspace-actions,.workspace-section-heading>.penetration-banner-heading>.penetration-heading-actions{width:auto;max-width:100%;justify-content:flex-end;margin-inline-start:auto}
 .workspace-section-heading>.penetration-banner-heading>.penetration-heading-actions{position:relative;inset:auto;flex:0 0 auto;flex-wrap:nowrap;gap:10px}

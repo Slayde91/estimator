@@ -40,7 +40,7 @@ async function cancelDraft(host,back){await host.getByRole('button',{name:back,e
 async function breakdownButton(control,disabled=false){
  await expect(control).toHaveAccessibleName('Download Breakdown');await expect(control).toHaveAttribute('title','Download Breakdown');
  await expect(control.locator('.download-format-icon[aria-hidden="true"]')).toHaveText('⇩PDF');
- const box=await control.boundingBox();assert.equal(box.width,52);assert.equal(box.height,44);
+ const box=await control.boundingBox();assert.equal(box.width,52);assert.equal(box.height,42);
  if(disabled)await expect(control).toBeDisabled();else await expect(control).toBeEnabled();
 }
 function libraryStorage(){const reply=spawnSync(python,[fixture,'--snapshot-database',info.database],{cwd:root,windowsHide:true,encoding:'utf8'});assert.equal(reply.status,0,reply.stderr);return Object.fromEntries(Object.entries(JSON.parse(reply.stdout)).filter(([name])=>name==='settings'||name.startsWith('firestopping_')||name.startsWith('technical_')));}
@@ -51,8 +51,8 @@ function libraryFiles(){const directory=path.dirname(path.dirname(info.diagram))
  const read=async route=>{const r=await context.request.get(base+route);assert.equal(r.status(),200,await r.text());return r.json();};
  async function post(route,data){const session=await read('/api/access/session'),headers=session.user?{'X-CRM-Member':session.user.id}:{};const r=await context.request.post(base+route,{data,headers});assert.equal(r.status(),200,await r.text());return r.json();}
  await page.goto(base);await idle();
- await chooseLibrary(page,'pricing');await plus(page.locator('#add-pricing-item'),'+ Add item');
- await chooseLibrary(page,'technical');await plus(page.getByRole('button',{name:'Add Technical Library item',exact:true}),'Add Technical Library item');
+ await chooseLibrary(page,'pricing');await plus(page.locator('#add-pricing-item'),'+ Add item',{size:42});
+ await chooseLibrary(page,'technical');await plus(page.getByRole('button',{name:'Add Technical Library item',exact:true}),'Add Technical Library item',{size:42});
  const originalDirectory=await read('/api/contacts/directory');
  for(const [kind,name] of [['leads','New Lead'],['contacts','New Contact'],['accounts','New Company']]){
   await contacts(page,kind);const control=page.locator('#contacts-root .contacts-controls .add-icon-action');await plus(control,name,{size:42});await control.click();
@@ -82,7 +82,7 @@ function libraryFiles(){const directory=path.dirname(path.dirname(info.diagram))
  await openProjectSection(page,'certification');const certificate=page.locator('#certification-new');await expect(certificate).toHaveText('New');await expect(certificate).toHaveAccessibleName('New');await certificate.click();await expect(page.locator('#certification-editor')).toBeVisible();await page.locator('#certification-back').click();await expect(page.locator('#view-documentation')).toBeVisible();
  checks.push('New opens the certificate form. Back returns to Documentation.');
  for(const [section,name,selector,back] of sections){await openProjectSection(page,section);const host=page.locator(selector);await host.getByRole('button',{name,exact:true}).click();await expect(host.locator('.commercial-editor')).toBeVisible();await cancelDraft(host,back);}
- await openProjectSection(page,'swms');await page.getByRole('button',{name:'New SWMS',exact:true}).click();await expect(page.locator('#swms-root .swms-workflow')).toBeVisible();await cancelDraft(page.locator('#swms-root'),'Back to Documents');
+ await openProjectSection(page,'swms');await page.getByRole('button',{name:'New SWMS',exact:true}).click();await expect(page.locator('#swms-root .swms-download').first()).toBeVisible();await cancelDraft(page.locator('#swms-root'),'Back to Documents');
  checks.push('The same plus controls open and discard the correct Quote, Work Order, Purchase Order and SWMS editors after a real numbered Project exists.');
  await openProjectSection(page,'quote');const quote=page.locator('#commercial-quote-root');await quote.getByRole('button',{name:'New Quote',exact:true}).click();
  const left=quote.locator('.commercial-sidebar').first();await left.getByRole('combobox',{name:'Name',exact:true}).fill(primary.name);await left.getByRole('option',{name:primary.name,exact:true}).click();

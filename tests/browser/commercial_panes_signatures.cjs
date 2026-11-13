@@ -44,6 +44,19 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  await quote.locator('input[type=file]').setInputFiles(info.fixture);await expect(quote.locator('.commercial-sidebar summary').filter({hasText:'Files (1)'})).toHaveCount(1);await save(quote);
  await quote.getByRole('button',{name:'New note',exact:true}).click();const note=page.getByRole('dialog',{name:'Quote note',exact:true});await note.getByLabel('Note title',{exact:true}).fill('Quote note proof');await note.locator('[contenteditable=true]').fill('Preserved Quote note body');await note.getByRole('button',{name:'Done',exact:true}).click();await expect(note).toBeHidden();await idle();
  let model=await current(),savedQuote=model.documents.find(document=>document.kind==='quote');assert.equal(savedQuote.fields.notes[0].title,'Quote note proof');assert.equal(savedQuote.fields.files.length,1);
+ const previousNotes=structuredClone(savedQuote.fields.notes);
+ await quote.getByRole('button',{name:'Quote note proof',exact:true}).click();
+ const done=note.getByRole('button',{name:'Done',exact:true}),cancelNote=note.getByRole('button',{name:'Cancel',exact:true});
+ const deleteNote=note.getByRole('button',{name:'Delete',exact:true});
+ const [deleteBox,cancelBox,doneBox]=await Promise.all([deleteNote.boundingBox(),cancelNote.boundingBox(),done.boundingBox()]);
+ assert.ok(deleteBox.x+deleteBox.width<=cancelBox.x && cancelBox.x+cancelBox.width<doneBox.x);
+ await deleteNote.focus();await page.keyboard.press('Tab');await expect(cancelNote).toBeFocused();
+ await page.keyboard.press('Tab');await expect(done).toBeFocused();
+ await note.getByLabel('Note title').fill('Discarded Quote note title');await note.getByLabel('Compose text',{exact:true}).fill('Discarded Quote note content');
+ // Exceed the old 750ms automatic write delay before choosing Cancel.
+ await new Promise(resolve=>setTimeout(resolve,900));
+ await cancelNote.click();await expect(note).toBeHidden();
+ assert.deepEqual((await current()).documents.find(doc=>doc.id===savedQuote.id).fields.notes,previousNotes);
  const attachment=await page.request.get(new URL(`/api/commercial/attachment/${savedQuote.fields.files[0].id}?workspace=${model.workspace_id||await page.evaluate(()=>window.CeasefireCertification.sessionId())}&document=${savedQuote.id}`,page.url()).href);assert.equal(attachment.status(),200,await attachment.text());assert.deepEqual(await attachment.body(),fs.readFileSync(info.fixture));
  checks.push('Quote has account/contact/notes/files/actual linked Work Orders panes; saved note and bounded source attachment persist and are readable by their owner');
  for(const width of [1915,1213,390]){await page.setViewportSize({width,height:1000});await expect(quote.locator('.commercial-work-layout>.commercial-sidebar')).toHaveCount(2);await expect(quote.locator('.commercial-sidebar').first().locator('summary')).toHaveText(['Linked Companies','Linked Contacts','Activity history']);const bounds=await quote.locator('.commercial-work-layout').evaluate(layout=>({width:document.documentElement.scrollWidth,viewport:innerWidth,columns:getComputedStyle(layout).gridTemplateColumns.split(' ').length}));assert.ok(bounds.width<=bounds.viewport,JSON.stringify(bounds));geometry.push({kind:'quote',width,...bounds});await page.screenshot({path:path.join(output,'quote-panes-'+width+'.png'),fullPage:true});}

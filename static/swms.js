@@ -527,17 +527,7 @@
   }
   function renderEditor() {
     const editor = state.editor, fields = editor.fields, host = shell("Safe Work Method Statement");
-    const toolbar = editorActions();
-    const stages = [...window.ClassifireDocumentBoard.stages];
-    if (editor.status === 'Archived') stages.push('Archived');
-    const stageInput = select(stages, editor.status, value => { editor.status = value; });
-    const stageField = field('Workflow status', stageInput);
-    stageField.classList.add('swms-workflow');
-    stageField.firstChild.classList.add('sr-only');
-    window.CeasefireI18n?.text(stageField.firstChild, 'Workflow status');
-    window.CeasefireI18n?.attr(stageInput, 'aria-label', 'Workflow status');
-    for (const option of stageInput.options) window.CeasefireI18n?.text(option, option.value);
-    toolbar.append(stageField); host.append(toolbar);
+    host.append(editorActions());
     renderDocumentSelector(host);
     const details = section("Project Details", true), grid = element("div", "swms-grid"), detailInputs = {};
     for (const [key, label] of Object.entries(detailLabels)) {

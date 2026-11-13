@@ -1,4 +1,10 @@
-.penetration-layout{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:22px;align-items:start}
+#view-calculators{--penetration-columns:minmax(0,2fr) minmax(280px,1fr);--penetration-gap:22px}
+.penetration-layout{display:grid;grid-template-columns:var(--penetration-columns);gap:var(--penetration-gap);align-items:start}
+#penetration-heading{line-height:22px}
+@media screen {
+  #calculator-kind-pages:has([data-calculator-id="penetration"][aria-pressed="true"]) + .workspace-tabs-divider{display:grid;grid-template-columns:var(--penetration-columns);column-gap:var(--penetration-gap);background:transparent}
+  #calculator-kind-pages:has([data-calculator-id="penetration"][aria-pressed="true"]) + .workspace-tabs-divider::before{content:"";grid-column:1;background:var(--red)}
+}
 .penetration-main{min-width:0}
 .penetration-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:20px}
 .penetration-fields .field>span{overflow-wrap:anywhere}
@@ -83,7 +89,7 @@
 .penetration-source summary{cursor:pointer;font-size:12px}
 .penetration-diagram figcaption{color:var(--muted)}
 .penetration-source p{margin-top:10px}
-@media(max-width:1050px){.penetration-layout{grid-template-columns:1fr}.penetration-summary{position:static}.penetration-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:1050px){#view-calculators{--penetration-columns:minmax(0,1fr)}.penetration-summary{position:static}.penetration-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:580px){.penetration-fields{grid-template-columns:1fr}.penetration-group{padding:9px 10px;font-size:11px}.penetration-row-tools{gap:9px}}
 @media print{.penetration-row-tools,.penetration-group-choices,.penetration-item-actions,.penetration-source{display:none!important}.penetration-summary{position:static}.penetration-layout{display:block}}
 .penetration-summary #penetration-summary-notes { white-space: pre-line; }

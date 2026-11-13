@@ -52,7 +52,8 @@ module.exports=async function peopleDefaults(root,output){
     await expect(savedStatements.locator('option')).toHaveCount(2);
     await expect(savedStatements).toHaveValue(existing.id);
     await expect(host.getByLabel('Document title',{exact:true})).toHaveCount(0);
-    await expect(host.getByLabel('Workflow status',{exact:true})).toHaveValue('Archived');
+    await expect(host.getByLabel('Workflow status',{exact:true})).toHaveCount(0);
+    assert.equal(await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.status),'Archived');
     const group=title=>host.locator(':scope > details').filter({has:page.locator(':scope > summary').filter({hasText:new RegExp('^'+title+'$')})});
     const reviewers=group('Person/s responsible for reviewing SWMS'),consultation=group('This SWMS has been developed in consultation with'),site=group('Site Sign-Off');
     await reviewers.locator(':scope > summary').click();
@@ -74,10 +75,8 @@ module.exports=async function peopleDefaults(root,output){
     await host.getByLabel('Passive Firestopping',{exact:true}).uncheck();
     await expect(host.locator('.swms-step-table tbody tr')).toHaveCount(0);
     await host.getByLabel('Project Name',{exact:true}).fill('Explicit SWMS choices');
-    await host.getByLabel('Workflow status',{exact:true}).selectOption('Review');
     await host.getByRole('button',{name:'Save',exact:true}).first().click();await expect(host.locator('.swms-message')).toContainText('Saved.');
-    await host.getByLabel('Workflow status',{exact:true}).selectOption('Rejected');
-    await host.getByRole('button',{name:'Save',exact:true}).first().click();await expect(host.locator('.swms-message')).toContainText('Saved.');
+    assert.equal(await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.status),'Draft');
     const savedChoice=await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.id);
     await expect(host.getByLabel('Project Name',{exact:true})).toHaveValue('Explicit SWMS choices');
     fields=await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.fields);

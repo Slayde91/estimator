@@ -2964,7 +2964,7 @@
     if(state.editor)state.editor.pricingCleanups=[];
   }
   window.CeasefireCommercial = {
-    activate, leaveEditor,
+    activate, leaveEditor, richEditor,
     async openLinkedProject(bid, button) {
       if (!bid?.source || state.busy || linkedNavigation) return false;
       linkedNavigation=true;

@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, urlsplit
 from uuid import UUID
 
 from .catalog import ValidationError
+from .commercial_documents import validate_rich_text
 from .commercial_files import MAX_FILE, MAX_TOTAL, WorkOrderFiles, validate_files
 from .evidence_files import _directory, _open_regular
 
@@ -30,12 +31,14 @@ def _uuid(value):
     raise ValidationError('Choose a saved record for Notes and Files.')
 
 
-def _notes(value):
+def _notes(value, *, rich=False):
     if not isinstance(value, list) or len(value) > 200:
         raise ValidationError('A record supports up to 200 notes.')
     result, seen = [], set()
     for item in value:
-        if not isinstance(item, dict) or set(item) != {'id', 'title', 'body'}:
+        keys = {'id', 'title', 'body'}
+        if not isinstance(item, dict) or not (set(item) == keys or
+                rich and set(item) == keys | {'format'} and item['format'] == 'rich'):
             raise ValidationError('Include a note title and text only.')
         identity = _uuid(item['id'])
         if identity in seen:
@@ -48,7 +51,12 @@ def _notes(value):
                 raise ValidationError('Enter a valid note title and text.')
         if not item['title'].strip():
             raise ValidationError('Enter a title for the note.')
-        result.append({'id': identity, 'title': item['title'].strip(), 'body': item['body']})
+        note = {'id': identity, 'title': item['title'].strip(), 'body': item['body']}
+        if 'format' in item:
+            note.update(format='rich', body=validate_rich_text(note['body'], 'Note'))
+            if len(note['body']) > 8000:
+                raise ValidationError('Enter a valid note title and text.')
+        result.append(note)
     # Bound encoded storage as well as character counts. Multi-byte text and
     # JSON escapes must not create a collection too large to reopen safely.
     if len(json.dumps(result, ensure_ascii=False).encode('utf-8')) > 1024 * 1024:
@@ -135,19 +143,20 @@ class RecordResources:
             yield db
 
     @staticmethod
-    def _state(db):
+    def _state(db, *, rich=False):
         if db is None:
             return {'version': 0, 'notes': [], 'files': []}
         row = db.execute('SELECT version,notes,files FROM resources WHERE id=1 AND length(notes)<=2000000 AND length(files)<=16000').fetchone()
         if not row:
             raise ValidationError('The record resources are unavailable.')
         notes = json.loads(row['notes'])
-        if not isinstance(notes, list) or any(not isinstance(item,dict) or set(item) != {'id','title','body','author','updated_at'} for item in notes):
+        if not isinstance(notes, list) or any(not isinstance(item,dict) or not {'author','updated_at'} <= item.keys() for item in notes):
             raise ValidationError('The saved notes are unavailable.')
-        _notes([{key: item[key] for key in ('id','title','body')} for item in notes])
-        for item in notes:
+        contents = _notes([{key: val for key,val in item.items() if key not in ('author','updated_at')} for item in notes], rich=rich)
+        for item, content in zip(notes, contents):
             if any(not isinstance(item[key],str) or len(item[key])>limit or not item[key].isprintable() for key,limit in [('author',200),('updated_at',80)]):
                 raise ValidationError('The saved note metadata is invalid.')
+            item.update(content)
         if type(row['version']) is not int or row['version']<0:
             raise ValidationError('The record resources have an invalid version.')
         return {'version': row['version'], 'notes': notes, 'files': validate_files(json.loads(row['files']))}
@@ -160,7 +169,7 @@ class RecordResources:
     def read(self, owner):
         folder, _ = self._target(owner)
         with self._connection(folder) as db:
-            return self._state(db)
+            return self._state(db, rich=owner['kind'] in ('projects', 'leads'))
 
     def write(self, action, body, actor=None):
         fields = {'notes': {'notes'}, 'upload': {'filename','content_base64'}, 'remove-file': {'file_id'}}
@@ -168,15 +177,16 @@ class RecordResources:
             raise ValidationError('Use the Notes and Files controls provided on this record.')
         folder, identity = self._target(body['owner'])
         with self._connection(folder, write=True) as db:
-            state = self._state(db)
+            rich = body['owner']['kind'] in ('projects', 'leads')
+            state = self._state(db, rich=rich)
             self._check(state, body['version'])
             if action == 'notes':
-                notes = _notes(body['notes'])
+                notes = _notes(body['notes'], rich=rich)
                 old = {item['id']: item for item in state['notes']}
                 now = datetime.now(timezone.utc).isoformat()
                 author = ' '.join(str((actor or {}).get('name') or 'Local user').split())[:200]
                 state['notes'] = [dict(item, author=(old.get(item['id']) or {}).get('author') or author,
-                    updated_at=(old.get(item['id']) or {}).get('updated_at') if all((old.get(item['id']) or {}).get(key) == item[key] for key in ('title', 'body')) else now) for item in notes]
+                    updated_at=(old.get(item['id']) or {}).get('updated_at') if all((old.get(item['id']) or {}).get(key) == item.get(key) for key in ('title', 'body', 'format')) else now) for item in notes]
             elif action == 'upload':
                 if len(state['files']) >= 16:
                     raise ValidationError('A record supports up to 16 attached files.')
@@ -209,7 +219,8 @@ class RecordResources:
     def file(self, owner, identity):
         folder, record = self._target(owner)
         with self._connection(folder) as db:
-            item = next((item for item in self._state(db)['files'] if item['id'] == identity), None)
+            state = self._state(db, rich=owner['kind'] in ('projects', 'leads'))
+            item = next((item for item in state['files'] if item['id'] == identity), None)
             if item is None:
                 raise ValidationError('Choose a file attached to this record.')
             return item, WorkOrderFiles(folder / 'files').read(record, item)

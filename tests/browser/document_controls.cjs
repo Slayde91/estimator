@@ -150,10 +150,8 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
     assert.equal(metric.width,42);assert.equal(metric.height,42);assert.equal(metric.text,'←');assert.equal(metric.border,'solid');layouts.push({kind:'SWMS',theme,width,...metric});
     const toolbar=host.locator('.swms-toolbar').first(),pdf=toolbar.getByRole('button',{name:'Download PDF',exact:true});
     assert.ok(await host.locator('.swms-download').evaluateAll(buttons=>buttons.every(button=>button.getBoundingClientRect().height===42)),'Both SWMS PDF actions are42px high');
-    await expect(toolbar.getByRole('combobox',{name:'Workflow status',exact:true})).toBeVisible();
-    assert.equal(await toolbar.locator('.swms-workflow>span').evaluate(label=>getComputedStyle(label).position),'absolute','Workflow label remains available to assistive technology without visible text');
-    const pdfBox=await pdf.boundingBox(),workflowBox=await toolbar.getByRole('combobox',{name:'Workflow status',exact:true}).boundingBox();
-    if(width>700)assert.ok(Math.abs(pdfBox.y+pdfBox.height-workflowBox.y-workflowBox.height)<1);
+    await expect(toolbar.getByRole('combobox',{name:'Workflow status',exact:true})).toHaveCount(0);
+    await expect(pdf).toBeVisible();
   }
   await host.getByLabel('Project Address',{exact:true}).fill('Retained SWMS edit');await back.click();
   const discard=page.getByRole('dialog',{name:'Discard the current SWMS?',exact:true});await discard.getByRole('button',{name:'Cancel',exact:true}).click();

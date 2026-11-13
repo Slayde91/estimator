@@ -135,6 +135,7 @@
 .contacts-record-workspace .contacts-link-row .commercial-card-info{flex-basis:100%;font-size:12px;margin-block:6px}
 .contacts-record-workspace .contacts-links-list{max-height:360px}
 .contacts-record-workspace .contacts-related{gap:16px}
+.contacts-record-workspace .contacts-related>[role=status]:empty,.contacts-record-workspace .contacts-record-associations:empty{display:none}
 .contacts-record-workspace .contacts-links-group .text-button{white-space:normal;overflow-wrap:anywhere;text-align:start}
 .contacts-record-workspace .crm-timeline .contacts-group{grid-template-columns:minmax(0,1fr)}
 @media(max-width:1050px){.contacts-record-layout{grid-template-columns:minmax(0,1fr)}.contacts-record-main{grid-row:1}.contacts-record-left{grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))}.contacts-record-associations{display:contents}}

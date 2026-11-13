@@ -158,6 +158,7 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   for(const section of ['swms','certification']){
     await openPdfForm(section);
     await expect(documentTabs).toBeVisible();
+    assert.ok(await documentTabs.evaluate(nav=>Math.abs(nav.getBoundingClientRect().width-nav.parentElement.getBoundingClientRect().width)<1 && getComputedStyle(nav).boxShadow!=='none'));
     assert.deepEqual(await documentTabs.locator('button').allTextContents(),['Documentation']);
     assert.equal(await documentTabs.count(),1,'Only one document navigation element is retained');
     assert.equal(await documentTabs.evaluate(nav=>Boolean(nav.closest('#swms-root'))),false,'SWMS cannot replace its navigation when rendering');

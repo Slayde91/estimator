@@ -406,7 +406,10 @@ async function penetrationCheck(name, fn) {
 
   await check('Canceling Load Project keeps every draft and local pricing after read-only preparation', async h => {
     const before = h.snapshot(); h.chooseFile(); const loading = h.app.loadProject(); await flush();
-    assert.equal(h.byId('discard-dialog').open, true); assert.match(h.byId('discard-dialog').querySelector('p').textContent, /CF-2000/);
+    assert.equal(h.byId('discard-dialog').open, true);
+    const summary=h.byId('discard-dialog').querySelector('p').textContent;
+    assert.match(summary,/Project No\.: CF-2000/);assert.match(summary,/\nClient: /);assert.match(summary,/\nSite Address: /);
+    assert.equal(summary.split('\n').length,4);
     assert.deepEqual(h.snapshot(), before); await h.byId('discard-dialog').close('cancel'); await loading;
     assert.deepEqual(h.snapshot(), before); assert.match(h.byId('app-message').textContent, /cancelled/);
     assert.ok(h.calls.some(call => call.path === '/api/calculators/ductwork'));
@@ -842,14 +845,14 @@ async function penetrationCheck(name, fn) {
     assert.deepEqual(visible(),['access-travel']);assert.equal(h.app.state.mainOutputSection,'material-breakdown');assert.equal(output.hidden,false);
     assert.deepEqual(copy(h.app.state.inputs),original,'Conditional tab removal preserves inputs and the selected lower output');
   });
-  await check('Header project name keeps authoritative file title through dirty and busy state and clears on New', async h => {
+  await check('Header project name keeps authoritative file title through dirty and busy state and shows Projects on New', async h => {
     const title='CF-7000 <saved quote> & Client';h.app.state.projectFile={title,name:'private-filename.cf.json',path:'C:/Private/Folder/private-filename.cf.json'};
     const before=h.snapshot();h.app.updateProjectStatus();const name=h.byId('header-project-name');
-    assert.equal(name.textContent,title);assert.equal(name.title,title);assert.equal(name.hidden,false);assert.deepEqual(h.snapshot(),before);
+    assert.equal(name.textContent,title);assert.equal(name.title,title);assert.ok(!name.hidden);assert.deepEqual(h.snapshot(),before);
     h.byId('client').value='Later unsaved client';h.app.state.dirty=true;h.app.state.projectBusy=true;h.app.updateProjectStatus();
     assert.equal(name.textContent,title);assert.equal(h.byId('project-save-state').textContent,'Working…');
-    h.app.state.projectBusy=false;h.app.state.projectFile=null;h.app.updateProjectStatus();assert.equal(name.textContent,'');assert.equal(name.title,'');assert.equal(name.hidden,true);
-    await h.loadAccepted();assert.equal(name.textContent,project().estimate.title);assert.equal(name.title,project().estimate.title);assert.equal(name.hidden,false);
+    h.app.state.projectBusy=false;h.app.state.projectFile=null;h.app.updateProjectStatus();assert.equal(name.textContent,'Projects');assert.equal(name.title,'Projects');assert.ok(!name.hidden);
+    await h.loadAccepted();assert.equal(name.textContent,project().estimate.title);assert.equal(name.title,project().estimate.title);assert.ok(!name.hidden);
     assert.notEqual(name.textContent,projectFilename,'Imported project title comes from validated contents rather than its filename');
   });
   await check('Header shortcut opens the current details immediately and leaves a dirty editor in place', async h => {
@@ -860,7 +863,11 @@ async function penetrationCheck(name, fn) {
     assert.equal(opened,1);assert.equal(h.app.state.currentView,'pricing');assert.deepEqual(h.snapshot(),before);
     assert.ok(!h.byId('discard-dialog').open);
     h.app.state.projectBusy=true;await h.app.openHeaderProjectDetails();assert.equal(opened,1);
-    h.app.state.projectBusy=false;h.app.state.projectFile=null;await h.app.openHeaderProjectDetails();assert.equal(opened,1);
+    h.app.state.projectBusy=false;h.app.state.projectFile=null;
+    h.app.state.libraryKind='pricing';h.app.state.pricingScope='library';h.app.state.draft={...h.app.state.configuration,notes:'Unsaved edit'};
+    const navigation=h.app.openHeaderProjectDetails();await flush();
+    assert.equal(h.byId('discard-dialog').open,true);await h.byId('discard-dialog').close('cancel');
+    await navigation;assert.equal(opened,1);assert.equal(h.app.state.currentView,'pricing');
   });
   await check('Project status includes project pricing edits but excludes shared library edits', async h => {
     h.app.state.dirty=false;h.app.state.projectFile={name:'saved.cf.json'};h.app.state.projectPricingDraft=copy(h.app.state.quoteConfiguration);

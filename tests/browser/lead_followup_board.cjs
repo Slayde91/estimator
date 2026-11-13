@@ -33,7 +33,7 @@ async function checkFollowUpBoard(browser, base, output) {
     const due=name=>card(name).getByRole('img',{name:'Follow-up due',exact:true});
     await expect(card('Tomorrow')).toBeVisible();
     await page.clock.pauseAt(new Date('2027-03-15T03:59:58Z'));
-    for(const name of ['Past','Today','Disqualified','Converted']){
+    for(const name of ['Past','Today','Disqualified']){
       await expect(due(name)).toBeVisible();
       await expect(due(name)).toHaveText('!');
       await expect(due(name)).toHaveCSS('font-weight','800');
@@ -41,7 +41,7 @@ async function checkFollowUpBoard(browser, base, output) {
       const marker=await due(name).boundingBox(), tile=await card(name).boundingBox();
       assert.ok(Math.abs(tile.x+tile.width-marker.x-marker.width)<=16 && marker.y-tile.y<=16);
     }
-    for(const name of ['Unscheduled','Tomorrow','Later'])await expect(due(name)).toHaveCount(0);
+    for(const name of ['Unscheduled','Tomorrow','Later','Converted'])await expect(due(name)).toHaveCount(0);
     const menu=card('Tomorrow').getByText('▾',{exact:true});
     await menu.click();await expect(card('Tomorrow').getByRole('button',{name:'Edit',exact:true})).toBeVisible();
     await page.clock.fastForward(2000);

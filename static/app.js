@@ -547,7 +547,14 @@
     const projectName = $("header-project-name");
     if (projectName) {
       const title = typeof file?.title === "string" ? file.title.trim() : "";
-      projectName.textContent = title; projectName.title = title; projectName.hidden = !title;
+      projectName.classList.toggle("header-projects-link", !title);
+      if (title) {
+        window.CeasefireI18n.text(projectName, "{0}", [title]);
+        window.CeasefireI18n.attr(projectName, "title", "{0}", [title]);
+      } else {
+        window.CeasefireI18n.text(projectName, "Projects");
+        window.CeasefireI18n.attr(projectName, "title", "Projects");
+      }
       projectName.disabled = state.projectBusy;
     }
     if (file?.path || file?.relative_path) $("project-file-location").textContent = file.path || file.relative_path;
@@ -2690,7 +2697,7 @@
       if (coverReplacementPending(confirmedReplacement)) return;
       if (captured !== projectReplacementStamp()) throw new Error("Your draft changed while reading the file. Load it again when ready.");
       const detail = project.project_details || {};
-      const accepted = confirmedReplacement || convertedLead && !projectHasChanges() || await confirmReplace(uiCopy("Load this project?"), uiCopy("{0}\nProject No.: {1}\nClient: {2}\nSite Address: {3}\n\nThis replaces the Quote, Firestopping items, {4}project library drafts, their pricing and all three specialist calculator drafts. Shared libraries stay unchanged.", [file.name, detail.project_no || "Not recorded", detail.client || "Not recorded", detail.site_address || "Not recorded", window.CeasefireI18n.term(takeoffContents())]), uiCopy("Load Project"));
+      const accepted = confirmedReplacement || convertedLead && !projectHasChanges() || await confirmReplace(uiCopy("Load this project?"), uiCopy("{0}\nProject No.: {1}\nClient: {2}\nSite Address: {3}", [file.name, detail.project_no || "Not recorded", detail.client || "Not recorded", detail.site_address || "Not recorded"]), uiCopy("Load Project"));
       if (!accepted) { message(uiCopy("Project load cancelled. Your current drafts were kept.")); return; }
       if (coverReplacementPending(confirmedReplacement)) return;
       if (captured !== projectReplacementStamp()) throw new Error("Your draft changed during review. Load the file again to keep your latest edits safe.");
@@ -3175,8 +3182,11 @@
   $("header-project-name").addEventListener("mousedown",event => {
     if (event.button === 0) event.preventDefault();
   });
-  function openHeaderProjectDetails() {
-    if (!state.projectBusy && state.projectFile?.title) window.CeasefireProjectPane.showHeaderDetails();
+  async function openHeaderProjectDetails() {
+    if (state.projectBusy) return;
+    if (state.projectFile?.title?.trim()) return window.CeasefireProjectPane.showHeaderDetails();
+    if (state.currentView === "quotes" && !await window.CeasefireProjectPane.leave()) return;
+    return requestViewNavigation("quotes");
   }
   $("header-project-name").addEventListener("click",openHeaderProjectDetails);
   $("save-current-project").addEventListener("click", saveProject);

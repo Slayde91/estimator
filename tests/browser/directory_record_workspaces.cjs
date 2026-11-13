@@ -19,7 +19,9 @@ const checks=[],errors=[];
  const owners=[['accounts',account.id,account.company],['contacts',contact.id,contact.name],['leads',lead.id,lead.name]];
  for(const [kind,id,label]of owners){
   let pane=await open(kind,label);const before=await api('/api/contacts/directory');
-  await pane.getByRole('button',{name:'New note',exact:true}).click();const note=page.getByRole('dialog',{name:'New note',exact:true});await note.getByLabel('Note title',{exact:true}).fill('Saved '+kind+' note');await note.getByLabel('Note',{exact:true}).fill('First line\nSecond line <safe plain text>');await note.getByRole('button',{name:'Save',exact:true}).click();await expect(note).toHaveCount(0);await expect(pane.locator('.record-resource-note')).toContainText('Saved '+kind+' note');
+  await pane.getByRole('button',{name:'New note',exact:true}).click();const note=page.getByRole('dialog',{name:'New note',exact:true});await note.getByLabel('Note title',{exact:true}).fill('Saved '+kind+' note');
+  await note.getByLabel(kind==='leads'?'Compose text':'Note',{exact:true}).fill('First line\nSecond line <safe plain text>');
+  await note.getByRole('button',{name:kind==='leads'?'Done':'Save',exact:true}).click();await expect(note).toHaveCount(0);await expect(pane.locator('.record-resource-note')).toContainText('Saved '+kind+' note');
   const file=pane.locator('.record-resource-panel input[type=file]');await file.setInputFiles({name:kind+' evidence.txt',mimeType:'text/plain',buffer:Buffer.from(kind+' private fixture evidence')});await expect(pane.locator('.record-resource-file a')).toHaveText(kind+' evidence.txt');
   const resource=await api('/api/record-resources?kind='+kind+'&id='+id);assert.equal(resource.notes.length,1);assert.equal(resource.files.length,1);assert.deepEqual(await api('/api/contacts/directory'),before,'Notes/Files keep directory version and values unchanged');
   const downloaded=await page.request.get(base+await pane.locator('.record-resource-file a').getAttribute('href'));assert.equal(downloaded.status(),200);assert.equal((await downloaded.body()).toString(),kind+' private fixture evidence');

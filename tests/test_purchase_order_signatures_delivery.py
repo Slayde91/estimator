@@ -68,6 +68,25 @@ class PurchaseOrderSignatureDeliveryTests(unittest.TestCase):
         self.assertEqual(self.store.read_pdf(restored_workspace, issued['id'])[1], issued['pdf'])
         self.assertEqual(self.store.issue(self.workspace, purchase['id'], issued_version, operation)['pdf'], issued['pdf'])
 
+    def test_legacy_rollback_accepts_empty_sections_and_protects_unsigned_inputs(self):
+        fields = default_fields('purchase_order')
+        document = self.store.save(self.workspace, {'kind':'purchase_order', 'status':'Completed', 'fields':fields})
+        changed = self.payload(document)
+        changed['status'] = 'Requested'
+        changed['fields']['order']['verification'] = 'Checked on site'
+        with self.assertRaisesRegex(ValidationError, 'Clear the relevant signature section'):
+            self.store.save(self.workspace, changed)
+        changed['status'] = 'Completed'
+        document = self.store.save(self.workspace, changed)
+        with self.assertRaisesRegex(ValidationError, 'Clear the relevant signature section'):
+            self.store.status(self.workspace, document['id'], document['version'], 'Requested')
+        document = self.store.save(self.workspace, {**self.payload(document),
+            'signature_actions':[{'key':'verified_by','clear':True}]})
+        self.assertEqual(document['status'], 'Sent')
+        self.assertEqual(document['fields']['order']['verification'], '')
+        document = self.store.status(self.workspace, document['id'], document['version'], 'Requested')
+        self.assertEqual(document['status'], 'Requested')
+
     def test_rewind_purchase_sections_on_approved_and_rejected_orders(self):
         for decision in ('Approved', 'Rejected'):
             with self.subTest(decision=decision):
@@ -82,6 +101,18 @@ class PurchaseOrderSignatureDeliveryTests(unittest.TestCase):
                         break
                 document = self.store.save(self.workspace, {'kind': 'purchase_order', 'fields': fields,
                     'status': 'Completed' if decision == 'Approved' else 'Cancelled'})
+                snapshot = self.store.capture(self.workspace)
+                with self.assertRaisesRegex(ValidationError, 'Clear the relevant signature section'):
+                    self.store.status(self.workspace,document['id'],document['version'],'Requested')
+                with self.assertRaisesRegex(ValidationError, 'Clear the relevant signature section'):
+                    self.store.save(self.workspace,{**self.payload(document),'status':'Requested'})
+                changed = self.payload(document)
+                changed['fields']['signatures'] = {'requested_by':deepcopy(INK)}
+                changed['signature_actions'] = [{'key':'requested_by','name':'Purchasing',
+                    'date':'2026-11-12','signature':deepcopy(INK)}]
+                with self.assertRaisesRegex(ValidationError, 'Clear the relevant signature section'):
+                    self.store.save(self.workspace, changed)
+                self.assertEqual(self.store.capture(self.workspace),snapshot)
                 def clear(previous, key):
                     return self.store.save(self.workspace, {**self.payload(previous),
                         'signature_actions': [{'key': key, 'clear': True}]})

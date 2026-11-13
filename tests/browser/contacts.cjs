@@ -127,6 +127,7 @@ const ready = new Promise((resolve, reject) => {
   await expect(accountPane.getByLabel('ABN/ACN',{exact:true})).toHaveValue('12 345 678 901');
   await expect(accountPane.locator('.contacts-links-group > summary')).toHaveText(['Contacts (1)','Leads (1)']);
   await expect(accountPane.locator('[data-link-group="leads"] button')).toContainText('Robin Sample');
+  await accountPane.locator('[data-link-group="contacts"] > summary').click();
   await accountPane.locator('[data-link-group="contacts"]').getByRole('button',{name:'Robin Sample',exact:true}).click();
   const contactPane=page.getByRole('complementary',{name:'Edit Contact',exact:true});
   await expect(contactPane.getByLabel('Name',{exact:true})).toHaveValue('Robin Sample');
@@ -147,6 +148,7 @@ const ready = new Promise((resolve, reject) => {
   await expect(root.getByRole('button',{name:'Imported Sample',exact:true})).toBeVisible();
   await root.getByRole('button',{name:'Companies',exact:true}).click();
   await root.getByRole('button',{name:'Sample Company',exact:true}).click();
+  await accountPane.locator('[data-link-group="contacts"] > summary').click();
   await expect(accountPane.getByRole('button',{name:'Imported Sample'})).toBeVisible();
   await accountPane.getByRole('button',{name:'Cancel'}).click();
   await root.getByRole('button',{name:'Leads',exact:true}).click();

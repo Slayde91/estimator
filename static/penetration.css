@@ -122,8 +122,10 @@
 .penetration-automatic-tools{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .penetration-automatic-tools .helper{flex:1 1 130px}
 .penetration-automatic-tools .button{padding:8px 10px;font-size:12px;min-height:36px}
-.penetration-settings-table{width:100%;margin-top:20px;min-width:0;table-layout:fixed}
-.penetration-settings-table .settings-group-heading th{padding-top:18px;background:#fff0e7;color:#752a22;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.penetration-settings-table{width:100%;margin-top:20px;min-width:0;table-layout:fixed;border-radius:8px 8px 0 0}
+.penetration-settings-table thead th:first-child{border-start-start-radius:8px}
+.penetration-settings-table thead th:last-child{border-start-end-radius:8px}
+.penetration-settings-table .settings-group-heading th{border-radius:8px 8px 0 0;padding-top:18px;background:#fff0e7;color:#752a22;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
 .penetration-settings-table tbody:first-of-type .settings-group-heading th{padding-top:12px}
 .penetration-settings-table th[scope=row]{width:34%;white-space:normal;color:var(--ink);font-size:12px;background:#fff;text-transform:none}
 .penetration-settings-table td{vertical-align:middle}
@@ -151,8 +153,7 @@
 .penetration-band-table input{width:100%;min-width:0}
 .penetration-band-table .penetration-field-error{display:block;margin-top:5px}
 .penetration-add-band{margin-top:12px}
-.penetration-band-remove{width:42px;height:42px;padding:9px}
-.penetration-band-remove .button-symbol{font-size:18px;line-height:1}
+.penetration-band-remove{display:inline-grid;place-items:center;width:44px;height:44px;padding:0}
 .penetration-new-item-action.icon-only{width:48px;min-width:48px;height:48px;padding:0}
 .penetration-diagram{margin-top:22px;padding:16px 18px 18px;border:1px solid var(--line);border-top:3px solid var(--red);border-radius:10px;background:#fffdfd}
 .penetration-diagram h4{margin:0 0 12px}

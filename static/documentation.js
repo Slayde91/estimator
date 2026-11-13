@@ -72,7 +72,7 @@
     const task=(async()=>{
       const scope=checkedScope(await window.CeasefireCertification.projectWorkspace());
       if(epoch!==state.epoch)throw new Error("The project changed while loading its documents. Open Documentation again.");
-      const model=checkedModel(await request(`/api/documentation?workspace=${scope.workspace_id}`),scope);
+      const model=await readHistory(scope);
       if(epoch!==state.epoch||window.CeasefireCertification.sessionId()!==scope.workspace_id)
         throw new Error("The project changed while loading its documents. Open Documentation again.");
       state.scope=scope;state.model=model;state.baseline=model.workspace_revision;return scope;
@@ -80,10 +80,13 @@
     state.opening=task;
     try{return await task;}finally{if(state.opening===task)state.opening=null;}
   }
+  async function readHistory(scope) {
+    return checkedModel(await request(`/api/documentation?workspace=${scope.workspace_id}`),scope);
+  }
   async function refresh(scope=state.scope) {
     if(!scope||!current(scope))return;
     const epoch=state.epoch, revision=++state.refreshRevision;
-    const model=checkedModel(await request(`/api/documentation?workspace=${scope.workspace_id}`),scope);
+    const model=await readHistory(scope);
     if(!current(scope,epoch)||revision!==state.refreshRevision)return;
     state.model=model;state.uncertain=false;render();window.CeasefireProject?.changed?.();
     return model;
@@ -245,8 +248,9 @@
     finally {if(epoch===state.epoch){state.action=null;button.removeAttribute('aria-busy');render();}}
   }
   async function revisionsFor(kind,logicalKey) {
-    const scope=await ensureWorkspace(), model=await refresh(scope);
-    if(!model || !current(scope))return [];
+    const scope=await ensureWorkspace(), epoch=state.epoch;
+    const model=await readHistory(scope);
+    if(!current(scope,epoch))return [];
     return copy(model.items.filter(item=>item.kind===kind && item.logical_key===logicalKey));
   }
   async function open() {requireProject();await catalog();await ensureWorkspace();await refresh();requireProject();render();}

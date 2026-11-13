@@ -23,6 +23,7 @@ PURCHASE_STEPS = {
     'verified_by': ('verified_date', 'Completed'),
 }
 WORKFLOWS = {'work_order': STEPS, 'purchase_order': PURCHASE_STEPS}
+PURCHASE_STAGE_ORDER = ('Draft', *(target for _, target in PURCHASE_STEPS.values()))
 COMPLETIONS = ('Completed', 'Ongoing', 'On hold', 'Not completed')
 CYCLE_SIGNERS = ('progress_by', 'claimed_by', 'closed_by')
 # Additional inputs owned by each signed section. Tracking rows and claim
@@ -119,6 +120,23 @@ def _clear_from(kind, key, fields, status):
     return stages[start] if start < reached else status
 
 
+def require_purchase_rollback_clear(previous, target, proposed_fields=None):
+    if previous['kind'] != 'purchase_order' or target not in PURCHASE_STAGE_ORDER:
+        return
+    reached = 'Reviewed' if previous['status'] == 'Cancelled' else previous['status']
+    start = PURCHASE_STAGE_ORDER.index(target)
+    if start >= PURCHASE_STAGE_ORDER.index(reached):
+        return
+    # Old orders may record a stage without ever having populated its sign-off sections.
+    for fields in (previous['fields'], proposed_fields):
+        if fields is None:
+            continue
+        for signer, (date_key, _) in tuple(PURCHASE_STEPS.items())[start:]:
+            inputs = (signer, date_key, *SECTION_INPUTS['purchase_order'].get(signer, ()))
+            if fields.get('signatures', {}).get(signer) or any(fields['order'].get(key) for key in inputs):
+                raise ValidationError('Clear the relevant signature section before moving this Purchase Order back.')
+
+
 def reconciled_status(status, fields, *, legacy_details=False):
     """Cap the recorded stage at the first incomplete sign-off, without signing or clearing anything."""
     if status == 'Draft' or status in ('On Hold', 'Cancelled'):
@@ -162,6 +180,8 @@ def apply(kind, fields, status, signed, previous, *, legacy_details=False, creat
     if clear_action:
         if not previous or cleared.intersection(sequence[:sequence.index(reset)]):
             raise ValidationError('The signature changed. Sign it again before saving.')
+    elif kind == 'purchase_order' and cleared and signed:
+        raise ValidationError('Clear the relevant signature section before moving this Purchase Order back.')
     elif cleared and not signed and not changed:
         # Older clients send the edited ink map without a signing action.
         reset = next(key for key in sequence if key in cleared)
@@ -177,6 +197,8 @@ def apply(kind, fields, status, signed, previous, *, legacy_details=False, creat
     if reset:
         restored = _clear_from(kind, reset, fields, previous['status'])
         return reconciled_status(restored, fields, legacy_details=legacy_details) if kind == 'work_order' else restored
+    if previous and not create_retry and not signed:
+        require_purchase_rollback_clear(previous, status, fields)
     for key in cleared:
         if any(ink.get(later) for later in sequence[sequence.index(key) + 1:]):
             raise ValidationError('Clear the later signatures before changing this signature.')

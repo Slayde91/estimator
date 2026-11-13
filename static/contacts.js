@@ -68,11 +68,11 @@
     if(entry.availability==='unverified')row.append(' · ',ui('small','helper','Availability not yet verified'));
     return row;
   }
-  function appendLeadGroup(groups, key, title, entries, render, expanded, existing) {
+  function appendLeadGroup(groups, key, title, entries, render, open) {
     if (!entries.length) return;
     const group = el('details', 'contacts-links-group'), summary = el('summary');
     group.dataset.linkGroup = key;
-    group.open = expanded.has(key) || !existing.has(key);
+    group.open = open;
     copy(summary, '{0} ({1})', [window.CeasefireI18n?.term(title) || title, entries.length]);
     const body = el('div', 'contacts-links-body'), list = el('ul', 'contacts-links-list');
     for (const entry of entries) {
@@ -514,14 +514,13 @@
       }
       function renderLinked() {
         const expanded = new Set([...form.querySelectorAll("details[data-link-group][open]")].map(group => group.dataset.linkGroup));
-        const existing = new Set([...form.querySelectorAll("details[data-link-group]")].map(group => group.dataset.linkGroup));
         groups.replaceChildren();
         for (const [key, title] of Object.entries(linkTitles)) {
           const entries = selectedEntries(key);
           if (!entries.length) continue;
           const group = el("details", "contacts-links-group"), summary = el("summary");
           group.dataset.linkGroup = key;
-          group.open = expanded.has(key) || !existing.has(key);
+          group.open = expanded.has(key);
           copy(summary, "{0} ({1})", [window.CeasefireI18n?.term(title) || title, entries.length]);
           const body = el("div", "contacts-links-body"), list = el("ul", "contacts-links-list");
           list.append(...entries.map(item => recordRow(key, item)));
@@ -531,7 +530,7 @@
           const entries = supplementalRecords[key] || [];
           if (!entries.length) continue;
           const group=el('details','contacts-links-group'),summary=el('summary'),body=el('div','contacts-links-body'),list=el('ul','contacts-links-list');
-          group.dataset.linkGroup=key;group.open=expanded.has(key)||!existing.has(key);
+          group.dataset.linkGroup=key;group.open=expanded.has(key);
           copy(summary,'{0} ({1})',[window.CeasefireI18n?.term(title)||title,entries.length]);
           for(const item of entries){const row=el('li','contacts-link-row');row.append(el('span','',item.label));list.append(row);}
           body.append(list);group.append(summary,body);groups.append(group);
@@ -539,9 +538,9 @@
         appendLeadGroup(groups, 'leads', 'Leads', activeLeads, lead => {
           if (options.standalone) return el('span', '', lead.label);
           return button(lead.label, () => openDirectoryLead(lead.id), 'text-button');
-        }, expanded, existing);
-        appendLeadGroup(groups, 'converted_leads', 'Converted leads', convertedLeads, conversionDetails, expanded, existing);
-        appendLeadGroup(groups, 'participant_projects', 'Recorded project roles', participantProjects, participantProject, expanded, existing);
+        }, expanded.has('leads'));
+        appendLeadGroup(groups, 'converted_leads', 'Converted leads', convertedLeads, conversionDetails, expanded.has('converted_leads'));
+        appendLeadGroup(groups, 'participant_projects', 'Recorded project roles', participantProjects, participantProject, expanded.has('participant_projects'));
         if (!groups.children.length) groups.append(ui("p", "helper contacts-links-empty", "No linked records."));
         arrangeLinkedGroups(groups);
       }
@@ -676,12 +675,13 @@
           if (!isOpen() || ticket !== contactLinkTicket) return;
           const expanded = new Set([...form.querySelectorAll("details[data-link-group][open]")].map(group => group.dataset.linkGroup));
           const existing = new Set([...form.querySelectorAll("details[data-link-group]")].map(group => group.dataset.linkGroup));
+          const groupOpen = key => expanded.has(key) || !existing.has(key);
           groups.replaceChildren();
           for (const [key, title] of Object.entries({companies:"Companies", projects:"Projects", leads:"Leads", quotes:"Quotes", work_orders:"Work Orders", purchase_orders:"Purchase Orders"})) {
             const entries = (catalog.linked[key] || []).filter(item=>kind !== "leads" || key !== "leads" || item.id !== record.id);
             if (!entries.length) continue;
             const group = el("details", "contacts-links-group"), summary = el("summary"), list = el("ul", "contacts-links-list");
-            group.dataset.linkGroup = key; group.open = expanded.has(key) || !existing.has(key);
+            group.dataset.linkGroup = key; group.open = groupOpen(key);
             copy(summary, "{0} ({1})", [window.CeasefireI18n?.term(title) || title, entries.length]);
             for (const item of entries) {
               const row = el("li", "contacts-link-row");
@@ -698,8 +698,8 @@
             }
             const body = el("div", "contacts-links-body"); body.append(list); group.append(summary, body); groups.append(group);
           }
-          appendLeadGroup(groups, 'converted_leads', 'Converted leads', catalog.converted_leads || [], conversionDetails, expanded, existing);
-          appendLeadGroup(groups, 'participant_projects', 'Recorded project roles', catalog.participant_projects || [], participantProject, expanded, existing);
+          appendLeadGroup(groups, 'converted_leads', 'Converted leads', catalog.converted_leads || [], conversionDetails, groupOpen('converted_leads'));
+          appendLeadGroup(groups, 'participant_projects', 'Recorded project roles', catalog.participant_projects || [], participantProject, groupOpen('participant_projects'));
           if (!groups.children.length) groups.append(ui("p", "helper contacts-links-empty", "No linked records."));
           arrangeLinkedGroups(groups);
           unavailable.hidden = !catalog.error_count;

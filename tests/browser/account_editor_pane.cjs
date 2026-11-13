@@ -49,6 +49,7 @@ const checks=[],errors=[],geometry=[];
     new URL(response.url()).searchParams.get('search')==='Pane Link Contact');
   await find.fill('Pane Link Contact');await updatedLinks;
   const option=pane.locator('.contacts-link-search-results').getByRole('checkbox',{name:/Link Pane Link Contact/});await option.check();await option.press('Escape');
+  await pane.locator('[data-link-group=contacts] > summary').click();
   await expect(pane.locator('[data-link-group=contacts]').getByRole('checkbox',{name:/Link Pane Link Contact/})).toBeChecked();
   let saveEntered=false;const gate=new Promise(resolve=>releaseSave=resolve);
   await page.route('**/api/contacts/accounts',async route=>{const response=await route.fetch();saveEntered=true;await gate;await route.fulfill({response});});

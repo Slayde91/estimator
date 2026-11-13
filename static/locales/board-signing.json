@@ -1,4 +1,5 @@
 {
+  "Clear the relevant signature section before moving this Purchase Order back.": ["请先清除对应签名栏，再将此采购订单退回先前状态。", "इस खरीद आदेश को पिछली स्थिति में ले जाने से पहले संबंधित हस्ताक्षर अनुभाग साफ़ करें।", "Borre la sección de firma correspondiente antes de devolver esta orden de compra a un estado anterior.", "امسح قسم التوقيع المعني قبل إعادة أمر الشراء هذا إلى حالة سابقة.", "ล้างส่วนลายเซ็นที่เกี่ยวข้องก่อนย้ายใบสั่งซื้อนี้กลับไปยังสถานะก่อนหน้า"],
   "Sign and move": [
     "签名并移至下一状态",
     "हस्ताक्षर करें और आगे बढ़ाएँ",

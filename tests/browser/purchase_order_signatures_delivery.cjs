@@ -70,7 +70,15 @@ async function reopen(){await host.getByRole('button',{name:'Back to Purchase Or
   }
   await clearPurchase('Approved by','Cancel');
   await expect(host.getByLabel('Status',{exact:true})).toHaveValue('Completed');
-  await clearPurchase('Approved by');
+  const rewind=page.getByRole('dialog',{name:'Sign and move',exact:true}), status=host.getByLabel('Status',{exact:true});
+  const beforeRewind=fs.readFileSync(info.project);
+  await status.selectOption('Requested');
+  await expect(rewind.locator('li')).toHaveCount(3);
+  for (const label of ['Approved by','Sent by','Verified by']) await expect(rewind.locator('ul')).toContainText(label);
+  await expect(rewind.locator('ul')).not.toContainText('Requested by');
+  await page.keyboard.press('Escape');await idle();await expect(status).toHaveValue('Completed');
+  assert.deepEqual(fs.readFileSync(info.project),beforeRewind);
+  await status.selectOption('Requested');await rewind.getByRole('button',{name:'Clear section'}).click();await idle();
   await expect(host.getByLabel('Status',{exact:true})).toHaveValue('Requested');
   await expect(approval).toHaveValue('');await expect(reason).toBeHidden();
   await reopen();
@@ -98,5 +106,20 @@ async function reopen(){await host.getByRole('button',{name:'Back to Purchase Or
   await expect(host.getByRole('button',{name:'Sign Sent by',exact:true})).toBeHidden();
   await host.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();await expect(host.locator('.commercial-column[data-status="Cancelled"]')).toContainText('PO-01: Signature Supplier');
   checks.push('Historical Verified is displayed as Completed. A rejected review auto-saves to the Cancelled board column and blocks sending.');
+  const card=host.locator('.commercial-card').filter({hasText:'PO-01: Signature Supplier'});
+  await card.locator('summary').click();const move=card.getByLabel('Move to',{exact:true});
+  await expect(move.locator('option')).toHaveText(['Draft','Requested','Cancelled']);await move.selectOption('Requested');
+  await expect(rewind.locator('ul')).toContainText('Approved by');
+  const beforeCancel=fs.readFileSync(info.project);
+  await rewind.getByRole('button',{name:'Cancel',exact:true}).click();await idle();
+  assert.deepEqual(fs.readFileSync(info.project),beforeCancel);
+  await card.dragTo(host.locator('.commercial-column[data-status="Requested"]'));
+  await rewind.getByRole('button',{name:'Clear section'}).click();
+  await expect(host.locator('.commercial-column[data-status="Requested"]')).toContainText('PO-01: Signature Supplier');
+  saved=JSON.parse(fs.readFileSync(info.project,'utf8')).commercial_documents.documents.find(item=>item.id===saved.id);
+  assert.equal(saved.status,'Requested');assert.deepEqual(Object.keys(saved.fields.signatures),['requested_by']);
+  await card.locator('summary').click();await move.selectOption('Draft');await rewind.getByRole('button',{name:'Clear section'}).click();
+  await expect(host.locator('.commercial-column[data-status="Draft"]')).toContainText('PO-01: Signature Supplier');
+  checks.push('Editor, board menu and drag rollback show the affected signers before confirmation. Cancelling preserves the owner file. Multi-stage and rejected-order rollback preserve earlier sign-offs.');
   assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,geometry,errors},null,2));console.log('PASS Purchase Order signatures and delivery: '+output);
 })().catch(async error=>{console.error(error);console.error(logs);if(page){console.error(await page.locator('.commercial-message').allTextContents().catch(()=>[]));await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});}process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

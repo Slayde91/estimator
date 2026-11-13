@@ -184,7 +184,7 @@ class CertificationProjects:
         """Return the portable identity only for a verified project capability."""
         return self._workspace(token)['project_id']
 
-    def activate_created_project(self, token, project_no):
+    def activate_created_project(self, token, project_no, *, project_path=None):
         """Bind a verified native Load/Save result, never browser-supplied labels.
 
         Trusted project adapters call this after reading or committing the selected
@@ -194,6 +194,12 @@ class CertificationProjects:
         with self._lock:
             current = self._workspace(token)
             current['created_project'] = isinstance(project_no, str) and bool(project_no.strip())
+            if project_path is not None:
+                current['project_path'] = Path(project_path)
+
+    def require_project_file(self, token, path):
+        if self._workspace(token).get('project_path') != Path(path):
+            raise ValidationError('The project file changed or was removed outside this window. Reload it or use "Save As".')
 
     def require_created_project(self, token):
         current = self._workspace(token)

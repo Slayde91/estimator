@@ -2422,7 +2422,9 @@
       projectWritten = true;
       const changed = captured !== projectStamp() || preparedPricing !== pricingStamp();
       if (context === state.quoteContext) {
-        state.projectFile = saved.file;
+        const savedStage = saved.file.project_status ?? saved.project.project_status ?? payload.project_status;
+        state.projectFile = {...saved.file, project_status:savedStage};
+        if (state.projectStatus === payload.project_status) state.projectStatus = savedStage;
         if (!changed) {
           state.projectEstimates = collectionFromProject(saved.project, payload.estimates);
           state.estimatesDirty = false;

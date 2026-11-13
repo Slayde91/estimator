@@ -4,6 +4,7 @@
 // canonical so old projects and source calculations keep their identity.
 (function (root) {
   const labels = Object.freeze({ K: "Services", L: "Type", M: "Orientation", X: "Board", Z: "Framing", AA: "Wrap", AB: "Mastic", Y: "Collars" });
+  const trashIcon = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"></path></svg>';
   const serviceLabels = new Map([["Copper Pipes", "Unlagged Copper Pipes"], ["Steel Pipes", "Unlagged Steel Pipes"], ["Junction Box", "Conduits"]]);
   const categoryOnly = new Set(["Access Panel", "Blank Seal", "Linear Joints", "Movement Joints", "Structural Steel", "Structural Timber"]);
   const key = value => String(value ?? "").trim().toLowerCase();
@@ -67,7 +68,7 @@
     control.addEventListener("input", grow);
     root?.requestAnimationFrame?.(grow);
   }
-  const api = Object.freeze({ labels, serviceLabel, optionLabel, openingType, details, choiceOptions, orientation, serviceSize, fieldGroups, growTextarea });
+  const api = Object.freeze({ labels, trashIcon, serviceLabel, optionLabel, openingType, details, choiceOptions, orientation, serviceSize, fieldGroups, growTextarea });
   if (typeof module === "object" && module.exports) module.exports = api;
   if (root) root.CeasefirePenetrationPresentation = api;
 })(typeof window === "object" ? window : null);

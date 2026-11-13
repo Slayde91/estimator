@@ -18,7 +18,7 @@ from .document_numbers import DocumentNumbers, valid_reference, validated_counte
 from .company_settings import DEFAULTS as COMPANY_DEFAULTS
 from .evidence_files import _directory
 from .commercial_requirements import require_ready, requirements
-from .work_order_signing import SECTION_INPUTS, reconciled_status
+from .work_order_signing import SECTION_INPUTS, reconciled_status, require_purchase_rollback_clear
 
 KINDS = {'quote': 'Quote', 'work_order': 'Work Order', 'purchase_order': 'Purchase Order'}
 STATUSES = {
@@ -660,6 +660,7 @@ class CommercialDocuments:
                 CREATE INDEX IF NOT EXISTS commercial_issued_document_number ON commercial_issued(project_id,document_id,number);
                 CREATE TABLE IF NOT EXISTS commercial_audit (sequence INTEGER PRIMARY KEY, workspace TEXT NOT NULL, document_id TEXT NOT NULL, action TEXT NOT NULL, before_data TEXT, after_data TEXT, created_at TEXT NOT NULL);
                 CREATE INDEX IF NOT EXISTS commercial_audit_document ON commercial_audit(document_id,sequence);
+                CREATE TABLE IF NOT EXISTS pending_quote_project_stages(workspace TEXT PRIMARY KEY, stage TEXT NOT NULL);
             ''')
             from .unfiled_commercial import UnfiledCommercial
             self.unfiled = UnfiledCommercial(self, db)
@@ -791,12 +792,19 @@ class CommercialDocuments:
                 'number_counters': counters, 'work_order_counters': work_order_counters}
 
     def capture(self, workspace, expected_snapshot=None):
+        snapshot, _ = self.capture_project(workspace, expected_snapshot)
+        return snapshot
+
+    def capture_project(self, workspace, expected_snapshot=None):
+        """Read the documents and their most recent unpublished Quote stage in one transaction."""
         with self._connect() as db:
+            db.execute('BEGIN')
             project = self._workspace(db, workspace)
             snapshot = self._snapshot(db, workspace, project)
+            pending = db.execute('SELECT stage FROM pending_quote_project_stages WHERE workspace=?', (workspace,)).fetchone()
         if expected_snapshot is not None and validate_commercial_documents(expected_snapshot) != snapshot:
             raise CommercialConflict('Commercial documents changed while the project was being saved. Refresh and save again.')
-        return snapshot
+        return snapshot, pending[0] if pending else None
 
     def document_context(self, workspace, identity=None):
         """Resolve the workspace capability and the selected draft, if present."""
@@ -926,6 +934,12 @@ class CommercialDocuments:
         db.execute('DELETE FROM local_commercial_publications WHERE workspace=?', (workspace,))
         db.execute('INSERT INTO commercial_audit(workspace,document_id,action,before_data,after_data,created_at) VALUES(?,?,?,?,?,?)',
                    (workspace, identity, action, _json(before) if before else None, _json(after) if after else None, datetime.now(timezone.utc).isoformat()))
+        if (action in ('save','status') and after['kind'] == 'quote'
+                and after['status'] != (before['status'] if before else 'Draft')):
+            from .project_file import validate_project_status
+            db.execute('''INSERT INTO pending_quote_project_stages VALUES(?,?)
+                ON CONFLICT(workspace) DO UPDATE SET stage=excluded.stage''',
+                (workspace, validate_project_status(after['status'])))
 
     def activity(self, workspace, identity):
         with self._connect() as db:
@@ -1317,16 +1331,25 @@ class CommercialDocuments:
         return document
 
     @contextmanager
-    def publishing(self, workspace, snapshot):
+    def publishing(self, workspace, snapshot, project_status=None):
         """Exclude concurrent board writes across processes during the atomic file takeover."""
         with self._connect() as db:
             db.execute('BEGIN IMMEDIATE')
             row = db.execute('SELECT filed FROM local_commercial_owners WHERE workspace=?', (workspace,)).fetchone()
-            if row and not row['filed']:
-                project = self.certifications.project_id(workspace)
-                if snapshot is None or self._snapshot(db, workspace, project)['documents'] != snapshot['documents']:
-                    raise CommercialConflict('Commercial documents changed during this project save. Save the project again.')
+            pending = db.execute('SELECT stage FROM pending_quote_project_stages WHERE workspace=?', (workspace,)).fetchone()
+            if pending and pending[0] != project_status:
+                raise CommercialConflict('Commercial documents changed during this project save. Save the project again.')
+            # A second writer can finish publishing between capture and this
+            # lock, consuming the pending stage. Verify the documents even
+            # when the stage has already been consumed by another publisher.
+            if snapshot is not None:
+                matches = self._snapshot(db, workspace, self.certifications.project_id(workspace))['documents'] == snapshot['documents']
+            else:
+                matches = not pending and not (row and not row['filed'])
+            if not matches:
+                raise CommercialConflict('Commercial documents changed during this project save. Save the project again.')
             yield
+            db.execute('DELETE FROM pending_quote_project_stages WHERE workspace=?', (workspace,))
             self.unfiled.bind_file(db, workspace)
 
 
@@ -1349,6 +1372,7 @@ class CommercialDocuments:
             status = _canonical_status(previous['kind'], status)
             if status not in STATUSES[previous['kind']]:
                 raise ValidationError('Choose a valid document status.')
+            require_purchase_rollback_clear(previous, status)
             document = deepcopy(previous)
             if document['kind'] == 'work_order' and status != 'Draft':
                 self._relationships(db, workspace, project, document['kind'], document['fields'], previous)

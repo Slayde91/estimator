@@ -155,6 +155,16 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const first=h.api.open();await flush();const second=h.api.open();await flush();newer.resolve(h.response(model(1,[item(2)])));await second;
     older.resolve(h.response(model(1,[item(1)])));await first;await h.revisions('estimate.summary.pdf').emit('click');assert.deepEqual(h.links().map(link=>link.href),[item(2).url]);assert.equal(h.api.hasProjectChanges(),true);
   });
+  await check('A concurrent project save cannot hide the open statement’s issued revision',async h=>{
+    const statement=item(1,1,{kind:'swms',logical_key:identity(8)});
+    h.models.set(token(1),model(1,[statement]));await h.api.open();
+    const held=deferred();let reads=0;
+    h.override(path=>path==='/api/documentation?workspace='+token(1)&&++reads===1?held.promise:undefined);
+    const reading=h.api.revisionsFor('swms',identity(8));await flush();
+    const snapshot=await h.api.completeProjectSnapshot();
+    assert.equal(snapshot.expected_revision,1);held.resolve(h.response(model(1,[statement])));
+    assert.deepEqual(copy(await reading),[statement]);
+  });
   await check('Only actual supported export paths acquire project recording headers',async h=>{
     for(const path of ['/api/calculars/invalid','/api/quote-report?foreign=1','https://foreign.invalid/api/quote-report','/api/documentation/catalog','/api/calculators/unknown/report.pdf','/api/takeoffs/sessions/a/export/csv']){
       assert.deepEqual(copy(await h.api.downloadHeaders(path)),{});assert.equal(h.api.hasPendingOperation(),false);

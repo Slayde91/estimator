@@ -134,6 +134,15 @@
 }
 
 /* Source settings retain their original evidence palette; draft registers use the app theme. */
+/* Capture the surrounding action colours before the settings table establishes its own palette. */
+.penetration-band-settings{
+  --band-action-ink:var(--ink);--band-action-surface:var(--theme-surface);--band-action-border:var(--theme-border);
+  --band-action-soft:var(--theme-soft);--band-action-accent:var(--accent);
+}
+.penetration-band-remove{
+  --ink:var(--band-action-ink);--theme-surface:var(--band-action-surface);--theme-border:var(--band-action-border);
+  --theme-soft:var(--band-action-soft);--accent:var(--band-action-accent);
+}
 :root .penetration-settings-table{
   color-scheme:light;--red:#f10d1b;--accent:#b90a15;--accent-dark:#920711;--ink:#111;--muted:#555;--line:#dedede;--paper:#fff;--navy:#111;
   --theme-button:#b90a15;--theme-button-hover:#920711;--theme-focus:#b90a15;--theme-surface:#fff;--theme-raised:#fff4f4;--theme-soft:#fff;--theme-input:#fff;--theme-border:#d5d5d5;--theme-edge:#f10d1b;

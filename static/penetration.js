@@ -688,7 +688,10 @@
           problem.hidden = true; cell.append(control, problem); row.append(cell);
         }
         const action = node("td"), remove = node("button", "button secondary icon-only penetration-band-remove"); remove.type = "button"; remove.disabled = rows.length === 1;
-        uiAttr(remove, "title", "Remove {0} band {1}", [uiTerm(definition.label), index + 1]); uiAttr(remove, "aria-label", "Remove {0} band {1}", [uiTerm(definition.label), index + 1]); const icon = node("span", "button-symbol", "🗑"); icon.setAttribute("aria-hidden", "true"); remove.append(icon); remove.addEventListener("click", () => {
+        uiAttr(remove, "title", "Remove {0} band {1}", [uiTerm(definition.label), index + 1]);
+        uiAttr(remove, "aria-label", "Remove {0} band {1}", [uiTerm(definition.label), index + 1]);
+        remove.innerHTML = window.CeasefirePenetrationPresentation.trashIcon;
+        remove.addEventListener("click", () => {
           const bands = clone(state.schedule.draft.globals.labour_bands); if (bands[definition.key].length === 1) return;
           bands[definition.key].splice(index, 1); clearStructuredProblems(`labour_bands.${definition.key}.`); state.openSettingsBand = definition.key; updateStructuredSetting("labour_bands", bands); renderFields();
         });

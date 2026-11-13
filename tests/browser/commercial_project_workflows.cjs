@@ -91,6 +91,14 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   }
   await save(quote);
   assert.equal((await page.evaluate(()=>window.CeasefireProject.details())).contact_name,'Project Contact');
+  const beforeStageSave=writes.filter(write=>write.path==='/api/project/save').length;
+  await quote.getByLabel('Status',{exact:true}).selectOption('Review');
+  await save(quote);
+  await expect.poll(()=>JSON.parse(fs.readFileSync(info.project)).project_status).toBe('Quote');
+  assert.equal(await page.evaluate(()=>window.CeasefireProject.projectPaneSnapshot().file.project_status),'Quote');
+  await expect(page.locator('#project-save-state')).toHaveText('Saved project');
+  assert.equal(writes.filter(write=>write.path==='/api/project/save').length,beforeStageSave+1);
+  checks.push('Saving a Quote stage in the active editor updates the owning project file and its current board metadata');
   const issue=page.waitForResponse(response=>response.url().endsWith('/api/commercial/issue'));
   await quote.getByRole('button',{name:'Download PDF',exact:true}).click();assert.equal((await issue).status(),200);await expect(quote.locator('.commercial-message')).toContainText('PDF saved');await idle();
   const sourceQuote=(await state()).documents.find(doc=>doc.kind==='quote');

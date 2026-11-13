@@ -3,6 +3,7 @@ const {chromium,expect:baseExpect}=require('@playwright/test');
 const {spawn,execFileSync}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {createNewProject,openProjectSection}=require('./project_actions.cjs');
+const {checkTrashAlignment}=require('./trash_alignment.cjs');
 const expect=baseExpect.configure({timeout:30000}),root=path.resolve(__dirname,'../..');
 const output=path.join(root,'.runtime/browser-qa',`commercial-panes-signatures-${Date.now()}`);fs.mkdirSync(output,{recursive:true});
 const python=process.env.CEASEFIRE_PYTHON||'python',server=spawn(python,[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
@@ -50,7 +51,7 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  await expect(inherited.locator('summary')).toHaveText('Files (1)');
  if(!(await inherited.evaluate(panel=>panel.open)))await inherited.locator('summary').click();
  await expect(inherited.getByRole('button',{name:path.basename(info.fixture),exact:true})).toBeVisible();
- await expect(inherited.getByRole('button',{name:'Remove '+path.basename(info.fixture),exact:true}).locator('.library-trash-icon')).toHaveCount(1);
+ await checkTrashAlignment(inherited.getByRole('button',{name:'Remove '+path.basename(info.fixture),exact:true}));
  await expect(work.getByLabel('Approval',{exact:true})).toBeHidden();
  await expect(work.locator('[data-signing-section]:visible')).toHaveCount(1);
  await work.getByLabel('Description of works',{exact:true}).fill('Unsaved details to clear');

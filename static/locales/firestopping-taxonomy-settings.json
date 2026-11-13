@@ -1,4 +1,11 @@
 {
+  "Waste & Allowances": [
+    "损耗与预留量",
+    "अपव्यय और प्रावधान",
+    "Desperdicios y previsiones",
+    "الهدر والمخصصات",
+    "การสูญเสียและค่าเผื่อ"
+  ],
   "Separate values with a semicolon, e.g. Conduits; Power Cables. Saved item values are retained.": [
     "用分号分隔选项，例如：Conduits; Power Cables。保留已保存的项目值。",
     "मानों को अर्धविराम से अलग करें, जैसे Conduits; Power Cables। सहेजे गए आइटम के मान बने रहते हैं।",

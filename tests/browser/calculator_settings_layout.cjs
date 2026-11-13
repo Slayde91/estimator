@@ -29,6 +29,35 @@ async function screenshot(page,panel,filename) {
   await page.screenshot({path:filename,clip});
 }
 
+async function checkFieldGroup(page, panel, addresses, reference, output, name) {
+  const previous = page.viewportSize();
+  const fields = panel.locator(addresses.map(a => '[data-calculator-cell="' + a + '"]').join(','));
+  await expect(fields).toHaveCount(addresses.length);
+  async function measure() {
+    return fields.evaluateAll((controls, ref) => {
+      const width = controls.find(el => el.dataset.calculatorCell === ref)?.getBoundingClientRect().width;
+      return controls.map(el => {
+        const box = el.getBoundingClientRect(), cell = el.closest('td'), css = getComputedStyle(cell);
+        const left = cell.getBoundingClientRect().left + parseFloat(css.borderLeftWidth) + parseFloat(css.paddingLeft) - cell.scrollLeft;
+        return { address:el.dataset.calculatorCell, x:box.left-left, delta:width ? box.width-width : 0 };
+      });
+    }, reference);
+  }
+  for (const width of [913,1915]) {
+    await page.setViewportSize({width,height:884});
+    await expect.poll(async () => (await measure()).filter(v => Math.abs(v.x)>1 || Math.abs(v.delta)>1)).toEqual([]);
+    if (width===1915 || reference==='D358') await screenshot(page,panel,path.join(output,name+'-'+width+'.png'));
+  }
+  if (reference) {
+    const source = panel.locator('[data-calculator-cell="'+reference+'"]');
+    await source.evaluate(el => {const opt=new Option('Saved value: historical workbook option with a longer description','historical-width-test');opt.disabled=true;el.add(opt);});
+    await expect.poll(async () => (await measure()).filter(v => Math.abs(v.delta)>1)).toEqual([]);
+    await source.evaluate(el=>el.options[el.options.length-1].remove());
+    await expect.poll(async () => (await measure()).filter(v => Math.abs(v.delta)>1)).toEqual([]);
+  }
+  await page.setViewportSize(previous);
+}
+
 async function checkCalculatorLayouts(page,output) {
   const viewport = page.viewportSize(), grid = page.locator('#calculator-grid');
   const ready = () => expect(grid).toHaveAttribute('aria-busy','false');
@@ -42,6 +71,7 @@ async function checkCalculatorLayouts(page,output) {
     await expect(el).toBeVisible();
     await expect(el).toHaveCSS('background-color','rgb(185, 10, 21)');
     await expect(el).toHaveCSS('color','rgb(255, 255, 255)');
+    await expect(el).toHaveCSS('border-bottom','4px solid rgb(255, 255, 255)');
     await expect(el).toHaveCSS('border-radius','8px');
   }
   const snapshot=()=>page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());
@@ -49,9 +79,19 @@ async function checkCalculatorLayouts(page,output) {
   await page.setViewportSize({width:1440,height:980});
   for (const calculator of ['Steel (spray)','Steel (intumescent)']) {
     await chooseCalculator(page,calculator); await tab('SCHEDULE'); await heading(grid.locator('.calculator-schedule-section > h4'));
+    if (calculator === 'Steel (spray)') {
+      await tab('SUMMARY');
+      await heading(grid.locator('#calculator-product-totals > h4'));
+      await heading(grid.locator('#calculator-table-section-steel_vermiculite-BAGS-0'));
+      await screenshot(page,grid,path.join(output,'steel-spray-summary-headings.png'));
+    }
     await tab('SETTINGS');
     for (const button of await grid.locator('[data-calculator-settings-section]').all()) {
-      await checkFields(await section(await button.getAttribute('data-calculator-settings-section')));
+      const id = await button.getAttribute('data-calculator-settings-section'), panel = await section(id);
+      if (calculator === 'Steel (spray)' && ['A64','A96','A173','A229','A559'].includes(id))
+        await heading(panel.locator('#calculator-section-steel_vermiculite-SETTINGS-'+id));
+      await checkFields(panel);
+      if(calculator==='Steel (spray)' && id==='A9') await checkFieldGroup(page,panel,['D13','D14'],'D14',output,'global-values');
     }
   }
   for (const calculator of ['Steel (board)','Duct']) {
@@ -65,11 +105,15 @@ async function checkCalculatorLayouts(page,output) {
     else await heading(panel.locator('.calculator-section-anchor').first());
     await checkFields(panel);
     if(id==='A6') await screenshot(page,panel,path.join(output,'duct-settings-layout.png'));
+    if (id==='A6') await checkFieldGroup(page,panel,['B35','B44','B45','B46','B161','B162'],'B35',output,'cafco-values');
+    if (id==='A48') await checkFieldGroup(page,panel,['B65','B73','B90','B91','B92','B163','B164'],'B73',output,'monokote-values');
+    if (id==='A94') await checkFieldGroup(page,panel,['B96','B97','B98','B99','B100','B111'],null,output,'fyrewrap-values');
   }
   await chooseCalculator(page,'Factor Calcs'); await ready();
   for(const id of ['A341','A356']) {
     const panel=await section(id);await heading(panel.locator('.calculator-section-anchor').first());await checkFields(panel);
     if(id==='A356') {
+      await checkFieldGroup(page,panel,['D358','D359','D360','D361','D362'],'D358',output,'hollow-values');
       const select=panel.locator('select:visible').first(),input=panel.locator('input.calculator-number:visible').first();
       // Probe a historical option and full numeric precision without changing the stored draft.
       assert.ok(await select.evaluate(el=>{

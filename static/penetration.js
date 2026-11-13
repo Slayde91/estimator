@@ -729,7 +729,10 @@
       }
       table.append(body);
     }
-    scroll.append(table); root.append(intro, scroll, renderServiceRoutes(), renderLabourBands()); return root;
+    const allowances = node("section", "penetration-settings-section");
+    scroll.append(table);
+    allowances.append(uiNode("h4", "penetration-settings-subheading", "Waste & Allowances"), scroll);
+    root.append(intro, allowances, renderServiceRoutes(), renderLabourBands()); return root;
   }
   function renderFields() {
     if (!state.draft) return;

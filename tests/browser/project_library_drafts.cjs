@@ -2,6 +2,7 @@ const {fillProjectDetails}=require('./project_actions.cjs');
 const { referenceExport } = require('./reference_export.cjs');
 const { cycleTheme } = require('./theme_navigation.cjs');
 const { chooseLibrary } = require('./section_navigation.cjs');
+const {checkAllowances} = require('./calculator_toolbar_layout.cjs');
 const { clickProjectControl } = require('./project_actions.cjs');
 // Rendered project-only library preservation. Every file, database and dialog
 // target is owned by the disposable synthetic fixture below.
@@ -181,6 +182,9 @@ async function openProjectCopy() {
   const layouts={};
   for(const [width,height] of [[1146,764],[390,844]])layouts[width]=await editorLayout(width,height);
   await page.setViewportSize({width:1440,height:1000});evidence.editorLayout=layouts;
+  await page.locator('#library-editor-settings').click();
+  await checkAllowances(page,page.locator('#library-editor-fields'),output,'library-allowances.png');
+  await page.locator('#library-editor-groups [role="tab"]').first().click();
   const description = page.locator('[data-library-editor-field="T"]'), quantity = page.locator('[data-library-editor-field="O"]');
   await description.fill('Project-only edited library item');
   await quantity.fill('2.125'); await quantity.press('Tab');

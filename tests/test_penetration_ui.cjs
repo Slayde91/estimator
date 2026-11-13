@@ -794,6 +794,19 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     const projection={rows:[{label:'<Wrap>',unit_prices:[{label:'Line 1 Product A',value:12.3,format:'currency'},{label:'Line 2 Product B',value:99,format:'currency'}],material_quantities:[{label:'Line 1 Pipes',value:0,units:'m²'}],material_costs:888.12,labour_costs:'#VALUE!',task_hours:0}],totals:{material_costs:777.65,labour_costs:'#VALUE!',task_hours:0},source_groups:[{label:'Summary',rows:[{row_id:'line-1',label:'Line 1',values:[{column:'B',label:'Substrate cost',value:41.23,format:'currency'},{column:'H',label:'Item total',value:123.456789,format:'currency'}]}]},{label:'Multipliers',rows:[{row_id:'line-2',label:'Line 2',values:[{column:'BJ',label:'Access',value:.125,format:'percent'}]}]}]};
     const output={schedule_breakdown:projection,errors:[]},original=copy(output);const rendered=h.context.window.CeasefirePenetrationBreakdown.renderSchedule(definition(),output),content=text(rendered);assert.match(content,/<Wrap>/);assert.match(content,/777\.65/);assert.doesNotMatch(content,/#VALUE!/);assert.match(content,/Check inputs/);assert.doesNotMatch(content,/Summary|Item total|123\.46|Multipliers|Access|12\.50%|Substrate cost|41\.23/);assert.deepEqual(copy(output),original);
   });
+  await check('Only Estimate hides schedule rows and subtotals when both displayed costs are zero',async h=>{
+    const costRow=(label,material_costs,labour_costs)=>({label,material_costs,labour_costs,task_hours:2});
+    const rows=[costRow('Zero costs',0,0),costRow('Below precision',-0.0049,0.0049),costRow('Material credit',-0.005,0),costRow('Labour only',0,0.005),costRow('Unknown material',null,0),costRow('Invalid labour',0,'#VALUE!')];
+    const result={schedule_breakdown:{rows,totals:costRow('Total',0,0)},errors:[]};
+    const render=(hideZeroCosts)=>h.context.window.CeasefirePenetrationBreakdown.renderSchedule(definition(),result,{hideZeroCosts}).children[0].children[0];
+    const labels=table=>table.children[2].children.map(row=>row.children[0].textContent);
+    const original=copy(result),estimate=render(true),specialist=render(false);
+    assert.deepEqual(labels(estimate),rows.slice(2).map(row=>row.label));assert.equal(estimate.children[3].children.length,0);
+    assert.deepEqual(labels(specialist),rows.map(row=>row.label));assert.match(text(specialist.children[3]),/Subtotal/);
+    assert.deepEqual(copy(result),original);
+    result.schedule_breakdown.rows=rows.slice(0,2);assert.deepEqual(labels(render(true)),['No material or labour costs.']);
+    result.schedule_breakdown.totals.material_costs=0.008;const accumulated=render(true);assert.deepEqual(labels(accumulated),[]);assert.match(text(accumulated.children[3]),/\$0\.01/);
+  });
   await check('Pending composer Add appends once, disables its action, and shows recalculated feedback in the current item view',async h=>{
     const pending=deferred(),calls=[];h.audit.setRequest(async(path,payload)=>{calls.push(copy(payload));return pending.promise;});
     const adding=h.audit.addToSchedule();await flush();assert.equal(h.byId('penetration-add-to-schedule').disabled,true);assert.equal(h.byId('penetration-add-to-schedule').getAttribute('aria-busy'),'true');await h.audit.addToSchedule();assert.equal(h.api.projectSnapshot().draft.rows.length,1);assert.equal(calls.length,1);

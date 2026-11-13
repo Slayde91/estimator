@@ -768,9 +768,9 @@ let passed=0;
     task_days:7.23456789,masking_days:0.123456789,extra_days:1.5,mobilisation_days:.75,total_days:16.987654321}};
   const labourBefore=JSON.stringify(labourResult);audit.renderResults(labourResult);
   const labourRows=()=>byId('labour-results').children;
-  assert.equal(labourRows().length,12);assert.equal(labourRows()[0].children[1].textContent,'1.23');assert.equal(labourRows()[1].children[0].textContent,'Mesh <literal>');assert.equal(labourRows()[2].children[1].textContent,'0.00');
-  assert.ok(!labourRows().some(row=>row.children[0].textContent==='Task labour subtotal'));assert.equal(labourRows()[10].children[0].textContent,'Mobilisation allowance');assert.equal(labourRows()[10].children[1].textContent,'0.75');
-  assert.equal(labourRows()[11].children[0].textContent,'Total project days');assert.equal(labourRows()[11].children[1].textContent,'16.99');assert.equal(byId('sum-days').textContent,'16.99');
+  const labourValues=()=>Object.fromEntries(labourRows().map(row=>row.children.map(cell=>cell.textContent)));
+  assert.deepEqual(labourValues(),{'Spray / wrap':'1.23','Mesh <literal>':'2.00','Fan enclosure mesh':'3.00',Board:'1.00','Masking / cleaning':'0.12','Extra labour':'1.50','Mobilisation allowance':'0.75','Total project days':'16.99'});
+  assert.equal(byId('sum-days').textContent,'16.99');
   assert.equal(labourRows()[0].children[0].scope,'row');assert.equal(JSON.stringify(labourResult),labourBefore);assert.equal(byId('labour-breakdown').getAttribute('aria-busy'),'false');passed++;
 
   // Detailed Firestopping tasks reconcile to one Labour Breakdown row.
@@ -781,8 +781,21 @@ let passed=0;
 
   // Missing and failed labour values remain unavailable or explicit errors rather than plausible zero days.
   const missingLabour=copy(labourResult);missingLabour.labour.tasks[0].days=null;missingLabour.labour.masking_days='#DIV/0!';missingLabour.labour.mobilisation_days='';missingLabour.labour.total_days='#N/A';
-  audit.renderResults(missingLabour);assert.equal(labourRows()[0].children[1].textContent,'—');assert.equal(labourRows()[8].children[1].textContent,'—');assert.equal(labourRows()[10].children[1].textContent,'—');assert.equal(labourRows()[11].children[1].textContent,'—');
+  audit.renderResults(missingLabour);for(const label of ['Spray / wrap','Masking / cleaning','Mobilisation allowance','Total project days'])assert.equal(labourValues()[label],'—');
   audit.renderResults({});assert.equal(labourRows().length,1);assert.equal(labourRows()[0].children[0].textContent,'Labour breakdown is unavailable for this result.');passed++;
+
+  const materials = [0,-0.0049,0.005,-0.005,null,'#VALUE!'].map((total,index)=>({name:`Row ${index}`,total,price:12,quantity:4,days:1}));
+  const boundaryLabour={tasks:[],masking_days:-0.0049,extra_days:0.005,mobilisation_days:-0.005,total_days:0};
+  const boundary={materials,labour:boundaryLabour}, exactBoundary=JSON.stringify(boundary);
+  const materialLabels=()=>byId('material-results').children.map(row=>row.children[0].textContent);
+  audit.renderResults(boundary);
+  assert.deepEqual(materialLabels(),['Row 2','Row 3','Row 4','Row 5']);
+  assert.deepEqual(labourValues(),{'Extra labour':'0.01','Mobilisation allowance':'-0.01'});
+  assert.equal(JSON.stringify(boundary),exactBoundary);
+  audit.renderResults({materials:materials.slice(0,2),labour:{tasks:[],extra_days:0.003,masking_days:0.003,mobilisation_days:0,total_days:0.006}});
+  assert.deepEqual(materialLabels(),['No material costs.']);assert.deepEqual(labourValues(),{'Total project days':'0.01'});
+  audit.renderResults({materials:[],labour:{tasks:[],extra_days:0,masking_days:0,mobilisation_days:0,total_days:0}});
+  assert.deepEqual(materialLabels(),['No material requirements.']);assert.equal(labourRows()[0].children[0].textContent,'No labour days.');passed++;
 
   // Labour output clears during calculation, rejects stale responses and cannot leave old totals after a failure.
   setup();audit.renderResults(labourResult);const olderLabour=deferred(),newerLabour=deferred();let labourRequests=0;

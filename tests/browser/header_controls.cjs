@@ -168,8 +168,12 @@ async function inspectHeader(width) {
           await expect(page.locator('#view-quotes')).toBeVisible();
           await expect(page.locator('#app-message')).toContainText('Create or load a project before creating documents.');
         }
-        const controls = page.locator('.project-workspace-actions'), link = await box(controls.getByRole('button', { name: 'Link Project Folder', exact: true }));
-        const load = await box(controls.getByRole('button', { name: 'Load', exact: true })); assert.ok(load.height >= link.height);
+        const controls = page.locator('.project-workspace-actions');
+        const columns = await box(page.locator('#project-columns summary'));
+        for (const name of ['Load', 'Link Project Folder', 'Refresh']) {
+          const action = await box(controls.getByRole('button', {name, exact:true}));
+          assert.equal(action.height, columns.height, `${name} matches Columns at ${width}px`);
+        }
         const create = page.locator('#new-quote'), sort = await box(page.locator('#project-sort')), b = await box(create);
         await expect(create).toHaveAccessibleName('New');assert.equal(b.height,sort.height);assert.equal(b.width,b.height);
         assert.equal(await create.evaluate(el=>el.closest('.project-list-controls')===document.querySelector('#project-sort').closest('.project-list-controls')),true,'New retains the Sort row owner');

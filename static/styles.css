@@ -107,10 +107,11 @@ main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh -
 .header-project-actions{margin-left:0;margin-top:3.5px;flex-shrink:0;align-self:start;justify-content:flex-end}
 /* Keep the header geometry stable while bootstrap makes these actions ready. */
 .header-project-actions[hidden]{display:flex!important;visibility:hidden}
-.header-project-actions .button,.project-workspace-actions .button{height:48px;min-height:48px}
+.header-project-actions .button{height:48px;min-height:48px}
+.project-workspace-actions .button{height:calc(1.5em + 24px);min-height:0;padding-block:0}
 .header-project-actions .project-save-actions{gap:9px}
 .project-tools{grid-template-columns:minmax(0,1fr)}
-@media(max-width:570px){.section-navigation-menu{left:0;right:auto}#library-navigation-menu{left:50%;right:auto;transform:translateX(-50%)}.section-navigation-choice{font-size:12px}.header-project-actions{gap:7px}.header-project-actions .project-save-actions{gap:7px}.header-project-actions .button{height:44px;min-height:44px}.header-project-actions .icon-only{width:44px;min-width:44px;padding:9px}.header-project-actions #save-project{padding:10px}.project-workspace-actions .button{height:48px;min-height:48px}}
+@media(max-width:570px){.section-navigation-menu{left:0;right:auto}#library-navigation-menu{left:50%;right:auto;transform:translateX(-50%)}.section-navigation-choice{font-size:12px}.header-project-actions{gap:7px}.header-project-actions .project-save-actions{gap:7px}.header-project-actions .button{height:44px;min-height:44px}.header-project-actions .icon-only{width:44px;min-width:44px;padding:9px}.header-project-actions #save-project{padding:10px}.project-workspace-actions .button{height:calc(1.5em + 22px)}}
 @media(max-width:570px){.app-header nav{position:relative}.section-navigation,.calculator-navigation{position:static}.section-navigation-menu,.calculator-navigation-menu{top:100%}}
 @media(max-width:1180px){.project-tools{grid-template-columns:minmax(220px,1fr) auto}.project-tools .actions{grid-column:1/-1;width:100%}}
 @media(max-width:760px){.project-tools{grid-template-columns:1fr;align-items:flex-start}.project-tools .actions{grid-column:auto}}
@@ -426,6 +427,12 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .main-section-tab:hover{color:var(--red)}
 .main-section-tab[aria-selected=true]{border-color:#171217;border-bottom-color:var(--red);color:var(--red)}
 .main-section-tab:focus-visible{outline:2px solid var(--red);outline-offset:-4px}
+@media screen {
+  .main-section-tabs{background:#0D0B0E;border-radius:8px}
+  .main-output-tabs{background:#090B0E}
+  .main-section-tab[aria-selected=false]:not(:hover){background:transparent;color:#e5e7eb}
+  #view-estimate .main-section-tab:focus-visible{outline-color:#fff}
+}
 /* Main resizing changes display geometry only; summary values remain literal. */
 @media screen {
   .estimate-layout.main-layout-ready:not(.main-summary-stacked){grid-template-columns:minmax(0,1fr) 12px minmax(0,var(--main-summary-width,330px));column-gap:12px}
@@ -530,7 +537,7 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 /* Section headings precede the main tabs; moving the real nodes retains their
    controls, artwork, status and accessibility anchors. */
 .workspace-section-heading{min-width:0}
-.workspace-view :is(.page-heading,.takeoff-workspace-heading,.calculator-workspace-heading) :is(h1,h2){font-size:18px}
+.estimate-banner-heading h1,.workspace-view :is(.page-heading,.takeoff-workspace-heading,.calculator-workspace-heading) :is(h1,h2){font-size:18px}
 .workspace-section-heading>.calculator-workspace-heading{padding:0;margin:0 0 20px;align-items:flex-start;flex-direction:row;flex-wrap:nowrap}
 .workspace-section-heading #calculator-save-status{flex:0 0 auto;margin:0;margin-inline-start:auto;max-width:45%;text-align:end}
 /* Keep the same title-to-tabs spacing as adjacent pages. Taller buttons can

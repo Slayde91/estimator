@@ -270,6 +270,7 @@
   const isNumber = (value) => typeof value === "number" && Number.isFinite(value);
   const formatNumber = (value) => isNumber(value) ? quantity.format(value) : value === "N/A" ? value : "—";
   const formatMoney = (value) => isNumber(value) ? money.format(value) : "—";
+  const displaysZero = (value, formatter) => isNumber(value) && formatter.format(Math.abs(value)) === formatter.format(0);
   const fieldByCell = (cell) => state.fields.find((field) => field.cell === cell);
 
   const projectDetailControls = {project_no:"project-no", client:"client", site_address:"site-address", contact_name:"project-contact-name", contact_phone:"project-contact-phone", contact_email:"project-contact-email", account_id:"project-account-id", contact_id:"project-contact-id", billing_address:"project-billing-address", abn_acn:"project-abn-acn"};
@@ -914,17 +915,19 @@
     for (const item of result.work_items || []) { const output = $(`yield-work-item-${item.id}`); if (output) output.textContent = formatNumber(item.yield); }
     const materialRows = [];
     for (const material of result.materials || []) {
+      if (displaysZero(material.total, money)) continue;
       const row = node("tr");
       row.append(materialNameCell(material), node("td", "numeric", formatNumber(material.quantity)),
         node("td", "numeric", formatMoney(material.price)), node("td", "numeric", formatMoney(material.total)),
         node("td", "numeric", formatNumber(material.days)));
       materialRows.push(row);
     }
-    if (!materialRows.length) { const row = node("tr"); const cell = uiNode("td", "", "No material requirements."); cell.colSpan = 5; row.append(cell); materialRows.push(row); }
+    if (!materialRows.length) { const row = node("tr"); const cell = uiNode("td", "", result.materials?.length ? "No material costs." : "No material requirements."); cell.colSpan = 5; row.append(cell); materialRows.push(row); }
     $("material-results").replaceChildren(...materialRows);
     const labour = result.labour, labourRows = [];
     if (labour) {
       const addDays = (label, days, className = "") => {
+        if (displaysZero(days, quantity)) return;
         const row = node("tr", className), labelCell = uiNode("th", "", label);
         labelCell.scope = "row"; row.append(labelCell, node("td", "numeric", formatNumber(days))); labourRows.push(row);
       };
@@ -934,8 +937,9 @@
       addDays("Extra labour", labour.extra_days);
       addDays("Mobilisation allowance", labour.mobilisation_days);
       addDays("Total project days", labour.total_days, "labour-total");
-    } else {
-      const row = node("tr"), cell = uiNode("td", "", "Labour breakdown is unavailable for this result.");
+    }
+    if (!labourRows.length) {
+      const row = node("tr"), cell = uiNode("td", "", labour ? "No labour days." : "Labour breakdown is unavailable for this result.");
       cell.colSpan = 2; row.append(cell); labourRows.push(row);
     }
     $("labour-results").replaceChildren(...labourRows);

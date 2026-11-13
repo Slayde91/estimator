@@ -10,7 +10,6 @@
   const meaningful = value => Boolean(value.replace(/\p{Cf}/gu, '').trim());
   let page = "leads", data, search = "", generation = 0, saving = false, editorSequence = 0, editorRequest = 0, converting = null, accountEditor = null;
   let followUpBy = "";
-  let followUpTimer;
   const linkTitles = {contacts: "Contacts", projects: "Projects", quotes: "Quotes", work_orders: "Work Orders", purchase_orders: "Purchase Orders"};
   const root = () => document.getElementById("contacts-root");
   const el = (tag, cls, text) => {
@@ -965,18 +964,6 @@
     catch(error){if(root().querySelector('[data-contacts-notice]'))feedback(root(),error.message,true);}
     finally{converting=null;conversionBusy();}
   }
-  function refreshFollowUps() {
-    window.clearTimeout(followUpTimer);
-    const board = root()?.querySelector('.contacts-board');
-    if (!board || board.closest('[hidden]') || document.hidden || !board.querySelector('[data-follow-up-date]')) return;
-    const today = window.CeasefireScheduler.organizationToday();
-    if (board.dataset.followUpDay !== today) {
-      for (const marker of board.querySelectorAll('[data-follow-up-date]')) marker.hidden = marker.dataset.followUpDate > today;
-      board.dataset.followUpDay = today;
-    }
-    // The next minute boundary also catches local midnight when the UTC offset changes.
-    followUpTimer = window.setTimeout(refreshFollowUps, 60000 - Date.now() % 60000);
-  }
   function leadBoard(rows) {
     const board = el("div", "project-kanban contacts-board");
     for (const status of data.statuses) {
@@ -991,17 +978,7 @@
       column.append(heading);
       for (const lead of group) {
         const card = el("article", "project-kanban-card");
-        if (lead.follow_up_date) {
-          const marker = el('span', 'contacts-follow-up-due', '!');
-          marker.hidden = true;
-          marker.dataset.followUpDate = lead.follow_up_date;
-          marker.setAttribute('role', 'img');
-          marker.setAttribute('aria-label', 'Follow-up due');
-          marker.title = 'Follow-up due';
-          window.CeasefireI18n?.attr(marker, 'aria-label', 'Follow-up due');
-          window.CeasefireI18n?.attr(marker, 'title', 'Follow-up due');
-          card.append(marker);
-        }
+        window.ClassifireDocumentBoard.addFollowUpMarker(card, lead.follow_up_date);
         if (status === 'Converted') {
           if (lead.name) card.append(el('strong', 'project-card-heading', lead.name));
           card.append(conversionDetails(lead.receipt, true));
@@ -1083,7 +1060,7 @@
       }));
       host.replaceChildren(leadBoard([...data.leads, ...converted].filter(matches)));
     } else host.replaceChildren(directoryTable(data[page].filter(matches)));
-    refreshFollowUps();
+    window.ClassifireDocumentBoard.refreshFollowUps();
     conversionBusy();
   }
   function documentMenu(kind) {
@@ -1191,9 +1168,6 @@
     const menu = event.target.closest?.("#contacts-root details[open]");
     if (menu) {menu.open = false; menu.querySelector("summary").focus();}
   });
-  document.addEventListener('visibilitychange', refreshFollowUps);
-  window.addEventListener('pageshow', refreshFollowUps);
-  window.addEventListener('ceasefire:organization-timezone-changed', refreshFollowUps);
   window.ClassifireContacts = {activate, createAccount, createContact, editContact, editAccount, confirmDirectoryChange, leave:leaveAccount,
     pendingMessage:()=>accountEditor?.pendingMessage() || "Finish the current Company action first.",
     hasUnsavedChanges:()=>Boolean(accountEditor?.dirty()), hasPendingOperation:()=>Boolean(accountEditor?.pending()),

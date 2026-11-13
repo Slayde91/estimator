@@ -3,7 +3,7 @@ const { chooseLibrary } = require('./section_navigation.cjs');
 // keyboard and touch must select the existing workspaces without replacing drafts.
 const { chromium, expect } = require('@playwright/test');
 const { chooseCalculator } = require('./calculator_actions.cjs');
-const { checkAllowances, checkToolbar, checkWorkbookControls } = require('./calculator_toolbar_layout.cjs');
+const { checkAllowances, checkToolbar, checkWorkbookControls, checkWorkbookDivider } = require('./calculator_toolbar_layout.cjs');
 const { clickProjectControl,prepareProjectForSave} = require('./project_actions.cjs');
 const { referenceExport } = require('./reference_export.cjs');
 const { spawn, spawnSync } = require('node:child_process');
@@ -275,7 +275,7 @@ async function workbook(title) {
   for(const title of titles){
     await calculatorTabs.getByRole('button',{name:title,exact:true}).click();await idle();
     if(title==='Firestopping')await expect(page.locator('#estimator-penetration')).toBeVisible();
-    else await workbook(title);
+    else {await workbook(title);await checkWorkbookDivider(page,title,output);}
     await expect(calculatorTabs.locator('[aria-pressed="true"]')).toHaveText(title);
     assert.deepEqual(await snapshots(),tabsBefore,`Tab ${title} preserves all drafts`);
   }

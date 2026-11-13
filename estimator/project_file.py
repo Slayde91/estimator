@@ -17,6 +17,7 @@ from urllib.parse import quote
 from .calculator import fields
 from .catalog import ValidationError, effective_catalog
 from .quote_details import QUOTE_DETAIL_LIMITS, validate_quote_details
+from .follow_up import project_follow_up
 from .workbook_calculators import source_model, validate_calculator_edits
 from .schedule_rows import blank_schedule_defaults, empty_schedule_inputs, normalize_schedule_rows
 from .edition import require_project_edition, validate_edition
@@ -169,6 +170,7 @@ def project_summary(payload, *, edition='full'):
     result = {"source_project_id": source_project_id, "commercial_cards": commercial_cards(snapshot.get("commercial_documents")), "estimate": {"title": title, **details},
               "directory_cards": snapshot_cards(snapshot, source_project_id), "certification_manifest": certificate,
               "project_status": validate_project_status(snapshot.get("project_status", "New")),
+              "project_follow_up": project_follow_up(snapshot.get("project_follow_up", {})),
               "clients": [details["client"]], "project_numbers": [details["project_no"]]}
     if "estimates" in snapshot or "active_estimate_id" in snapshot:
         entries = estimate_descriptors(snapshot.get("estimates"), snapshot.get("active_estimate_id"))
@@ -290,7 +292,7 @@ def prepare_project_export(store, request, *, edition='full'):
 def _export_project_snapshot(store, request, *, edition, tree_checked=False):
     """Normalize nested estimates without separate JSON round trips."""
     require_project_edition(request, edition)
-    if not isinstance(request, dict) or set(request) - {"estimate", "calculators", "penetration", "takeoffs", "library_drafts", "certifications", "documentation", "project_status", "estimates", "active_estimate_id", "commercial_documents", "swms", "passive_fire_register"} or "estimate" not in request:
+    if not isinstance(request, dict) or set(request) - {"estimate", "calculators", "penetration", "takeoffs", "library_drafts", "certifications", "documentation", "project_status", "project_follow_up", "estimates", "active_estimate_id", "commercial_documents", "swms", "passive_fire_register"} or "estimate" not in request:
         raise ValidationError("Include the current estimate and optional calculator drafts to save a project.")
     if not tree_checked:
         _check_tree(request)
@@ -333,6 +335,8 @@ def _export_project_snapshot(store, request, *, edition, tree_checked=False):
         "estimate": {key: prepared[key] for key in sorted(ESTIMATE_FIELDS)},
         "calculators": calculators,
     }
+    if "project_follow_up" in request:
+        snapshot["project_follow_up"] = project_follow_up(request["project_follow_up"])
     if penetration is not None:
         snapshot["penetration"] = penetration
     if "library_drafts" in request:
@@ -418,7 +422,7 @@ def _load_project_snapshot(store, snapshot, *, edition):
     """Validate sub-workspaces within the already decoded, tree-checked file."""
     require_project_edition(snapshot, edition)
     required = {"format", "version", "estimate", "calculators"}
-    if not isinstance(snapshot, dict) or not required <= set(snapshot) or set(snapshot) - required - {"penetration", "takeoffs", "library_drafts", "certifications", "documentation", "project_status", "estimates", "active_estimate_id", "commercial_documents", "swms", "passive_fire_register"}:
+    if not isinstance(snapshot, dict) or not required <= set(snapshot) or set(snapshot) - required - {"penetration", "takeoffs", "library_drafts", "certifications", "documentation", "project_status", "project_follow_up", "estimates", "active_estimate_id", "commercial_documents", "swms", "passive_fire_register"}:
         raise ValidationError("The project file contains missing or unsupported fields.")
     if snapshot["format"] != PROJECT_FORMAT or type(snapshot["version"]) is not int or snapshot["version"] not in {PROJECT_VERSION, TAKEOFF_PROJECT_VERSION}:
         raise ValidationError("This project file format or version is not supported.")
@@ -465,6 +469,8 @@ def _load_project_snapshot(store, snapshot, *, edition):
     result = {"estimate": prepared, "fields": metadata, "calculators": normalized,
               "project_status": validate_project_status(snapshot.get("project_status", "New")),
               "project_details": project_details({key: prepared[key] for key in QUOTE_DETAIL_LIMITS})}
+    if "project_follow_up" in snapshot:
+        result["project_follow_up"] = project_follow_up(snapshot["project_follow_up"])
     if penetration is not None:
         result["penetration"] = penetration
     if "library_drafts" in snapshot:

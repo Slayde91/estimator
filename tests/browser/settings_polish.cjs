@@ -32,6 +32,13 @@ async function idle(){await page.waitForFunction(()=>{const status=window.Ceasef
   await expect(page.locator('#view-settings > section').last()).toHaveClass(/play-settings-card/);
   for(const width of [1254,390]){
     await page.setViewportSize({width,height:831});
+    const heading=page.locator('#view-settings > .page-heading');
+    await expect(heading.getByRole('heading',{level:1,name:'Settings',exact:true})).toBeVisible();
+    assert.equal((await heading.locator('h1').boundingBox()).height,22);
+    await expect(heading.locator('.eyebrow')).toHaveCount(0);
+    await expect(page.locator('#application-settings-heading')).toBeVisible();
+    await page.evaluate(()=>window.scrollTo(0,0));
+    await page.screenshot({path:path.join(output,`settings-heading-${width}.png`)});
     const geometry=await page.evaluate(()=>{
       const box=id=>{const r=document.getElementById(id).getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,width:r.width,height:r.height};};
       return {logo:box('company-logo'),cover:box('company-cover-pdf'),trash:box('company-logo-delete'),preview:box('company-logo-preview'),coverTrash:box('company-cover-delete'),overflow:document.documentElement.scrollWidth-innerWidth};

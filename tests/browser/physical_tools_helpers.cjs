@@ -69,7 +69,7 @@ async function assertPhysicalTools(page) {
     assert.ok(Math.abs(measured.controls[index].x - measured.controls[index - 1].right - 8) < 1, 'Each Schedule action follows its neighbour');
   }
   assert.ok(measured.controls.at(-1).right <= measured.register.right + 1, 'The action row fits the register');
-  assert.equal(measured.selection.directlyBeforeUndo,true);assert.equal(measured.undo.box.width,measured.selection.box.width);assert.equal(measured.undo.box.height,measured.selection.box.height);assert.equal(measured.undo.box.width,38);assert.equal(measured.undo.box.height,38);
+  assert.equal(measured.selection.directlyBeforeUndo,true);assert.equal(measured.undo.box.width,measured.selection.box.width);assert.equal(measured.undo.box.height,measured.selection.box.height);assert.equal(measured.undo.box.width,42);assert.equal(measured.undo.box.height,42);
   assert.equal(measured.scheduleUndo.text, '↶');
   assert.equal(measured.steelUndo.text,measured.scheduleUndo.text,'Both registers retain the original Undo symbol');
   assert.deepEqual(measured.undo.style,measured.steelUndo.style,'Physical Undo shares the actual Steel register geometry, typography and paint');

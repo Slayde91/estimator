@@ -122,7 +122,7 @@
 .takeoff-tool-rail .takeoff-icon-button .takeoff-measure-icon{filter:none;mix-blend-mode:multiply}
 :root[data-theme="midnight"] .takeoff-tool-rail .takeoff-icon-button .takeoff-measure-icon{filter:invert(1);mix-blend-mode:screen}
 .takeoff-workspace-title{font-size:28px;margin:0 0 16px}
-.takeoff-drawing-pane{display:flex;flex-direction:column;gap:10px;min-width:0}
+.takeoff-drawing-pane{display:flex;flex-direction:column;gap:10px;min-width:0;container-type:inline-size}
 .takeoff-navigation{display:flex;flex:.5 1 127px;margin:0;align-items:center;min-width:0}
 .takeoff-navigation-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
 .takeoff-document-controls{flex:1;flex-wrap:nowrap}
@@ -431,6 +431,30 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
   height:38px; min-height:38px; box-sizing:border-box;
 }
 .takeoff-register-controls .takeoff-icon-button { width:38px; min-width:38px; padding:6px; }
+#takeoffs-workspace { --takeoff-control-size:42px; }
+#takeoffs-workspace :is(.takeoff-tool-rail,.takeoff-markup-rail,.takeoff-presentation-tools,.takeoff-page-controls) button,
+#takeoffs-workspace .takeoff-viewer-top :is(.takeoff-scale-anchor,.takeoff-source-documents,.takeoff-search-controls) > button,
+#takeoffs-workspace .takeoff-register > .takeoff-register-controls:not(.takeoff-bulk) > :is(.takeoff-icon-button,.takeoff-undo-button,.takeoff-physical-icon-action) {
+  box-sizing:border-box; width:var(--takeoff-control-size); min-width:var(--takeoff-control-size); max-width:var(--takeoff-control-size);
+  height:var(--takeoff-control-size); min-height:var(--takeoff-control-size); flex:0 0 auto;
+}
+#takeoffs-workspace .takeoff-viewer-top :is(.takeoff-source-documents,.takeoff-search-controls,.takeoff-search-anchor) > :is(select,input:not([type=checkbox])),
+#takeoffs-workspace .takeoff-page-navigation .takeoff-page-input,
+#takeoffs-workspace .takeoff-register:not(.takeoff-physical-register) > .takeoff-register-controls > button {
+  box-sizing:border-box; height:var(--takeoff-control-size); min-height:var(--takeoff-control-size);
+}
+#takeoffs-workspace .takeoff-tool-rail { padding-inline:0; }
+/* In a narrow drawing column the wrapped toolbars must leave working space on
+   the PDF. The spanning viewport follows their actual heights at any zoom. */
+@container(max-width:700px) {
+  .takeoff-drawing-pane > .takeoff-viewer {
+    display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(160px,1fr) auto;
+    min-height:var(--takeoff-viewer-height);
+  }
+  .takeoff-viewer > .takeoff-viewport { grid-area:1/1/4/2; height:100%; min-height:0; contain:size; }
+  .takeoff-viewer > .takeoff-viewer-top { grid-area:1/1; position:relative; inset:auto; margin:6px; max-width:none; }
+  .takeoff-viewer > .takeoff-viewer-bottom { grid-area:3/1; position:relative; inset:auto; margin:6px; }
+}
 .takeoff-document-tools { position:relative; display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; margin:0 0 0 auto; }
 .takeoff-document-tools .calculator-document-toggle { height:48px; min-height:48px; }
 .takeoff-document-tools .takeoff-document-menu { position:static; flex-basis:auto; }
@@ -461,7 +485,7 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
   .takeoff-viewer-top .takeoff-search-controls { flex-wrap:wrap; flex-basis:100%; }
   .takeoff-viewer-top .takeoff-search-anchor { flex-basis:100%; }
   .takeoff-viewer-top .takeoff-search-ocr { flex:1 1 78px; }
-  .takeoff-viewer-top .takeoff-search-controls select { flex:1; min-width:0; }
+  .takeoff-viewer-top .takeoff-search-controls > select { flex:1 1 120px; min-width:min(120px,100%); }
 }
 
 .takeoff-overlay [data-line-enabled="false"]{stroke:none!important}

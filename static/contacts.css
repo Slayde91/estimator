@@ -35,8 +35,10 @@
 @media(max-width:1000px) { .contacts-directory-layout.contacts-account-open { grid-template-columns:minmax(0,1fr); } }
 .contacts-board { display:flex; overflow-x:auto; gap:12px; padding-bottom:14px; }
 .contacts-board .project-kanban-card { position:relative; }
-.contacts-follow-up-due { position:absolute; top:12px; right:13px; color:#d93647; font-size:20px; font-weight:800; line-height:1; }
-.contacts-board .project-kanban-card:has(.contacts-follow-up-due:not([hidden]))>.project-card-heading { padding-right:18px; }
+.board-follow-up-due { position:absolute; top:12px; right:13px; color:#d93647; font-size:20px; font-weight:800; line-height:1; }
+.contacts-board .project-kanban-card:has(.board-follow-up-due:not([hidden]))>.project-card-heading { padding-right:18px; }
+#project-list .project-list-row { position:relative; }
+#project-list .project-list-row:has(.board-follow-up-due:not([hidden])) .project-row-heading { padding-right:18px; }
 .contacts-board .project-kanban-card[draggable="true"] { cursor:grab; }
 .contacts-board .project-title-button,.contacts-table .text-button { text-align:left; }
 .contacts-board .project-kanban-card p { margin:6px 0; overflow-wrap:anywhere; }

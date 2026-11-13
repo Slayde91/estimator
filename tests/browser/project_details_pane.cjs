@@ -33,7 +33,13 @@ const ready = new Promise((resolve,reject)=>{
   await page.locator('#project-pane-contact-name').fill('Alpha Person');
   await page.locator('#project-pane-contact-phone').fill('0400000001');
   await page.locator('#project-pane-contact-email').fill('alpha@example.test');
-  await page.locator('#project-pane-billing-address').fill('Project accounts\nPO Box 42');
+  const billingAddress=page.locator('#project-pane-billing-address');
+  await expect(billingAddress).toHaveCSS('height','42px');
+  await billingAddress.fill('Project accounts\nPO Box 42');
+  assert.ok((await billingAddress.boundingBox()).height>42,'Billing address expands to show both lines');
+  const form=page.locator('#project-details-form');
+  const action=form.getByLabel('Next action',{exact:true}),dueDate=form.getByLabel('Follow-up due',{exact:true});
+  await action.fill('Confirm\nsite access');await dueDate.fill('2001-01-01');
   await page.locator('#project-pane-abn-acn').fill('Project ABN');
   let response=page.waitForResponse(r=>r.url().endsWith('/api/project/save-as'));
   await page.locator('#project-details-toolbar-save').click();const initialSave=await response;assert.equal(initialSave.status(),200,await initialSave.text());await idle();
@@ -42,6 +48,9 @@ const ready = new Promise((resolve,reject)=>{
   assert.equal(JSON.parse(fs.readFileSync(info.project,'utf8')).estimate.billing_address,'Project accounts\nPO Box 42');
   assert.equal(JSON.parse(fs.readFileSync(info.project,'utf8')).estimate.site_address,'10 Synthetic Street\nLevel 2');
   assert.equal(JSON.parse(fs.readFileSync(info.project,'utf8')).estimate.abn_acn,'Project ABN');
+  const native=JSON.parse(fs.readFileSync(info.project,'utf8'));
+  assert.deepEqual(native.project_follow_up,{next_action:'Confirm\nsite access',follow_up_date:'2001-01-01'});
+  assert.equal(Object.hasOwn(native.estimate,'next_action'),false);
   await page.locator('#link-project-folder').click();await idle();
   fs.copyFileSync(info.project,path.join(output,'second-project.cf.json'));
   await page.locator('#refresh-quotes').click();await idle();
@@ -49,6 +58,9 @@ const ready = new Promise((resolve,reject)=>{
   const first=listing.files.find(file=>path.resolve(file.path)===path.resolve(info.project));
   const second=listing.files.find(file=>file.id!==first.id);
   const title=file=>page.locator(`.project-kanban-card[data-project-id="${file.id}"] .project-title-button`);
+  const reminder=file=>title(file).locator('xpath=ancestor::article').getByRole('img',{name:'Follow-up due',exact:true});
+  await expect(reminder(first)).toBeVisible();await expect(reminder(first)).toHaveText('!');
+  await expect(reminder(first)).toHaveCSS('color','rgb(217, 54, 71)');
   const back=async()=>{await page.locator('#project-details-close').click();await expect(page.locator('#project-list-card')).toBeVisible();};
   const openDetails=async file=>{
     if(await page.locator('#project-details-pane').isVisible())await back();
@@ -129,8 +141,8 @@ const ready = new Promise((resolve,reject)=>{
   await expect(contactPanel.locator(':scope > summary')).toHaveText('Contacts');
   const metadataOrder=await pane.locator('#project-details-form > .project-pane-fields').evaluateAll(groups=>
     groups.flatMap(group=>[...group.querySelectorAll('input[id],textarea[id]')].map(control=>control.id)));
-  assert.deepEqual(metadataOrder,['project-pane-number','project-pane-address','project-pane-client','project-pane-billing-address',
-    'project-pane-abn-acn','project-pane-contact-name','project-pane-contact-email','project-pane-contact-phone']);
+  assert.deepEqual(metadataOrder,['project-pane-number','project-pane-client','project-pane-address','project-pane-billing-address',
+    'project-pane-abn-acn','project-pane-contact-name','project-pane-contact-email','project-pane-contact-phone','project-pane-next-action','project-pane-follow-up-date']);
   for(const panel of [companyPanel,contactPanel]){
     await expect(panel.locator('details')).toHaveCount(0);
     await panel.locator(':scope > summary').click();
@@ -140,10 +152,14 @@ const ready = new Promise((resolve,reject)=>{
   }
   await page.locator('#project-pane-address').fill('20 Other Project Road');
   await page.locator('#project-pane-contact-name').fill('Other Project Person');
+  await expect(action).toHaveValue('Confirm\nsite access');await expect(dueDate).toHaveValue('2001-01-01');
+  await action.fill('Await delivery');await dueDate.fill('2099-12-31');
   response=saved();await page.locator('#project-details-save').click();assert.equal((await response).status(),200);await idle();
+  await back();await expect(reminder(first)).toBeVisible();await expect(reminder(second)).toHaveCount(0);
+  await openDetails(second);await expect(action).toHaveValue('Await delivery');await expect(dueDate).toHaveValue('2099-12-31');
   await expect(page.locator('#project-pricing-context')).toHaveText(active.file.title);
   assert.deepEqual(fs.readFileSync(info.project),original);
-  assert.deepEqual(await page.evaluate(()=>window.CeasefireProject.details()),active.details);
+  assert.deepEqual(await page.evaluate(()=>window.CeasefireProject.projectPaneSnapshot().details),active.details);
   assert.equal(await page.locator('#measurements').inputValue(),'Unsaved active estimate note');
   await expect(page.locator('#project-save-state')).toHaveText('Unsaved changes');assert.equal(calls.length,0);
   // Account search is canonical; the inline plus opens a real Accounts popup.
@@ -163,7 +179,7 @@ const ready = new Promise((resolve,reject)=>{
   const detail=(await (await page.request.post(new URL('/api/projects/details',page.url()).href,{data:{id:second.id}})).json()).details;
   assert.equal(detail.client,'Pane Beta Account');assert.match(detail.account_id,/^[0-9a-f-]{36}$/);
   assert.equal(detail.billing_address,'Company accounts\nPO Box 7');assert.equal(detail.abn_acn,'12 345 678 901');
-  assert.deepEqual(fs.readFileSync(info.project),original);assert.deepEqual(await page.evaluate(()=>window.CeasefireProject.details()),active.details);
+  assert.deepEqual(fs.readFileSync(info.project),original);assert.deepEqual(await page.evaluate(()=>window.CeasefireProject.projectPaneSnapshot().details),active.details);
   await page.screenshot({path:path.join(output,'pane-desktop.png'),fullPage:true});
   // A failed conditional save keeps edits and review on navigation is cancellable.
   const secondBefore=fs.readFileSync(second.path);
@@ -187,17 +203,17 @@ const ready = new Promise((resolve,reject)=>{
     if(width>1050){assert.ok(panes['project-workspace-side'].right<=panes['project-details-pane'].left && panes['project-details-pane'].right<=panes['project-workspace-links'].left,JSON.stringify(panes));}
     else assert.ok(panes['project-details-pane'].bottom<=panes['project-workspace-side'].top && panes['project-workspace-side'].bottom<=panes['project-workspace-links'].top,JSON.stringify(panes));
     const numberWidth=(await page.locator('#project-pane-number').boundingBox()).width;
-    assert.ok((await page.locator('#project-pane-address').boundingBox()).width >= numberWidth*2);
+    assert.ok((await page.locator('#project-pane-client').boundingBox()).width >= numberWidth*2);
     const fields=await page.evaluate(()=>{
       const ids=['project-pane-number','project-pane-address','project-pane-client','project-pane-billing-address','project-pane-abn-acn',
         'project-pane-contact-name','project-pane-contact-email','project-pane-contact-phone'];
       return Object.fromEntries(ids.map(id=>[id,document.getElementById(id).getBoundingClientRect().toJSON()]));
     });
     const [number,addressBox,client,billing,abn,primary,email,phone]=Object.values(fields);
-    assert.ok(client.top>=Math.max(number.bottom,addressBox.bottom) && billing.top>=client.bottom &&
+    assert.ok(Math.abs(number.top-client.top)<1 && addressBox.top>=Math.max(number.bottom,client.bottom) && billing.top>=addressBox.bottom &&
       abn.top>=billing.bottom && primary.top>=abn.bottom && email.top>=primary.bottom && phone.top>=primary.bottom,JSON.stringify(fields));
-    assert.ok(Math.abs(client.width-billing.width)<1 && Math.abs(billing.width-abn.width)<1 &&
-      Math.abs(primary.width-client.width)<1,JSON.stringify(fields));
+    assert.ok(Math.abs(addressBox.width-billing.width)<1 && Math.abs(billing.width-abn.width)<1 &&
+      Math.abs(primary.width-addressBox.width)<1,JSON.stringify(fields));
     for(const control of Object.values(fields))assert.ok(control.left>=box.pane.left && control.right<=box.pane.right,JSON.stringify(fields));
     assert.equal(box.list.width,0,'The register remains hidden on the detail page');
     await page.screenshot({path:path.join(output,`pane-${width}.png`),fullPage:true});

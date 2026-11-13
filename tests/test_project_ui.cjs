@@ -1423,6 +1423,20 @@ async function penetrationCheck(name, fn) {
     await h.byId('discard-dialog').close('confirm');assert.equal(await closing,false);assert.equal(h.app.projectStamp(),stamp);
     pending=true;assert.equal(h.context.window.CeasefireDesktop.status().busy,true);assert.equal(await h.app.reviewDesktopClose(),false);
   });
+  await check('An unrecorded Project follow-up stays dirty independently of the estimate',async h=>{
+    const project=h.context.window.CeasefireProject;
+    h.app.state.initialized=true;h.app.state.dirty=false;h.app.state.estimatesDirty=false;
+    h.app.state.configuration={inventory:{},rates:{}};h.app.state.draft=copy(h.app.state.configuration);
+    h.app.state.quoteConfiguration=null;h.app.state.projectPricingDraft=null;h.context.window.CeasefireCalculators.hasUnsavedChanges=()=>false;
+    const before=project.projectPaneSnapshot();
+    assert.equal(h.context.window.CeasefireDesktop.status().dirty,false);
+    project.applyProjectPaneDraft({...before.details,next_action:'Call supplier',follow_up_date:'2030-01-31'},before.context);
+    h.app.state.dirty=false;
+    assert.equal(h.context.window.CeasefireDesktop.status().dirty,true);
+    assert.equal(Object.hasOwn(project.details(),'follow_up_date'),false);
+    project.applyProjectPaneDraft(before.details,before.context);h.app.state.dirty=false;
+    assert.equal(h.context.window.CeasefireDesktop.status().dirty,false);
+  });
   await check('Metadata saves rebase a clean active project without marking unrelated work dirty',async h=>{
     h.app.state.initialized=true;h.app.state.dirty=false;h.app.state.estimatesDirty=false;
     h.app.state.configuration={inventory:{},rates:{}};h.app.state.draft=copy(h.app.state.configuration);

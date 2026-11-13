@@ -51,13 +51,13 @@ class ParticipantTests(unittest.TestCase):
         contacts = []
         for name, phone in [('Site A','1001'),('Site B','1002'),('Billing','1003')]:
             contacts.append(self.contacts.save('contacts',{'version':self.contacts.list()['version'],
-                'fields':{'name':name,'phone':phone,'company':'Engineering Co'}}))
+                'fields':{'name':name,'phone':phone,'email':phone+'@example.test','company':'Engineering Co'}}))
         a,b,billing = [{'kind':'contacts','id':contact['id'],'role':'site_contact'} for contact in contacts]
         self.link('A',rows=[b,{**billing,'role':'billing_contact'},a,{**self.participant,'role':'site_contact'}])
         self.projects.rows['B'].update(owner=self.projects.rows['A']['owner'],project_no=self.projects.rows['A']['project_no'])
         self.assertEqual(self.service.site_contacts(self.projects.rows['B']),[])
         self.assertEqual(self.service.site_contacts(self.projects.rows['A']),[
-            {'name':'Site B','phone':'1002','email':''},{'name':'Site A','phone':'1001','email':''}])
+            {'name':'Site B','phone':'1002','email':'1002@example.test'},{'name':'Site A','phone':'1001','email':'1001@example.test'}])
 
     def test_remove_and_readd_document_derived_participant_only_for_selected_project(self):
         party={'kind':self.participant['kind'],'id':self.participant['id']}

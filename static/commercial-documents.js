@@ -848,7 +848,9 @@
           actions.append(control);
         }
         const step = signingStep(document);
-        const destinations = signingSteps[document.kind] ? [document.status, ...signingDestinations(step)] : state.model.statuses[state.kind];
+        const destinations = signingSteps[document.kind]
+          ? [...purchaseRollbackSteps(document.kind,document.status).map(item=>item.from), document.status, ...signingDestinations(step)]
+          : state.model.statuses[state.kind];
         const statusSelect = select(destinations, document.status, value => void move(document, value), false);
         bindStatusOptions(statusSelect);
         statusSelect.addEventListener("change", () => {
@@ -959,7 +961,7 @@
   async function move(document, status) {
     if (state.busy || state.cardIntent || document.status === status) return;
     if (signingSteps[document.kind]) {
-      if (!signingDestinations(signingStep(document)).includes(status)) {
+      if (!signingDestinations(signingStep(document)).includes(status) && !purchaseRollbackSteps(document.kind,document.status).some(step=>step.from===status)) {
         message("Choose a valid next status for this order.", true);
         return;
       }
@@ -1214,8 +1216,15 @@
     const actions = node("div", "commercial-editor-actions");
     actions.append(backButton("Back to " + names[state.kind] + "s", () => void leaveEditor()), button("Save", () => void saveEditor(), true), pdfDownloadButton(() => void downloadEditor()));
     const statusControl=select(state.model.statuses[state.kind], state.editor.document.status, value => {
-      state.editor.document.status=value;statusControl.dataset.status=value;
-    });
+      const editor = state.editor;
+      const step = purchaseRollbackSteps(editor.document.kind,editor.savedStatus).find(item=>item.from===value);
+      if (step && editor.document.version) {
+        statusControl.value = editor.document.status;
+        void rollBackEditor(editor,step);
+        return;
+      }
+      editor.document.status=value;statusControl.dataset.status=value;markDirty();
+    },false);
     statusControl.classList.add('commercial-document-status');statusControl.dataset.status=state.editor.document.status;
     bindStatusOptions(statusControl);
     for(const option of statusControl.options)option.dataset.status=option.value;
@@ -1337,6 +1346,51 @@
   function signingDestinations(step) {
     if (!step) return [];
     return step.next || [...new Set(Object.values(step.outcomes))];
+  }
+  function purchaseRollbackSteps(kind,status) {
+    if (kind !== "purchase_order") return [];
+    const steps = signingSteps.purchase_order;
+    const reached = status === "Completed" ? steps.length : steps.findIndex(step=>step.from===(status==="Cancelled" ? "Reviewed" : status));
+    return steps.slice(0,Math.max(0,reached));
+  }
+  async function confirmPurchaseRollback(draft,step,intent) {
+    const affected = signingSteps.purchase_order.slice(signingSteps.purchase_order.indexOf(step));
+    const dialog = node("dialog","modal commercial-board-signing"), heading = statusLabel("h2","Sign and move");
+    heading.id = "commercial-rollback-title"; dialog.setAttribute("aria-labelledby",heading.id);
+    const stages = node("p"), list = node("ul"), hint = node("p");
+    stages.append(statusLabel("span",draft.status)," → ",statusLabel("span",step.from));
+    const source = "Clear inputs and signatures from this section onward and return the order to {0}?";
+    window.CeasefireI18n.text(hint,source,[window.CeasefireI18n.term(step.from)]);
+    for (const item of affected) {
+      if (item!==step && !draft.fields.signatures?.[item.key]) continue;
+      const row=node("li"), name=draft.fields.order[item.key];
+      row.append(statusLabel("span",item.label));
+      if (name) row.append(" · ",name);
+      list.append(row);
+    }
+    const actions=node("div","actions"), cancel=button("Cancel",()=>dialog.close()), clear=button("Clear section",()=>dialog.close("clear"),true);
+    window.CeasefireI18n.text(cancel,"Cancel");window.CeasefireI18n.text(clear,"Clear section");
+    actions.append(cancel,clear);dialog.append(heading,node("strong","",documentTitle(draft)),stages,hint,list,actions);
+    document.body.append(dialog);intent.dismiss=()=>dialog.close();
+    try {
+      dialog.showModal();
+      await new Promise(resolve=>dialog.addEventListener("close",resolve,{once:true}));
+      return dialog.returnValue==="clear";
+    } finally {delete intent.dismiss;dialog.remove();}
+  }
+  async function rollBackEditor(editor,step) {
+    if (state.busy || state.cardIntent) return;
+    const operation=captureDocumentOperation(), version=editor.document.version, intent={};
+    state.cardIntent=intent;state.busy=true;setDisabled(true);
+    try {
+      if (!await confirmPurchaseRollback({...editor.document,status:editor.savedStatus},step,intent) || state.cardIntent!==intent) return;
+      assertDocumentOperation(operation);
+      if (editor.document.version!==version) throw new Error("This commercial document changed. Reopen it before saving.");
+      await saveEditor({key:step.key,clear:true});
+    } catch (error) {if (state.editor===editor) message(error.message,true);}
+    finally {
+      if (state.cardIntent===intent) {state.cardIntent=null;state.busy=false;setDisabled(false);}
+    }
   }
   function signerComplete(fields, key) {
     const date = fields.order[signatureDates[key]];
@@ -1529,20 +1583,27 @@
     }
   }
   async function signBoardMove(document, source, target, current) {
-    const step = signingStep(document), proposed = copy(document), fields = proposed.fields;
+    const rollback = purchaseRollbackSteps(document.kind,document.status).find(step=>step.from===target);
+    const proposed = copy(document), fields = proposed.fields;
     if (!source || !source.file_id.startsWith("local-")) applyProjectDetails(fields, commercialProjectDetails(source));
     const projectNo = boundWorkOrderProjectNumber({document:proposed, source});
     if (projectNo) fields.details.project_no = projectNo;
     if (proposed.kind === 'work_order' && !fields.order.estimated_cost && !fields.estimated_cost_cleared) {
       fields.order.estimated_cost = issuedQuoteCost(fields.order, source);
     }
-    const defaults = await signingDefaults(fields.order, step.key);
-    if (!current()) return;
-    const values = await boardSigningDialog(proposed, source, step, target, defaults, state.cardIntent);
-    if (!values || !current()) return;
-    fields.order[step.key] = values.name;
-    fields.order[signatureDates[step.key]] = values.date;
-    const action = await chooseSigningAction(fields, step.key, {...defaults, ...values}, current);
+    let action;
+    if (rollback) {
+      if (!await confirmPurchaseRollback(proposed,rollback,state.cardIntent)) return;
+      action={key:rollback.key,clear:true};
+    } else {
+      const step = signingStep(document), defaults = await signingDefaults(fields.order, step.key);
+      if (!current()) return;
+      const values = await boardSigningDialog(proposed, source, step, target, defaults, state.cardIntent);
+      if (!values || !current()) return;
+      fields.order[step.key] = values.name;
+      fields.order[signatureDates[step.key]] = values.date;
+      action = await chooseSigningAction(fields, step.key, {...defaults, ...values}, current);
+    }
     if (!action || !current()) return;
     if (!source) await window.CeasefireProjectPane?.beforeProjectSave?.();
     if (!current()) return;

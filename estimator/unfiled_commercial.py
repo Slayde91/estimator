@@ -96,6 +96,7 @@ class UnfiledCommercial:
                     JOIN commercial_workspaces w USING(workspace)""").fetchall():
                 if verify_and_register(row):
                     self.bind_file(db, row['workspace'])
+                    db.execute('DELETE FROM pending_quote_project_stages WHERE workspace=?', (row['workspace'],))
 
     def cancel_publication(self, workspace, path, digest):
         with self.service._connect() as db:

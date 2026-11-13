@@ -47,7 +47,7 @@ class SavedCommercial:
         try:
             self.projects.commercial.files.transfer(commercial, path, restore=True)
             self.projects.commercial.restore(workspace, commercial, return_view=False)
-            self.projects.certifications.activate_created_project(workspace, snapshot['estimate'].get('project_no', ''))
+            self.projects.certifications.activate_created_project(workspace, snapshot['estimate'].get('project_no', ''), project_path=path)
         except Exception:
             self.projects.certifications.discard(workspace)
             raise
@@ -148,9 +148,12 @@ class SavedCommercial:
                     self.projects.documentation.publish(history, path)
                     snapshot['documentation'] = history
                 if modified:
-                    snapshot['commercial_documents'] = self.projects.commercial.capture(workspace)
+                    snapshot['commercial_documents'], quote_stage = self.projects.commercial.capture_project(workspace)
+                    if quote_stage:
+                        snapshot['project_status'] = quote_stage
                     self.projects.commercial.files.transfer(snapshot['commercial_documents'], path)
-                    session['revision'] = commit()
+                    with self.projects.commercial.publishing(workspace, snapshot['commercial_documents'], snapshot.get('project_status')):
+                        session['revision'] = commit()
             except Exception:
                 # An abandoned workspace cannot leak an uncommitted edit into
                 # the next file operation after validation or an I/O failure.

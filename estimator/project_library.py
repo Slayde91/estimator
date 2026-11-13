@@ -362,8 +362,8 @@ class ProjectLibrary:
         from .download_files import SavedDownloadFiles
         self.download_files = SavedDownloadFiles()
 
-    def _capture_takeoffs(self, request):
-        prepared = self._capture_workspace(request)
+    def _capture_takeoffs(self, request, *, project_path=None):
+        prepared = self._capture_workspace(request, project_path=project_path)
         if "estimates" in request or "active_estimate_id" in request:
             entries = request.get("estimates")
             if not isinstance(entries, list) or not 1 <= len(entries) <= 50:
@@ -452,7 +452,7 @@ class ProjectLibrary:
         active = incoming[previous.get('active_estimate_id', 'estimate-1')]
         return {**{key: value for key, value in request.items() if key not in WORKSPACE_FIELDS}, **active}
 
-    def _capture_workspace(self, request):
+    def _capture_workspace(self, request, *, project_path=None):
         """Do not let a browser manufacture evidence paths or confirmation state."""
         require_project_edition(request, self.edition)
         if not isinstance(request, dict):
@@ -484,7 +484,11 @@ class ProjectLibrary:
             workspace_id = request.get('certifications', {}).get('workspace_id')
             if self.commercial is None or not workspace_id:
                 raise ValidationError('Commercial documents require their current project workspace.')
-            prepared['commercial_documents'] = self.commercial.capture(workspace_id, request['commercial_documents'])
+            prepared['commercial_documents'], quote_stage = self.commercial.capture_project(workspace_id, request['commercial_documents'])
+            if quote_stage:
+                if project_path is not None:
+                    self.certifications.require_project_file(workspace_id, project_path)
+                prepared['project_status'] = quote_stage
         return prepared
 
     def _publish_takeoffs(self, request, path):
@@ -520,7 +524,7 @@ class ProjectLibrary:
             return 'The project was saved, but its evidence session could not be rebound. Reopen the saved project before continuing takeoff work.'
         return None
 
-    def _activate_saved_documents(self, request, project):
+    def _activate_saved_documents(self, request, project, path):
         """A completed file save grants creation only to its captured workspace."""
         incoming = request.get('certifications')
         if self.certifications is None or not isinstance(incoming, dict):
@@ -532,7 +536,7 @@ class ProjectLibrary:
         try:
             if expected != self.certifications.project_id(token):
                 raise ValidationError('The saved project document workspace changed.')
-            self.certifications.activate_created_project(token, project['estimate'].get('project_no', ''))
+            self.certifications.activate_created_project(token, project['estimate'].get('project_no', ''), project_path=path)
         except ValidationError:
             # The file is already committed. A concurrently discarded capability
             # must not be revived or turn this receipt into a false save failure.
@@ -563,7 +567,7 @@ class ProjectLibrary:
             elif 'commercial_documents' in project:
                 raise ValidationError('Open this project with its commercial document workspace available.')
             if workspace is not None and path is not None:
-                self.certifications.activate_created_project(workspace['workspace_id'], project['estimate'].get('project_no', ''))
+                self.certifications.activate_created_project(workspace['workspace_id'], project['estimate'].get('project_no', ''), project_path=path)
             if 'estimates' in project:
                 entries = []
                 for entry in project['estimates']:
@@ -1401,7 +1405,7 @@ class ProjectLibrary:
             if selection is None:
                 raise ValidationError('This project selection is no longer available. Use Load Project or "Save As".')
             selected_path = _project_save_path(selection)
-        captured = self._capture_takeoffs({key: request[key] for key in ("estimate", "calculators", "penetration", "takeoffs", "takeoffs_session_id", "library_drafts", "certifications", "documentation", "project_status", "estimates", "active_estimate_id", "commercial_documents", "swms", "passive_fire_register") if key in request})
+        captured = self._capture_takeoffs({key: request[key] for key in ("estimate", "calculators", "penetration", "takeoffs", "takeoffs_session_id", "library_drafts", "certifications", "documentation", "project_status", "estimates", "active_estimate_id", "commercial_documents", "swms", "passive_fire_register") if key in request}, project_path=selected_path)
         changed_message = 'The project file changed or was removed outside this window. Reload it or use "Save As".'
         if "project_status" not in captured:
             existing = _confirmed_bytes(selected_path, selection, changed_message)
@@ -1426,7 +1430,7 @@ class ProjectLibrary:
             with self._commercial_publication(request, captured, selection, payload):
                 path, info = _atomic_write(selection, payload)
             warning = self._saved_takeoff_source(request, captured, path)
-            document_warning = self._activate_saved_documents(request, project)
+            document_warning = self._activate_saved_documents(request, project, path)
             if document_warning:
                 warning = (warning + ' ' if warning else '') + document_warning
             del self._save_targets[token]
@@ -1478,7 +1482,7 @@ class ProjectLibrary:
         self.commercial.unfiled.prepare_publication(workspace, path, digest, (selection.fingerprint or {}).get('sha256', ''))
         replaced = False
         try:
-            with self.commercial.publishing(workspace, captured.get('commercial_documents')):
+            with self.commercial.publishing(workspace, captured.get('commercial_documents'), captured.get('project_status')):
                 yield
                 replaced = True
         except Exception:
@@ -1731,7 +1735,7 @@ class ProjectLibrary:
         metadata['in_linked_folder'] = folder is not None and path.is_relative_to(folder)
         result = {'cancelled': False, 'file': self._authorize_save(path, info, payload, metadata),
                   'folder': selected, 'project': project, 'replayed': True}
-        warning = self._activate_saved_documents(request or {}, project)
+        warning = self._activate_saved_documents(request or {}, project, path)
         if warning:
             result['warning'] = warning
         return result
@@ -1823,7 +1827,7 @@ class ProjectLibrary:
                 if isinstance(selection, SaveSelection) and selection.fingerprint is not None:
                     existing = _confirmed_bytes(selected_path, selection,
                         "The selected file changed. Reload the project or use Save As to confirm its current contents.")
-                    if "project_status" not in request:
+                    if "project_status" not in captured:
                         if has_project_identity(existing):
                             captured["project_status"] = project_summary(existing, edition=self.edition)["project_status"]
                             payload = export_project(self.store, captured, edition=self.edition)
@@ -1842,7 +1846,7 @@ class ProjectLibrary:
                 if ticket:
                     self.project_details.finish(ticket['id'])
                 warning = self._saved_takeoff_source(request, captured, path)
-                document_warning = self._activate_saved_documents(request, project)
+                document_warning = self._activate_saved_documents(request, project, path)
                 if document_warning:
                     warning = (warning + ' ' if warning else '') + document_warning
             if selected_folder is None:

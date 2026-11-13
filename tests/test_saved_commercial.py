@@ -86,6 +86,102 @@ class SavedQuoteTests(unittest.TestCase):
         self.assertEqual(result['error_count'], 1)
         self.assertEqual([card['id'] for card in result['documents']], [self.document['id']])
 
+    def test_quote_stage_updates_exact_saved_copy_and_manual_stage_survives_ordinary_saves(self):
+        original = self.path.read_bytes()
+        other = self.folder / 'copied.cf.json'
+        other.write_bytes(original)
+        self.library.commercial_register(refresh=True)
+        card = next(c for c in self.register()['documents'] if c['source_path'] == str(other))
+        self.source = {'file_id':card['source_file'], 'revision':card['source_revision']}
+        doc = self.document
+        for stage, project_stage in [('Review','Quote'), ('Presented','Engage'), ('Accepted','Won'), ('Lost','Lost'), ('Draft','New')]:
+            response = self.perform('status', id=doc['id'], version=doc['version'], status=stage)
+            with self.assertRaises(CommercialConflict):
+                self.perform('status', id=doc['id'], version=doc['version'], status='Draft')
+            self.source['revision'] = response['revision']
+            doc = response['result']
+            self.assertEqual(json.loads(other.read_bytes())['project_status'], project_stage)
+            self.assertEqual(self.path.read_bytes(), original)
+        file = next(f for f in self.library.listing()['files'] if f['path'] == str(other))
+        manual = self.library.update_status({'id':file['id'], 'revision':file['revision'], 'project_status':'Lost'})['file']
+        self.source['revision'] = manual['revision']
+        doc['fields']['title'] = 'Revised quote wording'
+        result = self.perform('save', id=doc['id'], version=doc['version'], kind='quote', status='Draft', fields=doc['fields'])
+        self.assertEqual(json.loads(other.read_bytes())['project_status'], 'Lost')
+        self.source['revision'] = result['revision']
+        self.perform('save', id=doc['id'], version=result['result']['version'], kind='quote', status='Review', fields=doc['fields'])
+        self.assertEqual(json.loads(other.read_bytes())['project_status'], 'Quote')
+        self.assertEqual(self.path.read_bytes(), original)
+
+    def test_active_project_uses_latest_quote_transition_and_retries_failed_file_write(self):
+        file = self.library.listing()['files'][0]
+        opened = self.library.load(file['id'])
+        workspace = opened['certification_workspace_id']
+        service = self.library.commercial
+        original = self.path.read_bytes()
+        snapshot = json.loads(original)
+        request = {'save_token':opened['file']['save_token'], 'estimate':snapshot['estimate'],
+                   'calculators':{key:{'inputs':value['inputs']} for key,value in snapshot['calculators'].items()},
+                   'certifications':{'workspace_id':workspace, 'draft':None}, 'project_status':'New'}
+        first = service.status(workspace, self.document['id'], 1, 'Accepted')
+        second = service.save(workspace, {'kind':'quote', 'status':'Review', 'fields':complete_quote(default_fields('quote'))})
+        stale = service.capture(workspace)
+        second = service.status(workspace, second['id'], second['version'], 'Lost')
+        with self.assertRaises(CommercialConflict):
+            self.library.save({**request, 'commercial_documents':stale})
+        request['commercial_documents'] = service.capture(workspace)
+        peer = self.folder / 'other-native-copy.cf.json'
+        peer.write_bytes(original)
+        listing = self.library.listing(refresh=True)
+        peer_id = next(f['id'] for f in listing['files'] if f['path'] == str(peer))
+        other_token = self.library.load(peer_id)['file']['save_token']
+        with self.assertRaises(ValidationError):
+            self.library.save({**request, 'save_token':other_token})
+        self.assertEqual(peer.read_bytes(), original)
+        with patch('estimator.project_library._atomic_write', side_effect=OSError('Unavailable target')), self.assertRaises(OSError):
+            self.library.save(request)
+        self.assertEqual(self.path.read_bytes(), original)
+        saved = self.library.save(request)['file']
+        self.assertEqual(saved['project_status'], 'Lost')
+        self.assertEqual(json.loads(self.path.read_bytes())['project_status'], 'Lost')
+        with self.assertRaises(CommercialConflict), service.publishing(workspace, stale, 'Quote'):
+            self.fail('A writer published its stale capture after the current transition was acknowledged.')
+        manual = self.library.update_status({'save_token':saved['save_token'], 'revision':saved['revision'], 'project_status':'Engage'})['file']
+        request.update(save_token=manual['save_token'], project_status='Engage')
+        first['fields']['title'] = 'Independent text edit'
+        service.save(workspace, {key:first[key] for key in ('id','version','kind','status','fields')})
+        request['commercial_documents'] = service.capture(workspace)
+        self.assertEqual(self.library.save(request)['file']['project_status'], 'Engage')
+
+    def test_external_native_save_as_rebinds_quote_stage_to_the_new_file(self):
+        from estimator.native_dialogs import SaveSelection
+        folder = self.root / 'external'
+        folder.mkdir()
+        external = folder / 'outside.cf.json'
+        target = folder / 'copy.cf.json'
+        external.write_bytes(self.path.read_bytes())
+        shutil.copytree(self.folder / '.ceasefire-evidence', folder / '.ceasefire-evidence')
+        self.library.dialogs = type('Picker', (), {
+            'choose_open':lambda *_:str(external), 'choose_save':lambda *_:SaveSelection(str(target),None)})()
+        opened = self.library.open_file()
+        workspace = opened['certification_workspace_id']
+        service = self.library.commercial
+        original = external.read_bytes()
+        snapshot = json.loads(original)
+        request = {'estimate':snapshot['estimate'], 'calculators':{k:{'inputs':v['inputs']} for k,v in snapshot['calculators'].items()},
+                   'certifications':{'workspace_id':workspace, 'draft':None}, 'project_status':'New'}
+        first = service.status(workspace, self.document['id'], 1, 'Presented')
+        request['commercial_documents'] = service.capture(workspace)
+        copied = self.library.save_as(request)['file']
+        self.assertEqual(copied['project_status'], 'Engage')
+        service.status(workspace, first['id'], first['version'], 'Accepted')
+        request['commercial_documents'] = service.capture(workspace)
+        with self.assertRaises(ValidationError):
+            self.library.save({**request, 'save_token':opened['file']['save_token']})
+        saved = self.library.save({**request, 'save_token':copied['save_token']})['file']
+        self.assertEqual((saved['path'], saved['project_status']), (str(target),'Won'))
+        self.assertEqual(external.read_bytes(), original)
+
     def test_account_links_follow_saved_file_identity_without_rewriting_documents(self):
         from estimator.account_relations import AccountRelations
         from estimator.contacts import ContactsStore, LINK_KINDS

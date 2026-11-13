@@ -1,4 +1,5 @@
 {
+  "Clear the relevant signature section before moving this Purchase Order back.": ["이 구매 주문서를 이전 상태로 되돌리기 전에 해당 서명란을 지우세요.", "Burahin ang kaukulang seksiyon ng lagda bago ibalik ang purchase order na ito sa dating katayuan.", "Xóa phần chữ ký liên quan trước khi chuyển đơn đặt hàng này về trạng thái trước đó."],
   "Sign and move": [
     "서명 후 이동",
     "Lagdaan at ilipat",

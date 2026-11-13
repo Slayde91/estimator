@@ -2,7 +2,6 @@
 
 from concurrent.futures import ThreadPoolExecutor
 import copy
-import http.client
 import json
 import os
 from pathlib import Path
@@ -12,6 +11,7 @@ import threading
 import unittest
 from unittest.mock import patch
 
+from feature_client import StaffConnection
 from estimator.catalog import ValidationError
 from estimator.company_settings import DEFAULTS
 from estimator.download_files import DownloadDestination, standard_downloads_directory, write_download_file
@@ -230,7 +230,7 @@ class DownloadApiTests(unittest.TestCase):
         cls.temporary.cleanup()
 
     def request(self, path, body=None, method='POST'):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=90)
+        connection = StaffConnection(self.server, timeout=90)
         try:
             connection.request(method, path, json.dumps(body) if body is not None else None, {'Content-Type': 'application/json'})
             response = connection.getresponse()

@@ -373,7 +373,7 @@ class SchedulerStore:
         if not isinstance(query, dict) or set(query) - READ_FIELDS[action]:
             raise SchedulerError('The Scheduler request contains unknown filters.')
         with self.connect() as db:
-            user = self._user(db, token, required=action not in {'bootstrap', 'organization'})
+            user = self._user(db, token, required=action != 'bootstrap')
             if action == 'shift-site-contacts':
                 self._admin(user)
                 identity = _text(query.get('id'), 'Work Order', 175, True)
@@ -536,10 +536,8 @@ class SchedulerStore:
             if action == 'setup':
                 return self._setup(db, payload)
             if action == 'organization':
-                user = None
-                if db.execute('SELECT 1 FROM scheduler_members LIMIT 1').fetchone():
-                    user = self._user(db, token)
-                    self._admin(user)
+                user = self._user(db, token)
+                self._admin(user)
                 previous = self._read_settings(db)
                 self._version(payload, previous)
                 name = payload.get('timezone')
@@ -547,7 +545,7 @@ class SchedulerStore:
                     raise SchedulerError('Choose a listed IANA time zone.')
                 settings = {**previous, 'timezone': name, 'version': previous['version'] + 1}
                 db.execute('UPDATE scheduler_settings SET data=? WHERE id=1', (_json(settings),))
-                self._audit(db, user['id'] if user else 'setup', 'organization.timezone', 'settings', previous, settings)
+                self._audit(db, user['id'], 'organization.timezone', 'settings', previous, settings)
                 return {'timezone': name, 'version': settings['version']}
             user = self._user(db, token)
             if action == 'logout':

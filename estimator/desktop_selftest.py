@@ -3,6 +3,7 @@
 import hashlib
 import json
 from pathlib import Path
+import secrets
 import threading
 import time
 import traceback
@@ -205,7 +206,14 @@ def self_test(data_directory, output_report):
                 checkpoint('native document loaded')
                 probe = NativeProbe(window)
                 checkpoint('native script probe starting')
+                probe.wait('document.querySelector("#staff-login [name=name]")?.disabled === false && !!window.chrome?.webview', seconds=cold_remaining())
+                probe.fill('#staff-login [name=name]', 'Disposable desktop administrator')
+                probe.fill('#staff-login [name=email]', 'native-acceptance@example.test')
+                probe.fill('#staff-login [name=password]', secrets.token_urlsafe(32))
+                probe.click('#staff-login [type=submit]')
                 probe.wait('window.CeasefireDesktop?.status().ready === true && !!window.chrome?.webview', seconds=cold_remaining())
+                assert probe.script('window.ClassifireAccess.user?.role') == 'admin'
+                report['checks'].append('First-run staff setup opened an authenticated native application')
                 frame = probe.window_geometry()
                 report['native_frame'] = frame
                 left, top, width, height = frame['bounds']
@@ -409,7 +417,12 @@ def self_test(data_directory, output_report):
             finally:
                 done.set()
                 cancel_deadline()
-        window.events.loaded += lambda: threading.Thread(target=check, name='NativeAcceptance', daemon=True).start()
+        # Authenticating navigates the same native window to a second document.
+        started = threading.Lock()
+        def start_probe():
+            if started.acquire(blocking=False):
+                threading.Thread(target=check, name='NativeAcceptance', daemon=True).start()
+        window.events.loaded += start_probe
     try:
         run(data_directory=directory, seed_directory=seed, project_dialogs=Dialogs(), hidden=True, on_window=mounted)
         if not done.wait(1):

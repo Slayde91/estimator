@@ -18,7 +18,7 @@ from .document_numbers import DocumentNumbers, valid_reference, validated_counte
 from .company_settings import DEFAULTS as COMPANY_DEFAULTS
 from .evidence_files import _directory
 from .commercial_requirements import require_ready, requirements
-from .work_order_signing import SECTION_INPUTS, reconciled_status, require_purchase_rollback_clear
+from .work_order_signing import QUOTE_SIGNERS, SECTION_INPUTS, reconciled_status, require_purchase_rollback_clear, validate_quote_signers
 
 KINDS = {'quote': 'Quote', 'work_order': 'Work Order', 'purchase_order': 'Purchase Order'}
 STATUSES = {
@@ -42,6 +42,7 @@ ORDER_FIELDS = ('start_date', 'end_date', 'urgency', 'quote_id', 'work_order_id'
                 'ship_to_address', 'delivery_date', 'expense_type', 'delivery_method', 'requested_by',
                 'requested_date', 'sent_by', 'sent_date', 'verified_by', 'verified_date', 'verification', 'prepared_date')
 FIELD_KEYS = {'title', 'details', 'introduction', 'lines', 'scope', 'scope_tables', 'sources', 'allowances', 'terms', 'order', 'company_reference'}
+QUOTE_OPTIONAL_FIELDS = ('quoted_by', 'quoted_date')
 WORK_ORDER_OPTIONAL_FIELDS = ('progress_by', 'progress_date', 'closed_date', 'claimed_by', 'claim_date', 'details_by', 'details_date')
 PURCHASE_PARTY_LABELS = {'supplier_account_id':'supplier', 'supplier_contact_id':'supplier_contact', 'site_contact_id':'ship_to_name'}
 PURCHASE_ORDER_OPTIONAL_DEFAULTS = ('site_contact_number', 'delivery_time', 'rejection_reason')
@@ -313,7 +314,7 @@ def default_fields(kind, details=None, company=None, *, rates=None):
     fields = {'title': KINDS[kind], 'details': {key: supplied.get(key, '') for key in DETAIL_FIELDS},
             'introduction': INTRODUCTION if kind == 'quote' else '', 'lines': [], 'scope': '',
             'scope_tables': [], 'sources': [], 'allowances': '<ul><li>N / A</li></ul>' if kind == 'quote' else '', 'terms': default_terms(company) if kind == 'quote' else '',
-            'order': {key: '' for key in (*ORDER_FIELDS, *(WORK_ORDER_OPTIONAL_FIELDS if kind=='work_order' else PURCHASE_ORDER_OPTIONAL_DEFAULTS if kind=='purchase_order' else ()))},
+            'order': {key: '' for key in (*ORDER_FIELDS, *(WORK_ORDER_OPTIONAL_FIELDS if kind=='work_order' else PURCHASE_ORDER_OPTIONAL_DEFAULTS if kind=='purchase_order' else QUOTE_OPTIONAL_FIELDS if kind=='quote' else ()))},
             'rate_schedule': schedule,
             'company_reference': {key: company.get(key, '') for key in ('name', 'abn')}}
     if kind == 'purchase_order':
@@ -344,7 +345,8 @@ def validate_fields(value, *, kind=None):
     signatures = value.get('signatures', {})
     signature_keys = (WORK_ORDER_SIGNATURE_FIELDS if kind == 'work_order' else
                       PURCHASE_ORDER_SIGNATURE_FIELDS if kind == 'purchase_order' else
-                      WORK_ORDER_SIGNATURE_FIELDS | PURCHASE_ORDER_SIGNATURE_FIELDS if kind is None else set())
+                      QUOTE_SIGNERS.keys() if kind == 'quote' else
+                      WORK_ORDER_SIGNATURE_FIELDS | PURCHASE_ORDER_SIGNATURE_FIELDS | QUOTE_SIGNERS.keys() if kind is None else set())
     if not isinstance(signatures, dict) or set(signatures) - signature_keys:
         raise ValidationError('Invalid commercial document signatures.')
     if signatures:
@@ -381,7 +383,8 @@ def validate_fields(value, *, kind=None):
     for key, keys in (('details', DETAIL_FIELDS), ('order', ORDER_FIELDS)):
         fields = value[key]
         optional = ((WORK_ORDER_OPTIONAL_FIELDS if kind=='work_order' else PURCHASE_ORDER_OPTIONAL_FIELDS if kind=='purchase_order'
-                     else (*WORK_ORDER_OPTIONAL_FIELDS,*PURCHASE_ORDER_OPTIONAL_FIELDS) if kind is None else ()) if key=='order'
+                     else QUOTE_OPTIONAL_FIELDS if kind=='quote'
+                     else (*WORK_ORDER_OPTIONAL_FIELDS,*PURCHASE_ORDER_OPTIONAL_FIELDS,*QUOTE_OPTIONAL_FIELDS) if kind is None else ()) if key=='order'
                     else RECIPIENT_DIRECTORY_FIELDS if kind in ('quote','work_order',None) else ())
         if not isinstance(fields, dict) or set(fields) - set(keys) - set(optional):
             raise ValidationError('Commercial document details contain unsupported fields.')
@@ -437,6 +440,8 @@ def validate_fields(value, *, kind=None):
         result['sources'].append({'estimate_id': _text(source['estimate_id'], 'Estimate identity', 100), 'sha256': source['sha256']})
     if kind in ('work_order', 'purchase_order'):
         _normalise_legacy_reference(kind, result)
+    if kind == 'quote':
+        validate_quote_signers(result)
     if 'excluded_quote_files' in value:
         excluded = value['excluded_quote_files']
         if (kind not in ('work_order', None) or not isinstance(excluded, list) or len(excluded) > MAX_FILES

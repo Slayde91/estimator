@@ -158,8 +158,8 @@ def _fields(story, pairs, styles, *, keep_together=False):
         story.append(table)
 
 
-def _purchase_order_signer(story, label, key, date_label, date_key, order, signatures, styles):
-    """Keep each signature beside its retained name and date on new PO exports."""
+def _signer_table(story, label, key, date_label, date_key, order, signatures, styles):
+    """Keep the signature beside its retained name and date."""
     signature = Signature(signatures[key], WIDTH * .4 - 14, 52) if signatures.get(key) else 'Not signed'
     table = _table((label, 'Name', date_label),
                    [(signature, order.get(key, ''), order.get(date_key, ''))],
@@ -351,8 +351,8 @@ def _build(story, document, number, company, *, first_part=False):
 
 def render_commercial_pdf(document, number, *, company, scope_documents=None, append_files=None):
     register_pdf_fonts()
-    fields = validate_fields(document['fields'])
     kind = document['kind']
+    fields = validate_fields(document['fields'], kind=kind)
     styles = _styles(quote=kind == 'quote', work_order=kind == 'work_order', purchase_order=kind == 'purchase_order')
     details, order = fields['details'], fields['order']
     story = [] if kind in {'quote', 'work_order', 'purchase_order'} else [_paragraph(KINDS[kind].upper(), styles['title'])]
@@ -407,6 +407,9 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
         _summary(story, fields, styles)
         _totals(story, fields, styles)
         _rates(story, fields['rate_schedule'], styles)
+        for key, label, date_key in [('quoted_by', 'Quoted by', 'quoted_date'), ('reviewed_by', 'Reviewed by', 'review_date')]:
+            if fields.get('signatures', {}).get(key):
+                _signer_table(story, label, key, 'Date', date_key, order, fields['signatures'], styles)
         reference = fields['company_reference']
         previous_company = escape(f"{reference['name']} (ABN {reference['abn']})", quote=False)
         current_company = escape(f"{company.get('name', '')} (ABN {company.get('abn', '')})", quote=False)
@@ -494,7 +497,7 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
                 narrative = _table(None, pairs, styles, [125, WIDTH - 125])
                 narrative.splitInRow = 1
                 story.append(narrative)
-            _purchase_order_signer(story, label, key, date_label, date_key, order, signatures, styles)
+            _signer_table(story, label, key, date_label, date_key, order, signatures, styles)
     if story:
         parts.append(_build(story, document, number, company, first_part=not parts))
     writer = PdfWriter()

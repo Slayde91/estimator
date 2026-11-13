@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT), str(ROOT / 'tests')]
 
 from test_firestopping_library import editable_library
-from estimator.server import create_server
+from feature_server import create_server
 
 
 def make_library(directory):

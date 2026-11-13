@@ -1,6 +1,5 @@
 import base64
 import csv
-import http.client
 from io import BytesIO, StringIO
 import json
 from pathlib import Path
@@ -9,6 +8,7 @@ import threading
 import unittest
 from unittest.mock import patch
 
+from feature_client import StaffConnection
 from estimator.catalog import ROOT, baseline
 from estimator.calculator import labour_breakdown
 from estimator.server import create_server
@@ -35,7 +35,7 @@ class ServerTests(unittest.TestCase):
 
     def request(self, method, path, body=None, headers=None):
         # Artifact serialization can exceed five seconds on a busy CI worker.
-        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=30)
+        connection = StaffConnection(self.server, timeout=30)
         try:
             supplied = {"Content-Type": "application/json", **(headers or {})}
             connection.request(method, path, body=json.dumps(body) if isinstance(body, dict) else body, headers=supplied)

@@ -5,7 +5,7 @@ ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT));sys.path.insert(0,str(ROOT/'tests'))
 from test_boss_matrix_import import SOURCE,CATALOG,sample
 from scripts.import_boss_matrix import make_entry
-from estimator.server import create_server
+from feature_server import create_server
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('--directory',required=True)

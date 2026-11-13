@@ -39,7 +39,7 @@ def make_search_pdf(path):
 
 
 if __name__ == '__main__':
-    from estimator.server import create_server
+    from feature_server import create_server
     from reportlab.pdfgen import canvas
     parser = argparse.ArgumentParser(); parser.add_argument('--directory', required=True)
     folder = Path(parser.parse_args().directory).resolve(); folder.mkdir(parents=True, exist_ok=True)

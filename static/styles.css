@@ -550,9 +550,9 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 @media screen {
   #project-pages.project-tabs,#document-pages.document-tabs{height:42px;min-height:42px;overflow-y:hidden;scrollbar-width:none}
   #document-pages>.calculator-page:focus-visible{outline-offset:-4px}
-  #library-pages.library-tabs,#document-pages.document-tabs{box-shadow:0 1px var(--red)}
+  #library-pages.library-tabs,#document-pages.document-tabs,#project-pages.project-tabs,#takeoff-pages.takeoff-tabs,#contacts-root .contacts-tabs{box-shadow:0 1px var(--red)}
   #document-pages.document-tabs{width:100%;background:transparent}
-  #calculator-kind-pages.calculator-kind-tabs,#takeoff-pages.takeoff-tabs{margin-bottom:0}
+  #calculator-kind-pages.calculator-kind-tabs{margin-bottom:0}
   #calculator-kind-pages.calculator-kind-tabs{height:auto;min-height:var(--calculator-control-height)}
   #calculator-kind-pages>.calculator-page{height:var(--calculator-control-height)}
   :is(#calculator-kind-pages,#takeoff-pages)>.calculator-page:focus-visible{outline-offset:-4px}
@@ -563,6 +563,7 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .workspace-section-heading{min-width:0}
 .estimate-banner-heading h1,.workspace-view :is(.page-heading,.takeoff-workspace-heading,.calculator-workspace-heading) :is(h1,h2){font-size:18px}
 #view-calculators{--calculator-control-height:42px}
+#penetration-library-heading,#technical-library-heading{line-height:22px}
 .workspace-section-heading>.calculator-workspace-heading{padding:0;margin:0 0 20px;align-items:flex-start;flex-direction:row;flex-wrap:nowrap}
 .workspace-section-heading #calculator-save-status{flex:0 0 auto;margin:0;margin-inline-start:auto;max-width:45%;text-align:end}
 /* Keep the same title-to-tabs spacing as adjacent pages. Taller buttons can

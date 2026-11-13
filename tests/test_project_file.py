@@ -2,7 +2,6 @@
 
 import base64
 from copy import deepcopy
-import http.client
 import json
 import math
 from pathlib import Path
@@ -11,6 +10,7 @@ import threading
 import unittest
 from unittest.mock import patch
 
+from feature_client import StaffConnection
 from estimator.calculator import fields
 from estimator.calculator_defaults import default_calculator_inputs
 from estimator.schedule_rows import blank_schedule_defaults, empty_schedule_inputs
@@ -473,7 +473,7 @@ class ProjectFileApiTests(unittest.TestCase):
         cls.temp.cleanup()
 
     def request(self, path, body, headers=None):
-        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=60)
+        connection = StaffConnection(self.server, timeout=60)
         try:
             connection.request("POST", path, json.dumps(body), {"Content-Type": "application/json", **(headers or {})})
             response = connection.getresponse()

@@ -1,4 +1,10 @@
 {
+  "Quoted by": "দরপত্র প্রস্তুতকারী",
+  "Sign Quoted by": "দরপত্র প্রস্তুতকারী হিসেবে স্বাক্ষর করুন",
+  "Change Quoted by": "দরপত্র প্রস্তুতকারীর স্বাক্ষর বদলান",
+  "Clear Quoted by": "দরপত্র প্রস্তুতকারীর স্বাক্ষর মুছুন",
+  "Create administrator account": "প্রশাসক অ্যাকাউন্ট তৈরি করুন",
+  "Staff sign-in is required.": "কর্মীদের সাইন ইন করতে হবে।",
   "Choose an In progress Work Order for this shift.": "এই শিফটের জন্য চলমান একটি কাজের আদেশ বেছে নিন।",
   "Site contact details do not fit in Notes.": "নোটে সাইটের যোগাযোগের ব্যক্তির তথ্য রাখার জন্য যথেষ্ট জায়গা নেই।",
   "Checking location…": "অবস্থান যাচাই করা হচ্ছে…",

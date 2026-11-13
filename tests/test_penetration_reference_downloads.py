@@ -1,7 +1,6 @@
 """Optional Takeoffs references are captured only in disposable download inputs."""
 from contextlib import ExitStack
 from copy import deepcopy
-import http.client
 import json
 from pathlib import Path
 import tempfile
@@ -10,6 +9,7 @@ import unittest
 from unittest.mock import patch
 from uuid import uuid4
 
+from feature_client import StaffConnection
 from estimator.penetration_calculator import normalize_draft
 from estimator.server import create_server
 
@@ -46,7 +46,7 @@ class ReferenceDownloadHTTPTests(unittest.TestCase):
         cls.server.shutdown(); cls.server.server_close(); cls.thread.join(); cls.temp.cleanup()
 
     def request(self, route, body):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=30)
+        connection = StaffConnection(self.server, timeout=30)
         try:
             connection.request('POST', route, json.dumps(body), {'Content-Type': 'application/json'})
             response = connection.getresponse()

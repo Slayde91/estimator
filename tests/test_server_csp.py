@@ -1,12 +1,12 @@
 """HTTP security policy coverage for the optional browser annotation workaround."""
 
-import http.client
 from pathlib import Path
 import tempfile
 import threading
 import unittest
 from unittest.mock import Mock, patch
 
+from feature_client import StaffConnection
 from estimator.server import create_server, main
 
 
@@ -44,7 +44,7 @@ class ContentSecurityPolicyTests(unittest.TestCase):
         cls.temp.cleanup()
 
     def request(self, server, path, *, method="GET", headers=None, body=None):
-        connection = http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=30)
+        connection = StaffConnection(server, timeout=30)
         try:
             connection.request(method, path, body=body, headers=headers or {})
             response = connection.getresponse()

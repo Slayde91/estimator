@@ -696,7 +696,7 @@ let passed=0;
   assert.ok(html.indexOf('id="penetration-schedule-heading"')<html.indexOf('id="penetration-schedule-recalculate"'));assert.ok(html.indexOf('id="penetration-schedule-recalculate"')<html.indexOf('<div class="table-scroll"><table><thead><tr><th scope="col">Item</th>'));
   assert.equal((html.match(/<th scope="col">Total<\/th><th scope="col">Diagram<\/th><th scope="col">Report<\/th><th scope="col">System<\/th><th scope="col">Actions<\/th>/g)||[]).length,2,'Both Firestopping schedules expose matching Report and System columns');
   assert.doesNotMatch(html,/<th scope="col">Status<\/th>/);
-  assert.match(html,/<section class="card firestopping-breakdown"[^>]*>\s*<div class="section-heading"><h2>Firestopping Breakdown<\/h2><\/div>/);
+  assert.match(html,/data-main-section="firestopping-breakdown"[^>]*>\s*<div class="section-heading"><h2>Firestopping Breakdown<\/h2><\/div>/);
   assert.doesNotMatch(html,/firestopping-breakdown-part|Schedule breakdown/);
   assert.match(html,/<section id="main-panel-material-breakdown"[^>]*>\s*<div class="section-heading"><h2 id="breakdown-heading">Material Breakdown<\/h2><\/div>/);
   assert.match(html,/<section class="card labour-breakdown-section" id="labour-breakdown"[^>]*><div class="section-heading"><h2 id="labour-heading">Labour Breakdown<\/h2><\/div>/);
@@ -710,7 +710,7 @@ let passed=0;
     assert.match(html,new RegExp(`id="penetration-schedule-tab-${view}"[^>]*role="tab"[^>]*aria-controls="penetration-schedule-panel-${view}"`));
     assert.match(html,new RegExp(`id="penetration-schedule-panel-${view}"[^>]*role="tabpanel"[^>]*aria-labelledby="penetration-schedule-tab-${view}"`));
   }
-  assert.match(html,/id="penetration-schedule-breakdown-card"[^>]*>\s*<div class="section-heading"><h2>Firestopping Breakdown<\/h2><\/div>\s*<div id="penetration-schedule-breakdown"/);
+  assert.match(html,/id="penetration-schedule-breakdown-card" aria-label="Firestopping Breakdown"[^>]*>\s*<div id="penetration-schedule-breakdown"/);
   assert.match(html,/<section class="penetration-schedule-summary-section"[^>]*>\s*<h3[^>]*>Summary<\/h3>/);
   assert.doesNotMatch(html,/<summary><h3[^>]*>Summary<\/h3><\/summary>/);
   assert.match(html,/<details class="card expandable-breakdown penetration-item-breakdown"[^>]*>\s*<summary><h3[^>]*>Item Breakdown<\/h3><\/summary>/);

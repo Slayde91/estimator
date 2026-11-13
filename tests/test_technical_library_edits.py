@@ -1,7 +1,6 @@
 """Technical CRUD is persistent metadata, with no supplier/pricing authority."""
 from copy import deepcopy
 import json
-import http.client
 from pathlib import Path
 import tempfile
 import unittest
@@ -9,6 +8,7 @@ import threading
 from uuid import uuid4
 from unittest.mock import patch
 
+from feature_client import StaffConnection
 from estimator.catalog import ValidationError
 from estimator.firestopping_library import FirestoppingLibrary, LibraryConflict
 from estimator.reference_library import ReferenceLibrary, ReferenceNotFound
@@ -326,7 +326,7 @@ class TechnicalLibraryEditTests(unittest.TestCase):
             server.shutdown(); server.server_close(); thread.join(timeout=5)
         self.addCleanup(close)
         def request(method, path, body=None):
-            connection = http.client.HTTPConnection('127.0.0.1', server.server_port)
+            connection = StaffConnection(server)
             connection.request(method, path, body=json.dumps(body) if body is not None else None,
                                headers={'Content-Type': 'application/json'} if body is not None else {})
             response = connection.getresponse(); result = response.status, json.loads(response.read()); connection.close(); return result

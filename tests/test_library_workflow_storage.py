@@ -3,7 +3,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 import base64
-import http.client
 from io import BytesIO
 import json
 from pathlib import Path
@@ -14,6 +13,7 @@ from unittest.mock import patch
 
 from PIL import Image
 
+from feature_client import StaffConnection
 from estimator.catalog import ValidationError
 from estimator.firestopping_library import FirestoppingLibrary, LibraryConflict
 from estimator.library_facets import SERVICES
@@ -268,7 +268,7 @@ class LibraryWorkflowStorageTests(unittest.TestCase):
         thread.start()
 
         def request(path, body=None):
-            connection = http.client.HTTPConnection('127.0.0.1', server.server_port, timeout=30)
+            connection = StaffConnection(server, timeout=30)
             try:
                 connection.request('POST' if body is not None else 'GET', path,
                                    body=json.dumps(body) if body is not None else None,

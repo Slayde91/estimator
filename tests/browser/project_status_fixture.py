@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from estimator.project_file import export_project
-from estimator.server import create_server
+from feature_server import create_server
 from estimator.storage import Store
 
 directory = Path(sys.argv[1]).resolve()

@@ -2,7 +2,6 @@
 
 import base64
 from concurrent.futures import ThreadPoolExecutor
-from http.client import HTTPConnection
 from io import BytesIO
 import json
 from pathlib import Path
@@ -13,6 +12,7 @@ from unittest.mock import patch
 
 from openpyxl import Workbook, load_workbook
 
+from feature_client import StaffConnection
 from estimator.server import create_server
 
 
@@ -32,7 +32,7 @@ class DirectoryTests(unittest.TestCase):
 
     def request(self, route, body=None, expected=200, headers=None):
         # Conversion exercises a real numbered project write and durable recovery.
-        client = HTTPConnection("127.0.0.1", self.server.server_port, timeout=60 if route == "leads/convert" else 10)
+        client = StaffConnection(self.server, timeout=60 if route == "leads/convert" else 10)
         try:
             client.request("POST" if body is not None else "GET", "/api/contacts/" + route,
                            json.dumps(body) if body is not None else None, {"Content-Type": "application/json", **(headers or {})})
@@ -249,7 +249,7 @@ class DirectoryTests(unittest.TestCase):
         self.request("leads", create, 403, {"Origin": "https://unrelated.example"})
         self.request("leads", create, 403, {"Sec-Fetch-Site": "cross-site"})
         def attempt():
-            connection = HTTPConnection("127.0.0.1", self.server.server_port)
+            connection = StaffConnection(self.server)
             try:
                 connection.request("POST", "/api/contacts/leads", json.dumps(create), {"Content-Type": "application/json"})
                 response = connection.getresponse()

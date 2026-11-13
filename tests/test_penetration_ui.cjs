@@ -494,8 +494,9 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     const routes={'Unlagged Pipes':['Unlagged Pipes'],'Lagged Pipes':['Lagged Pipes']},bands={pipe:[{maximum:50,hours:.25},{maximum:100,hours:.3}],board:[{maximum:.15,hours:.5}],mastic:[{maximum:1,hours:.2}],framing:[{maximum:1,hours:.3}],wrap:[{maximum:.1,hours:.25}]};
     for(const draft of [metadata.defaults,metadata.schedule_defaults])Object.assign(draft.globals,{register_allowance_hours:.25,waste_unlagged_pipes:0,waste_lagged_pipes:0,waste_plastic_pipes:0,waste_bundles:0,service_routes:copy(routes),labour_bands:copy(bands)});
     h.audit.state.definition=metadata;Object.assign(h.audit.state.draft.globals,metadata.defaults.globals);Object.assign(h.audit.state.schedule.draft.globals,metadata.schedule_defaults.globals);
-    h.audit.renderFields();assert.doesNotMatch(text(h.byId('penetration-input-groups')),/SETTINGS/);assert.ok(h.byId('penetration-input-groups').children.every(button=>button.getAttribute('role')==='tab'));
-    await h.byId('penetration-settings').emit('click');assert.equal(h.audit.state.group,'SETTINGS');assert.equal(h.byId('penetration-settings').getAttribute('aria-pressed'),'true');
+    const settingsTab=h.byId('penetration-settings');settingsTab.dataset.penetrationGroup='SETTINGS';settingsTab.id='penetration-settings';settingsTab.setAttribute('role','tab');
+    h.audit.renderFields();assert.equal(h.byId('penetration-input-groups').children.at(-1),settingsTab);assert.ok(h.byId('penetration-input-groups').children.every(button=>button.getAttribute('role')==='tab'));
+    await settingsTab.emit('click');assert.equal(h.audit.state.group,'SETTINGS');assert.equal(settingsTab.getAttribute('aria-selected'),'true');assert.equal(h.byId('penetration-row-fields').getAttribute('aria-labelledby'),settingsTab.id);
     const settingsRoot=h.byId('penetration-row-fields');
     assert.match(text(settingsRoot),/Setting.*Applies to.*Value.*Labour allowances.*Every Firestopping item.*Material waste.*SERVICE-TAB ROUTING.*PRECALCULATED TASK-HOUR BANDS.*Board Task Hours.*Wrap Task Hours/);
     assert.doesNotMatch(text(settingsRoot),/Separate service types with semicolons|Edit both thresholds and hours/);

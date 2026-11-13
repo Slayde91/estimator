@@ -3,7 +3,6 @@ from copy import deepcopy
 from contextlib import closing
 from hashlib import sha256
 from io import BytesIO
-import http.client
 import gc
 import json
 from pathlib import Path
@@ -17,6 +16,7 @@ from zipfile import ZipFile
 from openpyxl import load_workbook
 from pypdf import PdfReader
 
+from feature_client import StaffConnection
 from estimator.catalog import ValidationError
 from estimator.company_settings import DEFAULTS
 from estimator.reference_library import ReferenceLibrary
@@ -325,7 +325,7 @@ class TechnicalItemHTTPTests(unittest.TestCase):
         cls.server.shutdown(); cls.server.server_close(); cls.thread.join(); gc.collect(); cls.temp.cleanup()
 
     def request(self, route, body, method='POST', headers=None):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=30)
+        connection = StaffConnection(self.server, timeout=30)
         connection.request(method, route, json.dumps(body), {'Content-Type': 'application/json', **(headers or {})})
         response = connection.getresponse()
         result = response.status, response.getheader('Content-Type'), response.getheader('Content-Disposition'), response.read()

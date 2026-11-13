@@ -2,7 +2,6 @@
 
 from copy import deepcopy
 import hashlib
-import http.client
 import json
 from pathlib import Path
 import tempfile
@@ -10,6 +9,7 @@ import threading
 import unittest
 from unittest.mock import patch
 
+from feature_client import StaffConnection
 from estimator.catalog import ValidationError
 from estimator.reference_library import ReferenceLibrary, ReferenceNotFound
 from estimator.server import create_server
@@ -337,7 +337,7 @@ class ReferenceLibraryApiTests(unittest.TestCase):
         cls.temp.cleanup()
 
     def request(self, path, headers=None):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=15)
+        connection = StaffConnection(self.server, timeout=15)
         try:
             connection.request('GET', path, headers=headers or {})
             response = connection.getresponse()

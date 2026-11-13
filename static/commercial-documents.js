@@ -1274,6 +1274,16 @@
       estimateControls.append(addCustomRow, chooser);
       form.append(estimateControls);
       form.append(node("section", "commercial-lines"), node("div", "commercial-totals"), rateSchedule(fields), node("section", "commercial-scope"), richEditor("Allowances", fields.allowances, value => fields.allowances = value, markDirty, true), richEditor("Terms & Conditions", displayTerms(fields.terms), value => fields.terms = value, markDirty, true));
+      for(const [key,label] of [['quoted_by','Quoted by'],['reviewed_by','Reviewed by']]){
+        const row=node('section','commercial-signer-row'), pair=node('div','commercial-field-pair commercial-review-person-details');
+        row.setAttribute('aria-label',label);window.CeasefireI18n?.attr(row,'aria-label',label);
+        for(const [name,caption,type] of [[key,'Name','text'],[signatureDates[key],'Date','date']]){
+          const control=node('input');control.type=type;control.readOnly=true;control.dataset.orderField=name;control.value=fields.order[name] || '';
+          const wrapper=field(caption,control);window.CeasefireI18n?.text(wrapper.firstElementChild,caption);
+          window.CeasefireI18n?.attr(control,'aria-label',caption);pair.append(wrapper);
+        }
+        row.append(signatureField(fields,key,label),pair);form.append(row);
+      }
     } else {
       const [linkedOrder, reference] = renderOrderFields(form, fields);
       if (state.kind === "purchase_order") {
@@ -1299,7 +1309,7 @@
     window.CeasefireProject?.refreshPages?.();
     if (state.kind === "quote" && document.version > 0) void refreshScopePreview();
   }
-  const signatureDates = {details_by:"details_date",requested_by:"requested_date",reviewed_by:"review_date",prepared_by:"prepared_date",client_approved_by:"client_approval_date",progress_by:"progress_date",closed_by:"closed_date",claimed_by:"claim_date",sent_by:"sent_date",verified_by:"verified_date"};
+  const signatureDates = {quoted_by:"quoted_date",details_by:"details_date",requested_by:"requested_date",reviewed_by:"review_date",prepared_by:"prepared_date",client_approved_by:"client_approval_date",progress_by:"progress_date",closed_by:"closed_date",claimed_by:"claim_date",sent_by:"sent_date",verified_by:"verified_date"};
   const workOrderUrgencies = ["High Priority","Medium Priority","Low Priority"];
   const certificationChoices = ["Certification issued","Certification not issued"];
   const reviewOutcomes = {
@@ -1593,6 +1603,10 @@
   function resetSectionFields(fields, kind, first) {
     const steps = signingSteps[kind];
     const order = {...fields.order}, signatures = {...fields.signatures};
+    if(kind==='quote'){
+      delete signatures[first];order[first]='';order[signatureDates[first]]='';
+      return {...fields,order,signatures};
+    }
     for (const {key} of steps.slice(steps.findIndex(step => step.key === first))) {
       delete signatures[key];
       for (const name of [key, signatureDates[key], ...(state.model.signature_section_inputs[kind][key] || [])]) {
@@ -1631,10 +1645,11 @@
     const selected = state.editor;
     const sign = button("", async () => {
       if (state.busy || state.editor!==selected) return;
-      try {validateSigningStep(selected,key);}catch(error){message(error.message,true);return;}
+      const isQuote=selected.document.kind==='quote';
+      if(!isQuote)try {validateSigningStep(selected,key);}catch(error){message(error.message,true);return;}
       state.busy=true;setDisabled(true);
       try {
-        const defaults=await signingDefaults(fields.order,key);
+        const defaults=await signingDefaults(isQuote ? {} : fields.order,key);
         if(state.editor !== selected)return;
         const action=await chooseSigningAction(fields,key,defaults,()=>state.editor===selected);
         if (action && state.editor === selected) await saveEditor(action);
@@ -1647,6 +1662,16 @@
     sign.append(node("span"));
     async function reset() {
       if(state.busy || state.editor!==selected)return;
+      if(selected.document.kind==='quote'){
+        if(!value)return;
+        const version=selected.document.version;
+        state.busy=true;setDisabled(true);
+        try{
+          if(await window.CeasefireDialogs.confirm("Clear signature",window.CeasefireI18n.term(label),"Clear","Cancel") &&
+             state.editor===selected && selected.document.version===version)await saveEditor({key,clear:true});
+        }finally{if(state.editor===selected){state.busy=false;setDisabled(false);}}
+        return;
+      }
       const doc = selected.document, steps = signingSteps[doc.kind], start = steps.findIndex(step => step.key === key);
       const status = selected.savedStatus;
       const position = status === 'Cancelled' ? steps.findIndex(step => step.key === 'reviewed_by') + 1

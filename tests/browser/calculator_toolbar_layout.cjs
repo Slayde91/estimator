@@ -58,13 +58,14 @@ async function checkWorkbookDivider(page, title, output) {
       const rect=el.getBoundingClientRect(),bar=el.parentElement,style=getComputedStyle(bar);
       const actions=bar.querySelector('.calculator-toolbar-actions').getBoundingClientRect();
       const end=actions.top<rect.bottom ? actions.left-parseFloat(style.columnGap) : bar.getBoundingClientRect().right-parseFloat(style.paddingRight);
+      const lastTab=el.lastElementChild.getBoundingClientRect();
       return {left:Math.round(rect.left),top:Math.round(rect.bottom),width:Math.round(rect.right)-Math.round(rect.left),
-        startGap:rect.left-bar.getBoundingClientRect().left-parseFloat(style.paddingLeft),endGap:end-rect.right,
+        startGap:rect.left-bar.getBoundingClientRect().left-parseFloat(style.paddingLeft),endGap:Math.min(lastTab.right,end)-rect.right,
         marker:getComputedStyle(el.querySelector('[aria-pressed=true]')).borderBottomColor};
     });
     assert.ok(Math.abs(metric.startGap)<1&&Math.abs(metric.endGap)<1,JSON.stringify(metric));
     assert.equal(metric.marker,'rgb(255, 255, 255)');
-    // Inspect painted pixels across the whole row, including below selected and offscreen tabs.
+    // The rule spans the visible tabs and stops at the final tab or the scroller edge.
     const shot=await page.screenshot({clip:{x:metric.left,y:metric.top,width:metric.width,height:1}});
     const unpainted=await page.evaluate(async encoded=>{
       const img=new Image();img.src='data:image/png;base64,'+encoded;await img.decode();

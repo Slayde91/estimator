@@ -1,6 +1,5 @@
 """Pinned local OCR delivery, integrity and edition/CSP boundaries."""
 import hashlib
-import http.client
 import json
 from pathlib import Path
 import tempfile
@@ -8,6 +7,7 @@ import threading
 import unittest
 from unittest.mock import patch
 
+from feature_client import StaffConnection
 from estimator.catalog import ROOT
 from estimator.edition import excluded_route
 from estimator.server import create_server
@@ -29,7 +29,7 @@ class LocalOCRAssetTests(unittest.TestCase):
         cls.temporary.cleanup()
 
     def request(self, route, method='GET', headers=None):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=30)
+        connection = StaffConnection(self.server, timeout=30)
         try:
             connection.request(method, route, headers=headers or {})
             response = connection.getresponse()
@@ -101,7 +101,7 @@ class LocalOCRAssetTests(unittest.TestCase):
                     self.assertTrue(excluded_route(route, 'standard'))
                     self.assertFalse(excluded_route(route, 'full'))
                     for method in ('GET', 'HEAD'):
-                        connection = http.client.HTTPConnection('127.0.0.1', server.server_port)
+                        connection = StaffConnection(server)
                         connection.request(method, route)
                         response = connection.getresponse()
                         self.assertEqual(response.status, 404)

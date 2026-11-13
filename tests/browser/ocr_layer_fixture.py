@@ -31,7 +31,7 @@ def make_pdf(path):
     with path.open('wb') as stream:writer.write(stream)
 
 if __name__=='__main__':
-    from estimator.server import create_server
+    from feature_server import create_server
     parser=argparse.ArgumentParser();parser.add_argument('--directory',required=True);folder=Path(parser.parse_args().directory).resolve();folder.mkdir(parents=True,exist_ok=True)
     fixture=folder/'ocr-layer-drawings.pdf';make_pdf(fixture);server=create_server(0,folder/'qa.sqlite3')
     print(json.dumps({'port':server.server_port,'fixture':str(fixture)}),flush=True)

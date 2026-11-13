@@ -29,7 +29,7 @@ def make_pdf(path):
 
 
 if __name__ == '__main__':
-    from estimator.server import create_server
+    from feature_server import create_server
     from estimator.native_dialogs import SaveSelection
     from estimator.project_library import file_fingerprint
     from unittest.mock import patch

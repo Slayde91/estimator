@@ -29,13 +29,12 @@ async function submit(name) {await page.locator('dialog[open]').getByRole('butto
   browser = await chromium.launch({headless:true}); page = await browser.newPage({viewport:{width:1500,height:1000},hasTouch:true});
   page.setDefaultTimeout(30000); page.on('pageerror',error => errors.push(error.message));
   await page.goto(`http://127.0.0.1:${info.port}/`);
-  await page.waitForFunction(() => window.CeasefireDesktop?.status()?.ready);
-
-  await page.locator('#scheduler-navigation').click();
-  await page.getByLabel('Your name',{exact:true}).fill('Rules Admin');
-  await page.locator('#scheduler-root').getByLabel('Email',{exact:true}).fill('rules@example.test');
+  await page.getByLabel('Name',{exact:true}).fill('Rules Admin');
+  await page.getByLabel('Email',{exact:true}).fill('rules@example.test');
   await page.getByLabel('Password',{exact:true}).fill('Rules-password-2026');
   await page.getByRole('button',{name:'Create administrator account'}).click();
+  await page.waitForFunction(() => window.CeasefireDesktop?.status()?.ready);
+  await page.locator('#scheduler-navigation').click();
   await expect(page.locator('.scheduler-grid')).toBeVisible();
   for(const theme of ['ceasefire','midnight','ocean','forest','slate']){
     await page.evaluate(theme=>{document.documentElement.dataset.theme=theme;},theme);
@@ -126,7 +125,8 @@ async function submit(name) {await page.locator('dialog[open]').getByRole('butto
   await modal.getByLabel('End',{exact:true}).fill('2026-11-02T15:00');
   await orderSearch.fill('Site Street');
   await expect(modal.getByRole('option')).toHaveCount(2);
-  const duplicateLabels=await modal.getByRole('option').allTextContents();assert.equal(duplicateLabels[0],duplicateLabels[1]);
+  const expectedLabel='WO-02: '+order.client+' - 12 Site Street';
+  assert.deepEqual(await modal.getByRole('option').allTextContents(),[expectedLabel,expectedLabel]);
   for(const width of [1254,390]){
     await page.setViewportSize({width,height:884});
     const bounds=await modal.locator('.scheduler-order-choice').boundingBox();
@@ -143,6 +143,7 @@ async function submit(name) {await page.locator('dialog[open]').getByRole('butto
   await expect(orderSearch).toHaveAttribute('aria-expanded','false');
   await expect(orderSearch).toHaveValue(/WO-02/);
   await expect(modal.getByLabel('Location',{exact:true})).toHaveValue('12 Site Street');
+  await expect(orderSearch).toHaveValue(expectedLabel);
   await expect(notes).toHaveValue(siteLine+'\n\n'+manualNotes);
   const late=page.waitForResponse(response=>new URL(response.url()).searchParams.get('id')===copiedOrder.id);
   await orderSearch.fill('Site Street');await modal.getByRole('option').first().click();

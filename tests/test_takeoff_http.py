@@ -1,5 +1,4 @@
 import hashlib
-import http.client
 from io import BytesIO
 import json
 from pathlib import Path
@@ -9,6 +8,7 @@ import unittest
 from uuid import uuid4
 from urllib.parse import urlencode
 from reportlab.pdfgen import canvas
+from feature_client import StaffConnection
 from estimator.server import create_server
 
 
@@ -26,7 +26,7 @@ class TakeoffHTTPTests(unittest.TestCase):
         cls.server.shutdown(); cls.server.server_close(); cls.thread.join(); cls.tmp.cleanup()
 
     def request(self, method, path, value=None, headers=None):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=90)
+        connection = StaffConnection(self.server, timeout=90)
         try:
             body = json.dumps(value).encode() if isinstance(value, dict) else value
             connection.request(method, path, body, {'Content-Type':'application/json', **(headers or {})})

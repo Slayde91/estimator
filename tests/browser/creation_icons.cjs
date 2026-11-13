@@ -7,7 +7,7 @@ const {createNewProject,openProjectSection,clickProjectControl}=require('./proje
 const {chooseLibrary}=require('./section_navigation.cjs');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa','creation-icons-'+Date.now());fs.mkdirSync(output,{recursive:true});
 const fixture=path.join(__dirname,'project_library_fixture.py'),python=process.env.CEASEFIRE_PYTHON||'python';
-const server=spawn(python,[fixture,'--directory',output],{cwd:root,windowsHide:true});
+const server=spawn(python,[fixture,'--directory',output,'--real-auth'],{cwd:root,windowsHide:true});
 let logs='',browser,page,info,base;server.stderr.on('data',x=>logs+=x);
 const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()=>reject(Error(logs||'Fixture timeout')),120000);
  server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(Error('Fixture exited '+code));});
@@ -49,7 +49,9 @@ function libraryFiles(){const directory=path.dirname(path.dirname(info.diagram))
  info=await ready;assert.notEqual(info.port,8765);base='http://127.0.0.1:'+info.port;
  browser=await chromium.launch({headless:true});const context=await browser.newContext({viewport:{width:1915,height:1000}});page=await context.newPage();page.setDefaultTimeout(45000);page.on('pageerror',e=>errors.push(e.message));
  const read=async route=>{const r=await context.request.get(base+route);assert.equal(r.status(),200,await r.text());return r.json();};
- async function post(route,data){const session=await read('/api/access/session'),headers=session.user?{'X-CRM-Member':session.user.id}:{};const r=await context.request.post(base+route,{data,headers});assert.equal(r.status(),200,await r.text());return r.json();}
+ const setup=await context.request.post(base+'/api/access/setup',{data:{name:'Icon Admin',email:'admin@example.test',password:'Fixture-admin-password'}});
+ assert.equal(setup.status(),200,await setup.text());const actor=(await setup.json()).user.id;
+ async function post(route,data){const r=await context.request.post(base+route,{data,headers:{'X-CRM-Member':actor}});assert.equal(r.status(),200,await r.text());return r.json();}
  await page.goto(base);await idle();
  await chooseLibrary(page,'pricing');await plus(page.locator('#add-pricing-item'),'+ Add item',{size:42});
  await chooseLibrary(page,'technical');await plus(page.getByRole('button',{name:'Add Technical Library item',exact:true}),'Add Technical Library item',{size:42});
@@ -105,8 +107,8 @@ function libraryFiles(){const directory=path.dirname(path.dirname(info.diagram))
  await expect(page.locator('button[data-revisions-kind="estimate.summary.pdf"]')).toHaveText('View Revisions (1)');assert.deepEqual(await snapshot(),before);assert.deepEqual(fs.readFileSync(info.project),projectBefore);exportReceipts.push({path:result.path,sha256:sha(bytes),kind:result.documentation.item.kind});
  checks.push('Download Breakdown keeps its accessible name and real PDF exporter/history while showing the Quote download icon; each table uses its matching format and all saved Project/input bytes stay unchanged.');
  for(const width of [1915,1101,390]){await page.setViewportSize({width,height:1000});await breakdownButton(breakdown);await breakdown.screenshot({path:path.join(output,'breakdown-icon-'+width+'.png')});}await page.setViewportSize({width:1915,height:1000});
- await post('/api/scheduler/setup',{name:'Icon Admin',email:'admin@example.test',password:'Fixture-admin-password'});const viewer=await post('/api/scheduler/members/save',{name:'Icon Viewer',email:'viewer@example.test',password:'Fixture-viewer-password',role:'worker',active:true,base_rate:'0'});
- await post('/api/access/login',{email:'admin@example.test',password:'Fixture-admin-password'});await post('/api/access/roles',{member_id:viewer.id,role:'viewer',version:0});const access=await read('/api/access/session');await post('/api/access/settings',{enabled:true,version:access.version});
+ const viewer=await post('/api/scheduler/members/save',{name:'Icon Viewer',email:'viewer@example.test',password:'Fixture-viewer-password',role:'worker',active:true,base_rate:'0'});
+ await post('/api/access/roles',{member_id:viewer.id,role:'viewer',version:0});
  const masterLibraryBefore=libraryStorage(),sourceLibraryBefore=libraryFiles(),configurationBefore=(await read('/api/bootstrap')).configuration;
  const viewerContext=await browser.newContext({viewport:{width:1915,height:1000}}),view=await viewerContext.newPage();view.setDefaultTimeout(45000);view.on('pageerror',e=>errors.push(e.message));await view.goto(base);await view.getByLabel('Email',{exact:true}).fill('viewer@example.test');await view.getByLabel('Password',{exact:true}).fill('Fixture-viewer-password');await view.getByRole('button',{name:'Sign in',exact:true}).click();await idle(view);
  for(const [kind,name] of [['leads','New Lead'],['contacts','New Contact'],['accounts','New Company']]){await contacts(view,kind);await plus(view.locator('#contacts-root .contacts-controls .add-icon-action'),name,{disabled:true,size:42});}

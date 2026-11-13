@@ -1,11 +1,11 @@
 """The estimator's team gate also protects HTTP requests and stored revisions."""
-import http.client
 import json
 from pathlib import Path
 import tempfile
 import threading
 import unittest
 
+from feature_client import StaffConnection
 from estimator.server import create_server
 
 
@@ -25,7 +25,7 @@ class CoverageTeamsApiTests(unittest.TestCase):
         cls.temporary.cleanup()
 
     def request(self, method, path, body=None):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=30)
+        connection = StaffConnection(self.server, timeout=30)
         try:
             connection.request(method, path, json.dumps(body) if body is not None else None,
                                {'Content-Type': 'application/json'})

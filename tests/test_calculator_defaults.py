@@ -1,13 +1,13 @@
 """Reviewed material assumptions and the application/source boundary."""
 
 from copy import deepcopy
-import http.client
 import json
 from pathlib import Path
 import tempfile
 import threading
 import unittest
 
+from feature_client import StaffConnection
 from estimator.calculator_defaults import default_calculator_inputs, yield_review
 from estimator.schedule_rows import blank_schedule_defaults, empty_schedule_inputs
 from estimator.catalog import ValidationError
@@ -185,7 +185,7 @@ class CalculatorDefaultsHttpTests(unittest.TestCase):
         cls.temp.cleanup()
 
     def request(self, method, endpoint='', payload=None):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=120)
+        connection = StaffConnection(self.server, timeout=120)
         try:
             connection.request(method, f'/api/calculators/{IDENTITY}{endpoint}',
                                None if payload is None else json.dumps(payload), {'Content-Type': 'application/json'})

@@ -3,7 +3,6 @@
 from copy import deepcopy
 import base64
 import hashlib
-import http.client
 from io import BytesIO
 import json
 from pathlib import Path
@@ -15,6 +14,7 @@ from unittest.mock import patch
 from PIL import Image
 from pypdf import PdfReader
 
+from feature_client import StaffConnection
 from estimator.catalog import ValidationError, configuration_catalog, validate_configuration
 from estimator.firestopping_library import FirestoppingLibrary, LibraryConflict
 from estimator.reference_library import ReferenceNotFound
@@ -459,7 +459,7 @@ class FirestoppingApiTests(unittest.TestCase):
         cls.temp.cleanup()
 
     def request(self, method, suffix, body=None, headers=None):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=30)
+        connection = StaffConnection(self.server, timeout=30)
         try:
             connection.request(method, '/api/libraries/penetration/pkb-001/' + suffix,
                 body=json.dumps(body) if body is not None else None,
@@ -470,7 +470,7 @@ class FirestoppingApiTests(unittest.TestCase):
             connection.close()
 
     def raw_request(self, suffix):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=30)
+        connection = StaffConnection(self.server, timeout=30)
         try:
             connection.request('GET', '/api/libraries/penetration/pkb-001/' + suffix)
             response = connection.getresponse()
@@ -506,7 +506,7 @@ class FirestoppingApiTests(unittest.TestCase):
         edit = self.request('GET', 'edit')[1]
         draft = deepcopy(edit['draft'])
         draft['rows'][0]['library_item_id'] = 'pkb-001'
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=30)
+        connection = StaffConnection(self.server, timeout=30)
         try:
             connection.request('POST', '/api/penetration/report.pdf',
                 body=json.dumps({'draft': draft}), headers={'Content-Type': 'application/json'})

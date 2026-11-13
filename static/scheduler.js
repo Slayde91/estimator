@@ -128,6 +128,9 @@
   }
   function orderSelect(record = {}, shiftOnly = false) {
     const held = record.work_order;
+    const label = order => shiftOnly
+      ? [order.reference,[order.client,order.site_address].filter(Boolean).join(' - ')].filter(Boolean).join(': ')
+      : orderLabel(order);
     const key = order => order.id + '@' + order.revision;
     const current = held ? key(held) : record.project_id || record.project_name ? 'legacy' : '';
     const wrapper = el('div','searchable-choice scheduler-order-choice');
@@ -146,9 +149,9 @@
     const listeners = [];
     function options() {
       const choices = [{value:'',label:translated('No Work Order assigned'),order:null},
-        ...state.orders.filter(order => !shiftOnly || order.status === 'In progress').map(order => ({value:key(order),label:orderLabel(order),order}))];
+        ...state.orders.filter(order => !shiftOnly || order.status === 'In progress').map(order => ({value:key(order),label:label(order),order}))];
       if(current && !choices.some(item => item.value === current))choices.push({value:current,
-        label:held ? translated('{0} (saved assignment)',[assignmentLabel(record)]) : assignmentLabel(record),order:held || null});
+        label:held ? translated('{0} (saved assignment)',[label(held)]) : assignmentLabel(record),order:held || null});
       return choices;
     }
     function close() {popup.hidden=true;search.setAttribute('aria-expanded','false');search.removeAttribute('aria-activedescendant');active=-1;}
@@ -422,7 +425,7 @@
     const account = el("div", "scheduler-account"); account.append(el("span","",state.data.user.name),button("Sign out",async () => {
       if (!await leave()) return;
       const logout = request("/logout",{}); resetAccount(); shell(); notice("Signing out…");
-      try { const result=await logout; accountChannel?.postMessage("changed"); if(result.global_session){location.replace('/');return;} auth(false); }
+      try { const result=await logout; accountChannel?.postMessage("changed"); if(result.global_session){window.ClassifireAccess.reloadSession();return;} auth(false); }
       catch (error) {await refresh(); notice(error.message,true);}
     }));
     const clock = renderClock();

@@ -15,7 +15,7 @@ def main():
     parser.add_argument('--filter-groups', action='store_true')
     args = parser.parse_args()
     from test_firestopping_library import editable_library
-    from estimator.server import create_server
+    from feature_server import create_server
 
     folder = args.directory.resolve()
     allowed = (ROOT / '.runtime' / 'browser-qa').resolve()

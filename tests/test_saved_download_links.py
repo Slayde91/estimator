@@ -1,5 +1,4 @@
 """Saved-file links expose only original application-written PDF/XLSX files."""
-import http.client
 import json
 from pathlib import Path
 import tempfile
@@ -7,6 +6,7 @@ import threading
 import unittest
 from unittest.mock import patch
 
+from feature_client import StaffConnection
 from estimator.catalog import ValidationError
 from estimator.download_files import DownloadDestination, SavedDownloadFiles, write_download_file
 from estimator.server import create_server
@@ -100,7 +100,7 @@ class SavedFileHttpTests(unittest.TestCase):
         data = json.loads(export_project(Store(cls.folder / 'seed.sqlite3'), {'estimate': {'title': 'Test Project', 'client': 'Test Company', 'site_address': 'Test Address',
             'contact_name': 'Synthetic Contact', 'contact_phone': '0400 000 001', 'contact_email': 'project@example.test'}}))
         request = {'estimate':data['estimate'], 'calculators':{key:{'inputs':value['inputs'], 'schedule_rows':value['schedule_rows']} for key,value in data['calculators'].items()}}
-        connection = http.client.HTTPConnection('127.0.0.1', cls.server.server_port)
+        connection = StaffConnection(cls.server)
         try:
             connection.request('POST', '/api/project/save-as', json.dumps(request), {'Content-Type':'application/json'})
             response=connection.getresponse(); receipt=response.read()
@@ -113,7 +113,7 @@ class SavedFileHttpTests(unittest.TestCase):
         cls.server.shutdown(); cls.server.server_close(); cls.thread.join(); cls.temp.cleanup()
 
     def request(self, path, body=None, method='GET', origin=None):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port)
+        connection = StaffConnection(self.server)
         headers = {'Content-Type': 'application/json'}
         if origin: headers['Origin'] = origin
         try:

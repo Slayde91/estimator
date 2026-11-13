@@ -2,6 +2,7 @@
 .staff-login-card{width:min(100%,440px);min-height:0;margin:0;padding:24px;box-sizing:border-box}
 .staff-login-card h1{color:var(--red);font-size:24px}
 .staff-login-card .field{display:grid;margin:16px 0}
+.staff-login-card .field[hidden]{display:none}
 .staff-access-card .staff-access-table{width:100%;text-align:left}
 .staff-access-card .staff-access-table :is(th,td){padding:10px;border-bottom:1px solid var(--line)}
 .staff-access-card .staff-access-table select{min-width:140px}

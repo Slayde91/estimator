@@ -119,8 +119,10 @@ the local application's Host, Origin and JSON checks. Local Scheduler accounts
 use salted scrypt passwords and expiring server-side sessions delivered through
 HttpOnly, SameSite cookies. Administrators manage members, shifts, settings and
 time corrections. Workers see their own entries and published assignments.
-The first Scheduler visit creates its administrator. Account recovery and remote
-multi-user hosting require a separate deployment design.
+At first launch the workstation requires a one-time administrator setup before
+exposing project data. Returning staff sign in with their Scheduler credentials.
+Administrators can reset other members' passwords. Recovery without a working
+administrator account and remote multi-user hosting require a separate deployment design.
 
 Clock events use server time, enforce one active entry per member, and preserve
 raw timestamps. Manual entries reject overlaps. Versions prevent stale edits.

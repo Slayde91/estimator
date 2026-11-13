@@ -10,33 +10,54 @@ fs.mkdirSync(output,{recursive:true});
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
 let logs='',browser,page,info;server.stderr.on('data',v=>logs+=v);
 const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()=>reject(Error(logs||'Fixture timeout')),120000);server.stdout.on('data',v=>{data+=v;if(data.includes('\n')){clearTimeout(timer);resolve(JSON.parse(data.split('\n')[0]));}});server.once('error',reject);server.once('exit',c=>{clearTimeout(timer);reject(Error(`Fixture exited ${c}: ${logs}`));});});
-const errors=[],evidence={calculatorLayouts:[],libraryLayouts:[],takeoffLayouts:[],noteHovers:[],mobileMenus:[]};
+const errors=[],evidence={calculatorLayouts:[],libraryLayouts:[],takeoffLayouts:[],recordTabs:[],noteHovers:[],mobileMenus:[]};
 async function idle(){await page.waitForFunction(()=>{const s=window.CeasefireDesktop?.status();return s?.ready&&!s.busy;});}
 async function bounds(selector){return page.locator(selector).evaluate(el=>{const b=el.getBoundingClientRect();return{x:b.x,y:b.y,right:b.right,bottom:b.bottom,width:b.width,height:b.height};});}
 async function noOverflow(context){const g=await page.evaluate(()=>({viewport:document.documentElement.clientWidth,document:document.documentElement.scrollWidth,inner:innerWidth,scrollX}));assert.ok(g.document<=g.viewport+1&&g.inner<=g.viewport+1,`${context}: ${JSON.stringify(g)}`);}
 async function headingBefore(heading,tabs){await expect(page.locator(heading)).toBeVisible();const h=await bounds(heading),t=await bounds(tabs);assert.ok(h.bottom<=t.y+1,`${heading} must precede ${tabs}: ${JSON.stringify({h,t})}`);assert.ok(Math.abs(h.x-t.x)<2,`${heading} aligns with its main tabs`);return{h,t};}
+async function underline(selector) {
+ const geometry=await page.locator(selector).evaluate(el=>{
+   const bar=el.getBoundingClientRect(),button=el.lastElementChild.getBoundingClientRect(),view=el.closest('.workspace-view').getBoundingClientRect();
+   return {x:bar.x,right:bar.right,width:bar.width,viewRight:view.right,lastRight:button.right,
+     contentWidth:el.scrollWidth,visibleWidth:el.clientWidth,shadow:getComputedStyle(el).boxShadow,
+     separateDivider:el.nextElementSibling?.classList.contains('workspace-tabs-divider') || false};
+ });
+ assert.match(geometry.shadow,/^rgb\((237, 0, 27|241, 13, 27)\) 0px 1px 0px 0px$/,`${selector} has a one-pixel red baseline`);
+ assert.equal(geometry.separateDivider,false);
+ assert.ok(geometry.right<=geometry.viewRight+1,`${selector} stays inside the workspace`);
+ if(geometry.contentWidth<=geometry.visibleWidth+1)
+   assert.ok(Math.abs(geometry.lastRight-geometry.right)<=2,`${selector} underline ends at the last tab: ${JSON.stringify(geometry)}`);
+ return geometry;
+}
 async function checkWorkspaceTabs(id,width,saveScreenshot) {
  const strip=page.locator('#'+id);
- const paint=await strip.evaluate(el=>{
-   const rule=el.nextElementSibling,view=el.parentElement.getBoundingClientRect(),line=rule.getBoundingClientRect(),bar=el.getBoundingClientRect();
-   const active=el.querySelector('[aria-pressed=true]');
-   const fire=el.id==='calculator-kind-pages' && active.dataset.calculatorId==='penetration';
-   const fill=getComputedStyle(rule,fire?'::before':null);
-   const target=fire?document.getElementById('penetration-current-item-card').getBoundingClientRect():view;
-   return {width:bar.width,height:bar.height,lineX:line.x,lineY:line.y,lineWidth:fire?parseFloat(fill.width):line.width,lineHeight:line.height,
-     viewX:target.x,viewWidth:target.width,barBottom:bar.bottom,color:fill.backgroundColor,
-     activeMarker:getComputedStyle(active).borderBottomColor,buttons:[...el.children].map(b=>b.getBoundingClientRect().height)};
- });
- assert.ok(Math.abs(paint.lineX-paint.viewX)<1&&Math.abs(paint.lineWidth-paint.viewWidth)<1&&Math.abs(paint.lineY-paint.barBottom)<1,JSON.stringify(paint));
- assert.equal(paint.lineHeight,1);assert.match(paint.color,/^rgb\((237, 0, 27|241, 13, 27)\)$/);assert.equal(paint.activeMarker,'rgb(255, 255, 255)');
- if(id==='calculator-kind-pages'){assert.equal(paint.height,42);assert.ok(paint.buttons.every(h=>h===42));}
- if(width===1915)assert.ok(paint.lineWidth>paint.width+30,'Divider extends beyond the tab buttons');
+ const calculator=id==='calculator-kind-pages';
+ let paint;
+ if(calculator) {
+   paint=await strip.evaluate(el=>{
+     const rule=el.nextElementSibling,view=el.parentElement.getBoundingClientRect(),line=rule.getBoundingClientRect(),bar=el.getBoundingClientRect();
+     const active=el.querySelector('[aria-pressed=true]');
+     const fire=el.id==='calculator-kind-pages' && active.dataset.calculatorId==='penetration';
+     const fill=getComputedStyle(rule,fire?'::before':null);
+     const target=fire?document.getElementById('penetration-current-item-card').getBoundingClientRect():view;
+     return {width:bar.width,height:bar.height,lineX:line.x,lineY:line.y,lineWidth:fire?parseFloat(fill.width):line.width,lineHeight:line.height,
+       viewX:target.x,viewWidth:target.width,barBottom:bar.bottom,color:fill.backgroundColor,
+       activeMarker:getComputedStyle(active).borderBottomColor,buttons:[...el.children].map(b=>b.getBoundingClientRect().height)};
+   });
+   assert.ok(Math.abs(paint.lineX-paint.viewX)<1&&Math.abs(paint.lineWidth-paint.viewWidth)<1&&Math.abs(paint.lineY-paint.barBottom)<1,JSON.stringify(paint));
+   assert.equal(paint.lineHeight,1);assert.match(paint.color,/^rgb\((237, 0, 27|241, 13, 27)\)$/);assert.equal(paint.activeMarker,'rgb(255, 255, 255)');
+   assert.equal(paint.height,42);assert.ok(paint.buttons.every(h=>h===42));
+   if(width===1915)assert.ok(paint.lineWidth>paint.width+30,'Divider extends beyond the tab buttons');
+ } else {
+   paint=await underline('#'+id);
+   if(width===1915)assert.ok(paint.right+30<paint.viewRight,'Takeoff underline ends with the tabs on desktop');
+ }
  if(width===320) {
    const tabs=strip.getByRole('button');await tabs.first().focus();await tabs.first().press('End');await expect(tabs.last()).toBeFocused();
    await expect(tabs.last()).toBeInViewport({ratio:0.95});await tabs.last().press('Home');await expect(tabs.first()).toBeFocused();await expect(tabs.first()).toBeInViewport({ratio:0.95});
  }
  if(saveScreenshot){
-   const bar=await strip.boundingBox();await page.screenshot({path:path.join(output,id+'-'+width+'.png'),clip:{x:paint.lineX,y:bar.y,width:paint.lineWidth,height:bar.height+4}});
+   const bar=await strip.boundingBox();await page.screenshot({path:path.join(output,id+'-'+width+'.png'),clip:{x:bar.x,y:bar.y,width:paint.lineWidth || bar.width,height:bar.height+4}});
  }
  return paint;
 }
@@ -72,12 +93,24 @@ async function stateSnapshot(){return page.evaluate(()=>({calculators:window.Cea
   for(const width of [1915,1011,631,390,320]){
    await page.setViewportSize({width,height:1000});
    const layout=await titleAndTabPositions(section==='quote'?'#commercial-quote-root h1':'#quotes-heading','#project-pages');
+   evidence.recordTabs.push({section,width,rule:await underline('#project-pages')});
    if(section==='quote')quotePositions.set(width,layout);
    else assertAligned(layout,quotePositions.get(width),'Projects vs Quotes at '+width);
   }
   await page.setViewportSize({width:1915,height:1000});
  }
  await page.locator('#documents-navigation-toggle').click();await expect(page.locator('#view-documentation')).toBeVisible();await expect(page.locator('#view-documents')).toHaveCount(0);
+ await page.locator('#contacts-navigation-toggle').click();
+ for(const name of ['Leads','Contacts','Companies']){
+   const strip=page.locator('#contacts-root .contacts-tabs');
+   await strip.getByRole('button',{name,exact:true}).click();
+   for(const width of [1915,390,320]){
+     await page.setViewportSize({width,height:1000});
+     evidence.recordTabs.push({section:name,width,rule:await underline('#contacts-root .contacts-tabs')});
+     await noOverflow(name+'/'+width);
+   }
+ }
+ await page.setViewportSize({width:1915,height:1000});
  const calculators=['Firestopping','Duct','Steel (spray)','Steel (intumescent)','Steel (board)','Factor Calcs'];
  for(const title of calculators){await chooseCalculator(page,title);await idle();}
  const before=await stateSnapshot();
@@ -95,6 +128,7 @@ async function stateSnapshot(){return page.evaluate(()=>({calculators:window.Cea
    }
    if(fire){const toggle=page.locator('.penetration-banner-heading [data-document-menu-toggle]');await toggle.click();const menu=page.locator('#firestopping-item-document-actions');await expect(menu).toBeVisible();const box=await menu.boundingBox();assert.ok(box.x>=0&&box.x+box.width<=width+1,'Firestopping Document menu fits its relocated heading');await menu.getByRole('button').first().click({trial:true});await page.keyboard.press('Escape');}
    if(!fire){const status=await bounds('#calculator-save-status');assert.ok(status.right<=geometry.h.right+1&&Math.abs(status.y-geometry.h.y)<2,'Live save status is at the heading top-right');}
+   if(!fire&&title!=='Factor Calcs')geometry.workbookRule=await underline('#calculator-pages');
    if(!fire&&title!=='Factor Calcs'&&width>760){
     const actions=await bounds('#calculator-toolbar-actions'),tabs=await bounds('#calculator-pages');assert.ok(tabs.right<=actions.x+1&&actions.y<tabs.bottom&&tabs.y<actions.bottom,'Tools share the inner tab row, after the scroller');
     const columns=page.locator('#calculator-toolbar-actions .schedule-column-toggle');if(await columns.isVisible()){const c=await columns.boundingBox(),d=await bounds('#calculator-document-toggle');assert.ok(c.x+c.width<=d.x+1&&Math.abs(d.y-c.y)<8,'Columns remains left of Document');}
@@ -115,11 +149,11 @@ async function stateSnapshot(){return page.evaluate(()=>({calculators:window.Cea
  for(const kind of ['pricing','penetration','technical']){
   await chooseLibrary(page,kind);await idle();
   assert.ok(await page.locator('#library-pages').evaluate(nav=>getComputedStyle(nav).boxShadow!== 'none'));
-  for(const width of [1915,631,390,320]){await page.setViewportSize({width,height:1000});await page.evaluate(()=>scrollTo(0,0));const geometry=await headingBefore(`#pricing-heading-slot [data-library-heading="${kind}"]`,'#library-pages');await noOverflow(`${kind}/${width}`);evidence.libraryLayouts.push({kind,width,geometry});}
+  for(const width of [1915,631,390,320]){await page.setViewportSize({width,height:1000});await page.evaluate(()=>scrollTo(0,0));const geometry=await headingBefore(`#pricing-heading-slot [data-library-heading="${kind}"]`,'#library-pages');if(kind!=='pricing')assert.equal((await bounds(kind==='technical'?'#technical-library-heading':'#penetration-library-heading')).height,22);await noOverflow(`${kind}/${width}`);evidence.libraryLayouts.push({kind,width,geometry});}
  }
  for(const mode of ['Steel','Duct','Walls/Floors','Defect Reports','Service Plans']){
   await chooseTakeoff(page,mode);await idle();
-  for(const width of [1915,631,390,320]){await page.setViewportSize({width,height:1000});await page.evaluate(()=>scrollTo(0,0));const geometry=await headingBefore('.takeoff-workspace-heading','#takeoff-pages');await noOverflow(`${mode}/${width}`);geometry.tabs=await checkWorkspaceTabs('takeoff-pages',width,mode==='Steel'&&[320,1915].includes(width));evidence.takeoffLayouts.push({mode,width,geometry});}
+  for(const width of [1915,631,390,320]){await page.setViewportSize({width,height:1000});await page.evaluate(()=>scrollTo(0,0));const geometry=await headingBefore('.takeoff-workspace-heading','#takeoff-pages');await noOverflow(`${mode}/${width}`);geometry.tabs=await checkWorkspaceTabs('takeoff-pages',width,mode==='Steel'&&[320,1915].includes(width));const controls=page.locator('.takeoff-document-tools .calculator-document-toggle:visible');assert.ok(await controls.count()>=2);for(const control of await controls.all())assert.equal((await control.boundingBox()).height,42);evidence.takeoffLayouts.push({mode,width,geometry});}
  }
  // Reproduce the hosted navigation-stack overflow boundary with native touch hit testing.
  for(const width of [320,390,671]){

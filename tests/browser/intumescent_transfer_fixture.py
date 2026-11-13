@@ -13,7 +13,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from fixtures import make_pdf
-from estimator.server import create_server
+from feature_server import create_server
 from estimator.native_dialogs import SaveSelection
 from estimator.project_library import file_fingerprint
 from estimator.intumescent import PRODUCT, FX5090, FX6010

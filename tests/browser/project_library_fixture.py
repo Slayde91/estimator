@@ -25,6 +25,7 @@ def database_snapshot(path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--directory', type=Path)
+    parser.add_argument('--real-auth', action='store_true')
     parser.add_argument('--snapshot-database', type=Path)
     parser.add_argument('--takeoff-links', action='store_true')
     args = parser.parse_args()
@@ -32,7 +33,10 @@ def main():
         print(json.dumps(database_snapshot(args.snapshot_database)))
         return
     from test_firestopping_library import editable_library
-    from estimator.server import create_server
+    if args.real_auth:
+        from estimator.server import create_server
+    else:
+        from feature_server import create_server
     from estimator.storage import Store
     from estimator.native_dialogs import SaveSelection
     from estimator.project_library import file_fingerprint

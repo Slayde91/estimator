@@ -91,7 +91,7 @@ async function exported(extension){
   for(const theme of ['ceasefire','midnight','ocean','forest','slate']){
     await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
     const add=fireDetail.getByRole('button',{name:'Add to Schedule',exact:true});
-    await add.scrollIntoViewIfNeeded();const box=await add.boundingBox();assert.equal(box.width,48);assert.equal(box.height,48);
+    await add.scrollIntoViewIfNeeded();const box=await add.boundingBox();assert.equal(box.width,42);assert.equal(box.height,42);
     await page.mouse.move(0,0);
     const palette=await add.evaluate(element=>{const style=getComputedStyle(element);return {background:style.backgroundColor,border:style.borderTopColor,color:style.color,icon:getComputedStyle(element.querySelector('img')).filter};});
     assert.deepEqual({background:palette.background,border:palette.border,color:palette.color},{background:'rgb(173, 0, 29)',border:'rgb(255, 255, 255)',color:'rgb(255, 255, 255)'},`${theme} uses the white-on-red Library transfer control`);
@@ -109,10 +109,10 @@ async function exported(extension){
     scheduleContrast.push({theme,control:'composer',...colors},{theme,control:'source diagram',...source});
     await page.locator('#penetration-diagram').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,`firestopping-diagram-${theme}.png`)});
     if(theme==='ceasefire'){
-      const settings=page.locator('#penetration-settings');await settings.click();await expect(settings).toHaveAttribute('aria-pressed','true');
+      const settings=page.locator('#penetration-settings');await settings.click();await expect(settings).toHaveAttribute('aria-selected','true');
       const gear=await contrast('#penetration-settings .gear-symbol');assert.ok(gear.ratio>=4.5,`${theme} active Settings gear contrast ${gear.ratio}`);
       scheduleContrast.push({theme,control:'active Settings gear',...gear});await page.screenshot({path:path.join(output,`firestopping-settings-${theme}.png`)});
-      await page.locator('#penetration-input-groups [role="tab"]').first().click();await expect(settings).toHaveAttribute('aria-pressed','false');
+      await page.locator('#penetration-input-groups [role="tab"]').first().click();await expect(settings).toHaveAttribute('aria-selected','false');
     }
     await cycleTheme(page);
   }

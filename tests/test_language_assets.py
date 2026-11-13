@@ -2,7 +2,6 @@
 import ast
 import hashlib
 from html.parser import HTMLParser
-import http.client
 import json
 from pathlib import Path
 import runpy
@@ -11,6 +10,7 @@ import tempfile
 import threading
 import unittest
 
+from feature_client import StaffConnection
 from estimator.server import DEFAULT_CONTENT_SECURITY_POLICY, create_server
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -134,7 +134,7 @@ class LanguageAssetsTests(unittest.TestCase):
                 database = folder / f'{edition}.sqlite3'
                 before = hashlib.sha256(database.read_bytes()).hexdigest()
                 def get(route):
-                    connection = http.client.HTTPConnection('127.0.0.1', server.server_port, timeout=30)
+                    connection = StaffConnection(server, timeout=30)
                     try:
                         connection.request('GET', route); response = connection.getresponse()
                         return response.status, dict(response.getheaders()), response.read()

@@ -6,13 +6,13 @@ const {createNewProject,openProjectSection}=require('./project_actions.cjs');
 const {checkTrashAlignment}=require('./trash_alignment.cjs');
 const expect=baseExpect.configure({timeout:30000}),root=path.resolve(__dirname,'../..');
 const output=path.join(root,'.runtime/browser-qa',`commercial-panes-signatures-${Date.now()}`);fs.mkdirSync(output,{recursive:true});
-const python=process.env.CEASEFIRE_PYTHON||'python',server=spawn(python,[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
-let stdout='',logs='',browser,page;server.stderr.on('data',chunk=>logs+=chunk);
+const python=process.env.CEASEFIRE_PYTHON||'python',server=spawn(python,[path.join(__dirname,'fixtures.py'),'--directory',output,'--real-auth'],{cwd:root,windowsHide:true});
+let stdout='',logs='',browser,page,actor;server.stderr.on('data',chunk=>logs+=chunk);
 const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error(logs||'Fixture timeout')),120000);server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(Error('Fixture exited '+code));});server.stdout.on('data',chunk=>{stdout+=chunk;if(stdout.includes('\n')){clearTimeout(timer);resolve(JSON.parse(stdout.split('\n')[0]));}});});
 const errors=[],checks=[],mutations=[],geometry=[];
 async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready&&!window.CeasefireProject.hasPendingOperation()&&!document.querySelector('dialog[open],[aria-busy="true"],.commercial-editor-actions button:disabled'));}
 async function personal(name){const response=await page.request.get(new URL('/api/certifications/defaults',page.url()).href),current=await response.json();assert.equal(response.status(),200);
- const saved=await page.request.post(new URL('/api/certifications/defaults',page.url()).href,{data:{expected_version:current.version,fields:{...current.fields,name}}});assert.equal(saved.status(),200,await saved.text());}
+ const saved=await page.request.post(new URL('/api/certifications/defaults',page.url()).href,{headers:{'X-CRM-Member':actor},data:{expected_version:current.version,fields:{...current.fields,name}}});assert.equal(saved.status(),200,await saved.text());}
 async function save(host){await host.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();await expect(host.locator('.commercial-message')).toContainText('Document saved.');await idle();}
 async function current(){const workspace=await page.evaluate(()=>window.CeasefireCertification.sessionId());return(await page.request.get(new URL('/api/commercial/state?workspace='+workspace,page.url()).href)).json();}
 async function checkWorkStage(expected) {
@@ -30,9 +30,18 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  assert.equal(mutations.filter(route=>route==='/api/certifications/defaults').length,before,'Signing never writes personal defaults');}
 (async()=>{
  const info=await ready;assert.notEqual(info.port,8765);browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1915,height:1000}});page.setDefaultTimeout(60000);page.on('pageerror',error=>errors.push(error.message));
- await page.addInitScript(()=>{localStorage.setItem('ceasefire.takeoff-signature.v1',JSON.stringify({version:1,ratio:3,strokes:[[[0,0],[.5,1],[1,0]]]}));const NativeDate=Date,offset=NativeDate.parse('2026-11-08T14:30:00Z')-NativeDate.now();window.Date=class extends NativeDate{constructor(...args){super(...args.length?args:[NativeDate.now()+offset]);}static now(){return NativeDate.now()+offset;}};});
+ await page.addInitScript(()=>{const NativeDate=Date,offset=NativeDate.parse('2026-11-08T14:30:00Z')-NativeDate.now();window.Date=class extends NativeDate{constructor(...args){super(...args.length?args:[NativeDate.now()+offset]);}static now(){return NativeDate.now()+offset;}};});
  page.on('request',request=>{if(request.method()==='POST')mutations.push(new URL(request.url()).pathname);});
- await page.goto(`http://127.0.0.1:${info.port}`);await idle();await createNewProject(page,{client:'SIGNATURE PANE QA','site-address':'Synthetic site, no design claim'});
+ const base=`http://127.0.0.1:${info.port}`;
+ const setup=await page.request.post(base+'/api/access/setup',{data:{name:'Signature Administrator',email:'signature@example.test',password:'Fixture-signer-password'}});
+ assert.equal(setup.status(),200,await setup.text());actor=(await setup.json()).user.id;
+ await page.goto(base);await idle();
+ await page.getByRole('button',{name:'Settings',exact:true}).click();
+ await page.locator('#personal-signature-set').click();
+ const editor=page.getByRole('dialog',{name:'Personal signature',exact:true}),pad=await editor.getByLabel('Signature drawing pad').boundingBox();
+ await page.mouse.move(pad.x+15,pad.y+40);await page.mouse.down();await page.mouse.move(pad.x+150,pad.y+12,{steps:5});await page.mouse.up();
+ await editor.getByRole('button',{name:'Insert signature',exact:true}).click();await expect(page.locator('#personal-signature-status')).toHaveText('Personal signature saved.');
+ await createNewProject(page,{client:'SIGNATURE PANE QA','site-address':'Synthetic site, no design claim'});
  await openProjectSection(page,'quote');const quote=page.locator('#commercial-quote-root');await quote.getByRole('button',{name:'New Quote',exact:true}).click();await idle();
  await expect(quote.getByLabel('Document title',{exact:true})).toHaveCount(0);
  for(const [description,price] of [['Charged service','100'],['Free service','0'],['Credit service','-5']]) {
@@ -44,6 +53,25 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  await quote.locator('input[type=file]').setInputFiles(info.fixture);await expect(quote.locator('.commercial-sidebar summary').filter({hasText:'Files (1)'})).toHaveCount(1);await save(quote);
  await quote.getByRole('button',{name:'New note',exact:true}).click();const note=page.getByRole('dialog',{name:'Quote note',exact:true});await note.getByLabel('Note title',{exact:true}).fill('Quote note proof');await note.locator('[contenteditable=true]').fill('Preserved Quote note body');await note.getByRole('button',{name:'Done',exact:true}).click();await expect(note).toBeHidden();await idle();
  let model=await current(),savedQuote=model.documents.find(document=>document.kind==='quote');assert.equal(savedQuote.fields.notes[0].title,'Quote note proof');assert.equal(savedQuote.fields.files.length,1);
+ for(const [role,key,person] of [['Reviewed by','reviewed_by','Quote Reviewer'],['Quoted by','quoted_by','Quote Estimator']]){
+   const section=quote.getByRole('region',{name:role,exact:true});
+   await expect(section.getByLabel('Name',{exact:true})).toHaveValue('');await expect(section.getByLabel('Date',{exact:true})).toHaveValue('');
+   await personal(person);await section.getByRole('button',{name:'Sign '+role,exact:true}).click();
+   await expect(section.getByLabel('Name',{exact:true})).toHaveValue(person);await expect(section.getByLabel('Date',{exact:true})).toHaveValue('2026-11-09');await idle();
+   const signed=(await current()).documents.find(doc=>doc.id===savedQuote.id);
+   assert.equal(signed.status,savedQuote.status);assert.deepEqual(signed.fields.signatures[key],await page.evaluate(()=>window.ClassifirePersonalSignature.saved()));
+ }
+ const quoteSigners=quote.locator('section.commercial-signer-row');
+ for(const width of [1515,390]){
+   await page.setViewportSize({width,height:960});await quoteSigners.first().evaluate(el=>el.scrollIntoView({block:'center'}));
+   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+   await page.screenshot({path:path.join(output,'quote-signers-'+width+'.png')});
+ }
+ await page.setViewportSize({width:1915,height:1000});
+ await quote.getByRole('button',{name:'Clear Quoted by',exact:true}).click();
+ await page.getByRole('dialog',{name:'Clear signature',exact:true}).getByRole('button',{name:'Clear',exact:true}).click();await idle();
+ await expect(quote.getByRole('region',{name:'Quoted by',exact:true}).getByLabel('Name',{exact:true})).toHaveValue('');
+ await expect(quote.getByRole('region',{name:'Reviewed by',exact:true}).getByLabel('Name',{exact:true})).toHaveValue('Quote Reviewer');
  const previousNotes=structuredClone(savedQuote.fields.notes);
  await quote.getByRole('button',{name:'Quote note proof',exact:true}).click();
  const done=note.getByRole('button',{name:'Done',exact:true}),cancelNote=note.getByRole('button',{name:'Cancel',exact:true});

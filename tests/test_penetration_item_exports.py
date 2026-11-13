@@ -3,7 +3,6 @@ import base64
 from copy import deepcopy
 from hashlib import sha256
 from io import BytesIO
-import http.client
 import json
 from pathlib import Path
 import tempfile
@@ -14,6 +13,7 @@ from openpyxl import load_workbook
 from PIL import Image
 from pypdf import PdfReader
 
+from feature_client import StaffConnection
 from estimator.catalog import ValidationError
 from estimator.penetration_calculator import calculate, definition
 from estimator.penetration_item_exports import prepare_item_snapshot, build_item_xlsx, render_item_pdf
@@ -203,7 +203,7 @@ class CurrentItemHTTPTests(unittest.TestCase):
         cls.temp.cleanup()
 
     def request(self, route, payload):
-        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=30)
+        connection = StaffConnection(self.server, timeout=30)
         connection.request('POST', route, json.dumps(payload), {'Content-Type': 'application/json'})
         response = connection.getresponse()
         result = response.status, response.getheader('Content-Type'), response.getheader('Content-Disposition'), response.read()

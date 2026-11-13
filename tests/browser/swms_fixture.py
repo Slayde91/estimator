@@ -7,7 +7,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from estimator.native_dialogs import SaveSelection
 from estimator.project_library import file_fingerprint
-from estimator.server import create_server
+from feature_server import create_server
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--directory', required=True)

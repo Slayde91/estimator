@@ -10,7 +10,7 @@
 .calculator-workspace-toolbar{display:flex;align-items:center;flex-wrap:nowrap;gap:8px 16px;padding:8px 25px;background:var(--theme-surface,#1b2028);color:var(--ink)}
 .calculator-workspace-toolbar>#calculator-pages{flex:1 1 0;min-width:0;padding:0;align-self:center;align-items:center;flex-wrap:nowrap;background:transparent}
 @media screen {
-  .calculator-workspace[data-factor-view="false"] #calculator-pages{box-shadow:0 1px var(--red)}
+  .calculator-workspace[data-factor-view="false"] #calculator-pages{flex:0 1 auto;max-width:100%;box-shadow:0 1px var(--red)}
 }
 #calculator-pages>.calculator-page{flex:0 0 auto;display:flex;align-items:center;white-space:nowrap;font-size:11px;line-height:1.4}
 #calculator-pages>.calculator-page,.calculator-workspace[data-factor-view="true"] .calculator-settings-choice{height:var(--calculator-control-height);padding-block:0}

@@ -340,7 +340,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     raise ValidationError('Document progress requires one document generation or export request.')
                 download_progress.claim(progress_token)
                 self._download_progress_token = progress_token
-            if self.command == 'GET' and route in {'/', '/index.html'} and access.settings()['enabled'] and (
+            if self.command == 'GET' and route in {'/', '/index.html'} and (
                     not self.crm_user or self.crm_user['role'] == 'none'):
                 page = 'scheduler-only.html' if self.crm_user else 'access-login.html'
                 self.send_payload(200, (ROOT / 'static' / page).read_bytes(), 'text/html; charset=utf-8')

@@ -20,13 +20,29 @@ async function noOverflow(context){const layout=await page.evaluate(()=>({docume
   const base=`http://127.0.0.1:${info.port}`;
   await page.goto(base+'/');await idle();
   await chooseCalculator(page,'Firestopping');await idle();
+  const inputTabs=page.locator('#penetration-input-groups'),settings=inputTabs.getByRole('tab',{name:'Settings',exact:true}),details=inputTabs.getByRole('tab',{name:'DETAILS',exact:true});
+  const fields=page.locator('#penetration-row-fields'),add=page.locator('#penetration-add-to-schedule');
+  await expect(inputTabs.getByRole('tab').last()).toHaveId('penetration-settings');
+  const gearArt=await settings.locator('svg').innerHTML();
+  await expect(add).toHaveCSS('border-top-color','rgb(255, 255, 255)');
   for(const width of [1915,1011,631,390,320]){
     await page.setViewportSize({width,height:884});
+    await details.focus();await details.press('End');await expect(settings).toBeFocused();
+    await settings.press('Enter');await expect(settings).toHaveAttribute('aria-selected','true');
+    await expect(fields).toHaveAccessibleName('Settings');
     const gear=await box('#penetration-settings'),tabs=await box('#penetration-input-groups');
     assert.ok(Math.abs(gear.bottom-tabs.bottom)<2,`Settings aligns with the input tabs at ${width}: ${JSON.stringify({gear,tabs})}`);
-    assert.ok(gear.right<=tabs.x+1,'Settings remains before the tab scroller');
+    assert.equal(gear.width,42);assert.equal(gear.height,42);assert.ok(gear.x>=tabs.x-1 && gear.right<=tabs.right+1,'Focused Settings stays visible inside the tab scroller');
+    await expect(settings).toBeFocused();
+    if([1915,390].includes(width))await inputTabs.screenshot({path:path.join(output,'firestopping-settings-tab-'+width+'.png')});
+    await settings.press('Home');await expect(details).toBeFocused();await details.press('Space');
+    await expect(fields).toHaveAccessibleName('DETAILS');await expect(settings).toHaveAttribute('aria-selected','false');
     await noOverflow('Firestopping/'+width);evidence.firestopping.push({width,gear,tabs});
   }
+  await page.locator('#penetration-schedule-tab-breakdown').click();
+  const breakdown=page.locator('#penetration-schedule-breakdown-card');
+  await expect(breakdown).toHaveAccessibleName('Firestopping Breakdown');
+  await expect(breakdown.getByRole('heading',{name:'Firestopping Breakdown'})).toHaveCount(0);
   await page.setViewportSize({width:1915,height:884});
   for(const mode of ['Steel','Duct','Walls/Floors','Defect Reports','Service Plans']){
     await chooseTakeoff(page,mode);await idle();
@@ -41,8 +57,8 @@ async function noOverflow(context){const layout=await page.evaluate(()=>({docume
     }
     await page.setViewportSize({width:1915,height:884});
   }
-  const setup=await page.request.post(base+'/api/scheduler/setup',{data:{name:'Layout QA Admin',email:'layout-admin@example.test',password:'Disposable-layout-password-2026'}});assert.equal(setup.status(),200);
   await page.locator('#scheduler-navigation').click();await page.locator('.scheduler-tabs').getByRole('button',{name:'Settings',exact:true}).click();
+  assert.equal(await page.locator('.scheduler-settings-tab svg').innerHTML(),gearArt);
   await expect(page.locator('.scheduler-settings')).toBeVisible();
   for(const width of [1915,1011,631,390,320]){
     await page.setViewportSize({width,height:884});

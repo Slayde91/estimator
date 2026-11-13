@@ -103,7 +103,7 @@ class CloseController:
         try:
             if not main_document(self.window.get_current_url(), self.origin):
                 raise RuntimeError('The application page is not ready.')
-            self.window.run_js(f'window.CeasefireDesktop?.requestClose({json.dumps(nonce)});')
+            self.window.run_js(f'(window.CeasefireDesktop || window.ClassifireAccess)?.requestClose({json.dumps(nonce)});')
             with self._lock:
                 if self._nonce == nonce and not self._acknowledged:
                     self._timer = threading.Timer(15, self._unavailable, args=(nonce,))
@@ -190,8 +190,8 @@ def install_navigation_guard(window, origin, controller):
             if first_navigation:
                 first_navigation = False
                 return
-            # Home is an application view. A second top-level document load
-            # would discard the in-memory project and is never needed here.
+            # Ordinary Home navigation preserves in-memory work. Only an
+            # explicit staff-session transition starts a new document below.
             event.Cancel = True
             threading.Thread(target=window.run_js, args=('window.CeasefireDesktop?.showHome();',), daemon=True).start()
             return
@@ -203,6 +203,7 @@ def install_navigation_guard(window, origin, controller):
 
     control.NavigationStarting += navigating
     def close_message(sender, event):
+        nonlocal first_navigation
         # Ignore pywebview's own messages and every message from other origins.
         if not main_document(str(event.Source), origin):
             return
@@ -212,6 +213,12 @@ def install_navigation_guard(window, origin, controller):
         try:
             value = json.loads(raw)
         except (TypeError, ValueError):
+            return
+        if value == {'type':'classifire.staff-session'}:
+            # No caller-selected URL or commands. The server independently
+            # decides whether this session receives login, Scheduler or the app.
+            first_navigation = True
+            control.CoreWebView2.Navigate(origin.rstrip('/') + '/')
             return
         if not isinstance(value, dict) or set(value) != {'type', 'action', 'nonce', 'allowed'} or value['type'] != 'ceasefire.close':
             return

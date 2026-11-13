@@ -66,9 +66,9 @@ async function checkLogoCredit() {
       const character = document.querySelector('#header-tagline-character').getBoundingClientRect();
       return {textCentre:(text.left+text.right)/2, wordmarkCentre:logo.left+logo.width*(446+2133)/(2*2172),
         left:text.left,right:text.right,
-        top:box.top,bottom:box.bottom,logoInkBottom:logo.top+logo.height*(510/724),characterTop:character.top};
+        top:box.top,logoInkBottom:logo.top+logo.height*(510/724),characterLeft:character.left};
     });
-    assert.ok(position.top>=position.logoInkBottom && position.bottom<=position.characterTop,'Credit clears the logo ink and tagline character');
+    assert.ok(position.top>=position.logoInkBottom && position.right<=position.characterLeft,'Credit clears the logo ink and tagline character');
     assert.ok(Math.abs(position.textCentre-position.wordmarkCentre)<1, 'Credit is centred under the word CLASSIFIRE');
     assert.ok(position.left>=0 && position.right<=width, 'The full credit fits in the viewport');
     if (width===913) await page.locator('.app-header').screenshot({path:path.join(output,'centred-credit-913.png')});

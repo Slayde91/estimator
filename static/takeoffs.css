@@ -122,7 +122,7 @@
 .takeoff-tool-rail .takeoff-icon-button .takeoff-measure-icon{filter:none;mix-blend-mode:multiply}
 :root[data-theme="midnight"] .takeoff-tool-rail .takeoff-icon-button .takeoff-measure-icon{filter:invert(1);mix-blend-mode:screen}
 .takeoff-workspace-title{font-size:28px;margin:0 0 16px}
-.takeoff-drawing-pane{display:flex;flex-direction:column;gap:10px;min-width:0}
+.takeoff-drawing-pane{display:flex;flex-direction:column;gap:10px;min-width:0;container-type:inline-size}
 .takeoff-navigation{display:flex;flex:.5 1 127px;margin:0;align-items:center;min-width:0}
 .takeoff-navigation-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
 .takeoff-document-controls{flex:1;flex-wrap:nowrap}
@@ -485,7 +485,7 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
   .takeoff-viewer-top .takeoff-search-controls { flex-wrap:wrap; flex-basis:100%; }
   .takeoff-viewer-top .takeoff-search-anchor { flex-basis:100%; }
   .takeoff-viewer-top .takeoff-search-ocr { flex:1 1 78px; }
-  .takeoff-viewer-top .takeoff-search-controls select { flex:1; min-width:0; }
+  .takeoff-viewer-top .takeoff-search-controls > select { flex:1 1 120px; min-width:min(120px,100%); }
 }
 
 .takeoff-overlay [data-line-enabled="false"]{stroke:none!important}

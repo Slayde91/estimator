@@ -145,6 +145,7 @@ async function drawingControls(width, loaded) {
   });
   for (const button of measurements.square) assert.deepEqual([button.width,button.height],[42,42],button.name+' at '+width);
   for (const field of measurements.fields) assert.equal(field.height,42,field.name);
+  assert.ok(measurements.fields.find(field => field.name === 'Text search scope').width >= 100, 'Search scope shows its selected value');
   assert.equal(measurements.pages.length,2);
   for (const button of measurements.pages) { assert.equal(button.height,42,button.name); assert.ok(button.width>42,button.name); }
   assert.ok(measurements.square.length>=20);

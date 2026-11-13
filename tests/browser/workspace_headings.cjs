@@ -20,8 +20,11 @@ async function checkWorkspaceTabs(id,width,saveScreenshot) {
  const paint=await strip.evaluate(el=>{
    const rule=el.nextElementSibling,view=el.parentElement.getBoundingClientRect(),line=rule.getBoundingClientRect(),bar=el.getBoundingClientRect();
    const active=el.querySelector('[aria-pressed=true]');
-   return {width:bar.width,height:bar.height,lineX:line.x,lineY:line.y,lineWidth:line.width,lineHeight:line.height,
-     viewX:view.x,viewWidth:view.width,barBottom:bar.bottom,color:getComputedStyle(rule).backgroundColor,
+   const fire=el.id==='calculator-kind-pages' && active.dataset.calculatorId==='penetration';
+   const fill=getComputedStyle(rule,fire?'::before':null);
+   const target=fire?document.getElementById('penetration-current-item-card').getBoundingClientRect():view;
+   return {width:bar.width,height:bar.height,lineX:line.x,lineY:line.y,lineWidth:fire?parseFloat(fill.width):line.width,lineHeight:line.height,
+     viewX:target.x,viewWidth:target.width,barBottom:bar.bottom,color:fill.backgroundColor,
      activeMarker:getComputedStyle(active).borderBottomColor,buttons:[...el.children].map(b=>b.getBoundingClientRect().height)};
  });
  assert.ok(Math.abs(paint.lineX-paint.viewX)<1&&Math.abs(paint.lineWidth-paint.viewWidth)<1&&Math.abs(paint.lineY-paint.barBottom)<1,JSON.stringify(paint));
@@ -38,9 +41,17 @@ async function checkWorkspaceTabs(id,width,saveScreenshot) {
  return paint;
 }
 async function titleAndTabPositions(title,tabs){
- const view=await page.locator(title).evaluate(el=>el.closest('.workspace-view').getBoundingClientRect().top);
- const h=await bounds(title),t=await bounds(tabs);
- return {left:h.x,top:h.y-view,tabTop:t.y-view};
+ // Commercial rendering can replace the heading and move the shared tab strip.
+ // Measure both in one frame after they belong to the same visible workspace.
+ const sample=await page.waitForFunction(({title,tabs})=>{
+   const heading=document.querySelector(title),strip=document.querySelector(tabs);
+   const workspace=heading?.closest('.workspace-view');
+   if(!workspace || !workspace.contains(strip))return false;
+   const h=heading.getBoundingClientRect(),t=strip.getBoundingClientRect(),view=workspace.getBoundingClientRect();
+   if(!h.height || !t.height || !view.height)return false;
+   return {left:h.x,top:h.y-view.y,tabTop:t.y-view.y};
+ },{title,tabs});
+ try{return await sample.jsonValue();}finally{await sample.dispose();}
 }
 function assertAligned(actual,peer,context){
  for(const key of Object.keys(peer))assert.ok(Math.abs(actual[key]-peer[key])<=1,`${context} ${key}: ${actual[key]} vs ${peer[key]}`);
@@ -76,7 +87,7 @@ async function stateSnapshot(){return page.evaluate(()=>({calculators:window.Cea
   for(const theme of ['ceasefire','midnight','ocean','forest','slate'])for(const width of [1915,1254,631,390,320]){
    await page.setViewportSize({width,height:1000});await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);await page.mouse.move(0,0);await page.evaluate(()=>scrollTo(0,0));
    const geometry=await headingBefore(heading,'#calculator-kind-pages');await noOverflow(`${title}/${theme}/${width}`);
-   if(fire)geometry.tabs=await checkWorkspaceTabs('calculator-kind-pages',width,theme==='ceasefire'&&[320,1915].includes(width));
+   if(fire){geometry.tabs=await checkWorkspaceTabs('calculator-kind-pages',width,theme==='ceasefire'&&[320,1915].includes(width));assert.equal((await bounds('#penetration-heading')).height,22);}
    if(fire||title==='Duct'){
     const layout=await titleAndTabPositions(fire?'#penetration-heading':'#calculator-title','#calculator-kind-pages'),key=theme+'/'+width;
     if(fire)firePositions.set(key,layout);
@@ -103,6 +114,7 @@ async function stateSnapshot(){return page.evaluate(()=>({calculators:window.Cea
  assert.deepEqual(await stateSnapshot(),before,'Changing headings, themes and tabs preserves calculator inputs and exact drafts');
  for(const kind of ['pricing','penetration','technical']){
   await chooseLibrary(page,kind);await idle();
+  assert.ok(await page.locator('#library-pages').evaluate(nav=>getComputedStyle(nav).boxShadow!== 'none'));
   for(const width of [1915,631,390,320]){await page.setViewportSize({width,height:1000});await page.evaluate(()=>scrollTo(0,0));const geometry=await headingBefore(`#pricing-heading-slot [data-library-heading="${kind}"]`,'#library-pages');await noOverflow(`${kind}/${width}`);evidence.libraryLayouts.push({kind,width,geometry});}
  }
  for(const mode of ['Steel','Duct','Walls/Floors','Defect Reports','Service Plans']){

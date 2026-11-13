@@ -213,6 +213,21 @@ class CRMParticipants:
             raise ParticipantConflict('A different project now occupies this file. Reopen the correct saved project.')
         return row
 
+    def site_contacts(self, project):
+        """Current contact details for the people explicitly designated at this site."""
+        with self.db() as db:
+            row = self._existing(db, project)
+            roles = json.loads(row['roles']) if row else []
+        ids = [role['id'] for role in roles if role['kind'] == 'contacts' and role['role'] == 'site_contact']
+        if not ids:
+            return []
+        with self.contacts.connection() as db:
+            rows = db.execute("""SELECT c.name,c.phone,c.email FROM json_each(?) j
+                LEFT JOIN crm_contact_merges m ON m.source_id=j.value AND m.undone_at IS NULL
+                JOIN contacts c ON c.id=COALESCE(m.survivor_id,j.value)
+                GROUP BY c.id ORDER BY MIN(j.key)""", (json.dumps(ids),))
+            return [dict(row) for row in rows]
+
     def view(self, selector):
         project=self.projects.participant_project(selector)
         catalog=self._catalog()

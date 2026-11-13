@@ -59,6 +59,9 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     contacts_http = ContactsHTTP(store.path.with_name(store.path.stem + "-contacts.sqlite3"), projects, staff_provider=access.staff)
     from .crm_participants import CRMParticipants, ParticipantsHTTP
     participants = CRMParticipants(store.path.with_name(store.path.stem + '-crm-participants.sqlite3'), projects, contacts_http.store)
+    from functools import partial
+    from .scheduler_orders import shift_site_contacts
+    scheduler_http.store.shift_site_contacts = partial(shift_site_contacts, projects, participants)
     participants_http = ParticipantsHTTP(participants)
     from .record_resources import RecordResources, RecordResourcesHTTP
     resources_http = RecordResourcesHTTP(RecordResources(

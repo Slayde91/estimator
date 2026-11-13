@@ -47,6 +47,18 @@ class ParticipantTests(unittest.TestCase):
         return self.service.save({'project':project,'project_revision':revision,'version':version,
             'participants':rows or [],'site_id':site},self.actor)
 
+    def test_shift_contacts_follow_only_explicit_people_on_the_selected_file(self):
+        contacts = []
+        for name, phone in [('Site A','1001'),('Site B','1002'),('Billing','1003')]:
+            contacts.append(self.contacts.save('contacts',{'version':self.contacts.list()['version'],
+                'fields':{'name':name,'phone':phone,'company':'Engineering Co'}}))
+        a,b,billing = [{'kind':'contacts','id':contact['id'],'role':'site_contact'} for contact in contacts]
+        self.link('A',rows=[b,{**billing,'role':'billing_contact'},a,{**self.participant,'role':'site_contact'}])
+        self.projects.rows['B'].update(owner=self.projects.rows['A']['owner'],project_no=self.projects.rows['A']['project_no'])
+        self.assertEqual(self.service.site_contacts(self.projects.rows['B']),[])
+        self.assertEqual(self.service.site_contacts(self.projects.rows['A']),[
+            {'name':'Site B','phone':'1002','email':''},{'name':'Site A','phone':'1001','email':''}])
+
     def test_remove_and_readd_document_derived_participant_only_for_selected_project(self):
         party={'kind':self.participant['kind'],'id':self.participant['id']}
         evidence={**party,'label':'Engineering Co','role':'Supplier'}

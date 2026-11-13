@@ -114,7 +114,7 @@ class SchedulerRulePersistence(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.now = datetime(2026, 11, 1, 20, tzinfo=timezone.utc)
         self.order = {'id':'wo-a', 'revision':'revision-a', 'reference':'WO-02', 'client':'Fixture client',
-                      'site_address':'12 Site Street', 'status':'Draft', 'version':1}
+                      'site_address':'12 Site Street', 'status':'In progress', 'version':1}
         def lookup(identity, revision):
             if (identity, revision) != (self.order['id'], self.order['revision']):
                 raise ValueError('Stale')
@@ -157,10 +157,24 @@ class SchedulerRulePersistence(unittest.TestCase):
         with self.assertRaises(SchedulerError):
             self.write('clock/in', {'project_id':'new-project'})
         current = {key:self.order[key] for key in ('id','revision')}
+        with self.assertRaisesRegex(SchedulerError, 'In progress'):
+            self.write('shifts/save', {**payload,'work_order':current})
         clock = self.write('clock/in', {'work_order':current})
         self.assertEqual(clock['work_order'],self.order)
         with self.assertRaises(SchedulerError):
             self.write('entries/save', {'member_id':self.user['id'],'start':'2026-11-01T07:00','end':'2026-11-01T08:00','project_id':'new-project'})
+
+    def test_older_shift_clients_preserve_only_an_intact_contact_prefix(self):
+        selection = {key:self.order[key] for key in ('id','revision')}
+        prefix = 'Site contact: Test contact'
+        payload = {'title':'Install','start':'2026-11-02T07:00','end':'2026-11-02T15:00','work_order':selection,
+                   'notes':prefix+'\n\nMeet at the gate.','site_contact_note':prefix}
+        saved = self.write('shifts/save',payload)
+        old_client = {k:v for k,v in saved.items() if k not in {'work_order','site_contact_note'}}
+        retained = self.write('shifts/save',{**old_client,'title':'New title'})
+        self.assertEqual(retained['site_contact_note'],prefix)
+        edited = self.write('shifts/save',{**old_client,'version':retained['version'],'notes':'Personal notes'})
+        self.assertNotIn('site_contact_note',edited)
 
     def test_manual_rule_minimum_auto_end_and_snapshot_survive_settings_change(self):
         policy = self.state()['settings']

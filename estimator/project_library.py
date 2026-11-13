@@ -1427,7 +1427,13 @@ class ProjectLibrary:
         changed_message = 'The project file changed or was removed outside this window. Reload it or use "Save As".'
         if "project_status" not in captured or "project_follow_up" not in captured:
             existing = _confirmed_bytes(selected_path, selection, changed_message)
-            captured.update(self._missing_project_metadata(captured, json.loads(existing)))
+            try:
+                previous = json.loads(existing)
+            except (ValueError, RecursionError) as error:
+                raise ValidationError('The saved project could not be read. Reload it or choose a new filename.') from error
+            if not isinstance(previous, dict):
+                raise ValidationError('The saved project could not be read. Reload it or choose a new filename.')
+            captured.update(self._missing_project_metadata(captured, previous))
         payload = export_project(self.store, captured, edition=self.edition)
         project = load_project_bytes(self.store, payload, edition=self.edition)
         # Serialize writes and recheck the capability after preparation so two

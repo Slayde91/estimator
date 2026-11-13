@@ -89,7 +89,7 @@ async function test() {
   }});
   assert.equal(result.status(), 200, await result.text());
   await page.evaluate(() => {
-    localStorage.setItem('ceasefire.takeoff-signature.v1', JSON.stringify({
+    localStorage.setItem('ceasefire.takeoff-signature.v1.' + window.ClassifireAccess.user.id, JSON.stringify({
       version: 1, ratio: 3, strokes: [[[0, 0], [.5, 1], [1, 0]]]
     }));
     const personal = window.ClassifirePersonalSignature;
@@ -219,7 +219,7 @@ async function test() {
   await expect(button(purchase, 'Sign Sent by')).toBeHidden();
   await button(purchase, 'Clear Approved by').click();
   await button(page.getByRole('dialog', {name:'Clear section and later sections?'}), 'Clear section').click();
-  await expect(field(purchase, 'Status')).toHaveValue('Requested');
+  await expect.poll(() => order('purchase_order')?.status).toBe('Requested');
   await button(purchase, 'Back to Purchase Orders').click();
   await move(purchase, 'Requested', 'Reviewed');
   await approval.selectOption('Approved');

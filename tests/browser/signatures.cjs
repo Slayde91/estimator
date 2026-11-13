@@ -221,7 +221,7 @@ async function armedPlacementGuards() {
   const beforeRedraw = current; result = await command(async () => { await panel().getByRole("button", { name: "Redraw signature", exact: true }).click(); await padDraw(true); }, "update_signature");
   current = result.snapshot.signatures.records.find(value => value.id === wall.id); assert.notDeepEqual(current.strokes, beforeRedraw.strokes);
   assert.deepEqual(current.quad_pdf, beforeRedraw.quad_pdf); assert.equal(current.id, beforeRedraw.id); invariant(result.snapshot, baseline);
-  const chosen = await page.evaluate(() => JSON.parse(localStorage.getItem("ceasefire.takeoff-signature.v1")));
+  const chosen = await page.evaluate(() => JSON.parse(localStorage.getItem("ceasefire.takeoff-signature.v1."+window.ClassifireAccess.user.id)));
   const retainedRatio = dimensions(beforeRedraw)[0] / dimensions(beforeRedraw)[1], sx = Math.min(1, chosen.ratio / retainedRatio), sy = Math.min(1, retainedRatio / chosen.ratio);
   assert.deepEqual(current.strokes, chosen.strokes.map(stroke => stroke.map(([x, y]) => [x * sx + (1 - sx) / 2, y * sy + (1 - sy) / 2])), "Redraw centers padding instead of stretching replacement ink");
   const points = current.strokes.flat(), xs = points.map(point => point[0]), ys = points.map(point => point[1]);

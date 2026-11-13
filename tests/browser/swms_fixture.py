@@ -7,12 +7,16 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from estimator.native_dialogs import SaveSelection
 from estimator.project_library import file_fingerprint
-from feature_server import create_server
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--directory', required=True)
 parser.add_argument('--edition', choices=['full', 'standard'], required=True)
+parser.add_argument('--real-auth', action='store_true')
 args = parser.parse_args()
+if args.real_auth:
+    from estimator.server import create_server
+else:
+    from feature_server import create_server
 directory = Path(args.directory).resolve(); directory.mkdir(parents=True, exist_ok=True)
 project = directory / 'swms-project.cf.json'
 

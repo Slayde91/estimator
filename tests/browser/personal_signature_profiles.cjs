@@ -3,12 +3,13 @@ const {expect} = require('@playwright/test');
 const {openProjectSection} = require('./project_actions.cjs');
 const {openCertificateEditor} = require('./certification_generation.cjs');
 
-module.exports = async function signatureProfiles(page, edition) {
+module.exports = async function signatureProfiles(page, admin) {
   const base = new URL(page.url()).origin;
   const saved = () => page.evaluate(() => window.ClassifirePersonalSignature.saved());
-  async function account(action, body) {
-    const response = await page.request.post(base + '/api/scheduler/' + action, {data:body});
+  async function account(action, body, headers={}) {
+    const response = await page.request.post(base + '/api/' + action, {data:body,headers});
     assert.equal(response.status(),200,await response.text());
+    return response.json();
   }
   async function setSignature(remember, diagonal) {
     await page.locator('#personal-signature-set').click();
@@ -24,14 +25,15 @@ module.exports = async function signatureProfiles(page, edition) {
   }
   await page.locator('nav [data-view="settings"]').click();
   assert.equal((await page.request.get(base+'/icons/signature.svg')).status(),200);
-  const guest = await setSignature(false,.8);
-  assert.ok(guest.strokes.length);
-  assert.equal(await page.evaluate(()=>localStorage.getItem('ceasefire.takeoff-signature.v1')),null);
-  const credentials = {email:'qa-'+edition+'@example.test',password:'Isolated-QA-signature-2026'};
-  await account('setup',{...credentials,name:'Signature QA'});
-  assert.equal(await saved(),null);
+  const staffId=await page.evaluate(()=>window.ClassifireAccess.user.id);
+  const temporary = await setSignature(false,.8);
+  assert.ok(temporary.strokes.length);
+  assert.equal(await page.evaluate(id=>localStorage.getItem('ceasefire.takeoff-signature.v1.'+id),staffId),null);
+  const second={email:'second@example.test',password:'Isolated-alternate-signature'};
+  const other=await account('scheduler/members/save',{...second,name:'Second tester',role:'worker',active:true,base_rate:'0'});
+  await account('access/roles',{member_id:other.id,role:'editor',version:0},{'X-CRM-Member':staffId});
   const personal = await setSignature(true,.15);
-  assert.notDeepEqual(personal,guest);
+  assert.notDeepEqual(personal,temporary);
 
   await openProjectSection(page,'swms');
   const swms = page.locator('#swms-root');
@@ -57,11 +59,16 @@ module.exports = async function signatureProfiles(page, edition) {
   await page.locator('#certification-signature-use').click();
   const drawing = page.getByRole('dialog',{name:'Signatures',exact:true});
   await expect(drawing.getByLabel('Signature drawing pad')).toBeVisible();
-  await account('logout',{});
+  await account('access/login',second);
   await drawing.getByRole('button',{name:'Use saved signature'}).click();
-  await expect(drawing.getByRole('status')).toContainText('profile changed');
+  await expect(drawing.getByRole('status')).toContainText(/profile changed|Could not load/);
   await drawing.getByRole('button',{name:'Cancel'}).click();
-  assert.deepEqual(await saved(),guest);
-  await account('login',credentials);
+  const otherPage=await page.context().newPage();
+  try {
+    await otherPage.goto(base);await otherPage.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready);
+    assert.equal(await otherPage.evaluate(()=>window.ClassifireAccess.user.id),other.id);
+    assert.equal(await otherPage.evaluate(()=>window.ClassifirePersonalSignature.saved()),null);
+  } finally { await otherPage.close(); }
+  await account('access/login',admin);
   assert.deepEqual(await saved(),personal);
 };

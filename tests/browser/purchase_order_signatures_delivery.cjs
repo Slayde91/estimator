@@ -22,8 +22,10 @@ async function reopen(){await host.getByRole('button',{name:'Back to Purchase Or
 (async()=>{
   info=await ready;assert.notEqual(info.port,8765);browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1915,height:1000}});page.setDefaultTimeout(60000);
   page.on('pageerror',error=>errors.push(error.message));page.on('request',request=>{if(request.method()==='POST')writes.push(new URL(request.url()).pathname);});
-  await page.addInitScript(()=>{localStorage.setItem('ceasefire.takeoff-signature.v1',JSON.stringify({version:1,ratio:3,strokes:[[[0,0],[.5,1],[1,0]]]}));const NativeDate=Date,offset=NativeDate.parse('2026-11-08T14:30:00Z')-NativeDate.now();window.Date=class extends NativeDate{constructor(...args){super(...args.length?args:[NativeDate.now()+offset]);}static now(){return NativeDate.now()+offset;}};});
-  await page.goto(`http://127.0.0.1:${info.port}`);await idle();await createNewProject(page,{client:'PO SIGNATURE QA','site-address':'Current Project site\nSynthetic address'});
+  await page.addInitScript(()=>{const NativeDate=Date,offset=NativeDate.parse('2026-11-08T14:30:00Z')-NativeDate.now();window.Date=class extends NativeDate{constructor(...args){super(...args.length?args:[NativeDate.now()+offset]);}static now(){return NativeDate.now()+offset;}};});
+  await page.goto(`http://127.0.0.1:${info.port}`);await idle();
+  await page.evaluate(async()=>{await window.ClassifireAccess.ready;localStorage.setItem('ceasefire.takeoff-signature.v1.'+window.ClassifireAccess.user.id,JSON.stringify({version:1,ratio:3,strokes:[[[0,0],[.5,1],[1,0]]]}));});
+  await createNewProject(page,{client:'PO SIGNATURE QA','site-address':'Current Project site\nSynthetic address'});
   await openProjectSection(page,'purchase-orders');host=page.locator('#commercial-purchase-order-root');await host.getByRole('button',{name:'New Purchase Order',exact:true}).click();await idle();
   await expect(host.getByLabel('Document title',{exact:true})).toHaveCount(0);
   await expect(host.locator('.commercial-work-layout>.commercial-sidebar')).toHaveCount(2);

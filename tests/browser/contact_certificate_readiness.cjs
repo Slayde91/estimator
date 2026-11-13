@@ -35,7 +35,7 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
  await inline.getByRole('button',{name:'Save',exact:true}).click();await expect(inline.getByLabel('Phone',{exact:true})).toBeFocused();assert.equal(posts.length,count);await inline.getByRole('button',{name:'Cancel',exact:true}).click();await page.locator('#project-details-close').click();checks.push('The inline plus uses the same required Contact creation preflight and focuses its first missing value after inherited Name/Company');
  await openProjectSection(page,'certification');await idle();const select=page.locator('#certification-document'),toolbar=page.getByRole('group',{name:'Certification',exact:true}),plus=toolbar.getByRole('button',{name:'New',exact:true}),generate=toolbar.getByRole('button',{name:'Generate Certificate',exact:true});
  await expect(page.locator('#certification-board')).toHaveCount(0);await expect(page.locator('#certification-editor')).toBeVisible();
- await expect(page.locator('.certification-editor-toolbar #certification-generate + .certification-workflow select')).toHaveAccessibleName('Workflow status');
+ await expect(page.locator('#certification-editor').getByRole('combobox',{name:'Workflow status',exact:true})).toHaveCount(0);
  assert.equal(await generate.locator('.download-format-icon').innerHTML(),await page.locator('#estimate-open-quote .download-format-icon').innerHTML());
  await expect(page.locator('.certification-project-card textarea')).toHaveCount(4);
  const identity=page.locator('#certification-client'),options=page.locator('.certification-document-options');

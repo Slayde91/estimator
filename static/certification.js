@@ -15,8 +15,7 @@
     back: $(prefix + 'back'),
     save: (prefix === 'certification-' && $('certification-save')) || $(prefix + 'save-draft'),
     newDocument: $(prefix + 'new'),
-    generate: $(prefix + 'generate'),
-    workflow: $(prefix + 'workflow')
+    generate: $(prefix + 'generate')
   }));
   const signatureButton = $('certification-signature-use');
   const statement = "This is to certify that the fire rated materials have been installed according to the manufacturer's specifications to provide the nominated fire resistance level for the items listed in the relevant schedule.\n\nAll materials have been installed at the above location and comply with:";
@@ -60,7 +59,6 @@
     return state.conflicted || !equal(fields(),state.baseline.fields) ||
       state.options.cover_pdf !== state.baseline.options.cover_pdf || state.options.cover_pdf_name !== state.baseline.options.cover_pdf_name ||
       state.options.signature_image !== state.baseline.options.signature_image || state.options.signature_name !== state.baseline.options.signature_name ||
-      state.options.workflow_status !== state.baseline.options.workflow_status ||
       !equal(state.options.scopes,state.baseline.options.scopes);
   }
   function updateControls() {
@@ -68,13 +66,11 @@
     const locked = waiting || !!state.pending;
     for (const control of [...Object.values(controls), ...scopeControls]) control.disabled = locked;
     selector.disabled = locked || !state.items.length;
-    for (const {back, save, newDocument, generate, workflow} of toolbars) {
+    for (const {back, save, newDocument, generate} of toolbars) {
       back.disabled = state.busy || state.readingSignature || !!state.pending;
       save.disabled = waiting || (!!state.pending && state.pending.kind !== 'save');
       newDocument.disabled = locked;
       generate.disabled = waiting || (!!state.pending && state.pending.kind !== 'generate');
-      workflow.value = state.options.workflow_status || 'Draft';
-      workflow.disabled = locked;
     }
     signatureButton.disabled = locked;
     $('certification-signature-clear').disabled = locked || (!state.options.signature_image && !signerNames.some(name=>controls[name].value));
@@ -187,8 +183,8 @@
     table.append(head,body);host.replaceChildren(table);
   }
   function normalizeOptions(value) {
-    const result={...emptyOptions(),...(value||{})};
-    if ('workflow_status' in result && !['Draft','Review','Approved','Rejected'].includes(result.workflow_status)) throw new Error('Choose a valid workflow status.');
+    const result=emptyOptions();
+    for (const key of Object.keys(result)) if (value && Object.hasOwn(value,key)) result[key]=value[key];
     if(!Array.isArray(result.scopes)||result.scopes.some(id=>!scopes.some(scope=>scope.id===id)))throw new Error('The saved certification scope is invalid.');
     result.scopes=scopes.filter(scope=>result.scopes.includes(scope.id)).map(scope=>scope.id);
     if(typeof result.signature_name!=='string'||result.signature_name.length>200||/[\/\\\x00-\x1f]/.test(result.signature_name)||
@@ -218,7 +214,6 @@
     return saved.version===version && fieldNames.every(name=>saved.fields[name]===action.fields[name]) &&
       savedOptions.cover_pdf===action.options.cover_pdf && savedOptions.cover_pdf_name===action.options.cover_pdf_name &&
       savedOptions.signature_image===action.options.signature_image && savedOptions.signature_name===action.options.signature_name &&
-      savedOptions.workflow_status===action.options.workflow_status &&
       equal(savedOptions.scopes,action.options.scopes);
   }
   function inheritedFields() {
@@ -334,8 +329,7 @@
       }
       state.restoredDraft=true;
       if(draft.id){
-        const captured={...normalizeOptions(draft.options),workflow_status:draft.options?.workflow_status || 'Draft'};
-        const stored={...normalizeOptions(prepared.current.options),workflow_status:prepared.current.options?.workflow_status || 'Draft'};
+        const captured=normalizeOptions(draft.options),stored=normalizeOptions(prepared.current.options);
         // Portable JSON may order identical keys differently. Compare actual
         // field/option values before deciding that a protected draft differs.
         state.restoredDraft=!fieldNames.every(name=>(draft.fields[name] || '')===(prepared.current.fields[name] || '')) ||
@@ -410,14 +404,7 @@
   });
   for(const id of ['client','site-address','project-no'])$(id)?.addEventListener('input',refreshInheritedFields);
   form.addEventListener('submit',event=>event.preventDefault());
-  for (const {back, save, newDocument, generate, workflow} of toolbars) {
-    workflow.addEventListener('change', () => {
-      if (workflow.disabled || !window.ClassifireDocumentBoard?.stages.includes(workflow.value)) return;
-      state.options.workflow_status = workflow.value;
-      updateControls();
-      message('Unsaved certification details');
-      window.CeasefireProject?.changed?.();
-    });
+  for (const {back, save, newDocument, generate} of toolbars) {
     save.addEventListener('click', () => perform('save'));
     generate.addEventListener('click', event => { if (!(event.detail > 1)) return perform('generate'); });
     newDocument.addEventListener('click', () => loadDocument(null));
@@ -437,7 +424,7 @@
     // project or discard this form. Keep the broader predicate above for project
     // replacement/capture and desktop close, and still guard real writes/retries.
     hasPendingNavigationOperation:()=>state.mutating||state.readingSignature||!!state.pending,
-    fingerprint:()=>JSON.stringify({workspace_id:state.workspaceId,id:state.id,version:state.version,fields:fields(),options:{scopes:state.options.scopes,cover_pdf_name:state.options.cover_pdf_name,signature_name:state.options.signature_name,signature_revision:state.signatureRevision,workflow_status:state.options.workflow_status},pending:state.pending&&{kind:state.pending.kind,id:state.pending.id,version:state.pending.version,createRequestId:state.pending.createRequestId,generationRequestId:state.pending.generationRequestId}})};
+    fingerprint:()=>JSON.stringify({workspace_id:state.workspaceId,id:state.id,version:state.version,fields:fields(),options:{scopes:state.options.scopes,cover_pdf_name:state.options.cover_pdf_name,signature_name:state.options.signature_name,signature_revision:state.signatureRevision},pending:state.pending&&{kind:state.pending.kind,id:state.pending.id,version:state.pending.version,createRequestId:state.pending.createRequestId,generationRequestId:state.pending.generationRequestId}})};
   const fieldErrors = new Map();
   function clearFieldErrors(){
     for(const [name,control]of Object.entries(controls)){control.setCustomValidity('');control.removeAttribute('aria-invalid');fieldErrors.get(name)?.setAttribute('hidden','');}

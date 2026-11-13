@@ -56,18 +56,14 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   const upperToolbar=page.getByRole('group',{name:'Certification',exact:true}),revisionsToolbar=page.getByRole('group',{name:'Certificate revisions',exact:true});
   for(const toolbar of [upperToolbar,revisionsToolbar]){
     for(const name of ['Documentation','Save draft','New','Generate Certificate'])await expect(toolbar.getByRole('button',{name,exact:true})).toBeEnabled();
-    await expect(toolbar.getByRole('combobox',{name:'Workflow status'})).toHaveValue('Draft');
+    await expect(toolbar.getByRole('combobox')).toHaveCount(0);
   }
   await revisionsToolbar.getByRole('button',{name:'Documentation',exact:true}).click();await expect(page.locator('#view-documentation')).toBeVisible();
   await certification();
   assert.equal(await page.evaluate(()=>window.CeasefireCertification.projectFingerprint()),unsavedStamp);
   await expect(page.locator('#certification-signature-preview')).toBeVisible();
-  await upperToolbar.getByLabel('Workflow status',{exact:true}).selectOption('Review');
-  await expect(revisionsToolbar.getByLabel('Workflow status',{exact:true})).toHaveValue('Review');
   await revisionsToolbar.getByRole('button',{name:'Save draft',exact:true}).click();
   await expect(page.locator('#certification-status')).toContainText('Certification details saved.');
-  await revisionsToolbar.getByLabel('Workflow status',{exact:true}).selectOption('Rejected');
-  await expect(page.locator('#certification-workflow')).toHaveValue('Rejected');
   await expect(page.locator('#certification-save')).toHaveCount(0);await generateCertificate(page,1);
   const documentId=await page.locator('#certification-document').inputValue();assert.ok(documentId&&documentId!==original.id);
   await page.locator('#certification-location_area').fill('Updated before second generation');
@@ -80,16 +76,15 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   const localized=await page.evaluate(()=>{
     const i18n=window.CeasefireI18n;
     i18n.setLanguage('ar',false);
-    return Object.fromEntries(['Documentation','Save draft','New','Generate Certificate','Workflow status','Rejected'].map(key=>[key,i18n.translate(key)]));
+    return Object.fromEntries(['Documentation','Save draft','New','Generate Certificate'].map(key=>[key,i18n.translate(key)]));
   });
   await expect(page.locator('html')).toHaveAttribute('dir','rtl');
   for(const toolbar of await page.locator('#certification-editor .certification-editor-toolbar').all()){
     for(const name of ['Documentation','Save draft','New','Generate Certificate'])await expect(toolbar.getByRole('button',{name:localized[name],exact:true})).toBeVisible();
-    const status=toolbar.getByRole('combobox',{name:localized['Workflow status'],exact:true});
-    await expect(status).toHaveValue('Rejected');await expect(status.locator('option:checked')).toHaveText(localized.Rejected);
+    await expect(toolbar.getByRole('combobox')).toHaveCount(0);
   }
   await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));
-  checks.push('Both toolbars expose all five actions; editing either status selector updates the other and the lower toolbar saves and generates the next revision.');
+  checks.push('Both toolbars expose the four document actions in English and Arabic. The lower toolbar saves a draft and generates the next revision.');
   const listA=await (await fetch(base+'/api/certifications?workspace='+tokenA)).json();assert.equal(listA.items.length,1);
   const scoped=await (await fetch(base+'/api/certifications/'+documentId+'?workspace='+tokenA)).json();assert.equal(scoped.revisions.length,2);assert.equal(scoped.fields.location_area,'Updated before second generation');assert.equal(digest(scoped.options.signature_image),signatureHash);
   assert.equal(JSON.stringify(await (await fetch(base+'/api/certifications/'+original.id)).json()),sourceStamp);
@@ -113,9 +108,9 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   await expect(page.locator('#client')).toHaveValue('PROJECT A CLIENT',{timeout:120000});await idle();await certification();
   const restoredToken=await page.evaluate(()=>window.CeasefireCertification.sessionId());assert.notEqual(restoredToken,tokenA);
   await expect(page.locator('#certification-document')).toHaveValue(documentId);await expect(page.locator('#certification-client')).toHaveValue('PROJECT A CLIENT');
-  await expect(page.locator('#certification-workflow')).toHaveValue('Rejected');
+  await expect(upperToolbar.getByRole('combobox')).toHaveCount(0);
   await expect(page.locator('#certification-revisions a')).toHaveCount(2);
-  await expect(revisionsToolbar.getByLabel('Workflow status',{exact:true})).toHaveValue('Rejected');
+  await expect(revisionsToolbar.getByRole('combobox')).toHaveCount(0);
   await expect(page.locator('#certification-signature-preview')).toBeVisible();assert.equal(digest(await page.locator('#certification-signature-preview').getAttribute('src')),signatureHash);
   const restored=await (await fetch(base+'/api/certifications/'+documentId+'?workspace='+restoredToken)).json();
   const portable=value=>({...value,revisions:value.revisions.map(({pdf_url,...revision})=>revision)});
@@ -132,7 +127,10 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
       fields:{...fields,client:'Search '+status+' client',project:'Search project '+status,address:'Search site '+status},
       options:{cover_pdf:null,cover_pdf_name:'',scopes:[],workflow_status:status},request_id:randomUUID()}});
     assert.equal(seeded.status(),201,await seeded.text());
+    assert.ok(!Object.hasOwn((await seeded.json()).options,'workflow_status'));
   }
+  const list=await (await page.request.get(base+'/api/certifications?workspace='+restoredToken)).json();
+  assert.ok(list.items.every(item=>!Object.hasOwn(item,'workflow_status')));
   await page.evaluate(()=>window.CeasefireCertification.open());
   const saved=page.locator('#certification-document');
   await expect(saved.locator('option')).toHaveCount(5);
@@ -140,12 +138,20 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   await saved.selectOption(review);
   const discard=page.getByRole('button',{name:'Continue without saving',exact:true});if(await discard.isVisible())await discard.click();
   await expect(page.locator('#certification-client')).toHaveValue('Search Review client');
+  const existing=async()=> (await page.request.get(base+'/api/certifications/'+review+'?workspace='+restoredToken)).json();
+  await page.locator('#certification-location_area').fill('Reviewed certificate location');
+  await revisionsToolbar.getByRole('button',{name:'Save draft',exact:true}).click();
+  await expect(page.locator('#certification-status')).toContainText('Certification details saved.');
+  const edited=await existing();
+  assert.equal(edited.fields.location_area,'Reviewed certificate location');assert.ok(!Object.hasOwn(edited.options,'workflow_status'));
+  await generateCertificate(page,1);
+  const issued=await existing();assert.equal(issued.revisions.length,1);assert.ok(!Object.hasOwn(issued.options,'workflow_status'));
   for(const width of [1915,390]){
     await page.setViewportSize({width,height:884});await expect(saved).toBeVisible();
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
   }
-  checks.push('Existing certificates of all stages reopen from the form at desktop and phone sizes.');
-  assert.equal(generations.length,2);assert.deepEqual(errors,[]);
+  checks.push('Certificates submitted with each former status remain available in the picker. Saving and PDF generation return certificate details without a status.');
+  assert.equal(generations.length,3);assert.deepEqual(errors,[]);
   const screenshot=path.join(output,'restored-project-certificate.png');await page.screenshot({path:screenshot,fullPage:true});
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,generatedCertificateRevisions:generations.length,errors,project:info.project,screenshot},null,2));
   console.log('PASS: Certification touch signature, current-project-only picker and native Save/New/Load project isolation. '+output);

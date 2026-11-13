@@ -4,6 +4,7 @@ const {spawn,execFileSync}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {createNewProject,openProjectSection}=require('./project_actions.cjs');
 const {checkTrashAlignment}=require('./trash_alignment.cjs');
+const {observeQuoteSound,checkQuoteSound}=require('./quote_acceptance_audio.cjs');
 const expect=baseExpect.configure({timeout:30000}),root=path.resolve(__dirname,'../..');
 const output=path.join(root,'.runtime/browser-qa',`commercial-panes-signatures-${Date.now()}`);fs.mkdirSync(output,{recursive:true});
 const python=process.env.CEASEFIRE_PYTHON||'python',server=spawn(python,[path.join(__dirname,'fixtures.py'),'--directory',output,'--real-auth'],{cwd:root,windowsHide:true});
@@ -18,9 +19,11 @@ async function current(){const workspace=await page.evaluate(()=>window.Ceasefir
 async function checkWorkStage(expected) {
  await expect.poll(async () => (await current()).documents.find(doc => doc.kind === 'work_order')?.status).toBe(expected);
 }
-async function clearWork(label,choice='Clear section'){
+async function clearWork(label,choice='Clear section',alsoExpect=''){
  await page.locator('#commercial-work-order-root').getByRole('button',{name:'Clear '+label,exact:true}).click();
- await page.getByRole('dialog',{name:'Clear section and later sections?',exact:true}).getByRole('button',{name:choice,exact:true}).click();
+ const dialog=page.getByRole('dialog',{name:'Clear section and later sections?',exact:true});
+ if(alsoExpect)await expect(dialog).toContainText(alsoExpect);
+ await dialog.getByRole('button',{name:choice,exact:true}).click();
  await idle();
 }
 async function groupSign(host,key,label,name,dateLabel){await personal(name);const before=mutations.filter(route=>route==='/api/certifications/defaults').length;
@@ -30,6 +33,7 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  assert.equal(mutations.filter(route=>route==='/api/certifications/defaults').length,before,'Signing never writes personal defaults');}
 (async()=>{
  const info=await ready;assert.notEqual(info.port,8765);browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1915,height:1000}});page.setDefaultTimeout(60000);page.on('pageerror',error=>errors.push(error.message));
+ await observeQuoteSound(page);
  await page.addInitScript(()=>{const NativeDate=Date,offset=NativeDate.parse('2026-11-08T14:30:00Z')-NativeDate.now();window.Date=class extends NativeDate{constructor(...args){super(...args.length?args:[NativeDate.now()+offset]);}static now(){return NativeDate.now()+offset;}};});
  page.on('request',request=>{if(request.method()==='POST')mutations.push(new URL(request.url()).pathname);});
  const base=`http://127.0.0.1:${info.port}`;
@@ -68,8 +72,30 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
    await page.screenshot({path:path.join(output,'quote-signers-'+width+'.png')});
  }
  await page.setViewportSize({width:1915,height:1000});
- await quote.getByRole('button',{name:'Clear Quoted by',exact:true}).click();
- await page.getByRole('dialog',{name:'Clear signature',exact:true}).getByRole('button',{name:'Clear',exact:true}).click();await idle();
+ const quoteCard=quote.locator(`.commercial-card[data-document-id="${savedQuote.id}"]`);
+ async function checkQuoteStage(status,projectStatus) {
+   await expect.poll(async()=>(await current()).documents.find(doc=>doc.id===savedQuote.id)?.status).toBe(status);
+   await expect.poll(()=>JSON.parse(fs.readFileSync(info.project)).project_status).toBe(projectStatus);
+ }
+ async function clearQuote(role,target,choice='Clear') {
+   await quote.getByRole('button',{name:'Clear '+role,exact:true}).click();
+   const dialog=page.getByRole('dialog',{name:'Clear signature',exact:true});
+   await expect(dialog).toContainText(`Clear the ${role} signature and move this Quote to ${target}?`);
+   await dialog.getByRole('button',{name:choice,exact:true}).click();await idle();
+ }
+ await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
+ await quoteCard.locator('summary').click();await quoteCard.getByLabel('Move to').selectOption('Presented');
+ await expect(quoteCard.locator('..')).toHaveAttribute('data-status','Presented');await checkQuoteStage('Presented','Engage');
+ await quoteCard.locator('.project-title-button').click();await idle();
+ await clearQuote('Reviewed by','Review','Cancel');await checkQuoteStage('Presented','Engage');
+ await clearQuote('Reviewed by','Review');await checkQuoteStage('Review','Quote');
+ const reviewed=quote.getByRole('region',{name:'Reviewed by',exact:true}),quoted=quote.getByRole('region',{name:'Quoted by',exact:true});
+ await expect(reviewed.getByLabel('Name',{exact:true})).toHaveValue('');await expect(reviewed.getByLabel('Date',{exact:true})).toHaveValue('');
+ await expect(quoted.getByLabel('Name',{exact:true})).toHaveValue('Quote Estimator');
+ await personal('Quote Reviewer');await reviewed.getByRole('button',{name:'Sign Reviewed by',exact:true}).click();
+ await expect(reviewed.getByLabel('Name',{exact:true})).toHaveValue('Quote Reviewer');await idle();
+ await clearQuote('Quoted by','Draft');await checkQuoteStage('Draft','New');
+ checks.push('Clearing Reviewed by moves just that Quote to Review. Clearing Quoted by moves it to Draft. Cancellation and the other signer are preserved; the owning project file tracks both confirmed changes.');
  await expect(quote.getByRole('region',{name:'Quoted by',exact:true}).getByLabel('Name',{exact:true})).toHaveValue('');
  await expect(quote.getByRole('region',{name:'Reviewed by',exact:true}).getByLabel('Name',{exact:true})).toHaveValue('Quote Reviewer');
  const previousNotes=structuredClone(savedQuote.fields.notes);
@@ -112,14 +138,21 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  for(const control of await completed.locator('input').all())await expect(control).toHaveValue('');
  await expect(completed).toBeHidden();await expect(claimed).toBeHidden();
  await work.getByLabel('Linked Quote',{exact:true}).selectOption('');
+ await expect(work.getByText('Signing sets the linked Quote to Accepted.',{exact:true})).toHaveCount(0);
  await work.getByLabel('Linked Quote',{exact:true}).selectOption(savedQuote.id);
+ await expect(work.getByText('Signing sets the linked Quote to Accepted.',{exact:true})).toBeVisible();
  await expect(completed.locator('input').first()).toHaveValue('');
  await page.setViewportSize({width:1915,height:1000});const details=work.locator('.commercial-work-details');const sizes=await details.evaluate(section=>{const box=selector=>section.querySelector(selector).getBoundingClientRect().toJSON();return{description:box('.commercial-work-description textarea'),cost:box('[data-order-cost]'),files:box('input[type=file]'),stack:box('.commercial-work-cost-files')};});
  assert.ok(sizes.files.y>sizes.cost.y);assert.equal(Math.round(sizes.files.x),Math.round(sizes.cost.x));assert.ok(Math.abs(sizes.description.bottom-sizes.stack.bottom)<=2,JSON.stringify(sizes));assert.equal(await work.locator('.commercial-currency').count(),0);
  const detailsSigner=await details.locator('[data-signature-field=details_by]').evaluate(control=>control.parentElement.getBoundingClientRect().toJSON());
  assert.ok(detailsSigner.y>=Math.max(sizes.description.bottom,sizes.stack.bottom),'Details signature is the last row below the original work inputs');
  checks.push('Work Order attachment sits directly below estimated cost; the dollar adornment is absent and description fills the adjacent pair height');
+ await checkQuoteSound(page,0);
  await groupSign(work,'details_by','Work order details reviewed by','Details Person','Details review date');
+ await checkQuoteStage('Accepted','Won');await checkQuoteSound(page,1);
+ await work.getByRole('button',{name:'Change Work order details reviewed by',exact:true}).click();
+ await page.getByRole('dialog',{name:'Signatures',exact:true}).getByRole('button',{name:'Use saved signature',exact:true}).click();
+ await idle();await checkQuoteStage('Accepted','Won');await checkQuoteSound(page,1);
  await expect(work.locator('[data-signing-section]:visible')).toHaveCount(2);
  const review=work.locator('.commercial-order-fields').filter({has:page.getByRole('heading',{name:'Work order review',exact:true})});
  const reviewGeometry=await review.evaluate(section=>{const box=selector=>section.querySelector(selector).getBoundingClientRect().toJSON();return{
@@ -249,5 +282,18 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  await work.getByRole('button',{name:'Sign Closed by',exact:true}).click();await idle();await checkWorkStage('In progress');
  for(const key of ['closed_by','closed_date','progress_by','progress_date','claimed_by','claim_date'])await expect(work.locator(`[data-order-field="${key}"]`)).toHaveValue('');
  checks.push('Each signature saves its stage. Double clicks and failed saves leave the previous stage intact. Ongoing and Not completed restart the progress cycle, preserving quantities, notes and issued PDF bytes. On hold retains the signed closure.');
+ await clearWork('Work order details reviewed by','Cancel','This sets the linked Quote to Presented.');
+ await checkWorkStage('In progress');await checkQuoteStage('Accepted','Won');
+ await clearWork('Work order details reviewed by','Clear section','This sets the linked Quote to Presented.');
+ await checkWorkStage('Draft');await checkQuoteStage('Presented','Engage');await checkQuoteSound(page,1);
+ await work.getByLabel('Proposed start date',{exact:true}).fill('2026-11-10');
+ await work.getByLabel('Category / urgency',{exact:true}).selectOption('Medium Priority');
+ await work.getByLabel('Description of works',{exact:true}).fill('Renewed synthetic work');
+ await work.getByLabel('Estimated cost (AUD)',{exact:true}).fill('104.50');
+ await page.evaluate(()=>window.CeasefireAudioSettings.setEnabled(false));
+ await groupSign(work,'details_by','Work order details reviewed by','Details Person','Details review date');
+ await checkQuoteStage('Accepted','Won');await checkQuoteSound(page,1);
+ checks.push('Signing Work Order details sets the linked Quote to Accepted and its project to Won. Only a confirmed withdrawal sets them to Presented and Engage.');
+ checks.push('The acceptance sound plays once on a linked Quote transition. Re-signing, saving and clearing do not replay it; muted reacceptance is silent.');
  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,geometry,pdf:issued.path,errors},null,2));console.log('PASS commercial panes and signatures: '+output);
 })().catch(async error=>{console.error(error);console.error(logs);if(page){console.error(await page.locator('.commercial-message').allTextContents().catch(()=>[]));await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});}process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

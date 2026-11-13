@@ -35,7 +35,7 @@ class SwmsReadinessTests(unittest.TestCase):
         self.service = SwmsDocuments(self.projects)
 
     def save(self, fields=None):
-        return self.service.save(self.workspace, {'id': uid(), 'version': 0, 'status': 'Draft',
+        return self.service.save(self.workspace, {'id': uid(), 'version': 0,
                                                 'fields': fields if fields is not None else complete_swms(default_fields())})
 
     def document(self, identity):
@@ -106,7 +106,7 @@ class SwmsReadinessTests(unittest.TestCase):
         after_second = self.document(document['id'])
         self.assertEqual(after_second['fields']['reviews'][:3], ['ST', 'ST', ''])
         # Editing advances the save version, but does not consume a review slot.
-        edited = self.service.save(self.workspace, {key: after_second[key] for key in ('id', 'version', 'status', 'fields')})
+        edited = self.service.save(self.workspace, {key: after_second[key] for key in ('id', 'version', 'fields')})
         self.profile['name'] = 'Anna Kim'
         third = self.issue(edited)
         final = self.document(document['id'])
@@ -119,7 +119,7 @@ class SwmsReadinessTests(unittest.TestCase):
         self.assertEqual(self.document(document['id']), final)
         self.assertNotEqual(first['id'], second['id'])
         with self.assertRaises(SwmsConflict):
-            self.service.save(self.workspace, {key: document[key] for key in ('id', 'version', 'status', 'fields')})
+            self.service.save(self.workspace, {key: document[key] for key in ('id', 'version', 'fields')})
         self.assertEqual(validate_swms_snapshot(self.service.capture(self.workspace)), self.service.capture(self.workspace))
         restored_workspace = self.projects.add(self.projects.project_id(self.workspace))
         self.service.restore(restored_workspace, self.service.capture(self.workspace))
@@ -143,7 +143,7 @@ class SwmsReadinessTests(unittest.TestCase):
         self.profile['name'] = 'Slayde Tana'
         saved['fields']['reviews'][0] = 'Manual correction'
         saved['fields']['reviews'][1] = 'Future placeholder'
-        saved = self.service.save(self.workspace, {key: saved[key] for key in ('id', 'version', 'status', 'fields')})
+        saved = self.service.save(self.workspace, {key: saved[key] for key in ('id', 'version', 'fields')})
         self.issue(saved)
         result = self.document(saved['id'])
         self.assertEqual(result['fields']['reviews'][:3], ['Manual correction', 'ST', ''])

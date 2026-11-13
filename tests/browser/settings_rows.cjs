@@ -42,8 +42,10 @@ const errors = [], checks = [];
   await expect(page.locator('#organization-timezone-status')).toBeHidden();
   await expect(page.locator('#view-settings').getByText('All team members use this time zone. Changing it recalculates overtime and penalties for recorded shifts.',{exact:true})).toHaveCount(0);
   const geometry = [];
-  for (const width of [1915,1101,390]) {
+  for (const width of [1915,1254,390]) {
     await page.setViewportSize({width,height:884});
+    const companyControls = page.locator('#company-settings-form input, #company-settings-form .company-logo-upload-row button, #organization-timezone');
+    for (const control of await companyControls.all()) await expect(control).toHaveCSS('height', '42px');
     const measurements = await page.evaluate(() => {
       const box = selector => { const b = document.querySelector(selector).getBoundingClientRect(); return {left:b.left,right:b.right,top:b.top,bottom:b.bottom,width:b.width,height:b.height}; };
       const pair = selector => { const input=document.querySelector(selector), b=input.getBoundingClientRect(), label=input.closest('label').querySelector('span').getBoundingClientRect(); return {input:{left:b.left,top:b.top,bottom:b.bottom},label:{left:label.left,right:label.right,top:label.top,bottom:label.bottom}}; };

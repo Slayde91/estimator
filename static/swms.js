@@ -219,7 +219,7 @@
     const current = guard(); lock(true);
     try {
       const result = await defaults(); if (!current()) return;
-      state.options = result.options; state.editor = { id: crypto.randomUUID(), version: 0, status: "Draft", fields: result.fields };
+      state.options = result.options; state.editor = { id: crypto.randomUUID(), version: 0, fields: result.fields };
       state.dirty = markChanged; renderEditor(); if(markChanged)window.CeasefireProject?.changed?.();
     } finally { if (current()) lock(false); }
   }
@@ -250,7 +250,7 @@
     try {
       if (!current() || editor !== state.editor) return false;
       if (!state.dirty && editor.version) return true;
-      const saved = await request("save", { workspace_id: state.workspace, id: editor.id, version: editor.version, status: editor.status, fields: editor.fields });
+      const saved = await request("save", { workspace_id: state.workspace, id: editor.id, version: editor.version, fields: editor.fields });
       if (!current() || editor !== state.editor) return false;
       state.editor = saved; state.dirty = false; changed();
       if (!(await load())) return false;

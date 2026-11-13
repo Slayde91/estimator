@@ -1,4 +1,7 @@
 {
+  "Clear the {0} signature and move this Quote to {1}?": "{0} স্বাক্ষরটি মুছে এই দরপত্রটি কি {1} ধাপে নেওয়া হবে?",
+  "Signing sets the linked Quote to {0}.": "স্বাক্ষর করলে সংযুক্ত দরপত্রের অবস্থা {0} হবে।",
+  "{0} This sets the linked Quote to {1}.": "{0} এতে সংযুক্ত দরপত্রের অবস্থা {1} হবে।",
   "Quoted by": "দরপত্র প্রস্তুতকারী",
   "Sign Quoted by": "দরপত্র প্রস্তুতকারী হিসেবে স্বাক্ষর করুন",
   "Change Quoted by": "দরপত্র প্রস্তুতকারীর স্বাক্ষর বদলান",

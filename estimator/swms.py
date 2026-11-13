@@ -14,7 +14,6 @@ from zoneinfo import ZoneInfo
 
 from .catalog import ValidationError
 from .company_settings import DEFAULTS
-from .document_workflow import REVIEW_STAGES
 from .evidence_files import _directory
 
 DETAIL_FIELDS = ('job_reference', 'contact_person', 'position', 'phone', 'principal_contractor',
@@ -28,7 +27,6 @@ FIELD_KEYS = set(TEXT_FIELDS) | {'details', 'manager_signature', 'reviewers', 'c
                                'additional_steps', 'additional_rows', 'signoffs', 'manual_signature', 'site_signoffs', 'reviews', 'attachments'}
 STEP_FIELDS = ('job_step', 'hazards', 'initial_risk', 'controls', 'residual_risk', 'responsible')
 # Archived remains a valid value in historical projects and older clients.
-STATUSES = (*REVIEW_STAGES, 'Archived')
 WORK_TYPES = ('Protective Coatings', 'Passive Firestopping', 'Installation of Passive Fire Protection Works')
 MAX_SNAPSHOT_BYTES = 12 * 1024 * 1024
 MAX_PDF_BYTES = 64 * 1024 * 1024
@@ -323,17 +321,18 @@ def validate_swms_snapshot(value):
         raise ValidationError('A project supports at most 50 SWMS documents.')
     rows, identities = [], set()
     for row in value['documents']:
-        if not isinstance(row, dict) or set(row) - {'reference', 'review_count'} != {'id', 'version', 'status', 'fields', 'created_at', 'updated_at'}:
+        if not isinstance(row, dict) or set(row) - {'reference', 'review_count', 'status'} != {'id', 'version', 'fields', 'created_at', 'updated_at'}:
             raise ValidationError('A saved SWMS has unsupported fields.')
         if 'review_count' in row and (type(row['review_count']) is not int or not 0 <= row['review_count'] <= 10):
             raise ValidationError('The SWMS review count must be between zero and ten.')
         if 'reference' in row and not valid_reference(row['reference']):
             raise ValidationError('The saved SWMS reference is invalid.')
         identity = _identity(row['id'])
-        if identity in identities or type(row['version']) is not int or not 1 <= row['version'] <= 1000000000 or row['status'] not in STATUSES:
-            raise ValidationError('SWMS identity, version or status is invalid.')
+        if identity in identities or type(row['version']) is not int or not 1 <= row['version'] <= 1000000000:
+            raise ValidationError('SWMS identity or version is invalid.')
         identities.add(identity)
         clean = {**row, 'fields': validate_fields(row['fields'])}
+        clean.pop('status', None)  # Older project files included a workflow stage.
         for key in ('created_at', 'updated_at'):
             clean[key] = _text(row[key], key, 100)
             try:
@@ -348,6 +347,12 @@ def validate_swms_snapshot(value):
     if len(_json(result).encode('utf-8')) > MAX_SNAPSHOT_BYTES:
         raise ValidationError('SWMS drafts exceed the 12 MiB project limit.')
     return result
+
+
+def _stored_document(raw):
+    document = json.loads(raw)
+    document.pop('status', None)
+    return document
 
 
 class SwmsDocuments:
@@ -412,7 +417,7 @@ class SwmsDocuments:
     @staticmethod
     def _snapshot(db, workspace, project):
         series = DocumentNumbers.history(db, project)
-        return {'version': 1, 'project_id': project, **({'reference_counters':series} if series else {}), 'documents': [json.loads(row[0]) for row in db.execute('SELECT data FROM swms_drafts WHERE workspace=? ORDER BY id', (workspace,))]}
+        return {'version': 1, 'project_id': project, **({'reference_counters':series} if series else {}), 'documents': [_stored_document(row[0]) for row in db.execute('SELECT data FROM swms_drafts WHERE workspace=? ORDER BY id', (workspace,))]}
 
     def capture(self, workspace, expected_snapshot=None):
         with self._connect() as db:
@@ -424,7 +429,7 @@ class SwmsDocuments:
 
     def view(self, workspace):
         snapshot = self.capture(workspace)
-        return {'workspace_id': workspace, 'project_id': snapshot['project_id'], 'documents': snapshot['documents'], 'snapshot': snapshot, 'statuses': STATUSES,
+        return {'workspace_id': workspace, 'project_id': snapshot['project_id'], 'documents': snapshot['documents'], 'snapshot': snapshot,
                 'requirements': issue_requirements()}
 
     def restore(self, workspace, snapshot):
@@ -453,7 +458,7 @@ class SwmsDocuments:
         row = db.execute('SELECT data FROM swms_drafts WHERE workspace=? AND id=?', (workspace, identity)).fetchone()
         if row is None:
             raise ValidationError('This SWMS is unavailable in the current project.')
-        return json.loads(row[0])
+        return _stored_document(row[0])
 
     @staticmethod
     def _version(document, version):
@@ -466,17 +471,17 @@ class SwmsDocuments:
                    (workspace, identity, action, _json(before) if before else None, _json(after) if after else None, datetime.now(timezone.utc).isoformat()))
 
     def save(self, workspace, payload):
-        if not isinstance(payload, dict) or set(payload) != {'id', 'version', 'status', 'fields'} or payload['status'] not in STATUSES:
-            raise ValidationError('SWMS save contains unsupported fields or status.')
+        if not isinstance(payload, dict) or set(payload) - {'status'} != {'id', 'version', 'fields'}:
+            raise ValidationError('SWMS save contains unsupported fields.')
         identity, fields = _identity(payload['id']), validate_fields(payload['fields'])
         with self._connect() as db:
             self.numbering.attach(db)
             db.execute('BEGIN IMMEDIATE')
             project = self._workspace(db, workspace)
             row = db.execute('SELECT data FROM swms_drafts WHERE workspace=? AND id=?', (workspace, identity)).fetchone()
-            previous = json.loads(row[0]) if row else None
+            previous = _stored_document(row[0]) if row else None
             if previous and payload['version'] == 0 and type(payload['version']) is int:
-                if previous['fields'] == fields and previous['status'] == payload['status']:
+                if previous['fields'] == fields:
                     return previous
                 raise SwmsConflict('This new SWMS was already saved with different content.')
             if previous:
@@ -488,7 +493,7 @@ class SwmsDocuments:
             now = datetime.now(timezone.utc).isoformat()
             document = {'id': identity, 'version': previous['version'] + 1 if previous else 1,
                         'reference': self.numbering.assign(db, 'swms', project + ':' + identity, (previous or {}).get('reference', '')),
-                        'status': payload['status'], 'fields': fields, 'created_at': previous['created_at'] if previous else now, 'updated_at': now}
+                        'fields': fields, 'created_at': previous['created_at'] if previous else now, 'updated_at': now}
             if previous and 'review_count' in previous:
                 document['review_count'] = previous['review_count']
             elif previous is None:

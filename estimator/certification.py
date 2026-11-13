@@ -15,7 +15,6 @@ from pypdf import PdfReader
 
 from .catalog import ValidationError
 from .document_numbers import DocumentNumbers
-from .document_workflow import REVIEW_STAGES
 
 
 FIELDS = (
@@ -58,7 +57,7 @@ def validate_fields(value, *, partial=False):
 
 
 def validate_options(value):
-    """Keep legacy option shapes; new clients snapshot signer artwork explicitly."""
+    """Read legacy inputs and keep only the cover, signing artwork and scopes."""
     signature_keys = {'signature_image', 'signature_name'}
     if not isinstance(value, dict) or (set(value) - {'workflow_status'}) not in (set(DEFAULT_OPTIONS), set(DEFAULT_OPTIONS) | signature_keys):
         raise ValidationError('Include the certificate cover, cover filename and selected scopes only.')
@@ -75,23 +74,17 @@ def validate_options(value):
     from .pdf_cover import validate_cover_pdf
     cover, name = validate_cover_pdf(value['cover_pdf'], name)
     result = {'cover_pdf': cover, 'cover_pdf_name': name, 'scopes': scopes[:]}
-    if 'workflow_status' in value:
-        if value['workflow_status'] not in REVIEW_STAGES:
-            raise ValidationError('Choose a valid workflow status.')
-        result['workflow_status'] = value['workflow_status']
     if signature_keys <= set(value):
         from .certification_signature import validate_signature
         result['signature_image'], result['signature_name'] = validate_signature(value['signature_image'], value['signature_name'])
     return result
 
 
-def _draft_options(incoming, previous):
-    """Older editors omit the review stage. Preserve it during save and generation."""
-    if incoming is _MISSING:
-        return previous
-    if 'workflow_status' not in incoming and 'workflow_status' in previous:
-        return {**incoming, 'workflow_status': previous['workflow_status']}
-    return incoming
+def stored_options(raw):
+    """Read archived options without exposing obsolete editor metadata."""
+    value = json.loads(raw)
+    value.pop('workflow_status', None)
+    return value
 
 
 def validate_complete_fields(value):
@@ -137,6 +130,16 @@ def _json(value):
 
 def _fingerprint(value):
     return sha256(_json(value).encode('utf-8')).hexdigest()
+
+
+def _matches_request(stored, fingerprint, request):
+    if stored == fingerprint:
+        return True
+    # Old clients hashed the retired option in creation/generation receipts.
+    # Accept only hashes of the same request with that one legacy difference.
+    return 'options' in request and any(
+        stored == _fingerprint({**request, 'options': {**request['options'], 'workflow_status': legacy}})
+        for legacy in ('Draft', 'Review', 'Approved', 'Rejected'))
 
 
 def _now():
@@ -220,23 +223,21 @@ class CertificationService:
             raise CertificationNotFound('This certification document could not be found.')
         revisions = db.execute('SELECT revision,created_at,sha256 FROM certification_revisions '
                                'WHERE document_id=? ORDER BY revision DESC', (document_id,)).fetchall()
-        return {'id': document_id, 'reference': row[5], 'fields': json.loads(row[0]), 'version': row[1], 'options': json.loads(row[4]),
+        return {'id': document_id, 'reference': row[5], 'fields': json.loads(row[0]), 'version': row[1], 'options': stored_options(row[4]),
                 'created_at': row[2], 'updated_at': row[3],
                 'revisions': [_revision_metadata(document_id, item) for item in revisions]}
 
     def list_documents(self):
         with self.store.connect() as db:
-            rows = db.execute("SELECT d.id,d.fields,d.version,d.created_at,d.updated_at,COUNT(r.revision),d.reference,"
-                              "json_extract(d.options,'$.workflow_status') "
+            rows = db.execute("SELECT d.id,d.fields,d.version,d.created_at,d.updated_at,COUNT(r.revision),d.reference "
                               'FROM certification_documents d LEFT JOIN certification_revisions r '
                               'ON r.document_id=d.id GROUP BY d.id ORDER BY d.updated_at DESC,d.id').fetchall()
         items = []
-        for identity, raw, version, created_at, updated_at, count, reference, workflow_status in rows:
+        for identity, raw, version, created_at, updated_at, count, reference in rows:
             fields = json.loads(raw)
             items.append({'id': identity, 'reference': reference, 'client': fields['client'], 'project': fields['project'],
                           'address': fields['address'], 'version': version, 'created_at': created_at,
                           'updated_at': updated_at, 'revision_count': count,
-                          **({'workflow_status': workflow_status} if workflow_status else {}),
                           'label': fields['project'].strip() or fields['client'].strip() or 'Untitled certification'})
         return {'items': items}
 
@@ -248,7 +249,8 @@ class CertificationService:
         supplied_options = options is not _MISSING
         options = validate_options(options) if supplied_options else deepcopy(DEFAULT_OPTIONS)
         # Preserve the exact old fingerprint format for old clients/retries.
-        fingerprint = _fingerprint({'fields': fields, 'options': options}) if supplied_options else _fingerprint(fields)
+        request = {'fields': fields, 'options': options} if supplied_options else fields
+        fingerprint = _fingerprint(request)
         with self.store.connect() as db:
             self.numbering.attach(db)
             db.execute('BEGIN IMMEDIATE')
@@ -256,7 +258,7 @@ class CertificationService:
                 old = db.execute('SELECT id,create_request_fingerprint,created_at,create_options,reference FROM certification_documents '
                                  'WHERE create_request_id=?', (request_id,)).fetchone()
                 if old:
-                    if old[1] != fingerprint:
+                    if not _matches_request(old[1], fingerprint, request):
                         raise CertificationConflict('This create operation was already used with different certification details.')
                     # Replay the original creation receipt, not a newer draft.
                     # A lost-response caller retains its original fields and
@@ -264,7 +266,7 @@ class CertificationService:
                     # another window has since changed this document. GET is
                     # the separate source of fresh current document state.
                     return {'id': old[0], 'reference': old[4], 'fields': json.loads(_json(fields)), 'version': 1,
-                            'options': json.loads(old[3]) if old[3] is not None else deepcopy(DEFAULT_OPTIONS),
+                            'options': stored_options(old[3]) if old[3] is not None else deepcopy(DEFAULT_OPTIONS),
                             'created_at': old[2], 'updated_at': old[2], 'revisions': []}
             if self.creation_guard is not None:
                 self.creation_guard()
@@ -293,7 +295,7 @@ class CertificationService:
         with self.store.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             current = self._get(db, document_id)
-            selected_options = _draft_options(options, current['options'])
+            selected_options = current['options'] if options is _MISSING else options
             # An acknowledged or lost-response retry that already matches the
             # latest draft has nothing to overwrite, even if its version aged.
             if current['fields'] == fields and current['options'] == selected_options:
@@ -351,12 +353,12 @@ class CertificationService:
             return self._defaults(db, owner_id)
 
     @staticmethod
-    def _replay(db, document_id, request_id, fingerprint):
+    def _replay(db, document_id, request_id, fingerprint, request):
         row = db.execute('SELECT revision,created_at,sha256,request_fingerprint FROM certification_revisions '
                          'WHERE document_id=? AND request_id=?', (document_id, request_id)).fetchone()
         if row is None:
             return None
-        if row[3] != fingerprint:
+        if not _matches_request(row[3], fingerprint, request):
             raise CertificationConflict('This generation operation was already used with different certification details.')
         return _revision_metadata(document_id, row[:3])
 
@@ -375,7 +377,7 @@ class CertificationService:
         with self.store.connect() as db:
             db.execute('BEGIN')
             current = self._get(db, document_id)
-            replay = self._replay(db, document_id, request_id, fingerprint)
+            replay = self._replay(db, document_id, request_id, fingerprint, request)
             if replay:
                 return {'document': current, 'revision': replay}
             # Historical committed requests remain recoverable even if their
@@ -385,7 +387,7 @@ class CertificationService:
             if current['version'] != expected_version:
                 raise CertificationConflict('This certification changed in another window. Reload it before generating again.')
             revision = max((item['revision'] for item in current['revisions']), default=0) + 1
-            selected_options = deepcopy(_draft_options(options, current['options']))
+            selected_options = deepcopy(current['options'] if options is _MISSING else options)
             if not selected_options.get('signature_image'):
                 raise ValidationError('Complete all required certification fields before generating: signature.')
         from .company_settings import validate_company_settings
@@ -416,7 +418,7 @@ class CertificationService:
         with self.store.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             current = self._get(db, document_id)
-            replay = self._replay(db, document_id, request_id, fingerprint)
+            replay = self._replay(db, document_id, request_id, fingerprint, request)
             if replay:
                 return {'document': current, 'revision': replay}
             if current['version'] != expected_version:

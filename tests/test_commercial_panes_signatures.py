@@ -88,6 +88,57 @@ class CommercialPaneSignerTests(unittest.TestCase):
         self.assertEqual(document['fields']['order']['quoted_by'], '')
         self.assertEqual(document['fields']['order']['quoted_date'], '')
 
+    def test_quote_signature_clears_reset_the_correct_stage_and_retain_other_signoffs(self):
+        document = self.save('quote', complete_quote(default_fields('quote')))
+        document = self.store.status(self.workspace, document['id'], document['version'], 'Accepted')
+
+        def sign_action(action, before=None):
+            source = before or document
+            return self.store.save(self.workspace, dict(kind='quote', id=source['id'], version=source['version'],
+                status=source['status'], fields=source['fields'], signature_actions=[action]))
+
+        for key in ('reviewed_by', 'quoted_by'):
+            document = sign_action(dict(key=key, date='2026-11-14', name=key, signature=INK))
+            self.assertEqual(document['status'], 'Accepted')
+        signed_issue = self.store.issue(self.workspace, document['id'], document['version'], str(uuid4()))
+        document = signed_issue['document']
+        stale = document
+        document = sign_action(dict(key='reviewed_by', clear=True))
+        self.assertEqual(document['status'], 'Review')
+        self.assertEqual(self.store.capture_project(self.workspace)[1], 'Quote')
+        fields = document['fields']
+        self.assertEqual(fields['signatures'], {'quoted_by':INK})
+        self.assertEqual((fields['order']['quoted_by'], fields['order']['quoted_date']), ('quoted_by', '2026-11-14'))
+        self.assertEqual((fields['order']['reviewed_by'], fields['order']['review_date']), ('', ''))
+        with self.assertRaises(CommercialConflict):
+            sign_action(dict(key='quoted_by', clear=True), before=stale)
+        document = sign_action(dict(key='reviewed_by', name='New reviewer', date='2026-11-15', signature=INK))
+        self.assertEqual(document['status'], 'Review')
+        document = sign_action(dict(key='quoted_by', clear=True))
+        self.assertEqual(document['status'], 'Draft')
+        self.assertEqual(self.store.capture_project(self.workspace)[1], 'New')
+        self.assertEqual(document['fields']['signatures'], {'reviewed_by':INK})
+        self.assertEqual(document['fields']['order']['reviewed_by'], 'New reviewer')
+        self.assertEqual(document['fields']['order']['review_date'], '2026-11-15')
+        document = self.store.status(self.workspace, document['id'], document['version'], 'Presented')
+        document = sign_action(dict(key='quoted_by', clear=True))
+        self.assertEqual(document['status'], 'Presented')
+        self.assertEqual(self.store.read_pdf(self.workspace, signed_issue['id'])[1], signed_issue['pdf'])
+
+    def test_incomplete_quote_can_withdraw_signature_but_cannot_manually_advance(self):
+        document = self.save('quote', default_fields('quote'))
+        payload = dict(kind='quote', id=document['id'], version=document['version'], status='Draft', fields=document['fields'])
+        document = self.store.save(self.workspace, dict(payload, signature_actions=[
+            dict(key='reviewed_by', date='2026-11-14', name='Reviewer', signature=INK)]))
+        with self.assertRaisesRegex(ValidationError, 'Complete required Quote fields'):
+            self.store.status(self.workspace, document['id'], document['version'], 'Review')
+        cleared = self.store.save(self.workspace, dict(payload, version=document['version'], fields=document['fields'],
+                                                       signature_actions=[dict(key='reviewed_by', clear=True)]))
+        self.assertEqual(cleared['status'], 'Review')
+        self.assertNotIn('signatures', cleared['fields'])
+        with self.assertRaisesRegex(ValidationError, 'Complete required Quote fields'):
+            self.store.status(self.workspace, cleared['id'], cleared['version'], 'Presented')
+
     def test_three_signer_names_dates_and_vector_ink_persist_in_pdf_without_global_defaults(self):
         fields = complete_work_order(default_fields('work_order'))
         quote_fields = complete_quote(default_fields('quote')); quote_fields['terms'] = '<p>N / A</p>'
@@ -422,6 +473,30 @@ class SavedQuotePaneTests(unittest.TestCase):
     setUp = saved_helpers.SavedQuoteTests.setUp
     register = saved_helpers.SavedQuoteTests.register
     perform = saved_helpers.SavedQuoteTests.perform
+
+    def test_quote_signature_rollback_changes_the_selected_file_only(self):
+        original = self.path.read_bytes()
+        copy_path = self.folder / 'quote-signatures-copy.cf.json'
+        copy_path.write_bytes(original)
+        self.library.commercial_register(refresh=True)
+        card = next(row for row in self.register()['documents'] if row['source_path'] == str(copy_path))
+        self.source = {'file_id':card['source_file'], 'revision':card['source_revision']}
+        doc = self.document
+        presented = self.perform('status', id=doc['id'], version=doc['version'], status='Presented')
+        self.source['revision'] = presented['revision']
+        doc = presented['result']
+        for key, clear, stage, project in [('quoted_by',False,'Presented','Engage'), ('reviewed_by',False,'Presented','Engage'),
+                                           ('reviewed_by',True,'Review','Quote'), ('quoted_by',True,'Draft','New')]:
+            action = {'key':key, 'clear':True} if clear else {'key':key, 'name':key, 'date':'2026-11-14', 'signature':INK}
+            saved = self.perform('save', id=doc['id'], version=doc['version'], kind='quote',
+                                 status=doc['status'], fields=doc['fields'], signature_actions=[action])
+            self.source['revision'] = saved['revision']
+            doc = saved['result']
+            snapshot = json.loads(copy_path.read_bytes())
+            self.assertEqual(snapshot['project_status'], project)
+            self.assertEqual(snapshot['commercial_documents']['documents'][0], doc)
+            self.assertEqual(doc['status'], stage)
+            self.assertEqual(self.path.read_bytes(), original)
 
     def test_saved_bound_work_order_keeps_its_number_after_owner_project_metadata_changes(self):
         snapshot = json.loads(self.path.read_bytes());snapshot['estimate']['project_no']='PN-01'

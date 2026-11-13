@@ -27,6 +27,8 @@ class ThemeAssetTests(unittest.TestCase):
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
             cls.threads.append(thread)
+            # Create the test staff session before measuring read-only asset requests.
+            StaffConnection(server, timeout=30).close()
 
     @classmethod
     def tearDownClass(cls):

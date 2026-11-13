@@ -588,7 +588,7 @@
     const context = window.CeasefireProject?.runtimeContext?.();
     state.kind = kind;
     if (!root()) return;
-    if (kind === "quote") window.CeasefireButtonSounds?.prepareQuote?.();
+    if (kind === "quote" || kind === "work_order") window.CeasefireButtonSounds?.prepareQuote?.();
     shell(names[kind] + "s");
     try {
       const workspace = currentWorkspace() || (await window.CeasefireCertification.projectWorkspace()).workspace_id;
@@ -1317,6 +1317,16 @@
     purchase_order: {Approved:"Reviewed", Rejected:"Cancelled"}
   };
   const completionOutcomes = {Completed:"Completed", Ongoing:"In progress", "On hold":"On Hold", "Not completed":"In progress"};
+  function hasLinkedQuote(draft, source) {
+    const id = draft.fields.order.quote_id;
+    const related = source ? source.related : state.model.documents;
+    return Boolean(id && related?.some(item => item.kind === 'quote' && item.id === id));
+  }
+  function linkedQuoteSigningHint() {
+    const hint = node('p', 'helper');
+    window.CeasefireI18n.text(hint, 'Signing sets the linked Quote to {0}.', [window.CeasefireI18n.term('Accepted')]);
+    return hint;
+  }
   const signingSteps = {
     work_order: [
       {from:"Draft", key:"details_by", label:"Work order details reviewed by", next:["Review"]},
@@ -1448,6 +1458,7 @@
     stages.setAttribute("aria-live","polite");
     stages.append(statusLabel("span", draft.status), " → ", destination);
     form.append(heading, node("strong","",documentTitle(draft)), stages, statusLabel("h3",step.label));
+    if (step.key === 'details_by' && hasLinkedQuote(draft, source)) form.append(linkedQuoteSigningHint());
     const detailsHost = node("div","commercial-board-fields"), trackingHost = node("div","commercial-board-fields");
     const failure = node("p","message error");
     failure.setAttribute("role","alert");
@@ -1587,7 +1598,7 @@
     if (!action || !current()) return;
     if (!source) await window.CeasefireProjectPane?.beforeProjectSave?.();
     if (!current()) return;
-    await saveDocumentFields(proposed, fields, source, {workspace:state.workspace, signatureAction:action, explicitlySaved:true});
+    const saved = await saveDocumentFields(proposed, fields, source, {workspace:state.workspace, signatureAction:action, explicitlySaved:true});
     if (!current()) return;
     try {
       if (!source) {
@@ -1595,6 +1606,7 @@
         if (!await load(state.revision, false, true) || !current()) return;
         await saveActiveProject();
       }
+      linkedQuoteFeedback(saved.linked_quote_transition);
     } finally {
       // Refresh the register in place, including when saving the owner file needs a retry.
       if (current() && await load()) renderCards();
@@ -1665,9 +1677,12 @@
       if(selected.document.kind==='quote'){
         if(!value)return;
         const version=selected.document.version;
+        const destination = key === 'quoted_by' ? 'Draft' : 'Review';
+        const detail = {i18nSource:'Clear the {0} signature and move this Quote to {1}?',
+          i18nArgs:[window.CeasefireI18n.term(label), window.CeasefireI18n.term(destination)]};
         state.busy=true;setDisabled(true);
         try{
-          if(await window.CeasefireDialogs.confirm("Clear signature",window.CeasefireI18n.term(label),"Clear","Cancel") &&
+          if(await window.CeasefireDialogs.confirm("Clear signature",detail,"Clear","Cancel") &&
              state.editor===selected && selected.document.version===version)await saveEditor({key,clear:true});
         }finally{if(state.editor===selected){state.busy=false;setDisabled(false);}}
         return;
@@ -1679,11 +1694,15 @@
       const target = position === -1 || start < position ? steps[start].from : status;
       const detail = target === status ? 'Clear inputs and signatures from this section onward? The order will stay in {0}.'
         : 'Clear inputs and signatures from this section onward and return the order to {0}?';
+      const targetTerm = window.CeasefireI18n.term(target);
+      const detailCopy = key === 'details_by' && value && hasLinkedQuote(doc, selected.source)
+        ? {i18nSource:'{0} This sets the linked Quote to {1}.', i18nArgs:[
+          window.CeasefireI18n.term(detail,[targetTerm]), window.CeasefireI18n.term('Presented')]}
+        : {i18nSource:detail, i18nArgs:[targetTerm]};
       const version = doc.version;
       state.busy = true; setDisabled(true);
       try {
-        const confirmed = await window.CeasefireDialogs.confirm('Clear section and later sections?',
-          {i18nSource:detail, i18nArgs:[window.CeasefireI18n.term(target)]}, 'Clear section', 'Cancel');
+        const confirmed = await window.CeasefireDialogs.confirm('Clear section and later sections?', detailCopy, 'Clear section', 'Cancel');
         if (!confirmed || state.editor !== selected || doc.version !== version) return;
         if (version) await saveEditor({key, clear:true});
         else {
@@ -1706,7 +1725,14 @@
     buttonRow.append(preview,sign,resetButton('Clear',['M20 7v5h-5','M4 17v-5h5','M6.1 8.4A7.5 7.5 0 0 1 19.2 10L20 12','M17.9 15.6A7.5 7.5 0 0 1 4.8 14L4 12']));
     const headingLabel=key==='details_by'?'Reviewed by':label;
     const heading=node('span','',headingLabel);window.CeasefireI18n?.text(heading,headingLabel);
-    wrap.append(heading,buttonRow);return wrap;
+    wrap.append(heading,buttonRow);
+    if (key === 'details_by' && hasLinkedQuote(selected.document, selected.source)) {
+      const hint = linkedQuoteSigningHint();
+      hint.id = 'commercial-linked-quote-signing-hint';
+      sign.setAttribute('aria-describedby',hint.id);
+      wrap.append(hint);
+    }
+    return wrap;
   }
   function attachWorkPanels(form) {
     const editor = state.editor, doc = editor.document, fields = doc.fields;
@@ -2112,7 +2138,7 @@
         }
         initializeWorkTracking(fields,state.editor.source);
         trackingHosts.forEach(([host,key,label])=>renderTracking(host,fields,key,label));
-        for(const [key,label] of [['progress_by','Progress signed by'],['claimed_by','Claim signed by']]) {
+        for(const [key,label] of [['details_by','Work order details reviewed by'],['progress_by','Progress signed by'],['claimed_by','Claim signed by']]) {
           const signature=form.querySelector(`[data-signature-field="${key}"]`);
           if(signature)signature.replaceWith(signatureField(fields,key,label));
         }
@@ -2785,7 +2811,8 @@
       billingReview:editor.billingReview
     });
     assertDocumentOperation(operation);
-    adoptSaved(saved);
+    const {linked_quote_transition, ...stored} = saved;
+    adoptSaved(stored);
     if (signatureAction?.clear) refreshClearedSection(editor.document.fields);
     if (state.editor.source) state.editor.source.documentId = saved.id;
     state.dirty = false;
@@ -2824,6 +2851,10 @@
   }
   function acceptedQuoteFeedback(previousStatus, saved) {
     if (saved.kind === "quote" && saved.status === "Accepted" && previousStatus !== saved.status)
+      window.CeasefireButtonSounds?.quoteAccepted?.();
+  }
+  function linkedQuoteFeedback(transition) {
+    if (transition?.status === "Accepted" && transition.previous_status !== "Accepted")
       window.CeasefireButtonSounds?.quoteAccepted?.();
   }
   function adoptSaved(saved) {
@@ -2882,10 +2913,11 @@
       await flushRateDefaults();
       assertDocumentOperation(operation);
       const captured = state.kind === "quote" ? await capturedEstimates() : {};
-      await persist(captured, true, operation, signatureAction);
+      const saved = await persist(captured, true, operation, signatureAction);
       draftSaved=true;
       const source = state.editor.source;
       const inFile = source ? !source.file_id.startsWith("local-") : await saveActiveProject();
+      linkedQuoteFeedback(saved.linked_quote_transition);
       const document=operation.editor.document,billing=document.fields.billing;
       const billingKey=billing?.sync_key || billing?.new_contact_key;
       if(document.kind==='work_order' && billingKey && billingKey===operation.editor.billingPendingKey) {

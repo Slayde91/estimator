@@ -9,7 +9,7 @@ from .catalog import ValidationError
 
 def snapshot_cards(snapshot, owner):
     """Keep SWMS metadata bounded and tied to the Project's canonical owner."""
-    from .swms import _identity, _text, STATUSES
+    from .swms import _identity, _text
     from .document_numbers import valid_reference
     swms = snapshot.get('swms')
     if not swms:
@@ -24,8 +24,8 @@ def snapshot_cards(snapshot, owner):
         if not isinstance(row, dict) or not isinstance(row.get('fields'), dict):
             raise ValidationError('A saved SWMS has unsupported fields.')
         identity = _identity(row.get('id'))
-        if identity in seen or type(row.get('version')) is not int or not 1 <= row['version'] <= 1000000000 or row.get('status') not in STATUSES:
-            raise ValidationError('SWMS identity, version or status is invalid.')
+        if identity in seen or type(row.get('version')) is not int or not 1 <= row['version'] <= 1000000000:
+            raise ValidationError('SWMS identity or version is invalid.')
         reference = row.get('reference', '')
         if reference and not valid_reference(reference):
             raise ValidationError('The saved SWMS reference is invalid.')

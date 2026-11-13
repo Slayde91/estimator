@@ -1,4 +1,7 @@
 {
+  "Clear the {0} signature and move this Quote to {1}?": ["{0} 서명을 지우고 이 견적서의 상태를 {1}(으)로 변경할까요?","Burahin ang lagdang {0} at ilipat sa {1} ang siping ito ng presyo?","Xóa chữ ký {0} và chuyển báo giá này sang trạng thái {1}?"],
+  "Signing sets the linked Quote to {0}.": ["서명하면 연결된 견적서의 상태가 {0}(으)로 변경됩니다.","Kapag lumagda ka, magiging {0} ang katayuan ng nakaugnay na sipi ng presyo.","Khi ký, báo giá được liên kết sẽ chuyển sang trạng thái {0}."],
+  "{0} This sets the linked Quote to {1}.": ["{0} 연결된 견적서의 상태가 {1}(으)로 변경됩니다.","{0} Magiging {1} ang katayuan ng nakaugnay na sipi ng presyo.","{0} Báo giá được liên kết sẽ chuyển sang trạng thái {1}."],
   "Quoted by": ["견적 작성자","Naghanda ng sipi ng presyo","Người lập báo giá"],
   "Sign Quoted by": ["견적 작성자로 서명","Lumagda bilang naghanda ng sipi ng presyo","Ký với tư cách người lập báo giá"],
   "Change Quoted by": ["견적 작성자 서명 변경","Palitan ang lagda ng naghanda ng sipi ng presyo","Đổi chữ ký của người lập báo giá"],

@@ -44,6 +44,7 @@ async function run(edition) {
     await documentRow.locator('.documentation-download-button').click();
     const host = page.locator('#swms-root'); await expect(host).toBeVisible();
     await host.getByRole('button',{name:'New SWMS',exact:true}).click();
+    await page.waitForFunction(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).dirty);
     await expect(host.getByLabel('Job Reference',{exact:true})).toHaveValue(projectNumber);
     await expect(host.getByLabel('Job Reference',{exact:true})).toHaveAttribute('readonly','');
     await expect(host.getByLabel('Project Address',{exact:true})).toHaveValue('10 Test Street');

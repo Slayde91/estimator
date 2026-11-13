@@ -1140,7 +1140,7 @@
     container.replaceChildren();
     const heading = el("div", "page-heading");
     const title = el("div");
-    title.append(el("p", "eyebrow", "CONTACTS"), page === "accounts" ? ui("h1", "", titles[page]) : el("h1", "", titles[page]));
+    title.append(page === "accounts" ? ui("h1", "", titles[page]) : el("h1", "", titles[page]));
     heading.append(title);
     const tabs = el("nav", "calculator-pages contacts-tabs");
     tabs.setAttribute("aria-label", "Contacts pages");

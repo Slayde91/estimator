@@ -3,12 +3,11 @@ const { chromium, expect } = require("@playwright/test");
 const { spawn } = require("node:child_process"), fs = require("node:fs"), path = require("node:path"), assert = require("node:assert/strict"), { createHash } = require("node:crypto");
 const root = path.resolve(__dirname, "../.."), output = process.env.CEASEFIRE_BROWSER_OUTPUT || path.join(root, ".runtime/browser-qa", `header-menu-sounds-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
-const sourceFiles = ["static/header-menu-sounds.js", "static/downloads.js", "static/calculators.js", "static/penetration.js", "static/app.js", "estimator/server.py", "static/sounds/mgs1-menu-move.mp3", "static/sounds/mgs-confirm2.mp3", "static/sounds/flame-whoosh.wav", "static/sounds/hover.mp3", "static/sounds/select.mp3", "static/sounds/select-2.mp3", "static/sounds/type.mp3", "static/sounds/checkpoint.ogg", "static/sounds/gameover.mp3", "static/sounds/loading.mp3", "tests/browser/header_menu_sounds.cjs", "tests/browser/header_menu_sounds_fixture.py"];
+const sourceFiles = ["static/header-menu-sounds.js", "static/downloads.js", "static/calculators.js", "static/penetration.js", "static/app.js", "estimator/server.py", "static/sounds/mgs1-menu-move.mp3", "static/sounds/mgs-confirm2.mp3", "static/sounds/flame-whoosh.wav", "static/sounds/select.mp3", "static/sounds/select-2.mp3", "static/sounds/type.mp3", "static/sounds/checkpoint.ogg", "static/sounds/gameover.mp3", "static/sounds/loading.mp3", "tests/browser/header_menu_sounds.cjs", "tests/browser/header_menu_sounds_fixture.py"];
 const expectedSounds = [
   ["mgs1-menu-move.mp3", "ac2d686c78fa5dabc2415a0f3b39f4ced124f5fc1613ba3918e06daa7b47f8d0"],
   ["mgs-confirm2.mp3", "e9e7e156e24a4fde706f922ee135e88df51dc5ba94eed6344e66bbd6298e3e86"],
   ["flame-whoosh.wav", "988f40b00194f865d8ca84ef30d0d3b882c08a25a8597a9ebe2aa54524ab966b"],
-  ["hover.mp3", "052d0d7f3fb41ddb67766dedd8f4c237b46c8b18745dfad0a73a14c8afb6fad5"],
   ["select.mp3", "60e089eeac138ce5301fb59dc9d649c0404a556499c8f78c15c81a7cdfde1969"],
   ["select-2.mp3", "37e5c8645aa76e11dc8039545940436ea9201e533b1c946fbc9dfc3845efeb7b"],
   ["checkpoint.ogg", "60acfb941abf427378e87e7ae6660ae29491f8d5efaae2681d7eb9a52af3c935"],
@@ -99,9 +98,9 @@ async function noDownloadAudio() {
     if (reply.exceptionDetails) throw Error(JSON.stringify(reply.exceptionDetails));
     return reply.result.value;
   }
-  await expect.poll(() => unactivatedProbe("Boolean(window.CeasefireDesktop?.status().ready && !window.CeasefireDesktop.status().busy && window.ClassifireBoot?.state === 'ready' && window.qaMenuAudio.media.length === 8 && window.qaMenuAudio.media.every(media => media.readyState >= 2 && Number.isFinite(media.duration) && media.duration > 0))"), { timeout: 30000 }).toBe(true);
+  await expect.poll(() => unactivatedProbe(`Boolean(window.CeasefireDesktop?.status().ready && !window.CeasefireDesktop.status().busy && window.ClassifireBoot?.state === 'ready' && window.qaMenuAudio.media.length === ${expectedSounds.length} && window.qaMenuAudio.media.every(media => media.readyState >= 2 && Number.isFinite(media.duration) && media.duration > 0))`), { timeout: 30000 }).toBe(true);
   evidence.checks.preloadedDecodedMedia = await unactivatedProbe("window.qaMenuAudio.media.map(media => ({source:new URL(media.src).pathname,readyState:media.readyState,duration:media.duration,preload:media.preload}))");
-  assert.deepEqual(evidence.checks.preloadedDecodedMedia.map(row => row.source).sort(), expectedSounds.map(([file]) => `/sounds/${file}`).sort(), "All eight expected sound players are present exactly once");
+  assert.deepEqual(evidence.checks.preloadedDecodedMedia.map(row => row.source).sort(), expectedSounds.map(([file]) => `/sounds/${file}`).sort(), "All expected sound players are present exactly once");
   assert.ok(evidence.checks.preloadedDecodedMedia.every(row => row.preload === "auto"), "Every expected sound retains automatic preload");
   for (const [file, expected] of expectedSounds) {
     const response = await page.request.get(`${origin}/sounds/${file}`), bytes = await response.body();
@@ -168,6 +167,9 @@ async function noDownloadAudio() {
     button.append(icon); dialog.append(button); document.body.append(dialog); document.body.classList.add("takeoffs-active"); dialog.showModal();
   });
   const scoped = page.locator("#qa-takeoff-audio-button");
+  const beforeTakeoffHover = await buttonCalls();
+  await scoped.hover(); await page.locator("#qa-takeoff-audio-icon").hover();
+  assert.equal(await buttonCalls(), beforeTakeoffHover, "Takeoffs buttons issue no hover playback");
   prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("select.mp3")).length);
   await scoped.click(); await played("/sounds/select.mp3", prior);
   await page.evaluate(() => document.body.classList.remove("takeoffs-active"));

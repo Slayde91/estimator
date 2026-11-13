@@ -429,6 +429,8 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .main-section-tab:focus-visible{outline:2px solid var(--red);outline-offset:-4px}
 @media screen {
   .main-section-tabs{background:#0D0B0E;border-radius:8px}
+  #view-estimate .main-section-tabs{border:0;border-bottom:1px solid #ed001b}
+  #view-estimate .main-section-tab[aria-selected=true]{border-bottom-color:#fff;box-shadow:inset 0 -3px #fff}
   .main-output-tabs{background:#090B0E}
   .main-section-tab[aria-selected=false]:not(:hover){background:transparent;color:#e5e7eb}
   #view-estimate .main-section-tab:focus-visible{outline-color:#fff}
@@ -534,6 +536,13 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 #project-pages.project-tabs,#document-pages.document-tabs,#calculator-kind-pages.calculator-kind-tabs,#library-pages.library-tabs,#takeoff-pages.takeoff-tabs{width:fit-content;max-width:100%;height:40px;min-height:40px;padding:0;margin:0 0 18px;flex-wrap:nowrap;align-items:stretch;overflow-x:auto;background:#0C0B0E}
 #project-pages .calculator-page,#document-pages .calculator-page,#calculator-kind-pages .calculator-page,#library-pages .calculator-page,#takeoff-pages .calculator-page{flex:0 0 auto;min-width:0;padding-block:0;display:flex;align-items:center;justify-content:center;white-space:nowrap}
 #project-pages .calculator-page[aria-pressed="false"]:not(:hover),#document-pages .calculator-page[aria-pressed="false"]:not(:hover),#calculator-kind-pages .calculator-page[aria-pressed="false"]:not(:hover),#library-pages .calculator-page[aria-pressed="false"]:not(:hover),#takeoff-pages .calculator-page[aria-pressed="false"]:not(:hover){background:transparent;color:#e5e7eb}
+@media screen {
+  #calculator-kind-pages.calculator-kind-tabs,#takeoff-pages.takeoff-tabs{margin-bottom:0}
+  #calculator-kind-pages.calculator-kind-tabs{height:auto;min-height:var(--calculator-control-height)}
+  #calculator-kind-pages>.calculator-page{height:var(--calculator-control-height)}
+  :is(#calculator-kind-pages,#takeoff-pages)>.calculator-page:focus-visible{outline-offset:-4px}
+  .workspace-tabs-divider{height:1px;margin-bottom:17px;background:var(--red)}
+}
 /* Section headings precede the main tabs; moving the real nodes retains their
    controls, artwork, status and accessibility anchors. */
 .workspace-section-heading{min-width:0}

@@ -22,7 +22,7 @@ test("native media cancellation at any stage requires exact delivery and fresh t
     assert.equal(verifiedNativeMediaCancellation({ ...request, url: address }, { ...typed, assets: [{ ...typed.assets[0], contentType: "text/plain" }] }), false);
   }
   for (const changed of [{ observedAt: undefined }, { observedAt: "invalid" }, { method: "POST" }, { resourceType: "fetch" },
-    { url: origin + feedbackSources.hover }, { url: "http://127.0.0.1:54322" + source }, { url: url + "?other=1" },
+    { url: origin + feedbackSources.checkpoint }, { url: "http://127.0.0.1:54322" + source }, { url: url + "?other=1" },
     { failure: { errorText: "net::ERR_FAILED" } }, { failure: null }]) {
     assert.equal(verifiedNativeMediaCancellation({ ...request, ...changed }, proof), false, JSON.stringify(changed));
   }
@@ -221,104 +221,24 @@ test("Quote acceptance preloads once and shares the audio preference and page li
   sounds.close(); settings.close();
 });
 
-test("delegated feedback covers dynamic buttons, icons and button-like links once in the current event", () => {
+test("Takeoff hovers stay silent; pointer and keyboard activation play once on rebuilt controls", () => {
   const h = audioHarness(), controller = createFeedback(h.document, h.host, h.menu);
-  assert.equal(h.players.length, 5); assert.equal(h.plays().length, 0);
-  const button = element(null, { control: true }), icon = element(button), label = element(button);
-  h.document.emit("pointerover", { target: icon, pointerType: "mouse", relatedTarget: null });
-  h.document.emit("pointerover", { target: label, pointerType: "mouse", relatedTarget: icon });
-  assert.deepEqual(h.plays(), [["play", feedbackSources.hover, 0]]);
-  h.document.emit("click", { target: icon, detail: 0, preventDefault() { throw Error("Do not delay the action"); } });
-  assert.equal(h.plays().at(-1)[1], feedbackSources.select);
-  const dynamic = element(null, { control: true });
-  h.document.emit("click", { target: dynamic });
-  assert.equal(h.plays().length, 3); assert.equal(h.players.length, 5);
-  assert.ok(h.menu.stops >= 3, "Ordinary buttons stop the previous header/Home clip");
-  controller.close(); h.document.emit("click", { target: dynamic });
-  assert.equal(h.plays().length, 3); assert.ok(h.players.every(player => player.paused));
-});
-
-test("stationary replacement hover leaves the clicked tab's selection playing, including rounded click coordinates", () => {
-  const h = audioHarness(); createFeedback(h.document, h.host, h.menu);
-  const old = element(null, { control: true }), replacement = element(null, { control: true });
-  const pointer = { clientX: 438.35, clientY: 498.12, pointerId: 1, pointerType: "mouse", isTrusted: true };
-  h.document.emit("pointerover", { ...pointer, target: old });
-  h.document.emit("pointermove", { ...pointer, target: old });
-  h.document.emit("click", { target: old, clientX: 438, clientY: 498, detail: 1 });
-  const select = h.players.find(player => player.src === feedbackSources.select);
-  select.currentTime = 0.1;
-  const count = h.plays().length, stops = h.menu.stops;
-  // A replacement still interrupted selection when its hover clip was unready.
-  h.players.find(player => player.src === feedbackSources.hover).readyState = 0;
-  h.document.emit("pointerover", { ...pointer, target: element(null) });
-  h.document.emit("pointerover", { ...pointer, target: replacement });
-  assert.equal(h.plays().length, count); assert.equal(h.menu.stops, stops, "No replacement hover reaches routing");
-  assert.equal(select.paused, false); assert.equal(select.currentTime, 0.1);
-});
-
-test("real neighbouring movement and leaving then returning to the same position retain immediate hover", () => {
-  const h = audioHarness(); createFeedback(h.document, h.host, h.menu);
-  const first = element(null, { control: true }), next = element(null, { control: true });
-  const pointer = { clientX: 10.5, clientY: 20.25, pointerId: 1, pointerType: "mouse" };
-  h.document.emit("pointerover", { ...pointer, target: first });
-  h.document.emit("click", { target: first });
-  h.document.emit("pointerover", { ...pointer, clientX: 40.5, target: next, relatedTarget: first });
-  assert.deepEqual(h.plays().map(row => row[1]), [feedbackSources.hover, feedbackSources.select, feedbackSources.hover]);
-  h.document.emit("pointermove", { ...pointer, clientX: 80.5, target: element(null) });
-  h.document.emit("pointerover", { ...pointer, target: first, relatedTarget: next });
-  assert.equal(h.plays().length, 4, "Returning to an earlier coordinate follows actual movement");
-  h.document.emit("pointerover", { ...pointer, clientX: 11.5, target: element(first), relatedTarget: first });
-  assert.equal(h.plays().length, 4, "Nested icon/label boundaries are still one entry");
-});
-
-test("keyboard clicks do not overwrite the resting pointer and missing coordinates keep legacy hover routing", () => {
-  const h = audioHarness(); createFeedback(h.document, h.host, h.menu);
-  const first = element(null, { control: true }), replacement = element(null, { control: true });
-  const pointer = { clientX: 10.75, clientY: 20.5, pointerId: 1, pointerType: "mouse" };
-  h.document.emit("pointerover", { ...pointer, target: first });
-  h.document.emit("click", { target: replacement, detail: 0, clientX: 0, clientY: 0 });
-  h.document.emit("pointerover", { ...pointer, target: replacement });
-  assert.deepEqual(h.plays().map(row => row[1]), [feedbackSources.hover, feedbackSources.select]);
-  assert.equal(h.players.find(player => player.src === feedbackSources.select).paused, false);
-  h.document.emit("pointerover", { target: first, pointerType: "mouse" });
-  h.document.emit("pointerover", { target: replacement, pointerType: "mouse" });
-  assert.equal(h.plays().length, 4, "Coordinate-free compatibility events are not suppressed");
-  h.document.emit("pointerover", { ...pointer, pointerId: 2, target: first });
-  h.document.emit("pointerover", { ...pointer, pointerId: 2, pointerType: "pen", target: replacement });
-  assert.equal(h.plays().length, 6, "A different pointer is a new entry even at the same coordinate");
-});
-
-test("only leaving the document clears stationary pointer history; blur, visibility and pagehide also reset it", () => {
-  for (const reset of ["leave", "blur", "hidden", "pagehide"]) {
-    const h = audioHarness(), controller = createFeedback(h.document, h.host, h.menu);
-    h.document.documentElement = element(null);
-    const old = element(null, { control: true }), replacement = element(null, { control: true });
-    const pointer = { clientX: 10.5, clientY: 20.5, pointerId: 1, pointerType: "mouse" };
-    h.document.emit("pointerover", { ...pointer, target: old }); h.document.emit("click", { target: old });
-    h.document.emit("pointerleave", { ...pointer, target: old });
-    h.document.emit("pointerover", { ...pointer, target: replacement });
-    assert.equal(h.plays().length, 2, "Leaving a removed child does not erase the physical position");
-    if (reset === "leave") h.document.emit("pointerleave", { target: h.document.documentElement });
-    if (reset === "blur") h.host.emit("blur");
-    if (reset === "hidden") { h.document.hidden = true; h.document.emit("visibilitychange"); h.document.hidden = false; }
-    if (reset === "pagehide") h.host.emit("pagehide");
-    h.document.emit("pointerover", { ...pointer, target: old });
-    assert.equal(h.plays().length, 3, `${reset} allows a fresh entry at the same position`);
-    controller.close(); h.document.emit("pointermove", { ...pointer, clientX: 50 }); h.document.emit("pointerover", { ...pointer, target: replacement });
-    assert.equal(h.plays().length, 3); assert.ok(h.players.every(player => player.paused));
+  const pane = element(null, { zone: "takeoff" });
+  const first = element(pane, { control: true }), next = element(pane, { control: true });
+  for (const pointerType of ["mouse", "pen", "touch"]) {
+    h.document.emit("pointerover", {target: first, pointerType});
+    h.document.emit("pointerover", {target: element(next), relatedTarget: first, pointerType});
   }
-});
-
-test("stationary drawing boundaries still stop feedback and keep explicit drawing-menu commands usable", () => {
-  const h = audioHarness(); createFeedback(h.document, h.host, h.menu);
-  const pane = element(null, { control: true }), drawing = element(null, { zone: "drawing" });
-  const pointer = { clientX: 10.5, clientY: 20.5, pointerId: 1, pointerType: "mouse" };
-  h.document.emit("pointerover", { ...pointer, target: pane }); h.document.emit("click", { target: pane });
-  h.document.emit("pointerover", { ...pointer, target: drawing });
-  assert.ok(h.players.every(player => player.paused));
-  const command = element(element(drawing, { zone: "drawing-menu" }), { control: true });
-  h.document.emit("pointerover", { ...pointer, target: command });
-  assert.equal(h.plays().at(-1)[1], feedbackSources.hover);
+  assert.deepEqual(h.plays(), []);
+  h.document.emit("click", {target: element(first), detail: 1});
+  const select = h.players.find(player => player.src === feedbackSources.select);
+  select.currentTime = .1;
+  h.document.emit("pointerover", {target: next, pointerType: "mouse"});
+  assert.equal(select.paused, false); assert.equal(select.currentTime, .1);
+  h.document.emit("click", {target: next, detail: 0});
+  assert.deepEqual(h.plays().map(row => row[1]), [feedbackSources.select, feedbackSources.select]);
+  controller.close(); h.document.emit("click", {target: first});
+  assert.equal(h.plays().length, 2); assert.ok(h.players.every(player => player.paused));
 });
 
 test("main pages including Home are silent; header logo and Takeoff actions retain feedback", () => {
@@ -356,14 +276,14 @@ test("PDF drawing hits and handles are silent while pane and explicit context-me
   }
   const command = element(element(drawing, { zone: "drawing-menu" }), { control: true });
   h.document.emit("pointerover", { target: command, pointerType: "pen" });
-  assert.equal(h.plays().at(-1)[1], feedbackSources.hover);
+  assert.equal(h.plays().length, 1, "Hovering the drawing command is silent");
   h.document.emit("click", { target: element(command) });
   assert.equal(h.plays().at(-1)[1], feedbackSources.select, "An explicit drawing context command remains a button action");
   h.document.emit("pointerover", { target: drawing, pointerType: "touch" });
   assert.ok(h.players.every(player => player.paused), "A touch entering the drawing also stops prior tool feedback");
   h.document.emit("pointerover", { target: pane, pointerType: "mouse" });
   h.document.emit("click", { target: pane });
-  assert.deepEqual(h.plays().slice(-2).map(row => row[1]), [feedbackSources.hover, feedbackSources.select], "Returning to a tool pane restores ordinary feedback");
+  assert.deepEqual(h.plays().slice(-2).map(row => row[1]), [feedbackSources.select, feedbackSources.select], "Only clicking a command or tool pane button plays audio");
 });
 
 test("disabled, inert and touch-hover controls stay silent; hidden pages stop their feedback", () => {
@@ -385,15 +305,17 @@ test("disabled, inert and touch-hover controls stay silent; hidden pages stop th
 
 test("ordinary feedback never queues unloaded audio or replays rejected interactions", async () => {
   const h = audioHarness(); createFeedback(h.document, h.host, h.menu);
-  const button = element(null, { control: true }), hover = h.players.find(player => player.src === feedbackSources.hover);
-  hover.readyState = 0; h.document.emit("pointerover", { target: button, pointerType: "mouse" });
-  hover.readyState = 4; hover.emit("canplay"); assert.equal(h.plays().length, 0);
-  const select = h.players.find(player => player.src === feedbackSources.select); select.failure = "reject";
-  h.document.emit("click", { target: button }); await Promise.resolve(); assert.equal(select.paused, true);
-  hover.emit("canplay"); assert.equal(h.plays().length, 1);
-  select.failure = "pending"; h.document.emit("click", { target: button });
-  h.document.emit("pointerover", { target: button, pointerType: "mouse" }); select.reject(Error("Old attempt")); await Promise.resolve();
-  assert.equal(hover.paused, false, "A stale select rejection cannot stop the latest hover");
+  const button = element(null, { control: true });
+  const select = h.players.find(player => player.src === feedbackSources.select);
+  select.readyState = 0; h.document.emit("click", {target: button});
+  select.readyState = 4; select.emit("canplay"); assert.equal(h.plays().length, 0);
+  select.failure = "reject"; h.document.emit("click", {target: button});
+  await Promise.resolve(); assert.equal(select.paused, true);
+  select.emit("canplay"); assert.equal(h.plays().length, 1);
+  select.failure = "pending"; h.document.emit("click", {target: button});
+  const checkpoint = element(null, {control:true}); checkpoint.id = "save-current-project";
+  h.document.emit("click", {target: checkpoint}); select.reject(Error("Old attempt")); await Promise.resolve();
+  assert.equal(h.players.find(player => player.src === feedbackSources.checkpoint).paused, false);
 });
 
 test("the global Save is silent on main pages and retains checkpoint feedback in Takeoffs", () => {

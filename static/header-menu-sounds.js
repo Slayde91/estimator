@@ -7,7 +7,6 @@
     confirm: "/sounds/mgs-confirm2.mp3",
   });
   const feedbackSources = Object.freeze({
-    hover: "/sounds/hover.mp3",
     select: "/sounds/select.mp3",
     selectOther: "/sounds/select-2.mp3",
     checkpoint: "/sounds/checkpoint.ogg",
@@ -84,7 +83,7 @@
   function createFeedback(document, host = root, menu = silent) {
     if (!document?.addEventListener || typeof host?.Audio !== "function") return silent;
     const players = createPlayers(feedbackSources, host);
-    let acceptedQuotePlayer, closed = false, pointer = null;
+    let acceptedQuotePlayer, closed = false;
     function prepareQuote() {
       if (!closed) acceptedQuotePlayer ||= createPlayers({accepted:"/sounds/money.mp3"}, host);
     }
@@ -93,53 +92,27 @@
     }
     const selector = 'button, a.button, [role="button"], input[type="button"], input[type="submit"], input[type="reset"], input[type="image"], summary';
     const element = target => target?.nodeType === 3 ? target.parentElement : target;
-    function position(event) {
-      return Number.isFinite(event.clientX) && Number.isFinite(event.clientY)
-        ? { x: event.clientX, y: event.clientY, id: event.pointerId, type: event.pointerType } : null;
-    }
-    function move(event) {
-      // Keep native fractional pointer coordinates. Mouse/keyboard click
-      // coordinates can be rounded or zero and must not replace this position.
-      pointer = event.pointerType === "touch" ? null : position(event);
-    }
-    function clearPointer() { pointer = null; }
-    function leave(event) {
-      if (event.target === document || event.target === document.documentElement) clearPointer();
-    }
     function enabled(button) {
       return button && !button.disabled && !button.matches?.(":disabled") && button.getAttribute?.("aria-disabled") !== "true" && !button.closest?.("[inert]");
     }
-    function contains(button, target) { try { return !!button && !!target && button.contains(target); } catch { return false; } }
     function drawingTarget(target) {
       // SVG markups and handles use role=button for editing. Only explicit
       // context-menu commands participate in button feedback inside the PDF.
       return target?.closest?.("#takeoff-viewport") && !target.closest(".takeoff-control-menu");
     }
-    function route(button, click) {
+    function routeClick(button) {
       if (closed || document.hidden || !enabled(button)) return;
-      // The header's direct listeners own its sounds. Home shares the same
-      // two players; a calculator hub card outside Home uses ordinary feedback.
+      // Header navigation owns its own hover and click sounds.
       if (button.closest(".app-header")) { players.stop(); return; }
       // Takeoff dialogs and global actions are outside the workspace node.
       // Its active state supplies their context; every other main page is silent.
       const takeoff = button.closest("#view-takeoffs") || document.body?.classList?.contains("takeoffs-active");
       if (!takeoff) { players.stop(); return; }
       menu.stop?.();
-      players.play(click ? (button.id === "save-current-project" ? "checkpoint" : "select") : "hover");
+      players.play(button.id === "save-current-project" ? "checkpoint" : "select");
     }
     function over(event) {
-      const target = element(event.target);
-      if (drawingTarget(target)) { stop(); return; }
-      if (event.pointerType === "touch") { clearPointer(); return; }
-      const next = position(event), stationary = next && pointer && next.x === pointer.x && next.y === pointer.y
-        && next.id === pointer.id && next.type === pointer.type;
-      if (next) pointer = next;
-      // Rebuilt controls can receive a native boundary event without movement.
-      // That hover must not pause the selection clip started by their click.
-      if (stationary) return;
-      const button = target?.closest?.(selector);
-      // Moving between a button's icon and label is not another entry.
-      if (!contains(button, event.relatedTarget)) route(button, false);
+      if (drawingTarget(element(event.target))) stop();
     }
     function click(event) {
       const target = element(event.target);
@@ -147,27 +120,21 @@
       if (!closed && !document.hidden && target?.closest?.(".app-header .brand")) {
         menu.stop?.(); players.play("explosion"); return;
       }
-      route(target?.closest?.(selector), true);
+      routeClick(target?.closest?.(selector));
     }
-    function stop() { clearPointer(); players.stop(); acceptedQuotePlayer?.stop(); menu.stop?.(); }
+    function stop() { players.stop(); acceptedQuotePlayer?.stop(); menu.stop?.(); }
     function visibility() { if (document.hidden) stop(); }
     // Delegation covers buttons created after load, including dialogs and
     // library results. Capture plays before their navigation/render handlers.
     document.addEventListener("pointerover", over, { capture: true, passive: true });
-    document.addEventListener("pointermove", move, { capture: true, passive: true });
-    document.addEventListener("pointerleave", leave, { capture: true, passive: true });
     document.addEventListener("click", click, { capture: true, passive: true });
     document.addEventListener("visibilitychange", visibility);
-    host.addEventListener?.("blur", clearPointer);
     host.addEventListener?.("pagehide", stop);
     function close() {
-      closed = true; clearPointer(); players.close(); acceptedQuotePlayer?.close(); menu.stop?.();
+      closed = true; players.close(); acceptedQuotePlayer?.close(); menu.stop?.();
       document.removeEventListener("pointerover", over, true);
-      document.removeEventListener("pointermove", move, true);
-      document.removeEventListener("pointerleave", leave, true);
       document.removeEventListener("click", click, true);
       document.removeEventListener("visibilitychange", visibility);
-      host.removeEventListener?.("blur", clearPointer);
       host.removeEventListener?.("pagehide", stop);
     }
     return Object.freeze({ stop, close, prepareQuote, quoteAccepted });

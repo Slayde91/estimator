@@ -75,6 +75,8 @@ async function checkEstimateHeadingAndTabs() {
             inactiveFill:tab.backgroundColor, inactiveText:tab.color, scroll:s.overflowX };
         });
         assert.equal(paint.background, background);
+        await expect(strip).toHaveCSS('border-bottom', '1px solid rgb(237, 0, 27)');
+        await expect(tabs.first()).toHaveCSS('box-shadow', 'rgb(255, 255, 255) 0px -3px 0px 0px inset');
         assert.ok(paint.corners.every(radius => parseFloat(radius) > 0));
         assert.equal(paint.inactiveFill, 'rgba(0, 0, 0, 0)');
         assert.ok(paint.inactiveText.match(/\d+/g).slice(0,3).every(channel => Number(channel) >= 180), 'Light inactive text on the dark strip');

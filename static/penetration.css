@@ -98,11 +98,11 @@
 .penetration-item-heading>.actions{align-items:flex-end;flex-wrap:wrap;max-width:100%}
 .penetration-library-actions{display:flex;align-items:flex-end;gap:10px;flex:0 0 auto}
 .penetration-item-heading .calculator-document-actions{left:0;right:auto}
-.penetration-library-actions>.button,.penetration-library-actions .calculator-document-toggle{height:48px;min-height:48px;margin:0}
+.penetration-banner-heading .penetration-library-actions :is(.calculator-document-toggle,.penetration-clear-action,.penetration-header-action){height:var(--calculator-control-height);min-height:var(--calculator-control-height);padding-block:0;margin:0}
 .penetration-header-quantity{width:112px;gap:4px;text-align:left}
 .penetration-header-quantity>span{font-size:11px;line-height:1.2}
 .penetration-header-quantity input{min-width:0;height:48px;min-height:48px;text-align:right;font-variant-numeric:tabular-nums}
-#penetration-item-quantity input,#penetration-row-fields .penetration-detail-fields :is(input,select,textarea){height:var(--calculator-control-height);min-height:var(--calculator-control-height)}
+#penetration-item-quantity input,#penetration-row-fields :is(.penetration-detail-fields,.penetration-product-fields,.penetration-additional-fields) :is(input,select,textarea){height:var(--calculator-control-height);min-height:var(--calculator-control-height)}
 .penetration-detail-fields>.field:has([data-penetration-field="T"]){grid-column-start:1}
 .penetration-item-heading>.actions>.button,.penetration-tab-actions>.button{height:48px;min-height:48px;flex-shrink:0;margin:0}
 .penetration-clear-action{width:48px;min-width:48px;padding:0;display:inline-grid;place-items:center}
@@ -144,7 +144,9 @@
 .penetration-settings{display:grid;gap:22px;min-width:0;max-width:100%;margin-top:20px}
 .penetration-settings>.message,.penetration-settings .penetration-settings-table{margin-top:0}
 .penetration-settings-section{min-width:0;max-width:100%}
-.penetration-settings-subheading{margin:0 0 12px;padding:15px 10px;border-radius:8px;background:#b90a15;color:#fff;font-size:12px;line-height:1.4;text-transform:uppercase;letter-spacing:.04em}
+.penetration-settings-subheading{margin:0;padding:15px 10px;border-radius:8px;background:#b90a15;color:#fff;font-size:12px;line-height:1.4;text-transform:uppercase;letter-spacing:.04em;cursor:pointer}
+.penetration-settings-subheading h4{display:inline;margin:0;font:inherit;font-weight:700}
+.penetration-settings-section[open]>.penetration-settings-subheading{margin-bottom:12px}
 .penetration-settings .table-scroll{width:100%;min-width:0;margin:0;padding:0}
 .penetration-route-table{min-width:0}
 .penetration-route-table th[scope=row]{width:26%}

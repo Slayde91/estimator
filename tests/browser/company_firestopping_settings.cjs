@@ -96,6 +96,8 @@ async function inputGroup(group){await page.locator(`#penetration-input-groups [
     return Object.fromEntries(['draft','composer'].map(scope=>[scope,snapshot[scope].globals.detail_options]));
   });
   await page.locator('#penetration-settings').click();
+  await page.locator('.penetration-settings-subheading', {hasText:'SERVICE-TAB ROUTING'}).click();
+  await page.locator('.penetration-settings-subheading', {hasText:'Waste & Allowances'}).click();
   const route = page.locator('[data-penetration-service-route]').first();
   const originalRoute = await route.inputValue();
   const originalHeight = await route.evaluate(el => el.clientHeight);

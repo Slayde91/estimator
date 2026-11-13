@@ -499,14 +499,14 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     const settingsRoot=h.byId('penetration-row-fields');
     assert.match(text(settingsRoot),/Setting.*Applies to.*Value.*Labour allowances.*Every Firestopping item.*Material waste.*SERVICE-TAB ROUTING.*PRECALCULATED TASK-HOUR BANDS.*Board Task Hours.*Wrap Task Hours/);
     assert.doesNotMatch(text(settingsRoot),/Separate service types with semicolons|Edit both thresholds and hours/);
-    const settingNodes=node=>[node,...node.children.flatMap(settingNodes)],settingsHeadings=settingNodes(settingsRoot).filter(node=>node.className==='penetration-settings-subheading');assert.deepEqual(settingsHeadings.map(node=>node.textContent),['Waste & Allowances','SERVICE-TAB ROUTING','PRECALCULATED TASK-HOUR BANDS']);
+    const settingNodes=node=>[node,...node.children.flatMap(settingNodes)],settingsHeadings=settingNodes(settingsRoot).filter(node=>node.className==='penetration-settings-subheading');assert.deepEqual(settingsHeadings.map(node=>node.children[0].textContent),['Waste & Allowances','SERVICE-TAB ROUTING','PRECALCULATED TASK-HOUR BANDS']);
     const settingsCss=fs.readFileSync('static/penetration.css','utf8');assert.match(settingsCss,/\.penetration-settings-table\{[^}]*min-width:0[^}]*table-layout:fixed/);
     const waste=h.control('waste_lagged_pipes',null),register=h.control('register_allowance_hours',null);assert.ok(waste&&register);assert.equal(waste.parentNode.children[0].textContent,'Waste (%)');assert.match(waste.title,/Lagged Pipes/);assert.equal(register.parentNode.children[0].textContent,'Register Allowance (hrs)');
     for(const key of ['waste_unlagged_pipes','waste_lagged_pipes','waste_plastic_pipes','waste_bundles'])assert.ok(h.control(key,null));
     waste.value='12.5';await waste.emit('input');assert.equal(h.audit.state.schedule.draft.globals.waste_lagged_pipes,.125);assert.equal(h.audit.state.draft.globals.waste_lagged_pipes,.125);
     register.value='.15';await register.emit('input');assert.equal(h.audit.state.schedule.draft.globals.register_allowance_hours,.15);assert.equal(h.audit.state.draft.globals.register_allowance_hours,.15);
     const root=h.byId('penetration-row-fields');let routeEditors=root.querySelectorAll('[data-penetration-service-route]'),bandEditors=root.querySelectorAll('[data-penetration-band]');assert.equal(routeEditors.length,2);assert.equal(bandEditors.length,12);assert.match(text(root),/Service Tab.*Service Types.*UNLAGGED PIPES.*LAGGED PIPES/);
-    const detailsIn=node=>[node,...node.children.flatMap(detailsIn)].filter(node=>node.tagName==='details');
+    const detailsIn=node=>[node,...node.children.flatMap(detailsIn)].filter(node=>node.className==='penetration-band-settings');
     let pipe=detailsIn(root).find(node=>/Pipe Labour/.test(text(node)));
     assert.equal(pipe.open,false,'Pipe Labour is initially collapsed');
     const unchangedBands=copy(h.audit.state.schedule.draft.globals.labour_bands);

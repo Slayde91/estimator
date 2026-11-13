@@ -48,6 +48,9 @@ const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()
   const files=resources.locator('details').filter({has:page.locator('summary').filter({hasText:/^Files/})});
   const open=async file=>{await page.locator(`.project-kanban-card[data-project-id="${file.id}"] .project-title-button`).click();await expect(page.locator('#project-details-pane')).toHaveAttribute('aria-busy','false');await expect(resources.getByRole('button',{name:'New note',exact:true})).toBeEnabled();};
   const back=async()=>{await page.locator('#project-details-close').click();await expect(page.locator('#project-list-card')).toBeVisible();};
+  const {checkProjectSidebarScrolling}=require('./project_sidebar_scrolling.cjs');
+  const scrollMeasurements=await checkProjectSidebarScrolling(page,()=>open(b),back,output);
+  fs.writeFileSync(path.join(output,'sidebar-scroll.json'),JSON.stringify(scrollMeasurements,null,2));
   await open(a);
   const history=page.locator('#project-workspace-side .record-activity-history');
   await expect(history.locator('xpath=preceding-sibling::details[1]/summary')).toHaveText('Contacts');

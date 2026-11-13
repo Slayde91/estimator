@@ -1,5 +1,5 @@
 .contacts-controls,.contacts-dialog-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-#contacts-root .contacts-tabs { width:350px; max-width:100%; height:40px; min-height:40px; padding:0; margin-bottom:18px; align-items:stretch; background:#0C0B0E; }
+#contacts-root .contacts-tabs { width:350px; max-width:100%; height:42px; min-height:42px; padding:0; margin-bottom:18px; align-items:stretch; background:#0C0B0E; }
 .contacts-tabs .calculator-page { flex:1 1 0; min-width:0; padding-block:0; display:flex; align-items:center; justify-content:center; }
 #contacts-root .contacts-tabs .calculator-page[aria-pressed="false"]:not(:hover) { background:transparent; color:#e5e7eb; }
 .contacts-document > summary { list-style:none; cursor:pointer; }

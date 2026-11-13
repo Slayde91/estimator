@@ -44,6 +44,20 @@ async function headerTitle(title) {
   assert.equal(await label.locator('*').count(), 0, 'Quote names must remain plain text');
 }
 function retainedScopes(value) { return { pricing: value.pricing, calculators: value.calculators, globals: value.penetration.composer.globals, schedule: value.penetration.draft }; }
+async function checkFirestoppingFields(name) {
+  const fields = page.locator('#penetration-row-fields');
+  const controls = fields.locator('[data-penetration-field]:visible');
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({width, height:1000});
+    const sizes = await controls.evaluateAll(nodes => nodes.map(node => ({
+      column:node.dataset.penetrationField, height:node.getBoundingClientRect().height
+    })));
+    assert.ok(sizes.length >= 4);
+    assert.ok(sizes.every(field => field.height === 42), JSON.stringify({name,width,sizes}));
+    await fields.screenshot({path:path.join(output,`firestopping-${name}-${width}.png`)});
+  }
+  await page.setViewportSize({width:1440,height:1100});
+}
 async function checkEstimateHeadingAndTabs() {
   await chooseCalculator(page, 'Duct');
   await expect(page.locator('#calculator-title')).toBeVisible();
@@ -75,8 +89,14 @@ async function checkEstimateHeadingAndTabs() {
             inactiveFill:tab.backgroundColor, inactiveText:tab.color, scroll:s.overflowX };
         });
         assert.equal(paint.background, background);
-        await expect(strip).toHaveCSS('border-bottom', '1px solid rgb(237, 0, 27)');
-        await expect(tabs.first()).toHaveCSS('box-shadow', 'rgb(255, 255, 255) 0px -3px 0px 0px inset');
+        const divider = await strip.evaluate(el => {
+          const bar=el.getBoundingClientRect(), line=el.nextElementSibling.getBoundingClientRect();
+          return {left:line.left-bar.left,right:line.right-bar.right,top:line.top-bar.bottom,height:line.height,color:getComputedStyle(el.nextElementSibling).backgroundColor};
+        });
+        assert.deepEqual(divider,{left:0,right:0,top:0,height:1,color:'rgb(237, 0, 27)'});
+        await expect(strip).toHaveCSS('border-bottom-width','0px');
+        await expect(tabs.first()).toHaveCSS('box-shadow','none');
+        if(id==='main-output-tabs') assert.equal((await strip.boundingBox()).height,42);
         assert.ok(paint.corners.every(radius => parseFloat(radius) > 0));
         assert.equal(paint.inactiveFill, 'rgba(0, 0, 0, 0)');
         assert.ok(paint.inactiveText.match(/\d+/g).slice(0,3).every(channel => Number(channel) >= 180), 'Light inactive text on the dark strip');
@@ -235,8 +255,8 @@ async function checkEstimateHeadingAndTabs() {
       const pair = document.querySelector('.penetration-library-actions'), documentButton = pair.querySelector('[data-document-menu-toggle]');
       return { input: bounds(element), buttons: Object.fromEntries(ids.map(id => [id, bounds(document.getElementById(id))])), addIcon: bounds(document.querySelector('#penetration-add-to-schedule img')), document: bounds(documentButton), pairGap: parseFloat(getComputedStyle(pair).columnGap), iconOffsets: Object.fromEntries(ids.map(id => [id, centres(document.getElementById(id))])), viewport: innerWidth, pageWidth: document.documentElement.scrollWidth };
     });
-    assert.equal(geometry.input.height, 48); for (const button of [...Object.values(geometry.buttons), geometry.document]) { assert.equal(button.height, 48); assert.ok(button.left >= 0); assert.ok(button.right <= width); }
-    assert.equal(geometry.buttons['penetration-add-to-schedule'].right - geometry.buttons['penetration-add-to-schedule'].left, 48); assert.equal(geometry.addIcon.right - geometry.addIcon.left, 24); assert.equal(geometry.addIcon.height, 24);
+    assert.equal(geometry.input.height, 42); for (const [label,button] of Object.entries({...geometry.buttons,document:geometry.document})) { assert.equal(button.height, 42, label+' at '+width); assert.ok(button.left >= 0); assert.ok(button.right <= width); }
+    assert.equal(geometry.buttons['penetration-add-to-schedule'].right - geometry.buttons['penetration-add-to-schedule'].left, 42); assert.equal(geometry.addIcon.right - geometry.addIcon.left, 24); assert.equal(geometry.addIcon.height, 24);
     const scheduleButton = geometry.buttons['penetration-add-to-schedule'];
     assert.ok(Math.abs(scheduleButton.top - geometry.input.top) < 1, 'Add to Schedule aligns with Item QTY at '+width);
     assert.ok(Math.abs(scheduleButton.bottom - geometry.input.bottom) < 1);
@@ -261,8 +281,11 @@ async function checkEstimateHeadingAndTabs() {
   const description = page.locator('#penetration-row-fields [data-penetration-field="T"]'), quantity = page.locator('#penetration-item-quantity [data-penetration-field="O"]');
   for (const [column, value] of [['J', 'Plumbing & Hydraulic'], ['K', 'Copper Pipes'], ['L', 'Core hole'], ['M', 'Vertical'], ['N', '-/120/120'], ['P', 'Concrete/masonry wall']]) await page.locator(`#penetration-row-fields [data-penetration-field="${column}"]`).selectOption(value);
   await page.locator('#penetration-input-groups').getByRole('tab', { name: 'Products and labour', exact: true }).click();
+  await checkFirestoppingFields('products');
   const crew = page.locator('#penetration-row-fields [data-penetration-field="W"]'); await crew.selectOption(await crew.locator('option').evaluateAll(options => options.find(option => option.value && !option.disabled).value));
-  await page.locator('#penetration-input-groups').getByRole('tab', { name: 'OTHER', exact: true }).click(); const labour = page.locator('#penetration-row-fields [data-penetration-field="AH"]'); await labour.fill('1'); await labour.press('Tab');
+  await page.locator('#penetration-input-groups').getByRole('tab', { name: 'OTHER', exact: true }).click();
+  await checkFirestoppingFields('other');
+  const labour = page.locator('#penetration-row-fields [data-penetration-field="AH"]'); await labour.fill('1'); await labour.press('Tab');
   await page.locator('#penetration-input-groups').getByRole('tab', { name: 'DETAILS', exact: true }).click();
   await description.fill('Native button precision item'); await description.press('Tab');
   const calculated = await response(async () => { await quantity.fill('3.123456789'); await quantity.press('Tab'); }, '/api/penetration/calculate', reply => { const inputs = reply.request().postDataJSON()?.draft?.rows?.[0]?.inputs; return inputs?.O === 3.123456789 && inputs?.T === 'Native button precision item'; });

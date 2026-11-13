@@ -20,7 +20,15 @@ async function theme(id){await settings();for(let i=0;i<5&&await page.locator('h
 async function main(){await page.locator('#estimate-navigation-toggle').hover();if(!await page.locator('#estimate-navigation-menu').isVisible())await page.locator('#estimate-navigation-toggle').click();await page.locator('#estimate-navigation-menu [data-estimator-kind=estimate]').click();await page.mouse.move(0,0);await idle();}
 function lum(value){const c=value.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);return .2126*c[0]+.7152*c[1]+.0722*c[2];}
 function contrast(a,b){const x=lum(a),y=lum(b);return(Math.max(x,y)+.05)/(Math.min(x,y)+.05);}
-async function tabs(selector){const values=await page.locator(selector).evaluateAll(nodes=>nodes.map(el=>{const c=getComputedStyle(el);return{text:el.textContent.trim(),border:c.borderBottomColor,shadow:c.boxShadow};}));assert.ok(values.length,`No selected tab: ${selector}`);for(const value of values){assert.equal(value.border,'rgb(255, 255, 255)',JSON.stringify(value));assert.match(value.shadow,/inset.*rgb\(255, 255, 255\)|rgb\(255, 255, 255\).*inset/);}return values;}
+async function tabs(selector,{trim=true}={}){
+ const values=await page.locator(selector).evaluateAll(nodes=>nodes.map(el=>{const c=getComputedStyle(el);return{text:el.textContent.trim(),border:c.borderBottomColor,shadow:c.boxShadow};}));
+ assert.ok(values.length,`No selected tab: ${selector}`);
+ for(const value of values){
+  if(trim){assert.equal(value.border,'rgb(255, 255, 255)',JSON.stringify(value));assert.match(value.shadow,/inset.*rgb\(255, 255, 255\)|rgb\(255, 255, 255\).*inset/);}
+  else{assert.equal(value.border,'rgba(0, 0, 0, 0)');assert.equal(value.shadow,'none');}
+ }
+ return values;
+}
 async function colors(selector){return page.locator(selector).first().evaluate(el=>{const c=getComputedStyle(el);return{background:c.backgroundColor,color:c.color};});}
 async function mainEstimateAppearance(expectedDays){
  await expect(page.locator('#main-input-heading')).toBeVisible();
@@ -134,7 +142,7 @@ async function calculatorAppearance(id,name){
   item.brandTint=await page.locator('.app-header .brand').evaluate(el=>{const c=getComputedStyle(el,'::after');return{content:c.content,background:c.backgroundColor,mask:c.maskImage,clip:c.clipPath};});if(id==='midnight'){assert.equal(item.brandTint.background,'rgb(255, 255, 255)');assert.match(item.brandTint.mask,/classifire-logo\.png/);assert.equal(item.brandTint.clip,'polygon(0px 0px, 12.8% 0px, 12.8% 40%, 19% 40%, 19% 0px, 68% 0px, 68% 100%, 0px 100%)');}else assert.equal(item.brandTint.content,'none');
   item.file=await page.locator('#company-logo').evaluate(el=>{const c=getComputedStyle(el,'::file-selector-button');return{background:c.backgroundColor,color:c.color};});assert.deepEqual(item.file,{background:'rgb(255, 255, 255)',color:'rgb(0, 0, 0)'});
   item.save=await colors('#company-settings-save');assert.equal(item.save.background,'rgb(185, 10, 21)');assert.ok(contrast(item.save.color,item.save.background)>=4.5);const originalDisabled=await page.locator('#company-settings-save').isDisabled();await page.locator('#company-settings-save').evaluate(el=>el.disabled=true);item.disabledSave=await colors('#company-settings-save');assert.ok(contrast(item.disabledSave.color,item.disabledSave.background)>=4.5);await page.locator('#company-settings-save').evaluate((el,value)=>el.disabled=value,originalDisabled);
-  await main();item.inputTabs=await tabs('#main-section-tabs [aria-selected=true]');item.outputTabs=await tabs('.main-output-tabs [aria-selected=true]');item.mainEstimate=await mainEstimateAppearance(mainDaysBefore);
+  await main();item.inputTabs=await tabs('#main-section-tabs [aria-selected=true]',{trim:false});item.outputTabs=await tabs('.main-output-tabs [aria-selected=true]',{trim:false});item.mainEstimate=await mainEstimateAppearance(mainDaysBefore);
   }
   item.calculators=[];for(const [calculator,name] of [['steel_vermiculite','Steel (spray)'],['steel_board','Steel (board)'],['ductwork','Ductwork (spray/wrap)']])item.calculators.push(await calculatorAppearance(calculator,name));
   if(!alignmentOnly){

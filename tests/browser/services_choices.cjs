@@ -9,6 +9,8 @@ const { randomUUID, createHash } = require('node:crypto');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 
 async function checkRouteAndBandControls(page, settings) {
+  await settings.locator('.penetration-settings-subheading', {hasText:'SERVICE-TAB ROUTING'}).click();
+  await settings.locator('.penetration-settings-subheading', {hasText:'PRECALCULATED TASK-HOUR BANDS'}).click();
   const routes = settings.locator('.penetration-route-table textarea');
   await expect(routes.first()).toBeVisible();
   const viewport = page.viewportSize();

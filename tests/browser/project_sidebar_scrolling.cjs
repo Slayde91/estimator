@@ -72,13 +72,15 @@ async function checkProjectSidebarScrolling(page, open, close, output) {
     await history.getByRole('button',{name:'Load earlier activity'}).click();await expect(activity.locator('li')).toHaveCount(28);
     await activity.focus();await activity.press('End');await expect(activity.locator('li').last()).toContainText('Activity 0');
     await expect.poll(()=>activity.evaluate(el=>el.scrollHeight-el.clientHeight-el.scrollTop)).toBeLessThan(2);
+    await page.setViewportSize({width:390,height:1200});
     for (const [name,list] of [['company',accounts],['contact',contacts],['activity',activity]]) {
       await list.evaluate(el=>{
         el.scrollTop=0;
         const header=document.querySelector('.app-header').getBoundingClientRect();
         window.scrollBy({top:el.getBoundingClientRect().top-header.bottom-12,behavior:'instant'});
       });
-      await list.screenshot({path:path.join(output,'project-sidebar-'+name+'.png')});
+      const clip=await list.boundingBox();
+      await page.screenshot({path:path.join(output,'project-sidebar-'+name+'.png'),clip});
     }
     for (const retained of [4,0]) {
       await history.locator('summary').click();events.splice(retained);await history.locator('summary').click();

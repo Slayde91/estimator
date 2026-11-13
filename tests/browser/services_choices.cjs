@@ -7,6 +7,32 @@ const { chromium, expect } = require('@playwright/test');
 const { spawn, spawnSync } = require('node:child_process');
 const { randomUUID, createHash } = require('node:crypto');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
+
+async function checkRouteAndBandControls(page, settings) {
+  const routes = settings.locator('.penetration-route-table textarea');
+  await expect(routes.first()).toBeVisible();
+  const viewport = page.viewportSize();
+  for (const width of [viewport.width, 390]) {
+    await page.setViewportSize({ ...viewport, width });
+    const fields = await routes.evaluateAll(nodes => nodes.map(el => ({
+      length: el.value.length, clipped: el.scrollHeight - el.clientHeight
+    })));
+    assert.ok(fields.some(field => field.length > 150), 'Exercise a populated cable service list');
+    assert.ok(fields.every(field => field.clipped <= 1), JSON.stringify(fields));
+  }
+  await page.setViewportSize(viewport);
+  const band = settings.locator('.penetration-band-settings').first();
+  await band.locator('summary').click();
+  const add = band.getByRole('button', {name:'Add band', exact:true});
+  await expect(add).toHaveText('+');
+  await expect(add).toHaveAttribute('title', 'Add band');
+  const paint = el => {
+    const css = getComputedStyle(el);
+    return [css.width, css.height, css.backgroundColor, css.borderColor, css.borderRadius];
+  };
+  assert.deepEqual(await add.evaluate(paint), await page.locator('#new-quote').evaluate(paint));
+  await band.locator('summary').click();
+}
 const root = path.resolve(__dirname, '../..'), python = process.env.CEASEFIRE_PYTHON || 'python';
 const output = path.join(root, '.runtime/browser-qa', `services-choices-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
@@ -122,11 +148,16 @@ async function takeoffSnapshot() { const session = await page.evaluate(() => win
   const librarySettings=page.locator('#library-editor-settings'),detailsTab=page.locator('#library-editor-groups').getByRole('tab',{name:'DETAILS',exact:true});
   await expect(librarySettings).toBeVisible();await expect(detailsTab).toBeVisible();
   const settingsBox=await librarySettings.boundingBox(),detailsBox=await detailsTab.boundingBox();assert.ok(settingsBox.x+settingsBox.width<=detailsBox.x,'Library Settings icon must be left of DETAILS');
-  const beforeSettings=await page.evaluate(()=>window.CeasefireLibraryEditor.projectFingerprint());await librarySettings.click();await expect(librarySettings).toHaveAttribute('aria-pressed','true');await detailsTab.click();await expect(librarySettings).toHaveAttribute('aria-pressed','false');assert.equal(await page.evaluate(()=>window.CeasefireLibraryEditor.projectFingerprint()),beforeSettings);evidence.librarySettings={leftOfDetails:true,nativeToggle:true,draftUnchanged:true};
+  const beforeSettings=await page.evaluate(()=>window.CeasefireLibraryEditor.projectFingerprint());await librarySettings.click();await expect(librarySettings).toHaveAttribute('aria-pressed','true');
+  await checkRouteAndBandControls(page, page.locator('#library-editor-fields'));
+  await detailsTab.click();await expect(librarySettings).toHaveAttribute('aria-pressed','false');assert.equal(await page.evaluate(()=>window.CeasefireLibraryEditor.projectFingerprint()),beforeSettings);evidence.librarySettings={leftOfDetails:true,nativeToggle:true,draftUnchanged:true};
   const libraryService = page.locator('[data-library-editor-field=K]'); evidence.libraryOptions = await options(libraryService, 'Copper service', true); assert.equal(evidence.libraryOptions.at(-1).disabled, true);
   const libraryDraft = await page.evaluate(() => window.CeasefireLibraryEditor.projectFingerprint()); await libraryService.focus(); await libraryService.press('Tab'); assert.equal(await page.evaluate(() => window.CeasefireLibraryEditor.projectFingerprint()), libraryDraft);
   await page.screenshot({ path: path.join(output, 'library-saved-service.png') }); await page.locator('#library-editor-cancel').click();
   await chooseCalculator(page, 'Firestopping Estimator');
+  await page.locator('#penetration-settings').click();
+  await checkRouteAndBandControls(page, page.locator('#penetration-row-fields'));
+  await page.getByRole('tab', {name:'DETAILS', exact:true}).click();
   const composerService = page.locator('#penetration-row-fields [data-penetration-field=K]'); evidence.composerOptions = await options(composerService, 'Plastic Pipes'); assert.equal(evidence.composerOptions.at(-1).disabled, true);
   await page.locator('#penetration-row-fields [data-penetration-field=T]').fill('Independent saved composer description'); await page.locator('#penetration-row-fields [data-penetration-field=T]').press('Tab');
   await expect.poll(() => page.evaluate(() => window.CeasefireDesktop.status().busy)).toBe(false);

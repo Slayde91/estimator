@@ -116,10 +116,14 @@ main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh -
 @media(max-width:760px){.project-tools{grid-template-columns:1fr;align-items:flex-start}.project-tools .actions{grid-column:auto}}
 .button{border-radius:8px;padding:11px 16px;font-size:12px;font-weight:650;white-space:nowrap;line-height:1.5;transition:background .15s,border-color .15s,box-shadow .15s,transform .15s}
 .button:active:not(:disabled){transform:translateY(1px)}
+/* Center fixed artwork against the button, including when icon-only padding is wider than the available space. */
+.button.trash-button{display:inline-grid;place-items:center;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);padding:0}
+.trash-button .trash-artwork{display:block;width:20px;height:20px;background:currentColor;mask:url('/icons/trash.svg') center / contain no-repeat}
+.pricing-row-actions .trash-artwork{width:16px;height:16px}
 .primary{color:white;background:var(--accent);border:1px solid var(--accent);box-shadow:0 3px 8px #b90a151a}
 .primary:hover{background:var(--accent-dark);border-color:var(--accent-dark);box-shadow:0 4px 12px #b90a1525}
 .button.primary.add-icon-action,:root[data-theme] .button.primary.add-icon-action{display:inline-flex;align-items:center;justify-content:center;flex:0 0 var(--add-icon-size,48px);box-sizing:border-box;width:var(--add-icon-size,48px);min-width:var(--add-icon-size,48px);height:var(--add-icon-size,48px);min-height:var(--add-icon-size,48px);padding:0;border:1px solid #eb324a;border-radius:10px;background:#d0001b;color:#fff;box-shadow:none}
-.project-list-actions,.commercial-controls{--add-icon-size:42px}
+.project-list-actions,.commercial-controls,.penetration-add-band{--add-icon-size:42px}
 .button.primary.add-icon-action:hover:not(:disabled),:root[data-theme] .button.primary.add-icon-action:hover:not(:disabled){background:#b90018;border-color:#ee5065;color:#fff}
 .button-symbol.add-symbol{display:grid;place-items:center;font:650 18px/1 "Segoe UI Symbol","Arial Unicode MS",sans-serif}
 .secondary{color:#51414a;background:white;border:1px solid #dcd3d7}

@@ -191,6 +191,7 @@
     } else if (icon || schedule) {
       el.classList.add("icon-only", "takeoff-icon-button"); el.title = label; el.setAttribute("aria-label", label);
       if (label === "Apply item edits") el.classList.add("save-button");
+      if (["Delete item", "Delete signature", "Delete viewport", "Remove exclusion", "Remove document"].includes(iconName)) el.classList.add("trash-button");
       if (label === "Undo last edit") el.classList.add("takeoff-undo-button");
       const symbol = node("span", "button-symbol takeoff-button-symbol"); symbol.setAttribute("aria-hidden", "true");
       if (icon === "+") {
@@ -4124,7 +4125,7 @@
       if (retainedHistory || sessionId !== state.session?.session_id || projectId !== snapshot()?.project_id || revision !== state.session?.revision || stamp !== JSON.stringify(items().find(current => current.id === item.id))) throw new Error("The takeoff row changed. Review its current Delete button again.");
       return true;
     };
-    const control = button(label, () => deleteItems([item.id], { title: "Are you sure you want to delete this item?", action: "Yes", guard }), "button secondary icon-only takeoff-row-delete-button");
+    const control = button(label, () => deleteItems([item.id], { title: "Are you sure you want to delete this item?", action: "Yes", guard }), "button secondary icon-only takeoff-row-delete-button trash-button");
     const icon = node("span"); icon.setAttribute("aria-hidden", "true");
     icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/></svg>';
     control.replaceChildren(icon); control.setAttribute("aria-label", label); control.title = retainedHistory ? "Deleted records are retained read-only; Undo restores the original item." : label;

@@ -17,6 +17,60 @@ const ready = new Promise((resolve, reject) => {
   server.once('error', reject); server.once('exit', code => { clearTimeout(timer); reject(Error(`Fixture exited ${code}: ${logs}`)); });
 });
 const evidence = [], errors = [];
+async function checkLogoCredit() {
+  const phrase = 'Powered by CEASEFIRE PFP', logo = page.getByRole('link', {name:'CLASSIFIRE home'});
+  const credit = page.locator('#brand-credit');
+  const layout = () => page.evaluate(() => ['.app-header','.brand-logo','#header-tagline','.header-navigation-stack']
+    .map(selector => document.querySelector(selector).getBoundingClientRect().toJSON()));
+  await expect(logo).toHaveAccessibleDescription(phrase);
+  await expect(credit).toHaveAttribute('aria-hidden','true');
+  await page.getByRole('button',{name:'Help',exact:true}).click();
+  await expect(page.locator('#view-help')).toBeVisible();
+  await logo.click();
+  await expect(page.locator('#view-home')).toBeVisible();
+  await expect(credit).toHaveText(phrase);
+  const before = await layout();
+  await page.evaluate(() => {
+    window.logoFrames = [];
+    new MutationObserver(() => window.logoFrames.push(document.getElementById('brand-credit').textContent))
+      .observe(document.getElementById('brand-credit'),{childList:true});
+  });
+  // Repeat while holding the completed line. Enter uses the same native home link.
+  await logo.focus();
+  await page.keyboard.press('Enter');
+  await expect(credit).not.toHaveText(phrase);
+  await expect(credit).toHaveText(phrase);
+  await page.waitForTimeout(550);
+  await expect(credit).toHaveText(phrase);
+  assert.deepEqual(await layout(),before,'The header geometry is unchanged during the reveal');
+  await expect(credit).toBeEmpty({timeout:6000});
+  const frames = await page.evaluate(()=>window.logoFrames);
+  const completed = frames.indexOf(phrase);
+  assert.ok(completed > 1 && frames.slice(0,completed).some(text=>text.startsWith('Powered') && !phrase.startsWith(text)));
+  assert.ok(frames.slice(completed+1).some(text=>text.startsWith('Powered') && text.length<phrase.length));
+  assert.ok(frames.slice(completed+1).some(text=>text.length>0 && text.length<6),'Reverses to the first few characters');
+  assert.deepEqual(await layout(),before);
+  await page.emulateMedia({reducedMotion:'reduce'});
+  for (const width of [1146,390]) {
+    await page.setViewportSize({width,height:764});
+    const geometry = await layout();
+    await page.evaluate(()=>{window.logoFrames.length=0;});
+    await logo.click();
+    await expect(credit).toHaveText(phrase);
+    assert.deepEqual(await layout(),geometry);
+    const position = await credit.evaluate(line => {
+      const box = line.getBoundingClientRect(), logo = document.querySelector('.brand-logo').getBoundingClientRect();
+      const character = document.querySelector('#header-tagline-character').getBoundingClientRect();
+      return {top:box.top,bottom:box.bottom,logoInkBottom:logo.top+logo.height*(510/724),characterTop:character.top};
+    });
+    assert.ok(position.top>=position.logoInkBottom && position.bottom<=position.characterTop,'Credit clears the logo ink and tagline character');
+    await expect(credit).toBeEmpty();
+    assert.ok(await page.evaluate(value=>window.logoFrames.every(frame=>frame===''||frame===value),phrase));
+  }
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  await page.setViewportSize({width:1146,height:764});
+  evidence.push({name:'Logo credit', homeNavigation:true, keyboardReplay:true, reverse:true, reducedMotion:true, stableLayout:true});
+}
 async function shot(selector, name, white, logo = false) {
   const filename = path.join(output, name + '.png'), control = page.locator(selector);
   if (logo) await control.screenshot({ path: filename });
@@ -49,6 +103,45 @@ print(json.dumps({'size':[w,h],'corner':corner,'passed':True}))
 `, filename, String(white), String(logo)], { encoding: 'utf8', windowsHide: true });
   assert.equal(result.status, 0, result.stderr); evidence.push({ name, ...JSON.parse(result.stdout), filename });
 }
+async function checkCreditContrast(theme) {
+  const credit = page.locator('#brand-credit');
+  await page.getByRole('link',{name:'CLASSIFIRE home'}).click();
+  await expect(credit).toHaveText('Powered by CEASEFIRE PFP');
+  const color = await credit.evaluate(line=>getComputedStyle(line).color.match(/\d+/g).map(Number));
+  const box = await credit.boundingBox();
+  const filename = path.join(output,theme+'-logo-credit.png');
+  // The last four pixels are backdrop only, so the sample includes the
+  // real compositing even for themes with translucent header backgrounds.
+  await page.screenshot({path:filename,clip:{x:Math.floor(box.x)-2,y:Math.floor(box.y),
+    width:Math.ceil(box.width)+8,height:Math.ceil(box.height)}});
+  const sample = spawnSync(python,['-c',`
+import json,sys
+from PIL import Image
+im = Image.open(sys.argv[1]).convert('RGB')
+background = im.getpixel((im.width-2, im.height//2))
+foreground = tuple(json.loads(sys.argv[2]))
+def luminance(color):
+    srgb = [channel/255 for channel in color]
+    linear = [x/12.92 if x<=.04045 else ((x+.055)/1.055)**2.4 for x in srgb]
+    return sum(a*b for a,b in zip(linear,(.2126,.7152,.0722)))
+lo,hi = sorted([luminance(foreground),luminance(background)])
+ratio = (hi+.05)/(lo+.05)
+assert ratio >= 4.5, (foreground, background, ratio)
+assert sum(sum(abs(a-b) for a,b in zip(pixel,foreground)) < 75 for pixel in im.getdata()) > 20, 'Credit ink missing in screenshot'
+print(json.dumps(dict(foreground=foreground,background=background,ratio=round(ratio,2))))
+`,filename,JSON.stringify(color)],{encoding:'utf8',windowsHide:true});
+  assert.equal(sample.status,0,theme+' '+sample.stderr);
+  const reading = {theme,...JSON.parse(sample.stdout),filename};
+  if (theme === 'ceasefire') {
+    reading.header = path.join(output,'ceasefire-header-full-credit.png');
+    await page.getByRole('link',{name:'CLASSIFIRE home'}).click();
+    await expect(credit).toHaveText('Powered by CEASEFIRE PFP');
+    await page.mouse.move(0,0);
+    await page.locator('.app-header').screenshot({path:reading.header});
+  }
+  evidence.push(reading);
+  await expect(credit).toBeEmpty();
+}
 (async () => {
   const fixture = await ready; assert.notEqual(fixture.port, 8765);
   browser = await chromium.launch({ headless: true }); page = await browser.newPage({ viewport: { width: 1146, height: 764 } });
@@ -56,9 +149,16 @@ print(json.dumps({'size':[w,h],'corner':corner,'passed':True}))
   await page.addInitScript(() => { window.artworkCsp = []; document.addEventListener('securitypolicyviolation', e => window.artworkCsp.push(e.effectiveDirective)); });
   await page.goto(`http://127.0.0.1:${fixture.port}/`, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => window.CeasefireDesktop?.status()?.ready);
-  for (const theme of ['ocean', 'midnight', 'forest', 'slate']) {
+  await checkLogoCredit();
+  for (const theme of ['ceasefire', 'ocean', 'midnight', 'forest', 'slate']) {
     for (let n = 0; n < 5 && await page.locator('html').getAttribute('data-theme') !== theme; n++) await cycleTheme(page);
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+    await page.emulateMedia({reducedMotion:'reduce'});
+    await checkCreditContrast(theme);
+    await page.emulateMedia({reducedMotion:'no-preference'});
+    // The existing matte checks require a tinted surface to distinguish
+    // transparency from painted white; the Ceasefire header is pure white.
+    if (theme === 'ceasefire') continue;
     await page.evaluate(() => window.CeasefireHeaderTaglineMedia.stop());
     await expect(page.locator('.brand-logo')).toHaveAttribute('src','/classifire-logo.png');
     await shot('.brand-logo', theme + '-logo', false, true);

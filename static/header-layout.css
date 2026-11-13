@@ -6,12 +6,23 @@
     gap: 18px;
   }
   .app-header .brand-stack { width: 100%; max-width: 430px; gap: 6px; }
-  .app-header .brand { max-width: 100%; }
+  .app-header .brand { position: relative; max-width: 100%; color: inherit; }
   .app-header .brand-logo {
     width: 250px;
     aspect-ratio: 250 / 83.8;
     height: auto;
     object-fit: contain;
+  }
+  /* Use the transparent space below the logo ink. The credit never
+     participates in layout or changes the home link's hit target. */
+  #brand-credit {
+    position: absolute;
+    left: 6%;
+    top: 73%;
+    z-index: 1;
+    font: 600 10px/11px "Courier New", monospace;
+    white-space: pre;
+    pointer-events: none;
   }
   .app-header .brand-stack > .header-tagline {
     /* Move into the logo canvas's transparent lower padding, keeping its ink clear. */
@@ -182,6 +193,7 @@
   }
 }
 @media print {
+  #brand-credit { display: none; }
   #header-project-actions { display: none !important; }
   .app-header { grid-template-columns: minmax(0, 1fr) minmax(0, 200px); }
   .app-header .brand-stack { width: 100%; max-width: 430px; }

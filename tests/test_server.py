@@ -161,6 +161,7 @@ class ServerTests(unittest.TestCase):
             ('/takeoff-pdf-tools.css', 'text/css; charset=utf-8'),
             ('/icons/default-memory.svg', 'image/svg+xml'),
             ('/icons/signature.svg', 'image/svg+xml'),
+            ('/icons/trash.svg', 'image/svg+xml'),
         ):
             with self.subTest(path=path):
                 status, headers, body = self.request('GET', path)

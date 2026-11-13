@@ -50,7 +50,7 @@
     file.type='file';file.accept='.pdf,application/pdf';file.id='cover-sheet-'+item.kind;
     attr(file,'aria-label','PDF cover sheet for {0}',[term(item.label)]);
     filename.className='helper';notice.className='helper';notice.setAttribute('role','status');notice.setAttribute('aria-live','polite');
-    remove.type='button';remove.className='button secondary icon-only';actions.className='cover-sheet-actions';
+    remove.type='button';remove.className='button secondary icon-only trash-button';actions.className='cover-sheet-actions';
     attr(remove,'aria-label','Delete cover sheet for {0}',[term(item.label)]);attr(remove,'title','Delete cover sheet for {0}',[term(item.label)]);
     // Constant application artwork, never user-supplied markup.
     remove.innerHTML='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"></path></svg>';

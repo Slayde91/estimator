@@ -96,6 +96,15 @@ async function inputGroup(group){await page.locator(`#penetration-input-groups [
     return Object.fromEntries(['draft','composer'].map(scope=>[scope,snapshot[scope].globals.detail_options]));
   });
   await page.locator('#penetration-settings').click();
+  const route = page.locator('[data-penetration-service-route]').first();
+  const originalRoute = await route.inputValue();
+  const originalHeight = await route.evaluate(el => el.clientHeight);
+  const longRoute = Array.from({length:45}, (_, i) => 'Test cable service ' + i).join('; ');
+  await route.fill(longRoute);
+  await expect.poll(() => route.evaluate(el => el.clientHeight)).toBeGreaterThan(originalHeight);
+  assert.ok(await route.evaluate(el => el.scrollHeight <= el.clientHeight + 1));
+  await route.fill(originalRoute);
+  await route.press('Tab');
   const editableDetailColumns=['J','K','M','N','P','V'];
   assert.deepEqual(definition.settings.detail_option_columns,editableDetailColumns);
   // Raw dropdown editors are intentionally absent. Historical lists remain

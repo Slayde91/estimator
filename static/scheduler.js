@@ -776,7 +776,7 @@
           if(!current() || state.settingsRuleDialog !== pending || state.busy || !form.isConnected)return;
           remove(); state.settingsDirty = true;
         } finally {if(state.settingsRuleDialog === pending)state.settingsRuleDialog = null;}
-      },"button secondary icon-only scheduler-danger scheduler-rule-delete");
+      },"button secondary icon-only scheduler-danger scheduler-rule-delete trash-button");
       control.title = label; control.setAttribute("aria-label",label);
       window.CeasefireI18n?.attr(control,"title",label);window.CeasefireI18n?.attr(control,"aria-label",label);
       control.append(document.querySelector("#company-logo-delete svg").cloneNode(true));

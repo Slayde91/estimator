@@ -415,10 +415,10 @@
       files.append(action("Add files",()=>upload.click(),"button secondary"));
       for(const file of attached){
         const row=el("div"); row.className="commercial-attached-file";
-        const remove=action("",()=>{options.removeFile(file);repaintFiles();},"button secondary icon-only library-delete-button");
+        const remove=action("",()=>{options.removeFile(file);repaintFiles();},"button secondary icon-only library-delete-button trash-button");
         remove.setAttribute("aria-label","Remove "+file.name); remove.title="Remove "+file.name;
         for(const attr of ["aria-label","title"])window.CeasefireI18n?.attr(remove,attr,"Remove {0}",[file.name]);
-        const icon=el("span");icon.className="library-trash-icon";icon.setAttribute("aria-hidden","true");remove.append(icon);
+        const icon=el("span");icon.className="trash-artwork";icon.setAttribute("aria-hidden","true");remove.append(icon);
         row.append(action(file.name,()=>options.download(file).catch(e=>options.message(e.message,true))),el("small",`${(file.size/1024).toLocaleString("en-AU",{maximumFractionDigits:1})} KB`), remove);
         files.append(row);
       }

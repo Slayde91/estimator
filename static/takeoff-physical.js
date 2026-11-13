@@ -1135,7 +1135,7 @@
             deleteSource.stamp = copy(deleteSource.entry.entity);
           }
           requireDeleteSource(); return deleteRegisterEntity(deleteSource.entry, requireDeleteSource);
-        }, "button secondary icon-only takeoff-row-delete-button", requireDeleteSource), icon = deleteIcon();
+        }, "button secondary icon-only takeoff-row-delete-button trash-button", requireDeleteSource), icon = deleteIcon();
         icon.setAttribute("fill", "none"); icon.setAttribute("stroke", "currentColor"); icon.setAttribute("stroke-width", "1.8"); icon.setAttribute("stroke-linecap", "round"); icon.setAttribute("stroke-linejoin", "round");
         remove.replaceChildren(icon); root.CeasefireI18n.attr(remove, "aria-label", "Delete {0}", [displayId(row)]); remove.dataset.physicalDeleteId = entity.id;
         remove.dataset.locked = String(legacy || entity.deleted || row.context); remove.disabled = state.busy || legacy || entity.deleted || row.context;
@@ -1227,7 +1227,7 @@
       if (visibility) { const appearanceActions = ui.inspector.querySelector(".takeoff-appearance-actions"); if (appearanceActions) appearanceActions.append(visibility); else { itemActions.className += " with-visibility"; itemActions.append(visibility); } }
       let remove;
       if (entry && !legacyReadOnly() && !entity.deleted) {
-        remove = uiButton("Delete draft record", flushed => deleteEntity(flushed ? state.index.get(entity.id) : entry), "button secondary takeoff-physical-delete-selected"); root.CeasefireI18n.attr(remove, "aria-label", "Delete draft record"); root.CeasefireI18n.attr(remove, "title", "Delete draft record"); remove.replaceChildren(deleteIcon());
+        remove = uiButton("Delete draft record", flushed => deleteEntity(flushed ? state.index.get(entity.id) : entry), "button secondary takeoff-physical-delete-selected trash-button"); root.CeasefireI18n.attr(remove, "aria-label", "Delete draft record"); root.CeasefireI18n.attr(remove, "title", "Delete draft record"); remove.replaceChildren(deleteIcon());
       }
       if (itemActions.children.length) ui.inspector.append(itemActions);
       if (selected.length === 1 && !legacyReadOnly() && !entity.deleted && parentRelations()[entry.kind]) ui.inspector.append(uiButton("Change Parent", flushed => reparent(flushed ? state.index.get(entity.id) : entry)));

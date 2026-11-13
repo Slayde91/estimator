@@ -2,6 +2,7 @@
 const {chromium, expect:baseExpect} = require('@playwright/test');
 const expect=baseExpect.configure({timeout:30000});
 const {spawn} = require('node:child_process');
+const {checkTrashAlignment} = require('./trash_alignment.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
@@ -64,7 +65,7 @@ async function discardQuote(host) {
   await custom.getByRole('combobox').fill('Temporary custom amount');
   await custom.locator('input').first().fill('2'); await custom.locator('input').last().fill('100');
   await expect(custom.locator('.commercial-line-total')).toHaveText('$200.00');
-  await expect(remove.locator('svg')).toHaveCount(1);
+  await checkTrashAlignment(remove);
   assert.equal(await remove.innerText(),'');
   const geometry=await remove.evaluate(button => {
     const cell=button.closest('td'), editor=cell.querySelector('textarea');

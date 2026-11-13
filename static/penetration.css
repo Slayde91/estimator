@@ -9,8 +9,8 @@
 .penetration-group{flex:0 0 auto;padding:16px 18px 13px;border:0;border-bottom:4px solid transparent;border-radius:10px 10px 0 0;background:transparent;color:#66565f;font-size:12px;font-weight:750;text-transform:uppercase;white-space:nowrap}
 .penetration-group:hover{background:#fff8f3;color:var(--accent-dark)}
 .penetration-group[aria-pressed=true],.penetration-group[aria-selected=true]{background:#fff5ee;color:var(--accent-dark);border-bottom-color:#ef3028}
-.penetration-schedule-view-tabs{margin-block:0 18px}
-.penetration-schedule-view-tabs .penetration-group{flex:0 1 auto;min-width:0;min-height:44px;white-space:normal;cursor:pointer}
+.penetration-schedule-view-tabs{margin-block:0 18px;height:var(--calculator-control-height);border-block:0;box-shadow:inset 0 1px var(--line),inset 0 -1px var(--line)}
+.penetration-schedule-view-tabs .penetration-group{flex:0 1 auto;min-width:0;height:100%;padding-block:0;white-space:normal;cursor:pointer}
 .penetration-schedule-view-tabs .penetration-group:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
 .penetration-schedule-view-panel[hidden]{display:none!important}
 .penetration-schedule-view-panel>.firestopping-breakdown{margin:0;padding:0;border:0;box-shadow:none;background:transparent}
@@ -111,6 +111,8 @@
 .penetration-estimator-schedule{margin-top:22px}
 .penetration-item-heading .schedule-download-button{flex:0 0 auto}
 .penetration-row-tools :is(#penetration-undo,#penetration-estimator-undo){width:48px;min-width:48px;height:48px;padding:0}
+#penetration-schedule-panel-schedule .penetration-row-tools .button{height:var(--calculator-control-height);min-height:var(--calculator-control-height);padding-block:0}
+#penetration-schedule-panel-schedule .penetration-row-tools .icon-only{width:var(--calculator-control-height);min-width:var(--calculator-control-height);padding:0}
 .firestopping-breakdown-part>summary{cursor:pointer;list-style-position:outside}
 .firestopping-breakdown-part>summary h3{display:inline}
 .firestopping-breakdown-part{margin-top:18px;padding:14px 18px 16px;border:1px solid var(--line);border-top:3px solid var(--red);border-radius:10px;background:#fff}

@@ -538,6 +538,7 @@ html.app-busy,html.app-busy *{cursor:progress!important}
    controls, artwork, status and accessibility anchors. */
 .workspace-section-heading{min-width:0}
 .estimate-banner-heading h1,.workspace-view :is(.page-heading,.takeoff-workspace-heading,.calculator-workspace-heading) :is(h1,h2){font-size:18px}
+#view-calculators{--calculator-control-height:42px}
 .workspace-section-heading>.calculator-workspace-heading{padding:0;margin:0 0 20px;align-items:flex-start;flex-direction:row;flex-wrap:nowrap}
 .workspace-section-heading #calculator-save-status{flex:0 0 auto;margin:0;margin-inline-start:auto;max-width:45%;text-align:end}
 /* Keep the same title-to-tabs spacing as adjacent pages. Taller buttons can
@@ -556,10 +557,6 @@ html.app-busy,html.app-busy *{cursor:progress!important}
   #calculators-heading-slot .calculator-document-toggle{width:48px;padding:0;gap:0;font-size:0}
   #calculators-heading-slot .calculator-document-chevron{display:none}
 }
-/* Every inner worksheet page uses the Factor Calcs chooser's compact shape.
-   Keep the page scroller flexible, so actions and Columns share its row. */
-:root #calculator-pages{height:44px;min-height:44px;flex-wrap:nowrap}
-:root #calculator-pages>.calculator-page{flex:0 0 auto;align-self:stretch;display:flex;align-items:center;white-space:nowrap;padding:11px 15px;font-size:11px;line-height:1.4}
 #view-quotes #snapshot-message{margin:0 0 18px;flex-wrap:wrap}
 #project-pricing-context{flex-basis:100%;overflow-wrap:anywhere}
 .project-estimate-controls .field>label{display:block;font-size:12px;font-weight:650;margin-bottom:7px}

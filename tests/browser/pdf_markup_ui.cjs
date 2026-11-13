@@ -62,7 +62,7 @@ async function theme(id) {
   await expect(page.locator("html")).toHaveAttribute("data-theme", id);
 }
 async function noOverflow(label) { assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `No horizontal page overflow: ${label}`); }
-async function heights(name, locators, size = 38) {
+async function heights(name, locators, size = 42) {
   const values = [];
   for (const locator of locators) { await expect(locator).toBeVisible(); const bounds = await box(locator); assert.ok(Math.abs(bounds.height - size) < .1, `${name}: ${bounds.height} equals ${size}`); values.push(bounds); }
   evidence.heights.push({ name, size, values });
@@ -114,7 +114,7 @@ async function rightRail(width, mode) {
   for (const name of ["Signatures", "Cloud", "Textbox", "Stamp", "Line/Polyline", "Arrow", "Rectangle", "Circle", "Polygon"]) {
     const control = rail().getByRole("button", { name, exact: true }); await expect(control).toBeVisible();
     await expect(left.getByRole("button", { name, exact: true })).toHaveCount(0);
-    const b = await box(control); assert.ok(Math.abs(b.width - 38) < .1 && Math.abs(b.height - 38) < .1, `${name}: square usable target`);
+    const b = await box(control); assert.ok(Math.abs(b.width - 42) < .1 && Math.abs(b.height - 42) < .1, `${name}: square usable target`);
     assert.ok(b.x >= r.x && b.x + b.width <= r.x + r.width, `${name}: horizontal target is not clipped by the rail scrollbar`);
   }
   const polygon = rail().getByRole("button", { name: "Polygon", exact: true }); await polygon.scrollIntoViewIfNeeded(); await expect(polygon).toBeInViewport();
@@ -124,9 +124,33 @@ async function rightRail(width, mode) {
   evidence.layouts.push({ width, mode, left: l, right: r, drawing: d, railScroll: scroll });
 }
 async function rowHeights(width) {
-  await heights(`register ${width}`, [page.getByLabel("Filter register", { exact: true }), page.getByRole("button", { name: "Select filtered items", exact: true }), page.getByRole("button", { name: "Undo last edit", exact: true })]);
-  await heights(`destination ${width}`, [page.getByLabel("Destination schedule", { exact: true }), page.getByRole("button", { name: "Preview transfer", exact: true }), page.getByRole("button", { name: "Update linked rows", exact: true }), page.getByRole("button", { name: "Detach links", exact: true })]);
+  await heights(`register fields ${width}`, [page.getByLabel("Filter register", { exact: true }), page.getByLabel("Destination schedule", { exact: true })], 38);
+  await heights(`register actions ${width}`, [page.getByRole("button", { name: "Select filtered items", exact: true }), page.getByRole("button", { name: "Undo last edit", exact: true }), page.getByRole("button", { name: "Preview transfer", exact: true }), page.getByRole("button", { name: "Update linked rows", exact: true }), page.getByRole("button", { name: "Detach links", exact: true })]);
   await heights(`drawing source/search ${width}`, [page.getByLabel("Drawing document", { exact: true }), page.getByLabel("Search original document text", { exact: true }), page.getByLabel("Text search scope", { exact: true }), page.getByRole("button", { name: "Search", exact: true }), page.getByRole("button", { name: "Remove document", exact: true })]);
+}
+async function drawingControls(width, loaded) {
+  await page.setViewportSize({width, height:884});
+  const measurements = await page.evaluate(() => {
+    const root = document.querySelector('#takeoffs-workspace');
+    const boxes = selector => [...root.querySelectorAll(selector)].filter(el => el.getClientRects().length).map(el => {
+      const r = el.getBoundingClientRect();
+      return {name:el.getAttribute('aria-label') || el.title || el.textContent.trim(), width:r.width, height:r.height};
+    });
+    const register = '.takeoff-register:not(.takeoff-physical-register) > .takeoff-register-controls';
+    const square = boxes('.takeoff-tool-rail button,.takeoff-markup-rail button,.takeoff-viewer-top .takeoff-icon-button,.takeoff-page-controls button,.takeoff-presentation-tools button,' + register + ' > .takeoff-icon-button');
+    const fields = boxes('.takeoff-viewer-controls :is(select,input:not([type=checkbox],[type=hidden]))');
+    const pages = boxes(register + ' > button:not(.takeoff-icon-button)');
+    const top = root.querySelector('.takeoff-viewer-top').getBoundingClientRect(), bottom = root.querySelector('.takeoff-page-controls').getBoundingClientRect();
+    return {square,fields,pages,drawingGap:bottom.top-top.bottom,documentOverflow:document.documentElement.scrollWidth-innerWidth};
+  });
+  for (const button of measurements.square) assert.deepEqual([button.width,button.height],[42,42],button.name+' at '+width);
+  for (const field of measurements.fields) assert.equal(field.height,42,field.name);
+  assert.equal(measurements.pages.length,2);
+  for (const button of measurements.pages) { assert.equal(button.height,42,button.name); assert.ok(button.width>42,button.name); }
+  assert.ok(measurements.square.length>=20);
+  assert.ok(measurements.drawingGap>=40,'Drawing space between toolbars at '+width+': '+measurements.drawingGap);
+  assert.ok(measurements.documentOverflow<=1);
+  (evidence.drawingControls ||= []).push({width,loaded,...measurements});
 }
 async function makeTextbox() {
   const documentId = (await snapshot()).documents[0].id;
@@ -337,9 +361,13 @@ async function standardCalculatorButton() {
   const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
   stage = "header Takeoffs click"; await page.getByRole("button", { name: "Takeoffs", exact: true }).click();
   stage = "Steel choice"; await chooseTakeoff(page, "steel");
+  for (const width of [1384,913,390]) await drawingControls(width,false);
+  await page.setViewportSize({width:1384,height:764});
   stage = "drawing upload";
   await renderDrawing(page, () => page.locator("#takeoff-upload").setInputFiles(pdf), 1); await settingsSettled(page);
   const uploaded = await snapshot();
+  for (const width of [1384,913,390]) await drawingControls(width,true);
+  await page.setViewportSize({width:1384,height:764});
   const navigation = await navigationState();
   evidence.navigation = { ...navigation, originalPDFURL: `http://127.0.0.1:${info.port}/api/takeoffs/sessions/${navigation.takeoffsSession}/documents/${uploaded.documents[0].id}/file` };
   stage = "responsive layout";

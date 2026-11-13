@@ -105,7 +105,7 @@ async function assertRegisterControlParity(page) {
     for(const key of ['buttons','selected','search','filter','openFilter','activeFilter','dialogSearch','dialogButtons'])assert.deepEqual(physical[key],steel[key],`Steel/Defect Reports ${key} at ${width}`);
     assert.equal(steel.buttons.transfer.default.css.backgroundColor,'rgb(173, 0, 29)');
     assert.equal(steel.buttons.transfer.default.css.color,'rgb(255, 255, 255)');
-    assert.equal(physical.buttons.selection.default.width,38);assert.equal(physical.buttons.selection.default.height,38);assert.equal(physical.filter.default.width,24);assert.equal(physical.filter.default.height,24);
+    assert.equal(physical.buttons.selection.default.width,42);assert.equal(physical.buttons.selection.default.height,42);assert.equal(physical.filter.default.width,24);assert.equal(physical.filter.default.height,24);
     evidence.push({width,steel,physical});
   }} finally {await page.setViewportSize(original);}
   return evidence;

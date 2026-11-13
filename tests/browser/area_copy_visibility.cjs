@@ -170,9 +170,9 @@ async function saveLoad(info) {
   const defaultControl = settings.getByRole("button", { name: "Set as default", exact: true });
   const sizes = await page.evaluate(() => [...document.querySelectorAll(".takeoff-tool-rail .takeoff-visibility-button,#takeoff-markup-settings .takeoff-appearance-actions button")].map(el => {
     const box = el.getBoundingClientRect(), icon = el.querySelector("img,.takeoff-action-icon"), iconBox = icon.getBoundingClientRect();
-    return { label: el.getAttribute("aria-label"), width: box.width, height: box.height, iconWidth: iconBox.width, iconHeight: iconBox.height, mask: getComputedStyle(icon).maskImage, top: box.top, left: box.left };
+    return { label: el.getAttribute("aria-label"), inRail: !!el.closest(".takeoff-tool-rail"), width: box.width, height: box.height, iconWidth: iconBox.width, iconHeight: iconBox.height, mask: getComputedStyle(icon).maskImage, top: box.top, left: box.left };
   }));
-  assert.equal(sizes.length, 3); for (const size of sizes) { assert.equal(size.width, 38); assert.equal(size.height, 38); assert.equal(size.iconWidth, 24); assert.equal(size.iconHeight, 24); }
+  assert.equal(sizes.length, 3); for (const size of sizes) { assert.equal(size.width, size.inRail ? 42 : 38); assert.equal(size.height, size.width); assert.equal(size.iconWidth, 24); assert.equal(size.iconHeight, 24); }
   const memory = sizes.find(value => value.label === "Set as default"), itemSize = sizes.filter(value => value.label === "Visibility").at(-1);
   assert.match(memory.mask, /\/icons\/takeoff-set-default\.png/); assert.equal(memory.top, itemSize.top); assert.equal(Math.abs(memory.left - itemSize.left), 46);
   await defaultControl.click(); await expect(page.locator("#takeoffs-workspace .message")).toContainText("Default appearance saved");

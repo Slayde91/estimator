@@ -15,6 +15,9 @@ async function personal(name){const response=await page.request.get(new URL('/ap
  const saved=await page.request.post(new URL('/api/certifications/defaults',page.url()).href,{data:{expected_version:current.version,fields:{...current.fields,name}}});assert.equal(saved.status(),200,await saved.text());}
 async function save(host){await host.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();await expect(host.locator('.commercial-message')).toContainText('Document saved.');await idle();}
 async function current(){const workspace=await page.evaluate(()=>window.CeasefireCertification.sessionId());return(await page.request.get(new URL('/api/commercial/state?workspace='+workspace,page.url()).href)).json();}
+async function checkWorkStage(expected) {
+ await expect.poll(async () => (await current()).documents.find(doc => doc.kind === 'work_order')?.status).toBe(expected);
+}
 async function clearWork(label,choice='Clear section'){
  await page.locator('#commercial-work-order-root').getByRole('button',{name:'Clear '+label,exact:true}).click();
  await page.getByRole('dialog',{name:'Clear section and later sections?',exact:true}).getByRole('button',{name:choice,exact:true}).click();
@@ -96,12 +99,12 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  await expect(work.getByRole('button',{name:'Sign Prepared by',exact:true})).toBeHidden();
  await clearWork('Reviewed by');
  await work.getByLabel('Approval',{exact:true}).selectOption('Approved');
- await groupSign(work,'reviewed_by','Reviewed by','Review Person','Review date');await expect(work.getByLabel('Status',{exact:true})).toHaveValue('OHS Docs');await clearWork('Reviewed by');
+ await groupSign(work,'reviewed_by','Reviewed by','Review Person','Review date');await checkWorkStage('OHS Docs');await clearWork('Reviewed by');
  await expect(work.getByLabel('Reviewed by name',{exact:true})).toHaveValue('');await expect(work.getByLabel('Review date',{exact:true})).toHaveValue('');await expect(work.locator('[data-signature-field=reviewed_by] svg[role=img]')).toHaveCount(0);
  await expect(work.getByLabel('Approval',{exact:true})).toHaveValue('');await work.getByLabel('Approval',{exact:true}).selectOption('Approved');
  await groupSign(work,'reviewed_by','Reviewed by','Review Person','Review date');await personal('');
  await work.getByRole('button',{name:'Sign Prepared by',exact:true}).click();await expect(work.locator('.commercial-message')).toHaveText('Enter the signer name and date before signing.');await idle();
- await groupSign(work,'prepared_by','Prepared by','Prepare Person','Date');await expect(work.getByLabel('Status',{exact:true})).toHaveValue('Client Approval');await groupSign(work,'client_approved_by','Approved by','Approve Person','Approval date');await expect(work.getByLabel('Status',{exact:true})).toHaveValue('In progress');
+ await groupSign(work,'prepared_by','Prepared by','Prepare Person','Date');await checkWorkStage('Client Approval');await groupSign(work,'client_approved_by','Approved by','Approve Person','Approval date');await checkWorkStage('In progress');
  await clearWork('Approved by');await expect(work.getByLabel('Approved by name',{exact:true})).toHaveValue('');await expect(work.getByLabel('Approval date',{exact:true})).toHaveValue('');await groupSign(work,'client_approved_by','Approved by','Approve Person','Approval date');
  checks.push('All Work Order signature controls retain Draw and Clear only; deliberate signing uses current Settings name and organization date, and Clear resets signature/name/date without changing personal defaults');
  const existingReview=await work.locator('[data-signature-field=client_approved_by] svg[role=img]').getAttribute('viewBox'),existingName=await work.getByLabel('Approved by name',{exact:true}).inputValue();
@@ -119,18 +122,24 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  await completed.locator('input').nth(2).fill('25');await groupSign(work,'progress_by','Progress signed by','Progress Person','Date');await claimed.locator('input').nth(3).fill('100');
  await completed.locator('textarea').nth(2).fill('Signed progress note for a credit row');await save(work);
  const billing=work.locator('[data-claim-billing]'),address=billing.getByRole('textbox',{name:'Billing address',exact:true});
+ await expect(address).toHaveCSS('height','42px');await expect(address).toHaveCSS('resize','vertical');
+ await address.scrollIntoViewIfNeeded();
+ const resizeBox=await address.boundingBox(),resizeX=resizeBox.x+resizeBox.width-3,resizeY=resizeBox.y+resizeBox.height-3;
+ await page.mouse.move(resizeX,resizeY);await page.mouse.down();await page.mouse.move(resizeX,resizeY+55,{steps:5});await page.mouse.up();
+ assert.ok((await address.boundingBox()).height>70,'Billing address expands using its native resize handle');
+ await billing.screenshot({path:path.join(output,'expanded-claim-billing.png')});
  await address.fill('2 Existing Accounts Road');await save(work);
  await address.fill('8 Updated Accounts Road');await personal('Claim Person');
  const conflict=page.waitForResponse(response=>response.url().endsWith('/api/commercial/save') && response.request().method()==='POST');
  await work.getByRole('button',{name:'Sign Claim signed by',exact:true}).click();
  assert.equal((await conflict).status(),409);await expect(billing.getByRole('button',{name:'Apply billing choices'})).toBeVisible();
- await expect(work.getByLabel('Status',{exact:true})).toHaveValue('Claim');
+ await checkWorkStage('Claim');
  await expect(work.locator('[data-signature-field=claimed_by] svg[role=img]')).toHaveCount(0);
  await billing.getByRole('combobox',{name:'Billing address',exact:true}).selectOption('entered');
  await billing.getByRole('button',{name:'Apply billing choices',exact:true}).click();
  const retried=page.waitForRequest(req=>req.url().endsWith('/api/commercial/save') && req.method()==='POST');
  await save(work);assert.equal((await retried).postDataJSON().signature_actions.length,1);
- await expect(work.getByLabel('Status',{exact:true})).toHaveValue('Certify');
+ await checkWorkStage('Certify');
  const accepted=(await current()).documents.find(order=>order.kind==='work_order');
  assert.equal(accepted.status,'Certify');assert.equal(accepted.fields.order.claimed_by,'Claim Person');assert.ok(accepted.fields.signatures.claimed_by.strokes.length);
  const directory=await(await page.request.get(new URL('/api/contacts/directory',page.url()).href)).json();
@@ -151,7 +160,7 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  await groupSign(work,'progress_by','Progress signed by','Progress Person','Date');
  await groupSign(work,'claimed_by','Claim signed by','Claim Person','Date');
  await work.getByLabel('Certification details',{exact:true}).selectOption('Certification issued');await work.getByLabel('Completion',{exact:true}).selectOption('Completed');
- await groupSign(work,'closed_by','Closed by','Closure Person','Date');await expect(work.getByLabel('Status',{exact:true})).toHaveValue('Completed');await clearWork('Closed by');await expect(work.getByLabel('Closed by name',{exact:true})).toHaveValue('');await expect(work.locator('[data-order-field=closed_date]')).toHaveValue('');await expect(work.getByLabel('Reviewed by name',{exact:true})).toHaveValue('Review Person');
+ await groupSign(work,'closed_by','Closed by','Closure Person','Date');await checkWorkStage('Completed');await clearWork('Closed by');await expect(work.getByLabel('Closed by name',{exact:true})).toHaveValue('');await expect(work.locator('[data-order-field=closed_date]')).toHaveValue('');await expect(work.getByLabel('Reviewed by name',{exact:true})).toHaveValue('Review Person');
  for(const key of ['details_by','prepared_by','client_approved_by','progress_by','closed_by','claimed_by']) {
   const paired=await work.locator(`[data-signature-field="${key}"]`).evaluate(signature=>{const row=signature.parentElement,controls=row.querySelectorAll('.commercial-field-pair input');const a=controls[0].getBoundingClientRect(),b=controls[1].getBoundingClientRect();return {sameRow:Math.abs(a.y-b.y)<2,separated:b.x>a.right};});
   assert.ok(paired.sameRow&&paired.separated,key+' Name and Date pair on right');
@@ -179,10 +188,10 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  await expect(work.locator('.commercial-message')).toHaveText('Synthetic interrupted signing save');await idle();assert.equal(requests,1);
  assert.deepEqual((await current()).documents.find(document=>document.kind==='work_order'),beforeCycle);
  assert.equal(interruptedSigning.length,1);assert.ok(interruptedSigning[0].signature.strokes.length);assert.equal(interruptedSigning[0].completion,'Ongoing');
- await expect(work.getByLabel('Status',{exact:true})).toHaveValue('Certify');await expect(work.getByLabel('Progress signed by name',{exact:true})).toHaveValue('Progress Person');
+ await checkWorkStage('Certify');await expect(work.getByLabel('Progress signed by name',{exact:true})).toHaveValue('Progress Person');
  await page.unroute('**/api/commercial/save');
  await work.getByRole('button',{name:'Sign Closed by',exact:true}).click();await idle();
- await expect(work.getByLabel('Status',{exact:true})).toHaveValue('In progress');
+ await checkWorkStage('In progress');
  for(const key of ['closed_by','progress_by','claimed_by'])await expect(work.locator(`[data-signature-field="${key}"] svg[role=img]`)).toHaveCount(0);
  for(const key of ['closed_by','closed_date','progress_by','progress_date','claimed_by','claim_date'])await expect(work.locator(`[data-order-field="${key}"]`)).toHaveValue('');
  await expect(completed.locator('input').nth(2)).toHaveValue('25');await expect(claimed.locator('input').nth(3)).toHaveValue('100');
@@ -194,9 +203,9 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  await groupSign(work,'progress_by','Progress signed by','Next Cycle Progress Person','Date');
  assert.equal((await current()).documents.find(document=>document.kind==='work_order').status,'Claim');
  await groupSign(work,'claimed_by','Claim signed by','Next Cycle Claim Person','Date');
- await work.getByLabel('Completion',{exact:true}).selectOption('On hold');await groupSign(work,'closed_by','Closed by','Closure Person','Date');await expect(work.getByLabel('Status',{exact:true})).toHaveValue('On Hold');
+ await work.getByLabel('Completion',{exact:true}).selectOption('On hold');await groupSign(work,'closed_by','Closed by','Closure Person','Date');await checkWorkStage('On Hold');
  await clearWork('Closed by');await work.getByLabel('Completion',{exact:true}).selectOption('Not completed');
- await work.getByRole('button',{name:'Sign Closed by',exact:true}).click();await idle();await expect(work.getByLabel('Status',{exact:true})).toHaveValue('In progress');
+ await work.getByRole('button',{name:'Sign Closed by',exact:true}).click();await idle();await checkWorkStage('In progress');
  for(const key of ['closed_by','closed_date','progress_by','progress_date','claimed_by','claim_date'])await expect(work.locator(`[data-order-field="${key}"]`)).toHaveValue('');
  checks.push('Each signature saves its stage. Double clicks and failed saves leave the previous stage intact. Ongoing and Not completed restart the progress cycle, preserving quantities, notes and issued PDF bytes. On hold retains the signed closure.');
  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,geometry,pdf:issued.path,errors},null,2));console.log('PASS commercial panes and signatures: '+output);

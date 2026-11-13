@@ -349,9 +349,20 @@ def self_test(data_directory, output_report):
                 probe.wait('!document.querySelector("#steel-calculator-navigation-menu").hidden')
                 probe.click('#steel-calculator-navigation-menu button[data-calculator-id="steel_factors"]')
                 probe.wait('document.querySelector("#steel-calculator-navigation-menu button[data-calculator-id=steel_factors]").getAttribute("aria-pressed") === "true" && document.querySelector("#calculator-title").textContent === "Factor Calcs" && document.querySelector("#calculator-workspace").dataset.calculatorKind === "steel_vermiculite" && document.querySelector("#calculator-grid").getAttribute("aria-busy") === "false" && !!document.querySelector("#calculator-grid table")')
-                assert probe.script('document.querySelector("#calculator-pages").hidden') is True
-                assert probe.script('document.querySelector("[data-calculator-settings-section=A341]").getAttribute("aria-expanded")') == 'true'
-                probe.wait('!!document.querySelector("[data-calculator-cell=D346]")?.getClientRects().length')
+                factor_buttons = '.calculator-workspace-toolbar #calculator-pages > button'
+                assert probe.script(f'[...document.querySelectorAll({json.dumps(factor_buttons)})].map(b => b.dataset.calculatorSettingsSection)') == ['A341', 'A356']
+                for index, (section, cell) in enumerate((('A341', 'D346'), ('A356', 'D358'), ('A341', 'D346'))):
+                    if index:
+                        probe.click(f'{factor_buttons}[data-calculator-settings-section="{section}"]')
+                    probe.wait(f'''[...document.querySelectorAll({json.dumps(factor_buttons)})].every(button => {{
+                        const active = button.dataset.calculatorSettingsSection === "{section}";
+                        const panel = document.getElementById(button.getAttribute("aria-controls"));
+                        return button.getClientRects().length && document.querySelector("#calculator-grid").contains(panel)
+                            && panel.getAttribute("aria-labelledby") === button.id
+                            && button.getAttribute("aria-expanded") === String(active)
+                            && Boolean(panel.getClientRects().length) === active
+                            && (!active || !!panel.querySelector("[data-calculator-cell={cell}]")?.getClientRects().length);
+                    }})''')
                 assert probe.script('window.CeasefireCalculators.projectSnapshot()') == shared_inputs
                 probe.click('#calculator-navigation-toggle')
                 probe.wait('!document.querySelector("#calculator-navigation-menu").hidden')
@@ -360,7 +371,7 @@ def self_test(data_directory, output_report):
                 probe.click('#steel-calculator-navigation-menu button[data-calculator-id="steel_vermiculite"]')
                 probe.wait('document.querySelector("#steel-calculator-navigation-menu button[data-calculator-id=steel_vermiculite]").getAttribute("aria-pressed") === "true" && !document.querySelector("#calculator-pages").hidden && document.querySelector("#calculator-sheet-title").textContent === "SCHEDULE" && document.querySelector("#calculator-grid").getAttribute("aria-busy") === "false" && !!document.querySelector("#calculator-grid table")')
                 assert probe.script('window.CeasefireCalculators.projectSnapshot()') == shared_inputs
-                report['checks'].append('Factor Calcs is reachable and returns to the spray schedule with the exact shared inputs and no separate saved calculator')
+                report['checks'].append('Both Factor Calcs toolbar buttons open their linked panels and return to the spray schedule with the exact shared inputs')
                 report['checks'].append('PDF export wrote verified bytes through controlled download API')
                 probe.click('[data-view="estimate"]')
                 probe.wait('window.CeasefireDesktop.status().busy === false')

@@ -1194,7 +1194,6 @@
     state.editor = {
       document: copy(document),
       savedStatus: document.version ? document.status : 'Draft',
-      confirmedQuoteStatus: document.status,
       quoteLinkLocked: Boolean(linkedQuote || (document.version && document.fields.order.quote_id)),
       projectContext:window.CeasefireProject?.runtimeContext?.(),
       source,
@@ -1218,25 +1217,7 @@
     if (lockedNumber) fields.details.project_no = lockedNumber;
     const actions = node("div", "commercial-editor-actions");
     actions.append(backButton("Back to " + names[state.kind] + "s", () => void leaveEditor()), button("Save", () => void saveEditor(), true), pdfDownloadButton(() => void downloadEditor()));
-    const statusControl=select(state.model.statuses[state.kind], state.editor.document.status, value => {
-      const editor = state.editor;
-      const step = purchaseRollbackSteps(editor.document.kind,editor.savedStatus).find(item=>item.from===value);
-      if (step && editor.document.version) {
-        statusControl.value = editor.document.status;
-        void rollBackEditor(editor,step);
-        return;
-      }
-      editor.document.status=value;statusControl.dataset.status=value;markDirty();
-    },false);
-    statusControl.classList.add('commercial-document-status');statusControl.dataset.status=state.editor.document.status;
-    bindStatusOptions(statusControl);
-    for(const option of statusControl.options)option.dataset.status=option.value;
-    const statusField = field("Status", statusControl);
-    statusField.classList.add("commercial-action-status");
-    statusField.firstElementChild.hidden = true;
-    window.CeasefireI18n?.attr(statusControl, 'aria-label', 'Status');
     if (state.kind === "quote") actions.append(button("Create WO", () => void createWorkOrder(), true));
-    actions.append(statusField);
     if (state.kind === "work_order") actions.append(button("Create PO", () => void createPurchaseOrder()));
     form.append(actions);
     const details = node("section", "card commercial-details");
@@ -1380,20 +1361,6 @@
       await new Promise(resolve=>dialog.addEventListener("close",resolve,{once:true}));
       return dialog.returnValue==="clear";
     } finally {delete intent.dismiss;dialog.remove();}
-  }
-  async function rollBackEditor(editor,step) {
-    if (state.busy || state.cardIntent) return;
-    const operation=captureDocumentOperation(), version=editor.document.version, intent={};
-    state.cardIntent=intent;state.busy=true;setDisabled(true);
-    try {
-      if (!await confirmPurchaseRollback({...editor.document,status:editor.savedStatus},step,intent) || state.cardIntent!==intent) return;
-      assertDocumentOperation(operation);
-      if (editor.document.version!==version) throw new Error("This commercial document changed. Reopen it before saving.");
-      await saveEditor({key:step.key,clear:true});
-    } catch (error) {if (state.editor===editor) message(error.message,true);}
-    finally {
-      if (state.cardIntent===intent) {state.cardIntent=null;state.busy=false;setDisabled(false);}
-    }
   }
   function signerComplete(fields, key) {
     const date = fields.order[signatureDates[key]];
@@ -2793,8 +2760,6 @@
       billingReview:editor.billingReview
     });
     assertDocumentOperation(operation);
-    // A PDF action saves the document first; it can commit an edited status, too.
-    if (!explicitlySaved) confirmEditorStatus(editor, saved);
     adoptSaved(saved);
     if (signatureAction?.clear) refreshClearedSection(editor.document.fields);
     if (state.editor.source) state.editor.source.documentId = saved.id;
@@ -2836,10 +2801,6 @@
     if (saved.kind === "quote" && saved.status === "Accepted" && previousStatus !== saved.status)
       window.CeasefireButtonSounds?.quoteAccepted?.();
   }
-  function confirmEditorStatus(editor, saved) {
-    acceptedQuoteFeedback(editor.confirmedQuoteStatus, saved);
-    editor.confirmedQuoteStatus = saved.status;
-  }
   function adoptSaved(saved) {
     const fields = state.editor.document.fields;
     state.editor.derivedEstimates.clear();
@@ -2858,8 +2819,6 @@
     state.editor.pendingProjectDetails=null;
     state.editor.legacyDetailsSignoff=isLegacyWorkOrder(saved);
     updateOrderSectionVisibility(root());
-    const status=root()?.querySelector('.commercial-document-status');
-    if(status){status.value=saved.status;status.dataset.status=saved.status;}
     for (const wrap of root()?.querySelectorAll('[data-signature-field]') || []) {
       const {signatureField:key,signatureLabel:label}=wrap.dataset;
       for(const name of [key,signatureDates[key]]) {
@@ -2902,7 +2861,6 @@
       draftSaved=true;
       const source = state.editor.source;
       const inFile = source ? !source.file_id.startsWith("local-") : await saveActiveProject();
-      confirmEditorStatus(operation.editor, operation.editor.document);
       const document=operation.editor.document,billing=document.fields.billing;
       const billingKey=billing?.sync_key || billing?.new_contact_key;
       if(document.kind==='work_order' && billingKey && billingKey===operation.editor.billingPendingKey) {

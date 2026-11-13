@@ -371,8 +371,8 @@ async function standardCalculatorButton() {
   const actions = page.locator(`#library-penetration [data-library-add="${info.item_id}"]`).first().locator("..");
   for (const width of [1384, 1146, 390]) {
     await page.setViewportSize({ width, height: 764 }); const add = actions.getByRole("button", { name: "Add to Schedule", exact: true }); await expect(add).toBeVisible();
-    const b = await box(add); assert.equal(b.width, 48); assert.equal(b.height, 48);
-    for (const control of await actions.getByRole("button").all()) assert.equal((await box(control)).height, 48, "Library action row has uniform heights");
+    const b = await box(add); assert.equal(b.width, 42); assert.equal(b.height, 42);
+    for (const control of await actions.getByRole("button").all()) assert.equal((await box(control)).height, 42, "Library action row has uniform heights");
     evidence.library.push({ width, add: b }); await noOverflow(`${width}/Firestopping Library`);
   }
   stage = "Firestopping calculator Add to Schedule";

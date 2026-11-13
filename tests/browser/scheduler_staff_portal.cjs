@@ -39,6 +39,7 @@ const ready=new Promise((resolve,reject)=>{let buffer='';server.on('exit',()=>re
   await post(staff,'/api/access/login',credentials(worker));
   const page=await staff.newPage();await page.goto(origin);
   await expect(page.locator('.scheduler-shift')).toHaveCount(1);
+  assert.deepEqual(await page.locator('.scheduler-tabs button').evaluateAll(buttons=>buttons.map(button=>button.getBoundingClientRect().height)),[42,42]);
   await expect(page.locator('.scheduler-shift')).toContainText('Worker installation');
   await expect(page.locator('.scheduler-shift')).toContainText('WO-02');
   await page.getByRole('button',{name:'Time entries',exact:true}).click();

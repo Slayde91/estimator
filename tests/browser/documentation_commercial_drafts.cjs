@@ -64,7 +64,7 @@ async function run() {
           if (download && !pdfSize) pdfSize = download.getBoundingClientRect();
         }
         return [newSize?.width, newSize?.height, pdfSize?.width, pdfSize?.height];
-      }, kind)).toEqual([52, 44, 52, 44]);
+      }, kind)).toEqual([52, 42, 52, 42]);
       const title = {quote:'New Quote',work_order:'New Work Order',purchase_order:'New Purchase Order'}[kind];
       await expect(button).toHaveAccessibleName(title);
       await expect(button).toHaveAttribute('title',title);

@@ -1,0 +1,52 @@
+{
+  "Checking location…": [
+    "위치 확인 중…",
+    "Sinusuri ang lokasyon…",
+    "Đang kiểm tra vị trí…"
+  ],
+  "Location checked. The next history point is due at {0}.": [
+    "위치를 확인했습니다. 다음 위치 기록 예정 시각은 {0}입니다.",
+    "Nasuri ang lokasyon. Nakatakdang itala ang susunod na lokasyon sa {0}.",
+    "Đã kiểm tra vị trí. Đến {0} mới tới thời điểm ghi vị trí tiếp theo vào lịch sử."
+  ],
+  "Location recorded at {0}.": [
+    "{0}에 위치를 기록했습니다.",
+    "Naitala ang lokasyon nang {0}.",
+    "Đã ghi vị trí lúc {0}."
+  ],
+  "Previous week": [
+    "이전 주",
+    "Nakaraang linggo",
+    "Tuần trước"
+  ],
+  "Next week": [
+    "다음 주",
+    "Susunod na linggo",
+    "Tuần sau"
+  ],
+  "Location access is blocked. Enable location for CLASSIFIRE in your browser, then check location again.": [
+    "위치 접근이 차단되었습니다. 브라우저에서 CLASSIFIRE에 위치 권한을 허용한 뒤 다시 확인하세요.",
+    "Naka-block ang access sa lokasyon. Payagan ang CLASSIFIRE na gumamit ng lokasyon sa browser, saka suriin ito muli.",
+    "Quyền truy cập vị trí đã bị chặn. Hãy cho phép CLASSIFIRE truy cập vị trí trong trình duyệt rồi kiểm tra lại."
+  ],
+  "The location request timed out. Check this computer's location services and try again.": [
+    "위치 요청 시간이 초과되었습니다. 이 컴퓨터의 위치 서비스를 확인한 뒤 다시 시도하세요.",
+    "Nag-time out ang kahilingan sa lokasyon. Suriin ang mga serbisyo ng lokasyon ng computer at subukang muli.",
+    "Yêu cầu vị trí đã hết thời gian chờ. Kiểm tra dịch vụ vị trí của máy tính rồi thử lại."
+  ],
+  "A location could not be obtained. Enable location services and try again.": [
+    "위치를 가져올 수 없습니다. 위치 서비스를 켠 뒤 다시 시도하세요.",
+    "Hindi matukoy ang lokasyon. I-on ang mga serbisyo ng lokasyon at subukang muli.",
+    "Không lấy được vị trí. Bật dịch vụ vị trí rồi thử lại."
+  ],
+  "Location is unavailable in this browser. Use a browser with location services enabled.": [
+    "이 브라우저에서는 위치를 사용할 수 없습니다. 위치 서비스가 활성화된 브라우저를 사용하세요.",
+    "Hindi magagamit ang lokasyon sa browser na ito. Gumamit ng browser na may naka-enable na mga serbisyo ng lokasyon.",
+    "Trình duyệt này không thể cung cấp vị trí. Hãy dùng trình duyệt đã bật dịch vụ vị trí."
+  ],
+  "The browser returned an old or invalid location. Obtain a new location and try again.": [
+    "브라우저가 오래되었거나 잘못된 위치를 반환했습니다. 새 위치를 가져온 뒤 다시 시도하세요.",
+    "Luma o hindi wasto ang lokasyong ibinigay ng browser. Kumuha ng bagong lokasyon at subukang muli.",
+    "Trình duyệt cung cấp vị trí cũ hoặc không hợp lệ. Lấy vị trí mới rồi thử lại."
+  ]
+}

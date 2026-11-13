@@ -22,11 +22,44 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
   const fingerprint=await page.evaluate(()=>window.CeasefireCertification.fingerprint());
   await page.locator('#certification-back').click();await expect(page.locator('#view-documentation')).toBeVisible();
   const pdfRows=page.locator('#documentation-pdf-rows');
-  await pdfRows.getByRole('button',{name:'Schedules',exact:true}).click();
+  await expect(pdfRows.getByRole('button',{name:'Schedules',exact:true})).toBeVisible();
+  const tables=page.locator('.documentation-tables');
+  for(const toggle of await tables.locator('.documentation-group-toggle').all()){
+    if(await toggle.getAttribute('aria-expanded')==='false')await toggle.click();
+  }
   const revisions=pdfRows.locator('tr[data-document-kind="project.full_schedule.pdf"] .documentation-view-revisions');
   await expect(revisions).toHaveCount(1);
   for(const width of [1254,390]){
     await page.setViewportSize({width,height:884});
+    const actions=await tables.evaluate(container=>{
+      const geometry=selector=>{
+        const controls=[...container.querySelectorAll(selector)].map(button=>button.getBoundingClientRect());
+        return {count:controls.length,heights:[...new Set(controls.map(rect=>rect.height))]};
+      };
+      return {
+        create:geometry('.documentation-new-button'),pdf:geometry('.documentation-pdf-table .documentation-download-button'),
+        xlsx:geometry('.documentation-xlsx-table .documentation-download-button'),revisions:geometry('.documentation-view-revisions'),
+        trash:geometry('.document-cover-actions .trash-button')
+      };
+    });
+    for(const [kind,metrics] of Object.entries(actions)){
+      assert.ok(metrics.count>0,kind);assert.deepEqual(metrics.heights,[42],kind);
+    }
+    layouts.push({kind:'Documentation controls',width,actions});
+    await page.evaluate(()=>window.scrollTo(0,0));
+    await page.screenshot({path:path.join(output,`documentation-controls-${width}.png`)});
+    if(width===390){
+      const scroller=page.locator('#cover-sheets-settings .table-scroll');
+      const fits=await scroller.evaluate(container=>{
+        container.scrollLeft=container.scrollWidth;
+        const trash=container.querySelector('.document-cover-actions .trash-button').getBoundingClientRect();
+        const bounds=container.getBoundingClientRect();
+        return container.scrollLeft>0&&trash.left>=bounds.left&&trash.right<=bounds.right&&document.documentElement.scrollWidth<=innerWidth;
+      });
+      assert.ok(fits,'The mobile table can reveal its Actions column without scrolling the page sideways');
+      await page.screenshot({path:path.join(output,'documentation-controls-390-actions.png')});
+      await scroller.evaluate(container=>{container.scrollLeft=0;});
+    }
     for(const selected of [false,true]){
       if(selected){await revisions.click();await expect(revisions).toHaveAttribute('aria-expanded','true');}
       const alignment=await page.locator('.documentation-pdf-table').evaluate(table=>{

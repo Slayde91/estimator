@@ -271,13 +271,13 @@
 .calculator-grid .calculator-schedule-table td.calculator-line-number{background:#fff!important;color:#171217!important}
 .calculator-schedule-tools{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:14px 20px;background:#fffaf2;border-block:1px solid #d8c9bc}
 .calculator-schedule-tools button{white-space:nowrap}
-.calculator-schedule-tools :is([data-schedule-add],[data-schedule-undo]){width:48px;min-width:48px;height:48px;padding:0}
+.calculator-schedule-tools :is([data-schedule-add],[data-schedule-undo]),.calculator-row-action .calculator-remove-row{width:var(--calculator-control-height);min-width:var(--calculator-control-height);height:var(--calculator-control-height);min-height:var(--calculator-control-height);padding:0}
 .calculator-schedule-help,.calculator-schedule-overview-note{flex-basis:100%;font-size:11px}
 .calculator-schedule-overview-note{margin:0}
 .calculator-grid .calculator-row-action{width:100px;padding:7px!important}
 .calculator-grid td.calculator-row-action{background:#fff!important}
 .calculator-row-action button{padding:8px;font-size:11px;min-height:36px}
-.calculator-row-action .calculator-remove-row{display:inline-flex;align-items:center;justify-content:center;width:44px;min-height:44px}
+.calculator-row-action .calculator-remove-row{display:inline-flex;align-items:center;justify-content:center}
 .calculator-trash-icon,.calculator-trash-icon svg{display:block;width:20px;height:20px}
 /* The virtual renderer observes this element's vertical scroll position. Keep
    a bounded viewport so later batches replace the first 60 rows as you scroll. */
@@ -324,6 +324,9 @@
 .calculator-workspace[data-factor-view="true"]>.calculator-sheet-heading{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
 
 @media screen {
+  #calculator-workspace[data-calculator-kind="ductwork"] h4[data-calculator-output="A94"] {
+    display:flex;align-items:center;height:56px;padding-block:0;font-size:14px;
+  }
   #calculator-grid :is(.calculator-overview-title, .calculator-role-compact_summary_title, .calculator-section-anchor, .calculator-schedule-section > h4, .calculator-product-totals > h4) {
     background: #b90a15;
     color: #fff;

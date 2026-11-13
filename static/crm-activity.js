@@ -120,12 +120,37 @@
     box.addEventListener('toggle',()=>{if(box.open&&!seen)void load();});
     return {pending:()=>busy,dirty:()=>Boolean(note.value || due.value || occurred.value),fingerprint:()=>[type.value,note.value,due.value,owner.value,occurred.value]};
   }
-  function historyPanel(read, isCurrent, onListChanged) {
+  const listObservers = new WeakMap();
+  function stopSizing(list) {
+    listObservers.get(list)?.disconnect();
+    listObservers.delete(list);
+  }
+  function sizeList(list, count, heading) {
+    stopSizing(list);
+    if (list.childElementCount <= count) {
+      list.style.removeProperty('max-height');
+      list.removeAttribute('tabindex');
+      return;
+    }
+    const rows = Array.from(list.children).slice(0, count);
+    list.tabIndex = 0;
+    list.setAttribute('aria-labelledby', heading.id);
+    const measure = () => {
+      const first = rows[0].getBoundingClientRect(), last = rows.at(-1).getBoundingClientRect();
+      if (first.height) list.style.maxHeight = `${last.bottom - first.top}px`;
+    };
+    const observer = new ResizeObserver(measure);
+    rows.forEach(row => observer.observe(row));
+    listObservers.set(list, observer);
+    measure();
+  }
+  function historyPanel(read, isCurrent, headingId) {
     const panel = el('details'), heading = el('summary', term('Activity history'));
     panel.className = 'card commercial-side-panel record-activity-history';
     window.CeasefireI18n?.text(heading, 'Activity history');
     const list = el('ol'), message = el('p');
     list.className = 'crm-event-list'; message.className = 'helper'; message.setAttribute('role','status');
+    if (headingId) { heading.id = headingId; list.classList.add('record-history-scroll'); }
     const earlier = button('Load earlier activity', showMore);
     earlier.hidden = true;
     panel.append(heading, list, earlier, message);
@@ -144,14 +169,14 @@
         list.append(row);
       }
       shown = next; earlier.hidden = shown >= events.length;
-      onListChanged?.(list);
+      if (headingId) sizeList(list, 5, heading);
     }
     async function refresh() {
       const ticket = ++serial;
       if (!panel.open || !panel.isConnected || !isCurrent()) return;
       const current = () => ticket === serial && panel.open && panel.isConnected && isCurrent();
       list.replaceChildren(); earlier.hidden = true; message.textContent = term('Loading…');
-      onListChanged?.(list);
+      if (headingId) sizeList(list, 5, heading);
       try {
         const data = await read();
         if (!current()) return;
@@ -165,5 +190,5 @@
     panel.addEventListener('toggle', refresh);
     return {element:panel, refresh};
   }
-  window.ClassifireCrmActivity={attach,ownerSelect,populate,historyPanel};
+  window.ClassifireCrmActivity={attach,ownerSelect,populate,historyPanel,sizeList,stopSizing};
 })();

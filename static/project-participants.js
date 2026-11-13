@@ -34,32 +34,6 @@
   let selection = null, fileRevision = null, record = null, generation = 0, directory = {accounts:[],contacts:[]}, roleSelection = {};
   let saving = false, loading = false, scanTimer, retriedScan = false;
   let history = null;
-  const listObservers = new Map();
-
-  function sizeList(list, count, heading) {
-    stopSizing(list);
-    if (list.childElementCount <= count) {
-      list.style.removeProperty('max-height');
-      list.removeAttribute('tabindex');
-      return;
-    }
-    const rows = Array.from(list.children).slice(0, count);
-    list.tabIndex = 0;
-    list.setAttribute('aria-labelledby', heading.id);
-    const measure = () => {
-      const first = rows[0].getBoundingClientRect(), last = rows.at(-1).getBoundingClientRect();
-      if (first.height) list.style.maxHeight = `${last.bottom - first.top}px`;
-    };
-    const observer = new ResizeObserver(measure);
-    rows.forEach(row => observer.observe(row));
-    listObservers.set(list, observer);
-    measure();
-  }
-
-  function stopSizing(list) {
-    listObservers.get(list)?.disconnect();
-    listObservers.delete(list);
-  }
   const canEdit = () => !window.ClassifireAccess || window.ClassifireAccess.can("edit");
 
   async function api(path, data) {
@@ -156,7 +130,7 @@
     const companyIds = new Set([...record.participants, ...(record.linked_parties || [])]
       .filter(item => item.kind === "accounts").map(item => item.id));
     for (const [kind, host] of Object.entries(hosts)) {
-      stopSizing(host.querySelector('.project-party-cards'));
+      window.ClassifireCrmActivity.stopSizing(host.querySelector('.project-party-cards'));
       host.replaceChildren();
       const entries = record.participants.filter(item => item.kind === kind);
       const group = el("fieldset"), note = status();
@@ -242,7 +216,7 @@
       if (list) {
         const heading = host.closest('details').querySelector('summary');
         heading.id = host.id + '-heading';
-        sizeList(list, 1, heading);
+        window.ClassifireCrmActivity.sizeList(list, 1, heading);
       }
     }
   }
@@ -321,7 +295,7 @@
 
   function close() {
     ++generation;
-    for (const list of listObservers.keys()) stopSizing(list);
+    for (const host of Object.values(hosts)) window.ClassifireCrmActivity.stopSizing(host.querySelector('.project-party-cards'));
     history?.element.remove(); history = null;
     clearTimeout(scanTimer);
     selection = fileRevision = record = null; directory = {accounts:[],contacts:[]}; roleSelection = {};
@@ -351,11 +325,7 @@
       history = window.ClassifireCrmActivity.historyPanel(() => {
         if (!selector) return {events:[]};
         return api("crm/project-activity?" + new URLSearchParams({project:selector, revision:file.revision}));
-      }, () => ticket === generation, list => {
-        const heading = list.closest('details').querySelector('summary');
-        heading.id = 'project-activity-heading';
-        sizeList(list, 5, heading);
-      });
+      }, () => ticket === generation, 'project-activity-heading');
       hosts.contacts.closest("details").after(history.element);
       if (!selector) return;
       selection = selector; fileRevision = file.revision;

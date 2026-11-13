@@ -245,6 +245,10 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 /* The wide editor scrolls inside its own viewport. Layout containment prevents
    the table's intrinsic width from widening the root mobile scroll area. */
 #library-pricing .table-scroll{contain:layout}
+#view-pricing{--library-control-height:42px}
+#library-pricing>.card :where(button,select,textarea,input:not([type=checkbox],[type=radio],[type=hidden],[type=file])){box-sizing:border-box;height:var(--library-control-height);min-height:var(--library-control-height);padding-block:0}
+#library-pricing>.card textarea{padding-block:6px}
+#library-pricing>.card .icon-only{width:var(--library-control-height);min-width:var(--library-control-height);padding-inline:0}
 .pricing-table th:first-child{width:22%;min-width:0}
 .pricing-table th:nth-child(2){width:12%;min-width:0}
 .pricing-table input{width:100%;min-width:0;max-width:100%;font-size:12px;padding:7px}
@@ -351,7 +355,7 @@ dialog .actions{justify-content:flex-end}
 .pricing-table td { vertical-align: top; }
 .pricing-row-actions{white-space:nowrap;min-width:80px}
 .pricing-row-actions .button{margin:3px}
-#view-pricing .button.library-create-action{min-width:48px;background:#d0001b;border-color:#a80016;color:#fff}
+#view-pricing .button.library-create-action{width:var(--library-control-height);min-width:var(--library-control-height);height:var(--library-control-height);min-height:var(--library-control-height);background:#d0001b;border-color:#a80016;color:#fff}
 #view-pricing .button.library-create-action:hover:not(:disabled){background:#b90018;border-color:#920016}
 .pricing-table input[data-price-field="yield"] { min-width: 11rem; }
 .pricing-yield-unit { min-width: 8rem; color: var(--muted); white-space: pre-wrap; }
@@ -388,7 +392,11 @@ dialog .actions{justify-content:flex-end}
 .gear-symbol { color: #111; }
 
 /* Shared pricing columns stay readable without unused horizontal space. */
-.pricing-table th,.pricing-table td{padding:9px 6px;overflow-wrap:anywhere}.pricing-table th:nth-child(3){width:8%}.pricing-table th:nth-child(4){width:6%}.pricing-table th:nth-child(5){width:8%}.pricing-table th:nth-child(6),.pricing-table th:nth-child(7){width:16%}.pricing-table th:nth-child(8),.pricing-table th:nth-child(9){width:6%}.pricing-table .pricing-row-actions{white-space:nowrap}.pricing-table .pricing-row-actions .icon-only{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;width:28px;min-width:28px;height:28px;padding:5px}
+.pricing-table th,.pricing-table td{padding:9px 6px;overflow-wrap:anywhere}
+.pricing-table th:nth-child(3),.pricing-table th:nth-child(5){width:8%}
+.pricing-table th:nth-child(4),.pricing-table th:nth-child(8){width:6%}
+.pricing-table th:nth-child(9){width:108px}
+.pricing-table .pricing-row-actions .icon-only{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}
 
 .calculator-status{display:inline-block;background:#fff1bf;color:#775300;width:fit-content}
 .company-branding-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 24px;margin:20px 0}
@@ -431,7 +439,6 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 @media screen {
   .main-section-tabs{background:#0D0B0E;border-radius:8px}
   #view-estimate .main-section-tabs{border:0}
-  #view-estimate .main-section-tab[aria-selected=true]{border-color:transparent;box-shadow:none}
   .estimate-tabs-divider{height:1px;background:#ed001b}
   #main-output-tabs{height:42px;padding-block:0;overflow-y:hidden;scrollbar-width:none}
   #main-output-tabs>.main-section-tab{height:42px;padding-block:0}
@@ -541,7 +548,8 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 #project-pages .calculator-page,#document-pages .calculator-page,#calculator-kind-pages .calculator-page,#library-pages .calculator-page,#takeoff-pages .calculator-page{flex:0 0 auto;min-width:0;padding-block:0;display:flex;align-items:center;justify-content:center;white-space:nowrap}
 #project-pages .calculator-page[aria-pressed="false"]:not(:hover),#document-pages .calculator-page[aria-pressed="false"]:not(:hover),#calculator-kind-pages .calculator-page[aria-pressed="false"]:not(:hover),#library-pages .calculator-page[aria-pressed="false"]:not(:hover),#takeoff-pages .calculator-page[aria-pressed="false"]:not(:hover){background:transparent;color:#e5e7eb}
 @media screen {
-  #project-pages.project-tabs{height:42px;min-height:42px;overflow-y:hidden;scrollbar-width:none}
+  #project-pages.project-tabs,#document-pages.document-tabs{height:42px;min-height:42px;overflow-y:hidden;scrollbar-width:none}
+  #document-pages>.calculator-page:focus-visible{outline-offset:-4px}
   #calculator-kind-pages.calculator-kind-tabs,#takeoff-pages.takeoff-tabs{margin-bottom:0}
   #calculator-kind-pages.calculator-kind-tabs{height:auto;min-height:var(--calculator-control-height)}
   #calculator-kind-pages>.calculator-page{height:var(--calculator-control-height)}
@@ -636,11 +644,11 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .project-workspace-links .project-link-status:empty{display:none}
 .project-party-cards{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:12px}
 .project-party-cards>li{min-width:0}
-.project-party-cards,#project-workspace-side .crm-event-list{align-content:start;overflow-y:auto;overflow-wrap:anywhere}
-#project-workspace-side .crm-event-list{display:grid;gap:10px;min-width:0}
-#project-workspace-side .crm-event-list>li{margin:0;min-width:0}
-#project-workspace-side .crm-event-list:empty{display:none}
-.project-workspace-side :is(.project-party-cards,.crm-event-list):focus-visible{outline:2px solid var(--theme-focus);outline-offset:1px}
+.project-party-cards,.record-history-scroll{align-content:start;overflow-y:auto;overflow-wrap:anywhere}
+.record-history-scroll{display:grid;gap:10px;min-width:0}
+.crm-event-list.record-history-scroll>li{margin:0;min-width:0}
+.record-history-scroll:empty{display:none}
+:is(.project-party-cards,.record-history-scroll):focus-visible{outline:2px solid var(--theme-focus);outline-offset:1px}
 .project-party-cards .commercial-linked-contact{min-width:0;border-top:1px solid var(--line);padding-top:10px;overflow-wrap:anywhere}
 .project-party-cards .project-title-button{display:block;max-width:100%;text-align:start;white-space:normal;overflow-wrap:anywhere}
 .project-party-cards .helper{margin:4px 0}

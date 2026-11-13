@@ -54,13 +54,16 @@
 .library-record-commercial .library-record-price{margin:0}
 .library-item-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px}
 .library-item-actions .button{height:48px;min-height:48px}
-.library-item-actions .library-add-transfer{display:inline-flex;align-items:center;justify-content:center;flex:0 0 48px;width:48px;min-width:48px;max-width:48px;height:48px;min-height:48px;padding:8px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#584b53;box-shadow:none;box-sizing:border-box}
+.library-item-actions>.button:is([data-library-edit],[data-library-delete],[data-library-link],[data-library-add]){height:var(--library-control-height);min-height:var(--library-control-height)}
+.library-item-actions>.button:is([data-library-delete],[data-library-link],[data-library-add]){flex:0 0 var(--library-control-height);width:var(--library-control-height);min-width:var(--library-control-height)}
+.library-item-actions>.button[data-library-link]{padding:0}
+.library-item-actions .library-add-transfer{display:inline-flex;align-items:center;justify-content:center;padding:8px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#584b53;box-shadow:none;box-sizing:border-box}
 /* Reverse the Library transfer colours in every theme; Takeoffs keeps its own palette. */
 #view-pricing .button.takeoff-preview-transfer{background:#ad001d;border-color:#fff;color:#fff}
 #view-pricing .button.takeoff-preview-transfer:hover:not(:disabled){background:#970020;border-color:#fff;color:#fff}
 #view-pricing .takeoff-preview-transfer .takeoff-transfer-icon{filter:brightness(0) invert(1)}
 .library-action-message{flex-basis:100%;margin:0}
-.library-delete{display:grid;place-items:center;width:48px;height:48px;padding:0}
+.library-delete{display:grid;place-items:center;padding:0}
 .library-trash-icon,.library-trash-icon svg{display:block;width:20px;height:20px}
 .library-record-commercial .library-item-actions{margin:0}
 .library-summary{margin-bottom:20px;padding:18px 22px}

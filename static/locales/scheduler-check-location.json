@@ -1,0 +1,72 @@
+{
+  "Checking location…": [
+    "正在检查位置…",
+    "स्थान की जाँच हो रही है…",
+    "Comprobando la ubicación…",
+    "جارٍ التحقق من الموقع…",
+    "กำลังตรวจสอบตำแหน่ง…"
+  ],
+  "Location checked. The next history point is due at {0}.": [
+    "已检查位置。下一个位置记录点应在 {0} 采集。",
+    "स्थान की जाँच हो गई। अगला स्थान {0} बजे दर्ज होना है।",
+    "Ubicación comprobada. El próximo punto del historial se registrará a partir de las {0}.",
+    "تم التحقق من الموقع. يحين موعد تسجيل نقطة الموقع التالية عند {0}.",
+    "ตรวจสอบตำแหน่งแล้ว ถึงเวลาบันทึกจุดถัดไปในประวัติเมื่อ {0}"
+  ],
+  "Location recorded at {0}.": [
+    "位置已于 {0} 记录。",
+    "स्थान {0} बजे दर्ज हुआ।",
+    "Ubicación registrada a las {0}.",
+    "تم تسجيل الموقع عند {0}.",
+    "บันทึกตำแหน่งเมื่อ {0}"
+  ],
+  "Previous week": [
+    "上一周",
+    "पिछला सप्ताह",
+    "Semana anterior",
+    "الأسبوع السابق",
+    "สัปดาห์ก่อนหน้า"
+  ],
+  "Next week": [
+    "下一周",
+    "अगला सप्ताह",
+    "Semana siguiente",
+    "الأسبوع التالي",
+    "สัปดาห์ถัดไป"
+  ],
+  "Location access is blocked. Enable location for CLASSIFIRE in your browser, then check location again.": [
+    "位置访问被阻止。请在浏览器中允许 CLASSIFIRE 访问位置，然后重新检查。",
+    "स्थान का ऐक्सेस बंद है। अपने ब्राउज़र में CLASSIFIRE को स्थान की अनुमति दें और दोबारा जाँचें।",
+    "El acceso a la ubicación está bloqueado. Permita que CLASSIFIRE acceda a la ubicación en su navegador y vuelva a comprobarla.",
+    "الوصول إلى الموقع محظور. اسمح لـ CLASSIFIRE بالوصول إلى الموقع في المتصفح ثم أعد التحقق.",
+    "การเข้าถึงตำแหน่งถูกบล็อก โปรดอนุญาตให้ CLASSIFIRE เข้าถึงตำแหน่งในเบราว์เซอร์แล้วตรวจสอบอีกครั้ง"
+  ],
+  "The location request timed out. Check this computer's location services and try again.": [
+    "位置请求超时。请检查此设备的位置服务，然后重试。",
+    "स्थान के अनुरोध का समय समाप्त हो गया। इस कंप्यूटर की स्थान सेवाएँ जाँचें और फिर प्रयास करें।",
+    "La solicitud de ubicación agotó el tiempo de espera. Compruebe los servicios de ubicación del equipo y vuelva a intentarlo.",
+    "انتهت مهلة طلب الموقع. تحقق من خدمات الموقع على هذا الجهاز وحاول مجددًا.",
+    "คำขอตำแหน่งหมดเวลา โปรดตรวจสอบบริการตำแหน่งของคอมพิวเตอร์นี้แล้วลองอีกครั้ง"
+  ],
+  "A location could not be obtained. Enable location services and try again.": [
+    "无法获取位置。请启用位置服务，然后重试。",
+    "स्थान नहीं मिल सका। स्थान सेवाएँ चालू करके फिर प्रयास करें।",
+    "No se pudo obtener la ubicación. Active los servicios de ubicación y vuelva a intentarlo.",
+    "تعذّر تحديد الموقع. فعّل خدمات الموقع وحاول مجددًا.",
+    "ไม่สามารถระบุตำแหน่งได้ โปรดเปิดบริการตำแหน่งแล้วลองอีกครั้ง"
+  ],
+  "Location is unavailable in this browser. Use a browser with location services enabled.": [
+    "此浏览器无法提供位置。请使用已启用位置服务的浏览器。",
+    "इस ब्राउज़र में स्थान उपलब्ध नहीं है। ऐसा ब्राउज़र इस्तेमाल करें जिसमें स्थान सेवाएँ चालू हों।",
+    "La ubicación no está disponible en este navegador. Use uno con los servicios de ubicación activados.",
+    "الموقع غير متاح في هذا المتصفح. استخدم متصفحًا تم تفعيل خدمات الموقع فيه.",
+    "เบราว์เซอร์นี้ไม่สามารถระบุตำแหน่งได้ โปรดใช้เบราว์เซอร์ที่เปิดบริการตำแหน่ง"
+  ],
+  "The browser returned an old or invalid location. Obtain a new location and try again.": [
+    "浏览器返回的位置已过时或无效。请重新获取位置后再试。",
+    "ब्राउज़र ने पुराना या अमान्य स्थान दिया है। नया स्थान लेकर फिर प्रयास करें।",
+    "El navegador devolvió una ubicación antigua o no válida. Obtenga una nueva ubicación y vuelva a intentarlo.",
+    "أعاد المتصفح موقعًا قديمًا أو غير صالح. احصل على موقع حديث ثم حاول مجددًا.",
+    "เบราว์เซอร์ส่งตำแหน่งเก่าหรือไม่ถูกต้อง โปรดรับตำแหน่งใหม่แล้วลองอีกครั้ง"
+  ]
+}

@@ -94,18 +94,17 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
       await page.setViewportSize({width,height:884});
       const metrics=await page.locator('#certification-editor').evaluate(editor=>{
         const rect=e=>{const r=e.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,right:r.right};};
-        const scope=editor.querySelector('#certification-scopes'),back=editor.querySelector('#certification-back'),workflow=editor.querySelector('.certification-workflow select');
+        const scope=editor.querySelector('#certification-scopes'),back=editor.querySelector('#certification-back');
         return{back:rect(back),backText:back.textContent.trim(),backBorder:getComputedStyle(back).borderStyle,
           scope:rect(scope.querySelector('summary')),scopeContainer:rect(scope.parentElement),scopePadding:getComputedStyle(scope.querySelector('summary')).paddingTop,
-          workflow:rect(workflow),workflowForm:workflow.form.id,
+          toolbarPickers:editor.querySelectorAll('.certification-editor-toolbar select').length,
           save:rect(editor.querySelector('#certification-save-draft')),create:rect(editor.querySelector('#certification-new')),generate:rect(editor.querySelector('#certification-generate')),newBeforePDF:editor.querySelector('#certification-new').nextElementSibling.id==="certification-generate",newInToolbar:editor.querySelector('#certification-new').parentElement.classList.contains('certification-editor-toolbar'),
           statusInsideDetailsCard:!!editor.querySelector('.certification-details-card>#certification-status'),overflow:document.documentElement.scrollWidth-innerWidth};
       });
       assert.equal(metrics.back.width,42);assert.equal(metrics.back.height,42);assert.equal(metrics.backText,'←');assert.equal(metrics.backBorder,'solid');
       assert.equal(metrics.generate.height,42);assert.equal(metrics.newBeforePDF,true);assert.equal(metrics.newInToolbar,true);assert.ok(metrics.create.right<=metrics.generate.x);assert.ok(Math.abs(metrics.create.y+metrics.create.height-metrics.generate.y-metrics.generate.height)<1);
       assert.equal(metrics.scope.height,42);assert.ok(Math.abs(metrics.scope.width-Math.min(420,metrics.scopeContainer.width))<1);assert.equal(metrics.scopePadding,'10.6px');
-      if(width>700){assert.ok(metrics.workflow.x>=metrics.generate.right);assert.ok(Math.abs(metrics.workflow.y+metrics.workflow.height-metrics.generate.y-metrics.generate.height)<1);}
-      assert.equal(metrics.workflowForm,'certification-form');assert.equal(metrics.statusInsideDetailsCard,true);
+      assert.equal(metrics.toolbarPickers,0);assert.equal(metrics.statusInsideDetailsCard,true);
       assert.ok(metrics.save.right<=metrics.generate.x);assert.ok(Math.abs(metrics.save.y+metrics.save.height-metrics.generate.y-metrics.generate.height)<1);assert.ok(metrics.overflow<=1);
       await page.locator('#certification-scopes summary').click();await page.locator('#certification-scope-ductwork').focus();await page.keyboard.press('Escape');
       await expect(page.locator('#certification-scopes')).not.toHaveAttribute('open','');await expect(page.locator('#certification-scopes summary')).toBeFocused();
@@ -119,13 +118,13 @@ async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.st
   await page.route('**/api/certifications?*',async route=>{if(route.request().method()==='POST'&&new URL(route.request().url()).pathname==='/api/certifications'&&first){first=false;announce();await release;await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Synthetic uncertain Save'})});}else await route.continue();});
   await page.locator('#certification-save-draft').click();await held;
   for(const prefix of ['certification-','certification-revisions-']){
-    for(const control of ['back','save-draft','new','generate','workflow'])await expect(page.locator('#'+prefix+control)).toBeDisabled();
+    for(const control of ['back','save-draft','new','generate'])await expect(page.locator('#'+prefix+control)).toBeDisabled();
   }
   releaseHeld();
   await expect(page.locator('#certification-status')).toContainText('Retry the same button');
   for(const prefix of ['certification-','certification-revisions-']){
     await expect(page.locator('#'+prefix+'save-draft')).toBeEnabled();
-    for(const control of ['back','new','generate','workflow'])await expect(page.locator('#'+prefix+control)).toBeDisabled();
+    for(const control of ['back','new','generate'])await expect(page.locator('#'+prefix+control)).toBeDisabled();
   }
   await expect(page.locator('#certification-client')).toHaveValue('Retained certificate draft');await page.locator('#certification-revisions-save-draft').click();
   await expect(page.locator('#certification-back')).toBeEnabled();await expect(page.locator('#certification-new')).toBeEnabled();await expect(page.locator('#certification-status')).toContainText('Certification details saved.');

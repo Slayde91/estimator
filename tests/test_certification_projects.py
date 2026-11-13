@@ -97,36 +97,53 @@ class CertificationProjectTests(unittest.TestCase):
         scoped = fresh.response(reopened['workspace_id'], restored.get(document['id']))
         self.assertTrue(scoped['revisions'][0]['pdf_url'].endswith('?workspace=' + reopened['workspace_id']))
 
-    def test_review_status_survives_old_clients_portable_restore_and_pdf_replay(self):
+    def test_legacy_status_archive_restores_without_status_and_replays_frozen_pdf(self):
         workspace, service = self.prepared()
-        doc = service.create(fields(), str(uuid.uuid4()), options=signed_options())
-        self.assertNotIn('workflow_status', doc['options'])
-        options = {**doc['options'], 'workflow_status': 'Review'}
-        reviewed = service.save(doc['id'], doc['fields'], doc['version'], options=options)
-        self.assertEqual(reviewed['revisions'], [])
-        request = str(uuid.uuid4())
-        issued = service.generate(doc['id'], doc['fields'], reviewed['version'], request, DEFAULTS, options=doc['options'])
-        self.assertEqual(issued['document']['options']['workflow_status'], 'Review')
+        creation, generation = str(uuid.uuid4()), str(uuid.uuid4())
+        doc = service.create(fields(), creation, options=signed_options())
+        issued = service.generate(doc['id'], doc['fields'], doc['version'], generation, DEFAULTS, options=doc['options'])
         frozen = service.revision_pdf(doc['id'], 1)
-        with self.assertRaises(CertificationConflict):
-            service.save(doc['id'], doc['fields'], reviewed['version'], options={**options, 'workflow_status': 'Approved'})
-        for invalid in ('Issued', [], {}):
-            with self.subTest(invalid=invalid), self.assertRaises(ValidationError):
-                service.save(doc['id'], doc['fields'], issued['document']['version'], options={**options, 'workflow_status':invalid})
-        rejected = service.save(doc['id'], doc['fields'], issued['document']['version'], options={**options, 'workflow_status':'Rejected'})
-        legacy_saved = service.save(doc['id'], {**doc['fields'], 'location_area':'Updated draft'}, rejected['version'], options=doc['options'])
-        snap = self.capture(workspace, {**legacy_saved, 'options':doc['options']})
-        file = self.root / 'workflow.cf.json'
-        self.projects.publish(snap, file)
-        restored = self.projects.restore(snap, file)
+        snapshot = self.capture(workspace, issued['document'])
+        archives = self.projects.root / 'archives'
+        # Reproduce the old persisted metadata and its exact hashing contract.
+        legacy = {**doc['options'], 'workflow_status': 'Review'}
+        stream = BytesIO()
+        with ZipFile(archives / (snapshot['archive_sha256'] + '.zip')) as source, ZipFile(stream, 'w') as target:
+            metadata = json.loads(source.read('certificates.json'))
+            metadata['draft']['options']['workflow_status'] = 'Rejected'
+            document, revision = metadata['documents'][0], metadata['revisions'][0]
+            document['options'] = _json({**legacy, 'workflow_status': 'Approved'})
+            document['create_options'] = revision['options'] = _json(legacy)
+            document['create_request_fingerprint'] = _fingerprint({'fields': doc['fields'], 'options': legacy})
+            revision['request_fingerprint'] = _fingerprint({'fields': doc['fields'], 'options': legacy, 'expected_version': doc['version']})
+            target.writestr('certificates.json', _json(metadata))
+            for name in source.namelist():
+                if name != 'certificates.json':
+                    target.writestr(name, source.read(name))
+        archived = stream.getvalue()
+        digest = sha256(archived).hexdigest()
+        (archives / (digest + '.zip')).write_bytes(archived)
+        historical = {**snapshot, 'archive_sha256': digest, 'archive_size': len(archived)}
+        project_path = self.root / 'legacy.cf.json'
+        self.projects.publish(historical, project_path)
+        restored = self.projects.restore(historical, project_path)
         reopened = self.projects.service(restored['workspace_id'])
-        self.assertEqual(restored['draft']['options']['workflow_status'],'Rejected')
-        self.assertEqual(reopened.list_documents()['items'][0]['workflow_status'],'Rejected')
+        self.assertEqual(restored['draft']['options'], doc['options'])
+        self.assertNotIn('workflow_status', reopened.list_documents()['items'][0])
+        self.assertEqual(reopened.get(doc['id'])['options'], doc['options'])
+        for options in (legacy, doc['options']):
+            self.assertEqual(reopened.create(doc['fields'], creation, options=options), doc)
+            self.assertEqual(reopened.generate(doc['id'], doc['fields'], doc['version'], generation, DEFAULTS, options=options), issued)
+        with self.assertRaises(CertificationConflict):
+            reopened.generate(doc['id'], {**doc['fields'], 'client': 'Another client'}, doc['version'], generation, DEFAULTS, options=legacy)
+        saved = reopened.save(doc['id'], {**doc['fields'], 'client': 'Updated client'}, issued['document']['version'], options=legacy)
+        self.assertEqual(saved['options'], doc['options'])
         self.assertEqual(reopened.revision_pdf(doc['id'], 1), frozen)
-        replay = reopened.generate(doc['id'], doc['fields'], reviewed['version'], request, DEFAULTS, options=doc['options'])
-        self.assertEqual(replay['revision'], issued['revision'])
-        self.assertEqual(replay['document']['options']['workflow_status'], 'Rejected')
-        self.assertEqual(len(replay['document']['revisions']), 1)
+        exported = self.capture(restored, {**saved, 'options': legacy})
+        with ZipFile(archives / (exported['archive_sha256'] + '.zip')) as archive:
+            self.assertNotIn(b'workflow_status', archive.read('certificates.json'))
+            self.assertEqual(archive.read('pdf/' + sha256(frozen).hexdigest() + '.pdf'), frozen)
+        self.assertEqual((archives / (digest + '.zip')).read_bytes(), archived)
 
     def test_missing_and_tampered_companions_and_path_injection_fail_explicitly(self):
         workspace, _ = self.prepared()

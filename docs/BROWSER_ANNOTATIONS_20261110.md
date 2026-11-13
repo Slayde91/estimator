@@ -16,14 +16,11 @@ after switching views. Actual certificate writes, signature insertion, generatio
 and uncertain requests awaiting exact-key retry remain guarded. The broader
 pending predicate still protects project replacement, capture and desktop close.
 
-Certification opens as a searchable four-stage board. Create Certificate opens a
-separate editor pane, and selecting a saved card opens that certificate. Back
-returns to the board without saving or discarding the form. Resume draft keeps
-an unfinished or restored portable draft reachable, including a restored draft
-whose project baseline is already clean. A pending mutation/signature still
-prevents leaving the editor; replacing an edited draft retains the existing
-confirmation. Search filters the recorded reference, client, project and site;
-it changes only visible cards and counts, never the saved workflow stages.
+Certification opens the current project's editor. The saved certificate picker
+lists that project's certificates. Certificates have no workflow status. The
+editor can save a draft and generate individually numbered PDF revisions. Older
+projects remain readable, including their original frozen PDFs. Pending saves,
+generation and signature insertion keep their navigation and replacement guards.
 
 Native copies of existing frozen certificate PDFs and Documentation exports now
 use the same single-use progress receipts as the other existing export routes.

@@ -24,6 +24,7 @@ PURCHASE_STEPS = {
 }
 WORKFLOWS = {'work_order': STEPS, 'purchase_order': PURCHASE_STEPS}
 QUOTE_SIGNERS = {'quoted_by': 'quoted_date', 'reviewed_by': 'review_date'}
+QUOTE_CLEAR_STAGES = {'quoted_by': 'Draft', 'reviewed_by': 'Review'}
 PURCHASE_STAGE_ORDER = ('Draft', *(target for _, target in PURCHASE_STEPS.values()))
 COMPLETIONS = ('Completed', 'Ongoing', 'On hold', 'Not completed')
 CYCLE_SIGNERS = ('progress_by', 'claimed_by', 'closed_by')
@@ -176,7 +177,10 @@ def apply(kind, fields, status, signed, previous, *, legacy_details=False, creat
         for key, date_key in QUOTE_SIGNERS.items():
             if action.get('key') == key:
                 if action.get('clear'):
-                    retained.pop(key, None)
+                    if retained.pop(key, None):
+                        status = QUOTE_CLEAR_STAGES[key]
+                    elif previous:
+                        status = previous['status']
                     fields['order'].update({key: '', date_key: ''})
                 else:
                     retained[key] = action['signature']

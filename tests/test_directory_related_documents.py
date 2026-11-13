@@ -86,10 +86,14 @@ class DirectoryRelatedDocumentsTests(unittest.TestCase):
         self.assertNotIn('Foreign',entries[0]['label'])
 
     def test_swms_snapshot_cards_require_canonical_project_owner(self):
-        document={'id':str(uuid4()),'version':1,'status':'Draft','fields':default_fields(),
+        document={'id':str(uuid4()),'version':1,'fields':default_fields(),
                   'created_at':'2026-11-09T00:00:00+00:00','updated_at':'2026-11-09T00:00:00+00:00'}
         saved={'swms':{'version':1,'project_id':self.owner,'documents':[document]}}
-        self.assertEqual(snapshot_cards(saved,self.owner)[0]['id'],document['id'])
+        cards=snapshot_cards(saved,self.owner)
+        self.assertEqual(cards[0]['id'],document['id'])
+        self.assertNotIn('status',cards[0])
+        document['status']='Archived'
+        self.assertEqual(snapshot_cards(saved,self.owner),cards)
         self.assertEqual(snapshot_cards(saved,str(uuid4())),[])
 
     def test_verified_certificate_archive_is_read_without_restoring_a_workspace(self):
@@ -122,7 +126,7 @@ class DirectoryRelatedDocumentsTests(unittest.TestCase):
         manifest=certificates.capture({'workspace_id':workspace['workspace_id'],'draft':None})
         folder=self.root/'Projects';folder.mkdir();store.set_project_folder(folder)
         path=folder/'Saved.cf.json';certificates.publish(manifest,path)
-        statement={'id':str(uuid4()),'version':1,'status':'Draft','fields':default_fields(),
+        statement={'id':str(uuid4()),'version':1,'fields':default_fields(),
                    'created_at':'2026-11-09T00:00:00+00:00','updated_at':'2026-11-09T00:00:00+00:00'}
         path.write_bytes(export_project(store,{'estimate':{'project_no':'PN-01','client':'Exact Company','account_id':self.company['id']},
             'certifications':manifest,'swms':{'version':1,'project_id':owner,'documents':[statement]}}))

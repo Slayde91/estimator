@@ -40,7 +40,7 @@ module.exports=async function peopleDefaults(root,output){
     const existing=await post('save',{id:crypto.randomUUID(),version:0,status:'Archived',fields:defaults.fields});
     await post('people-defaults',{section:'reviewers',rows:[{name:'Legacy shared person',position:'Legacy shared role',signature}],expected_version:1});
     const otherFields=JSON.parse(JSON.stringify(defaults.fields));otherFields.details.project_name='Other retained statement';
-    const other=await post('save',{id:crypto.randomUUID(),version:0,status:'Draft',fields:otherFields});
+    const other=await post('save',{id:crypto.randomUUID(),version:0,fields:otherFields});
     const oldSnapshot=await (await page.request.get(`${base}/api/swms/state?workspace=${workspace}`)).json();
     const legacyDefaults=(await post('defaults',{details:{}})).people_defaults;
     await page.evaluate(()=>window.CeasefireSWMS.activate());
@@ -53,7 +53,7 @@ module.exports=async function peopleDefaults(root,output){
     await expect(savedStatements).toHaveValue(existing.id);
     await expect(host.getByLabel('Document title',{exact:true})).toHaveCount(0);
     await expect(host.getByLabel('Workflow status',{exact:true})).toHaveCount(0);
-    assert.equal(await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.status),'Archived');
+    assert.equal(await page.evaluate(()=>Object.hasOwn(JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor,'status')),false);
     const group=title=>host.locator(':scope > details').filter({has:page.locator(':scope > summary').filter({hasText:new RegExp('^'+title+'$')})});
     const reviewers=group('Person/s responsible for reviewing SWMS'),consultation=group('This SWMS has been developed in consultation with'),site=group('Site Sign-Off');
     await reviewers.locator(':scope > summary').click();
@@ -76,7 +76,7 @@ module.exports=async function peopleDefaults(root,output){
     await expect(host.locator('.swms-step-table tbody tr')).toHaveCount(0);
     await host.getByLabel('Project Name',{exact:true}).fill('Explicit SWMS choices');
     await host.getByRole('button',{name:'Save',exact:true}).first().click();await expect(host.locator('.swms-message')).toContainText('Saved.');
-    assert.equal(await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.status),'Draft');
+    assert.equal(await page.evaluate(()=>Object.hasOwn(JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor,'status')),false);
     const savedChoice=await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.id);
     await expect(host.getByLabel('Project Name',{exact:true})).toHaveValue('Explicit SWMS choices');
     fields=await page.evaluate(()=>JSON.parse(window.CeasefireSWMS.projectFingerprint()).editor.fields);

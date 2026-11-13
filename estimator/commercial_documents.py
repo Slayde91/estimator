@@ -1226,7 +1226,7 @@ class CommercialDocuments:
             if size > MAX_SNAPSHOT_BYTES:
                 raise ValidationError('Commercial document drafts exceed the 8 MiB project limit.')
 
-    def save(self, workspace, payload, *, unfiled_context=None):
+    def save(self, workspace, payload, *, unfiled_context=None, linked_quote_transition=None):
         if not isinstance(payload, dict) or set(payload) - {'id', 'version', 'kind', 'status', 'fields', 'signature_actions'}:
             raise ValidationError('Commercial document save contains unsupported fields.')
         kind = payload.get('kind')
@@ -1236,6 +1236,7 @@ class CommercialDocuments:
         fields = validate_fields(payload.get('fields'), kind=kind)
         from .work_order_signing import actions, apply as apply_signing
         signed = actions(payload.get('signature_actions', []), kind)
+        transition = None
         with self._connect() as db:
             self.numbering.attach(db)
             db.execute('BEGIN IMMEDIATE')
@@ -1312,7 +1313,9 @@ class CommercialDocuments:
                         self.unfiled.enroll(db, workspace, previous['id'], unfiled_context)
                     return previous
                 raise CommercialConflict('This new document was already saved with different content. Reopen it before editing.')
-            if kind != 'work_order' or signed and not signed[0].get('clear'):
+            withdrawing_ink = bool(signed and signed[0].get('clear') and previous
+                                   and previous['fields'].get('signatures', {}).get(signed[0]['key']))
+            if (kind != 'work_order' or signed and not signed[0].get('clear')) and not (kind == 'quote' and withdrawing_ink):
                 require_ready(kind, status, fields, legacy_details=legacy_details)
             now = datetime.now(timezone.utc).isoformat()
             document = {'id': previous['id'] if previous else payload.get('id') or str(uuid.uuid4()), 'kind': kind,
@@ -1325,6 +1328,11 @@ class CommercialDocuments:
                 document['reference'] = self.numbering.assign(db, kind, project + ':' + document['id'], prior_reference)
                 if kind == 'work_order':
                     fields['order']['work_order_reference'] = document['reference']
+            if kind == 'work_order' and signed and signed[0]['key'] == 'details_by':
+                cleared = signed[0].get('clear', False)
+                if not cleared or withdrawing_ink:
+                    transition = self._set_linked_quote_status(db, workspace, project, fields['order']['quote_id'],
+                                                               'Presented' if cleared else 'Accepted')
             self._validate_draft_save(db, workspace, project, document)
             db.execute('INSERT INTO commercial_drafts VALUES(?,?,?) ON CONFLICT(workspace,id) DO UPDATE SET data=excluded.data', (workspace, document['id'], _json(document)))
             self._audit(db, workspace, document['id'], 'save', previous, document)
@@ -1333,6 +1341,8 @@ class CommercialDocuments:
                             {'document_version':document['version'], 'actions':signed, 'status':status})
             if unfiled_context is not None:
                 self.unfiled.enroll(db, workspace, document['id'], unfiled_context)
+        if linked_quote_transition is not None and transition:
+            linked_quote_transition.update(transition)
         return document
 
     @contextmanager
@@ -1368,6 +1378,19 @@ class CommercialDocuments:
             self._audit(db, workspace, identity, 'delete', previous)
         return {'deleted': True}
 
+    def _set_linked_quote_status(self, db, workspace, project, quote_id, status):
+        if not quote_id or not self.unfiled.permits_document(db, workspace, quote_id):
+            return
+        # A historical Work Order can retain the reference of a deleted Quote.
+        # Never resolve that reference against a different file or workspace.
+        row = db.execute("""SELECT data FROM commercial_drafts WHERE workspace=? AND id=?
+                            AND json_extract(data, '$.kind')='quote'""", (workspace, quote_id)).fetchone()
+        if row:
+            quote = _stored_document(row[0])
+            if quote['status'] != status:
+                self._set_status(db, workspace, project, quote, status, withdrawing_signature=(status == 'Presented'))
+                return {'id': quote_id, 'previous_status': quote['status'], 'status': status}
+
     def status(self, workspace, identity, version, status):
         with self._connect() as db:
             db.execute('BEGIN IMMEDIATE')
@@ -1377,16 +1400,20 @@ class CommercialDocuments:
             status = _canonical_status(previous['kind'], status)
             if status not in STATUSES[previous['kind']]:
                 raise ValidationError('Choose a valid document status.')
-            require_purchase_rollback_clear(previous, status)
-            document = deepcopy(previous)
-            if document['kind'] == 'work_order' and status != 'Draft':
-                self._relationships(db, workspace, project, document['kind'], document['fields'], previous)
-                self._validate_tracking(db, project, document['fields'], previous)
+            return self._set_status(db, workspace, project, previous, status)
+
+    def _set_status(self, db, workspace, project, previous, status, *, withdrawing_signature=False):
+        require_purchase_rollback_clear(previous, status)
+        document = deepcopy(previous)
+        if document['kind'] == 'work_order' and status != 'Draft':
+            self._relationships(db, workspace, project, document['kind'], document['fields'], previous)
+            self._validate_tracking(db, project, document['fields'], previous)
+        if not withdrawing_signature:
             require_ready(document['kind'], status, document['fields'],
                           legacy_details=document['kind']=='work_order' and not any(key in document['fields']['order'] for key in ('details_by','details_date')))
-            document.update(status=status, version=version + 1, updated_at=datetime.now(timezone.utc).isoformat())
-            db.execute('UPDATE commercial_drafts SET data=? WHERE workspace=? AND id=?', (_json(document), workspace, identity))
-            self._audit(db, workspace, identity, 'status', previous, document)
+        document.update(status=status, version=previous['version'] + 1, updated_at=datetime.now(timezone.utc).isoformat())
+        db.execute('UPDATE commercial_drafts SET data=? WHERE workspace=? AND id=?', (_json(document), workspace, document['id']))
+        self._audit(db, workspace, document['id'], 'status', previous, document)
         return document
 
     @staticmethod

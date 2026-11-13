@@ -288,7 +288,11 @@ class CommercialHTTP:
                     context = project_context(body['project_details'])
                     if context:
                         captured['billing_project'] = context
-            result = self.service.save(workspace, {**allowed, 'fields': fields}, unfiled_context=captured)
+            linked_quote_transition = {}
+            result = self.service.save(workspace, {**allowed, 'fields': fields}, unfiled_context=captured,
+                                       linked_quote_transition=linked_quote_transition)
+            if linked_quote_transition:
+                result = {**result, 'linked_quote_transition': linked_quote_transition}
         elif action == 'delete':
             result = self.service.delete(workspace, body.get('id'), body.get('version'))
         elif action == 'status':

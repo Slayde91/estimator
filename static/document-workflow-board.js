@@ -1,14 +1,12 @@
 (() => {
   'use strict';
-  const stages = Object.freeze(['Draft', 'Review', 'Approved', 'Rejected']);
-  function render(host, {items, stageOf, cardFor, move, locked, onError, legacy=[], stages:boardStages=stages, emptyLabel="No documents"}) {
-    const columns = [...boardStages, ...legacy.filter(stage => items.some(row => stageOf(row) === stage))];
+  function render(host, {items, stages, stageOf, cardFor, move, locked, onError, emptyLabel}) {
     let dragging = null;
     host.replaceChildren();
     const board = document.createElement('div');
     board.className = 'project-kanban document-workflow-board';
     host.append(board);
-    for (const stage of columns) {
+    for (const stage of stages) {
       const rows = items.filter(row => stageOf(row) === stage);
       const column = document.createElement('section'), header = document.createElement('div');
       column.className = 'project-kanban-column'; column.dataset.status = stage;
@@ -33,21 +31,14 @@
         card.addEventListener('dragend', () => { dragging = null; });
         column.append(card);
       }
-      if (boardStages.includes(stage)) {
-        column.addEventListener('dragover', event => {if (dragging && !locked()) event.preventDefault();});
-        column.addEventListener('drop', event => {
-          if (!dragging || locked()) return;
-          event.preventDefault();
-          const row = dragging; dragging = null;
-          if (stageOf(row) !== stage) Promise.resolve().then(() => move(row, stage)).catch(onError);
-        });
-      }
-      if (boardStages.includes(stage)) board.append(column);
-      else {
-        const historical = document.createElement('div');
-        historical.className = 'document-workflow-board document-workflow-history';
-        historical.append(column); host.append(historical);
-      }
+      column.addEventListener('dragover', event => {if (dragging && !locked()) event.preventDefault();});
+      column.addEventListener('drop', event => {
+        if (!dragging || locked()) return;
+        event.preventDefault();
+        const row = dragging; dragging = null;
+        if (stageOf(row) !== stage) Promise.resolve().then(() => move(row, stage)).catch(onError);
+      });
+      board.append(column);
     }
   }
   let followUpTimer;
@@ -73,5 +64,5 @@
   document.addEventListener('visibilitychange', refreshFollowUps);
   window.addEventListener('pageshow', refreshFollowUps);
   window.addEventListener('ceasefire:organization-timezone-changed', refreshFollowUps);
-  window.ClassifireDocumentBoard = {stages, render, addFollowUpMarker, refreshFollowUps};
+  window.ClassifireDocumentBoard = {render, addFollowUpMarker, refreshFollowUps};
 })();

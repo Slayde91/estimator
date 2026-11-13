@@ -122,6 +122,10 @@ test('Firestopping settings tables translate schema routes and band context whil
   h.context.uiNode=(tag,cls,source,args)=>h.ui.text(h.context.node(tag,cls),source,args);h.context.uiAttr=h.ui.attr;h.context.uiTerm=h.ui.term;
   const routes=['Unlagged Pipes','Lagged Pipes','Plastic Pipes','Cables/Bundles','Cabletrays'];
   h.context.state={definition:{settings:{service_routes:routes.map(label=>({key:label,label})),labour_bands:[{key:'pipe',label:'Pipe Labour',basis:'Pipe diameter',overflow:'manual',units:'mm'}]}},schedule:{draft:{globals:{service_routes:Object.fromEntries(routes.map(key=>[key,['Board','Home']])),labour_bands:{pipe:[{maximum:75.1234567890123,hours:.3456789012345}]}}}}};
+  h.context.state.expandedSettings=new Set();
+  h.context.state.schedule.invalid=new Map();
+  h.context.uiText=h.ui.text;
+  for(const name of ['keyFor','structuredSettingKey'])vm.runInContext(source.match(new RegExp(`^  const ${name} = [^\\n]+;`,'m'))[0],h.context);
   for(const name of ['renderServiceRoutes','renderLabourBands'])vm.runInContext(source.match(new RegExp(`  function ${name}\\(\\) \\{[\\s\\S]*?\\n  \\}\\n`))[0],h.context);
   const before=JSON.stringify(h.context.state),routing=h.context.renderServiceRoutes(),bands=h.context.renderLabourBands(),descendants=node=>[node,...node.children.flatMap(descendants)];
   h.ui.setLanguage('zh-Hans');const routeRows=routing.children[1].children[0].children[1].children;

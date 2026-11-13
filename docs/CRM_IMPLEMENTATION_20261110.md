@@ -14,14 +14,10 @@ Status follows Download PDF. PO date/link/project/reference controls share a
 desktop row. Work Order links and references sit below date/project controls.
 
 SWMS headings use the statement reference, saved client and saved site address.
-Both SWMS and Certification use Draft, Review, Approved and Rejected columns.
-Archived SWMS records remain in a separate historical group. These are manual
-workflow stages and do not establish technical approval or change issued PDF
-revisions. Certification can save an unissued draft independently of generation.
-
-Certificate review stages are optional metadata. Clients omitting the field on
-save, generation or project capture retain the existing saved value. New metadata
-requires the updated application when reopening the portable project.
+All saved statements and certificates are available from their respective lists,
+including records that previously carried a review or archive status.
+Certificates can be saved before issuing a PDF. Issued revisions retain their
+original content.
 
 ## Confirmed CRM decisions
 

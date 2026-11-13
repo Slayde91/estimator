@@ -9,6 +9,7 @@
 #view-settings #application-language-label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 #view-settings #theme-toggle{grid-column:2;grid-row:1;justify-self:start}
 #view-settings #company-settings-form{max-width:none}
+#company-settings-form input,#organization-timezone-form select{box-sizing:border-box;height:42px}
 #view-settings .fields{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
 #view-settings .field,#view-settings .settings-field-row{display:grid;grid-template-columns:var(--settings-label-width) minmax(0,1fr);column-gap:var(--settings-column-gap);align-items:center;min-width:0;margin:0}
 #view-settings .field>span:first-child,#view-settings .settings-field-label{grid-column:1;font-size:12px;font-weight:650;margin:0}
@@ -22,8 +23,8 @@
 #view-settings .audio-setting{display:flex;gap:10px;align-items:center;width:fit-content;margin:0;cursor:pointer}
 #view-settings .audio-setting input{flex:0 0 auto;width:20px;height:20px;margin:0;accent-color:var(--red)}
 #view-settings .company-logo-upload-row{display:flex;align-items:center;gap:12px;min-width:0}
-#view-settings .company-logo-upload-row input[type=file]{flex:1 1 auto;width:0;min-width:0;max-width:none}
-#view-settings .company-logo-upload-row>.icon-only{flex:0 0 48px}
+#view-settings .company-logo-upload-row input[type=file]{flex:1 1 auto;width:0;min-width:0;max-width:none;padding-block:5px}
+#view-settings .company-logo-upload-row>.icon-only{flex:0 0 42px;width:42px;height:42px;min-height:42px}
 #view-settings #company-logo-preview{display:block;margin-top:12px;width:200px;height:80px;max-width:100%;object-fit:contain}
 #view-settings .company-cover-controls .helper{margin:10px 0 0}
 #view-settings form>.helper,#view-settings form>.message,#view-settings form>.actions{margin-inline-start:calc(var(--settings-label-width) + var(--settings-column-gap))}

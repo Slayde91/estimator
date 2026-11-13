@@ -55,7 +55,7 @@ class SwmsHTTP:
                 elif action == 'people-defaults':
                     result = self.service.save_people_defaults(workspace, body.get('section'), body.get('rows'), body.get('expected_version'))
                 elif action == 'save':
-                    result = self.service.save(workspace, {key: body.get(key) for key in fields['save']})
+                    result = self.service.save(workspace, {key: body[key] for key in ('id', 'version', 'fields')})
                 elif action == 'delete':
                     result = self.service.delete(workspace, body.get('id'), body.get('version'))
                 else:

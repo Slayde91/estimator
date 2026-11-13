@@ -19,7 +19,7 @@ from zipfile import ZipFile, ZipInfo, ZIP_STORED, BadZipFile
 from .catalog import ValidationError
 from .project_temp import open_project_temp
 from .certification import (CertificationService, CertificationConflict, CertificationNotFound, _identity,
-                            _version, _json, validate_fields, validate_options,
+                            _version, _json, stored_options, validate_fields, validate_options,
                             MAX_REVISION_BYTES)
 from .storage import Store
 from .document_numbers import valid_reference
@@ -65,6 +65,17 @@ def _draft(value):
         _identity(value['id']); _version(value['version'])
     return {'id': value['id'], 'version': value['version'],
             'fields': validate_fields(value['fields']), 'options': validate_options(value['options'])}
+
+
+def _clean_record_options(record):
+    """Drop obsolete status on copies while retaining untouched historical JSON verbatim."""
+    for key in ('options', 'create_options'):
+        if record.get(key) is not None:
+            options = json.loads(record[key])
+            if 'workflow_status' in options:
+                del options['workflow_status']
+                record[key] = _json(options)
+    return record
 
 
 def _copy(source, target, digest, size):
@@ -256,7 +267,7 @@ class CertificationProjects:
             raise ValidationError('This project supports at most 100 certification documents. No new document was saved.')
         _, sizes = _pdf_inventory(db)
         row = db.execute('SELECT fields,version,options FROM certification_documents WHERE id=?', (selected_id,)).fetchone()
-        options = json.loads(row[2])
+        options = stored_options(row[2])
         options.setdefault('signature_image', None); options.setdefault('signature_name', '')
         selected = {'id': selected_id, 'version': row[1], 'fields': json.loads(row[0]), 'options': options}
         raw_size = db.execute('SELECT COALESCE(SUM(LENGTH(CAST(fields AS BLOB))+LENGTH(CAST(options AS BLOB))+COALESCE(LENGTH(CAST(create_options AS BLOB)),0)),0) FROM certification_documents').fetchone()[0]
@@ -316,9 +327,11 @@ class CertificationProjects:
                     if (document_count >= MAX_DOCUMENTS or count + len(revisions) > MAX_REVISIONS
                             or metadata_size > MAX_METADATA_BYTES or metadata_size + sum(sizes.values()) > MAX_ARCHIVE_BYTES):
                         raise ValidationError('Import would exceed this project certificate archive limit. No document or revision was imported.')
-                    destination.execute('INSERT INTO certification_documents (' + ','.join(DOCUMENT_COLUMNS) + ') VALUES(' + ','.join('?' for _ in DOCUMENT_COLUMNS) + ')', document)
+                    document = _clean_record_options(dict(zip(DOCUMENT_COLUMNS, document)))
+                    destination.execute('INSERT INTO certification_documents (' + ','.join(DOCUMENT_COLUMNS) + ') VALUES(' + ','.join('?' for _ in DOCUMENT_COLUMNS) + ')', tuple(document[key] for key in DOCUMENT_COLUMNS))
                     for row in revisions:
-                        destination.execute('INSERT INTO certification_revisions (' + ','.join(REVISION_COLUMNS) + ',pdf) VALUES(' + ','.join('?' for _ in (*REVISION_COLUMNS, 'pdf')) + ')', (*row, pdfs[row[5]]))
+                        row = _clean_record_options(dict(zip(REVISION_COLUMNS, row)))
+                        destination.execute('INSERT INTO certification_revisions (' + ','.join(REVISION_COLUMNS) + ',pdf) VALUES(' + ','.join('?' for _ in (*REVISION_COLUMNS, 'pdf')) + ')', (*[row[key] for key in REVISION_COLUMNS], pdfs[row['sha256']]))
                     self._guard(current, destination, document_id, imports={**current['imports'], document_id: document_id})
             except sqlite3.IntegrityError as error:
                 raise CertificationConflict('This older certificate conflicts with an existing project identity or operation receipt. No records were replaced.') from error
@@ -348,18 +361,18 @@ class CertificationProjects:
                 raise ValidationError('The project certificate metadata exceeds its supported limit. No document or PDF data was loaded or omitted.')
             documents = [dict(zip(DOCUMENT_COLUMNS, row)) for row in db.execute(
                 'SELECT ' + ','.join(DOCUMENT_COLUMNS) + ' FROM certification_documents ORDER BY id')]
+            for document in documents:
+                _clean_record_options(document)
             if len(documents) > MAX_DOCUMENTS:
                 raise ValidationError('A project supports at most 100 certification documents.')
             if draft and draft['id'] is not None:
                 saved = service._get(db, draft['id'])
                 if saved['version'] != draft['version']:
                     raise CertificationConflict('This certificate changed while saving the project. Reload the certificate and try again.')
-                if 'workflow_status' in saved['options']:
-                    draft['options'].setdefault('workflow_status', saved['options']['workflow_status'])
             revisions, pdfs = [], {}
             total = 0
             for row in db.execute('SELECT ' + ','.join(REVISION_COLUMNS) + ' FROM certification_revisions ORDER BY document_id,revision'):
-                revision = dict(zip(REVISION_COLUMNS, row))
+                revision = _clean_record_options(dict(zip(REVISION_COLUMNS, row)))
                 payload = pdfs.get(revision['sha256'])
                 if payload is None:
                     payload = _pdf_bytes(db, row)
@@ -476,6 +489,7 @@ class CertificationProjects:
                     validate_fields(json.loads(row['fields'])); validate_options(json.loads(row['options']))
                     if row['create_options'] is not None:
                         validate_options(json.loads(row['create_options']))
+                    _clean_record_options(row)
                     for name in ('created_at', 'updated_at'):
                         if not isinstance(row[name], str) or not 1 <= len(row[name]) <= 100:
                             raise ValueError('Invalid certificate timestamp')
@@ -504,6 +518,7 @@ class CertificationProjects:
                     if not isinstance(row['created_at'], str) or not 1 <= len(row['created_at']) <= 100:
                         raise ValueError('Invalid certificate revision timestamp')
                     validate_fields(json.loads(row['fields'])); validate_options(json.loads(row['options']))
+                    _clean_record_options(row)
                     # These are frozen historical snapshots, not current global
                     # settings. Retain their exact JSON and original PDF bytes.
                     if not isinstance(json.loads(row['company']), dict) or row['cover_settings'] is not None and not isinstance(json.loads(row['cover_settings']), dict):

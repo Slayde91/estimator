@@ -76,31 +76,40 @@ class SwmsTests(unittest.TestCase):
         self.service = SwmsDocuments(self.projects, renderer=render)
 
     def payload(self):
-        return dict(id=str(uuid.uuid4()), version=0, status='Draft', fields=default_fields({'project_no': 'CF-SWMS'}))
+        return dict(id=str(uuid.uuid4()), version=0, fields=default_fields({'project_no': 'CF-SWMS'}))
 
     def ready_payload(self):
         payload = self.payload()
         payload['fields'] = complete_swms(payload['fields'])
         return payload
 
-    def test_archived_statement_keeps_title_and_pdf_across_rejection_and_restore(self):
+    def test_legacy_statement_loses_only_its_status_across_edit_issue_and_restore(self):
         payload = self.ready_payload()
         payload['fields']['title'] = 'Previously authored safety statement'
-        saved = self.service.save(self.workspace, {**payload, 'status':'Archived'})
+        saved = self.service.save(self.workspace, payload)
+        with self.service._connect() as db:
+            db.execute("UPDATE swms_drafts SET data=json_set(data,'$.status','Archived') WHERE workspace=? AND id=?",
+                       (self.workspace, saved['id']))
+        self.assertEqual(self.service.save(self.workspace, {**payload, 'status':'Archived'}), saved)
+        self.assertNotIn('statuses', self.service.view(self.workspace))
         receipt = str(uuid.uuid4())
         issued = self.service.issue(self.workspace, saved['id'], saved['version'], receipt)
         row = self.service.capture(self.workspace)['documents'][0]
-        self.assertEqual(row['status'],'Archived')
-        rejected = self.service.save(self.workspace, {'id':row['id'],'fields':row['fields'],'version':row['version'],'status':'Rejected'})
-        self.assertEqual(rejected['fields']['title'], payload['fields']['title'])
+        self.assertNotIn('status', row)
+        edited = self.service.save(self.workspace, {'id':row['id'],'fields':row['fields'],'version':row['version'],'status':'Rejected'})
+        self.assertNotIn('status', edited)
+        self.assertEqual(edited['fields']['title'], payload['fields']['title'])
         with self.assertRaises(SwmsConflict):
             self.service.save(self.workspace, {'id':row['id'],'fields':row['fields'],'version':row['version'],'status':'Approved'})
         replay = self.service.issue(self.workspace, saved['id'], saved['version'], receipt)
         self.assertEqual(replay['pdf'], issued['pdf'])
         snapshot = self.service.capture(self.workspace)
+        legacy_snapshot = deepcopy(snapshot)
+        legacy_snapshot['documents'][0]['status'] = 'Archived'
+        self.assertEqual(self.service.capture(self.workspace, legacy_snapshot), snapshot)
         token = self.projects.add(snapshot['project_id'])
-        self.service.restore(token, snapshot)
-        self.assertEqual(self.service.capture(token)['documents'], [rejected])
+        self.service.restore(token, legacy_snapshot)
+        self.assertEqual(self.service.capture(token)['documents'], [edited])
         self.assertEqual(self.service.read_pdf(token, issued['id'])[1], issued['pdf'])
 
     def test_template_choices_and_blank_real_world_signatures(self):
@@ -161,9 +170,10 @@ class SwmsTests(unittest.TestCase):
         payload = self.payload()
         saved = self.service.save(self.workspace, payload)
         self.assertEqual(saved, self.service.save(self.workspace, payload))
+        changed = {**payload, 'fields': {**payload['fields'], 'title': 'Changed statement'}}
         with self.assertRaises(SwmsConflict):
-            self.service.save(self.workspace, {**payload, 'status': 'Review'})
-        updated = self.service.save(self.workspace, {**payload, 'version': saved['version'], 'status': 'Review'})
+            self.service.save(self.workspace, changed)
+        updated = self.service.save(self.workspace, {**changed, 'version': saved['version']})
         with self.assertRaises(SwmsConflict):
             self.service.delete(self.workspace, saved['id'], saved['version'])
         self.service.delete(self.workspace, updated['id'], updated['version'])
@@ -195,7 +205,7 @@ class SwmsTests(unittest.TestCase):
         self.service.restore(restored, json.loads(json.dumps(before)))
         self.assertEqual(self.service.capture(restored), before)
         retained = next(row for row in self.service.view(restored)['documents'] if row['id'] == saved_legacy['id'])
-        self.assertEqual(retained['status'], 'Approved')
+        self.assertNotIn('status', retained)
         self.assertEqual(retained['fields'], fields)
         self.assertFalse(self.calls, 'Legacy drafts remain readable without bypassing the new PDF requirements.')
 
@@ -384,7 +394,7 @@ class SwmsTests(unittest.TestCase):
         handler = Handler(body, reject); adapter.dispatch(handler, '/api/swms/issue')
         self.assertEqual(handler.result[0], 400); self.assertFalse(self.calls)
         def race(options, workspace):
-            self.service.save(workspace, {key: saved[key] for key in ['id', 'version', 'status', 'fields']})
+            self.service.save(workspace, {key: saved[key] for key in ['id', 'version', 'fields']})
             return 'captured destination'
         handler = Handler(body, race); adapter.dispatch(handler, '/api/swms/issue')
         self.assertEqual(handler.result[0], 409); self.assertFalse(self.calls)
@@ -408,6 +418,11 @@ class SwmsTests(unittest.TestCase):
         payload = export_project(store, request)
         loaded = load_project_bytes(store, payload)
         self.assertEqual(loaded['swms'], swms)
+        legacy_file = json.loads(payload)
+        legacy_file['swms']['documents'][0]['status'] = 'Approved'
+        legacy_loaded = load_project_bytes(store, json.dumps(legacy_file).encode())
+        self.assertEqual(legacy_loaded['swms'], swms)
+        self.assertEqual(json.loads(export_project(store, {**request, 'swms': legacy_file['swms']}))['swms'], swms)
         forged = deepcopy(request); forged['swms']['project_id'] = str(uuid.uuid4())
         with self.assertRaises(ValidationError):
             export_project(store, forged)

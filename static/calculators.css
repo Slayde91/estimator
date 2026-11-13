@@ -13,6 +13,7 @@
 .calculator-toolbar-actions>.calculator-header-actions{position:relative;gap:9px;flex-wrap:nowrap;max-width:100%}
 .calculator-toolbar-actions .calculator-tools{background:transparent}
 .calculator-toolbar-actions .calculator-primary-actions{gap:9px}
+.calculator-toolbar-actions :is(.schedule-column-toggle,.calculator-document-toggle,.calculator-primary-actions>.button){height:36px;min-height:36px;padding-block:0}
 .calculator-toolbar-actions>.schedule-column-chooser{flex:0 0 auto}
 .calculator-toolbar-actions .calculator-document-menu{position:static}
 .calculator-toolbar-actions .calculator-document-actions{inset-inline-start:auto;inset-inline-end:0;max-width:100%}
@@ -320,9 +321,10 @@
 .calculator-workspace[data-factor-view="true"]>.calculator-sheet-heading{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
 
 @media screen {
-  #calculator-grid :is(.calculator-overview-title, .calculator-role-compact_summary_title, .calculator-section-anchor, .calculator-schedule-section > h4) {
+  #calculator-grid :is(.calculator-overview-title, .calculator-role-compact_summary_title, .calculator-section-anchor, .calculator-schedule-section > h4, .calculator-product-totals > h4) {
     background: #b90a15;
     color: #fff;
+    border-bottom: 4px solid #fff;
     border-radius: 8px;
   }
   /* Keep unusually long saved values and translated choices reachable within their own cell. */
@@ -341,5 +343,8 @@
   .calculator-grid .calculator-settings-fields select {
     width: auto;
     min-width: calc(7ch + 2.75rem);
+  }
+  .calculator-grid .calculator-settings-fields .calculator-width-matched :is(input:not([type=checkbox], [type=radio]), select) {
+    min-width: var(--calculator-reference-width, calc(7ch + 2.75rem));
   }
 }

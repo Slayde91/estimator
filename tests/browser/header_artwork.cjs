@@ -51,21 +51,27 @@ async function checkLogoCredit() {
   assert.ok(frames.slice(completed+1).some(text=>text.length>0 && text.length<6),'Reverses to the first few characters');
   assert.deepEqual(await layout(),before);
   await page.emulateMedia({reducedMotion:'reduce'});
-  for (const width of [1146,390]) {
-    await page.setViewportSize({width,height:764});
+  for (const width of [1915,1146,913,390]) {
+    await page.setViewportSize({width,height:884});
     const geometry = await layout();
     await page.evaluate(()=>{window.logoFrames.length=0;});
     await logo.click();
     await expect(credit).toHaveText(phrase);
     assert.deepEqual(await layout(),geometry);
     const position = await credit.evaluate(line => {
-      const box = line.getBoundingClientRect(), logo = document.querySelector('.brand-logo').getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(line);
+      const text = range.getBoundingClientRect(), box = line.getBoundingClientRect();
+      const logo = document.querySelector('.brand-logo').getBoundingClientRect();
       const character = document.querySelector('#header-tagline-character').getBoundingClientRect();
-      return {left:box.left,wordmarkStart:logo.left+logo.width*(446/2172),
+      return {textCentre:(text.left+text.right)/2, wordmarkCentre:logo.left+logo.width*(446+2133)/(2*2172),
+        left:text.left,right:text.right,
         top:box.top,bottom:box.bottom,logoInkBottom:logo.top+logo.height*(510/724),characterTop:character.top};
     });
     assert.ok(position.top>=position.logoInkBottom && position.bottom<=position.characterTop,'Credit clears the logo ink and tagline character');
-    assert.ok(Math.abs(position.left-position.wordmarkStart)<1, 'Credit starts directly under the C');
+    assert.ok(Math.abs(position.textCentre-position.wordmarkCentre)<1, 'Credit is centred under the word CLASSIFIRE');
+    assert.ok(position.left>=0 && position.right<=width, 'The full credit fits in the viewport');
+    if (width===913) await page.locator('.app-header').screenshot({path:path.join(output,'centred-credit-913.png')});
     await expect(credit).toBeEmpty();
     assert.ok(await page.evaluate(value=>window.logoFrames.every(frame=>frame===''||frame===value),phrase));
   }

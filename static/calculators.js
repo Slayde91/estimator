@@ -155,7 +155,8 @@ window.CeasefireScheduleColumns = (() => {
           A301: "Verify pack size, method and site yield for each product. The startup densities are estimating assumptions; verify product-specific site yield. Add waste separately. See the historical product yield-source records on SETTINGS.",
         },
         center: ["A10:L15", "A54:L58", "A86:L90", "A123:L167", "A196:L223", "A259:L264"], // 10–11, 17–20
-        left: ["D36:F41", "D69:F74", "D101:F106", "D178:F183", "D234:F239", "D561:F566"], // Product quantity settings
+        left: ["D13:D14", "D36:F41", "D69:F74", "D101:F106", "D178:F183", "D234:F239", "D358:D362", "D561:F566"],
+        field_width_groups: [["D14", "D13"], ["D358", "D359", "D360", "D361", "D362"]],
       },
     },
     steel_intumescent: {
@@ -184,6 +185,8 @@ window.CeasefireScheduleColumns = (() => {
         omit: ["A1", "A8:H24", "A26:H34", "A36:H43", "A50:H64", "A66:H67", "A70:H72", "A74:H89", "A101:H110", "A113:H151", "J115:Q149"],
         omit_section_notes: ["A6", "A48", "A94", "J115"],
         omit_table_notes: ["J94"],
+        left: ["B35", "B44:B46", "B161:B162", "B65", "B73", "B90:B92", "B163:B164", "B96:B100", "B111"],
+        field_width_groups: [["B35", "B44", "B45", "B46", "B161", "B162"], ["B73", "B65", "B90", "B91", "B92", "B163", "B164"]],
         text: {
           E96: "Default is 38 mm per layer. Confirm the selected blanket detail before changing.",
           E97: "Choose 0.61 or 1.22 m. Roll width affects overlaps and roll count.",
@@ -923,7 +926,7 @@ window.CeasefireScheduleColumns = (() => {
     if (!position) return source;
     if (!browserAlignmentRanges.has(rules)) browserAlignmentRanges.set(rules,
       Object.fromEntries(["left", "center"].map((align) => [align, (rules[align] || []).map((range) => range.split(":").map(parseAddress))])));
-    const ranges = browserAlignmentRanges.get(rules), inside = ([start, end]) => {
+    const ranges = browserAlignmentRanges.get(rules), inside = ([start, end = start]) => {
       return position.row >= start.row && position.row <= end.row && position.column >= start.column && position.column <= end.column;
     };
     const align = ranges.left.some(inside) ? "left" : ranges.center.some(inside) ? "center" : source.align;
@@ -2087,6 +2090,21 @@ window.CeasefireScheduleColumns = (() => {
     contents.append(links); return contents;
   }
 
+  // Measure the native reference select so translated and historical options, font loading
+  // and viewport changes use the same width as the visible control.
+  let settingsWidthObserver;
+  function observeSettingsWidths(grid) {
+    settingsWidthObserver?.disconnect();
+    if (!window.ResizeObserver) return;
+    settingsWidthObserver ||= new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const width = entry.borderBoxSize[0]?.inlineSize;
+        if (width > 0) entry.target.closest(".calculator-settings-panel")?.style.setProperty("--calculator-reference-width", width + "px");
+      }
+    });
+    for (const select of grid.querySelectorAll(".calculator-width-reference select")) settingsWidthObserver.observe(select, {box:"border-box"});
+  }
+
   function settingsPanels(entry, definitions) {
     const page = currentPage(entry), chooser = node("div", "calculator-settings-chooser"), panels = new Map(), buttons = new Map();
     chooser.setAttribute("role", "group"); window.CeasefireI18n.attr(chooser, "aria-label", "Settings sections");
@@ -2139,6 +2157,7 @@ window.CeasefireScheduleColumns = (() => {
 
   function renderGrid(entry = current()) {
     if (!entry?.result || entry !== current()) return;
+    settingsWidthObserver?.disconnect();
     const grid = $("calculator-grid"), result = entry.result, metadata = displayMetadata(entry), page = pageDefinition(entry);
     const sectionSpacing = Boolean(result.section_spacing ?? metadata.section_spacing);
     grid.classList.toggle("calculator-grid-expanded", Boolean(metadata.expand_tables));
@@ -2449,6 +2468,8 @@ window.CeasefireScheduleColumns = (() => {
         }
         if (cell.editable) {
           td.classList.add("calculator-editable");
+          const widthGroup = browserPresentation[entry.definition.id]?.[entry.sheet]?.field_width_groups?.find(fields => fields.includes(address));
+          if (widthGroup) td.classList.add(widthGroup[0] === address ? "calculator-width-reference" : "calculator-width-matched");
           const preceding = row.cells.filter((candidate) => candidate.column < column && typeof candidate.value === "string" && candidate.value.trim()).at(-1)?.value;
           const label = cell.label || labels[column] || preceding || "Calculator input";
           td.append(makeControl(cell, row.row, entry, label, item));
@@ -2606,6 +2627,7 @@ window.CeasefireScheduleColumns = (() => {
     if (dynamicSchedule) content.push(renderScheduleTools(entry));
     if (settings) content.push(settings.chooser, ...settings.panels.values());
     grid.replaceChildren(...content); grid.scrollLeft = scrollLeft; grid.scrollTop = scrollTop;
+    if (settings) observeSettingsWidths(grid);
     if (dynamicSchedule) for (const scroll of grid.querySelectorAll("[data-schedule-viewport]")) { scroll.scrollTop = entry.scheduleViewport?.top || 0; scroll.scrollLeft = entry.scheduleViewport?.left || 0; }
     entry.renderedSheet = entry.sheet; entry.renderedPage = currentPage(entry); entry.choiceSignature = choiceSignature(result); entry.needsRender = false;
     state.gridEntry = entry;
@@ -2675,6 +2697,7 @@ window.CeasefireScheduleColumns = (() => {
       entry.result = result; latestCells(entry, result);
       if (view && view.result === result) {
         const grid = $("calculator-grid"); grid.replaceChildren(...view.nodes);
+        observeSettingsWidths(grid);
         $("calculator-option-lists").replaceChildren(...view.optionNodes); state.optionLists = new Map(view.optionLists); state.optionKeys = view.optionKeys;
         grid.classList.toggle("calculator-grid-expanded", view.expanded);
         grid.classList.toggle("calculator-steel-lookup", entry.definition.id === "steel_vermiculite" && entry.sheet === "CALCULATOR");

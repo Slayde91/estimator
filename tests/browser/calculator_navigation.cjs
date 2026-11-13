@@ -3,6 +3,7 @@ const { chooseLibrary } = require('./section_navigation.cjs');
 // keyboard and touch must select the existing workspaces without replacing drafts.
 const { chromium, expect } = require('@playwright/test');
 const { chooseCalculator } = require('./calculator_actions.cjs');
+const { checkAllowances, checkToolbar } = require('./calculator_toolbar_layout.cjs');
 const { clickProjectControl,prepareProjectForSave} = require('./project_actions.cjs');
 const { referenceExport } = require('./reference_export.cjs');
 const { spawn, spawnSync } = require('node:child_process');
@@ -163,9 +164,12 @@ async function workbook(title) {
   await page.getByRole('button',{name:'Home',exact:true}).click();await page.locator('[data-home-view="takeoffs"]').click();await expect(page.locator('#view-takeoffs')).toBeVisible();
   await chooseCalculator(page,'Firestopping');await idle();
   const settings=page.locator('#penetration-settings'),details=page.locator('#penetration-input-groups [role="tab"]').first();
+  await settings.click();
+  await checkAllowances(page,page.locator('#penetration-row-fields'),output,'firestopping-allowances.png');
+  await details.click();
   const banner=page.locator('#calculators-heading-slot > .penetration-banner-heading'),gear=await settings.boundingBox(),tab=await details.boundingBox(),clear=await banner.locator('#penetration-clear').boundingBox(),library=await banner.locator('#penetration-add-to-library').boundingBox(),itemDocument=banner.locator('.penetration-library-actions [data-document-menu-toggle]'),documentBox=await itemDocument.boundingBox();
   assert.ok(gear.x+gear.width<=tab.x,'Settings icon is left of the first Details tab');assert.ok(documentBox.x+documentBox.width<=clear.x&&clear.x+clear.width<=library.x,'Clear is between Document and Add to Library in the first row');assert.ok(Math.abs(clear.y-documentBox.y)<1&&Math.abs(documentBox.y-library.y)<1&&Math.abs(clear.height-documentBox.height)<1&&Math.abs(documentBox.height-library.height)<1,'Document, Clear and Add to Library share the same height and top alignment');
-  await expect(page.locator('#penetration-current-item-card > .penetration-item-heading #penetration-add-to-schedule')).toBeVisible();await expect(banner.locator('#penetration-add-to-schedule')).toHaveCount(0);
+  await expect(page.locator('#penetration-current-item-card .penetration-tab-actions #penetration-add-to-schedule')).toBeVisible();await expect(banner.locator('#penetration-add-to-schedule')).toHaveCount(0);
   await expect(page.locator('#penetration-new-item')).toBeHidden();await expect(page.locator('#penetration-recalculate')).toBeHidden();
   for(const id of ['penetration-item-excel','penetration-item-pdf'])assert.equal(await page.locator(`#${id}`).evaluate(el=>!!el.closest('#calculators-heading-slot > .penetration-banner-heading')),true,'Current-item downloads retain the Firestopping section heading');
   const clearBefore=await snapshots(),current=clearBefore.penetration.composer.rows[0];
@@ -280,10 +284,11 @@ async function workbook(title) {
   await calculatorTabs.getByRole('button',{name:'Steel (spray)',exact:true}).click();await workbook('Steel (spray)');
   await page.locator('#calculator-pages').getByRole('button',{name:'SCHEDULE',exact:true}).click();await idle();
   evidence.calculatorTabs={allSix:true,keyboard:true,allDraftsPreserved:true,layouts:[]};
-  for(const width of [1915,1254,631,390]){
-    await page.setViewportSize({width,height:1000});
+  for(const width of [1915,1254,913,631,390]){
+    await page.setViewportSize({width,height:width===913?884:1000});
     const actions=page.locator('#calculator-toolbar-actions .calculator-header-actions'),columns=page.locator('#calculator-toolbar-actions .schedule-column-toggle');
     await expect(actions).toBeVisible();await expect(columns).toBeVisible();
+    if([1915,913].includes(width))evidence.calculatorTabs[width]=await checkToolbar(page,width,output);
     assert.equal(await page.locator('.calculator-workspace-heading #calculator-document-toggle').count(),0);
     const actionBox=await actions.boundingBox(),columnBox=await columns.boundingBox();
     assert.ok(actionBox.x>=0&&actionBox.x+actionBox.width<=width+1,'Actions stay in the viewport');

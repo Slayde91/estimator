@@ -16,7 +16,7 @@
     const requests=new Set();
     const actor=window.ClassifireAccess?.user?.id || null;
     const notes=node('details','card commercial-side-panel record-resource-panel'),files=node('details','card commercial-side-panel record-resource-panel');
-    notes.open=files.open=true;host.append(notes,files);
+    notes.open=files.open=options.initiallyExpanded !== false;host.append(notes,files);
     const current=()=>alive && host.isConnected && actor===(window.ClassifireAccess?.user?.id || null) && (options.isCurrent?.() ?? true);
     const editable=()=>current() && loaded && !!owner && !busy && (options.canEdit?.() ?? (!window.ClassifireAccess || window.ClassifireAccess.can('edit')));
     const query=()=>new URLSearchParams(owner || {}).toString();

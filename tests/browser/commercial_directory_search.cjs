@@ -1,4 +1,5 @@
 'use strict';
+const {expandPanels}=require('./record_disclosures.cjs');
 const {chromium,expect:baseExpect}=require('@playwright/test');
 const expect=baseExpect.configure({timeout:30000});
 const {spawn}=require('node:child_process');
@@ -31,6 +32,7 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
   const projectBefore=await page.evaluate(()=>window.CeasefireProject.details());
   await openProjectSection(page,'quote');let quote=page.locator('#commercial-quote-root');await quote.getByRole('button',{name:'New Quote',exact:true}).click();
   const left=quote.locator('.commercial-sidebar').first();
+  await expandPanels(left,'Linked Companies','Linked Contacts');
   const company=left.getByRole('combobox',{name:'Company',exact:true}),name=left.getByRole('combobox',{name:'Name',exact:true});
   await expect(company).toHaveValue(projectBefore.client);await expect(name).toHaveValue(projectBefore.contact_name);
   await company.fill('Beta');await left.getByRole('option',{name:'Beta Company',exact:true}).click();await expect(company).toHaveValue('Beta Company');
@@ -61,6 +63,7 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
   assert.equal(await page.evaluate(()=>window.CeasefireDesktop.status().dirty),dirtyBeforeDiscard,'Discard restores the prior Project dirty state when no other Project data changed');
   assert.deepEqual(await page.evaluate(()=>window.CeasefireProject.details()),beforeDiscard,'Discarding an unsaved sidebar edit restores Project metadata');
   await expect(quote.locator('.commercial-card')).toContainText('Beta Company');await quote.locator('.commercial-card .project-title-button').click();
+  await expandPanels(quote,'Linked Companies');
   await expect(quote.locator('.commercial-sidebar').first().getByRole('combobox',{name:'Company',exact:true})).toHaveValue('Beta Company');await expect(quote.locator('.commercial-sidebar').first().getByLabel('Site address',{exact:true})).toHaveCount(0);
   checked('Document recipient and directory IDs survive repeated saves and reopening, without changing the Project client or primary contact');
   await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await openProjectSection(page,'quotes');
@@ -74,6 +77,7 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
   await expect(quote.locator('.commercial-sidebar').first()).toContainText('Beta Manager');
   checked('Project site edits flow through to the reopened quote, while its recipient phone and email stay unchanged');
   await create('contacts',{name:'Beta Contact',company:beta.company,phone:'999',email:'beta-later@example.test',title:'Updated Manager'},{id:person.id});
+  await expandPanels(quote,'Linked Companies','Linked Contacts');
   const reopenedLeft=quote.locator('.commercial-sidebar').first();await reopenedLeft.getByRole('combobox',{name:'Name',exact:true}).fill('Beta');await reopenedLeft.getByRole('option',{name:'Beta Contact',exact:true}).click();await expect(reopenedLeft).toContainText('999');await expect(reopenedLeft).toContainText('Updated Manager');
   await reopenedLeft.getByRole('combobox',{name:'Company',exact:true}).fill('Primary');await reopenedLeft.getByRole('option',{name:'Primary Project',exact:true}).click();await expect(reopenedLeft.getByRole('combobox',{name:'Name',exact:true})).toHaveValue('');await expect(quote.locator('[data-project-detail=phone]')).toHaveValue('');await expect(quote.locator('[data-project-detail=email]')).toHaveValue('');
   // Preserve the incompatible-contact clearing assertions above, then choose
@@ -165,6 +169,7 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
   await openProjectSection(page,'quotes');await page.locator('#refresh-quotes').click();await page.waitForFunction(()=>!window.CeasefireDesktop.status().busy);
   await openProjectSection(page,'quote');await quote.getByLabel('Search documents',{exact:true}).fill('Other owner quote');await quote.locator('.commercial-card .project-title-button').click();
   const activeDetails=await page.evaluate(()=>window.CeasefireProject.details()),activeBytes=fs.readFileSync(info.project,'utf8');
+  await expandPanels(quote,'Linked Companies','Linked Contacts');
   const otherLeft=quote.locator('.commercial-sidebar').first();await otherLeft.getByRole('combobox',{name:'Company',exact:true}).fill('Beta');await otherLeft.getByRole('option',{name:'Beta Company',exact:true}).click();
   await otherLeft.getByRole('combobox',{name:'Name',exact:true}).fill('Beta');await otherLeft.getByRole('option',{name:'Beta Contact',exact:true}).click();await expect(otherLeft.getByLabel('Site address',{exact:true})).toHaveCount(0);
   await save(quote);const otherSaved=JSON.parse(fs.readFileSync(otherPath,'utf8'));

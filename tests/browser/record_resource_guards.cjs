@@ -28,19 +28,22 @@ const assert=require('node:assert/strict'),path=require('node:path');
     return respond(testState);
    };
   });
-  await page.addScriptTag({path:path.resolve(__dirname,'../../static/record-resources.js')});
+  for (const script of ['dates.js','commercial-panels.js','commercial-documents.js','record-resources.js']) {
+    await page.addScriptTag({path:path.resolve(__dirname,'../../static',script)});
+  }
   const attach=()=>page.evaluate(()=>{window.helper?.close();window.helper=ClassifireRecordResources.attach(document.getElementById('resources'),{owner:{kind:'contacts',id:'a3318d52-adad-4176-9468-b4183ea00a6d'},canEdit:()=>true});});
   await attach();const host=page.locator('#resources'),create=host.getByRole('button',{name:'New note',exact:true});
   await expect(create).toBeEnabled();await create.click();
   const note=page.getByRole('dialog',{name:'New note',exact:true});
-  await note.getByLabel('Note title',{exact:true}).fill('Unsaved local note');await note.getByLabel('Note',{exact:true}).fill('Keep this text through a conflict.');
+  const body=note.getByRole('textbox',{name:'Compose text',exact:true}),done=note.getByRole('button',{name:'Done',exact:true});
+  await note.getByLabel('Note title',{exact:true}).fill('Unsaved local note');await body.fill('Keep this text through a conflict.');
   await page.evaluate(()=>{testState={version:1,notes:[{id:crypto.randomUUID(),title:'Concurrent note',body:'Other user saved this.',author:'Other',updated_at:new Date().toISOString()}],files:[]};});
-  await note.getByRole('button',{name:'Save',exact:true}).click();
-  await expect(note.locator('[role="status"]')).toContainText('Notes or Files changed.');await expect(note.getByLabel('Note',{exact:true})).toHaveValue('Keep this text through a conflict.');
+  await done.click();
+  await expect(note.locator('[role="status"]')).toContainText('Notes or Files changed.');await expect(body).toHaveText('Keep this text through a conflict.');
   const writes=await page.evaluate(()=>testRequests.filter(row=>row.body).length);
-  await note.getByRole('button',{name:'Save',exact:true}).click();assert.equal(await page.evaluate(()=>testRequests.filter(row=>row.body).length),writes,'Cancel review must not replay the write');await expect(note).toBeVisible();
+  await done.click();assert.equal(await page.evaluate(()=>testRequests.filter(row=>row.body).length),writes,'Cancel review must not replay the write');await expect(note).toBeVisible();
   assert.equal(await page.evaluate(()=>testConfirms.at(-1)[0]),'Notes or Files changed. Save this note using the latest record?');
-  await page.evaluate(()=>confirmAnswers.push(true));await note.getByRole('button',{name:'Save',exact:true}).click();await expect(note).toHaveCount(0);
+  await page.evaluate(()=>confirmAnswers.push(true));await done.click();await expect(note).toHaveCount(0);
   assert.deepEqual(await page.evaluate(()=>testState.notes.map(row=>row.title).sort()),['Concurrent note','Unsaved local note']);
   await page.evaluate(()=>{window.failRead=true;});await attach();await expect(host.locator('[role="status"]')).toHaveText('The record resources are unavailable.');await expect(create).toBeDisabled();
   await page.evaluate(()=>{window.failRead=false;window.holdRead=true;window.readAborted=false;});await attach();await expect(host.locator('[role="status"]')).toHaveText('The request could not be completed.');await expect(create).toBeDisabled();assert.equal(await page.evaluate(()=>readAborted),true,'Timed out reads abort and retain disabled mutation controls');

@@ -1,4 +1,5 @@
 // Explicit project roles and automatic exact-address bid links; all files are disposable.
+const {expandPanels}=require('./record_disclosures.cjs');
 const {chromium,expect}=require('@playwright/test');
 const {spawn}=require('node:child_process'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {createNewProject,openProjectSection,openCurrentProjectDetails}=require('./project_actions.cjs');
@@ -21,6 +22,8 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   assert.equal(create.status(),200,await create.text());const consultant=(await create.json()).id;
   await openProjectSection(page,'quotes');await openCurrentProjectDetails(page);
   const panel=page.locator('#project-participants-panel');
+  const left=page.locator('#project-workspace-side');
+  await expandPanels(left,'Linked Projects','Companies','Contacts');
   await expect(panel.locator('summary')).toHaveText('Linked Projects');
   await expect(panel.locator('h4')).toHaveCount(0);
   await expect(panel.getByText('No linked projects.',{exact:true})).toBeVisible();
@@ -84,6 +87,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   const selected=(await read('/api/projects')).files.find(row=>row.name==='separate-builder.cf.json');assert.ok(selected);
   await openCurrentProjectDetails(page);
   const targetB=panel.getByRole('button',{name:/Builder B/});
+  await expandPanels(left,'Linked Projects');
   await expect(targetB).toBeVisible();
   const currentAddress=page.locator('#project-pane-address');
   await currentAddress.fill('Draft should stay on cancel');
@@ -95,6 +99,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   await expect(page.locator('#project-pane-client')).toHaveValue('Builder B');
   assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),copyPath);
   assert.deepEqual(fs.readFileSync(info.project),original);
+  await expandPanels(left,'Linked Projects');
   await panel.getByRole('button',{name:/Builder A/}).click();
   await expect(page.locator('#project-pane-client')).toHaveValue('Builder A');
   await page.locator('#project-details-close').click();
@@ -120,7 +125,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   assert.deepEqual(fs.readFileSync(info.project),original);assert.deepEqual(fs.readFileSync(copyPath),copyBytes);
   // The older open form must recover its version before adding a role and retain the explicit site.
   const addConsultant=async()=>{
-
+    await expandPanels(left,'Companies','Linked Projects');
     await companies.getByLabel('Role',{exact:true}).selectOption('consultant');
     await companies.getByRole('combobox',{name:'Company',exact:true}).fill('Consulting');
     await companies.getByRole('option',{name:'Consulting team',exact:true}).click();
@@ -188,6 +193,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   assert.deepEqual(afterAddressEdit.other_site_bids.map(item=>item.client),['Builder A']);
   await expect(panel.locator('summary')).toBeVisible();
   const earlierBid=panel.getByText(/PN-.*Builder A.*42 Example Lane/);
+  await expandPanels(left,'Linked Projects');
   await expect(earlierBid).toBeVisible();
   await expect(panel.locator('li')).toHaveCount(1);
   await expect(panel.locator('input,details')).toHaveCount(0);
@@ -201,6 +207,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   await page.locator('#project-details-close').click();
   await expect(page.locator('#project-list-card')).toBeVisible();
   await page.locator(`.project-kanban-card[data-project-id="${selected.id}"] .project-title-button`).click();
+  await expandPanels(left,'Linked Projects','Companies');
   await expect(earlierBid).toBeVisible();
   const updatedCopy=fs.readFileSync(copyPath);
   // Removing the saved copy outside CLASSIFIRE must not erase or rebind the recorded site relationship.
@@ -219,6 +226,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   await expect(options).toBeVisible();const popupBox=await options.boundingBox();
   assert.ok(popupBox.width>0 && popupBox.x>=0 && popupBox.x+popupBox.width<=391,'Participant searches fit the mobile viewport');
   await page.locator('#project-details-close').click();await openCurrentProjectDetails(page);
+  await expandPanels(left,'Linked Projects');
   await expect(panel.getByText('Saved project unavailable',{exact:true})).toBeVisible();
   await address.fill('18 Current Project Way');
   const started=Date.now();
@@ -239,7 +247,7 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
   await page.locator('#project-details-close').click();
   const refreshed=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/projects');
   await page.locator('#refresh-quotes').click();await refreshed;
-  await openCurrentProjectDetails(page);await expect(targetB).toBeVisible();
+  await openCurrentProjectDetails(page);await expandPanels(left,'Linked Projects');await expect(targetB).toBeVisible();
   await page.locator('#project-pane-contact-phone').fill('5550101');
   await targetB.click();
   const onDisk=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/save');
@@ -254,8 +262,9 @@ const ready=new Promise((resolve,reject)=>{let text='';server.on('error',reject)
     await route.fulfill({response,json:data});
   });
   await page.locator('#project-details-close').click();await openCurrentProjectDetails(page);
+  await expandPanels(left,'Linked Projects');
   await expect(panel.locator('summary')).toBeVisible();
-  await expect(panel.getByText(/PN-older · Earlier bid/)).toBeVisible();
+  await expect(panel.getByText(/PN-older: Earlier bid/)).toBeVisible();
   assert.deepEqual(errors,[]);
   fs.writeFileSync(path.join(folder,'result.json'),JSON.stringify({passed:true,checks:['Automatic site for the first project at an address','Unique named site reused','No Link button or automatic writes','Exact-address peers','Permission denial preserves edits and previous links','Successful retry permits continued editing during list refresh','Current and selected projects follow saved address changes','Historical explicit site retained alongside the current address','Distinct bid files and unavailable explicit sources remain recorded'],timings,output:folder},null,2));
   console.log('PASS automatic project sites, exact-address peers, legacy links, edits, permission recovery and mobile layout: '+folder);

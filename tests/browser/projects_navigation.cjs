@@ -27,7 +27,9 @@ async function expectSavedProjects() {
 async function expectDocumentDestination(section='documentation') {
   await expect(page.locator('#view-documents')).toHaveCount(0);
   await expect(page.locator('#view-'+section)).toBeVisible();
-  await expect(page.locator(`#documents-navigation-menu [data-document-section="${section}"]`)).toHaveAttribute('aria-pressed','true');
+  const choice = page.locator(`#documents-navigation-menu [data-document-section="${section}"]`);
+  if (section === 'documentation' || section === 'forms') await expect(choice).toHaveAttribute('aria-pressed','true');
+  else await expect(choice).toHaveCount(0);
   await expect(page.locator('#document-pages [aria-current="page"]')).toHaveCount(section==='documentation' ? 1 : 0);
 }
 async function openPdfForm(section) {
@@ -134,7 +136,7 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   await openProjectSection(page,'quotes');
   await headerDestination('quotes');await headerDestination('certification');
   await page.locator('#documents-navigation-toggle').hover();await expect(documentsMenu).toBeVisible();
-  assert.deepEqual(await documentsMenu.locator('button').allTextContents(),['Documentation','SWMS','Certification','Forms']);
+  assert.deepEqual(await documentsMenu.locator('button').allTextContents(),['Documentation','Forms']);
   await page.locator('#documents-navigation-toggle').click();await expectDocumentDestination('certification');
   await headerDestination('certification');
   await home();assert.equal(await openProjectTools(page),'home');await expect(page.locator('#view-quotes')).toBeVisible();

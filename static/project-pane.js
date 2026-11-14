@@ -148,7 +148,7 @@
     $("project-details-load").disabled = value || !selectedFile()?.source;
     for (const slot of participantSlots) slot.inert = !!(value || recovering || selected?.blocked);
     followUpHost.inert = !!(value || recovering || selected?.blocked);
-    links.inert = !!(value || recovering || selected?.blocked);
+    side.inert = links.inert = !!(value || recovering || selected?.blocked);
     $("project-current-details").disabled = value;
   }
   function dismissOptions() {

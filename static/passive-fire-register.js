@@ -220,7 +220,7 @@
     finally { exporting = false; exportButton.disabled = false; }
   }
   function render() {
-    if (!root || !options) return;
+    if (!root || !options) return false;
     fieldIndex = 0;
     const entry = editedEntry(), form = el('fieldset','register-form');
     form.disabled = pending;
@@ -276,6 +276,7 @@
     if (entry.signature) sign.append(action('Clear signature', () => { entry.signature = null; changed(); render(); }));
     form.append(sign, el('p','helper','Save the project to keep this register.'));
     root.replaceChildren(form);
+    return true;
   }
   function capture() {
     if (pending) throw new Error('Finish adding photos before continuing.');

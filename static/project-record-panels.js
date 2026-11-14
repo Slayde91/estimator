@@ -5,8 +5,8 @@
   const resourcesHost = document.createElement("div"), documentsHost = document.createElement("div");
   resourcesHost.className = documentsHost.className = "project-record-panels";
   resourcesHost.id = "project-record-resources"; documentsHost.id = "project-linked-documents";
-  const anchor = document.getElementById("project-participants-panel") || document.getElementById("project-pricing-notice");
-  anchor.before(resourcesHost,documentsHost);
+  document.getElementById("project-pricing-notice").before(resourcesHost);
+  document.getElementById("project-workspace-side").append(documentsHost);
   let selected = null, generation = 0, resources = null, controller = null, retry = null;
   const kinds = [["quote","Linked Quotes"],["work_order","Linked Work Orders"],["purchase_order","Linked Purchase Orders"]];
   const panels = new Map();
@@ -16,7 +16,7 @@
   }
   const status = ui("p",""); status.className = "helper project-link-status"; status.setAttribute("role","status");
   for (const [kind,label] of kinds) {
-    const panel = document.createElement("details"); panel.className = "card commercial-side-panel"; panel.open = true;
+    const panel = document.createElement("details"); panel.className = "card commercial-side-panel";
     panel.dataset.documentKind = kind; panels.set(kind,{panel,label}); documentsHost.append(panel);
   }
   const refresh = ui("button","Refresh linked records"); refresh.type = "button"; refresh.className = "button secondary";
@@ -31,7 +31,7 @@
       if (known) summary.append(document.createTextNode(` (${rows.length})`));
       const expanded = panel.open; panel.replaceChildren(summary); panel.open = expanded;
       for (const card of rows) {
-        const label = [card.reference || card.last_number,card.fields?.title].filter(Boolean).join(" · ") || card.kind;
+        const label = window.ClassifireDocumentBoard.linkedDocumentLabel(card,selected);
         const open = document.createElement("button"); open.type = "button"; open.className = "text-button project-title-button"; open.textContent = label;
         const opened = generation;
         open.onclick = async () => {
@@ -75,6 +75,7 @@
   function close() {
     generation++; controller?.abort(); controller = null; clearTimeout(retry);
     resources?.close(); resources = null; selected = null; resourcesHost.replaceChildren();
+    for (const {panel} of panels.values()) panel.open = false;
     resetPanels([],true); message(""); refresh.hidden = true;
   }
   window.ClassifireProjectRecordPanels = {
@@ -88,7 +89,7 @@
       resources = window.ClassifireRecordResources.attach(resourcesHost,{
         owner:selector(file) ? {kind:"projects",id:selector(file),project_id:file.source_project_id} : null,
         isCurrent:()=>opened === generation && !host.hidden && host.isConnected,
-        canEdit, showRefresh:false, message:value=>message(value)
+        canEdit, showRefresh:false, initiallyExpanded:false, message:value=>message(value)
       });
       resetPanels([],!selector(file)); void loadDocuments();
     },

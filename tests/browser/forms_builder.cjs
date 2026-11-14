@@ -33,9 +33,25 @@ const {chromium, expect} = require('@playwright/test');
     const btn = name => page.getByRole('button',{name,exact:true});
     const name = page.getByLabel('Template name');
     const applied = await snap();
+    for (const [label,symbol] of [['Back','←'],['Undo','↶'],['Redo','↷']]) {
+      await expect(btn(label)).toHaveAttribute('title',label);
+      await expect(btn(label).locator('.button-symbol[aria-hidden="true"]')).toHaveText(symbol);
+    }
+    await expect(palette('scan_id')).toHaveCount(0);
     await name.fill('Site inspection');
     await palette('choice').dragTo(page.locator('.form-builder-drop-empty'));
     await page.getByLabel('Field label').fill('Weather');
+    await expect(page.getByLabel('Help text',{exact:true})).toHaveCount(0);
+    const fieldLabel = await page.getByLabel('Field label').boundingBox();
+    for (const option of ['Required','Hide in printed forms']) {
+      const checkbox = page.getByRole('checkbox',{name:option,exact:true});
+      const caption = checkbox.locator('xpath=parent::label/span');
+      assert.ok(await caption.evaluate(span => parseFloat(getComputedStyle(span).fontSize) < parseFloat(getComputedStyle(document.body).fontSize)));
+      const box = await checkbox.boundingBox();
+      assert.ok(box.x > fieldLabel.x + fieldLabel.width && box.y < fieldLabel.y + fieldLabel.height && box.y + box.height > fieldLabel.y);
+      await checkbox.check();
+    }
+    assert.ok((await snap()).fields[0].required && (await snap()).fields[0].hide_in_pdf);
     await page.getByLabel('Choices (one per line)').fill('Wet\nDry');
     await page.getByLabel('List appearance').selectOption('inline');
     await palette('text').click();
@@ -105,7 +121,8 @@ const {chromium, expect} = require('@playwright/test');
     await page.getByLabel('Remind before expiry (days)').fill('7');
     assert.equal((await snap()).fields.at(-1).reminder_days,7);
     await palette('sign_on_table').click();
-    assert.deepEqual((await snap()).fields.at(-1).children.map(c=>c.type),['scan_id','datetime','manual_signature']);
+    assert.deepEqual((await snap()).fields.at(-1).children.map(c=>c.type),['person','datetime','manual_signature']);
+    await expect(page.locator('.form-builder-nested-row select option[value="scan_id"]')).toHaveCount(0);
     await btn('Settings').click();
     const register = page.getByRole('group',{name:'Form register'});
     await register.getByLabel('Table',{exact:true}).selectOption(duplicate.id);
@@ -187,6 +204,27 @@ const {chromium, expect} = require('@playwright/test');
     assert.equal((await snap()).fields.length,count);
     await page.setViewportSize({width:360,height:770});
     await expect(btn('Save changes')).toBeVisible();
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+    await page.evaluate(() => {
+      const saved = {id:'legacy-template',name:'Saved staff checks',version:1,status:'published',fields:[
+        {id:'staff-check',type:'scan_id',label:'Badge scan',help:'Previously entered description.'},
+        {id:'sign-in',type:'group',label:'Staff sign-in',children:[{id:'badge',type:'scan_id',label:'Badge'}]}
+      ]};
+      window.editor = window.ClassifireFormsBuilder.mount(document.querySelector('main'), saved, {
+        onSave: async value => {window.saved = value; return value;}, onCancel:()=>{}, onPreview:()=>{},
+      });
+    });
+    await page.getByLabel('Field label',{exact:true}).fill('Staff badge');
+    await expect(page.getByLabel('Help text',{exact:true})).toHaveCount(0);
+    await page.locator('.form-builder-field-select').last().click();
+    await expect(page.locator('.form-builder-nested-row').getByLabel('Type',{exact:true})).toHaveValue('scan_id');
+    await btn('Save changes').click();
+    const [scan,group] = await page.evaluate(() => window.saved.fields);
+    assert.deepEqual(scan,{id:'staff-check',type:'scan_id',label:'Staff badge',help:'Previously entered description.'});
+    assert.equal(group.children[0].type,'scan_id');
+    await palette('instruction').click();
+    await page.getByLabel('Instructions',{exact:true}).fill('Wear eye protection.');
+    assert.equal((await snap()).fields.at(-1).help,'Wear eye protection.');
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
     assert.deepEqual(pageErrors,[]);
     console.log('Forms editor drag/drop, keyboard order, conditions, workflow, table defaults, role access, attachments, save retry and narrow layout passed.');

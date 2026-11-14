@@ -126,7 +126,7 @@ async function save(page){
   for(const row of registry)assert.equal(path.resolve(row.path),path.resolve(info.project));
   assert.equal(await currentFile(other),null);
   await card(heading).getByRole('button',{name:heading,exact:true}).click();
-  await expect(board(other).getByLabel('Linked Project',{exact:true})).toHaveValue([file.estimate.project_no,file.estimate.client,file.estimate.site_address?.replace(/\s+/g,' ')].filter(Boolean).join(' · '));
+  await expect(board(other).getByLabel('Linked Project',{exact:true})).toHaveValue(file.estimate.project_no+': '+[file.estimate.client,file.estimate.site_address?.replace(/\s+/g,' ')].filter(Boolean).join('-'));
   await expect(board(other).getByLabel('Linked Project',{exact:true})).toHaveAttribute('readonly','');
   assert.equal(await currentFile(other),null,'Displaying the saved Quote owner does not load it over the active workspace');
 
@@ -174,7 +174,8 @@ async function save(page){
     await expect(pane.locator('.commercial-editor')).toHaveCount(0);
     assert.equal(await owner.evaluate(()=>window.CeasefireCertification.sessionId()),expiredWorkspace);
   }
-  await openProjectSection(owner,'certification');
+  // The discarded workspace has no document register rows. Exercise the certificate adapter's own error.
+  await owner.evaluate(() => window.CeasefireDocumentationApp.run('certification', {}));
   await expect(owner.locator('#app-message')).toContainText(/certificate workspace is unavailable/i);
   assert.deepEqual(fs.readFileSync(info.project),savedBytes);
   assert.deepEqual(errors,[]);

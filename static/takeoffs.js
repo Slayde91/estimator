@@ -809,7 +809,7 @@
     if (result.action === "add-source") { await upload([new File([result.blob], result.filename, { type: "application/pdf" })]); }
     else { const url = URL.createObjectURL(result.blob), link = node("a"); link.href = url; link.download = result.filename; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000); message("PDF copy downloaded."); }
   }
-  async function open() { build(); state.active = true; await ensureSession(); renderData(); scheduleLinkedThickness(true); if (state.document) await renderPage(); }
+  async function open() { build(); state.active = true; await ensureSession(); renderData(); scheduleLinkedThickness(true); return !state.document || await renderPage() === true; }
   function refreshNavigation() {
     for (const host of [$("takeoff-navigation-menu"), $("takeoff-pages")]) {
       for (const choice of host?.querySelectorAll("[data-mode]") || []) {
@@ -1723,6 +1723,7 @@
       if (renderId === state.renderId) void state.ocrLayer?.render();
       state.visualSearch?.sync();
       void renderThumbnails(pdf, renderId, docId);
+      return renderId === state.renderId;
     } catch (error) {
       if (renderId !== state.renderId || error.name === "RenderingCancelledException") return;
       await recordPdfFailure(docId, pageNumber, error, sessionId, true, () => renderId === state.renderId);

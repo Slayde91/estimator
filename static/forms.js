@@ -204,10 +204,10 @@
     try {
       await window.ClassifireAccess.ready;
       const [library, register, people] = await Promise.all([api('templates'),api('entries'),api('staff')]);
-      if (stamp !== generation) return;
+      if (stamp !== generation) return false;
       templates = library.templates; records = register.entries; staff = people.staff;
-      libraryView();
-    } catch(error) {if(stamp === generation) {content.replaceChildren(button('Retry',refresh)); report(error);}}
+      libraryView();return true;
+    } catch(error) {if(stamp === generation) {content.replaceChildren(button('Retry',refresh)); report(error);}return false;}
   }
   function libraryView() {
     const host = frame(), box = el('section', null, 'card forms-register');

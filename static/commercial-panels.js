@@ -12,7 +12,7 @@
     return button;
   }
   function panel(label, count) {
-    const section = el("details"); section.className = "card commercial-side-panel"; section.open = true;
+    const section = el("details"); section.className = "card commercial-side-panel";
     section.append(panelSummary(label,count));
     return section;
   }
@@ -278,7 +278,7 @@
       }
       linkedProjects.replaceChildren(panelSummary("Linked Projects",data ? rows.length : undefined));
       for(const bid of rows) {
-        const label=[bid.project_no,bid.client,bid.site_address].filter(Boolean).join(" · ");
+        const label=window.ClassifireDocumentBoard.linkedRecordLabel(bid.project_no,bid);
         if(bid.availability==="available" && bid.source) {
           linkedProjects.append(action(label,async event=>{
             if(!panelCurrent() || sourceIdentity!==JSON.stringify(options.participantSource?.()))return;
@@ -300,7 +300,7 @@
       {write:options.writeActivity, canWrite:()=>options.isSaved() && options.canEdit()});
     {
     const accountPanel = panel("Linked Companies"), contactPanel = panel("Linked Contacts");
-    left.append(accountPanel,contactPanel,history.element);
+    left.append(accountPanel,contactPanel,linkedProjects);
     let directory = {},participants=null,participantsKey='',participantTicket=0;
     const contactList=el('div'),companyList=el('div'),linkedNotice=el('p');contactList.className='commercial-linked-contacts';companyList.className='commercial-linked-companies';
     linkedNotice.className='helper';linkedNotice.setAttribute('role','status');
@@ -402,7 +402,7 @@
     refreshDetails=()=>{showContact();void refreshParticipants();};
     }
     const notes = panel("Notes",0), files = panel("Files",0);
-    right.append(notes, files);
+    right.append(notes, files, history.element);
     let showAllNotes=false;
     function repaintNotes() {
       const all=[...(options.fields.notes || [])].sort((a,b)=>b.updated_at.localeCompare(a.updated_at));
@@ -455,10 +455,10 @@
             ? workIds.has(d.fields.order.work_order_id) || d.fields.order.quote_id===options.id
             : d.fields.order.work_order_id===options.id));
         block.replaceChildren(panelSummary(name,rows.length));
-        for(const doc of rows) block.append(action([doc.reference || doc.last_number,doc.fields.title].filter(Boolean).join(" · "),()=>options.openRelated(doc)));
+        for(const doc of rows) block.append(action(window.ClassifireDocumentBoard.linkedDocumentLabel(doc,options.projectDetails),()=>options.openRelated(doc)));
       }
     }
-    relatedPanels.forEach(([,block])=>right.append(block));right.append(linkedProjects);showRelated();
+    relatedPanels.forEach(([,block])=>left.append(block));showRelated();
     form.querySelector("[data-order-link]")?.addEventListener("change",showRelated);
     return {repaintFiles,refreshDirectory,refreshHistory:history.refresh,updateActivity:history.update,activityDirty:history.dirty,
       refreshRecords(){showRelated();repaintFiles();return Promise.all([reloadParties(),history.refresh()]);},

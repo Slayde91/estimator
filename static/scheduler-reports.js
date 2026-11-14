@@ -186,13 +186,14 @@
       state.period=period.value; state.start=start.value; state.end=end.value;
       try {
         const result=await request('/reports?'+new URLSearchParams({start:state.start,end:state.end}));
-        if (current!==ticket || !host.isConnected) return;
+        if (current!==ticket || !host.isConnected) return false;
         data=result; announcement.textContent='';
         state.member=populate(member,Object.entries(data.members),state.member);
         state.project=populate(project,new Map(data.rows.map(row=>[row.project,projectLabel(row)])),state.project);
-        fillJobs(); draw();
+        fillJobs(); draw();return true;
       } catch (err) {
         if (current===ticket && host.isConnected) announcement.textContent=t(err.message);
+        return false;
       } finally {if (current===ticket) run.disabled=false;}
     }
     filters.addEventListener('submit',load);
@@ -325,7 +326,7 @@
         output.append(section);
       }
     }
-    host.append(modes,title,filters,announcement,output); root.append(host); draw(); void load();
+    host.append(modes,title,filters,announcement,output); root.append(host); draw(); return load();
   }
   window.ClassifireSchedulerReports={render};
 })();

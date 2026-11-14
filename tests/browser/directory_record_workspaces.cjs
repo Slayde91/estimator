@@ -1,3 +1,4 @@
+const {expandPanels}=require('./record_disclosures.cjs');
 const {checkRecordTrim}=require('./record_sidebar_trim.cjs');
 'use strict';
 // Real persisted Notes/Files and the existing Lead full-page edit contract.
@@ -16,7 +17,15 @@ const checks=[],errors=[];
  directory=await api('/api/contacts/directory');const lead=directory.leads.find(item=>item.id===created.id),contact=directory.contacts.find(item=>item.id===lead.contact_id),account=directory.accounts.find(item=>item.id===lead.account_id);
  await page.goto(base);await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready&&!window.CeasefireDesktop.status().busy);await page.locator('#contacts-navigation-toggle').click();
  const host=page.locator('#contacts-root'),discard=page.locator('#discard-dialog');
- const open=async(kind,label)=>{await host.locator('.contacts-tabs').getByRole('button',{name:{accounts:'Companies',contacts:'Contacts',leads:'Leads'}[kind],exact:true}).click();await host.locator('.contacts-results').getByRole('button',{name:label,exact:true}).click();const pane=page.getByRole('complementary',{name:'Edit '+{accounts:'Company',contacts:'Contact',leads:'Lead'}[kind],exact:true});await expect(pane).toBeVisible();await expect(pane.getByRole('button',{name:'New note',exact:true})).toBeEnabled();return pane;};
+ const open=async(kind,label)=>{
+  await host.locator('.contacts-tabs').getByRole('button',{name:{accounts:'Companies',contacts:'Contacts',leads:'Leads'}[kind],exact:true}).click();
+  await host.locator('.contacts-results').getByRole('button',{name:label,exact:true}).click();
+  const pane=page.getByRole('complementary',{name:'Edit '+{accounts:'Company',contacts:'Contact',leads:'Lead'}[kind],exact:true});
+  await expect(pane).toBeVisible();
+  if(kind==='leads')await expandPanels(pane.locator('.contacts-record-right'),'Notes','Files');
+  await expect(pane.getByRole('button',{name:'New note',exact:true})).toBeEnabled();
+  return pane;
+ };
  const owners=[['accounts',account.id,account.company],['contacts',contact.id,contact.name],['leads',lead.id,lead.name]];
  for(const [kind,id,label]of owners){
   let pane=await open(kind,label);const before=await api('/api/contacts/directory');
@@ -51,7 +60,8 @@ const checks=[],errors=[];
     assert.ok(await page.evaluate(()=>window.scrollY)<beforeReveal,'The resource failure snaps back to the Contacts notice');
     await expect.poll(soundCount).toBe(beforeFile+1);
   }
-  await expect(rail.locator('details > summary')).toHaveText(['Notes (0)','Files (0)','Linked Quotes (0)','Linked Work Orders (0)','Linked Purchase Orders (0)','Linked Projects (0)']);
+  await expect(rail.locator('details > summary')).toHaveText(kind==='leads' ? ['Notes (0)','Files (0)','Activity history'] :
+    ['Notes (0)','Files (0)','Linked Quotes (0)','Linked Work Orders (0)','Linked Purchase Orders (0)','Linked Projects (0)']);
   const titleField=pane.getByLabel(kind==='accounts'?'Billing address':'Title',{exact:true});
   const original=await titleField.inputValue();
   await titleField.fill('Private in-progress edit');

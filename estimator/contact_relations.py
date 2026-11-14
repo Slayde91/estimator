@@ -5,7 +5,7 @@ Only canonical Contact IDs and unambiguous saved-file provenance establish a
 project/document relationship here; names and filesystem paths are not inputs.
 """
 
-from .account_relations import DOCUMENT_GROUPS, _identity, _project_label, document_target, project_document_cards, project_target
+from .account_relations import DOCUMENT_GROUPS, _identity, _linked_label, _project_label, document_target, project_document_cards, project_target
 from .catalog import ValidationError
 from .commercial_sources import source_id
 from .crm_identity import group_ids
@@ -87,7 +87,7 @@ class ContactRelations:
             reference = document.get("reference") or document.get("last_number") or fields.get("title") or document["kind"].replace("_", " ").title()
             token = f"{owner}:{identifier}"
             project = projects.get(project_token, fields.get('details', {}))
-            label = " · ".join(filter(None, (reference, _project_label(project))))[:1200]
+            label = _linked_label(reference, fields.get("details", {}), project)[:1200]
             # Keep the precise party roles and label of one exact source when
             # several saved copies share IDs. Scan order must not choose it.
             rank = (-len(roles), source or '', label)

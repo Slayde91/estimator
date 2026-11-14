@@ -27,9 +27,8 @@
   sites.id = "project-participants-panel";
   sites.className = "card commercial-side-panel";
   sites.hidden = true;
-  sites.open = true;
   sites.append(ui("summary", "Linked Projects"), projects, siteStatus);
-  document.getElementById("project-pricing-notice").before(sites);
+  document.getElementById("project-workspace-side").append(sites);
 
   let selection = null, fileRevision = null, record = null, generation = 0, directory = {accounts:[],contacts:[]}, roleSelection = {};
   let saving = false, loading = false, scanTimer, retriedScan = false;
@@ -58,7 +57,7 @@
         if (seen.has(key)) continue;
         seen.add(key);
       }
-      const row = el("li"), label = [bid.project_no, bid.client, bid.site_address].filter(Boolean).join(" · ");
+      const row = el("li"), label = window.ClassifireDocumentBoard.linkedRecordLabel(bid.project_no, bid);
       if (bid.availability === "available" && bid.source) {
         const open = el("button", label);
         open.type = "button"; open.className = "text-button";
@@ -305,7 +304,11 @@
     selection = fileRevision = projectOwner = record = null; directory = {accounts:[],contacts:[]}; roleSelection = {};
     loading = saving = retriedScan = false;
     sites.hidden = true;
-    for (const host of Object.values(hosts)) { host.hidden = true; host.closest("details").hidden = true; host.replaceChildren(); }
+    sites.open = false;
+    for (const host of Object.values(hosts)) {
+      const panel = host.closest("details");
+      host.hidden = panel.hidden = true; panel.open = false; host.replaceChildren();
+    }
     projects.replaceChildren();
     text(siteStatus, "");
   }
@@ -332,8 +335,13 @@
     scanComplete() { if (record?.scan_pending && sites.getClientRects().length) void load(); },
     show(file) {
       const selector = file?.id || (file?.save_token ? "native:" + file.save_token : null);
-      if (selector && selector === selection && file.revision === fileRevision) return;
+      const sameRecord = selector && selector === selection && file.source_project_id === projectOwner;
+      if (sameRecord && file.revision === fileRevision) return;
+      const panels = [hosts.accounts.closest("details"), hosts.contacts.closest("details"), sites];
+      const expanded = sameRecord ? panels.filter(panel => panel.open) : [];
+      const historyOpen = sameRecord && history?.element.open;
       close();
+      for (const panel of expanded) panel.open = true;
       const ticket = generation;
       history = window.ClassifireCrmActivity.historyPanel(() => {
         if (!selector) return {events:[]};
@@ -343,7 +351,8 @@
         canWrite:()=>Boolean(selector) && ticket === generation && canEdit() && !saving,
         write:activity=>api('crm/project-activity',{project:selector, revision:file.revision, activity})
       });
-      hosts.contacts.closest("details").after(history.element);
+      document.getElementById("project-pricing-notice").before(history.element);
+      if (historyOpen) history.element.open = true;
       if (!selector) return;
       selection = selector; fileRevision = file.revision; projectOwner = file.source_project_id;
       sites.hidden = false;

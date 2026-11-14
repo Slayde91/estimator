@@ -35,7 +35,7 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
  await openProjectSection(page,'work-orders');const work=page.locator('#commercial-work-order-root');await work.getByRole('button',{name:'New Work Order',exact:true}).click();
  const choices=work.getByLabel('Linked Quote',{exact:true});
  await expect(choices.locator('option').first()).toHaveText('Select an issued Quote…');
- await expect(choices.getByRole('option',{name:'QU-01 · Owned Quote',exact:true})).toHaveCount(1);
+ await expect(choices.getByRole('option',{name:'QU-01: Scope client-Scope site',exact:true})).toHaveCount(1);
  await expect(choices.locator(`option[value="${foreign.id}"]`)).toHaveCount(0);
  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,stages,projectNo,errors},null,2));console.log('PASS commercial board stages and Project-scoped Quote suggestions: '+output);
 })().catch(async error=>{console.error(error);if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

@@ -1,4 +1,5 @@
 'use strict';
+const {expandPanels}=require('./record_disclosures.cjs');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const expect = require('@playwright/test').expect.configure({timeout:30000});
@@ -19,17 +20,25 @@ async function checkLeadRecordPanels(page, api, person, output) {
   const host = page.locator('#contacts-root');
   const pane = page.getByRole('complementary', {name:'Edit Lead',exact:true});
   const right = pane.locator('.contacts-record-right');
+  const left = pane.locator('.contacts-record-left');
   const openLead = async () => {
     if (!await host.isVisible()) await page.locator('#contacts-navigation-toggle').click();
     await host.locator('.contacts-tabs').getByRole('button',{name:'Leads',exact:true}).click();
     await host.locator('.contacts-results').getByRole('button',{name:current.name,exact:true}).click();
-    await expect(right.locator('[data-link-group=projects] > summary')).toHaveText('Linked Projects (1)');
+    await expect(left.locator('[data-link-group=projects] > summary')).toHaveText('Linked Projects (1)');
+    await expect(pane.locator('.commercial-sidebar details[open]')).toHaveCount(0);
   };
   await openLead();
-  await expect(right.locator('details > summary:visible')).toHaveText([
-    'Notes (0)','Files (0)','Linked Quotes (0)','Linked Work Orders (0)','Linked Purchase Orders (0)','Linked Projects (1)']);
+  await expect(right.locator('details > summary:visible')).toHaveText(['Notes (0)','Files (0)','Activity history']);
+  await expect(left.locator('.contacts-links > details > summary')).toHaveText([
+    'Linked Quotes (0)','Linked Work Orders (0)','Linked Purchase Orders (0)','Linked Projects (1)']);
+  await expandPanels(left,'Linked Projects');
+  await pane.getByRole('button',{name:'Refresh Records',exact:true}).click();
+  await expect(pane.getByRole('button',{name:'Refresh Records',exact:true})).toBeEnabled();
+  await expect(left.locator('[data-link-group=projects]')).toHaveJSProperty('open',true);
+  await expect(left.locator('details[open]')).toHaveCount(1);
   const loaded = page.waitForResponse(reply => new URL(reply.url()).pathname === '/api/projects/load');
-  await right.locator('[data-link-group=projects]').getByRole('button').click();
+  await left.locator('[data-link-group=projects]').getByRole('button').click();
   const projectReply = await loaded;
   assert.ok(projectReply.ok(), await projectReply.text());
   assert.equal((await projectReply.json()).file.id, project.id);
@@ -53,15 +62,17 @@ async function checkLeadRecordPanels(page, api, person, output) {
     source.revision = saved.revision;
   }
   await openLead();
-  await expect(right.locator('details > summary:visible')).toHaveText([
-    'Notes (0)','Files (0)','Linked Quotes (1)','Linked Work Orders (1)','Linked Purchase Orders (1)','Linked Projects (1)']);
+  await expect(left.locator('.contacts-links > details > summary')).toHaveText([
+    'Linked Quotes (1)','Linked Work Orders (1)','Linked Purchase Orders (1)','Linked Projects (1)']);
   await expect(right.getByRole('button',{name:/Refresh/})).toHaveCount(0);
   await expect(pane.locator('.contacts-record-left [data-link-group=converted_leads] > summary')).toHaveText('Converted leads (1)');
-  await expect(pane.locator('.contacts-record-left .crm-timeline > summary')).toHaveText('Activity history');
+  await expect(right.locator('.crm-timeline > summary')).toHaveText('Activity history');
   await page.screenshot({path:path.join(output,'lead-linked-records.png'),fullPage:true});
   for (const [group,kind] of Object.entries(kinds)) {
     const opened = page.waitForResponse(reply => new URL(reply.url()).pathname === '/api/commercial/saved-open');
-    await right.locator('[data-link-group='+group+']').getByRole('button').click();
+    const section=left.locator('[data-link-group='+group+']');
+    await section.locator('summary').click();
+    await section.getByRole('button').click();
     const response = await opened;
     assert.ok(response.ok(), await response.text());
     const request = response.request().postDataJSON();

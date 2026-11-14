@@ -152,18 +152,18 @@
   }
   async function open(){
     if(state.opening)return state.opening;
-    if(state.loaded)return;
+    if(state.loaded)return true;
     state.opening=(async()=>{
       message(status,'Loading cover sheets…');host.setAttribute('aria-busy','true');
       const result=await request('/api/pdf-covers');
       if(!Array.isArray(result.items)||result.items.length>64)throw new Error('The saved cover-sheet settings are invalid.');
       const items=result.items.map(validate),kinds=new Set(items.map(item=>item.kind));
       if(kinds.size!==items.length)throw new Error('The saved cover-sheet settings are invalid.');
-      state.rows=new Map(items.map(item=>[item.kind,createRow(item)]));for(const tr of host.querySelectorAll('tr[data-document-kind]'))attach(tr,tr.dataset.documentKind);state.loaded=true;text(status,'');
+      state.rows=new Map(items.map(item=>[item.kind,createRow(item)]));for(const tr of host.querySelectorAll('tr[data-document-kind]'))attach(tr,tr.dataset.documentKind);state.loaded=true;text(status,'');return true;
     })();
     const endActivity=window.CeasefireActivity?.begin();
-    try{await state.opening;}
-    catch(error){message(status,'Cover sheets could not be loaded. Open Documentation again to retry.',true);}
+    try{return await state.opening;}
+    catch(error){message(status,'Cover sheets could not be loaded. Open Documentation again to retry.',true);return false;}
     finally{state.opening=null;host.setAttribute('aria-busy','false');endActivity?.();}
   }
   window.CeasefireCoverSheets={open,attach,saveAll,leave,hasPendingOperation:()=>state.saving||!!state.opening||[...state.rows.values()].some(row=>row.reading||row.busy||row.pending),

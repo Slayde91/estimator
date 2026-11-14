@@ -274,7 +274,7 @@
     const revision = ++state.loading, generation = state.authGeneration;
     try {
       const data = await request(`/state?start=${state.week}&end=${addDays(state.week,7)}`);
-      if (revision !== state.loading || generation !== state.authGeneration) return;
+      if (revision !== state.loading || generation !== state.authGeneration) return false;
       if (state.locationEntry && (state.data?.user?.id !== data.user?.id || state.locationEntry !== data.active_entry?.id)) stopLocation();
       if (state.data?.user && (state.data.user.id !== data.user?.id || state.data.user.role !== data.user?.role)) resetAccount();
       state.data = data;
@@ -285,12 +285,12 @@
       if (!data.active_entry) stopLocation();
       else if (state.locationEntry !== data.active_entry.id) startLocation();
       updateLocationStatus();
-      if (state.dialog || state.settingsDirty || state.settingsRuleDialog) return;
-      render();
+      if (state.dialog || state.settingsDirty || state.settingsRuleDialog) return true;
+      return await render() !== false;
     } catch (error) {
-      if (revision !== state.loading || generation !== state.authGeneration) return;
+      if (revision !== state.loading || generation !== state.authGeneration) return false;
       if (error.status === 401) {resetAccount(); auth(false);}
-      notice(error.message, true);
+      notice(error.message, true);return false;
     }
   }
   function resetAccount() {
@@ -345,7 +345,7 @@
     modal.append(error,actions);
     modal.addEventListener("cancel",event => { if (confirm.disabled) event.preventDefault(); });
     modal.addEventListener("close",() => { modal.remove(); if (trigger?.isConnected) trigger.focus(); },{once:true});
-    document.body.append(modal); modal.showModal(); close.focus();
+    document.body.append(modal); modal.showModal(); close.focus(); return true;
   }
   async function mutate(path,payload) {
     if (state.busy) return;
@@ -456,7 +456,9 @@
     pages.forEach(([id,label]) => {
       const tab = button(label,async () => {
         if (state.page === id || !await leave()) return;
-        state.page = id; render();
+        state.page = id;
+        if (await render() !== false && state.page===id && !state.root.closest("[hidden]"))
+          window.CeasefireButtonSounds?.navigationOpened?.("page");
       }, "calculator-page"); tab.setAttribute("aria-pressed", String(state.page === id)); tab.setAttribute("aria-current",state.page === id ? "page" : "false");
       if (id === "reports") window.CeasefireI18n?.text(tab,label);
       if (id === "settings") {
@@ -487,7 +489,7 @@
       if (previousReport && previousReport.dataset.zone === zone && previousReport.dataset.language === document.documentElement.lang) state.root.append(previousReport);
       else {
         state.report ||= {kind:"payroll",period:"week",start:state.week,end:addDays(state.week,6),member:"",job:"",project:""};
-        window.ClassifireSchedulerReports.render(state.root,state.report,{request,translated,addDays,weekStart,zone});
+        return window.ClassifireSchedulerReports.render(state.root,state.report,{request,translated,addDays,weekStart,zone});
       }
     }
     if (state.page === "team" && admin()) renderTeam();
@@ -1176,16 +1178,17 @@
     return {element:wrapper,select(index){selected=index;draw(false);},dispose(){disposed=true;for(const tile of images.values()){tile.onload=null;tile.onerror=null;}}};
   }
   async function activate() {
-    state.root ||= document.getElementById("scheduler-root"); if(!state.root)return;
-    if (state.data?.user) await refresh();
+    state.root ||= document.getElementById("scheduler-root"); if(!state.root)return false;
+    let opened=false;
+    if (state.data?.user) opened=await refresh();
     else {
       const generation = state.authGeneration;
       shell(); notice("Loading Scheduler…", false, true);
-      try { const bootstrap = await request("/bootstrap"); if(generation !== state.authGeneration)return; setZone(bootstrap.timezone); if (bootstrap.user) await refresh(); else auth(bootstrap.setup_required); }
+      try { const bootstrap = await request("/bootstrap"); if(generation !== state.authGeneration)return false; setZone(bootstrap.timezone); if (bootstrap.user) opened=await refresh(); else {auth(bootstrap.setup_required);opened=true;} }
       catch(error) {if(generation === state.authGeneration)notice(error.message,true);}
     }
     if (state.data?.user && !state.projectsLoading) void loadOrders();
-    beginPolling();
+    beginPolling();return opened;
   }
   function beginPolling() {
     if (!state.timer) state.timer = setInterval(() => {

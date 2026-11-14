@@ -4,10 +4,23 @@ const { expect } = require('@playwright/test');
 // Choose an explicit menu destination: the main Projects button now remembers
 // whichever subsection was last opened during this app session.
 async function openProjectSection(page, section) {
-  if (!['quotes', 'quote', 'work-orders', 'purchase-orders', 'scheduler', 'certification', 'documentation', 'swms', 'documents'].includes(section)) throw new Error('Unknown workspace section: ' + section);
+  if (!['quotes', 'quote', 'work-orders', 'purchase-orders', 'scheduler', 'certification', 'documentation', 'forms', 'swms', 'documents'].includes(section)) throw new Error('Unknown workspace section: ' + section);
   const destination = page.locator('#view-' + section);
   if (await destination.isVisible()) return;
-  if (section === 'documents') await page.locator('#documents-navigation-toggle').click();
+  if (section === 'swms' || section === 'certification') {
+    if (await page.evaluate(() => window.CeasefireProject.hasCreatedProject())) {
+      await openProjectSection(page, 'documentation');
+      const rows = page.locator('#documentation-pdf-rows');
+      const download = rows.locator('button[data-document-kind="' + section + '"]');
+      await expect(download).toBeAttached();
+      if (!await download.isVisible()) await download.locator('xpath=ancestor::tr/preceding-sibling::tr[contains(@class,"documentation-group")][1]//button').click();
+      await download.click();
+    } else {
+      // Exercise the editor's own no-project guards through its document adapter.
+      await page.evaluate(kind => window.CeasefireDocumentationApp.run(kind, {}), section);
+    }
+  }
+  else if (section === 'documents') await page.locator('#documents-navigation-toggle').click();
   else if (section === 'scheduler') await page.locator('#scheduler-navigation').click();
   else {
     const documents = ['certification', 'documentation', 'forms', 'swms', 'documents'].includes(section);

@@ -1386,11 +1386,11 @@
   async function openScope(scope) {
     assertTakeoffWritable();
     state.loading = true;
-    try { await initialize(); render(); await calculate(scope); }
+    try { await initialize(); render(); await calculate(scope); return !!scope.result; }
     catch (error) {
       uiText($("penetration-loading"), "The firestopping workspace could not be loaded. Reopen it to try again.");
       if (scope === state.schedule) { $("penetration-schedule-workspace").hidden = false; $("penetration-schedule-breakdown-card").hidden = false; }
-      message(error.message, true, scope);
+      message(error.message, true, scope); return false;
     }
     finally { state.loading = false; status(); }
   }

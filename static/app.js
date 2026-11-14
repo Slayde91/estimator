@@ -1196,7 +1196,7 @@
     for (const button of document.querySelectorAll("[data-library-kind]")) button.setAttribute("aria-pressed", String(button.dataset.libraryKind === kind));
     window.CeasefireNotifications?.navigate(`pricing:${kind}`);
     if (kind === "pricing") { window.CeasefireLibraries?.leave?.(); if (!pricingViewCurrent()) renderPricing(); }
-    else window.CeasefireLibraries?.open(kind, selection);
+    else return window.CeasefireLibraries?.open(kind, selection);
   }
 
   function resolveView(view) {
@@ -1206,17 +1206,17 @@
   async function showView(view, librarySelection, calculatorId, commercialDraftOwner) {
     view = resolveView(view);
     const previousView = state.currentView;
-    if (view !== previousView && previousView === "contacts" && window.ClassifireContacts?.leave && !await window.ClassifireContacts.leave()) return;
-    if (view !== state.currentView && state.currentView === "quotes" && window.CeasefireProjectPane && !await window.CeasefireProjectPane.leave()) return;
-    if (view !== state.currentView && window.CeasefireCommercial?.hasPendingOperation?.() && !await window.CeasefireCommercial.leaveEditor()) return;
-    if (view !== state.currentView && window.CeasefireScheduler?.hasPendingOperation?.() && !await window.CeasefireScheduler.leave()) return;
-    if (view !== state.currentView && window.CeasefireCoverSheets?.hasPendingOperation?.()) { message(uiCopy("Finish or retry the current cover-sheet operation before changing views."), true); return; }
-    if (view !== state.currentView && window.CeasefireCoverSheets?.hasUnsavedChanges?.() && !await window.CeasefireCoverSheets.leave()) return;
-    if (view !== state.currentView && (window.CeasefireCertification?.hasPendingNavigationOperation?.() ?? window.CeasefireCertification?.hasPendingOperation?.())) { message(uiCopy("Finish or retry the current certification operation before changing views."), true); return; }
-    if (window.CeasefirePenetrations?.hasTakeoffReservation?.() || window.CeasefireTakeoffs?.hasLinkedRecovery?.()) { message(uiCopy("Finish or recover the confirmed Takeoff library link before changing views."), true); return; }
-    if (view === "takeoffs" && !state.takeoffsEnabled) { message(uiCopy("TAKEOFFS is not included in this edition."), true); return; }
-    if (view !== state.currentView && window.CeasefireSWMS?.hasPendingOperation?.() && !await window.CeasefireSWMS.leaveEditor()) return;
-    if (view !== previousView && previousView === "forms" && !await window.ClassifireForms.leave()) return;
+    if (view !== previousView && previousView === "contacts" && window.ClassifireContacts?.leave && !await window.ClassifireContacts.leave()) return false;
+    if (view !== state.currentView && state.currentView === "quotes" && window.CeasefireProjectPane && !await window.CeasefireProjectPane.leave()) return false;
+    if (view !== state.currentView && window.CeasefireCommercial?.hasPendingOperation?.() && !await window.CeasefireCommercial.leaveEditor()) return false;
+    if (view !== state.currentView && window.CeasefireScheduler?.hasPendingOperation?.() && !await window.CeasefireScheduler.leave()) return false;
+    if (view !== state.currentView && window.CeasefireCoverSheets?.hasPendingOperation?.()) { message(uiCopy("Finish or retry the current cover-sheet operation before changing views."), true); return false; }
+    if (view !== state.currentView && window.CeasefireCoverSheets?.hasUnsavedChanges?.() && !await window.CeasefireCoverSheets.leave()) return false;
+    if (view !== state.currentView && (window.CeasefireCertification?.hasPendingNavigationOperation?.() ?? window.CeasefireCertification?.hasPendingOperation?.())) { message(uiCopy("Finish or retry the current certification operation before changing views."), true); return false; }
+    if (window.CeasefirePenetrations?.hasTakeoffReservation?.() || window.CeasefireTakeoffs?.hasLinkedRecovery?.()) { message(uiCopy("Finish or recover the confirmed Takeoff library link before changing views."), true); return false; }
+    if (view === "takeoffs" && !state.takeoffsEnabled) { message(uiCopy("TAKEOFFS is not included in this edition."), true); return false; }
+    if (view !== state.currentView && window.CeasefireSWMS?.hasPendingOperation?.() && !await window.CeasefireSWMS.leaveEditor()) return false;
+    if (view !== previousView && previousView === "forms" && !await window.ClassifireForms.leave()) return false;
     window.CeasefireNotifications?.navigate(view === "pricing" ? `pricing:${state.libraryKind}` : view === "calculators" ? `calculators:${calculatorId || state.calculatorKind}` : view === "estimate" ? `estimate:${state.estimateKind || "estimate"}` : view);
     if (view !== state.currentView && $("app-message").hidden) releaseMessageSpace();
     if (previousView === "pricing" && view !== previousView) window.CeasefireLibraries?.leave?.();
@@ -1239,17 +1239,17 @@
     }
     for (const choice of document.querySelectorAll("#projects-navigation-menu [data-project-section]")) choice.setAttribute("aria-pressed", String(choice.dataset.projectSection === view));
     for (const choice of document.querySelectorAll("#documents-navigation-menu [data-document-section]")) choice.setAttribute("aria-pressed", String(choice.dataset.documentSection === view));
-    if (view === "quotes") loadProjects();
-    if (view === "scheduler") window.CeasefireScheduler?.activate().catch(error => message(error.message, true));
     let estimatorReady;
-    if (view === "contacts" && previousView !== "contacts") estimatorReady = window.ClassifireContacts?.activate().catch(error => message(error.message, true));
+    if (view === "quotes") estimatorReady = loadProjects();
+    if (view === "scheduler") estimatorReady = window.CeasefireScheduler?.activate();
+    if (view === "contacts" && previousView !== "contacts") estimatorReady = window.ClassifireContacts?.activate();
     if (view === "forms" && previousView !== "forms") estimatorReady = window.ClassifireForms.activate();
-    if (view === "passive-fire-register") window.ClassifirePassiveRegister.open();
-    if (view === "swms") estimatorReady = window.CeasefireSWMS?.activate().catch(error => message(error.message, true));
-    if (["quote", "work-orders", "purchase-orders"].includes(view)) estimatorReady = window.CeasefireCommercial?.activate({quote:"quote", "work-orders":"work_order", "purchase-orders":"purchase_order"}[view], commercialDraftOwner).catch(error => message(error.message, true));
-    if (view === "pricing") selectLibrary(state.libraryKind, librarySelection);
-    if (view === "certification") estimatorReady = window.CeasefireCertification?.open().catch(error => message(error.message, true));
-    if (view === "documentation") estimatorReady = Promise.all([window.CeasefireDocumentation?.open(), window.CeasefireCoverSheets?.open?.()]).catch(error => message(error.message, true));
+    if (view === "passive-fire-register") estimatorReady = window.ClassifirePassiveRegister.open();
+    if (view === "swms") estimatorReady = window.CeasefireSWMS?.activate();
+    if (["quote", "work-orders", "purchase-orders"].includes(view)) estimatorReady = window.CeasefireCommercial?.activate({quote:"quote", "work-orders":"work_order", "purchase-orders":"purchase_order"}[view], commercialDraftOwner);
+    if (view === "pricing") estimatorReady = selectLibrary(state.libraryKind, librarySelection);
+    if (view === "certification") estimatorReady = window.CeasefireCertification?.open();
+    if (view === "documentation") estimatorReady = Promise.all([window.CeasefireDocumentation?.open(), window.CeasefireCoverSheets?.open?.()]);
     if (view === "calculators") {
       calculatorId ||= state.calculatorKind;
       if (calculatorId === "steel") calculatorId = "steel_vermiculite";
@@ -1259,11 +1259,14 @@
       else { $("estimator-penetration").hidden = true; state.estimatorKind = "estimate"; estimatorReady = calculatorId ? window.CeasefireCalculators?.select(calculatorId) : window.CeasefireCalculators?.open(); }
     }
     if (view === "estimate") estimatorReady = selectEstimator(state.estimateKind || "estimate");
-    if (view === "takeoffs") estimatorReady = window.CeasefireTakeoffs?.open().catch(error => message(error.message, true));
+    if (view === "takeoffs") estimatorReady = window.CeasefireTakeoffs?.open();
     // Each section starts with its heading and actions visible below the sticky
     // header, even when the previous estimate was scrolled far down the page.
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-    return estimatorReady;
+    try {
+      const opened = await estimatorReady;
+      return state.currentView === view && opened !== false && !(Array.isArray(opened) && opened.includes(false));
+    } catch (error) {message(error.message, true); return false;}
   }
 
   function getOverride(kind, id) { return state.draft[kind]?.[id] || {}; }
@@ -1303,7 +1306,7 @@
     }
     if (["documentation", "passive-fire-register"].includes(view) && !requireCreatedProject()) return false;
     if (view !== state.currentView && !await confirmLeavePricingLibrary()) return false;
-    await showView(view, librarySelection, undefined, commercialDraftOwner);
+    if (!await showView(view, librarySelection, undefined, commercialDraftOwner)) return false;
     if (state.currentView === view) window.CeasefireHeaderTagline?.next();
     return state.currentView === view;
   }
@@ -1319,7 +1322,7 @@
     }
     if (window.CeasefireCalculators?.canSelect?.(id) === false) return false;
     state.estimatorKind = "estimate";
-    await showView("calculators", undefined, id);
+    if (!await showView("calculators", undefined, id)) return false;
     if (state.currentView === "calculators") window.CeasefireHeaderTagline?.next();
     return state.currentView === "calculators";
   }
@@ -1330,7 +1333,7 @@
     if (state.currentView !== "estimate" && !await confirmLeavePricingLibrary()) return false;
     if (window.CeasefireCalculators?.hasPendingOperation?.()) { message(uiCopy("Finish the current calculator action before choosing an estimate."), true); return false; }
     state.estimateKind = kind;
-    await showView("estimate");
+    if (!await showView("estimate")) return false;
     if (state.currentView === "estimate") window.CeasefireHeaderTagline?.next();
     return state.currentView === "estimate";
   }
@@ -1356,6 +1359,20 @@
       const submenu = $("steel-calculator-navigation-menu"), parent = $("steel-calculator-navigation-toggle");
       if (submenu && parent) { submenu.hidden = true; parent.setAttribute("aria-expanded", "false"); }
     }
+  }
+  let navigationSoundRevision=0;
+  async function navigateFromControl(button, kind, navigate) {
+    const revision=++navigationSoundRevision;
+    const selected=button.getAttribute("aria-current")==="page" || button.getAttribute("aria-pressed")==="true" ||
+      (button.dataset.settingsAction==="settings" && state.currentView==="settings");
+    const parent=button.closest?.(".section-navigation");
+    // A menu can remember its selected subpage while a different workspace is open.
+    const current=selected && (!parent || parent.querySelector("[data-view]")?.getAttribute("aria-current")==="page");
+    try {
+      const opened=await navigate(button);
+      if(opened===true && !current && revision===navigationSoundRevision) window.CeasefireButtonSounds?.navigationOpened?.(kind);
+      return opened;
+    } catch(error) {message(error.message,true);return false;}
   }
   function setupSectionNavigation(id, selector, setOpen, navigate) {
     const navigation = $(id), toggle = $(id + "-toggle"), menu = $(id + "-menu");
@@ -1386,14 +1403,14 @@
         $("penetration-navigation-menu").hidden = false; choice.setAttribute("aria-expanded", "true"); return;
       }
       setOpen(false);
-      navigate(choice).catch(error => message(error.message, true));
+      void navigateFromControl(choice,"header",navigate);
     });
     window.addEventListener("pointerdown", event => { if (!navigation.contains(event.target)) setOpen(false); });
   }
   function setupWorkspaceTabs(id, selector, navigate) {
     const strip = $(id);
     for (const button of strip?.querySelectorAll(selector) || []) button.addEventListener("click", () => {
-      Promise.resolve(navigate(button)).catch(error => message(error.message, true));
+      void navigateFromControl(button,id==="takeoff-pages" ? "takeoffTab" : "page",navigate);
     });
     strip?.addEventListener("keydown", event => {
       const tabs = [...strip.querySelectorAll(selector)].filter(button => !button.disabled), index = tabs.indexOf(event.target);
@@ -1450,7 +1467,7 @@
     setupSectionNavigation("settings-navigation", "[data-settings-action]", open => setSectionMenuOpen("settings-navigation", open), choice =>
       choice.dataset.settingsAction === "sign-out" ? window.CeasefireScheduler.openSignOut($("settings-navigation-toggle")) : requestViewNavigation("settings"));
     setupSectionNavigation("contacts-navigation", "[data-contacts-section]", open => setSectionMenuOpen("contacts-navigation", open), async choice => {
-      if (await requestViewNavigation("contacts")) await window.ClassifireContacts?.activate(choice.dataset.contactsSection);
+      return await requestViewNavigation("contacts") && await window.ClassifireContacts?.activate(choice.dataset.contactsSection);
     });
   }
   let takeoffNavigationPending = false;
@@ -1464,7 +1481,7 @@
       if (changed) {
         // An in-section choice already updates the workspace. Reopening the
         // section would rerender its unchanged PDF and record redundant proofs.
-        if (state.currentView !== "takeoffs") await showView("takeoffs");
+        if (state.currentView !== "takeoffs" && !await showView("takeoffs")) return false;
         window.CeasefireHeaderTagline?.next();
       }
       return !!changed && state.currentView === "takeoffs";
@@ -1474,7 +1491,7 @@
     if (!["pricing", "penetration", "technical"].includes(kind)) return false;
     if ((state.currentView !== "pricing" || kind !== state.libraryKind) && !await confirmLeavePricingLibrary()) return false;
     state.libraryKind = kind;
-    await showView("pricing", selection);
+    if (!await showView("pricing", selection)) return false;
     if (state.currentView === "pricing") window.CeasefireHeaderTagline?.next();
     return state.currentView === "pricing";
   }
@@ -2941,12 +2958,12 @@
         const pageQuery = query.filter(part => part !== "refresh=1");
         while (data.files?.length < data.matched) {
           const page = await request(`/api/projects?${[...pageQuery, `offset=${data.files.length}`].join("&")}`);
-          if (revision !== state.projectsRevision) return;
+          if (revision !== state.projectsRevision) return false;
           if (!page.files.length) break;
           data.files.push(...page.files);
         }
       }
-      if (revision !== state.projectsRevision) return;
+      if (revision !== state.projectsRevision) return false;
       if (data.folder) $("project-folder").textContent = data.folder;
       else window.CeasefireI18n.text($("project-folder"), "Link your estimates folder to list its project files and use it as the default save location.");
       state.projectsOffset = 0;
@@ -2964,12 +2981,14 @@
       if (data.truncated && !data.scan_pending) problems.push("Some entries could not be listed. Refresh to try again; details are shown below.");
       $("project-file-errors").textContent = problems.join("\n"); $("project-file-errors").hidden = !problems.length;
       if (data.scan_pending && state.currentView === "quotes") state.projectsTimer = setTimeout(() => { if (revision === state.projectsRevision && state.currentView === "quotes") loadProjects(); }, 250);
+      return true;
     } catch (error) {
       if (revision === state.projectsRevision) {
         list.replaceChildren(node("p", "message error", error.message));
         window.CeasefireI18n.text($("project-list-status"), "Project list unavailable · use Refresh to retry");
         $("project-continue").hidden = true;
       }
+      return false;
     } finally { if (revision === state.projectsRevision) list.setAttribute("aria-busy", "false"); }
   }
 
@@ -3197,13 +3216,15 @@
 
   for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", event => {
     if (button.id === "settings-navigation-toggle" && event.pointerType === "touch") return;
-    if (button.id === "calculator-navigation-toggle") return requestCalculatorNavigation();
-    if (button.id === "documents-navigation-toggle") return requestDocumentsNavigation();
-    return requestViewNavigation(button.dataset.view);
+    return navigateFromControl(button,"header",()=>{
+      if (button.id === "calculator-navigation-toggle") return requestCalculatorNavigation();
+      if (button.id === "documents-navigation-toggle") return requestDocumentsNavigation();
+      return requestViewNavigation(button.dataset.view);
+    });
   });
-  for (const button of projectPages?.querySelectorAll("[data-project-section]") || []) button.addEventListener("click", () => requestViewNavigation(button.dataset.projectSection));
+  setupWorkspaceTabs("project-pages","[data-project-section]",button=>requestViewNavigation(button.dataset.projectSection));
   for (const card of document.querySelectorAll(".projects-section-card[data-document-section]")) card.addEventListener("click", () => requestViewNavigation(card.dataset.documentSection));
-  for (const button of documentPages?.querySelectorAll("[data-document-section]") || []) button.addEventListener("click", () => requestViewNavigation(button.dataset.documentSection));
+  setupWorkspaceTabs("document-pages","[data-document-section]",button=>requestViewNavigation(button.dataset.documentSection));
   for (const card of document.querySelectorAll("[data-steel-calculator]")) card.addEventListener("click", () => requestCalculatorNavigation(card.dataset.steelCalculator));
   setupWorkspaceTabs("calculator-kind-pages", "[data-calculator-id]", button => requestCalculatorNavigation(button.dataset.calculatorId));
   setupWorkspaceTabs("library-pages", "[data-library-kind]", button => requestLibraryNavigation(button.dataset.libraryKind));

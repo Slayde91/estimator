@@ -1,6 +1,16 @@
 (() => {
   'use strict';
   const views = new Map();
+  function linkedRecordLabel(reference, details = {}, project = {}) {
+    const clean = value => String(value || '').trim().replace(/\s+/g, ' ');
+    const identity = [clean(details.client) || clean(project.client),
+      clean(details.site_address) || clean(project.site_address)].filter(Boolean).join('-');
+    return [clean(reference), identity].filter(Boolean).join(': ');
+  }
+  function linkedDocumentLabel(doc, project, reference) {
+    const number = reference || doc.reference || (doc.kind === 'work_order' && doc.fields?.order?.work_order_reference) || doc.last_number;
+    return linkedRecordLabel(number, doc.fields?.details, project) || doc.fields?.title || doc.kind;
+  }
   function viewFor(workspace) {
     if (!views.has(workspace)) {
       let saved;
@@ -144,5 +154,5 @@
   document.addEventListener('visibilitychange', refreshFollowUps);
   window.addEventListener('pageshow', refreshFollowUps);
   window.addEventListener('ceasefire:organization-timezone-changed', refreshFollowUps);
-  window.ClassifireDocumentBoard = {render, viewFor, viewPicker, recordTable, addFollowUpMarker, refreshFollowUps};
+  window.ClassifireDocumentBoard = {render, viewFor, viewPicker, recordTable, linkedRecordLabel, linkedDocumentLabel, addFollowUpMarker, refreshFollowUps};
 })();

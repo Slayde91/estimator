@@ -1,5 +1,6 @@
 'use strict';
 // Exercise real controls and exporters on private synthetic storage only.
+const {expandPanels}=require('./record_disclosures.cjs');
 const {chromium,expect}=require('@playwright/test');
 const {spawn,spawnSync}=require('node:child_process'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {createHash}=require('node:crypto');
@@ -87,6 +88,7 @@ function libraryFiles(){const directory=path.dirname(path.dirname(info.diagram))
  await openProjectSection(page,'swms');await page.getByRole('button',{name:'New SWMS',exact:true}).click();await expect(page.locator('#swms-root .swms-download').first()).toBeVisible();await cancelDraft(page.locator('#swms-root'),'Back to Documents');
  checks.push('The same plus controls open and discard the correct Quote, Work Order, Purchase Order and SWMS editors after a real numbered Project exists.');
  await openProjectSection(page,'quote');const quote=page.locator('#commercial-quote-root');await quote.getByRole('button',{name:'New Quote',exact:true}).click();
+ await expandPanels(quote,'Linked Contacts');
  const left=quote.locator('.commercial-sidebar').first();await left.getByRole('combobox',{name:'Name',exact:true}).fill(primary.name);await left.getByRole('option',{name:primary.name,exact:true}).click();
  const saved=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/commercial/save');await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();assert.equal((await saved).status(),200);await idle();
  const projectBefore=fs.readFileSync(info.project),directoryBefore=await read('/api/contacts/directory'),identity=await page.evaluate(()=>window.CeasefireProject.context()),selector='native:'+identity.project_token;
@@ -98,8 +100,9 @@ function libraryFiles(){const directory=path.dirname(path.dirname(info.diagram))
  checks.push('The outlined refresh SVG matches the existing reset icon; clicking it reads newly linked Contacts without changing directory records or the saved Project.');
  const quotePdf=await quote.locator('.commercial-download-pdf .download-format-icon').innerHTML();
  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await openProjectSection(page,'documentation');
- await page.locator('#documentation-pdf-rows').getByRole('button',{name:'Other documents',exact:true}).click();
- const breakdown=page.locator('button[data-document-kind="estimate.summary.pdf"]');await breakdownButton(breakdown);
+ const breakdown=page.locator('button[data-document-kind="estimate.summary.pdf"]');
+ if(!await breakdown.isVisible())await page.locator('#documentation-pdf-rows').getByRole('button',{name:'Other documents',exact:true}).click();
+ await breakdownButton(breakdown);
  assert.equal(await breakdown.locator('.download-format-icon').innerHTML(),quotePdf);
  const snapshot=()=>page.evaluate(()=>({calculators:window.CeasefireCalculators.projectSnapshot(),penetration:window.CeasefirePenetrations.projectSnapshot(),configuration:window.CeasefireProject.configuration(),details:window.CeasefireProject.details()}));const before=await snapshot();
  const receipt=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/quote-report');await breakdown.click();const reply=await receipt;assert.equal(reply.status(),200,await reply.text());const result=await reply.json();assert.equal(result.saved,true);assert.equal(result.documentation.item.kind,'estimate.summary.pdf');
@@ -117,8 +120,9 @@ function libraryFiles(){const directory=path.dirname(path.dirname(info.diagram))
  const load=view.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/open');await clickProjectControl(view,'Load');assert.equal((await load).status(),200);
  const review=view.locator('#discard-dialog');await Promise.race([review.waitFor({state:'visible'}),view.waitForFunction(client=>window.CeasefireProject?.details?.().client===client,company.company)]);if(await review.isVisible())await review.locator('[value="confirm"]').click();await idle(view);assert.equal(await view.evaluate(()=>window.CeasefireProject.details().client),company.company);await openProjectSection(view,'documentation');
  assert.deepEqual(await view.evaluate(()=>window.CeasefireLibraryEditor.projectSnapshot()),localRecords);assert.deepEqual(libraryStorage(),masterLibraryBefore);assert.deepEqual(libraryFiles(),sourceLibraryBefore);assert.deepEqual((await read('/api/bootstrap')).configuration,configurationBefore);
- await view.locator('#documentation-pdf-rows').getByRole('button',{name:'Other documents',exact:true}).click();
- const viewerBreakdown=view.locator('button[data-document-kind="estimate.summary.pdf"]');await breakdownButton(viewerBreakdown,true);let viewerExports=0;view.on('request',r=>{if(r.method()==='POST'&&new URL(r.url()).pathname==='/api/quote-report')viewerExports++;});await viewerBreakdown.evaluate(b=>b.click());assert.equal(viewerExports,0);
+ const viewerBreakdown=view.locator('button[data-document-kind="estimate.summary.pdf"]');
+ if(!await viewerBreakdown.isVisible())await view.locator('#documentation-pdf-rows').getByRole('button',{name:'Other documents',exact:true}).click();
+ await breakdownButton(viewerBreakdown,true);let viewerExports=0;view.on('request',r=>{if(r.method()==='POST'&&new URL(r.url()).pathname==='/api/quote-report')viewerExports++;});await viewerBreakdown.evaluate(b=>b.click());assert.equal(viewerExports,0);
  const denied=await view.evaluate(async()=>{const response=await fetch('/api/contacts/contacts',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});return response.status;});assert.equal(denied,403);
  assert.deepEqual(fs.readFileSync(info.project),projectBefore);assert.deepEqual(await read('/api/contacts/directory'),directoryBefore);
  checks.push('Named viewers load the exact saved nonempty local Library record/PNG/pricing without changing source Library files, shared Library DB rows, master configuration or Project bytes; creation/generation stays disabled and writes are denied.');

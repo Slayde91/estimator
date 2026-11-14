@@ -5,7 +5,7 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `header-tagline-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
-const assets = ['static/app.js', 'static/styles.css', 'static/index.html', 'static/brand-boot.js', 'static/brand-boot.css', 'static/header-tagline-media.js', 'static/header-tagline-character.gif', 'static/header-tagline-character-still.png', 'static/sounds/gameover.mp3'];
+const assets = ['static/app.js', 'static/styles.css', 'static/index.html', 'static/brand-boot.js', 'static/brand-boot.css', 'static/header-tagline-media.js', 'static/header-tagline-character.gif', 'static/header-tagline-character-still.png', 'static/sounds/classifire.mp3'];
 const assetHashes = Object.fromEntries(assets.map(name => [name, crypto.createHash('sha256').update(fs.readFileSync(path.join(root, name))).digest('hex')]));
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python', [path.join(__dirname, 'fixtures.py'), '--directory', output], { cwd: root, windowsHide: true });
 let logs = '', browser, page;
@@ -330,8 +330,8 @@ async function presentationNavigation(initial) {
     await context.addInitScript(()=>{
       window.qaBrandSound=[];
       const play=HTMLMediaElement.prototype.play,pause=HTMLMediaElement.prototype.pause;
-      HTMLMediaElement.prototype.play=function(){if(this.src.endsWith('/sounds/gameover.mp3')){window.qaBrandSound.push('play');return Promise.resolve();}return play.call(this);};
-      HTMLMediaElement.prototype.pause=function(){if(this.src.endsWith('/sounds/gameover.mp3'))window.qaBrandSound.push('pause');return pause.call(this);};
+      HTMLMediaElement.prototype.play=function(){if(this.src.endsWith('/sounds/classifire.mp3')){window.qaBrandSound.push('play');return Promise.resolve();}return play.call(this);};
+      HTMLMediaElement.prototype.pause=function(){if(this.src.endsWith('/sounds/classifire.mp3'))window.qaBrandSound.push('pause');return pause.call(this);};
     });
     page=await context.newPage();watch(page);await installPausedClock();await page.goto(`http://127.0.0.1:${info.port}/`);await finishBootFrames();
     const first=await layout();assert.equal(first.accessible,expected);assert.notEqual(first.typed,expected);assert.equal(first.typed.length,expected.length);
@@ -344,8 +344,8 @@ async function presentationNavigation(initial) {
     await page.clock.runFor(5050);assert.equal((await layout()).typed,expected);
     await page.evaluate(()=>window.CeasefireI18n.setLanguage('en'));await page.clock.runFor(5050);assert.equal((await layout()).typed,expected);
     await page.screenshot({path:path.join(output,'intelligence-resolved-390.png')});
-    const audio=await page.request.get(`http://127.0.0.1:${info.port}/sounds/gameover.mp3`);assert.equal(audio.status(),200);
-    assert.equal(crypto.createHash('sha256').update(await audio.body()).digest('hex'),assetHashes['static/sounds/gameover.mp3']);
+    const audio=await page.request.get(`http://127.0.0.1:${info.port}/sounds/classifire.mp3`);assert.equal(audio.status(),200);
+    assert.equal(crypto.createHash('sha256').update(await audio.body()).digest('hex'),assetHashes['static/sounds/classifire.mp3']);
     assert.match(audio.headers()['content-type'],/audio\/mpeg/);
     evidence.intelligence={first,resolving,settled,brandSoundPlays:1,literalInFrench:true,audioBytesVerified:true};csp.push(...await page.evaluate(()=>window.qaCsp));await context.close();
   }

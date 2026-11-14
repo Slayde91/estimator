@@ -23,6 +23,8 @@
     const hint=node('p','helper record-resource-status');hint.setAttribute('role','status');
     function message(source,error=false) {
       if(!current())return;
+      // The owner displays the same error alongside this inline copy.
+      hint.toggleAttribute('data-notification-mirror', Boolean(error && options.message));
       hint.textContent=tr(source);hint.classList.toggle('error',error);
       if(error)options.message?.(source,true);
     }

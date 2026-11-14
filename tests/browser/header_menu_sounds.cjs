@@ -3,7 +3,7 @@ const { chromium, expect } = require("@playwright/test");
 const { spawn } = require("node:child_process"), fs = require("node:fs"), path = require("node:path"), assert = require("node:assert/strict"), { createHash } = require("node:crypto");
 const root = path.resolve(__dirname, "../.."), output = process.env.CEASEFIRE_BROWSER_OUTPUT || path.join(root, ".runtime/browser-qa", `header-menu-sounds-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
-const sourceFiles = ["static/header-menu-sounds.js", "static/downloads.js", "static/calculators.js", "static/penetration.js", "static/app.js", "estimator/server.py", "static/sounds/mgs1-menu-move.mp3", "static/sounds/mgs-confirm2.mp3", "static/sounds/flame-whoosh.wav", "static/sounds/select.mp3", "static/sounds/select-2.mp3", "static/sounds/type.mp3", "static/sounds/checkpoint.ogg", "static/sounds/gameover.mp3", "static/sounds/loading.mp3", "tests/browser/header_menu_sounds.cjs", "tests/browser/header_menu_sounds_fixture.py"];
+const sourceFiles = ["static/header-menu-sounds.js", "static/downloads.js", "static/calculators.js", "static/penetration.js", "static/app.js", "estimator/server.py", "static/sounds/mgs1-menu-move.mp3", "static/sounds/mgs-confirm2.mp3", "static/sounds/flame-whoosh.wav", "static/sounds/select.mp3", "static/sounds/select-2.mp3", "static/sounds/type.mp3", "static/sounds/checkpoint.ogg", "static/sounds/classifire.mp3", "static/sounds/glitch.mp3", "static/sounds/radiobleep.mp3", "static/notifications.js", "static/sounds/loading.mp3", "tests/browser/header_menu_sounds.cjs", "tests/browser/header_menu_sounds_fixture.py"];
 const expectedSounds = [
   ["mgs1-menu-move.mp3", "ac2d686c78fa5dabc2415a0f3b39f4ced124f5fc1613ba3918e06daa7b47f8d0"],
   ["mgs-confirm2.mp3", "e9e7e156e24a4fde706f922ee135e88df51dc5ba94eed6344e66bbd6298e3e86"],
@@ -11,7 +11,9 @@ const expectedSounds = [
   ["select.mp3", "60e089eeac138ce5301fb59dc9d649c0404a556499c8f78c15c81a7cdfde1969"],
   ["select-2.mp3", "37e5c8645aa76e11dc8039545940436ea9201e533b1c946fbc9dfc3845efeb7b"],
   ["checkpoint.ogg", "60acfb941abf427378e87e7ae6660ae29491f8d5efaae2681d7eb9a52af3c935"],
-  ["gameover.mp3", "547911f8e7ddc37b8df47bf44cec988ccd6116a63a9ee87d10be6c97dd66496e"],
+  ["classifire.mp3", "d22af363104610a379cb3aa3403b94006cadca24c2a5945e8917b023460bca4e"],
+  ["glitch.mp3", "45e0abf3cabe3dca39741e3e68e0fe59169df57b9ff8a425848878a1477a7135"],
+  ["radiobleep.mp3", "8e7b045e7146ea12e21a9d6f9dbdd48e84285598e5936180c64c851d1660d686"],
 ];
 const digest = value => createHash("sha256").update(value).digest("hex");
 const sourceHashes = () => Object.fromEntries(sourceFiles.map(file => [file, digest(fs.readFileSync(path.join(root, file)))]));
@@ -56,11 +58,12 @@ async function noDownloadAudio() {
       await route.continue(); return;
     }
     const certificateWorkspaceCreation = url.origin === origin && url.pathname === "/api/certifications/workspaces" && request.method() === "POST";
+    const takeoffSessionCreation = url.origin === origin && url.pathname === "/api/takeoffs/sessions" && request.method() === "POST";
     if (certificateWorkspaceCreation) certificateWorkspaceRequests.push(request.postDataJSON());
     if (url.origin === origin && url.pathname === "/api/project/save-as" && request.method() === "POST") {
       saveRequests++; savedCertificateWorkspaces.push(request.postDataJSON().certifications?.workspace_id);
     }
-    if (url.origin === origin && !["GET", "HEAD"].includes(request.method()) && !certificateWorkspaceCreation && !/^\/api\/(?:calculate|download-progress|project\/save-as|penetration\/(?:definition|calculate|references)|calculators\/[^/]+\/(?:worksheet|calculate))$/.test(url.pathname)) {
+    if (url.origin === origin && !["GET", "HEAD"].includes(request.method()) && !certificateWorkspaceCreation && !takeoffSessionCreation && !/^\/api\/(?:calculate|download-progress|project\/save-as|penetration\/(?:definition|calculate|references)|calculators\/[^/]+\/(?:worksheet|calculate))$/.test(url.pathname)) {
       evidence.blocked_requests.push({ method: request.method(), path: url.pathname }); await route.abort(); return;
     }
     await route.continue();
@@ -146,7 +149,7 @@ async function noDownloadAudio() {
   evidence.checks.keyboardClickAndNestedHover = true;
   // Main-section buttons are silent, including Home cards and global Save.
   await home.click(); await idle();
-  const buttonCalls = () => page.evaluate(() => window.qaMenuAudio.calls.filter(row => !row.source.endsWith('gameover.mp3')).length);
+  const buttonCalls = () => page.evaluate(() => window.qaMenuAudio.calls.filter(row => !['/sounds/classifire.mp3','/sounds/radiobleep.mp3'].includes(row.source)).length);
   let silentStart = await buttonCalls();
   const homeHelp = page.locator('#view-home [data-home-view="help"]');
   await homeHelp.hover(); await homeHelp.click(); await idle();
@@ -154,8 +157,11 @@ async function noDownloadAudio() {
   await page.locator('.app-header nav [data-view="settings"]').click(); await idle();
   const theme = page.locator('#theme-toggle'); silentStart = await buttonCalls();
   await theme.hover(); await theme.click(); assert.equal(await buttonCalls(), silentStart);
-  const beforeSaveCalls = await buttonCalls(); await page.locator('#save-current-project').click();
+  const beforeSaveCalls = await buttonCalls();
+  const beforeSaveNotices = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source === '/sounds/radiobleep.mp3').length);
+  await page.locator('#save-current-project').click();
   await expect(page.locator('#app-message')).toContainText('Save cancelled. Your current project remains open.', {timeout:60000});
+  await played('/sounds/radiobleep.mp3', beforeSaveNotices);
   assert.equal(await buttonCalls(), beforeSaveCalls); assert.equal(saveRequests, 1);
   evidence.checks.mainButtonsAndSaveSilent = true;
   // These owned lightweight controls isolate delegated routing from Takeoff
@@ -273,7 +279,7 @@ async function noDownloadAudio() {
   evidence.checks.logoClickTrimmedFlameWhoosh = { ...logoOnset, sameClickEvent: true, leadingSecondsRemoved: 38118 / 44100 };
   const brandPhrase = 'CLASSIFIRE: Passive Fire Intelligence', tagline = page.locator('#header-tagline-label');
   if (await tagline.textContent() === brandPhrase) { await home.click(); await expect(tagline).not.toHaveText(brandPhrase); }
-  const brandPrior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith('gameover.mp3')).length);
+  const brandPrior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith('classifire.mp3')).length);
   // The existing tagline fixture selects phrases through Math.random. Keep the
   // override only through this trusted click/label check so concurrent visual
   // callbacks cannot consume it before selection; restore it in finally.
@@ -284,7 +290,7 @@ async function noDownloadAudio() {
   });
   try { await home.click(); await expect(tagline).toHaveText(brandPhrase); }
   finally { await page.evaluate(() => window.qaRestoreTaglineRandom?.()); }
-  await played('/sounds/gameover.mp3', brandPrior);
+  await played('/sounds/classifire.mp3', brandPrior);
   evidence.checks.specialPhraseUsesOwnSound = { phrase: brandPhrase, nativePlaying: true };
   await home.click();
   await expect(tagline).not.toHaveText(brandPhrase);
@@ -292,12 +298,23 @@ async function noDownloadAudio() {
   const typingPlayers = await page.evaluate(() => window.qaMenuAudio.media.filter(audio => audio.src.endsWith("type.mp3")).length);
   assert.equal(typingPlayers, 0, "Ordinary sentences finish typing without loading a sound");
   evidence.checks.silentPrinting = { typingPlayers };
-  assert.ok((await page.evaluate(() => window.qaMenuAudio.calls.filter(row => !row.source.endsWith("gameover.mp3"))))
+  assert.ok((await page.evaluate(() => window.qaMenuAudio.calls.filter(row => !['/sounds/classifire.mp3','/sounds/radiobleep.mp3'].includes(row.source))))
     .every(row => ["pointerenter", "pointerover", "click"].includes(row.event)), "Button playback attempts occur in their input event");
   await page.mouse.move(0, 0);
   await page.screenshot({ path: path.join(output, "header-menu-audio.png") });
   assert.deepEqual(await snapshot(), before, "Menu audio preserves the entire initialized calculator, pricing and project draft");
   evidence.checks.draftsPreserved = true;
+  await require('./section_navigation.cjs').chooseTakeoff(page, 'Steel');
+  const tabs = page.locator('#takeoff-pages button');
+  assert.deepEqual(await tabs.allTextContents(), ['Steel', 'Duct', 'Walls/Floors', 'Defect Reports', 'Service Plans']);
+  for (const tab of await tabs.all()) {
+    const before = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source === '/sounds/glitch.mp3' && row.trusted).length);
+    const oldSound = await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source === '/sounds/select.mp3').length);
+    await tab.click(); await played('/sounds/glitch.mp3', before);
+    await expect(tab).toHaveAttribute('aria-pressed', 'true');
+    assert.equal(await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source === '/sounds/select.mp3').length), oldSound);
+  }
+  evidence.checks.takeoffTabSounds = await tabs.allTextContents();
   evidence.audio_events = await page.evaluate(() => ({ calls: window.qaMenuAudio.calls, playing: window.qaMenuAudio.playing, csp: window.qaMenuAudio.csp }));
   await noDownloadAudio();
   assert.deepEqual(evidence.audio_events.csp, []); assert.deepEqual(evidence.errors, []); assert.deepEqual(evidence.blocked_requests, []);

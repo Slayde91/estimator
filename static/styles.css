@@ -645,7 +645,8 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .project-workspace-layout.project-pane-open{grid-template-columns:minmax(170px,1fr) minmax(0,3fr) minmax(200px,1.15fr);gap:16px}
 .project-workspace-main,.project-workspace-side,.project-workspace-links,.project-details-pane{min-width:0}
 .project-workspace-main,.project-workspace-side,.project-workspace-links{display:grid;gap:16px;align-content:start}
-.project-details-actions{display:flex;align-items:center;flex-wrap:wrap;gap:12px;background:var(--paper);padding:12px;border:1px solid var(--line);border-radius:10px}
+.project-details-actions,.commercial-editor-actions,.certification-editor-toolbar,.swms-editor-toolbar{background:var(--paper);padding:12px;border:1px solid var(--red);border-radius:10px}
+.project-details-actions{display:flex;align-items:center;flex-wrap:wrap;gap:12px}
 .project-details-actions>.button{height:42px;min-height:42px}
 .project-details-actions>.icon-only{width:42px;min-width:42px;padding:0}
 #view-quotes .project-workspace-links #snapshot-message{margin:0;align-items:flex-start;flex-direction:column}

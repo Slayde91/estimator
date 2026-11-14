@@ -1,4 +1,9 @@
 {
+  "Signing out will discard unsaved changes.": [
+    "로그아웃하면 저장하지 않은 변경 사항이 사라집니다.",
+    "Mawawala ang mga hindi na-save na pagbabago kapag nag-sign out ka.",
+    "Các thay đổi chưa lưu sẽ bị mất khi bạn đăng xuất."
+  ],
   "Checking location…": [
     "위치 확인 중…",
     "Sinusuri ang lokasyon…",
@@ -24,10 +29,10 @@
     "Susunod na linggo",
     "Tuần sau"
   ],
-  "Location access is blocked. Enable location for CLASSIFIRE in your browser, then check location again.": [
-    "위치 접근이 차단되었습니다. 브라우저에서 CLASSIFIRE에 위치 권한을 허용한 뒤 다시 확인하세요.",
-    "Naka-block ang access sa lokasyon. Payagan ang CLASSIFIRE na gumamit ng lokasyon sa browser, saka suriin ito muli.",
-    "Quyền truy cập vị trí đã bị chặn. Hãy cho phép CLASSIFIRE truy cập vị trí trong trình duyệt rồi kiểm tra lại."
+  "Location access is blocked. Enable location for CLASSIFIRE in your browser.": [
+    "위치 접근이 차단되었습니다. 브라우저에서 CLASSIFIRE에 위치 권한을 허용하세요.",
+    "Naka-block ang access sa lokasyon. Payagan ang CLASSIFIRE na gumamit ng lokasyon sa browser.",
+    "Quyền truy cập vị trí đã bị chặn. Hãy cho phép CLASSIFIRE truy cập vị trí trong trình duyệt."
   ],
   "The location request timed out. Check this computer's location services and try again.": [
     "위치 요청 시간이 초과되었습니다. 이 컴퓨터의 위치 서비스를 확인한 뒤 다시 시도하세요.",

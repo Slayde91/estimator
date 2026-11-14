@@ -459,7 +459,7 @@
     box.append(element("p", "muted", "PDF (up to 25 pages / 10 MB), PNG or JPEG (up to 2 MB). All SWMS documents and encoded attachments share a 12 MiB project storage budget. Attachments are included at the end of the PDF."), list, field("Add files", input)); render(); host.append(box);
   }
   function editorActions() {
-    const actions = element("div", "swms-toolbar");
+    const actions = element("div", "swms-toolbar swms-editor-toolbar");
     const downloadButton = button("", download, true);
     downloadButton.classList.add("icon-only", "swms-download");
     downloadButton.title = "Download PDF";

@@ -14,7 +14,7 @@
   const uiButton = (source, action, cls = "button secondary", args = []) => { const element = button("", action, cls); return window.CeasefireI18n?.nodeText ? window.CeasefireI18n.nodeText(element, source, args) : uiText(element, source, args); };
 
   const kinds = ["penetration", "technical"], titles = { penetration: "Firestopping Library", technical: "Technical Library" };
-  const state = { current: null, metadata: null, metadataRequest: null, panes: new Map(), history: [] };
+  const state = { current: null, metadata: null, metadataRequest: null, metadataAbort: null, panes: new Map(), history: [] };
   const $ = id => document.getElementById(id);
   const node = (tag, className = "", text) => { const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = String(text); return el; };
   const uiTerm = (source, args = []) => window.CeasefireI18n?.term ? window.CeasefireI18n.term(source, args) : String(source).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index]));
@@ -48,16 +48,16 @@
     return data;
     } finally { endActivity?.(); }
   }
-  async function metadata(refresh = false) {
-    if (refresh) { state.metadata = null; state.metadataRequest = null; }
+  async function metadata() {
     if (state.metadata) return state.metadata;
     if (!state.metadataRequest) {
-      const pending = request("/api/libraries"); state.metadataRequest = pending;
+      state.metadataAbort = new AbortController();
+      const pending = request("/api/libraries", state.metadataAbort.signal); state.metadataRequest = pending;
       try {
         const data = await pending;
         if (state.metadataRequest === pending) state.metadata = data;
         return data;
-      } finally { if (state.metadataRequest === pending) state.metadataRequest = null; }
+      } finally { if (state.metadataRequest === pending) { state.metadataRequest = null; state.metadataAbort = null; } }
     }
     return state.metadataRequest;
   }
@@ -73,6 +73,7 @@
       linkSession: null, addPending: new Map(), addErrors: new Map(), deletePending: new Set(), deleteButtons: new Map(), unlinkPending: new Set(), unlinkButtons: new Map(),
       scheduleButtons: new Map(), actionMessages: new Map(), quantityBadges: new Map(), documentCleanup: null, documentPending: null, documentControls: [] };
     const root = $(kind + "-library-workspace");
+    pane.loading = node("p", "helper library-loading"); pane.loading.hidden = true; pane.loading.setAttribute("role", "status");
     pane.message = node("div", "message"); pane.message.hidden = true; pane.message.setAttribute("role", "status");
     pane.projectDrafts = node("section", "card library-project-drafts"); pane.projectDrafts.hidden = true; uiAttr(pane.projectDrafts, "aria-label", "Project library drafts");
     pane.summary = node("section", "card library-summary"); pane.summary.hidden = true; pane.summary.dataset.librarySummary = kind;
@@ -97,7 +98,7 @@
     const pagination = node("nav", "library-pagination"); uiAttr(pagination, "aria-label", "{0} result pages", [() => window.CeasefireI18n?.translate(titles[kind]) || titles[kind]]); pagination.append(pane.previous, pane.next);
     pane.list.append(controls, pane.filterControls, pane.count, pane.results, pagination);
     pane.detailPanel = node("section", "card library-detail"); pane.detailPanel.hidden = true; pane.detailPanel.dataset.libraryDetail = kind;
-    root.replaceChildren(pane.message, pane.projectDrafts, pane.summary, pane.linkPanel, pane.list, pane.detailPanel);
+    root.replaceChildren(pane.loading, pane.message, pane.projectDrafts, pane.summary, pane.linkPanel, pane.list, pane.detailPanel);
     pane.searchInput.addEventListener("input", () => {
       pane.search = pane.searchInput.value.trim(); pane.offset = 0;
       invalidateList(pane); uiText(pane.count, "Searching…");
@@ -1064,7 +1065,7 @@
   async function loadDetail(pane, id) {
     pane.documentCleanup?.();
     clearTimeout(pane.timer); invalidateList(pane);
-    pane.selected = id; pane.detailAbort?.abort(); const revision = ++pane.detailRevision;
+    pane.selected = id; pane.detail = null; pane.detailAbort?.abort(); const revision = ++pane.detailRevision;
     pane.detailAbort = new AbortController(); pane.list.hidden = true; pane.detailPanel.hidden = false; message(pane);
     pane.detailPanel.replaceChildren(detailNavigation(pane), uiNode("p", "empty-state", "Loading record…")); pane.detailPanel.setAttribute("aria-busy", "true");
     try {
@@ -1074,7 +1075,23 @@
     } catch (error) {
       if (revision !== pane.detailRevision || error.name === "AbortError") return;
       pane.detailPanel.replaceChildren(detailNavigation(pane), node("p", "message error", error.message), uiButton("Retry record", () => loadDetail(pane, id), "button secondary"));
-    } finally { if (revision === pane.detailRevision) pane.detailPanel.setAttribute("aria-busy", "false"); }
+    } finally { if (revision === pane.detailRevision) { pane.detailAbort = null; pane.detailPanel.setAttribute("aria-busy", "false"); } }
+  }
+  function leave(nextKind) {
+    const pane = state.panes.get(state.current);
+    if (!pane || pane.kind === nextKind) return;
+    ++pane.openRevision;
+    invalidateList(pane); setBusy(pane, false);
+    if (pane.detailAbort) {
+      ++pane.detailRevision; pane.detailAbort.abort(); pane.detailAbort = null;
+      pane.detailPanel.setAttribute("aria-busy", "false");
+    }
+    pane.loading.hidden = true;
+    if (!kinds.includes(nextKind)) {
+      state.metadataAbort?.abort();
+      state.metadataRequest = null; state.metadataAbort = null;
+    }
+    state.current = null;
   }
   async function open(kind, selection) {
     if (!kinds.includes(kind)) return;
@@ -1085,13 +1102,16 @@
       if (editing.technicalEditor.dirty && !await window.CeasefirePenetrationNavigation?.confirm?.("Discard unsaved Technical Library edits?", "The current form has unsaved changes.", "Discard edits")) return;
     }
     for (const existing of state.panes.values()) { closeLinkPicker(existing); existing.documentCleanup?.(); if (existing.technicalEditorPanel) { existing.technicalEditor?.cleanup?.(); existing.technicalEditor = null; existing.technicalEditorPanel.hidden = true; } }
+    leave(kind);
     state.current = kind; const pane = paneFor(kind), revision = ++pane.openRevision;
     renderProjectDrafts(pane);
     if (kind === "penetration" && validId(selection) && window.CeasefireLibraryEditor?.projectRecords?.().some(record => record.id === selection)) {
       pane.list.hidden = false; pane.detailPanel.hidden = true; return;
     }
     try {
-      if (!pane.count.textContent) uiText(pane.count, "Loading library…");
+      if (!state.metadata) {
+        pane.loading.hidden = false; uiText(pane.loading, "Loading library…");
+      }
       const data = await metadata();
       if (revision !== pane.openRevision) return;
       const info = data.libraries?.find(library => library.id === kind); renderSummary(pane);
@@ -1107,16 +1127,20 @@
     } catch (error) {
       if (revision !== pane.openRevision) return;
       uiText(pane.count, "Library unavailable."); message(pane, "{0} Use Refresh to try again.", true, [() => window.CeasefireI18n?.translate(error.message) || error.message]);
+    } finally {
+      if (revision === pane.openRevision) pane.loading.hidden = true;
     }
   }
   async function refresh(pane) {
     invalidateList(pane); pane.data = null; pane.detail = null; pane.filterStamp = null;
+    state.metadataAbort?.abort();
     state.metadata = null; state.metadataRequest = null; await open(pane.kind, pane.selected || { list: true });
   }
   function invalidate() {
+    state.metadataAbort?.abort();
     state.metadata = null; state.metadataRequest = null;
     for (const pane of state.panes.values()) pane.documentCleanup?.();
-    for (const pane of state.panes.values()) { invalidateList(pane); ++pane.detailRevision; pane.detailAbort?.abort(); pane.data = null; pane.dataQuery = null; pane.detail = null; }
+    for (const pane of state.panes.values()) { ++pane.openRevision; pane.loading.hidden = true; invalidateList(pane); setBusy(pane, false); ++pane.detailRevision; pane.detailAbort?.abort(); pane.data = null; pane.dataQuery = null; pane.detail = null; }
   }
   function renderProjectDrafts(pane) {
     const records = pane.kind === "penetration" ? window.CeasefireLibraryEditor?.projectRecords?.() || [] : [];
@@ -1136,5 +1160,5 @@
     await window.CeasefireLibraryNavigation.open("technical");
     return { selectionRequired: true };
   }
-  window.CeasefireLibraries = { open, invalidate, scheduleChanged, projectChanged, appendFilterOptions, documentationExport };
+  window.CeasefireLibraries = { open, leave, invalidate, scheduleChanged, projectChanged, appendFilterOptions, documentationExport };
 })();

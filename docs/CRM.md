@@ -95,10 +95,13 @@ combine the aliases while retaining the exact original source and document role.
 Undo restores the separate view; it does not roll back other edits. An older client
 that cannot express direct versus inherited links must reopen the updated editor.
 
-The enquiry editor compares This enquiry with Current Contact. Refresh copies only
-the selected name, title, phone or email into the unsaved form. It does not change
-the enquiry client, site, notes, historical snapshots or issued documents. Save is
-the version-checked write.
+The Lead editor shows the contact details saved with the enquiry. Select a Contact
+in the name field to copy their current name, title, phone and email into the form.
+Save records the enquiry changes.
+
+The follow-up dialog and Project Details show pending actions. Selecting Completed
+or Canceled removes an action from the list. Save records the decision in the
+activity history.
 
 ## Local staff access and signer recovery
 

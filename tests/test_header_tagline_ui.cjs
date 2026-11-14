@@ -259,7 +259,7 @@ const html = fs.readFileSync('static/index.html', 'utf8');
   const h=harness({random:.999});const phrase=phrases.at(-1);
   assert.equal(h.label.textContent,phrase);assert.equal(h.typed.textContent.length,phrase.length);
   assert.notEqual(h.typed.textContent,phrase);for(let i=0;i<phrase.length;i++)if(phrase[i]===' ')assert.equal(h.typed.textContent[i],' ');
-  assert.equal(h.audio.src,'/sounds/gameover.mp3');assert.equal(h.audio.plays,1);
+  assert.equal(h.audio.src,'/sounds/classifire.mp3');assert.equal(h.audio.plays,1);
   h.advance(2970);assert.notEqual(h.typed.textContent,phrase);assert.ok(!h.typed.textContent.startsWith(phrase.slice(0,7)));
   h.advance(330);assert.ok(h.typed.textContent.startsWith(phrase.slice(0,4)));assert.notEqual(h.typed.textContent,phrase);
   h.advance(1750);assert.equal(h.typed.textContent,phrase);assert.equal(h.cursor.hidden,true);assert.equal(h.audio.plays,1);

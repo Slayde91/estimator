@@ -710,9 +710,18 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   });
   await check('Concurrent opens share bootstrap and failures remain retryable',async h=>{
     const pending=deferred();h.setRoute(path=>path==='/api/libraries'?pending.promise:records(path.includes('technical')?'technical':'penetration'));
-    const first=h.api.open('penetration'),second=h.api.open('technical');await flush();assert.equal(h.calls.length,1);pending.reject(new Error('Library index unavailable'));await Promise.all([first,second]);
-    assert.match(h.pane('penetration').message.textContent,/index unavailable/);assert.match(h.pane('technical').message.textContent,/index unavailable/);
+    const first=h.api.open('penetration'),second=h.api.open('technical');await flush();assert.equal(h.calls.length,1);
+    assert.equal(h.pane('penetration').loading.hidden,true);assert.equal(h.pane('technical').loading.hidden,false);
+    pending.reject(new Error('Library index unavailable'));await Promise.all([first,second]);
+    assert.equal(h.pane('technical').loading.hidden,true);assert.equal(h.pane('penetration').message.textContent,'');assert.match(h.pane('technical').message.textContent,/index unavailable/);
     h.setRoute(path=>path==='/api/libraries'?meta():records('technical'));await h.pane('technical').refresh.emit('click');await flush();assert.equal(h.pane('technical').results.children.length,1);
+  });
+  await check('Leaving Libraries clears loading status and ignores a late response',async h=>{
+    const pending=deferred();h.setRoute(()=>pending.promise);
+    const opening=h.api.open('technical');await flush();const pane=h.pane('technical');
+    assert.equal(pane.loading.hidden,false);assert.equal(pane.loading.textContent,'Loading library…');
+    h.api.leave();assert.equal(h.calls[0].options.signal.aborted,true);assert.equal(pane.loading.hidden,true);
+    pending.resolve(meta());await opening;assert.equal(h.calls.length,1);assert.equal(pane.message.textContent,'');
   });
   await check('Returning from a record reloads an interrupted search instead of displaying stale cached results',async h=>{
     await h.api.open('penetration');const pane=h.pane('penetration');pane.searchInput.value='new search';await pane.searchInput.emit('input');

@@ -33,6 +33,7 @@
   <script src="/language.js" defer></script>
   <script src="/activity.js" defer></script>
   <link rel="stylesheet" href="/notifications.css">
+  <script src="/audio-settings.js" defer></script>
   <script src="/notifications.js" defer></script>
   <script src="/company-settings.js" defer></script>
   <script src="/calculation-queue.js" defer></script>
@@ -45,7 +46,6 @@
   <link rel="stylesheet" href="/documentation.css">
   <script src="/main-layout.js" defer></script>
   <script src="/header-tagline-media.js" defer></script>
-  <script src="/audio-settings.js" defer></script>
   <script src="/header-menu-sounds.js" defer></script>
   <script src="/penetration-presentation.js" defer></script>
   <script src="/travel.js" defer></script>
@@ -245,7 +245,13 @@ SOFTWARE. -->
       </div>
       <button id="scheduler-navigation" type="button" class="nav-button nav-icon" data-view="scheduler" aria-label="Scheduler" title="Scheduler" data-i18n-title="Scheduler" data-i18n-aria-label="Scheduler"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg><span class="nav-page-label" data-i18n="Scheduler">Scheduler</span></button>
       <button type="button" class="nav-button nav-icon" data-view="help" aria-label="Help" title="Help" data-i18n-title="Help" data-i18n-aria-label="Help"><svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="circle-help" class="lucide lucide-circle-help"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg><span class="nav-page-label" data-i18n="Help">Help</span></button>
-<button type="button" class="nav-button nav-icon" data-view="settings" aria-label="Settings" title="Settings" data-i18n-title="Settings" data-i18n-aria-label="Settings"><svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="settings" class="lucide lucide-settings"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"></path><circle cx="12" cy="12" r="3"></circle></svg><span class="nav-page-label" data-i18n="Settings">Settings</span></button>
+      <div id="settings-navigation" class="section-navigation">
+        <button id="settings-navigation-toggle" aria-expanded="false" aria-controls="settings-navigation-menu" type="button" class="nav-button nav-icon" data-view="settings" aria-label="Settings" title="Settings" data-i18n-title="Settings" data-i18n-aria-label="Settings"><svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="settings" class="lucide lucide-settings"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"></path><circle cx="12" cy="12" r="3"></circle></svg><span class="nav-page-label" data-i18n="Settings">Settings</span></button>
+        <div id="settings-navigation-menu" class="section-navigation-menu" role="group" aria-labelledby="settings-navigation-toggle" hidden>
+          <button type="button" class="section-navigation-choice" data-settings-action="settings" data-i18n="Settings">Settings</button>
+          <button type="button" class="section-navigation-choice" data-settings-action="sign-out" data-i18n="Sign out">Sign out</button>
+        </div>
+      </div>
     </nav>
 
     </div>

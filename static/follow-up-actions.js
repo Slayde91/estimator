@@ -20,8 +20,8 @@
   }
 
   function mount(host, options = {}) {
-    const initial = rows(options);
-    const controls = [];
+    const items = rows(options);
+    const savedCount = items.length;
     const list = document.createElement("div"), add = document.createElement("button");
     list.className = "follow-up-action-list";
     add.type = "button";
@@ -37,7 +37,7 @@
       row.className = "follow-up-action-row"; row.dataset.actionId = item.id;
       note.rows = 1; note.maxLength = 500; note.value = item.next_action;
       date.type = "date"; date.max = "9999-12-31"; date.value = item.follow_up_date;
-      if (options.idPrefix && !controls.length) {
+      if (options.idPrefix && !list.firstElementChild) {
         note.id = options.idPrefix + "-next-action";
         date.id = options.idPrefix + "-follow-up-date";
       }
@@ -48,40 +48,49 @@
       status.value = item.status;
       function update() {
         const blank = !note.value.trim() && !date.value;
-        const locked = Boolean(options.readOnly || status.value && !options.allowCorrections);
+        const locked = Boolean(options.readOnly || status.value);
         note.readOnly = date.readOnly = locked;
         status.disabled = locked || blank;
         note.required = (persisted || Boolean(status.value)) && blank && !locked;
         note.setCustomValidity(note.required && note.value ? window.CeasefireI18n.translate("This field is required.") : "");
         row.dataset.status = status.value;
+        Object.assign(item, {next_action:note.value, follow_up_date:date.value, status:status.value});
       }
       update();
       for (const input of [note, date]) input.addEventListener("input", () => {update(); options.onChange?.();});
       status.addEventListener("change", () => {
         if (!note.reportValidity() || !date.reportValidity()) { status.value = ""; return; }
-        update(); options.onChange?.();
+        update();
+        if (options.pendingOnly && status.value) {
+          const next = row.nextElementSibling || row.previousElementSibling;
+          row.remove();
+          (next?.querySelector("textarea") || add).focus();
+        }
+        options.onChange?.();
       });
       row.append(field("Next action", note), field(options.dateLabel || "Follow-up date", date), field("Follow-up status", status));
       list.append(row);
-      controls.push({id:item.id, persisted, note, date, status});
       return note;
     }
 
     function blankRow() {
-      return appendRow({id:crypto.randomUUID(), next_action:"", follow_up_date:"", status:""}, false);
+      const item = {id:crypto.randomUUID(), next_action:"", follow_up_date:"", status:""};
+      items.push(item);
+      return appendRow(item, false);
     }
 
     host.replaceChildren(list);
-    for (const item of initial) appendRow(item, true);
-    if (!initial.length) blankRow();
+    // Saves include closed actions in their original order even when the editor only shows pending work.
+    for (const item of items) if (!options.pendingOnly || !item.status) appendRow(item, true);
+    if (!items.length && !options.readOnly) blankRow();
     if (!options.readOnly) {
       host.append(add);
       add.addEventListener("click", () => blankRow().focus());
     }
     return {
       value() {
-        return controls.filter(({persisted, note, date}) => persisted || note.value.trim() || date.value)
-          .map(({id, note, date, status}) => ({id, next_action:note.value, follow_up_date:date.value, status:status.value}));
+        return items.filter((item, index) => index < savedCount || item.next_action.trim() || item.follow_up_date)
+          .map(item => ({...item}));
       }
     };
   }
@@ -141,7 +150,7 @@
     try {
       loaded = await load();
       if (!dialog.open) return;
-      editor = mount(fields, {actions:loaded.actions, allowCorrections:true, readOnly});
+      editor = mount(fields, {actions:loaded.actions, pendingOnly:true, readOnly});
       submit.disabled = readOnly;
       if (!readOnly && document.activeElement === cancel) fields.querySelector("textarea")?.focus();
     } catch (error) { if (dialog.open) problem(error); }

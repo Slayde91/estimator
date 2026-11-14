@@ -1,4 +1,11 @@
 {
+  "Signing out will discard unsaved changes.": [
+    "退出登录将丢失未保存的更改。",
+    "साइन आउट करने पर बिना सहेजे गए बदलाव खो जाएँगे।",
+    "Al cerrar sesión se perderán los cambios sin guardar.",
+    "سيؤدي تسجيل الخروج إلى فقدان التغييرات غير المحفوظة.",
+    "การออกจากระบบจะทำให้การเปลี่ยนแปลงที่ยังไม่ได้บันทึกสูญหาย"
+  ],
   "Checking location…": [
     "正在检查位置…",
     "स्थान की जाँच हो रही है…",
@@ -34,12 +41,12 @@
     "الأسبوع التالي",
     "สัปดาห์ถัดไป"
   ],
-  "Location access is blocked. Enable location for CLASSIFIRE in your browser, then check location again.": [
-    "位置访问被阻止。请在浏览器中允许 CLASSIFIRE 访问位置，然后重新检查。",
-    "स्थान का ऐक्सेस बंद है। अपने ब्राउज़र में CLASSIFIRE को स्थान की अनुमति दें और दोबारा जाँचें।",
-    "El acceso a la ubicación está bloqueado. Permita que CLASSIFIRE acceda a la ubicación en su navegador y vuelva a comprobarla.",
-    "الوصول إلى الموقع محظور. اسمح لـ CLASSIFIRE بالوصول إلى الموقع في المتصفح ثم أعد التحقق.",
-    "การเข้าถึงตำแหน่งถูกบล็อก โปรดอนุญาตให้ CLASSIFIRE เข้าถึงตำแหน่งในเบราว์เซอร์แล้วตรวจสอบอีกครั้ง"
+  "Location access is blocked. Enable location for CLASSIFIRE in your browser.": [
+    "位置访问被阻止。请在浏览器中允许 CLASSIFIRE 访问位置。",
+    "स्थान का ऐक्सेस बंद है। अपने ब्राउज़र में CLASSIFIRE को स्थान की अनुमति दें।",
+    "El acceso a la ubicación está bloqueado. Permita que CLASSIFIRE acceda a la ubicación en su navegador.",
+    "الوصول إلى الموقع محظور. اسمح لـ CLASSIFIRE بالوصول إلى الموقع في المتصفح.",
+    "การเข้าถึงตำแหน่งถูกบล็อก โปรดอนุญาตให้ CLASSIFIRE เข้าถึงตำแหน่งในเบราว์เซอร์"
   ],
   "The location request timed out. Check this computer's location services and try again.": [
     "位置请求超时。请检查此设备的位置服务，然后重试。",

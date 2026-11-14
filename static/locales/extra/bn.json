@@ -1,4 +1,5 @@
 {
+  "Signing out will discard unsaved changes.": "সাইন আউট করলে সংরক্ষণ না করা পরিবর্তনগুলি হারিয়ে যাবে।",
   "Clock in": "কাজ শুরুর সময়",
   "Clock out": "কাজ শেষের সময়",
   "Follow-up actions": "ফলো-আপ কাজ",
@@ -54,7 +55,7 @@
   "Location recorded at {0}.": "{0}-এ অবস্থান নথিভুক্ত হয়েছে।",
   "Previous week": "আগের সপ্তাহ",
   "Next week": "পরের সপ্তাহ",
-  "Location access is blocked. Enable location for CLASSIFIRE in your browser, then check location again.": "অবস্থানের অনুমতি বন্ধ আছে। ব্রাউজারে CLASSIFIRE-কে অবস্থান ব্যবহারের অনুমতি দিয়ে আবার যাচাই করুন।",
+  "Location access is blocked. Enable location for CLASSIFIRE in your browser.": "অবস্থানের অনুমতি বন্ধ আছে। ব্রাউজারে CLASSIFIRE-কে অবস্থান ব্যবহারের অনুমতি দিন।",
   "The location request timed out. Check this computer's location services and try again.": "অবস্থানের অনুরোধের সময়সীমা শেষ হয়েছে। এই কম্পিউটারের অবস্থান পরিষেবা পরীক্ষা করে আবার চেষ্টা করুন।",
   "A location could not be obtained. Enable location services and try again.": "অবস্থান পাওয়া যায়নি। অবস্থান পরিষেবা চালু করে আবার চেষ্টা করুন।",
   "Location is unavailable in this browser. Use a browser with location services enabled.": "এই ব্রাউজারে অবস্থান পাওয়া যায় না। অবস্থান পরিষেবা চালু আছে এমন ব্রাউজার ব্যবহার করুন।",

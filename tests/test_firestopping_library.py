@@ -366,12 +366,13 @@ class FirestoppingLibraryTests(unittest.TestCase):
         self.assertEqual(self.library.edits.stamp(), (0, 0))
         product['sales_price'] = old_price * 3
         self.store.save_configuration(config)
+        saved_shared_configuration = self.store.configuration()
         saved = self.library.action('pkb-001', 'save', self.body(refreshed))
         self.assertEqual(saved['price'], refreshed['price'])
         reopened = FirestoppingLibrary(self.root / 'library', self.store).edit('pkb-001')
         self.assertEqual(reopened['price'], refreshed['price'])
         self.assertEqual(reopened['source_price']['amount'], 150)
-        self.assertEqual(self.store.configuration(), validate_configuration(config))
+        self.assertEqual(self.store.configuration(), saved_shared_configuration)
 
     def test_stale_revision_and_injected_outputs_cannot_overwrite(self):
         other = FirestoppingLibrary(self.root / 'library', self.store)

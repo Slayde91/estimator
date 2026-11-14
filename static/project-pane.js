@@ -57,8 +57,9 @@
       add((label.querySelector("span") || label).textContent, current.details[key]);
     }
     for (const action of followUpRows(current.details)) {
+      if (action.status) continue;
       add(translate("Next action"), action.next_action);
-      add(translate("Follow-up due"), [action.follow_up_date, action.status && translate(action.status)].filter(Boolean).join(" · "));
+      add(translate("Follow-up due"), action.follow_up_date);
     }
     list.replaceChildren(...rows);
     headerDetails.querySelector(".header-project-details-title").textContent = current.file.title;
@@ -180,7 +181,7 @@
     window.ClassifireProjectParticipants?.show(selected.kind==="saved" ? selected.file : selected.kind==="current" ? snapshot().file : null);
     for (const [key,id] of Object.entries(fields)) $(id).value = values[key] || "";
     followUpEditor = window.ClassifireFollowUpActions.mount(followUpHost, {actions:followUpRows(values),
-      idPrefix:"project-pane", dateLabel:"Follow-up due", onChange:applyCurrentDraft});
+      idPrefix:"project-pane", dateLabel:"Follow-up due", pendingOnly:true, onChange:applyCurrentDraft});
     accountId = values.account_id || ""; accountName = values.client || "";
     contactId = values.contact_id || ""; contactName = values.contact_name || ""; contactLoading = false;
     $("project-details-target").textContent = target;

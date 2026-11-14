@@ -5,7 +5,7 @@
   const state = {root:null, data:null, page:"schedule", week:weekStart(today()), member:"", mine:false,
     loading:0, busy:false, dialog:null, lastLocation:0, locationEnabled:false, timer:null, orders:[], settingsDirty:false, settingsRuleDialog:null, ruleSelection:{overtime:"",breaks:""},
     projectsLoading:false, projectsScan:null, projectsMessage:"", breakNotices:new Set(), noticeTimer:null,
-    locationTimer:null, locationEntry:null, locationPending:null, lastLocationCheck:0, locationIssue:"", locationFeedback:"", locationHealth:0,
+    locationTimer:null, locationEntry:null, locationPending:null, lastLocationCheck:0, locationIssue:"", locationHealth:0,
     entriesSearch:"", entriesMine:false, collapsedDays:new Set(), locationPlayback:null, authGeneration:0, mapRequest:0};
   const accountChannel = "BroadcastChannel" in window ? new BroadcastChannel("classifire-scheduler-account") : null;
   const colours = [["#2196f3","Blue"],["#b12030","Red"],["#177349","Green"],["#7544a8","Purple"],["#505966","Grey"]];
@@ -258,9 +258,9 @@
     const host = state.root?.querySelector(".scheduler-notice"); if (!host) return;
     host.textContent = message; host.classList.toggle("error",error); host.hidden = !message;
   }
-  async function request(path, payload) {
+  async function request(path, payload, member = state.data?.user?.id) {
     const headers = {"Content-Type":"application/json"};
-    if (state.data?.user?.id && !["/login","/setup","/bootstrap","/state"].includes(path.split("?")[0])) headers["X-Scheduler-Member"] = state.data.user.id;
+    if (member && !["/login","/setup","/bootstrap","/state"].includes(path.split("?")[0])) headers["X-Scheduler-Member"] = member;
     const response = await fetch(`/api/scheduler${path}`, {credentials:"same-origin", cache:"no-store",headers,
       ...(payload === undefined ? {} : {method:"POST",body:JSON.stringify(payload)})});
     const data = await response.json();
@@ -294,6 +294,7 @@
   }
   function resetAccount() {
     state.authGeneration++; state.loading++; state.mapRequest++;
+    document.getElementById("staff-sign-out-dialog")?.close();
     closeDialog(true); stopLocation(); state.data = null; state.settingsDirty = false; state.settingsRuleDialog = null;
     state.busy = false; state.orders=[]; state.projectsScan=null; state.projectsLoading=false; state.projectsMessage="";
     state.page = "schedule"; state.report = null; state.member = ""; state.mine = false; state.entriesSearch = ""; state.entriesMine = false;
@@ -303,6 +304,47 @@
     // Keep async intent and completion bound to the sign-in that started them.
     const generation = state.authGeneration, member = state.data?.user?.id;
     return () => !!member && generation === state.authGeneration && member === state.data?.user?.id;
+  }
+  async function openSignOut(trigger) {
+    const generation = state.authGeneration;
+    const user = state.data?.user || (await request("/bootstrap")).user;
+    if (generation !== state.authGeneration || document.getElementById("staff-sign-out-dialog")) return;
+    if (!user) { window.ClassifireAccess.reloadSession(); return; }
+
+    const modal = el("dialog","scheduler-dialog staff-sign-out-dialog");
+    modal.id = "staff-sign-out-dialog";
+    const title = el("h2","",translated("Sign out"));
+    title.id = "staff-sign-out-title";
+    modal.setAttribute("aria-labelledby",title.id);
+    const name = el("p","",user.name);
+    const error = el("p","message error"); error.hidden = true; error.setAttribute("role","alert");
+    const close = button(translated("Close"),() => modal.close());
+    const confirm = button(translated("Sign out"),async () => {
+      if (confirm.disabled) return;
+      close.disabled = confirm.disabled = true;
+      error.hidden = true;
+      try {
+        if (!await leave() || generation !== state.authGeneration || !modal.open) return;
+        const result = await request("/logout",{},user.id);
+        if (generation !== state.authGeneration) return;
+        resetAccount();
+        accountChannel?.postMessage("changed");
+        if (result.global_session) window.ClassifireAccess.reloadSession(true);
+        else auth(false);
+      } catch (failure) {
+        error.textContent = failure.message; error.hidden = false;
+      } finally {
+        close.disabled = confirm.disabled = false;
+        if (modal.open) close.focus();
+      }
+    },"button primary");
+    const actions = el("div","actions scheduler-dialog-actions");
+    actions.append(close,confirm); modal.append(title,name);
+    if (window.CeasefireDesktop?.status()?.dirty) modal.append(el("p","helper",translated("Signing out will discard unsaved changes.")));
+    modal.append(error,actions);
+    modal.addEventListener("cancel",event => { if (confirm.disabled) event.preventDefault(); });
+    modal.addEventListener("close",() => { modal.remove(); if (trigger?.isConnected) trigger.focus(); },{once:true});
+    document.body.append(modal); modal.showModal(); close.focus();
   }
   async function mutate(path,payload) {
     if (state.busy) return;
@@ -424,23 +466,16 @@
       }
       tabs.append(tab);
     });
-    const account = el("div", "scheduler-account"); account.append(el("span","",state.data.user.name),button("Sign out",async () => {
-      if (!await leave()) return;
-      const logout = request("/logout",{}); resetAccount(); shell(); notice("Signing out…");
-      try { const result=await logout; accountChannel?.postMessage("changed"); if(result.global_session){window.ClassifireAccess.reloadSession();return;} auth(false); }
-      catch (error) {await refresh(); notice(error.message,true);}
-    }));
     const clock = renderClock();
     if (state.data.active_entry) {
       const localTime = heading.querySelector("time");
       const navigation = el("div","scheduler-clock-navigation");
       navigation.append(heading.querySelector("h1"),tabs);
-      account.prepend(localTime);
-      clock.append(account);
+      clock.append(localTime);
       heading.classList.add("scheduler-clock-heading");
       heading.replaceChildren(navigation,clock);
     } else {
-      top.append(tabs,account);
+      top.append(tabs);
       state.root.append(top,clock);
     }
     updateLocationStatus();
@@ -477,7 +512,6 @@
       }
       if (openBreak?.expected_end_at) bar.append(el("p","helper",`${openBreak.name || "Break"} · expected end ${timeFormatter.format(new Date(openBreak.expected_end_at))}${openBreak.min_end_at ? " · minimum duration required" : ""}${openBreak.auto_end_at ? " · ends automatically" : ""}`));
       if (openBreak?.notify_at && "Notification" in window && Notification.permission !== "granted") bar.append(button("Enable break notifications",async () => {await Notification.requestPermission(); render();}));
-      bar.append(button("Check location now",checkLocationNow,"button secondary scheduler-location-retry"));
       bar.append(button("Clock out",async event => {
         const control = event.currentTarget; if (control.disabled || state.busy) return; control.disabled = true; state.busy = true;
         const current = accountAction();
@@ -507,7 +541,7 @@
       startLocation();
     },"button scheduler-primary-action"),"button scheduler-primary-action"));
     bar.addEventListener("click",event => {
-      if(state.settingsDirty && !event.target.closest(".scheduler-account")) {event.stopImmediatePropagation(); notice("Save or discard your settings changes before using the time clock.",true);}
+      if(state.settingsDirty) {event.stopImmediatePropagation(); notice("Save or discard your settings changes before using the time clock.",true);}
     },true);
     return bar;
   }
@@ -940,14 +974,14 @@
   function stopLocation() {
     clearInterval(state.locationTimer);
     state.locationTimer = null; state.locationEnabled = false; state.locationEntry = null;
-    state.lastLocation = 0; state.lastLocationCheck = 0; state.locationIssue = ""; state.locationFeedback = ""; state.locationPending = null; state.locationHealth++;
+    state.lastLocation = 0; state.lastLocationCheck = 0; state.locationIssue = ""; state.locationPending = null; state.locationHealth++;
     updateLocationStatus();
   }
   function locationFailure(message) {
-    state.locationHealth++; state.locationIssue = message; state.locationFeedback = ""; updateLocationStatus();
+    state.locationHealth++; state.locationIssue = message; updateLocationStatus();
   }
   function locationError(error) {
-    if (error.code === 1) return "Location access is blocked. Enable location for CLASSIFIRE in your browser, then check location again.";
+    if (error.code === 1) return "Location access is blocked. Enable location for CLASSIFIRE in your browser.";
     if (error.code === 3) return "The location request timed out. Check this computer's location services and try again.";
     return "A location could not be obtained. Enable location services and try again.";
   }
@@ -993,14 +1027,8 @@
     }
     const target = state.root?.querySelector(".scheduler-location-status");
     if (target) {
-      const feedback = state.locationFeedback;
-      let text = issue;
-      if (feedback === "checking") text = translated("Checking location…");
-      else if (!issue && feedback) text = feedback.recorded ? translated("Location recorded at {0}.",[timeFormatter.format(feedback.captured)])
-        : translated("Location checked. The next history point is due at {0}.",[timeFormatter.format(feedback.captured + LOCATION_INTERVAL)]);
-      if (target.textContent !== text) target.textContent = text;
-      target.hidden = !text; target.classList.toggle("scheduler-location-error",Boolean(issue) && feedback !== "checking");
-      state.root.querySelector(".scheduler-location-retry").disabled = feedback === "checking";
+      if (target.textContent !== issue) target.textContent = issue;
+      target.hidden = !issue; target.classList.toggle("scheduler-location-error",Boolean(issue));
     }
   }
   async function recordLocation(location, entryId, health = state.locationHealth) {
@@ -1013,10 +1041,7 @@
       if (captured >= state.lastLocation) state.lastLocation = state.lastLocationCheck = captured;
       // Saving an earlier observation does not prove that location access is
       // still available after a newer browser/permission failure.
-      if (health === state.locationHealth) {
-        state.locationIssue = "";
-        if (state.locationFeedback !== "checking") state.locationFeedback = "";
-      }
+      if (health === state.locationHealth) state.locationIssue = "";
       if (enable) {state.data.active_entry.location_consent = true; void refresh();}
       updateLocationStatus(); return {recorded:result.recorded,captured};
     } catch(error) {
@@ -1026,9 +1051,9 @@
       updateLocationStatus(); return false;
     }
   }
-  async function captureLocation(manual = false) {
+  async function captureLocation() {
     if (!state.locationEnabled || !state.data?.active_entry) return false;
-    if (!manual && (Date.now()-state.lastLocation < LOCATION_INTERVAL || Date.now()-state.lastLocationCheck < LOCATION_INTERVAL)) return false;
+    if (Date.now()-state.lastLocation < LOCATION_INTERVAL || Date.now()-state.lastLocationCheck < LOCATION_INTERVAL) return false;
     if (state.locationPending) return state.locationPending;
     const entryId = state.locationEntry, health = state.locationHealth, current = accountAction();
     if (Date.now()-state.lastLocation >= LOCATION_INTERVAL) state.lastLocationCheck = Date.now();
@@ -1046,14 +1071,6 @@
     })();
     state.locationPending = pending;
     try {return await pending;} finally {if (state.locationPending === pending) state.locationPending = null;}
-  }
-  async function checkLocationNow() {
-    const entryId = state.locationEntry, current = accountAction();
-    state.locationFeedback = "checking"; updateLocationStatus();
-    const result = await captureLocation(true);
-    if (!current() || state.locationEntry !== entryId) return;
-    state.locationFeedback = result || "";
-    updateLocationStatus();
   }
   function startLocation() {
     const active = state.data?.active_entry; if (!active) return;
@@ -1238,5 +1255,5 @@
   window.addEventListener("online",() => {if(state.locationEnabled) void captureLocation();});
   window.addEventListener("pagehide",stopLocation);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded",restoreClock,{once:true}); else void restoreClock();
-  window.CeasefireScheduler = {activate,leave,organizationToday:today,init(options = {}) {state.root = options.root || document.getElementById("scheduler-root");},hasPendingOperation() {return state.busy || !!state.dialog || state.settingsDirty || !!state.settingsRuleDialog;}};
+  window.CeasefireScheduler = {activate,leave,openSignOut,organizationToday:today,init(options = {}) {state.root = options.root || document.getElementById("scheduler-root");},hasPendingOperation() {return state.busy || !!state.dialog || state.settingsDirty || !!state.settingsRuleDialog;}};
 })();

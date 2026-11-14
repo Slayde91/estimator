@@ -1,4 +1,5 @@
 {
+  "Signing out will discard unsaved changes.": "La déconnexion entraînera la perte des modifications non enregistrées.",
   "Clock in": "Pointage d’entrée",
   "Clock out": "Pointage de sortie",
   "Follow-up actions": "Actions de suivi",
@@ -54,7 +55,7 @@
   "Location recorded at {0}.": "Position enregistrée à {0}.",
   "Previous week": "Semaine précédente",
   "Next week": "Semaine suivante",
-  "Location access is blocked. Enable location for CLASSIFIRE in your browser, then check location again.": "L’accès à la position est bloqué. Autorisez CLASSIFIRE à y accéder dans votre navigateur, puis vérifiez à nouveau.",
+  "Location access is blocked. Enable location for CLASSIFIRE in your browser.": "L’accès à la position est bloqué. Autorisez CLASSIFIRE à y accéder dans votre navigateur.",
   "The location request timed out. Check this computer's location services and try again.": "La demande de position a expiré. Vérifiez les services de localisation de cet ordinateur, puis réessayez.",
   "A location could not be obtained. Enable location services and try again.": "Impossible de déterminer la position. Activez les services de localisation, puis réessayez.",
   "Location is unavailable in this browser. Use a browser with location services enabled.": "La position est indisponible dans ce navigateur. Utilisez un navigateur dont les services de localisation sont activés.",

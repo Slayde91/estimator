@@ -600,7 +600,8 @@ let passed=0;
   await byId('discard-dialog').close('confirm');await resetting;assert.equal(audit.state.draft,newerDraft);
   assert.match(byId('app-message').textContent,/changed during reset/);passed++;
   resetting=byId('reset-pricing').emit('click');await flush();await byId('discard-dialog').close('confirm');await resetting;
-  assert.deepEqual(copy(audit.state.draft),{inventory:{},rates:{}});assert.deepEqual(copy(audit.state.configuration),{inventory:{},rates:{}});
+  assert.deepEqual(copy(audit.state.draft),{catalog:pricingFixture,inventory:{},rates:{}});
+  assert.deepEqual(copy(audit.state.configuration),{inventory:{},rates:{}});
   assert.match(byId('app-message').textContent,/ready as a draft/);audit.state.quoteConfiguration=null;passed++;
   audit.setRenderPricing(()=>{audit.state.pricingDirty=JSON.stringify(audit.state.draft)!==JSON.stringify(audit.state.configuration);});byId('pricing-search').value='';byId('rate-group').value='';
 

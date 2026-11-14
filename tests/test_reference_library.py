@@ -74,6 +74,46 @@ class ReferenceLibraryTests(unittest.TestCase):
             with self.assertRaisesRegex(ValidationError, 'could not be read'):
                 self.library.overview()
 
+    def test_preparation_and_first_listing_share_validation_and_reload_changes(self):
+        with patch.object(self.library, '_validate', wraps=self.library._validate) as validate:
+            self.library.listing('penetration')
+            self.assertEqual(self.library.listing('technical')['total'], 1)
+            self.assertEqual(validate.call_count, 1)
+            self.data['libraries']['technical']['items'][0]['title'] = 'Updated source title'
+            self.write(self.data)
+            self.library.overview()
+            self.assertEqual(validate.call_count, 2)
+
+    def test_server_accepts_requests_while_installed_library_is_preparing(self):
+        started, resume, finished = threading.Event(), threading.Event(), threading.Event()
+        def prepare(kind):
+            self.assertEqual(kind, 'penetration')
+            started.set()
+            resume.wait(10)
+            finished.set()
+        with patch('estimator.technical_library_edits.ManualTechnicalLibrary.listing', side_effect=prepare):
+            server = create_server(0, self.root.parent / 'test.sqlite3', library_directory=self.root, warm_libraries=True)
+            try:
+                self.assertTrue(started.wait(2))
+                self.assertFalse(finished.is_set())
+                thread = threading.Thread(target=server.serve_forever, daemon=True)
+                thread.start()
+                try:
+                    from http.client import HTTPConnection
+                    connection = HTTPConnection(*server.server_address, timeout=5)
+                    try:
+                        connection.request('GET', '/')
+                        self.assertEqual(connection.getresponse().status, 200)
+                    finally:
+                        connection.close()
+                finally:
+                    server.shutdown()
+                    thread.join()
+            finally:
+                resume.set()
+                server.server_close()
+            self.assertTrue(finished.wait(2))
+
     def test_search_filters_pagination_and_source_preservation(self):
         self.assertEqual(self.library.listing('penetration', search='COPPER sealant')['total'], 1)
         self.assertEqual(self.library.listing('penetration', manufacturer='Other manufacturer')['items'][0]['id'], 'pkb-002')

@@ -46,7 +46,8 @@ const ready=new Promise((resolve,reject)=>{let buffer='';server.on('exit',()=>re
     await expect(title).toBeVisible();
     const box=await title.boundingBox();
     assert.equal(box.height,22);
-    assert.equal(box.y,width===320?8:18);
+    const header=await page.locator('.staff-portal-account').boundingBox();
+    assert.equal(box.y,header.height+(width===320?8:18));
   }
   await page.setViewportSize({width:1254,height:884});
   await expect(page.locator('.scheduler-shift')).toContainText('Worker installation');
@@ -72,6 +73,9 @@ const ready=new Promise((resolve,reject)=>{let buffer='';server.on('exit',()=>re
   assert.equal((await staff.request.get(origin+'/api/scheduler/shift-site-contacts?'+new URLSearchParams({id:order.id,revision:order.revision}))).status(),403);
   assert.equal((await staff.request.post(origin+'/api/scheduler/shifts/save',{data:{...base,title:'Unauthorised'}})).status(),403);
   await page.getByRole('button',{name:'Sign out',exact:true}).click();
+  const dialog=page.getByRole('dialog',{name:'Sign out',exact:true});
+  await expect(dialog).toContainText(worker.name);
+  await dialog.getByRole('button',{name:'Sign out',exact:true}).click();
   await expect(page.locator('#staff-login')).toBeVisible();
   assert.equal((await staff.request.get(origin+'/api/scheduler/work-orders')).status(),401);
   console.log('PASS Scheduler-only staff see their own published shifts and time, not other staff or CRM records; global logout clears access.');

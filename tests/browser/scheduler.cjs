@@ -129,8 +129,8 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await expect(page.locator('.scheduler-team')).toContainText('Jordan QA');
   checks.push('create team member and saved base rate');
   await tab('Schedule');
-  await page.getByLabel('Week containing date').fill('2026-11-02');
-  await page.getByLabel('Week containing date').press('Tab');
+  await page.getByLabel('Week containing date',{exact:true}).fill('2026-11-02');
+  await page.getByLabel('Week containing date',{exact:true}).press('Tab');
   await openAdd('Add shift');
   modal = page.locator('dialog[open]');
   const palette=modal.getByRole('radiogroup',{name:'Colour'});
@@ -404,7 +404,7 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
     const shownTime = await clock.locator('time').boundingBox();
     const tabs = await page.locator('.scheduler-tabs button').evaluateAll(buttons=>buttons.map(button=>button.getBoundingClientRect().height));
     const clockOut=(await clock.getByRole('button',{name:'Clock out',exact:true}).boundingBox()).height;
-    const date=(await page.getByLabel('Week containing date').boundingBox()).height;
+    const date=(await page.getByLabel('Week containing date',{exact:true}).boundingBox()).height;
     const arrows=await page.locator('.scheduler-week-arrow').evaluateAll(buttons=>buttons.map(button=>{
       const box=button.getBoundingClientRect(),icon=button.querySelector('svg').getBoundingClientRect();
       return {size:icon.width,x:(icon.left+icon.right-box.left-box.right)/2,y:(icon.top+icon.bottom-box.top-box.bottom)/2};

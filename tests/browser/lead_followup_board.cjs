@@ -90,7 +90,7 @@ async function checkFollowUpBoard(browser, base, output) {
     await due('Past').click();await expect(first.getByLabel('Next action')).toHaveValue('');
     for (const width of [1915,390]) {
       await page.setViewportSize({width,height:884});
-      const [note,date,status]=await Promise.all(['Next action','Follow-up date','Follow-up status'].map(label=>first.getByLabel(label).boundingBox()));
+      const [note,date,status]=await Promise.all(['Next action','Follow-up date','Follow-up status'].map(label=>first.getByLabel(label,{exact:true}).boundingBox()));
       assert.ok(note.x+note.width<=date.x && date.x+date.width<=status.x);
       assert.ok(Math.abs(note.y-date.y)<1 && Math.abs(date.y-status.y)<1);
       assert.ok(status.x+status.width<=width);
@@ -99,12 +99,12 @@ async function checkFollowUpBoard(browser, base, output) {
     await first.getByLabel('Follow-up status').selectOption('Completed');
     await expect(dialog.locator('.follow-up-action-row')).toHaveCount(0);
     await dialog.getByRole('button',{name:'Add follow-up'}).click();
-    await first.getByLabel('Next action').fill('Second due task');await first.getByLabel('Follow-up date').fill('2027-03-14');
+    await first.getByLabel('Next action').fill('Second due task');await first.getByLabel('Follow-up date',{exact:true}).fill('2027-03-14');
     await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog).toHaveCount(0);
     await expect(due('Past')).toBeFocused();await due('Past').press('Space');
     await expect(dialog.locator('.follow-up-action-row')).toHaveCount(1);
     await expect(first.getByLabel('Next action')).toHaveValue('Second due task');
-    await first.getByLabel('Follow-up date').fill('2027-03-12');
+    await first.getByLabel('Follow-up date',{exact:true}).fill('2027-03-12');
     await page.screenshot({path:path.join(output,'lead-follow-up-dialog-mobile.png')});
     await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog).toHaveCount(0);
     const lead=(await get(directory)).leads.find(row=>row.name==='Reminder Past');

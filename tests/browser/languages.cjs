@@ -32,6 +32,16 @@ async function snapshot(){await idle();return page.evaluate(()=>({project:window
  await chooseTakeoff(page,'Steel');await idle();
  await page.locator('nav [data-view="estimate"]').click();await idle();
  await expect(page.locator('#project-no')).toHaveAttribute('readonly','');await fillProjectDetails(page,{'client':'Home'});await fillProjectDetails(page,{'site-address':'原始ข้อมูล العربية हिन्दी <literal>'});await page.locator('#site-address').evaluate(el=>el.blur());await idle();
+ // Use a real priced board and crew so the translated table contains both
+ // material and labour, while the five unused tasks have no costs.
+ await page.evaluate(async()=>{
+  const fire=window.CeasefirePenetrations;
+  const prepared=await fire.prepareProject(await fire.completeProjectSnapshot());
+  const firstOption=column=>prepared.definition.row_fields.find(field=>field.column===column).options[0];
+  prepared.draft.rows=[{id:'language-task',inputs:{O:2,W:firstOption('W'),X:firstOption('X'),AW:600,AX:450,AY:1,AH:0.25}}];
+  fire.applyProject(prepared);
+  if(!await fire.openSchedule())throw new Error('Could not calculate the language test schedule.');
+ });
  const baseline=await snapshot();
  await openProjectSection(page,'certification');
  await expect(page.locator('#certification-board')).toHaveCount(0);await expect(page.locator('#certification-editor')).toBeVisible();
@@ -78,7 +88,11 @@ async function snapshot(){await idle();return page.evaluate(()=>({project:window
    await page.evaluate(()=>window.CeasefirePenetrationNavigation.showSchedule());
    await page.locator('#penetration-schedule-tab-breakdown').click();
    const breakdown=page.locator('#penetration-schedule-breakdown');
-   for(const label of ['板材','防火圈','密封胶','框架','防火包裹材料','其他','附加人工','登记工时预留'])await expect(breakdown.getByText(label,{exact:true})).toBeVisible();
+   const rowHeaders=breakdown.locator('tbody th[scope=row]');
+   await expect(rowHeaders).toHaveText(['附加人工','登记工时预留','板材']);
+   assert.deepEqual(await rowHeaders.evaluateAll(cells=>cells.map(cell=>window.CeasefireI18n.source(cell))),
+    ['Additional Labour','Register allowance','Board']);
+   for(const label of ['防火圈','密封胶','框架','防火包裹材料','其他'])await expect(breakdown.getByRole('rowheader',{name:label,exact:true})).toHaveCount(0);
    await expect(breakdown.locator('.penetration-breakdown-note')).toHaveCount(0);
    await page.screenshot({path:path.join(output,'zh-estimate-tables.png')});
    await page.locator('nav [data-view="estimate"]').click();await idle();

@@ -174,7 +174,8 @@ async function save(page){
     await expect(pane.locator('.commercial-editor')).toHaveCount(0);
     assert.equal(await owner.evaluate(()=>window.CeasefireCertification.sessionId()),expiredWorkspace);
   }
-  await openProjectSection(owner,'certification');
+  // The discarded workspace has no document register rows. Exercise the certificate adapter's own error.
+  await owner.evaluate(() => window.CeasefireDocumentationApp.run('certification', {}));
   await expect(owner.locator('#app-message')).toContainText(/certificate workspace is unavailable/i);
   assert.deepEqual(fs.readFileSync(info.project),savedBytes);
   assert.deepEqual(errors,[]);

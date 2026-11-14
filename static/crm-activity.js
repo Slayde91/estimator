@@ -52,6 +52,7 @@
       ...(occurred.value ? {occurred_at:new Date(occurred.value).toISOString()} : {})}));
     log.classList.add('crm-activity-submit');controls.append(log);
     function update() {
+      setOwnerMode();
       controls.disabled = busy || locked();
       if (!staffLoaded && !controls.disabled) {
         staffLoaded=true;
@@ -224,7 +225,7 @@
       }
     }
     panel.addEventListener('toggle', refresh);
-    return {element:panel, refresh, dirty:editor.dirty, pending:editor.pending, fingerprint:editor.fingerprint, dispose:()=>stopSizing(list)};
+    return {element:panel, refresh, update:()=>{if(panel.open)editor.update();}, dirty:editor.dirty, pending:editor.pending, fingerprint:editor.fingerprint, dispose:()=>stopSizing(list)};
   }
   window.ClassifireCrmActivity={attach,ownerSelect,populate,historyPanel,sizeList,stopSizing};
 })();

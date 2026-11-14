@@ -460,7 +460,7 @@
     }
     relatedPanels.forEach(([,block])=>right.append(block));right.append(linkedProjects);showRelated();
     form.querySelector("[data-order-link]")?.addEventListener("change",showRelated);
-    return {repaintFiles,refreshDirectory,refreshHistory:history.refresh,
+    return {repaintFiles,refreshDirectory,refreshHistory:history.refresh,updateActivity:history.update,activityDirty:history.dirty,
       refreshRecords(){showRelated();repaintFiles();return Promise.all([reloadParties(),history.refresh()]);},
       closeSearches(){controls.forEach(control=>control.close());},refreshProjectDetails(value){options.projectDetails=value;refreshDetails();}};
   }

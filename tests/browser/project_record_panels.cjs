@@ -39,9 +39,12 @@ const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()
   const quoteHistory=quote.locator('.record-activity-history');
   await quoteHistory.locator('summary').click();
   await expect(quoteHistory).toContainText('No activity recorded.');
+  await expect(quoteHistory.getByRole('button',{name:'Log activity',exact:true})).toBeDisabled();
   await quote.getByLabel('Introduction',{exact:true}).fill('Source A quote');
   await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();
   await expect(quote.locator('.commercial-message')).toContainText('Document saved.');await idle();
+  await expect(quoteHistory.getByRole('button',{name:'Log activity',exact:true})).toBeEnabled();
+  await expect(quoteHistory.getByLabel('Activity owner',{exact:true})).toBeDisabled();
   await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
   const persisted=JSON.parse(fs.readFileSync(info.project));
   assert.ok(persisted.commercial_documents?.documents.length,'Saved Project owns the Quote');

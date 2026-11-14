@@ -2821,6 +2821,7 @@
     if(disabled)state.editor?.panels?.closeSearches();
     root()?.querySelectorAll(".commercial-work-layout button,.commercial-work-layout input,.commercial-work-layout textarea,.commercial-work-layout select").forEach(control => control.disabled = disabled);
     root()?.querySelectorAll(".commercial-rich-input").forEach(control => control.contentEditable = String(!disabled));
+    if (!disabled) state.editor?.panels?.updateActivity?.();
     if (!disabled && state.kind === "work_order" && state.editor?.quoteLinkLocked) {
       const linked = root()?.querySelector('[data-order-link="quote_id"]');
       if (linked) linked.disabled = true;

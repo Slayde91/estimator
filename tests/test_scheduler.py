@@ -126,6 +126,8 @@ class SchedulerTests(unittest.TestCase):
         self.assertNotEqual(earlier['job'],later['job'])
         self.assertNotEqual(earlier['project'],later['project'])
         self.assertEqual(earlier['job_label'],later['job_label'])
+        self.assertEqual(later['job_chart_label'], 'WO-01: ACME - Site')
+        self.assertEqual(later['project_label'], 'PN-01: ACME - Site')
         settings=self.state()['settings']; settings['pay_rules_confirmed']=False
         self.write('settings',settings)
         report=self.store.read('reports',period,self.token)

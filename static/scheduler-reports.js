@@ -114,7 +114,7 @@
       const b=node('button',t(text),cls); b.type='button'; b.addEventListener('click',handler); return b;
     };
     for (const [id,text] of [['payroll','Payroll Report'],['project','Project Report']]) {
-      const b=action(text,()=>{state.kind=id; draw();}); b.dataset.report=id; modes.append(b);
+      const b=action(text,()=>{state.kind=id; draw();},'button scheduler-primary-action'); b.dataset.report=id; modes.append(b);
     }
     const period=control('Reporting period');
     function dateField(label,initial) {
@@ -265,7 +265,7 @@
       for (const message of data.warnings) output.append(node('p',message,'helper'));
       if (!payroll) {
         const charts=node('div',null,'scheduler-report-charts');
-        charts.append(pieChart(t('Jobs'),groupedHours(rows,'job',jobLabel),t),
+        charts.append(pieChart(t('Jobs'),groupedHours(rows,'job',row=>row.job_chart_label || jobLabel(row)),t),
           pieChart(t('Projects'),groupedHours(rows,'project',projectLabel),t),
           pieChart(t('Team members'),groupedHours(rows,'member',name),t));
         output.append(charts);

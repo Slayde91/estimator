@@ -67,6 +67,9 @@ const ready=new Promise((resolve,reject)=>{let buffer='';server.on('exit',()=>re
   await expect(jobsChart.getByRole('img',{name:'Jobs',exact:true})).toBeVisible();
   const selectedJob=jobsChart.getByRole('listitem').filter({hasText:order.reference});
   await expect(selectedJob).toContainText('100%');
+  await expect(selectedJob).toContainText(order.reference+': '+order.client+' - '+order.site_address);
+  const projectsChart=reports.locator('.scheduler-report-chart').filter({has:page.getByRole('heading',{name:'Projects',exact:true})});
+  await expect(projectsChart.getByRole('listitem')).toContainText(order.project_no+': '+order.client+' - '+order.site_address);
   await reports.getByLabel('Reporting period',{exact:true}).selectOption('custom');
   const startDate=reports.getByLabel('Start date',{exact:true});
   await startDate.fill('31:02:00');
@@ -76,6 +79,24 @@ const ready=new Promise((resolve,reject)=>{let buffer='';server.on('exit',()=>re
   await expect(reports.getByLabel('End date',{exact:true})).toHaveValue('02:01:00');
   await reports.getByRole('button',{name:'Run report',exact:true}).click();
   await expect(reports.getByText('No completed time entries match these filters.')).toBeVisible();
+  // Use a fixed weekday and two separate starts so each shift rule wins its own time.
+  const settings=(await (await admin.request.get(origin+'/api/scheduler/state')).json()).settings;
+  const afternoon=settings.overtime_rules.find(rule=>rule.id==='afternoon');
+  settings.overtime_rules.push({...afternoon,id:'early-callout',name:'Early callout',start_time:'05:00',end_time:'06:00',multiplier:'1.75'});
+  await post(admin,'/api/scheduler/settings',settings);
+  for(const [start,end] of [['05:00','06:00'],['13:00','15:00']])
+    await post(admin,'/api/scheduler/entries/save',{...base,member_id:member.id,start:'2026-11-04T'+start,end:'2026-11-04T'+end});
+  await reports.getByLabel('Choose Start date',{exact:true}).fill('2026-11-04');
+  await reports.getByLabel('Choose End date',{exact:true}).fill('2026-11-04');
+  await reports.getByRole('button',{name:'Payroll Report',exact:true}).click();
+  await reports.getByRole('button',{name:'Run report',exact:true}).click();
+  const summary=reports.getByRole('table',{name:'Payroll hours'});
+  await reports.locator('.scheduler-report-detail summary').click();
+  for(const [label,value] of [['Afternoon shift (1.5×)','2.00'],['Early callout (1.75×)','1.00']]){
+    await expect(summary.getByText(label,{exact:true}).locator('..')).toContainText(value);
+    await expect(reports.getByRole('columnheader',{name:label,exact:true})).toBeVisible();
+  }
+  await expect(reports.getByRole('columnheader',{name:/Night shift/})).toHaveCount(0);
   assert.equal((await staff.request.get(origin+'/api/contacts/directory')).status(),403);
   assert.equal((await staff.request.get(origin+'/api/scheduler/shift-site-contacts?'+new URLSearchParams({id:order.id,revision:order.revision}))).status(),403);
   assert.equal((await staff.request.post(origin+'/api/scheduler/shifts/save',{data:{...base,title:'Unauthorised'}})).status(),403);

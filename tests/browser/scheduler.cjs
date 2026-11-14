@@ -106,13 +106,10 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
     await expect(gear).toBeInViewport({ratio:0.99});
     await expect(tabs).toHaveCSS('box-shadow',/0px 1px 0px 0px/);
     await expect(tabs.locator('[aria-pressed=true]')).toHaveCSS('border-bottom-color','rgb(255, 255, 255)');
-    await expect.poll(()=>page.evaluate(()=>{
-      const nav=document.querySelector('.scheduler-tabs');
-      return nav ? Math.abs(nav.getBoundingClientRect().right-nav.lastElementChild.getBoundingClientRect().right) : null;
-    })).toBeLessThan(1);
+    assert.ok(await tabs.evaluate(nav=>nav.scrollWidth<=nav.clientWidth+1 && nav.scrollLeft===0));
     await page.screenshot({path:path.join(output,'scheduler-tab-rule-'+width+'.png')});
   }
-  await page.setViewportSize(previousViewport);checks.push('Scheduler underline ends at the settings gear on desktop and after keyboard scrolling on mobile');
+  await page.setViewportSize(previousViewport);checks.push('All Scheduler tabs stay visible without horizontal scrolling, including when focused by keyboard');
   assert.ok((await context.cookies()).some(cookie => cookie.httpOnly && cookie.sameSite === 'Strict'));
   checks.push('administrator setup through UI with HttpOnly session');
   await tab('Team members');
@@ -256,6 +253,8 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await tab('Reports');
   const reports=page.locator('.scheduler-reports');
   await expect(reports.getByRole('heading',{name:'Payroll Report'})).toBeVisible();
+  for (const button of await reports.locator('.scheduler-report-modes button').all())
+    await expect(button).toHaveCSS('background-color','rgb(208, 0, 27)');
   await reports.getByLabel('Team member',{exact:true}).selectOption({label:'Jordan QA'});
   const summary=reports.getByRole('table',{name:'Payroll hours'});
   await expect(summary.getByText('Total overtime',{exact:true}).locator('..')).toContainText('4.00');
@@ -396,10 +395,11 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await expect(clock.locator('time')).toBeVisible();
   await expect(page.locator('#scheduler-root').getByRole('button',{name:'Sign out'})).toHaveCount(0);
   const controlGeometry=[];
-  for (const width of [1915,943,390]) {
+  for (const width of [1915,1254,943,390,320]) {
     await page.setViewportSize({width,height:884});
     const bounds = await clock.boundingBox();
     const navigation = await page.locator('.scheduler-tabs').boundingBox();
+    assert.ok(await page.locator('.scheduler-tabs').evaluate(nav=>nav.scrollWidth<=nav.clientWidth+1 && nav.scrollLeft===0));
     const clockOutBox = await clock.getByRole('button',{name:'Clock out'}).boundingBox();
     const shownTime = await clock.locator('time').boundingBox();
     const tabs = await page.locator('.scheduler-tabs button').evaluateAll(buttons=>buttons.map(button=>button.getBoundingClientRect().height));
@@ -414,8 +414,10 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
     controlGeometry.push({width,tabs,clockOut,date,arrows});
     assert.ok(bounds.x>=0 && bounds.x+bounds.width<=width);
     assert.ok(shownTime.y>=clockOutBox.y+clockOutBox.height);
-    if (width===1915) {
-      assert.ok(bounds.x>=navigation.x+navigation.width && bounds.x<width*0.4);
+    if (width>=1254) {
+      assert.ok(bounds.x>=navigation.x+navigation.width);
+      assert.ok(await page.locator('.scheduler-tabs').evaluate(nav=>
+        nav.firstElementChild.offsetTop===nav.lastElementChild.offsetTop));
       assert.ok(bounds.y<=navigation.y && bounds.height<=172);
     }
     await page.screenshot({path:path.join(output,`active-clock-${width}.png`)});

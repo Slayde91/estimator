@@ -21,14 +21,18 @@ const errors=[],checks=[];
  const headerDialog=page.getByRole('dialog',{name:'Project Details',exact:true});
  await header.focus();await page.keyboard.press('Enter');assert.deepEqual(errors,[]);
  await expect(headerDialog).toBeVisible();await expect(headerDialog.locator('dt')).toHaveText([
-   'Project No.','Main Client','Site Address','Billing address','ABN/ACN','Primary contact','Contact email','Contact phone','Next action','Follow-up due'
+   'Project No.','Main Client','Site Address','Billing address','ABN/ACN','Primary contact','Contact email','Contact phone'
  ]);
- await expect(headerDialog.locator('dd')).toHaveCount(10);
+ await expect(headerDialog.locator('dd')).toHaveCount(8);
  await expect(headerDialog.getByText('42 Linked Workspace Street',{exact:true})).toBeVisible();
  await expect(headerDialog.getByText('Header owner A',{exact:true})).toBeVisible();
  await expect(review).toBeHidden();await expect(page.locator('#view-home')).toBeVisible();
  await headerDialog.screenshot({path:path.join(output,'header-project-details.png')});
  await page.keyboard.press('Escape');await expect(headerDialog).toBeHidden();await expect(header).toBeFocused();
+ await header.click();await headerDialog.getByRole('link',{name:/Header owner A/}).click();
+ await expect(page.locator('#project-details-pane')).toBeVisible();await expect(page.locator('#project-pane-client')).toHaveValue('Header owner A');
+ await page.locator('#project-details-load').click();await expect(page.locator('#view-estimate')).toBeVisible();
+ assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),info.project);
  checks.push('Enter on the header opens the current Project fields over Home. Escape closes the dialog and restores keyboard focus.');
  const sibling=JSON.parse(fs.readFileSync(info.project,'utf8')),siblingPath=path.join(output,'header-peer-b.cf.json');
  const renumber=value=>{if(!value||typeof value!=='object')return;for(const [key,item]of Object.entries(value)){if(key==='client'&&typeof item==='string')value[key]='Header peer B';else if(key==='project_no'&&typeof item==='string')value[key]='PN-PEER-B';else if(item&&typeof item==='object')renumber(item);}};renumber(sibling);assert.equal(sibling.certifications?.document_count,0);assert.equal(sibling.certifications?.revision_count,0);
@@ -49,7 +53,16 @@ const errors=[],checks=[];
  await expect(peerAddress).toBeFocused();await expect(peerAddress).toHaveValue('Unsaved address for peer B only');
  await expect.poll(()=>peerAddress.evaluate(input=>[input.selectionStart,input.selectionEnd])).toEqual([3,11]);
  assert.equal(await page.evaluate(()=>window.scrollY),scrollBefore);
- await page.locator('#project-details-close').click();await review.getByRole('button',{name:'Yes',exact:true}).click();
+ await header.click();await headerDialog.getByRole('link',{name:/Header owner A/}).click();
+ await expect(review).toContainText('Discard unsaved project details?');await review.getByRole('button',{name:'Cancel',exact:true}).click();
+ await expect(peerAddress).toHaveValue('Unsaved address for peer B only');
+ const paneLoad=page.locator('#project-details-load');
+ await paneLoad.click();await expect(review).toContainText('Header peer B');await review.getByRole('button',{name:'Cancel',exact:true}).click();
+ await expect(peerAddress).toHaveValue('Unsaved address for peer B only');assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),info.project);
+ await paneLoad.click();await review.getByRole('button',{name:'Open without saving',exact:true}).click();
+ await expect(page.locator('#view-estimate')).toBeVisible();assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),siblingPath);
+ await openProjectSection(page,'quotes');await page.locator(`.project-kanban-card[data-project-id="${a.id}"] .project-title-button`).click();
+ await paneLoad.click();await expect(page.locator('#view-estimate')).toBeVisible();assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),info.project);
  assert.deepEqual(fs.readFileSync(siblingPath),peerBytes);
  checks.push('From the full-page editor for another Project, the header shows the active Project and preserves the edited address, text selection, focus and scroll.');
  const context=await page.evaluate(()=>window.CeasefireProject.context()),selector='native:'+context.project_token;

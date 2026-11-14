@@ -25,6 +25,24 @@ const field = (pane, label) => pane.getByLabel(label, { exact: true });
 const column = (pane, status) => pane.getByRole('region', { name: status, exact: true });
 const dialog = () => page.getByRole('dialog', { name: 'Sign and move', exact: true });
 const order = kind => JSON.parse(fs.readFileSync(info.project, 'utf8')).commercial_documents?.documents.find(row => row.kind === kind);
+async function checkTable(pane, boardName, subject) {
+  const view = pane.locator('.record-view-picker');
+  await view.locator('summary').click(); await button(view,'Table').click();
+  await expect(view.locator('summary')).toBeFocused();
+  const row = pane.locator('tbody tr.commercial-card').first();
+  await expect(row).toBeVisible();
+  if (subject) {
+    await expect(row).toContainText(subject);
+    await pane.getByRole('searchbox').fill(subject);
+    await expect(row).toBeVisible();
+    await pane.getByRole('searchbox').fill('');
+  }
+  await row.locator('.project-title-button').click();
+  if (subject) await expect(field(pane, 'Subject')).toHaveValue(subject);
+  await button(pane, 'Back to ' + boardName).click();
+  await expect(row).toBeVisible();
+  await view.locator('summary').click(); await button(view,'Kanban').click();
+}
 async function ready() {
   await page.waitForFunction(() => window.CeasefireDesktop?.status()?.ready &&
     !window.CeasefireProject.hasPendingOperation() && !document.querySelector('[aria-busy="true"]'));
@@ -124,6 +142,7 @@ async function test() {
   assert.equal(issued.status(), 200, await issued.text());
   await expect(quote.locator('.commercial-message')).toContainText('PDF saved');
   await button(quote, 'Back to Quotes').click();
+  await checkTable(quote, 'Quotes');
 
   await openProjectSection(page, 'work-orders');
   const work = page.locator('#commercial-work-order-root');
@@ -132,7 +151,13 @@ async function test() {
   const issuedChoices = availableQuotes.locator('option:not([value=""])');
   await expect(issuedChoices).toHaveCount(1);
   await availableQuotes.selectOption(await issuedChoices.getAttribute('value'));
+  const subject = 'Level 2 fire doors';
+  await field(work, 'Subject').fill(subject);
+  const [subjectBox, descriptionBox] = await Promise.all([field(work, 'Subject').boundingBox(), field(work, 'Description of works').boundingBox()]);
+  assert.ok(subjectBox.y + subjectBox.height <= descriptionBox.y);
   await saveDraft(work, 'Work Orders');
+  await expect(work.locator('.commercial-card')).toContainText(subject);
+  await checkTable(work, 'Work Orders', subject);
   const draft = order('work_order');
   const initialCount = await signatureCount();
   await move(work, 'Draft', 'Review');
@@ -210,6 +235,7 @@ async function test() {
   const purchase = page.locator('#commercial-purchase-order-root');
   await button(purchase, 'New Purchase Order').click();
   await saveDraft(purchase, 'Purchase Orders');
+  await checkTable(purchase, 'Purchase Orders');
   await move(purchase, 'Draft', 'Requested');
   const requested = await submit(purchase, 'purchase_order', 'Requested');
   await move(purchase, 'Requested', 'Reviewed');

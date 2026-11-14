@@ -63,6 +63,25 @@ class CommercialTests(unittest.TestCase):
             fields['order']['quote_id'] = quote['id']
         return {'id':str(uuid.uuid4()), 'version':0, 'kind':kind, 'status':'Draft', 'fields':fields}
 
+    def test_work_order_subject_is_saved_searchable_on_cards_and_compatible_with_older_clients(self):
+        from estimator.commercial_documents import commercial_cards
+        payload = self.payload()
+        payload['fields']['order']['subject'] = 'Level 2 penetrations'
+        saved = self.store.save(self.workspace, payload)
+        snapshot = self.store.capture(self.workspace)
+        saved_card = next(card for card in commercial_cards(snapshot) if card['id'] == saved['id'])
+        self.assertEqual(saved_card['fields']['order']['subject'], 'Level 2 penetrations')
+        previous_client = {key: saved[key] for key in ('id', 'kind', 'version', 'status', 'fields')}
+        del previous_client['fields']['order']['subject']
+        updated = self.store.save(self.workspace, previous_client)
+        self.assertEqual(updated['fields']['order']['subject'], 'Level 2 penetrations')
+        previous_client['version'] = updated['version']
+        previous_client['fields']['order']['subject'] = ''
+        self.assertEqual(self.store.save(self.workspace, previous_client)['fields']['order']['subject'], '')
+        old = next(doc for doc in snapshot['documents'] if doc['id'] == saved['id'])
+        del old['fields']['order']['subject']
+        self.assertEqual(next(card for card in commercial_cards(snapshot) if card['id'] == saved['id'])['fields']['order']['subject'], '')
+
     def test_create_retry_and_stale_update(self):
         payload = self.payload()
         saved = self.store.save(self.workspace, payload)

@@ -62,16 +62,27 @@
       add(translate("Follow-up due"), action.follow_up_date);
     }
     list.replaceChildren(...rows);
-    headerDetails.querySelector(".header-project-details-title").textContent = current.file.title;
+    const titleLink = headerDetails.querySelector(".header-project-details-title");
+    titleLink.textContent = current.file.title;
+    let navigate = false;
+    function openDetails(event) {
+      event.preventDefault();
+      navigate = true;
+      headerDetails.close();
+    }
+    titleLink.addEventListener("click", openDetails);
     const editor = document.activeElement;
     const selection = typeof editor?.selectionStart === "number"
       ? [editor.selectionStart,editor.selectionEnd,editor.selectionDirection] : null;
     const left = window.scrollX, top = window.scrollY;
     headerDetails.addEventListener("close",() => {
-      if (!editor?.isConnected || editor.closest("[hidden]")) return;
-      editor.focus({preventScroll:true});
-      if (selection) editor.setSelectionRange(...selection);
-      if (window.scrollX !== left || window.scrollY !== top) window.scrollTo({left,top,behavior:"instant"});
+      titleLink.removeEventListener("click", openDetails);
+      if (editor?.isConnected && !editor.closest("[hidden]")) {
+        editor.focus({preventScroll:true});
+        if (selection) editor.setSelectionRange(...selection);
+        if (window.scrollX !== left || window.scrollY !== top) window.scrollTo({left,top,behavior:"instant"});
+      }
+      if (navigate) void window.CeasefireProject.openCurrentDetails(current.context);
     },{once:true});
     headerDetails.showModal();
   }
@@ -134,6 +145,7 @@
     pending = value; pane.setAttribute("aria-busy", String(value));
     const recovering = selected?.kind === "new" && selected.creation?.uncertain;
     for (const control of metadataControls) control.disabled = value || recovering && control.id !== "project-details-save" || !!selected?.blocked && control.id !== "project-details-close";
+    $("project-details-load").disabled = value || !selectedFile()?.source;
     for (const slot of participantSlots) slot.inert = !!(value || recovering || selected?.blocked);
     followUpHost.inert = !!(value || recovering || selected?.blocked);
     links.inert = !!(value || recovering || selected?.blocked);
@@ -178,6 +190,8 @@
     hide(); return true;
   }
   function show(values, target) {
+    $("project-details-load").disabled = pending || !selectedFile()?.source;
+    $("project-details-load").dataset.projectTitle = [values.project_no, values.client, values.site_address].filter(Boolean).join(" · ") || target;
     window.ClassifireProjectParticipants?.show(selected.kind==="saved" ? selected.file : selected.kind==="current" ? snapshot().file : null);
     for (const [key,id] of Object.entries(fields)) $(id).value = values[key] || "";
     followUpEditor = window.ClassifireFollowUpActions.mount(followUpHost, {actions:followUpRows(values),
@@ -231,6 +245,7 @@
     finally { if (generation === ticket) busy(false); }
   }
   async function openCurrent() {
+    if (selected?.kind === "current" && selected.context === snapshot().context) { focusField(fields.client); return; }
     if (!await leave()) return;
     const active = snapshot();
     if (currentRule?.context !== active.context) currentRule = {context:active.context,baseline:normalize(active.details)};
@@ -443,6 +458,15 @@
   }
   $("project-current-details").addEventListener("click", openCurrent);
   $("project-details-close").addEventListener("click", leave);
+  function selectedFile() {
+    return selected?.kind === "current" ? snapshot().file : selected?.file;
+  }
+  $("project-details-load").addEventListener("click", event => {
+    const file = selectedFile();
+    if (!file?.source || pending || snapshot().busy) return;
+    void window.CeasefireProject.openLinkedProject({source:file.source, owner:file.source_project_id || "",
+      project_no:file.project_no}, event.currentTarget, false);
+  });
   $("project-refresh-records").addEventListener("click", async event => {
     if (!selected || pending || snapshot().busy || window.ClassifireProjectParticipants?.pending() || window.ClassifireProjectRecordPanels?.pending()) return;
     const control = event.currentTarget, target = selected;

@@ -9,6 +9,7 @@
   const feedbackSources = Object.freeze({
     select: "/sounds/select.mp3",
     takeoffTab: "/sounds/glitch.mp3",
+    page: "/sounds/page.mp3",
     selectOther: "/sounds/select-2.mp3",
     checkpoint: "/sounds/checkpoint.ogg",
     // The supplied whoosh has its silent lead trimmed and uses PCM to avoid
@@ -105,20 +106,20 @@
       if (closed || document.hidden || !enabled(button)) return;
       // Header navigation owns its own hover and click sounds.
       if (button.closest(".app-header")) { players.stop(); return; }
+      if (button.closest("#project-pages, .contacts-tabs")) {
+        menu.stop?.(); players.play("page"); return;
+      }
       // Takeoff dialogs and global actions are outside the workspace node.
-      // Its active state supplies their context; every other main page is silent.
+      // Its active state supplies their context.
       const takeoff = button.closest("#view-takeoffs") || document.body?.classList?.contains("takeoffs-active");
       if (!takeoff) { players.stop(); return; }
       menu.stop?.();
       if (button.closest("#takeoff-pages")) players.play("takeoffTab");
       else players.play(button.id === "save-current-project" ? "checkpoint" : "select");
     }
-    function over(event) {
-      if (drawingTarget(element(event.target))) stop();
-    }
     function click(event) {
       const target = element(event.target);
-      if (drawingTarget(target)) { stop(); return; }
+      if (drawingTarget(target)) return;
       if (!closed && !document.hidden && target?.closest?.(".app-header .brand")) {
         menu.stop?.(); players.play("explosion"); return;
       }
@@ -128,13 +129,11 @@
     function visibility() { if (document.hidden) stop(); }
     // Delegation covers buttons created after load, including dialogs and
     // library results. Capture plays before their navigation/render handlers.
-    document.addEventListener("pointerover", over, { capture: true, passive: true });
     document.addEventListener("click", click, { capture: true, passive: true });
     document.addEventListener("visibilitychange", visibility);
     host.addEventListener?.("pagehide", stop);
     function close() {
       closed = true; players.close(); acceptedQuotePlayer?.close(); menu.stop?.();
-      document.removeEventListener("pointerover", over, true);
       document.removeEventListener("click", click, true);
       document.removeEventListener("visibilitychange", visibility);
       host.removeEventListener?.("pagehide", stop);

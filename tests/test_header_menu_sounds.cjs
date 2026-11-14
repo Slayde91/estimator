@@ -196,6 +196,7 @@ function element(parent, { control = false, zone = "", brand = false } = {}) {
           || (selector === "#view-home" && node.zone === "home")
           || (selector === "#view-takeoffs" && node.zone === "takeoff")
           || (selector === "#takeoff-pages" && node.zone === "takeoff-pages")
+          || (selector === "#project-pages, .contacts-tabs" && ["project-pages","contacts-tabs"].includes(node.zone))
           || (selector === "#takeoff-viewport" && node.zone === "drawing")
           || (selector === ".takeoff-control-menu" && node.zone === "drawing-menu")
           || (selector === 'dialog, [role="dialog"]' && node.zone === "dialog")
@@ -267,6 +268,14 @@ test("main pages including Home are silent; header logo and Takeoff actions reta
   h.document.emit("click", { target: element(element(null, { zone: "dialog" }), { control: true }) });
   assert.equal(h.plays().at(-1)[1], feedbackSources.select);
 });
+test("Project and Contacts workspace tabs play the supplied page clip for pointer and keyboard activation", () => {
+  const h = audioHarness(); h.document.takeoffsActive = false; createFeedback(h.document,h.host,h.menu);
+  for (const zone of ["project-pages","contacts-tabs"]) {
+    const button = element(element(null,{zone}),{control:true});
+    for (const detail of [0,1]) h.document.emit("click",{target:element(button),detail});
+  }
+  assert.deepEqual(h.plays().map(row => row[1]), Array(4).fill("/sounds/page.mp3"));
+});
 
 test("PDF drawing hits and handles are silent while pane and explicit context-menu buttons keep Takeoff feedback", () => {
   const h = audioHarness(); createFeedback(h.document, h.host, h.menu);
@@ -279,7 +288,7 @@ test("PDF drawing hits and handles are silent while pane and explicit context-me
   for (const hit of [drawing, element(drawing, { control: true }), element(element(drawing, { control: true }))]) {
     const before = h.plays().length;
     h.document.emit("pointerover", { target: hit, pointerType: "mouse" });
-    assert.ok(h.players.every(player => player.paused), "Entering the drawing stops previous feedback");
+    assert.ok(!h.players.find(player => player.src === feedbackSources.select).paused, "Entering the drawing preserves the playing clip");
     h.document.emit("click", { target: hit, detail: 0 });
     assert.equal(h.plays().length, before, "Mouse and keyboard drawing edits never request a clip");
   }
@@ -289,7 +298,7 @@ test("PDF drawing hits and handles are silent while pane and explicit context-me
   h.document.emit("click", { target: element(command) });
   assert.equal(h.plays().at(-1)[1], feedbackSources.select, "An explicit drawing context command remains a button action");
   h.document.emit("pointerover", { target: drawing, pointerType: "touch" });
-  assert.ok(h.players.every(player => player.paused), "A touch entering the drawing also stops prior tool feedback");
+  assert.ok(!h.players.find(player => player.src === feedbackSources.select).paused, "Touch movement preserves the playing clip too");
   h.document.emit("pointerover", { target: pane, pointerType: "mouse" });
   h.document.emit("click", { target: pane });
   assert.deepEqual(h.plays().slice(-2).map(row => row[1]), [feedbackSources.select, feedbackSources.select], "Only clicking a command or tool pane button plays audio");
@@ -378,6 +387,7 @@ test("supplied feedback assets and the trimmed logo clip retain verified bytes",
     "type.mp3": [149760, "0a78627d0f914dd96d222afcc27e06c8d7777a2d219cef872e8f56a16dcb1c14"],
     "hover.mp3": [5015, "052d0d7f3fb41ddb67766dedd8f4c237b46c8b18745dfad0a73a14c8afb6fad5"],
     "select.mp3": [11520, "60e089eeac138ce5301fb59dc9d649c0404a556499c8f78c15c81a7cdfde1969"],
+    "page.mp3": [23808, "170023a6ce7840b7b8ab96576201c6170be7bfabc870a8502f805f09f4ac1024"],
     "select-2.mp3": [192768, "37e5c8645aa76e11dc8039545940436ea9201e533b1c946fbc9dfc3845efeb7b"],
     "mixkit-vintage-dot-printing-1371.wav": [249332, "5c39082dfe0aa5c24cae5faa0ba616bfb1354d8b7686b0b0784fa32689a9decf"],
     "checkpoint.ogg": [39539, "60acfb941abf427378e87e7ae6660ae29491f8d5efaae2681d7eb9a52af3c935"],

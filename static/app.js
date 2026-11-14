@@ -2778,113 +2778,112 @@
   function renderProjectList() {
     const canEdit = () => !window.ClassifireAccess || window.ClassifireAccess.can("edit");
     const canMove = () => !state.projectBusy && canEdit();
-    window.ClassifireDocumentBoard.render($("project-list"), {
-      items: state.projectCards,
-      stages: projectStatuses,
-      emptyLabel: "No projects",
-      stageOf: file => file.project_status || "New",
-      locked: () => !canMove(),
-      move: changeProjectStage,
-      onError: error => message(error.message, true),
-      cardFor: file => {
-        const row = node("article", "project-kanban-card project-list-row");
-        row.dataset.projectId = file.id;
-        const title = node("button", "project-title-button", file.title || file.name);
-        title.type = "button";
-        window.CeasefireI18n.attr(title, "aria-label", "Project details for {0}", [file.title || file.name]);
-        title.addEventListener("click", () => window.CeasefireProjectPane?.open(file));
-        const heading = node("div", "project-row-heading");
-        heading.append(title);
-        window.ClassifireDocumentBoard.addFollowUpMarker(heading, file.follow_up_date, event =>
-          window.ClassifireFollowUpActions.openDialog({
-            trigger:event.currentTarget, recordName:file.title || file.name, readOnly:!canEdit(),
-            load:async () => {
-              const saved = await request("/api/projects/details", {method:"POST",body:JSON.stringify({id:file.id})});
-              return {actions:saved.project_follow_up.actions, revision:saved.revision};
-            },
-            save:(actions, loaded, request_id) => {
-              if (state.projectFile?.path === file.path && (state.projectBusy ||
-                  JSON.stringify(projectFollowUp.actions) !== JSON.stringify(savedProjectFollowUp.actions))) {
-                throw new Error("Save your Project Details edits before changing its follow-up actions.");
-              }
-              return request("/api/projects/follow-up", {method:"POST",body:JSON.stringify({id:file.id, revision:loaded.revision, actions, request_id})});
-            },
-            onSaved:async (result, loaded) => {
-              if (state.projectFile?.path === result.file.path && state.projectFile.revision === loaded.revision) {
-                const clean = JSON.stringify(projectFollowUp.actions) === JSON.stringify(savedProjectFollowUp.actions);
-                state.projectFile = result.file;
-                savedProjectFollowUp = followUpFields(result.project_follow_up);
-                projectFollowUp = clean ? savedProjectFollowUp : {...savedProjectFollowUp, actions:projectFollowUp.actions};
-                updateProjectStatus();
-              }
-              await loadProjects();
-            },
-            restoreFocus:() => {
-              const card = $("project-list").querySelector('[data-project-id="' + CSS.escape(file.id) + '"]');
-              return card?.querySelector(".board-follow-up-due:not([hidden])") || card?.querySelector(".project-title-button");
+    const board = window.ClassifireDocumentBoard;
+    const stageOf = file => file.project_status || "New";
+    function projectRecord(file, tableRow) {
+      const row = tableRow || node("article", "project-kanban-card project-list-row");
+      row.dataset.projectId = file.id;
+      const title = node("button", "project-title-button", file.title || file.name);
+      title.type = "button";
+      window.CeasefireI18n.attr(title, "aria-label", "Project details for {0}", [file.title || file.name]);
+      title.addEventListener("click", () => window.CeasefireProjectPane?.open(file));
+      const heading = node("div", "project-row-heading");
+      heading.append(title);
+      window.ClassifireDocumentBoard.addFollowUpMarker(heading, file.follow_up_date, event =>
+        window.ClassifireFollowUpActions.openDialog({
+          trigger:event.currentTarget, recordName:file.title || file.name, readOnly:!canEdit(),
+          load:async () => {
+            const saved = await request("/api/projects/details", {method:"POST",body:JSON.stringify({id:file.id})});
+            return {actions:saved.project_follow_up.actions, revision:saved.revision};
+          },
+          save:(actions, loaded, request_id) => {
+            if (state.projectFile?.path === file.path && (state.projectBusy ||
+                JSON.stringify(projectFollowUp.actions) !== JSON.stringify(savedProjectFollowUp.actions))) {
+              throw new Error("Save your Project Details edits before changing its follow-up actions.");
             }
-          }));
-        const details = node("div", "project-row-details");
-        const information = node("dl", "kanban-card-details");
-        for (const [label, value] of [
-          ["Project No.", file.project_no], ["Client", file.client], ["Site address", file.site_address],
-          ["Next action", file.next_action], ["Follow-up due", file.follow_up_date && new Date(file.follow_up_date+"T00:00:00Z").toLocaleDateString("en-AU",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric"})],
-          ["Updated", new Date(file.modified_at).toLocaleString("en-AU", {year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false})]
-        ]) information.append(uiNode("dt", "", label), node("dd", "", value || "—"));
-        details.append(heading, information);
-        const estimateLabel = uiNode("label", "field project-card-estimate", "Estimate"), estimateSelect = node("select");
-        estimateSelect.setAttribute("aria-label", `Estimate for ${file.title || file.name}`);
-        const prompt = uiNode("option", "", "Select estimate"); prompt.value = ""; estimateSelect.append(prompt);
-        for (const entry of file.estimates || [{id:"estimate-1",name:"Estimate 1"}]) {
-          const option = node("option", "", entry.name); option.value = entry.id; estimateSelect.append(option);
-        }
-        estimateSelect.value = ""; estimateLabel.append(estimateSelect);
-        const controls = node("div", "project-row-actions");
-        const load = uiNode("button", "button project-load-button", "Load");
-        load.type = "button";
-        window.CeasefireI18n.attr(load, "aria-label", "Load {0}", [file.title || file.name]);
-        load.addEventListener("click", () => openProjectFile(file, load, estimateSelect.value, estimateSelect.value ? {} : {landingView:"quotes"}));
-        const menu = node("details", "project-card-menu"), toggle = node("summary", "project-card-menu-toggle");
-        window.CeasefireI18n.attr(toggle, "aria-label", "Actions for {0}", [file.title || file.name]);
-        const chevron = node("span", "calculator-document-chevron"); chevron.setAttribute("aria-hidden", "true");
-        chevron.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"></path></svg>';
-        toggle.append(chevron);
-        const actions = node("div", "project-menu-options"), needsEstimate = [];
-        const statusField = uiNode("label", "field project-row-status", "Move to"), status = node("select");
-        window.CeasefireI18n.attr(status, "aria-label", "Status for {0}", [file.title || file.name]);
-        for (const stage of projectStatuses) {
-          const option = uiNode("option", "", stage); option.value = stage; status.append(option);
-        }
-        status.value = file.project_status || "New";
-        status.disabled = !canEdit();
-        status.addEventListener("change", () => {
-          const next = status.value;
-          status.value = file.project_status || "New";
-          menu.open = false;
-          void changeProjectStage(file, next);
-        });
-        statusField.append(status);
-        for (const [label, action, requiresEstimate] of [
-          ["Open", () => window.CeasefireProjectPane?.open(file)],
-          ["Load", button => openProjectFile(file, button, "", {landingView:"quotes"})],
-          ["Edit", button => openProjectFile(file, button, estimateSelect.value), true],
-          ["Delete", () => deleteProjectCard(file)], ["Browse files", () => openProjectBrowser(file)]
-        ]) {
-          const button = uiNode("button", "text-button", label); button.type = "button";
-          if (requiresEstimate) { button.disabled = true; needsEstimate.push(button); }
-          button.addEventListener("click", () => { if (requiresEstimate && !estimateSelect.value) return; menu.open = false; return action(button); });
-          actions.append(button);
-        }
-        estimateSelect.addEventListener("change", () => { for (const button of needsEstimate) button.disabled = !estimateSelect.value; });
-        menu.addEventListener("toggle", () => positionProjectCardMenu(menu));
-        menu.addEventListener("keydown", event => { if (event.key === "Escape" && menu.open) { menu.open = false; toggle.focus(); } });
-        menu.addEventListener("focusout", event => { if (!menu.contains(event.relatedTarget)) menu.open = false; });
-        actions.append(statusField); menu.append(toggle, actions);
-        heading.append(menu); controls.append(estimateLabel, load);
-        row.append(details, controls);
-        return row;
+            return request("/api/projects/follow-up", {method:"POST",body:JSON.stringify({id:file.id, revision:loaded.revision, actions, request_id})});
+          },
+          onSaved:async (result, loaded) => {
+            if (state.projectFile?.path === result.file.path && state.projectFile.revision === loaded.revision) {
+              const clean = JSON.stringify(projectFollowUp.actions) === JSON.stringify(savedProjectFollowUp.actions);
+              state.projectFile = result.file;
+              savedProjectFollowUp = followUpFields(result.project_follow_up);
+              projectFollowUp = clean ? savedProjectFollowUp : {...savedProjectFollowUp, actions:projectFollowUp.actions};
+              updateProjectStatus();
+            }
+            await loadProjects();
+          },
+          restoreFocus:() => {
+            const card = $("project-list").querySelector('[data-project-id="' + CSS.escape(file.id) + '"]');
+            return card?.querySelector(".board-follow-up-due:not([hidden])") || card?.querySelector(".project-title-button");
+          }
+        }));
+      const fields = [
+        ["Project No.", file.project_no], ["Client", file.client], ["Site address", file.site_address],
+        ["Next action", file.next_action], ["Follow-up due", file.follow_up_date && new Date(file.follow_up_date+"T00:00:00Z").toLocaleDateString("en-AU",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric"})],
+        ["Updated", new Date(file.modified_at).toLocaleString("en-AU", {year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false})]
+      ];
+      const estimateLabel = uiNode("label", "field project-card-estimate", "Estimate"), estimateSelect = node("select");
+      estimateSelect.setAttribute("aria-label", `Estimate for ${file.title || file.name}`);
+      const prompt = uiNode("option", "", "Select estimate"); prompt.value = ""; estimateSelect.append(prompt);
+      for (const entry of file.estimates || [{id:"estimate-1",name:"Estimate 1"}]) {
+        const option = node("option", "", entry.name); option.value = entry.id; estimateSelect.append(option);
       }
-    });
+      estimateSelect.value = ""; estimateLabel.append(estimateSelect);
+      const controls = node("div", "project-row-actions");
+      const load = uiNode("button", "button project-load-button", "Load");
+      load.type = "button";
+      window.CeasefireI18n.attr(load, "aria-label", "Load {0}", [file.title || file.name]);
+      load.addEventListener("click", () => openProjectFile(file, load, estimateSelect.value, estimateSelect.value ? {} : {landingView:"quotes"}));
+      const menu = node("details", "project-card-menu"), toggle = node("summary", "project-card-menu-toggle");
+      window.CeasefireI18n.attr(toggle, "aria-label", "Actions for {0}", [file.title || file.name]);
+      const chevron = node("span", "calculator-document-chevron"); chevron.setAttribute("aria-hidden", "true");
+      chevron.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"></path></svg>';
+      toggle.append(chevron);
+      const actions = node("div", "project-menu-options"), needsEstimate = [];
+      const statusField = uiNode("label", "field project-row-status", "Move to"), status = node("select");
+      window.CeasefireI18n.attr(status, "aria-label", "Status for {0}", [file.title || file.name]);
+      for (const stage of projectStatuses) {
+        const option = uiNode("option", "", stage); option.value = stage; status.append(option);
+      }
+      status.value = file.project_status || "New";
+      status.disabled = !canEdit();
+      status.addEventListener("change", () => {
+        const next = status.value;
+        status.value = file.project_status || "New";
+        menu.open = false;
+        void changeProjectStage(file, next);
+      });
+      statusField.append(status);
+      for (const [label, action, requiresEstimate] of [
+        ["Open", () => window.CeasefireProjectPane?.open(file)],
+        ["Load", button => openProjectFile(file, button, "", {landingView:"quotes"})],
+        ["Edit", button => openProjectFile(file, button, estimateSelect.value), true],
+        ["Delete", () => deleteProjectCard(file)], ["Browse files", () => openProjectBrowser(file)]
+      ]) {
+        const button = uiNode("button", "text-button", label); button.type = "button";
+        if (requiresEstimate) { button.disabled = true; needsEstimate.push(button); }
+        button.addEventListener("click", () => { if (requiresEstimate && !estimateSelect.value) return; menu.open = false; return action(button); });
+        actions.append(button);
+      }
+      estimateSelect.addEventListener("change", () => { for (const button of needsEstimate) button.disabled = !estimateSelect.value; });
+      menu.addEventListener("toggle", () => positionProjectCardMenu(menu));
+      menu.addEventListener("keydown", event => { if (event.key === "Escape" && menu.open) { menu.open = false; toggle.focus(); } });
+      menu.addEventListener("focusout", event => { if (!menu.contains(event.relatedTarget)) menu.open = false; });
+      actions.append(statusField); menu.append(toggle, actions);
+      heading.append(menu); controls.append(estimateLabel, load);
+      if (tableRow) return [heading, uiNode("span", "", stageOf(file)), ...fields.map(([,value]) => value), controls];
+      const details = node("div", "project-row-details"), information = node("dl", "kanban-card-details");
+      for (const [label, value] of fields) information.append(uiNode("dt", "", label), node("dd", "", value || "—"));
+      details.append(heading, information);
+      row.append(details, controls);
+      return row;
+    }
+    if (board.viewFor("projects") === "table") {
+      $("project-list").replaceChildren(board.recordTable(["Project", "Status", "Project No.", "Client", "Site address", "Next action", "Follow-up due", "Updated", "Estimate"],
+        state.projectCards.filter(file => !hiddenProjectStages.has(stageOf(file))), projectRecord));
+    } else board.render($("project-list"), {items:state.projectCards, stages:projectStatuses, emptyLabel:"No projects", stageOf,
+      locked:() => !canMove(), move:changeProjectStage, onError:error => message(error.message, true), cardFor:projectRecord});
     applyProjectColumnVisibility();
   }
 
@@ -2994,7 +2993,7 @@
     projectBusy(true); button.disabled = true; button.setAttribute("aria-busy", "true");
     try {
       const captured = projectReplacementStamp();
-      const target = options.linkedProject ? {linked_project: {source:file.source, owner:file.owner, project_no:file.project_no}} : {id:file.id};
+      const target = options.loadTarget || {id:file.id};
       const project = await request("/api/projects/load", { method: "POST", body: JSON.stringify(target) });
       if (estimateId && project.estimates) {
         const selected = project.estimates.find(entry => entry.id === estimateId);
@@ -3009,7 +3008,7 @@
   }
 
   let openingLinkedProject = false;
-  async function openLinkedProject(file, button) {
+  async function openReferencedProject(target, button, showDetails = false) {
     if (openingLinkedProject || state.projectBusy || coverReplacementPending() || window.ClassifireProjectParticipants?.pending()) return;
     openingLinkedProject = true;
     try {
@@ -3017,7 +3016,7 @@
       if (projectHasChanges() || pane?.hasUnsavedChanges() || window.CeasefireCoverSheets?.hasUnsavedChanges?.()) {
         const captured = projectReplacementStamp();
         const choice = await chooseReplacement(uiCopy("Save changes before opening the linked project?"),
-          uiCopy("Opening {0} will replace your current project.", [button.textContent]), uiCopy("Save"), uiCopy("Cancel"), "Open without saving");
+          uiCopy("Opening {0} will replace your current project.", [button.dataset.projectTitle || button.textContent]), uiCopy("Save"), uiCopy("Cancel"), "Open without saving");
         if (choice !== "confirm" && choice !== "alternate") return;
         if (captured !== projectReplacementStamp()) throw new Error("Your draft changed during review. Load the file again to keep your latest edits safe.");
         if (choice === "confirm") {
@@ -3029,11 +3028,17 @@
           if (pane?.hasUnsavedChanges()) return;
         }
       }
-      if (await openProjectFile(file, button, null, {linkedProject:true, confirmedReplacement:true, landingView:"quotes"})) {
+      const loaded = await openProjectFile(null, button, null, {loadTarget:target, linkedProject:true,
+        confirmedReplacement:true, landingView:showDetails ? "quotes" : "estimate"});
+      if (loaded && showDetails) {
         await window.CeasefireProjectPane?.openCurrent();
       }
     } catch (error) { message(error.message, true); }
     finally { openingLinkedProject = false; }
+  }
+
+  function openLinkedProject(file, button, showDetails = true) {
+    return openReferencedProject({linked_project:{source:file.source, owner:file.owner, project_no:file.project_no}}, button, showDetails);
   }
 
   function projectFileIcon(entry) {
@@ -3249,6 +3254,7 @@
     clearTimeout(state.projectsTimer); ++state.projectsRevision;
     state.projectsTimer = setTimeout(() => loadProjects({ offset: 0 }), 250);
   });
+  $("project-view-picker").append(window.ClassifireDocumentBoard.viewPicker("projects", renderProjectList));
   $("project-sort").addEventListener("change", () => loadProjects({ offset: 0 }));
   const projectColumnOptions = $("project-columns").querySelector(".commercial-menu-options");
   for (const stage of projectStatuses) {
@@ -3259,7 +3265,8 @@
     checkbox.addEventListener("change", () => {
       if (checkbox.checked) hiddenProjectStages.delete(stage);
       else hiddenProjectStages.add(stage);
-      applyProjectColumnVisibility();
+      if (window.ClassifireDocumentBoard.viewFor("projects") === "table") renderProjectList();
+      else applyProjectColumnVisibility();
       try { localStorage.setItem(projectColumnsKey, JSON.stringify([...hiddenProjectStages])); }
       catch { /* Keep this session's selection when storage is unavailable. */ }
     });
@@ -3369,23 +3376,12 @@
     return !!target && target.project_context === state.quoteContext &&
       typeof target.project_path === "string" && target.project_path === state.projectFile?.path;
   }
-  async function openConvertedLead(receipt, button) {
-    if (!receipt || typeof receipt.project_no !== "string" || (!receipt.project_source && typeof receipt.path !== "string")) throw new Error("The converted project could not be identified. Open it from Projects.");
+  async function openConvertedLead(leadId, button) {
+    if (!leadId) throw new Error("The converted project could not be identified. Open it from Projects.");
     if (state.projectBusy) throw new Error("The project was saved. Finish the current project action and open it from Projects.");
-    // Conversion returns the saved receipt, never a caller-selected file path.
-    // Resolve its opaque identity through the normal linked-folder listing.
-    for (let attempt = 0; attempt < 100; attempt++) {
-      const listing = await request(`/api/projects?search=${encodeURIComponent(receipt.project_no)}`);
-      const file = listing.files?.find(file => file.project_no === receipt.project_no &&
-        (receipt.project_source ? file.source === receipt.project_source : file.path === receipt.path));
-      if (file) {
-        if (button) return openLinkedProject({source:file.source, owner:file.source_project_id || "", project_no:file.project_no}, button);
-        return openProjectFile(file, node("button"), null, {convertedLead:true});
-      }
-      if (!listing.scan_pending) break;
-      await new Promise(resolve => setTimeout(resolve, 50));
-    }
-    throw new Error("The project was saved, but could not be opened automatically. Open it from Projects.");
+    const target = {converted_lead:leadId};
+    return button ? openReferencedProject(target, button)
+      : openProjectFile(null, node("button"), null, {convertedLead:true, loadTarget:target});
   }
   window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus, scheduleChanged, hasCreatedProject, requireCreatedProject, createProject, discardNewProject, refreshPages: refreshProjectPages,
     projectPaneSnapshot: () => ({details:{...quoteDetails(),follow_up_actions:clone(projectFollowUp.actions)}, context:state.quoteContext, file:state.projectFile ? clone(state.projectFile) : null, busy:state.projectBusy}),
@@ -3453,6 +3449,9 @@
     },
     refreshProjectCards: () => loadProjects(),
     openConvertedLead,openLinkedProject,
+    openCurrentDetails: async context => {
+      if (await requestViewNavigation("quotes") && context === state.quoteContext) await window.CeasefireProjectPane.openCurrent();
+    },
     openCommercial: kind => requestViewNavigation({quote:"quote", work_order:"work-orders", purchase_order:"purchase-orders"}[kind]),
     openScheduler: () => requestViewNavigation("scheduler"),
     configuration: () => clone(state.quoteConfiguration || state.configuration),

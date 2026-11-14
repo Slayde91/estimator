@@ -23,5 +23,20 @@
     "올바른 작업 흐름 상태를 선택하세요.",
     "Pumili ng wastong katayuan ng daloy ng trabaho.",
     "Chọn trạng thái quy trình hợp lệ."
+  ],
+  "Kanban": [
+    "칸반",
+    "Kanban",
+    "Kanban"
+  ],
+  "Table": [
+    "표",
+    "Talahanayan",
+    "Bảng"
+  ],
+  "Subject": [
+    "제목",
+    "Paksa",
+    "Chủ đề"
   ]
 }

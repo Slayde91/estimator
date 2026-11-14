@@ -13,13 +13,16 @@ def _assignment(entry):
     order = entry.get('work_order') or {}
     if order:
         project = ':'.join((order.get('source_id',''), order.get('project_id','')))
-        label = ' · '.join(filter(None, (order.get('project_no'), order.get('client'), order.get('site_address'))))
-        return ('order:'+order['id'], order.get('reference',''), 'project:'+project, label)
+        site = ' - '.join(filter(None, (order.get('client'), order.get('site_address'))))
+        reference = order.get('reference', '')
+        job_label = ': '.join(filter(None, (reference, site)))
+        project_label = ': '.join(filter(None, (order.get('project_no'), site)))
+        return ('order:'+order['id'], reference, job_label, 'project:'+project, project_label)
     project = entry.get('project_id') or entry.get('project_name')
     if project:
         label = entry.get('project_name') or project
-        return ('legacy:'+project, label, 'legacy:'+project, label)
-    return ('unassigned', '', 'unassigned', '')
+        return ('legacy:'+project, label, label, 'legacy:'+project, label)
+    return ('unassigned', '', '', 'unassigned', '')
 
 
 def _by_day(start, end, zone, first, until):
@@ -104,10 +107,10 @@ def report(db, viewer, settings, query):
         else:
             for left,right in _paid_intervals(entry,settings):
                 add(left,right,'paid')
-        job, job_label, project, project_label = _assignment(entry)
+        job, job_label, job_chart_label, project, project_label = _assignment(entry)
         for day, values in days.items():
             rows.append({'day':day, 'member':entry['member_id'], 'job':job, 'job_label':job_label,
-                         'project':project, 'project_label':project_label,
+                         'job_chart_label':job_chart_label, 'project':project, 'project_label':project_label,
                          'clock_in':begin.astimezone(zone).isoformat(timespec='seconds'),
                          'clock_out':finish.astimezone(zone).isoformat(timespec='seconds'), **values})
     used_rules = {rule_id for row in rows for rule_id in row['overtime_by_rule']}

@@ -85,7 +85,9 @@ const ready = new Promise((resolve,reject)=>{
   // Clean active-project metadata saves stay clean and rotate its writable target.
   await openDetails(first);
   const toolbar=page.locator('#project-details-actions');
-  await expect(toolbar.locator('button')).toHaveCount(3);await expect(toolbar.getByRole('button',{name:'Refresh Records',exact:true})).toBeEnabled();
+  await expect(toolbar.locator('button')).toHaveText(['←','Save','Load','Refresh Records']);
+  await expect(toolbar.getByRole('button',{name:'Load',exact:true})).toHaveCSS('background-color','rgb(208, 0, 27)');
+  await expect(toolbar.getByRole('button',{name:'Refresh Records',exact:true})).toBeEnabled();
   assert.equal(await page.locator('#project-details-pane #project-details-close').count(),0);
   const [barBox,detailsBox,backBox,saveBox]=await Promise.all([toolbar.boundingBox(),page.locator('#project-details-pane').boundingBox(),toolbar.getByRole('button',{name:'Back to Projects',exact:true}).boundingBox(),page.locator('#project-details-toolbar-save').boundingBox()]);
   assert.ok(barBox.y+barBox.height<detailsBox.y&&Math.abs(backBox.y-saveBox.y)<1&&backBox.x+backBox.width<saveBox.x,'Back and Save share a separate toolbar above Project Details');

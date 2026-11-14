@@ -64,9 +64,10 @@
   function presentInline(element, { block, announce = true } = {}) {
     if (!element) return;
     const current = presentation(element, announce, true);
-    if (!current?.rendered) return;
-    if (element.matches('.message')) decorate(element);
-    if (block && current.error) element.scrollIntoView({ block, inline: 'nearest', behavior: 'instant' });
+    const displayed = current || presentations.get(element);
+    if (!displayed?.rendered) return;
+    if (current && element.matches('.message')) decorate(element);
+    if (block && displayed.error) element.scrollIntoView({ block, inline: 'nearest', behavior: 'instant' });
     soundVisible(element, current);
   }
   function rememberDownload(receipt) {

@@ -83,12 +83,12 @@
     body.append(list); group.append(summary, body); groups.append(group);
   }
 
-  function conversionDetails(receipt, openProject = false) {
+  function conversionDetails(receipt, openProject = false, compact = false) {
     const conversion = el('div', 'contacts-conversion');
-    const projectName = openProject && receipt.project_source ? button(receipt.project_no || "Project", async event => {
+    const projectName = openProject && receipt.lead_id ? button(receipt.project_no || "Project", async event => {
       const control = event.currentTarget;
       control.disabled = true;
-      try { await window.CeasefireProject.openConvertedLead(receipt, control); }
+      try { await window.CeasefireProject.openConvertedLead(receipt.lead_id, control); }
       catch (error) { feedback(root(), error.message, true); }
       finally { control.disabled = false; }
     }, 'text-button') : el('span', '', receipt.project_no || '—');
@@ -103,7 +103,8 @@
     identity.append(ui('dt', '', 'Project No.'), project,
       ui('dt', '', 'Site address'), el('dd', '', receipt.snapshot?.site_address || '—'),
       ui('dt', '', 'Date'), dateValue);
-    conversion.append(identity);
+    if (compact) conversion.append(projectName, convertedAt);
+    else conversion.append(identity);
     if (!receipt.snapshot) {
       conversion.append(ui('p', 'helper', 'Earlier conversion details were not recorded.'));
       return conversion;
@@ -1010,19 +1011,64 @@
       return;
     }
     converting=lead.id;conversionBusy();
-    try{const saved=await update('leads/convert',{id:lead.id,version:data.version});if(saved)await window.CeasefireProject?.openConvertedLead(saved);}
+    try{const saved=await update('leads/convert',{id:lead.id,version:data.version});if(saved)await window.CeasefireProject?.openConvertedLead(lead.id);}
     catch(error){if(root().querySelector('[data-contacts-notice]'))feedback(root(),error.message,true);}
     finally{converting=null;conversionBusy();}
   }
+  function leadHeading(lead) {
+    const row = el("div", "project-card-heading"), menu = el("details", "commercial-card-menu contacts-lead-menu");
+    const toggle = el("summary", "", "▾");
+    toggle.setAttribute("aria-label", `Actions for ${lead.name}`);
+    const options = el("div", "commercial-menu-options");
+    for (const name of ["Open", "Edit"]) {
+      options.append(button(name, () => {menu.open = false; dialogEditor("leads", lead);}, "text-button"));
+    }
+    const convertMenu=button('Convert',()=>{menu.open=false;void convertLead(lead);},'text-button');convertMenu.dataset.leadConvert=lead.id;options.append(convertMenu);
+    menu.append(toggle, options);
+    menu.addEventListener("toggle", () => {
+      if (!menu.open) return;
+      const rect = toggle.getBoundingClientRect();
+      options.style.left = `${Math.max(8, Math.min(innerWidth - options.offsetWidth - 8, rect.right - options.offsetWidth))}px`;
+      options.style.top = `${rect.bottom + options.offsetHeight + 12 <= innerHeight ? rect.bottom + 6 : Math.max(8, rect.top - options.offsetHeight - 6)}px`;
+    });
+    const openLead = button(lead.name, () => dialogEditor("leads", lead), "text-button project-title-button");
+    openLead.dataset.directoryRecord=lead.id; row.append(openLead);
+    window.ClassifireDocumentBoard.addFollowUpMarker(row, lead.follow_up_date, event =>
+      window.ClassifireFollowUpActions.openDialog({
+        trigger:event.currentTarget, recordName:lead.name,
+        readOnly:!window.ClassifireAccess.can("edit"),
+        load:async () => {
+          const directory = await request("directory?board=1");
+          const current = directory.leads.find(item => item.id === lead.id);
+          if (!current) throw new Error("Choose an existing directory record.");
+          return {actions:current.follow_up_actions, version:directory.version};
+        },
+        save:(actions, loaded, request_id) => request("leads/follow-up", {id:lead.id, version:loaded.version, actions, request_id}),
+        onSaved:async () => {
+          const ticket = generation, directory = await request("directory?board=1");
+          if (ticket === generation && page === "leads") { data = directory; render(); }
+        },
+        restoreFocus:() => {
+          const title = root().querySelector('[data-directory-record="' + CSS.escape(lead.id) + '"]');
+          return title?.parentElement.querySelector(".board-follow-up-due:not([hidden])") || title;
+        }
+      }));
+    row.append(menu);
+    return row;
+  }
   function leadBoard(rows) {
+    const sorted = [...rows].sort((a,b) => (a.follow_up_date || '99999').localeCompare(b.follow_up_date || '99999'));
+    const layouts = window.ClassifireDocumentBoard;
+    if (layouts.viewFor('leads') === 'table') {
+      return layouts.recordTable(['Name', 'Status', 'Company', 'Site address', 'Owner', 'Next action', 'Follow-up date', 'Project'],
+        sorted, lead => [lead.receipt ? lead.name : leadHeading(lead), ui('span', '', lead.status), lead.company, lead.site_address,
+          lead.owner_name, lead.next_action, lead.follow_up_date, lead.receipt ? conversionDetails(lead.receipt, true, true) : convertButton(lead)]);
+    }
     const board = el("div", "project-kanban contacts-board");
     for (const status of data.statuses) {
       const column = el("section", "project-kanban-column");
       column.dataset.status = status;
-      // ISO calendar dates sort chronologically. Keep the existing directory
-      // order for equal dates and put unscheduled leads after dated follow-ups.
-      const group = rows.filter(lead => lead.status === status).sort((a,b) =>
-        (a.follow_up_date || "99999").localeCompare(b.follow_up_date || "99999"));
+      const group = sorted.filter(lead => lead.status === status);
       const heading = el("div", "project-column-heading");
       heading.append(ui("h2", "", status), el("span", "badge", group.length));
       column.append(heading);
@@ -1040,55 +1086,15 @@
           event.dataTransfer.effectAllowed = "move";
           event.dataTransfer.setData("application/x-classifire-lead", lead.id);
         });
-        const row = el("div", "project-card-heading"), menu = el("details", "commercial-card-menu contacts-lead-menu");
-        const toggle = el("summary", "", "▾");
-        toggle.setAttribute("aria-label", `Actions for ${lead.name}`);
-        const options = el("div", "commercial-menu-options");
-        for (const name of ["Open", "Edit"]) {
-          options.append(button(name, () => {menu.open = false; dialogEditor("leads", lead);}, "text-button"));
-        }
-        const convertMenu=button('Convert',()=>{menu.open=false;void convertLead(lead);},'text-button');convertMenu.dataset.leadConvert=lead.id;options.append(convertMenu);
-        menu.append(toggle, options);
-        menu.addEventListener("toggle", () => {
-          if (!menu.open) return;
-          const rect = toggle.getBoundingClientRect();
-          options.style.left = `${Math.max(8, Math.min(innerWidth - options.offsetWidth - 8, rect.right - options.offsetWidth))}px`;
-          options.style.top = `${rect.bottom + options.offsetHeight + 12 <= innerHeight ? rect.bottom + 6 : Math.max(8, rect.top - options.offsetHeight - 6)}px`;
-        });
-        const openLead = button(lead.name, () => dialogEditor("leads", lead), "text-button project-title-button");
-        openLead.dataset.directoryRecord=lead.id; row.append(openLead);
-        window.ClassifireDocumentBoard.addFollowUpMarker(row, lead.follow_up_date, event =>
-          window.ClassifireFollowUpActions.openDialog({
-            trigger:event.currentTarget, recordName:lead.name,
-            readOnly:!window.ClassifireAccess.can("edit"),
-            load:async () => {
-              const directory = await request("directory?board=1");
-              const current = directory.leads.find(item => item.id === lead.id);
-              if (!current) throw new Error("Choose an existing directory record.");
-              return {actions:current.follow_up_actions, version:directory.version};
-            },
-            save:(actions, loaded, request_id) => request("leads/follow-up", {id:lead.id, version:loaded.version, actions, request_id}),
-            onSaved:async () => {
-              const ticket = generation, directory = await request("directory?board=1");
-              if (ticket === generation && page === "leads") { data = directory; render(); }
-            },
-            restoreFocus:() => {
-              const title = root().querySelector('[data-directory-record="' + CSS.escape(lead.id) + '"]');
-              return title?.parentElement.querySelector(".board-follow-up-due:not([hidden])") || title;
-            }
-          }));
-        row.append(menu);
-        card.append(row);
+        card.append(leadHeading(lead));
         const details = el("dl", "kanban-card-details");
         for (const key of ["company", "site_address", "region", "owner_name", "title", "phone", "email", "next_action", "follow_up_date","last_interaction_at"]) {
           if (!lead[key] && key !== "company") continue;
           details.append(ui("dt", "", labels[key]), el("dd", "", key==='last_interaction_at'?new Date(lead[key]).toLocaleString():lead[key] || "—"));
         }
         card.append(details);
-        const actions=el('div','contacts-lead-actions'),convert=button('',()=>void convertLead(lead),'button primary icon-only contacts-lead-convert takeoff-preview-transfer');
-        convert.dataset.leadConvert=lead.id;convert.title='Convert';convert.setAttribute('aria-label','Convert lead '+lead.name);
-        window.CeasefireI18n?.attr(convert,'title','Convert');window.CeasefireI18n?.attr(convert,'aria-label','Convert lead {0}',[lead.name]);
-        const symbol=el('img','takeoff-transfer-icon');symbol.src='/icons/takeoff-transfer.png';symbol.alt='';symbol.width=symbol.height=24;symbol.setAttribute('aria-hidden','true');convert.append(symbol);actions.append(convert);card.append(actions);
+        const actions = el('div', 'contacts-lead-actions');
+        actions.append(convertButton(lead)); card.append(actions);
         column.append(card);
       }
       if (!group.length) column.append(el("p", "project-column-empty", "No leads"));
@@ -1103,6 +1109,16 @@
       board.append(column);
     }
     return board;
+  }
+  function convertButton(lead) {
+    const convert = button('', () => void convertLead(lead), 'button primary icon-only contacts-lead-convert takeoff-preview-transfer');
+    convert.dataset.leadConvert = lead.id; convert.title = 'Convert'; convert.setAttribute('aria-label', 'Convert lead ' + lead.name);
+    window.CeasefireI18n?.attr(convert, 'title', 'Convert');
+    window.CeasefireI18n?.attr(convert, 'aria-label', 'Convert lead {0}', [lead.name]);
+    const icon = el('img', 'takeoff-transfer-icon');
+    icon.src = '/icons/takeoff-transfer.png'; icon.alt = ''; icon.width = icon.height = 24;
+    convert.append(icon);
+    return convert;
   }
   function directoryTable(rows) {
     const keys = page === "accounts" ? ["company", "abn_acn", "billing_address"] : ["name", "company", "title", "phone", "email"];
@@ -1217,6 +1233,7 @@
     searchLabel.append(input);
     controls.append(searchLabel);
     if (page === "leads") {
+      controls.append(window.ClassifireDocumentBoard.viewPicker("leads", displayRows));
       const label = el("label", "field");
       if (window.CeasefireI18n) window.CeasefireI18n.nodeText(label, "Follow up by");
       else label.textContent = "Follow up by";

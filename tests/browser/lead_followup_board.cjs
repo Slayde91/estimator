@@ -32,6 +32,20 @@ async function checkFollowUpBoard(browser, base, output) {
     const root=page.locator('#contacts-root'),card=name=>root.locator('.contacts-board article').filter({hasText:'Reminder '+name});
     const due=name=>card(name).getByRole('button',{name:'Follow-up due',exact:true});
     await expect(card('Tomorrow')).toBeVisible();
+    const view = root.locator('.record-view-picker');
+    await view.locator('summary').click(); await view.getByRole('button',{name:'Table',exact:true}).click();
+    await expect(view.locator('summary')).toBeFocused();
+    const rows = root.locator('.record-list-table tbody tr');
+    await expect(rows.filter({hasText:'Reminder Tomorrow'})).toHaveCount(1);
+    await expect(rows.filter({hasText:'Reminder Converted'}).locator('.contacts-conversion .text-button')).toBeVisible();
+    await root.getByRole('searchbox').fill('Reminder Past');
+    await expect(rows).toHaveCount(1);
+    await expect(rows.getByRole('button',{name:'Convert lead Reminder Past',exact:true})).toBeVisible();
+    await rows.locator('.contacts-lead-menu summary').click();
+    await expect(rows.getByRole('button',{name:'Edit',exact:true})).toBeVisible();
+    await rows.locator('.contacts-lead-menu summary').click();
+    await root.getByRole('searchbox').fill('');
+    await view.locator('summary').click(); await view.getByRole('button',{name:'Kanban',exact:true}).click();
     await page.clock.pauseAt(new Date('2027-03-15T03:59:58Z'));
     for(const name of ['Past','Today','Disqualified']){
       await expect(due(name)).toBeVisible();

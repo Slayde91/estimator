@@ -1,7 +1,7 @@
 /* Scheduler follows the application's active colour theme. */
 .scheduler-reports {display:grid;gap:14px;min-width:0;margin-top:16px}
 .scheduler-report-modes,.scheduler-report-tools {display:flex;flex-wrap:wrap;gap:8px}
-.scheduler-report-modes button[aria-pressed="true"] {background:var(--ink);color:var(--paper)}
+.scheduler-report-modes button[aria-pressed="true"] {box-shadow:inset 0 -3px #fff}
 .scheduler-report-filters {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(160px,100%),1fr));align-items:end;gap:12px;padding:16px}
 .scheduler-report-filters .field {min-width:0}
 .scheduler-report-filters .field>label {display:block;font-size:12px;font-weight:650;margin-bottom:7px}
@@ -103,9 +103,9 @@
 .scheduler-top,.scheduler-toolbar,.scheduler-clock,.scheduler-dialog-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
 .staff-portal-account { display:flex; justify-content:flex-end; padding:8px 16px 0; }
 .scheduler-top { justify-content:space-between; margin-bottom:18px; }
-#scheduler-root .scheduler-tabs { display:flex; align-items:center; gap:5px; min-width:0; width:fit-content; max-width:100%; padding:0; flex:0 1 auto; background:#090b0e; color:#f3f4f6; }
+#scheduler-root .scheduler-tabs { display:flex; flex-wrap:wrap; align-items:center; gap:5px; min-width:0; width:fit-content; max-width:100%; padding:0; flex:0 1 auto; overflow:visible; background:#090b0e; color:#f3f4f6; }
 @media screen {
-  #scheduler-root .scheduler-tabs { box-shadow:0 1px var(--red); scrollbar-width:none; }
+  #scheduler-root .scheduler-tabs { box-shadow:0 1px var(--red); }
   #scheduler-root .scheduler-tabs>button:focus-visible { outline-offset:-4px; }
 }
 #scheduler-root .scheduler-tabs>.calculator-page { display:inline-flex; align-items:center; justify-content:center; flex:none; box-sizing:border-box; height:42px; min-height:42px; padding-block:0; color:#e3e7ee; }
@@ -120,7 +120,7 @@
 .scheduler-clock { padding:16px 20px; }
 .scheduler-clock>div:first-child { margin-right:auto; }
 .scheduler-clock .helper { margin-top:5px; }
-.scheduler-clock-heading { display:grid; grid-template-columns:minmax(385px,30%) minmax(0,1fr); align-items:stretch; }
+.scheduler-clock-heading { display:grid; grid-template-columns:fit-content(65%) minmax(0,1fr); align-items:stretch; }
 .scheduler-clock-navigation { display:grid; grid-template-rows:minmax(42px,max-content) auto; align-content:start; align-items:start; justify-items:start; gap:8px; min-width:0; }
 #scheduler-root>.workspace-title-row:not(.scheduler-clock-heading){flex-flow:row wrap;gap:4px 16px}
 #scheduler-root>.workspace-title-row>.scheduler-local-time{align-self:center}

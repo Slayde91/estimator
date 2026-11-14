@@ -32,7 +32,7 @@ CYCLE_SIGNERS = ('progress_by', 'claimed_by', 'closed_by')
 # billing belong to the ongoing job and survive a sign-off being withdrawn.
 SECTION_INPUTS = {
     'work_order': {
-        'details_by': ('start_date', 'end_date', 'urgency', 'description', 'estimated_cost', 'attachments'),
+        'details_by': ('start_date', 'end_date', 'urgency', 'subject', 'description', 'estimated_cost', 'attachments'),
         'reviewed_by': ('approval', 'justification'),
         'prepared_by': ('swms', 'sds', 'sop', 'other_documents'),
         'client_approved_by': ('client_approval',),

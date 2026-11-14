@@ -3765,5 +3765,8 @@
   "Entry {0} is incomplete.": "اندراج {0} نامکمل ہے۔",
   "NA": "لاگو نہیں ہوتا",
   "Open time clock": "حاضری کی گھڑی کھولیں",
-  "Location update overdue.": "مقام کی تازہ کاری میں تاخیر ہو گئی ہے۔"
+  "Location update overdue.": "مقام کی تازہ کاری میں تاخیر ہو گئی ہے۔",
+  "Kanban": "کانبان",
+  "Table": "جدول",
+  "Subject": "موضوع"
 }

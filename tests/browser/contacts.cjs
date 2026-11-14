@@ -238,7 +238,22 @@ const ready = new Promise((resolve, reject) => {
   await freshPage.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready);
   await freshPage.locator('#contacts-navigation-toggle').click();
   const convertedProject = freshPage.locator('[data-status="Converted"] article').getByRole('button',{name:new RegExp(receipt.project_no)});
+  const secondReceipt=(await (await freshPage.request.get('http://127.0.0.1:'+port+'/api/contacts/directory?board=1')).json()).converted_leads.find(row=>row.project_no!==receipt.project_no);
+  await freshPage.locator('[data-status="Converted"] article').getByRole('button',{name:secondReceipt.project_no,exact:true}).click();
+  await expect(freshPage.locator('#view-estimate')).toBeVisible();await expect(freshPage.locator('#project-no')).toHaveValue(secondReceipt.project_no);
+  const otherFile=await freshPage.evaluate(()=>window.CeasefireProject.context().project_path);
+  await freshPage.locator('#contacts-navigation-toggle').click();
+  const duplicate=path.join(tmp,'duplicate-converted.cf.json'),unavailable=receipt.path+'.moved';
+  fs.copyFileSync(receipt.path,duplicate);fs.renameSync(receipt.path,unavailable);
+  try{
+    await convertedProject.click();await expect(freshPage.locator('#app-message')).toContainText('Project was not loaded.');
+    assert.equal(await freshPage.evaluate(()=>window.CeasefireProject.context().project_path),otherFile);
+  }finally{fs.renameSync(unavailable,receipt.path);}
   await convertedProject.click();
+  await expect(freshPage.locator('#view-estimate')).toBeVisible();await expect(freshPage.locator('#project-no')).toHaveValue(receipt.project_no);
+  assert.equal(await freshPage.evaluate(()=>window.CeasefireProject.context().project_path),receipt.path);
+  await freshPage.locator('#header-project-name').click();
+  await freshPage.locator('#header-project-details').getByRole('link').click();
   await expect(freshPage.locator('#project-pane-number')).toHaveValue(receipt.project_no);
   await expect(freshPage.locator('#project-pane-contact-name')).toHaveValue('Robin Sample');
   await freshPage.locator('#project-pane-contact-phone').fill('0401 111 222');

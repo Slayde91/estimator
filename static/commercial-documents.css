@@ -99,6 +99,8 @@
 .commercial-board-signing :is(h2,h3,p){margin:0}
 .commercial-board-signing .actions{justify-content:flex-end}
 .commercial-proposed-dates{grid-column:1}
+.commercial-work-scope{display:flex;flex-direction:column;gap:14px;min-width:0}
+.commercial-work-scope>.commercial-work-description{flex:1}
 .commercial-work-cost-files{display:grid;gap:14px;min-width:0;align-content:start}
 .commercial-work-description{display:flex;flex-direction:column;align-self:stretch;gap:7px}
 .commercial-work-description>span{margin:0}

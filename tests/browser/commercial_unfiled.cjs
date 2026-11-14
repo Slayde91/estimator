@@ -126,7 +126,7 @@ async function save(page){
   for(const row of registry)assert.equal(path.resolve(row.path),path.resolve(info.project));
   assert.equal(await currentFile(other),null);
   await card(heading).getByRole('button',{name:heading,exact:true}).click();
-  await expect(board(other).getByLabel('Linked Project',{exact:true})).toHaveValue([file.estimate.project_no,file.estimate.client,file.estimate.site_address?.replace(/\s+/g,' ')].filter(Boolean).join(' · '));
+  await expect(board(other).getByLabel('Linked Project',{exact:true})).toHaveValue(file.estimate.project_no+': '+[file.estimate.client,file.estimate.site_address?.replace(/\s+/g,' ')].filter(Boolean).join('-'));
   await expect(board(other).getByLabel('Linked Project',{exact:true})).toHaveAttribute('readonly','');
   assert.equal(await currentFile(other),null,'Displaying the saved Quote owner does not load it over the active workspace');
 

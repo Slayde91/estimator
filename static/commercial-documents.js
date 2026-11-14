@@ -582,17 +582,17 @@
     return true;
   }
   async function activate(kind, draftOwner = null) {
-    if (!names[kind]) return;
-    if (state.busy || (state.dirty && !await leaveEditor())) return;
+    if (!names[kind]) return false;
+    if (state.busy || (state.dirty && !await leaveEditor())) return false;
     const revision = ++state.revision;
     const context = window.CeasefireProject?.runtimeContext?.();
     state.kind = kind;
-    if (!root()) return;
+    if (!root()) return false;
     if (kind === "quote" || kind === "work_order") window.CeasefireButtonSounds?.prepareQuote?.();
     shell(names[kind] + "s");
     try {
       const workspace = currentWorkspace() || (await window.CeasefireCertification.projectWorkspace()).workspace_id;
-      if (revision !== state.revision || context !== window.CeasefireProject?.runtimeContext?.() || workspace !== currentWorkspace()) return;
+      if (revision !== state.revision || context !== window.CeasefireProject?.runtimeContext?.() || workspace !== currentWorkspace()) return false;
       if (workspace !== state.workspace) {
         state.workspace = workspace;
         state.model = null;
@@ -607,9 +607,12 @@
               && draftOwner.actor === window.ClassifireAccess?.user?.id && revision === state.revision
               && !root().closest('.view').hidden) await openNew();
         }
+        return revision === state.revision;
       }
+      return false;
     } catch (error) {
       if (revision === state.revision && context === window.CeasefireProject?.runtimeContext?.()) message(error.message, true);
+      return false;
     }
   }
   function renderBoard() {
@@ -722,7 +725,7 @@
       const linked = editor.source ? editor.source.createdProject === true
         : window.CeasefireProject?.hasCreatedProject?.() === true;
       const details = linked ? projectDetailsSnapshot(editor.source) : {};
-      owner.value = [details.project_no, details.client, details.site_address?.replace(/\s+/g, ' ')].filter(Boolean).join(' · ');
+      owner.value = window.ClassifireDocumentBoard.linkedRecordLabel(details.project_no, details);
       owner.title = owner.value;
     }
     const number = root()?.querySelector('[data-quote-reference]');
@@ -1296,9 +1299,10 @@
       finally { if (owner === state.editor && !state.busy) refresh.disabled = false; }
     });
     window.CeasefireI18n?.text(refresh,"Refresh Records");
-    actions.append(backButton("Back to " + names[state.kind] + "s", () => void leaveEditor()), button("Save", () => void saveEditor(), true), refresh, pdfDownloadButton(() => void downloadEditor()));
+    actions.append(backButton("Back to " + names[state.kind] + "s", () => void leaveEditor()), button("Save", () => void saveEditor(), true), pdfDownloadButton(() => void downloadEditor()));
     if (state.kind === "quote") actions.append(button("Create WO", () => void createWorkOrder(), true));
-    if (state.kind === "work_order") actions.append(button("Create PO", () => void createPurchaseOrder()));
+    if (state.kind === "work_order") actions.append(button("Create PO", () => void createPurchaseOrder(), true));
+    actions.append(refresh);
     form.append(actions);
     const details = node("section", "card commercial-details");
     details.append(node("h2", "", "Project details"));
@@ -2235,7 +2239,7 @@
       linked.replaceChildren(blank);
       for (const item of choices) {
         const quoteNumber = owner.document.version > 0 && fields.order.quote_id === item.id && fields.order.work_order_reference ? fields.order.quote_reference : item.last_number;
-        const option = node("option", "", `${isWorkOrder ? quoteNumber : item.fields.order.work_order_reference} · ${item.fields.title}`);
+        const option = node("option", "", window.ClassifireDocumentBoard.linkedDocumentLabel(item, undefined, isWorkOrder ? quoteNumber : item.fields.order.work_order_reference));
         option.value = item.id;
         linked.append(option);
       }

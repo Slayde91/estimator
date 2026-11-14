@@ -1,3 +1,4 @@
+const {expandPanels}=require('./record_disclosures.cjs');
 const { expect } = require('@playwright/test');
 const path = require('node:path');
 
@@ -35,7 +36,7 @@ async function checkProjectSidebarScrolling(page, open, close, output) {
   await fixture('**/api/crm/project-activity?*', () => ({events}));
   const accounts=page.locator('#project-company-participants .project-party-cards');
   const contacts=page.locator('#project-contact-participants .project-party-cards');
-  const history=page.locator('#project-workspace-side .record-activity-history'), activity=history.locator('ol');
+  const history=page.locator('#project-workspace-links .record-activity-history'), activity=history.locator('ol');
   async function geometry(list, count) {
     return list.evaluate((el,n) => {
       const first=el.children[0].getBoundingClientRect(), last=el.children[n-1].getBoundingClientRect(), next=el.children[n]?.getBoundingClientRect();
@@ -52,6 +53,7 @@ async function checkProjectSidebarScrolling(page, open, close, output) {
   const results = [];
   try {
     await open();await expect(accounts.locator('li')).toHaveCount(3);await expect(contacts.locator('li')).toHaveCount(3);
+    await expandPanels(page.locator('#project-workspace-side'),'Companies','Contacts');
     await expect(accounts.locator('li').first()).toContainText('Main Client');
     await expect(contacts.locator('li').first()).toContainText('Primary contact');
     await history.locator('summary').click();await expect(activity.locator('li')).toHaveCount(25);

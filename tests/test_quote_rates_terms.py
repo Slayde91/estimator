@@ -41,7 +41,7 @@ class QuoteRatesTermsTests(unittest.TestCase):
             self.assertEqual(service.view(restored)['documents'][0]['fields'], before)
             pdf = render_commercial_pdf(saved, 'Q-000001', company=DEFAULTS)
         text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(pdf)).pages)
-        for expected in ('$147.25', 'Hire Rate + 17.5%', 'Example person', '2026-11-07', 'custom'):
+        for expected in ('$147.25', 'Hire Rate + 17.5%', 'Example person', '07/11/2026', 'custom'):
             self.assertIn(expected, text)
         self.assertLess(text.index('ALLOWANCES'), text.index('QUOTE SUMMARY'))
         self.assertLess(text.index('QUOTE SUMMARY'), text.index('SCHEDULE OF RATES'))

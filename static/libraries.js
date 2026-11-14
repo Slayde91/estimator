@@ -1094,39 +1094,41 @@
     state.current = null;
   }
   async function open(kind, selection) {
-    if (!kinds.includes(kind)) return;
+    if (!kinds.includes(kind)) return false;
     const editing = [...state.panes.values()].find(pane => pane.technicalEditor);
     if (editing) {
-      if (kind === editing.kind && !selection) { state.current = kind; return; }
-      if (editing.technicalEditor.saving) { message(editing, "Wait for the current item save to finish.", true); return; }
-      if (editing.technicalEditor.dirty && !await window.CeasefirePenetrationNavigation?.confirm?.("Discard unsaved Technical Library edits?", "The current form has unsaved changes.", "Discard edits")) return;
+      if (kind === editing.kind && !selection) { state.current = kind; return true; }
+      if (editing.technicalEditor.saving) { message(editing, "Wait for the current item save to finish.", true); return false; }
+      if (editing.technicalEditor.dirty && !await window.CeasefirePenetrationNavigation?.confirm?.("Discard unsaved Technical Library edits?", "The current form has unsaved changes.", "Discard edits")) return false;
     }
     for (const existing of state.panes.values()) { closeLinkPicker(existing); existing.documentCleanup?.(); if (existing.technicalEditorPanel) { existing.technicalEditor?.cleanup?.(); existing.technicalEditor = null; existing.technicalEditorPanel.hidden = true; } }
     leave(kind);
     state.current = kind; const pane = paneFor(kind), revision = ++pane.openRevision;
     renderProjectDrafts(pane);
     if (kind === "penetration" && validId(selection) && window.CeasefireLibraryEditor?.projectRecords?.().some(record => record.id === selection)) {
-      pane.list.hidden = false; pane.detailPanel.hidden = true; return;
+      pane.list.hidden = false; pane.detailPanel.hidden = true; return true;
     }
     try {
       if (!state.metadata) {
         pane.loading.hidden = false; uiText(pane.loading, "Loading library…");
       }
       const data = await metadata();
-      if (revision !== pane.openRevision) return;
+      if (revision !== pane.openRevision) return false;
       const info = data.libraries?.find(library => library.id === kind); renderSummary(pane);
       if (info?.available === false) {
         pane.data = null;
         pane.list.hidden = false; pane.detailPanel.hidden = true; uiText(pane.count, "Library unavailable.");
-        pane.results.replaceChildren(node("p", "empty-state", info.notice || "The local source library is unavailable.")); setBusy(pane, false); return;
+        pane.results.replaceChildren(node("p", "empty-state", info.notice || "The local source library is unavailable.")); setBusy(pane, false); return false;
       }
       if (selection?.list) await showList(pane);
       else if (validId(selection)) await loadDetail(pane, selection);
       else if (pane.selected) { if (pane.detail) renderDetail(pane); else await loadDetail(pane, pane.selected); }
       else { pane.list.hidden = false; pane.detailPanel.hidden = true; if (!pane.data || pane.dataQuery !== queryFor(pane)) await loadList(pane); }
+      return revision === pane.openRevision && (pane.list.hidden ? !!pane.detail : !!pane.data);
     } catch (error) {
-      if (revision !== pane.openRevision) return;
+      if (revision !== pane.openRevision) return false;
       uiText(pane.count, "Library unavailable."); message(pane, "{0} Use Refresh to try again.", true, [() => window.CeasefireI18n?.translate(error.message) || error.message]);
+      return false;
     } finally {
       if (revision === pane.openRevision) pane.loading.hidden = true;
     }

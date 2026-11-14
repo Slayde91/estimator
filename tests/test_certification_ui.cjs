@@ -594,7 +594,7 @@ async function check(name,fn,{open=true,legacySave=true}={}){const h=harness({le
     const choices=[...html.matchAll(/<button\b[^>]*data-project-section="([^"]+)"[^>]*>/g)].filter(match=>match[0].includes('class="'+choiceClass+'"')).map(match=>match[1]);
     assert.deepEqual(choices,['quotes','quote','work-orders','purchase-orders']);
   }
-  assert.ok(html.includes('data-project-section="quotes"'));assert.ok(html.includes('data-document-section="certification"'));
+  assert.ok(html.includes('data-project-section="quotes"'));assert.ok(!html.includes('data-document-section="certification"'));
   assert.ok(!html.includes('id="view-projects"'));
   const projectsMenu=html.match(/<div id="projects-navigation-menu"[^>]*>[\s\S]*?<\/div>/)?.[0];
   assert.ok(projectsMenu);

@@ -1,5 +1,6 @@
 'use strict';
 // Exercise real controls and exporters on private synthetic storage only.
+const {expandPanels}=require('./record_disclosures.cjs');
 const {chromium,expect}=require('@playwright/test');
 const {spawn,spawnSync}=require('node:child_process'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {createHash}=require('node:crypto');
@@ -87,6 +88,7 @@ function libraryFiles(){const directory=path.dirname(path.dirname(info.diagram))
  await openProjectSection(page,'swms');await page.getByRole('button',{name:'New SWMS',exact:true}).click();await expect(page.locator('#swms-root .swms-download').first()).toBeVisible();await cancelDraft(page.locator('#swms-root'),'Back to Documents');
  checks.push('The same plus controls open and discard the correct Quote, Work Order, Purchase Order and SWMS editors after a real numbered Project exists.');
  await openProjectSection(page,'quote');const quote=page.locator('#commercial-quote-root');await quote.getByRole('button',{name:'New Quote',exact:true}).click();
+ await expandPanels(quote,'Linked Contacts');
  const left=quote.locator('.commercial-sidebar').first();await left.getByRole('combobox',{name:'Name',exact:true}).fill(primary.name);await left.getByRole('option',{name:primary.name,exact:true}).click();
  const saved=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname==='/api/commercial/save');await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();assert.equal((await saved).status(),200);await idle();
  const projectBefore=fs.readFileSync(info.project),directoryBefore=await read('/api/contacts/directory'),identity=await page.evaluate(()=>window.CeasefireProject.context()),selector='native:'+identity.project_token;

@@ -23,11 +23,12 @@
       ['attachment', 'Attachment'], ['photo', 'Photo / video'], ['sketch', 'Sketch'],
       ['location', 'Location'], ['signature', 'Signature'], ['manual_signature', 'Manual signature'], ['signatures', 'Multiple signatures'],
       ['approval', 'Approval signature'], ['action', 'Action'], ['counter', 'Form counter'],
-      ['scan_id', 'Verify staff ID'], ['staff_wallet', 'Staff identity wallet'], ['id_text', 'ID (manual entry)'],
+      ['staff_wallet', 'Staff identity wallet'], ['id_text', 'ID (manual entry)'],
       ['weather', 'Weather observation'],
     ],
   };
-  const names = new Map(Object.values(palette).flat());
+  // Previously published templates can still contain verified staff ID fields.
+  const names = new Map([...Object.values(palette).flat(), ['scan_id', 'Verify staff ID']]);
   const columnNames = new Map([...names, ['formula', 'Formula'], ['list_property', 'List property'], ['time', 'Time']]);
   const columnTypes = ['text', 'textarea', 'instruction', 'number', 'date', 'datetime', 'time', 'choice', 'list_property',
     'multichoice', 'yes_no', 'person', 'attachment', 'photo', 'signature', 'manual_signature', 'location', 'formula'];
@@ -62,6 +63,19 @@
     out.addEventListener('click', click);
     return out;
   }
+  function iconButton(label, symbol, click) {
+    const out = node('button', 'button secondary icon-only');
+    out.type = 'button';
+    out.title = label;
+    out.setAttribute('aria-label', label);
+    window.CeasefireI18n?.attr(out, 'title', label);
+    window.CeasefireI18n?.attr(out, 'aria-label', label);
+    const icon = node('span', 'button-symbol', symbol);
+    icon.setAttribute('aria-hidden', 'true');
+    out.append(icon);
+    out.addEventListener('click', click);
+    return out;
+  }
   let controlNumber = 0;
   function labelled(label, input, literal = false) {
     const single = input.matches('input,select,textarea');
@@ -93,6 +107,14 @@
     control.addEventListener('change', () => update(control.checked));
     wrap.append(control, literal ? node('span','',label) : ui('span', '', label)); return wrap;
   }
+  function fieldHeading(field, label, control) {
+    const row = node('div', 'form-builder-field-heading');
+    row.append(labelled(label, control));
+    if (!layoutTypes.has(field.type) && !['formula','list_property'].includes(field.type))
+      row.append(check('Required', Boolean(field.required), on => { field.required = on; }));
+    row.append(check('Hide in printed forms', Boolean(field.hide_in_pdf), on => { field.hide_in_pdf = on; }));
+    return row;
+  }
   const typeChoices = types => types.map(type => [type, copy(columnNames.get(type))]);
   const yesNoOptions = ['Yes', 'No', 'N/A'];
   const actionStatuses = ['Pending','In progress','Completed','Cancelled'];
@@ -108,7 +130,7 @@
         ['datetime','Observation time'], ['text','Conditions'], ['number','Temperature (°C)'], ['number','Wind (km/h)'],
       ].map(([kind,label]) => ({...newField(kind),label:copy(label)}));
       if (type === 'signatures') field.children = [newField('person'),newField('manual_signature')];
-      if (type === 'sign_on_table') field.children = [newField('scan_id'), newField('datetime'), newField('manual_signature')];
+      if (type === 'sign_on_table') field.children = [newField('person'), newField('datetime'), newField('manual_signature')];
       return field;
     }
     const field = {id: fieldId(), type, label: copy(columnNames.get(type))};
@@ -174,11 +196,12 @@
       message.setAttribute('role', failed ? 'alert' : 'status');
     }
     function updateHeader() {
-      actions.replaceChildren(button('Back', () => {
+      actions.replaceChildren(iconButton('Back', '←', () => {
         if (!busy && (!dirty() || window.confirm(copy('Discard unsaved template changes?')))) onCancel();
       }));
-      for (const [label, direction] of [['Undo', -1], ['Redo', 1]]) {
-        const undo = button(label, () => restore(direction)); undo.dataset.history = label.toLowerCase(); actions.append(undo);
+      for (const [label, symbol, direction] of [['Undo', '↶', -1], ['Redo', '↷', 1]]) {
+        const control = iconButton(label, symbol, () => restore(direction));
+        control.dataset.history = label.toLowerCase(); actions.append(control);
       }
       actions.append(button('Preview', () => {
         if (applyRaw()) onPreview(clone(model));
@@ -459,11 +482,12 @@
         field.label = value; title.textContent = value || copy(names.get(field.type));
       });
       labelInput.maxLength = 250;
-      const help = input(field.help, value => { field.help = value; }, 'textarea'); help.maxLength = 5000;
-      properties.append(labelled('Field label', labelInput), labelled(field.type === 'instruction' ? 'Instructions' : 'Help text', help));
-      if (!layoutTypes.has(field.type))
-        properties.append(check('Required', Boolean(field.required), on => { field.required = on; }));
-      properties.append(check('Hide in printed forms', Boolean(field.hide_in_pdf), on => { field.hide_in_pdf = on; }));
+      properties.append(fieldHeading(field, 'Field label', labelInput));
+      if (field.type === 'instruction') {
+        const instructions = input(field.help, value => { field.help = value; }, 'textarea');
+        instructions.maxLength = 5000;
+        properties.append(labelled('Instructions', instructions));
+      }
       if (model.mode === 'workflow' && model.settings.stages.length) {
         properties.append(labelled('Workflow stage', select(field.stage_id || '', [
           ['', copy('First stage')], ...model.settings.stages.map(s => [s.id, s.name]),
@@ -593,8 +617,9 @@
           card.append(node('strong','form-builder-column-reference',copy('Column') + ' ' + letters));
         }
         const caption = input(child.label, value => { child.label = value; }); caption.maxLength = 250;
-        card.append(labelled(table ? 'Column heading' : 'Field label', caption),
-          labelled('Type', select(child.type, typeChoices(table ? columnTypes : groupTypes), type => {
+        const types = table ? columnTypes : groupTypes.filter(type => type !== 'scan_id' || child.type === 'scan_id');
+        card.append(fieldHeading(child, table ? 'Column heading' : 'Field label', caption),
+          labelled('Type', select(child.type, typeChoices(types), type => {
             const next = {...newField(type), id: child.id, label: child.label, required: Boolean(child.required)};
             if (table && type === 'attachment') next.accept = 'application/pdf';
             if (table && type === 'list_property') {
@@ -605,7 +630,6 @@
             pruneRegisterCells();
             clearCells(child.id); redraw();
           })));
-        card.append(check('Hide in printed forms', Boolean(child.hide_in_pdf), on => { child.hide_in_pdf = on; }));
         if (table) {
           const widths = ['xs','s','m','l','xl','xxl','xxxl'].map(size => [size, size.toUpperCase()]);
           card.append(labelled('Column width', select(child.width || 'm', widths, width => { child.width = width; })));
@@ -638,8 +662,6 @@
         if (choiceTypes.has(child.type)) optionEditor(card, child, list);
         if (child.type === 'person') card.append(check('Select multiple people', Boolean(child.multiple), on => { child.multiple = on; }));
         if (child.type === 'instruction') card.append(labelled('Instructions', input(child.help, v => { child.help = v; }, 'textarea')));
-        if (!layoutTypes.has(child.type) && !['formula','list_property'].includes(child.type))
-          card.append(check('Required', Boolean(child.required), on => { child.required = on; }));
         conditionEditor(card, child, list.slice(0,index), redraw);
         card.append(arrangeTools(list, index, redraw, () => {
           if (!window.confirm(copy(table ? 'Remove this column and its prefilled values?' : 'Remove this field from the group?'))) return;

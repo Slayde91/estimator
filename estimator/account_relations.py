@@ -34,8 +34,16 @@ def document_target(document, project_file):
                 "kind": document["kind"], "project_id": document["project_id"]}
 
 
+def _linked_label(reference, details, project):
+    def clean(value):
+        return " ".join(str(value or "").split())
+
+    identity = "-".join(filter(None, (clean(details.get(key)) or clean(project.get(key)) for key in ("client", "site_address"))))
+    return ": ".join(filter(None, (clean(reference), identity)))
+
+
 def _project_label(row):
-    return " · ".join(str(row.get(key, "")) for key in ("project_no", "client", "site_address") if row.get(key)) or row.get("title") or "Project"
+    return _linked_label(row.get("project_no"), row, {}) or row.get("title") or "Project"
 
 
 def project_document_cards(register, projects):
@@ -145,7 +153,7 @@ class AccountRelations:
             if party and not document.get('source_file') and project_token is None:
                 continue
             project = project_rows.get(project_token, fields.get("details", {}))
-            label = " · ".join(filter(None, (reference, _project_label(project))))[:1200]
+            label = _linked_label(reference, fields.get("details", {}), project)[:1200]
             entry = {"id": token, "label": label, "available": True}
             if group in supplemental:
                 if project_token in automatic['projects']:

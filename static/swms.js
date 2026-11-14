@@ -145,17 +145,18 @@
     state.model = result; return true;
   }
   async function activate() {
-    if (!root()) return;
-    if (state.busy) return;
-    if (state.workspace === workspace() && state.editor && state.dirty) { renderEditor(); return; }
+    if (!root()) return false;
+    if (state.busy) return false;
+    if (state.workspace === workspace() && state.editor && state.dirty) { renderEditor(); return true; }
     const revision = ++state.revision, capturedContext = context();
     shell("SWMS");
     try {
       const identity = workspace() || (await window.CeasefireCertification.projectWorkspace()).workspace_id;
-      if (revision !== state.revision || capturedContext !== context() || identity !== workspace()) return;
+      if (revision !== state.revision || capturedContext !== context() || identity !== workspace()) return false;
       state.workspace = identity;
-      if (await load()) await showStatement();
-    } catch (error) { if (revision === state.revision) notice(error.message, true); }
+      if (!await load()) return false;
+      await showStatement();return revision === state.revision && capturedContext === context();
+    } catch (error) { if (revision === state.revision) notice(error.message, true); return false; }
   }
   let leavingEditor = false;
   async function leaveEditor() {

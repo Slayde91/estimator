@@ -1,3 +1,4 @@
+const {expandPanels}=require('./record_disclosures.cjs');
 const {checkRecordTrim}=require('./record_sidebar_trim.cjs');
 // Project sidebars bind to the selected saved file, never a similarly named active Project.
 const {chromium,expect:baseExpect}=require('@playwright/test');
@@ -67,7 +68,16 @@ const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()
   const resources=page.locator('#project-record-resources'),docs=page.locator('#project-linked-documents');
   const notes=resources.locator('details').filter({has:page.locator('summary').filter({hasText:/^Notes/})});
   const files=resources.locator('details').filter({has:page.locator('summary').filter({hasText:/^Files/})});
-  const open=async file=>{await page.locator(`.project-kanban-card[data-project-id="${file.id}"] .project-title-button`).click();await expect(page.locator('#project-details-pane')).toHaveAttribute('aria-busy','false');await expect(resources.getByRole('button',{name:'New note',exact:true})).toBeEnabled();};
+  const left=page.locator('#project-workspace-side'), right=page.locator('#project-workspace-links');
+  const open=async file=>{
+    await page.locator(`.project-kanban-card[data-project-id="${file.id}"] .project-title-button`).click();
+    await expect(page.locator('#project-details-pane')).toHaveAttribute('aria-busy','false');
+    await expect(left.locator('details[open]')).toHaveCount(0); await expect(right.locator('details[open]')).toHaveCount(0);
+    await expect(left.locator('details > summary')).toHaveText(['Companies','Contacts','Linked Projects',/^Linked Quotes/,/^Linked Work Orders/,/^Linked Purchase Orders/]);
+    await expect(right.locator('details > summary')).toHaveText([/^Notes/,/^Files/,'Activity history']);
+    await expandPanels(resources,'Notes','Files');
+    await expect(resources.getByRole('button',{name:'New note',exact:true})).toBeEnabled();
+  };
   const back=async()=>{await page.locator('#project-details-close').click();await expect(page.locator('#project-list-card')).toBeVisible();};
   const {checkProjectSidebarScrolling}=require('./project_sidebar_scrolling.cjs');
   const scrollMeasurements=await checkProjectSidebarScrolling(page,()=>open(b),back,output);
@@ -89,8 +99,7 @@ const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()
   assert.equal(legacyData.body,legacyText);assert.equal(legacyData.format,undefined);
   await notes.getByRole('button',{name:'Legacy renamed',exact:true}).click();await legacyEditor.getByRole('button',{name:'Delete',exact:true}).click();
   await page.locator('#discard-dialog').getByRole('button',{name:'Delete',exact:true}).click();await expect(legacyEditor).toHaveCount(0);
-  const history=page.locator('#project-workspace-side .record-activity-history');
-  await expect(history.locator('xpath=preceding-sibling::details[1]/summary')).toHaveText('Contacts');
+  const history=right.locator('.record-activity-history');
   await history.locator('summary').click();
   await expect(history).toContainText('Participants updated');
   await expect(history).toContainText('Project file modified');
@@ -101,6 +110,7 @@ const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()
   await expect(docs.locator('[data-document-kind="quote"] summary')).toHaveText('Linked Quotes (1)');
   await expect(docs.locator('[data-document-kind="work_order"] summary')).toHaveText('Linked Work Orders (0)');
   await expect(docs.locator('[data-document-kind="purchase_order"] summary')).toHaveText('Linked Purchase Orders (0)');
+  await expandPanels(left,'Companies','Contacts');
   await expect(page.locator('#project-company-participants').getByLabel('Role',{exact:true})).toBeVisible();
   const company=page.locator('#project-company-participants .commercial-linked-company');
   await expect(company.getByRole('button',{name:'Panel owner A',exact:true})).toBeVisible();
@@ -145,12 +155,13 @@ const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()
   await expect(history).not.toContainText('Project record A only');
   assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),info.project,'Opening details does not load B into active estimates');
   await expect(notes.locator('summary')).toHaveText('Notes (0)');await expect(files.locator('summary')).toHaveText('Files (0)');
-  await expect(docs).toContainText('Source B quote');await expect(docs).not.toContainText('Source A quote');
+  await expect(docs.locator('[data-document-kind="quote"] .project-title-button')).toHaveText('Q-01: Panel owner A-99 Other Street');
   await notes.getByRole('button',{name:'New note',exact:true}).click();await note.getByLabel('Note title',{exact:true}).fill('B only note');await note.getByRole('button',{name:'Done',exact:true}).click();await expect(note).toHaveCount(0);
   await back();await open(a);await expect(notes.getByRole('button',{name:'A only note',exact:true})).toBeVisible();await expect(notes).not.toContainText('B only note');await expect(files.getByRole('link',{name:'owner-a.txt',exact:true})).toBeVisible();
   const attachment=await page.request.get(base+await files.getByRole('link',{name:'owner-a.txt',exact:true}).getAttribute('href'));assert.equal(attachment.status(),200);assert.equal((await attachment.body()).toString(),'Project A only');
   assert.deepEqual(fs.readFileSync(info.project),original,'Notes/Files do not rewrite estimates or revisions');assert.deepEqual(fs.readFileSync(siblingPath),otherBytes);
-  await back();await openCurrentProjectDetails(page);await expect(notes.getByRole('button',{name:'A only note',exact:true})).toBeVisible();await expect(files.getByRole('link',{name:'owner-a.txt',exact:true})).toBeVisible();
+  await back();await openCurrentProjectDetails(page);await expandPanels(resources,'Notes','Files');
+  await expect(notes.getByRole('button',{name:'A only note',exact:true})).toBeVisible();await expect(files.getByRole('link',{name:'owner-a.txt',exact:true})).toBeVisible();
   // Hold an A resource read, then open B; the late A response must never replace B's sidebar.
   await back();let release,started,finished;const gate=new Promise(resolve=>release=resolve),seen=new Promise(resolve=>started=resolve),completed=new Promise(resolve=>finished=resolve);
   await page.route('**/api/record-resources?*',async route=>{if(new URL(route.request().url()).searchParams.get('id')===a.id){const response=await route.fetch();started();await gate;await route.fulfill({response});finished();}else await route.continue();});
@@ -161,9 +172,10 @@ const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()
   // A refreshed listing can reuse a path ID for an unrelated replacement.
   // Clear old Notes/Files immediately instead of retaining the old helper.
   await page.evaluate(file=>ClassifireProjectRecordPanels.show({...file,source_project_id:crypto.randomUUID()}),b);
+  await expandPanels(resources,'Notes','Files');
   await expect(notes.locator('summary')).toHaveText('Notes (0)');await expect(files.locator('summary')).toHaveText('Files (0)');
   await expect(resources.locator('[role="status"]')).toHaveText('The selected project is unavailable.');await expect(resources.getByRole('button',{name:'New note',exact:true})).toBeDisabled();
-  await page.evaluate(file=>ClassifireProjectRecordPanels.show(file),b);await expect(notes.getByRole('button',{name:'B only note',exact:true})).toBeVisible();
+  await page.evaluate(file=>ClassifireProjectRecordPanels.show(file),b);await expandPanels(resources,'Notes');await expect(notes.getByRole('button',{name:'B only note',exact:true})).toBeVisible();
   // A second public linked-document request cannot open an editor during the
   // first navigation's board activation, then have that editor replaced.
   const linkedCard=(await read('/api/commercial/register')).documents.find(row=>row.source_path===siblingPath&&row.id===documentId);
@@ -188,7 +200,7 @@ const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()
   await checkFive(quoteHistory);
   const separate=await read('/api/commercial/activity?'+new URLSearchParams({file:a.id,revision:a.revision,document:documentId}));
   assert.ok(separate.events.every(event=>event.subject!=='Quote record B only'));
-  await expect(quoteHistory.locator('xpath=preceding-sibling::details[1]/summary')).toContainText('Linked Contacts');
+  await expect(quoteHistory.locator('xpath=preceding-sibling::details[1]/summary')).toContainText('Files');
   assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),info.project,'Related document retains active estimate owner');
   assert.equal((await read('/api/commercial/register')).documents.filter(row=>row.source_path===siblingPath&&row.id===documentId).length,1);
   await quote.getByLabel('Introduction',{exact:true}).fill('Independent edit after linked activation');

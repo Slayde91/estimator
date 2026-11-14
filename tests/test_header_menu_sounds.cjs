@@ -69,23 +69,20 @@ test("preloads only the two supplied same-origin sounds, with no startup playbac
   assert.deepEqual(h.operations, Object.values(sources).map(source => ["load", source]));
   assert.equal(h.plays().length, 0);
 });
-test("pointerenter and click play synchronously once, without intercepting navigation", () => {
-  const h = harness(); let navigated = false;
-  h.buttons[0].addEventListener("click", () => { navigated = true; assert.equal(h.plays().at(-1)[1], sources.confirm); });
-  h.buttons[0].emit("pointerenter", { pointerType: "mouse", preventDefault() { throw Error("Do not intercept navigation"); } });
-  assert.deepEqual(h.plays(), [["play", sources.move, 0]]);
-  h.buttons[0].emit("click"); assert.equal(navigated, true);
-  assert.deepEqual(h.plays(), [["play", sources.move, 0], ["play", sources.confirm, 0]]);
-  assert.equal(h.players[0].paused, true); assert.equal(h.players[1].paused, false);
+test("header hover is immediate, but clicking a destination does not confirm it", () => {
+  const h=harness();
+  h.buttons[0].emit("pointerenter",{pointerType:"mouse"});
+  h.buttons[0].emit("click");
+  assert.deepEqual(h.plays(),[["play",sources.move,0]]);
+  h.controller.play("confirm");
+  assert.deepEqual(h.plays(),[["play",sources.move,0],["play",sources.confirm,0]]);
 });
-test("all bound menu choices work; touch hover and controls outside navigation are silent", () => {
-  const h = harness();
-  h.outside.emit("pointerenter", { pointerType: "mouse" }); h.outside.emit("click");
-  h.buttons[0].emit("pointerenter", { pointerType: "touch" }); assert.equal(h.plays().length, 0);
-  for (const button of h.buttons) button.emit("click", { detail: 0 }); // Keyboard activation also uses click.
-  assert.equal(h.plays().length, 3);
-  h.buttons[1].disabled = true; h.buttons[1].emit("click"); h.buttons[1].emit("pointerenter", { pointerType: "pen" });
-  assert.equal(h.plays().length, 3);
+test("touch hover, disabled controls and controls outside navigation stay silent", () => {
+  const h=harness();
+  h.outside.emit("pointerenter",{pointerType:"mouse"});h.outside.emit("click");
+  h.buttons[0].emit("pointerenter",{pointerType:"touch"});
+  h.buttons[1].disabled=true;h.buttons[1].emit("pointerenter",{pointerType:"pen"});
+  assert.equal(h.plays().length,0);
 });
 test("rapid interactions restart bounded players rather than accumulate a playback queue", () => {
   const h = harness();
@@ -107,10 +104,10 @@ test("native seeking readiness changes do not suppress a loaded clip's immediate
 test("hover pauses the previous confirmation without seeking away its readiness for the next click", () => {
   const h = harness(), confirm = h.players[1]; let time = 0;
   Object.defineProperty(confirm, "currentTime", { get() { return time; }, set(value) { time = value; confirm.readyState = 1; } });
-  h.buttons[0].emit("click"); time = 0.5;
+  h.controller.play("confirm"); time = 0.5;
   h.buttons[1].emit("pointerenter", { pointerType: "mouse" });
   assert.equal(confirm.paused, true); assert.equal(confirm.currentTime, 0.5); assert.equal(confirm.readyState, 4, "An unrelated hover does not start a seek on confirmation audio");
-  h.buttons[1].emit("click");
+  h.controller.play("confirm");
   assert.deepEqual(h.plays().map(([, source]) => source), [sources.confirm, sources.move, sources.confirm]);
   assert.equal(h.plays().at(-1)[2], 0, "The next confirmation restarts synchronously in its own click");
 });
@@ -120,7 +117,7 @@ test("unloaded and broken audio are discarded instead of queued for readiness or
   h.buttons[0].emit("pointerenter", { pointerType: "mouse" });
   h.players[0].readyState = 4; h.players[0].emit?.("canplay");
   await Promise.resolve(); assert.equal(h.plays().length, 0);
-  h.buttons[0].emit("click"); assert.deepEqual(h.plays(), [["play", sources.confirm, 0]]);
+  h.controller.play("confirm"); assert.deepEqual(h.plays(), [["play", sources.confirm, 0]]);
   h.players[0].error = {}; h.buttons[0].emit("pointerenter", { pointerType: "mouse" });
   assert.equal(h.plays().length, 1);
 });
@@ -128,22 +125,22 @@ test("blocked playback is handled, never replayed on a later click or focus", as
   const h = harness(); h.players[0].failure = "reject";
   h.buttons[0].emit("pointerenter", { pointerType: "mouse" }); await Promise.resolve();
   assert.equal(h.players[0].paused, true);
-  h.buttons[0].emit("focusin"); h.buttons[0].emit("click"); await Promise.resolve();
+  h.buttons[0].emit("focusin"); h.controller.play("confirm"); await Promise.resolve();
   assert.deepEqual(h.plays().map(([, source]) => source), [sources.move, sources.confirm]);
 });
 test("a stale rejected attempt cannot interrupt a newer sound; synchronous decoder errors stay local", async () => {
   const h = harness(); h.players[0].failure = "pending";
   h.buttons[0].emit("pointerenter", { pointerType: "mouse" });
-  h.buttons[1].emit("click"); h.players[0].reject(new Error("Old blocked attempt")); await Promise.resolve();
+  h.controller.play("confirm"); h.players[0].reject(new Error("Old blocked attempt")); await Promise.resolve();
   assert.equal(h.players[1].paused, false);
-  h.players[1].failure = "throw"; assert.doesNotThrow(() => h.buttons[1].emit("click"));
+  h.players[1].failure = "throw"; assert.doesNotThrow(() => h.controller.play("confirm"));
   assert.equal(h.players[1].paused, true);
 });
 test("pagehide stops playback and explicit close removes the listeners", () => {
-  const h = harness(); h.buttons[0].emit("click"); h.host.emit("pagehide");
+  const h = harness(); h.controller.play("confirm"); h.host.emit("pagehide");
   assert.ok(h.players.every(player => player.paused));
-  h.buttons[0].emit("click"); assert.equal(h.plays().length, 2, "A restored page keeps fresh interactions available");
-  h.controller.close(); h.buttons[0].emit("click"); h.buttons[0].emit("pointerenter", { pointerType: "mouse" });
+  h.controller.play("confirm"); assert.equal(h.plays().length, 2, "A restored page keeps fresh interactions available");
+  h.controller.close(); h.controller.play("confirm"); h.buttons[0].emit("pointerenter", { pointerType: "mouse" });
   assert.equal(h.plays().length, 2); assert.ok(h.players.every(player => player.paused));
   assert.doesNotThrow(() => create(null, null).close());
   assert.doesNotThrow(() => create({ querySelectorAll() { throw Error("Unavailable audio needs no binding"); } }, {}).close());
@@ -243,12 +240,13 @@ test("Takeoff hovers stay silent; pointer and keyboard activation play once on r
   assert.equal(h.plays().length, 2); assert.ok(h.players.every(player => player.paused));
 });
 
-test("Takeoff workspace tabs use glitch for pointer and keyboard activation", () => {
-  const h = audioHarness(); createFeedback(h.document, h.host, h.menu);
+test("Takeoff workspace tabs use glitch only after selection succeeds", () => {
+  const h = audioHarness(); const feedback=createFeedback(h.document, h.host, h.menu);
   const tabs = element(element(null, {zone: "takeoff"}), {zone: "takeoff-pages"});
   const button = element(tabs, {control: true});
   for (const detail of [0, 1]) h.document.emit("click", {target: element(button), detail});
-  assert.deepEqual(h.plays().map(row => row[1]), ["/sounds/glitch.mp3", "/sounds/glitch.mp3"]);
+  assert.deepEqual(h.plays(),[]);feedback.navigationOpened("takeoffTab");
+  assert.deepEqual(h.plays().map(row => row[1]), ["/sounds/glitch.mp3"]);
 });
 
 test("main pages including Home are silent; header logo and Takeoff actions retain feedback", () => {
@@ -268,14 +266,15 @@ test("main pages including Home are silent; header logo and Takeoff actions reta
   h.document.emit("click", { target: element(element(null, { zone: "dialog" }), { control: true }) });
   assert.equal(h.plays().at(-1)[1], feedbackSources.select);
 });
-test("Workspace tabs play the page clip for a switch and stay silent on reselection", () => {
-  const h = audioHarness(); h.document.takeoffsActive = false; createFeedback(h.document,h.host,h.menu);
+test("Workspace tabs wait for the navigation owner to confirm the destination", () => {
+  const h = audioHarness(); h.document.takeoffsActive = false; const feedback=createFeedback(h.document,h.host,h.menu);
   for (const zone of ["project-pages","contacts-tabs","document-pages","calculator-kind-pages","library-pages","scheduler-tabs"]) {
     const button = element(element(null,{zone}),{control:true});
     for (const detail of [0,1]) h.document.emit("click",{target:element(button),detail});
     button.attributes["aria-pressed"] = "true"; h.document.emit("click",{target:element(button),detail:1});
   }
-  assert.deepEqual(h.plays().map(row => row[1]), Array(12).fill("/sounds/page.mp3"));
+  assert.deepEqual(h.plays(),[]);feedback.navigationOpened("page");
+  assert.deepEqual(h.plays().map(row => row[1]), ["/sounds/page.mp3"]);
 });
 
 test("PDF drawing hits and handles are silent while pane and explicit context-menu buttons keep Takeoff feedback", () => {
@@ -369,14 +368,14 @@ test("download compatibility hooks never access audio or register deferred playb
 test("muting immediately stops header, Takeoff and logo clips without replay after re-enable", () => {
   const h=audioHarness(),preference=h.host.CeasefireAudioSettings=createAudioSettings(h.host),button=target();
   const header=create({querySelectorAll:()=>[button]},h.host),feedback=createFeedback(h.document,h.host,header);
-  button.emit('click');assert.ok(h.players.some(audio=>!audio.paused));
+  feedback.navigationOpened("header");assert.ok(h.players.some(audio=>!audio.paused));
   const count=h.plays().length;preference.setEnabled(false);assert.ok(h.players.every(audio=>audio.paused));
   button.emit('pointerenter',{pointerType:'mouse'});button.emit('click');
   h.document.emit('click',{target:element(element(null,{zone:'header'}),{brand:true})});
   h.document.emit('click',{target:element(element(null,{zone:'takeoff'}),{control:true})});
   for(const audio of h.players)audio.emit('canplay');assert.equal(h.plays().length,count);
   preference.setEnabled(true);for(const audio of h.players)audio.emit('canplay');assert.equal(h.plays().length,count,'Unmuting cannot replay muted clicks');
-  button.emit('click');assert.equal(h.plays().length,count+1);
+  feedback.navigationOpened("header");assert.equal(h.plays().length,count+1);
   header.close();feedback.close();preference.close();
 });
 

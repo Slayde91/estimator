@@ -330,12 +330,33 @@ async function noDownloadAudio() {
   const typingPlayers = await page.evaluate(() => window.qaMenuAudio.media.filter(audio => audio.src.endsWith("type.mp3")).length);
   assert.equal(typingPlayers, 0, "Ordinary sentences finish typing without loading a sound");
   evidence.checks.silentPrinting = { typingPlayers };
-  assert.ok((await page.evaluate(() => window.qaMenuAudio.calls.filter(row => !['/sounds/classifire.mp3','/sounds/radiobleep.mp3'].includes(row.source))))
+  assert.ok((await page.evaluate(() => window.qaMenuAudio.calls.filter(row => !['/sounds/classifire.mp3','/sounds/radiobleep.mp3','/sounds/page.mp3','/sounds/mgs-confirm2.mp3','/sounds/glitch.mp3'].includes(row.source))))
     .every(row => ["pointerenter", "pointerover", "click"].includes(row.event)), "Button playback attempts occur in their input event");
   await page.mouse.move(0, 0);
   await page.screenshot({ path: path.join(output, "header-menu-audio.png") });
   assert.deepEqual(await snapshot(), before, "Menu audio preserves the entire initialized calculator, pricing and project draft");
   evidence.checks.draftsPreserved = true;
+  const pageCalls = () => page.evaluate(() => window.qaMenuAudio.calls.filter(row=>row.source === '/sounds/page.mp3').length);
+  await page.locator('#projects-navigation-toggle').click();await idle();
+  const projectBoards=page.locator('#project-pages'),workOrders=projectBoards.getByRole('button',{name:'Work Orders',exact:true});
+  const beforeFailedBoard=await pageCalls();
+  await page.route('**/api/commercial/register?**',route=>route.fulfill({
+    status:503,contentType:'application/json',body:JSON.stringify({error:'Fixture register unavailable.'})
+  }),{times:1});
+  await workOrders.click();
+  await expect(page.locator('#view-work-orders')).toContainText('Fixture register unavailable.');
+  assert.equal(await pageCalls(),beforeFailedBoard,'A failed register load is silent');
+  await projectBoards.getByRole('button',{name:'Projects',exact:true}).click();
+  await expect.poll(pageCalls).toBe(beforeFailedBoard+1);
+  let releaseStale,requestStarted;
+  const staleStarted=new Promise(resolve=>{requestStarted=resolve;}),held=new Promise(resolve=>{releaseStale=resolve;});
+  await page.route('**/api/commercial/register?**',async route=>{requestStarted();await held;await route.continue();},{times:1});
+  await workOrders.click();await staleStarted;
+  const homeConfirm=await confirmCalls();
+  await home.click();await expect.poll(confirmCalls).toBe(homeConfirm+1);
+  const staleReply=page.waitForResponse(response=>response.url().includes('/api/commercial/register?'));
+  releaseStale();await (await staleReply).finished();await idle();
+  assert.equal(await pageCalls(),beforeFailedBoard+1,'A superseded destination cannot play after leaving it');
   for (const [header, strip, labels] of [
     ['#projects-navigation-toggle','#project-pages',['Projects','Quotes','Work Orders','Purchase Orders']],
     ['#contacts-navigation-toggle','.contacts-tabs',['Leads','Contacts','Companies']],
@@ -357,17 +378,18 @@ async function noDownloadAudio() {
     }
   }
   // This fixture deliberately has no saved Project. Opening Forms is allowed; Documentation
-  // emits its normal unsaved-project notice after the clicked tab's page feedback.
+  // emits its own notification and leaves Forms selected.
   await page.locator('#documents-navigation-toggle').hover();
   await page.locator('#documents-navigation-menu [data-document-section=forms]').click();
   const documentTabs = page.locator('#document-pages');
   const formTab = documentTabs.getByRole('button',{name:'Forms',exact:true});
   await expect(formTab).toHaveAttribute('aria-pressed','true');
-  const pageCalls = () => page.evaluate(() => window.qaMenuAudio.calls.filter(row=>row.source === '/sounds/page.mp3').length);
   const repeats = await pageCalls();
   await formTab.click(); assert.equal(await pageCalls(),repeats);
-  const docBefore = await page.evaluate(() => window.qaMenuAudio.playing.filter(row=>row.source === '/sounds/page.mp3').length);
-  await documentTabs.getByRole('button',{name:'Documentation',exact:true}).click(); await played('/sounds/page.mp3',docBefore);
+  await documentTabs.getByRole('button',{name:'Documentation',exact:true}).click();
+  await expect(page.locator('#app-message')).toContainText('Create or load a project before creating documents.');
+  await expect(formTab).toHaveAttribute('aria-pressed','true');
+  assert.equal(await pageCalls(),repeats,'A blocked Documentation tab has no page sound');
   evidence.checks.projectAndContactsTabSound = true;
   await require('./section_navigation.cjs').chooseTakeoff(page, 'Steel');
   const tabs = page.locator('#takeoff-pages button');

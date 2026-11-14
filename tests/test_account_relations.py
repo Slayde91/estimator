@@ -78,6 +78,8 @@ class AccountRelationsTests(unittest.TestCase):
         self.projects.documents.extend({**self.projects.documents[0], "id": str(uuid4()), "kind": kind}
                                        for kind in ("work_order", "purchase_order"))
         choices = self.relations.view()["choices"]
+        self.assertEqual(choices["projects"][0]["label"], "PN-00001: Company A-Site A")
+        self.assertEqual(choices["quotes"][0]["label"], "Q-01: Company A-Site A")
         links = empty_links(contacts=[person["id"]], projects=[self.projects.owner],
                             **{kind: [choices[kind][0]["id"]] for kind in ("quotes", "work_orders", "purchase_orders")})
         saved = self.save("accounts", {"company": "New company", "abn_acn": "ACN 123"}, links=links)

@@ -116,7 +116,7 @@ test('Generated estimate material descriptions translate without altering select
   h.ui.setLanguage('en');assert.deepEqual(cells.map(cell=>cell.textContent),records.map(record=>record.name));assert.equal(JSON.stringify(records),before);
 });
 test('Firestopping settings tables translate schema routes and band context while preserving raw option text and thresholds',()=>{
-  const h=harness(null,false,catalogs()),source=fs.readFileSync(path.join(__dirname,'../static/penetration.js'),'utf8');
+  const h=harness(null,false,catalogs()),source=fs.readFileSync(path.join(__dirname,'../static/penetration.js'),'utf8').replace(/\r\n/g,'\n');
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../static/penetration-presentation.js'),'utf8'),h.context);
   h.context.node=(tag,cls,text)=>{const element=new Element(tag.toUpperCase(),text??'');element.className=cls;return element;};
   h.context.uiNode=(tag,cls,source,args)=>h.ui.text(h.context.node(tag,cls),source,args);h.context.uiAttr=h.ui.attr;h.context.uiTerm=h.ui.term;

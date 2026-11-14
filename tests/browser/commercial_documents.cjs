@@ -1,3 +1,4 @@
+const {expandPanels}=require('./record_disclosures.cjs');
 const {showEstimateNotes}=require('./estimate_notes.cjs');
 const {observeQuoteSound,exerciseQuoteSound}=require('./quote_acceptance_audio.cjs');
 const {checkTrashAlignment}=require('./trash_alignment.cjs');
@@ -88,7 +89,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await expect(quote.getByLabel('Client',{exact:true})).toHaveValue('Unsaved project client');
   await expect(quote.locator('.commercial-details').getByLabel('Site address',{exact:true})).toHaveCount(0);
   await expect(quote.getByLabel('Project number',{exact:true})).toHaveValue(projectNumber);
-  await expect(quote.getByLabel('Linked Project',{exact:true})).toHaveValue(projectNumber+' · Unsaved project client · 25 Current Estimate Street');
+  await expect(quote.getByLabel('Linked Project',{exact:true})).toHaveValue(projectNumber+': Unsaved project client-25 Current Estimate Street');
   await expect(quote.getByLabel('Linked Project',{exact:true})).toHaveAttribute('readonly','');
   await expect(quote.getByLabel('Quote No.',{exact:true})).toHaveValue('');
   await expect(quote.getByLabel('Quote No.',{exact:true})).toHaveAttribute('readonly','');
@@ -287,6 +288,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   for(const panel of ['Linked Companies','Linked Contacts','Activity history','Notes','Files','Linked Quotes','Linked Purchase Orders']) await expect(work.locator('.commercial-side-panel summary').filter({hasText:panel})).toBeVisible();
   const startBounds=await work.getByLabel('Proposed start date',{exact:true}).boundingBox(), endBounds=await work.getByLabel('Proposed end date',{exact:true}).boundingBox();
   assert.ok(endBounds.x>startBounds.x && Math.abs(startBounds.y-endBounds.y)<2,'Proposed dates share a row within one column');
+  await expandPanels(work,'Notes','Files');
   await work.getByRole('button',{name:'New note'}).click();
   const note=page.getByRole('dialog',{name:'Work Order note'});
   await note.getByLabel('Note title').fill('Site observation');
@@ -419,7 +421,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   const otherCard = quote.locator('.commercial-card');
   await expect(otherCard).toHaveCount(1);
   await otherCard.locator('.project-title-button').click();
-  await expect(quote.getByLabel('Linked Project',{exact:true})).toHaveValue([clone.estimate.project_no,clone.estimate.client,clone.estimate.site_address.replace(/\s+/g,' ')].filter(Boolean).join(' · '));
+  await expect(quote.getByLabel('Linked Project',{exact:true})).toHaveValue(clone.estimate.project_no+': '+clone.estimate.client+'-'+clone.estimate.site_address.replace(/\s+/g,' '));
   await expect(quote.getByLabel('Linked Project',{exact:true})).toHaveAttribute('readonly','');
   await expect(quote.getByLabel('Quote No.',{exact:true})).toHaveValue(clonedQuote.reference);
   for (const label of ['Project number','Client']) await expect(quote.locator('.commercial-details').getByLabel(label,{exact:true})).toHaveAttribute('readonly','');

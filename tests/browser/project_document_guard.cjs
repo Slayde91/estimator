@@ -67,7 +67,7 @@ async function discard(root,label){
   await documentTabs.locator('[data-document-section="documentation"]').click();await notified();
   await expect(page.locator('#view-certification')).toBeVisible();await expect(page.locator('#view-documentation')).toBeHidden();
   await expect(documentTabs.locator('[aria-current="page"]')).toHaveCount(0);
-  await expect(page.locator('#documents-navigation-menu [data-document-section="certification"]')).toHaveAttribute('aria-pressed','true');
+  await expect(page.locator('#documents-navigation-menu [data-document-section="certification"]')).toHaveCount(0);
   await expect(page.locator('#certification-client')).toHaveValue('Keep incomplete unfiled certificate draft');
   await page.locator('#documents-navigation-toggle').hover();
   await page.locator('#documents-navigation-menu [data-document-section="documentation"]').click();await notified();

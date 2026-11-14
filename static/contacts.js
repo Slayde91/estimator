@@ -75,7 +75,7 @@
 
   function participantProject(entry) {
     const row=el('span');
-    row.append(ui('strong','',entry.role_label),document.createTextNode(' · '+[entry.project_no,entry.client,entry.site_address].filter(Boolean).join(' · ')));
+    row.append(ui('strong','',entry.role_label),document.createTextNode(' · '+window.ClassifireDocumentBoard.linkedRecordLabel(entry.project_no,entry)));
     if(entry.availability==='unavailable')row.append(' · ',ui('small','helper','Saved project unavailable'));
     if(entry.availability==='unverified')row.append(' · ',ui('small','helper','Availability not yet verified'));
     return row;
@@ -157,13 +157,14 @@
     root().replaceChildren(loading);
     try {
       const directory = await request(page === "leads" ? "directory?board=1" : "directory");
-      if (ticket !== generation) return;
+      if (ticket !== generation) return false;
       data = directory;
       render();
       return true;
     } catch (error) {
-      if (ticket !== generation) return;
+      if (ticket !== generation) return false;
       root().replaceChildren(el("p", "notice error", error.message), button("Retry", () => activate(page)));
+      return false;
     } finally {
       if (ticket === generation) root().removeAttribute("aria-busy");
     }
@@ -699,7 +700,7 @@
           if (!isOpen() || ticket !== contactLinkTicket) return;
           const expanded = new Set([...form.querySelectorAll("details[data-link-group][open]")].map(group => group.dataset.linkGroup));
           const existing = new Set([...form.querySelectorAll("details[data-link-group]")].map(group => group.dataset.linkGroup));
-          const groupOpen = key => expanded.has(key) || !existing.has(key);
+          const groupOpen = key => expanded.has(key) || !leadWorkspace && !existing.has(key);
           groups.replaceChildren();
           const titles = {companies:"Companies", leads:"Leads", ...sidebarTitles};
           for (const [key, title] of Object.entries(titles)) {
@@ -710,7 +711,7 @@
               for (const peer of catalog.participant_projects || []) {
                 if (!peer.source || seen.has(peer.source)) continue;
                 seen.add(peer.source);
-                entries.push({label:[peer.project_no, peer.client, peer.site_address].filter(Boolean).join(" · "),
+                entries.push({label:window.ClassifireDocumentBoard.linkedRecordLabel(peer.project_no,peer),
                   project:peer.availability === "available" ? peer : null, roles:[peer.role_label]});
               }
             }
@@ -903,7 +904,7 @@
       dialog.classList.add("contacts-record-workspace");
       const columns=el("div","contacts-record-layout"),main=el("div","contacts-record-main"),details=el("section","card contacts-record-details");
       workspaceLeft=el("aside","commercial-sidebar contacts-record-left");workspaceRight=el("aside","commercial-sidebar contacts-record-right");
-      associationPanel=el("details","card commercial-side-panel");associationPanel.open=true;
+      associationPanel=el("details","card commercial-side-panel");associationPanel.open=kind !== "leads";
       associationLinks=el("div","contacts-record-associations");leadHistory=el("div","contacts-record-associations");workspaceLeft.append(associationPanel,associationLinks);
       const linkedContact=kind === "leads" && record.contact_id ? el("details","card commercial-side-panel") : null;
       function showLinkedContact() {
@@ -917,8 +918,10 @@
           linkedContact.replaceChildren(ui("summary","","Linked Contacts"),body);
         }
       }
-      if (linkedContact) {linkedContact.open=true;workspaceLeft.append(linkedContact);showLinkedContact();}
+      if (linkedContact) {workspaceLeft.append(linkedContact);showLinkedContact();}
       const toolbar=el("div","commercial-editor-actions contacts-record-toolbar");toolbar.append(close);
+      sidebarLinks=el("div","contacts-links");
+      if (kind === "leads") workspaceLeft.append(sidebarLinks);
       workspaceLeft.append(leadHistory);
       if(!readOnly)toolbar.append(save);
       const refreshRecords = button("Refresh Records", async () => {
@@ -944,15 +947,16 @@
       toolbar.append(refreshRecords);
       const originalChildren=[...form.children];
       for(const child of originalChildren) {
-        if(child.matches(".crm-merge-records,.crm-timeline"))workspaceLeft.append(child);
+        if (kind === "leads" && child.matches(".crm-timeline")) workspaceRight.append(child);
+        else if(child.matches(".crm-merge-records,.crm-timeline"))workspaceLeft.append(child);
         else details.append(child);
       }
       main.append(toolbar,details);columns.append(workspaceLeft,main,workspaceRight);form.append(columns);
       showAssociation();
       form.addEventListener("input",showAssociation);
       const resourceHost=el("div","contacts-record-resources");
-      sidebarLinks=el("div","contacts-links");
-      workspaceRight.append(resourceHost,sidebarLinks);
+      workspaceRight.prepend(resourceHost);
+      if (kind !== "leads") workspaceRight.append(sidebarLinks);
       for(const groups of details.querySelectorAll(".contacts-links"))arrangeLinkedGroups(groups);
       accountEditor = {element:dialog, kind, close:closeEditor, pending:()=>submitting || timeline?.pending?.() || resources?.pending?.(),
         pendingMessage:()=>({contacts:"Finish the current Contact action first.",accounts:"Finish the current Company action first.",leads:"Finish the current Lead action first."}[kind]),
@@ -962,7 +966,7 @@
       const layout = root().querySelector(".contacts-directory-layout");
       layout.classList.add("contacts-account-open");layout.querySelector(".contacts-workspace").hidden=true;layout.prepend(dialog);
       resources=window.ClassifireRecordResources?.attach(resourceHost,{owner:{kind,id:record.id},isCurrent:isOpen,
-        canEdit:()=>!readOnly&&!submitting&&!saving,showRefresh:false,message:(message,error)=>feedback(form,message,error)});
+        canEdit:()=>!readOnly&&!submitting&&!saving,showRefresh:false,initiallyExpanded:kind !== "leads",message:(message,error)=>feedback(form,message,error)});
       dialog.addEventListener("keydown", event => {
         if (event.key !== "Escape" || event.defaultPrevented || event.target.closest("details[open]")) return;
         event.preventDefault(); event.stopPropagation(); void leaveAccount();
@@ -1230,6 +1234,7 @@
     page = kind;
     search = "";
     render();
+    return true;
   }
   function render() {
     const container = root();
@@ -1241,7 +1246,11 @@
     const tabs = el("nav", "calculator-pages contacts-tabs");
     tabs.setAttribute("aria-label", "Contacts pages");
     for (const [key, label] of Object.entries(titles)) {
-      const tab = button(label, () => switchPage(key), "calculator-page");
+      const tab = button(label, async () => {
+        const previous=page;
+        if(await switchPage(key) && page===key && previous!==key && !root().closest('.view')?.hidden)
+          window.CeasefireButtonSounds?.navigationOpened?.("page");
+      }, "calculator-page");
       if (key === "accounts") copy(tab, label);
       tab.setAttribute("aria-pressed", String(key === page));
       if (key === page) tab.setAttribute("aria-current", "page");

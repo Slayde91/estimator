@@ -1,3 +1,4 @@
+const {expandPanels}=require('./record_disclosures.cjs');
 const {chromium,expect:baseExpect}=require('@playwright/test');
 const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
@@ -88,6 +89,7 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   }
   await addParty('accounts',{company:'Quoted Company'});
   await addParty('contacts',{company:'Quoted Company',name:'Quoted Person',phone:'555',email:'quoted@example.test'});
+  await expandPanels(quote,'Linked Companies','Linked Contacts');
   const recipient=quote.locator('.commercial-sidebar').first();
   for(const [label,value] of [['Company','Quoted Company'],['Name','Quoted Person']]){
     await recipient.getByRole('combobox',{name:label,exact:true}).fill(value);
@@ -181,7 +183,7 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   const purchase=page.locator('#commercial-purchase-order-root');await expect(purchase.getByLabel('Linked Work Order',{exact:true})).toHaveValue(source.id);
   await expect(purchase.locator('.commercial-work-layout>.commercial-sidebar')).toHaveCount(2);
   for(const title of ['Notes (0)','Files (0)','Linked Work Orders (1)','Linked Quotes (1)'])await expect(purchase.locator('.commercial-sidebar summary').filter({hasText:title})).toHaveCount(1);
-  await expect(purchase.locator('.commercial-sidebar').first().locator('summary')).toHaveText(['Linked Companies','Linked Contacts','Activity history']);
+  await expect(purchase.locator('.commercial-sidebar').first().locator('summary')).toHaveText(['Linked Companies','Linked Contacts',/^Linked Projects/,/^Linked Work Orders/,/^Linked Quotes/]);
   await expect(purchase.locator('.commercial-details [data-project-detail=site_address]')).toHaveCount(0);
   await expect(purchase.getByRole('combobox',{name:'Site contact',exact:true})).toHaveValue('');
   await expect(purchase.getByLabel('Site contact number',{exact:true})).toHaveValue('');
@@ -222,6 +224,7 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   const persisted=await state(),po=persisted.documents.find(doc=>doc.kind==='purchase_order');assert.equal(po.reference,'PO-01');assert.equal(po.last_number,'');assert.equal(po.fields.order.work_order_id,source.id);assert.equal(po.fields.order.work_order_reference,source.reference);assert.equal(po.fields.order.expense_type,'Hire');
   await require('./purchase_summary_history.cjs').checkPurchaseSummary(page,purchase,po.id,output);
   checks.push('Purchase totals fit 187px and grow for long labels; history shows five full events and retains all earlier pages');
+  await expandPanels(purchase,'Notes','Files');
   await purchase.getByRole('button',{name:'New note',exact:true}).click();const note=page.getByRole('dialog',{name:'Purchase Order note',exact:true});
   await note.getByLabel('Note title',{exact:true}).fill('Owned PO note');await note.locator('[contenteditable=true]').fill('PO-specific note content');
   await note.getByRole('button',{name:'Done',exact:true}).click();await expect(note).toBeHidden();await idle();
@@ -265,10 +268,12 @@ async function state(){const id=await page.evaluate(()=>window.CeasefireCertific
   await work.getByRole('button',{name:'Back to Work Orders',exact:true}).click();await openProjectSection(page,'quote');
   await card.locator('.project-title-button').click();
   const relatedPurchases=quote.locator('.commercial-side-panel').filter({has:page.locator('summary').filter({hasText:'Linked Purchase Orders (2)'})});
-  await expect(relatedPurchases).toHaveCount(1);await expect(relatedPurchases.getByRole('button')).toHaveCount(2);await expect(relatedPurchases).not.toContainText('Same Company unrelated PO');
+  await expandPanels(quote,'Linked Purchase Orders');
+  await expect(relatedPurchases).toHaveCount(1);await expect(relatedPurchases.getByRole('button')).toHaveCount(2);await expect(relatedPurchases).not.toContainText((await unrelated.json()).reference);
   await relatedPurchases.getByRole('button').filter({hasText:directPurchase.reference}).click();
   await expect(purchase.locator('.commercial-side-panel summary').filter({hasText:'Linked Work Orders (0)'})).toHaveCount(1);await expect(purchase.locator('.commercial-side-panel summary').filter({hasText:'Linked Quotes (1)'})).toHaveCount(1);
   await purchase.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();await openProjectSection(page,'quote');await card.locator('.project-title-button').click();
+  await expandPanels(quote,'Linked Purchase Orders');
   await relatedPurchases.getByRole('button').filter({hasText:'PO-01'}).click();await expect(purchase.getByLabel('Purchase Order No.',{exact:true})).toHaveValue('PO-01');
   await expect(purchase.locator('.commercial-sidebar summary').filter({hasText:'Notes (1)'})).toHaveCount(1);await expect(purchase.locator('.commercial-sidebar summary').filter({hasText:'Files (1)'})).toHaveCount(1);
   checks.push('Quote Linked Purchase Orders follows the exact Quote→Work Order→Purchase Order chain or explicit direct Quote ID, excludes same-Company unrelated POs, and opens the owner with saved notes/files');

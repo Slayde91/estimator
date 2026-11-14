@@ -5,6 +5,7 @@ const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {createNewProject,openProjectSection}=require('./project_actions.cjs');
 const {chooseCalculator}=require('./calculator_actions.cjs');
+const {expandPanels}=require('./record_disclosures.cjs');
 const expect=baseExpect.configure({timeout:30000}),root=path.resolve(__dirname,'../..');
 const output=path.join(root,'.runtime/browser-qa','commercial-toolbar-layout-'+Date.now());fs.mkdirSync(output,{recursive:true});
 const server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'fixtures.py'),'--directory',output],{cwd:root,windowsHide:true});
@@ -17,7 +18,13 @@ async function pdfControl(host,kind){const pdf=host.locator('.commercial-editor-
  await expect(host.getByLabel('Document title',{exact:true})).toHaveCount(0);
  await expect(pdf).toBeEnabled();
  await expect(host.locator('.commercial-editor-actions select')).toHaveCount(0);
+ const actions=host.locator('.commercial-editor-actions');
+ const previous=actions.getByRole('button',{name:'Refresh Records',exact:true}).locator('xpath=preceding-sibling::button[1]');
+ const previousName={quote:'Create WO',work_order:'Create PO',purchase_order:'Download PDF'}[kind];
+ await expect(previous).toHaveAccessibleName(previousName);
+ if(kind==='work_order')await expect(previous).toHaveClass(/primary/);
  const refresh=host.getByRole('button',{name:'Refresh linked contacts',exact:true});
+ if(kind==='purchase_order')await expandPanels(host,'Linked Contacts');
  if(kind==='purchase_order')await expect(refresh).toBeVisible();
  for(const width of [1515,390]){
    await page.setViewportSize({width,height:1000});

@@ -19,6 +19,15 @@ const ready = new Promise((resolve,reject)=>{
   const info=await ready;assert.notEqual(info.port,8765);
   browser=await chromium.launch({headless:true});
   const page=await browser.newPage({viewport:{width:1915,height:884}});page.setDefaultTimeout(30000);
+  await page.addInitScript(()=>{
+    window.navigationAudio=[];
+    const play=HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play=function(){
+      const src=new URL(this.src,location.href).pathname;
+      if(['/sounds/mgs-confirm2.mp3','/sounds/page.mp3'].includes(src))window.navigationAudio.push(src);
+      return play.call(this);
+    };
+  });
   const errors=[],calls=[];page.on('pageerror',error=>errors.push(error.message));
   page.on('request',request=>{if(request.url().endsWith('/api/projects/load'))calls.push(request.postDataJSON());});
   const idle=()=>page.waitForFunction(()=>window.CeasefireDesktop?.status().ready&&!window.CeasefireDesktop.status().busy);
@@ -184,7 +193,7 @@ const ready = new Promise((resolve,reject)=>{
   await rows.nth(1).getByLabel('Follow-up status').selectOption('Completed');
   await expect(rows).toHaveCount(1);
   response=saved();await page.locator('#project-details-save').click();assert.equal((await response).status(),200);await idle();
-  const history=page.locator('#project-workspace-side details').filter({has:page.locator('#project-activity-heading')});
+  const history=page.locator('#project-workspace-links details').filter({has:page.locator('#project-activity-heading')});
   await history.locator('summary').click();await expect(history).toContainText('Follow-up completed');
   await expect(history).toContainText('Phone the site supervisor');
   await back();await expect(reminder(first)).toBeVisible();await expect(reminder(second)).toBeHidden();
@@ -223,10 +232,22 @@ const ready = new Promise((resolve,reject)=>{
   response=saved();await page.locator('#project-details-save').click();assert.equal((await response).status(),409);await idle();
   await expect(page.locator('#project-details-status')).toContainText('project changed');
   assert.deepEqual(fs.readFileSync(second.path),secondBefore);
-  await page.locator('.nav-button[data-view="home"]').click();
+  const count=()=>page.evaluate(()=>window.navigationAudio.length);
+  const soundBefore=await count(), quoteTab=page.locator('#project-pages [data-project-section="quote"]');
+  await quoteTab.click();
   const discard=page.getByRole('dialog',{name:'Discard unsaved project details?',exact:true});await expect(discard).toBeVisible();
+  assert.equal(await count(),soundBefore);
   await discard.getByRole('button',{name:'Cancel',exact:true}).click();await expect(page.locator('#view-quotes')).toBeVisible();
-  await page.locator('#project-details-close').click();await discard.getByRole('button',{name:'Yes',exact:true}).click();
+  assert.equal(await count(),soundBefore);
+  let release,entered;
+  const held=new Promise(resolve=>{release=resolve;}),loading=new Promise(resolve=>{entered=resolve;});
+  await page.route('**/api/commercial/register?**',async route=>{entered();await held;await route.continue();},{times:1});
+  await quoteTab.click();await discard.getByRole('button',{name:'Yes',exact:true}).click();
+  await loading;assert.equal(await count(),soundBefore,'Discard alone should not play a navigation sound');
+  release();await expect.poll(count).toBe(soundBefore+1);
+  assert.equal(await page.evaluate(()=>window.navigationAudio.at(-1)),'/sounds/page.mp3');
+  await expect(page.locator('#view-quote')).toBeVisible();
+  await page.locator('#project-pages [data-project-section="quotes"]').click();
   await expect(page.locator('#project-list-card')).toBeVisible();
   await page.unroute('**/api/projects/details/save');
   await openDetails(second);

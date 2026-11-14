@@ -70,18 +70,15 @@
     const players = createPlayers(sources, host);
     const bindings = [...navigation.querySelectorAll("button")].map(button => {
       const enter = event => { if (event.pointerType !== "touch" && !button.disabled) players.play("move"); };
-      const click = () => { if (!button.disabled && !alreadySelected(button)) players.play("confirm"); };
       // Direct pointerenter listeners avoid sounds for nested icons or bubbling choices.
       button.addEventListener("pointerenter", enter);
-      button.addEventListener("click", click);
-      return { button, enter, click };
+      return { button, enter };
     });
     host.addEventListener?.("pagehide", players.stop);
     function close() {
       players.close();
-      for (const { button, enter, click } of bindings) {
+      for (const { button, enter } of bindings) {
         button.removeEventListener("pointerenter", enter);
-        button.removeEventListener("click", click);
       }
       host.removeEventListener?.("pagehide", players.stop);
     }
@@ -115,16 +112,13 @@
       const workspaceTabs = button.closest("#project-pages, .contacts-tabs, #document-pages, #calculator-kind-pages, #library-pages, .scheduler-tabs");
       const takeoffTabs = button.closest("#takeoff-pages");
       if (alreadySelected(button)) return;
-      if (workspaceTabs) {
-        menu.stop?.(); players.play("page"); return;
-      }
+      if (workspaceTabs || takeoffTabs) return;
       // Takeoff dialogs and global actions are outside the workspace node.
       // Its active state supplies their context.
       const takeoff = button.closest("#view-takeoffs") || document.body?.classList?.contains("takeoffs-active");
       if (!takeoff) { players.stop(); return; }
       menu.stop?.();
-      if (takeoffTabs) players.play("takeoffTab");
-      else players.play(button.id === "save-current-project" ? "checkpoint" : "select");
+      players.play(button.id === "save-current-project" ? "checkpoint" : "select");
     }
     function click(event) {
       const target = element(event.target);
@@ -147,7 +141,12 @@
       document.removeEventListener("visibilitychange", visibility);
       host.removeEventListener?.("pagehide", stop);
     }
-    return Object.freeze({ stop, close, prepareQuote, quoteAccepted });
+    function navigationOpened(kind) {
+      if (closed || document.hidden) return;
+      if (kind === "header") {players.stop();menu.play("confirm");}
+      else if (kind === "page" || kind === "takeoffTab") {menu.stop?.();players.play(kind);}
+    }
+    return Object.freeze({ stop, close, prepareQuote, quoteAccepted, navigationOpened });
   }
 
   function createDownloadSound() {

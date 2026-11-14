@@ -141,6 +141,9 @@
     if (Object.hasOwn(titles, kind)) page = kind;
     search = "";
     root().setAttribute("aria-busy", "true");
+    const loading = ui("p", "helper", "Loading…");
+    loading.setAttribute("role", "status");
+    root().replaceChildren(loading);
     try {
       const directory = await request(page === "leads" ? "directory?board=1" : "directory");
       if (ticket !== generation) return;

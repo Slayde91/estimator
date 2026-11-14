@@ -3258,14 +3258,15 @@
   window.addEventListener("beforeunload", event => {
     if (rateDefaults.saving || rateDefaults.pending.size) { event.preventDefault(); event.returnValue = ""; }
   });
+  const openRegisterMenus = () => document.querySelectorAll(":is(.commercial-columns-menu,.record-view-menu,.commercial-card-menu)[open]");
   document.addEventListener("click", event => {
-    for (const menu of document.querySelectorAll(".commercial-columns-menu[open],.commercial-card-menu[open]")) {
+    for (const menu of openRegisterMenus()) {
       if (!menu.contains(event.target)) menu.open = false;
     }
   });
   document.addEventListener("keydown", event => {
     if (event.key !== "Escape") return;
-    for (const menu of document.querySelectorAll(".commercial-columns-menu[open],.commercial-card-menu[open]")) {
+    for (const menu of openRegisterMenus()) {
       menu.open = false;
       menu.querySelector("summary").focus();
     }

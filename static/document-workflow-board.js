@@ -20,7 +20,7 @@
     field.className = 'field record-view-picker';
     caption.id = 'register-view-label-' + workspace;
     const menu = document.createElement('details'), toggle = document.createElement('summary');
-    menu.className = 'commercial-columns-menu';
+    menu.className = 'record-view-menu';
     toggle.className = 'button secondary';
     const icon = document.createElement('i'), current = document.createElement('span'), arrow = document.createElement('span');
     icon.setAttribute('aria-hidden', 'true');

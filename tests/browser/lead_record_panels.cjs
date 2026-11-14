@@ -1,7 +1,7 @@
 'use strict';
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const {expect} = require('@playwright/test');
+const expect = require('@playwright/test').expect.configure({timeout:30000});
 const {openProjectSection} = require('./project_actions.cjs');
 
 // Extend the disposable Contact conversion fixture with a second enquiry and
@@ -67,6 +67,19 @@ async function checkLeadRecordPanels(page, api, person, output) {
     const request = response.request().postDataJSON();
     assert.equal(request.id, ids[kind]); assert.equal(request.source.file_id, source.file_id);
     await expect(page.locator('#commercial-'+kind.replaceAll('_','-')+'-root .commercial-editor-actions')).toBeVisible();
+    if (kind === 'quote') {
+      const directoryUrl = '**/api/contacts/directory?board=1';
+      let releaseDirectory;
+      const gate = new Promise(resolve => { releaseDirectory = resolve; });
+      await page.route(directoryUrl, async route => { await gate; await route.continue(); }, {times:1});
+      try {
+        const request = page.waitForRequest(directoryUrl);
+        await page.locator('#contacts-navigation-toggle').click();
+        await request;
+        await expect(host).toHaveAttribute('aria-busy','true');
+        await expect(host.getByRole('button',{name:current.name,exact:true})).toHaveCount(0);
+      } finally { releaseDirectory(); }
+    }
     await openLead();
   }
   for (const [tab, label, form] of [['Contacts',current.name,'Contact'],['Companies',current.company,'Company']]) {

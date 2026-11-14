@@ -72,6 +72,19 @@ class SchedulerTests(unittest.TestCase):
             db.execute("UPDATE scheduler_settings SET data=json_set(data,'$.pay_rules_confirmed',json('false'))")
         self.assertIsNone(self.store.work_order_labour([target])['amount'])
         self.assertEqual(self.store.work_order_labour([other+':unknown']), {'amount':'0.00'})
+        with self.store.connect() as db:
+            db.execute("UPDATE scheduler_settings SET data=json_set(data,'$.pay_rules_confirmed',json('true'))")
+            db.execute("""UPDATE scheduler_records SET data=json_set(data,'$.base_rate','0')
+                WHERE end IS NOT NULL AND json_extract(data,'$.work_order.id')=?""", (target,))
+        zero = self.store.work_order_labour([target])
+        self.assertEqual(zero['amount'], '0.00')
+        self.assertIn('hourly rate of $0.00', zero['message'])
+        with self.store.connect() as db:
+            db.execute("""UPDATE scheduler_records SET data=json_remove(data,'$.base_rate')
+                WHERE end IS NOT NULL AND json_extract(data,'$.work_order.id')=?""", (target,))
+        missing = self.store.work_order_labour([target])
+        self.assertIsNone(missing['amount'])
+        self.assertIn('no recorded hourly rate', missing['message'])
 
     def test_organization_zone_reassigns_members_and_recalculates_recorded_work(self):
         worker = self.member()

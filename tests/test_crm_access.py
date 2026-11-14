@@ -91,6 +91,15 @@ class AccessTests(unittest.TestCase):
             rows=db.execute('SELECT actor_id,action,target FROM crm_access_audit').fetchall()
             self.assertEqual([tuple(r) for r in rows],[(self.admin['user']['id'],'access.role',self.worker['id'])])
 
+    def test_work_order_labour_is_a_bound_commercial_read(self):
+        route = '/api/commercial/work-order-labour'
+        self.assert_denied(401, self.handler(), route)
+        worker = self.login['token']
+        self.assert_denied(403, self.handler(worker), route)
+        self.access.assign({'member_id':self.worker['id'], 'role':'viewer', 'version':0}, self.admin['token'])
+        self.access.authorize(self.handler(worker, member=self.worker['id']), route)
+        self.assert_denied(409, self.handler(worker, member=self.admin['user']['id']), route)
+
     def test_deactivation_and_logout_revoke_access_without_role_or_identity_rewrite(self):
         self.enable()
         self.scheduler.write('logout',{},self.admin['token'])

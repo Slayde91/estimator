@@ -1124,6 +1124,7 @@ def calculate_payroll(entries, settings, visible_start=None, visible_end=None):
         return {'status': 'confirmation_required', 'rules_version': settings['version'], 'rows': [], 'message': 'Confirm pay rules before calculating pay.'}
     zone = ZoneInfo(settings['timezone'])
     rules = [rule for rule in settings['overtime_rules'] if rule['enabled']]
+    ordinary = {'id': None, 'name': 'Ordinary', 'pay_item': ''}
     daily, weekly, rows, warnings, transitions = defaultdict(int), defaultdict(int), {}, [], {}
     for entry in sorted(entries, key=lambda item: (_timestamp(item['start'], zone), item['id'])):
         if not entry.get('end'):
@@ -1145,7 +1146,7 @@ def calculate_payroll(entries, settings, visible_start=None, visible_end=None):
                 transition = transitions[local.date()]
                 if transition and transition > cursor:
                     boundary = min(boundary, transition)
-                matches = [(Decimal('1'), 'Ordinary', '')]
+                matches = [(Decimal('1'), ordinary)]
                 for rule in rules:
                     if rule['type'] == 'time':
                         applies = _time_rule_matches(rule, shift_start if rule['run_late'] else cursor, zone)
@@ -1158,24 +1159,28 @@ def calculate_payroll(entries, settings, visible_start=None, visible_end=None):
                             boundary = min(boundary, cursor+timedelta(seconds=threshold-count))
                         applies = local.weekday() in rule['days'] and count >= threshold
                     if applies:
-                        matches.append((Decimal(rule['multiplier']), rule['name'], rule['pay_item']))
+                        matches.append((Decimal(rule['multiplier']), rule))
                 if visible_start and cursor < visible_start < boundary:
                     boundary = visible_start
                 if visible_end and cursor < visible_end < boundary:
                     boundary = visible_end
-                multiplier = max(rate for rate, _, _ in matches)
+                multiplier = max(rate for rate, _ in matches)
                 seconds = int((boundary-cursor).total_seconds())
                 daily[day_key] += seconds
                 weekly[week_key] += seconds
                 if (visible_start is None or cursor >= visible_start) and (visible_end is None or cursor < visible_end):
                     row = rows.setdefault(member_id, {'member_id': member_id, 'seconds': 0, 'gross': Decimal(0), 'segments': []})
                     amount = Decimal(seconds)/Decimal(3600)*Decimal(entry['base_rate'])*multiplier
+                    # For reporting, attribute each paid second once to the first highest-rate
+                    # match in configuration order. Keep all equally paid matches for audit.
+                    winners = [rule for rate, rule in matches if rate == multiplier]
                     row['seconds'] += seconds
                     row['gross'] += amount
                     row['segments'].append({'entry_id': entry['id'], 'start': _iso(cursor), 'end': _iso(boundary),
                                             'seconds': seconds, 'multiplier': str(multiplier), 'base_rate': entry['base_rate'],
-                                            'rules': [name for rate, name, _ in matches if rate == multiplier],
-                                            'pay_items': list(dict.fromkeys(item for rate, _, item in matches if rate == multiplier and item)),
+                                            'applied_rule_id': winners[0]['id'],
+                                            'rules': [rule['name'] for rule in winners],
+                                            'pay_items': list(dict.fromkeys(rule['pay_item'] for rule in winners if rule['pay_item'])),
                                             'amount': str(amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))})
                 cursor = boundary
     for row in rows.values():

@@ -33,6 +33,18 @@ def break_rule(**changes):
 
 
 class SchedulerRuleCalculations(unittest.TestCase):
+    def test_tied_winners_keep_all_audit_items_but_attribute_time_once(self):
+        raw = entry(end='2026-11-02T08:00')
+        first = overtime(id='daily', name='Daily', pay_item='Daily load', threshold_hours='0', multiplier='1.50')
+        second = overtime(id='weekly', name='Weekly', type='weekly', pay_item='Weekly load', threshold_hours='0', multiplier='1.5')
+        for ordered in ([first, second], [second, first]):
+            result, = calculate_payroll([raw], settings(overtime_rules=ordered))['rows']
+            segment, = result['segments']
+            self.assertEqual((result['gross'], result['seconds']), ('60.00', 3600))
+            self.assertEqual(segment['applied_rule_id'], ordered[0]['id'])
+            self.assertEqual(segment['rules'], [rule['name'] for rule in ordered])
+            self.assertEqual(segment['pay_items'], [rule['pay_item'] for rule in ordered])
+
     def test_legacy_settings_keep_manual_breaks_and_original_overtime(self):
         legacy = {key: value for key, value in DEFAULT_SETTINGS.items() if key not in ('overtime_rules', 'rules_schema_version')}
         normalized = normalize_settings(legacy)

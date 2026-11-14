@@ -1,4 +1,9 @@
 {
+  "Enter a date as DD:MM:YY.": "Saisissez la date au format DD:MM:YY.",
+  "Choose {0}": "Choisir {0}",
+  "Payroll hours": "Heures de paie",
+  "Total paid hours": "Total des heures rémunérées",
+  "Total overtime": "Total des heures supplémentaires",
   "Regular vs overtime": "Heures normales et supplémentaires",
   "{0}× overtime / penalty": "Heures supplémentaires / majorées à {0}×",
   "No paid time": "Aucune heure rémunérée",

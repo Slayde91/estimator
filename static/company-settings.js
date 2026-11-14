@@ -34,7 +34,9 @@
     if (coverDelete) coverDelete.disabled = !current || !coverPdf || saving || reading;
   };
   const disableUploads = disabled => { file.disabled = disabled; if (coverFile) coverFile.disabled = disabled; };
-  form.addEventListener('input', dirty);
+  form.addEventListener('input', event => {
+    if (event.target !== file && event.target !== coverFile) dirty();
+  });
   file.addEventListener('change', async () => {
     const chosen = file.files[0];
     if (!chosen || saving || reading) return;

@@ -10,6 +10,11 @@
   function button(name, fn) {
     const b=el('button',term(name));b.type='button';b.className='button secondary';b.addEventListener('click',fn);return b;
   }
+  function feedback(message, text, error = false) {
+    message.textContent = text;
+    message.setAttribute('role', error ? 'alert' : 'status');
+    window.CeasefireNotifications.presentInline(message, {block:'nearest', announce:error});
+  }
   function ownerSelect(record) {
     const control=el('select');
     const creator = record?.id ? null : window.ClassifireAccess?.user;
@@ -61,7 +66,7 @@
     }
     async function submit(values) {
       if(busy || locked() || !current())return;
-      if(values.type!=='Task completed'&&!values.text.trim()){note.focus();message.textContent=term('Enter activity details.');return;}
+      if(values.type!=='Task completed'&&!values.text.trim()){note.focus();feedback(message,term('Enter activity details.'),true);return;}
       const fingerprint=JSON.stringify(values);
       if(!replay||replay.fingerprint!==fingerprint)replay={fingerprint,id:crypto.randomUUID()};
       busy=true;controls.disabled=true;
@@ -71,7 +76,7 @@
         replay=null;
         if(values.type!=='Task completed'){note.value='';due.value='';owner.value=window.ClassifireAccess?.user?.id || '';occurred.value='';}
         await refresh();
-      } catch(error) {if(current())message.textContent=error.message;}
+      } catch(error) {if(current())feedback(message,error.message,true);}
       finally {busy=false;update();}
     }
     return {controls, submit, update, pending:()=>busy, dirty:()=>Boolean(note.value || due.value || occurred.value),
@@ -139,9 +144,9 @@
         for(const item of result.events)list.append(row(item));
         if(box.open)sizeList(list,5,heading);
         cursor=result.next_before;earlier.hidden=!cursor;seen=true;
-        message.textContent=list.children.length?'':term('No activity recorded.');
+        feedback(message,list.children.length?'':term('No activity recorded.'));
         if(result.metadata){Object.assign(watched,result.metadata);dates();}
-      } catch(error) {if(seq===serial&&isOpen())message.textContent=error.message;}
+      } catch(error) {if(seq===serial&&isOpen())feedback(message,error.message,true);}
     }
     box.addEventListener('toggle',()=>{
       if(!box.open){stopSizing(list);return;}
@@ -215,16 +220,16 @@
       if (!panel.open || !panel.isConnected || !isCurrent()) {stopSizing(list);return;}
       editor.update();
       const current = () => ticket === serial && panel.open && panel.isConnected && isCurrent();
-      list.replaceChildren(); earlier.hidden = true; message.textContent = term('Loading…');
+      list.replaceChildren(); earlier.hidden = true; feedback(message,term('Loading…'));
       sizeList(list, 5, heading);
       try {
         const data = await read();
         if (!current()) return;
         events = data.events.slice().sort((a,b) => Date.parse(b.at) - Date.parse(a.at));
         shown = 0; showMore();
-        message.textContent = events.length ? '' : term('No activity recorded.');
+        feedback(message,events.length ? '' : term('No activity recorded.'));
       } catch (error) {
-        if (current()) message.textContent=term(error.message);
+        if (current()) feedback(message,term(error.message),true);
       }
     }
     panel.addEventListener('toggle', refresh);

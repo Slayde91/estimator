@@ -260,7 +260,7 @@
 .calculator-settings-panel[hidden]{display:none}
 .calculator-settings-note{margin:0;padding:14px 22px;border-bottom:1px solid var(--line);background:#fff;color:#171217}
 .calculator-settings-panel .calculator-stacked-section,.calculator-settings-panel .calculator-projected-section{margin-top:0}
-.calculator-schedule-section>h4{margin:0;padding:16px 22px;background:var(--calculator-section-bg);color:var(--calculator-section-ink);border-bottom:4px solid var(--red);font-size:15px;font-weight:750}
+.calculator-schedule-section>h4,.calculator-product-heading{margin:0;padding:16px 22px;background:var(--calculator-section-bg);color:var(--calculator-section-ink);border-bottom:4px solid var(--red);font-size:15px;font-weight:750}
 .calculator-tools .calculator-export-excel{background:var(--navy);color:#fff;border-color:#171217}
 .calculator-tools .calculator-export-pdf{background:#c5221f;color:#fff;border-color:#a11b18}
 .calculator-tools :is(.calculator-export-excel,.calculator-export-pdf):hover:not(:disabled){filter:brightness(.92)}
@@ -332,14 +332,14 @@
   #calculator-workspace[data-calculator-kind="ductwork"] h4[data-calculator-output="A94"] {
     display:flex;align-items:center;height:56px;padding-block:0;font-size:14px;
   }
-  #calculator-grid :is(.calculator-overview-title, .calculator-role-compact_summary_title, .calculator-section-anchor, .calculator-schedule-section > h4, .calculator-product-totals > h4) {
+  #calculator-grid :is(.calculator-overview-title, .calculator-role-compact_summary_title, .calculator-section-anchor, .calculator-schedule-section > h4, .calculator-product-totals > h4, .calculator-product-heading) {
     background: #b90a15;
     color: #fff;
     border-bottom: 4px solid #fff;
     border-radius: 8px;
   }
   #calculator-workspace[data-calculator-kind="steel_board"] .calculator-overview-full > .calculator-overview-title,
-  #calculator-grid .calculator-schedule-section > h4 {
+  #calculator-grid :is(.calculator-schedule-section > h4, .calculator-product-heading) {
     display: flex;
     align-items: center;
     box-sizing: border-box;

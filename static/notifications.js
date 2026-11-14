@@ -1,10 +1,11 @@
 (() => {
   "use strict";
   const records = new Map();
+  const presentations = new WeakMap();
   const downloads = new Map();
   let navigationKey = null;
   const noticeSelector = '.message, [data-notification="true"]';
-  const candidate = element => element.id !== 'project-folder' && !element.closest?.('noscript');
+  const candidate = element => element.id !== 'project-folder' && !element.hasAttribute('data-notification-passive') && !element.closest?.('noscript');
   let bleep;
   try {
     bleep = new window.Audio();
@@ -20,7 +21,26 @@
   function isError(element) {
     return /(?:^|\s)error(?:\s|$)/.test(element.className) || element.getAttribute('role') === 'alert';
   }
+  function presentation(element, eligible, explicit = false) {
+    const source = window.CeasefireI18n?.source(element) || element.textContent;
+    if (!eligible || element.hidden || !source?.trim()) {
+      presentations.delete(element);
+      return null;
+    }
+    const error = isError(element);
+    const previous = presentations.get(element);
+    const rendered = Boolean(element.isConnected && element.getClientRects?.().length);
+    if (previous && previous.source === source && previous.error === error) {
+      // Revealing a workspace must not announce content prepared while it was hidden.
+      // Its owner can still deliberately present that message once the view is open.
+      if (!explicit || previous.rendered || !rendered) return null;
+    }
+    const current = { source, error, rendered, sounded: false };
+    presentations.set(element, current);
+    return current;
+  }
   function visibleAtDestination(element, bounds) {
+    if (element.closest?.('[aria-hidden="true"], [inert], .sr-only')) return false;
     if (element.checkVisibility && !element.checkVisibility({ opacityProperty: true, visibilityProperty: true })) return false;
     const top = Math.max(0, bounds.top), bottom = Math.min(window.innerHeight, bounds.bottom);
     const left = Math.max(0, bounds.left), right = Math.min(window.innerWidth, bounds.right);
@@ -29,29 +49,25 @@
     const target = document.elementFromPoint((left + right) / 2, (top + bottom) / 2);
     return element.contains(target);
   }
-  function scrollNotice(element, scroll, allowSound = true) {
-    const before = element.getBoundingClientRect();
-    scroll();
-    if (!allowSound || !bleep || bleep.readyState < 3 || document.hidden ||
+  function soundVisible(element, current) {
+    if (!current || current.sounded || presentations.get(element) !== current ||
+        !bleep || bleep.readyState < 3 || document.hidden ||
         window.CeasefireAudioSettings?.isEnabled() === false || element.hidden ||
-        !element.isConnected || !element.textContent.trim()) return false;
-    const after = element.getBoundingClientRect();
-    if (Math.abs(after.top - before.top) < 1 && Math.abs(after.left - before.left) < 1) return false;
-    if (!visibleAtDestination(element, after)) return false;
+        !element.isConnected || !element.getClientRects?.().length) return;
+    if (!visibleAtDestination(element, element.getBoundingClientRect())) return;
+    current.sounded = true;
     try {
       bleep.currentTime = 0;
       bleep.play()?.catch(() => {});
     } catch { /* A blocked sound must never delay or hide the notice. */ }
-    return true;
   }
-  function scrollIntoView(element, block) {
-    if (!element || !isError(element) || element.hidden || !element.isConnected || !element.textContent.trim()) return;
-    if (element.matches('.message')) {
-      decorate(element);
-      // This owner scrolls its own container. The observer must not reveal it again.
-      records.get(element).errorText = window.CeasefireI18n?.source(element) || element.textContent;
-    }
-    scrollNotice(element, () => element.scrollIntoView({ block, inline: 'nearest', behavior: 'instant' }));
+  function presentInline(element, { block, announce = true } = {}) {
+    if (!element) return;
+    const current = presentation(element, announce, true);
+    if (!current?.rendered) return;
+    if (element.matches('.message')) decorate(element);
+    if (block && current.error) element.scrollIntoView({ block, inline: 'nearest', behavior: 'instant' });
+    soundVisible(element, current);
   }
   function rememberDownload(receipt) {
     if (!receipt || typeof receipt.filename !== 'string' || !/\.(pdf|xlsx)$/i.test(receipt.filename) ||
@@ -127,22 +143,17 @@
     if (window.CeasefireI18n?.decorateText) window.CeasefireI18n.decorateText(element, render);
     else render();
   }
-  function revealError(element, record, force = false) {
-    if (!isError(element) || element.hidden) { record.errorText = null; return; }
-    const source = window.CeasefireI18n?.source(element) || element.textContent;
-    if (!source?.trim() || !element.getBoundingClientRect || !element.getClientRects().length) return;
-    if (!force && record.errorText === source) return;
-    record.errorText = source;
-    const version = record.version;
-    let sounded = false;
+  function present(element, explicit = false) {
+    const current = presentation(element, isError(element) || element.matches('.message'), explicit);
+    if (!current?.rendered) return;
+    if (!current.error) { soundVisible(element, current); return; }
     const reveal = () => {
-      if (element.hidden || record.version !== version || record.errorText !== source || !element.getClientRects().length) return;
+      if (element.hidden || presentations.get(element) !== current || !element.getClientRects().length) return;
       const top = Math.max(0, document.querySelector?.('.app-header')?.getBoundingClientRect().bottom || 0) + 12;
       const bounds = element.getBoundingClientRect();
-      if (bounds.top < top || bounds.bottom > window.innerHeight) {
-        const played = scrollNotice(element, () => window.scrollBy({ top: bounds.top - top, behavior: 'instant' }), !sounded);
-        if (played) sounded = true;
-      }
+      if (bounds.top < top || bounds.bottom > window.innerHeight)
+        window.scrollBy({ top: bounds.top - top, behavior: 'instant' });
+      soundVisible(element, current);
     };
     reveal();
     // Field validation can run before Tab's native focus scroll. Reveal once
@@ -161,7 +172,7 @@
     const glyph = document.createElement('span'); glyph.className = 'notification-dismiss-glyph'; glyph.setAttribute('aria-hidden', 'true'); button.append(glyph);
     if (window.CeasefireI18n) window.CeasefireI18n.attr(button, 'aria-label', 'Close');
     else button.setAttribute('aria-label', 'Close');
-    button.addEventListener('click', () => { element.hidden = true; });
+    button.addEventListener('click', () => { element.hidden = true; presentations.delete(element); });
     if (window.CeasefireI18n?.accessory) window.CeasefireI18n.accessory(element, button);
     else element.append(button);
     record.button = button;
@@ -174,13 +185,13 @@
     linkDownloads(element, record, true);
     element.hidden = !element.textContent?.trim();
     decorate(element);
-    revealError(element, record, true);
+    present(element, true);
   }
   function clear(captured = [...records].map(([element, record]) => [element, record.version])) {
     for (const [element, version] of captured) {
       const record = records.get(element);
       // A fresh condition raised during navigation owns its new notification.
-      if (record && record.version === version && !record.persistent) element.hidden = true;
+      if (record && record.version === version && !record.persistent) { element.hidden = true; presentations.delete(element); }
     }
   }
   function navigate(key) {
@@ -191,8 +202,7 @@
     if (!candidate(element) || element.isConnected === false) return;
     if (records.has(element) || element.matches('.message')) {
       decorate(element);
-      const record = records.get(element);
-      if (record) revealError(element, record);
+      present(element);
     }
   }
   function scan(mutations) {
@@ -215,7 +225,7 @@
     for (const element of records.keys()) if (element.isConnected === false) records.delete(element);
     for (const element of changed) refreshNotice(element);
   }
-  window.CeasefireNotifications = { show, scrollIntoView, navigate, clear, rememberDownload };
+  window.CeasefireNotifications = { show, presentInline, navigate, clear, rememberDownload };
   // Only selection tabs participate. Action buttons and download progress keep
   // their normal lifecycle, including long preparation and retry operations.
   document.addEventListener('click', event => {

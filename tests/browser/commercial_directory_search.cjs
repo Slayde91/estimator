@@ -40,7 +40,7 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
   await expect(betaCompany).toContainText('Beta HQ');await expect(betaCompany).toContainText('ABN-BETA');await expect(betaCompany).not.toContainText('Project HQ');await expect(betaCompany).not.toContainText('ABN-PRIMARY');
   await expect(primaryCompany).toContainText('Project HQ');await expect(primaryCompany).toContainText('ABN-PRIMARY');await expect(primaryCompany).not.toContainText('Beta HQ');await expect(primaryCompany).not.toContainText('ABN-BETA');
   checked('Exact canonical Beta and linked Primary Project company rows settle with their own billing address and ABN; multiple linked companies cannot cross-wire identity details');
-  await name.fill('');await name.focus();await expect(left.getByRole('option')).toHaveText(['Beta Contact']);
+  await name.fill('');await name.focus();await expect(left.locator('.commercial-directory-options:visible').getByRole('option')).toHaveText(['Beta Contact']);
   await left.getByRole('option',{name:'Beta Contact',exact:true}).click();await expect(name).toHaveValue('Beta Contact');
   await expect(left).toContainText('Beta Manager');await expect(left).toContainText('beta@example.test');await expect(left).toContainText('222');
   const linkedBeforePaste=await page.evaluate(()=>window.CeasefireProject.details());await company.fill('Beta Company');await name.fill('Beta Contact');await name.blur();

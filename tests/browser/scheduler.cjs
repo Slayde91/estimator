@@ -257,26 +257,35 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   const reports=page.locator('.scheduler-reports');
   await expect(reports.getByRole('heading',{name:'Payroll Report'})).toBeVisible();
   await reports.getByLabel('Team member',{exact:true}).selectOption({label:'Jordan QA'});
-  await expect(reports.locator('dt').filter({hasText:/^Overtime \/ penalty$/}).locator('..')).toContainText('4h 00m');
+  const summary=reports.getByRole('table',{name:'Payroll hours'});
+  await expect(summary.getByText('Total overtime',{exact:true}).locator('..')).toContainText('4.00');
+  await expect(reports.getByLabel('Start date',{exact:true})).toHaveValue('02:11:26');
+  await expect(reports.getByLabel('End date',{exact:true})).toHaveValue('08:11:26');
+  await expect(reports).toContainText('02:11:26 – 08:11:26');
   await expect(reports.getByRole('img',{name:'Regular vs overtime',exact:true})).toBeVisible();
   await expect(reports.locator('.scheduler-report-pie path')).toHaveCount(2);
   await expect(reports.locator('.scheduler-report-legend li').filter({hasText:'Regular'})).toContainText('66.7%8h 00m');
-  for (const rate of ['1.5','2']) {
-    await expect(reports.locator('dl').getByText(rate+'× overtime / penalty',{exact:true}).locator('..')).toContainText('2h 00m');
+  const rules=['Daily overtime after 8 hours (1.5×)','Daily overtime after 10 hours (2×)'];
+  for (const rule of rules) {
+    await expect(summary.getByText(rule,{exact:true}).locator('..')).toContainText('2.00');
   }
+  const memberRegular=reports.locator('.scheduler-member-rates .pay-regular');
+  await expect(memberRegular).toHaveText('8.00'); await expect(memberRegular).toHaveAttribute('title','Regular · 8h 00m');
+  await memberRegular.focus();
+  assert.equal(await memberRegular.evaluate(el=>getComputedStyle(el,'::after').content),'"Regular · 8h 00m"');
   await reports.locator('.scheduler-report-detail summary').click();
-  await expect(reports.getByText('Daily total',{exact:true})).toBeVisible();
-  await expect(reports.getByRole('cell',{name:'2026-11-02 07:00+11:00',exact:true})).toBeVisible();
-  for (const rate of ['1.5','2']) {
-    await expect(reports.getByRole('columnheader',{name:rate+'× overtime / penalty',exact:true})).toBeVisible();
+  await expect(reports.getByText('Daily total',{exact:true})).toHaveCSS('background-color','rgb(185, 10, 21)');
+  await expect(reports.getByRole('cell',{name:'02:11:26 07:00+11:00',exact:true})).toBeVisible();
+  for (const rule of rules) {
+    await expect(reports.getByRole('columnheader',{name:rule,exact:true})).toHaveCSS('background-color','rgb(255, 255, 255)');
   }
   const downloadPromise=page.waitForEvent('download');
   await reports.getByRole('button',{name:'Download CSV'}).click();
   const download=await downloadPromise, csvPath=path.join(output,download.suggestedFilename());
   await download.saveAs(csvPath);
   const csvLines=fs.readFileSync(csvPath,'utf8').trim().split('\r\n');
-  assert.match(csvLines[1],/Jordan QA.*2026-11-02T07:00:00\+11:00.*2026-11-02T19:00:00\+11:00/);
-  assert.ok(csvLines[0].endsWith('"1.5× overtime / penalty (hours)","2× overtime / penalty (hours)"'));
+  assert.match(csvLines[1],/^"02:11:26".*Jordan QA.*02:11:26 07:00:00\+11:00.*02:11:26 19:00:00\+11:00/);
+  assert.ok(csvLines[0].endsWith(rules.map(rule=>'"'+rule+' (hours)"').join(',')));
   assert.ok(csvLines[1].endsWith('"2.0000","2.0000"'));
   await reports.screenshot({path:path.join(output,'payroll-report.png')});
   await reports.getByRole('button',{name:'Project Report'}).click();

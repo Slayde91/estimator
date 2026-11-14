@@ -7,6 +7,14 @@
     const minutes = Math.round(seconds / 60);
     return Math.floor(minutes/60)+'h '+String(minutes%60).padStart(2,'0')+'m';
   };
+  // The report API already supplies local calendar dates and clock offsets.
+  function reportDate(iso) {
+    return iso ? iso.slice(8,10)+':'+iso.slice(5,7)+':'+iso.slice(2,4) : '';
+  }
+  function reportClock(instant,compact=false) {
+    const time=instant.slice(11);
+    return reportDate(instant)+' '+(compact?time.replace(/:00(?=[+-]\d\d:\d\d$)/,''):time);
+  }
   function node(tag,text,cls) {
     const item=document.createElement(tag);
     if (text != null) item.textContent=text;
@@ -15,11 +23,11 @@
   }
   function sum(rows) {
     const totals=Object.fromEntries(keys.map(key=>[key,0]));
-    totals.overtime_by_rate={};
+    totals.overtime_by_rule=Object.create(null);
     for (const row of rows) {
       for (const key of keys) totals[key]+=row[key];
-      for (const [rate,seconds] of Object.entries(row.overtime_by_rate || {})) {
-        totals.overtime_by_rate[rate]=(totals.overtime_by_rate[rate] || 0)+seconds;
+      for (const [id,seconds] of Object.entries(row.overtime_by_rule || {})) {
+        totals.overtime_by_rule[id]=(totals.overtime_by_rule[id] || 0)+seconds;
       }
     }
     return totals;
@@ -108,10 +116,38 @@
     for (const [id,text] of [['payroll','Payroll Report'],['project','Project Report']]) {
       const b=action(text,()=>{state.kind=id; draw();}); b.dataset.report=id; modes.append(b);
     }
-    const period=control('Reporting period'), start=control('Start date','input'), end=control('End date','input');
+    const period=control('Reporting period');
+    function dateField(label,initial) {
+      const field=node('div',null,'field'), caption=node('label',t(label));
+      const controls=node('div',null,'scheduler-report-date'), text=node('input'), picker=node('input');
+      text.id=label==='Start date'?'scheduler-report-start':'scheduler-report-end';
+      caption.htmlFor=text.id; text.required=true; text.placeholder='DD:MM:YY'; text.maxLength=8;
+      text.pattern='[0-9]{2}:[0-9]{2}:[0-9]{2}'; text.title=t('Enter a date as DD:MM:YY.');
+      picker.type='date'; picker.min='2000-01-01'; picker.max='2100-12-31';
+      picker.setAttribute('aria-label',t('Choose {0}',[t(label)]));
+      const icon=svgNode('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor','stroke-width':2,'aria-hidden':true,class:'scheduler-report-calendar'});
+      icon.append(svgNode('rect',{x:3,y:5,width:18,height:16,rx:2}),
+        svgNode('path',{d:'M3 10h18M8 3v4m8-4v4'}));
+      const set=value=>{picker.value=value; text.value=reportDate(value); text.setCustomValidity('');};
+      set(initial);
+      text.addEventListener('input',()=>{
+        // Keep a native selection of 2100 intact until its displayed date changes.
+        if (text.value!==reportDate(picker.value)) {
+          const match=/^(\d{2}):(\d{2}):(\d{2})$/.exec(text.value);
+          picker.value=match?'20'+match[3]+'-'+match[2]+'-'+match[1]:'';
+        }
+        text.setCustomValidity(text.value && !picker.value?t('Enter a date as DD:MM:YY.'):'');
+        invalidate();
+      });
+      text.addEventListener('change',()=>{if (picker.value) picker.dispatchEvent(new Event('change'));});
+      picker.addEventListener('change',()=>set(picker.value));
+      controls.append(text,icon,picker);field.append(caption,controls);filters.append(field);
+      return {picker,set};
+    }
+    const startDate=dateField('Start date',state.start), endDate=dateField('End date',state.end);
+    const start=startDate.picker, end=endDate.picker;
     for (const [id,label] of [['week','Week'],['month','Month'],['custom','Custom']]) period.add(new Option(t(label),id));
-    period.value=state.period; start.type=end.type='date'; start.required=end.required=true;
-    start.value=state.start; end.value=state.end;
+    period.value=state.period;
     const member=control('Team member'), project=control('Project'), job=control('Job');
     const all=t('All'), unassigned=t('Unassigned');
     function populate(select,rows,selected) {
@@ -126,11 +162,11 @@
     function setPeriod() {
       if (!start.value || period.value==='custom') return;
       if (period.value==='week') {
-        start.value=weekStart(start.value); end.value=addDays(start.value,6);
+        startDate.set(weekStart(start.value)); endDate.set(addDays(start.value,6));
       } else {
         const current=new Date(start.value+'T12:00:00Z');
-        start.value=start.value.slice(0,7)+'-01';
-        end.value=new Date(Date.UTC(current.getUTCFullYear(),current.getUTCMonth()+1,0,12)).toISOString().slice(0,10);
+        startDate.set(start.value.slice(0,7)+'-01');
+        endDate.set(new Date(Date.UTC(current.getUTCFullYear(),current.getUTCMonth()+1,0,12)).toISOString().slice(0,10));
       }
     }
     // Never present a completed report under dates for which it has not run.
@@ -174,28 +210,55 @@
         (!state.project||row.project===state.project) && (!state.job||row.job===state.job));
       const name=row=>data.members[row.member] || unassigned;
       const totals=sum(rows), classified=data.pay_status==='calculated';
-      const rates=Object.keys(totals.overtime_by_rate).sort((a,b)=>Number(a)-Number(b));
-      const metricLabel=key=>columns[key]?t(columns[key]):t('{0}× overtime / penalty',[key]);
-      const seconds=(row,key)=>columns[key]?row[key]:(row.overtime_by_rate?.[key] || 0);
-      const classifiedField=key=>['regular','overtime'].includes(key) || !columns[key];
+      // Metrics use the rule object itself, so even custom IDs such as "paid" remain distinct.
+      const rules=data.overtime_rules.filter(rule=>totals.overtime_by_rule[rule.id]>0);
+      const ruleLabel=rule=>rule.name+' ('+rule.multiplier+'×)';
+      const labelCounts=new Map();
+      for (const rule of rules) labelCounts.set(ruleLabel(rule),(labelCounts.get(ruleLabel(rule)) || 0)+1);
+      const metricLabel=key=>{
+        if (typeof key==='string') return t(columns[key]);
+        const label=ruleLabel(key);
+        return labelCounts.get(label)>1?label+' ['+key.id+']':label;
+      };
+      const seconds=(row,key)=>typeof key==='string'?row[key]:(Object.hasOwn(row.overtime_by_rule,key.id)?row.overtime_by_rule[key.id]:0);
+      const classifiedField=key=>['regular','overtime'].includes(key) || typeof key==='object';
       const display=(row,key)=>!classified && classifiedField(key)?'—':hours(seconds(row,key));
-      const detailKeys=['elapsed','paid','regular','overtime',...rates,'paid_break','unpaid_break'];
-      const scope=[state.start+' – '+state.end,data.timezone];
+      const decimals=new Intl.NumberFormat(document.documentElement.lang || 'en',{minimumFractionDigits:2,maximumFractionDigits:2});
+      const numericHours=(row,key)=>!classified && classifiedField(key)?'—':decimals.format(seconds(row,key)/3600);
+      const metricClass=key=>'scheduler-pay-value pay-'+(typeof key==='string'?key:'rule');
+      const summaryLabel=key=>key==='paid'?t('Total paid hours'):key==='overtime'?t('Total overtime'):metricLabel(key);
+      const detailKeys=['elapsed','paid','regular','overtime',...rules,'paid_break','unpaid_break'];
+      const scope=[reportDate(state.start)+' – '+reportDate(state.end),data.timezone];
       for(const select of [member,project,job]) if(select.value) scope.push(select.selectedOptions[0].textContent);
       output.append(node('p',scope.join(' · '),'helper'));
       if (!rows.length) {output.append(node('p',t('No completed time entries match these filters.'),'notice'));return;}
-      const fields=payroll?['paid','regular','overtime',...rates,'paid_break','unpaid_break']:['paid','paid_break','unpaid_break'];
-      const summary=node('dl',null,'scheduler-report-totals');
-      for (const key of fields) {
-        const tile=node('div',null,columns[key]?'card':'card scheduler-rate-total');
-        tile.append(node('dt',metricLabel(key)),node('dd',display(totals,key))); summary.append(tile);
-      }
-      if (payroll && classified) {
+      const payrollFields=[['regular'],['overtime'],rules,['paid'],['paid_break','unpaid_break']];
+      if (payroll) {
+        const summary=node('table',null,'scheduler-payroll-totals');
+        summary.setAttribute('aria-label',t('Payroll hours'));
+        const summaryRow=summary.createTBody().insertRow();
+        for (const fields of payrollFields.filter(fields=>fields.length)) {
+          const group=node('dl',null,'scheduler-pay-group');
+          for (const key of fields) {
+            const cell=node('div',null,metricClass(key));
+            cell.title=summaryLabel(key)+' · '+display(totals,key);
+            cell.append(node('dt',summaryLabel(key)),node('dd',numericHours(totals,key))); group.append(cell);
+          }
+          summaryRow.insertCell().append(group);
+        }
         const overview=node('div',null,'scheduler-payroll-overview');
-        const values=['regular','overtime'].map(key=>({label:metricLabel(key),seconds:totals[key]}));
-        overview.append(summary,pieChart(t('Regular vs overtime'),values,t,['#37845b','#c64156']));
+        overview.append(summary);
+        if (classified) {
+          const values=['regular','overtime'].map(key=>({label:metricLabel(key),seconds:totals[key]}));
+          overview.append(pieChart(t('Regular vs overtime'),values,t,['#37845b','#c64156']));
+        }
         output.append(overview);
       } else {
+        const summary=node('dl',null,'scheduler-report-totals');
+        for (const key of ['paid','paid_break','unpaid_break']) {
+          const tile=node('div',null,'card');
+          tile.append(node('dt',metricLabel(key)),node('dd',display(totals,key))); summary.append(tile);
+        }
         output.append(summary);
       }
       if (payroll && !classified) output.append(node('p',t('Confirm pay rules before calculating pay.'),'helper'));
@@ -210,12 +273,10 @@
       const tools=node('div',null,'scheduler-report-tools');
       const dimensions=['Date','Team member','Project','Job','Clock in','Clock out'];
       const sorted=rows.slice().sort((a,b)=>name(a).localeCompare(name(b))||a.day.localeCompare(b.day)||Date.parse(a.clock_in)-Date.parse(b.clock_in));
-      const detail=row=>[row.day,name(row),projectLabel(row),jobLabel(row),row.clock_in,row.clock_out];
-      const clock=instant=>instant.replace('T',' ').replace(/:00(?=[+-]\d\d:\d\d$)/,'');
+      const detail=row=>[reportDate(row.day),name(row),projectLabel(row),jobLabel(row),reportClock(row.clock_in),reportClock(row.clock_out)];
       tools.append(action('Download CSV',()=>{
         const decimals=(row,key)=>!classified && classifiedField(key)?'':(seconds(row,key)/3600).toFixed(4);
-        // Keep existing CSV columns in place for saved imports and append the applied rates.
-        const csvKeys=[...keys,...rates];
+        const csvKeys=[...keys,...rules];
         const header=[...dimensions.map(label=>t(label)),...csvKeys.map(key=>metricLabel(key)+' ('+t('hours')+')')];
         const blob=new Blob(['\uFEFF'+csv([header,...sorted.map(row=>[...detail(row),...csvKeys.map(key=>decimals(row,key))])])],{type:'text/csv;charset=utf-8'});
         const url=URL.createObjectURL(blob), link=node('a');link.href=url;
@@ -227,19 +288,25 @@
       })); output.append(tools);
       for (const [,items] of groups(sorted,'member')) {
         const section=node('details',null,'card scheduler-report-detail'), personTotals=sum(items);
-        const heading=node('summary',name(items[0])+' · '+hours(personTotals.paid));
-        if (payroll && classified) {
+        const heading=node('summary');
+        const memberLabel=node('span',payroll?name(items[0]):name(items[0])+' · '+hours(personTotals.paid),'scheduler-report-member');
+        heading.append(memberLabel);
+        if (payroll) {
           const breakdown=node('span',null,'scheduler-member-rates');
-          for (const key of ['regular','overtime',...rates.filter(rate=>seconds(personTotals,rate)>0)]) {
-            breakdown.append(node('span',metricLabel(key)+' · '+display(personTotals,key)));
+          for (const key of payrollFields.flat()) {
+            if (typeof key==='object' && !seconds(personTotals,key)) continue;
+            const chip=node('span',numericHours(personTotals,key),metricClass(key));
+            chip.tabIndex=0; chip.setAttribute('role','img');
+            const label=summaryLabel(key)+' · '+display(personTotals,key);
+            chip.title=label; chip.setAttribute('aria-label',label); breakdown.append(chip);
           }
           heading.append(breakdown);
         }
         section.append(heading);
-        // For many distinct rates, repeat row identifiers in manageable tables that also fit a printed page.
-        const tableKeys=rates.length<=3?[detailKeys]:[keys];
-        if (rates.length>3) {
-          for (let offset=0;offset<rates.length;offset+=5) tableKeys.push(rates.slice(offset,offset+5));
+        // Repeat identifiers for long rule lists to keep each printed table readable.
+        const tableKeys=rules.length<=3?[detailKeys]:[keys];
+        if (rules.length>3) {
+          for (let offset=0;offset<rules.length;offset+=5) tableKeys.push(rules.slice(offset,offset+5));
         }
         const days=Array.from(groups(items,'day'),([day,entries])=>({day,entries,total:sum(entries)}));
         for (const metrics of tableKeys) {
@@ -251,10 +318,10 @@
           }
           for (const {day,entries,total} of days) {
             const daily=body.insertRow(); daily.className='scheduler-report-day';
-            for (const value of [day,t('Daily total'),'','',...metrics.map(key=>display(total,key))]) daily.append(node('td',value));
+            for (const value of [reportDate(day),t('Daily total'),'','',...metrics.map(key=>display(total,key))]) daily.append(node('td',value));
             for (const row of entries) {
               const tr=body.insertRow();
-              for (const value of [day,jobLabel(row),clock(row.clock_in),clock(row.clock_out),...metrics.map(key=>display(row,key))]) tr.append(node('td',value));
+              for (const value of [reportDate(day),jobLabel(row),reportClock(row.clock_in,true),reportClock(row.clock_out,true),...metrics.map(key=>display(row,key))]) tr.append(node('td',value));
             }
           }
           scroll.append(table); section.append(scroll);

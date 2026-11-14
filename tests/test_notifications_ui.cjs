@@ -7,6 +7,7 @@ class Element {
   append(child) { child.parentNode = this; this.children.push(child); }
   setAttribute(name, value) { this.attrs[name] = String(value); }
   getAttribute(name) { return this.attrs[name] ?? null; }
+  hasAttribute(name) { return Object.hasOwn(this.attrs,name); }
   matches(selector) { return selector === '.message' && String(this.className).split(/\s+/).includes('message'); }
   closest(selector) { return selector === '[role="tab"]' && this.attrs.role === 'tab' ? this : null; }
   addEventListener(name, callback) { this.listeners[name] = callback; }
@@ -60,70 +61,88 @@ helper.textContent = 'Translated revision saved'; observer();
 assert.equal(helper.hidden, true, 'Refreshing a dismissed helper-status does not show it again');
 assert.equal(helper.children.length, 0, 'A dismissed helper receives no hidden interactive control');
 console.log('Notification persistence, navigation, dismissal, recovery and progress checks passed.');
-// Reveal fresh errors below sticky chrome without refocusing the user's field.
 const scrolls = [], frames = [];
-let errorTop = 950, allowScroll = true, hit;
+let errorTop, hit;
 document.hidden = false;
 window.innerHeight = 800; window.innerWidth = 1000;
-window.scrollBy = options => { scrolls.push(options.top); if (allowScroll) errorTop -= options.top; };
+window.scrollBy = ({top}) => { scrolls.push(top); errorTop -= top; };
 window.requestAnimationFrame = callback => frames.push(callback);
 const finishFrames = () => { while (frames.length) frames.shift()(); };
-document.querySelector = selector => selector === '.app-header' ? { getBoundingClientRect: () => ({bottom: 100}) } : null;
+document.querySelector = selector => selector === '.app-header' ? {getBoundingClientRect: () => ({bottom: 100})} : null;
 document.elementFromPoint = () => hit;
-function position(element) {
-  hit = element;
+function position(element, top) {
+  errorTop = top; hit = element;
   element.getClientRects = () => element.hidden ? [] : [{}];
   element.getBoundingClientRect = () => ({top: errorTop, bottom: errorTop + 40, left: 10, right: 950});
   element.contains = node => node === element;
 }
 const error = notice('Invalid current item'); error.className = 'message error'; error.setAttribute('role', 'alert');
-position(error);
-api.show(error); assert.deepEqual(scrolls, [838]); assert.deepEqual(sounds, ['/sounds/radiobleep.mp3']);
-observer(); assert.equal(scrolls.length, 1, 'Decorating the close control does not repeat the error scroll');
-errorTop = 50; finishFrames();
-assert.deepEqual(scrolls, [838, -62], 'The delayed reveal corrects native focus scrolling');
+position(error, 950); api.show(error);
+assert.deepEqual(scrolls, [838]); assert.deepEqual(sounds, ['/sounds/radiobleep.mp3']);
+observer(); errorTop = 50; finishFrames();
+assert.deepEqual(scrolls, [838, -62], 'The deferred reveal corrects native focus scrolling');
 assert.equal(sounds.length, 1, 'A second scroll for the same error stays silent');
-errorTop = 200; api.show(error); finishFrames();
-assert.equal(scrolls.length, 2); assert.equal(sounds.length, 1, 'An error already in view stays silent');
-errorTop = 200; api.show(error); errorTop = 950; finishFrames();
-assert.equal(sounds.length, 2, 'The deferred correction sounds when it is the first actual snap');
-errorTop = 950; allowScroll = false; api.show(error); finishFrames();
-assert.equal(sounds.length, 2, 'A clamped scroll does not count');
-allowScroll = true; hit = null; api.show(error); finishFrames();
-assert.equal(sounds.length, 2, 'A notice behind an overlay stays silent despite page movement');
-hit = error; errorTop = 950; error.checkVisibility = () => false; api.show(error); finishFrames();
-assert.equal(sounds.length, 2, 'An invisible notice stays silent despite page movement');
-error.checkVisibility = () => true; document.hidden = true; errorTop = 950; api.show(error); finishFrames();
-document.hidden = false;
-window.CeasefireAudioSettings = {isEnabled: () => false}; errorTop = 950; api.show(error); finishFrames();
-window.CeasefireAudioSettings = {isEnabled: () => true};
-assert.equal(sounds.length, 2, 'Background and muted snaps stay silent');
-error.textContent = 'Saved'; error.className = 'helper'; error.setAttribute('role', 'status'); errorTop = 950;
-const beforeSuccess = scrolls.length; api.show(error); finishFrames();
-assert.equal(scrolls.length, beforeSuccess); assert.equal(sounds.length, 2, 'Status messages stay in place silently');
-error.textContent = 'New error'; error.className = 'message error'; api.show(error); const count = scrolls.length;
-error.children[0].listeners.click(); errorTop = 950; finishFrames();
-assert.equal(scrolls.length, count, 'Dismissing an error cancels its pending reveal');
-const external = notice('Error created outside the notification API'); external.className = 'message error'; position(external);
-observer(); finishFrames();
-assert.equal(scrolls.length, count + 1); assert.equal(sounds.length, 4, 'A newly discovered offscreen error sounds when actually revealed');
+position(error, 200); error.textContent = 'New validation'; api.show(error); finishFrames();
+assert.equal(scrolls.length, 2); assert.equal(sounds.length, 2, 'A fresh visible error announces without a snap');
+api.show(error); observer(); finishFrames();
+assert.equal(sounds.length, 2, 'Repeated show and redraws of the current notice stay silent');
+error.children[0].listeners.click(); api.show(error); finishFrames();
+assert.equal(sounds.length, 3, 'A dismissed notice presented again is a new occurrence');
 
-const passive = notice('Contact saved'); passive.className = 'notice';
-observer(); passive.textContent = 'Contact archived'; observer();
-passive.hidden = true; observer(); passive.hidden = false; observer();
-assert.equal(sounds.length, 4, 'Adding, updating and reopening passive notices stays silent');
-assert.equal(passive.children.length, 0, 'Inline notices retain their original controls');
-position(passive); passive.scrollIntoView = () => { errorTop = 300; }; errorTop = 950;
-api.scrollIntoView(passive, 'center');
-assert.equal(errorTop, 950, 'An ordinary inline status is not a target for an error snap');
-passive.setAttribute('role', 'alert');
-api.scrollIntoView(passive, 'center'); api.scrollIntoView(passive, 'center');
-assert.equal(sounds.length, 5, 'Inline alerts play only when their own scroll moves the notice');
-position(external); external.scrollIntoView = () => { errorTop = 320; }; errorTop = 950;
-external.textContent = 'Dialog error'; api.scrollIntoView(external, 'nearest');
-errorTop = 950; observer(); finishFrames();
-assert.equal(errorTop, 950); assert.equal(sounds.length, 6, 'The observer leaves a dialog-owned reveal alone');
+error.textContent = 'Project saved'; error.className = 'message'; error.setAttribute('role','status');
+api.show(error); observer(); finishFrames();
+assert.equal(scrolls.length, 2); assert.equal(sounds.length, 4, 'A fresh visible success banner plays once without scrolling');
+errorTop = 950; error.textContent = 'Saved to a file'; api.show(error); observer(); finishFrames();
+assert.equal(scrolls.length, 2); assert.equal(sounds.length, 4, 'Offscreen success feedback stays silent and never scrolls');
+errorTop = 200; api.show(error); observer(); assert.equal(sounds.length, 4, 'Showing old text after scrolling does not announce again');
+error.className = 'helper'; error.textContent = 'Loading'; api.show(error); observer();
+assert.equal(sounds.length, 4, 'Tracked passive helpers stay silent, even in view');
+
+error.className = 'message error'; errorTop = 950; hit = null; error.textContent = 'Covered error'; api.show(error); finishFrames();
+assert.equal(sounds.length, 4, 'An error behind an overlay stays silent even if the page moves');
+position(error, 170); error.textContent = 'Hidden by CSS'; error.checkVisibility = () => false;
+api.show(error); finishFrames(); error.checkVisibility = () => true; observer(); finishFrames();
+assert.equal(sounds.length, 4, 'A hidden element does not queue audio for later');
+document.hidden = true; error.textContent = 'Background error'; api.show(error); finishFrames(); document.hidden = false;
+window.CeasefireAudioSettings = {isEnabled: () => false}; error.textContent = 'Muted error'; api.show(error); finishFrames();
+window.CeasefireAudioSettings = {isEnabled: () => true};
+assert.equal(sounds.length, 4, 'Background and muted errors stay silent');
+error.textContent='Dismiss me'; api.show(error); const count=scrolls.length;
+error.children[0].listeners.click(); errorTop=950; finishFrames();
+assert.equal(scrolls.length,count,'Dismissing an error cancels the pending correction');
+const external = notice('Scheduler warning'); external.className = 'message error'; position(external, 190);
+observer(); finishFrames();
+assert.equal(sounds.length, 6, 'A fresh observer-discovered alert plays when already visible');
+external.textContent = 'Scheduler updated'; external.className = 'message'; observer(); observer();
+assert.equal(sounds.length, 7, 'A new observer-discovered success banner sounds once');
+
+const passive = notice('Contact loading'); passive.className = 'notice'; position(passive, 200);
+observer(); passive.textContent = 'Contact loaded'; observer();
+assert.equal(sounds.length, 7, 'Passive inline status changes stay silent');
+passive.textContent = 'Attachment failed'; passive.setAttribute('role', 'alert');
+passive.scrollIntoView = () => { errorTop = 210; }; errorTop = 950;
+api.presentInline(passive, {block:'center'}); api.presentInline(passive, {block:'center'});
+assert.equal(sounds.length, 8, 'Explicit inline snaps present the same alert only once');
+passive.textContent = 'Another error'; api.presentInline(passive, {block:'nearest'});
+assert.equal(sounds.length, 9, 'A new inline error already in position plays');
+position(external, 950); external.className = 'message error';
+external.scrollIntoView = () => { errorTop = 320; }; external.textContent = 'Dialog error';
+api.presentInline(external, {block:'nearest'}); errorTop = 950; observer(); finishFrames();
+assert.equal(errorTop, 950); assert.equal(sounds.length, 10, 'The observer leaves a dialog-owned reveal alone');
+const prepared = notice('Validation prepared while the workspace was hidden');
+prepared.className='message error'; position(prepared, 200);
+prepared.getClientRects = () => []; api.show(prepared);
+prepared.getClientRects = () => [{}]; observer(); finishFrames();
+assert.equal(sounds.length, 10, 'Switching to a workspace with a preconstructed alert stays silent');
+api.show(prepared); observer(); finishFrames();
+assert.equal(sounds.length, 11, 'Explicitly presenting that alert in the visible workspace plays once');
+const payrollWarning = notice('Recorded break warning');
+payrollWarning.className = 'message error'; payrollWarning.setAttribute('data-notification-passive','');
+position(payrollWarning, 950); const beforeWarning = scrolls.length;
+observer(); finishFrames();
+assert.equal(scrolls.length,beforeWarning,'A persisted payroll warning never scrolls the page during a redraw');
+assert.equal(sounds.length,11,'Rendering saved payroll warnings stays silent');
 document.querySelectorAll = () => { throw Error('Document-wide notification rescan'); };
 observer([{type:'characterData',target:new Element('span'),addedNodes:[]}]);
-assert.equal(sounds.length, 6, 'Unrelated mutations never produce playback');
-console.log('Notification snap, sticky header clearance, Tab corrections, mute and passive status checks passed.');
+assert.equal(sounds.length, 11, 'Unrelated mutations do not play audio');
+console.log('Visible and offscreen notification presentation, sticky header, focus corrections and sound isolation passed.');

@@ -2123,6 +2123,9 @@ window.CeasefireScheduleColumns = (() => {
       const button = uiNode("button", `calculator-settings-choice calculator-section-theme-${index % 11}`, definition.label), panel = node("section", "calculator-settings-panel");
       button.type = "button"; button.id = `${prefix}-button`; button.dataset.calculatorSettingsSection = definition.id; button.setAttribute("aria-controls", prefix);
       panel.id = prefix; panel.setAttribute("role", "region"); panel.setAttribute("aria-labelledby", button.id);
+      if (entry.definition.id === "steel_intumescent" && page === "SETTINGS") {
+        panel.append(uiNode("h4", "calculator-product-heading", definition.label));
+      }
       if (definition.note) panel.append(node("p", "calculator-technical-note calculator-settings-note", definition.note));
       button.addEventListener("click", () => {
         if (current() !== entry || currentPage(entry) !== page) return;

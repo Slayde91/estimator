@@ -37,7 +37,8 @@ const checks=[],errors=[];
     const before=await soundCount();
     await activity.getByRole('button',{name:'Log activity',exact:true}).click();
     await expect(activity).toContainText('Enter activity details.');
-    assert.equal(await soundCount(),before,'Focusing an invalid activity field leaves its inline feedback silent');
+    await expect(activity.getByRole('alert')).toBeInViewport();
+    assert.equal(await soundCount(),before+1,'The visible activity validation announces once');
     await page.route('**/api/record-resources/upload',route=>route.fulfill({
       status:503,contentType:'application/json',body:JSON.stringify({error:'Synthetic attachment failure'})
     }),{times:1});

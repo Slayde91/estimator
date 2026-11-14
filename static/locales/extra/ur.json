@@ -1,4 +1,9 @@
 {
+  "Enter a date as DD:MM:YY.": "تاریخ DD:MM:YY کی شکل میں درج کریں۔",
+  "Choose {0}": "{0} منتخب کریں",
+  "Payroll hours": "تنخواہ کے اوقات",
+  "Total paid hours": "کل قابلِ ادائیگی گھنٹے",
+  "Total overtime": "کل اضافی اوقات",
   "Regular vs overtime": "عام اور اضافی اوقات",
   "{0}× overtime / penalty": "{0}× اضافی وقت / خصوصی شرح",
   "No paid time": "کوئی قابلِ ادائیگی وقت نہیں",

@@ -7,6 +7,8 @@ import unittest
 from uuid import uuid4
 
 from pypdf import PdfReader
+from pypdf.generic import ArrayObject, DictionaryObject, NameObject, RectangleObject
+from reportlab.pdfgen.canvas import Canvas
 
 from estimator.catalog import ValidationError
 from estimator.company_settings import DEFAULTS
@@ -84,3 +86,31 @@ class RegisterPlansTests(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises(ValidationError):
                 normalize_pins([{**self.pin, **change}])
         self.assertEqual(normalize_register(self.register), self.register)
+
+    def test_interactive_field_prints_only_its_saved_appearance_and_missing_appearance_fails(self):
+        source = BytesIO()
+        canvas = Canvas(source, pagesize=(400, 400))
+        canvas.drawString(10, 10, 'Interactive source')
+        canvas.acroForm.textfield(name='area', value='Plant room', x=25, y=50, width=115, height=30)
+        canvas.showPage(); canvas.save()
+        def missing_appearance(writer):
+            annotation = DictionaryObject({NameObject('/Subtype'):NameObject('/Widget'),
+                NameObject('/Rect'):RectangleObject([10, 10, 100, 30])})
+            writer.pages[0][NameObject('/Annots')] = ArrayObject([writer._add_object(annotation)])
+        documents = self.service.documents
+        for revision, data in enumerate((source.getvalue(), drawing('Missing appearance', 1, missing_appearance)), 1):
+            upload = documents.begin_upload(self.session, 'Interactive.pdf', len(data))['upload_id']
+            documents.write_chunk(self.session, upload, 0, data)
+            doc = documents.finish_upload(self.session, upload)
+            self.service.add_document(self.session, doc, revision)
+            self.register['entries'][0]['plan_pins'] = [{**self.pin, 'document_id':doc['id'], 'sha256':doc['sha256'], 'page':1}]
+            if revision == 2:
+                with self.assertRaisesRegex(ValidationError, 'no saved appearance'):
+                    self.export()
+                continue
+            reader = PdfReader(BytesIO(self.export()))
+            stamp = reader.pages[-1]['/Annots'][0].get_object()
+            self.assertEqual(stamp['/Subtype'], '/Stamp')
+            self.assertIn(b'Plant room', stamp['/AP']['/N'].get_data())
+            self.assertNotIn('/AcroForm', reader.trailer['/Root'])
+            self.assertFalse({'/A', '/AA', '/Parent', '/V', '/T'} & stamp.keys())

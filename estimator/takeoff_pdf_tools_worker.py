@@ -36,10 +36,7 @@ def _static_plan_appearance(writer, annotation):
         appearance = appearance.get(state) if state in appearance else None
         appearance = appearance.get_object() if appearance else None
     if not isinstance(appearance, StreamObject):
-        # A nonprinting control without an appearance has nothing to reproduce.
-        if not flags & 4:
-            return None
-        raise ValueError('A printable interactive element has no saved appearance. Save a print-ready copy of the drawing.')
+        raise ValueError('A visible interactive element has no saved appearance. Save a print-ready copy of the drawing.')
     return DictionaryObject({NameObject('/Type'): NameObject('/Annot'), NameObject('/Subtype'): NameObject('/Stamp'),
         NameObject('/Rect'): annotation['/Rect'].clone(writer), NameObject('/F'): NumberObject(4),
         NameObject('/AP'): DictionaryObject({NameObject('/N'): appearance.clone(writer).indirect_reference})})

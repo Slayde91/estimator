@@ -12,7 +12,8 @@ import unittest
 from unittest.mock import patch, MagicMock
 
 from feature_client import StaffConnection
-from estimator.catalog import ValidationError, baseline
+from estimator.active_pricing import active_configuration
+from estimator.catalog import ValidationError, baseline, validate_configuration
 from estimator.commercial_sources import source_id
 from estimator.native_dialogs import NativeDialogs, SaveSelection
 from estimator.project_file import export_project, project_filename, project_download_header, LEGACY_CALCULATOR_IDS
@@ -139,20 +140,23 @@ class ProjectLibraryTests(unittest.TestCase):
 
     def test_schema_upgrade_adds_preference_without_rewriting_existing_data(self):
         database = self.root / "old.sqlite3"
+        # A valid shared pricing record already using the active catalog should
+        # survive a preference-only upgrade byte for byte, including its whitespace.
+        original_settings = json.dumps(validate_configuration(active_configuration({})), indent=1)
         with sqlite3.connect(database) as db:
             db.executescript("CREATE TABLE settings(id INTEGER PRIMARY KEY,data TEXT);"
                              "CREATE TABLE quotes(id TEXT PRIMARY KEY,title TEXT,updated_at TEXT,data TEXT);"
                              "CREATE TABLE calculator_states(id TEXT PRIMARY KEY,data TEXT,updated_at TEXT);"
-                             "INSERT INTO settings VALUES(1,'original settings bytes');"
                              "INSERT INTO quotes VALUES('old','Original','date','original quote bytes');"
                              "INSERT INTO calculator_states VALUES('ductwork','original calculator bytes','date');"
                              "PRAGMA user_version=2;")
+            db.execute("INSERT INTO settings VALUES(1,?)", (original_settings,))
         db.close()
         upgraded = Store(database)
         upgraded.set_project_folder(self.folder)
         self.assertEqual(Store(database).project_folder(), str(self.folder))
         rows = database_rows(upgraded)
-        self.assertEqual(rows["settings"], [(1, "original settings bytes")])
+        self.assertEqual(rows["settings"], [(1, original_settings)])
         self.assertEqual(rows["quotes"], [("old", "Original", "date", "original quote bytes")])
         self.assertEqual(rows["calculator_states"], [("ductwork", "original calculator bytes", "date")])
         with upgraded.connect() as db:

@@ -254,8 +254,9 @@
       if(current()){state.projectsLoading = false;orderStatus();}
     }
   }
-  function notice(message, error = false) {
+  function notice(message, error = false, passive = false) {
     const host = state.root?.querySelector(".scheduler-notice"); if (!host) return;
+    host.toggleAttribute("data-notification-passive", passive);
     host.textContent = message; host.classList.toggle("error",error); host.hidden = !message;
   }
   async function request(path, payload, member = state.data?.user?.id) {
@@ -770,7 +771,11 @@
       const card = el("section","card scheduler-payroll"); card.append(el("h2","","Pay breakdown"));
       if (pay.rules_version) card.append(el("p","helper",`Rule version ${pay.rules_version}`));
       if (pay.message) card.append(el("p","helper",pay.message));
-      for (const warning of pay.break_warnings || []) card.append(el("p","message error",warning.message));
+      for (const warning of pay.break_warnings || []) {
+        const detail = el("p","message error",warning.message);
+        detail.setAttribute("data-notification-passive","");
+        card.append(detail);
+      }
       const money = value => new Intl.NumberFormat("en-AU",{style:"currency",currency:"AUD"}).format(value);
       for (const item of pay.rows || []) {
         const detail = el("details"), summary = el("summary","scheduler-pay-row");
@@ -1175,7 +1180,7 @@
     if (state.data?.user) await refresh();
     else {
       const generation = state.authGeneration;
-      shell(); notice("Loading Scheduler…");
+      shell(); notice("Loading Scheduler…", false, true);
       try { const bootstrap = await request("/bootstrap"); if(generation !== state.authGeneration)return; setZone(bootstrap.timezone); if (bootstrap.user) await refresh(); else auth(bootstrap.setup_required); }
       catch(error) {if(generation === state.authGeneration)notice(error.message,true);}
     }

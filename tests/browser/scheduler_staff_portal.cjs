@@ -68,8 +68,12 @@ const ready=new Promise((resolve,reject)=>{let buffer='';server.on('exit',()=>re
   const selectedJob=jobsChart.getByRole('listitem').filter({hasText:order.reference});
   await expect(selectedJob).toContainText('100%');
   await reports.getByLabel('Reporting period',{exact:true}).selectOption('custom');
-  await reports.getByLabel('Start date',{exact:true}).fill('2000-01-01');
-  await reports.getByLabel('End date',{exact:true}).fill('2000-01-02');
+  const startDate=reports.getByLabel('Start date',{exact:true});
+  await startDate.fill('31:02:00');
+  assert.equal(await startDate.evaluate(input=>input.checkValidity()),false);
+  await startDate.fill('01:01:00');
+  await reports.getByLabel('Choose End date',{exact:true}).fill('2000-01-02');
+  await expect(reports.getByLabel('End date',{exact:true})).toHaveValue('02:01:00');
   await reports.getByRole('button',{name:'Run report',exact:true}).click();
   await expect(reports.getByText('No completed time entries match these filters.')).toBeVisible();
   assert.equal((await staff.request.get(origin+'/api/contacts/directory')).status(),403);

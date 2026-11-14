@@ -1627,7 +1627,7 @@
         failure.textContent = error.message;
         window.CeasefireI18n?.text(failure, error.message);
         failure.hidden = false;
-        window.CeasefireNotifications.scrollIntoView(failure, "nearest");
+        window.CeasefireNotifications.presentInline(failure, {block:"nearest"});
         return;
       }
       result = {name:name.value.trim(), date:date.value};

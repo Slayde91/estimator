@@ -52,7 +52,7 @@
     msg.hidden = !message;
     msg.classList.toggle("error", error);
     msg.setAttribute("role", error ? "alert" : "status");
-    if (message && error) window.CeasefireNotifications.scrollIntoView(msg, "center");
+    window.CeasefireNotifications.presentInline(msg, {block:"center"});
   }
   function notice() {
     const node = el("p", "notice");

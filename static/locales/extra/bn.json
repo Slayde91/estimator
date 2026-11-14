@@ -1,4 +1,9 @@
 {
+  "Enter a date as DD:MM:YY.": "DD:MM:YY বিন্যাসে তারিখ লিখুন।",
+  "Choose {0}": "{0} নির্বাচন করুন",
+  "Payroll hours": "বেতনের জন্য কর্মঘণ্টা",
+  "Total paid hours": "মোট বেতনযোগ্য ঘণ্টা",
+  "Total overtime": "মোট অতিরিক্ত কর্মঘণ্টা",
   "Regular vs overtime": "নিয়মিত ও অতিরিক্ত কর্মঘণ্টা",
   "{0}× overtime / penalty": "{0}× অতিরিক্ত সময় / বিশেষ হার",
   "No paid time": "কোনো বেতনযোগ্য সময় নেই",

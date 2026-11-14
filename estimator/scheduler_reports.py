@@ -68,6 +68,7 @@ def report(db, viewer, settings, query):
         days = defaultdict(lambda: {
             **dict.fromkeys(('elapsed','paid','regular','overtime','paid_break','unpaid_break'), 0),
             'overtime_by_rate': {},
+            'overtime_by_rule': {},
         })
         def add(period_start, period_end, key):
             for day,seconds in _by_day(period_start,period_end,zone,start,until):
@@ -95,6 +96,9 @@ def report(db, viewer, settings, query):
                         rate = rate.rstrip('0').rstrip('.')
                     bands = totals['overtime_by_rate']
                     bands[rate] = bands.get(rate, 0) + seconds
+                    rule_id = segment['applied_rule_id']
+                    by_rule = totals['overtime_by_rule']
+                    by_rule[rule_id] = by_rule.get(rule_id, 0) + seconds
                 else:
                     totals['regular'] += seconds
         else:
@@ -106,5 +110,8 @@ def report(db, viewer, settings, query):
                          'project':project, 'project_label':project_label,
                          'clock_in':begin.astimezone(zone).isoformat(timespec='seconds'),
                          'clock_out':finish.astimezone(zone).isoformat(timespec='seconds'), **values})
-    return {'timezone':zone.key, 'members':members, 'rows':rows, 'pay_status':pay['status'],
+    used_rules = {rule_id for row in rows for rule_id in row['overtime_by_rule']}
+    overtime_rules = [{key: rule[key] for key in ('id', 'name', 'pay_item', 'multiplier')}
+                      for rule in settings['overtime_rules'] if rule['id'] in used_rules]
+    return {'timezone':zone.key, 'members':members, 'rows':rows, 'overtime_rules':overtime_rules, 'pay_status':pay['status'],
             'rules_version':pay['rules_version'], 'warnings':list(dict.fromkeys(warnings))}

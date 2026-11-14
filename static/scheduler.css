@@ -4,15 +4,43 @@
 .scheduler-report-modes button[aria-pressed="true"] {background:var(--ink);color:var(--paper)}
 .scheduler-report-filters {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(160px,100%),1fr));align-items:end;gap:12px;padding:16px}
 .scheduler-report-filters .field {min-width:0}
+.scheduler-report-filters .field>label {display:block;font-size:12px;font-weight:650;margin-bottom:7px}
+.scheduler-report-date {position:relative}
+.scheduler-report-date input[type=text],.scheduler-report-date input:not([type]) {padding-inline-end:38px}
+.scheduler-report-calendar {position:absolute;inset-inline-end:10px;top:50%;width:17px;height:17px;transform:translateY(-50%);pointer-events:none}
+.scheduler-report-date input[type=date] {position:absolute;inset-inline-end:2px;inset-block:2px;width:34px;height:auto;min-height:0;padding:0;border:0;opacity:0;cursor:pointer}
+.scheduler-report-date:has(input[type=date]:focus-visible) .scheduler-report-calendar {outline:2px solid currentColor;outline-offset:4px;border-radius:2px}
+.scheduler-report-date input[type=date]::-webkit-datetime-edit {display:none}
+.scheduler-report-date input[type=date]::-webkit-calendar-picker-indicator {width:16px;padding:8px;margin:0;cursor:pointer}
 .scheduler-report-output {display:grid;gap:12px;min-width:0}
 .scheduler-report-totals,.scheduler-report-charts,.scheduler-payroll-overview {display:grid;gap:12px;margin:0;min-width:0}
 .scheduler-report-totals {grid-template-columns:repeat(auto-fit,minmax(min(145px,100%),1fr))}
 .scheduler-report-charts {grid-template-columns:repeat(auto-fit,minmax(min(250px,100%),1fr));align-items:start}
-.scheduler-payroll-overview {grid-template-columns:minmax(0,1fr) minmax(260px,30%);align-items:start}
+.scheduler-payroll-overview {grid-template-columns:minmax(0,1fr) minmax(240px,26%);align-items:start}
+.scheduler-payroll-overview:not(:has(.scheduler-report-chart)) {grid-template-columns:1fr}
 .scheduler-report-totals .card,.scheduler-report-chart,.scheduler-report-detail {min-width:0;padding:14px;margin:0}
-.scheduler-report-totals .scheduler-rate-total {border-top-color:#c64156}
 .scheduler-report-totals dt {font-size:.85rem}
 .scheduler-report-totals dd {margin:5px 0 0;font-size:1.3rem;font-weight:700}
+.scheduler-payroll-totals {display:block;width:auto}
+.scheduler-payroll-totals tbody {display:block}
+.scheduler-payroll-totals tr {display:flex;flex-wrap:wrap;gap:4px;align-items:stretch}
+#scheduler-root .scheduler-payroll-totals :is(tr,td) {background:transparent;border:0}
+.scheduler-payroll-totals td {display:flex;padding:0;min-width:0}
+.scheduler-pay-group {display:flex;flex-direction:column;margin:0;min-width:0}
+.scheduler-pay-value {color:#17212b;background:var(--pay-bg);border:1px solid var(--pay-border,var(--pay-bg));font-variant-numeric:tabular-nums}
+.pay-regular {--pay-bg:#a7d99a}
+.pay-overtime {--pay-bg:#e39494}
+.pay-rule {--pay-bg:#fff;--pay-border:#cd6469}
+.pay-paid {--pay-bg:#b9bbbd}
+.pay-paid_break {--pay-bg:#ffb766}
+.pay-unpaid_break {--pay-bg:#fff;--pay-border:#d5862d}
+.scheduler-pay-group .scheduler-pay-value {display:flex;flex:1;flex-direction:column-reverse;align-items:center;justify-content:center;gap:2px;min-width:65px;max-width:15em;padding:7px 10px;text-align:center;overflow-wrap:anywhere}
+.scheduler-pay-group .scheduler-pay-value:first-child {border-radius:4px 4px 0 0}
+.scheduler-pay-group .scheduler-pay-value:last-child {border-radius:0 0 4px 4px}
+.scheduler-pay-group .scheduler-pay-value:only-child {border-radius:4px}
+.scheduler-pay-group dt {font-size:11px;line-height:1.2}
+.scheduler-pay-group dd {margin:0;font-size:14px;font-weight:700;line-height:1.1}
+.scheduler-pay-group .scheduler-pay-value:only-child dd {font-size:20px}
 .scheduler-report-chart h3 {font-size:1rem;margin:0}
 .scheduler-report-pie {display:block;width:min(100%,190px);height:auto;margin:12px auto}
 .scheduler-payroll-overview .scheduler-report-pie {width:min(100%,135px)}
@@ -24,15 +52,22 @@
 .scheduler-report-legend li>span:nth-last-child(2) {color:var(--muted)}
 .scheduler-report-legend strong,.scheduler-chart-total strong {font-variant-numeric:tabular-nums;white-space:nowrap}
 .scheduler-chart-total {display:flex;justify-content:space-between;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
-.scheduler-report-detail summary {cursor:pointer;font-weight:700}
-.scheduler-member-rates {display:inline-flex;gap:4px 14px;flex-wrap:wrap;margin-inline-start:16px;color:var(--muted);font-size:.8rem;font-weight:600}
+.scheduler-report-detail summary {display:flex;align-items:center;gap:8px;flex-wrap:wrap;cursor:pointer;font-weight:700}
+.scheduler-report-detail summary::before {content:"";width:0;height:0;border-block:5px solid transparent;border-inline-start:7px solid currentColor}
+.scheduler-report-detail[open] summary::before {transform:rotate(90deg)}
+.scheduler-report-member {overflow-wrap:anywhere}
+.scheduler-member-rates {display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:4px;margin-inline-start:auto;min-width:0}
+.scheduler-member-rates .scheduler-pay-value {position:relative;padding:4px 7px;border-radius:3px;text-align:end;font-size:.8rem;font-weight:650;cursor:help}
+.scheduler-member-rates .scheduler-pay-value:is(:hover,:focus)::after {content:attr(aria-label);position:absolute;z-index:2;inset-inline-end:0;bottom:calc(100% + 5px);width:max-content;max-width:min(200px,70vw);padding:5px 8px;overflow-wrap:anywhere;text-align:start;border:1px solid #7c8995;border-radius:4px;background:#17212b;color:#fff;pointer-events:none}
+.scheduler-member-rates .scheduler-pay-value:focus-visible {outline:2px solid var(--ink);outline-offset:2px}
 .scheduler-report-detail table {min-width:680px}
+#scheduler-root .scheduler-report-detail thead th {height:44px;white-space:normal;overflow-wrap:anywhere;background:#fff;color:#17212b;border-color:#d1d5da}
 .scheduler-report-detail caption {text-align:start;font-weight:700;padding-block:8px}
 .scheduler-report-detail .table-scroll {margin-block-start:8px}
-.scheduler-report-day {background:var(--canvas);font-weight:700}
+#scheduler-root .scheduler-report-day td {background:#b90a15;color:#fff;font-weight:700}
 @media (max-width:720px) {
   .scheduler-payroll-overview {grid-template-columns:1fr}
-  .scheduler-member-rates {display:flex;margin:6px 0 0}
+  .scheduler-member-rates {flex-basis:100%}
 }
 @media print {
   body:has(#view-scheduler:not([hidden]) .scheduler-reports) :is(.app-header,footer,.scheduler-report-modes,.scheduler-report-filters,.scheduler-report-tools) {display:none!important}
@@ -43,6 +78,10 @@
   .scheduler-report-totals {grid-template-columns:repeat(3,minmax(0,1fr))}
   .scheduler-report-charts {grid-template-columns:repeat(3,minmax(0,1fr))}
   .scheduler-payroll-overview {grid-template-columns:2fr 1fr}
+  .scheduler-pay-group .scheduler-pay-value {min-width:45px;padding:3px 5px}
+  .scheduler-pay-group .scheduler-pay-value:only-child dd {font-size:14px}
+  .scheduler-report-output {print-color-adjust:exact;-webkit-print-color-adjust:exact}
+  .scheduler-member-rates .scheduler-pay-value::after {display:none}
   .scheduler-report-pie,.scheduler-payroll-overview .scheduler-report-pie {width:95px}
   .scheduler-report-totals .card,.scheduler-report-chart,.scheduler-report-detail {padding:6px}
   .scheduler-report-detail {break-inside:auto;margin-bottom:8px}
@@ -51,6 +90,7 @@
   .scheduler-report-detail table {min-width:0;table-layout:fixed}
   .scheduler-report-detail :is(th,td) {white-space:normal;overflow-wrap:anywhere;padding:3px 2px;font-size:9px}
   .scheduler-report-detail thead {display:table-header-group}
+  #scheduler-root .scheduler-report-detail thead th {height:auto}
   .scheduler-report-detail tr,.scheduler-report-legend li {break-inside:avoid}
   .scheduler-report-legend li {gap:4px;font-size:9px}
 }

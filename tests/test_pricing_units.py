@@ -9,7 +9,7 @@ import unittest
 from openpyxl import load_workbook
 
 from estimator.calculator import calculate
-from estimator.catalog import baseline, effective_catalog, validate_catalog, ValidationError, yield_unit
+from estimator.catalog import baseline, effective_catalog, validate_catalog, validate_configuration, ValidationError, yield_unit
 from estimator.pricing_workbook import export_pricing_workbook, import_pricing_workbook, _serialize_exact, _legacy_pricing_workbook
 from estimator.storage import Store
 
@@ -169,11 +169,15 @@ class PricingUnitTests(unittest.TestCase):
             path = Path(directory) / 'library.sqlite3'
             store = Store(path)
             custom = {'inventory': {'204': {'supplier_price': 300}}, 'rates': {'primers:1': {'yield': 71}}}
-            store.save_configuration(custom)
+            saved = store.save_configuration(custom)
+            self.assertEqual(saved['inventory'], custom['inventory'])
+            self.assertEqual(saved['rates'], custom['rates'])
             quote = store.save_quote({'title': 'Frozen library', 'inputs': {'D20': '20kg SBR Latex - Promat', 'B20': 142, 'D4': '1 Team - 1x'}})
-            self.assertEqual(Store(path).configuration(), custom)
-            store.save_configuration({'inventory': {}, 'rates': {}})
-            self.assertEqual(Store(path).configuration(), {'inventory': {}, 'rates': {}})
+            self.assertEqual(Store(path).configuration(), validate_configuration(saved))
+            reset = store.save_configuration({'inventory': {}, 'rates': {}})
+            self.assertEqual((reset['inventory'], reset['rates']), ({}, {}))
+            self.assertEqual(reset['catalog'], saved['catalog'])
+            self.assertEqual(Store(path).configuration(), validate_configuration(reset))
             self.assertEqual(Store(path).quote(quote['id']), quote)
 
 

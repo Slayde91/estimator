@@ -157,17 +157,26 @@ async function noDownloadAudio() {
   await page.locator('.app-header nav [data-view="settings"]').click(); await idle();
   const theme = page.locator('#theme-toggle'); silentStart = await buttonCalls();
   await theme.hover(); await theme.click(); assert.equal(await buttonCalls(), silentStart);
+  await home.click(); await idle();
   const beforeSaveCalls = await buttonCalls();
   const bleepCalls = () => page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source === '/sounds/radiobleep.mp3').length);
+  const bleepPlays = () => page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source === '/sounds/radiobleep.mp3').length);
+  await page.evaluate(() => window.scrollTo({top:0,behavior:'instant'}));
   const beforeSaveNotices = await bleepCalls();
+  const beforeSavePlays = await bleepPlays();
   await page.locator('#save-current-project').click();
   await expect(page.locator('#app-message')).toContainText('Save cancelled. Your current project remains open.', {timeout:60000});
-  assert.equal(await bleepCalls(), beforeSaveNotices, 'A save cancellation with no snap stays silent');
+  await played('/sounds/radiobleep.mp3', beforeSavePlays);
+  assert.equal(await page.evaluate(() => window.scrollY), 0, 'A new top-of-page confirmation stays in position');
+  assert.equal(await bleepCalls(), beforeSaveNotices+1, 'The visible save confirmation plays once');
   assert.equal(await buttonCalls(), beforeSaveCalls); assert.equal(saveRequests, 1);
   evidence.checks.mainButtonsAndSaveSilent = true;
+  await page.locator('.app-header nav [data-view="settings"]').click(); await idle();
   await page.locator('#settings-play-button').scrollIntoViewIfNeeded();
+  const beforeLogoCalls = await bleepCalls();
+  assert.equal(beforeLogoCalls,beforeSaveNotices+1,'Opening Settings and scrolling past status labels do not announce stale feedback');
   const beforeReveal = await page.evaluate(() => window.scrollY);
-  const lastBleep = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source === '/sounds/radiobleep.mp3').length);
+  const lastBleep = await bleepPlays();
   const invalidLogo = {name:'invalid.txt', mimeType:'text/plain', buffer:Buffer.from('invalid logo')};
   const logoInput = page.locator('#company-logo'), logoAlert = page.locator('#company-settings-status');
   await logoInput.setInputFiles(invalidLogo);
@@ -175,9 +184,12 @@ async function noDownloadAudio() {
   await played('/sounds/radiobleep.mp3', lastBleep);
   assert.ok(await page.evaluate(() => window.scrollY) < beforeReveal, 'The actual logo validation moved the page up');
   await expect(logoAlert).toBeInViewport();
+  assert.equal(await bleepCalls(), beforeLogoCalls+1, 'A newly revealed validation makes one playback attempt');
+  const firstLogoPlays = await bleepPlays();
   await logoInput.setInputFiles(invalidLogo);
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  assert.equal(await bleepCalls(), beforeSaveNotices + 1, 'Showing the same in-view error stays silent');
+  assert.equal(await bleepCalls(), beforeLogoCalls + 1, 'Showing the same in-view error stays silent');
+  assert.equal(await bleepPlays(), firstLogoPlays, 'The same in-view error does not play the native clip again');
   evidence.checks.notificationBleepOnActualSnap = true;
   // These owned lightweight controls isolate delegated routing from Takeoff
   // document/session operations, which have their own browser acceptance gates.

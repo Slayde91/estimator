@@ -1,4 +1,9 @@
 {
+  "Enter a date as DD:MM:YY.": ["날짜를 DD:MM:YY 형식으로 입력하세요.","Ilagay ang petsa sa format na DD:MM:YY.","Nhập ngày theo định dạng DD:MM:YY."],
+  "Choose {0}": ["{0} 선택","Piliin ang {0}","Chọn {0}"],
+  "Payroll hours": ["급여 산정 시간","Mga oras para sa pasahod","Số giờ tính lương"],
+  "Total paid hours": ["총 유급 시간","Kabuuang bayad na oras","Tổng số giờ được trả lương"],
+  "Total overtime": ["총 초과 근무 시간","Kabuuang overtime","Tổng giờ làm thêm"],
   "Regular vs overtime": ["정규 근무와 초과 근무","Regular at overtime","Giờ thường và giờ làm thêm"],
   "{0}× overtime / penalty": ["{0}배 초과 근무 / 가산 수당","{0}× overtime / espesyal na rate","Làm thêm / mức lương đặc biệt {0}×"],
   "No paid time": ["유급 시간 없음","Walang bayad na oras","Không có giờ được trả lương"],

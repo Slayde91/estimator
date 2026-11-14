@@ -188,7 +188,7 @@ async function submit(name) {await page.locator('dialog[open]').getByRole('butto
   assert.equal(createdShift.site_contact_note,siteLine);
   assert.equal(createdShift.title,'Manually edited site shift');
   // Clearing is deliberate but Cancel must retain the saved assignment.
-  await page.getByLabel('Week containing date').fill('2026-11-02');await page.getByLabel('Week containing date').press('Tab');
+  await page.getByLabel('Week containing date',{exact:true}).fill('2026-11-02');await page.getByLabel('Week containing date',{exact:true}).press('Tab');
   await page.locator('.scheduler-shift').click();await orderSearch.fill('');
   await expect(notes).toHaveValue(manualNotes+'\nBring access keys.');
   await orderSearch.fill('Site Street');await modal.getByRole('option').nth(1).click();
@@ -351,9 +351,9 @@ async function submit(name) {await page.locator('dialog[open]').getByRole('butto
   await submit('Delete');await expect(overtimeSelect.locator('option')).toHaveCount(0);await expect(overtimeSelect).toBeDisabled();
   await discard.click();await expect(overtimeSelect.locator('option')).toHaveCount(1);
   await tab('Time entries');
-  await page.getByLabel('Week containing date').fill('2026-11-02'); await page.getByLabel('Week containing date').press('Tab');
+  await page.getByLabel('Week containing date',{exact:true}).fill('2026-11-02'); await page.getByLabel('Week containing date',{exact:true}).press('Tab');
   await page.getByRole('button',{name:'Add time entry',exact:true}).click(); modal = page.locator('dialog[open]');
-  const fieldOrder=await modal.locator('.scheduler-form-fields > label > span').allTextContents();
+  const fieldOrder=await modal.locator('.scheduler-form-fields > label > span:first-child').allTextContents();
   assert.deepEqual(fieldOrder.slice(0,4),['Team member','Start','Work Order','Finish']);
   await modal.getByLabel('Team member',{exact:true}).selectOption(worker.id);
   await modal.getByLabel('Start',{exact:true}).fill('2026-11-02T07:00');

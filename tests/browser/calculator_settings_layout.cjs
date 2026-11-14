@@ -74,18 +74,44 @@ async function checkCalculatorLayouts(page,output) {
     await expect(el).toHaveCSS('border-bottom','4px solid rgb(255, 255, 255)');
     await expect(el).toHaveCSS('border-radius','8px');
   }
+  async function titleSize(title) {
+    await expect(title).toHaveCSS('font-size','14px');
+    await expect(title).toHaveCSS('border-radius','8px');
+    assert.equal(await title.evaluate(el => el.getBoundingClientRect().height),56);
+  }
+  async function columnHeadings(headers) {
+    await expect(headers.first()).toBeVisible();
+    const previous=page.viewportSize();
+    for (const width of [1254,390]) {
+      await page.setViewportSize({width,height:884});
+      const invalid=await headers.evaluateAll(nodes => nodes.flatMap(cell => {
+        const box=cell.getBoundingClientRect(), range=new Range();
+        range.selectNodeContents(cell);
+        const clipped=[...range.getClientRects()].some(text => text.left<box.left-1 || text.right>box.right+1 || text.top<box.top-1 || text.bottom>box.bottom+1);
+        return box.height===45 && getComputedStyle(cell).fontSize==='12px' && !clipped
+          ? [] : [{label:cell.textContent,height:box.height,clipped}];
+      }));
+      assert.deepEqual(invalid,[],`Schedule headings at ${width}px`);
+    }
+    await page.setViewportSize(previous);
+  }
   const snapshot=()=>page.evaluate(()=>window.CeasefireCalculators.completeProjectSnapshot());
   const before=await snapshot();
   await page.setViewportSize({width:1440,height:980});
   for (const calculator of ['Steel (spray)','Steel (intumescent)']) {
-    await chooseCalculator(page,calculator); await tab('SCHEDULE'); await heading(grid.locator('.calculator-schedule-section > h4'));
+    await chooseCalculator(page,calculator); await expect(page.locator('#calculator-title')).toHaveText(calculator);
+    await tab('SCHEDULE'); await heading(grid.locator('.calculator-schedule-section > h4'));
+    await titleSize(grid.locator('.calculator-schedule-section > h4'));
+    await columnHeadings(grid.locator('.calculator-schedule-table thead th:visible'));
+    await tab('SUMMARY');
+    await columnHeadings(grid.locator('.calculator-product-totals thead th:visible'));
     if (calculator === 'Steel (spray)') {
-      await tab('SUMMARY');
       await heading(grid.locator('#calculator-product-totals > h4'));
       await heading(grid.locator('#calculator-table-section-steel_vermiculite-BAGS-0'));
       await screenshot(page,grid,path.join(output,'steel-spray-summary-headings.png'));
     }
     await tab('SETTINGS');
+    if (calculator === 'Steel (intumescent)') await titleSize(grid.locator('.calculator-settings-fields .calculator-role-title.calculator-merged:visible').first());
     for (const button of await grid.locator('[data-calculator-settings-section]').all()) {
       const id = await button.getAttribute('data-calculator-settings-section'), panel = await section(id);
       if (calculator === 'Steel (spray)' && ['A64','A96','A173','A229','A559'].includes(id))
@@ -95,7 +121,12 @@ async function checkCalculatorLayouts(page,output) {
     }
   }
   for (const calculator of ['Steel (board)','Duct']) {
-    await chooseCalculator(page,calculator); await tab('SCHEDULE'); await heading(grid.locator('.calculator-overview-title').first());
+    await chooseCalculator(page,calculator); await expect(page.locator('#calculator-title')).toHaveText(calculator);
+    await tab('SCHEDULE'); await heading(grid.locator('.calculator-overview-title').first());
+    if (calculator==='Steel (board)') await titleSize(grid.locator('.calculator-overview-title').first());
+    await columnHeadings(grid.locator('.calculator-schedule-table thead th:visible'));
+    await tab(calculator==='Steel (board)'?'BOARD SUMMARY':'SUMMARY');
+    await columnHeadings(grid.locator('.calculator-projection-table tr:first-child:has(> .calculator-role-column_header) > th:visible'));
   }
   await tab('SUMMARY'); await heading(grid.locator('.calculator-role-compact_summary_title').first());
   await tab('PRODUCT SETTINGS');
@@ -116,6 +147,7 @@ async function checkCalculatorLayouts(page,output) {
   await chooseCalculator(page,'Factor Calcs'); await ready();
   for(const id of ['A341','A356']) {
     const panel=await section(id);await heading(panel.locator('.calculator-section-anchor').first());await checkFields(panel);
+    await expect(panel.locator('tr:has(> .calculator-section-anchor) + tr > td:visible').first()).toHaveCSS('border-top-width','8px');
     if(id==='A341') await expect(panel.locator('[data-calculator-output="A343"]')).toHaveCount(0);
     if(id==='A356') {
       await checkFieldGroup(page,panel,['D358','D359','D360','D361','D362'],'D358',output,'hollow-values');
@@ -139,6 +171,8 @@ async function checkCalculatorLayouts(page,output) {
     }
   }
   assert.deepEqual(await snapshot(),before);
+  await chooseCalculator(page,'Firestopping');
+  await columnHeadings(page.locator('#penetration-schedule-panel-schedule thead th:visible'));
   await page.setViewportSize(viewport);
 }
 module.exports={checkCalculatorLayouts};

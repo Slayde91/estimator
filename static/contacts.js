@@ -1147,7 +1147,7 @@
   function render() {
     const container = root();
     container.replaceChildren();
-    const heading = el("div", "page-heading");
+    const heading = el("div", "page-heading workspace-title-row");
     const title = el("div");
     title.append(page === "accounts" ? ui("h1", "", titles[page]) : el("h1", "", titles[page]));
     heading.append(title);

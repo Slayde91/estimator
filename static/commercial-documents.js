@@ -463,7 +463,7 @@
   function shell(title) {
     const host = root();
     host.replaceChildren();
-    const heading = node("div", "page-heading");
+    const heading = node("div", "page-heading workspace-title-row");
     heading.append(node("h1", "", title));
     host.append(heading);
     const notice = node("p", "commercial-message message");

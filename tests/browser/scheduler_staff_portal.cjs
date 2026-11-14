@@ -40,6 +40,15 @@ const ready=new Promise((resolve,reject)=>{let buffer='';server.on('exit',()=>re
   const page=await staff.newPage();await page.goto(origin);
   await expect(page.locator('.scheduler-shift')).toHaveCount(1);
   assert.deepEqual(await page.locator('.scheduler-tabs button').evaluateAll(buttons=>buttons.map(button=>button.getBoundingClientRect().height)),[42,42]);
+  const title=page.locator('#staff-scheduler-page .workspace-title-row h1');
+  for(const width of [1254,390,320]){
+    await page.setViewportSize({width,height:884});
+    await expect(title).toBeVisible();
+    const box=await title.boundingBox();
+    assert.equal(box.height,22);
+    assert.equal(box.y,width===320?8:18);
+  }
+  await page.setViewportSize({width:1254,height:884});
   await expect(page.locator('.scheduler-shift')).toContainText('Worker installation');
   await expect(page.locator('.scheduler-shift')).toContainText('WO-02');
   await page.getByRole('button',{name:'Time entries',exact:true}).click();

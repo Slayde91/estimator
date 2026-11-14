@@ -104,6 +104,20 @@ async function tab(name){await page.locator('#calculator-pages').getByRole('butt
  const intumSettings=await intumSettingsResponse.json(),intumSettingsRaw=JSON.stringify(intumSettings),intumCells=new Map(intumSettings.rows.flatMap(row=>row.cells.map(cell=>[cell.address,cell])));
  await page.locator('[data-calculator-settings-section="A4"]').click();
  const sc902=page.locator('#calculator-settings-steel_intumescent-SETTINGS-A4');await expect(sc902).toBeVisible();
+ const productTabs=page.locator('#calculator-grid .calculator-product-tabs');
+ await expect(productTabs.getByRole('button')).toHaveText(['Nullifire SC902','FIRETEX FX5090','FIRETEX FX6010']);
+ const productViewport=page.viewportSize();
+ for(const width of [1254,320]){
+   await page.setViewportSize({width,height:884});
+   const choices=productTabs.getByRole('button'),last=choices.last();
+   await choices.nth(1).focus();await page.keyboard.press('Tab');await expect(last).toBeFocused();await expect(last).toBeInViewport({ratio:0.99});
+   const rule=await productTabs.evaluate(el=>({edge:el.getBoundingClientRect().right,last:el.lastElementChild.getBoundingClientRect().right,
+     line:getComputedStyle(el).borderBottom,marker:getComputedStyle(el.querySelector('[aria-expanded=true]')).borderBottomColor}));
+   assert.ok(Math.abs(rule.edge-rule.last)<1,JSON.stringify(rule));assert.match(rule.line,/1px solid rgb\((237, 0, 27|241, 13, 27)\)/);
+   assert.equal(rule.marker,'rgb(255, 255, 255)');
+   await page.screenshot({path:path.join(output,'intumescent-product-tabs-'+width+'.png')});
+ }
+ await page.setViewportSize(productViewport);
  const sc902Form=sc902.getByRole('table',{name:'Nullifire SC902 settings',exact:true});
  const sc902Rows=await sc902Form.locator('tr[data-source-row]').evaluateAll(nodes=>nodes.map(node=>Number(node.dataset.sourceRow)));
  assert.deepEqual(sc902Rows,[9,24,14,16,17,25,10,11,21,22,23]);

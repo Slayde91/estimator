@@ -2630,7 +2630,15 @@ window.CeasefireScheduleColumns = (() => {
         const pages = $("calculator-pages");
         pages.replaceChildren(...settings.chooser.children);
         pages.hidden = false;
-      } else content.push(settings.chooser);
+      } else {
+        if (entry.definition.id === "steel_intumescent") {
+          const productTabs = node("div", "calculator-product-tabs");
+          productTabs.append(...settings.chooser.children);
+          productTabs.addEventListener("focusin", event => event.target.scrollIntoView({block:"nearest", inline:"nearest"}));
+          settings.chooser.append(productTabs);
+        }
+        content.push(settings.chooser);
+      }
       content.push(...settings.panels.values());
     }
     grid.replaceChildren(...content); grid.scrollLeft = scrollLeft; grid.scrollTop = scrollTop;

@@ -480,12 +480,12 @@
     if (kind === "calculators") {
       for (const [selector, visible] of [[".calculator-workspace-heading", selection !== "penetration"], [".penetration-banner-heading", selection === "penetration"]]) {
         const heading = section.querySelector(selector);
-        if (heading) { slot.append(heading); heading.hidden = !visible; }
+        if (heading) { heading.classList.add("workspace-title-row"); slot.append(heading); heading.hidden = !visible; }
       }
     } else {
       for (const name of ["pricing", "penetration", "technical"]) {
         const heading = section.querySelector(`#library-${name} > .page-heading`) || slot.querySelector(`[data-library-heading="${name}"]`);
-        if (heading) { heading.dataset.libraryHeading = name; slot.append(heading); heading.hidden = name !== selection; }
+        if (heading) { heading.classList.add("workspace-title-row"); heading.dataset.libraryHeading = name; slot.append(heading); heading.hidden = name !== selection; }
       }
     }
   }

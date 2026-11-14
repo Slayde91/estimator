@@ -3,6 +3,7 @@ const {chromium,expect}=require('@playwright/test');
 const {spawn}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {chooseCalculator}=require('./calculator_actions.cjs');
+const {workspaceTitleMeasurements}=require('./workspace_title_geometry.cjs');
 const {chooseLibrary,chooseTakeoff}=require('./section_navigation.cjs');
 const {prepareProjectForSave,clickProjectControl,openProjectSection}=require('./project_actions.cjs');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa',`workspace-headings-${Date.now()}`);
@@ -80,13 +81,15 @@ function assertAligned(actual,peer,context){
 async function stateSnapshot(){return page.evaluate(()=>({calculators:window.CeasefireCalculators.projectSnapshot(),penetration:window.CeasefirePenetrations.projectSnapshot(),configuration:window.CeasefireProject.configuration(),details:window.CeasefireProject.details()}));}
 (async()=>{
  info=await ready;assert.notEqual(info.port,8765);browser=await chromium.launch({headless:true});
- page=await browser.newPage({viewport:{width:1915,height:1000}});page.setDefaultTimeout(60000);page.on('pageerror',e=>errors.push(e.message));
+ page=await browser.newPage({viewport:{width:1915,height:1000},permissions:['geolocation'],geolocation:{latitude:-33,longitude:151,accuracy:10}});page.setDefaultTimeout(60000);page.on('pageerror',e=>errors.push(e.message));
  await page.addInitScript(()=>{window.qaCsp=[];document.addEventListener('securitypolicyviolation',e=>window.qaCsp.push(e.effectiveDirective));});
  await page.goto(`http://127.0.0.1:${info.port}/`);await idle();
  await page.locator('#calculator-navigation-toggle').click();await expect(page.locator('#estimator-penetration')).toBeVisible();
  await expect(page.locator('#calculator-steel-hub')).toHaveCount(0);await expect(page.locator('#calculator-kind-pages button').first()).toHaveText('Firestopping');
  await headingBefore('.penetration-banner-heading','#calculator-kind-pages');
  await prepareProjectForSave(page);const saving=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/save-as');await clickProjectControl(page,'Save');assert.equal((await saving).status(),200);await idle();
+ evidence.workspaceTitles=await workspaceTitleMeasurements(page,output);
+ await page.setViewportSize({width:1915,height:1000});
  const quotePositions=new Map(),firePositions=new Map();
  for(const section of ['quote','quotes']){
   await openProjectSection(page,section);

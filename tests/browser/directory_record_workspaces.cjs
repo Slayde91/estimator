@@ -37,14 +37,17 @@ const checks=[],errors=[];
     const before=await soundCount();
     await activity.getByRole('button',{name:'Log activity',exact:true}).click();
     await expect(activity).toContainText('Enter activity details.');
-    await expect.poll(soundCount).toBe(before+1);
+    assert.equal(await soundCount(),before,'Focusing an invalid activity field leaves its inline feedback silent');
     await page.route('**/api/record-resources/upload',route=>route.fulfill({
       status:503,contentType:'application/json',body:JSON.stringify({error:'Synthetic attachment failure'})
     }),{times:1});
     const beforeFile=await soundCount();
+    await page.evaluate(()=>window.scrollTo({top:document.documentElement.scrollHeight,behavior:'instant'}));
+    const beforeReveal=await page.evaluate(()=>window.scrollY);
     await rail.locator('input[type=file]').setInputFiles({name:'retry.txt',mimeType:'text/plain',buffer:Buffer.from('fixture')});
     await expect(rail.locator('.record-resource-status')).toHaveText('Synthetic attachment failure');
     await expect(pane.locator('[data-contacts-notice]')).toHaveText('Synthetic attachment failure');
+    assert.ok(await page.evaluate(()=>window.scrollY)<beforeReveal,'The resource failure snaps back to the Contacts notice');
     await expect.poll(soundCount).toBe(beforeFile+1);
   }
   await expect(rail.locator('details > summary')).toHaveText(['Notes (0)','Files (0)','Linked Quotes (0)','Linked Work Orders (0)','Linked Purchase Orders (0)','Linked Projects (0)']);

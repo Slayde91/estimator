@@ -1,4 +1,7 @@
 {
+  "Regular vs overtime": ["정규 근무와 초과 근무","Regular at overtime","Giờ thường và giờ làm thêm"],
+  "{0}× overtime / penalty": ["{0}배 초과 근무 / 가산 수당","{0}× overtime / espesyal na rate","Làm thêm / mức lương đặc biệt {0}×"],
+  "No paid time": ["유급 시간 없음","Walang bayad na oras","Không có giờ được trả lương"],
   "Clock in": ["출근 시각","Oras ng pagpasok","Giờ vào"],
   "Clock out": ["퇴근 시각","Oras ng paglabas","Giờ ra"],
   "Reports": [

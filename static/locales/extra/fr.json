@@ -1,4 +1,7 @@
 {
+  "Regular vs overtime": "Heures normales et supplémentaires",
+  "{0}× overtime / penalty": "Heures supplémentaires / majorées à {0}×",
+  "No paid time": "Aucune heure rémunérée",
   "Signing out will discard unsaved changes.": "La déconnexion entraînera la perte des modifications non enregistrées.",
   "Clock in": "Pointage d’entrée",
   "Clock out": "Pointage de sortie",

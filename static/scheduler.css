@@ -5,21 +5,54 @@
 .scheduler-report-filters {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(160px,100%),1fr));align-items:end;gap:12px;padding:16px}
 .scheduler-report-filters .field {min-width:0}
 .scheduler-report-output {display:grid;gap:12px;min-width:0}
-.scheduler-report-totals,.scheduler-report-charts {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(160px,100%),1fr));gap:12px;margin:0}
-.scheduler-report-totals .card,.scheduler-report-chart,.scheduler-report-detail {min-width:0;padding:14px}
+.scheduler-report-totals,.scheduler-report-charts,.scheduler-payroll-overview {display:grid;gap:12px;margin:0;min-width:0}
+.scheduler-report-totals {grid-template-columns:repeat(auto-fit,minmax(min(145px,100%),1fr))}
+.scheduler-report-charts {grid-template-columns:repeat(auto-fit,minmax(min(250px,100%),1fr));align-items:start}
+.scheduler-payroll-overview {grid-template-columns:minmax(0,1fr) minmax(260px,30%);align-items:start}
+.scheduler-report-totals .card,.scheduler-report-chart,.scheduler-report-detail {min-width:0;padding:14px;margin:0}
+.scheduler-report-totals .scheduler-rate-total {border-top-color:#c64156}
+.scheduler-report-totals dt {font-size:.85rem}
 .scheduler-report-totals dd {margin:5px 0 0;font-size:1.3rem;font-weight:700}
-.scheduler-report-bar {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 8px;margin:10px 0;overflow-wrap:anywhere}
-.scheduler-report-bar progress {grid-column:1/-1;width:100%;height:12px;accent-color:var(--red)}
+.scheduler-report-chart h3 {font-size:1rem;margin:0}
+.scheduler-report-pie {display:block;width:min(100%,190px);height:auto;margin:12px auto}
+.scheduler-payroll-overview .scheduler-report-pie {width:min(100%,135px)}
+.scheduler-report-pie path {stroke:var(--paper);stroke-width:.6}
+.scheduler-report-pie text {font:bold 12px system-ui,sans-serif;fill:#fff;stroke:#27313a;stroke-width:2px;stroke-linejoin:round;paint-order:stroke}
+.scheduler-report-legend {list-style:none;margin:0;padding:0}
+.scheduler-report-legend li {display:grid;grid-template-columns:10px minmax(0,1fr) auto auto;align-items:baseline;gap:8px;padding-block:3px;font-size:.8rem;overflow-wrap:anywhere}
+.scheduler-report-legend svg {width:10px;height:10px;align-self:center}
+.scheduler-report-legend li>span:nth-last-child(2) {color:var(--muted)}
+.scheduler-report-legend strong,.scheduler-chart-total strong {font-variant-numeric:tabular-nums;white-space:nowrap}
+.scheduler-chart-total {display:flex;justify-content:space-between;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
 .scheduler-report-detail summary {cursor:pointer;font-weight:700}
+.scheduler-member-rates {display:inline-flex;gap:4px 14px;flex-wrap:wrap;margin-inline-start:16px;color:var(--muted);font-size:.8rem;font-weight:600}
 .scheduler-report-detail table {min-width:680px}
-.scheduler-report-day {background:var(--canvas)}
+.scheduler-report-detail caption {text-align:start;font-weight:700;padding-block:8px}
+.scheduler-report-detail .table-scroll {margin-block-start:8px}
+.scheduler-report-day {background:var(--canvas);font-weight:700}
+@media (max-width:720px) {
+  .scheduler-payroll-overview {grid-template-columns:1fr}
+  .scheduler-member-rates {display:flex;margin:6px 0 0}
+}
 @media print {
   body:has(#view-scheduler:not([hidden]) .scheduler-reports) :is(.app-header,footer,.scheduler-report-modes,.scheduler-report-filters,.scheduler-report-tools) {display:none!important}
   body #view-scheduler:not([hidden]):has(.scheduler-reports) {display:block!important}
   #scheduler-root:has(.scheduler-reports)>:not(.scheduler-reports) {display:none!important}
-  .scheduler-report-detail .table-scroll {overflow:visible}
-  .scheduler-report-detail table {min-width:0;font-size:9px}
-  .scheduler-report-detail,.scheduler-report-chart,.scheduler-report-detail tr {break-inside:avoid}
+  .scheduler-reports,.scheduler-report-output {display:block}
+  .scheduler-report-totals,.scheduler-report-charts,.scheduler-payroll-overview {gap:6px;margin-bottom:8px}
+  .scheduler-report-totals {grid-template-columns:repeat(3,minmax(0,1fr))}
+  .scheduler-report-charts {grid-template-columns:repeat(3,minmax(0,1fr))}
+  .scheduler-payroll-overview {grid-template-columns:2fr 1fr}
+  .scheduler-report-pie,.scheduler-payroll-overview .scheduler-report-pie {width:95px}
+  .scheduler-report-totals .card,.scheduler-report-chart,.scheduler-report-detail {padding:6px}
+  .scheduler-report-detail {break-inside:auto;margin-bottom:8px}
+  .scheduler-report-detail summary {break-after:avoid}
+  .scheduler-report-detail .table-scroll {overflow:visible;margin-inline:0;padding:0}
+  .scheduler-report-detail table {min-width:0;table-layout:fixed}
+  .scheduler-report-detail :is(th,td) {white-space:normal;overflow-wrap:anywhere;padding:3px 2px;font-size:9px}
+  .scheduler-report-detail thead {display:table-header-group}
+  .scheduler-report-detail tr,.scheduler-report-legend li {break-inside:avoid}
+  .scheduler-report-legend li {gap:4px;font-size:9px}
 }
 #scheduler-root { min-width:0; }
 #scheduler-root .button.scheduler-add-action { background:#1767b2; border-color:#1767b2; color:#fff; }

@@ -1,4 +1,7 @@
 {
+  "Regular vs overtime": "নিয়মিত ও অতিরিক্ত কর্মঘণ্টা",
+  "{0}× overtime / penalty": "{0}× অতিরিক্ত সময় / বিশেষ হার",
+  "No paid time": "কোনো বেতনযোগ্য সময় নেই",
   "Signing out will discard unsaved changes.": "সাইন আউট করলে সংরক্ষণ না করা পরিবর্তনগুলি হারিয়ে যাবে।",
   "Clock in": "কাজ শুরুর সময়",
   "Clock out": "কাজ শেষের সময়",

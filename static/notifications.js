@@ -1,10 +1,9 @@
 (() => {
   "use strict";
   const records = new Map();
-  const observedSounds = new WeakMap();
   const downloads = new Map();
   let navigationKey = null;
-  const noticeSelector = '.message, .notice, [role="alert"], #staff-login-message, #project-details-status, .record-resource-status:not([data-notification-mirror]), .project-link-status, [data-notification="true"]';
+  const noticeSelector = '.message, [data-notification="true"]';
   const candidate = element => element.id !== 'project-folder' && !element.closest?.('noscript');
   let bleep;
   try {
@@ -18,25 +17,41 @@
   }
   window.CeasefireAudioSettings?.subscribe(enabled => { if (!enabled) stopBleep(); });
   window.addEventListener?.('pagehide', stopBleep);
-  function soundNotice(element, record, fresh) {
-    const source = window.CeasefireI18n?.source(element) || element.textContent;
-    if (!fresh && record.soundText === source) return;
-    record.soundText = source;
-    if (!bleep || document.hidden || window.CeasefireAudioSettings?.isEnabled() === false) return;
-    if (element.getClientRects && !element.getClientRects().length) { record.soundText = null; return; }
+  function isError(element) {
+    return /(?:^|\s)error(?:\s|$)/.test(element.className) || element.getAttribute('role') === 'alert';
+  }
+  function visibleAtDestination(element, bounds) {
+    if (element.checkVisibility && !element.checkVisibility({ opacityProperty: true, visibilityProperty: true })) return false;
+    const top = Math.max(0, bounds.top), bottom = Math.min(window.innerHeight, bounds.bottom);
+    const left = Math.max(0, bounds.left), right = Math.min(window.innerWidth, bounds.right);
+    if (bottom <= top || right <= left) return false;
+    // Hit testing also excludes notices clipped inside a panel or behind a modal.
+    const target = document.elementFromPoint((left + right) / 2, (top + bottom) / 2);
+    return element.contains(target);
+  }
+  function scrollNotice(element, scroll, allowSound = true) {
+    const before = element.getBoundingClientRect();
+    scroll();
+    if (!allowSound || !bleep || bleep.readyState < 3 || document.hidden ||
+        window.CeasefireAudioSettings?.isEnabled() === false || element.hidden ||
+        !element.isConnected || !element.textContent.trim()) return false;
+    const after = element.getBoundingClientRect();
+    if (Math.abs(after.top - before.top) < 1 && Math.abs(after.left - before.left) < 1) return false;
+    if (!visibleAtDestination(element, after)) return false;
     try {
       bleep.currentTime = 0;
       bleep.play()?.catch(() => {});
     } catch { /* A blocked sound must never delay or hide the notice. */ }
+    return true;
   }
-  function sound(element, fresh = true) {
-    if (!element || element.hidden || !element.textContent?.trim()) {
-      if (element) observedSounds.delete(element);
-      return;
+  function scrollIntoView(element, block) {
+    if (!element || !isError(element) || element.hidden || !element.isConnected || !element.textContent.trim()) return;
+    if (element.matches('.message')) {
+      decorate(element);
+      // This owner scrolls its own container. The observer must not reveal it again.
+      records.get(element).errorText = window.CeasefireI18n?.source(element) || element.textContent;
     }
-    let record = observedSounds.get(element);
-    if (!record) { record = {}; observedSounds.set(element, record); }
-    soundNotice(element, record, fresh);
+    scrollNotice(element, () => element.scrollIntoView({ block, inline: 'nearest', behavior: 'instant' }));
   }
   function rememberDownload(receipt) {
     if (!receipt || typeof receipt.filename !== 'string' || !/\.(pdf|xlsx)$/i.test(receipt.filename) ||
@@ -113,34 +128,31 @@
     else render();
   }
   function revealError(element, record, force = false) {
-    const error = /(?:^|\s)error(?:\s|$)/.test(element.className) || element.getAttribute('role') === 'alert';
-    if (!error || element.hidden) { record.errorText = null; return; }
+    if (!isError(element) || element.hidden) { record.errorText = null; return; }
     const source = window.CeasefireI18n?.source(element) || element.textContent;
     if (!source?.trim() || !element.getBoundingClientRect || !element.getClientRects().length) return;
     if (!force && record.errorText === source) return;
     record.errorText = source;
     const version = record.version;
+    let sounded = false;
     const reveal = () => {
       if (element.hidden || record.version !== version || record.errorText !== source || !element.getClientRects().length) return;
       const top = Math.max(0, document.querySelector?.('.app-header')?.getBoundingClientRect().bottom || 0) + 12;
       const bounds = element.getBoundingClientRect();
-      if (bounds.top < top || bounds.bottom > window.innerHeight)
-        window.scrollBy?.({ top: bounds.top - top, behavior: 'instant' });
+      if (bounds.top < top || bounds.bottom > window.innerHeight) {
+        const played = scrollNotice(element, () => window.scrollBy({ top: bounds.top - top, behavior: 'instant' }), !sounded);
+        if (played) sounded = true;
+      }
     };
     reveal();
     // Field validation can run before Tab's native focus scroll. Reveal once
     // more after that action, without stealing keyboard focus or polling.
     window.requestAnimationFrame?.(() => window.requestAnimationFrame(reveal));
   }
-  function decorate(element, fresh = false) {
-    if (!element || element.hidden || !element.textContent?.trim()) {
-      const record = records.get(element);
-      if (record) record.soundText = null;
-      return;
-    }
+  function decorate(element) {
+    if (!element || element.hidden || !element.textContent?.trim()) return;
     let record = records.get(element);
     if (!record) { record = { version: 0, persistent: false, button: null }; records.set(element, record); }
-    soundNotice(element, record, fresh);
     linkDownloads(element, record);
     if (element.getAttribute('data-notification') !== 'true') element.setAttribute('data-notification', 'true');
     if (record.button?.parentNode === element) return;
@@ -161,7 +173,7 @@
     record.version++; record.persistent = persistent;
     linkDownloads(element, record, true);
     element.hidden = !element.textContent?.trim();
-    decorate(element, true);
+    decorate(element);
     revealError(element, record, true);
   }
   function clear(captured = [...records].map(([element, record]) => [element, record.version])) {
@@ -181,7 +193,7 @@
       decorate(element);
       const record = records.get(element);
       if (record) revealError(element, record);
-    } else sound(element, false);
+    }
   }
   function scan(mutations) {
     if (!mutations) {
@@ -203,7 +215,7 @@
     for (const element of records.keys()) if (element.isConnected === false) records.delete(element);
     for (const element of changed) refreshNotice(element);
   }
-  window.CeasefireNotifications = { show, sound, navigate, clear, rememberDownload };
+  window.CeasefireNotifications = { show, scrollIntoView, navigate, clear, rememberDownload };
   // Only selection tabs participate. Action buttons and download progress keep
   // their normal lifecycle, including long preparation and retry operations.
   document.addEventListener('click', event => {

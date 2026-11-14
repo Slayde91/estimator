@@ -291,17 +291,6 @@
     const notice = state.ui.message; notice.textContent = ""; window.CeasefireI18n.nodeText(notice, text); notice.hidden = !text; notice.className = `message${error ? " error" : ""}`; notice.setAttribute("role", error ? "alert" : "status");
     if (state.linkedRecovery) notice.append(uiButton("Retry linked change", recoverLinkedOperation));
     window.CeasefireNotifications?.show(notice, { persistent: !!(state.linkedRecovery || state.pageError) });
-    if (error && text && notice.getClientRects?.().length) {
-      const reveal = () => {
-        if (notice.hidden || notice.getAttribute("role") !== "alert" || window.CeasefireI18n.source(notice) !== text) return;
-        const header = document.querySelector(".app-header"), top = Math.max(0, header?.getBoundingClientRect().bottom || 0) + 12, bounds = notice.getBoundingClientRect();
-        if (bounds.top < top || bounds.bottom > window.innerHeight) window.scrollBy({ top: bounds.top - top, behavior: "auto" });
-      };
-      reveal();
-      // A change raised by Tab precedes the browser's next-control focus scroll.
-      // Reveal the error after that default action as well.
-      window.requestAnimationFrame?.(reveal);
-    }
   }
   function setProgress(text = "") {
     if (!state.ui?.progress) return;

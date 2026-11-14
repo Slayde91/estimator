@@ -87,20 +87,21 @@ const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()
   await host.getByRole('button',{name:'New Lead',exact:true}).click();dialog=page.getByRole('dialog',{name:'New Lead',exact:true});await dialog.getByLabel('Company',{exact:true}).fill(second.company);await dialog.getByRole('option',{name:second.company,exact:true}).click();await dialog.getByLabel('Name',{exact:true}).fill('Alex');await dialog.locator(`[role=option][data-record-id="${original.id}"]`).click();await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog.locator('[data-contacts-notice]')).toContainText('already has a lead');assert.deepEqual(await directory(),savedDirectory);await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
   // A stale editor cannot overwrite either the Lead or the canonical Contact.
   await card.locator('summary').click();await card.getByRole('button',{name:'Edit',exact:true}).click();dialog=page.getByRole('complementary',{name:'Edit Lead',exact:true});await save('contacts',{name:original.name,company:original.company,phone:'Explicit canonical edit',email:original.email,title:original.title},{id:original.id});await dialog.getByLabel('Phone',{exact:true}).fill('Stale lead edit');await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog.locator('[data-contacts-notice]')).toContainText('Contacts have changed');
-  // Closing a stale editor refreshes the directory asynchronously. The old
-  // card already contains the retained override, so its text cannot prove that
-  // the new directory version has reached the UI before Convert is clicked.
+  // Hold the stale editor's refresh so the saved override and conversion can
+  // be checked against the new directory version.
   let directoryStarted;const refreshing=new Promise(resolve=>directoryStarted=resolve),directoryGate=new Promise(resolve=>releaseDirectory=resolve);
   await page.route('**/api/contacts/directory*',async route=>{const response=await route.fetch();directoryStarted();await directoryGate;await route.fulfill({response});},{times:1});
   const refreshed=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/contacts/directory'&&response.request().method()==='GET');refreshed.catch(()=>{});
   await dialog.getByRole('button',{name:'Cancel',exact:true}).click();await page.locator('#discard-dialog').getByRole('button',{name:'Yes',exact:true}).click();
   await Promise.race([refreshing,new Promise((_,reject)=>setTimeout(()=>reject(Error('Stale-editor close did not start a directory refresh')),10000))]);
-  await expect(host).toHaveAttribute('aria-busy','true');await expect(card).toContainText('Lead phone override');
+  await expect(host).toHaveAttribute('aria-busy','true');
+  await expect(host.getByRole('status')).toHaveText('Loading…');
+  await expect(card).toHaveCount(0);
   releaseDirectory();const refreshedDirectory=await refreshed;assert.equal(refreshedDirectory.status(),200,await refreshedDirectory.text());
   const refreshedVersion=(await refreshedDirectory.json()).version;assert.ok(refreshedVersion>savedDirectory.version);
   await expect(host).not.toHaveAttribute('aria-busy','true');await expect(card).toContainText('Lead phone override');
   checks.push('Duplicate existing-Contact leads and stale dialog versions fail without partial directory writes');
-  checks.push('A held stale-editor refresh leaves the old card visible; Convert starts only after the new directory response and completed render');
+  checks.push('A held stale-editor refresh shows its loading status, then restores the saved Lead card and converts with the refreshed directory version');
   const linked=await page.request.post(base+'/api/projects/link-folder',{data:{}});assert.equal(linked.status(),200);
   let release,started;const held=new Promise(resolve=>started=resolve);let count=0;
   page.on('request',request=>{if(new URL(request.url()).pathname==='/api/contacts/leads/convert')count++;});

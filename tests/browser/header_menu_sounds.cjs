@@ -196,6 +196,21 @@ async function noDownloadAudio() {
   assert.equal(await bleepCalls(), beforeLogoCalls + 1, 'Showing the same in-view error stays silent');
   assert.equal(await bleepPlays(), firstLogoPlays, 'The same in-view error does not play the native clip again');
   evidence.checks.notificationBleepOnActualSnap = true;
+  // Exercise the missing-Project guard while the first Save is still canceled.
+  const pageCalls = () => page.evaluate(() => window.qaMenuAudio.calls.filter(row=>row.source === '/sounds/page.mp3').length);
+  await expect(page.locator('#project-no')).toHaveValue('');
+  await page.locator('#documents-navigation-toggle').hover();
+  await page.locator('#documents-navigation-menu [data-document-section=forms]').click();
+  const documentTabs = page.locator('#document-pages');
+  const formTab = documentTabs.getByRole('button',{name:'Forms',exact:true});
+  await expect(formTab).toHaveAttribute('aria-pressed','true');
+  const repeats = await pageCalls();
+  await formTab.click(); assert.equal(await pageCalls(),repeats);
+  await documentTabs.getByRole('button',{name:'Documentation',exact:true}).click();
+  await expect(page.locator('#app-message')).toContainText('Create or load a project before creating documents.');
+  await expect(formTab).toHaveAttribute('aria-pressed','true');
+  assert.equal(await pageCalls(),repeats,'A blocked Documentation tab has no page sound');
+  evidence.checks.blockedDocumentationSilent = true;
   // These owned lightweight controls isolate delegated routing from Takeoff
   // document/session operations, which have their own browser acceptance gates.
   await page.evaluate(() => {
@@ -336,7 +351,6 @@ async function noDownloadAudio() {
   await page.screenshot({ path: path.join(output, "header-menu-audio.png") });
   assert.deepEqual(await snapshot(), before, "Menu audio preserves the entire initialized calculator, pricing and project draft");
   evidence.checks.draftsPreserved = true;
-  const pageCalls = () => page.evaluate(() => window.qaMenuAudio.calls.filter(row=>row.source === '/sounds/page.mp3').length);
   await page.locator('#projects-navigation-toggle').click();await idle();
   const projectBoards=page.locator('#project-pages'),workOrders=projectBoards.getByRole('button',{name:'Work Orders',exact:true});
   const beforeFailedBoard=await pageCalls();
@@ -377,19 +391,6 @@ async function noDownloadAudio() {
       await expect(tab).toHaveAttribute('aria-pressed','true');
     }
   }
-  // This fixture deliberately has no saved Project. Opening Forms is allowed; Documentation
-  // emits its own notification and leaves Forms selected.
-  await page.locator('#documents-navigation-toggle').hover();
-  await page.locator('#documents-navigation-menu [data-document-section=forms]').click();
-  const documentTabs = page.locator('#document-pages');
-  const formTab = documentTabs.getByRole('button',{name:'Forms',exact:true});
-  await expect(formTab).toHaveAttribute('aria-pressed','true');
-  const repeats = await pageCalls();
-  await formTab.click(); assert.equal(await pageCalls(),repeats);
-  await documentTabs.getByRole('button',{name:'Documentation',exact:true}).click();
-  await expect(page.locator('#app-message')).toContainText('Create or load a project before creating documents.');
-  await expect(formTab).toHaveAttribute('aria-pressed','true');
-  assert.equal(await pageCalls(),repeats,'A blocked Documentation tab has no page sound');
   evidence.checks.projectAndContactsTabSound = true;
   await require('./section_navigation.cjs').chooseTakeoff(page, 'Steel');
   const tabs = page.locator('#takeoff-pages button');

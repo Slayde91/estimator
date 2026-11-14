@@ -464,6 +464,20 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-pane-resizer{position:absolute;z-index:14;width:8px;min-height:38px;cursor:col-resize;touch-action:none;background:transparent;border-radius:4px}
 .takeoff-pane-resizer:hover,.takeoff-pane-resizer:focus-visible{background:#71c9ff88;outline:2px solid #71c9ff;outline-offset:0}
 .takeoff-pane-resizer[hidden],.takeoff-physical-document-host[hidden],.takeoff-deleted-records[hidden]{display:none}
+.takeoff-register-pane { min-width:0; width:100%; }
+.takeoff-register-pane .takeoff-register[hidden] { display:none; }
+.takeoff-register-resizer { display:none; }
+@media (min-width:1051px) {
+  .takeoff-workspace-split.beside { gap:0; }
+  .takeoff-workspace-split.beside > .takeoff-register-pane { flex:0 0 var(--takeoff-register-width,45%); }
+  .takeoff-workspace-split.beside > .takeoff-register-resizer {
+    display:flex; flex:0 0 12px; justify-content:center; align-items:stretch;
+    align-self:stretch; cursor:col-resize; touch-action:none; user-select:none;
+  }
+  .takeoff-register-resizer::before { content:""; width:2px; border-radius:2px; background:var(--line); }
+  .takeoff-register-resizer:is(:hover,:focus-visible)::before { background:var(--accent); width:4px; }
+  .takeoff-register-resizer:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+}
 .takeoff-physical-document-host{display:flex}
 .takeoff-deleted-records{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
 .takeoff-deleted-records table{min-width:600px}

@@ -58,7 +58,7 @@ def _hidden_field(record, field):
                 and _SELECTOR_ID.fullmatch(_text(field.get('value')).strip())))
 
 
-def prepare_technical_item(body, *, library, include_images=True):
+def prepare_technical_item(body, *, library, include_diagrams=True):
     if not isinstance(body, dict) or set(body) - {'id', 'download'} or 'id' not in body:
         raise ValidationError('Include only one Technical Library item ID and an optional download destination.')
     key = identifier(body['id'])
@@ -80,9 +80,9 @@ def prepare_technical_item(body, *, library, include_images=True):
     account(list(metadata.values()))
     for field in record.get('fields', []):
         label = field['label']
-        if _hidden_field(record, field):
+        if _hidden_field(record, field) or (not include_diagrams and label.strip().casefold() == 'diagrams & figures'):
             continue
-        has_content = any(field.get(name) for name in ('table', 'tables', 'table_links')) or (include_images and field.get('images'))
+        has_content = any(field.get(name) for name in ('table', 'tables', 'table_links')) or (include_diagrams and field.get('images'))
         if not _text(field.get('value')).strip() and not has_content:
             continue
         try:
@@ -105,10 +105,10 @@ def prepare_technical_item(body, *, library, include_images=True):
             caption = _text(captions[ordinal]) if ordinal < len(captions) else ''
             account([caption])
             tables.append({'label': label, 'caption': caption, 'columns': columns, 'rows': rows})
-        if include_images:
+        if include_diagrams:
             for image in field.get('images', []):
                 image_refs.setdefault(identifier(image['id']), image)
-    if include_images:
+    if include_diagrams:
         for image in record.get('images', []):
             image_refs.setdefault(identifier(image['id']), image)
     if len(image_refs) > MAX_IMAGES:

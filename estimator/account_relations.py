@@ -46,6 +46,19 @@ def _project_label(row):
     return _linked_label(row.get("project_no"), row, {}) or row.get("title") or "Project"
 
 
+def _linked_document_label(document, project):
+    fields = document.get("fields", {})
+    number = document.get("reference")
+    if not number and document["kind"] == "work_order":
+        number = fields.get("order", {}).get("work_order_reference")
+    number = number or document.get("last_number")
+    title = fields.get("title") or document.get("title") or document["kind"].replace("_", " ").title()
+    if not number and document["kind"] in SUPPLEMENTAL_GROUPS:
+        number = title
+    label = _linked_label(number, fields.get("details", {}), project)
+    return (label or title)[:1200]
+
+
 def project_document_cards(register, projects):
     """Retain cards already indexed in exact saved files during a bounded scan."""
     documents = list(register['documents'])
@@ -136,7 +149,6 @@ class AccountRelations:
                 continue
             token = f"{owner}:{document_id}"
             fields = document.get("fields", {})
-            reference = document.get("reference") or document.get("last_number") or fields.get("title") or document.get('title') or document["kind"].replace("_", " ").title()
             candidates = owner_links.get(owner, set())
             project_token = source_links.get(document.get("source_file"))
             if not document.get('source_file') and len(candidates) == 1:
@@ -153,7 +165,7 @@ class AccountRelations:
             if party and not document.get('source_file') and project_token is None:
                 continue
             project = project_rows.get(project_token, fields.get("details", {}))
-            label = _linked_label(reference, fields.get("details", {}), project)[:1200]
+            label = _linked_document_label(document, project)
             entry = {"id": token, "label": label, "available": True}
             if group in supplemental:
                 if project_token in automatic['projects']:

@@ -141,6 +141,11 @@ use a manually calibrated baseline when the original sheet scale is uncertain.
 Manual calibration already converts source coordinates to metres and therefore
 must not apply UserUnit a second time.
 
+Use **Register beside drawing** in any Takeoffs register to share the available
+width with the drawing. Drag the divider at the register’s edge, or focus it
+and use the arrow keys. **Register below drawing** stacks them vertically;
+narrow screens also stack them automatically.
+
 Click **Viewport** to open the Viewports panel beside the drawing. Its rows show
 the viewports on the current page, with a separate scale dropdown in each row.
 Use **Add viewport** (+), click the first corner, then double-click the opposite

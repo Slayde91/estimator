@@ -3,7 +3,7 @@
   .app-header {
     grid-template-columns: minmax(460px, 1fr) fit-content(60%);
     align-items: start;
-    gap: 18px;
+    gap: 2px 18px;
   }
   .app-header .brand-stack {
     display: grid;
@@ -33,12 +33,13 @@
     white-space: pre;
     pointer-events: none;
   }
-  .app-header .brand-stack > .header-tagline {
-    margin: 0;
-    width: min(100%, 340px);
-    justify-self: center;
-    text-align: start;
+  .app-header .brand-stack > .header-tagline-character { justify-self:center; }
+  .app-header .header-status-row {
+    grid-column:1/-1; display:flex; align-items:center; gap:12px; min-width:0;
+    padding-inline-start:clamp(0px, 3vw, 56px);
   }
+  .app-header .header-status-row .header-tagline { flex:1; margin:0; }
+  .app-header .header-status-row .status-label { flex:none; margin:0; }
   html[dir="rtl"] .app-header .header-tagline { direction: rtl; }
   .app-header .header-navigation-stack {
     display: flex;
@@ -78,11 +79,11 @@
     background: #ffe38a;
     color: #332600;
   }
-  .app-header .header-project-identity .status-label {
+  .app-header .header-status-row .status-label {
     max-width: 100%; margin: 0; white-space: normal; overflow-wrap: anywhere;
     background: #e6f4ec; color: #1b653c;
   }
-  .app-header .header-project-identity .status-label.unsaved { background: #fff1bf; color: #775300; }
+  .app-header .header-status-row .status-label.unsaved { background: #fff1bf; color: #775300; }
   .app-header nav {
     border-bottom-right-radius: 0;
     display: flex;
@@ -172,7 +173,7 @@
   body:has(dialog[open]) #header-project-actions { visibility: hidden; pointer-events: none; }
 
   @media (max-width: 1150px) {
-    .app-header { gap: 12px 18px; }
+    .app-header { gap: 2px 18px; }
     .app-header nav { max-width: 100%; }
   }
   @media (min-width: 721px) and (max-width: 980px) {
@@ -183,7 +184,9 @@
     .app-header { padding: 12px 14px; grid-template-columns: minmax(0, 1fr); gap: 8px; }
     .app-header .brand-stack { max-width: none; column-gap: 24px; }
     .app-header .brand-logo { width: 130px; aspect-ratio: auto; }
-    .app-header .brand-stack > .header-tagline { font-size: 11px; }
+    .app-header .header-status-row { flex-wrap:wrap; padding-inline-start:0; gap:4px; }
+    .app-header .header-status-row .status-label { order:-1; margin-inline-start:auto; }
+    .app-header .header-status-row .header-tagline { flex-basis:100%; font-size:11px; }
     .app-header .header-navigation-stack { width: 100%; gap: 4px; }
     /* Eleven destinations fit in two rows; labels can wrap within each target. */
     .app-header .header-navigation { width: 100%; }
@@ -200,9 +203,8 @@
     /* Reserve room for the full credit beside the smaller wordmark. */
     .app-header .brand-stack { column-gap: 36px; }
     .app-header .brand-logo { width: 100px; }
-    .app-header .brand-stack > .header-tagline { grid-template-columns: 26px minmax(0, 1fr); column-gap: 6px; font-size: 10px; }
     .app-header .header-tagline-character { width: 26px; height: 39px; }
-    .app-header .header-project-identity .status-label { font-size: 10px; }
+    .app-header .header-status-row .status-label { font-size: 10px; }
   }
 }
 @media print {
@@ -210,7 +212,7 @@
   #header-project-actions { display: none !important; }
   .app-header { grid-template-columns: minmax(0, 1fr) minmax(0, 200px); }
   .app-header .brand-stack { width: 100%; max-width: 430px; }
-  .app-header .brand-stack > .header-tagline { width: 100%; margin: 0; text-align: start; }
+  .app-header .header-status-row { grid-column:1/-1; }
   .app-header .header-project-name { margin: 0; max-width: 100%; }
   .app-header .header-project-identity { min-width: 0; text-align: end; }
 }

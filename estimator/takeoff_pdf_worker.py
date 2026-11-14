@@ -193,6 +193,25 @@ def restrict_process():
     _JOB = handle  # Keep the limiting job alive until this disposable process exits.
 
 
+def portrait_plan_rotation(page):
+    """Return the portrait print rotation for the source's visible crop."""
+    width, height = page['width'], page['height']
+    rotation = page['rotation']
+    if rotation in (90, 270):
+        width, height = height, width
+    return (rotation + 90) % 360 if width > height else rotation
+
+
+def output_page_geometry(sources, order, register_pages):
+    """Geometry expected in the exported register or standalone page operation."""
+    pages = list(register_pages)
+    for selection in order:
+        page = sources[selection['source']]['pages'][selection['page'] - 1]
+        rotation = portrait_plan_rotation(page) if register_pages else page['rotation']
+        pages.append({**page, 'rotation': rotation, 'page': len(pages) + 1})
+    return pages
+
+
 def parse_pdf_stream(source, scale_page=None):
     from pypdf import PdfReader
     if source.read(5) != b"%PDF-":

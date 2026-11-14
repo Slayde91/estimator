@@ -283,7 +283,7 @@
           linkedProjects.append(action(label,async event=>{
             if(!panelCurrent() || sourceIdentity!==JSON.stringify(options.participantSource?.()))return;
             await window.CeasefireCommercial?.openLinkedProject(bid,event.currentTarget);
-          }));
+          }, "text-button project-title-button"));
         } else {
           const item=el("p",label);item.className="helper";
           if(bid.availability==="unavailable"){const note=el("span","Saved project unavailable");window.CeasefireI18n?.text(note,"Saved project unavailable");item.append(" · ",note);}
@@ -455,7 +455,7 @@
             ? workIds.has(d.fields.order.work_order_id) || d.fields.order.quote_id===options.id
             : d.fields.order.work_order_id===options.id));
         block.replaceChildren(panelSummary(name,rows.length));
-        for(const doc of rows) block.append(action(window.ClassifireDocumentBoard.linkedDocumentLabel(doc,options.projectDetails),()=>options.openRelated(doc)));
+        for(const doc of rows) block.append(action(window.ClassifireDocumentBoard.linkedDocumentLabel(doc,options.projectDetails),()=>options.openRelated(doc),"text-button project-title-button"));
       }
     }
     relatedPanels.forEach(([,block])=>left.append(block));showRelated();

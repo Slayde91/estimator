@@ -69,7 +69,7 @@ class TechnicalItemExportsTests(unittest.TestCase):
         pdf = PdfReader(BytesIO(render_technical_item_pdf(snapshot)))
         pdf_text = ' '.join(' '.join(page.extract_text().split()) for page in pdf.pages)
         for text in (workbook_text, pdf_text):
-            for term in ('PE backing rod', 'T00169 detail G', 'FAS210123 Table 105', '10 mm', '40 mm; nominal wall 2.3 mm'):
+            for term in ('Reference figures: 1a and 1b', 'PE backing rod', 'T00169 detail G', 'FAS210123 Table 105', '10 mm', '40 mm; nominal wall 2.3 mm'):
                 self.assertIn(term, text)
 
     def test_payload_cannot_supply_record_content_paths_urls_or_schedule(self):

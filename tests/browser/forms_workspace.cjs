@@ -38,6 +38,16 @@ const ready=new Promise((resolve,reject)=>{
   }
   await open(page);
   const forms=page.locator('#forms-root'), b=(name)=>forms.getByRole('button',{name,exact:true});
+  for (const tab of ['Form records','Templates']) {
+    await b(tab).click();
+    await page.mouse.move(0,0);
+    for (const name of ['Templates','Form records']) {
+      const control = b(name);
+      await expect(control).toHaveAttribute('aria-pressed',String(name===tab));
+      await expect(control).toHaveCSS('background-color','rgb(200, 16, 46)');
+      await expect.poll(()=>control.evaluate(el=>{const shadow=getComputedStyle(el).boxShadow;return shadow.includes('rgb(255, 255, 255)') && shadow.includes('inset');})).toBe(name===tab);
+    }
+  }
   await b('Create template').click();await page.getByRole('button',{name:/^Timeline/}).click();
   await forms.getByLabel('Template name',{exact:true}).fill('Site QA inspection');
   await forms.locator('[data-field-type=text]').dragTo(forms.locator('.form-builder-canvas'));

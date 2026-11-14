@@ -336,8 +336,10 @@ In the Passive Fire Register, keep the installation location and choose a system
 using the Technical Library filters. Check a result to retain it; uncheck it to
 choose another. Add the site's photos under Side 1 and, where accessible, Side 2.
 In **Plan location**, select a project drawing and page, then click the installation
-point. The register PDF uses the selected system's details and your site photos.
-Only pinned sheets are appended, with the register IDs marked on them.
+point once for each entry. Drag the pin to move it; right-click or tap it to delete
+it before choosing another sheet. The register PDF uses the selected system's
+details and your site photos. Only pinned sheets are appended, in portrait,
+with all register IDs marked at their original locations.
 
 Newly generated PDF schedules and product summaries use portrait pages. Quote
 scope introductions flow into their first schedule. PDF tables omit calculation

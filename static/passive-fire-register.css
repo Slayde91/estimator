@@ -15,9 +15,22 @@
 .register-photo-field figure { display: inline-flex; vertical-align: top; flex-direction: column; gap: .25rem; margin: .35rem; }
 .register-photo-field img { width: 7rem; height: 5rem; object-fit: contain; }
 .register-signature { display: block; background: white; max-width: 12rem; max-height: 4rem; margin: .5rem 0; }
-.register-plan-sheet { position: relative; display: block; width: fit-content; max-width: 100%; border: 0; padding: 0; background: white; cursor: crosshair; }
-.register-plan-sheet[hidden], .register-plan-pins[hidden] { display: none; }
-.register-plan-sheet canvas { display: block; width: auto; height: auto; max-width: 100%; max-height: 78vh; }
-.register-plan-sheet svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.register-plan-pins { list-style: none; padding: 0; }
-.register-plan-pins li { display: flex; align-items: center; gap: .65rem; margin-block: .4rem; }
+.register-signature-actions, .register-plan-unavailable-row { display: flex; align-items: center; gap: .5rem; }
+.register-plan-controls { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+.register-plan-controls .field { min-width: 0; }
+.register-plan-controls select[name=plan_page] { width: calc(7ch + 2.5rem); }
+.register-plan-sheet { position: relative; width: 100%; background: white; }
+.register-plan-sheet[hidden], .register-plan-delete[hidden] { display: none; }
+.register-plan-canvas { display: block; width: 100%; margin: 0; padding: 0; border: 0; background: white; cursor: crosshair; }
+.register-plan-canvas:disabled { cursor: default; opacity: 1; }
+.register-plan-canvas canvas { display: block; width: 100%; height: auto; }
+.register-plan-marks { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.register-plan-mark { position: absolute; display: inline-flex; align-items: center; min-height: 26px; padding: 0 4px 0 18px; margin: 0; border: 0; background: transparent; color: #fff; -webkit-text-stroke: 2.5px #94001c; paint-order: stroke fill; font: bold 13px/1.2 sans-serif; white-space: nowrap; transform: translate(-10px, -50%); user-select: none; }
+.register-plan-mark::before { content: ''; position: absolute; left: 5px; width: 10px; height: 10px; box-sizing: border-box; border: 1px solid white; border-radius: 50%; background: #c70027; }
+.register-plan-mark.near-right { padding: 0 18px 0 4px; transform: translate(calc(-100% + 10px), -50%); }
+.register-plan-mark.near-right::before { left: auto; right: 5px; }
+button.register-plan-mark { pointer-events: auto; touch-action: none; cursor: grab; }
+button.register-plan-mark:active { cursor: grabbing; }
+.register-plan-delete { position: absolute; z-index: 1; }
+.register-plan-cursor { display: none; position: absolute; width: 12px; height: 12px; border: 2px solid #0072d6; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+.register-plan-canvas:focus-visible .register-plan-cursor { display: block; }

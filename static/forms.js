@@ -213,7 +213,7 @@
     const host = frame(), box = el('section', null, 'card forms-register');
     const tabs = el('div',null,'actions forms-tabs');
     for (const [key,text] of [['templates','Templates'],['records','Form records']]) {
-      const tab = button(text, () => {panel = key; query = ''; libraryView();}, panel === key);
+      const tab = button(text, () => {panel = key; query = ''; libraryView();}, true);
       tab.setAttribute('aria-pressed', String(panel === key)); tabs.append(tab);
     }
     const actions = [];

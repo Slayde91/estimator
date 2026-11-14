@@ -4,6 +4,9 @@
 .forms-heading h2, .forms-register h3, .forms-entry-toolbar p, .forms-paper h2 { margin:0; }
 .forms-heading .actions, .forms-row-actions, .forms-tabs { display:flex; align-items:center; flex-wrap:wrap; gap:.5rem; }
 .forms-search { max-width:36rem; }
+#forms-root .forms-tabs .button.primary { background:#c8102e; border-color:#d32640; color:#fff; }
+#forms-root .forms-tabs .button.primary:hover { background:#a90d27; }
+#forms-root .forms-tabs .button[aria-pressed="true"] { box-shadow:inset 0 -4px #fff; }
 .forms-badge { display:inline-block; padding:.15rem .65rem; border:1px solid currentColor; border-radius:999px; font-size:.85em; text-transform:capitalize; }
 .forms-status-submitted, .forms-status-published { color:var(--success, #208555); }
 .forms-dialog:not([open]) { display:none; }

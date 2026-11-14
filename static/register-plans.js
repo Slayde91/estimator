@@ -4,8 +4,9 @@
   const sources = () => window.CeasefireEstimates.planSources();
   const key = source => source.project_id + '/' + source.document_id;
   const label = entry => entry.side1.id_number + (entry.access === 'Yes' ? ' / ' + entry.side2.id_number : '');
-  const svgNS = 'http://www.w3.org/2000/svg';
   const translate = (source, args = []) => window.CeasefireI18n.translate(source, args);
+  const clamp = value => Math.max(0, Math.min(1, value));
+  const moves = {ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1]};
 
   function exportContext(register) {
     const required = new Set(register.entries.flatMap(entry => (entry.plan_pins || []).map(pin => pin.project_id)));
@@ -18,10 +19,12 @@
   function section({entry, entries, changed, el, field}) {
     dispose?.();
     const list = sources(), card = el('section','card register-plan-location');
-    const controls = el('div','register-grid'), documents = el('select'), pages = el('select');
-    const notice = el('p','helper'), sheet = el('button','register-plan-sheet'), canvas = el('canvas');
-    const overlay = document.createElementNS(svgNS, 'svg');
-    const pins = el('ul','register-plan-pins');
+    const controls = el('div','register-grid register-plan-controls'), documents = el('select'), pages = el('select');
+    const notice = el('p','helper'), sheet = el('div','register-plan-sheet'), canvas = el('canvas');
+    const place = el('button','register-plan-canvas'), overlay = el('div','register-plan-marks');
+    const remove = el('button','button secondary register-plan-delete','Delete');
+    const missing = el('div','register-plan-unavailable');
+    const lifetime = new AbortController();
     const selected = remembered.get(entry) || entry.plan_pins?.[0];
     documents.name = 'plan_source'; pages.name = 'plan_page';
     documents.add(new Option(translate('Select'), ''));
@@ -34,93 +37,172 @@
     } else {
       card.append(el('p', 'helper', 'No PDFs uploaded'));
     }
-    sheet.type = 'button'; sheet.hidden = true; sheet.disabled = true;
-    window.CeasefireI18n.attr(sheet, 'aria-label', 'Place pin on plan');
-    overlay.setAttribute('aria-hidden', 'true');
-    sheet.append(canvas, overlay);
+    sheet.hidden = true;
+    place.type = remove.type = 'button';
+    remove.hidden = true;
+    window.CeasefireI18n.attr(place, 'aria-label', 'Place pin on plan');
+    const cursor = el('span','register-plan-cursor');
+    cursor.setAttribute('aria-hidden','true');
+    place.append(canvas,cursor);
+    sheet.append(place, overlay, remove);
     notice.setAttribute('aria-live', 'polite');
-    card.append(notice, sheet, pins);
-    let generation = 0, loading, renderTask, target = {x:.5, y:.5};
+    card.append(notice, sheet, missing);
+    let generation = 0, loading, renderTask, menuPin, failedDoc, target = {x:.5, y:.5};
     const active = () => list.find(doc => key(doc) === documents.value);
     const pageNumber = () => Number(pages.value);
     const disposePreview = () => {
       generation++;
       renderTask?.cancel(); renderTask = null;
       if (loading) void loading.destroy().catch(() => {});
-      loading = null; sheet.disabled = true; sheet.hidden = true;
+      loading = null; sheet.hidden = true; closeMenu();
     };
-    dispose = disposePreview;
+    dispose = () => { lifetime.abort(); disposePreview(); };
 
-    function pinList() {
-      pins.replaceChildren();
+    function closeMenu() { menuPin = null; remove.hidden = true; }
+    function deletePin(pin) {
+      if (!entry.plan_pins?.includes(pin)) return;
+      entry.plan_pins = entry.plan_pins.filter(item => item !== pin);
+      closeMenu(); changed(); drawMarks(); showInstructions(); showUnavailable();
+    }
+    function showUnavailable() {
+      // An old project can retain a pin after its source file was removed.
+      // Keep it recoverable even though there is no drawing to right-click.
+      missing.replaceChildren();
       for (const pin of entry.plan_pins || []) {
-        const doc = list.find(item => key(item) === key(pin) && item.sha256 === pin.sha256);
-        const row = el('li'), value = el('span');
-        value.textContent = [doc?.name || translate('Drawing unavailable'), translate('Page {0}', [pin.page]), label(entry)].join(' · ');
-        const remove = window.ClassifireFormControls.iconButton('Remove pin', 'remove', () => {
-          entry.plan_pins = entry.plan_pins.filter(item => item !== pin);
-          changed(); pinList(); drawMarks();
-        });
-        row.append(value, remove); pins.append(row);
+        const doc = list.find(item => key(item) === key(pin) && item.sha256 === pin.sha256 && pin.page <= item.pages);
+        if (doc && !(doc === failedDoc && pin.page === pageNumber())) continue;
+        const warning = el('div','register-plan-unavailable-row');
+        const description = el('span');
+        description.textContent = [translate('Drawing unavailable'), doc?.name, translate('Page {0}', [pin.page]), label(entry)].filter(Boolean).join(' · ');
+        warning.append(description, window.ClassifireFormControls.iconButton('Remove pin', 'remove', () => deletePin(pin)));
+        missing.append(warning);
       }
-      pins.hidden = !pins.childElementCount;
+    }
+    function showInstructions() {
+      if (sheet.hidden) return;
+      const pin = entry.plan_pins?.[0];
+      place.disabled = Boolean(pin);
+      if (!pin) {
+        window.CeasefireI18n.text(notice, 'Click the plan to place a pin. With the keyboard, use the arrow keys and press Enter.');
+      } else {
+        const here = entry.plan_pins.some(p => p.sha256 === active()?.sha256 && p.page === pageNumber());
+        if (here) window.CeasefireI18n.text(notice, 'Drag the pin to move it. Right-click or tap it to delete.');
+        else {
+          const doc = list.find(item => key(item) === key(pin) && item.sha256 === pin.sha256);
+          notice.textContent = [label(entry), doc?.name || translate('Drawing unavailable'), translate('Page {0}', [pin.page])].join(' · ');
+        }
+      }
+    }
+    function position(mark, point) {
+      mark.style.left = (point.x * 100) + '%';
+      mark.style.top = (point.y * 100) + '%';
+      mark.classList.toggle('near-right', point.x > .75);
+    }
+    function openMenu(pin, mark) {
+      menuPin = pin;
+      remove.hidden = false;
+      const rect = sheet.getBoundingClientRect();
+      remove.style.left = Math.max(0, Math.min(rect.width - remove.offsetWidth, pin.x * rect.width + 4)) + 'px';
+      remove.style.top = Math.max(0, Math.min(rect.height - remove.offsetHeight, pin.y * rect.height + 10)) + 'px';
+      remove.focus({preventScroll:true});
+      remove.onkeydown = event => {
+        if (event.key === 'Escape') { event.preventDefault(); closeMenu(); mark.focus({preventScroll:true}); }
+      };
+    }
+    remove.addEventListener('click', () => { deletePin(menuPin); place.focus({preventScroll:true}); });
+    remove.addEventListener('blur', closeMenu);
+    document.addEventListener('pointerdown', event => {
+      if (event.target !== remove) closeMenu();
+    }, {capture:true, signal:lifetime.signal});
+
+    function makeMark(row, pin) {
+      const own = row === entry;
+      const mark = el(own ? 'button' : 'span','register-plan-mark');
+      mark.textContent = label(row);
+      position(mark, pin);
+      if (!own) return mark;
+      mark.type = 'button';
+      mark.addEventListener('contextmenu', event => { event.preventDefault(); openMenu(pin, mark); });
+      mark.addEventListener('keydown', event => {
+        const move = moves[event.key];
+        if (move) {
+          event.preventDefault();
+          const step = event.shiftKey ? .05 : .005;
+          pin.x = clamp(pin.x + move[0] * step); pin.y = clamp(pin.y + move[1] * step);
+          position(mark,pin); changed();
+        } else if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+          event.preventDefault(); openMenu(pin,mark);
+        } else if (event.key === 'Delete') {
+          event.preventDefault(); deletePin(pin); place.focus({preventScroll:true});
+        }
+      });
+      let drag, moved = false;
+      mark.addEventListener('pointerdown', event => {
+        if (drag || event.button !== 0 || !event.isPrimary) return;
+        moved = false;
+        drag = {id:event.pointerId, startX:event.clientX, startY:event.clientY, point:pin, bounds:canvas.getBoundingClientRect()};
+        mark.setPointerCapture(event.pointerId);
+      });
+      function preview(event) {
+        const dx = event.clientX - drag.startX, dy = event.clientY - drag.startY;
+        if (!moved && Math.hypot(dx,dy) < 3) return;
+        moved = true;
+        drag.point = {x:clamp(pin.x + dx / drag.bounds.width), y:clamp(pin.y + dy / drag.bounds.height)};
+        position(mark,drag.point);
+      }
+      mark.addEventListener('pointermove', event => { if (drag?.id === event.pointerId) preview(event); });
+      mark.addEventListener('pointerup', event => {
+        if (drag?.id !== event.pointerId) return;
+        preview(event);
+        if (moved) { Object.assign(pin,drag.point); changed(); }
+        drag = null;
+      });
+      mark.addEventListener('lostpointercapture', () => {
+        if (drag) { drag = null; position(mark,pin); }
+      });
+      mark.addEventListener('click', event => {
+        if (!moved || !event.detail) openMenu(pin,mark);
+        moved = false;
+      });
+      return mark;
     }
     function drawMarks() {
       overlay.replaceChildren();
       const doc = active();
       if (!doc || sheet.hidden) return;
-      const w = canvas.width, h = canvas.height, scale = Math.min(w, h) / 550;
-      overlay.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
-      function svg(tag, attrs) {
-        const node = document.createElementNS(svgNS, tag);
-        for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, value);
-        return node;
-      }
-      for (const row of entries.length ? entries : [entry]) {
+      // Put this entry's button above any neighbouring callouts.
+      for (const row of [...entries.filter(item => item !== entry), entry]) {
         for (const pin of row.plan_pins || []) {
           if (pin.sha256 !== doc.sha256 || pin.page !== pageNumber()) continue;
-          const x = pin.x * w, y = pin.y * h, nearRight = pin.x > .75;
-          const mark = svg('g', {class:'register-plan-mark'});
-          const dot = svg('circle', {cx:x, cy:y, r:4*scale, fill:'#c70027', stroke:'white', 'stroke-width':scale});
-          const text = svg('text', {x:x + (nearRight ? -6 : 6)*scale, y:Math.max(12*scale, Math.min(h-2*scale, y)),
-            'text-anchor':nearRight ? 'end' : 'start', 'font-size':12*scale, fill:'white', stroke:'#94001c',
-            'stroke-width':3*scale, 'paint-order':'stroke', 'stroke-linejoin':'round'});
-          text.textContent = label(row);
-          mark.append(dot, text); overlay.append(mark);
+          overlay.append(makeMark(row,pin));
         }
       }
-      if (sheet.matches(':focus-visible')) {
-        overlay.append(svg('circle', {cx:target.x*w, cy:target.y*h, r:6*scale, fill:'none', stroke:'#0072d6', 'stroke-width':2*scale}));
-      }
+      position(cursor,target);
     }
     function addPin(x, y) {
-      if (sheet.disabled || !card.isConnected) return;
+      if (entry.plan_pins?.length || place.matches(':disabled') || sheet.hidden || !card.isConnected) return;
       const doc = active();
       if (!doc || !sources().some(item => item.session_id === doc.session_id && item.document_id === doc.document_id && item.sha256 === doc.sha256)) return;
-      if ((entry.plan_pins?.length || 0) >= 200) {
-        window.CeasefireI18n.text(notice, 'Each register entry supports up to 200 plan pins.'); return;
-      }
-      (entry.plan_pins ||= []).push({project_id:doc.project_id, document_id:doc.document_id, sha256:doc.sha256,
-        page:pageNumber(), x:Math.max(0, Math.min(1, x)), y:Math.max(0, Math.min(1, y))});
-      changed(); pinList(); drawMarks();
+      entry.plan_pins = [{project_id:doc.project_id, document_id:doc.document_id, sha256:doc.sha256,
+        page:pageNumber(), x:clamp(x), y:clamp(y)}];
+      changed(); drawMarks(); showInstructions();
+      overlay.querySelector('button')?.focus({preventScroll:true});
     }
-    sheet.addEventListener('click', event => {
+    place.addEventListener('click', event => {
       if (!event.detail) { addPin(target.x, target.y); return; }
       const rect = canvas.getBoundingClientRect();
       if (rect.width && rect.height) addPin((event.clientX - rect.left) / rect.width, (event.clientY - rect.top) / rect.height);
     });
-    sheet.addEventListener('keydown', event => {
-      const moves = {ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1]};
+    place.addEventListener('keydown', event => {
       if (!moves[event.key]) return;
       event.preventDefault();
       const [dx,dy] = moves[event.key], step = event.shiftKey ? .05 : .005;
-      target = {x:Math.max(0,Math.min(1,target.x + dx*step)), y:Math.max(0,Math.min(1,target.y + dy*step))};
-      drawMarks();
+      target = {x:clamp(target.x + dx*step), y:clamp(target.y + dy*step)};
+      position(cursor,target);
     });
-    sheet.addEventListener('focus', drawMarks); sheet.addEventListener('blur', drawMarks);
 
     async function showPage() {
-      disposePreview(); notice.textContent = ''; overlay.replaceChildren(); target = {x:.5,y:.5};
+      disposePreview(); notice.textContent = ''; overlay.replaceChildren(); target = {x:.5,y:.5}; failedDoc = null; showUnavailable();
       const doc = active(), number = pageNumber(), token = generation;
       if (!doc || !number) return;
       remembered.set(entry, {...doc, page:number});
@@ -143,11 +225,10 @@
         renderTask = page.render({canvasContext:canvas.getContext('2d'), viewport});
         await renderTask.promise;
         if (generation !== token || !card.isConnected) return;
-        sheet.hidden = false; sheet.disabled = false;
-        window.CeasefireI18n.text(notice, 'Click the plan to place a pin. With the keyboard, use the arrow keys and press Enter.');
-        drawMarks();
+        sheet.hidden = false;
+        drawMarks(); showInstructions();
       } catch (error) {
-        if (token === generation) window.CeasefireI18n.text(notice, 'Drawing unavailable');
+        if (token === generation) { failedDoc = doc; window.CeasefireI18n.text(notice, 'Drawing unavailable'); showUnavailable(); }
       }
     }
     function changeDocument(page = 1) {
@@ -159,7 +240,6 @@
     }
     documents.addEventListener('change', () => changeDocument());
     pages.addEventListener('change', showPage);
-    pinList();
     changeDocument(selected?.page);
     return card;
   }

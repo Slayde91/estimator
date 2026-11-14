@@ -32,7 +32,7 @@ async function assertRegisterUndoSizes(){
       await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
       for(const mode of ['steel','duct','wall','Defect Reports','Service Plans']){
         await chooseTakeoff(page,mode);await idle();
-        const register=page.locator(['Defect Reports','Service Plans'].includes(mode)?'.takeoff-physical-register':'.takeoff-workspace-split .takeoff-register');
+        const register=page.locator('.takeoff-workspace-split .takeoff-register').filter({visible:true});
         const measured=await register.evaluate(el=>{
           const undo=el.querySelector('[aria-label="Undo last edit"]'),left=undo.previousElementSibling,style=control=>{const css=getComputedStyle(control),rect=control.getBoundingClientRect();return {width:css.width,height:css.height,rectWidth:rect.width,rectHeight:rect.height};};
           return {undo:style(undo),left:style(left),leftLabel:left.getAttribute('aria-label'),glyph:undo.querySelector('.button-symbol').textContent,disabled:undo.disabled};

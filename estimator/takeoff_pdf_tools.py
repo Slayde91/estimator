@@ -16,6 +16,7 @@ from threading import BoundedSemaphore
 from .catalog import ValidationError
 from .takeoff_documents import MAX_DOCUMENT_SIZE, MAX_DOCUMENTS, _metadata, _open_regular
 from .takeoff_model import identity, object_fields
+from .takeoff_pdf_worker import output_page_geometry
 
 MAX_OUTPUT_PAGES = 2000  # Derived PDFs must be admissible as a new source.
 MAX_INPUT_BYTES = MAX_DOCUMENT_SIZE
@@ -126,8 +127,7 @@ def compose_retained_pages(selected, order, documents, *, register_pdf=None, pin
                 raise ValidationError(message if isinstance(message, str) and len(message) <= 300 else 'The PDF could not be prepared safely.')
             with _open_regular(output, MAX_OUTPUT_BYTES) as stream:
                 result = stream.read(MAX_OUTPUT_BYTES+1)
-            expected = prefix + [{**selected[value['source']]['pages'][value['page']-1], 'page': index}
-                                 for index, value in enumerate(order, len(prefix) + 1)]
+            expected = output_page_geometry(selected, order, prefix)
             if (type(receipt['size']) is not int or receipt['size'] != len(result)
                     or not 0 < len(result) <= MAX_OUTPUT_BYTES or not result.startswith(b'%PDF-')
                     or sha256(result).hexdigest() != receipt['sha256']

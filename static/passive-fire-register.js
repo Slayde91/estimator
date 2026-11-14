@@ -160,7 +160,7 @@
     record[key].forEach((url, index) => {
       const figure = el('figure'), img = el('img');
       img.src = url; img.alt = label + ' ' + (index + 1); img.loading = 'lazy';
-      figure.append(img, action('Remove photo', () => {
+      figure.append(img, window.ClassifireFormControls.iconButton('Remove photo', 'remove', () => {
         record[key].splice(index,1); photoPixels.delete(url); changed(); render();
       }));
       group.append(figure);
@@ -252,13 +252,24 @@
       img.src = window.ClassifirePersonalSignature.png(entry.signature);
       sign.append(img);
     }
-    sign.append(window.ClassifireFormControls.iconButton('Insert signature', 'signature', async () => {
+    const buttons = el('div','register-signature-actions');
+    buttons.append(window.ClassifireFormControls.iconButton('Insert signature', 'signature', async () => {
       try {
         const value = await window.ClassifirePersonalSignature.choose(entry.signature);
         if (value && editedEntry() === entry) { entry.signature = value; changed(); render(); }
       } catch(error) { setStatus(error.message); }
     }));
-    if (entry.signature) sign.append(action('Clear signature', () => { entry.signature = null; changed(); render(); }));
+    if (entry.signature) {
+      const clear = action('', () => { entry.signature = null; changed(); render(); });
+      clear.classList.add('icon-only','form-control-icon');
+      for (const attr of ['title', 'aria-label']) window.CeasefireI18n.attr(clear, attr, 'Clear signature');
+      const artwork = document.querySelector('#penetration-clear svg').cloneNode(true);
+      artwork.setAttribute('aria-hidden','true');
+      artwork.setAttribute('focusable','false');
+      clear.append(artwork);
+      buttons.append(clear);
+    }
+    sign.append(buttons);
     form.append(sign, el('p','helper','Save the project to keep this register.'));
     root.replaceChildren(form);
     return true;

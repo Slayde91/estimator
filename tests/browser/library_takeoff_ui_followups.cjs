@@ -6,6 +6,7 @@ const {chooseCalculator}=require('./calculator_actions.cjs');
 const {chooseLibrary,chooseTakeoff}=require('./section_navigation.cjs');
 const {renderDrawing}=require('./viewer_helpers.cjs');
 const {checkLibraryControlSizes}=require('./library_control_sizes.cjs');
+const {checkRegisterSplit}=require('./register_split_helpers.cjs');
 const root=path.resolve(__dirname,'../..'),output=path.join(root,'.runtime/browser-qa','library-takeoff-ui-'+Date.now());
 fs.mkdirSync(output,{recursive:true});
 const python=process.env.CEASEFIRE_PYTHON||'python',drawing=path.join(output,'synthetic-drawing.pdf');
@@ -84,6 +85,8 @@ async function activePaint(label){
  await page.setViewportSize({width:1384,height:900});await chooseLibrary(page,'pricing');await expect(page.locator('#pricing-help')).toHaveCount(0);await expect(page.locator('#pricing-body tr').first()).toBeVisible();
  await chooseTakeoff(page,'Steel');await idle();
  await renderDrawing(page,()=>page.locator('#takeoff-upload').setInputFiles(drawing));
+ await checkRegisterSplit(page);
+ await chooseTakeoff(page,'Steel');await idle();
  const settings=page.locator('.takeoff-tool-rail').getByRole('button',{name:'Settings',exact:true}),viewports=page.locator('.takeoff-tool-rail').getByRole('button',{name:'Viewport',exact:true});
  for(const width of [1384,825,390]){
   await page.setViewportSize({width,height:900});await alignment(width+'/normal');

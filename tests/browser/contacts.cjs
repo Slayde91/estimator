@@ -126,7 +126,7 @@ const ready = new Promise((resolve, reject) => {
   const accountPane=page.getByRole('complementary',{name:'Edit Company',exact:true});
   await expect(accountPane.getByLabel('Billing address')).toHaveValue('Demo Billing Street');
   await expect(accountPane.getByLabel('ABN/ACN',{exact:true})).toHaveValue('12 345 678 901');
-  await expect(accountPane.locator('.contacts-links-group > summary')).toHaveText(['Contacts (1)','Leads (1)']);
+  await expect(accountPane.locator('.contacts-record-left .contacts-links-group > summary')).toHaveText(['Contacts (1)','Leads (1)']);
   await expect(accountPane.locator('[data-link-group="leads"] button')).toContainText('Robin Sample');
   await accountPane.locator('[data-link-group="contacts"] > summary').click();
   await accountPane.locator('[data-link-group="contacts"]').getByRole('button',{name:'Robin Sample',exact:true}).click();

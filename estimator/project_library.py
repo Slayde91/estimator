@@ -25,7 +25,7 @@ from .commercial_sources import CommercialSources, source_id
 from .edition import require_project_edition, validate_edition
 from .native_dialogs import NativeDialogs, SaveSelection
 from .quote_details import QUOTE_DETAIL_LIMITS, compose_quote_title, validate_quote_details
-from .follow_up import FOLLOW_UP_LIMITS, project_follow_up
+from .follow_up import FOLLOW_UP_LIMITS, save_project_follow_up, summary_fields
 from .project_requirements import require_project_details
 from .project_file import CALCULATOR_IDS, LEGACY_CALCULATOR_IDS, OPTIONAL_CALCULATOR_IDS, ESTIMATE_FIELDS, ESTIMATE_REQUIRED_FIELDS, MAX_PROJECT_FILE, PROJECT_EXTENSION, assert_project_overwrite, export_project, has_project_identity, is_project_filename, load_project_bytes, project_filename, project_summary, validate_project_status, estimate_descriptors, WORKSPACE_FIELDS
 
@@ -263,7 +263,7 @@ def _metadata(path, info, project, folder, payload):
             "relative_folder": str(Path(relative).parent).replace("\\", "/") if inside else "",
             "title": estimate["title"], "project_no": estimate.get("project_no", ""),
             "client": estimate.get("client", ""), "site_address": estimate.get("site_address", ""),
-            "follow_up_date": project.get("project_follow_up", {}).get("follow_up_date", ""),
+            **summary_fields(project.get("project_follow_up", {}).get("actions", [])),
             "account_id": estimate.get("account_id", ""), "contact_id": estimate.get("contact_id", ""),
             "contact_name": estimate.get("contact_name", ""), "contact_phone": estimate.get("contact_phone", ""), "contact_email": estimate.get("contact_email", ""),
             "source_project_id": project.get("source_project_id") or (project.get("certifications") or {}).get("project_id"),
@@ -434,13 +434,14 @@ class ProjectLibrary:
             raise ValidationError('The existing project contains incomplete or invalid records. Choose a new filename to retain the original.') from error
 
     @staticmethod
-    def _missing_project_metadata(incoming, previous):
-        """Keep saved project-wide fields when a client predates those fields."""
+    def _merge_project_metadata(incoming, previous):
+        """Merge portable metadata against the exact revision that the save will replace."""
         retained = {}
         if "project_status" not in incoming:
             retained["project_status"] = validate_project_status(previous.get("project_status", "New"))
-        if "project_follow_up" not in incoming and "project_follow_up" in previous:
-            retained["project_follow_up"] = project_follow_up(previous["project_follow_up"])
+        if "project_follow_up" in previous or "project_follow_up" in incoming:
+            retained["project_follow_up"] = save_project_follow_up(previous.get("project_follow_up", {}),
+                                                                  incoming.get("project_follow_up", {}))
         return retained
 
     @staticmethod
@@ -576,7 +577,7 @@ class ProjectLibrary:
                 self.commercial.restore(workspace['workspace_id'], project.get('commercial_documents'), return_view=False)
                 if path:
                     with self.commercial._connect() as db:
-                        self.commercial.unfiled.bind_file(db, workspace['workspace_id'])
+                        self.commercial.unfiled.bind_file(db, workspace['workspace_id'], path)
             elif 'commercial_documents' in project:
                 raise ValidationError('Open this project with its commercial document workspace available.')
             if workspace is not None and path is not None:
@@ -932,7 +933,8 @@ class ProjectLibrary:
                     raise ValidationError('Commercial documents belong to a different project.')
                 return {'source':source_id(str(path)), 'owner':owner, 'project_no':details.get('project_no',''),
                         'revision':revision, 'modified_at':datetime.fromtimestamp(info.st_mtime, timezone.utc).isoformat(),
-                        'commercial_cards':summary['commercial_cards']}
+                        'commercial_cards':summary['commercial_cards'],
+                        'follow_up_history':summary['project_follow_up'].get('history', [])}
             # Save As copies have independent ownership, even with the same
             # portable project and document IDs.
             from .project_relationships import project_link_id, project_parties
@@ -1031,7 +1033,9 @@ class ProjectLibrary:
             metadata = _metadata(path, info, summary, self._scan["folder"], payload)
             return {"id": metadata["id"], "revision": metadata["revision"],
                     "project_id": summary.get("source_project_id"),
-                    "details": {**validate_quote_details(summary["estimate"]), **summary["project_follow_up"]}, "file": metadata}
+                    "project_follow_up": summary["project_follow_up"],
+                    "details": {**validate_quote_details(summary["estimate"]), **summary_fields(summary["project_follow_up"]["actions"]),
+                                "follow_up_actions": summary["project_follow_up"]["actions"]}, "file": metadata}
 
     def save_details(self, request, *, accounts):
         """Conditionally update shared identity only, preserving all workspace data."""
@@ -1044,7 +1048,7 @@ class ProjectLibrary:
             raise ValidationError("Reload the selected project's details before saving.")
         submitted = request["details"]
         if (not isinstance(submitted, dict) or QUOTE_DETAIL_LIMITS.keys() - submitted.keys()
-                or submitted.keys() - QUOTE_DETAIL_LIMITS.keys() - FOLLOW_UP_LIMITS.keys()):
+                or submitted.keys() - QUOTE_DETAIL_LIMITS.keys() - FOLLOW_UP_LIMITS.keys() - {"follow_up_actions"}):
             raise ValidationError("Include all project detail fields only.")
         details = validate_quote_details(request["details"])
         require_project_details(details)
@@ -1071,7 +1075,9 @@ class ProjectLibrary:
             if receipt is None and revision != request["revision"]:
                 raise ProjectDetailsConflict("The project changed. Reopen its details before saving.")
             previous = validate_quote_details(summary["estimate"])
-            follow_up = project_follow_up({key: submitted.get(key, summary["project_follow_up"][key]) for key in FOLLOW_UP_LIMITS})
+            changes = ({"actions":submitted["follow_up_actions"]} if "follow_up_actions" in submitted else
+                       {key:submitted[key] for key in FOLLOW_UP_LIMITS if key in submitted})
+            follow_up = save_project_follow_up(summary["project_follow_up"], changes)
             if not account_valid and any(details[key] != previous[key] for key in ("account_id", "client")):
                 raise ValidationError("Choose an existing Company for this Client, or add a new Company.")
             if not contact_valid and any(details[key] != previous[key] for key in ("contact_id", "contact_name")):
@@ -1082,7 +1088,7 @@ class ProjectLibrary:
                 raise ValidationError("Choose an existing Company for this Client, or add a new Company.")
             if receipt is None:
                 snapshot = json.loads(payload.decode("utf-8-sig"))
-                if any(follow_up.values()) or "project_follow_up" in snapshot:
+                if follow_up["actions"] or "project_follow_up" in snapshot:
                     snapshot["project_follow_up"] = follow_up
                 estimates = [snapshot["estimate"], *[entry["workspace"]["estimate"] for entry in snapshot.get("estimates", [])]]
                 for estimate in estimates:
@@ -1111,7 +1117,8 @@ class ProjectLibrary:
             self._scan["files"][metadata["id"]] = metadata
             self._cache.pop((str(folder), str(path)), None)
             return {"id": metadata["id"], "revision": revision,
-                    "project_id": summary.get("source_project_id"), "details": {**details, **follow_up},
+                    "project_id": summary.get("source_project_id"), "project_follow_up": follow_up,
+                    "details": {**details, **summary_fields(follow_up["actions"]), "follow_up_actions":follow_up["actions"]},
                     "file": self._authorize_save(path, info, payload, metadata)}
 
     def update_status(self, request):
@@ -1425,15 +1432,14 @@ class ProjectLibrary:
             selected_path = _project_save_path(selection)
         captured = self._capture_takeoffs({key: request[key] for key in ("estimate", "calculators", "penetration", "takeoffs", "takeoffs_session_id", "library_drafts", "certifications", "documentation", "project_status", "project_follow_up", "estimates", "active_estimate_id", "commercial_documents", "swms", "passive_fire_register") if key in request}, project_path=selected_path)
         changed_message = 'The project file changed or was removed outside this window. Reload it or use "Save As".'
-        if "project_status" not in captured or "project_follow_up" not in captured:
-            existing = _confirmed_bytes(selected_path, selection, changed_message)
-            try:
-                previous = json.loads(existing)
-            except (ValueError, RecursionError) as error:
-                raise ValidationError('The saved project could not be read. Reload it or choose a new filename.') from error
-            if not isinstance(previous, dict):
-                raise ValidationError('The saved project could not be read. Reload it or choose a new filename.')
-            captured.update(self._missing_project_metadata(captured, previous))
+        existing = _confirmed_bytes(selected_path, selection, changed_message)
+        try:
+            previous = json.loads(existing)
+        except (ValueError, RecursionError) as error:
+            raise ValidationError('The saved project could not be read. Reload it or choose a new filename.') from error
+        if not isinstance(previous, dict):
+            raise ValidationError('The saved project could not be read. Reload it or choose a new filename.')
+        captured.update(self._merge_project_metadata(captured, previous))
         payload = export_project(self.store, captured, edition=self.edition)
         project = load_project_bytes(self.store, payload, edition=self.edition)
         # Serialize writes and recheck the capability after preparation so two
@@ -1506,7 +1512,7 @@ class ProjectLibrary:
         self.commercial.unfiled.prepare_publication(workspace, path, digest, (selection.fingerprint or {}).get('sha256', ''))
         replaced = False
         try:
-            with self.commercial.publishing(workspace, captured.get('commercial_documents'), captured.get('project_status')):
+            with self.commercial.publishing(workspace, captured.get('commercial_documents'), captured.get('project_status'), path=path):
                 yield
                 replaced = True
         except Exception:
@@ -1848,15 +1854,21 @@ class ProjectLibrary:
                 return {"cancelled": True}
             selected_path = _project_save_path(selection)
             with self._lock:
+                previous = {}
                 if isinstance(selection, SaveSelection) and selection.fingerprint is not None:
                     existing = _confirmed_bytes(selected_path, selection,
                         "The selected file changed. Reload the project or use Save As to confirm its current contents.")
                     previous = self._preserve_overwrite(existing, request)
-                    retained = self._missing_project_metadata(captured, previous) if previous else {}
-                    if retained:
-                        captured.update(retained)
-                        payload = export_project(self.store, captured, edition=self.edition)
-                        project = load_project_bytes(self.store, payload, edition=self.edition)
+                if previous:
+                    merged = self._merge_project_metadata(captured, previous)
+                elif "project_follow_up" in captured:
+                    merged = {"project_follow_up":save_project_follow_up({}, captured["project_follow_up"], new_file=True)}
+                else:
+                    merged = {}
+                if any(captured.get(key) != value for key, value in merged.items()):
+                    captured.update(merged)
+                    payload = export_project(self.store, captured, edition=self.edition)
+                    project = load_project_bytes(self.store, payload, edition=self.edition)
                 if 'takeoffs' in captured or 'certifications' in captured or 'documentation' in captured or 'estimates' in captured:
                     published = self._publish_takeoffs(captured, selected_path)
                     if not _same_project_values(captured, published):

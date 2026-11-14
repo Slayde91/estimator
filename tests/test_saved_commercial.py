@@ -1,6 +1,7 @@
 """Link ownership and PDF recovery across independent project workspaces."""
 import json
 import shutil
+from functools import partial
 from pathlib import Path
 import tempfile
 import unittest
@@ -76,6 +77,30 @@ class SavedQuoteTests(unittest.TestCase):
 
     def perform(self, action, **body):
         return self.saved.perform(action, {'source': self.source, **body}, self.http.execute)
+
+    def test_manual_activity_for_saved_docs_checks_file_and_document_without_modifying_either(self):
+        entry = {'request_id':str(uuid.uuid4()),'type':'Note','text':'Inspect anchors'}
+        body = {'id':self.document['id'],'version':self.document['version'],'activity':entry}
+        actor = {'id':'staff-1','name':'Site manager'}
+        execute = partial(self.http.execute, actor=actor)
+        initial = self.path.read_bytes()
+        copy = self.folder/'copied.cf.json'
+        copy.write_bytes(initial)
+        result = self.saved.perform('activity', {'source':self.source,**body}, execute)
+        self.assertEqual(result['revision'],self.source['revision'])
+        self.assertEqual(self.saved.perform('activity', {'source':self.source,**body}, execute),result)
+        with self.assertRaises(CommercialConflict):
+            self.saved.perform('activity', {'source':self.source,**body,'version':999}, execute)
+        with self.assertRaises(ValidationError):
+            self.saved.perform('activity',{**body,'source':self.source,'id':str(uuid.uuid4())},execute)
+        self.assertEqual(self.path.read_bytes(),initial)
+        self.library.commercial_register(refresh=True)
+        other = next(card for card in self.register()['documents'] if card['source_path']==str(copy))
+        saved = SavedCommercial(self.library)
+        items = saved.activity(self.source['file_id'],self.source['revision'],body['id'])['events']
+        note, = [row for row in items if row['label']=='Note']
+        self.assertEqual((note['actor'], note['subject']),('Site manager','Inspect anchors'))
+        self.assertNotIn('Note',[row['label'] for row in saved.activity(other['source_file'],other['source_revision'],body['id'])['events']])
 
     def test_malformed_project_cannot_break_other_cards(self):
         snapshot = json.loads(self.path.read_bytes())

@@ -3,6 +3,7 @@
 import hashlib
 import json
 import re
+import unicodedata
 from itertools import chain
 from uuid import UUID
 
@@ -125,12 +126,65 @@ def company_name_candidates(db, name):
     yield from db.execute(query + 'value>=? AND value<?', (name+' ',name+'!'))
 
 
-def suggestions(db, kind, data, ident=None, account_id=None):
+def name_words(kind, value):
+    folded = unicodedata.normalize('NFKD', fold(value))
+    words = re.findall(r'[^\W_]+', ''.join(c for c in folded if not unicodedata.combining(c)))
+    if kind == 'accounts':
+        while words and words[-1] in ('pty', 'proprietary', 'ltd', 'limited'):
+            words.pop()
+    return words
+
+
+def abbreviated(short, long):
+    # The abbreviation may be the whole name or a phrase within it (e.g. "North PFP").
+    start = 0
+    while start < min(len(short), len(long)) and short[start] == long[start]:
+        start += 1
+    end = 0
+    while end < min(len(short), len(long)) - start and short[-end-1] == long[-end-1]:
+        end += 1
+    initials = ''.join(short[start:len(short)-end])
+    expanded = long[start:len(long)-end]
+    if len(initials) < 2 or len(expanded) < 2:
+        return False
+    return initials in (''.join(word[0] for word in expanded),
+                        ''.join(word[0] for word in expanded if word not in ('and','of','the')))
+
+
+def near_name(left, right):
+    # A single typo or adjacent transposition in a recognisable name.
+    if min(len(left), len(right)) < 5 or abs(len(left) - len(right)) > 1:
+        return False
+    if len(left) > len(right):
+        left, right = right, left
+    i = next((i for i, (a,b) in enumerate(zip(left, right)) if a != b), len(left))
+    if len(left) < len(right):
+        return left[i:] == right[i+1:]
+    return left[i+1:] == right[i+1:] or (left[i:i+2] == right[i:i+2][::-1] and left[i+2:] == right[i+2:])
+
+
+def merge_name_match(kind, words, other):
+    if not words or not other:
+        return False
+    if words == other or abbreviated(words, other) or abbreviated(other, words):
+        return True
+    if kind == 'contacts' and len(words) == len(other) and len(words) > 1:
+        if words[-1] == other[-1] and all(a == b or (min(len(a),len(b)) == 1 and a[0] == b[0])
+                                          for a,b in zip(words[:-1],other[:-1])):
+            return True
+    return near_name(' '.join(words), ' '.join(other))
+
+
+def suggestions(db, kind, data, ident=None, account_id=None, *, merge_sources=False):
     if ident is not None:
         record(db, kind, ident)
     signals = keys(kind, data)
     mapping = aliases(db)
     excluded = group_ids(mapping[kind], ident)
+    if merge_sources:
+        # A record with active aliases can survive another merge but cannot become the source.
+        excluded.update(mapping[kind])
+        excluded.update(mapping[kind].values())
     found = {}
     for field, value in signals.items():
         if not value:
@@ -143,6 +197,13 @@ def suggestions(db, kind, data, ident=None, account_id=None):
             if candidate not in excluded:
                 root = mapping[kind].get(candidate, candidate)
                 found.setdefault(root, {}).setdefault(candidate, set()).add(field)
+    if merge_sources:
+        label = 'Company name' if kind == 'accounts' else 'Name'
+        words = name_words(kind, data.get('company' if kind == 'accounts' else 'name'))
+        for candidate, value in db.execute('SELECT record_id,value FROM crm_identity_keys WHERE kind=? AND field=?',
+                                            (kind,label)):
+            if candidate not in excluded and candidate not in found and merge_name_match(kind, words, name_words(kind, value)):
+                found[candidate] = {candidate:{'Similar company name' if kind == 'accounts' else 'Name'}}
     options = []
     for root, evidence in found.items():
         # Separate people may share a mailbox, switchboard or surname. Strong reasons

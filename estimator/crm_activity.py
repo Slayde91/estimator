@@ -61,7 +61,7 @@ def begin_tracking(db):
     _watch(db, 'accounts', 'accounts', 'id', ('company', 'billing_address', 'abn_acn'))
     _watch(db, 'contacts', 'contacts', 'id', ('name', 'phone', 'title', 'email', 'account_id'))
     _watch(db, 'leads', 'leads', 'id', ('contact_id', 'site_address', 'billing_address', 'description', 'status', 'person_snapshot'))
-    _watch(db, 'lead_followups', 'leads', 'lead_id', ('next_action', 'follow_up_date'), deleted=True)
+    _watch(db, 'lead_followups', 'leads', 'lead_id', ('next_action', 'follow_up_date', 'actions'), deleted=True)
     _watch(db, 'crm_assignments', None, 'record_id', ('owner_id', 'owner_name', 'region'), deleted=True)
     _watch(db, 'account_links', 'accounts', 'account_id', ('label',), deleted=True)
 
@@ -246,12 +246,8 @@ def timeline(db, kind, ident, before=None):
             'next_before':str(rows[49]['id']) if len(rows)>50 else None}
 
 
-def log_activity(store, body, actor, conflict):
-    if not isinstance(body,dict) or set(body)-{'id','kind','request_id','version','type','text','owner_id','due_date','task_id','occurred_at'}:
-        raise ValidationError('Use the activity form.')
-    kind,ident,req,typ=map(body.get,('kind','id','request_id','type'))
-    _key(kind,ident)
-    _key(kind,req)
+def activity_values(body):
+    typ = body.get('type')
     text=body.get('text','')
     due=body.get('due_date','')
     occurred=None
@@ -280,6 +276,16 @@ def log_activity(store, body, actor, conflict):
             raise ValidationError('Choose the task to complete.')
     elif task is not None:
         raise ValidationError('Choose the task to complete.')
+    return typ, text.strip(), due or None, occurred, task
+
+
+def log_activity(store, body, actor, conflict):
+    if not isinstance(body,dict) or set(body)-{'id','kind','request_id','version','type','text','owner_id','due_date','task_id','occurred_at'}:
+        raise ValidationError('Use the activity form.')
+    kind,ident,req,typ=map(body.get,('kind','id','request_id','type'))
+    _key(kind,ident)
+    _key(kind,req)
+    typ, text, due, occurred, task = activity_values(body)
     fingerprint=json.dumps({k:v for k,v in body.items() if k not in ('version','request_id')},sort_keys=True)
     with store.connection() as db:
         db.execute('BEGIN IMMEDIATE')

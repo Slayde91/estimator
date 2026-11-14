@@ -31,14 +31,14 @@ def _uuid(value):
     raise ValidationError('Choose a saved record for Notes and Files.')
 
 
-def _notes(value, *, rich=False):
+def _notes(value):
     if not isinstance(value, list) or len(value) > 200:
         raise ValidationError('A record supports up to 200 notes.')
     result, seen = [], set()
     for item in value:
         keys = {'id', 'title', 'body'}
         if not isinstance(item, dict) or not (set(item) == keys or
-                rich and set(item) == keys | {'format'} and item['format'] == 'rich'):
+                set(item) == keys | {'format'} and item['format'] == 'rich'):
             raise ValidationError('Include a note title and text only.')
         identity = _uuid(item['id'])
         if identity in seen:
@@ -143,7 +143,7 @@ class RecordResources:
             yield db
 
     @staticmethod
-    def _state(db, *, rich=False):
+    def _state(db):
         if db is None:
             return {'version': 0, 'notes': [], 'files': []}
         row = db.execute('SELECT version,notes,files FROM resources WHERE id=1 AND length(notes)<=2000000 AND length(files)<=16000').fetchone()
@@ -152,7 +152,7 @@ class RecordResources:
         notes = json.loads(row['notes'])
         if not isinstance(notes, list) or any(not isinstance(item,dict) or not {'author','updated_at'} <= item.keys() for item in notes):
             raise ValidationError('The saved notes are unavailable.')
-        contents = _notes([{key: val for key,val in item.items() if key not in ('author','updated_at')} for item in notes], rich=rich)
+        contents = _notes([{key: val for key,val in item.items() if key not in ('author','updated_at')} for item in notes])
         for item, content in zip(notes, contents):
             if any(not isinstance(item[key],str) or len(item[key])>limit or not item[key].isprintable() for key,limit in [('author',200),('updated_at',80)]):
                 raise ValidationError('The saved note metadata is invalid.')
@@ -169,7 +169,7 @@ class RecordResources:
     def read(self, owner):
         folder, _ = self._target(owner)
         with self._connection(folder) as db:
-            return self._state(db, rich=owner['kind'] in ('projects', 'leads'))
+            return self._state(db)
 
     def write(self, action, body, actor=None):
         fields = {'notes': {'notes'}, 'upload': {'filename','content_base64'}, 'remove-file': {'file_id'}}
@@ -177,11 +177,10 @@ class RecordResources:
             raise ValidationError('Use the Notes and Files controls provided on this record.')
         folder, identity = self._target(body['owner'])
         with self._connection(folder, write=True) as db:
-            rich = body['owner']['kind'] in ('projects', 'leads')
-            state = self._state(db, rich=rich)
+            state = self._state(db)
             self._check(state, body['version'])
             if action == 'notes':
-                notes = _notes(body['notes'], rich=rich)
+                notes = _notes(body['notes'])
                 old = {item['id']: item for item in state['notes']}
                 now = datetime.now(timezone.utc).isoformat()
                 author = ' '.join(str((actor or {}).get('name') or 'Local user').split())[:200]
@@ -219,7 +218,7 @@ class RecordResources:
     def file(self, owner, identity):
         folder, record = self._target(owner)
         with self._connection(folder) as db:
-            state = self._state(db, rich=owner['kind'] in ('projects', 'leads'))
+            state = self._state(db)
             item = next((item for item in state['files'] if item['id'] == identity), None)
             if item is None:
                 raise ValidationError('Choose a file attached to this record.')

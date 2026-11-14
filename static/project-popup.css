@@ -16,8 +16,7 @@
 .project-location-fields .project-account-field{grid-column:auto}
 #project-pane-address{field-sizing:content;min-height:calc(1.4em + 22px)}
 #project-pane-billing-address{field-sizing:content;box-sizing:border-box;min-height:42px;padding-block:9px}
-.project-details-pane .project-follow-up-fields{grid-template-columns:repeat(auto-fit,minmax(min(100%,175px),1fr));align-items:start;margin-top:16px}
-#project-pane-next-action{field-sizing:content;min-height:42px;padding-block:9px;resize:vertical}
+.project-details-pane .project-follow-up-fields{margin-top:16px}
 .project-details-pane .project-company-fields{grid-template-columns:minmax(0,1fr);margin-top:16px}
 .project-primary-contact-fields{margin-top:16px}
 #project-participants-panel{margin:0;min-width:0;overflow-wrap:anywhere}

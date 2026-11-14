@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from estimator.catalog import ValidationError
 from estimator.contacts import ContactsStore
+from estimator.follow_up import legacy_actions
 from estimator.crm_participants import CRMParticipants
 from estimator.project_file import export_project, load_project_bytes
 from estimator.project_library import ProjectLibrary, ProjectDetailsConflict
@@ -139,26 +140,88 @@ class ProjectPaneTests(unittest.TestCase):
         self.assertEqual(self.read()["details"]["follow_up_date"], "")
         other = self.other.read_bytes()
         reminder = {"next_action": "Call\nsite manager", "follow_up_date": "2028-02-29"}
-        result = self.save(self.request(**reminder))
+        def old_request(**changes):
+            request = self.request(**changes)
+            request["details"].pop("follow_up_actions")
+            return request
+        result = self.save(old_request(**reminder))
         self.assertEqual(result["file"]["follow_up_date"], reminder["follow_up_date"])
         before = self.path.read_bytes()
         for change in ({"follow_up_date": "2027-02-29"}, {"follow_up_date": "20271025"},
                        {"follow_up_date": 1}, {"next_action": "A" * 501}):
             with self.subTest(change=change), self.assertRaises(ValidationError):
-                self.save(self.request(**change))
+                self.save(old_request(**change))
             self.assertEqual(self.path.read_bytes(), before)
-        legacy = self.request(contact_phone="234")
+        legacy = old_request(contact_phone="234")
         for key in reminder:
             del legacy["details"][key]
         self.save(legacy)
         native = json.loads(self.path.read_bytes())
-        self.assertEqual(native["project_follow_up"], reminder)
+        self.assertEqual(native["project_follow_up"], {"actions":legacy_actions(reminder)})
         for entry in native["estimates"]:
             self.assertFalse(reminder.keys() & entry["workspace"]["estimate"].keys())
-        cleared = self.save(self.request(follow_up_date=""))
+        cleared = self.save(old_request(follow_up_date=""))
         self.assertEqual(cleared["details"]["next_action"], reminder["next_action"])
         self.assertEqual(cleared["file"]["follow_up_date"], "")
         self.assertEqual(self.other.read_bytes(), other)
+
+    def test_date_only_decision_retry_and_new_action_after_long_history(self):
+        # Simulate a historical singleton directly in an old portable file.
+        old = json.loads(self.path.read_bytes())
+        old["project_follow_up"] = {"next_action":"", "follow_up_date":"2028-02-29"}
+        self.path.write_text(json.dumps(old), encoding="utf8")
+        lead = self.read()["details"]["follow_up_actions"][0]
+        self.assertEqual(self.read()["details"]["follow_up_actions"][0]["id"], lead["id"])
+        closing = self.request(follow_up_actions=[{**lead, "status":"Completed"}])
+        first = self.save(closing)
+        self.assertEqual(first["project_follow_up"], self.save(closing)["project_follow_up"])
+        self.assertEqual(len(first["project_follow_up"]["history"]), 1)
+        self.assertEqual(first["file"]["follow_up_date"], "")
+        previous = first["details"]["follow_up_actions"]
+        long_history = previous + [{**lead, "id":str(uuid4()), "status":"Canceled"} for _ in range(110)]
+        self.save(self.request(follow_up_actions=long_history))
+        new_action = {**lead, "id":str(uuid4()), "next_action":"Next site inspection", "follow_up_date":"2030-01-01"}
+        result = self.save(self.request(follow_up_actions=[*long_history, new_action]))
+        self.assertEqual(len(result["project_follow_up"]["history"]), 111)
+        self.assertEqual(result["file"]["next_action"], new_action["next_action"])
+
+    def test_project_actions_and_history_commit_once_and_only_to_the_selected_file(self):
+        untouched = self.other.read_bytes()
+        call = {"id":str(uuid4()), "next_action":"Call site manager", "follow_up_date":"2027-02-20", "status":""}
+        plans = {**call, "id":str(uuid4()), "next_action":"Review plans", "follow_up_date":"2027-01-05"}
+        saved = self.save(self.request(follow_up_actions=[call, plans]))
+        self.assertEqual((saved["file"]["next_action"], saved["file"]["follow_up_date"]), ("Review plans", "2027-01-05"))
+        finished = {**plans, "next_action":"Plans reviewed", "status":"Completed"}
+        closing = self.request(follow_up_actions=[call, finished])
+        stale = self.request(follow_up_actions=[{**call, "status":"Canceled"}, plans])
+        original = self.path.read_bytes()
+        with patch('estimator.project_library._atomic_write', side_effect=OSError('fixture')), self.assertRaises(OSError):
+            self.save(closing)
+        self.assertEqual(self.path.read_bytes(), original)
+        committed = self.save(closing)
+        first_bytes = self.path.read_bytes()
+        self.assertEqual(self.save(closing)["project_follow_up"], committed["project_follow_up"])
+        self.assertEqual(self.path.read_bytes(), first_bytes)
+        with self.assertRaises(ProjectDetailsConflict):
+            self.save(stale)
+        for lost in ([finished], [call], [call, plans], [call, {**finished, "next_action":"edited"}]):
+            with self.assertRaises(ValidationError):
+                self.save(self.request(follow_up_actions=lost))
+            self.assertEqual(self.path.read_bytes(), first_bytes)
+        self.assertEqual(committed["file"]["follow_up_date"], call["follow_up_date"])
+        final = self.save(self.request(follow_up_actions=[{**call, "status":"Canceled"}, finished]))
+        self.assertEqual(final["file"]["next_action"], "")
+        self.assertEqual(final["file"]["follow_up_date"], "")
+        self.assertEqual(self.read()["project_follow_up"], final["project_follow_up"])
+        self.assertEqual(self.other.read_bytes(), untouched)
+        activity = CRMParticipants(self.root / "participants.sqlite3", self.library, self.accounts)
+        events = activity.activity(final["id"], final["revision"])["events"]
+        decisions = [(row["label"], row["subject"]) for row in events if row["label"].startswith("Follow-up")]
+        self.assertEqual(decisions, [("Follow-up completed", "Plans reviewed · 2027-01-05"),
+                                     ("Follow-up canceled", "Call site manager · 2027-02-20")])
+        other = self.library.listing()["files"]
+        peer = next(row for row in other if row["path"] == str(self.other))
+        self.assertFalse(any(row["label"].startswith("Follow-up") for row in activity.activity(peer["id"], peer["revision"])["events"]))
 
     def test_project_billing_overrides_round_trip_all_estimates_without_changing_company(self):
         self.accounts.save("accounts", {"version": 0, "fields": {"company": "Known Company", "billing_address": "Company HQ", "abn_acn": "Company ABN"}})

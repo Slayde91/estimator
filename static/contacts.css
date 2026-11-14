@@ -15,13 +15,13 @@
 .contacts-workspace,.contacts-results { min-width:0; }
 .crm-timeline { min-width:0; border:1px solid var(--border); border-radius:8px; padding:10px; overflow-wrap:anywhere; }
 .crm-timeline>summary { font-weight:700; cursor:pointer; }
-.crm-timeline .crm-event-list { padding-inline-start:1.4em; max-height:320px; overflow:auto; }
+.crm-timeline .crm-event-list { padding-inline-start:1.4em; overflow-y:auto; }
 .crm-event-list li { margin:10px 0; }
 .crm-event-list p { white-space:pre-line; margin:4px 0; }
-.crm-timeline .contacts-group { margin-top:12px; }
+:is(.crm-timeline,.record-activity-history) .contacts-group { margin-top:12px; }
 .crm-activity-details { grid-column:1/-1; }
-.crm-timeline .crm-activity-submit { grid-column:1/-1; justify-self:start; width:auto; min-height:32px; padding:5px 12px; }
-.crm-timeline [hidden] { display:none; }
+:is(.crm-timeline,.record-activity-history) .crm-activity-submit { grid-column:1/-1; justify-self:start; width:auto; min-height:32px; padding:5px 10px; }
+:is(.crm-timeline,.record-activity-history) [hidden] { display:none; }
 .contacts-directory-layout { min-width:0; display:grid; gap:20px; align-items:start; }
 .contacts-directory-layout.contacts-account-open { grid-template-columns:minmax(330px,420px) minmax(0,1fr); }
 .contacts-account-pane { min-width:0; width:100%; margin:0; padding:0; }
@@ -38,7 +38,7 @@
 .board-follow-up-due { position:absolute; top:12px; right:13px; color:#d93647; font-size:20px; font-weight:800; line-height:1; }
 .contacts-board .project-kanban-card:has(.board-follow-up-due:not([hidden]))>.project-card-heading { padding-right:18px; }
 #project-list .project-list-row { position:relative; }
-#project-list .project-list-row:has(.board-follow-up-due:not([hidden])) .project-row-heading { padding-right:18px; }
+#project-list .project-row-heading > .board-follow-up-due { position:static; align-self:flex-start; margin-block-start:2px; }
 .contacts-board .project-kanban-card[draggable="true"] { cursor:grab; }
 .contacts-board .project-title-button,.contacts-table .text-button { text-align:left; }
 .contacts-board .project-kanban-card p { margin:6px 0; overflow-wrap:anywhere; }
@@ -72,6 +72,7 @@
 [data-enquiry-compare] table,.crm-identity-section table { table-layout:fixed; overflow-wrap:anywhere; }
 [data-enquiry-compare] .button,.crm-identity-section .button { margin-block-start:8px; }
 .crm-identity-section summary { cursor:pointer; font-weight:700; }
+.crm-merge-records select[size]:not([size="1"]) { height:auto; padding-block:4px; }
 .contacts-group label:only-of-type { grid-column:1/-1; }
 .contacts-group textarea { resize:vertical; min-height:56px; }
 .contacts-dialog-actions { justify-content:flex-end; }
@@ -122,8 +123,20 @@
 .contacts-record-toolbar>.button{height:42px;min-height:42px}
 .contacts-record-workspace .contacts-record-details>.contacts-group{grid-template-columns:repeat(2,minmax(0,1fr))}
 .contacts-record-workspace .contacts-group.contacts-follow-up,.contacts-form .contacts-follow-up{grid-template-columns:minmax(0,1fr)}
-.contacts-follow-up>.field{grid-column:1/-1;min-width:0;width:100%}
-.contacts-follow-up textarea{width:100%;overflow-y:hidden;resize:vertical;line-height:1.5}
+.follow-up-action-list{container-type:inline-size;display:grid;gap:14px;min-width:0}
+.follow-up-action-row{display:grid;grid-template-columns:minmax(0,1fr) 10.5rem minmax(7.5rem,9rem);align-items:start;gap:8px 12px}
+.follow-up-action-row>.field{display:grid;min-width:0;gap:6px;margin:0}
+.follow-up-action-row :is(textarea,input,select){box-sizing:border-box;width:100%;min-width:0;min-height:42px;margin:0}
+.follow-up-action-row textarea{field-sizing:content;resize:vertical;padding-block:9px;line-height:1.45}
+.follow-up-action-row :is(input,select){height:42px;padding-block:0}
+.follow-up-add{margin-top:12px}
+@container (max-width:540px){
+  .follow-up-action-row{grid-template-columns:minmax(0,1fr) minmax(0,10.5rem)}
+  .follow-up-action-row>.field:last-child{grid-column:1/-1;max-width:10.5rem}
+}
+@container (max-width:285px){
+  .follow-up-action-row{grid-template-columns:minmax(0,1fr)}
+}
 .contacts-record-workspace .contacts-dialog-actions{margin:0}
 .contacts-record-workspace .contacts-related>h3{display:none}
 .contacts-record-workspace .contacts-link-controls{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
@@ -137,6 +150,6 @@
 .contacts-record-workspace .contacts-related{gap:16px}
 .contacts-record-workspace .contacts-related>[role=status]:empty,.contacts-record-workspace .contacts-record-associations:empty{display:none}
 .contacts-record-workspace .contacts-links-group .text-button{white-space:normal;overflow-wrap:anywhere;text-align:start}
-.contacts-record-workspace .crm-timeline .contacts-group{grid-template-columns:minmax(0,1fr)}
+.record-activity-history .contacts-group,.contacts-record-workspace .crm-timeline .contacts-group{grid-template-columns:minmax(0,1fr)}
 @media(max-width:1050px){.contacts-record-layout{grid-template-columns:minmax(0,1fr)}.contacts-record-main{grid-row:1}.contacts-record-left{grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))}.contacts-record-associations{display:contents}}
 @media(max-width:560px){.contacts-record-workspace .contacts-record-details>.contacts-group{grid-template-columns:minmax(0,1fr)}.contacts-record-details{padding:16px}}

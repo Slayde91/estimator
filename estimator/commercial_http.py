@@ -1,5 +1,6 @@
 """Project commercial routes and explicitly versioned future-document rate defaults."""
 from copy import deepcopy
+from functools import partial
 from hashlib import sha256
 import json
 from urllib.parse import parse_qs, urlsplit
@@ -14,7 +15,7 @@ from .unfiled_commercial import quote_context
 
 
 class CommercialHTTP:
-    def __init__(self, service, derive=None, company=None, saved=None, pricing=None, rate_defaults=None, billing=None):
+    def __init__(self, service, derive=None, company=None, saved=None, pricing=None, rate_defaults=None, billing=None, staff=None):
         self.service = service
         self.saved = saved
         self.derive = derive
@@ -22,6 +23,7 @@ class CommercialHTTP:
         self.pricing = pricing
         self.rate_defaults = rate_defaults
         self.billing = billing
+        self.staff = staff or (lambda: [])
 
     def _company(self):
         return self.company() if callable(self.company) else self.company
@@ -142,6 +144,12 @@ class CommercialHTTP:
                 elif action == 'attachment' and set(body) == {'workspace_id', 'name', 'content'} and not expected_workspace:
                     project = self.service.certifications.project_id(workspace)
                     result = self.service.files.add(project, body['name'], body['content'])
+                elif action in {'activity','saved-activity'} and not expected_workspace:
+                    execute = partial(self.execute, actor=getattr(handler,'crm_actor',None))
+                    if action == 'saved-activity' and self.saved:
+                        result = self.saved.perform('activity', body, execute)
+                    else:
+                        result = execute(action, body)
                 elif action.startswith('saved-') and self.saved and not expected_workspace:
                     result = self.saved.perform(action[6:], body, self.execute)
                 else:
@@ -165,7 +173,7 @@ class CommercialHTTP:
             handler.send_payload(400, {'error': message})
         return True
 
-    def execute(self, action, body, *, owner_key=None):
+    def execute(self, action, body, *, owner_key=None, actor=None):
         common = {'workspace_id', 'estimates', 'active_estimate_id'}
         fields_by_action = {
             'defaults': {'kind', 'details', 'project_details'}, 'derive': {'fields', 'selected_ids', 'include_scope_tables'},
@@ -173,6 +181,7 @@ class CommercialHTTP:
             'save': {'id', 'version', 'kind', 'status', 'fields', 'retain_unfiled', 'project_details', 'billing_review', 'signature_actions'},
             'delete': {'id', 'version'}, 'status': {'id', 'version', 'status'},
             'notes': {'id', 'version', 'notes'},
+            'activity': {'id','version','activity'},
             'issue': {'id', 'kind', 'version', 'request_id'},
         }
         if action not in fields_by_action or set(body) - common - fields_by_action[action]:
@@ -181,6 +190,11 @@ class CommercialHTTP:
         identity = body.get('id')
         if identity is not None and not isinstance(identity, str):
             raise ValidationError('Choose a valid commercial document.')
+        if action == 'activity':
+            if not isinstance(body.get('activity'), dict):
+                raise ValidationError('Use the activity form.')
+            return self.service.activity(workspace, identity, entry=body['activity'], version=body.get('version'),
+                                         actor=actor, staff=self.staff)
         project, document = self.service.document_context(workspace, identity if action in {'save', 'notes', 'issue'} else None)
         if action == 'defaults':
             self.service.certifications.require_created_project(workspace)

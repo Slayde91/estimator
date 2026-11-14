@@ -148,7 +148,7 @@ const ready = new Promise((resolve, reject) => {
   await page.locator('#contacts-root .contacts-tabs').getByRole('button',{name:'Companies',exact:true}).click();
   await page.locator('#contacts-root').getByRole('button',{name:'Source Company',exact:true}).click();
   const sourceEditor=page.getByRole('complementary',{name:'Edit Company',exact:true});
-  for (const group of ['contacts','projects','converted_leads']) {
+  for (const group of ['contacts','converted_leads']) {
     await expect(sourceEditor.locator('[data-link-group="' + group + '"]')).toHaveJSProperty('open', false);
   }
   await expect(sourceEditor.locator('.contacts-links [data-link-group="projects"] input')).toBeDisabled();
@@ -158,12 +158,12 @@ const ready = new Promise((resolve, reject) => {
     await api('/api/projects/details/save',{id:projectFile.id,revision:current.revision,request_id:randomUUID(),
       details:{...current.details,client:target.company,account_id:target.id}});
     const response=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/contacts/account-links' && new URL(reply.url()).searchParams.get('id')===sourceAccount.id);
-    await sourceEditor.getByRole('button',{name:'Refresh linked records',exact:true}).click();
+    await sourceEditor.getByRole('button',{name:'Refresh Records',exact:true}).click();
     assert.equal((await response).status(),200);
     await expect(sourceEditor.getByRole('button',{name:'Save',exact:true})).toBeEnabled();
   }
   await primaryAccount(account);
-  await expect(sourceEditor.locator('.contacts-links [data-link-group="projects"]')).toHaveCount(0);
+  await expect(sourceEditor.locator('.contacts-links [data-link-group="projects"] > summary')).toHaveText('Linked Projects (0)');
   await sourceEditor.getByRole('button',{name:'Save',exact:true}).click();
   await expect(sourceEditor).toBeHidden();
   assert.equal((await api('/api/contacts/account-links?id='+sourceAccount.id)).linked.projects.length,0);
@@ -195,7 +195,7 @@ const ready = new Promise((resolve, reject) => {
   const edit = page.getByRole('complementary',{name:'Edit Company',exact:true});
   await expect(edit).toBeVisible();
   await expect(edit).toContainText('Unavailable saved record. Clear the selection to remove this link.');
-  await expect(edit.locator('.contacts-links-group > summary')).toHaveText(['Contacts (1)','Projects (1)']);
+  await expect(edit.locator('.contacts-links-group > summary')).toHaveText(['Contacts (1)','Linked Quotes (0)','Linked Work Orders (0)','Linked Purchase Orders (0)','Linked Projects (1)']);
   const retainedRefresh=page.waitForResponse(reply=>{
     const url=new URL(reply.url());return url.pathname==='/api/contacts/account-links'
       && url.searchParams.get('id')===account.id && url.searchParams.get('search')==='No matching record';
@@ -204,7 +204,7 @@ const ready = new Promise((resolve, reject) => {
   await expect(edit.locator('.contacts-link-search-results')).toContainText('No matching records.');
   await edit.getByLabel('Find records to link').press('Escape');
   assert.equal((await retainedRefresh).status(),200);
-  await expect(edit.getByRole('button',{name:'Refresh linked records',exact:true})).toBeEnabled();
+  await expect(edit.getByRole('button',{name:'Refresh Records',exact:true})).toBeEnabled();
   await expect(edit.getByRole('button',{name:'Save',exact:true})).toBeEnabled();
   await expect(edit.locator('.contacts-links [data-link-group="projects"] input')).toBeChecked();
   let retained;

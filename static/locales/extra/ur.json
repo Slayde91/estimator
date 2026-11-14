@@ -1,4 +1,11 @@
 {
+  "Refresh Records": "ریکارڈ تازہ کریں",
+  "Pending": "زیر التوا",
+  "Add follow-up": "فالو اپ شامل کریں",
+  "Follow-up status": "فالو اپ کی حیثیت",
+  "Canceled": "منسوخ",
+  "Follow-up completed": "فالو اپ مکمل ہوا",
+  "Follow-up canceled": "فالو اپ منسوخ ہوا",
   "Clear the {0} signature and move this Quote to {1}?": "کیا «{0}» کے دستخط مٹا کر اس پیشکش کو «{1}» کے مرحلے میں منتقل کریں؟",
   "Signing sets the linked Quote to {0}.": "دستخط کرنے سے منسلک پیشکش کی حیثیت «{0}» ہو جائے گی۔",
   "{0} This sets the linked Quote to {1}.": "{0} اس سے منسلک پیشکش کی حیثیت «{1}» ہو جائے گی۔",

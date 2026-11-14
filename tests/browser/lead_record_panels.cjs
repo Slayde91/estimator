@@ -69,5 +69,19 @@ async function checkLeadRecordPanels(page, api, person, output) {
     await expect(page.locator('#commercial-'+kind.replaceAll('_','-')+'-root .commercial-editor-actions')).toBeVisible();
     await openLead();
   }
+  for (const [tab, label, form] of [['Contacts',current.name,'Contact'],['Companies',current.company,'Company']]) {
+    if (!await host.isVisible()) await page.locator('#contacts-navigation-toggle').click();
+    await host.locator('.contacts-tabs').getByRole('button',{name:tab,exact:true}).click();
+    await host.locator('.contacts-results').getByRole('button',{name:label,exact:true}).click();
+    const sidebar=page.getByRole('complementary',{name:'Edit '+form,exact:true}).locator('.contacts-record-right');
+    await expect(sidebar.locator('details > summary')).toHaveText([
+      'Notes (0)','Files (0)','Linked Quotes (1)','Linked Work Orders (1)','Linked Purchase Orders (1)','Linked Projects (1)']);
+    for (const group of ['quotes','work_orders','purchase_orders','projects']) await expect(sidebar.locator('[data-link-group='+group+']').getByRole('button')).toBeVisible();
+    const opened=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/commercial/saved-open');
+    await sidebar.locator('[data-link-group=quotes]').getByRole('button').click();
+    const response=await opened;assert.ok(response.ok(),await response.text());
+    const request=response.request().postDataJSON();
+    assert.equal(request.id,ids.quote);assert.equal(request.source.file_id,source.file_id);
+  }
 }
 module.exports = {checkLeadRecordPanels};

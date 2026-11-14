@@ -9,8 +9,9 @@
   const text = (element,source) => window.CeasefireI18n ? window.CeasefireI18n.text(element,source) : (element.textContent=source);
   const fields = {project_no:"project-pane-number", client:"project-pane-client", site_address:"project-pane-address",
     billing_address:"project-pane-billing-address", abn_acn:"project-pane-abn-acn", contact_name:"project-pane-contact-name",
-    contact_email:"project-pane-contact-email", contact_phone:"project-pane-contact-phone",
-    next_action:"project-pane-next-action", follow_up_date:"project-pane-follow-up-date"};
+    contact_email:"project-pane-contact-email", contact_phone:"project-pane-contact-phone"};
+  const followUpHost = $("project-pane-follow-ups");
+  let followUpEditor;
   const metadataControls = [...pane.querySelectorAll("input,textarea,button"),...$("project-details-actions").querySelectorAll("button")];
   const participantSlots = [$("project-company-participants"),$("project-contact-participants")];
   function revealField(control) {
@@ -31,7 +32,11 @@
     // browser's required constraint before a new Project has been allocated.
     control.required = true;
   }
-  const normalize = details => Object.fromEntries([...Object.keys(fields), "account_id", "contact_id"].map(key => [key, String(details?.[key] || "").trim()]));
+  const followUpRows = (values = {}) => window.ClassifireFollowUpActions.rows({...values,actions:values.follow_up_actions});
+  function normalize(details = {}) {
+    const identity = Object.fromEntries([...Object.keys(fields), "account_id", "contact_id"].map(key => [key, String(details[key] || "").trim()]));
+    return {...identity, follow_up_actions:followUpRows(details)};
+  }
   const stamp = details => JSON.stringify(normalize(details));
   const sharedStamp = details => { const value = normalize(details); delete value.project_no; return JSON.stringify(value); };
   const snapshot = () => window.CeasefireProject.projectPaneSnapshot();
@@ -42,12 +47,18 @@
     if (current.busy || !current.file?.title || headerDetails.open) return;
     const list = headerDetails.querySelector("dl");
     const rows = [];
-    for (const [key,id] of Object.entries(fields)) {
+    function add(label, content) {
       const row = document.createElement("div"), term = document.createElement("dt"), value = document.createElement("dd");
-      const label = $(id).labels[0];
-      term.textContent = (label.querySelector("span") || label).textContent;
-      value.textContent = current.details[key] || "—";
+      term.textContent = label; value.textContent = content || "—";
       row.append(term,value); rows.push(row);
+    }
+    for (const [key,id] of Object.entries(fields)) {
+      const label = $(id).labels[0];
+      add((label.querySelector("span") || label).textContent, current.details[key]);
+    }
+    for (const action of followUpRows(current.details)) {
+      add(translate("Next action"), action.next_action);
+      add(translate("Follow-up due"), [action.follow_up_date, action.status && translate(action.status)].filter(Boolean).join(" · "));
     }
     list.replaceChildren(...rows);
     headerDetails.querySelector(".header-project-details-title").textContent = current.file.title;
@@ -65,7 +76,7 @@
   }
   let selected = null, ticket = 0, pending = false, accounts = [], accountId = "", accountName = "", optionIndex = -1, options = [], directoryTicket = 0, currentRule = null;
   let contacts = [], contactId = "", contactName = "", contactOptions = [], contactOptionIndex = -1, contactLoading = false, contactPopupRequested = false, returningContactFocus = false;
-  function details() { return {...Object.fromEntries(Object.entries(fields).map(([key,id]) => [key,$(id).value.trim()])), account_id:accountId, contact_id:contactId}; }
+  function details() { return {...Object.fromEntries(Object.entries(fields).map(([key,id]) => [key,$(id).value.trim()])), account_id:accountId, contact_id:contactId, follow_up_actions:followUpEditor?.value() ?? []}; }
   function dirty() { return !!selected && ["saved","new"].includes(selected.kind) && stamp(details()) !== stamp(selected.baseline); }
   const directoryFields = {abn_acn:'ABN/ACN',billing_address:'Billing address',contact_email:'Email',contact_phone:'Phone'};
   const pendingDirectoryFields = new Map();
@@ -123,6 +134,7 @@
     const recovering = selected?.kind === "new" && selected.creation?.uncertain;
     for (const control of metadataControls) control.disabled = value || recovering && control.id !== "project-details-save" || !!selected?.blocked && control.id !== "project-details-close";
     for (const slot of participantSlots) slot.inert = !!(value || recovering || selected?.blocked);
+    followUpHost.inert = !!(value || recovering || selected?.blocked);
     links.inert = !!(value || recovering || selected?.blocked);
     $("project-current-details").disabled = value;
   }
@@ -161,12 +173,14 @@
   async function leave() {
     if (pending || selected?.creation?.uncertain || window.ClassifireProjectParticipants?.pending() || window.ClassifireProjectRecordPanels?.pending()) { notice("Finish the current project details action first.", true); return false; }
     if (!await (window.ClassifireProjectRecordPanels?.leave() ?? true)) return false;
-    if (dirty() && !await window.CeasefireDialogs.confirm(translate("Discard unsaved project details?"), translate("The changes in this Project Details pane have not been saved. Discard them?"), translate("Yes"), translate("Cancel"))) return false;
+    if ((dirty() || window.ClassifireProjectParticipants?.dirty?.()) && !await window.CeasefireDialogs.confirm(translate("Discard unsaved project details?"), translate("The changes in this Project Details pane have not been saved. Discard them?"), translate("Yes"), translate("Cancel"))) return false;
     hide(); return true;
   }
   function show(values, target) {
     window.ClassifireProjectParticipants?.show(selected.kind==="saved" ? selected.file : selected.kind==="current" ? snapshot().file : null);
     for (const [key,id] of Object.entries(fields)) $(id).value = values[key] || "";
+    followUpEditor = window.ClassifireFollowUpActions.mount(followUpHost, {actions:followUpRows(values),
+      idPrefix:"project-pane", dateLabel:"Follow-up due", onChange:applyCurrentDraft});
     accountId = values.account_id || ""; accountName = values.client || "";
     contactId = values.contact_id || ""; contactName = values.contact_name || ""; contactLoading = false;
     $("project-details-target").textContent = target;
@@ -419,6 +433,7 @@
       if (generation !== directoryTicket || selected !== target || ticket !== opening || !selected) return;
       accounts = directory.accounts || []; contacts = directory.contacts || []; contactLoading = false;
       renderAccounts(); renderContacts();
+      return directory;
     } catch (error) {
       if (generation === directoryTicket && selected === target && ticket === opening && selected) {
         contactLoading = false; contacts = []; renderContacts(); notice(error.message, true);
@@ -427,6 +442,20 @@
   }
   $("project-current-details").addEventListener("click", openCurrent);
   $("project-details-close").addEventListener("click", leave);
+  $("project-refresh-records").addEventListener("click", async event => {
+    if (!selected || pending || snapshot().busy || window.ClassifireProjectParticipants?.pending() || window.ClassifireProjectRecordPanels?.pending()) return;
+    const control = event.currentTarget, target = selected;
+    control.disabled = true;
+    try {
+      await Promise.all([
+        window.ClassifireProjectRecordPanels?.refresh(),
+        loadAccounts().then(directory => {
+          if (target === selected) return window.ClassifireProjectParticipants?.refresh(directory);
+        })
+      ]);
+    } catch (error) { if (target === selected) notice(error.message,true); }
+    finally { if (target === selected && !pending) control.disabled = false; }
+  });
   $("project-details-toolbar-save").addEventListener("click", () => {
     if (!selected || pending || selected.blocked || snapshot().busy) return;
     if (selected.kind === "current") $("save-current-project").click();
@@ -518,7 +547,7 @@
     primaryParties: () => ({accounts:accountId,contacts:contactId}),
     savePendingDetails: async () => { if (dirty()) await save(); },
     closeAfterReplacement: hide,
-    hasUnsavedChanges:()=>dirty() || Boolean(window.ClassifireProjectRecordPanels?.dirty()), hasPendingOperation:() => pending || !!selected?.creation?.uncertain || Boolean(window.ClassifireProjectRecordPanels?.pending()), fingerprint:() => selected ? JSON.stringify({id:selected.file?.id,context:selected.context,values:details(),resources:window.ClassifireProjectRecordPanels?.fingerprint()}) : "",
+    hasUnsavedChanges:()=>dirty() || Boolean(window.ClassifireProjectRecordPanels?.dirty() || window.ClassifireProjectParticipants?.dirty?.()), hasPendingOperation:() => pending || !!selected?.creation?.uncertain || Boolean(window.ClassifireProjectRecordPanels?.pending() || window.ClassifireProjectParticipants?.pending()), fingerprint:() => selected ? JSON.stringify({id:selected.file?.id,context:selected.context,values:details(),resources:window.ClassifireProjectRecordPanels?.fingerprint(),activity:window.ClassifireProjectParticipants?.fingerprint?.()}) : "",
     async beforeProjectSave() {
       if (pending || window.ClassifireProjectParticipants?.pending() || window.ClassifireProjectRecordPanels?.pending() || window.ClassifireProjectRecordPanels?.dirty()) throw new Error("Finish the current project details action before saving.");
       if (selected?.kind === "new") throw new Error("Save or cancel the new project details first.");

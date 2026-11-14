@@ -8,6 +8,7 @@ from pathlib import Path
 import secrets
 import zlib
 
+from .commercial_sources import source_id
 from .catalog import ValidationError
 from .commercial_documents import apply_project_document_details, CommercialConflict, commercial_cards, _stored_document
 
@@ -35,6 +36,7 @@ class UnfiledCommercial:
         self.service = service
         self._access = ContextVar('unfiled_commercial_access', default=None)
         db.executescript("""
+            CREATE TABLE IF NOT EXISTS commercial_activity_sources(workspace TEXT PRIMARY KEY, source TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS local_commercial_owners (
                 workspace TEXT PRIMARY KEY, token TEXT NOT NULL UNIQUE, generation INTEGER NOT NULL DEFAULT 1,
                 filed INTEGER NOT NULL DEFAULT 0);
@@ -70,7 +72,14 @@ class UnfiledCommercial:
             db.execute('UPDATE local_commercial_owners SET generation=generation+1 WHERE workspace=?', (workspace,))
 
     @staticmethod
-    def bind_file(db, workspace):
+    def bind_file(db, workspace, path=None):
+        if path is not None:
+            source = source_id(str(path))
+            # Only the first filing adopts previously workspace-owned entries.
+            # A later Save As binds future writes to its own source.
+            db.execute('UPDATE record_activity SET source=? WHERE source=?', (source, 'workspace:'+workspace))
+            db.execute("""INSERT INTO commercial_activity_sources VALUES(?,?) ON CONFLICT(workspace)
+                DO UPDATE SET source=excluded.source""", (workspace,source))
         # A filed workspace can never regain local ownership, even through a stale window.
         db.execute('INSERT INTO local_commercial_owners(workspace,token,filed) VALUES(?,?,1) '
                    'ON CONFLICT(workspace) DO UPDATE SET filed=1,generation=generation+1',
@@ -95,7 +104,7 @@ class UnfiledCommercial:
             for row in db.execute("""SELECT p.*,w.project_id FROM local_commercial_publications p
                     JOIN commercial_workspaces w USING(workspace)""").fetchall():
                 if verify_and_register(row):
-                    self.bind_file(db, row['workspace'])
+                    self.bind_file(db, row['workspace'], row['path'])
                     db.execute('DELETE FROM pending_quote_project_stages WHERE workspace=?', (row['workspace'],))
 
     def cancel_publication(self, workspace, path, digest):
@@ -133,7 +142,7 @@ class UnfiledCommercial:
                 (owner['workspace'], identity)).fetchone()
             if not row:
                 raise CommercialConflict(STALE)
-            return self.service._document_activity(db, owner['project_id'], json.loads(row['data']))
+            return self.service._document_activity(db, owner['project_id'], json.loads(row['data']), 'workspace:'+owner['workspace'])
 
     def scheduler_order(self, source, revision, project, identity):
         """Verify exactly one explicitly saved board record, including an interrupted file handover."""

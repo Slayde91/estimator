@@ -274,7 +274,13 @@
   const fieldByCell = (cell) => state.fields.find((field) => field.cell === cell);
 
   const projectDetailControls = {project_no:"project-no", client:"client", site_address:"site-address", contact_name:"project-contact-name", contact_phone:"project-contact-phone", contact_email:"project-contact-email", account_id:"project-account-id", contact_id:"project-contact-id", billing_address:"project-billing-address", abn_acn:"project-abn-acn"};
-  function followUpFields({next_action = "", follow_up_date = ""} = {}) { return {next_action, follow_up_date}; }
+  function followUpFields(values = {}) {
+    const actions = values.actions?.length || values.next_action || values.follow_up_date ? window.ClassifireFollowUpActions.rows(values) : [];
+    return {actions, ...(values.history?.length ? {history:values.history} : {})};
+  }
+  function splitProjectDetails({follow_up_actions:actions, next_action, follow_up_date, ...identity}) {
+    return {identity, followUp:followUpFields({actions, next_action, follow_up_date})};
+  }
   let projectFollowUp = followUpFields();
   let savedProjectFollowUp = projectFollowUp;
   function quoteDetails() {
@@ -1473,7 +1479,7 @@
   }
   function projectPricingChanged() { return draftChanged(state.pricingScope === "project" ? state.draft : state.projectPricingDraft, state.quoteConfiguration || state.configuration); }
   function projectHasChanges() {
-    if (projectFollowUp.next_action !== savedProjectFollowUp.next_action || projectFollowUp.follow_up_date !== savedProjectFollowUp.follow_up_date) return true;
+    if (JSON.stringify(projectFollowUp.actions) !== JSON.stringify(savedProjectFollowUp.actions)) return true;
     if (editingEstimateName && $("project-estimate-current-name").value.trim() !== editingEstimateName.name) return true;
     return state.estimatesDirty || window.ClassifirePassiveRegister?.hasProjectChanges() || window.CeasefireSWMS?.hasProjectChanges?.() || window.CeasefireCommercial?.hasProjectChanges?.() || state.projectStatus !== (state.projectFile?.project_status || "New") || window.CeasefireDownloads?.hasUnsavedProjectSave?.() || state.dirty || projectPricingChanged() || window.CeasefireCalculators?.hasUnsavedChanges() || window.CeasefirePenetrations?.hasUnsavedChanges() || window.CeasefireTakeoffs?.hasUnsavedChanges() || window.CeasefireLibraryEditor?.hasProjectChanges?.() || window.CeasefireCertification?.hasProjectChanges?.() || window.CeasefireDocumentation?.hasProjectChanges?.();
   }
@@ -2490,6 +2496,7 @@
         const savedStage = saved.file.project_status ?? saved.project.project_status ?? payload.project_status;
         state.projectFile = {...saved.file, project_status:savedStage};
         savedProjectFollowUp = followUpFields(saved.project.project_follow_up ?? payload.project_follow_up);
+        projectFollowUp = projectFollowUp.actions === payload.project_follow_up.actions ? savedProjectFollowUp : {...savedProjectFollowUp, actions:projectFollowUp.actions};
         if (state.projectStatus === payload.project_status) state.projectStatus = savedStage;
         if (!changed) {
           state.projectEstimates = collectionFromProject(saved.project, payload.estimates);
@@ -2509,7 +2516,7 @@
         }
         $("project-no").value = assigned.get(state.activeEstimateId) ?? saved.project.estimate.project_no ?? "";
         updateQuoteTitle();
-        window.CeasefireProjectPane?.projectSaved?.({...saved.project.estimate,...savedProjectFollowUp});
+        window.CeasefireProjectPane?.projectSaved?.({...saved.project.estimate,follow_up_actions:savedProjectFollowUp.actions});
         window.CeasefireProjectDetails?.saved(context);
         if (commercial) window.CeasefireCommercial?.markProjectSaved?.(saved.project.commercial_documents, commercial);
         window.CeasefireCommercial?.projectNumberAssigned?.(quoteDetails());
@@ -2626,8 +2633,8 @@
         if (!operation.certification) operation.certification = await window.CeasefireCertification.prepareProject();
         const saveRequest = await window.CeasefireProjectDetails.prepareSave(operation.id);
         const configuration = clone(state.configuration);
-        const {next_action, follow_up_date, ...identity} = details;
-        operation.request = {project_status:"New", project_follow_up:followUpFields({next_action,follow_up_date}), estimate:{...identity, configuration, workflow:state.defaultWorkflow, measurements:"", work_items:[],
+        const {identity, followUp} = splitProjectDetails(details);
+        operation.request = {project_status:"New", project_follow_up:followUp, estimate:{...identity, configuration, workflow:state.defaultWorkflow, measurements:"", work_items:[],
           inputs:Object.fromEntries(state.currentFields.map(field=>[field.cell,field.cell === "B12" ? "" : field.default ?? ""]))}, calculators:{},
           certifications:{workspace_id:operation.certification.workspace_id,draft:null}};
         operation.request.project_save_request = saveRequest;
@@ -2778,17 +2785,18 @@
       cardFor: file => {
         const row = node("article", "project-kanban-card project-list-row");
         row.dataset.projectId = file.id;
-        window.ClassifireDocumentBoard.addFollowUpMarker(row, file.follow_up_date);
         const title = node("button", "project-title-button", file.title || file.name);
         title.type = "button";
         window.CeasefireI18n.attr(title, "aria-label", "Project details for {0}", [file.title || file.name]);
         title.addEventListener("click", () => window.CeasefireProjectPane?.open(file));
         const heading = node("div", "project-row-heading");
         heading.append(title);
+        window.ClassifireDocumentBoard.addFollowUpMarker(heading, file.follow_up_date);
         const details = node("div", "project-row-details");
         const information = node("dl", "kanban-card-details");
         for (const [label, value] of [
           ["Project No.", file.project_no], ["Client", file.client], ["Site address", file.site_address],
+          ["Next action", file.next_action], ["Follow-up due", file.follow_up_date && new Date(file.follow_up_date+"T00:00:00Z").toLocaleDateString("en-AU",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric"})],
           ["Updated", new Date(file.modified_at).toLocaleString("en-AU", {year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false})]
         ]) information.append(uiNode("dt", "", label), node("dd", "", value || "—"));
         details.append(heading, information);
@@ -3346,11 +3354,11 @@
     throw new Error("The project was saved, but could not be opened automatically. Open it from Projects.");
   }
   window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus, scheduleChanged, hasCreatedProject, requireCreatedProject, createProject, discardNewProject, refreshPages: refreshProjectPages,
-    projectPaneSnapshot: () => ({details:{...quoteDetails(),...projectFollowUp}, context:state.quoteContext, file:state.projectFile ? clone(state.projectFile) : null, busy:state.projectBusy}),
+    projectPaneSnapshot: () => ({details:{...quoteDetails(),follow_up_actions:clone(projectFollowUp.actions)}, context:state.quoteContext, file:state.projectFile ? clone(state.projectFile) : null, busy:state.projectBusy}),
     applyProjectPaneDraft(details, context) {
       if (context !== state.quoteContext) throw new Error("The current project changed. Open its details again.");
-      const {next_action, follow_up_date, ...identity} = details;
-      projectFollowUp = followUpFields({next_action,follow_up_date});
+      const {identity, followUp} = splitProjectDetails(details);
+      projectFollowUp = {...projectFollowUp, actions:followUp.actions};
       applyQuoteDetails(identity);
       for(const entry of state.projectEstimates)if(entry.workspace?.estimate) {
         const number=entry.workspace.estimate.project_no;
@@ -3391,17 +3399,19 @@
       // Metadata saves must never mark an estimate, calculator or pricing draft saved.
       // Rebase only identity fields; every other workspace value stays untouched.
       state.projectFile = result.file;
-      const {next_action, follow_up_date, ...identity} = result.details;
-      savedProjectFollowUp = followUpFields({next_action,follow_up_date});
+      const {identity, followUp} = splitProjectDetails(result.details);
+      savedProjectFollowUp = followUpFields(result.project_follow_up ?? followUp);
       for (const entry of state.projectEstimates) if (entry.workspace?.estimate) {
         const estimate = entry.workspace.estimate;
         const projectNo = estimate.project_no;
         Object.assign(estimate, identity, {project_no:projectNo});
         estimate.title = [estimate.project_no, estimate.client, (estimate.site_address || "").replace(/\s+/g," ")].filter(Boolean).join("- ") || estimate.title;
       }
-      if (JSON.stringify({...quoteDetails(),...projectFollowUp}) === JSON.stringify(snapshot.details)) {
+      if (JSON.stringify({...quoteDetails(),follow_up_actions:projectFollowUp.actions}) === JSON.stringify(snapshot.details)) {
         applyQuoteDetails({...identity,project_no:snapshot.details.project_no});
         projectFollowUp = savedProjectFollowUp;
+      } else {
+        projectFollowUp = {...savedProjectFollowUp, actions:projectFollowUp.actions};
       }
       updateQuoteTitle(); updateProjectStatus();
       window.CeasefireCommercial?.projectDetailsChanged?.();

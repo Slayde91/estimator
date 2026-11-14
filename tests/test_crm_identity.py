@@ -94,6 +94,30 @@ class IdentityTests(unittest.TestCase):
         self.assertEqual(self.originals(),before)
         self.assertEqual(len(self.store.list()['accounts']),2)
 
+    def test_merge_suggestions_cover_initials_typo_variants_and_only_eligible_sources(self):
+        names = ('ABC', 'Australian Building Company Pty Ltd', 'Austrailian Building Company',
+                 'South PFP', 'South Passive Fire Protection', 'ABC Fabrication', 'ABC Services')
+        ids = {name:self.save('accounts',{'company':name}) for name in names}
+        self.merge('accounts', ids['ABC Fabrication'], ids['ABC Services'])
+        contacts = {name:self.save('contacts',{'name':name, 'company':'Shared Office',
+                                              'email':f'person{i}@example.test', 'phone':f'045500000{i}'})
+                    for i,name in enumerate(('J. Smith','James Smith','Jamse Smith','James Brown'))}
+        before = self.version()
+        def choices(kind, ident):
+            with self.store.connection() as db:
+                row = crm_identity.record(db,kind,ident)
+                return {match['id'] for match in crm_identity.suggestions(db,kind,row,ident,merge_sources=True)['matches']}
+        self.assertEqual(choices('accounts',ids['ABC']),
+                         {ids['Australian Building Company Pty Ltd'], ids['Austrailian Building Company']})
+        self.assertEqual(choices('accounts',ids['Australian Building Company Pty Ltd']),
+                         {ids['ABC'],ids['Austrailian Building Company']})
+        self.assertEqual(choices('accounts',ids['South PFP']), {ids['South Passive Fire Protection']})
+        self.assertEqual(choices('contacts',contacts['James Smith']), {contacts['J. Smith'],contacts['Jamse Smith']})
+        with self.store.connection() as db:
+            ordinary = crm_identity.suggestions(db,'accounts',{'company':'ABC'},ids['ABC'])
+        self.assertNotIn(ids['Australian Building Company Pty Ltd'], [match['id'] for match in ordinary['matches']])
+        self.assertEqual(self.version(), before)
+
     def test_contact_merge_exact_source_roles_reversible_and_original_enquiry_converts(self):
         old, new = self.person('Previous name','Agency'), self.person('Current name','Agency')
         fields = {'name':'Enquiry name','phone':'0412','email':'old@example.test','company':'Customer','site_address':'Work site'}

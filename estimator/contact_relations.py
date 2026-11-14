@@ -5,7 +5,7 @@ Only canonical Contact IDs and unambiguous saved-file provenance establish a
 project/document relationship here; names and filesystem paths are not inputs.
 """
 
-from .account_relations import DOCUMENT_GROUPS, _identity, _project_label, project_document_cards
+from .account_relations import DOCUMENT_GROUPS, _identity, _project_label, document_target, project_document_cards, project_target
 from .catalog import ValidationError
 from .commercial_sources import source_id
 from .crm_identity import group_ids
@@ -52,10 +52,8 @@ class ContactRelations:
                 sources[source] = token
             if row.get("contact_id") in members:
                 linked["projects"][token] = {"id": token, "label": _project_label(row), "available": True}
-                if row.get("path"):
-                    linked["projects"][token]["project"] = {
-                        "source": source_id(row["path"]), "owner": owner or "",
-                        "project_no": row.get("project_no", "")}
+                if target := project_target(row):
+                    linked["projects"][token]["project"] = target
 
         document_rank = {}
         for document in project_document_cards(register, listing['files']):
@@ -98,12 +96,8 @@ class ContactRelations:
                 continue
             document_rank[key] = rank
             entry = {"id": token, "label": label, "available": True, **({"roles": roles} if roles else {})}
-            project_file = projects.get(project_token, {})
-            file_id = source or project_file.get("id") or (source_id(project_file["path"]) if project_file.get("path") else None)
-            revision = document.get("source_revision") or project_file.get("revision")
-            if file_id and revision:
-                entry["document"] = {"source_file": file_id, "source_revision": revision,
-                                     "id": identifier, "kind": document["kind"], "project_id": owner}
+            if target := document_target(document, projects.get(project_token, {})):
+                entry["document"] = target
             linked[group][token] = entry
 
         missing = register.get("unavailable_sources", [])

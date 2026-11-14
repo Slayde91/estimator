@@ -46,7 +46,7 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
   await expect(timeline.locator('.crm-event-list')).toContainText('Discussed access times');
   const noteBox=await timeline.getByLabel('Activity details',{exact:true}).boundingBox();
   const logBox=await timeline.getByRole('button',{name:'Log activity',exact:true}).boundingBox();
-  assert.ok(noteBox.height>=90 && noteBox.width>2*logBox.width && logBox.height<=40);
+  assert.ok(noteBox.height>=90 && noteBox.width>2*logBox.width && logBox.height<=40,JSON.stringify({noteBox,logBox}));
   await timeline.getByLabel('Activity type',{exact:true}).selectOption('Task');
   await timeline.getByLabel('Activity details',{exact:true}).fill('Confirm site access');
   await expect(timeline.getByLabel('Activity owner',{exact:true})).toHaveValue(staff[0].id);

@@ -1,5 +1,6 @@
 from copy import deepcopy
 from pathlib import Path
+from threading import RLock
 import tempfile
 import unittest
 from uuid import uuid4
@@ -13,6 +14,7 @@ from estimator.project_relationships import address_key, address_site, project_l
 
 class Projects:
     def __init__(self):
+        self._lock = RLock()
         self.rows={id:{'source':id,'owner':str(uuid4()),'project_no':'PN-'+id,'client':'Builder '+id,
                        'site_address':'Shared address','revision':'current'} for id in ('A','B','C')}
 
@@ -75,6 +77,35 @@ class ParticipantTests(unittest.TestCase):
             self.service.save(remove,self.actor)
         self.assertEqual(self.link('A',1,rows=[self.participant])['linked_parties'],[evidence])
         self.assertEqual(self.projects.rows,before)
+
+    def test_log_project_activity_is_durable_idempotent_and_bound_to_its_source(self):
+        for project in self.projects.rows.values():
+            project.update(modified_at='2026-10-12T00:00:00Z',commercial_cards=[])
+        self.projects.rows['B']['owner'] = self.projects.rows['A']['owner']
+        entry = {'request_id':str(uuid4()),'type':'Task','text':'Confirm access','due_date':'2027-04-01'}
+        def post(key, data, actor=self.actor, revision='current'):
+            return self.service.log_activity({'project':key,'revision':revision,'activity':data},actor)
+        receipt = post('A',entry)
+        self.assertEqual(post('A',entry),receipt)
+        with self.assertRaises(ParticipantConflict):
+            post('A',{**entry,'text':'Replacement'})
+        with self.assertRaises(ParticipantConflict):
+            post('B',entry)
+        completion = {'request_id':str(uuid4()),'type':'Task completed','task_id':receipt['activity_id']}
+        with self.assertRaises(ValidationError):
+            post('B',completion)
+        with self.assertRaises(ParticipantConflict):
+            post('A',completion,revision='stale')
+        with self.assertRaises(ValidationError):
+            post('A',completion,actor=None)
+        self.assertEqual(post('A',completion),post('A',completion))
+        with self.assertRaises(ParticipantConflict):
+            post('A',{**completion,'request_id':str(uuid4())})
+        reopened = CRMParticipants(self.service.path,self.projects,self.contacts)
+        task = next(row for row in reopened.activity('A','current')['events'] if row['label']=='Task')
+        self.assertEqual((task['actor'],task['due_date'],task['subject']),('Synthetic staff','2027-04-01','Confirm access'))
+        self.assertTrue(task['completed_at'])
+        self.assertEqual(len(reopened.activity('B','current')['events']),1)
 
     def test_activity_is_scoped_to_file_owner_and_exact_revision(self):
         for project in self.projects.rows.values():

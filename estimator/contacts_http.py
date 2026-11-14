@@ -195,7 +195,8 @@ class ContactsHTTP:
                     with self.store.connection() as db:
                         db.execute('BEGIN')
                         owner = db.execute('SELECT id FROM accounts WHERE lookup_key=?', (company_key(fields['company']),)).fetchone()
-                        result = crm_identity.suggestions(db, kind, fields, body.get('id'), owner[0] if owner and kind == 'contacts' else None)
+                        result = crm_identity.suggestions(db, kind, fields, body.get('id'), owner[0] if owner and kind == 'contacts' else None,
+                                                          merge_sources=body.get('merge_sources') is True and bool(body.get('id')))
                 else:
                     handler.send_payload(404, {'error':'Directory action not found.'})
                     return True

@@ -25,19 +25,9 @@
     }
     control.value=keep;
   }
-  function attach(form, {kind,record,request,readOnly,version,setVersion,staff,locked,isOpen}) {
-    const box=el('details'),heading=el('summary',term('Activity history')),info=el('dl'),list=el('ol');
-    box.className='crm-timeline';info.className='kanban-card-details';list.className='crm-event-list';
-    const watched={...record};
-    function dates(){
-      info.replaceChildren();
-      for(const [key,name] of [['created_at','Created at'],['updated_at','Updated at'],['last_interaction_at','Last interaction']])
-        info.append(el('dt',term(name)),el('dd',stamp(watched[key])));
-    }
-    dates();const message=el('p');message.className='helper';message.setAttribute('role','status');
-    let cursor=null,seen=false,busy=false,serial=0,replay=null;
-    const earlier=button('Load earlier activity',()=>load(cursor));earlier.hidden=true;
-    box.append(heading,info,list,earlier,message);form.append(box);
+  let headingNumber = 0;
+  function activityForm({write, refresh, locked, current, message, staff}) {
+    let busy=false, replay=null, staffLoaded=false;
     const type=el('select'),note=el('textarea'),due=el('input'),owner=ownerSelect(),occurred=el('input');
     for(const name of ['Call','Email','Meeting','Note','Task'])type.add(new Option(term(name),name));
     type.value='Note';due.type='date';occurred.type='datetime-local';note.maxLength=4000;note.rows=5;
@@ -55,12 +45,61 @@
       dueField.hidden=type.value!=='Task';if(dueField.hidden)due.value='';
       timeField.hidden=!['Call','Email','Meeting'].includes(type.value);if(timeField.hidden)occurred.value='';
     });
-    staff.then(rows=>populate(owner,rows)).catch(()=>{});
+
     const controls=el('fieldset');controls.className='contacts-group';
     controls.append(el('legend',term('Log activity')),label('Activity type',type),label('Activity owner',owner),noteField,timeField,dueField);
-    const log=button('Log activity',()=>submit({kind,id:record.id,type:type.value,text:note.value,...(owner.disabled ? {} : {owner_id:owner.value}),due_date:due.value,
+    const log=button('Log activity',()=>submit({type:type.value,text:note.value,...(owner.disabled ? {} : {owner_id:owner.value}),due_date:due.value,
       ...(occurred.value ? {occurred_at:new Date(occurred.value).toISOString()} : {})}));
-    log.classList.add('crm-activity-submit');controls.append(log);if(!readOnly)box.append(controls);
+    log.classList.add('crm-activity-submit');controls.append(log);
+    function update() {
+      controls.disabled = busy || locked();
+      if (!staffLoaded && !controls.disabled) {
+        staffLoaded=true;
+        Promise.resolve().then(staff).then(rows=>populate(owner,rows)).catch(()=>{staffLoaded=false;});
+      }
+    }
+    async function submit(values) {
+      if(busy || locked() || !current())return;
+      if(values.type!=='Task completed'&&!values.text.trim()){note.focus();message.textContent=term('Enter activity details.');return;}
+      const fingerprint=JSON.stringify(values);
+      if(!replay||replay.fingerprint!==fingerprint)replay={fingerprint,id:crypto.randomUUID()};
+      busy=true;controls.disabled=true;
+      try {
+        await write({...values,request_id:replay.id});
+        if(!current())return;
+        replay=null;
+        if(values.type!=='Task completed'){note.value='';due.value='';owner.value=window.ClassifireAccess?.user?.id || '';occurred.value='';}
+        await refresh();
+      } catch(error) {if(current())message.textContent=error.message;}
+      finally {busy=false;update();}
+    }
+    return {controls, submit, update, pending:()=>busy, dirty:()=>Boolean(note.value || due.value || occurred.value),
+      fingerprint:()=>[type.value,note.value,due.value,owner.value,occurred.value]};
+  }
+  async function readStaff() {
+    const response = await fetch('/api/contacts/staff',{cache:'no-store'});
+    if (!response.ok) throw new Error('The directory could not be updated.');
+    return (await response.json()).staff;
+  }
+  function attach(form, {kind,record,request,readOnly,version,setVersion,staff,locked,isOpen}) {
+    const box=el('details'),heading=el('summary',term('Activity history')),info=el('dl'),list=el('ol');
+    box.className='crm-timeline';info.className='kanban-card-details';list.className='crm-event-list record-history-scroll';
+    heading.id='crm-activity-heading-'+(++headingNumber);
+    const watched={...record};
+    function dates(){
+      info.replaceChildren();
+      for(const [key,name] of [['created_at','Created at'],['updated_at','Updated at'],['last_interaction_at','Last interaction']])
+        info.append(el('dt',term(name)),el('dd',stamp(watched[key])));
+    }
+    dates();const message=el('p');message.className='helper';message.setAttribute('role','status');
+    let cursor=null,seen=false,serial=0;
+    const earlier=button('Load earlier activity',()=>load(cursor));earlier.hidden=true;
+    box.append(heading,info,list,earlier,message);form.append(box);
+    const editor=activityForm({locked, current:isOpen, message, staff:()=>staff, refresh:()=>load(), async write(values) {
+      const result=await request('activity',{kind,id:record.id,...values,version:version()});
+      if(isOpen() && result.version===version()+1)setVersion(result.version);
+    }});
+    if(!readOnly)box.append(editor.controls);
     function row(item){
       const li=el('li'),head=el('strong',term(item.event_type)),meta=el('p');
       const named=[stamp(item.recorded_at),term('Logged by')+': '+(item.actor_name || term('Unknown'))];
@@ -83,7 +122,7 @@
       if(Object.hasOwn(detail,'owner'))li.append(el('p',term('Owner')+': '+[detail.previous_owner,detail.owner || term('Unassigned')].filter(Boolean).join(' → ')));
       if(Object.hasOwn(detail,'region') && detail.region)li.append(el('p',term('Region')+': '+detail.region));
       if(!readOnly && item.event_type==='Task' && !item.completed_at)
-        li.append(button('Complete task',()=>submit({kind:item.kind,id:item.record_id,type:'Task completed',task_id:item.id})));
+        li.append(button('Complete task',()=>editor.submit({kind:item.kind,id:item.record_id,type:'Task completed',task_id:item.id})));
       return li;
     }
     async function load(before=null) {
@@ -94,31 +133,18 @@
         const result=await request('activity?'+query);if(seq!==serial || !isOpen())return;
         if(!before)list.replaceChildren();
         for(const item of result.events)list.append(row(item));
+        if(box.open)sizeList(list,5,heading);
         cursor=result.next_before;earlier.hidden=!cursor;seen=true;
         message.textContent=list.children.length?'':term('No activity recorded.');
         if(result.metadata){Object.assign(watched,result.metadata);dates();}
       } catch(error) {if(seq===serial&&isOpen())message.textContent=error.message;}
     }
-    async function submit(values) {
-      if(busy || locked())return;
-      if(values.type!=='Task completed'&&!values.text.trim()){note.focus();message.textContent=term('Enter activity details.');return;}
-      const fingerprint=JSON.stringify(values);
-      if(!replay||replay.fingerprint!==fingerprint)replay={fingerprint,id:crypto.randomUUID()};
-      busy=true;controls.disabled=true;
-      try {
-        const result=await request('activity',{...values,version:version(),request_id:replay.id});
-        if(!isOpen())return;
-        // Only advance an editor to its own consecutive revision. A replay
-        // after another user's change cannot grant a stale form a fresh version.
-        if(result.version===version()+1)setVersion(result.version);
-        replay=null;
-        if(values.type!=='Task completed'){note.value='';due.value='';owner.value=window.ClassifireAccess?.user?.id || '';occurred.value='';}
-        await load();
-      } catch(error) {if(isOpen())message.textContent=error.message;}
-      finally {busy=false;controls.disabled=false;}
-    }
-    box.addEventListener('toggle',()=>{if(box.open&&!seen)void load();});
-    return {pending:()=>busy,dirty:()=>Boolean(note.value || due.value || occurred.value),fingerprint:()=>[type.value,note.value,due.value,owner.value,occurred.value]};
+    box.addEventListener('toggle',()=>{
+      if(!box.open){stopSizing(list);return;}
+      if(!readOnly)editor.update();
+      if(!seen)void load(); else sizeList(list,5,heading);
+    });
+    return {...editor,refresh:()=>load()};
   }
   const listObservers = new WeakMap();
   function stopSizing(list) {
@@ -144,16 +170,19 @@
     listObservers.set(list, observer);
     measure();
   }
-  function historyPanel(read, isCurrent, headingId) {
+  function historyPanel(read, isCurrent, headingId, options={}) {
     const panel = el('details'), heading = el('summary', term('Activity history'));
     panel.className = 'card commercial-side-panel record-activity-history';
     window.CeasefireI18n?.text(heading, 'Activity history');
     const list = el('ol'), message = el('p');
     list.className = 'crm-event-list'; message.className = 'helper'; message.setAttribute('role','status');
-    if (headingId) { heading.id = headingId; list.classList.add('record-history-scroll'); }
+    heading.id = headingId || 'record-activity-heading-'+(++headingNumber); list.classList.add('record-history-scroll');
     const earlier = button('Load earlier activity', showMore);
     earlier.hidden = true;
     panel.append(heading, list, earlier, message);
+    const editor = activityForm({write:options.write, refresh, message, staff:readStaff,
+      current:()=>panel.isConnected && isCurrent(), locked:()=>!options.write || !options.canWrite()});
+    if(options.write && (!window.ClassifireAccess || window.ClassifireAccess.can('edit')))panel.append(editor.controls);
     let serial = 0, events = [], shown = 0;
     const kinds = {quote:'Quote', work_order:'Work Order', purchase_order:'Purchase Order'};
     function showMore() {
@@ -162,21 +191,28 @@
         const row = el('li'), time = el('time', stamp(event.at)), meta = el('p');
         time.dateTime = event.at; meta.className = 'helper'; meta.append(time);
         if (event.actor) meta.append(' · ', event.actor);
+        for (const [title,value] of [['Owner',event.owner_name],['Due date',event.due_date],
+          ['Interaction time',event.occurred_at && stamp(event.occurred_at)],['Task completed',event.completed_at && stamp(event.completed_at)]]) {
+          if (value) meta.append(' \u00b7 ',term(title)+': '+value);
+        }
         row.append(el('strong', term(event.label)), meta);
         const subject = [kinds[event.kind] && term(kinds[event.kind]), event.subject].filter(Boolean);
         if (subject.length) row.append(el('p', subject.join(' · ')));
         if (event.previous_status) row.append(el('p', term(event.previous_status) + ' → ' + term(event.status)));
+        if(event.label==='Task' && !event.completed_at && options.canWrite?.())
+          row.append(button('Complete task',()=>editor.submit({type:'Task completed',task_id:event.id})));
         list.append(row);
       }
       shown = next; earlier.hidden = shown >= events.length;
-      if (headingId) sizeList(list, 5, heading);
+      sizeList(list, 5, heading);
     }
     async function refresh() {
       const ticket = ++serial;
-      if (!panel.open || !panel.isConnected || !isCurrent()) return;
+      if (!panel.open || !panel.isConnected || !isCurrent()) {stopSizing(list);return;}
+      editor.update();
       const current = () => ticket === serial && panel.open && panel.isConnected && isCurrent();
       list.replaceChildren(); earlier.hidden = true; message.textContent = term('Loading…');
-      if (headingId) sizeList(list, 5, heading);
+      sizeList(list, 5, heading);
       try {
         const data = await read();
         if (!current()) return;
@@ -188,7 +224,7 @@
       }
     }
     panel.addEventListener('toggle', refresh);
-    return {element:panel, refresh};
+    return {element:panel, refresh, dirty:editor.dirty, pending:editor.pending, fingerprint:editor.fingerprint, dispose:()=>stopSizing(list)};
   }
   window.ClassifireCrmActivity={attach,ownerSelect,populate,historyPanel,sizeList,stopSizing};
 })();

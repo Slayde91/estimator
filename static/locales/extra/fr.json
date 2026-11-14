@@ -1,4 +1,11 @@
 {
+  "Refresh Records": "Actualiser les fiches",
+  "Pending": "En attente",
+  "Add follow-up": "Ajouter un suivi",
+  "Follow-up status": "Statut du suivi",
+  "Canceled": "Annulé",
+  "Follow-up completed": "Suivi terminé",
+  "Follow-up canceled": "Suivi annulé",
   "Clear the {0} signature and move this Quote to {1}?": "Effacer la signature « {0} » et faire passer ce devis à l’étape « {1} » ?",
   "Signing sets the linked Quote to {0}.": "La signature fait passer le devis lié à l’étape « {0} ».",
   "{0} This sets the linked Quote to {1}.": "{0} Le devis lié passera à l’étape « {1} ».",

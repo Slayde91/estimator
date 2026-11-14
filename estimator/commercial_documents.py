@@ -12,6 +12,7 @@ import re
 import sqlite3
 import uuid
 
+from . import record_activity
 from .catalog import ValidationError
 from .commercial_files import MAX_FILES, WorkOrderFiles, validate_files
 from .document_numbers import DocumentNumbers, valid_reference, validated_counters
@@ -667,6 +668,7 @@ class CommercialDocuments:
                 CREATE INDEX IF NOT EXISTS commercial_audit_document ON commercial_audit(document_id,sequence);
                 CREATE TABLE IF NOT EXISTS pending_quote_project_stages(workspace TEXT PRIMARY KEY, stage TEXT NOT NULL);
             ''')
+            record_activity.schema(db)
             from .unfiled_commercial import UnfiledCommercial
             self.unfiled = UnfiledCommercial(self, db)
             self.numbering.attach(db)
@@ -946,29 +948,41 @@ class CommercialDocuments:
                 ON CONFLICT(workspace) DO UPDATE SET stage=excluded.stage''',
                 (workspace, validate_project_status(after['status'])))
 
-    def activity(self, workspace, identity):
+    def _activity_source(self, db, workspace):
+        bound = db.execute('SELECT source FROM commercial_activity_sources WHERE workspace=?', (workspace,)).fetchone()
+        if bound:
+            return bound[0]
+        return 'workspace:' + workspace
+
+    def activity(self, workspace, identity, *, entry=None, actor=None, staff=None, version=None):
         with self._connect() as db:
+            db.execute('BEGIN IMMEDIATE' if entry is not None else 'BEGIN')
             project = self._workspace(db, workspace)
             if not self.unfiled.permits_document(db, workspace, identity):
                 raise ValidationError('This commercial document is unavailable in the current project.')
-            return self._document_activity(db, project, self._record(db, workspace, identity))
+            doc = self._record(db, workspace, identity)
+            if entry is not None:
+                self._version(doc, version)
+                return record_activity.append(db, self._activity_source(db,workspace), project+':'+doc['id'],
+                                              entry, actor, staff, CommercialConflict)
+            return self._document_activity(db, project, doc, self._activity_source(db,workspace))
 
-    def saved_activity(self, snapshot, identity):
+    def saved_activity(self, snapshot, identity, source=None):
         identity = _identity(identity)
         document = next((row for row in (snapshot or {}).get('documents', []) if row['id'] == identity), None)
         if document is None:
             raise ValidationError('This commercial document is unavailable in the current project.')
         with self._connect() as db:
-            return self._document_activity(db, snapshot['project_id'], document)
+            return self._document_activity(db, snapshot['project_id'], document, source)
 
     @staticmethod
-    def _document_activity(db, project, document):
+    def _document_activity(db, project, document, source=None):
         # Workspace IDs change on reopen. Save As copies may share both the
         # portable project ID and document ID. Follow only the exact before /
         # after snapshots leading to the selected version, including across
         # workspaces. Never expose an audit payload to the browser.
         expected = _json(document)
-        events = []
+        events = record_activity.events(db, source, project+':'+document['id']) if source else []
         rows = db.execute("""
             SELECT a.action,a.created_at,a.before_data,a.after_data,s.created_at AS signed_at
             FROM commercial_audit a JOIN commercial_workspaces w ON w.workspace=a.workspace
@@ -1346,7 +1360,7 @@ class CommercialDocuments:
         return document
 
     @contextmanager
-    def publishing(self, workspace, snapshot, project_status=None):
+    def publishing(self, workspace, snapshot, project_status=None, *, path=None):
         """Exclude concurrent board writes across processes during the atomic file takeover."""
         with self._connect() as db:
             db.execute('BEGIN IMMEDIATE')
@@ -1365,7 +1379,7 @@ class CommercialDocuments:
                 raise CommercialConflict('Commercial documents changed during this project save. Save the project again.')
             yield
             db.execute('DELETE FROM pending_quote_project_stages WHERE workspace=?', (workspace,))
-            self.unfiled.bind_file(db, workspace)
+            self.unfiled.bind_file(db, workspace, path)
 
 
     def delete(self, workspace, identity, version):

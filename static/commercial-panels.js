@@ -294,9 +294,10 @@
       const copy=message || (data?.error_count || data?.scan_pending ? "Some linked projects could not be checked." : data && !rows.length ? "No linked projects." : "");
       if(copy){const note=el("p",copy);note.className="helper";window.CeasefireI18n?.text(note,copy);linkedProjects.append(note);}
     }
-    let controls=[],refreshDetails=()=>{},refreshDirectory=async()=>{};
+    let controls=[],refreshDetails=()=>{},refreshDirectory=async()=>{},reloadParties;
     const history=window.ClassifireCrmActivity.historyPanel(options.readActivity,panelCurrent,
-      isPurchaseOrder ? 'purchase-order-activity-heading' : null);
+      isPurchaseOrder ? 'purchase-order-activity-heading' : options.kind+'-activity-heading',
+      {write:options.writeActivity, canWrite:()=>options.isSaved() && options.canEdit()});
     {
     const accountPanel = panel("Linked Companies"), contactPanel = panel("Linked Contacts");
     left.append(accountPanel,contactPanel,history.element);
@@ -325,6 +326,7 @@
     refreshDirectory=async function(value) {
       const latest=value || await loadDirectory(true);if(!current())return;directory=latest;showContact();
     };
+    reloadParties=()=>Promise.all([refreshDirectory(),refreshParticipants(true)]);
     async function editContact(id) {
       if(!current())return;
       try {
@@ -441,14 +443,15 @@
       : options.kind==='purchase_order' ? [["Linked Work Orders",panel("Linked Work Orders",0)],["Linked Quotes",panel("Linked Quotes",0)]]
       : [["Linked Quotes",panel("Linked Quotes",0)],["Linked Purchase Orders",panel("Linked Purchase Orders",0)]];
     function showRelated() {
-      const workOrders=options.related.filter(d=>d.kind==='work_order' &&
+      const related=options.readRelated();
+      const workOrders=related.filter(d=>d.kind==='work_order' &&
         (options.kind==='purchase_order' ? d.id===options.fields.order.work_order_id : d.fields.order.quote_id===options.id));
       const quoteIds=new Set(options.kind==='purchase_order' ? [options.fields.order.quote_id,...workOrders.map(d=>d.fields.order.quote_id)] : [options.fields.order.quote_id]);
       const workIds=new Set(workOrders.map(d=>d.id));
       for(const [name,block] of relatedPanels) {
         const rows=name==='Linked Work Orders' ? workOrders : name==='Linked Quotes'
-          ? options.related.filter(d=>d.kind==='quote' && quoteIds.has(d.id))
-          : options.related.filter(d=>d.kind==='purchase_order' && (options.kind==='quote'
+          ? related.filter(d=>d.kind==='quote' && quoteIds.has(d.id))
+          : related.filter(d=>d.kind==='purchase_order' && (options.kind==='quote'
             ? workIds.has(d.fields.order.work_order_id) || d.fields.order.quote_id===options.id
             : d.fields.order.work_order_id===options.id));
         block.replaceChildren(panelSummary(name,rows.length));
@@ -457,7 +460,9 @@
     }
     relatedPanels.forEach(([,block])=>right.append(block));right.append(linkedProjects);showRelated();
     form.querySelector("[data-order-link]")?.addEventListener("change",showRelated);
-    return {repaintFiles,refreshDirectory,refreshHistory:history.refresh,closeSearches(){controls.forEach(control=>control.close());},refreshProjectDetails(value){options.projectDetails=value;refreshDetails();}};
+    return {repaintFiles,refreshDirectory,refreshHistory:history.refresh,
+      refreshRecords(){showRelated();repaintFiles();return Promise.all([reloadParties(),history.refresh()]);},
+      closeSearches(){controls.forEach(control=>control.close());},refreshProjectDetails(value){options.projectDetails=value;refreshDetails();}};
   }
   window.ClassifireWorkOrderPanels = {attach,noteDialog,plain};
 })();

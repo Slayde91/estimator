@@ -1,4 +1,11 @@
 {
+  "Refresh Records": ["기록 새로 고침","I-refresh ang mga tala","Làm mới bản ghi"],
+  "Pending": ["대기 중","Nakabinbin","Đang chờ"],
+  "Add follow-up": ["후속 조치 추가","Magdagdag ng follow-up","Thêm việc theo dõi"],
+  "Follow-up status": ["후속 조치 상태","Katayuan ng follow-up","Trạng thái theo dõi"],
+  "Canceled": ["취소됨","Kinansela","Đã hủy"],
+  "Follow-up completed": ["후속 조치 완료","Natapos ang follow-up","Đã hoàn tất việc theo dõi"],
+  "Follow-up canceled": ["후속 조치 취소","Kinansela ang follow-up","Đã hủy việc theo dõi"],
   "Follow-up due": ["후속 조치 기한 도래", "Takda na ang follow-up", "Đã đến hạn theo dõi"],
   "Next action": [
     "다음 할 일",

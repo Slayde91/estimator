@@ -16,6 +16,23 @@ const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()
   const base='http://127.0.0.1:'+info.port;
   const idle=()=>page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready&&!window.CeasefireDesktop.status().busy);
   const read=async endpoint=>{const response=await page.request.get(base+endpoint);assert.equal(response.status(),200,await response.text());return response.json();};
+  async function logActivity(panel,text,type='Note') {
+    const form=panel.locator('fieldset:last-child');
+    await expect(form.locator('legend')).toHaveText('Log activity');
+    await form.getByLabel('Activity type',{exact:true}).selectOption(type);
+    await form.getByLabel('Activity details',{exact:true}).fill(text);
+    await form.getByRole('button',{name:'Log activity',exact:true}).click();
+    await expect(panel.locator('ol')).toContainText(text);
+    await expect(form.getByLabel('Activity details',{exact:true})).toHaveValue('');
+  }
+  async function checkFive(panel) {
+    const list=panel.locator('ol');await expect(list).toHaveAttribute('tabindex','0');
+    await expect.poll(()=>list.evaluate(el=>{
+      const rows=[...el.children].map(row=>row.getBoundingClientRect());
+      return Math.abs(el.clientHeight - (rows[4].bottom - rows[0].top))<=1 && el.scrollHeight>el.clientHeight;
+    })).toBe(true);
+    await list.focus();await list.press('End');await expect.poll(()=>list.evaluate(el=>el.scrollTop)).toBeGreaterThan(0);
+  }
   await page.goto(base);await idle();await createNewProject(page,{client:'Panel owner A','site-address':'10 Sidebar Street'});
   await openProjectSection(page,'quote');const quote=page.locator('#commercial-quote-root');
   await quote.getByRole('button',{name:'New Quote',exact:true}).click();
@@ -71,6 +88,8 @@ const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()
   await history.locator('summary').click();
   await expect(history).toContainText('Participants updated');
   await expect(history).toContainText('Project file modified');
+  for (const value of ['Project site visit','Project discussion','Project record A only']) await logActivity(history,value);
+  await checkFive(history);
   await expect(history).toContainText('Quote');
   await expect(files.getByRole('button',{name:'Refresh',exact:true})).toHaveCount(0);
   await expect(docs.locator('[data-document-kind="quote"] summary')).toHaveText('Linked Quotes (1)');
@@ -117,6 +136,7 @@ const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()
   await history.locator('summary').click();
   await expect(history).toContainText('Source B quote');
   await expect(history).not.toContainText('Participants updated');
+  await expect(history).not.toContainText('Project record A only');
   assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),info.project,'Opening details does not load B into active estimates');
   await expect(notes.locator('summary')).toHaveText('Notes (0)');await expect(files.locator('summary')).toHaveText('Files (0)');
   await expect(docs).toContainText('Source B quote');await expect(docs).not.toContainText('Source A quote');
@@ -154,10 +174,29 @@ const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()
   await expect(quote.getByLabel('Linked Project',{exact:true})).toHaveValue(/Panel owner B/);
   await quoteHistory.locator('summary').click();
   await expect(quoteHistory.locator('li strong')).toContainText(['Created']);
+  await logActivity(quoteHistory,'Quote call','Call');
+  await logActivity(quoteHistory,'Confirm scope','Task');
+  await quoteHistory.getByRole('button',{name:'Complete task',exact:true}).click();
+  await expect(quoteHistory.locator('li strong')).toContainText(['Task completed']);
+  for (const value of ['Delivery timing','Quote record B only']) await logActivity(quoteHistory,value);
+  await checkFive(quoteHistory);
+  const separate=await read('/api/commercial/activity?'+new URLSearchParams({file:a.id,revision:a.revision,document:documentId}));
+  assert.ok(separate.events.every(event=>event.subject!=='Quote record B only'));
   await expect(quoteHistory.locator('xpath=preceding-sibling::details[1]/summary')).toContainText('Linked Contacts');
   assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),info.project,'Related document retains active estimate owner');
   assert.equal((await read('/api/commercial/register')).documents.filter(row=>row.source_path===siblingPath&&row.id===documentId).length,1);
   await quote.getByLabel('Introduction',{exact:true}).fill('Independent edit after linked activation');
+  const siblingFile=JSON.parse(fs.readFileSync(siblingPath));
+  siblingFile.commercial_documents.documents.find(row=>row.id===documentId).fields.introduction='Changed independently on disk';
+  fs.writeFileSync(siblingPath,JSON.stringify(siblingFile));
+  const refreshRead=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/commercial/saved-open');
+  await quote.getByRole('button',{name:'Refresh Records',exact:true}).click();
+  assert.equal((await refreshRead).status(),200);
+  await expect(quote.getByRole('button',{name:'Refresh Records',exact:true})).toBeEnabled();
+  const staleSave=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/commercial/saved-save');
+  await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();
+  assert.equal((await staleSave).status(),409);
+  assert.equal(JSON.parse(fs.readFileSync(siblingPath)).commercial_documents.documents.find(row=>row.id===documentId).fields.introduction,'Changed independently on disk');
   await expect(quote.getByLabel('Introduction',{exact:true})).toHaveValue('Independent edit after linked activation');
   assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks:['Canonical Company detail cards and editor','Exact-source document counts','Project Notes/Files survive reopen independently for copied files','Late resource read cannot cross owners','Related Quote opens the selected file','Mobile layout fits'],output},null,2));console.log(JSON.stringify({passed:true,output}));
 })().catch(async error=>{console.error(error.stack);if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});if(logs)console.error(logs);process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

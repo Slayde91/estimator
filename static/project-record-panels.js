@@ -46,7 +46,7 @@
       }
     }
   }
-  async function loadDocuments(attempt = 0) {
+  async function loadDocuments(attempt = 0, force = false) {
     clearTimeout(retry); controller?.abort();
     const opened = generation, file = selected;
     if (!file || !selector(file) || !file.path) {resetPanels([],true);message("");refresh.hidden = true;return;}
@@ -54,14 +54,12 @@
     const timeout = setTimeout(()=>pending.abort(),8000);
     message("Loading…"); refresh.hidden = true;
     try {
-      const response = await fetch("/api/commercial/register",{cache:"no-store",signal:pending.signal});
+      const response = await fetch("/api/commercial/register" + (force ? "?refresh=1" : ""),{cache:"no-store",signal:pending.signal});
       const data = await response.json();
       if (!response.ok) throw Error(data.error || "The request could not be completed.");
-      if (opened !== generation || selected !== file) return;
+      if (opened !== generation || selected !== file || controller !== pending) return;
       if (!Array.isArray(data.documents)) throw Error("Some saved sources are unavailable.");
-      const own = data.documents.filter(card => card.source_path === file.path);
-      if (file.revision && own.some(card => card.source_revision !== file.revision))
-        throw Error("The project changed. Reopen its details before changing participants.");
+      const own = data.documents.filter(card => card.source_path === file.path && (!file.source_project_id || card.project_id === file.source_project_id));
       resetPanels(own,!data.scan_pending);
       const incomplete = data.scan_pending || data.error_count;
       message(incomplete ? (data.scan_pending && attempt < 3 ? "Loading…" : "Some saved sources are unavailable.") : "");
@@ -94,6 +92,7 @@
       });
       resetPanels([],!selector(file)); void loadDocuments();
     },
+    refresh:() => Promise.all([loadDocuments(0,true),resources?.refresh()]),
     close, pending:()=>resources?.pending() || false,
     dirty:()=>resources?.dirty() || false,
     fingerprint:()=>resources?.fingerprint() || "",

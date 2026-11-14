@@ -1,4 +1,11 @@
 {
+  "Refresh Records": "রেকর্ড রিফ্রেশ করুন",
+  "Pending": "অপেক্ষমাণ",
+  "Add follow-up": "ফলো-আপ যোগ করুন",
+  "Follow-up status": "ফলো-আপের অবস্থা",
+  "Canceled": "বাতিল",
+  "Follow-up completed": "ফলো-আপ সম্পন্ন হয়েছে",
+  "Follow-up canceled": "ফলো-আপ বাতিল হয়েছে",
   "Clear the {0} signature and move this Quote to {1}?": "{0} স্বাক্ষরটি মুছে এই দরপত্রটি কি {1} ধাপে নেওয়া হবে?",
   "Signing sets the linked Quote to {0}.": "স্বাক্ষর করলে সংযুক্ত দরপত্রের অবস্থা {0} হবে।",
   "{0} This sets the linked Quote to {1}.": "{0} এতে সংযুক্ত দরপত্রের অবস্থা {1} হবে।",

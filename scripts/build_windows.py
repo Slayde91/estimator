@@ -29,7 +29,7 @@ DATA_FILES = (
 )
 STATIC_FILES = (
     'access-login.html', 'scheduler-only.html', 'scheduler-only.js', 'crm-access.css', 'crm-access.js', 'crm-identity.js', 'project-participants.js',
-    'contacts.js', 'crm-activity.js', 'contacts.css',
+    'contacts.js', 'crm-activity.js', 'follow-up-actions.js', 'contacts.css',
     'notifications.js', 'notifications.css', 'personal-signature.js', 'personal-details.js', 'icons/signature.svg', 'icons/trash.svg', 'document-workflow-board.js', 'swms.js', 'swms.css', 'default-company-logo.png',
     'travel.js', 'travel.css', 'maps-setup.html',
     'pointer-effects.js', 'pointer-effects.css', 'pdf-cursors.css', 'laser-reticle.svg',

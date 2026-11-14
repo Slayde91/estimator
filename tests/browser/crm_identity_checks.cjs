@@ -17,7 +17,8 @@ async function checkIdentity(page,port) {
   const root = page.locator('#contacts-root');
   const similar = await write('accounts',{company:'Sample Fabricators Pty Ltd',abn_acn:'123456'});
   await write('accounts',{company:'Sample Fabricators Limited',abn_acn:'123456'});
-  await write('accounts',{company:'Different Business',abn_acn:'123456'});
+  const different = await write('accounts',{company:'Different Business',abn_acn:'123456'});
+  const initials = await write('accounts',{company:'S.F.'});
   await page.locator('#contacts-navigation-toggle').hover();
   await page.locator('#contacts-navigation-menu [data-contacts-section="accounts"]').click();
   await root.getByRole('button',{name:'Sample Fabricators Limited',exact:true}).click();
@@ -25,8 +26,25 @@ async function checkIdentity(page,port) {
   await companyPane.getByText('Merge records',{exact:true}).click();
   const source = companyPane.getByLabel('Source record');
   await source.selectOption(similar.id);
+  await expect(source.locator('option[value="'+initials.id+'"]')).toHaveText('S.F.');
+  await expect(companyPane.getByRole('cell',{name:'Sample Fabricators Pty Ltd',exact:true})).toBeVisible();
+  const companySearch = companyPane.getByRole('searchbox',{name:'Search companies'});
+  await companySearch.fill('differ');
+  await expect(companyPane.getByRole('button',{name:'Confirm merge',exact:true})).toHaveCount(0);
   await expect(source.locator('option')).toHaveCount(2);
+  await source.selectOption(different.id);
+  await expect(companyPane.getByRole('cell',{name:'Different Business',exact:true})).toBeVisible();
+  await expect(companyPane.getByRole('button',{name:'Confirm merge',exact:true})).toBeDisabled();
+  const added = await write('accounts',{company:'Freshly Added Fixture'});
+  await companyPane.getByRole('button',{name:'Refresh Records',exact:true}).click();
+  await expect(companyPane.getByRole('button',{name:'Confirm merge',exact:true})).toHaveCount(0);
+  await companySearch.fill('freshly');
+  await source.selectOption(added.id);
+  await expect(companyPane.getByRole('cell',{name:'Freshly Added Fixture',exact:true})).toBeVisible();
+  const versionBefore = (await directory()).version;
   await companyPane.getByRole('button',{name:'Cancel',exact:true}).click();
+  assert.equal((await directory()).version,versionBefore);
+  await expect(root.getByRole('button',{name:'Freshly Added Fixture',exact:true})).toBeVisible();
   await root.getByRole('button',{name:'Different Business',exact:true}).click();
   await companyPane.getByText('Merge records',{exact:true}).click();
   await expect(companyPane.getByText('No matching companies.',{exact:true})).toBeVisible();
@@ -36,11 +54,21 @@ async function checkIdentity(page,port) {
   await root.getByRole('button',{name:'Current Person',exact:true}).click();
   const pane = page.getByRole('complementary',{name:'Edit Contact',exact:true});
   await pane.getByText('Merge records',{exact:true}).click();
-  await pane.getByLabel('Source record').selectOption(first.id);
-  await expect(pane.getByLabel('Source record').locator('option[value="'+unrelated.id+'"]')).toHaveCount(0);
+  const people = pane.getByLabel('Source record'), personSearch = pane.getByRole('searchbox',{name:'Search contacts'});
+  await expect(people.locator('option[value="'+first.id+'"]')).toHaveCount(1);
+  await expect(people.locator('option[value="'+unrelated.id+'"]')).toHaveCount(0);
+  await personSearch.fill('other@example');
+  await personSearch.press('Enter');
+  await expect(people).toBeFocused();
+  await people.selectOption(unrelated.id);
+  await expect(pane.getByRole('cell',{name:'other@example.test',exact:true})).toBeVisible();
+  await personSearch.fill('current@example');
+  await expect(people).toBeDisabled();
+  await expect(pane.getByRole('button',{name:'Confirm merge',exact:true})).toHaveCount(0);
+  await personSearch.fill('');
   const [preview] = await Promise.all([
     page.waitForResponse(response=>response.url()===url+'identity/preview' && response.request().method()==='POST'),
-    pane.getByRole('button',{name:'Review merge',exact:true}).click()
+    people.selectOption(first.id)
   ]);
   assert.equal(preview.status(),200);
   await expect(pane.getByText('Source Notes and Files stay on the original record. Undo the merge to access them again.',{exact:true})).toBeVisible();

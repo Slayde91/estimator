@@ -13,6 +13,7 @@
   const historyStatus = document.createElement('span'); historyStatus.className = 'helper'; historyStatus.hidden = true;
   historyStatus.setAttribute('role', 'status'); choices.after(historyStatus);
   const status = document.getElementById('project-details-settings-status');
+  const memberName = document.getElementById('numbering-member-name');
   const next = document.getElementById('project-number-next');
   const prefix = document.getElementById('project-number-prefix');
   const start = document.getElementById('project-start-number');
@@ -96,6 +97,7 @@
   }
   function renderCombined(value) {
     if (!value?.project || !value.documents || Object.keys(labels).some(kind => !value.documents[kind])) throw new Error('Numbering settings could not be loaded.');
+    if (memberName) memberName.textContent = window.ClassifireAccess?.user?.name || '';
     render(value.project); renderNumbers(value.documents);
   }
   numberForm.addEventListener('input', () => { numberDirty = true; numberGeneration++; message('Unsaved changes'); });

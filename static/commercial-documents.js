@@ -629,7 +629,7 @@
       renderCards();
     });
     search.placeholder = "Document, client, project or reference…";
-    controls.append(field("Search documents", search), window.ClassifireDocumentBoard.viewPicker(state.kind, renderCards));
+    controls.append(field("Search documents", search));
     const sort = select(["Most recently saved", "Oldest saved first", "Document name A–Z"], state.sort, value => {
       state.sort = value;
       state.dirty = false;
@@ -658,7 +658,7 @@
       columnOptions.append(label);
     }
     columns.append(columnOptions);
-    controls.append(columns);
+    controls.append(window.ClassifireDocumentBoard.viewPicker(state.kind, renderCards), columns);
     const list = node("section", "card commercial-list");
     list.append(controls, node("p", "helper commercial-match-count"), node("div", "commercial-board project-kanban"));
     if (state.model.unavailableSources?.length) {
@@ -923,9 +923,11 @@
       const actions = node("div", "commercial-menu-options");
       const options = [["Open", () => openCard(document)], ["Edit", () => openCard(document)], ["Delete", () => remove(document)]];
       if (state.kind === "quote") options.splice(2, 0, ["Create WO", () => openCard(document, true)]);
+      options.push(["Add follow-up", () => openFollowUp(document, toggle)]);
       for (const [label, action] of options) {
         const control = button(label, () => { menu.open = false; if (!state.busy) action(); });
         control.className = "text-button";
+        if (label === "Add follow-up") control.disabled = Boolean(window.ClassifireAccess && !window.ClassifireAccess.can("edit"));
         actions.append(control);
       }
       const step = signingStep(document);

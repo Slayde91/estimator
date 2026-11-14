@@ -82,7 +82,7 @@
     host.replaceChildren(list);
     // Saves include closed actions in their original order even when the editor only shows pending work.
     for (const item of items) if (!options.pendingOnly || !item.status) appendRow(item, true);
-    if (!items.length && !options.readOnly) blankRow();
+    if (!list.childElementCount && !options.readOnly) blankRow();
     if (!options.readOnly) {
       host.append(add);
       add.addEventListener("click", () => blankRow().focus());

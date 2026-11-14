@@ -12,6 +12,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from estimator.catalog import ValidationError
+from estimator.document_numbers import numbering_profile
 from estimator.native_dialogs import SaveSelection
 from estimator.project_details import ProjectDetails, MAX_NUMBER, _process_status, numbers
 from estimator.project_file import export_project
@@ -91,7 +92,7 @@ class NumberJournalTests(unittest.TestCase):
         self.addCleanup(upgraded.close)
         self.assertEqual(upgraded.settings()['next_reference'], 'PN-01')
         with upgraded.connect() as db:
-            self.assertEqual(tuple(db.execute('SELECT * FROM saves WHERE id=?', (identifier,)).fetchone())[:-1], previous)
+            self.assertEqual(tuple(db.execute('SELECT * FROM saves WHERE id=?', (identifier,)).fetchone()), previous + ('legacy',None))
             self.assertEqual(db.execute("SELECT next_number FROM sequences WHERE prefix='PN'").fetchone()[0], 5)
         self.assertTrue(upgraded.begin(identifier, project)['replay'])
         old_copy_id, old_copy = self.begin(captured('forged', 'legacy-project'), upgraded)
@@ -191,6 +192,26 @@ class NumberJournalTests(unittest.TestCase):
         for (identifier, _), service in zip(tickets, services):
             self.complete(identifier, service)
         self.assertEqual(self.service.settings()["next_reference"], "PN-09")
+
+    def test_staff_journals_survive_rescan_restart_and_do_not_take_another_staff_series(self):
+        alice, bob = str(uuid4()), str(uuid4())
+        with numbering_profile(alice):
+            self.service.save_settings({'prefix':'SITE','start_number':51})
+            identifier, ticket = self.begin()
+            self.assertEqual(json.loads(ticket['numbers_json'])['estimate-1'],'SITE-51')
+        # Recovery/finalisation can run outside the creator's request context.
+        self.complete(identifier)
+        restarted = self.service_at()
+        with numbering_profile(bob):
+            self.assertEqual(restarted.settings()['prefix'], 'PN')
+            restarted.observe(['SITE-51'])
+            self.assertEqual(restarted.save_settings({'prefix':'SITE','start_number':1})['next_reference'], 'SITE-01')
+            again, ticket = self.begin(service=restarted)
+            self.assertEqual(json.loads(ticket['numbers_json'])['estimate-1'],'SITE-01')
+            self.complete(again,restarted)
+            self.assertEqual(restarted.save_settings({'prefix':'SITE','start_number':51})['next_reference'],'SITE-52')
+        with numbering_profile(alice):
+            self.assertEqual(restarted.settings()['next_reference'],'SITE-52')
 
     def test_live_chooser_never_expires_and_duplicate_request_cannot_allocate_twice(self):
         identifier, _ = self.begin(captured(identity="same-project"))

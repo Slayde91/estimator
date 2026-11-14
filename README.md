@@ -320,13 +320,24 @@ Accreditation No. as the signer defaults for future certificates. Existing
 certificate drafts and issued revisions retain their captured details. The
 personal signature remains separate.
 
-Settings → Document numbering contains both project and document numbering.
-Its Save document numbering button validates and saves all rows together.
-Future quotes use a new short sequence beginning Q-01; existing six-digit quote
+Settings → Document numbering saves the signed-in staff member’s prefixes and starting
+numbers for Projects, Quotes, Work Orders, Purchase Orders, SWMS and Certification.
+All six rows save together. Staff initially inherit the existing numbering settings;
+changing your numbers doesn’t change a colleague’s preferences or renumber an existing
+record. If two people choose the same series, the allocator skips references already
+used for that document type.
+By default, new quotes use a short sequence beginning Q-01; existing six-digit quote
 references retain their original values. Historical quote counters do not
 advance the short sequence. Saved projects retain the short sequence's high
 watermark, including deleted quotes; use the current application version when
 exchanging these new project files.
+
+In the Passive Fire Register, keep the installation location and choose a system
+using the Technical Library filters. Check a result to retain it; uncheck it to
+choose another. Add the site's photos under Side 1 and, where accessible, Side 2.
+In **Plan location**, select a project drawing and page, then click the installation
+point. The register PDF uses the selected system's details and your site photos.
+Only pinned sheets are appended, with the register IDs marked on them.
 
 Newly generated PDF schedules and product summaries use portrait pages. Quote
 scope introductions flow into their first schedule. PDF tables omit calculation

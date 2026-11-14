@@ -13,6 +13,8 @@ from .company_settings import company_logo
 from .documentation_catalog import register_options
 from .pdf_fonts import FONT_REGULAR
 from .report import _Report, _company_header, _register_fonts, _LINE, _MUTED
+from .reference_library import ReferenceNotFound, identifier
+from .technical_item_exports import append_technical_item_fields, prepare_technical_item
 from .swms import _text, validate_signature
 from .swms_pdf import Signature
 
@@ -52,12 +54,15 @@ def _photos(value):
 
 
 def _entry(raw, position, numbered):
-    other = {'side1', 'side2', 'access', 'photos', 'comments', 'solution', 'signature'}
+    other = {'side1', 'side2', 'access', 'photos', 'comments', 'solution', 'signature', 'technical_item_id', 'plan_pins'}
     if numbered:
         other.update(('entry_id','number'))
     _fields(raw, set(FIELDS) | other, 'Register entry')
     identity,number = _entry_number(raw,position,numbered)
     entry = {'entry_id':identity,'number':number}
+    if 'technical_item_id' in raw:
+        key = raw['technical_item_id']
+        entry['technical_item_id'] = '' if key == '' else identifier(key)
     for key, label in FIELDS.items():
         if key in ('service_types', 'products'):
             entry[key] = _selection(raw.get(key, []), label)
@@ -75,6 +80,9 @@ def _entry(raw, position, numbered):
     entry['photos'] = _photos(raw.get('photos', []))
     entry['comments'] = _text(raw.get('comments', ''), 'Comments', 4000).strip()
     entry['signature'] = validate_signature(raw.get('signature'))
+    if 'plan_pins' in raw:
+        from .register_plans import normalize_pins
+        entry['plan_pins'] = normalize_pins(raw['plan_pins'])
     return entry
 
 
@@ -192,16 +200,20 @@ def preserve_register_numbers(previous, incoming):
 
 
 def _ready(entry, number, options):
+    uses_library = 'technical_item_id' in entry
     reports = options['reports'].get(entry['manufacturer'], [])
-    required = [label for key, label in FIELDS.items()
-                if not entry[key] and (key != 'report' or reports)]
+    if uses_library:
+        required = [label for key, label in [('location', 'Location'), ('technical_item_id', 'Technical Library item')] if not entry[key]]
+    else:
+        required = [label for key, label in FIELDS.items()
+                    if not entry[key] and (key != 'report' or reports)]
     for key, choices in options.items():
-        if key == 'reports' or (key == 'solution' and entry['access'] != 'NA'):
+        if key == 'reports' or (uses_library and key in FIELDS) or (key == 'solution' and entry['access'] != 'NA'):
             continue
         values = entry[key] if isinstance(entry[key], list) else [entry[key]]
         if any(value and value not in choices for value in values):
             raise ValidationError(f'Choose a listed {FIELDS.get(key, key)} for register entry {number}.')
-    if entry['report'] and entry['report'] not in reports:
+    if not uses_library and entry['report'] and entry['report'] not in reports:
         raise ValidationError(f'Choose a report matching the manufacturer for register entry {number}.')
     for side in (('side1', 'side2') if entry['access'] == 'Yes' else ('side1',)):
         values = entry[side]
@@ -239,7 +251,7 @@ def _append_evidence(report, title, groups, width):
                                   style=[('VALIGN', (0, 0), (-1, -1), 'TOP')]))
 
 
-def render_register_pdf(register, details, *, company):
+def render_register_pdf(register, details, *, library=None, company, plan_append=None):
     entries = normalize_register(register)['entries']
     if not entries:
         raise ValidationError('Add a register entry before downloading the PDF.')
@@ -268,6 +280,8 @@ def render_register_pdf(register, details, *, company):
             if value:
                 rows.append((label, value))
         for key, label in FIELDS.items():
+            if entry.get('technical_item_id') and key != 'location':
+                continue
             value = entry[key]
             if value:
                 rows.append((label, ', '.join(value) if isinstance(value, list) else value))
@@ -278,6 +292,14 @@ def render_register_pdf(register, details, *, company):
         cells.append([report.p('Signature', 'cell'), Signature(entry['signature'], 144, 36)])
         report.story.append(report.table(['Installation record', 'Details'],
                                          cells, [content * .32, content * .68], compact=True))
+        if key := entry.get('technical_item_id'):
+            try:
+                if library is None:
+                    raise ReferenceNotFound()
+                item = prepare_technical_item({'id': key}, library=library, include_images=False)
+            except ReferenceNotFound as err:
+                raise ValidationError(f'The Technical Library item for entry {number} is unavailable. Select a replacement before downloading.') from err
+            append_technical_item_fields(report, item, content)
         if entry['comments'] and entry['access'] == 'No':
             report.story.extend([report.p('Comments', 'subheading'), report.p(entry['comments'])])
         for side in (('side1', 'side2') if entry['access'] == 'Yes' else ('side1',)):
@@ -302,4 +324,8 @@ def render_register_pdf(register, details, *, company):
         canvas.restoreState()
 
     document.build(report.story, onFirstPage=decorate, onLaterPages=decorate)
+    if any(entry.get('plan_pins') for entry in entries):
+        if plan_append is None:
+            raise ValidationError('Open the project with its Takeoffs drawings to download the pinned plans.')
+        return plan_append(output.getvalue(), entries)
     return output.getvalue()

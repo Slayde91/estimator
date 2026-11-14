@@ -12,6 +12,7 @@ import threading
 import time
 
 from .catalog import ValidationError
+from .document_numbers import numbering_member
 
 MAX_NUMBER = 999_999_999
 _ACTIVE = set()
@@ -96,6 +97,9 @@ class ProjectDetails:
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS preferences(id INTEGER PRIMARY KEY CHECK(id=1),prefix TEXT NOT NULL,start_number INTEGER NOT NULL);
                 INSERT OR IGNORE INTO preferences VALUES(1,'PN',1);
+                CREATE TABLE IF NOT EXISTS member_preferences(member_id TEXT PRIMARY KEY,prefix TEXT NOT NULL,start_number INTEGER NOT NULL);
+                CREATE TABLE IF NOT EXISTS member_sequences(member_id TEXT NOT NULL,prefix TEXT NOT NULL,next_number INTEGER NOT NULL,
+                    PRIMARY KEY(member_id,prefix));
                 CREATE TABLE IF NOT EXISTS sequences(prefix TEXT PRIMARY KEY,next_number INTEGER NOT NULL);
                 CREATE TABLE IF NOT EXISTS short_sequences(prefix TEXT PRIMARY KEY,next_number INTEGER NOT NULL);
                 CREATE TABLE IF NOT EXISTS occupied(number TEXT PRIMARY KEY);
@@ -110,6 +114,8 @@ class ProjectDetails:
                 db.execute("ALTER TABLE saves ADD COLUMN process_token TEXT")
             if "number_series" not in {row[1] for row in db.execute("PRAGMA table_info(saves)")}:
                 db.execute("ALTER TABLE saves ADD COLUMN number_series TEXT NOT NULL DEFAULT 'legacy'")
+            if "numbering_member" not in {row[1] for row in db.execute("PRAGMA table_info(saves)")}:
+                db.execute("ALTER TABLE saves ADD COLUMN numbering_member TEXT")
             if db.execute("PRAGMA user_version").fetchone()[0] < 1:
                 # Start a separate compact series without changing historical
                 # assignments, high-water marks, or interrupted-save receipts.
@@ -142,19 +148,26 @@ class ProjectDetails:
         db.execute("INSERT INTO short_sequences VALUES(?,?) ON CONFLICT(prefix) DO UPDATE SET next_number=MAX(next_number,excluded.next_number)", (prefix, number + 1))
 
     @classmethod
-    def _observe(cls, db, values):
+    def _observe(cls, db, values, *, member=None):
         for value in values:
             if not isinstance(value, str) or not value.strip():
                 continue
             value = value.strip()
-            db.execute("INSERT OR IGNORE INTO occupied VALUES(?)", (value.casefold(),))
+            inserted = db.execute("INSERT OR IGNORE INTO occupied VALUES(?)", (value.casefold(),)).rowcount
             parsed = cls._parsed_reference(value)
             if parsed:
                 prefix, number, serial = parsed
                 compact = len(serial) < 5
                 canonical = f"{prefix}-{number:0{2 if compact else 5}d}".casefold()
                 db.execute("INSERT OR IGNORE INTO occupied VALUES(?)", (canonical,))
-                if compact:
+                if member:
+                    db.execute('INSERT INTO member_sequences VALUES(?,?,?) ON CONFLICT(member_id,prefix) '
+                               'DO UPDATE SET next_number=max(next_number,excluded.next_number)', (member,prefix,number+1))
+                elif not inserted:
+                    # Rescanning an already reserved member reference must not
+                    # advance another person's sequence.
+                    continue
+                elif compact:
                     cls._advance_short(db, prefix, number)
                 else:
                     db.execute("INSERT INTO sequences VALUES(?,?) ON CONFLICT(prefix) DO UPDATE SET next_number=MAX(next_number,excluded.next_number)", (prefix, number + 1))
@@ -187,7 +200,9 @@ class ProjectDetails:
     @classmethod
     def _next_reference(cls, db, schema, prefix, start):
         sequence = db.execute(f"SELECT next_number FROM {schema}short_sequences WHERE prefix=?", (prefix,)).fetchone()
-        candidate = max(start, sequence[0] if sequence else 1)
+        personal = db.execute(f"SELECT next_number FROM {schema}member_sequences WHERE member_id=? AND prefix=?",
+                              (numbering_member(), prefix)).fetchone()
+        candidate = max(start, sequence[0] if sequence else 1, personal[0] if personal else 1)
         reserved = set()
         for record in db.execute(f"SELECT numbers_json FROM {schema}saves WHERE state IN ('reserved','prepared')"):
             for value in json.loads(record[0]).values():
@@ -209,9 +224,15 @@ class ProjectDetails:
             candidate += 1
         return candidate, ''
 
+    @staticmethod
+    def _preference(db, schema=''):
+        return db.execute(f"SELECT COALESCE(m.prefix,p.prefix),COALESCE(m.start_number,p.start_number) "
+                          f"FROM {schema}preferences p LEFT JOIN {schema}member_preferences m ON m.member_id=? WHERE p.id=1",
+                          (numbering_member(),)).fetchone()
+
     @classmethod
     def settings_from_connection(cls, db, schema=''):
-        prefix, start = db.execute(f"SELECT prefix,start_number FROM {schema}preferences WHERE id=1").fetchone()
+        prefix, start = cls._preference(db, schema)
         candidate, label = cls._next_reference(db, schema, prefix, start)
         return {"prefix": prefix, "start_number": start, "next_number": candidate, "next_reference": label,
                 **({"exhausted": True} if not label else {})}
@@ -227,11 +248,21 @@ class ProjectDetails:
             raise ValidationError("Project start number must be a whole number from 1 to 999999999.")
         return prefix.strip().upper(), start
 
+    @staticmethod
+    def write_preferences(db, schema, prefix, start):
+        member = numbering_member()
+        if member is None:
+            db.execute(f"UPDATE {schema}preferences SET prefix=?,start_number=? WHERE id=1", (prefix, start))
+        else:
+            db.execute(f"INSERT INTO {schema}member_preferences VALUES(?,?,?) ON CONFLICT(member_id) DO UPDATE "
+                       "SET prefix=excluded.prefix,start_number=excluded.start_number", (member,prefix,start))
+
     def save_settings(self, value):
         prefix, start = self.validated_settings(value)
         with self.connect() as db:
-            db.execute("UPDATE preferences SET prefix=?,start_number=? WHERE id=1", (prefix, start))
-        return self.settings()
+            db.execute('BEGIN IMMEDIATE')
+            self.write_preferences(db, '', prefix, start)
+            return self.settings_from_connection(db)
 
     @staticmethod
     def _alive(row):
@@ -269,8 +300,8 @@ class ProjectDetails:
     @classmethod
     def _retire_numbers(cls, db, row):
         saved = json.loads(row["numbers_json"])
-        cls._observe(db, saved.values())
-        if row['number_series'] == 'short':
+        cls._observe(db, saved.values(), member=row['numbering_member'])
+        if row['number_series'] == 'short' and row['numbering_member'] is None:
             for value in saved.values():
                 parsed = cls._parsed_reference(value)
                 if parsed:
@@ -307,13 +338,14 @@ class ProjectDetails:
                 if not known["automatic"] and numbers(captured) != wanted:
                     raise ValidationError("Existing project numbers cannot be edited. Reload this project to restore its saved numbers.")
             else:
-                preference = db.execute("SELECT prefix,start_number FROM preferences WHERE id=1").fetchone()
-                _, number = self._next_reference(db, '', preference['prefix'], preference['start_number'])
+                prefix, start = self._preference(db)
+                _, number = self._next_reference(db, '', prefix, start)
                 if not number:
                     raise ValidationError("This project prefix has reached its number limit. Choose a different prefix in Project Details settings.")
                 wanted = {key: number for key in numbers(captured)}
-            db.execute("INSERT INTO saves(id,owner,digest,numbers_json,state,pid,instance,created,process_token,number_series) VALUES(?,?,?,?,'reserved',?,?,?,?,?)",
-                       (identifier, identity, digest, json.dumps(wanted), os.getpid(), self.instance, time.time(), self.process_token, 'existing' if known else 'short'))
+            db.execute("INSERT INTO saves(id,owner,digest,numbers_json,state,pid,instance,created,process_token,number_series,numbering_member) VALUES(?,?,?,?,'reserved',?,?,?,?,?,?)",
+                       (identifier, identity, digest, json.dumps(wanted), os.getpid(), self.instance, time.time(), self.process_token,
+                        'existing' if known else 'short', None if known else numbering_member()))
             return dict(db.execute("SELECT * FROM saves WHERE id=?", (identifier,)).fetchone()) | {"replay": False}
 
     def prepare(self, identifier, path, payload):

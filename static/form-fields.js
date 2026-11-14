@@ -206,7 +206,7 @@
                 if (!table) [...rows.children].forEach((node,index)=>{node.querySelector('legend').textContent=translate('Group')+' '+(index+1);});
                 set(items);
               };
-              const del = table ? button('Remove',remove) : window.ClassifireFormControls.iconButton('Remove','remove',remove);
+              const del = window.ClassifireFormControls.iconButton('Remove','remove',remove);
               if(table){const cell=el('td');cell.append(del);rowBox.append(cell);}else rowBox.append(del);
             }
           }
@@ -216,7 +216,7 @@
               const item = {};
               items.push(item); row(item); set(items);
             };
-            body.append(table ? button('Add row',add) : window.ClassifireFormControls.iconButton('Add group','add',add));
+            body.append(window.ClassifireFormControls.iconButton(table ? 'Add row' : 'Add group','add',add));
           } else if (!items.length) body.append(el('p','form-field-answer','—'));
         } else if (type === 'formula' || type === 'list_property') {
           const output=el('output','form-field-answer',answer ?? '—');
@@ -543,7 +543,7 @@
         const player=el('video','form-field-image');player.controls=true;player.preload='metadata';player.playsInline=true;
         player.setAttribute('aria-label',file.name);player.src='data:'+file.type+';base64,'+file.data;row.append(player);
       }
-      if(handlers.remove){const del=button('Remove',()=>handlers.remove(file));del.setAttribute('aria-label',translate('Remove')+' '+file.name);row.append(del);}
+      if(handlers.remove){const del=window.ClassifireFormControls.iconButton('Remove','remove',()=>handlers.remove(file));del.setAttribute('aria-label',translate('Remove')+' '+file.name);row.append(del);}
       const metadata=photoMetadata(field,file,handlers.update);
       if(metadata)row.append(metadata);
       list.append(row);

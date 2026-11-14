@@ -10,10 +10,13 @@ async function checkRegisterLimits(browser) {
       body:'<section class="view"><div id="passive-register-root"></div></section>'}));
     await page.goto('http://localhost/register-test');
     await page.evaluate(() => {
-      window.CeasefireI18n = {text(element, value) { element.textContent = value; }};
+      window.CeasefireI18n = {text(element, value) { element.textContent = value; }, translate(value) { return value; }, attr() {}};
       window.CeasefireProject = {changed() {}};
     });
-    await page.addScriptTag({path:path.resolve(__dirname, '../../static/passive-fire-register.js')});
+    await page.route('**/api/libraries/technical?*', route => route.fulfill({json:{filters:[],items:[],total:0}}));
+    for (const file of ['form-controls.js','libraries.js','library-detail-text.js','passive-register-library.js','passive-fire-register.js']) {
+      await page.addScriptTag({path:path.resolve(__dirname,'../../static',file)});
+    }
     await page.evaluate(options => {
       window.ClassifirePassiveRegister.setOptions(options);
       window.ClassifirePassiveRegister.open();
@@ -44,6 +47,28 @@ async function checkRegisterLimits(browser) {
     });
     await page.getByLabel('Before Photo', {exact:true}).setInputFiles(photo);
     await expect(page.getByRole('img', {name:'Before Photo 1'})).toBeVisible();
+
+    // A removed reference remains visible and clearable on reopening. A missing
+    // thumbnail must never prevent an otherwise valid reference being selected.
+    await page.route('**/api/libraries/technical/removed-item', route => route.fulfill({status:404,json:{error:'Library reference not found.'}}));
+    await page.route('**/api/libraries/technical/available-item', route => route.fulfill({json:{id:'available-item',title:'Available system',thumbnail_url:'/api/libraries/images/missing/thumbnail'}}));
+    await page.route('**/api/libraries/images/missing/thumbnail', route => route.fulfill({status:404,body:''}));
+    const reopen = id => page.evaluate(key => {
+      const state = window.ClassifirePassiveRegister.capture().value;
+      state.entries[0].technical_item_id = key;
+      window.ClassifirePassiveRegister.applyProject(state);
+    },id);
+    const picker = page.locator('.register-library-picker');
+    await reopen('removed-item');
+    await expect(picker.getByRole('checkbox', {name:'removed-item'})).toBeChecked();
+    await expect(picker.getByText('Library reference not found.')).toBeVisible();
+    await picker.getByRole('checkbox').click();
+    await expect(picker.getByRole('checkbox')).toHaveCount(0);
+    assert.equal(await page.evaluate(() => window.ClassifirePassiveRegister.capture().value.entries[0].technical_item_id),'');
+    await reopen('available-item');
+    await expect(picker.getByRole('checkbox', {name:'Available system'})).toBeChecked();
+    await expect(picker.getByRole('img')).toHaveCount(0);
+    assert.equal(await page.evaluate(() => window.ClassifirePassiveRegister.capture().value.entries[0].technical_item_id),'available-item');
   } finally {
     await page.close();
   }

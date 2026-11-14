@@ -558,6 +558,11 @@ class ReferenceLibrary:
                      'notice': data['libraries'][kind].get('notice', '') if data else 'No local reference library has been installed.'} for kind, title in KINDS.items()],
                     'notice': data.get('notice', '') if data else ''}
 
+    @staticmethod
+    def _technical_thumbnail(item):
+        images = item.get('images') or next((field['images'] for field in item.get('fields', []) if field.get('images')), [])
+        return f"/api/libraries/images/{images[0]['id']}/thumbnail" if images else None
+
     def listing(self, kind, **query):
         with self._lock:
             if kind not in KINDS:
@@ -607,6 +612,7 @@ class ReferenceLibrary:
                     if offset <= total < offset + limit:
                         shown.append({**{name: item.get(name, '') for name in ('id', 'title', 'subtitle', 'summary', 'source_label')},
                                       **{name: deepcopy(item[name]) for name in ('library_id', 'price', 'editable') if name in item},
+                                      **({'thumbnail_url': self._technical_thumbnail(item)} if kind == 'technical' else {}),
                                       'related_count': len(data['_links'][kind][key])})
                     total += 1
             counts = {'total': len(data['_visible'][kind]) if data else 0,
@@ -650,6 +656,7 @@ class ReferenceLibrary:
             if kind == 'technical':
                 display = variant_display(data, key)
                 item.update(display)
+                item['thumbnail_url'] = self._technical_thumbnail(item)
                 item['manufacturers'] = list(data['_technical_discovery'][key].get('manufacturer', []))
                 if display:
                     for field in item.get('fields', []):

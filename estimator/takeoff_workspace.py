@@ -279,6 +279,19 @@ class TakeoffService:
         with self._lock:
             return self._response(session_id, evidence=verify_evidence)
 
+    def register_plan_documents(self, session_id, project_id, identifiers):
+        """Resolve only original drawings retained by this estimate's verified session."""
+        with self._lock:
+            state = self._session(session_id)['snapshot']
+            if state['project_id'] != project_id:
+                raise ValidationError('A register plan belongs to another Takeoffs workspace.')
+            self._session_evidence(session_id)
+            selected = [doc for doc in state['documents'] if doc['id'] in identifiers]
+            if len(selected) != len(identifiers):
+                raise ValidationError('A pinned drawing is no longer in the project. Restore it or remove its pins.')
+            self.documents.assert_documents(selected, owner=session_id)
+            return deepcopy(selected)
+
     def capture(self, session_id, snapshot):
         with self._lock:
             state = self._session(session_id)['snapshot']

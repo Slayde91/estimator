@@ -5210,6 +5210,7 @@
   function scheduleBindings(calculatorId, row) { return (snapshot()?.transfers || []).filter(binding => binding.calculator_id === calculatorId && binding.row === row && binding.status !== "detached"); }
   async function showSource(itemId) { build(); await window.CeasefireTakeoffNavigation?.show?.(); if (!items().some(item => item.id === itemId)) { await safely(() => manageLinkedRows(itemId)); return; } await selectItem(itemId); }
   window.CeasefireTakeoffs = { open, selectWorkspace, refreshNavigation, projectSnapshot, projectFingerprint, prepareProject, applyProject, prepareDefaults, markProjectSaved, hasUnsavedChanges, completeProjectSnapshot, documentationExport,
+    planSource: () => ({ project_id:snapshot()?.project_id, documents:documents(), session_id:state.session?.session_id }),
     hasPendingOperation: () => !!(state.busy || state.linkedRecovery),
     hasLinkedRecovery: () => !!state.linkedRecovery,
     sessionId: () => state.session?.session_id, referenceRevision: () => state.session?.revision, scheduleBindings, showSource, discardPreparedSession, calculatorDraftChanged,

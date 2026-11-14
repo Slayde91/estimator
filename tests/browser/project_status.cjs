@@ -70,7 +70,7 @@ async function idle() {
   assert.ok(titleBox.x+titleBox.width<=actionsBox.x && Math.abs(titleBox.y-actionsBox.y)<1,'Small action arrow sits in the top-right of the card');
   let fileLoads=0;page.on('request',request=>{if(new URL(request.url()).pathname==='/api/projects/load')fileLoads++;});
   await actions.click();
-  await expect(first.locator('.project-menu-options > button')).toHaveText(['Open','Load','Edit','Delete','Browse files']);
+  await expect(first.locator('.project-menu-options > button')).toHaveText(['Open','Load','Edit','Delete','Add follow-up','Browse files']);
   await expect(first.locator('.project-menu-options > :last-child')).toHaveClass(/project-row-status/);
   await expect(first.locator('.project-menu-options > :last-child')).toContainText('Move to');
   await first.getByRole('button',{name:'Open',exact:true}).click();
@@ -91,6 +91,12 @@ async function idle() {
   await first.locator('summary').click();
   await expect(first.getByRole('button',{name:'Open',exact:true})).toBeEnabled();
   await expect(first.getByRole('button',{name:'Edit',exact:true})).toBeDisabled();
+  const addFollowUp=first.getByRole('button',{name:'Add follow-up',exact:true});
+  await addFollowUp.click();
+  const actionsDialog=page.getByRole('dialog',{name:'Follow-up actions'});
+  await expect(actionsDialog.getByLabel('Next action').first()).toBeEditable();
+  await actionsDialog.getByRole('button',{name:'Cancel',exact:true}).click();
+  await first.locator('summary').click();
   const stage=first.getByRole('combobox',{name:/Status for/});
   await expect(stage.locator('option')).toHaveText(['New','Quote','Engage','Won','Lost']);
   await stage.selectOption('Won');
@@ -112,8 +118,8 @@ async function idle() {
   await expect(columns).toHaveCount(5);
   const chooser = page.locator('#project-columns');
   const toggle = chooser.locator('summary');
-  const [newBox, columnsBox] = await Promise.all([page.locator('#new-quote').boundingBox(), toggle.boundingBox()]);
-  assert.ok(columnsBox.x >= newBox.x + newBox.width && Math.abs(columnsBox.y+columnsBox.height/2-newBox.y-newBox.height/2)<2, 'Columns sits directly right of New');
+  const [viewBox, columnsBox] = await Promise.all([picker.locator('summary').boundingBox(), toggle.boundingBox()]);
+  assert.ok(columnsBox.x >= viewBox.x + viewBox.width && Math.abs(columnsBox.y+columnsBox.height/2-viewBox.y-viewBox.height/2)<2, 'View and Columns sit together on the same row');
   await toggle.click();
   await expect(chooser.locator('label')).toHaveText(['New','Quote','Engage','Won','Lost']);
   const won = chooser.getByRole('checkbox', {name:'Won', exact:true});

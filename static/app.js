@@ -1220,6 +1220,7 @@
     window.CeasefireNotifications?.navigate(view === "pricing" ? `pricing:${state.libraryKind}` : view === "calculators" ? `calculators:${calculatorId || state.calculatorKind}` : view === "estimate" ? `estimate:${state.estimateKind || "estimate"}` : view);
     if (view !== state.currentView && $("app-message").hidden) releaseMessageSpace();
     if (previousView === "pricing" && view !== previousView) window.CeasefireLibraries?.leave?.();
+    if (previousView === "passive-fire-register" && view !== previousView) window.ClassifireRegisterPlans?.close();
     state.currentView = view;
     refreshProjectPages();
     refreshDocumentPages();
@@ -2386,6 +2387,15 @@
   }
 
   window.CeasefireEstimates = {list:() => state.projectEstimates.map(({id,name}) => ({id,name})), activeId:() => state.activeEstimateId, select:selectEstimate,
+    planSources() {
+      return state.projectEstimates.flatMap(estimate => {
+        const source = estimate.id === state.activeEstimateId ? window.CeasefireTakeoffs?.planSource() :
+          {...estimate.workspace?.takeoffs, session_id:estimate.workspace?.takeoffs_session_id};
+        if (!source?.session_id || !source.documents?.length) return [];
+        return source.documents.map(doc => ({name:doc.name, document_id:doc.id, sha256:doc.sha256,
+          pages:doc.pages.length, project_id:source.project_id, session_id:source.session_id, estimate:estimate.name}));
+      });
+    },
     async capture(options) {if (state.projectBusy) throw new Error("Finish the current project operation first."); return estimateCollectionWith(await captureCurrentEstimate(options));}};
 
   function projectStampFields(includeCommercial = true) {
@@ -2810,9 +2820,8 @@
       title.addEventListener("click", () => window.CeasefireProjectPane?.open(file));
       const heading = node("div", "project-row-heading");
       heading.append(title);
-      window.ClassifireDocumentBoard.addFollowUpMarker(heading, file.follow_up_date, event =>
-        window.ClassifireFollowUpActions.openDialog({
-          trigger:event.currentTarget, recordName:file.title || file.name, readOnly:!canEdit(),
+      const followUp = trigger => window.ClassifireFollowUpActions.openDialog({
+          trigger, recordName:file.title || file.name, readOnly:!canEdit(),
           load:async () => {
             const saved = await request("/api/projects/details", {method:"POST",body:JSON.stringify({id:file.id})});
             return {actions:saved.project_follow_up.actions, revision:saved.revision};
@@ -2838,7 +2847,8 @@
             const card = $("project-list").querySelector('[data-project-id="' + CSS.escape(file.id) + '"]');
             return card?.querySelector(".board-follow-up-due:not([hidden])") || card?.querySelector(".project-title-button");
           }
-        }));
+        });
+      window.ClassifireDocumentBoard.addFollowUpMarker(heading, file.follow_up_date, event => followUp(event.currentTarget));
       const fields = [
         ["Project No.", file.project_no], ["Client", file.client], ["Site address", file.site_address],
         ["Next action", file.next_action], ["Follow-up due", file.follow_up_date && window.ClassifireDates.date(file.follow_up_date)],
@@ -2880,9 +2890,10 @@
         ["Open", () => window.CeasefireProjectPane?.open(file)],
         ["Load", button => openProjectFile(file, button, "", {landingView:"quotes"})],
         ["Edit", button => openProjectFile(file, button, estimateSelect.value), true],
-        ["Delete", () => deleteProjectCard(file)], ["Browse files", () => openProjectBrowser(file)]
+        ["Delete", () => deleteProjectCard(file)], ["Add follow-up", () => followUp(toggle)], ["Browse files", () => openProjectBrowser(file)]
       ]) {
         const button = uiNode("button", "text-button", label); button.type = "button";
+        if (label === "Add follow-up") button.disabled = !canEdit();
         if (requiresEstimate) { button.disabled = true; needsEstimate.push(button); }
         button.addEventListener("click", () => { if (requiresEstimate && !estimateSelect.value) return; menu.open = false; return action(button); });
         actions.append(button);

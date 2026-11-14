@@ -142,22 +142,49 @@
       } else control.append(entry);
     }
   }
-  function renderFilters(pane, filters) {
-    const safeFilters = (Array.isArray(filters) ? filters : []).filter(filter => typeof filter.key === "string" && !["search", "offset", "limit", "technical_reference"].includes(filter.key));
-    const stamp = JSON.stringify([safeFilters, pane.filters]); if (stamp === pane.filterStamp) return;
-    pane.filterStamp = stamp;
-    pane.filterControls.replaceChildren(...safeFilters.map(filter => {
-      const reference = filter.key === "technical_reference", label = node("label", "field"), control = node("select"), all = uiNode("option", "", ...(reference ? ["Any", []] : ["All {0}", [uiTerm(filter.label || filter.key)]])); all.value = reference ? "any" : "";
-      control.dataset.libraryFilter = filter.key; control.append(all);
-      if (reference) for (const option of filter.options || []) { const el = uiNode("option", "", option.label ?? option.value); el.value = option.value; control.append(el); }
-      else appendFilterOptions(control, filter.options, filter.key);
-      const selected = pane.filters[filter.key] || (reference ? "any" : "");
-      if (selected && !filterOptions(control).some(option => option.value === selected)) { const el = node("option", "", selected); el.value = selected; control.append(el); }
+  function renderFilterControls(container, filters, values, onChange) {
+    const visible = (Array.isArray(filters) ? filters : []).filter(filter => typeof filter.key === "string" && !["search", "offset", "limit", "technical_reference"].includes(filter.key));
+    const controls = new Map();
+    const select = (key, value) => {
+      values[key] = value;
+      const control = controls.get(key);
+      control.value = value;
+      control.classList.toggle("library-filter-active", !!value);
+    };
+    container.replaceChildren(...visible.map(filter => {
+      const label = node("label", "field"), control = node("select");
+      const all = uiNode("option", "", "All {0}", [uiTerm(filter.label || filter.key)]);
+      all.value = "";
+      control.dataset.libraryFilter = filter.key;
+      controls.set(filter.key, control);
+      control.append(all);
+      appendFilterOptions(control, filter.options, filter.key);
+      const selected = values[filter.key] || "";
+      if (selected && !filterOptions(control).some(option => option.value === selected)) {
+        const retained = node("option", "", selected); retained.value = selected; control.append(retained);
+      }
       control.value = selected;
-      control.classList.toggle("library-filter-active", !!selected && selected !== "any");
-      control.addEventListener("change", () => { control.classList.toggle("library-filter-active", !!control.value && control.value !== "any"); pane.filters[filter.key] = control.value; pane.offset = 0; loadList(pane); });
-      label.append(uiNode("span", "", filter.label || filter.key), control); return label;
+      control.classList.toggle("library-filter-active", !!selected);
+      control.addEventListener("change", () => {
+        select(filter.key, control.value);
+        if (filter.key === "substrate" && controls.has("orientation")) {
+          const group = filter.options?.find(option => option.value === control.value)?.group;
+          const orientation = { Walls: "Vertical", Floors: "Horizontal", Ceilings: "Horizontal" }[group];
+          if (orientation && filterOptions(controls.get("orientation")).some(option => option.value === orientation)) {
+            select("orientation", orientation);
+          }
+        }
+        onChange();
+      });
+      label.append(uiNode("span", "", filter.label || filter.key), control);
+      return label;
     }));
+  }
+  function renderFilters(pane, filters) {
+    const stamp = JSON.stringify([filters, pane.filters]);
+    if (stamp === pane.filterStamp) return;
+    pane.filterStamp = stamp;
+    renderFilterControls(pane.filterControls, filters, pane.filters, () => { pane.offset = 0; loadList(pane); });
   }
   function renderList(pane) {
     const data = pane.data, items = Array.isArray(data.items) ? data.items : [];
@@ -1162,5 +1189,5 @@
     await window.CeasefireLibraryNavigation.open("technical");
     return { selectionRequired: true };
   }
-  window.CeasefireLibraries = { open, leave, invalidate, scheduleChanged, projectChanged, appendFilterOptions, documentationExport };
+  window.CeasefireLibraries = { open, leave, invalidate, scheduleChanged, projectChanged, appendFilterOptions, renderFilterControls, documentationExport };
 })();

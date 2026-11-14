@@ -2,15 +2,12 @@
   "use strict";
   const root = document.getElementById('passive-register-root');
   const phases = {before:'Before Photo', during:'During Photo', after:'After Photo', label:'Label Photo'};
-  const fields = {location:'Level/Location', seal_type:'Seal Type', frl:'FRL', substrate:'Substrate',
-    orientation:'Orientation', installation_type:'Installation Type', service_types:'Service Type',
-    manufacturer:'Manufacturer', report:'Report/Assessment', products:'Products'};
+  let libraryPicker, pickerEntry;
   let nextNumber = 1;
   const sideId = (number, side) => String(number).padStart(3,'0') + (side === 2 ? '-2' : '');
   const newSide = (id) => ({id_number:id, before:[], during:[], after:[], label:[]});
   const newEntry = () => ({entry_id:crypto.randomUUID(),number:nextNumber,
-    location:'', seal_type:'', frl:'', substrate:'', orientation:'', installation_type:'',
-    service_types:[], manufacturer:'', report:'', products:[], side1:newSide(sideId(nextNumber,1)), side2:newSide(sideId(nextNumber,2)),
+    location:'', technical_item_id:'', side1:newSide(sideId(nextNumber,1)), side2:newSide(sideId(nextNumber,2)),
     access:'', photos:[], comments:'', solution:'', signature:null});
   let entries = [], current = 0, placeholder = newEntry(), revision = 0, saved = 0;
   let options, pending = false, exporting = false, hasRegister = false, message = '', entrySelect, removeEntry, exportButton;
@@ -62,24 +59,7 @@
     return wrap;
   }
   function editor(record, key, label, values, rerender = false) {
-    const multiple = Array.isArray(record[key]);
-    if (multiple) {
-      const group = el('fieldset','register-choices');
-      group.append(el('legend','',label));
-      for (const value of values) {
-        const wrapper = el('label'), check = el('input');
-        check.type = 'checkbox';
-        check.value = value;
-        check.checked = record[key].includes(value);
-        check.addEventListener('change', () => {
-          record[key] = values.filter(item => item === value ? check.checked : record[key].includes(item));
-          changed();
-        });
-        wrapper.append(check, document.createTextNode(value));
-        group.append(wrapper);
-      }
-      return group;
-    }
+
     const control = el(values ? 'select' : key === 'comments' ? 'textarea' : 'input');
     if (values) {
       const blank = el('option','','Select');
@@ -90,10 +70,9 @@
         if (key === 'access') window.CeasefireI18n.text(option,value);
         control.add(option);
       }
-    } else control.maxLength = key === 'comments' ? 4000 : key === 'id_number' ? 200 : 1000;
+    } else control.maxLength = key === 'comments' ? 4000 : 1000;
     control.value = record[key];
     control.addEventListener(values ? 'change' : 'input', () => {
-      if (key === 'manufacturer' && record.manufacturer !== control.value) record.report = '';
       record[key] = control.value;
       changed();
       if (rerender) {
@@ -214,7 +193,8 @@
     button.disabled = true;
     try {
       const result = await window.CeasefireDownloads.save('/api/project/passive-fire-register.pdf',
-        {register:snapshot, project_details:window.CeasefireProject.details()}, {button});
+        {register:snapshot, project_details:window.CeasefireProject.details(),
+          ...window.ClassifireRegisterPlans?.exportContext(snapshot)}, {button});
       if (result?.saved) setStatus('Document saved. Its revision is available in this project.');
     } catch(error) { setStatus(error.message); }
     finally { exporting = false; exportButton.disabled = false; }
@@ -248,18 +228,23 @@
     toolbar.append(field('Register entry',entrySelect), add, remove, exportButton);
     const status = el('p','helper',message);
     status.setAttribute('role','status');
-    const card = el('section','card register-grid');
-    for (const [key,label] of Object.entries(fields)) {
-      const choices = key === 'report' ? options.reports[entry.manufacturer] : options[key];
-      if (key !== 'report' || choices) card.append(editor(entry,key,label,choices,key === 'manufacturer'));
+    if (pickerEntry !== entry) {
+      libraryPicker?.close();
+      libraryPicker = window.ClassifireRegisterLibrary.picker(entry, changed);
+      pickerEntry = entry;
     }
-    form.append(toolbar, status, card, sideSection(entry.side1,'Side 1'));
+    const card = el('section','card');
+    card.append(editor(entry,'location','Level/Location'));
+    form.append(toolbar, status, card, libraryPicker.element, sideSection(entry.side1,'Side 1'));
     const access = el('section','card');
     access.append(editor(entry,'access','Is the other side accessible?',options.access,true));
     if (entry.access === 'No') access.append(photoList(entry,'photos','Photos'), editor(entry,'comments','Comments'));
     if (entry.access === 'NA') access.append(editor(entry,'solution','Solution',options.solution));
     form.append(access);
     if (entry.access === 'Yes') form.append(sideSection(entry.side2,'Side 2'));
+    if (window.ClassifireRegisterPlans) {
+      form.append(window.ClassifireRegisterPlans.section({entry, entries, changed, el, field}));
+    }
     const sign = el('section','card');
     sign.append(el('h2','','Signature'));
     if (entry.signature) {
@@ -267,7 +252,7 @@
       img.src = window.ClassifirePersonalSignature.png(entry.signature);
       sign.append(img);
     }
-    sign.append(action('Insert signature', async () => {
+    sign.append(window.ClassifireFormControls.iconButton('Insert signature', 'signature', async () => {
       try {
         const value = await window.ClassifirePersonalSignature.choose(entry.signature);
         if (value && editedEntry() === entry) { entry.signature = value; changed(); render(); }
@@ -288,6 +273,8 @@
     hasProjectChanges:() => saved !== revision,
     markSaved(snapshot) { if (snapshot?.revision === revision) saved = revision; },
     applyProject(snapshot) {
+      window.ClassifireRegisterPlans?.close();
+      libraryPicker?.close(); libraryPicker = null; pickerEntry = null;
       photoPixels.clear();
       entries = structuredClone(snapshot?.entries || []);
       nextNumber = snapshot?.next_number ?? entries.length+1;

@@ -58,7 +58,7 @@ def _hidden_field(record, field):
                 and _SELECTOR_ID.fullmatch(_text(field.get('value')).strip())))
 
 
-def prepare_technical_item(body, *, library):
+def prepare_technical_item(body, *, library, include_images=True):
     if not isinstance(body, dict) or set(body) - {'id', 'download'} or 'id' not in body:
         raise ValidationError('Include only one Technical Library item ID and an optional download destination.')
     key = identifier(body['id'])
@@ -82,7 +82,8 @@ def prepare_technical_item(body, *, library):
         label = field['label']
         if _hidden_field(record, field):
             continue
-        if not _text(field.get('value')).strip() and not any(field.get(name) for name in ('images', 'table', 'tables', 'table_links')):
+        has_content = any(field.get(name) for name in ('table', 'tables', 'table_links')) or (include_images and field.get('images'))
+        if not _text(field.get('value')).strip() and not has_content:
             continue
         try:
             validate_report_links(field, user_authored=record.get('user_authored') is True)
@@ -104,10 +105,12 @@ def prepare_technical_item(body, *, library):
             caption = _text(captions[ordinal]) if ordinal < len(captions) else ''
             account([caption])
             tables.append({'label': label, 'caption': caption, 'columns': columns, 'rows': rows})
-        for image in field.get('images', []):
+        if include_images:
+            for image in field.get('images', []):
+                image_refs.setdefault(identifier(image['id']), image)
+    if include_images:
+        for image in record.get('images', []):
             image_refs.setdefault(identifier(image['id']), image)
-    for image in record.get('images', []):
-        image_refs.setdefault(identifier(image['id']), image)
     if len(image_refs) > MAX_IMAGES:
         raise ValidationError('This technical item has too many source diagrams for one download.')
     images, image_bytes, pixels = [], 0, 0
@@ -242,11 +245,8 @@ def build_technical_item_xlsx(snapshot):
     return _serialize_exact(workbook)
 
 
-def render_technical_item_pdf(snapshot, *, company=None):
-    _register_fonts()
-    report = _Report({})
-    width, height = A4
-    margin, content = 32, width - 64
+def append_technical_item_fields(report, snapshot, content):
+    """The same titled fields, report links and installation tables in both PDFs."""
     record = snapshot['record']
     title = display_technical_title(record)
     if record.get('configuration'):
@@ -275,6 +275,14 @@ def render_technical_item_pdf(snapshot, *, company=None):
                 report.story.append(report.p(f'Columns {start + 1}-{start + len(columns)} of {len(table["columns"])}; row numbers align these parts.', 'small'))
                 values = [[report.p(str(index), 'cell')] + [report.p(value, 'cell') for value in row[start:start + 3]] for index, row in enumerate(display_rows, 1)]
                 report.story.append(report.table(['Row', *columns], values, [55] + [(content - 55) / len(columns)] * len(columns), compact=True))
+
+
+def render_technical_item_pdf(snapshot, *, company=None):
+    _register_fonts()
+    report = _Report({})
+    width, height = A4
+    margin, content = 32, width - 64
+    append_technical_item_fields(report, snapshot, content)
     if not snapshot['images']:
         report.story.extend([report.p('Diagram', 'subheading'), report.p('No diagram is recorded.')])
     for index, image in enumerate(snapshot['images']):

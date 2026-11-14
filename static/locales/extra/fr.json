@@ -1,4 +1,10 @@
 {
+  "Plan location": "Emplacement sur le plan",
+  "Place pin on plan": "Placer un repère sur le plan",
+  "Remove pin": "Supprimer le repère",
+  "Click the plan to place a pin. With the keyboard, use the arrow keys and press Enter.": "Cliquez sur le plan pour poser un repère. Au clavier, utilisez les flèches puis appuyez sur Entrée.",
+  "Each register entry supports up to 200 plan pins.": "Chaque entrée du registre peut contenir jusqu’à 200 repères sur plan.",
+  "Select a filter to find a Technical Library item.": "Sélectionnez un filtre pour rechercher un élément dans la bibliothèque technique.",
   "Previous ID": "Identifiant précédent",
   "Forms": "Formulaires",
   "Form templates": "Modèles de formulaire",

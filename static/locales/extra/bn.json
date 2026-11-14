@@ -1,4 +1,10 @@
 {
+  "Plan location": "নকশায় অবস্থান",
+  "Place pin on plan": "নকশায় পিন রাখুন",
+  "Remove pin": "পিন সরান",
+  "Click the plan to place a pin. With the keyboard, use the arrow keys and press Enter.": "পিন রাখতে নকশায় ক্লিক করুন। কিবোর্ডে তীরচিহ্নের কী দিয়ে অবস্থান বেছে Enter চাপুন।",
+  "Each register entry supports up to 200 plan pins.": "প্রতি নিবন্ধনে নকশায় সর্বাধিক ২০০টি পিন রাখা যায়।",
+  "Select a filter to find a Technical Library item.": "কারিগরি লাইব্রেরিতে কোনো আইটেম খুঁজতে একটি ফিল্টার নির্বাচন করুন।",
   "Previous ID": "আগের আইডি",
   "Forms": "ফর্ম",
   "Form templates": "ফর্ম টেমপ্লেট",

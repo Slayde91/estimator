@@ -17,8 +17,7 @@ from .catalog import ValidationError
 ROLES = ('none', 'viewer', 'editor')
 ADMIN_WRITES = frozenset((
     '/api/contacts/identity/merge', '/api/contacts/identity/undo',
-    '/api/company-settings', '/api/document-numbering', '/api/numbering-settings',
-    '/api/document-numbering/migrate-orders', '/api/project-details',
+    '/api/company-settings', '/api/document-numbering/migrate-orders',
     '/api/pricing/import', '/api/pricing/reset',
     '/api/configuration', '/api/projects/delete',
 ))
@@ -29,6 +28,7 @@ READ_POSTS = frozenset(('/api/calculate', '/api/calculators/calculate',
 EDIT_GETS = frozenset(('/api/libraries/technical/new',))
 ADMIN_READS = frozenset(('/api/certifications/defaults/legacy',))
 IDENTITY_READS = frozenset(('/api/record-resources','/api/record-resources/file','/api/certifications/defaults','/api/certifications/defaults/legacy','/api/scheduler/bootstrap'))
+PERSONAL_NUMBERING = frozenset(('/api/numbering-settings', '/api/document-numbering', '/api/project-details'))
 AUDIT_SEGMENTS = frozenset(('record-resources','upload','remove-file','file','api','contacts','accounts','leads','activity','identity','merge','undo','preview','suggestions','sync-project-details',
     'crm','project-participants','sites','commercial','follow-up','saved-save','saved-status','saved-issue','saved-delete',
     'save','save-as','status','issue','delete','derive','notes','attachment','ignore-source','restore-source',
@@ -276,7 +276,7 @@ class CRMAccess:
         expected=handler.headers.get('X-CRM-Member')
         identity=user['id'] if user else 'anonymous'
         read_operation=handler.command == 'POST' and route in READ_POSTS
-        if handler.command in ('GET','HEAD') and (route in IDENTITY_READS or route.startswith('/api/forms/')) and expected is not None and expected != identity:
+        if handler.command in ('GET','HEAD') and (route in IDENTITY_READS or route in PERSONAL_NUMBERING or route.startswith('/api/forms/')) and expected is not None and expected != identity:
             raise AccessError('The signed-in staff account changed. Reload this tab before continuing.',409)
         bound_mutation=route.startswith('/api/') and not route.startswith('/api/scheduler/') and (
             handler.command not in ('GET','HEAD') and not read_operation or route in EDIT_GETS)
@@ -304,7 +304,7 @@ class CRMAccess:
         if route in ADMIN_WRITES:
             if role!='admin':
                 raise AccessError('An administrator account is required.')
-        elif role not in ('editor','admin') and not read_operation:
+        elif role not in ('editor','admin') and not read_operation and route not in PERSONAL_NUMBERING:
             raise AccessError('This account has view-only access. An editor is required to make changes.')
         if not read_operation:
             handler.crm_request_id=self.begin_request(user,handler.command,route)

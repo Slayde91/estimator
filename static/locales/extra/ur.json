@@ -1,4 +1,10 @@
 {
+  "Plan location": "نقشے پر مقام",
+  "Place pin on plan": "نقشے پر پن لگائیں",
+  "Remove pin": "پن ہٹائیں",
+  "Click the plan to place a pin. With the keyboard, use the arrow keys and press Enter.": "پن لگانے کے لیے نقشے پر کلک کریں۔ کی بورڈ پر تیر والی کلیدوں سے جگہ منتخب کریں اور Enter دبائیں۔",
+  "Each register entry supports up to 200 plan pins.": "رجسٹر کے ہر اندراج میں نقشے پر زیادہ سے زیادہ 200 پن لگ سکتے ہیں۔",
+  "Select a filter to find a Technical Library item.": "تکنیکی لائبریری میں کوئی آئٹم تلاش کرنے کے لیے فلٹر منتخب کریں۔",
   "Previous ID": "پچھلا شناختی نمبر",
   "Forms": "فارمز",
   "Form templates": "فارم ٹیمپلیٹس",

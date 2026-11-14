@@ -354,7 +354,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 return
             if self.command == 'GET' and route in {'/record-resources.js', '/record-resources.css', '/project-record-panels.js', '/crm-access.js', '/crm-access.css', '/crm-identity.js', '/project-participants.js', '/scheduler-only.js',
                     '/dates.js','/date-controls.js','/date-controls.css',
-                    '/forms.js','/forms.css','/forms-builder.js','/forms-builder.css','/form-fields.js','/form-fields.css','/forms-layout.js'}:
+                    '/forms.js','/forms.css','/forms-builder.js','/forms-builder.css','/form-controls.js','/form-fields.js','/form-fields.css','/forms-layout.js'}:
                 path = ROOT / 'static' / route[1:]
                 if not path.is_file():
                     self.send_payload(404, {'error': 'Not found.'})

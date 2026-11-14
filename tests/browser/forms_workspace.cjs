@@ -66,6 +66,32 @@ const ready=new Promise((resolve,reject)=>{
   await open(view);const viewRoot=view.locator('#forms-root');
   await expect(viewRoot).not.toContainText('Site QA inspection');await expect(viewRoot.getByRole('button',{name:'Create template'})).toHaveCount(0);
   await b('Edit').click();await b('Settings').click();await forms.getByRole('checkbox',{name:'Viewer',exact:true}).check();
+  for (const title of ['Header elements','Footer elements']) {
+    const layout=forms.getByRole('group',{name:title,exact:true}), rows=layout.locator('.forms-layout-row');
+    const action=(row,name)=>row.getByRole('button',{name,exact:true});
+    for (const kind of ['text','author']) {
+      await layout.getByLabel(title+' to add').selectOption(kind);
+      await layout.getByRole('button',{name:'Add element',exact:true}).click();
+    }
+    await expect(rows.locator('strong')).toHaveText(['Custom text','Created by']);
+    await expect(action(rows.first(),'Move up')).toBeDisabled();
+    await expect(action(rows.last(),'Move down')).toBeDisabled();
+    for (const name of ['Move up','Move down','Remove']) {
+      const control=action(rows.first(),name);
+      await expect(control).toHaveAttribute('title',name);
+      await expect(control.locator('[aria-hidden="true"]')).toBeVisible();
+      assert.ok(!(await control.innerText()).includes(name));
+    }
+    await action(rows.last(),'Move up').click();
+    await expect(rows.locator('strong')).toHaveText(['Created by','Custom text']);
+    await action(rows.first(),'Move down').click();
+    await expect(rows.locator('strong')).toHaveText(['Custom text','Created by']);
+    await action(rows.first(),'Remove').click();
+    await expect(rows.locator('strong')).toHaveText(['Created by']);
+    await expect(action(rows.first(),'Move up')).toBeDisabled();
+    await expect(action(rows.first(),'Move down')).toBeDisabled();
+  }
+  await forms.locator('.form-builder-print-layout').screenshot({path:path.join(output,'print-layout-icons.png')});
   await b('Save changes').click();await expect(forms).toContainText('Template published.');await b('Back').click();
   await b('Fill out').click();await forms.getByLabel('Inspection site',{exact:true}).fill('QA site, bay A');
   await b('Save draft').click();await expect(forms.getByRole('heading',{name:'Form record'})).toBeVisible();
@@ -78,6 +104,10 @@ const ready=new Promise((resolve,reject)=>{
   await expect(comparison.getByRole('cell',{name:/viewer/})).toBeVisible();
   await comparison.getByRole('button',{name:'Close',exact:true}).click();
   await versions.getByRole('button',{name:'Close'}).click();await b('Edit template').click();
+  await b('Settings').click();
+  for (const title of ['Header elements','Footer elements']) {
+    await expect(forms.getByRole('group',{name:title,exact:true}).locator('.forms-layout-row strong')).toHaveText(['Created by']);
+  }
   await forms.getByLabel('Template name',{exact:true}).fill('Site QA inspection revised');await b('Save changes').click();await expect(forms).toContainText('Template published.');
   await b('Back').click();await b('Form records').click();await b('Site QA inspection').click();
   await expect(forms).toContainText('Template version 2');await expect(forms).toContainText('QA site, bay B');

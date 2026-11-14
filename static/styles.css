@@ -132,6 +132,7 @@ main{max-width:1660px;margin:auto;padding:38px 30px 65px;min-height:calc(100vh -
 .primary:hover{background:var(--accent-dark);border-color:var(--accent-dark);box-shadow:0 4px 12px #b90a1525}
 .button.primary.add-icon-action,:root[data-theme] .button.primary.add-icon-action{display:inline-flex;align-items:center;justify-content:center;flex:0 0 var(--add-icon-size,48px);box-sizing:border-box;width:var(--add-icon-size,48px);min-width:var(--add-icon-size,48px);height:var(--add-icon-size,48px);min-height:var(--add-icon-size,48px);padding:0;border:1px solid #eb324a;border-radius:10px;background:#d0001b;color:#fff;box-shadow:none}
 .project-list-actions,.commercial-controls,.penetration-add-band{--add-icon-size:42px}
+.button.form-control-icon{--add-icon-size:42px;box-sizing:border-box;display:inline-grid;place-items:center;justify-self:start;width:38px;height:38px;min-width:38px;min-height:38px;padding:0}
 .button.primary.add-icon-action:hover:not(:disabled),:root[data-theme] .button.primary.add-icon-action:hover:not(:disabled){background:#b90018;border-color:#ee5065;color:#fff}
 .button-symbol.add-symbol{display:grid;place-items:center;font:650 18px/1 "Segoe UI Symbol","Arial Unicode MS",sans-serif}
 .secondary{color:#51414a;background:white;border:1px solid #dcd3d7}

@@ -198,22 +198,26 @@
               renderFields(rowBox, children, item, readOnly,fieldStage,[...parents,box]);
             }
             if (canResize) {
-              const del=button('Remove',()=>{
+              const remove = () => {
                 for (const node of rowBox.querySelectorAll('.form-field')) {
                   conditions.delete(node);checks.delete(node);formulaOutputs.delete(node);listProperties.delete(node);
                 }
                 items.splice(items.indexOf(item),1); rowBox.remove();
                 if (!table) [...rows.children].forEach((node,index)=>{node.querySelector('legend').textContent=translate('Group')+' '+(index+1);});
                 set(items);
-              });
+              };
+              const del = table ? button('Remove',remove) : window.ClassifireFormControls.iconButton('Remove','remove',remove);
               if(table){const cell=el('td');cell.append(del);rowBox.append(cell);}else rowBox.append(del);
             }
           }
           for (const item of items) row(item);
-          if (canResize) body.append(button(type === 'group' ? 'Add group' : 'Add row',()=>{
-            const item={}; items.push(item); row(item); set(items);
-          }));
-          else if (!items.length) body.append(el('p','form-field-answer','—'));
+          if (canResize) {
+            const add = () => {
+              const item = {};
+              items.push(item); row(item); set(items);
+            };
+            body.append(table ? button('Add row',add) : window.ClassifireFormControls.iconButton('Add group','add',add));
+          } else if (!items.length) body.append(el('p','form-field-answer','—'));
         } else if (type === 'formula' || type === 'list_property') {
           const output=el('output','form-field-answer',answer ?? '—');
           output.setAttribute('aria-labelledby',title.id);body.append(output);
@@ -341,7 +345,7 @@
           const preview=el('img','form-field-image'); preview.alt=field.label; body.append(preview);
           const refresh=()=>{ const image=manual?value()?.image:value();preview.hidden=!isPNG(image); if(!preview.hidden)preview.src=image; else preview.removeAttribute('src'); };
           refresh();
-          const draw = button(type === 'sketch' ? 'Draw sketch' : 'Draw signature', async()=>{
+          const capture = async () => {
             pending++; draw.disabled=true;
             try {
               if (type === 'sketch') { const data=await sketch(value()); if (data) set(data); }
@@ -351,7 +355,8 @@
               }
               refresh();
             } catch(err) {errorText(error,err.message);} finally {pending--; draw.disabled=false;}
-          });
+          };
+          const draw = manual ? window.ClassifireFormControls.iconButton('Draw signature','signature',capture) : button('Draw sketch',capture);
           body.append(draw,button('Clear',()=>{if(manual)updateSigner('image','');else set(null);refresh();}));
         } else if (type === 'location') {
           compound(); const controls = {};

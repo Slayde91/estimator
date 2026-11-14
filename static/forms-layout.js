@@ -27,10 +27,11 @@
           row.addEventListener('dragover',e=>{if(dragging?.key===key)e.preventDefault();});
           row.addEventListener('drop',e=>{if(dragging?.key!==key)return;e.preventDefault();move(dragging.i,i);dragging=null;});
           row.append(select([['left','Left'],['center','Centre'],['right','Right']],item.align,v=>{item.align=v;changed();},'Alignment'));
-          for(const [name,offset] of [['Move up',-1],['Move down',1]]) {
-            const b=button(name,()=>move(i,i+offset));b.disabled=i+offset<0 || i+offset>=list.length;row.append(b);
+          for(const [name,kind,offset] of [['Move up','up',-1],['Move down','down',1]]) {
+            const b=window.ClassifireFormControls.iconButton(name,kind,()=>move(i,i+offset));
+            b.disabled=i+offset<0 || i+offset>=list.length;row.append(b);
           }
-          row.append(button('Remove',()=>update(()=>list.splice(i,1))));
+          row.append(window.ClassifireFormControls.iconButton('Remove','remove',()=>update(()=>list.splice(i,1))));
           if(item.kind==='text') {
             const field=el('input');field.maxLength=250;field.value=item.text || '';field.setAttribute('aria-label','Custom text');
             field.addEventListener('input',()=>{item.text=field.value;});field.addEventListener('change',changed);row.append(field);

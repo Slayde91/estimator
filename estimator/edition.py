@@ -16,6 +16,7 @@ TAKEOFF_PROJECT_ERROR = (
     'have not been changed; this edition cannot open or overwrite them.'
 )
 TAKEOFF_ASSETS = frozenset({
+    '/register-plans.js',
     '/takeoffs.js', '/takeoffs.css', '/takeoff-geometry.js',
     '/takeoff-physical.js', '/takeoff-pdf-worker.mjs',
     '/takeoff-annotations.js', '/takeoff-signatures.js', '/takeoff-search.js', '/takeoff-shortcuts.js',

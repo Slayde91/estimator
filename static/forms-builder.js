@@ -109,10 +109,12 @@
   }
   function fieldHeading(field, label, control) {
     const row = node('div', 'form-builder-field-heading');
+    const flags = node('div', 'form-builder-field-flags');
     row.append(labelled(label, control));
     if (!layoutTypes.has(field.type) && !['formula','list_property'].includes(field.type))
-      row.append(check('Required', Boolean(field.required), on => { field.required = on; }));
-    row.append(check('Hide in printed forms', Boolean(field.hide_in_pdf), on => { field.hide_in_pdf = on; }));
+      flags.append(check('Required', Boolean(field.required), on => { field.required = on; }));
+    flags.append(check('Hide in printed forms', Boolean(field.hide_in_pdf), on => { field.hide_in_pdf = on; }));
+    row.append(flags);
     return row;
   }
   const typeChoices = types => types.map(type => [type, copy(columnNames.get(type))]);
@@ -433,14 +435,13 @@
           choose.addEventListener('dragstart', e => startDrag(e, {id: f.id}));
           const tools = node('div', 'form-builder-row-tools');
           for (const [label, symbol, handler, disabled] of [
-            ['Move up', '↑', () => insert({id:f.id}, i - 1), i === 0],
-            ['Move down', '↓', () => insert({id:f.id}, i + 2), i === model.fields.length - 1],
-            ['Duplicate field', '⧉', () => duplicate(f, i), false],
-            ['Remove field', '×', () => remove(f, i), false],
+            ['Move up', 'up', () => insert({id:f.id}, i - 1), i === 0],
+            ['Move down', 'down', () => insert({id:f.id}, i + 2), i === model.fields.length - 1],
+            ['Duplicate field', 'duplicate', () => duplicate(f, i), false],
+            ['Remove field', 'remove', () => remove(f, i), false],
           ]) {
-            const tool = node('button', 'form-builder-tool', symbol); tool.type = 'button';
-            tool.title = copy(label); tool.setAttribute('aria-label', copy(label)); tool.disabled = disabled;
-            tool.addEventListener('click', handler); tools.append(tool);
+            const tool = window.ClassifireFormControls.iconButton(label, symbol, handler);
+            tool.disabled = disabled; tools.append(tool);
           }
           rowHead.append(choose, tools); row.append(rowHead);
           if (f.id === active) renderField(row, f, i, title, () => drawCanvas());
@@ -677,8 +678,7 @@
         section.append(card);
       });
       const addField = () => { list.push(newField('text')); redraw(); };
-      section.append(table ? button('Add column', addField)
-        : window.ClassifireFormControls.iconButton('Add group field', 'add', addField));
+      section.append(window.ClassifireFormControls.iconButton(table ? 'Add column' : 'Add group field', 'add', addField));
       host.append(section);
     }
 
@@ -729,7 +729,7 @@
         }
       };
       draw(); wrap.append(table);
-      host.append(wrap, button('Add prefilled row', () => { (field.default ||= []).push({}); draw(); }));
+      host.append(wrap, window.ClassifireFormControls.iconButton('Add prefilled row', 'add', () => { (field.default ||= []).push({}); draw(); }));
     }
     function defaultsPage() {
       const panel = node('div', 'form-builder-defaults');
@@ -830,7 +830,9 @@
         print.append(area); window.ClassifireFormsLayout.edit(area, model.settings, remember);
       }
       const files = group('Template attachments'); attachmentSettings(files);
-      panel.append(general, access, workflow, register, print, files); body.append(panel);
+      const layout = node('div','form-builder-settings-column'), permissions = node('div','form-builder-settings-column');
+      layout.append(general, print, files); permissions.append(access, workflow, register);
+      panel.append(layout, permissions); body.append(panel);
     }
     function makeStage() {
       return {id:fieldId(), name:copy('Stage') + ' ' + (model.settings.stages.length + 1), roles:['admin', 'editor']};
@@ -871,7 +873,7 @@
           if (!selectedCol) continue;
           const entry = node('div','form-builder-register-cell');
           const caption = [selectedTable.label,copy('Row')+' '+(cell.row+1),selectedCol.label].join(' · ');
-          const remove = button('Remove',()=>{model.settings.summary_cells.splice(index,1);render();});
+          const remove = window.ClassifireFormControls.iconButton('Remove','remove',()=>{model.settings.summary_cells.splice(index,1);render();});
           remove.setAttribute('aria-label',copy('Remove')+' '+caption);
           entry.append(node('span','',caption),remove); panel.append(entry);
         }
@@ -907,7 +909,7 @@
         if (field) row.append(labelled(field.type === 'action' ? 'Action status' : 'Required answer',select(rule.value, [
           ['',copy('Choose an answer')],...conditionAnswers(field).map(v=>[v,v]),
         ],value => { rule.value = value; })));
-        row.append(button('Remove condition', () => { rules.splice(i,1); show('settings'); }));
+        row.append(window.ClassifireFormControls.iconButton('Remove condition', 'remove', () => { rules.splice(i,1); show('settings'); }));
         section.append(row);
       });
       const add = button('Add condition', () => {
@@ -948,7 +950,7 @@
       function draw() {
         list.replaceChildren();
         (model.settings.attachments || []).forEach((file, i) => {
-          const li = node('li'); li.append(node('span', '', file.name), button('Remove', () => {
+          const li = node('li'); li.append(node('span', '', file.name), window.ClassifireFormControls.iconButton('Remove', 'remove', () => {
             model.settings.attachments.splice(i, 1); draw();
           })); list.append(li);
         });

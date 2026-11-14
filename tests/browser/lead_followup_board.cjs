@@ -33,6 +33,8 @@ async function checkFollowUpBoard(browser, base, output) {
     const due=name=>card(name).getByRole('button',{name:'Follow-up due',exact:true});
     await expect(card('Tomorrow')).toBeVisible();
     const view = root.locator('.record-view-picker');
+    await expect(root.getByLabel('Sort by').locator('option')).toHaveText(['Follow-up date','Name A–Z','Name Z–A','Company','Owner']);
+    assert.ok(await view.evaluate(el => el.nextElementSibling.matches('.lead-columns-menu')));
     await view.locator('summary').click(); await view.getByRole('button',{name:'Table',exact:true}).click();
     await expect(view.locator('summary')).toBeFocused();
     const rows = root.locator('.record-list-table tbody tr');
@@ -43,7 +45,10 @@ async function checkFollowUpBoard(browser, base, output) {
     await expect(rows.getByRole('button',{name:'Convert lead Reminder Past',exact:true})).toBeVisible();
     await rows.locator('.contacts-lead-menu summary').click();
     await expect(rows.getByRole('button',{name:'Edit',exact:true})).toBeVisible();
-    await rows.locator('.contacts-lead-menu summary').click();
+    await rows.getByRole('button',{name:'Add follow-up',exact:true}).click();
+    const menuDialog=page.getByRole('dialog',{name:'Follow-up actions'});
+    await expect(menuDialog.getByLabel('Follow-up date',{exact:true})).toHaveValue('2027-03-13');
+    await menuDialog.getByRole('button',{name:'Cancel',exact:true}).click();
     await root.getByRole('searchbox').fill('');
     await view.locator('summary').click(); await view.getByRole('button',{name:'Kanban',exact:true}).click();
     await page.clock.pauseAt(new Date('2027-03-15T03:59:58Z'));
@@ -67,6 +72,7 @@ async function checkFollowUpBoard(browser, base, output) {
     await root.getByRole('searchbox').fill('Reminder');
     await page.screenshot({path:path.join(output,'lead-follow-up.png')});
     await page.evaluate(()=>window.CeasefireI18n.setLanguage('fr',false));
+    await expect(root.locator('.lead-sort-field option[value=name]')).toHaveText('Nom A–Z');
     await expect(card('Tomorrow').getByRole('button',{name:'Suivi à effectuer',exact:true})).toBeVisible();
     await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));
     for(const width of [1915,913,390]){

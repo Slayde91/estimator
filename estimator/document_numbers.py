@@ -1,5 +1,6 @@
 """Shared document series. Allocate inside the transaction saving the owning document."""
-from contextlib import closing
+from contextlib import closing, contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 import re
 import sqlite3
@@ -11,6 +12,23 @@ SERIES = {'quote': ('Q', 2), 'work_order': ('WO', 2), 'purchase_order': ('PO', 2
           'swms': ('SWMS', 2), 'certification': ('CERT', 2)}
 LIMIT = 9999999999
 LABEL = re.compile(r'([A-Z]{1,12})-([0-9]{2,10})\Z')
+
+# Nested save, issue and file operations run in the authenticated request.
+# Startup migrations and historical imports can still use the original series.
+_numbering_member = ContextVar('numbering_member', default=None)
+
+
+@contextmanager
+def numbering_profile(member_id):
+    token = _numbering_member.set(member_id)
+    try:
+        yield
+    finally:
+        _numbering_member.reset(token)
+
+
+def numbering_member():
+    return _numbering_member.get()
 
 
 def valid_reference(label):
@@ -41,7 +59,14 @@ class DocumentNumbers:
                     PRIMARY KEY(kind,owner),UNIQUE(kind,reference));
                 CREATE TABLE IF NOT EXISTS observed_references(kind TEXT NOT NULL,reference TEXT NOT NULL,
                     PRIMARY KEY(kind,reference));
+                CREATE TABLE IF NOT EXISTS member_settings(member_id TEXT NOT NULL,kind TEXT NOT NULL,
+                    prefix TEXT NOT NULL,start INTEGER NOT NULL,PRIMARY KEY(member_id,kind));
+                CREATE TABLE IF NOT EXISTS member_series(member_id TEXT NOT NULL,kind TEXT NOT NULL,
+                    prefix TEXT NOT NULL,high INTEGER NOT NULL,PRIMARY KEY(member_id,kind,prefix));
             ''')
+            db.execute('BEGIN IMMEDIATE')
+            if 'member_id' not in {row[1] for row in db.execute('PRAGMA table_info(assignments)')}:
+                db.execute('ALTER TABLE assignments ADD COLUMN member_id TEXT')
             db.executemany('INSERT OR IGNORE INTO settings VALUES(?,?,1)', [(k, v[0]) for k, v in SERIES.items()])
 
     def attach(self, db):
@@ -74,18 +99,40 @@ class DocumentNumbers:
     def restore_history(cls, db, project, counters):
         for kind, prefixes in counters.items():
             for prefix, number in prefixes.items():
-                cls.observe(db,kind,prefix,number)
+                # A local project's own portable watermark can include personal
+                # series. Only unseen history reserves a range for everyone.
+                known = db.execute('SELECT high FROM document_number_history WHERE project=? AND kind=? AND prefix=?',
+                                   (project, kind, prefix)).fetchone()
+                if not known or number > known[0]:
+                    cls.observe(db,kind,prefix,number)
                 cls.remember(db,project,kind,prefix,number)
 
     def settings(self):
         with closing(sqlite3.connect(self.path, timeout=30)) as db:
             return self._settings(db)
 
+    @staticmethod
+    def _preferences(db, schema='', kind=None):
+        member = numbering_member()
+        # The former shared preferences are the starting defaults for staff
+        # who haven't customised this kind. Already reserved ranges and
+        # exact references stay organisation-wide.
+        return db.execute(f'''
+            WITH prefs AS (
+                SELECT s.kind, COALESCE(m.prefix,s.prefix) AS prefix, COALESCE(m.start,s.start) AS start,
+                    CASE WHEN s.kind='quote' THEN 'quote_short' ELSE s.kind END AS series_kind
+                FROM {schema}settings s LEFT JOIN {schema}member_settings m ON m.kind=s.kind AND m.member_id=?
+                WHERE (? IS NULL OR s.kind=?)
+            )
+            SELECT p.kind,p.prefix,p.start,max(COALESCE(s.high,0),COALESCE(m.high,0))
+            FROM prefs p LEFT JOIN {schema}series s ON s.kind=p.series_kind AND s.prefix=p.prefix
+            LEFT JOIN {schema}member_series m ON m.kind=p.series_kind AND m.prefix=p.prefix AND m.member_id=?
+        ''', (member, kind, kind, member))
+
     @classmethod
     def _settings(cls, db, schema=''):
         values = {}
-        for kind, prefix, start, high in db.execute(f'SELECT s.kind,s.prefix,s.start,COALESCE(n.high,0) FROM {schema}settings s '
-                f"LEFT JOIN {schema}series n ON n.kind=CASE WHEN s.kind='quote' THEN 'quote_short' ELSE s.kind END AND n.prefix=s.prefix"):
+        for kind, prefix, start, high in cls._preferences(db, schema):
             value = {'prefix': prefix, 'start_number': start}
             try:
                 value['next_reference'] = cls._next_reference(db, schema, kind, prefix, start, high)[1]
@@ -130,11 +177,22 @@ class DocumentNumbers:
             rows.append((prefix.strip().upper(), start, k))
         return rows
 
+    @staticmethod
+    def _write_settings(db, rows):
+        member = numbering_member()
+        if member is None:
+            db.executemany('UPDATE settings SET prefix=?,start=? WHERE kind=?', rows)
+        else:
+            db.executemany('INSERT INTO member_settings(member_id,kind,prefix,start) VALUES(?,?,?,?) '
+                           'ON CONFLICT(member_id,kind) DO UPDATE SET prefix=excluded.prefix,start=excluded.start',
+                           [(member, kind, prefix, start) for prefix, start, kind in rows])
+
     def save_settings(self, values):
         rows = self.validated_settings(values)
         with closing(sqlite3.connect(self.path, timeout=30)) as db, db:
-            db.executemany('UPDATE settings SET prefix=?,start=? WHERE kind=?',rows)
-        return self.settings()
+            db.execute('BEGIN IMMEDIATE')
+            self._write_settings(db, rows)
+            return self._settings(db)
 
     def combined_settings(self, projects):
         with closing(sqlite3.connect(self.path, timeout=30)) as db, db:
@@ -156,9 +214,8 @@ class DocumentNumbers:
         with closing(sqlite3.connect(self.path, timeout=30)) as db, db:
             db.execute('ATTACH DATABASE ? AS projectbook', (str(projects.path),))
             db.execute('BEGIN IMMEDIATE')
-            db.executemany('UPDATE settings SET prefix=?,start=? WHERE kind=?', rows)
-            db.execute('UPDATE projectbook.preferences SET prefix=?,start_number=? WHERE id=1',
-                       (project_prefix, project_start))
+            self._write_settings(db, rows)
+            projects.write_preferences(db, 'projectbook.', project_prefix, project_start)
             saved = self._combined_settings(db, projects)
         return saved
 
@@ -175,7 +232,10 @@ class DocumentNumbers:
         # Six-digit legacy references belong to the retired quote series.
         # Portable short-series high watermarks cover new larger serials.
         series_kind = 'quote_short' if kind == 'quote' and len(serial) < 6 else kind
-        cls.observe(db, series_kind, prefix, int(serial))
+        personal = db.execute('SELECT member_id FROM numbook.assignments WHERE kind=? AND reference=?',
+                              (kind, reference)).fetchone()
+        if not personal or personal[0] is None:
+            cls.observe(db, series_kind, prefix, int(serial))
         db.execute('INSERT OR IGNORE INTO numbook.observed_references VALUES(?,?)', (kind, reference))
 
     @classmethod
@@ -194,11 +254,11 @@ class DocumentNumbers:
             number = int(serial)
             label = existing
         else:
-            prefix, start, high = db.execute('SELECT s.prefix,s.start,COALESCE(n.high,0) FROM numbook.settings s '
-                  "LEFT JOIN numbook.series n ON n.kind=CASE WHEN s.kind='quote' THEN 'quote_short' ELSE s.kind END AND n.prefix=s.prefix WHERE s.kind=?",(kind,)).fetchone()
+            _, prefix, start, high = cls._preferences(db, 'numbook.', kind).fetchone()
             number, label = cls._next_reference(db, 'numbook.', kind, prefix, start, high)
+        member = numbering_member() if not existing else None
         try:
-            db.execute('INSERT INTO numbook.assignments VALUES(?,?,?)',(kind,owner,label))
+            db.execute('INSERT INTO numbook.assignments(kind,owner,reference,member_id) VALUES(?,?,?,?)',(kind,owner,label,member))
         except sqlite3.IntegrityError as error:
             raise ValidationError('This reference is already assigned to another document in this organisation.') from error
         series_kind = 'quote_short' if kind == 'quote' and not existing else kind
@@ -206,6 +266,9 @@ class DocumentNumbers:
             cls.observe_reference(db, kind, label)
             if kind == 'quote' and len(serial) < 6:
                 series_kind = 'quote_short'
+        elif member is not None:
+            db.execute('INSERT INTO numbook.member_series VALUES(?,?,?,?) ON CONFLICT(member_id,kind,prefix) '
+                       'DO UPDATE SET high=max(high,excluded.high)', (member,series_kind,prefix,number))
         else:
             cls.observe(db, series_kind, prefix, number)
         if kind != 'certification':

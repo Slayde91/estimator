@@ -17,7 +17,7 @@ from estimator.certification import CertificationService, FIELDS
 from estimator.certification_projects import CertificationProjects
 from estimator.commercial_documents import CommercialDocuments, default_fields
 from estimator.company_settings import DEFAULTS
-from estimator.document_numbers import migrate_saved_orders
+from estimator.document_numbers import migrate_saved_orders, numbering_profile
 from estimator.project_file import export_project
 from estimator.project_library import ProjectLibrary
 from estimator.storage import Store
@@ -135,6 +135,39 @@ class DocumentNumberingTests(unittest.TestCase):
         self.assertEqual(self.numbers.settings()['quote']['next_reference'],'Q-02')
         self.assertEqual(self.commercial.capture(imported)['documents'][0]['last_number'],'Q-000100')
         self.assertEqual(self.commercial.read_pdf(self.workspace,issued['id'])[1],issued['pdf'])
+
+    def test_staff_sequences_are_independent_across_save_restore_and_concurrent_allocations(self):
+        # A shared pre-upgrade preference is the initial selection in both profiles.
+        self.configure(purchase_order=('buy',7))
+        alice, bob = uid(), uid()
+        with numbering_profile(alice):
+            self.configure(purchase_order=('buy',100), quote=('AQ',41))
+            self.assertEqual(self.order('purchase_order')['reference'],'BUY-100')
+            self.assertEqual(self.order('quote')['reference'],'AQ-41')
+            snapshot = self.commercial.capture(self.workspace)
+        with numbering_profile(bob):
+            self.commercial.restore(self.workspace, snapshot)
+            self.assertEqual(self.numbers.settings()['purchase_order']['next_reference'],'BUY-07')
+            self.assertEqual(self.numbers.settings()['quote']['prefix'],'Q')
+            self.assertEqual(self.order('purchase_order')['reference'],'BUY-07')
+            self.configure(purchase_order=('buy',100))
+        def order_for(member):
+            with numbering_profile(member):
+                return self.order('purchase_order')['reference']
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            self.assertEqual(set(pool.map(order_for, [alice,bob])), {'BUY-101','BUY-102'})
+
+    def test_personal_quote_issues_do_not_advance_legacy_series_after_restart(self):
+        alice, bob = uid(), uid()
+        with numbering_profile(alice):
+            self.configure(quote=('Q',130000))
+            self.assertEqual(self.issue(self.order('quote'))['number'],'Q-130000')
+            snapshot = self.commercial.capture(self.workspace)
+        reopened = CommercialDocuments(self.certs)
+        with numbering_profile(bob):
+            reopened.restore(self.workspace,snapshot)
+            self.configure(quote=('Q',110000))
+            self.assertEqual(self.issue(self.order('quote'))['number'],'Q-110000')
 
     def test_short_quote_deleted_high_watermark_survives_portable_restore(self):
         quote = self.order('quote'); first = self.issue(quote); second = self.issue(first['document'])

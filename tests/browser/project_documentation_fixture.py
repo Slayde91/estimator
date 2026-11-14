@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT))
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--directory', type=Path, required=True)
+    parser.add_argument('--technical-fixture', action='store_true')
     args = parser.parse_args()
     from feature_server import create_server
     from estimator.native_dialogs import SaveSelection
@@ -40,7 +41,15 @@ def main():
         def choose_folder(self, initial_directory):
             return str(folder)
 
-    server = create_server(0, folder / 'qa.sqlite3', project_dialogs=Dialogs())
+    library = None
+    if args.technical_fixture:
+        sys.path.insert(0, str(ROOT / 'tests'))
+        from technical_item_fixture_data import technical_library
+        from fixtures import make_pdf
+        library = folder / 'technical-library'
+        technical_library(library)
+        make_pdf(folder / 'Register plans.pdf')
+    server = create_server(0, folder / 'qa.sqlite3', project_dialogs=Dialogs(), library_directory=library)
     print(json.dumps({'port': server.server_port, 'directory': str(folder),
                       'project': str(folder / 'project-a.cf.json')}), flush=True)
     try:

@@ -104,6 +104,38 @@ class PassiveFireRegisterTests(unittest.TestCase):
                     self.assertIn('Side 2 - 001-2', content)
                 self.assertTrue(any(image.image.size == (320, 180) for page in pages for image in page.images))
 
+    def test_selected_technical_item_exports_source_fields_links_tables_and_only_site_photos(self):
+        from tempfile import TemporaryDirectory
+        from unittest.mock import patch
+        from estimator.reference_library import ReferenceLibrary
+        from technical_item_fixture_data import technical_library, REPORT_URL
+        with TemporaryDirectory() as folder:
+            root = Path(folder) / 'technical'
+            technical_library(root)
+            library = ReferenceLibrary(root)
+            entry = {**completed_entry(), 'technical_item_id': 'report-a-v1'}
+            for key in ('seal_type','frl','products','report','service_types','manufacturer','orientation','substrate','installation_type'):
+                entry.pop(key)
+            draft = normalize_register({'entries': [entry]})
+            self.assertEqual(draft['entries'][0]['technical_item_id'], 'report-a-v1')
+            with patch.object(library, 'asset', side_effect=AssertionError('Technical images are never read for the register')):
+                pdf = PdfReader(BytesIO(render_register_pdf(draft, {}, library=library, company=DEFAULTS)))
+            text = ' '.join(' '.join(page.extract_text().split()) for page in pdf.pages)
+            for value in ('Synthetic manufacturer', 'Literal source text', 'SYN-123', 'Copper pipe', 'Steel pipe',
+                          'Side 1 - 001 - Before', 'Side 2 - 001-2 - After'):
+                self.assertIn(value, text)
+            self.assertNotIn('Hidden source metadata', text)
+            self.assertNotIn('Source diagram', text)
+            self.assertNotIn('Diagrams & Figures', text)
+            self.assertTrue(any(annot.get_object().get('/A', {}).get('/URI') == REPORT_URL
+                                for page in pdf.pages for annot in page.get('/Annots', [])))
+            sizes = {image.image.size for page in pdf.pages for image in page.images}
+            self.assertIn((320, 180), sizes)
+            self.assertNotIn((640, 360), sizes)
+            for key, message in [('', 'Technical Library item'), ('removed-item', 'unavailable'), ('../path', 'Invalid library reference')]:
+                with self.subTest(key=key), self.assertRaisesRegex(ValidationError, message):
+                    render_register_pdf({'entries': [{**entry, 'technical_item_id': key}]}, {}, library=library, company=DEFAULTS)
+
     def test_conditional_requirements_and_closed_template_choices(self):
         entry = completed_entry()
         cases = [

@@ -63,7 +63,8 @@ async function test() {
     await expect(warning).toBeVisible();
     const marker=await warning.boundingBox(),menu=await card.locator('.commercial-card-menu summary').boundingBox();
     assert.ok(marker.x+marker.width<=menu.x+1);
-    await warning.focus();await warning.press('Enter');
+    await card.locator('.commercial-card-menu summary').click();
+    await button(card,'Add follow-up').click();
     const dialog=page.locator('dialog[open]').filter({has:page.locator('.follow-up-action-list')});
     const actions=dialog.locator('.follow-up-action-row');
     await expect(actions).toHaveCount(2);await expect(field(actions.first(),'Next action')).toHaveValue(name+' earlier reminder');

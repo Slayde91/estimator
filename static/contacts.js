@@ -1044,6 +1044,11 @@
       options.append(button(name, () => {menu.open = false; dialogEditor("leads", lead);}, "text-button"));
     }
     const convertMenu=button('Convert',()=>{menu.open=false;void convertLead(lead);},'text-button');convertMenu.dataset.leadConvert=lead.id;options.append(convertMenu);
+    const addFollowUp = ui("button", "text-button", "Add follow-up");
+    addFollowUp.type = "button";
+    addFollowUp.disabled = !window.ClassifireAccess.can("edit");
+    addFollowUp.addEventListener("click", () => { menu.open = false; followUp(toggle); });
+    options.append(addFollowUp);
     menu.append(toggle, options);
     menu.addEventListener("toggle", () => {
       if (!menu.open) return;
@@ -1053,9 +1058,8 @@
     });
     const openLead = button(lead.name, () => dialogEditor("leads", lead), "text-button project-title-button");
     openLead.dataset.directoryRecord=lead.id; row.append(openLead);
-    window.ClassifireDocumentBoard.addFollowUpMarker(row, lead.follow_up_date, event =>
-      window.ClassifireFollowUpActions.openDialog({
-        trigger:event.currentTarget, recordName:lead.name,
+    const followUp = trigger => window.ClassifireFollowUpActions.openDialog({
+        trigger, recordName:lead.name,
         readOnly:!window.ClassifireAccess.can("edit"),
         load:async () => {
           const directory = await request("directory?board=1");
@@ -1072,7 +1076,8 @@
           const title = root().querySelector('[data-directory-record="' + CSS.escape(lead.id) + '"]');
           return title?.parentElement.querySelector(".board-follow-up-due:not([hidden])") || title;
         }
-      }));
+      });
+    window.ClassifireDocumentBoard.addFollowUpMarker(row, lead.follow_up_date, event => followUp(event.currentTarget));
     row.append(menu);
     return row;
   }
@@ -1271,7 +1276,6 @@
     searchLabel.append(input);
     controls.append(searchLabel);
     if (page === "leads") {
-      controls.append(window.ClassifireDocumentBoard.viewPicker("leads", displayRows));
       const label = el("label", "field");
       if (window.CeasefireI18n) window.CeasefireI18n.nodeText(label, "Follow up by");
       else label.textContent = "Follow up by";
@@ -1283,7 +1287,9 @@
       for (const [value,title] of Object.entries(sortOptions)) {
         const direction = value === "name" ? " A–Z" : value === "reverse" ? " Z–A" : "";
         const option = el("option");
-        option.textContent = (window.CeasefireI18n?.term(title) || title) + direction;
+        const name = document.createTextNode(title);
+        window.CeasefireI18n?.text(name, title);
+        option.append(name, direction);
         option.value = value; sort.append(option);
       }
       sort.value = leadSort;
@@ -1307,7 +1313,7 @@
         });
         label.append(check,ui("span","",status)); options.append(label);
       }
-      menu.append(summary, options); controls.append(menu);
+      menu.append(summary, options); controls.append(window.ClassifireDocumentBoard.viewPicker("leads", displayRows), menu);
     }
     section.append(controls, el("div", "contacts-results"));
     const layout = el("div", "contacts-directory-layout");

@@ -46,7 +46,7 @@ STATIC_FILES = (
     'dates.js', 'date-controls.js', 'date-controls.css',
     'forms.js', 'forms.css', 'forms-builder.js', 'forms-builder.css', 'forms-layout.js', 'form-controls.js', 'form-fields.js', 'form-fields.css',
     'games/play.css', 'games/fireline-art.js', 'games/fireline.js', 'games/play.js',
-    'index.html', 'libraries.css', 'libraries.js', 'library-detail-text.js', 'library-editor.css',
+    'index.html', 'libraries.css', 'libraries.js', 'library-detail-text.js', 'library-editor.css', 'passive-register-library.js',
     'library-editor.js', 'penetration-breakdown.js', 'penetration.css', 'penetration.js', 'penetration-references.js', 'styles.css',
     'header-tagline-media.js', 'header-tagline-character.gif', 'header-tagline-character-still.png',
     'audio-settings.js', 'header-menu-sounds.js', 'sounds/mgs1-menu-move.mp3', 'sounds/mgs-confirm2.mp3',

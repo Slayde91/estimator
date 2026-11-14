@@ -55,6 +55,9 @@ const {chromium, expect} = require('@playwright/test');
     await page.getByLabel('Field label').fill('Weather');
     await expect(page.getByLabel('Help text',{exact:true})).toHaveCount(0);
     const fieldLabel = await page.getByLabel('Field label').boundingBox();
+    const requiredBox = await page.getByRole('checkbox',{name:'Required',exact:true}).boundingBox();
+    const hiddenBox = await page.getByRole('checkbox',{name:'Hide in printed forms',exact:true}).boundingBox();
+    assert.ok(Math.abs(requiredBox.x-hiddenBox.x)<1 && hiddenBox.y >= requiredBox.y+requiredBox.height);
     for (const option of ['Required','Hide in printed forms']) {
       const checkbox = page.getByRole('checkbox',{name:option,exact:true});
       const caption = checkbox.locator('xpath=parent::label/span');
@@ -149,6 +152,10 @@ const {chromium, expect} = require('@playwright/test');
     assert.deepEqual((await snap()).fields.at(-1).children.map(c=>c.type),['person','datetime','manual_signature']);
     await btn('Settings').click();
     const register = page.getByRole('group',{name:'Form register'});
+    const detailsBox = await page.getByRole('group',{name:'Template details',exact:true}).boundingBox();
+    const printBox = await page.getByRole('group',{name:'Print layout',exact:true}).boundingBox();
+    assert.ok(Math.abs(printBox.x-detailsBox.x)<1 && printBox.y-detailsBox.y-detailsBox.height<=17,
+      'Print layout sits directly below Template details regardless of register height');
     await register.getByLabel('Table',{exact:true}).selectOption(duplicate.id);
     await expect(register.getByLabel('Register column').locator('option')).toHaveCount(4);
     await register.getByLabel('Register column').selectOption(derived[3].id);

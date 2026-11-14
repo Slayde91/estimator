@@ -51,7 +51,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
         takeoff_http = TakeoffHTTP(takeoffs, ROOT, content_security_policy)
     from .project_library import ProjectLibrary, ProjectDetailsConflict
     from .project_details import ProjectDetails
-    from .document_numbers import DocumentNumbers
+    from .document_numbers import DocumentNumbers, numbering_profile
     document_numbers = DocumentNumbers(store.path.with_name(store.path.stem + '-document-numbers.sqlite3'))
     project_details_settings = ProjectDetails(store.path.with_name(store.path.stem + '-project-details.sqlite3'))
     projects = ProjectLibrary(store, project_dialogs, takeoffs=takeoffs, edition=edition, project_details=project_details_settings)
@@ -341,6 +341,10 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             except AccessError as error:
                 self.send_payload(error.status, {'error': str(error)})
                 return
+            with numbering_profile(self.crm_user['id'] if self.crm_user else None):
+                self.dispatch_authorized(route)
+
+        def dispatch_authorized(self, route):
             progress_token = self.headers.get('X-Estimator-Download-Progress')
             if progress_token is not None:
                 if self.command != 'POST' or not download_route(route):
@@ -497,6 +501,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_payload(200, detail)
                 elif re.fullmatch(r'/api/libraries/documents/[a-z0-9][a-z0-9_-]{0,119}\.pdf', route):
                     self.send_reference_asset(route.rsplit('/', 1)[1][:-4])
+                elif re.fullmatch(r'/api/libraries/images/[a-z0-9][a-z0-9_-]{0,119}/thumbnail', route):
+                    self.send_payload(200, libraries.image_thumbnail(route.split('/')[-2]), 'image/jpeg')
                 elif re.fullmatch(r'/api/libraries/images/[a-z0-9][a-z0-9_-]{0,119}', route):
                     self.send_reference_asset(route.rsplit('/', 1)[1], False)
                 elif re.fullmatch(r'/api/libraries/replicas/[a-z0-9][a-z0-9_-]{0,119}', route):
@@ -535,7 +541,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_report(store.quote(route[len("/api/quotes/"):-len("/report.pdf")]), "Saved quote")
                 elif route.startswith("/api/quotes/"):
                     self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
-                elif route in {'/passive-fire-register.js', '/passive-fire-register.css',
+                elif route in {'/register-plans.js', '/passive-register-library.js', '/passive-fire-register.js', '/passive-fire-register.css',
                                '/settings-layout.css', '/contacts.js', '/follow-up-actions.js', '/crm-activity.js', '/contacts.css', '/personal-signature.js', '/personal-details.js', '/document-workflow-board.js', '/swms.js', '/swms.css', '/scheduler.js', '/scheduler-reports.js', '/scheduler.css', '/commercial-panels.js', '/commercial-documents.js', '/commercial-documents.css', '/commercial-pricing-picker.js', '/commercial-pricing-picker.css', '/certification.js', '/certification.css', '/cover-sheets.js', '/documentation.js', '/documentation.css', '/notifications.js', '/notifications.css'}:
                     kind = 'text/javascript; charset=utf-8' if route.endswith('.js') else 'text/css; charset=utf-8'
                     self.send_payload(200, (ROOT / 'static' / route[1:]).read_bytes(), kind)
@@ -559,11 +565,13 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 elif route == '/api/project/passive-fire-register.pdf' and self.command == 'POST':
                     from .passive_fire_register import render_register_pdf
                     from .project_file import project_details
-                    if set(body) - {'register', 'project_details', 'download'}:
+                    if set(body) - {'register', 'project_details', 'download', 'plan_sessions'}:
                         raise ValidationError('Include the register and project details only.')
                     destination = self.capture_download(body['download']) if 'download' in body else None
-                    payload = render_register_pdf(body.get('register'), project_details(body.get('project_details')),
-                                                  company=self.pdf_company_details('passive_fire_register'))
+                    from .register_plans import append_plan_pages
+                    payload = render_register_pdf(body.get('register'), project_details(body.get('project_details')), library=libraries,
+                                                  company=self.pdf_company_details('passive_fire_register'),
+                                                  plan_append=lambda pdf, rows: append_plan_pages(pdf, rows, body.get('plan_sessions'), takeoffs))
                     self.send_download(payload, PDF, 'CLASSIFIRE-Passive-Fire-Register.pdf', destination,
                                        pdf_kind='passive_fire_register')
                 elif route in {'/api/project/full-schedule.pdf', '/api/project/full-product-summary.pdf'} and self.command == 'POST':

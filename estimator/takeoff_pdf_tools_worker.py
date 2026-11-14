@@ -22,7 +22,30 @@ STATIC_ANNOTATIONS = {'/Text', '/FreeText', '/Line', '/Square', '/Circle', '/Pol
                       '/Ink', '/Popup', '/Link', '/Redact'}
 
 
-def _copy_annotations(writer, original, page):
+def _static_plan_appearance(writer, annotation):
+    """Print the source's normal appearance as an inert stamp, without widget or media actions."""
+    from pypdf.generic import DictionaryObject, NameObject, NumberObject, StreamObject
+    flags = int(annotation.get('/F', 0))
+    if flags & 3:  # Invisible or hidden annotations have no plan appearance.
+        return None
+    appearance = annotation.get('/AP')
+    appearance = appearance.get_object().get('/N') if appearance else None
+    appearance = appearance.get_object() if appearance else None
+    if isinstance(appearance, dict) and not isinstance(appearance, StreamObject):
+        state = annotation.get('/AS')
+        appearance = appearance.get(state) if state in appearance else None
+        appearance = appearance.get_object() if appearance else None
+    if not isinstance(appearance, StreamObject):
+        # A nonprinting control without an appearance has nothing to reproduce.
+        if not flags & 4:
+            return None
+        raise ValueError('A printable interactive element has no saved appearance. Save a print-ready copy of the drawing.')
+    return DictionaryObject({NameObject('/Type'): NameObject('/Annot'), NameObject('/Subtype'): NameObject('/Stamp'),
+        NameObject('/Rect'): annotation['/Rect'].clone(writer), NameObject('/F'): NumberObject(4),
+        NameObject('/AP'): DictionaryObject({NameObject('/N'): appearance.clone(writer).indirect_reference})})
+
+
+def _copy_annotations(writer, original, page, *, static_plan=False):
     """Keep static comment/markup appearances; never copy executable actions.
 
     A new /AcroForm would need a complete field-tree reconstruction and review.
@@ -37,12 +60,21 @@ def _copy_annotations(writer, original, page):
     ignored = {'/A', '/AA', '/Dest', '/P', '/Parent', '/Popup', '/IRT', '/FS', '/EF', '/AF'}
     for value in values:
         annotation = value.get_object()
-        if not isinstance(annotation, dict) or annotation.get('/Subtype') not in STATIC_ANNOTATIONS:
+        if not isinstance(annotation, dict):
+            raise ValueError('The source page contains an invalid annotation.')
+        if annotation.get('/Subtype') in STATIC_ANNOTATIONS:
+            clean = DictionaryObject({key: item for key, item in annotation.items() if key not in ignored}).clone(writer)
+        elif static_plan:
+            clean = _static_plan_appearance(writer, annotation)
+            if clean is None:
+                continue
+        else:
             raise ValueError('Form widgets, attachments and dynamic PDF annotations cannot be copied safely. Use a plain drawing PDF; originals are unchanged.')
-        clean = DictionaryObject({key: item for key, item in annotation.items() if key not in ignored}).clone(writer)
         reference = writer._add_object(clean)
         clean[NameObject('/P')] = page.indirect_reference
-        originals.append(annotation); copies.append(clean)
+        # A widget's /Parent is a form field, not a page annotation relationship.
+        originals.append(annotation if annotation.get('/Subtype') in STATIC_ANNOTATIONS else {})
+        copies.append(clean)
         identity = getattr(value, 'indirect_reference', None) or value
         if hasattr(identity, 'idnum'):
             references[(identity.idnum, identity.generation)] = reference
@@ -56,7 +88,7 @@ def _copy_annotations(writer, original, page):
                     raise ValueError('A PDF comment relationship points outside its copied page.')
                 clean[NameObject(key)] = target
     if copies: page[NameObject('/Annots')] = ArrayObject([value.indirect_reference for value in copies])
-    return len(copies)
+    return len(values)
 
 
 def _layer_configuration(writer, reader):
@@ -99,10 +131,83 @@ def _combine_layers(configurations):
     return DictionaryObject({NameObject('/OCGs'): ArrayObject(groups), NameObject('/D'): default})
 
 
+def _draw_pins(page, info, marks):
+    """Draw in the same upright, cropped coordinate system as the PDF.js viewport."""
+    from pypdf import PdfReader
+    from reportlab.pdfgen.canvas import Canvas
+    x0, y0, x1, y1 = info['view']
+    rotation = info['rotation']
+    width, height = x1 - x0, y1 - y0
+    if rotation in (90, 270):
+        width, height = height, width
+    # Inverse viewport transform, from upright bottom-left to source PDF units.
+    transforms = {0: (1, 0, 0, 1, x0, y0), 90: (0, 1, -1, 0, x1, y0),
+                  180: (-1, 0, 0, -1, x1, y1), 270: (0, -1, 1, 0, x0, y1)}
+    stream = BytesIO()
+    canvas = Canvas(stream, pagesize=(width, height), invariant=True)
+    # Each label reserves one slot. For crowded sheets size the grid for all
+    # pins first, then look up an unused slot without scanning prior labels.
+    longest = max(canvas.stringWidth(mark['label'], 'Helvetica-Bold', 9) for mark in marks)
+    scale = min(width, height) / 550
+    def slots():
+        return max(1, int(width / ((longest + 10) * scale))), max(1, int(height / (16 * scale)))
+    columns, rows = slots()
+    while columns * rows < len(marks):
+        scale *= min(.9, (columns * rows / len(marks)) ** .5)
+        columns, rows = slots()
+    slot_width, slot_height = width / columns, height / rows
+    taken = {}
+    def next_free(index):
+        root = index
+        while root in taken:
+            root = taken[root]
+        while index in taken:
+            old = taken[index]
+            taken[index] = root
+            index = old
+        return root
+    # First try nearby slots, then the next available slot in reading order.
+    offsets = sorted(((dx, dy) for dx in range(-2, 3) for dy in range(-2, 3)),
+                     key=lambda delta: delta[0]**2 + delta[1]**2)
+    for mark in marks:
+        x, y = mark['x'] * width, (1 - mark['y']) * height
+        size = min(9 * scale, width / 18)
+        text = mark['label']
+        box_w = canvas.stringWidth(text, 'Helvetica-Bold', size) + 6 * scale
+        box_h = 14 * scale
+        left = x + 8 * scale if x + 8 * scale + box_w <= width else x - 8 * scale - box_w
+        col = max(0, min(columns - 1, int(left / slot_width)))
+        row = max(0, min(rows - 1, int((y + 6 * scale) / slot_height)))
+        slot = next(((row + dy) * columns + col + dx for dx, dy in offsets
+                     if 0 <= col + dx < columns and 0 <= row + dy < rows
+                     and (row + dy) * columns + col + dx not in taken), None)
+        if slot is None:
+            slot = next_free(row * columns + col)
+            if slot >= columns * rows:
+                slot = next_free(0)
+        taken[slot] = next_free(slot + 1)
+        left_edge, bottom_edge = slot % columns * slot_width, slot // columns * slot_height
+        left = max(left_edge, min(left_edge + slot_width - box_w, left))
+        bottom = max(bottom_edge, min(bottom_edge + slot_height - box_h, y + 6 * scale))
+        canvas.setStrokeColorRGB(.78, 0, .12)
+        canvas.setLineWidth(1.3 * scale)
+        canvas.line(x, y, min(max(x, left), left + box_w), min(max(y, bottom), bottom + box_h))
+        canvas.setFillColorRGB(.78, 0, .12)
+        canvas.setStrokeColorRGB(1, 1, 1)
+        canvas.circle(x, y, 3.5 * scale, stroke=1, fill=1)
+        canvas.roundRect(left, bottom, box_w, box_h, 2 * scale, fill=1, stroke=1)
+        canvas.setFillColorRGB(1, 1, 1)
+        canvas.setFont('Helvetica-Bold', size)
+        canvas.drawString(left + 3 * scale, bottom + (box_h - size) / 2 + size * .16, text)
+    canvas.save()
+    stream.seek(0)
+    page.merge_transformed_page(PdfReader(stream).pages[0], transforms[rotation], expand=False)
+
+
 def compose(spec, output):
     from pypdf import PdfReader, PdfWriter
     from pypdf.generic import NameObject, NumberObject, FloatObject, RectangleObject
-    if not isinstance(spec, dict) or set(spec) != {'sources', 'page_order'}:
+    if not isinstance(spec, dict) or set(spec) not in ({'sources', 'page_order'}, {'sources', 'page_order', 'register', 'pins'}):
         raise ValueError('Invalid PDF page-tools specification.')
     sources, order = spec['sources'], spec['page_order']
     if (not isinstance(sources, list) or not 1 <= len(sources) <= 100
@@ -118,6 +223,17 @@ def compose(spec, output):
     # Process each source once, closing handles before opening the next source.
     # Cloned pages are later assembled in the exact requested order.
     writer = PdfWriter(); cloned = {}; configurations = []; source_bytes = content_bytes = annotation_count = 0
+    prefix, prefix_refs, marks = [], [], {}
+    if 'register' in spec:
+        if not isinstance(spec['pins'], list) or len(spec['pins']) != len(order):
+            raise ValueError('Each selected plan page must contain register pins.')
+        with Path(spec['register']).open('rb') as stream:
+            prefix = limits.parse_pdf_stream(stream)['pages']
+            stream.seek(0)
+            reader = PdfReader(stream, strict=True)
+            for page in reader.pages:
+                prefix_refs.append(writer.add_page(page).indirect_reference)
+        marks = {(value['source'], value['page']): pins for value, pins in zip(order, spec['pins'])}
     for index, spec_source in enumerate(sources):
         if not isinstance(spec_source, dict) or set(spec_source) != {'path', 'sha256', 'size', 'pages'}:
             raise ValueError('Invalid retained PDF source specification.')
@@ -148,7 +264,9 @@ def compose(spec, output):
                 page[NameObject('/CropBox')] = RectangleObject(info['crop_box'])
                 page[NameObject('/Rotate')] = NumberObject(info['rotation'])
                 page[NameObject('/UserUnit')] = FloatObject(info['user_unit'])
-                annotation_count += _copy_annotations(writer, original, page)
+                annotation_count += _copy_annotations(writer, original, page, static_plan=bool(prefix))
+                if (index, number) in marks:
+                    _draw_pins(page, info, marks[index, number])
                 if annotation_count > MAX_ANNOTATIONS:
                     raise ValueError('The selected PDF annotations exceed their bounded copy limit.')
                 cloned[(index, number)] = page
@@ -158,11 +276,12 @@ def compose(spec, output):
     # those same objects and rewrite only the new page tree ordering.
     pages_root = writer._pages.get_object()
     from pypdf.generic import ArrayObject
-    pages_root[NameObject('/Kids')] = ArrayObject([cloned[(value['source'], value['page'])].indirect_reference for value in order])
-    pages_root[NameObject('/Count')] = NumberObject(len(order))
+    pages_root[NameObject('/Kids')] = ArrayObject(prefix_refs + [cloned[(value['source'], value['page'])].indirect_reference for value in order])
+    pages_root[NameObject('/Count')] = NumberObject(len(prefix) + len(order))
     layers = _combine_layers(configurations)
     if layers: writer._root_object[NameObject('/OCProperties')] = layers
-    writer.add_metadata({'/Title': 'CEASEFIRE PDF page tools', '/Creator': 'CEASEFIRE ESTIMATOR',
+    writer.add_metadata({'/Title': 'Passive Fire Register' if prefix else 'CEASEFIRE PDF page tools',
+                         '/Creator': 'CLASSIFIRE' if prefix else 'CEASEFIRE ESTIMATOR',
                          '/Subject': 'New PDF derivative; original source documents and Takeoff records retained unchanged'})
     class BoundedOutput:
         def __init__(self, stream): self.stream = stream
@@ -174,7 +293,8 @@ def compose(spec, output):
     with Path(output).open('xb') as stream: writer.write(BoundedOutput(stream))
     with Path(output).open('rb') as stream:
         actual = limits.parse_pdf_stream(stream)['pages']
-    expected = [{**sources[value['source']]['pages'][value['page']-1], 'page': index} for index, value in enumerate(order, 1)]
+    expected = prefix + [{**sources[value['source']]['pages'][value['page']-1], 'page': index}
+                         for index, value in enumerate(order, len(prefix) + 1)]
     if actual != expected:
         raise ValueError('The derived PDF did not preserve its source page geometry exactly.')
     return actual

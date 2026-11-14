@@ -52,6 +52,7 @@
   <script src="/forms-builder.js" defer></script>
   <script src="/forms.js" defer></script>
   <script src="/documentation.js" defer></script>
+  <script src="/passive-register-library.js" defer></script>
   <script src="/passive-fire-register.js" defer></script>
   <link rel="stylesheet" href="/passive-fire-register.css">
   <link rel="stylesheet" href="/documentation.css">
@@ -112,6 +113,7 @@
   <script src="/takeoff-pdf-tools.js" defer></script>
   <script src="/takeoff-pane-resize.js" defer></script>
   <script src="/takeoffs.js" defer></script>
+  <script src="/register-plans.js" defer></script>
   <!-- TAKEOFFS:END -->
   <script src="/penetration-breakdown.js" defer></script>
   <script src="/penetration-references.js" defer></script>
@@ -305,6 +307,7 @@ SOFTWARE. -->
   <section class="card" aria-labelledby="project-details-settings-heading">
     <h2 id="project-details-settings-heading">Document numbering</h2>
     <form id="document-number-settings">
+      <p class="helper" id="numbering-member-name"></p>
       <div class="table-scroll"><table><thead><tr><th>Document</th><th>Prefix</th><th>Starting number</th><th>Next reference</th></tr></thead><tbody>
         <tr id="project-number-settings-row"><td data-i18n="Projects">Projects</td><td><input id="project-number-prefix" maxlength="12" pattern="[A-Za-z]{1,12}" required autocomplete="off" aria-label="Projects prefix" value="PN" disabled></td>
         <td><input id="project-start-number" type="number" min="1" max="999999999" step="1" required aria-label="Project start number" value="1" disabled></td><td><span id="project-number-next" role="status"></span></td></tr>
@@ -525,8 +528,8 @@ SOFTWARE. -->
       <nav id="project-pages" class="calculator-pages project-tabs" aria-label="Project pages" data-i18n-aria-label="Project pages"><button type="button" class="calculator-page" data-project-section="quotes" aria-pressed="true" data-i18n="Projects">Projects</button><button type="button" class="calculator-page" data-project-section="quote" aria-pressed="false" data-i18n="Quotes">Quotes</button><button type="button" class="calculator-page" data-project-section="work-orders" aria-pressed="false" data-i18n="Work Orders">Work Orders</button><button type="button" class="calculator-page" data-project-section="purchase-orders" aria-pressed="false" data-i18n="Purchase Orders">Purchase Orders</button></nav>
       <div id="project-register">
       <section id="project-list-card" class="card">
-        <div class="project-list-controls"><label class="field project-search-field"><span data-i18n="Search projects">Search projects</span><input id="project-search" type="search" placeholder="Project, client, address or folder…" maxlength="400" data-i18n-placeholder="Project, client, address or folder…"></label><div class="project-list-options"><div id="project-view-picker"></div><label class="field project-sort-field"><span data-i18n="Sort by">Sort by</span><select id="project-sort"><option value="modified_desc" data-i18n="Most recently saved">Most recently saved</option><option value="modified_asc" data-i18n="Oldest saved first">Oldest saved first</option><option value="name_asc" data-i18n="Project name A–Z">Project name A–Z</option><option value="name_desc" data-i18n="Project name Z–A">Project name Z–A</option></select></label><div class="project-list-actions"><span class="project-edit-actions"><button id="new-quote" type="button" class="button primary icon-only add-icon-action" aria-label="New" title="New" data-i18n-aria-label="New" data-i18n-title="New"><span class="button-symbol add-symbol" aria-hidden="true">+</span><span class="sr-only" data-i18n="New">New</span></button></span>
-          <details id="project-columns" class="commercial-columns-menu">
+        <div class="project-list-controls"><label class="field project-search-field"><span data-i18n="Search projects">Search projects</span><input id="project-search" type="search" placeholder="Project, client, address or folder…" maxlength="400" data-i18n-placeholder="Project, client, address or folder…"></label><div class="project-list-options"><label class="field project-sort-field"><span data-i18n="Sort by">Sort by</span><select id="project-sort"><option value="modified_desc" data-i18n="Most recently saved">Most recently saved</option><option value="modified_asc" data-i18n="Oldest saved first">Oldest saved first</option><option value="name_asc" data-i18n="Project name A–Z">Project name A–Z</option><option value="name_desc" data-i18n="Project name Z–A">Project name Z–A</option></select></label><div class="project-list-actions"><span class="project-edit-actions"><button id="new-quote" type="button" class="button primary icon-only add-icon-action" aria-label="New" title="New" data-i18n-aria-label="New" data-i18n-title="New"><span class="button-symbol add-symbol" aria-hidden="true">+</span><span class="sr-only" data-i18n="New">New</span></button></span>
+          <div id="project-view-picker"></div><details id="project-columns" class="commercial-columns-menu">
             <summary class="button secondary"><span data-i18n="Columns">Columns</span> <span aria-hidden="true">▾</span></summary>
             <div class="commercial-menu-options"></div>
           </details>

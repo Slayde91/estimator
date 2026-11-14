@@ -62,6 +62,34 @@ class AccessBoundaryTests(unittest.TestCase):
         self.assertEqual(status,200)
         return headers['Set-Cookie'].split(';',1)[0]
 
+    def test_numbering_settings_belong_to_signed_in_member_at_all_endpoints(self):
+        url = '/api/numbering-settings'
+        _,_,saved = self.call(url,cookie=self.admin,member=self.admin_id)
+        def fields(row):
+            return {key:row[key] for key in ('prefix','start_number')}
+        values = {'project':{'prefix':'AL','start_number':12},
+                  'documents':{kind:fields(row) for kind,row in saved['documents'].items()}}
+        values['documents']['certification'] = {'prefix':'AC','start_number':75}
+        self.assertEqual(self.call(url,values,cookie=self.admin,member=self.admin_id)[0],200)
+        self.assertEqual(self.call(url,cookie=self.admin,member=self.editor_id)[0],409)
+        self.assertEqual(self.call(url,values,cookie=self.admin,member=self.editor_id)[0],409)
+        self.assertEqual(self.call('/api/document-numbering',cookie=self.admin)[2]['certification']['next_reference'],'AC-75')
+        self.assertEqual(self.call('/api/project-details',cookie=self.editor)[2],saved['project'])
+        self.assertEqual(self.call(url,cookie=self.editor,member=self.editor_id)[2],saved)
+        from estimator.native_dialogs import NativeDialogs, SaveSelection
+        from test_project_library import complete_estimate
+        path = self.signers.store.path.parent / 'Personal numbering.cf.json'
+        with patch.object(NativeDialogs, 'choose_save', return_value=SaveSelection(str(path),None)):
+            status,_,created = self.call('/api/project/save-as', {'estimate':complete_estimate()}, cookie=self.admin,member=self.admin_id)
+        self.assertEqual(status,200,created)
+        self.assertEqual(created['project']['estimate']['project_no'],'AL-12')
+        self.assertEqual(self.call('/api/access/roles',{'member_id':self.editor_id,'role':'viewer','version':1},
+                                   cookie=self.admin,member=self.admin_id)[0],200)
+        self.assertEqual(self.call('/api/project-details',{'prefix':'BB','start_number':8},cookie=self.editor,member=self.editor_id)[0],200)
+        self.assertEqual(self.call(url,cookie=self.admin,member=self.admin_id)[2]['project']['next_reference'],'AL-13')
+        self.assertEqual(self.call(url,cookie=self.editor,member=self.editor_id)[2]['project']['next_reference'],'BB-08')
+        self.assertEqual(self.call(url,{**values,'member_id':self.admin_id},cookie=self.editor,member=self.editor_id)[0],400)
+
     def test_frozen_pdf_export_progress_preserves_auth_and_viewer_read_only_policy(self):
         fields=dict.fromkeys(FIELDS,'N/A')
         created=self.signers.create(fields, options=signed_options())

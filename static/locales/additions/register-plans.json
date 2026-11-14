@@ -1,0 +1,27 @@
+{
+  "Plan location": [
+    "도면 위치",
+    "Lokasyon sa plano",
+    "Vị trí trên bản vẽ"
+  ],
+  "Place pin on plan": [
+    "도면에 핀 놓기",
+    "Maglagay ng pin sa plano",
+    "Đặt ghim trên bản vẽ"
+  ],
+  "Remove pin": [
+    "핀 삭제",
+    "Alisin ang pin",
+    "Xóa ghim"
+  ],
+  "Click the plan to place a pin. With the keyboard, use the arrow keys and press Enter.": [
+    "도면을 클릭해 핀을 놓으세요. 키보드에서는 방향키로 위치를 정한 뒤 Enter를 누르세요.",
+    "I-click ang plano upang maglagay ng pin. Sa keyboard, gamitin ang mga arrow key at pindutin ang Enter.",
+    "Nhấp vào bản vẽ để đặt ghim. Nếu dùng bàn phím, hãy dùng các phím mũi tên rồi nhấn Enter."
+  ],
+  "Each register entry supports up to 200 plan pins.": [
+    "각 등록 항목에 도면 핀을 최대 200개까지 놓을 수 있습니다.",
+    "Maaaring maglagay ng hanggang 200 pin sa plano para sa bawat tala.",
+    "Mỗi mục trong sổ đăng ký cho phép tối đa 200 ghim trên bản vẽ."
+  ]
+}

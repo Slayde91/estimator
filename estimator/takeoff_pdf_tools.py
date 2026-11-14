@@ -4,6 +4,7 @@ The session service owns locking, source ownership and audit verification. This
 module never publishes a source, edits a draft or accepts a client filesystem path.
 """
 from hashlib import sha256
+from io import BytesIO
 import json
 from pathlib import Path
 import shutil
@@ -73,20 +74,39 @@ def selection(snapshot, request):
 def build_pdf(snapshot, request, documents):
     """Return a validated derivative; optional source publication is a separate action."""
     selected, order = selection(snapshot, request)
+    result = compose_retained_pages(selected, order, documents)
+    names = {'merge': 'CEASEFIRE-Merged-PDF.pdf', 'organise': 'CEASEFIRE-Organised-Pages.pdf',
+             'extract': 'CEASEFIRE-Extracted-Pages.pdf'}
+    return result, 'application/pdf', names[request['operation']]
+
+
+def compose_retained_pages(selected, order, documents, *, register_pdf=None, pins=None):
+    """Copy original pages in the restricted worker, optionally appending them to a generated register."""
+    if len(selected) > MAX_DOCUMENTS or sum(doc['size'] for doc in selected) > MAX_INPUT_BYTES or len(order) > MAX_OUTPUT_PAGES:
+        raise ValidationError('Selected plan pages exceed the PDF source or output limits.')
     if not _SLOTS.acquire(blocking=False):
         raise ValidationError('Another PDF page operation is in progress. Try again after it finishes.')
     try:
         sources = [{'path': str(documents.document_path(document, verify=True)),
                     'sha256': document['sha256'], 'size': document['size'], 'pages': document['pages']}
                    for document in selected]
-        payload = json.dumps({'sources': sources, 'page_order': order}, ensure_ascii=False,
-                             allow_nan=False, separators=(',', ':')).encode('utf-8')
-        if len(payload) > MAX_SPEC_BYTES:
-            raise ValidationError('The PDF page selection exceeds its bounded request limit.')
         with tempfile.TemporaryDirectory(prefix='ceasefire-pdf-pages-') as directory:
             folder = Path(directory); specification = folder / 'request.json'; output = folder / 'pages.pdf'
             if shutil.disk_usage(folder).free < sum(value['size'] for value in selected) + MAX_OUTPUT_BYTES + 64*1024*1024:
                 raise ValidationError('There is not enough temporary disk space to prepare this PDF safely.')
+            spec = {'sources': sources, 'page_order': order}
+            prefix = []
+            if register_pdf is not None:
+                from .takeoff_pdf_worker import parse_pdf_stream
+                prefix = parse_pdf_stream(BytesIO(register_pdf))['pages']
+                if len(prefix) + len(order) > MAX_OUTPUT_PAGES:
+                    raise ValidationError('The combined register and pinned plans exceed the PDF page limit.')
+                register_file = folder / 'register.pdf'
+                register_file.write_bytes(register_pdf)
+                spec.update(register=str(register_file), pins=pins)
+            payload = json.dumps(spec, ensure_ascii=False, allow_nan=False, separators=(',', ':')).encode('utf-8')
+            if len(payload) > MAX_SPEC_BYTES:
+                raise ValidationError('The PDF page selection exceeds its bounded request limit.')
             specification.write_bytes(payload)
             try:
                 completed = subprocess.run([sys.executable, '-I', str(Path(__file__).with_name('takeoff_pdf_tools_worker.py')),
@@ -106,16 +126,14 @@ def build_pdf(snapshot, request, documents):
                 raise ValidationError(message if isinstance(message, str) and len(message) <= 300 else 'The PDF could not be prepared safely.')
             with _open_regular(output, MAX_OUTPUT_BYTES) as stream:
                 result = stream.read(MAX_OUTPUT_BYTES+1)
-            expected = [{**selected[value['source']]['pages'][value['page']-1], 'page': index}
-                        for index, value in enumerate(order, 1)]
+            expected = prefix + [{**selected[value['source']]['pages'][value['page']-1], 'page': index}
+                                 for index, value in enumerate(order, len(prefix) + 1)]
             if (type(receipt['size']) is not int or receipt['size'] != len(result)
                     or not 0 < len(result) <= MAX_OUTPUT_BYTES or not result.startswith(b'%PDF-')
                     or sha256(result).hexdigest() != receipt['sha256']
-                    or type(receipt['pages']) is not int or receipt['pages'] != len(order)
+                    or type(receipt['pages']) is not int or receipt['pages'] != len(expected)
                     or receipt['metadata'] != expected):
                 raise ValidationError('The derived PDF bytes, page order or geometry did not match its validated result.')
-            names = {'merge': 'CEASEFIRE-Merged-PDF.pdf', 'organise': 'CEASEFIRE-Organised-Pages.pdf',
-                     'extract': 'CEASEFIRE-Extracted-Pages.pdf'}
-            return result, 'application/pdf', names[request['operation']]
+            return result
     finally:
         _SLOTS.release()

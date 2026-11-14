@@ -1,0 +1,37 @@
+{
+  "Plan location": [
+    "平面图位置",
+    "नक्शे पर स्थान",
+    "Ubicación en plano",
+    "الموقع على المخطط",
+    "ตำแหน่งบนแปลน"
+  ],
+  "Place pin on plan": [
+    "在平面图上放置标记",
+    "नक्शे पर पिन लगाएँ",
+    "Colocar un marcador en el plano",
+    "ضع علامة على المخطط",
+    "ปักหมุดบนแปลน"
+  ],
+  "Remove pin": [
+    "移除标记",
+    "पिन हटाएँ",
+    "Quitar marcador",
+    "إزالة العلامة",
+    "ลบหมุด"
+  ],
+  "Click the plan to place a pin. With the keyboard, use the arrow keys and press Enter.": [
+    "单击平面图以放置标记。使用键盘时，请按方向键定位后按 Enter。",
+    "पिन लगाने के लिए नक्शे पर क्लिक करें। कीबोर्ड पर तीर कुंजियों से स्थान चुनें और Enter दबाएँ।",
+    "Haga clic en el plano para colocar un marcador. Con el teclado, use las flechas y pulse Intro.",
+    "انقر على المخطط لوضع علامة. باستخدام لوحة المفاتيح، حدد الموضع بمفاتيح الأسهم ثم اضغط Enter.",
+    "คลิกแปลนเพื่อปักหมุด หากใช้แป้นพิมพ์ ให้ใช้ปุ่มลูกศรแล้วกด Enter"
+  ],
+  "Each register entry supports up to 200 plan pins.": [
+    "每条登记记录最多可添加 200 个平面图标记。",
+    "प्रत्येक रजिस्टर प्रविष्टि में अधिकतम 200 प्लान पिन लग सकते हैं।",
+    "Cada entrada del registro admite hasta 200 marcadores en planos.",
+    "يدعم كل قيد في السجل ما يصل إلى 200 علامة على المخططات.",
+    "แต่ละรายการในทะเบียนปักหมุดบนแปลนได้สูงสุด 200 จุด"
+  ]
+}

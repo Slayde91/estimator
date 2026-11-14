@@ -24,7 +24,12 @@ Numbering Settings uses the same server allocator for its next-reference preview
 and first Save. Exhausting a prefix leaves Settings editable so the user can
 choose another prefix. Updating the starting number never reuses an existing
 assignment. Project and document numbering preferences still save in one attached
-SQLite transaction.
+SQLite transaction. In the signed-in application the preferences and compact
+cursor belong to the staff account. The original shared preferences and
+reserved ranges are retained for migration. Two people may use the same
+prefix with different starting numbers; reservations and occupied references
+are still checked across accounts. A project keeps its assigned number when
+another member opens or saves it.
 
 Risk classification: high for numbering and journal compatibility. Validation
 covers old database upgrade, unchanged historical owners/receipts, compact import

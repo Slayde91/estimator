@@ -4,6 +4,7 @@
   const icons = {
     up:        ['secondary', 'button-symbol', '↑'],
     down:      ['secondary', 'button-symbol', '↓'],
+    duplicate: ['secondary', 'button-symbol', '⧉'],
     remove:    ['secondary trash-button', 'trash-artwork'],
     add:       ['primary add-icon-action', 'button-symbol add-symbol', '+'],
     signature: ['secondary personal-signature-button takeoff-icon-button takeoff-signature-button', 'takeoff-action-icon takeoff-signature-icon'],

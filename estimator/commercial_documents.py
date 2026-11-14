@@ -706,8 +706,7 @@ class CommercialDocuments:
             if doc.get('reference'):
                 if not valid_reference(doc['reference']):
                     raise ValidationError('Invalid imported order number.')
-                prefix, serial = doc['reference'].rsplit('-',1)
-                self.numbering.observe(db,doc['kind'],prefix,int(serial))
+                self.numbering.observe_reference(db, doc['kind'], doc['reference'])
         for project, doc in orders:
             doc['reference'] = self.numbering.assign(db, doc['kind'], project + ':' + doc['id'], doc.get('reference',''), reconcile=True)
             if doc['kind'] == 'work_order':
@@ -918,7 +917,10 @@ class CommercialDocuments:
             elif snapshot:
                 for document in snapshot['documents']:
                     db.execute('INSERT INTO commercial_drafts VALUES(?,?,?)', (workspace, document['id'], _json(document)))
-                    if document['last_number'] and (document['kind'] != 'quote' or document['last_number'].startswith('Q-')):
+                    # Compact quote labels are already covered by their explicit
+                    # references and short_quote_counters. Preserve the legacy
+                    # counter from the snapshot without inferring it a second time.
+                    if document['last_number'] and document['kind'] != 'quote':
                         number = int(document['last_number'].rsplit('-', 1)[1])
                         db.execute('INSERT INTO commercial_sequences VALUES(?,?) ON CONFLICT(kind) DO UPDATE SET number=max(number,excluded.number)', (document['kind'], number))
             if snapshot:
@@ -1584,7 +1586,10 @@ class CommercialDocuments:
             issued_id = str(uuid.uuid4())
             revision = '' if kind == 'quote' else '-R' + str(document['version'])
             filename = KINDS[kind].replace(' ', '-') + '-' + label + revision + '.pdf'
-            if kind != 'quote' or label.startswith('Q-'):
+            # New quote issues already travel in short_quote_counters. Writing
+            # them into the old Q ledger would inflate the legacy high-water
+            # mark at startup and override a colleague's six-digit series.
+            if kind != 'quote':
                 value = int(label.rsplit('-',1)[1])
                 db.execute('INSERT INTO commercial_sequences VALUES(?,?) ON CONFLICT(kind) DO UPDATE SET number=max(number,excluded.number)', (kind,value))
             db.execute('UPDATE commercial_drafts SET data=? WHERE workspace=? AND id=?', (_json(document), workspace, identity))

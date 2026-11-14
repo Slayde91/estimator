@@ -782,13 +782,21 @@ class FirestoppingLibrary(ReferenceLibrary):
             payload, mime, filename = super().asset(images[0]['id'], False)
             if not thumbnail:
                 return payload, mime, filename
-            cache_key = (images[0]['id'], hashlib.sha256(payload).hexdigest())
-            if cache_key not in self._diagram_cache:
-                self._diagram_cache[cache_key] = _render_diagram(payload)['thumbnail_data']
-                self._diagram_cache.move_to_end(cache_key)
-                while len(self._diagram_cache) > 256:
-                    self._diagram_cache.popitem(last=False)
-            return self._diagram_cache[cache_key], 'image/jpeg', f'{key}-thumbnail.jpg'
+            return self._source_thumbnail(images[0]['id'], payload), 'image/jpeg', f'{key}-thumbnail.jpg'
+
+    def _source_thumbnail(self, image_id, payload):
+        cache_key = (image_id, hashlib.sha256(payload).hexdigest())
+        if cache_key not in self._diagram_cache:
+            self._diagram_cache[cache_key] = _render_diagram(payload)['thumbnail_data']
+            while len(self._diagram_cache) > 256:
+                self._diagram_cache.popitem(last=False)
+        self._diagram_cache.move_to_end(cache_key)
+        return self._diagram_cache[cache_key]
+
+    def image_thumbnail(self, image_id):
+        with self._lock:
+            payload, _, _ = self.asset(image_id, pdf=False)
+            return self._source_thumbnail(image_id, payload)
 
     def _response(self, key, draft, revision, snapshot, token, result=None):
         draft = self._library_draft(draft)

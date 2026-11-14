@@ -9,7 +9,7 @@ const root = path.resolve(__dirname,'../..');
 const output = path.join(root,'.runtime/browser-qa','passive-fire-register-' + Date.now());
 fs.mkdirSync(output,{recursive:true});
 const server = spawn(process.env.CEASEFIRE_PYTHON || 'python',
-  [path.join(__dirname,'project_documentation_fixture.py'),'--directory',output], {cwd:root,windowsHide:true});
+  [path.join(__dirname,'project_documentation_fixture.py'),'--directory',output,'--technical-fixture'], {cwd:root,windowsHide:true});
 let browser, page, log = '';
 server.stderr.on('data',data => log += data);
 const ready = new Promise((resolve,reject) => {
@@ -50,15 +50,24 @@ async function run() {
   await register();
   const form = page.locator('#passive-register-root');
   await form.getByLabel('Level/Location').fill('North wall, Level 2');
-  await form.getByLabel('Seal Type',{exact:true}).selectOption('Fire Seal');
-  await form.getByLabel('FRL',{exact:true}).selectOption('-/120/120');
-  await form.getByLabel('Substrate').selectOption('Masonry');
-  await form.getByLabel('Orientation').selectOption('Vertical');
-  await form.getByLabel('Installation Type').selectOption('Service Penetration');
-  await form.getByLabel('Cable bundle',{exact:true}).check();
-  await form.getByLabel('Fire Rated Batt',{exact:true}).check();
-  await form.getByLabel('Manufacturer').selectOption('FIREFLY');
-  await form.getByLabel('Report/Assessment').selectOption('Firefly Core Holes: FAS190236');
+  const picker = form.locator('.register-library-picker');
+  const library = await page.request.get(new URL('/api/libraries/technical?limit=1', page.url()).href);
+  const {filters} = await library.json();
+  await expect(picker.locator('select')).toHaveCount(filters.length);
+  for (const filter of filters) {
+    const actual = await picker.locator('[data-library-filter="' + filter.key + '"] option').evaluateAll(options => options.map(o => o.value));
+    assert.deepEqual(actual, ['', ...filter.options.map(o => o.value)]);
+  }
+  const report = picker.locator('[data-library-filter="report"]');
+  await report.selectOption('Sample report');
+  const chosen = picker.locator('[data-technical-item-id="report-a-v1"]');
+  await expect(picker.getByRole('checkbox')).toHaveCount(2);
+  await chosen.check();
+  await expect(picker.getByRole('checkbox')).toHaveCount(1);
+  await expect(picker.getByRole('img')).toHaveJSProperty('naturalWidth', 240);
+  await chosen.uncheck();
+  await expect(picker.getByRole('checkbox')).toHaveCount(2);
+  await chosen.check();
   await expect(form.getByLabel('ID Number')).toHaveValue('001');
   await expect(form.getByLabel('ID Number')).toHaveJSProperty('readOnly', true);
   const savedDraft = page.waitForResponse(r => new URL(r.url()).pathname === '/api/project/save');
@@ -66,6 +75,7 @@ async function run() {
   assert.equal((await savedDraft).status(),200);
   await idle();
   assert.equal(JSON.parse(fs.readFileSync(info.project)).passive_fire_register.entries[0].location,'North wall, Level 2');
+  await require('./register_plan_location.cjs').pinDrawing(page, register, info.directory);
   const access = form.getByLabel('Is the other side accessible?');
   await access.selectOption('No');
   await expect(form.getByLabel('Comments')).toBeVisible();
@@ -121,6 +131,9 @@ async function run() {
   await page.locator('#save-current-project').click();
   assert.equal((await savedFinal).status(),200);
   assert.equal(JSON.parse(fs.readFileSync(info.project)).documentation.revision_count,1);
+  const pins = JSON.parse(fs.readFileSync(info.project)).passive_fire_register.entries[0].plan_pins;
+  assert.deepEqual(pins.map(pin => pin.page),[3]);
+  assert.ok(Math.abs(pins[0].x - .42)<.02 && Math.abs(pins[0].y - .45)<.02);
   await idle();
   await page.setViewportSize({width:390,height:884});
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
@@ -138,7 +151,8 @@ async function run() {
   await expect(page.locator('#client')).toHaveValue('Synthetic fire register');
   await idle(); await register();
   await expect(form.getByLabel('Level/Location')).toHaveValue('North wall, Level 2');
-  await expect(form.getByRole('img')).toHaveCount(5);
+  await expect(form.getByRole('img')).toHaveCount(6);
+  await expect(chosen).toBeChecked();
   await form.getByRole('button',{name:'Add entry'}).click();
   await expect(form.getByLabel('ID Number')).toHaveValue('002');
   await form.getByLabel('Level/Location').fill('South wall');

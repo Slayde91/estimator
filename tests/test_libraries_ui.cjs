@@ -254,6 +254,20 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     pane.searchInput.value='new';await pane.searchInput.emit('input');await h.runTimers();old.resolve({...records('penetration'),items:[{id:'old',title:'Stale result'}]});await first;
     assert.match(text(pane.results),/Newest result/);assert.doesNotMatch(text(pane.results),/Stale result/);
   });
+  await check('Wall, floor and ceiling default orientation while manual changes stay selected',async h=>{
+    const options = [['Plasterboard wall','Walls'],['CLT floor','Floors'],['Test ceiling','Ceilings'],['Other','Other']].map(([value,group])=>({value,group}));
+    const definitions = [{key:'substrate',label:'Substrate',options},{key:'orientation',label:'Orientation',options:['Horizontal','Vertical']}];
+    h.setRoute(path=>path==='/api/libraries'?meta():({...records('technical'),filters:definitions}));
+    await h.api.open('technical'); const pane=h.pane('technical');
+    const change=async (key,value)=>{const control=walk(pane.filterControls).find(node=>node.dataset.libraryFilter===key);control.value=value;await control.emit('change');await flush();return new URL('http://local'+h.calls.at(-1).path).searchParams.get('orientation');};
+    assert.equal(await change('substrate','Plasterboard wall'),'Vertical');
+    assert.equal(await change('orientation','Horizontal'),'Horizontal');
+    assert.equal(await change('substrate','Other'),'Horizontal');
+    assert.equal(await change('orientation','Vertical'),'Vertical');
+    assert.equal(await change('substrate','CLT floor'),'Horizontal');
+    assert.equal(await change('orientation','Vertical'),'Vertical');
+    assert.equal(await change('substrate','Test ceiling'),'Horizontal');
+  });
   await check('Substrate filter replaces Table and carries its selection through search and paging',async h=>{
     const options=['Plasterboard wall','Concrete/masonry wall','CLT floor'].map(value=>({value,label:value}));
     h.setRoute(path=>path==='/api/libraries'?meta():({...records('technical'),total:105,offset:Number(new URL('http://local'+path).searchParams.get('offset')),filters:[{key:'substrate',label:'Substrate',options}]}));

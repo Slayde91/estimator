@@ -107,6 +107,26 @@ class ProjectPaneTests(unittest.TestCase):
         self.assertEqual(draw.call_count, 8)
         self.assertEqual(collision.read_bytes(), b"existing contents")
 
+    def test_converted_receipt_opens_only_metadata_outside_the_linked_folder(self):
+        other_folder = self.root / "Different linked folder"
+        other_folder.mkdir()
+        request = self.request(site_address="Changed on selected file")
+        del request["id"]
+        lead_id = str(uuid4())
+        request["converted_lead"] = lead_id
+        receipt = {"path": str(self.path), "project_no": self.base["estimate"]["project_no"]}
+        self.store.set_project_folder(other_folder)
+        duplicate = self.other.read_bytes()
+        with patch("estimator.project_library.load_project_bytes", side_effect=AssertionError("must not open")):
+            details = self.library.read_details({"converted_lead":lead_id}, conversion=receipt)
+            self.assertEqual(details["file"]["path"], str(self.path))
+            self.assertIsNone(details["file"]["id"])
+            result = self.library.save_details(request, accounts=self.accounts, conversion=receipt)
+            self.assertEqual(result["details"]["site_address"], "Changed on selected file")
+            self.assertEqual(self.other.read_bytes(), duplicate)
+            with self.assertRaisesRegex(ValidationError, "unavailable"):
+                self.library.read_details({"converted_lead":lead_id}, conversion={**receipt, "project_no":"wrong"})
+
     def test_read_and_save_do_not_open_or_recalculate_workspace(self):
         before = deepcopy(self.base)
         untouched = self.other.read_bytes()

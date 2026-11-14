@@ -133,7 +133,7 @@ async function typeUntilFinished(initial, expected, samples = [initial]) {
     assert.ok(expected.startsWith(sample.typed));
     assert.ok(sample.typed.length >= samples.at(-1).typed.length);
     assert.equal(sample.accessible, expected); assert.equal(sample.cursorHidden, sample.typed === expected);
-    assert.equal(sample.underline, sample.typed === expected ? 'header-tagline-underline' : 'none');
+    assert.equal(sample.underline, 'none');
     assert.equal(sample.mediaState, 'playing', 'Character playback continues through typing and its two-second grace period');
     samples.push(sample);
   }
@@ -282,13 +282,7 @@ async function presentationNavigation(initial) {
     const samples = await typeUntilFinished(initial, phrase, await bootstrap(initial, phrase));
     if (width === 390) {
       assert.ok(samples.at(-1).textLines > 1, 'The narrow-window sentence wraps onto multiple painted fragments');
-      const underline = await page.locator('#header-tagline-typed').evaluate(text => {
-        const style = getComputedStyle(text);
-        const animation = text.getAnimations().find(anim => anim.animationName === 'header-tagline-underline');
-        const frames = animation?.effect.getKeyframes() || [];
-        return {left:style.backgroundPositionX, start:frames[0]?.backgroundSize, end:frames.at(-1)?.backgroundSize};
-      });
-      assert.deepEqual(underline,{left:'0%', start:'0% 1px', end:'100% 1px'});
+      assert.equal(samples.at(-1).underline, 'none');
     }
     await idle(); await clean();
     const accessibility = await page.locator('#header-tagline').ariaSnapshot();
@@ -331,7 +325,7 @@ async function presentationNavigation(initial) {
     await instrument(context, { blocked });
     page = await context.newPage(); const gifRequests = []; page.on('request', request => { if (new URL(request.url()).pathname === '/header-tagline-character.gif') gifRequests.push(request.url()); }); watch(page); await installPausedClock(); await page.goto(`http://127.0.0.1:${info.port}/`); await page.evaluate(() => document.fonts.ready); await finishBootFrames();
     const reduced = await layout(); assert.equal(reduced.typed, phrase); assert.equal(reduced.accessible, phrase);
-    assert.equal(reduced.cursorAnimation, 'none'); assert.equal(reduced.underline,'none'); assert.equal(reduced.strokeSize,'100% 1px'); await bootstrap(reduced, phrase); await clean();
+    assert.equal(reduced.cursorAnimation, 'none'); assert.equal(reduced.underline,'none'); assert.notEqual(reduced.strokeSize,'100% 1px'); await bootstrap(reduced, phrase); await clean();
     const expiry = await expireCursor(reduced, phrase, { animated: false }); await clean();
     assert.deepEqual(gifRequests, [], 'Reduced-motion loading never requests an animated GIF');
     evidence[blocked ? 'blockedStorage' : 'reducedMotion'] = { fullPhraseImmediately: true, cursorAnimation: reduced.cursorAnimation, expiry, dirty: false };
@@ -355,6 +349,13 @@ async function presentationNavigation(initial) {
     await page.clock.runFor(3300);const resolving=await layout();assert.ok(resolving.typed.startsWith(expected.slice(0,4)));assert.notEqual(resolving.typed,expected);sameHeader(first,resolving);
     await page.clock.runFor(2000);const settled=await layout();assert.equal(settled.typed,expected);assert.equal(settled.cursorHidden,true);sameHeader(first,settled);
     assert.equal(settled.underline,'header-tagline-underline');
+    const underline = await page.locator('#header-tagline-typed').evaluate(text => {
+      const style = getComputedStyle(text);
+      const animation = text.getAnimations().find(anim => anim.animationName === 'header-tagline-underline');
+      const frames = animation?.effect.getKeyframes() || [];
+      return {left:style.backgroundPositionX, start:frames[0]?.backgroundSize, end:frames.at(-1)?.backgroundSize};
+    });
+    assert.deepEqual(underline,{left:'0%', start:'0% 1px', end:'100% 1px'});
     await page.evaluate(()=>window.CeasefireI18n.setLanguage('fr'));const brandFrench=await layout();assert.equal(brandFrench.accessible,expected);
     assert.equal(await page.evaluate(()=>window.qaBrandSound.filter(event=>event==='play').length),1,'Language refresh does not replay the appearance');
     await page.clock.runFor(5050);assert.equal((await layout()).typed,expected);

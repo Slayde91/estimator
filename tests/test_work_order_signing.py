@@ -401,7 +401,7 @@ class WorkOrderSigningTests(unittest.TestCase):
         raw=render_commercial_pdf(document,'WO-DETAILS-QA',company=DEFAULTS)
         text=' '.join(page.extract_text() for page in PdfReader(BytesIO(raw)).pages)
         self.assertIn('Initial Details Signer',text)
-        self.assertIn('2026-11-12',text)
+        self.assertIn('12/11/2026',text)
         self.assertIn('WORK ORDER REVIEW',text)
 
 

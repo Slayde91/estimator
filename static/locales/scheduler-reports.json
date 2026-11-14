@@ -1,5 +1,5 @@
 {
-  "Enter a date as DD:MM:YY.": ["请按 DD:MM:YY 格式输入日期。","तारीख DD:MM:YY प्रारूप में दर्ज करें।","Introduzca la fecha en formato DD:MM:YY.","أدخل التاريخ بالتنسيق DD:MM:YY.","ป้อนวันที่ในรูปแบบ DD:MM:YY"],
+  "Enter a date as DD/MM/YYYY.": ["请按 DD/MM/YYYY 格式输入日期。","तारीख DD/MM/YYYY प्रारूप में दर्ज करें।","Introduzca la fecha en formato DD/MM/YYYY.","أدخل التاريخ بالتنسيق DD/MM/YYYY.","ป้อนวันที่ในรูปแบบ DD/MM/YYYY"],
   "Choose {0}": ["选择{0}","{0} चुनें","Elegir {0}","اختر {0}","เลือก{0}"],
   "Payroll hours": ["薪资工时","वेतन के लिए कार्य घंटे","Horas de nómina","ساعات كشف الرواتب","ชั่วโมงสำหรับคำนวณค่าจ้าง"],
   "Total paid hours": ["计薪总工时","कुल सवेतन घंटे","Total de horas remuneradas","إجمالي الساعات المدفوعة","ชั่วโมงที่ได้รับค่าจ้างทั้งหมด"],

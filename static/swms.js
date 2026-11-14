@@ -520,7 +520,7 @@
         const row=element('tr'),date=new Date(revision.created_at),cell=element('td'),link=element('a','','Open revision '+revision.revision);
         link.href=revision.url;link.target='_blank';link.rel='noopener';
         window.CeasefireI18n?.text(link,'Open revision {0}',[revision.revision]);cell.append(link);
-        row.append(element('td','',String(revision.revision)),element('td','',Number.isFinite(date.getTime())?date.toLocaleString('en-AU'):revision.created_at),cell);body.append(row);
+        row.append(element('td','',String(revision.revision)),element('td','',Number.isFinite(date.getTime())?window.ClassifireDates.dateTime(date):revision.created_at),cell);body.append(row);
       }
       table.append(thead,body);empty.replaceWith(table);
     }).catch(error=>{if(current() && state.editor===editor && box.isConnected)empty.textContent=error.message;});

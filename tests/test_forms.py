@@ -48,6 +48,27 @@ class FormsTests(unittest.TestCase):
         self.staff = [self.admin,self.editor,self.other,self.viewer]
         self.store = Forms(self.path,lambda: self.staff,lambda: {'name':'Example Co','phone':'123'})
 
+    def test_entry_pdf_theme_survives_legacy_writes_retries_and_reopen(self):
+        workflow = template(mode='workflow',settings={'stages':[{'id':'one','name':'Review','roles':['editor']}]})
+        version = self.store.save_template(self.editor,workflow)
+        data = entry(version,{'site':'West'})
+        record = self.store.save_entry(self.editor,data)
+        self.assertEqual(record['pdf_theme'],'ceasefire')
+        with self.assertRaises(ValidationError):
+            self.store.save_entry(self.editor,{**data,'version':1,'pdf_theme':'not-a-theme'})
+        revised = {**data,'version':1,'pdf_theme':'forest'}
+        self.assertEqual(self.store.save_entry(self.editor,revised)['version'],2)
+        self.assertEqual(self.store.save_entry(self.editor,revised)['version'],2)
+        legacy = self.store.save_entry(self.editor,{**data,'version':2})
+        self.assertEqual(legacy['pdf_theme'],'forest')
+        self.store.save_template(self.editor,{**workflow,'version':1,'name':'Revised template'})
+        stage = {'id':record['id'],'version':3}
+        signed = self.store.approve(self.editor,stage)
+        self.assertEqual(self.store.approve(self.editor,stage),signed)
+        reopened = self.store.reopen(self.editor,{'id':record['id'],'version':4})
+        self.assertEqual((reopened['pdf_theme'],reopened['template_version']),('forest',1))
+        self.assertEqual(self.store.entries(self.editor)['entries'][0]['pdf_theme'],'forest')
+
     def test_permissions_history_version_pin_and_immediate_revocation(self):
         definition = template(status='draft')
         draft = self.store.save_template(self.editor,definition)

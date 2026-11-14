@@ -409,7 +409,7 @@
       notes.replaceChildren(panelSummary('Notes',all.length), action("New note",()=>openNote(null,options,repaintNotes),"button secondary"));
       for(const note of showAllNotes ? all : all.slice(0,3)) {
         const card=el("article"); card.className="commercial-note-card";
-        card.append(action(note.title,()=>openNote(note,options,repaintNotes)),el("small",new Date(note.updated_at).toLocaleString("en-AU")+" · "+note.author),el("p",plain(note.body).slice(0,180)));
+        card.append(action(note.title,()=>openNote(note,options,repaintNotes)),el("small",window.ClassifireDates.dateTime(note.updated_at)+" · "+note.author),el("p",plain(note.body).slice(0,180)));
         notes.append(card);
       }
       if(all.length>3) notes.append(action(showAllNotes?"Show less":"View all notes",()=>{showAllNotes=!showAllNotes;repaintNotes();}));

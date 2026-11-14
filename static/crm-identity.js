@@ -176,7 +176,7 @@
     section.append(historyList);
     function mergeHistory(merge) {
       const history = node('details'), title = node('summary',merge.source_label || merge.source_id);
-      history.append(title,node('p',[merge.reason,merge.actor_name,merge.merged_at].filter(Boolean).join(' · ')));
+      history.append(title,node('p',[merge.reason,merge.actor_name,window.ClassifireDates.dateTime(merge.merged_at)].filter(Boolean).join(' · ')));
       const original = node('dl','', 'kanban-card-details');
       for (const [field,title] of Object.entries(fields)) {
         if (field in merge.source_fields) original.append(label('dt',title),node('dd',merge.source_fields[field] || '—'));

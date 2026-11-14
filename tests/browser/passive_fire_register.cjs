@@ -59,7 +59,8 @@ async function run() {
   await form.getByLabel('Fire Rated Batt',{exact:true}).check();
   await form.getByLabel('Manufacturer').selectOption('FIREFLY');
   await form.getByLabel('Report/Assessment').selectOption('Firefly Core Holes: FAS190236');
-  await form.getByLabel('ID Number').fill('QA-01');
+  await expect(form.getByLabel('ID Number')).toHaveValue('001');
+  await expect(form.getByLabel('ID Number')).toHaveJSProperty('readOnly', true);
   const savedDraft = page.waitForResponse(r => new URL(r.url()).pathname === '/api/project/save');
   await page.locator('#save-current-project').click();
   assert.equal((await savedDraft).status(),200);
@@ -70,6 +71,8 @@ async function run() {
   await expect(form.getByLabel('Comments')).toBeVisible();
   await access.selectOption('Yes');
   await expect(form.getByRole('heading',{name:'Side 2'})).toBeVisible();
+  await expect(form.getByLabel('ID Number').nth(1)).toHaveValue('001-2');
+  await expect(form.getByLabel('ID Number').nth(1)).toHaveJSProperty('readOnly', true);
   await access.selectOption('NA');
   await expect(form.getByRole('heading',{name:'Side 2'})).toHaveCount(0);
   await form.getByLabel('Solution').selectOption('Topside only');
@@ -137,11 +140,14 @@ async function run() {
   await expect(form.getByLabel('Level/Location')).toHaveValue('North wall, Level 2');
   await expect(form.getByRole('img')).toHaveCount(5);
   await form.getByRole('button',{name:'Add entry'}).click();
+  await expect(form.getByLabel('ID Number')).toHaveValue('002');
   await form.getByLabel('Level/Location').fill('South wall');
   await form.getByRole('button',{name:'Remove entry'}).click();
   await page.locator('#discard-dialog [value="confirm"]').click();
   await expect(form.getByLabel('Level/Location')).toHaveValue('North wall, Level 2');
   await page.screenshot({path:path.join(output,'register-desktop.png')});
+  await form.getByRole('button',{name:'Add entry'}).click();
+  await expect(form.getByLabel('ID Number')).toHaveValue('003');
   assert.deepEqual(errors,[]);
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,pdf:receipt.path,project:info.project},null,2));
   console.log('PASS: portable draft, conditional evidence, signed PDF revision and project isolation. ' + output);

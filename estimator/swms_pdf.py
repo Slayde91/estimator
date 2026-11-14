@@ -1,6 +1,7 @@
 """Editable SWMS content rendered in the supplied landscape template's layout."""
 import base64
 from datetime import datetime
+from .date_display import display_date
 from html import escape
 from io import BytesIO
 from zoneinfo import ZoneInfo
@@ -262,7 +263,7 @@ def render_swms_pdf(document, *, company):
                         [WIDTH * fraction for fraction in CONTACT_WIDTHS], styles))
     story.append(Spacer(1, 10))
     story.append(_table(['Principal Contractor (PC)', 'Project Name', 'Date:', 'Project Address', 'Project Manager (PM)', 'Signature:', 'Contact'],
-                        [[details['principal_contractor'], details['project_name'], details['date'], details['project_address'], details['project_manager'], Signature(fields['manager_signature'], 40, 25), details['manager_contact']]],
+                        [[details['principal_contractor'], details['project_name'], display_date(details['date']), details['project_address'], details['project_manager'], Signature(fields['manager_signature'], 40, 25), details['manager_contact']]],
                         [WIDTH * fraction for fraction in PROJECT_WIDTHS], styles))
     story.extend([Spacer(1, 6), _table(None, [
         [_p(fields['communication'], styles['bold']), _p(fields['toolbox'], styles['body'])],
@@ -334,7 +335,8 @@ def render_swms_pdf(document, *, company):
         story.extend([PageBreak(), _p('Emergency response details', styles['large'])])
         for label, key in [('Notify', 'emergency_notify'), ('Contacts', 'emergency_contacts'), ('Supervisor', 'emergency_supervisor'), ('Emergency call', 'emergency_call'), ('Stop work', 'emergency_stop'), ('Follow instructions', 'emergency_follow')]:
             story.append(_pair(label, fields[key], styles))
-    created = datetime.now(ZoneInfo('Australia/Sydney')).strftime('%a, %d %b %Y, %I:%M %p')
+    now = datetime.now(ZoneInfo('Australia/Sydney'))
+    created = f'{display_date(now)}, {now:%I:%M %p}'
     logo = company_logo(company)
     def company_layout(first_page):
         text = '\n'.join([company.get('name', ''), *contact_lines(company)])

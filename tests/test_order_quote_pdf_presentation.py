@@ -68,11 +68,11 @@ class OrderQuotePdfPresentationTests(unittest.TestCase):
                 section_page = next(page for page in pdf.pages if title in page.extract_text())
                 self.assertIn(signer, section_page.extract_text(), title)
             page = next(page for page in pdf.pages if 'Claim signer fixture' in page.extract_text())
-            for retained in ('Claim signed by', 'Claim signer fixture', '2026-11-10'):
+            for retained in ('Claim signed by', 'Claim signer fixture', '10/11/2026'):
                 self.assertIn(retained, page.extract_text())
             label = page.search('Claim signed by', regex=False)[0]
             signer = page.search('Claim signer fixture', regex=False)[0]
-            date = page.search('2026-11-10', regex=False)[0]
+            date = page.search('10/11/2026', regex=False)[0]
             self.assertTrue(any(label['top'] - 6 <= ink['top'] and ink['bottom'] <= signer['top']
                                 for ink in page.curves + page.lines if ink['stroking_color'] == (0, 0, 0)))
             self.assertLess(label['top'], signer['top'])
@@ -170,8 +170,9 @@ class OrderQuotePdfPresentationTests(unittest.TestCase):
         self.assertIn(values['requested_by'], request)
         self.assertIn(values['reviewed_by'], approval)
         self.assertIn(values['sent_by'], sent)
-        self.assertIn(values['sent_date'], sent)
-        for key in ('verification', 'verified_by', 'verified_date'):
+        self.assertIn('11/11/2026', sent)
+        self.assertIn('12/11/2026', verification)
+        for key in ('verification', 'verified_by'):
             self.assertIn(values[key], verification)
         self.assertNotIn(values['sent_by'], verification)
         self.assertEqual(fields['order']['sent_by'], values['sent_by'])

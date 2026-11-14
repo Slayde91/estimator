@@ -1,6 +1,6 @@
 'use strict';
 const {chromium,expect}=require('@playwright/test');
-const {spawn}=require('node:child_process');
+const {spawn,execFileSync}=require('node:child_process');
 const assert=require('node:assert/strict'), fs=require('node:fs'), path=require('node:path');
 const root=path.resolve(__dirname,'../..'), output=path.join(root,'.runtime/browser-qa','forms-'+Date.now());
 fs.mkdirSync(output,{recursive:true});
@@ -44,8 +44,22 @@ const ready=new Promise((resolve,reject)=>{
   await forms.getByLabel('Field label',{exact:true}).fill('Inspection site');
   await forms.locator('[data-field-type=date]').click();
   await forms.locator('[data-field-type=table]').click();
+  for(let i=0;i<3;i++) await b('Add column').click();
   await b('Preview').click();const preview=page.getByRole('dialog',{name:'Template preview'});
   await expect(preview.getByLabel('Inspection site',{exact:true})).toBeVisible();
+  for(const width of [1350,688,360]) {
+    await page.setViewportSize({width,height:880});
+    const box=await preview.evaluate(d=>({left:d.getBoundingClientRect().left,width:d.getBoundingClientRect().width,
+      inner:d.clientWidth,scroll:d.scrollWidth}));
+    assert.ok(box.width>=width*.94 && Math.abs(box.left-(width-box.width)/2)<2,JSON.stringify(box));
+    assert.ok(box.scroll<=box.inner+1,JSON.stringify(box));
+    const scroll=await preview.locator('.form-repeat:has(.form-repeat-table)').evaluate(t=>t.scrollWidth-t.clientWidth);
+    if(width===1350) assert.ok(scroll<=1,'Wide desktop should fit the table');
+    if(width===360) assert.ok(scroll>1,'Wide table should scroll inside the preview');
+  }
+  await page.screenshot({path:path.join(output,'form-preview-mobile.png')});
+  await page.setViewportSize({width:1350,height:850});
+  await page.screenshot({path:path.join(output,'form-preview-desktop.png')});
   await preview.getByRole('button',{name:'Close',exact:true}).click();
   await b('Publish').click();await expect(forms).toContainText('Template published.');
   await b('Back').click();await expect(b('Site QA inspection')).toBeVisible();
@@ -97,6 +111,7 @@ const ready=new Promise((resolve,reject)=>{
     fields:[table,totals,{id:'ready',type:'choice',label:'Ready for review',options:['Hold','Ready'],default:'Hold'},
       {id:'comment',type:'text',label:'Reviewer notes',stage_id:'review',required:true}]},me.id);
   await open(page);await b('QA approval workflow').click();await expect(forms.getByRole('heading',{name:'QA approval workflow',exact:true})).toBeVisible();await b('Fill out').click();
+  await forms.getByLabel('PDF colour theme').selectOption('forest');
   await expect(forms.locator('[data-field-id=subtotal]').first()).toContainText('6');
   await expect(forms.locator('[data-field-id=subtotal]').last()).toContainText('8');
   await expect(forms.locator('[data-field-id=overall]')).toContainText('14');
@@ -107,6 +122,7 @@ const ready=new Promise((resolve,reject)=>{
   await b('Approve stage').click();
   assert.equal((await rejected).ok(),false);
   await expect(forms.getByLabel('Ready for review')).toHaveValue('Hold');
+  await expect(forms.getByLabel('PDF colour theme')).toHaveValue('forest');
   await forms.getByLabel('Ready for review').selectOption('Ready');
   await b('Approve stage').click();await expect(forms).toContainText('Inspection review');
   await forms.getByLabel('Reviewer notes').fill('Reviewed for fixture');await b('Approve stage').click();
@@ -116,13 +132,25 @@ const ready=new Promise((resolve,reject)=>{
   await page.emulateMedia({media:'print'});
   await expect(page.locator('.forms-print')).toContainText('QA header');
   await expect(page.locator('.forms-print')).toContainText('Reviewed for fixture');
+  await expect(page.locator('.forms-print')).toHaveAttribute('data-pdf-theme','forest');
+  await expect(page.locator('.forms-print h2')).toHaveCSS('color','rgb(22, 101, 52)');
   await expect(page.locator('.forms-print [data-field-id=overall]')).toContainText('18');
   await page.pdf({path:path.join(output,'form.pdf'),preferCSSPageSize:true});
   assert.ok(fs.statSync(path.join(output,'form.pdf')).size>1000);
+  const pages=JSON.parse(execFileSync(process.env.CEASEFIRE_PYTHON || 'python',['-c',
+    'import json,sys; from pypdf import PdfReader; print(json.dumps([[float(p.mediabox.width),float(p.mediabox.height),p.extract_text()] for p in PdfReader(sys.argv[1]).pages]))',
+    path.join(output,'form.pdf')],{encoding:'utf8',windowsHide:true}));
+  assert.ok(pages.every(([w,h])=>Math.abs(w-842)<2 && Math.abs(h-595)<2),'Expected every PDF page in A4 landscape');
+  assert.match(pages.map(p=>p[2]).join(' '),/Form\s+version\s+\d+/);
   await page.evaluate(()=>window.dispatchEvent(new Event('afterprint')));await page.emulateMedia({media:'screen'});
   await b('Reopen previous stage').click();await page.getByRole('dialog').getByRole('button',{name:'Reopen stage',exact:true}).click();
   await expect(forms.getByLabel('Reviewer notes')).toHaveValue('Reviewed for fixture');
   await expect(forms).toContainText('Reopened stage');
+  await b('Print / Save PDF').click();
+  await page.emulateMedia({media:'print'});
+  await expect(page.locator('.forms-print')).toContainText('Reopened stage');
+  await expect(page.locator('.forms-print')).toHaveAttribute('data-pdf-theme','forest');
+  await page.evaluate(()=>window.dispatchEvent(new Event('afterprint')));await page.emulateMedia({media:'screen'});
   await b('Back to forms').click();await b('Templates').click();await b('QA approval workflow').last().click();
   await expect(forms.getByRole('columnheader',{name:'Cost summary · Grand total (row 1)'})).toBeVisible();
   await expect(forms.getByRole('cell',{name:'18',exact:true})).toBeVisible();

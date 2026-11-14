@@ -134,6 +134,7 @@ async function noDownloadAudio() {
   assert.equal(evidence.checks.firstHoverPolicyObservation.source, "/sounds/mgs1-menu-move.mp3");
   assert.equal(evidence.checks.firstHoverPolicyObservation.activation, false);
   // A real click supplies activation; the native playing event proves decoding/playback, not speaker output.
+  if (await home.getAttribute('aria-current') === 'page') await page.locator('.app-header nav [data-view="help"]').click();
   let prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("mgs-confirm2.mp3")).length);
   await home.click(); await played("/sounds/mgs-confirm2.mp3", prior); await idle();
   prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("mgs1-menu-move.mp3")).length);
@@ -146,7 +147,10 @@ async function noDownloadAudio() {
   assert.equal(await page.evaluate(() => window.qaMenuAudio.calls.length), prior + 1, "Nested submenu hover plays once, without ancestor bubbling");
   await page.mouse.move(0, 0); await home.focus();
   prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("mgs-confirm2.mp3")).length);
-  await home.press("Enter"); await played("/sounds/mgs-confirm2.mp3", prior); await idle();
+  const confirmCalls = () => page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source.endsWith("mgs-confirm2.mp3")).length);
+  const beforeRepeat = await confirmCalls();
+  await home.press("Enter"); await idle(); assert.equal(await confirmCalls(), beforeRepeat, "An already selected header page stays silent");
+  await page.locator('.app-header nav [data-view="help"]').press("Enter"); await played("/sounds/mgs-confirm2.mp3", prior); await idle();
   evidence.checks.keyboardClickAndNestedHover = true;
   // Main-section buttons are silent, including Home cards and global Save.
   await home.click(); await idle();
@@ -335,15 +339,35 @@ async function noDownloadAudio() {
   for (const [header, strip, labels] of [
     ['#projects-navigation-toggle','#project-pages',['Projects','Quotes','Work Orders','Purchase Orders']],
     ['#contacts-navigation-toggle','.contacts-tabs',['Leads','Contacts','Companies']],
+    ['#calculator-navigation-toggle','#calculator-kind-pages',['Duct','Firestopping']],
+    ['#library-navigation-toggle','#library-pages',['Technical Library','Pricing Library']],
+    ['#scheduler-navigation','.scheduler-tabs',['Time entries','Schedule']],
+
   ]) {
     await page.locator(header).click(); await idle();
     for (const label of labels) {
       const prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source === '/sounds/page.mp3').length);
       const tab = page.locator(strip).getByRole('button',{name:label,exact:true});
-      await tab.click(); await played('/sounds/page.mp3',prior); await idle();
+      const active = await tab.getAttribute('aria-pressed') === 'true';
+      const count = () => page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source === '/sounds/page.mp3').length);
+      const attempts = await count();
+      await tab.click(); if (!active) await played('/sounds/page.mp3',prior); await idle();
+      assert.equal(await count(), attempts + (active ? 0 : 1));
       await expect(tab).toHaveAttribute('aria-pressed','true');
     }
   }
+  // This fixture deliberately has no saved Project. Opening Forms is allowed; Documentation
+  // emits its normal unsaved-project notice after the clicked tab's page feedback.
+  await page.locator('#documents-navigation-toggle').hover();
+  await page.locator('#documents-navigation-menu [data-document-section=forms]').click();
+  const documentTabs = page.locator('#document-pages');
+  const formTab = documentTabs.getByRole('button',{name:'Forms',exact:true});
+  await expect(formTab).toHaveAttribute('aria-pressed','true');
+  const pageCalls = () => page.evaluate(() => window.qaMenuAudio.calls.filter(row=>row.source === '/sounds/page.mp3').length);
+  const repeats = await pageCalls();
+  await formTab.click(); assert.equal(await pageCalls(),repeats);
+  const docBefore = await page.evaluate(() => window.qaMenuAudio.playing.filter(row=>row.source === '/sounds/page.mp3').length);
+  await documentTabs.getByRole('button',{name:'Documentation',exact:true}).click(); await played('/sounds/page.mp3',docBefore);
   evidence.checks.projectAndContactsTabSound = true;
   await require('./section_navigation.cjs').chooseTakeoff(page, 'Steel');
   const tabs = page.locator('#takeoff-pages button');
@@ -351,7 +375,11 @@ async function noDownloadAudio() {
   for (const tab of await tabs.all()) {
     const before = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source === '/sounds/glitch.mp3' && row.trusted).length);
     const oldSound = await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source === '/sounds/select.mp3').length);
-    await tab.click(); await played('/sounds/glitch.mp3', before);
+    const active = await tab.getAttribute('aria-pressed') === 'true';
+    const count = () => page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source === '/sounds/glitch.mp3').length);
+    const attempts = await count();
+    await tab.click(); if (!active) await played('/sounds/glitch.mp3', before);
+    assert.equal(await count(), attempts + (active ? 0 : 1));
     await expect(tab).toHaveAttribute('aria-pressed', 'true');
     assert.equal(await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source === '/sounds/select.mp3').length), oldSound);
   }

@@ -174,7 +174,7 @@
     for(const source of ['Revision','Generated','Certificate']){const cell=node('th');cell.scope='col';text(cell,source);headings.append(cell);}head.append(headings);
     for(const revision of [...revisions].sort((a,b)=>b.revision-a.revision)){
       const row=node('tr'),number=node('td',revision.revision),date=new Date(revision.created_at);
-      const when=node('td',Number.isNaN(date.getTime())?revision.created_at:date.toLocaleString('en-AU')),cell=node('td'),link=node('a');
+      const when=node('td',Number.isNaN(date.getTime())?revision.created_at:window.ClassifireDates.dateTime(date)),cell=node('td'),link=node('a');
       const expected=scoped('/api/certifications/'+encodeURIComponent(state.id)+'/revisions/'+revision.revision+'.pdf');
       if(!Number.isInteger(revision.revision)||revision.revision<1||revision.pdf_url!==expected)throw new Error('The saved certificate link is invalid.');
       // Revisions already exist: open their scoped immutable PDF without a save prerequisite.

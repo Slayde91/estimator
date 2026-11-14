@@ -59,7 +59,7 @@
     for (const action of followUpRows(current.details)) {
       if (action.status) continue;
       add(translate("Next action"), action.next_action);
-      add(translate("Follow-up due"), action.follow_up_date);
+      add(translate("Follow-up due"), window.ClassifireDates.date(action.follow_up_date));
     }
     list.replaceChildren(...rows);
     const titleLink = headerDetails.querySelector(".header-project-details-title");
@@ -225,18 +225,18 @@
     }
     return value;
   }
-  async function open(file) {
+  async function open(file, selection = {id:file.id}) {
     if (snapshot().busy || !await leave()) return;
     const generation = ++ticket;
     selected = {kind:"saved",file,baseline:normalize({})};
     show({}, file.title || file.name || translate("Project")); busy(true); notice("Loading project details…");
     window.scrollTo({top:0,left:0,behavior:"instant"});
     try {
-      const result = await request("/api/projects/details", {id:file.id});
+      const result = await request("/api/projects/details", selection);
       if (generation !== ticket) return;
       const active = snapshot();
       if (active.file?.path === result.file?.path && active.file.revision !== result.revision) throw new Error("The saved project changed outside this open estimate. Reload the project before editing its details; your current draft has been kept.");
-      selected = {kind:"saved",file:{...file,...result.file,id:result.id || file.id},revision:result.revision,baseline:normalize(result.details),requestId:crypto.randomUUID(),activeAtOpen:active};
+      selected = {kind:"saved",selection,file:{...file,...result.file,id:result.id || file.id},revision:result.revision,baseline:normalize(result.details),requestId:crypto.randomUUID(),activeAtOpen:active};
       // An open estimate may already contain identity edits. Keep those edits in
       // the pane; the metadata endpoint still checks the saved file revision.
       const values = active.file?.path === result.file?.path ? {...active.details,project_no:result.details.project_no} : result.details;
@@ -333,7 +333,7 @@
     target.requestPayload = stamp(value);
     busy(true); dismissOptions(); dismissContactOptions(); notice("Saving project details…");
     try {
-      const result = await request("/api/projects/details/save", {id:target.file.id,revision:target.revision,details:value,request_id:target.requestId});
+      const result = await request("/api/projects/details/save", {...target.selection,revision:target.revision,details:value,request_id:target.requestId});
       if (window.CeasefireProject.applyProjectPaneSaved(active, result, target.revision)) rebaseCurrentRule(result.details);
       target.file = {...target.file,...result.file,id:result.id || target.file.id};
       target.revision = result.revision; target.baseline = normalize(result.details); target.activeAtOpen = sharedStamp(snapshot().details) === sharedStamp(value) ? snapshot() : active; target.requestId = crypto.randomUUID(); target.requestPayload = null;

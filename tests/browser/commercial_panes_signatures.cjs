@@ -61,7 +61,7 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
    const section=quote.getByRole('region',{name:role,exact:true});
    await expect(section.getByLabel('Name',{exact:true})).toHaveValue('');await expect(section.getByLabel('Date',{exact:true})).toHaveValue('');
    await personal(person);await section.getByRole('button',{name:'Sign '+role,exact:true}).click();
-   await expect(section.getByLabel('Name',{exact:true})).toHaveValue(person);await expect(section.getByLabel('Date',{exact:true})).toHaveValue('2026-11-09');await idle();
+   await expect(section.getByLabel('Name',{exact:true})).toHaveValue(person);await expect(section.locator('input[type=date]')).toHaveValue('2026-11-09');await idle();
    const signed=(await current()).documents.find(doc=>doc.id===savedQuote.id);
    assert.equal(signed.status,savedQuote.status);assert.deepEqual(signed.fields.signatures[key],await page.evaluate(()=>window.ClassifirePersonalSignature.saved()));
  }
@@ -189,7 +189,7 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  await work.getByRole('button',{name:'Change Approved by',exact:true}).click();
  const savedInk=page.getByRole('dialog',{name:'Signatures',exact:true}).getByRole('button',{name:'Use saved signature',exact:true});
  await expect(savedInk).toBeVisible();changeProfile=true;await savedInk.click();
- await expect(work.locator('.commercial-message')).toHaveText('Your signature profile changed. Reopen the signature pad.');await expect(work.getByLabel('Approved by name',{exact:true})).toHaveValue(existingName);await expect(work.getByLabel('Approval date',{exact:true})).toHaveValue('2026-11-09');assert.equal(await work.locator('[data-signature-field=client_approved_by] svg[role=img]').getAttribute('viewBox'),existingReview);
+ await expect(work.locator('.commercial-message')).toHaveText('Your signature profile changed. Reopen the signature pad.');await expect(work.getByLabel('Approved by name',{exact:true})).toHaveValue(existingName);await expect(work.locator('[data-order-field=client_approval_date]')).toHaveValue('2026-11-09');assert.equal(await work.locator('[data-signature-field=client_approved_by] svg[role=img]').getAttribute('viewBox'),existingReview);
  await page.unroute('**/api/scheduler/bootstrap');checks.push('A profile change between signing and saving rejects the replacement and preserves the prior signature/name/date');
  await work.getByRole('button',{name:'Sign Progress signed by',exact:true}).click();await expect(work.locator('.commercial-message')).toHaveText('Record a completed percentage before signing work progress.');
  await completed.locator('input').first().fill('101');await work.getByRole('button',{name:'Sign Progress signed by',exact:true}).click();
@@ -251,7 +251,7 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  const narrowButtons=await work.locator('.commercial-signature-actions').first().locator('button').evaluateAll(buttons=>buttons.map(button=>Math.round(button.getBoundingClientRect().y)));assert.equal(new Set(narrowButtons).size,1,'Signature Draw and Clear stay beside the preview on narrow screens');
  await page.setViewportSize({width:1915,height:1000});await save(work);model=await current();const savedWork=model.documents.find(document=>document.kind==='work_order');assert.equal(savedWork.fields.order.prepared_by,'Prepare Person');assert.equal(savedWork.fields.order.prepared_date,'2026-11-09');assert.ok(savedWork.fields.signatures.reviewed_by);
  const generated=page.waitForResponse(response=>response.url().endsWith('/api/commercial/issue'));await work.getByRole('button',{name:'Download PDF',exact:true}).click();const response=await generated;assert.equal(response.status(),200,await response.text());const issued=await response.json();assert.equal(issued.saved,true);await idle();
- const text=execFileSync(python,['-c','from pypdf import PdfReader;import sys;print("\\n".join(p.extract_text() for p in PdfReader(sys.argv[1]).pages))',issued.path],{encoding:'utf8',windowsHide:true});for(const name of ['Review Person','Prepare Person','Approve Person','Progress Person','Claim Person','Closure Person','Charged service','Free service','Credit service','% completed','% claimed','Certification issued','Completed','2026-11-09'])assert.ok(text.includes(name),name);
+ const text=execFileSync(python,['-c','from pypdf import PdfReader;import sys;print("\\n".join(p.extract_text() for p in PdfReader(sys.argv[1]).pages))',issued.path],{encoding:'utf8',windowsHide:true});for(const name of ['Review Person','Prepare Person','Approve Person','Progress Person','Claim Person','Closure Person','Charged service','Free service','Credit service','% completed','% claimed','Certification issued','Completed','09/11/2026'])assert.ok(text.includes(name),name);
  checks.push('All Work Order signature snapshots/names/dates survive Save and appear in the actual newly issued Work Order PDF');
  assert.ok(text.includes('Details Person'));assert.equal(savedWork.status,'Completed');
  const frozenPdf=fs.readFileSync(issued.path);

@@ -9,11 +9,11 @@
   };
   // The report API already supplies local calendar dates and clock offsets.
   function reportDate(iso) {
-    return iso ? iso.slice(8,10)+':'+iso.slice(5,7)+':'+iso.slice(2,4) : '';
+    return window.ClassifireDates.date(iso);
   }
   function reportClock(instant,compact=false) {
-    const time=instant.slice(11);
-    return reportDate(instant)+' '+(compact?time.replace(/:00(?=[+-]\d\d:\d\d$)/,''):time);
+    const text=window.ClassifireDates.wallTime(instant);
+    return compact ? text.replace(/:00(?=[+-]\d\d:\d\d$)/,'') : text;
   }
   function node(tag,text,cls) {
     const item=document.createElement(tag);
@@ -121,8 +121,8 @@
       const field=node('div',null,'field'), caption=node('label',t(label));
       const controls=node('div',null,'scheduler-report-date'), text=node('input'), picker=node('input');
       text.id=label==='Start date'?'scheduler-report-start':'scheduler-report-end';
-      caption.htmlFor=text.id; text.required=true; text.placeholder='DD:MM:YY'; text.maxLength=8;
-      text.pattern='[0-9]{2}:[0-9]{2}:[0-9]{2}'; text.title=t('Enter a date as DD:MM:YY.');
+      caption.htmlFor=text.id; text.required=true; text.placeholder='DD/MM/YYYY'; text.maxLength=10;
+      text.pattern='[0-9]{2}/[0-9]{2}/[0-9]{4}'; text.title=t('Enter a date as DD/MM/YYYY.');
       picker.type='date'; picker.min='2000-01-01'; picker.max='2100-12-31';
       picker.setAttribute('aria-label',t('Choose {0}',[t(label)]));
       const icon=svgNode('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor','stroke-width':2,'aria-hidden':true,class:'scheduler-report-calendar'});
@@ -131,12 +131,8 @@
       const set=value=>{picker.value=value; text.value=reportDate(value); text.setCustomValidity('');};
       set(initial);
       text.addEventListener('input',()=>{
-        // Keep a native selection of 2100 intact until its displayed date changes.
-        if (text.value!==reportDate(picker.value)) {
-          const match=/^(\d{2}):(\d{2}):(\d{2})$/.exec(text.value);
-          picker.value=match?'20'+match[3]+'-'+match[2]+'-'+match[1]:'';
-        }
-        text.setCustomValidity(text.value && !picker.value?t('Enter a date as DD:MM:YY.'):'');
+        picker.value=window.ClassifireDates.parseDate(text.value);
+        text.setCustomValidity(text.value && (!picker.value || !picker.validity.valid)?t('Enter a date as DD/MM/YYYY.'):'');
         invalidate();
       });
       text.addEventListener('change',()=>{if (picker.value) picker.dispatchEvent(new Event('change'));});

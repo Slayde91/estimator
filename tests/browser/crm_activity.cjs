@@ -53,7 +53,7 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
   await timeline.getByLabel('Due date',{exact:true}).fill('2027-02-11');
   await timeline.getByRole('button',{name:'Log activity',exact:true}).click();
   const task=timeline.locator('.crm-event-list li').filter({hasText:'Confirm site access'});
-  await expect(task).toContainText('2027-02-11');await task.getByRole('button',{name:'Complete task',exact:true}).click();
+  await expect(task).toContainText('11/02/2027');await task.getByRole('button',{name:'Complete task',exact:true}).click();
   await expect(task.getByRole('button')).toHaveCount(0);
   await dialog.getByLabel('Status',{exact:true}).selectOption('Disqualified');await dialog.getByRole('button',{name:'Save',exact:true}).click();
   await expect(host.locator('[data-status="Disqualified"] article')).toContainText('Builder contact');

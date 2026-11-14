@@ -76,7 +76,7 @@ class CommercialPaneSignerTests(unittest.TestCase):
         self.assertEqual(document['fields']['signatures'], dict(quoted_by=INK,reviewed_by=INK))
         signed = self.store.issue(self.workspace, document['id'], document['version'], str(uuid4()))
         content = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(signed['pdf'])).pages)
-        for label in ('Quoted by', 'Reviewed by', 'Reviewer One', 'Estimator Two', '2026-11-14'):
+        for label in ('Quoted by', 'Reviewed by', 'Reviewer One', 'Estimator Two', '14/11/2026'):
             self.assertIn(label, content)
         reopened = self.projects.add(self.project)
         self.store.restore(reopened, self.store.capture(self.workspace))
@@ -156,7 +156,7 @@ class CommercialPaneSignerTests(unittest.TestCase):
         operation = str(uuid4())
         issued = self.store.issue(self.workspace, document['id'], document['version'], operation)
         content = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(issued['pdf'])).pages)
-        for text in (*names.values(), *dates.values()):
+        for text in (*names.values(), '09/11/2026', '10/11/2026', '11/11/2026'):
             self.assertIn(text, content)
         self.assertEqual(document['fields']['signatures'], fields['signatures'])
         portable = self.store.capture(self.workspace)

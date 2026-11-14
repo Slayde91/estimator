@@ -846,8 +846,8 @@
         ["Contact", po ? order.supplier_contact : details.contact],
         ["Address", details.site_address],
         [po ? "PO No." : wo ? "WO No." : "Quote No.", number], ["Total", grand],
-        ...(latest ? [["Next action",latest.next_action],["Follow-up date",latest.follow_up_date]] : []),
-        ["Updated", new Intl.DateTimeFormat("en-AU", {year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", hour12:false}).format(new Date(doc.updated_at))]
+        ...(latest ? [["Next action",latest.next_action],["Follow-up date",window.ClassifireDates.date(latest.follow_up_date)]] : []),
+        ["Updated", window.ClassifireDates.dateTime(doc.updated_at,{seconds:false})]
       ];
     };
     const documents = all.filter(doc => [documentTitle(doc), doc.fields.title, doc.fields.details.project_no, ...cardInfo(doc).map(pair=>pair[1])].join(" ").toLowerCase().includes(state.search.toLowerCase()));

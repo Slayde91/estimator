@@ -115,7 +115,7 @@
       const auditScroll=el('div',undefined,'table-scroll'),auditTable=el('table',undefined,'staff-access-table'),auditHead=el('thead'),auditTitles=el('tr'),auditBody=el('tbody');
       for(const label of ['Time','Staff member','Action','Result'])auditTitles.append(el('th',label));auditHead.append(auditTitles);auditTable.append(auditHead,auditBody);auditScroll.append(auditTable);details.append(auditScroll);
       for(const entry of history.requests){const row=el('tr');
-        for(const value of [new Date(entry.at).toLocaleString(),entry.actor_name,entry.method+' '+entry.route,entry.status===null?'Outcome unknown':'HTTP '+entry.status]){const cell=el('td');cell.textContent=value;row.append(cell);}auditBody.append(row);}
+        for(const value of [window.ClassifireDates.dateTime(entry.at),entry.actor_name,entry.method+' '+entry.route,entry.status===null?'Outcome unknown':'HTTP '+entry.status]){const cell=el('td');cell.textContent=value;row.append(cell);}auditBody.append(row);}
       if(!history.requests.length)details.append(el('p','No activity recorded.','helper'));
       card.append(details);
     }catch(error){reportError(message,error);}

@@ -16,6 +16,7 @@ from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Frame, HRFlowabl
                                PageBreak, PageTemplate, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle)
 
 from .commercial_documents import KINDS, format_terms, totals, validate_fields
+from .date_display import display_date
 from .company_settings import company_logo, contact_lines
 from .report import _company_header
 from .pdf_fonts import FONT_BOLD, FONT_REGULAR, register_pdf_fonts
@@ -211,7 +212,7 @@ def _rates(document_story, schedule, styles):
         amount = (_money(rates[key]) + ' ' + suffix if suffix else
                   ('Hire Rate' if key == 'equipment' else 'Cost Rate') + ' + ' + format(Decimal(rates[key]).normalize(), 'f') + '%')
         story.append(Paragraph('<b>' + label + '</b> - ' + escape(amount), styles['body']))
-    acceptance = schedule['acceptance']
+    acceptance = {**schedule['acceptance'], 'date':display_date(schedule['acceptance']['date'])}
     cells = []
     for labels in [(('accepted_by', 'Accepted by'), ('title', 'Title')), (('signature', 'Signature'), ('date', 'Date'))]:
         cells.append([[Paragraph('<b>' + label + '</b>', styles['small']),
@@ -354,7 +355,8 @@ def render_commercial_pdf(document, number, *, company, scope_documents=None, ap
     kind = document['kind']
     fields = validate_fields(document['fields'], kind=kind)
     styles = _styles(quote=kind == 'quote', work_order=kind == 'work_order', purchase_order=kind == 'purchase_order')
-    details, order = fields['details'], fields['order']
+    details = {**fields['details'], 'date':display_date(fields['details']['date'])}
+    order = {key:display_date(value) if key.endswith('_date') else value for key,value in fields['order'].items()}
     story = [] if kind in {'quote', 'work_order', 'purchase_order'} else [_paragraph(KINDS[kind].upper(), styles['title'])]
     number_label = {'work_order':'Work order reference', 'purchase_order':'Purchase Order No.'}.get(kind, 'Document number')
     recipient = [('Supplier', order['supplier']), ('Contact', order['supplier_contact'])] if kind == 'purchase_order' else [

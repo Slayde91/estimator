@@ -76,7 +76,9 @@ function harness({legacySave=true}={}) {
     dispatchEvent(event){for(const fn of events[event.type]||[])fn(event);return true;},
     CeasefireDialogs:{confirm:async()=>approve},CeasefireActivity:{begin:()=>()=>{}}};
   const context={setTimeout:fn=>{const id=++serial;timers.set(id,fn);return id;},clearTimeout:id=>timers.delete(id),window,document:{querySelector:()=>({click:()=>byId('documentation-tab').visited=true}),getElementById:id=>id==='certification-save'&&!legacySave?null:byId(id),createElement:element},fetch,console,Date,JSON,Object,Array,Number,Error,encodeURIComponent,CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}}};
-  vm.createContext(context);vm.runInContext(fs.readFileSync('static/certification.js','utf8'),context);
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync('static/dates.js','utf8'),context);
+  vm.runInContext(fs.readFileSync('static/certification.js','utf8'),context);
   const api=window.CeasefireCertification;
   const fillRequired=()=>fieldNames.forEach(key=>{const field=byId('certification-'+key);if(!field.value.trim()){field.value='Required fixture '+key;void field.emit('input');}});
   return {api,byId,calls,elements,get documents(){return workspaces.get(api.sessionId())?.documents||documents;},legacyDocuments:documents,workspaces,events,fillRequired,canvasData:value=>{canvasData=value;},field:(key,value)=>{byId('certification-'+key).value=value;void byId('certification-'+key).emit('input');},

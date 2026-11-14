@@ -1,5 +1,6 @@
 import base64
 from copy import deepcopy
+from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 import json
 from pathlib import Path
@@ -13,7 +14,7 @@ from estimator.catalog import ValidationError
 from estimator.company_settings import DEFAULTS
 from estimator.documentation_catalog import document_catalog, register_options
 from estimator.native_dialogs import SaveSelection
-from estimator.passive_fire_register import normalize_register, render_register_pdf
+from estimator.passive_fire_register import normalize_register, preserve_register_numbers, render_register_pdf
 import test_certification_http as helpers
 
 
@@ -37,6 +38,38 @@ def completed_entry():
 
 
 class PassiveFireRegisterTests(unittest.TestCase):
+    def test_persistent_numbers_survive_migration_deletion_and_reordering(self):
+        old = {'entries':[{}, {'side1':{'id_number':'old-023'},'side2':{'id_number':'old-B'}}]}
+        numbered = normalize_register(old)
+        a,b = numbered['entries']
+        self.assertEqual((a['side1']['id_number'],a['side2']['id_number']),('001','001-2'))
+        self.assertEqual((b['side1']['id_number'],b['side2']['previous_id']),('002','old-B'))
+        self.assertEqual(normalize_register(old),numbered)
+        self.assertEqual(normalize_register(numbered),numbered)
+        preserve_register_numbers(old,numbered)
+        moved = {**numbered,'entries':[b,a]}
+        preserve_register_numbers(numbered,moved)
+        removed = {**numbered,'entries':[a]}
+        preserve_register_numbers(moved,removed)
+        with self.assertRaises(ValidationError):
+            preserve_register_numbers(removed,{'entries':[a],'next_number':2})
+        with self.assertRaises(ValidationError):
+            preserve_register_numbers(removed,numbered)
+        with self.assertRaises(ValidationError):
+            preserve_register_numbers(numbered,old)
+        for change in ({'number':1},{'entry_id':a['entry_id']},{'side1':{**b['side1'],'id_number':'003'}}):
+            with self.subTest(change=change), self.assertRaises(ValidationError):
+                normalize_register({**numbered,'entries':[a,{**b,**change}]})
+        with self.assertRaises(ValidationError):
+            preserve_register_numbers(numbered, {**numbered,'entries':[a,{**b,'side1':{**b['side1'],'previous_id':'Changed'}}]})
+        for invalid in (None,{'entries':1,'next_number':2},{'entries':[None],'next_number':2},
+                        {'entries':[{'number':1}],'next_number':2},{'entries':[],'next_number':1_000_000_000}):
+            with self.subTest(invalid=invalid), self.assertRaises(ValidationError):
+                preserve_register_numbers(numbered,invalid)
+        preserve_register_numbers(removed,{'entries':[],'next_number':128})
+        imported = {'entries':[],'next_number':1_000_001}
+        preserve_register_numbers(imported,{'entries':[],'next_number':1_000_002})
+
     def test_incomplete_drafts_round_trip_and_only_complete_entries_export(self):
         draft = normalize_register({'entries': [{}, {'location': 'First floor'}]})
         self.assertEqual(normalize_register(draft), draft)
@@ -62,10 +95,13 @@ class PassiveFireRegisterTests(unittest.TestCase):
                 content = '\n'.join(page.extract_text() for page in pages)
                 self.assertGreaterEqual(len(pages), 2)
                 for value in ('PN-TEST', 'Riser <01> & plant', 'Signature', 'Entry 2 of 2', 'Basement west',
+                              'Side 1 - 001','Side 1 - 002',
                               'SIDE-A', 'Before', 'During', 'After', 'Label', included,
                               entry['report'], entry['products'][0]):
                     self.assertIn(value, content)
                 self.assertNotIn(excluded, content)
+                if access=='Yes':
+                    self.assertIn('Side 2 - 001-2', content)
                 self.assertTrue(any(image.image.size == (320, 180) for page in pages for image in page.images))
 
     def test_conditional_requirements_and_closed_template_choices(self):
@@ -107,6 +143,34 @@ class PassiveFireRegisterHTTPTests(unittest.TestCase):
     request = helpers.CertificationHTTPTests.request
     json = helpers.CertificationHTTPTests.json
     created_workspace = helpers.CertificationHTTPTests.created_workspace
+
+    def test_racing_windows_cannot_commit_the_same_register_number_twice(self):
+        project = Path(self.temp.name) / 'Numbered register.cf.json'
+        self.chooser.selection = SaveSelection(str(project),None)
+        self.json('POST','/api/project/save-as',{'estimate':helpers.project_estimate(title='Register test'),
+            'passive_fire_register':{'entries':[{'location':'First'}]}})
+        self.chooser.opened = str(project)
+        saved = json.loads(project.read_bytes())
+        windows = [self.json('POST','/api/project/open',{}) for _ in range(2)]
+        def add(window):
+            register = window['passive_fire_register']
+            number = register['next_number']
+            second = deepcopy(register['entries'][0])
+            second.update(number=number,entry_id=str(uuid.uuid4()),location='Second')
+            second['side1']['id_number'] = f'{number:03d}'
+            second['side2']['id_number'] = f'{number:03d}-2'
+            register['entries'].append(second)
+            register['next_number'] += 1
+            body = {'save_token':window['file']['save_token'],'estimate':saved['estimate'],
+                'calculators':{key:{'inputs':row['inputs']} for key,row in window['calculators'].items()},
+                'passive_fire_register':register}
+            return self.request('POST','/api/project/save',body)[0]
+        with ThreadPoolExecutor(2) as pool:
+            results = list(pool.map(add,windows))
+        self.assertEqual(sorted(results),[200,400])
+        persisted = json.loads(project.read_bytes())['passive_fire_register']
+        self.assertEqual(persisted['next_number'],3)
+        self.assertEqual([item['side1']['id_number'] for item in persisted['entries']],['001','002'])
 
     def test_pdf_route_freezes_new_revision_and_replays_exact_bytes(self):
         route = '/api/project/passive-fire-register.pdf'

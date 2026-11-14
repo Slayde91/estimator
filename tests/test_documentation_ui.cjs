@@ -41,7 +41,9 @@ function harness(){
     CeasefireTakeoffs:{documentationExport:adapter('takeoff')}};
   const context={window,document:{getElementById:byId,createElement:element},fetch,console,Date,JSON,Object,Array,Number,Error,Set,Map,WeakMap,
     crypto:{randomUUID:()=>identity(++serial)}};
-  vm.createContext(context);vm.runInContext(fs.readFileSync('static/documentation.js','utf8'),context);
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync('static/dates.js','utf8'),context);
+  vm.runInContext(fs.readFileSync('static/documentation.js','utf8'),context);
   const descendants=(host,predicate)=>host.children.filter(child=>typeof child==='object').flatMap(child=>[...(predicate(child)?[child]:[]),...descendants(child,predicate)]);
   return {api:window.CeasefireDocumentation,window,calls,adapters,models,byId,response,events,
     override:fn=>{override=fn;},adapterOverride:fn=>{adapterOverride=fn;},scope:n=>{selected=n;},created:value=>{created=value;},changed:()=>changed,

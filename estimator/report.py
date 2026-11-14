@@ -6,6 +6,7 @@ the report uses business labels and formatting never changes saved results.
 """
 
 from datetime import datetime, timezone
+from .date_display import display_date
 from decimal import Decimal, ROUND_HALF_UP, localcontext
 from io import BytesIO
 from html import unescape
@@ -139,8 +140,8 @@ def _date(value):
         parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
         if parsed.tzinfo is not None:
             parsed = parsed.astimezone(timezone.utc)
-            return parsed.strftime("%d %b %Y, %H:%M UTC")
-        return parsed.strftime("%d %b %Y, %H:%M")
+            return f"{display_date(parsed)}, {parsed:%H:%M} UTC"
+        return f"{display_date(parsed)}, {parsed:%H:%M}"
     except (ValueError, TypeError):
         return _text(value)
 

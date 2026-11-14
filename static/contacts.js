@@ -10,6 +10,17 @@
   const meaningful = value => Boolean(value.replace(/\p{Cf}/gu, '').trim());
   let page = "leads", data, search = "", generation = 0, saving = false, editorSequence = 0, editorRequest = 0, converting = null, accountEditor = null;
   let followUpBy = "";
+  const sortOptions = {due:"Follow-up date", name:"Name", reverse:"Name", company:"Company", owner:"Owner"};
+  const prefKey = "classifire.leads.register.v1";
+  let leadSort = "due", hiddenStages = new Set();
+  try {
+    const saved = JSON.parse(localStorage.getItem(prefKey));
+    if (saved && Object.hasOwn(sortOptions, saved.sort)) leadSort = saved.sort;
+    if (Array.isArray(saved?.hidden)) hiddenStages = new Set(saved.hidden.filter(stage => typeof stage === "string"));
+  } catch { /* Use defaults when the preference store is unavailable. */ }
+  function saveLeadPreferences() {
+    try { localStorage.setItem(prefKey, JSON.stringify({sort:leadSort,hidden:[...hiddenStages]})); } catch {}
+  }
   const linkTitles = {contacts: "Contacts", projects: "Projects", quotes: "Quotes", work_orders: "Work Orders", purchase_orders: "Purchase Orders"};
   const sidebarTitles = {quotes:"Linked Quotes", work_orders:"Linked Work Orders", purchase_orders:"Linked Purchase Orders", projects:"Linked Projects"};
   const root = () => document.getElementById("contacts-root");
@@ -88,14 +99,14 @@
     const projectName = openProject && receipt.lead_id ? button(receipt.project_no || "Project", async event => {
       const control = event.currentTarget;
       control.disabled = true;
-      try { await window.CeasefireProject.openConvertedLead(receipt.lead_id, control); }
+      try { await window.CeasefireProject.showConvertedDetails(receipt); }
       catch (error) { feedback(root(), error.message, true); }
       finally { control.disabled = false; }
     }, 'text-button') : el('span', '', receipt.project_no || '—');
     const identity = el('dl', 'kanban-card-details contacts-conversion-fields');
     const date = receipt.converted_at ? new Date(receipt.converted_at) : null;
     const convertedAt = el('time', '', date && Number.isFinite(date.getTime())
-      ? date.toLocaleString(document.documentElement.lang || undefined) : '—');
+      ? window.ClassifireDates.dateTime(date) : '—');
     if (date && Number.isFinite(date.getTime())) convertedAt.dateTime = date.toISOString();
     const project = el('dd'), dateValue = el('dd');
     project.append(projectName);
@@ -115,7 +126,7 @@
     for (const [key, label] of Object.entries(labels)) {
       const value = receipt.snapshot[key];
       if (value && key!=='owner_id') fields.append(ui('dt', '', key === 'status' ? 'Status at conversion' : label),
-        key === 'status' ? ui('dd', '', value) : el('dd', '', value));
+        key === 'status' ? ui('dd', '', value) : el('dd', '', leadFieldText(key, value)));
     }
     detail.append(fields);
     conversion.append(detail);
@@ -996,7 +1007,9 @@
     const keys = page === "accounts" ? ["company", "abn_acn", "billing_address", "owner_name"] :
       page === "leads" ? [...personFields, "abn_acn", "status", "site_address", "billing_address", "description", "next_action", "follow_up_date","owner_name","region","project_no"] : [...personFields,"owner_name"];
     if (page === "leads" && followUpBy && (!row.follow_up_date || row.follow_up_date > followUpBy)) return false;
-    return keys.some(key => (row[key] || "").toLowerCase().includes(search.trim().toLowerCase()));
+    const term = search.trim().toLowerCase();
+    return keys.some(key => (row[key] || "").toLowerCase().includes(term)) ||
+      (page === "leads" && row.follow_up_date && leadFieldText("follow_up_date", row.follow_up_date).includes(term));
   }
   async function moveLead(lead, status) {
     if (status === 'New' && (lead.phone || lead.email)) status = 'Qualified';
@@ -1059,16 +1072,29 @@
     row.append(menu);
     return row;
   }
+  function leadFieldText(key, value) {
+    if (!value) return "—";
+    if (key === "follow_up_date") return window.ClassifireDates.date(value);
+    if (key === "last_interaction_at") return window.ClassifireDates.dateTime(value);
+    return value;
+  }
   function leadBoard(rows) {
-    const sorted = [...rows].sort((a,b) => (a.follow_up_date || '99999').localeCompare(b.follow_up_date || '99999'));
+    const compare = new Intl.Collator(document.documentElement.lang || 'en-AU', {sensitivity:'base', numeric:true}).compare;
+    const primary = {due:'follow_up_date',name:'name',reverse:'name',company:'company',owner:'owner_name'}[leadSort];
+    const sorted = rows.filter(row => !hiddenStages.has(row.status)).sort((a,b) => {
+      const left = a[primary] || '', right = b[primary] || '';
+      if (!left !== !right) return left ? -1 : 1;
+      return compare(left,right) * (leadSort === 'reverse' ? -1 : 1) || compare(a.name || '',b.name || '') || compare(a.id,b.id);
+    });
     const layouts = window.ClassifireDocumentBoard;
     if (layouts.viewFor('leads') === 'table') {
       return layouts.recordTable(['Name', 'Status', 'Company', 'Site address', 'Owner', 'Next action', 'Follow-up date', 'Project'],
         sorted, lead => [lead.receipt ? lead.name : leadHeading(lead), ui('span', '', lead.status), lead.company, lead.site_address,
-          lead.owner_name, lead.next_action, lead.follow_up_date, lead.receipt ? conversionDetails(lead.receipt, true, true) : convertButton(lead)]);
+          lead.owner_name, lead.next_action, leadFieldText('follow_up_date',lead.follow_up_date), lead.receipt ? conversionDetails(lead.receipt, true, true) : convertButton(lead)]);
     }
     const board = el("div", "project-kanban contacts-board");
     for (const status of data.statuses) {
+      if (hiddenStages.has(status)) continue;
       const column = el("section", "project-kanban-column");
       column.dataset.status = status;
       const group = sorted.filter(lead => lead.status === status);
@@ -1093,7 +1119,7 @@
         const details = el("dl", "kanban-card-details");
         for (const key of ["company", "site_address", "region", "owner_name", "title", "phone", "email", "next_action", "follow_up_date","last_interaction_at"]) {
           if (!lead[key] && key !== "company") continue;
-          details.append(ui("dt", "", labels[key]), el("dd", "", key==='last_interaction_at'?new Date(lead[key]).toLocaleString():lead[key] || "—"));
+          details.append(ui("dt", "", labels[key]), el("dd", "", leadFieldText(key, lead[key])));
         }
         card.append(details);
         const actions = el('div', 'contacts-lead-actions');
@@ -1243,10 +1269,37 @@
       const cutoff = el("input"); cutoff.type = "date"; cutoff.value = followUpBy;
       cutoff.addEventListener("input", () => { followUpBy = cutoff.value; displayRows(); });
       label.append(cutoff); controls.append(label);
+      const sortLabel = el("label", "field lead-sort-field"), sort = el("select");
+      sortLabel.append(ui("span","","Sort by"), sort);
+      for (const [value,title] of Object.entries(sortOptions)) {
+        const direction = value === "name" ? " A–Z" : value === "reverse" ? " Z–A" : "";
+        const option = el("option");
+        option.textContent = (window.CeasefireI18n?.term(title) || title) + direction;
+        option.value = value; sort.append(option);
+      }
+      sort.value = leadSort;
+      sort.addEventListener("change", () => { leadSort = sort.value; saveLeadPreferences(); displayRows(); });
+      controls.append(sortLabel);
     }
     if (page !== "leads") controls.append(documentMenu(page));
     const create = creationButton("New " + singular[page], () => dialogEditor(page));
     controls.append(create);
+    if (page === "leads") {
+      const menu = el("details", "commercial-columns-menu lead-columns-menu");
+      const summary = el("summary", "button secondary"), arrow = el("span","","▾");
+      arrow.setAttribute("aria-hidden","true"); summary.append(ui("span","","Columns")," ",arrow);
+      const options = el("div","commercial-menu-options");
+      for (const status of data.statuses) {
+        const label = el("label","commercial-check"), check = el("input");
+        check.type = "checkbox"; check.checked = !hiddenStages.has(status);
+        check.addEventListener("change", () => {
+          if (check.checked) hiddenStages.delete(status); else hiddenStages.add(status);
+          saveLeadPreferences(); displayRows();
+        });
+        label.append(check,ui("span","",status)); options.append(label);
+      }
+      menu.append(summary, options); controls.append(menu);
+    }
     section.append(controls, el("div", "contacts-results"));
     const layout = el("div", "contacts-directory-layout");
     layout.append(section);
@@ -1255,7 +1308,7 @@
     conversionBusy();
   }
   document.addEventListener("click", event => {
-    root()?.querySelectorAll(".contacts-document[open],.contacts-lead-menu[open]").forEach(menu => {if (!menu.contains(event.target)) menu.open = false;});
+    root()?.querySelectorAll(".contacts-document[open],.contacts-lead-menu[open],.lead-columns-menu[open]").forEach(menu => {if (!menu.contains(event.target)) menu.open = false;});
   });
   document.addEventListener("keydown", event => {
     if (event.key !== "Escape") return;

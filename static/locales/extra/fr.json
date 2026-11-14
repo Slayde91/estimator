@@ -1,4 +1,10 @@
 {
+  "Forms": "Formulaires",
+  "Form templates": "Modèles de formulaire",
+  "Form records": "Registre des formulaires",
+  "Create template": "Créer un modèle",
+  "Fill out": "Remplir",
+  "Template editor": "Éditeur de modèles",
   "Enter a date as DD:MM:YY.": "Saisissez la date au format DD:MM:YY.",
   "Choose {0}": "Choisir {0}",
   "Payroll hours": "Heures de paie",

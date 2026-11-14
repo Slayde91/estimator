@@ -10,7 +10,7 @@ async function openProjectSection(page, section) {
   if (section === 'documents') await page.locator('#documents-navigation-toggle').click();
   else if (section === 'scheduler') await page.locator('#scheduler-navigation').click();
   else {
-    const documents = ['certification', 'documentation', 'swms', 'documents'].includes(section);
+    const documents = ['certification', 'documentation', 'forms', 'swms', 'documents'].includes(section);
     const owner = documents ? 'documents' : 'projects', attribute = documents ? 'document' : 'project';
     await page.locator(`#${owner}-navigation-toggle`).hover();
     await expect(page.locator(`#${owner}-navigation-menu`)).toBeVisible();
@@ -51,7 +51,7 @@ async function clickProjectControl(page, name) {
   // Do not wait for a save response here: failure/held-response tests deliberately
   // test the UI before a response exists. Load keeps its review dialog in place.
   if (!['Load','New'].includes(name) && previous && previous !== 'quotes') {
-    if (['certification', 'documentation', 'swms', 'quote', 'work-orders', 'purchase-orders'].includes(previous)) {
+    if (['certification', 'documentation', 'forms', 'swms', 'quote', 'work-orders', 'purchase-orders'].includes(previous)) {
       await openProjectSection(page, previous);
     } else await page.locator('.nav-button[data-view="' + previous + '"]').click();
   }

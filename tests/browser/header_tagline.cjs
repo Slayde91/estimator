@@ -62,12 +62,14 @@ async function layout() {
     const rectangle = selector => { const b = document.querySelector(selector).getBoundingClientRect(); return { x: b.x, y: b.y, width: b.width, height: b.height, bottom: b.bottom }; };
     const tag = document.querySelector('#header-tagline'), cursor = tag.querySelector('.header-tagline-cursor');
     const character = document.querySelector('#header-tagline-character');
+    const typed = tag.querySelector('#header-tagline-typed'), stroke = getComputedStyle(typed);
     return { brand: rectangle('.brand-stack'), logo: rectangle('.brand-logo'), header: rectangle('.app-header'), nav: rectangle('.app-header nav'), tagline: rectangle('#header-tagline'),
       character: rectangle('#header-tagline-character'), visual: rectangle('.header-tagline-visual'), mediaState: character.dataset.taglineMotion, mediaSrc: character.getAttribute('src'), mediaLoaded: character.complete && character.naturalWidth > 0,
       cursorAnimation: getComputedStyle(cursor).animationName, cursorOpacity: getComputedStyle(cursor).opacity,
       cursorHidden: cursor.hidden, cursorDisplay: getComputedStyle(cursor).display, cursorAnimationCount: cursor.getAnimations().length,
       italic: getComputedStyle(tag).fontStyle, alignment: getComputedStyle(tag).textAlign, overflow: document.documentElement.scrollWidth - innerWidth,
-      typed: document.querySelector('#header-tagline-typed').textContent,
+      typed: typed.textContent, underline: stroke.animationName, strokeSize: stroke.backgroundSize, strokeFragment: stroke.boxDecorationBreak,
+      textLines: new Set(Array.from(typed.getClientRects(), rect => rect.top)).size,
       accessible: document.querySelector('#header-tagline-label').textContent,
       now: performance.now(), finished: window.qaHeaderFinished };
   });
@@ -131,12 +133,14 @@ async function typeUntilFinished(initial, expected, samples = [initial]) {
     assert.ok(expected.startsWith(sample.typed));
     assert.ok(sample.typed.length >= samples.at(-1).typed.length);
     assert.equal(sample.accessible, expected); assert.equal(sample.cursorHidden, sample.typed === expected);
+    assert.equal(sample.underline, sample.typed === expected ? 'header-tagline-underline' : 'none');
     assert.equal(sample.mediaState, 'playing', 'Character playback continues through typing and its two-second grace period');
     samples.push(sample);
   }
   assert.equal(samples.at(-1).typed, expected, 'The production typing timers must finish the exact phrase');
   assert.ok(samples.length >= 3, 'The real DOM must show progressive typing');
   assert.equal(samples.at(-1).finished?.phrase, expected);
+  assert.equal(samples.at(-1).strokeFragment,'slice');
   assert.match(samples.at(-1).mediaSrc, /^\/header-tagline-character\.gif\?play=\d+$/);
   return samples;
 }
@@ -276,6 +280,16 @@ async function presentationNavigation(initial) {
     const media = width === 1146 ? await characterMotion(initial) : { state: initial.mediaState, leftOfSentence: initial.character.x + initial.character.width <= initial.visual.x }; assert.equal(initial.mediaState, 'playing'); assert.equal(media.leftOfSentence ?? true, true);
     await page.screenshot({ path: path.join(output, `tagline-typing-${width}.png`), fullPage: false });
     const samples = await typeUntilFinished(initial, phrase, await bootstrap(initial, phrase));
+    if (width === 390) {
+      assert.ok(samples.at(-1).textLines > 1, 'The narrow-window sentence wraps onto multiple painted fragments');
+      const underline = await page.locator('#header-tagline-typed').evaluate(text => {
+        const style = getComputedStyle(text);
+        const animation = text.getAnimations().find(anim => anim.animationName === 'header-tagline-underline');
+        const frames = animation?.effect.getKeyframes() || [];
+        return {left:style.backgroundPositionX, start:frames[0]?.backgroundSize, end:frames.at(-1)?.backgroundSize};
+      });
+      assert.deepEqual(underline,{left:'0%', start:'0% 1px', end:'100% 1px'});
+    }
     await idle(); await clean();
     const accessibility = await page.locator('#header-tagline').ariaSnapshot();
     assert.ok(accessibility.includes(phrase)); assert.ok(!accessibility.includes('_'));
@@ -317,7 +331,7 @@ async function presentationNavigation(initial) {
     await instrument(context, { blocked });
     page = await context.newPage(); const gifRequests = []; page.on('request', request => { if (new URL(request.url()).pathname === '/header-tagline-character.gif') gifRequests.push(request.url()); }); watch(page); await installPausedClock(); await page.goto(`http://127.0.0.1:${info.port}/`); await page.evaluate(() => document.fonts.ready); await finishBootFrames();
     const reduced = await layout(); assert.equal(reduced.typed, phrase); assert.equal(reduced.accessible, phrase);
-    assert.equal(reduced.cursorAnimation, 'none'); await bootstrap(reduced, phrase); await clean();
+    assert.equal(reduced.cursorAnimation, 'none'); assert.equal(reduced.underline,'none'); assert.equal(reduced.strokeSize,'100% 1px'); await bootstrap(reduced, phrase); await clean();
     const expiry = await expireCursor(reduced, phrase, { animated: false }); await clean();
     assert.deepEqual(gifRequests, [], 'Reduced-motion loading never requests an animated GIF');
     evidence[blocked ? 'blockedStorage' : 'reducedMotion'] = { fullPhraseImmediately: true, cursorAnimation: reduced.cursorAnimation, expiry, dirty: false };
@@ -335,10 +349,12 @@ async function presentationNavigation(initial) {
     });
     page=await context.newPage();watch(page);await installPausedClock();await page.goto(`http://127.0.0.1:${info.port}/`);await finishBootFrames();
     const first=await layout();assert.equal(first.accessible,expected);assert.notEqual(first.typed,expected);assert.equal(first.typed.length,expected.length);
+    assert.equal(first.underline,'none');
     for(let i=0;i<expected.length;i++)if(expected[i]===' ')assert.equal(first.typed[i],' ');assert.equal(await page.evaluate(()=>window.qaBrandSound.filter(event=>event==='play').length),1);
     await page.screenshot({path:path.join(output,'intelligence-scrambling-390.png')});
     await page.clock.runFor(3300);const resolving=await layout();assert.ok(resolving.typed.startsWith(expected.slice(0,4)));assert.notEqual(resolving.typed,expected);sameHeader(first,resolving);
     await page.clock.runFor(2000);const settled=await layout();assert.equal(settled.typed,expected);assert.equal(settled.cursorHidden,true);sameHeader(first,settled);
+    assert.equal(settled.underline,'header-tagline-underline');
     await page.evaluate(()=>window.CeasefireI18n.setLanguage('fr'));const brandFrench=await layout();assert.equal(brandFrench.accessible,expected);
     assert.equal(await page.evaluate(()=>window.qaBrandSound.filter(event=>event==='play').length),1,'Language refresh does not replay the appearance');
     await page.clock.runFor(5050);assert.equal((await layout()).typed,expected);

@@ -40,6 +40,13 @@
   <script src="/searchable-choice.js" defer></script>
   <script src="/theme.js" defer></script>
   <script src="/downloads.js" defer></script>
+  <link rel="stylesheet" href="/forms.css">
+  <link rel="stylesheet" href="/forms-builder.css">
+  <link rel="stylesheet" href="/form-fields.css">
+  <script src="/form-fields.js" defer></script>
+  <script src="/forms-layout.js" defer></script>
+  <script src="/forms-builder.js" defer></script>
+  <script src="/forms.js" defer></script>
   <script src="/documentation.js" defer></script>
   <script src="/passive-fire-register.js" defer></script>
   <link rel="stylesheet" href="/passive-fire-register.css">
@@ -194,6 +201,7 @@ SOFTWARE. -->
           <button type="button" class="section-navigation-choice" data-document-section="documentation" aria-pressed="false" data-i18n="Documentation">Documentation</button>
           <button type="button" class="section-navigation-choice" data-document-section="swms" aria-pressed="false" >SWMS</button>
           <button type="button" class="section-navigation-choice" data-document-section="certification" aria-pressed="false" data-i18n="Certification">Certification</button>
+          <button type="button" class="section-navigation-choice" data-document-section="forms" aria-pressed="false" data-i18n="Forms">Forms</button>
         </div>
       </div>
       <div id="estimate-navigation" class="section-navigation">
@@ -610,9 +618,13 @@ SOFTWARE. -->
       <div class="page-heading"><div><h1 id="passive-register-heading" data-i18n="Passive Fire Register">Passive Fire Register</h1></div></div>
       <div id="passive-register-root"></div>
     </section>
+    <section id="view-forms" class="view workspace-view" aria-labelledby="forms-heading" hidden>
+      <div class="page-heading workspace-title-row"><h1 id="forms-heading" data-i18n="Forms">Forms</h1></div>
+      <div id="forms-root"></div>
+    </section>
     <section id="view-documentation" class="view workspace-view" aria-labelledby="documentation-heading" hidden>
       <div class="page-heading workspace-title-row"><div><h1 id="documentation-heading" data-i18n="Documentation">Documentation</h1></div></div>
-      <nav id="document-pages" class="calculator-pages document-tabs" aria-label="Documents" data-i18n-aria-label="Documents" hidden><button type="button" class="calculator-page" data-document-section="documentation" aria-pressed="false" data-i18n="Documentation">Documentation</button></nav>
+      <nav id="document-pages" class="calculator-pages document-tabs" aria-label="Documents" data-i18n-aria-label="Documents" hidden><button type="button" class="calculator-page" data-document-section="documentation" aria-pressed="false" data-i18n="Documentation">Documentation</button><button type="button" class="calculator-page" data-document-section="forms" aria-pressed="false" data-i18n="Forms">Forms</button></nav>
       <p class="helper" data-i18n="Only documents generated in the current project appear here. Save the project to retain its revision history with the project file.">Only documents generated in the current project appear here. Save the project to retain its revision history with the project file.</p>
       <p id="documentation-status" class="helper" role="status" aria-live="polite"></p>
       <div id="documentation-layout" class="documentation-layout">

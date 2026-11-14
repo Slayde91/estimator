@@ -126,6 +126,9 @@ jobs:
       - run: node tests/browser/penetration_references.cjs
       - run: node tests/browser/calculation_queue.cjs
       - run: npm run test:project-library-drafts
+      - run: node tests/browser/forms_builder.cjs
+      - run: node tests/browser/form_fields.cjs
+      - run: node tests/browser/forms_workspace.cjs
       - run: node tests/browser/projects_navigation.cjs
       - run: node tests/browser/contacts.cjs
       - run: node tests/browser/contact_shortcuts.cjs

@@ -134,12 +134,12 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   await openProjectSection(page,'quotes');
   await headerDestination('quotes');await headerDestination('certification');
   await page.locator('#documents-navigation-toggle').hover();await expect(documentsMenu).toBeVisible();
-  assert.deepEqual(await documentsMenu.locator('button').allTextContents(),['Documentation','SWMS','Certification']);
+  assert.deepEqual(await documentsMenu.locator('button').allTextContents(),['Documentation','SWMS','Certification','Forms']);
   await page.locator('#documents-navigation-toggle').click();await expectDocumentDestination('certification');
   await headerDestination('certification');
   await home();assert.equal(await openProjectTools(page),'home');await expect(page.locator('#view-quotes')).toBeVisible();
   await openProjectSection(page,'certification');await expect(page.locator('#certification-client')).toHaveValue('Navigation draft retained');
-  for(const [owner,first,last] of [['projects','quotes','purchase-orders'],['documents','documentation','certification']]){
+  for(const [owner,first,last] of [['projects','quotes','purchase-orders'],['documents','documentation','forms']]){
     await home();const toggle=page.locator(`#${owner}-navigation-toggle`), choices=page.locator(`#${owner}-navigation-menu`), attr=owner==='documents'?'document':'project';
     await toggle.focus();await toggle.press('ArrowDown');await expect(choices.locator(`[data-${attr}-section="${first}"]`)).toBeFocused();
     await page.keyboard.press('End');await expect(choices.locator(`[data-${attr}-section="${last}"]`)).toBeFocused();
@@ -159,7 +159,7 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
     await openPdfForm(section);
     await expect(documentTabs).toBeVisible();
     assert.ok(await documentTabs.evaluate(nav=>Math.abs(nav.getBoundingClientRect().right-nav.lastElementChild.getBoundingClientRect().right)<1 && getComputedStyle(nav).boxShadow!=='none'));
-    assert.deepEqual(await documentTabs.locator('button').allTextContents(),['Documentation']);
+    assert.deepEqual(await documentTabs.locator('button').allTextContents(),['Documentation','Forms']);
     assert.equal(await documentTabs.count(),1,'Only one document navigation element is retained');
     assert.equal(await documentTabs.evaluate(nav=>Boolean(nav.closest('#swms-root'))),false,'SWMS cannot replace its navigation when rendering');
     await expect(page.locator('#view-'+section+' .eyebrow').filter({hasText:'DOCUMENTS'})).toHaveCount(0);

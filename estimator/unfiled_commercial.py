@@ -125,17 +125,17 @@ class UnfiledCommercial:
                               'source_path':None, 'unfiled':True, 'current_workspace':active_workspace == row['workspace']})
             return cards
 
-    def _owner(self, db, source):
+    def _owner(self, db, source, ignored=()):
         row = db.execute('SELECT o.*,w.project_id FROM local_commercial_owners o JOIN commercial_workspaces w '
                          'USING(workspace) WHERE o.token=? AND o.filed=0', (source['file_id'],)).fetchone()
-        if row is None or _revision(row) != source['revision']:
+        if row is None or row['project_id'] in ignored or _revision(row) != source['revision']:
             raise CommercialConflict(STALE)
         return row
 
-    def activity(self, source, identity):
+    def activity(self, source, identity, *, ignored=()):
         with self.service._connect() as db:
             db.execute('BEGIN')
-            owner = self._owner(db, source)
+            owner = self._owner(db, source, ignored)
             self._check_pending(db, owner['workspace'])
             row = db.execute('''SELECT d.data FROM local_commercial_documents m
                 JOIN commercial_drafts d USING(workspace,id) WHERE m.workspace=? AND m.id=?''',
@@ -214,11 +214,11 @@ class UnfiledCommercial:
         finally:
             self._access.reset(token)
 
-    def perform(self, action, source, body, execute):
+    def perform(self, action, source, body, execute, *, ignored=()):
         if action == 'issue':
             raise ValidationError('Save this project before downloading its commercial documents.')
         with self.service._connect() as db:
-            owner = self._owner(db, source)
+            owner = self._owner(db, source, ignored)
             workspace, project = owner['workspace'], owner['project_id']
             records = {row['id']:row for row in db.execute(
                 'SELECT m.id,d.data FROM local_commercial_documents m JOIN commercial_drafts d USING(workspace,id) WHERE m.workspace=?',

@@ -102,6 +102,12 @@ class SavedQuoteTests(unittest.TestCase):
         self.assertEqual((note['actor'], note['subject']),('Site manager','Inspect anchors'))
         self.assertNotIn('Note',[row['label'] for row in saved.activity(other['source_file'],other['source_revision'],body['id'])['events']])
 
+        self.library._commercial_sources.ignore_owner(self.card['project_id'])
+        with self.assertRaises(ValidationError):
+            saved.perform('activity', {'source':self.source, **body}, execute)
+        with self.assertRaises(ValidationError):
+            saved.activity(self.source['file_id'], self.source['revision'], body['id'])
+
     def test_malformed_project_cannot_break_other_cards(self):
         snapshot = json.loads(self.path.read_bytes())
         snapshot['commercial_documents']['documents'][0]['fields']['details'] = None

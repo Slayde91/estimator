@@ -88,6 +88,9 @@ class CommercialTests(unittest.TestCase):
             local = next(row for row in self.store.unfiled.cards(self.workspace) if row['id']==doc['id'])
             receipt = self.store.unfiled.activity({'file_id':local['source_file'],'revision':local['source_revision']},doc['id'])
             self.assertIn(kind,[row.get('subject') for row in receipt['events']])
+            with self.assertRaises(CommercialConflict):
+                self.store.unfiled.activity({'file_id':local['source_file'],'revision':local['source_revision']},
+                                           doc['id'],ignored={local['project_id']})
         snapshot = self.store.capture(self.workspace)
         with self.store.publishing(self.workspace,snapshot,path='original.cf.json'):
             pass

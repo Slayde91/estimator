@@ -10,10 +10,6 @@
   function button(name, fn) {
     const b=el('button',term(name));b.type='button';b.className='button secondary';b.addEventListener('click',fn);return b;
   }
-  function reportError(element, text) {
-    element.textContent = text;
-    window.CeasefireNotifications?.sound(element);
-  }
   function ownerSelect(record) {
     const control=el('select');
     const creator = record?.id ? null : window.ClassifireAccess?.user;
@@ -65,7 +61,7 @@
     }
     async function submit(values) {
       if(busy || locked() || !current())return;
-      if(values.type!=='Task completed'&&!values.text.trim()){note.focus();reportError(message,term('Enter activity details.'));return;}
+      if(values.type!=='Task completed'&&!values.text.trim()){note.focus();message.textContent=term('Enter activity details.');return;}
       const fingerprint=JSON.stringify(values);
       if(!replay||replay.fingerprint!==fingerprint)replay={fingerprint,id:crypto.randomUUID()};
       busy=true;controls.disabled=true;
@@ -75,7 +71,7 @@
         replay=null;
         if(values.type!=='Task completed'){note.value='';due.value='';owner.value=window.ClassifireAccess?.user?.id || '';occurred.value='';}
         await refresh();
-      } catch(error) {if(current())reportError(message,error.message);}
+      } catch(error) {if(current())message.textContent=error.message;}
       finally {busy=false;update();}
     }
     return {controls, submit, update, pending:()=>busy, dirty:()=>Boolean(note.value || due.value || occurred.value),
@@ -145,7 +141,7 @@
         cursor=result.next_before;earlier.hidden=!cursor;seen=true;
         message.textContent=list.children.length?'':term('No activity recorded.');
         if(result.metadata){Object.assign(watched,result.metadata);dates();}
-      } catch(error) {if(seq===serial&&isOpen())reportError(message,error.message);}
+      } catch(error) {if(seq===serial&&isOpen())message.textContent=error.message;}
     }
     box.addEventListener('toggle',()=>{
       if(!box.open){stopSizing(list);return;}
@@ -228,7 +224,7 @@
         shown = 0; showMore();
         message.textContent = events.length ? '' : term('No activity recorded.');
       } catch (error) {
-        if (current()) reportError(message,term(error.message));
+        if (current()) message.textContent=term(error.message);
       }
     }
     panel.addEventListener('toggle', refresh);

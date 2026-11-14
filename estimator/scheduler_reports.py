@@ -1,6 +1,7 @@
 """Scoped reports over completed, recorded time in the organisation's local calendar."""
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta, timezone
+from decimal import Decimal
 import json
 from zoneinfo import ZoneInfo
 
@@ -64,7 +65,10 @@ def report(db, viewer, settings, query):
             rates[segment['entry_id']].append(segment)
     rows, warnings = [], []
     for entry in entries:
-        days = defaultdict(lambda: dict.fromkeys(('elapsed','paid','regular','overtime','paid_break','unpaid_break'),0))
+        days = defaultdict(lambda: {
+            **dict.fromkeys(('elapsed','paid','regular','overtime','paid_break','unpaid_break'), 0),
+            'overtime_by_rate': {},
+        })
         def add(period_start, period_end, key):
             for day,seconds in _by_day(period_start,period_end,zone,start,until):
                 days[day][key] += seconds
@@ -78,9 +82,21 @@ def report(db, viewer, settings, query):
             add(_timestamp(item['start'],zone),_timestamp(item['end'],zone),'paid_break' if item['paid'] else 'unpaid_break')
         if pay['status'] == 'calculated':
             for segment in rates[entry['id']]:
-                left, right = _timestamp(segment['start'],zone), _timestamp(segment['end'],zone)
-                add(left,right,'paid')
-                add(left,right,'overtime' if float(segment['multiplier']) > 1 else 'regular')
+                # Payroll already splits segments at local midnight and the requested report boundaries.
+                day = _timestamp(segment['start'], zone).astimezone(zone).date().isoformat()
+                totals = days[day]
+                seconds = segment['seconds']
+                totals['paid'] += seconds
+                multiplier = Decimal(segment['multiplier'])
+                if multiplier > 1:
+                    totals['overtime'] += seconds
+                    rate = format(multiplier, 'f')
+                    if '.' in rate:
+                        rate = rate.rstrip('0').rstrip('.')
+                    bands = totals['overtime_by_rate']
+                    bands[rate] = bands.get(rate, 0) + seconds
+                else:
+                    totals['regular'] += seconds
         else:
             for left,right in _paid_intervals(entry,settings):
                 add(left,right,'paid')

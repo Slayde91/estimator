@@ -63,7 +63,10 @@ const ready=new Promise((resolve,reject)=>{let buffer='';server.on('exit',()=>re
   const reports=page.locator('.scheduler-reports');
   await reports.getByRole('button',{name:'Project Report',exact:true}).click();
   await reports.getByLabel('Job',{exact:true}).selectOption({label:order.reference});
-  await expect(reports.getByRole('progressbar',{name:order.reference})).toBeVisible();
+  const jobsChart=reports.locator('.scheduler-report-chart').filter({has:page.getByRole('heading',{name:'Jobs',exact:true})});
+  await expect(jobsChart.getByRole('img',{name:'Jobs',exact:true})).toBeVisible();
+  const selectedJob=jobsChart.getByRole('listitem').filter({hasText:order.reference});
+  await expect(selectedJob).toContainText('100%');
   await reports.getByLabel('Reporting period',{exact:true}).selectOption('custom');
   await reports.getByLabel('Start date',{exact:true}).fill('2000-01-01');
   await reports.getByLabel('End date',{exact:true}).fill('2000-01-02');

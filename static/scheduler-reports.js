@@ -14,7 +14,15 @@
     return item;
   }
   function sum(rows) {
-    return Object.fromEntries(keys.map(key=>[key,rows.reduce((value,row)=>value+row[key],0)]));
+    const totals=Object.fromEntries(keys.map(key=>[key,0]));
+    totals.overtime_by_rate={};
+    for (const row of rows) {
+      for (const key of keys) totals[key]+=row[key];
+      for (const [rate,seconds] of Object.entries(row.overtime_by_rate || {})) {
+        totals.overtime_by_rate[rate]=(totals.overtime_by_rate[rate] || 0)+seconds;
+      }
+    }
+    return totals;
   }
   function groups(rows,key) {
     const result=new Map();
@@ -24,17 +32,56 @@
     }
     return result;
   }
-  function chart(title,rows,key,label) {
+  function groupedHours(rows,key,label) {
+    return Array.from(groups(rows,key).values(),items=>({
+      label:label(items[0]), seconds:items.reduce((total,row)=>total+row.paid,0)
+    })).sort((a,b)=>b.seconds-a.seconds || a.label.localeCompare(b.label));
+  }
+  function svgNode(tag,attributes) {
+    const item=document.createElementNS('http://www.w3.org/2000/svg',tag);
+    for (const [key,value] of Object.entries(attributes)) item.setAttribute(key,value);
+    return item;
+  }
+  const projectColors=['#cf4656','#098377','#cc771c','#415fa9','#8464a6','#468443','#b45a8e','#567488'];
+  function pieChart(title,values,t,colors=projectColors) {
     const section=node('section',null,'card scheduler-report-chart');
     section.append(node('h3',title));
-    const values=Array.from(groups(rows,key),([id,items])=>({id,label:label(items[0]),value:sum(items).paid}));
-    values.sort((a,b)=>b.value-a.value||a.label.localeCompare(b.label));
-    const max=Math.max(1,values[0]?.value || 0);
-    for (const item of values) {
-      const line=node('div',null,'scheduler-report-bar');
-      const bar=node('progress'); bar.max=max; bar.value=item.value; bar.setAttribute('aria-label',item.label);
-      line.append(node('span',item.label),node('strong',hours(item.value)),bar); section.append(line);
+    const total=values.reduce((seconds,item)=>seconds+item.seconds,0);
+    const graphic=svgNode('svg',{viewBox:'-102 -102 204 204',role:'img','aria-label':title,class:'scheduler-report-pie'});
+    const legend=node('ul',null,'scheduler-report-legend');
+    const percent=new Intl.NumberFormat(document.documentElement.lang || 'en',{style:'percent',maximumFractionDigits:1});
+    let elapsed=0;
+    const point=fraction=>{
+      const angle=(fraction*2-0.5)*Math.PI;
+      return [Math.cos(angle)*100,Math.sin(angle)*100];
+    };
+    for (const [index,item] of values.entries()) {
+      const color=colors[index%colors.length], share=total?item.seconds/total:0;
+      if (share>0) {
+        const start=elapsed/total, end=(elapsed+item.seconds)/total;
+        const slice=share===1?svgNode('circle',{r:100,fill:color}):svgNode('path',{
+          d:`M0 0 L${point(start)} A100 100 0 ${share>0.5?1:0} 1 ${point(end)} Z`,fill:color
+        });
+        const tooltip=svgNode('title',{});
+        tooltip.textContent=item.label+' · '+percent.format(share)+' · '+hours(item.seconds);
+        slice.append(tooltip); graphic.append(slice);
+        if (share>=0.075) {
+          const [x,y]=share===1?[0,0]:point((start+end)/2);
+          const label=svgNode('text',{x:x*0.68,y:y*0.68,'text-anchor':'middle','dominant-baseline':'central'});
+          label.textContent=percent.format(share); graphic.append(label);
+        }
+      }
+      elapsed+=item.seconds;
+      const line=node('li'), swatch=svgNode('svg',{viewBox:'0 0 10 10','aria-hidden':true});
+      swatch.append(svgNode('circle',{cx:5,cy:5,r:5,fill:color}));
+      line.append(swatch,node('span',item.label),node('span',total?percent.format(share):'—'),
+        node('strong',hours(item.seconds))); legend.append(line);
     }
+    if (total) section.append(graphic);
+    else section.append(node('p',t('No paid time'),'helper'));
+    const footer=node('div',null,'scheduler-chart-total');
+    footer.append(node('span',t('Total')),node('strong',hours(total)));
+    section.append(legend,footer);
     return section;
   }
   function csv(values) {
@@ -127,23 +174,38 @@
         (!state.project||row.project===state.project) && (!state.job||row.job===state.job));
       const name=row=>data.members[row.member] || unassigned;
       const totals=sum(rows), classified=data.pay_status==='calculated';
-      const display=(key,value)=>!classified && ['regular','overtime'].includes(key)?'—':hours(value);
+      const rates=Object.keys(totals.overtime_by_rate).sort((a,b)=>Number(a)-Number(b));
+      const metricLabel=key=>columns[key]?t(columns[key]):t('{0}× overtime / penalty',[key]);
+      const seconds=(row,key)=>columns[key]?row[key]:(row.overtime_by_rate?.[key] || 0);
+      const classifiedField=key=>['regular','overtime'].includes(key) || !columns[key];
+      const display=(row,key)=>!classified && classifiedField(key)?'—':hours(seconds(row,key));
+      const detailKeys=['elapsed','paid','regular','overtime',...rates,'paid_break','unpaid_break'];
       const scope=[state.start+' – '+state.end,data.timezone];
       for(const select of [member,project,job]) if(select.value) scope.push(select.selectedOptions[0].textContent);
       output.append(node('p',scope.join(' · '),'helper'));
       if (!rows.length) {output.append(node('p',t('No completed time entries match these filters.'),'notice'));return;}
-      const fields=payroll?['paid','regular','overtime','paid_break','unpaid_break']:['paid','paid_break','unpaid_break'];
+      const fields=payroll?['paid','regular','overtime',...rates,'paid_break','unpaid_break']:['paid','paid_break','unpaid_break'];
       const summary=node('dl',null,'scheduler-report-totals');
       for (const key of fields) {
-        const tile=node('div',null,'card'); tile.append(node('dt',t(columns[key])),node('dd',display(key,totals[key])));summary.append(tile);
+        const tile=node('div',null,columns[key]?'card':'card scheduler-rate-total');
+        tile.append(node('dt',metricLabel(key)),node('dd',display(totals,key))); summary.append(tile);
       }
-      output.append(summary);
+      if (payroll && classified) {
+        const overview=node('div',null,'scheduler-payroll-overview');
+        const values=['regular','overtime'].map(key=>({label:metricLabel(key),seconds:totals[key]}));
+        overview.append(summary,pieChart(t('Regular vs overtime'),values,t,['#37845b','#c64156']));
+        output.append(overview);
+      } else {
+        output.append(summary);
+      }
       if (payroll && !classified) output.append(node('p',t('Confirm pay rules before calculating pay.'),'helper'));
       for (const message of data.warnings) output.append(node('p',message,'helper'));
       if (!payroll) {
         const charts=node('div',null,'scheduler-report-charts');
-        charts.append(chart(t('Jobs'),rows,'job',jobLabel),chart(t('Projects'),rows,'project',projectLabel),
-          chart(t('Team members'),rows,'member',name)); output.append(charts);
+        charts.append(pieChart(t('Jobs'),groupedHours(rows,'job',jobLabel),t),
+          pieChart(t('Projects'),groupedHours(rows,'project',projectLabel),t),
+          pieChart(t('Team members'),groupedHours(rows,'member',name),t));
+        output.append(charts);
       }
       const tools=node('div',null,'scheduler-report-tools');
       const dimensions=['Date','Team member','Project','Job','Clock in','Clock out'];
@@ -151,9 +213,11 @@
       const detail=row=>[row.day,name(row),projectLabel(row),jobLabel(row),row.clock_in,row.clock_out];
       const clock=instant=>instant.replace('T',' ').replace(/:00(?=[+-]\d\d:\d\d$)/,'');
       tools.append(action('Download CSV',()=>{
-        const decimals=(row,key)=>!classified && ['regular','overtime'].includes(key)?'':(row[key]/3600).toFixed(4);
-        const header=[...dimensions.map(label=>t(label)),...keys.map(key=>t(columns[key])+' ('+t('hours')+')')];
-        const blob=new Blob(['\uFEFF'+csv([header,...sorted.map(row=>[...detail(row),...keys.map(key=>decimals(row,key))])])],{type:'text/csv;charset=utf-8'});
+        const decimals=(row,key)=>!classified && classifiedField(key)?'':(seconds(row,key)/3600).toFixed(4);
+        // Keep existing CSV columns in place for saved imports and append the applied rates.
+        const csvKeys=[...keys,...rates];
+        const header=[...dimensions.map(label=>t(label)),...csvKeys.map(key=>metricLabel(key)+' ('+t('hours')+')')];
+        const blob=new Blob(['\uFEFF'+csv([header,...sorted.map(row=>[...detail(row),...csvKeys.map(key=>decimals(row,key))])])],{type:'text/csv;charset=utf-8'});
         const url=URL.createObjectURL(blob), link=node('a');link.href=url;
         link.download=state.kind+'-'+state.start+'-'+state.end+'.csv';host.append(link);link.click();link.remove();
         setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -163,19 +227,39 @@
       })); output.append(tools);
       for (const [,items] of groups(sorted,'member')) {
         const section=node('details',null,'card scheduler-report-detail'), personTotals=sum(items);
-        section.append(node('summary',name(items[0])+' · '+hours(personTotals.paid)));
-        const scroll=node('div',null,'table-scroll'), table=node('table');
-        const head=table.createTHead().insertRow(), body=table.createTBody();
-        for (const label of [t('Date'),t('Job'),t('Clock in'),t('Clock out'),...keys.map(key=>t(columns[key]))]) head.append(node('th',label));
-        for (const [day,dayRows] of groups(items,'day')) {
-          const total=sum(dayRows), daily=body.insertRow();daily.className='scheduler-report-day';
-          for (const value of [day,t('Daily total'),'','',...keys.map(key=>display(key,total[key]))]) daily.append(node('th',value));
-          for (const row of dayRows) {
-            const tr=body.insertRow();
-            for (const value of [day,jobLabel(row),clock(row.clock_in),clock(row.clock_out),...keys.map(key=>display(key,row[key]))]) tr.append(node('td',value));
+        const heading=node('summary',name(items[0])+' · '+hours(personTotals.paid));
+        if (payroll && classified) {
+          const breakdown=node('span',null,'scheduler-member-rates');
+          for (const key of ['regular','overtime',...rates.filter(rate=>seconds(personTotals,rate)>0)]) {
+            breakdown.append(node('span',metricLabel(key)+' · '+display(personTotals,key)));
           }
+          heading.append(breakdown);
         }
-        scroll.append(table);section.append(scroll);output.append(section);
+        section.append(heading);
+        // For many distinct rates, repeat row identifiers in manageable tables that also fit a printed page.
+        const tableKeys=rates.length<=3?[detailKeys]:[keys];
+        if (rates.length>3) {
+          for (let offset=0;offset<rates.length;offset+=5) tableKeys.push(rates.slice(offset,offset+5));
+        }
+        const days=Array.from(groups(items,'day'),([day,entries])=>({day,entries,total:sum(entries)}));
+        for (const metrics of tableKeys) {
+          const scroll=node('div',null,'table-scroll'), table=node('table');
+          if (tableKeys.length>1) table.createCaption().textContent=t(metrics===keys?'Paid time':'Overtime / penalty');
+          const head=table.createTHead().insertRow(), body=table.createTBody();
+          for (const label of [t('Date'),t('Job'),t('Clock in'),t('Clock out'),...metrics.map(metricLabel)]) {
+            const header=node('th',label); header.scope='col'; head.append(header);
+          }
+          for (const {day,entries,total} of days) {
+            const daily=body.insertRow(); daily.className='scheduler-report-day';
+            for (const value of [day,t('Daily total'),'','',...metrics.map(key=>display(total,key))]) daily.append(node('td',value));
+            for (const row of entries) {
+              const tr=body.insertRow();
+              for (const value of [day,jobLabel(row),clock(row.clock_in),clock(row.clock_out),...metrics.map(key=>display(row,key))]) tr.append(node('td',value));
+            }
+          }
+          scroll.append(table); section.append(scroll);
+        }
+        output.append(section);
       }
     }
     host.append(modes,title,filters,announcement,output); root.append(host); draw(); void load();

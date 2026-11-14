@@ -43,7 +43,7 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
    body:JSON.stringify({error:'Synthetic role conflict'})}),{times:1});
  await access.getByRole('row').filter({hasText:'CRM Viewer'}).getByRole('button',{name:'Save'}).click();
  await expect(access.getByRole('status')).toHaveText('Synthetic role conflict');
- await expect.poll(()=>page.evaluate(()=>window.roleErrorBleeps)).toBe(1);
+ assert.equal(await page.evaluate(()=>window.roleErrorBleeps),0,'Inline role errors stay silent');
  assert.ok((await admin.cookies()).find(c=>c.name==='classifire_access').httpOnly);
  assert.ok(!await page.evaluate(()=>document.cookie.includes('classifire_access')));
  const saved=await page.evaluate(async()=>{const directory=await(await fetch('/api/contacts/directory')).json();const r=await fetch('/api/contacts/accounts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({version:directory.version,fields:{company:'Named Access QA',billing_address:'',abn_acn:''}})});return {status:r.status,body:await r.json()};});

@@ -158,12 +158,27 @@ async function noDownloadAudio() {
   const theme = page.locator('#theme-toggle'); silentStart = await buttonCalls();
   await theme.hover(); await theme.click(); assert.equal(await buttonCalls(), silentStart);
   const beforeSaveCalls = await buttonCalls();
-  const beforeSaveNotices = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source === '/sounds/radiobleep.mp3').length);
+  const bleepCalls = () => page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source === '/sounds/radiobleep.mp3').length);
+  const beforeSaveNotices = await bleepCalls();
   await page.locator('#save-current-project').click();
   await expect(page.locator('#app-message')).toContainText('Save cancelled. Your current project remains open.', {timeout:60000});
-  await played('/sounds/radiobleep.mp3', beforeSaveNotices);
+  assert.equal(await bleepCalls(), beforeSaveNotices, 'A save cancellation with no snap stays silent');
   assert.equal(await buttonCalls(), beforeSaveCalls); assert.equal(saveRequests, 1);
   evidence.checks.mainButtonsAndSaveSilent = true;
+  await page.locator('#settings-play-button').scrollIntoViewIfNeeded();
+  const beforeReveal = await page.evaluate(() => window.scrollY);
+  const lastBleep = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source === '/sounds/radiobleep.mp3').length);
+  const invalidLogo = {name:'invalid.txt', mimeType:'text/plain', buffer:Buffer.from('invalid logo')};
+  const logoInput = page.locator('#company-logo'), logoAlert = page.locator('#company-settings-status');
+  await logoInput.setInputFiles(invalidLogo);
+  await expect(logoAlert).toContainText('Choose a PNG or JPEG');
+  await played('/sounds/radiobleep.mp3', lastBleep);
+  assert.ok(await page.evaluate(() => window.scrollY) < beforeReveal, 'The actual logo validation moved the page up');
+  await expect(logoAlert).toBeInViewport();
+  await logoInput.setInputFiles(invalidLogo);
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  assert.equal(await bleepCalls(), beforeSaveNotices + 1, 'Showing the same in-view error stays silent');
+  evidence.checks.notificationBleepOnActualSnap = true;
   // These owned lightweight controls isolate delegated routing from Takeoff
   // document/session operations, which have their own browser acceptance gates.
   await page.evaluate(() => {

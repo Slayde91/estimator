@@ -119,7 +119,9 @@ class SchedulerTests(unittest.TestCase):
         period={'start':'2026-11-03','end':'2026-11-03'}
         day, = self.store.read('reports',period,self.token)['rows']
         self.assertEqual((day['regular'],day['overtime'],day['paid']), (0,10800,10800))
+        self.assertEqual(day['overtime_by_rate'], {'1.5':10800})
         earlier, later = self.store.read('reports',{**period,'start':'2026-11-02'},self.token)['rows']
+        self.assertEqual((earlier['overtime_by_rate'], later['overtime_by_rate']), ({'1.5':3600}, {'1.5':10800}))
         self.assertNotEqual(earlier['job'],later['job'])
         self.assertNotEqual(earlier['project'],later['project'])
         self.assertEqual(earlier['job_label'],later['job_label'])
@@ -128,6 +130,35 @@ class SchedulerTests(unittest.TestCase):
         report=self.store.read('reports',period,self.token)
         self.assertEqual(report['pay_status'],'confirmation_required')
         self.assertEqual((report['rows'][0]['paid'],report['rows'][0]['overtime']), (10800,0))
+        self.assertEqual(report['rows'][0]['overtime_by_rate'], {})
+
+    def test_report_splits_winning_rates_by_local_day_excluding_unpaid_breaks(self):
+        worker = self.member()
+        settings = self.state()['settings']
+        daily = next(rule for rule in settings['overtime_rules'] if rule['type'] == 'daily')
+        settings['overtime_rules'] = [
+            {**daily, 'id':'first', 'threshold_hours':'1', 'multiplier':'1.50'},
+            {**daily, 'id':'second', 'threshold_hours':'2', 'multiplier':'2.00'},
+            {**daily, 'id':'tied', 'threshold_hours':'2', 'multiplier':'2', 'pay_item':'Other penalty'},
+            {**daily, 'id':'custom', 'days':[1], 'threshold_hours':'2.5', 'multiplier':'2.25'},
+        ]
+        self.write('settings', settings)
+        self.write('entries/save', {
+            'member_id': worker['id'], 'start':'2026-11-02T21:00', 'end':'2026-11-03T03:00',
+            'breaks': [
+                {'start':'2026-11-02T22:00', 'end':'2026-11-02T22:15', 'paid':True},
+                {'start':'2026-11-02T22:30', 'end':'2026-11-02T23:00', 'paid':False},
+            ],
+        })
+        period = {'start':'2026-11-02', 'end':'2026-11-03'}
+        monday, tuesday = self.store.read('reports', period, self.token)['rows']
+        self.assertEqual((monday['paid_break'], monday['unpaid_break']), (900, 1800))
+        self.assertEqual(monday['overtime_by_rate'], {'1.5':3600, '2':1800})
+        self.assertEqual(tuesday['overtime_by_rate'], {'1.5':3600, '2':1800, '2.25':1800})
+        for row in (monday, tuesday):
+            self.assertEqual(row['regular'], 3600)
+            self.assertEqual(sum(row['overtime_by_rate'].values()), row['overtime'])
+            self.assertEqual(row['regular'] + row['overtime'], row['paid'])
 
     def test_report_uses_actual_dst_elapsed_hours(self):
         worker=self.member()

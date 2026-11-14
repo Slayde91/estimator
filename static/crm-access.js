@@ -34,7 +34,6 @@
   window.ClassifireAccess={ready,can,reloadSession,requestClose,get signedOut(){return signedOut;},get user(){return session.user;},get enabled(){return session.enabled;}};
   function el(tag,value,className){const node=document.createElement(tag);if(value!==undefined){node.textContent=value;if(window.CeasefireMessages?.[value])window.CeasefireI18n?.text(node,value);}if(className)node.className=className;return node;}
   function text(node,value){node.textContent=value;window.CeasefireI18n?.text(node,value);}
-  function reportError(node,error){text(node,error.message);window.CeasefireNotifications?.sound(node);}
   async function request(action,body){
     const response=await fetch('/api/access/'+action,{cache:'no-store',...(body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});
     const data=await response.json();if(!response.ok)throw new Error(data.error||'Staff access could not be updated.');return data;
@@ -83,12 +82,12 @@
       password.type='password';password.autocomplete='current-password';password.required=true;password.setAttribute('aria-label','Staff password');button.type='submit';
       const emailField=el('label',undefined,'field'),passwordField=el('label',undefined,'field');
       emailField.append(el('span','Email'),email);passwordField.append(el('span','Password'),password);form.append(emailField,passwordField,button);
-      form.addEventListener('submit',async event=>{event.preventDefault();button.disabled=true;try{session=await request('login',{email:email.value,password:password.value});password.value='';reloadSession();}catch(error){reportError(message,error);button.disabled=false;}});
+      form.addEventListener('submit',async event=>{event.preventDefault();button.disabled=true;try{session=await request('login',{email:email.value,password:password.value});password.value='';reloadSession();}catch(error){text(message,error.message);button.disabled=false;}});
       card.append(form,message);return;
     }
     card.append(el('p',session.user.name+' · '+({admin:'Administrator',editor:'Editor',viewer:'View only',none:'Scheduler only'}[session.user.role]||session.user.role)));
     const out=el('button','Sign out','button secondary');out.type='button';
-    out.addEventListener('click',()=>window.CeasefireScheduler.openSignOut(out).catch(error=>reportError(message,error)));
+    out.addEventListener('click',()=>window.CeasefireScheduler.openSignOut(out).catch(error=>text(message,error.message)));
     actions.append(out);card.append(actions,message);
     if(session.user.role!=='admin')return;
     card.append(el('p','Manage staff names, passwords and team administrator roles in Scheduler. Editors can update CRM records; viewers can read records; Scheduler-only staff have no CRM access.','helper'));
@@ -101,7 +100,7 @@
         else{
           const select=el('select'),button=el('button','Save','button secondary');select.setAttribute('aria-label',member.name+' CRM access');button.type='button';
           for(const [value,label]of [['none','Scheduler only'],['viewer','View only'],['editor','Editor']]){const option=el('option',label);option.value=value;select.append(option);}select.value=member.role;
-          button.addEventListener('click',async()=>{button.disabled=true;try{await request('roles',{member_id:member.id,role:select.value,version:member.version});await render();}catch(error){reportError(message,error);button.disabled=false;}});
+          button.addEventListener('click',async()=>{button.disabled=true;try{await request('roles',{member_id:member.id,role:select.value,version:member.version});await render();}catch(error){text(message,error.message);button.disabled=false;}});
           role.append(select);buttons.append(button);
         }row.append(name,role,buttons);tbody.append(row);
       }
@@ -112,7 +111,7 @@
         for(const value of [new Date(entry.at).toLocaleString(),entry.actor_name,entry.method+' '+entry.route,entry.status===null?'Outcome unknown':'HTTP '+entry.status]){const cell=el('td');cell.textContent=value;row.append(cell);}auditBody.append(row);}
       if(!history.requests.length)details.append(el('p','No activity recorded.','helper'));
       card.append(details);
-    }catch(error){reportError(message,error);}
+    }catch(error){text(message,error.message);}
   }
   request('session').then(value=>{session=value;resolveReady(value);void render();
     if(value.enabled&&value.user?.role==='viewer'){const main=document.querySelector('main');if(main){const banner=el('p','View-only access. An editor is required to save changes.','staff-access-banner');banner.setAttribute('role','status');main.prepend(banner);}}

@@ -20,7 +20,13 @@ const ready = new Promise((resolve,reject) => {
 const errors = [], csp = [], checks = [];
 const password = 'Disposable-QA-password-2026';
 async function scheduler() {
+  // The hidden Scheduler can already contain a calendar. Wait for the state
+  // refresh triggered by navigation before inspecting the replacement controls.
+  const previous=await page.locator('.scheduler-tabs').elementHandles();
+  const refreshed=page.waitForResponse(response=>response.url().includes('/api/scheduler/state?') && response.ok());
   await page.locator('#scheduler-navigation').click();
+  await (await refreshed).finished();
+  if (previous.length) await page.waitForFunction(nav=>!nav.isConnected,previous[0]);
   await expect(page.locator('#scheduler-root')).toBeVisible();
 }
 async function tab(name) {
@@ -252,18 +258,31 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await expect(reports.getByRole('heading',{name:'Payroll Report'})).toBeVisible();
   await reports.getByLabel('Team member',{exact:true}).selectOption({label:'Jordan QA'});
   await expect(reports.locator('dt').filter({hasText:/^Overtime \/ penalty$/}).locator('..')).toContainText('4h 00m');
+  await expect(reports.getByRole('img',{name:'Regular vs overtime',exact:true})).toBeVisible();
+  await expect(reports.locator('.scheduler-report-pie path')).toHaveCount(2);
+  await expect(reports.locator('.scheduler-report-legend li').filter({hasText:'Regular'})).toContainText('66.7%8h 00m');
+  for (const rate of ['1.5','2']) {
+    await expect(reports.locator('dl').getByText(rate+'× overtime / penalty',{exact:true}).locator('..')).toContainText('2h 00m');
+  }
   await reports.locator('.scheduler-report-detail summary').click();
   await expect(reports.getByText('Daily total',{exact:true})).toBeVisible();
   await expect(reports.getByRole('cell',{name:'2026-11-02 07:00+11:00',exact:true})).toBeVisible();
+  for (const rate of ['1.5','2']) {
+    await expect(reports.getByRole('columnheader',{name:rate+'× overtime / penalty',exact:true})).toBeVisible();
+  }
   const downloadPromise=page.waitForEvent('download');
   await reports.getByRole('button',{name:'Download CSV'}).click();
   const download=await downloadPromise, csvPath=path.join(output,download.suggestedFilename());
   await download.saveAs(csvPath);
-  assert.match(fs.readFileSync(csvPath,'utf8'),/Jordan QA.*2026-11-02T07:00:00\+11:00.*2026-11-02T19:00:00\+11:00/);
+  const csvLines=fs.readFileSync(csvPath,'utf8').trim().split('\r\n');
+  assert.match(csvLines[1],/Jordan QA.*2026-11-02T07:00:00\+11:00.*2026-11-02T19:00:00\+11:00/);
+  assert.ok(csvLines[0].endsWith('"1.5× overtime / penalty (hours)","2× overtime / penalty (hours)"'));
+  assert.ok(csvLines[1].endsWith('"2.0000","2.0000"'));
   await reports.screenshot({path:path.join(output,'payroll-report.png')});
   await reports.getByRole('button',{name:'Project Report'}).click();
   await expect(reports.locator('.scheduler-report-chart')).toHaveCount(3);
-  await expect(reports.getByRole('progressbar',{name:'Jordan QA'})).toBeVisible();
+  for (const name of ['Jobs','Projects','Team members']) await expect(reports.getByRole('img',{name,exact:true})).toBeVisible();
+  await expect(reports.locator('.scheduler-report-chart').filter({has:page.getByRole('heading',{name:'Team members'})})).toContainText('Jordan QA100%12h 00m');
   await page.emulateMedia({media:'print'});await expect(reports.getByRole('heading',{name:'Project Report'})).toBeVisible();
   await expect(reports.getByRole('button',{name:'Run report'})).toBeHidden();await page.emulateMedia({media:'screen'});
   await reports.screenshot({path:path.join(output,'project-report.png')});

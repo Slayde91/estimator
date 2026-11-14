@@ -24,7 +24,9 @@ const assert=require('node:assert/strict'), path=require('node:path');
       {id:'crew',type:'person',label:'Crew',multiple:true},{id:'or',type:'lookup',label:'Related form'},
       {id:'range',type:'datetime_range',label:'Shift',timezone:true},
       {id:'draw',type:'sketch',label:'Site sketch',hide_in_pdf:true},{id:'hand',type:'manual_signature',label:'Sign on paper'},
-      {id:'photo',type:'photo',label:'Photos'},{id:'file',type:'attachment',label:'Document'},
+      {id:'photo',type:'photo',label:'Photos',photo_size:'large',show_tags:true,show_description:true},
+      {id:'small',type:'photo',label:'Small photo',photo_size:'small',show_tags:true,show_description:true},
+      {id:'file',type:'attachment',label:'Document'},
       {id:'place',type:'location',label:'Position'},{id:'act',type:'action',label:'Action'},
       {id:'scan',type:'scan_id',label:'Verify staff ID'},{id:'wallet',type:'staff_wallet',label:'Staff identity'},
       {id:'sign',type:'signature',label:'Employee signature'},{id:'n',type:'counter',label:'Form number'},
@@ -33,7 +35,8 @@ const assert=require('node:assert/strict'), path=require('node:path');
         {id:'count',type:'number',label:'Count',width:'xs'},{id:'at',type:'time',label:'Hour',interval:30,hide_in_pdf:true},
         {id:'code',type:'choice',label:'Code',options:['A','B']},
         {id:'desc',type:'list_property',label:'Product',source_column:'code',mapping:{A:'Apple',B:'Banana'}},
-        {id:'price',type:'formula',label:'Price',formula:'=A1*10'},{id:'pdf',type:'attachment',accept:'application/pdf',label:'PDF'}]},
+        {id:'price',type:'formula',label:'Price',formula:'=A1*10'},{id:'pdf',type:'attachment',accept:'application/pdf',label:'PDF'},
+        {id:'proof',type:'photo',label:'Evidence',photo_size:'xl',show_description:true}]},
       {id:'group',type:'group',label:'Crew checks',children:[{id:'person',type:'person',label:'Worker',required:true}]},
       {id:'locked',type:'text',label:'Review notes',stage_id:'review',default:'future default',required:true}
     ]};
@@ -125,8 +128,27 @@ const assert=require('node:assert/strict'), path=require('node:path');
     });
     await field('photo').locator('input').setInputFiles({name:'work.webm',mimeType:'video/webm',buffer:Buffer.from(media)});
     await expect.poll(()=>field('photo').locator('video').evaluate(video=>video.readyState)).toBeGreaterThan(0);
+    const png=Buffer.from((await values()).draw.split(',')[1],'base64');
+    const upload={name:'photo.png',mimeType:'image/png',buffer:png};
+    await field('photo').locator('input').setInputFiles(upload);
+    const assets=field('photo').locator('li');
+    await expect(assets).toHaveCount(2);
+    await assets.first().getByLabel('Tags (one per line)').fill('a'.repeat(81));
+    assert.equal(await valid(),false);
+    await assets.first().getByLabel('Tags (one per line)').fill(' South stair \nsouth stair\nLevel 3 ');
+    await assets.first().getByLabel('Description').fill(' Seal before lining ');
+    await assets.last().getByLabel('Description').fill('temporary');await assets.last().getByLabel('Description').fill('');
+    await field('proof').locator('input').setInputFiles(upload);
+    await field('proof').getByLabel('Description').fill('Cell note');
+    await expect(field('proof').getByLabel('Tags (one per line)')).toHaveCount(0);
+    await field('small').locator('input').setInputFiles(upload);
+    await expect(field('small').getByRole('link')).toHaveText('photo.png');
+    await expect(field('small').locator('textarea')).toHaveCount(0);
     assert.equal(await valid(),true);
     const saved=await values();
+    assert.deepEqual(saved.photo[0].tags,['South stair','Level 3']);assert.equal(saved.photo[0].description,'Seal before lining');
+    assert.deepEqual(Object.keys(saved.photo[1]).sort(),['data','name','type']);
+    assert.equal(saved.fixed[0].proof[0].description,'Cell note');
     assert.equal(saved.hand.name,'Sid Mills');assert.equal(saved.hand.company,'Mills & Co');assert.match(saved.hand.image,/^data:image\/png;base64,/);
     assert.deepEqual(saved.toggle,{answer:'Yes',explanation:'Damaged'});
     assert.deepEqual(saved.range,{start:'2026-11-15T01:30+08:00',end:'2026-11-15T06:00+08:00'});
@@ -144,7 +166,11 @@ const assert=require('node:assert/strict'), path=require('node:path');
     await expect(field('draw')).toBeHidden();await expect(field('hand')).toBeVisible();
     await expect(fixed.getByRole('columnheader',{name:'Hour',includeHidden:true})).toBeHidden();
     await expect(field('photo').locator('video')).toBeHidden();
-    await expect(field('photo').getByRole('link')).toHaveText('work.webm');
+    await expect(field('photo').getByRole('link')).toHaveText(['work.webm','photo.png']);
+    await expect(assets.first()).toContainText('South stair, Level 3');
+    await expect(assets.first()).toContainText('Seal before lining');
+    await expect(assets.last().locator('.form-photo-metadata')).toHaveCount(0);
+    await expect(field('proof')).toContainText('Cell note');
     await expect(field('toggle')).toContainText('Yes · Damaged');await expect(field('n')).toContainText('14');
     assert.equal(await field('subject').locator('script').count(),0);
     await page.emulateMedia({media:'screen'});

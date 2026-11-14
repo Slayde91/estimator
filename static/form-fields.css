@@ -33,6 +33,8 @@
 .form-field-files{list-style:none;display:grid;gap:.55rem;padding:0;margin:0}
 .form-field-files li{display:flex;align-items:center;flex-wrap:wrap;gap:.6rem}
 .form-field-files a{overflow-wrap:anywhere}
+.form-photo-metadata{flex:1 1 100%;display:grid;gap:.5rem;min-width:0}
+.form-photo-metadata textarea{min-height:3.5rem}
 .form-field-image{display:block;max-width:min(100%,20rem);max-height:12rem;object-fit:contain}
 .form-field[data-photo-size=xs] .form-field-image{max-width:min(100%,6rem);max-height:6rem}
 .form-field[data-photo-size=small] .form-field-image{max-width:min(100%,9rem)}

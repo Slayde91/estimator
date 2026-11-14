@@ -38,6 +38,7 @@
   const choiceTypes = new Set(['choice', 'multichoice']);
   const defaultTypes = new Set(['text', 'textarea', 'number', 'choice', 'multichoice', 'yes_no']);
   const thumbnailTypes = new Set(['text', 'choice', 'date', 'datetime', 'expiry_date', 'counter']);
+  const registerCellTypes = new Set(['text','textarea','number','date','datetime','time','choice','multichoice','yes_no','list_property','formula']);
   const roleNames = {viewer: 'Viewer', editor: 'Editor', admin: 'Administrator'};
   const tabNames = {fields: 'Fields', defaults: 'Default values', settings: 'Settings', raw: 'Field JSON'};
   const dragType = 'application/x-classifire-form-field';
@@ -119,7 +120,7 @@
   function baseTemplate(source) {
     return {id: fieldId(), version: 0, name: '', description: '', status: 'draft',
       roles: ['admin', 'editor'], mode: 'timeline', fields: [], ...clone(source || {}),
-      settings: {orientation: 'portrait', summary_fields: [], sort_field: '', stages: [], ...clone(source?.settings || {})}};
+      settings: {orientation: 'portrait', summary_fields: [], summary_cells: [], sort_field: '', stages: [], ...clone(source?.settings || {})}};
   }
   function mount(host, source, {onSave, onCancel, onPreview, onOutline, staff = []}) {
     let model = baseTemplate(source), baseline = JSON.stringify(model);
@@ -277,6 +278,7 @@
         if (!Array.isArray(fields)) throw Error(copy('Field JSON must be an array.'));
         validateFields(fields);
         model.fields = fields;
+        pruneRegisterCells();
         rawChanged = false; active = fields[0]?.id;
         return true;
       } catch (e) { notify(e.message, true); return false; }
@@ -444,6 +446,7 @@
         model.fields.splice(i,1);
         for (const item of model.fields) if (item.condition?.field_id === f.id) delete item.condition;
         model.settings.summary_fields = model.settings.summary_fields.filter(id => id !== f.id);
+        pruneRegisterCells();
         if (model.settings.sort_field === f.id) model.settings.sort_field = '';
         active = model.fields[Math.min(i, model.fields.length - 1)]?.id; drawCanvas(active);
       }
@@ -473,10 +476,19 @@
       if (field.type === 'datetime' || field.type === 'datetime_range')
         properties.append(check('Include time zone', Boolean(field.timezone), value => { field.timezone = value; }));
       if (field.type === 'expiry_date') expiryReminder(properties, field);
-      if (field.type === 'photo')
-        properties.append(labelled('Photo size', select(field.photo_size || 'medium', photoSizes(), value => { field.photo_size = value; })));
+      if (field.type === 'photo') photoSettings(properties,field,redraw);
       conditionEditor(properties, field, model.fields.slice(0, index), redraw);
       host.append(properties);
+    }
+    function photoSettings(host, field, redraw) {
+      host.append(labelled('Photo size',select(field.photo_size || 'medium',photoSizes(),value=>{
+        field.photo_size=value;
+        if (!['large','xl'].includes(value)) { delete field.show_tags; delete field.show_description; }
+        redraw();
+      })));
+      if (['large','xl'].includes(field.photo_size)) host.append(
+        check('Show photo tags',Boolean(field.show_tags),on=>{ field.show_tags=on; }),
+        check('Show photo description',Boolean(field.show_description),on=>{ field.show_description=on; }));
     }
     function expiryReminder(host, field) {
       const days = input(field.reminder_days, value => {
@@ -566,6 +578,7 @@
       ], mode => {
         field.table_mode = mode;
         if (mode === 'fixed' && !field.default?.length) field.default = [{}];
+        pruneRegisterCells();
       })));
       function clearCells(id) {
         if (table && Array.isArray(field.default)) for (const row of field.default) delete row[id];
@@ -589,6 +602,7 @@
               next.mapping = {};
             }
             list[index] = next;
+            pruneRegisterCells();
             clearCells(child.id); redraw();
           })));
         card.append(check('Hide in printed forms', Boolean(child.hide_in_pdf), on => { child.hide_in_pdf = on; }));
@@ -619,8 +633,7 @@
             card.append(labelled('Time interval (minutes)', select(String(child.interval || 15),
               [1,5,10,15,30,60].map(m => [String(m),String(m)]), value => { child.interval = Number(value); })));
         }
-        if (child.type === 'photo')
-          card.append(labelled('Photo size', select(child.photo_size || 'medium', photoSizes(), value => { child.photo_size = value; })));
+        if (child.type === 'photo') photoSettings(card,child,redraw);
         if (child.type === 'expiry_date') expiryReminder(card, child);
         if (choiceTypes.has(child.type)) optionEditor(card, child, list);
         if (child.type === 'person') card.append(check('Select multiple people', Boolean(child.multiple), on => { child.multiple = on; }));
@@ -631,6 +644,7 @@
         card.append(arrangeTools(list, index, redraw, () => {
           if (!window.confirm(copy(table ? 'Remove this column and its prefilled values?' : 'Remove this field from the group?'))) return;
           clearCells(child.id); list.splice(index, 1);
+          pruneRegisterCells();
           for (const sibling of list) {
             if (sibling.condition?.field_id === child.id) delete sibling.condition;
             if (sibling.source_column === child.id) { delete sibling.source_column; sibling.mapping = {}; }
@@ -664,7 +678,17 @@
       const head = table.createTHead().insertRow(), rows = table.createTBody();
       for (const col of field.columns) head.append(node('th', '', col.label));
       head.append(ui('th', '', 'Actions'));
+      let previousOrder = [...(field.default || [])];
       const draw = () => {
+        const records = field.default || [];
+        if (previousOrder.some((record,index)=>records[index] !== record)) {
+          model.settings.summary_cells = model.settings.summary_cells.flatMap(cell=>{
+            if (cell.field_id !== field.id) return [cell];
+            const row = records.indexOf(previousOrder[cell.row]);
+            return row < 0 ? [] : [{...cell,row}];
+          });
+        }
+        previousOrder = [...records];
         rows.replaceChildren();
         for (const [index, record] of (field.default || []).entries()) {
           const row = rows.insertRow();
@@ -757,14 +781,17 @@
       register.append(labelled('Sort forms by', select(model.settings.sort_field, [
         ['', copy('Last updated')], ...summaryFields.map(f => [f.id, f.label]),
       ], value => { model.settings.sort_field = value; })));
-      if (summaryFields.length) {
-        register.append(ui('p', 'helper', 'Choose up to five fields for the register.'));
+      const fixedTables = model.fields.filter(f=>f.type==='table' && f.table_mode==='fixed' && f.default?.length &&
+        f.columns.some(c=>registerCellTypes.has(c.type)));
+      if (summaryFields.length || fixedTables.length) {
+        register.append(ui('p', 'helper', 'Choose up to five fields or prefilled table cells for the register.'));
         for (const field of summaryFields) register.append(check(field.label, model.settings.summary_fields.includes(field.id), on => {
-          if (on && model.settings.summary_fields.length >= 5) {
-            show('settings'); notify(copy('Choose up to five fields for the register.'), true); return;
+          if (on && registerCount() >= 5) {
+            show('settings'); notify(copy('Choose up to five fields or prefilled table cells for the register.'), true); return;
           }
           model.settings.summary_fields = updateSet(model.settings.summary_fields, field.id, on);
         },true));
+        if (fixedTables.length) registerCells(register,fixedTables);
       }
       print.append(labelled('Orientation', select(model.settings.orientation,
         [['portrait', copy('Portrait')], ['landscape', copy('Landscape')]], value => { model.settings.orientation = value; })),
@@ -782,6 +809,49 @@
     }
     function makeStage() {
       return {id:fieldId(), name:copy('Stage') + ' ' + (model.settings.stages.length + 1), roles:['admin', 'editor']};
+    }
+    function registerCount() {
+      return model.settings.summary_fields.length + model.settings.summary_cells.length;
+    }
+    function pruneRegisterCells() {
+      model.settings.summary_cells = model.settings.summary_cells.filter(cell=>{
+        const table = model.fields.find(f=>f.id===cell.field_id);
+        return table?.type==='table' && table.table_mode==='fixed' && Number.isInteger(cell.row) &&
+          cell.row>=0 && cell.row < (table.default?.length || 0) &&
+          table.columns.some(c=>c.id===cell.column_id && registerCellTypes.has(c.type));
+      });
+    }
+    function registerCells(host,tables) {
+      const panel = group('Prefilled table cells');
+      let table = tables[0], row = 0, column = '';
+      const tableSelect = select(table.id,tables.map(t=>[t.id,t.label]),id=>{
+        table = tables.find(t=>t.id===id); row = 0; column = ''; render();
+      });
+      const add = button('Add register cell',()=>{
+        if (registerCount()>=5) { notify(copy('Choose up to five fields or prefilled table cells for the register.'),true); return; }
+        if (model.settings.summary_cells.some(cell=>cell.field_id===table.id && cell.row===row && cell.column_id===column)) {
+          notify(copy('This cell is already in the register.'),true); return;
+        }
+        model.settings.summary_cells.push({field_id:table.id,row,column_id:column}); render(); notify('');
+      });
+      function render() {
+        const cols = table.columns.filter(c=>registerCellTypes.has(c.type));
+        column ||= cols[0].id;
+        panel.replaceChildren(ui('legend','','Prefilled table cells'),labelled('Table',tableSelect),
+          labelled('Prefilled row',select(String(row),table.default.map((_,i)=>[String(i),String(i+1)]),v=>{row=Number(v);})),
+          labelled('Register column',select(column,cols.map(c=>[c.id,c.label]),v=>{column=v;})),add);
+        for (const [index,cell] of model.settings.summary_cells.entries()) {
+          const selectedTable = tables.find(t=>t.id===cell.field_id);
+          const selectedCol = selectedTable?.columns.find(c=>c.id===cell.column_id);
+          if (!selectedCol) continue;
+          const entry = node('div','form-builder-register-cell');
+          const caption = [selectedTable.label,copy('Row')+' '+(cell.row+1),selectedCol.label].join(' · ');
+          const remove = button('Remove',()=>{model.settings.summary_cells.splice(index,1);render();});
+          remove.setAttribute('aria-label',copy('Remove')+' '+caption);
+          entry.append(node('span','',caption),remove); panel.append(entry);
+        }
+      }
+      render(); host.append(panel);
     }
     function stageConditionFields(stageIndex) {
       const stages = model.settings.stages;

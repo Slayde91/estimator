@@ -667,7 +667,15 @@
     ui.physicalDetails = node("div", "takeoff-physical-details"); ui.physicalDetails.id = "takeoff-physical-details"; ui.physicalDetails.hidden = true;
     ui.physicalDetails.append(uiButton("Close Item Details", () => setPhysicalDetailsOpen(false), "button secondary", "Close settings"));
     layout.append(toolbar, ui.viewportPanel, ui.settingsPanel, ui.physicalDetails, drawingPane, markupRail);
-    const register = node("section", "takeoff-register"); ui.register = register; const heading = node("div", "section-heading"); ui.registerTitle = uiNode("h2", "", "Steel register"); ui.status = uiNode("span", "status-label", "Ready"); ui.registerLayout = uiSelect([["below", "Register below drawing"], ["beside", "Register beside drawing"]], value => { workspace.classList.toggle("beside", value === "beside"); }); window.CeasefireI18n.attr(ui.registerLayout, "aria-label", "Register position"); heading.append(ui.registerTitle, ui.status, ui.registerLayout); register.append(heading);
+    const register = ui.register = node("section", "takeoff-register");
+    const heading = ui.registerHeading = node("div", "section-heading");
+    ui.registerTitle = uiNode("h2", "", "Steel register"); ui.status = uiNode("span", "status-label", "Ready");
+    ui.registerLayout = uiSelect([["below", "Register below drawing"], ["beside", "Register beside drawing"]], value => {
+      workspace.classList.toggle("beside", value === "beside");
+      ui.registerResize?.refresh();
+    });
+    window.CeasefireI18n.attr(ui.registerLayout, "aria-label", "Register position");
+    heading.append(ui.registerTitle, ui.status, ui.registerLayout); register.append(heading);
     const controls = node("div", "takeoff-register-controls"); ui.filter = node("input"); ui.filter.type = "search"; window.CeasefireI18n.attr(ui.filter, "placeholder", "Filter register…"); window.CeasefireI18n.attr(ui.filter, "aria-label", "Filter register"); ui.filter.addEventListener("input", () => { state.filter = ui.filter.value.toLowerCase(); state.offset = 0; renderRegister(); renderOverlay(); });
     ui.statusFilter = uiSelect([["", "All statuses"], ["unconfirmed", "Draft"], ["confirmed", "Approved"]], () => { renderRegister(); renderOverlay(); }); window.CeasefireI18n.attr(ui.statusFilter, "aria-label", "Filter status");
     ui.sort = uiSelect([["mark", "Sort: Mark"], ["level", "Sort: Level"], ["length", "Sort: Length"], ["state", "Sort: Status"]], value => { state.sort = value; renderRegister(); }); window.CeasefireI18n.attr(ui.sort, "aria-label", "Sort register");
@@ -700,7 +708,10 @@
     const bottomControls = node("div", "takeoff-viewer-bottom"); bottomControls.append(pageControls, ui.presentationTools);
     const viewer = node("div", "takeoff-viewer"); viewer.append(ui.viewport, viewerTop, bottomControls);
     drawingPane.append(viewer, ui.progress, ui.controlStatus, ui.physicalOverlayStatus);
-    workspace.append(layout, register); root.append(ui.messageSlot, workspace, ui.physicalContainer);
+    const registerPane = node("div", "takeoff-register-pane"); registerPane.id = "takeoff-register-pane";
+    registerPane.append(register, ui.physicalContainer);
+    workspace.append(layout, registerPane); root.append(ui.messageSlot, workspace);
+    ui.registerResize = window.CeasefireTakeoffPaneResize?.mountRegister(workspace, registerPane);
     const pages = $("takeoff-pages");
     if (pages?.parentNode) pages.parentNode.insertBefore(ui.heading, pages);
     else root.prepend(ui.heading);
@@ -881,14 +892,15 @@
     if (physical && !selectedSignature() && !graphicsUI?.selected()) { state.settingsOpen = false; state.settingsEditor = null; } renderSettingsPanel();
     renderPhysicalDetails();
     state.ui.physicalContainer.hidden = !physical; state.ui.physicalOverlayStatus.hidden = true; state.ui.register.hidden = physical;
-    state.ui.workspace.classList.toggle("beside", !physical && state.ui.registerLayout.value === "beside");
-    state.ui.registerLayout.disabled = physical;
+    if (physical) ensurePhysicalUI();
+    const registerHeading = physical ? state.physicalUI.registerHeading : state.ui.registerHeading;
+    if (state.ui.registerLayout.parentNode !== registerHeading) registerHeading.append(state.ui.registerLayout);
     // Page/view scales are shared source metadata, even in the physical draft.
     for (const control of [state.ui.calibration, state.ui.editCalibration, state.ui.cancelTrace, state.ui.tools.calibrate, state.ui.tools.viewport]) if (control) control.hidden = false;
     if (physical) {
       for (const tool of ["trace", "countLength", "measure", "polygon", "exclusion"]) state.ui.tools[tool].hidden = true;
       state.ui.tools.count.hidden = false; state.ui.countAnchor.hidden = false; (state.ui.tools.pdfCount || state.ui.tools["graphic-measure"] || state.ui.tools.viewport).after(state.ui.countAnchor);
-      ensurePhysicalUI(); state.physicalUI.render(physicalSnapshot()); renderRail(); renderCalibrations(); renderOverlay(); working(state.busy); return;
+      state.physicalUI.render(physicalSnapshot()); renderRail(); renderCalibrations(); renderOverlay(); working(state.busy); return;
     }
     state.ui.tools.trace.after(state.ui.countAnchor);
     window.CeasefireI18n.text(state.ui.registerTitle, "{0} register", [window.CeasefireI18n.term(labels[state.mode])]);

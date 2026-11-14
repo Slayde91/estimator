@@ -102,7 +102,8 @@ class PurchaseOrderPartiesTests(unittest.TestCase):
         projects = KnownProjects()
         owner = snapshot['project_id']
         projects.files = [{'id':'source', 'source_project_id':owner, 'account_id':self.site['account_id'],
-                           'client':'Customer', 'project_no':'PN-01', 'commercial_cards':[card]}]
+                           'client':'Customer', 'site_address':'Site A', 'revision':'source-revision',
+                           'project_no':'PN-01', 'commercial_cards':[card]}]
         other = deepcopy(card)
         other['id'] = str(uuid4())
         other['fields']['order'] = {'supplier':'Supplier', 'supplier_contact':'Sam'}
@@ -122,9 +123,13 @@ class PurchaseOrderPartiesTests(unittest.TestCase):
         for key in PURCHASE_PARTY_LABELS:
             other_copy['fields']['order'].pop(key)
         projects.files.append({'id':'copy', 'account_link_id':str(uuid4()), 'source_project_id':owner, 'client':'Foreign copy',
-                               'project_no':'PN-OTHER', 'commercial_cards':[other_copy]})
+                               'project_no':'PN-OTHER', 'site_address':'Site B', 'revision':'copy-revision',
+                               'commercial_cards':[other_copy]})
         verify()
-        self.assertIn('PN-01', account.view(self.supplier['account_id'])['linked']['purchase_orders'][0]['label'])
+        linked, = account.view(self.supplier['account_id'])['linked']['purchase_orders']
+        self.assertEqual(linked['label'], 'PO-01: Customer-Site A')
+        self.assertEqual(linked['document']['source_file'], 'source')
+        self.assertEqual(linked['document']['id'], card['id'])
         projects.files.clear()
         projects.documents = [{**card, 'source_file':'local-owner', 'unfiled':True}]
         verify()
@@ -145,7 +150,8 @@ class PurchaseOrderPartiesTests(unittest.TestCase):
         projects = KnownProjects()
         def project(source, indexed, **fields):
             return {'id':source, 'source_project_id':snapshot['project_id'], 'account_link_id':str(uuid4()),
-                    'project_no':source, 'commercial_cards':[indexed], **fields}
+                    'project_no':source, 'site_address':source + ' site', 'revision':source + ' revision',
+                    'commercial_cards':[indexed], **fields}
         primary = project('A copied buyer', copy, account_id=self.supplier['account_id'], contact_id=self.supplier['id'])
         first = project('B vendor original', card)
         second = project('C vendor copy', deepcopy(card))
@@ -156,4 +162,8 @@ class PurchaseOrderPartiesTests(unittest.TestCase):
             self.assertTrue(vendor['supplier'])
             self.assertEqual(person['roles'], ['Supplier contact'])
             self.assertEqual(vendor['label'], person['label'])
-            self.assertIn('B vendor original', person['label'])
+            self.assertEqual(person['label'], 'PO-01: Customer-B vendor original site')
+            for linked in (vendor, person):
+                self.assertEqual(linked['document']['source_file'], first['id'])
+                self.assertEqual(linked['document']['source_revision'], first['revision'])
+                self.assertEqual(linked['document']['id'], card['id'])

@@ -67,6 +67,10 @@ class ContactRelationsTests(unittest.TestCase):
         legacy = self.project("")
         expected["revision"] = "fixture-only-revision"
         docs = [self.document(expected, kind) for kind in ("quote", "work_order", "purchase_order")]
+        # Work orders saved before the board gained a reference field carry
+        # their number on the order itself, separately from the issued number.
+        docs[1].update(reference="", last_number="Earlier issue")
+        docs[1]["fields"]["order"] = {"work_order_reference": "WO-04"}
         self.document(other)
         self.document(legacy)
         before = self.store.list()
@@ -74,6 +78,7 @@ class ContactRelationsTests(unittest.TestCase):
         result = self.relations.view(self.contact["id"])
         self.assertEqual([row["id"] for row in result["linked"]["companies"]], [self.contact["account_id"]])
         self.assertEqual([row["id"] for row in result["linked"]["projects"]], [expected["account_link_id"]])
+        self.assertEqual(result["linked"]["work_orders"][0]["label"], "WO-04: Same Company-Site")
         self.assertEqual(result["linked"]["projects"][0]["project"], {
             "source": source_id(expected["path"]), "owner": expected["source_project_id"], "project_no": expected["project_no"]})
         for key, doc in zip(("quotes", "work_orders", "purchase_orders"), docs):

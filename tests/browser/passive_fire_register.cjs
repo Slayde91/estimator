@@ -153,6 +153,18 @@ async function run() {
   await expect(form.getByLabel('Level/Location')).toHaveValue('North wall, Level 2');
   await expect(form.getByRole('img')).toHaveCount(6);
   await expect(chosen).toBeChecked();
+  await expect(form.locator('.register-plan-mark').first()).toHaveText('001');
+  const clear = form.getByRole('button',{name:'Clear signature'});
+  assert.deepEqual(await clear.locator('svg path').evaluateAll(paths => paths.map(p => p.getAttribute('d'))),
+    await page.locator('#penetration-clear svg path').evaluateAll(paths => paths.map(p => p.getAttribute('d'))));
+  const insertBox = await form.getByRole('button',{name:'Insert signature'}).boundingBox(), clearBox = await clear.boundingBox();
+  assert.ok(Math.abs(insertBox.y - clearBox.y) < 1 && clearBox.x > insertBox.x + insertBox.width);
+  await clear.click();
+  await expect(form.getByRole('img',{name:'Signature',exact:true})).toHaveCount(0);
+  const removePhoto = form.getByRole('button',{name:'Remove photo'}).first();
+  await expect(removePhoto.locator('.trash-artwork')).toHaveCount(1);
+  await removePhoto.click();
+  await expect(form.getByRole('img',{name:'Before Photo 1',exact:true})).toHaveCount(0);
   await form.getByRole('button',{name:'Add entry'}).click();
   await expect(form.getByLabel('ID Number')).toHaveValue('002');
   await form.getByLabel('Level/Location').fill('South wall');

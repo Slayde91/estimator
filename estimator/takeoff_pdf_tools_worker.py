@@ -259,11 +259,18 @@ def compose(spec, output):
                 info = spec_source['pages'][number-1]
                 page[NameObject('/MediaBox')] = RectangleObject(info['media_box'])
                 page[NameObject('/CropBox')] = RectangleObject(info['crop_box'])
-                page[NameObject('/Rotate')] = NumberObject(info['rotation'])
                 page[NameObject('/UserUnit')] = FloatObject(info['user_unit'])
                 annotation_count += _copy_annotations(writer, original, page, static_plan=bool(prefix))
+                rotation = info['rotation']
                 if (index, number) in marks:
-                    _draw_pins(page, info, marks[index, number])
+                    rotation = limits.portrait_plan_rotation(info)
+                    pins = marks[index, number]
+                    if rotation != info['rotation']:
+                        # Coordinates were captured in the original top-left viewport.
+                        # Turn anchors with the drawing and print callouts upright.
+                        pins = [{**pin, 'x': 1 - pin['y'], 'y': pin['x']} for pin in pins]
+                    _draw_pins(page, {**info, 'rotation': rotation}, pins)
+                page[NameObject('/Rotate')] = NumberObject(rotation)
                 if annotation_count > MAX_ANNOTATIONS:
                     raise ValueError('The selected PDF annotations exceed their bounded copy limit.')
                 cloned[(index, number)] = page
@@ -290,8 +297,7 @@ def compose(spec, output):
     with Path(output).open('xb') as stream: writer.write(BoundedOutput(stream))
     with Path(output).open('rb') as stream:
         actual = limits.parse_pdf_stream(stream)['pages']
-    expected = prefix + [{**sources[value['source']]['pages'][value['page']-1], 'page': index}
-                         for index, value in enumerate(order, len(prefix) + 1)]
+    expected = limits.output_page_geometry(sources, order, prefix)
     if actual != expected:
         raise ValueError('The derived PDF did not preserve its source page geometry exactly.')
     return actual

@@ -81,6 +81,46 @@ class RegisterPlansTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, 'evidence'):
             append_plan_pages(b'', rows, {self.project:forged['session_id']}, self.service)
 
+    def test_portrait_appendix_keeps_pin_on_source_point_for_every_crop_and_rotation(self):
+        def narrow_second_half(writer):
+            for page in writer.pages[4:]:
+                page[NameObject('/CropBox')] = RectangleObject([12, 7, 75, 140])
+
+        source = drawing('Rotation check', 8, narrow_second_half)
+        documents = self.service.documents
+        upload = documents.begin_upload(self.session, 'Cropped sheets.pdf', len(source))['upload_id']
+        documents.write_chunk(self.session, upload, 0, source)
+        doc = documents.finish_upload(self.session, upload)
+        self.service.add_document(self.session, doc, 1)
+        pins = [{**self.pin, 'document_id': doc['id'], 'sha256': doc['sha256'],
+                 'page': index, 'x': .2, 'y': .3} for index in range(1, 9)]
+        # Older registers may have several pins on one entry.
+        self.register['entries'][0]['plan_pins'] = pins
+        self.register['entries'][1]['plan_pins'] = []
+        pages = PdfReader(BytesIO(self.export())).pages[-8:]
+        for number, (page, original) in enumerate(zip(pages, doc['pages'], strict=True), 1):
+            with self.subTest(sheet=number):
+                width, height = original['width'], original['height']
+                if page.rotation in (90, 270):
+                    self.assertLess(height, width)
+                else:
+                    self.assertLess(width, height)
+                self.assertEqual(list(page.cropbox), original['crop_box'])
+                self.assertEqual(list(page.mediabox), original['media_box'])
+                self.assertEqual(page.get('/UserUnit'), original['user_unit'])
+                # The synthetic drawing uses a rectangle (re). The first
+                # moveto (m) is the start of the callout leader at its pin.
+                points = []
+                def capture_point(operator, operands, matrix, _text_matrix):
+                    if operator == b'm' and not points:
+                        x, y = map(float, operands)
+                        a, b, c, d, e, f = matrix
+                        points.extend((a*x + c*y + e, b*x + d*y + f))
+                page.extract_text(visitor_operand_before=capture_point)
+                fx, fy = {0: (.2, .7), 90: (.3, .2), 180: (.8, .3), 270: (.7, .8)}[original['rotation']]
+                self.assertAlmostEqual(points[0], original['view'][0] + fx*width, places=3)
+                self.assertAlmostEqual(points[1], original['view'][1] + fy*height, places=3)
+
     def test_invalid_coordinates_and_client_supplied_paths_are_rejected(self):
         for change in ({'x':True}, {'x':-0.01}, {'y':1.01}, {'y':float('nan')}, {'path':'plan.pdf'}, {'page':True}):
             with self.subTest(change=change), self.assertRaises(ValidationError):

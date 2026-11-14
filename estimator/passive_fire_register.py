@@ -296,7 +296,7 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
             try:
                 if library is None:
                     raise ReferenceNotFound()
-                item = prepare_technical_item({'id': key}, library=library, include_images=False)
+                item = prepare_technical_item({'id': key}, library=library, include_diagrams=False)
             except ReferenceNotFound as err:
                 raise ValidationError(f'The Technical Library item for entry {number} is unavailable. Select a replacement before downloading.') from err
             append_technical_item_fields(report, item, content)

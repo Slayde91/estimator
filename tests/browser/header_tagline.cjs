@@ -173,7 +173,7 @@ async function expireCursor(initial, expected) {
 }
 async function characterMotion(initial) {
   assert.equal(initial.mediaState, 'playing'); assert.match(initial.mediaSrc, /^\/header-tagline-character\.gif\?play=\d+$/);
-  assert.ok(initial.character.x + initial.character.width <= initial.visual.x, 'Supplied character is at the far left of the sentence field');
+  assert.ok(initial.character.bottom <= initial.tagline.y, 'The character stays in the upper brand row');
   await expect.poll(() => page.locator('#header-tagline-character').evaluate(element => element.complete && element.naturalWidth === 512 && element.naturalHeight === 768)).toBe(true);
   const frames = new Set();
   for (let index = 0; index < 25 && frames.size < 2; index++) {
@@ -274,14 +274,14 @@ async function presentationNavigation(initial) {
     await finishBootFrames();
     const initial = await layout(); assert.equal(initial.accessible, phrase); assert.equal(initial.italic, 'italic');
     assert.ok(phrase.startsWith(initial.typed)); assert.notEqual(initial.typed, phrase, 'Actual typing must still be in progress');
-    assert.ok(initial.tagline.x >= initial.logo.x + initial.logo.width && initial.tagline.x + initial.tagline.width <= initial.brand.x + initial.brand.width + .1, 'The entire tagline stays to the right of the CLASSIFIRE logo'); assert.ok(initial.overflow <= 1);
+    assert.ok(initial.tagline.y >= Math.max(initial.logo.bottom,initial.nav.bottom)-1,'The sentence appears below the brand and navigation'); assert.ok(initial.overflow <= 1);
     assert.equal(initial.alignment, 'start'); assert.ok(initial.tagline.bottom <= initial.header.bottom && initial.tagline.y >= initial.header.y, 'The tagline fits within the header');
     const typingBlink = await blinking(initial, phrase, 'during typing');
-    const media = width === 1146 ? await characterMotion(initial) : { state: initial.mediaState, leftOfSentence: initial.character.x + initial.character.width <= initial.visual.x }; assert.equal(initial.mediaState, 'playing'); assert.equal(media.leftOfSentence ?? true, true);
+    const media = width === 1146 ? await characterMotion(initial) : { state: initial.mediaState, aboveSentence: initial.character.bottom <= initial.tagline.y }; assert.equal(initial.mediaState, 'playing'); assert.equal(media.aboveSentence ?? true, true);
     await page.screenshot({ path: path.join(output, `tagline-typing-${width}.png`), fullPage: false });
     const samples = await typeUntilFinished(initial, phrase, await bootstrap(initial, phrase));
     if (width === 390) {
-      assert.ok(samples.at(-1).textLines > 1, 'The narrow-window sentence wraps onto multiple painted fragments');
+      assert.equal(samples.at(-1).textLines,1,'The complete narrow-screen sentence stays on one row');
       assert.equal(samples.at(-1).underline, 'none');
     }
     await idle(); await clean();
@@ -289,7 +289,7 @@ async function presentationNavigation(initial) {
     assert.ok(accessibility.includes(phrase)); assert.ok(!accessibility.includes('_'));
     const expiry = await expireCursor(initial, phrase);
     await page.screenshot({ path: path.join(output, `tagline-${width}.png`), fullPage: false });
-    evidence[width] = { sampleCount: samples.length, typingBlink, media, initial, final: samples.at(-1), expiry, accessibility, dirty: false, besideLogo: true };
+    evidence[width] = { sampleCount: samples.length, typingBlink, media, initial, final: samples.at(-1), expiry, accessibility, dirty: false, inLowerRow: true };
     if (width === 1146) {
       evidence.navigation = await presentationNavigation(initial);
       const previous = await page.locator('#header-tagline-label').textContent();

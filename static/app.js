@@ -4,10 +4,10 @@
 // Presentation only: selecting and typing a phrase never changes a project.
 (() => {
   const label = document.getElementById("header-tagline-label");
-  const sizer = document.getElementById("header-tagline-sizer");
+  const strip = document.getElementById("header-tagline");
   const typed = document.getElementById("header-tagline-typed");
   const cursor = document.querySelector("#header-tagline .header-tagline-cursor");
-  if (!label || !sizer || !typed || !cursor) return;
+  if (!label || !strip || !typed || !cursor) return;
   const phrases = [
     "Built on caffeine and the audacity of 'Do your best, mastic the rest.'",
     "Made for deadlines and the belief that 'There’s a tested system for that… probably.'",
@@ -73,12 +73,11 @@
   const storageKey = "ceasefire.headerTagline.last";
   let previous;
   try { previous = window.localStorage.getItem(storageKey); } catch { /* Storage may be unavailable. */ }
-  // All phrases share one hidden grid cell, reserving the tallest wrapping at
-  // this width before typing or navigation can change the visible sentence.
-  function sizePhrases() {
-    sizer.replaceChildren(...phrases.map(phrase => { const line = document.createElement("span"); line.textContent = phraseText(phrase) + "_"; return line; }));
+  function followTyping() {
+    // Keep the current word visible on small screens without moving the page.
+    if (strip.scrollWidth > strip.clientWidth)
+      strip.scrollLeft = (document.documentElement.dir === "rtl" ? -1 : 1) * strip.scrollWidth;
   }
-  sizePhrases();
   const motion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
   let phrase = "", displayedPhrase = "", characters = [], typingTimer = null, cursorTimer = null, count = 0, complete = false, closed = false, scrambleStarted = 0;
   let intelligenceAudio = null, soundGeneration = 0;
@@ -121,6 +120,7 @@
   function typeNext() {
     if (closed) return;
     typed.textContent = characters.slice(0, ++count).join("");
+    followTyping();
     if (count < characters.length) typingTimer = setTimeout(typeNext, 35);
     else finish();
   }
@@ -158,7 +158,7 @@
   function displayPhrase(newAppearance = false) {
     clearTimeout(typingTimer); typingTimer = null; stopCursor();
     displayedPhrase = phraseText(phrase);
-    label.textContent = displayedPhrase;
+    label.textContent = displayedPhrase; strip.title = displayedPhrase; strip.scrollLeft = 0;
     characters = Array.from(displayedPhrase); count = 0; complete = false;
     typed.classList.remove("tagline-complete");
     typed.textContent = ""; cursor.hidden = false;
@@ -169,7 +169,7 @@
     } else if (motion?.matches) finish(); else { window.CeasefireHeaderTaglineMedia?.start(); typeNext(); }
   }
   nextPhrase();
-  window.addEventListener("ceasefire:languagechange", () => { sizePhrases(); if (!closed) displayPhrase(); });
+  window.addEventListener("ceasefire:languagechange", () => { if (!closed) displayPhrase(); });
   window.CeasefireHeaderTagline = Object.freeze({ next: nextPhrase });
   motion?.addEventListener?.("change", event => { if (event.matches) finish(); });
   document.addEventListener?.("visibilitychange", () => {

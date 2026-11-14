@@ -127,6 +127,7 @@ class PassiveFireRegisterTests(unittest.TestCase):
             self.assertNotIn('Hidden source metadata', text)
             self.assertNotIn('Source diagram', text)
             self.assertNotIn('Diagrams & Figures', text)
+            self.assertNotIn('Reference figures:', text)
             self.assertTrue(any(annot.get_object().get('/A', {}).get('/URI') == REPORT_URL
                                 for page in pdf.pages for annot in page.get('/Annots', [])))
             sizes = {image.image.size for page in pdf.pages for image in page.images}

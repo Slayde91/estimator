@@ -725,8 +725,8 @@
               if (company && item.available) row.append(button(item.label, async () => {
                 if (!await leaveAccount()) return;
                 await switchPage("accounts"); dialogEditor("accounts", company);
-              }, "text-button"));
-              else if(key==='leads' && item.available) row.append(button(item.label, () => openDirectoryLead(item.id), 'text-button'));
+              }, "text-button project-title-button"));
+              else if(key==='leads' && item.available) row.append(button(item.label, () => openDirectoryLead(item.id), 'text-button project-title-button'));
               else if(item.document || item.project) row.append(recordLink(item));
               else row.append(el("span", "", item.label));
               if(company)linkedSummary(row,[["Billing address",company.billing_address],["ABN/ACN",company.abn_acn]]);

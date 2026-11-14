@@ -30,7 +30,7 @@ def technical_library(root):
         {'label': 'Report Number', 'value': 'SYN-123\nUnlinked source report', 'report_links': [{'label': 'SYN-123', 'url': REPORT_URL}]},
         {'label': 'Service Size / Configuration', 'value': 'Independent source alternatives',
          'table': {'columns': ['Configuration', 'Service', 'FRL'], 'rows': [['source-a', 'Copper pipe 25 mm', '-/90/90'], ['source-b', 'Steel pipe 50 mm', '-/120/120']]}},
-        {'label': 'Diagrams & Figures', 'value': '', 'images': [{'id': 'diagram-a', 'caption': 'Synthetic retained source diagram'}]},
+        {'label': 'Diagrams & Figures', 'value': 'Reference figures: 1a and 1b', 'images': [{'id': 'diagram-a', 'caption': 'Synthetic retained source diagram'}]},
         {'label': 'Lead Time', 'value': 'Hidden source metadata'},
     ]
     record['notice'] = 'Synthetic evidence only; retain every source condition.'

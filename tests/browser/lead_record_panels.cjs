@@ -1,5 +1,5 @@
 'use strict';
-const {expandPanels}=require('./record_disclosures.cjs');
+const {expandPanels,checkLinkedRecordAppearance}=require('./record_disclosures.cjs');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const expect = require('@playwright/test').expect.configure({timeout:30000});
@@ -37,8 +37,11 @@ async function checkLeadRecordPanels(page, api, person, output) {
   await expect(pane.getByRole('button',{name:'Refresh Records',exact:true})).toBeEnabled();
   await expect(left.locator('[data-link-group=projects]')).toHaveJSProperty('open',true);
   await expect(left.locator('details[open]')).toHaveCount(1);
+  const projectLink = left.locator('[data-link-group=projects]').getByRole('button');
+  await expect(projectLink).toHaveText(project.project_no + ': ' + project.client + '-' + project.site_address);
+  await checkLinkedRecordAppearance(projectLink);
   const loaded = page.waitForResponse(reply => new URL(reply.url()).pathname === '/api/projects/load');
-  await left.locator('[data-link-group=projects]').getByRole('button').click();
+  await projectLink.click();
   const projectReply = await loaded;
   assert.ok(projectReply.ok(), await projectReply.text());
   assert.equal((await projectReply.json()).file.id, project.id);
@@ -72,6 +75,7 @@ async function checkLeadRecordPanels(page, api, person, output) {
     const opened = page.waitForResponse(reply => new URL(reply.url()).pathname === '/api/commercial/saved-open');
     const section=left.locator('[data-link-group='+group+']');
     await section.locator('summary').click();
+    await checkLinkedRecordAppearance(section.getByRole('button'));
     await section.getByRole('button').click();
     const response = await opened;
     assert.ok(response.ok(), await response.text());

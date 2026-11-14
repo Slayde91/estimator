@@ -47,7 +47,9 @@ async function checkFollowUpBoard(browser, base, output) {
     await expect(rows.getByRole('button',{name:'Edit',exact:true})).toBeVisible();
     await rows.getByRole('button',{name:'Add follow-up',exact:true}).click();
     const menuDialog=page.getByRole('dialog',{name:'Follow-up actions'});
-    await expect(menuDialog.getByLabel('Follow-up date',{exact:true})).toHaveValue('2027-03-13');
+    const followUpDate = menuDialog.getByLabel('Follow-up date',{exact:true});
+    await expect(menuDialog.locator('input[type=date]')).toHaveValue('2027-03-13');
+    await expect(followUpDate).toHaveValue(await followUpDate.evaluate(el=>el.type==='date') ? '2027-03-13' : '13/03/2027');
     await menuDialog.getByRole('button',{name:'Cancel',exact:true}).click();
     await root.getByRole('searchbox').fill('');
     await view.locator('summary').click(); await view.getByRole('button',{name:'Kanban',exact:true}).click();

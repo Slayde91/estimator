@@ -62,13 +62,13 @@ const phrases = [
   "CLASSIFIRE: Passive Fire Intelligence",
 ];
 function harness({ random = 0, previous, reduced = false, blocked = false, missing = false, missingCursor = false, missingMotion = false, rejectSound = false, audioEnabled = true } = {}) {
-  const label = { textContent: '' }, sizer = { children: [], get textContent() { return this.children.map(line => line.textContent).join(''); }, replaceChildren(...lines) { this.children = lines; } }, cursor = { hidden: false }, frames = [], timers = new Map(), writes = [];
+  const label = { textContent: '' }, strip = { title: "" }, cursor = { hidden: false }, frames = [], timers = new Map(), writes = [];
   let current = '', last = previous, nextTimer = 0, preference, pagehide, languagechange, visibilitychange, now = 0, audioChange;
   const audio = {plays:0,pauses:0,loads:0,currentTime:0,src:'',preload:'',load(){this.loads++;},pause(){this.pauses++;},play(){this.plays++;return {catch(callback){if(rejectSound)callback(Error('Autoplay blocked'));}};}};
   const classes = new Set();
   const typed = { classList:{add:name=>classes.add(name),remove:name=>classes.delete(name),contains:name=>classes.has(name)},
     get textContent() { return current; }, set textContent(value) { current = value; frames.push(value); } };
-  const elements = { 'header-tagline-label': label, 'header-tagline-sizer': sizer, 'header-tagline-typed': typed };
+  const elements = { 'header-tagline-label': label, 'header-tagline': strip, 'header-tagline-typed': typed };
   const motion = { matches: reduced, addEventListener(name, callback) { assert.equal(name, 'change'); preference = callback; } };
   let mediaTimer = null; const media = { playing: false, starts: 0, closed: false, start() { context.clearTimeout(mediaTimer); this.starts++; this.playing = !this.closed && !motion.matches; }, finish() { context.clearTimeout(mediaTimer); mediaTimer = context.setTimeout(() => this.stop(), 2000); }, stop() { context.clearTimeout(mediaTimer); this.playing = false; }, close() { this.closed = true; this.stop(); } };
   const context = {
@@ -118,7 +118,7 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
   };
   const finish = () => { finishTyping(); advance(2000); };
   run();
-  return { label, sizer, typed, cursor, media, audio, frames, timers, writes, run, tick, finishTyping, finish, advance, nextPhrase() { context.window.CeasefireHeaderTagline.next(); },
+  return { label, strip, typed, cursor, media, audio, frames, timers, writes, run, tick, finishTyping, finish, advance, nextPhrase() { context.window.CeasefireHeaderTagline.next(); },
     mute(){audioEnabled=false;audioChange?.(false);},unmute(){audioEnabled=true;audioChange?.(true);},
     hide(){context.document.hidden=true;visibilitychange();},show(){context.document.hidden=false;visibilitychange();},
     changeLanguage(translation) { context.window.CeasefireI18n = { translate: value => translation[value] || value }; languagechange(); },
@@ -127,7 +127,7 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
 let passed = 0;
 for (let index = 0; index < phrases.length-1; index++) {
   const h = harness({ random: (index + .01) / phrases.length }), phrase = phrases[index];
-  assert.equal(h.label.textContent, phrase); assert.deepEqual(h.sizer.children.map(line => line.textContent), phrases.map(line => line + '_'));
+  assert.equal(h.label.textContent, phrase); assert.equal(h.strip.title,h.label.textContent);
   assert.equal(h.typed.textContent, Array.from(phrase)[0]); assert.deepEqual(h.writes, [phrase]);
   assert.equal(h.media.playing, true, 'The supplied character starts with phrase typing');
   assert.equal(h.audio.plays,0,'Ordinary phrases do not play the brand sound');
@@ -144,7 +144,7 @@ for (let index = 0; index < phrases.length-1; index++) {
   h.advance(999); assert.equal(h.cursor.hidden, true); assert.equal(h.typed.textContent, phrase);
   h.advance(1); assert.equal(h.cursor.hidden, true); assert.equal(h.media.playing, true);
   h.advance(999); assert.equal(h.media.playing, true); h.advance(1); assert.equal(h.media.playing, false); assert.equal(h.timers.size, 0);
-  h.advance(10000); assert.deepEqual(h.frames, finishedFrames); assert.deepEqual(h.sizer.children.map(line => line.textContent), phrases.map(line => line + '_'));
+  h.advance(10000); assert.deepEqual(h.frames, finishedFrames); assert.equal(h.strip.title,h.label.textContent);
   passed++;
 }
 {
@@ -169,9 +169,9 @@ for (let index = 0; index < phrases.length-1; index++) {
   const h = harness({ blocked: true }); h.finish(); assert.equal(h.typed.textContent, phrases[0]); assert.equal(h.writes.length, 0); passed++;
 }
 {
-  const h = harness({ blocked: true }); h.tick(); const first = h.label.textContent, reserved = h.sizer.children.slice();
+  const h = harness({ blocked: true }); h.tick(); const first = h.label.textContent;
   h.nextPhrase(); assert.notEqual(h.label.textContent, first); assert.equal(h.timers.size, 1); assert.equal(h.cursor.hidden, false);
-  assert.equal(h.typed.textContent, Array.from(h.label.textContent)[0]); assert.deepEqual(h.sizer.children, reserved);
+  assert.equal(h.typed.textContent, Array.from(h.label.textContent)[0]); assert.equal(h.strip.title,h.label.textContent);
   const second = h.label.textContent; h.nextPhrase(); assert.notEqual(h.label.textContent, second);
   h.finishTyping(); const current = h.label.textContent;
   h.advance(999); assert.equal(h.typed.textContent, current); assert.equal(h.cursor.hidden, true);
@@ -237,7 +237,7 @@ for (let index = 0; index < phrases.length-1; index++) {
   h.changeLanguage({[original]: '同一短语：हिन्दी ภาษาไทย العربية'});
   assert.equal(h.label.textContent, '同一短语：हिन्दी ภาษาไทย العربية');
   h.finish(); assert.equal(h.typed.textContent, h.label.textContent);
-  assert.deepEqual(h.writes, writes); assert.equal(h.sizer.children[0].textContent, h.label.textContent + '_');
+  assert.deepEqual(h.writes, writes); assert.equal(h.strip.title,h.label.textContent);
   h.changeLanguage({}); h.finish(); assert.equal(h.label.textContent, original);
   assert.deepEqual(h.writes, writes); passed++;
 }
@@ -273,7 +273,7 @@ const html = fs.readFileSync('static/index.html', 'utf8');
   const h=harness({random:.999});h.advance(150);const writes=h.writes.slice();
   h.changeLanguage({[phrases.at(-1)]:'Do not translate this brand line'});
   assert.equal(h.label.textContent,phrases.at(-1));assert.equal(h.audio.plays,1,'Language refresh is not a new occurrence');
-  assert.equal(h.sizer.children.at(-1).textContent,phrases.at(-1)+'_');assert.deepEqual(h.writes,writes);
+  assert.equal(h.strip.title,phrases.at(-1));assert.deepEqual(h.writes,writes);
   h.advance(5050);assert.equal(h.typed.textContent,phrases.at(-1));passed++;
 }
 {
@@ -301,7 +301,7 @@ const html = fs.readFileSync('static/index.html', 'utf8');
 assert.match(html, /id="header-tagline-character"[^>]*alt=""[^>]*aria-hidden="true"/, 'The decorative supplied character stays out of the accessibility tree');
 assert.match(html, /id="header-tagline-label" class="sr-only"/);
 assert.match(html, /class="header-tagline-visual" aria-hidden="true"/);
-assert.match(html, /id="header-tagline-sizer"[^>]*aria-hidden="true"/);
+assert.doesNotMatch(html, /id="header-tagline-sizer"/);
 assert.match(html, /class="header-tagline-cursor">_<\/span>/);
 assert.match(fs.readFileSync('static/styles.css', 'utf8'), /\[hidden\]\{display:none!important\}/, 'Expired cursor is hidden by the shared CSS rule');
 assert.ok(!html.match(/id="header-tagline"[^>]*(?:aria-live|role="status")/), 'Typing must not repeatedly announce characters');

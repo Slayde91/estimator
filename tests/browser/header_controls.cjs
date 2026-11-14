@@ -42,8 +42,8 @@ async function inspectHeader(width) {
     assert.ok(name.x >= identity.x && name.x + name.width <= identity.x + identity.width + 1 && name.y>=nav.y+nav.height, `Long quote name stays beneath navigation in its own column at ${width}`);assert.ok(status.y>=name.y+name.height&&Math.abs(status.x+status.width-nav.x-nav.width)<1,'Save state remains beneath project name at the right');
     const compact=width<=720,logoWidth=Math.min(compact?(width<=420?100:130):width<=980?180:250,brand.width);
     assert.ok(Math.abs(logo.width-logoWidth)<.1&&Math.abs(logo.height-logoWidth*(compact?1/3:83.8/250))<.1,'Logo retains the requested desktop box and original compact phone proportions');
-    assert.ok(tagline.x>=logo.x+logo.width&&tagline.x+tagline.width<=brand.x+brand.width+.1,'The character and text fit to the right of the wordmark');
-    assert.ok(Math.abs(tagline.y+tagline.height/2-logo.y-logo.height/2)<1,'The two brand elements are vertically centred together');
+    assert.ok(tagline.y>=Math.max(logo.y+logo.height,nav.y+nav.height)-1,'The sentence occupies the lower header strip');
+    assert.ok(compact ? tagline.y>=status.y+status.height-1 : tagline.x+tagline.width<status.x,'The quote and save status have separate space');
     const logoInk=await page.locator('.brand-logo').evaluate(img=>{
       // The PNG contains nearly transparent raster noise outside the mark.
       // Alpha>8 includes every visible letter/symbol and excludes that noise.
@@ -52,7 +52,7 @@ async function inspectHeader(width) {
       const r=img.getBoundingClientRect(),style=getComputedStyle(img),scale=Math.min(r.width/canvas.width,r.height/canvas.height),position=style.objectPosition.split(' ').map(v=>parseFloat(v)/100),x=r.x+(r.width-canvas.width*scale)*position[0],y=r.y+(r.height-canvas.height*scale)*position[1];return{alphaThreshold:8,natural:[canvas.width,canvas.height],source:{left,top,right,bottom},fit:style.objectFit,rendered:{left:x+left*scale,top:y+top*scale,right:x+right*scale,bottom:y+bottom*scale}};
     });
     assert.equal(logoInk.fit,'contain');assert.ok(logoInk.source.right>logoInk.source.left&&logoInk.source.bottom>logoInk.source.top,'Actual supplied logo has visible artwork');
-    assert.ok(tagline.x>=logoInk.rendered.right-.1,'The character and quote clear the right edge of the actual artwork');
+    assert.ok(tagline.y>=logoInk.rendered.bottom-.1,'The sentence clears the wordmark');
     await expect(page.locator('#header-project-name')).toHaveText(longName);
     await expect(page.locator('#header-project-name')).toHaveAttribute('title', longName);
     await expect(page.locator('#header-project-name')).toHaveCSS('background-color','rgb(255, 227, 138)');

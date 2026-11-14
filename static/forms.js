@@ -299,7 +299,7 @@
     if (value === undefined || value === null || value === '') return '—';
     if (typeof value !== 'object') return String(value);
     if (Array.isArray(value)) return value.map(item=>typeof item === 'object' ? item.name || item.label || 'Item' : item).join(', ');
-    return value.member_name || value.description || [value.start,value.end].filter(Boolean).join(' – ') || 'Recorded';
+    return value.member_name || value.description || value.answer || [value.start,value.end].filter(Boolean).join(' – ') || 'Recorded';
   }
   function templateDetail(t) {
     const host = frame(), box = el('section',null,'card forms-register');
@@ -324,6 +324,11 @@
     box.append(heading(t.name,actions),el('p',(t.settings?.display_id ? t.settings.display_id+' · ' : '')+'Version '+t.version+' · '+t.status+' · '+(t.mode==='workflow'?'Workflow':'Timeline'),'helper'));
     if (t.description) box.append(el('p',t.description));
     const columns = (t.settings?.summary_fields || []).map(id=>t.fields.find(f=>f.id === id)).filter(Boolean);
+    for(const cell of t.settings?.summary_cells || []) {
+      const field=t.fields.find(f=>f.id===cell.field_id);
+      const column=field?.columns?.find(c=>c.id===cell.column_id);
+      if(column) columns.push({id:[field.id,cell.row,column.id].join(':'),label:field.label+' · '+column.label+' (row '+(cell.row+1)+')'});
+    }
     const subset = records.filter(row=>row.template_id===t.id);
     const sort = t.settings?.sort_field;
     if (sort) subset.sort((a,b)=>describe(a.summary_values?.[sort]).localeCompare(describe(b.summary_values?.[sort]),undefined,{numeric:true}));
@@ -369,6 +374,28 @@
         const version = await api('template?id='+encodeURIComponent(t.id)+'&version='+v.version);
         if(dialog.open) preview(version);
       }));
+      if(v.version>1) actions.append(button('Compare changes',async()=>{
+        const [before,after]=await Promise.all([v.version-1,v.version].map(n=>api('template?id='+encodeURIComponent(t.id)+'&version='+n)));
+        if(!dialog.open)return;
+        const changes=modal('Changes in version '+v.version), rows=[];
+        const add=(label,a,b)=>{if(JSON.stringify(a)!==JSON.stringify(b)) rows.push([label,readable(a),readable(b)]);};
+        function readable(value) {
+          if(value==null) return '—';
+          if(Array.isArray(value)) return value.map(readable).join(', ');
+          if(typeof value==='object') return Object.entries(value).filter(([k])=>!['id','data','image'].includes(k)).map(([k,v])=>k+' = '+readable(v)).join(' · ');
+          return String(value);
+        }
+        for(const key of ['name','description','status','roles','mode']) add(key,before[key],after[key]);
+        for(const key of new Set([...Object.keys(before.settings),...Object.keys(after.settings)])) add(key,before.settings[key],after.settings[key]);
+        const oldFields=new Map(before.fields.map(f=>[f.id,f])), newFields=new Map(after.fields.map(f=>[f.id,f]));
+        for(const id of new Set([...oldFields.keys(),...newFields.keys()])) {
+          const old=oldFields.get(id), now=newFields.get(id);
+          add(now?.label || old.label,old,now);
+        }
+        if(before.fields.map(f=>f.id).join()!==after.fields.map(f=>f.id).join()) add('Field order',before.fields.map(f=>f.label),after.fields.map(f=>f.label));
+        changes.append(table(['Setting or field','Version '+(v.version-1),'Version '+v.version],rows,'No content changes.'));
+        changes.showModal();
+      }));
       if(v.version !== t.version) actions.append(button('Restore as draft', async()=>{
         const older = await api('template?id='+encodeURIComponent(t.id)+'&version='+v.version);
         if(!dialog.open) return;
@@ -405,7 +432,12 @@
           const figure = el('figure'), media = el(video ? 'video' : 'img');
           if(video) {media.controls=true;media.preload='metadata';media.setAttribute('aria-label',photo.name);} else media.alt=photo.name;
           media.src = 'data:'+photo.type+';base64,'+photo.data;
-          figure.append(media,el('figcaption',field.label+' · '+photo.name+(video?' ('+photo.type+')':''))); appendix.append(figure);
+          const caption=el('figcaption',field.label+' · '+photo.name+(video?' ('+photo.type+')':''));
+          if(['large','xl'].includes(field.photo_size)) {
+            if(field.show_tags && photo.tags?.length) caption.append(el('p',photo.tags.join(', ')));
+            if(field.show_description && photo.description) caption.append(el('p',photo.description));
+          }
+          figure.append(media,caption); appendix.append(figure);
         }
       }
     }

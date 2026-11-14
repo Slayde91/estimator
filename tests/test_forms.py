@@ -209,6 +209,55 @@ class FormsTests(unittest.TestCase):
             with self.assertRaises(ValidationError):
                 self.store.save_entry(self.editor,entry(invalid,{'table':[{}]},status='submitted'))
 
+    def test_register_cells_use_typed_saved_values_and_pinned_fixed_rows(self):
+        fields = [field('site'),field('cost','table',table_mode='fixed',default=[{},{}], columns=[
+            field('price','number'),field('net','formula',formula='=A1*2'),field('sign','signature'),
+            field('okay','yes_no',explanation_on=['No'])])]
+        cells = [{'field_id':'cost','row':0,'column_id':'price'},{'field_id':'cost','row':1,'column_id':'net'},
+                 {'field_id':'cost','row':1,'column_id':'okay'}]
+        definition = template(fields=fields,settings={'summary_fields':['site'],'summary_cells':cells})
+        t = self.store.save_template(self.editor,definition)
+        values = {'site':'Here','cost':[{'price':0},{'price':2.2,'net':'invented','okay':{'answer':'No','explanation':'Reason'}}]}
+        saved = self.store.save_entry(self.editor,entry(t,values,status='submitted'))
+        expected = {'site':'Here','cost:0:price':0,'cost:1:net':'4.4','cost:1:okay':'No'}
+        self.assertEqual(saved['summary_values'],expected)
+        self.store.save_template(self.editor,{**definition,'version':1,'settings':{'summary_fields':['site']}})
+        self.assertEqual(self.store.entries(self.viewer)['entries'][0]['summary_values'],expected)
+        invalid = [{**cells[0],'row':False},{**cells[0],'row':2},{**cells[0],'row':-1},{**cells[0],'column_id':'sign'},
+                   {**cells[0],'field_id':'site'},{**cells[0],'column_id':'oops'}]
+        for cell in invalid:
+            with self.subTest(cell=cell), self.assertRaises(ValidationError):
+                self.store.save_template(self.editor,template(fields=fields,settings={'summary_cells':[cell]}))
+        for selections in [cells+[cells[0]],cells+[{'field_id':'cost','row':0,'column_id':'net'},{'field_id':'cost','row':1,'column_id':'price'}]]:
+            with self.assertRaises(ValidationError):
+                self.store.save_template(self.editor,template(fields=fields,settings={'summary_fields':['site'],'summary_cells':selections}))
+        with self.assertRaises(ValidationError):
+            self.store.save_template(self.editor,template(fields=[fields[0],{**fields[1],'table_mode':'dynamic'}],
+                                                        settings={'summary_cells':cells}))
+
+    def test_media_metadata_round_trip_bounds_access_and_sealed_profile(self):
+        photo = field('media','photo',photo_size='xl',show_tags=True,show_description=True)
+        t = self.store.save_template(self.editor,template(fields=[photo,field('plain','attachment'),
+            field('profile','profile_company'),field('table','table',columns=[photo])]))
+        plain = {'name':'image.png','type':'image/png','data':base64.b64encode(b'\x89PNG\r\n\x1a\nexample').decode()}
+        marked = {**plain,'tags':['  Slab  ','L1'],'description':'  Before inspection  '}
+        values = {'media':[marked,plain],'table':[{'media':[marked]}],'profile':True}
+        saved = self.store.save_entry(self.editor,entry(t,values))
+        cleaned = {**plain,'tags':['Slab','L1'],'description':'Before inspection'}
+        self.assertEqual(saved['values']['media'],[cleaned,plain])
+        self.assertEqual(saved['values']['table'][0]['media'],[cleaned])
+        with self.assertRaises(FormError):
+            self.store.entry(self.viewer,saved['id'])
+        for change in ({'description':'x'*2001},{'tags':['x']*21},{'tags':[' Slab ','sLaB']},{'tags':[{}]},
+                       {'tags':['x'*81]},{'member_id':'sam'}):
+            with self.subTest(change=change), self.assertRaises(ValidationError):
+                self.store.save_entry(self.editor,entry(t,{'media':[{**plain,**change}]}))
+        for changed in ({'plain':[marked]},{'profile':'other'},{'profile':True},{'profile':''}):
+            with self.assertRaises(ValidationError):
+                self.store.save_entry(self.editor,entry(t,{**saved['values'],**changed},id=saved['id'],version=1))
+        self.store.save_entry(self.editor,entry(t,saved['values'],id=saved['id'],version=1,status='submitted'))
+        self.assertEqual(self.store.entry(self.viewer,saved['id'])['values']['media'],[cleaned,plain])
+
     def test_authorized_expiry_reminders_and_video(self):
         t = self.store.save_template(self.editor,template(fields=[
             field('expire','expiry_date',reminder_days=0),field('name'),field('movie','photo',photo_size='xl')],

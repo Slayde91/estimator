@@ -120,6 +120,7 @@
 .form-builder-stage-rule .form-builder-control { grid-column: auto; }
 .form-builder-file-list { display: grid; gap: .4rem; margin: 0; padding: 0; list-style: none; }
 .form-builder-file-list li { display: flex; gap: .6rem; align-items: center; justify-content: space-between; }
+.form-builder-register-cell { display:flex; align-items:center; justify-content:space-between; gap:.65rem; overflow-wrap:anywhere; }
 .form-builder-file-list span { overflow-wrap: anywhere; }
 .form-builder-message { margin: .6rem 0; padding: .7rem .9rem; background: var(--builder-surface); border-left: 3px solid var(--accent); }
 .form-builder-message.error { border-left-color: var(--red); }

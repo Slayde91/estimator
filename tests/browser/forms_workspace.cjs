@@ -59,6 +59,10 @@ const ready=new Promise((resolve,reject)=>{
   await expect(forms).toContainText('QA site, bay B');await expect(b('Submit form')).toHaveCount(0);
   await b('Back to forms').click();await b('Site QA inspection').click();await b('Version history').click();
   const versions=page.getByRole('dialog',{name:'Version history'});await expect(versions.locator('tbody tr')).toHaveCount(2);
+  await versions.getByRole('button',{name:'Compare changes',exact:true}).click();
+  const comparison=page.getByRole('dialog',{name:'Changes in version 2'});
+  await expect(comparison.getByRole('cell',{name:/viewer/})).toBeVisible();
+  await comparison.getByRole('button',{name:'Close',exact:true}).click();
   await versions.getByRole('button',{name:'Close'}).click();await b('Edit template').click();
   await forms.getByLabel('Template name',{exact:true}).fill('Site QA inspection revised');await b('Save changes').click();await expect(forms).toContainText('Template published.');
   await b('Back').click();await b('Form records').click();await b('Site QA inspection').click();
@@ -89,7 +93,7 @@ const ready=new Promise((resolve,reject)=>{
   const totals={id:'totals',type:'table',label:'Cost summary',table_mode:'fixed',default:[{}],columns:[
     {id:'overall',type:'formula',label:'Grand total',formula:'=SUM(Table1!B$1:B$2)'}]};
   await post(admin,'/api/forms/template/save',{id:tid,version:0,name:'QA approval workflow',status:'published',mode:'workflow',roles:['admin'],
-    settings:{stages,orientation:'landscape',header_layout:[{kind:'text',text:'QA header',align:'center'}],footer_layout:[{kind:'form_version',align:'right'}]},
+    settings:{stages,summary_cells:[{field_id:'totals',row:0,column_id:'overall'}],orientation:'landscape',header_layout:[{kind:'text',text:'QA header',align:'center'}],footer_layout:[{kind:'form_version',align:'right'}]},
     fields:[table,totals,{id:'ready',type:'choice',label:'Ready for review',options:['Hold','Ready'],default:'Hold'},
       {id:'comment',type:'text',label:'Reviewer notes',stage_id:'review',required:true}]},me.id);
   await open(page);await b('QA approval workflow').click();await expect(forms.getByRole('heading',{name:'QA approval workflow',exact:true})).toBeVisible();await b('Fill out').click();
@@ -119,5 +123,8 @@ const ready=new Promise((resolve,reject)=>{
   await b('Reopen previous stage').click();await page.getByRole('dialog').getByRole('button',{name:'Reopen stage',exact:true}).click();
   await expect(forms.getByLabel('Reviewer notes')).toHaveValue('Reviewed for fixture');
   await expect(forms).toContainText('Reopened stage');
+  await b('Back to forms').click();await b('Templates').click();await b('QA approval workflow').last().click();
+  await expect(forms.getByRole('columnheader',{name:'Cost summary · Grand total (row 1)'})).toBeVisible();
+  await expect(forms.getByRole('cell',{name:'18',exact:true})).toBeVisible();
   assert.deepEqual(issues,[]);console.log('Forms browser checks passed. '+output);
 })().catch(error=>{console.error(error,stderr);process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

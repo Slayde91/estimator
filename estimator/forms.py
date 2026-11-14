@@ -313,17 +313,29 @@ class Forms:
             values = validate_values(template, body['values'], complete=status == 'submitted',
                                      previous=previous, stage_id=stage_id, staff={p['id'] for p in self.staff()},
                                      signer=signer,lookup=lookup,counter=counter)
-            summary = {}
             sort = template['settings'].get('sort_field')
             columns = set(template['settings'].get('summary_fields',[]))
             if sort:
                 columns.add(sort)
-            for field_id in columns:
-                value = values.get(field_id)
-                if type(value) in (int,bool,float,str) and len(str(value))<=500:
-                    summary[field_id] = value
-                elif isinstance(value,list) and all(isinstance(v,str) for v in value):
-                    summary[field_id] = ', '.join(value)[:500]
+            candidates = {field['id']:values.get(field['id']) for field in template['fields']
+                          if field['id'] in columns and field['type'] not in ('sketch','manual_signature',
+                             'signature','attachment','photo','table','group','staff_wallet')}
+            for cell in template['settings'].get('summary_cells',[]):
+                field_id,row_index,col = cell['field_id'],cell['row'],cell['column_id']
+                rows = values.get(field_id,[])
+                if row_index<len(rows):
+                    value = rows[row_index].get(col)
+                    if isinstance(value,dict):
+                        value = value.get('answer')
+                    candidates[f'{field_id}:{row_index}:{col}'] = value
+            summary = {}
+            for selector,value in candidates.items():
+                if isinstance(value,str):
+                    summary[selector] = value[:500]
+                elif type(value) in (int,float,bool):
+                    summary[selector] = value
+                elif isinstance(value,list) and all(isinstance(item,str) for item in value):
+                    summary[selector] = ', '.join(value)[:500]
             reminders = []
             for field in template['fields']:
                 if field['type']=='group':

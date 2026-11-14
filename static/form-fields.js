@@ -294,7 +294,14 @@
           if(type==='photo') control.accept=mediaTypes.join(',');
           else if(field.accept==='application/pdf')control.accept='application/pdf';
           const list=el('ul','form-field-files'); if(type==='photo')box.dataset.photoSize=field.photo_size || 'medium';body.append(describe(control),list);
-          const refresh = () => fileList(list,value(),file=>{set(value().filter(item=>item!==file)); refresh();});
+          const refresh = () => fileList(list,field,value(),{
+            remove(file){set(value().filter(item=>item!==file));refresh();},
+            update(file,key,next){
+              if (!value()?.includes(file)) return;
+              if (next.length) file[key]=next; else delete file[key];
+              set(value());
+            }
+          });
           refresh();
           control.addEventListener('change', async () => {
             const files=[...control.files]; control.value=''; if (!files.length) return;
@@ -451,7 +458,7 @@
     }
     function readonlyAnswer(body, field, answer) {
       if(empty(answer)){body.append(el('p','form-field-answer','—'));return;}
-      if(['attachment','photo'].includes(field.type)){const list=el('ul','form-field-files');if(field.type==='photo')body.parentElement.dataset.photoSize=field.photo_size || 'medium';body.append(list);fileList(list,answer);return;}
+      if(['attachment','photo'].includes(field.type)){const list=el('ul','form-field-files');if(field.type==='photo')body.parentElement.dataset.photoSize=field.photo_size || 'medium';body.append(list);fileList(list,field,answer);return;}
       if(['manual_signature','sketch'].includes(field.type)&&isPNG(answer)){const image=el('img','form-field-image');image.src=answer;image.alt=field.label;body.append(image);return;}
       if(field.type==='manual_signature'&&isPNG(answer.image)){const image=el('img','form-field-image');image.src=answer.image;image.alt=field.label;body.append(image);}
       if(field.type==='signature'&&/^data:image\/(png|jpeg);base64,/.test(answer.signature_image)){const image=el('img','form-field-image');image.src=answer.signature_image;image.alt=field.label;body.append(image);}
@@ -481,7 +488,44 @@
       validate(){if(pending)return false;const issues=Array.from(checks.values(),check=>check()).filter(Boolean);issues[0]?.focus();return !issues.length;}
     };
   }
-  function fileList(list, files, remove) {
+  function photoMetadata(field,file,edit) {
+    if (field.type!=='photo' || !['large','xl'].includes(field.photo_size)) return null;
+    const panel=el('div','form-photo-metadata');
+    for (const [key,enabled,label] of [['tags',field.show_tags,'Tags'],['description',field.show_description,'Description']]) {
+      if (!enabled) continue;
+      const tags=key==='tags';
+      const existing=tags ? (file.tags || []).join('\n') : file.description || '';
+      if (!edit) {
+        if (existing) {
+          const part=el('div','form-field-part');
+          part.append(el('span','',translate(label)),el('p','form-field-answer',tags?file.tags.join(', '):existing));
+          panel.append(part);
+        }
+        continue;
+      }
+      const control=el('textarea');control.rows=2;control.value=existing;
+      if (!tags) control.maxLength=2000;
+      panel.append(labelled(tags?'Tags (one per line)':label,control));
+      const checkTags=list=>{
+        const invalid=list.length>20 || list.some(tag=>Array.from(tag).length>80);
+        control.setCustomValidity(invalid?translate('Use up to 20 tags of 80 characters each.'):'');
+      };
+      if(tags)checkTags(file.tags || []);
+      control.addEventListener('input',()=>{
+        if (!tags) {edit(file,key,control.value.trim());return;}
+        const seen=new Set(),list=[];
+        for (const line of control.value.split('\n')) {
+          const tag=line.trim(), normalized=tag.toLowerCase();
+          if(tag && !seen.has(normalized)){seen.add(normalized);list.push(tag);}
+        }
+        checkTags(list);
+        edit(file,key,list);
+      });
+      if(tags)control.addEventListener('blur',()=>{control.value=(file.tags || []).join('\n');});
+    }
+    return panel.childElementCount ? panel : null;
+  }
+  function fileList(list, field, files, handlers = {}) {
     list.replaceChildren();
     for (const file of files || []) {
       const row=el('li');
@@ -492,7 +536,9 @@
         const player=el('video','form-field-image');player.controls=true;player.preload='metadata';player.playsInline=true;
         player.setAttribute('aria-label',file.name);player.src='data:'+file.type+';base64,'+file.data;row.append(player);
       }
-      if(remove){const del=button('Remove',()=>remove(file));del.setAttribute('aria-label',translate('Remove')+' '+file.name);row.append(del);}
+      if(handlers.remove){const del=button('Remove',()=>handlers.remove(file));del.setAttribute('aria-label',translate('Remove')+' '+file.name);row.append(del);}
+      const metadata=photoMetadata(field,file,handlers.update);
+      if(metadata)row.append(metadata);
       list.append(row);
     }
   }

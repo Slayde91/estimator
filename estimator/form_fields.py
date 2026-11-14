@@ -20,6 +20,8 @@ TYPES = LAYOUT | {'text','textarea','number','date','datetime','date_range','dat
 COLUMN_TYPES = {'text','textarea','number','date','time','datetime','choice','multichoice','yes_no','person',
                 'attachment','photo','manual_signature','signature','location','instruction'} | DERIVED
 OPTION_TYPES = {'choice','multichoice'}
+SUMMARY_CELL_TYPES = {'text','textarea','number','date','datetime','time','choice','multichoice',
+                      'yes_no','list_property','formula'}
 MAX_FILE = 5 * 1024 * 1024
 MAX_TOTAL = 12 * 1024 * 1024
 MIME = re.compile(r'[a-zA-Z0-9.+_-]+/[a-zA-Z0-9.+_-]+')
@@ -184,6 +186,8 @@ def validate_template(body,staff=None):
                 raise ValidationError('Choose a reminder from 0 to 365 days before expiry.')
             if kind=='photo' and field.get('photo_size','medium') not in ('xs','small','medium','large','xl'):
                 raise ValidationError('Choose a valid media display size.')
+            if kind=='photo' and any(type(field.get(key,False)) is not bool for key in ('show_tags','show_description')):
+                raise ValidationError('Use a checkbox setting for photo tags and descriptions.')
             if kind=='attachment' and field.get('accept') not in (None,'','application/pdf'):
                 raise ValidationError('Choose the supported attachment filter.')
             if kind=='yes_no':
@@ -241,6 +245,22 @@ def validate_template(body,staff=None):
     if (not isinstance(summary,list) or any(not isinstance(k,str) or k not in root_ids for k in summary)
             or settings.get('sort_field') and (not isinstance(settings['sort_field'],str) or settings['sort_field'] not in root_ids)):
         raise ValidationError('Choose existing fields for the form register.')
+    cells = settings.get('summary_cells',[])
+    if not isinstance(cells,list) or len(summary)+len(cells)>5 or len(set(summary))!=len(summary):
+        raise ValidationError('Choose up to five distinct fields or fixed table cells for the form register.')
+    used = set()
+    for cell in cells:
+        if not isinstance(cell,dict) or set(cell)!={'field_id','row','column_id'}:
+            raise ValidationError('Choose a fixed table, row and column for the form register.')
+        key,row,col = cell['field_id'],cell['row'],cell['column_id']
+        table = top.get(key) if isinstance(key,str) else None
+        if (not table or table['type']!='table' or table.get('table_mode')!='fixed'
+                or type(row) is not int or not 0<=row<len(table.get('default',[])) or not isinstance(col,str)
+                or not any(c['id']==col and c['type'] in SUMMARY_CELL_TYPES for c in table['columns'])):
+            raise ValidationError('Choose an existing fixed table row and a text, date, choice or numeric column.')
+        if (key,row,col) in used:
+            raise ValidationError('Choose each register cell once.')
+        used.add((key,row,col))
     return {'name':name,'description':description,'roles':roles,'status':status,'mode':mode,
             'settings':settings,'fields':fields}
 
@@ -371,8 +391,11 @@ def validate_values(template, values, *, complete, previous, stage_id, staff=Non
         elif kind in ('attachment','photo'):
             if not isinstance(value,list) or len(value)>16:
                 raise ValueError
+            files = []
             for f in value:
-                if not isinstance(f,dict) or set(f)!={'name','type','data'}:
+                base = {'name','type','data'}
+                allowed = base | {'tags','description'} if kind=='photo' else base
+                if not isinstance(f,dict) or not base<=set(f)<=allowed:
                     raise ValueError
                 filename(f['name'])
                 if not isinstance(f['type'],str) or not MIME.fullmatch(f['type']):
@@ -382,6 +405,22 @@ def validate_values(template, values, *, complete, previous, stage_id, staff=Non
                     raise ValueError
                 if field.get('accept')=='application/pdf' and (f['type']!='application/pdf' or b'%PDF-' not in data[:1024]):
                     raise ValueError
+                file = {k:f[k] for k in base}
+                if 'tags' in f:
+                    tags = f['tags']
+                    if not isinstance(tags,list) or len(tags)>20:
+                        raise ValidationError('Use up to 20 tags per photo.')
+                    tags = [text(tag,80,'photo tag',required=True).strip() for tag in tags]
+                    if len({tag.casefold() for tag in tags})!=len(tags):
+                        raise ValidationError('Choose distinct photo tags.')
+                    if tags:
+                        file['tags'] = tags
+                if 'description' in f:
+                    description = text(f['description'],2000,'photo description').strip()
+                    if description:
+                        file['description'] = description
+                files.append(file)
+            return files
         elif kind=='location':
             if not isinstance(value,dict) or set(value)!={'latitude','longitude'} or not -90<=_num(value['latitude'])<=90 or not -180<=_num(value['longitude'])<=180:
                 raise ValueError
@@ -410,6 +449,8 @@ def validate_values(template, values, *, complete, previous, stage_id, staff=Non
         elif kind=='profile' or kind.startswith('profile_'):
             if value==old and isinstance(old,str):
                 return old
+            if isinstance(old,str) and old:
+                raise ValidationError('A captured profile detail cannot be replaced.')
             if signer and value is True:
                 detail = field.get('profile_field','name') if kind=='profile' else kind[8:]
                 result = signer.get(detail,'')
@@ -465,8 +506,9 @@ def validate_values(template, values, *, complete, previous, stage_id, staff=Non
             if kind in LAYOUT or kind in DERIVED:
                 continue
             if _blank(val) and (kind in ('signature','staff_wallet') and isinstance(old,dict)
+                    or (kind=='profile' or kind.startswith('profile_')) and isinstance(old,str) and old
                     or kind=='manual_signature' and (isinstance(old,str) or isinstance(old,dict) and old.get('at'))):
-                raise ValidationError('A captured signature or staff identity cannot be cleared.')
+                raise ValidationError('A captured signature or staff profile cannot be cleared.')
             if kind=='counter':
                 allocated = old if old is not None else counter
                 if not _blank(val) and val != allocated:

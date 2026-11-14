@@ -23,12 +23,12 @@
       ['attachment', 'Attachment'], ['photo', 'Photo / video'], ['sketch', 'Sketch'],
       ['location', 'Location'], ['signature', 'Signature'], ['manual_signature', 'Manual signature'], ['signatures', 'Multiple signatures'],
       ['approval', 'Approval signature'], ['action', 'Action'], ['counter', 'Form counter'],
-      ['staff_wallet', 'Staff identity wallet'], ['id_text', 'ID (manual entry)'],
-      ['weather', 'Weather observation'],
+      ['id_text', 'ID (manual entry)'], ['weather', 'Weather observation'],
     ],
   };
-  // Previously published templates can still contain verified staff ID fields.
-  const names = new Map([...Object.values(palette).flat(), ['scan_id', 'Verify staff ID']]);
+  // These field types remain readable and editable in existing templates.
+  const legacyTypes = new Map([['scan_id', 'Verify staff ID'], ['staff_wallet', 'Staff identity wallet']]);
+  const names = new Map([...Object.values(palette).flat(), ...legacyTypes]);
   const columnNames = new Map([...names, ['formula', 'Formula'], ['list_property', 'List property'], ['time', 'Time']]);
   const columnTypes = ['text', 'textarea', 'instruction', 'number', 'date', 'datetime', 'time', 'choice', 'list_property',
     'multichoice', 'yes_no', 'person', 'attachment', 'photo', 'signature', 'manual_signature', 'location', 'formula'];
@@ -576,7 +576,8 @@
     }
     function arrangeTools(list, index, redraw, remove) {
       const tools = node('div', 'form-builder-row-tools');
-      const up = button('Move up', () => swap(-1)), down = button('Move down', () => swap(1));
+      const {iconButton} = window.ClassifireFormControls;
+      const up = iconButton('Move up', 'up', () => swap(-1)), down = iconButton('Move down', 'down', () => swap(1));
       up.disabled = index === 0; down.disabled = index === list.length - 1;
       function swap(delta) {
         const to = index + delta;
@@ -589,7 +590,7 @@
         }
         list.splice(0, list.length, ...moved); redraw();
       }
-      tools.append(up, down, button('Remove', remove)); return tools;
+      tools.append(up, down, iconButton('Remove', 'remove', remove)); return tools;
     }
     function nestedEditor(host, field, redraw) {
       const table = field.type === 'table', list = table ? field.columns : field.children;
@@ -617,7 +618,7 @@
           card.append(node('strong','form-builder-column-reference',copy('Column') + ' ' + letters));
         }
         const caption = input(child.label, value => { child.label = value; }); caption.maxLength = 250;
-        const types = table ? columnTypes : groupTypes.filter(type => type !== 'scan_id' || child.type === 'scan_id');
+        const types = table ? columnTypes : groupTypes.filter(type => !legacyTypes.has(type) || type === child.type);
         card.append(fieldHeading(child, table ? 'Column heading' : 'Field label', caption),
           labelled('Type', select(child.type, typeChoices(types), type => {
             const next = {...newField(type), id: child.id, label: child.label, required: Boolean(child.required)};
@@ -675,7 +676,9 @@
         }));
         section.append(card);
       });
-      section.append(button(table ? 'Add column' : 'Add group field', () => { list.push(newField('text')); redraw(); }));
+      const addField = () => { list.push(newField('text')); redraw(); };
+      section.append(table ? button('Add column', addField)
+        : window.ClassifireFormControls.iconButton('Add group field', 'add', addField));
       host.append(section);
     }
 

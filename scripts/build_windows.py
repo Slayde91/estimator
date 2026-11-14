@@ -44,7 +44,7 @@ STATIC_FILES = (
     'brand-boot.css', 'brand-boot.js', 'classifire-app.ico', 'classifire-app-icon.png', 'register-references.js',
     'downloads.js', 'downloads.css', 'main-layout.js',
     'dates.js', 'date-controls.js', 'date-controls.css',
-    'forms.js', 'forms.css', 'forms-builder.js', 'forms-builder.css', 'forms-layout.js', 'form-fields.js', 'form-fields.css',
+    'forms.js', 'forms.css', 'forms-builder.js', 'forms-builder.css', 'forms-layout.js', 'form-controls.js', 'form-fields.js', 'form-fields.css',
     'games/play.css', 'games/fireline-art.js', 'games/fireline.js', 'games/play.js',
     'index.html', 'libraries.css', 'libraries.js', 'library-detail-text.js', 'library-editor.css',
     'library-editor.js', 'penetration-breakdown.js', 'penetration.css', 'penetration.js', 'penetration-references.js', 'styles.css',

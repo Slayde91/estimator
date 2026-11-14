@@ -8,10 +8,16 @@ const assert=require('node:assert/strict'), path=require('node:path');
     const page=await browser.newPage();
     await page.route('https://forms.test/**',route=>route.fulfill(route.request().url().includes('/api/')?
       {json:{user:{id:'s1'}}}:{contentType:'text/html',body:'<main></main>'}));
+    await page.route('https://forms.test/icons/*.svg',route=>route.fulfill({
+      path:path.resolve(__dirname,'../../static/icons',path.basename(new URL(route.request().url()).pathname)),contentType:'image/svg+xml'
+    }));
     await page.goto('https://forms.test/');
     await page.addScriptTag({path:path.resolve(__dirname,'../../static/dates.js')});
+    await page.addScriptTag({path:path.resolve(__dirname,'../../static/form-controls.js')});
     await page.addScriptTag({path:path.resolve(__dirname,'../../static/form-fields.js')});
     await page.addScriptTag({path:path.resolve(__dirname,'../../static/personal-signature.js')});
+    await page.addStyleTag({path:path.resolve(__dirname,'../../static/styles.css')});
+    const takeoffStyles = await page.addStyleTag({path:path.resolve(__dirname,'../../static/takeoffs.css')});
     await page.addStyleTag({path:path.resolve(__dirname,'../../static/form-fields.css')});
     const template={mode:'workflow',settings:{stages:[{id:'initial'},{id:'review'}]},fields:[
       {id:'layout',type:'section',label:'Inspection'},
@@ -104,11 +110,37 @@ const assert=require('node:assert/strict'), path=require('node:path');
     await expect(field('sign').locator('img')).toHaveAttribute('src',/^data:image\/png;base64,/);
     await field('tab').getByRole('button',{name:'Add row'}).click();
     await field('tab').getByRole('table').getByRole('spinbutton').fill('3.5');
-    await field('group').getByRole('button',{name:'Add group'}).click();
+    const groupAdd = field('group').getByRole('button',{name:'Add group',exact:true});
+    await expect(groupAdd).toHaveAttribute('title','Add group');
+    await expect(groupAdd).toHaveText('+');
+    await expect(groupAdd).toHaveCSS('background-color','rgb(208, 0, 27)');
+    await expect(groupAdd).toHaveCSS('width','42px');
+    await expect(groupAdd).toHaveCSS('height','42px');
+    await page.setViewportSize({width:390,height:844});
+    await groupAdd.press('Enter');
+    await field('group').getByRole('combobox').selectOption('s1');
+    await groupAdd.click();
+    const removeGroup = field('group').getByRole('button',{name:'Remove',exact:true}).first();
+    await expect(removeGroup.locator('[aria-hidden="true"]')).toHaveCSS('mask-image',/trash\.svg/);
+    await removeGroup.press('Enter');
+    await expect(field('group').locator('.form-repeat-row > legend')).toHaveText('Group 1');
+    await expect(field('group').getByRole('combobox')).toHaveValue('');
+    await page.setViewportSize({width:1280,height:720});
     await field('group').getByRole('combobox').selectOption('s2');
     await field('file').locator('input').setInputFiles({name:'report.txt',mimeType:'text/plain',buffer:Buffer.from('report')});
     await expect(field('file').getByRole('link')).toHaveText('report.txt');
     await field('hand').getByLabel('Full name').fill('Sid Mills');await field('hand').getByLabel('Company').fill('Mills & Co');
+    const drawSignature=field('hand').getByRole('button',{name:'Draw signature',exact:true});
+    await expect(drawSignature).toHaveAttribute('title','Draw signature');
+    for (const includesTakeoffs of [true,false]) {
+      await takeoffStyles.evaluate((element,enabled)=>{element.sheet.disabled=!enabled;},includesTakeoffs);
+      await expect(drawSignature).toHaveCSS('width','38px');
+      await expect(drawSignature).toHaveCSS('height','38px');
+      const artwork = drawSignature.locator('[aria-hidden="true"]');
+      await expect(artwork).toHaveCSS('mask-image',/signature\.svg/);
+      await expect(artwork).toHaveCSS('width','24px');
+      await expect(artwork).toHaveCSS('height','24px');
+    }
     for(const [id,label,save] of [['draw','Draw sketch','Use sketch'],['hand','Draw signature','Insert signature']]) {
       await field(id).getByRole('button',{name:label}).click();
       const dialog=page.getByRole('dialog'), canvas=dialog.locator('canvas');

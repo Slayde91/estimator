@@ -14,7 +14,8 @@ const {chromium, expect} = require('@playwright/test');
     await page.goto('http://localhost/editor');
     for (const file of ['styles.css','forms-builder.css'])
       await page.addStyleTag({path:path.resolve(__dirname,'../../static',file)});
-    await page.addScriptTag({path:path.resolve(__dirname,'../../static/forms-builder.js')});
+    for (const file of ['form-controls.js','forms-builder.js'])
+      await page.addScriptTag({path:path.resolve(__dirname,'../../static',file)});
     await page.evaluate(() => {
       window.editor = window.ClassifireFormsBuilder.mount(document.querySelector('main'), null, {
         staff:[{id:'s1',name:'Inspector One',active:true},{id:'s2',name:'Inspector Two',active:true}],
@@ -31,6 +32,16 @@ const {chromium, expect} = require('@playwright/test');
     const snap = () => page.evaluate(() => window.editor.snapshot());
     const palette = type => page.locator('[data-field-type="'+type+'"]');
     const btn = name => page.getByRole('button',{name,exact:true});
+    async function checkRowIcons(row) {
+      for (const [name,symbol] of [['Move up','↑'],['Move down','↓']]) {
+        const button = row.getByRole('button',{name,exact:true});
+        await expect(button).toHaveAttribute('title',name);
+        await expect(button.locator('[aria-hidden="true"]')).toHaveText(symbol);
+      }
+      const remove = row.getByRole('button',{name:'Remove',exact:true});
+      await expect(remove).toHaveAttribute('title','Remove');
+      await expect(remove.locator('.trash-artwork[aria-hidden="true"]')).toBeVisible();
+    }
     const name = page.getByLabel('Template name');
     const applied = await snap();
     for (const [label,symbol] of [['Back','←'],['Undo','↶'],['Redo','↷']]) {
@@ -38,6 +49,7 @@ const {chromium, expect} = require('@playwright/test');
       await expect(btn(label).locator('.button-symbol[aria-hidden="true"]')).toHaveText(symbol);
     }
     await expect(palette('scan_id')).toHaveCount(0);
+    await expect(palette('staff_wallet')).toHaveCount(0);
     await name.fill('Site inspection');
     await palette('choice').dragTo(page.locator('.form-builder-drop-empty'));
     await page.getByLabel('Field label').fill('Weather');
@@ -123,6 +135,18 @@ const {chromium, expect} = require('@playwright/test');
     await palette('sign_on_table').click();
     assert.deepEqual((await snap()).fields.at(-1).children.map(c=>c.type),['person','datetime','manual_signature']);
     await expect(page.locator('.form-builder-nested-row select option[value="scan_id"]')).toHaveCount(0);
+    await expect(page.locator('.form-builder-nested-row select option[value="staff_wallet"]')).toHaveCount(0);
+    await checkRowIcons(columns.first());
+    const addField = btn('Add group field');
+    await expect(addField.locator('.add-symbol[aria-hidden="true"]')).toHaveText('+');
+    await expect(addField).toHaveCSS('width','42px');
+    await expect(addField).toHaveCSS('height','42px');
+    await addField.click();
+    await columns.last().getByRole('button',{name:'Move up',exact:true}).click();
+    assert.deepEqual((await snap()).fields.at(-1).children.map(c=>c.type),['person','datetime','text','manual_signature']);
+    page.once('dialog',dialog=>dialog.accept());
+    await columns.nth(2).getByRole('button',{name:'Remove',exact:true}).click();
+    assert.deepEqual((await snap()).fields.at(-1).children.map(c=>c.type),['person','datetime','manual_signature']);
     await btn('Settings').click();
     const register = page.getByRole('group',{name:'Form register'});
     await register.getByLabel('Table',{exact:true}).selectOption(duplicate.id);
@@ -149,6 +173,16 @@ const {chromium, expect} = require('@playwright/test');
     await page.getByLabel('Viewer').check();
     await page.getByLabel('Template ID').fill('QC-01');
     await page.getByLabel('Template type').selectOption('workflow');
+    const stages = page.locator('.form-builder-stage');
+    await checkRowIcons(stages.first());
+    await expect(stages.first().getByRole('button',{name:'Move up',exact:true})).toBeDisabled();
+    await btn('Add stage').click();
+    const firstStage = (await snap()).settings.stages[0].id;
+    await stages.first().getByRole('button',{name:'Move down',exact:true}).click();
+    assert.equal((await snap()).settings.stages[1].id,firstStage);
+    page.once('dialog',dialog=>dialog.accept());
+    await stages.first().getByRole('button',{name:'Remove',exact:true}).click();
+    assert.deepEqual((await snap()).settings.stages.map(stage=>stage.id),[firstStage]);
     await btn('Add stage').click();
     await page.getByLabel('Stage name').last().fill('Sign-off');
     await page.getByLabel('Restrict to staff members').last().selectOption('s2');
@@ -208,7 +242,9 @@ const {chromium, expect} = require('@playwright/test');
     await page.evaluate(() => {
       const saved = {id:'legacy-template',name:'Saved staff checks',version:1,status:'published',fields:[
         {id:'staff-check',type:'scan_id',label:'Badge scan',help:'Previously entered description.'},
-        {id:'sign-in',type:'group',label:'Staff sign-in',children:[{id:'badge',type:'scan_id',label:'Badge'}]}
+        {id:'wallet',type:'staff_wallet',label:'Verified identity'},
+        {id:'sign-in',type:'group',label:'Staff sign-in',children:[
+          {id:'badge',type:'scan_id',label:'Badge'},{id:'nested-wallet',type:'staff_wallet',label:'Staff identity'}]}
       ]};
       window.editor = window.ClassifireFormsBuilder.mount(document.querySelector('main'), saved, {
         onSave: async value => {window.saved = value; return value;}, onCancel:()=>{}, onPreview:()=>{},
@@ -217,11 +253,15 @@ const {chromium, expect} = require('@playwright/test');
     await page.getByLabel('Field label',{exact:true}).fill('Staff badge');
     await expect(page.getByLabel('Help text',{exact:true})).toHaveCount(0);
     await page.locator('.form-builder-field-select').last().click();
-    await expect(page.locator('.form-builder-nested-row').getByLabel('Type',{exact:true})).toHaveValue('scan_id');
+    await expect(columns.first().getByLabel('Type',{exact:true})).toHaveValue('scan_id');
+    await expect(columns.last().getByLabel('Type',{exact:true})).toHaveValue('staff_wallet');
+    await expect(columns.first().locator('option[value="staff_wallet"]')).toHaveCount(0);
     await btn('Save changes').click();
-    const [scan,group] = await page.evaluate(() => window.saved.fields);
+    const [scan,wallet,group] = await page.evaluate(() => window.saved.fields);
     assert.deepEqual(scan,{id:'staff-check',type:'scan_id',label:'Staff badge',help:'Previously entered description.'});
+    assert.deepEqual(wallet,{id:'wallet',type:'staff_wallet',label:'Verified identity'});
     assert.equal(group.children[0].type,'scan_id');
+    assert.deepEqual(group.children[1],{id:'nested-wallet',type:'staff_wallet',label:'Staff identity'});
     await palette('instruction').click();
     await page.getByLabel('Instructions',{exact:true}).fill('Wear eye protection.');
     assert.equal((await snap()).fields.at(-1).help,'Wear eye protection.');

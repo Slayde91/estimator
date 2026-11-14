@@ -101,9 +101,11 @@ async function checkLeadRecordPanels(page, api, person, output) {
     if (!await host.isVisible()) await page.locator('#contacts-navigation-toggle').click();
     await host.locator('.contacts-tabs').getByRole('button',{name:tab,exact:true}).click();
     await host.locator('.contacts-results').getByRole('button',{name:label,exact:true}).click();
-    const sidebar=page.getByRole('complementary',{name:'Edit '+form,exact:true}).locator('.contacts-record-right');
+    const record=page.getByRole('complementary',{name:'Edit '+form,exact:true});
+    await expect(record.locator('.contacts-record-right details > summary')).toHaveText(['Notes (0)','Files (0)','Merge records','Activity history']);
+    const sidebar=record.locator('.contacts-record-left .contacts-links');
     await expect(sidebar.locator('details > summary')).toHaveText([
-      'Notes (0)','Files (0)','Linked Quotes (1)','Linked Work Orders (1)','Linked Purchase Orders (1)','Linked Projects (1)']);
+      'Linked Quotes (1)','Linked Work Orders (1)','Linked Purchase Orders (1)','Linked Projects (1)']);
     for (const group of ['quotes','work_orders','purchase_orders','projects']) await expect(sidebar.locator('[data-link-group='+group+']').getByRole('button')).toBeVisible();
     const opened=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/commercial/saved-open');
     await sidebar.locator('[data-link-group=quotes]').getByRole('button').click();

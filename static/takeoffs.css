@@ -239,6 +239,7 @@ dialog.takeoff-column-filter{position:fixed;box-sizing:border-box;width:280px;ma
 .takeoff-column-filter-actions .button{font-size:11px;padding:7px 9px}
 
 /* Physical register and Item Details actions retain compact accessible icons. */
+.takeoff-add-substrate{--add-icon-size:42px}
 .takeoff-physical-add-row{display:flex;align-items:center;gap:8px;margin:8px 0 0;min-height:38px}
 .takeoff-physical-add-row .takeoff-physical-add-defect{color:#fff;background:var(--accent);border-color:var(--accent);padding:0;text-decoration:none;box-shadow:none}
 .takeoff-physical-inspector-actions{display:flex;grid-column:1/-1;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}

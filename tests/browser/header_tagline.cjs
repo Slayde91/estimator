@@ -53,18 +53,17 @@ async function finishBootFrames() {
     await page.clock.runFor(16); frames++;
   }
   const observed = await page.evaluate(() => ({ state: window.ClassifireBoot.state, attribute: document.documentElement.getAttribute('data-brand-boot'),
-    overlayHidden: document.querySelector('#classifire-boot').hidden, characterVisibility: getComputedStyle(document.querySelector('#header-tagline-character')).visibility, width: innerWidth }));
-  assert.equal(observed.state, 'ready'); assert.equal(observed.attribute, null); assert.equal(observed.overlayHidden, true); assert.equal(observed.characterVisibility, 'visible');
+    overlayHidden: document.querySelector('#classifire-boot').hidden, hasCharacter: !!document.querySelector('#header-tagline-character'), width: innerWidth }));
+  assert.equal(observed.state, 'ready'); assert.equal(observed.attribute, null); assert.equal(observed.overlayHidden, true); assert.equal(observed.hasCharacter, false);
   bootReadiness.push({ ...observed, frames, advancedMs: frames * 16 });
 }
 async function layout() {
   return page.evaluate(() => {
     const rectangle = selector => { const b = document.querySelector(selector).getBoundingClientRect(); return { x: b.x, y: b.y, width: b.width, height: b.height, bottom: b.bottom }; };
     const tag = document.querySelector('#header-tagline'), cursor = tag.querySelector('.header-tagline-cursor');
-    const character = document.querySelector('#header-tagline-character');
     const typed = tag.querySelector('#header-tagline-typed'), stroke = getComputedStyle(typed);
     return { brand: rectangle('.brand-stack'), logo: rectangle('.brand-logo'), header: rectangle('.app-header'), nav: rectangle('.app-header nav'), tagline: rectangle('#header-tagline'),
-      character: rectangle('#header-tagline-character'), visual: rectangle('.header-tagline-visual'), mediaState: character.dataset.taglineMotion, mediaSrc: character.getAttribute('src'), mediaLoaded: character.complete && character.naturalWidth > 0,
+      visual: rectangle('.header-tagline-visual'), typedStyle: stroke.fontStyle, typedWeight: stroke.fontWeight,
       cursorAnimation: getComputedStyle(cursor).animationName, cursorOpacity: getComputedStyle(cursor).opacity,
       cursorHidden: cursor.hidden, cursorDisplay: getComputedStyle(cursor).display, cursorAnimationCount: cursor.getAnimations().length,
       italic: getComputedStyle(tag).fontStyle, alignment: getComputedStyle(tag).textAlign, overflow: document.documentElement.scrollWidth - innerWidth,
@@ -134,14 +133,12 @@ async function typeUntilFinished(initial, expected, samples = [initial]) {
     assert.ok(sample.typed.length >= samples.at(-1).typed.length);
     assert.equal(sample.accessible, expected); assert.equal(sample.cursorHidden, sample.typed === expected);
     assert.equal(sample.underline, 'none');
-    assert.equal(sample.mediaState, 'playing', 'Character playback continues through typing and its two-second grace period');
     samples.push(sample);
   }
   assert.equal(samples.at(-1).typed, expected, 'The production typing timers must finish the exact phrase');
   assert.ok(samples.length >= 3, 'The real DOM must show progressive typing');
   assert.equal(samples.at(-1).finished?.phrase, expected);
   assert.equal(samples.at(-1).strokeFragment,'slice');
-  assert.match(samples.at(-1).mediaSrc, /^\/header-tagline-character\.gif\?play=\d+$/);
   return samples;
 }
 async function expireCursor(initial, expected) {
@@ -149,18 +146,6 @@ async function expireCursor(initial, expected) {
   assert.equal(stopped.cursorHidden, true, 'The underscore must disappear with the final character');
   assert.equal(stopped.cursorDisplay, 'none'); assert.equal(stopped.cursorAnimationCount, 0, 'Hidden cursor must have no running CSS animation');
   assert.equal(stopped.typed, expected); assert.equal(stopped.accessible, expected);
-  if (stopped.mediaState === 'playing') {
-    const remaining = 2000 - (stopped.now - stopped.finished.at);
-    assert.ok(remaining > 0, 'The supplied GIF continues for two seconds after the final character');
-    await page.clock.runFor(Math.max(0, Math.floor(remaining) - 1));
-    const grace = await layout(); assert.equal(grace.mediaState, 'playing'); assert.equal(grace.cursorHidden, true);
-    await page.clock.runFor(2);
-  }
-  const mediaStopped = await layout();
-  assert.ok(['stopped', 'reduced'].includes(mediaStopped.mediaState)); assert.equal(mediaStopped.mediaSrc, '/header-tagline-character-still.png');
-  await expect.poll(() => page.locator('#header-tagline-character').evaluate(element => element.complete && element.naturalWidth > 0)).toBe(true);
-  const still = crypto.createHash('sha256').update(await page.locator('#header-tagline-character').screenshot()).digest('hex');
-  await delay(750); assert.equal(crypto.createHash('sha256').update(await page.locator('#header-tagline-character').screenshot()).digest('hex'), still, 'Finished/reduced character displays an unchanged actual still frame');
   await page.clock.runFor(500);
   const atHalfSecond = await layout(); sameHeader(initial, atHalfSecond);
   assert.equal(atHalfSecond.typed, expected); assert.equal(atHalfSecond.cursorHidden, true);
@@ -170,18 +155,6 @@ async function expireCursor(initial, expected) {
   await page.clock.runFor(10000);
   const later = await layout(); assert.equal(later.cursorHidden, true); assert.equal(later.cursorAnimationCount, 0);
   return { stopped, atHalfSecond, afterOneSecond, later };
-}
-async function characterMotion(initial) {
-  assert.equal(initial.mediaState, 'playing'); assert.match(initial.mediaSrc, /^\/header-tagline-character\.gif\?play=\d+$/);
-  assert.ok(initial.character.bottom <= initial.tagline.y, 'The character stays in the upper brand row');
-  await expect.poll(() => page.locator('#header-tagline-character').evaluate(element => element.complete && element.naturalWidth === 512 && element.naturalHeight === 768)).toBe(true);
-  const frames = new Set();
-  for (let index = 0; index < 25 && frames.size < 2; index++) {
-    frames.add(crypto.createHash('sha256').update(await page.locator('#header-tagline-character').screenshot()).digest('hex'));
-    if (frames.size < 2) await delay(100);
-  }
-  assert.ok(frames.size > 1, 'Native GIF actually changes rendered frames while the sentence is typing');
-  return { differentNativeFrames: frames.size, src: initial.mediaSrc, originalDimensions: [512, 768] };
 }
 async function presentationNavigation(initial) {
   // Initialize every synthetic calculator and the lazy Firestopping composer before comparing fingerprints so
@@ -272,12 +245,11 @@ async function presentationNavigation(initial) {
     assert.match(response.headers()['content-security-policy'], /(?:^|;\s*)script-src 'self'(?:;|$)/);
     await page.evaluate(() => document.fonts.ready);
     await finishBootFrames();
-    const initial = await layout(); assert.equal(initial.accessible, phrase); assert.equal(initial.italic, 'italic');
+    const initial = await layout(); assert.equal(initial.accessible, phrase); assert.equal(initial.typedStyle, 'italic');
     assert.ok(phrase.startsWith(initial.typed)); assert.notEqual(initial.typed, phrase, 'Actual typing must still be in progress');
     assert.ok(initial.tagline.y >= Math.max(initial.logo.bottom,initial.nav.bottom)-1,'The sentence appears below the brand and navigation'); assert.ok(initial.overflow <= 1);
     assert.equal(initial.alignment, 'start'); assert.ok(initial.tagline.bottom <= initial.header.bottom && initial.tagline.y >= initial.header.y, 'The tagline fits within the header');
     const typingBlink = await blinking(initial, phrase, 'during typing');
-    const media = width === 1146 ? await characterMotion(initial) : { state: initial.mediaState, aboveSentence: initial.character.bottom <= initial.tagline.y }; assert.equal(initial.mediaState, 'playing'); assert.equal(media.aboveSentence ?? true, true);
     await page.screenshot({ path: path.join(output, `tagline-typing-${width}.png`), fullPage: false });
     const samples = await typeUntilFinished(initial, phrase, await bootstrap(initial, phrase));
     if (width === 390) {
@@ -289,7 +261,7 @@ async function presentationNavigation(initial) {
     assert.ok(accessibility.includes(phrase)); assert.ok(!accessibility.includes('_'));
     const expiry = await expireCursor(initial, phrase);
     await page.screenshot({ path: path.join(output, `tagline-${width}.png`), fullPage: false });
-    evidence[width] = { sampleCount: samples.length, typingBlink, media, initial, final: samples.at(-1), expiry, accessibility, dirty: false, inLowerRow: true };
+    evidence[width] = { sampleCount: samples.length, typingBlink, initial, final: samples.at(-1), expiry, accessibility, dirty: false, inLowerRow: true };
     if (width === 1146) {
       evidence.navigation = await presentationNavigation(initial);
       const previous = await page.locator('#header-tagline-label').textContent();
@@ -364,16 +336,17 @@ async function presentationNavigation(initial) {
     const audio=await page.request.get(`http://127.0.0.1:${info.port}/sounds/classifire.mp3`);assert.equal(audio.status(),200);
     assert.equal(crypto.createHash('sha256').update(await audio.body()).digest('hex'),assetHashes['static/sounds/classifire.mp3']);
     assert.match(audio.headers()['content-type'],/audio\/mpeg/);
+    assert.equal(first.typedStyle,'normal');assert.equal(settled.typedWeight,'700');
     evidence.intelligence={first,resolving,settled,brandSoundPlays:1,literalInFrench:true,audioBytesVerified:true};csp.push(...await page.evaluate(()=>window.qaCsp));await context.close();
   }
   {
     const context = await browser.newContext({ viewport: { width: 1146, height: 900 } }); await instrument(context);
     page = await context.newPage(); watch(page); await installPausedClock(); await page.goto(`http://127.0.0.1:${info.port}/`); await page.evaluate(() => document.fonts.ready); await finishBootFrames();
-    const initial = await layout(); assert.equal(initial.mediaState, 'playing'); assert.notEqual(initial.typed, phrase);
-    await page.emulateMedia({ reducedMotion: 'reduce' }); await expect.poll(() => page.locator('#header-tagline-character').getAttribute('data-tagline-motion')).toBe('reduced');
-    const reduced = await layout(); assert.equal(reduced.typed, phrase); assert.equal(reduced.cursorHidden, true); assert.equal(reduced.mediaSrc, '/header-tagline-character-still.png'); sameHeader(initial, reduced);
-    await page.emulateMedia({ reducedMotion: 'no-preference' }); await page.clock.runFor(10000); const restored = await layout(); assert.equal(restored.typed, phrase); assert.equal(restored.mediaSrc, '/header-tagline-character-still.png'); assert.notEqual(restored.mediaState, 'playing');
-    await bootstrap(restored, phrase); await clean(); evidence.preferenceChange = { typingFinishesImmediately: true, stoppedMediaDoesNotResume: true, draftsClean: true }; csp.push(...await page.evaluate(() => window.qaCsp)); await context.close();
+    const initial = await layout(); assert.notEqual(initial.typed, phrase);
+    await page.emulateMedia({ reducedMotion: 'reduce' }); await expect(page.locator('#header-tagline-typed')).toHaveText(phrase);
+    const reduced = await layout(); assert.equal(reduced.typed, phrase); assert.equal(reduced.cursorHidden, true); sameHeader(initial, reduced);
+    await page.emulateMedia({ reducedMotion: 'no-preference' }); await page.clock.runFor(10000); const restored = await layout(); assert.equal(restored.typed, phrase);
+    await bootstrap(restored, phrase); await clean(); evidence.preferenceChange = { typingFinishesImmediately: true, draftsClean: true }; csp.push(...await page.evaluate(() => window.qaCsp)); await context.close();
   }
   assert.deepEqual(errors, []); assert.deepEqual(csp, []);
   for (const name of assets) assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(root, name))).digest('hex'), assetHashes[name], `${name} changed during native acceptance`);

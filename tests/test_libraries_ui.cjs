@@ -747,6 +747,13 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     h.setRoute(path=>path==='/api/libraries'?meta():({...records('technical'),items:path.includes('offset=100')?[]:[{id:'remaining',title:'Remaining record'}],total:20,offset:path.includes('offset=100')?100:0}));
     await pane.refresh.emit('click');await flush();assert.equal(pane.offset,0);assert.match(text(pane.results),/Remaining record/);assert.match(h.calls.at(-1).path,/search=kept/);assert.equal(pane.previous.disabled,true);
   });
+  await check('Technical summary starts with the total and omits the unlinked count',async h=>{
+    await h.api.open('technical');
+    const summary=h.pane('technical').summary;
+    assert.equal(walk(summary).some(node=>node.tagName==='thead'),false);
+    assert.match(text(summary),/Total records/);
+    assert.doesNotMatch(text(summary),/No related firestopping records/);
+  });
   await check('Firestopping bars omit the extra reference dropdown while retained backend query compatibility and summary stay exact',async h=>{
     h.setRoute(path=>path==='/api/libraries'?{libraries:[{id:'penetration',available:true,count:100,unlinked_count:24}]}:({...records('penetration'),counts:{total:100,linked:76,unlinked:24,manufacturers:[{name:'Boss',count:40},{name:'Promat',count:60}]},filters:[...filters,{key:'technical_reference',label:'Server label',options:['any','linked','unlinked']}]}));
     await h.api.open('penetration');const pane=h.pane('penetration');assert.deepEqual(walk(pane.summary).filter(node=>node.tagName==='td').map(node=>node.textContent),['100','40','60','24']);assert.match(text(pane.summary),/Total records.*Boss.*Promat.*No related technical references/);assert.match(pane.count.textContent,/of 1 records/);

@@ -107,8 +107,6 @@
     cursor.hidden = true;
   }
   function finish() {
-    if (closed || motion?.matches || (phrase === intelligencePhrase && document.hidden)) window.CeasefireHeaderTaglineMedia?.stop();
-    else if (!complete) window.CeasefireHeaderTaglineMedia?.finish();
     clearTimeout(typingTimer);
     typingTimer = null;
     if (typed.textContent !== displayedPhrase) typed.textContent = displayedPhrase;
@@ -139,7 +137,6 @@
   function close() {
     stopIntelligenceSound();
     unsubscribeAudio?.();
-    window.CeasefireHeaderTaglineMedia?.close();
     closed = true;
     finish();
     stopCursor();
@@ -161,12 +158,13 @@
     label.textContent = displayedPhrase; strip.title = displayedPhrase; strip.scrollLeft = 0;
     characters = Array.from(displayedPhrase); count = 0; complete = false;
     typed.classList.remove("tagline-complete");
+    typed.classList.toggle("tagline-brand", phrase === intelligencePhrase);
     typed.textContent = ""; cursor.hidden = false;
     if (phrase === intelligencePhrase) {
       if (newAppearance) playIntelligenceSound();
       if (motion?.matches || document.hidden) finish();
-      else { window.CeasefireHeaderTaglineMedia?.start(); scrambleStarted = taglineNow(); scrambleNext(); }
-    } else if (motion?.matches) finish(); else { window.CeasefireHeaderTaglineMedia?.start(); typeNext(); }
+      else { scrambleStarted = taglineNow(); scrambleNext(); }
+    } else if (motion?.matches) finish(); else { typeNext(); }
   }
   nextPhrase();
   window.addEventListener("ceasefire:languagechange", () => { if (!closed) displayPhrase(); });
@@ -2040,11 +2038,11 @@
         const legacyPrice = getOverride(kind, item.id).sales_price;
         supplier.append(priceInput(kind, item, "supplier_price", { defaultValue: legacyPrice ?? (item.pricing_mode === "manual" ? item.sales_price : item.supplier_price), label: "Supplier price", onChange: refreshPrices }));
         markup.append(priceInput(kind, item, "markup", { defaultValue: legacyPrice !== undefined || item.pricing_mode === "manual" ? 0 : item.markup, percent: true, label: "Markup", onChange: refreshPrices }));
-        const sell = node("td"), output = node("span", "price-value", formatMoney(inventorySellPrice(item)));
+        const sell = node("td", "pricing-sell-price"), output = node("span", "price-value", formatMoney(inventorySellPrice(item)));
         output.dataset.sellPreview = "true"; sell.append(output);
         row.append(supplier, markup, sell);
       } else {
-        const supplier = node("td"), markup = node("td"), sell = node("td");
+        const supplier = node("td"), markup = node("td"), sell = node("td", "pricing-sell-price");
         supplier.append(priceInput(kind, item, "supplier_price", { defaultValue: getOverride(kind, item.id).price ?? item.supplier_price ?? rateSellPrice(item), label: "Supplier price", onChange: refreshPrices }));
         markup.append(priceInput(kind, item, "markup", { defaultValue: Object.hasOwn(getOverride(kind, item.id), "price") ? 0 : item.markup ?? 0, percent: true, label: "Markup", onChange: refreshPrices }));
         const output = node("span", "price-value", formatMoney(rateSellPrice(item))); output.dataset.sellPreview = "true"; sell.append(output);

@@ -206,9 +206,8 @@ def output_page_geometry(sources, order, register_pages):
     """Geometry expected in the exported register or standalone page operation."""
     pages = list(register_pages)
     for selection in order:
-        page = sources[selection['source']]['pages'][selection['page'] - 1]
-        rotation = portrait_plan_rotation(page) if register_pages else page['rotation']
-        pages.append({**page, 'rotation': rotation, 'page': len(pages) + 1})
+        page = register_pages[0] if register_pages else sources[selection['source']]['pages'][selection['page'] - 1]
+        pages.append({**page, 'page': len(pages) + 1})
     return pages
 
 

@@ -715,7 +715,7 @@
     return section;
   }
   function renderSettings(fields) {
-    const root = node("div", "penetration-settings"), intro = uiNode("p", "message info", "These project settings are shared by the current item and the Firestopping Schedule. Calculations retain the source workbook formulas unless you change a band table.");
+    const root = node("div", "penetration-settings");
     const scroll = node("div", "table-scroll"), table = node("table", "penetration-settings-table"), head = node("thead"), header = node("tr");
     for (const label of ["Setting", "Applies to", "Value"]) { const cell = uiNode("th", "", label); cell.scope = "col"; header.append(cell); }
     head.append(header); table.append(head);
@@ -731,7 +731,7 @@
     const allowances = window.CeasefirePenetrationPresentation.settingsSection("Waste & Allowances", state.expandedSettings);
     scroll.append(table);
     allowances.append(scroll);
-    root.append(intro, allowances, renderServiceRoutes(), renderLabourBands()); return root;
+    root.append(allowances, renderServiceRoutes(), renderLabourBands()); return root;
   }
   function renderInputTabs() {
     const groups = visibleGroups(selected().inputs);

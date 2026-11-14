@@ -32,7 +32,7 @@ a{color:inherit}
 .brand-logo{display:block;width:190px;max-width:100%;height:auto}
 .header-navigation{min-width:0;max-width:100%;width:fit-content;justify-self:center}
 .header-tagline{min-width:0;margin:0;font-family:inherit;font-style:italic;font-size:12px;line-height:1.5;color:var(--muted);text-align:start;white-space:nowrap;overflow-x:auto;scrollbar-width:none}
-.header-tagline-character{display:block;width:32px;height:48px;object-fit:contain}
+#header-tagline-typed.tagline-brand{font-style:normal;font-weight:700}
 #header-tagline-typed.tagline-complete{
   background:linear-gradient(currentColor,currentColor) left bottom / 100% 1px no-repeat;
   animation:header-tagline-underline 650ms linear;
@@ -356,6 +356,7 @@ dialog .actions{justify-content:flex-end}
 .pricing-table input[data-price-field="Item code"] { min-width: 6rem; width: 8rem; }
 .pricing-table .pricing-rate-notice { max-width: 15rem; }
 .pricing-table td { vertical-align: top; }
+.pricing-table td.pricing-sell-price { vertical-align: middle; text-align: center; }
 .pricing-row-actions{white-space:nowrap;min-width:80px}
 .pricing-row-actions .button{margin:3px}
 #view-pricing .button.library-create-action{width:var(--library-control-height);min-width:var(--library-control-height);height:var(--library-control-height);min-height:var(--library-control-height);background:#d0001b;border-color:#a80016;color:#fff}

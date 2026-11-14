@@ -78,15 +78,19 @@
     scroll.append(grid); return scroll;
   }
   function link(label, run) {const control = el('button',label,'text-button'); control.type='button'; control.addEventListener('click',()=>Promise.resolve().then(run).catch(report)); return control;}
-  function badge(value) { return el('span', value, 'forms-badge forms-status-' + value); }
+  function badge(value) {
+    const badge = el('span', value, 'forms-badge forms-status-' + value);
+    if (value === 'requested') window.CeasefireI18n.text(badge,'Requested');
+    return badge;
+  }
   function uid() { return crypto.randomUUID(); }
   function blank(mode = 'timeline') {
     return {id:uid(),version:0,name:'',description:'',mode,status:'draft',roles:['admin','editor'],fields:[],
       settings:{orientation:'portrait',...(mode === 'workflow' ? {stages:[{id:uid(),name:'Preparation',roles:['admin','editor']},{id:uid(),name:'Approval',roles:['admin']}]} : {})}};
   }
-  function modal(title) {
+  function modal(title, closeIcon = false) {
     const dialog = el('dialog', null, 'forms-dialog'); dialog.setAttribute('aria-label', title);
-    const close = button('Close', () => dialog.close());
+    const close = closeIcon ? window.ClassifireFormControls.iconButton('Close','close',()=>dialog.close()) : button('Close',()=>dialog.close());
     dialog.append(heading(title,[close])); document.body.append(dialog);
     const opener = document.activeElement;
     dialog.addEventListener('close', () => {dialog.remove(); if (opener?.isConnected) opener.focus();}, {once:true});
@@ -234,7 +238,7 @@
       actions.push(file,button('Import template',()=>file.click()),button('Create template',newTemplate,true));
     }
     box.append(heading(panel === 'templates' ? 'Form templates' : 'Form records',actions));
-    const approvals=records.filter(row=>row.can_approve);
+    const approvals=records.filter(row=>row.can_approve && row.status !== 'requested');
     if(approvals.length) {
       const queue=el('details',null,'forms-expiries');queue.open=true;
       queue.append(el('summary','Awaiting your approval ('+approvals.length+')'));
@@ -268,11 +272,56 @@
           const actions = el('div',null,'actions forms-row-actions');
           if (t.can_fill) actions.append(button('Fill out',()=>openTemplate(t.id,'fill'),true));
           if (t.can_manage) actions.append(button('Edit',()=>openTemplate(t.id,'edit')));
+          if (t.can_assign) actions.append(button('Assign',()=>assignTemplate(t)));
           return [link(t.name,()=>openTemplate(t.id,'detail')),t.mode === 'workflow' ? 'Workflow' : 'Timeline',t.version,badge(t.status),actions];
         }), needle ? 'No matching templates.' : 'No templates are available for your staff role.'));
       }
     }
     search.addEventListener('input',filter); filter();
+  }
+  async function assignTemplate(template) {
+    const dialog = modal('Assign');
+    const label = el('label',null,'field'), caption = el('span'), select = el('select');
+    window.CeasefireI18n.text(dialog.querySelector('h2'),'Assign');
+    window.CeasefireI18n.text(caption,'Team member');
+    const placeholder = new Option('', '');
+    window.CeasefireI18n.text(placeholder,'Choose…');
+    select.append(placeholder);
+    label.append(caption, select);
+    const feedback = el('p',null,'helper');
+    feedback.setAttribute('role','status');
+    const submit = button('Assign',save,true), close = dialog.querySelector('button');
+    let requestId = uid(), sending = false;
+    submit.disabled = true;
+    select.addEventListener('change',() => { requestId = uid(); submit.disabled = !select.value; });
+    dialog.addEventListener('cancel',event => { if (sending) event.preventDefault(); });
+    dialog.append(el('p',template.name),label,feedback,submit);
+    dialog.showModal();
+    try {
+      const {staff} = await api('template/assignees?'+new URLSearchParams({id:template.id,version:template.version}));
+      if (!dialog.open) return;
+      select.append(...staff.map(member=>new Option(member.name,member.id)));
+      select.disabled = !staff.length;
+      if (!staff.length) window.CeasefireI18n.text(feedback,'No eligible team members.');
+      else select.focus();
+    } catch(error) { feedback.textContent = error.message; }
+    async function save() {
+      if (sending || !select.value) return;
+      sending = true;
+      select.disabled = submit.disabled = close.disabled = true;
+      try {
+        const assigned = await api('entry/assign',{id:requestId,template_id:template.id,
+          template_version:template.version,member_id:select.value});
+        dialog.close();
+        if (await refresh()) {
+          const message = el('p',null,'helper');
+          message.setAttribute('role','status');
+          root.querySelector('.forms-register').prepend(message);
+          window.CeasefireI18n.text(message,'Assigned to {0}.',[assigned.assigned_to_name]);
+        }
+      } catch(error) { feedback.textContent = error.message; }
+      finally {sending = false; select.disabled = submit.disabled = close.disabled = false;}
+    }
   }
   async function openTemplate(id, view) {
     const stamp = ++generation, template = await api('template?id='+encodeURIComponent(id));
@@ -478,7 +527,7 @@
       lockedStages:(entry?.approvals || []).map(a=>a.stage_id),...options});
   }
   function preview(t) {
-    const dialog = modal('Template preview');
+    const dialog = modal('Template preview', true);
     dialog.classList.add('forms-preview');
     const host = el('div'); dialog.append(host);
     mountForm(host,t,null,{preview:true,onChange:()=>{}});
@@ -489,7 +538,7 @@
     const recordId = entry?.id || uid();
     const stageId = entry?.stage_id || (isNew ? t.settings?.stages?.[0]?.id : null);
     const currentStage = stage(t,stageId);
-    const back = button('Back to forms', async()=>{if(await mayDiscard()) await refresh();});
+    const back = window.ClassifireFormControls.iconButton('Back to forms','back',()=>{mayDiscard().then(leave=>leave && refresh()).catch(report);});
     const controls = [back];
     const bar = el('section',null,'card forms-entry-toolbar');
     if (editable && entry?.status !== 'submitted') {
@@ -506,7 +555,7 @@
       try {const reopened=await api('entry/reopen',{id:entry.id,version:entry.version});entryView(reopened.template,reopened);}
       finally {pending=false;}
     }));
-    if (entry) controls.push(button('Print / Save PDF',()=>printForm(t,{...entry,pdf_theme:theme.value})));
+    if (entry) controls.push(button('Download PDF',()=>downloadForm(entry,theme.value),true));
     bar.append(heading(isNew ? 'New form' : 'Form record',controls));
     const themeLabel = el('label',null,'field forms-pdf-theme'), theme = el('select');
     theme.append(...pdfThemes.map(([id,name])=>new Option(name,id)));
@@ -524,7 +573,7 @@
       host.inert=true; host.setAttribute('aria-busy','true');
       try {
         let saved = entry;
-        if (action !== 'approve' || isNew || dirty) {
+        if (action !== 'approve' || isNew || dirty || entry?.status === 'requested') {
           saved = await api('entry/save',data);
           entry = saved; dirty = false; ++changeCount;
         }
@@ -543,18 +592,21 @@
     if(entry?.approvals?.length) host.append(table(['Approved stage','Approved by','Date'],entry.approvals.map(a=>[stage(t,a.stage_id)?.name || a.stage_id,a.member_name,date(a.at)]),''));
     if(entry?.reversals?.length) host.append(table(['Reopened stage','Reopened by','Date'],entry.reversals.map(a=>[stage(t,a.stage_id)?.name || a.stage_id,a.member_name,date(a.at)]),''));
   }
-  function printForm(t,entry) {
-    const printable = el('div',null,'forms-print');
-    printable.dataset.pdfTheme = entry.pdf_theme || 'ceasefire';
-    const printedAt = new Date();
-    mountForm(printable,t,entry,{readOnly:true,printedAt});
-    const paper=printable.querySelector('.forms-paper'), revision=el('p','Template version '+t.version+' · Form version '+entry.version,'forms-print-revision');
-    paper.querySelector('h2').after(revision);
-    workflowHistory(paper,t,entry);
-    const cleanup = ()=>{document.body.classList.remove('forms-printing');printable.remove();};
-    document.body.append(printable);document.body.classList.add('forms-printing');
-    window.addEventListener('afterprint',cleanup,{once:true});
-    window.print();
+  async function downloadForm(entry, theme) {
+    if (busy()) return;
+    pending = true;
+    try {
+      const query = new URLSearchParams({id:entry.id,version:String(entry.version),theme});
+      const response = await fetch('/api/forms/entry/pdf?' + query, {cache:'no-store'});
+      if (!response.ok) throw new Error((await response.json()).error || 'The form PDF could not be downloaded.');
+      const blob = await response.blob();
+      const filename = response.headers.get('Content-Disposition')?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+      const url = URL.createObjectURL(blob);
+      const link = el('a');
+      link.href = url; link.download = filename ? decodeURIComponent(filename) : 'CLASSIFIRE-Form.pdf';
+      document.body.append(link); link.click(); link.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),60000);
+    } finally { pending = false; }
   }
   window.ClassifireForms = {activate:refresh,leave,hasUnsavedChanges:changed,isBusy:busy,revision:()=>changeCount};
 })();

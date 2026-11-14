@@ -63,12 +63,11 @@ async function checkLogoCredit() {
       range.selectNodeContents(line);
       const text = range.getBoundingClientRect(), box = line.getBoundingClientRect();
       const logo = document.querySelector('.brand-logo').getBoundingClientRect();
-      const character = document.querySelector('#header-tagline-character').getBoundingClientRect();
       return {textCentre:(text.left+text.right)/2, wordmarkCentre:logo.left+logo.width*(446+2133)/(2*2172),
         left:text.left,right:text.right,
-        top:box.top,logoInkBottom:logo.top+logo.height*(510/724),characterLeft:character.left};
+        top:box.top,logoInkBottom:logo.top+logo.height*(510/724)};
     });
-    assert.ok(position.top>=position.logoInkBottom && position.right<=position.characterLeft,'Credit clears the logo ink and tagline character');
+    assert.ok(position.top>=position.logoInkBottom,'Credit clears the logo ink');
     assert.ok(Math.abs(position.textCentre-position.wordmarkCentre)<1, 'Credit is centred under the word CLASSIFIRE');
     assert.ok(position.left>=0 && position.right<=width, 'The full credit fits in the viewport');
     if (width===913) await page.locator('.app-header').screenshot({path:path.join(output,'centred-credit-913.png')});
@@ -79,37 +78,19 @@ async function checkLogoCredit() {
   await page.setViewportSize({width:1146,height:764});
   evidence.push({name:'Logo credit', homeNavigation:true, keyboardReplay:true, reverse:true, reducedMotion:true, stableLayout:true});
 }
-async function shot(selector, name, white, logo = false) {
-  const filename = path.join(output, name + '.png'), control = page.locator(selector);
-  if (logo) await control.screenshot({ path: filename });
-  else {
-    const b = await control.boundingBox();
-    await page.screenshot({ path: filename, clip: { x: b.x - 2, y: b.y - 2, width: b.width + 4, height: b.height + 4 } });
-  }
-  // Reading screenshot pixels verifies the rendered result, including SVG
-  // filter support and animation compositing, rather than CSS declarations.
+async function checkLogoArtwork(name) {
+  const filename = path.join(output, name + '.png');
+  await page.locator('.brand-logo').screenshot({path:filename});
   const result = spawnSync(python, ['-c', `
 from PIL import Image
 import json,sys
-im=Image.open(sys.argv[1]).convert('RGB'); pixels=list(im.getdata()); w,h=im.size
-white=sys.argv[2]=='true'; logo=sys.argv[3]=='true'
-corner=im.getpixel((w-1,0)); end=im.getpixel((0,0) if logo else (w-1,h-1))
-assert max(abs(a-b) for a,b in zip(corner,end)) < 5, (corner,end)
-if not logo:
-  assert min(corner) < 254, 'An opaque white matte remains'
-  border=[im.getpixel((x,y)) for x,y in [(x,0) for x in range(w)]+[(x,h-1) for x in range(w)]+[(0,y) for y in range(h)]+[(w-1,y) for y in range(h)]]
-  assert all(max(abs(a-b) for a,b in zip(p,corner))<5 for p in border), 'Filter adds an opaque border outside the image'
-if white and not logo:
-  ink=[p for p in pixels if min(p)>240]
-  assert len(ink)>w*h*.02, 'White foreground is missing'
-  assert not any(max(p)-min(p)>65 and max(p)>200 for p in pixels), 'Colored foreground remains in Midnight'
-elif logo:
-  assert sum(p[0]>170 and p[1]<100 for p in pixels)>w*h*.05, 'Original brand colors are missing'
-else:
-  assert sum(max(p)<40 for p in pixels)>w*h*.03, 'Original black character is missing'
+im=Image.open(sys.argv[1]).convert('RGB'); w,h=im.size
+corner=im.getpixel((w-1,0))
+assert max(abs(a-b) for a,b in zip(corner,im.getpixel((0,0)))) < 5
+assert sum(r>170 and g<100 for r,g,b in im.getdata()) > w*h*.05, 'Original brand colors are missing'
 print(json.dumps({'size':[w,h],'corner':corner,'passed':True}))
-`, filename, String(white), String(logo)], { encoding: 'utf8', windowsHide: true });
-  assert.equal(result.status, 0, result.stderr); evidence.push({ name, ...JSON.parse(result.stdout), filename });
+`, filename], { encoding:'utf8', windowsHide:true });
+  assert.equal(result.status,0,result.stderr); evidence.push({name,...JSON.parse(result.stdout),filename});
 }
 async function checkCreditContrast(theme) {
   const credit = page.locator('#brand-credit');
@@ -167,14 +148,8 @@ print(json.dumps(dict(foreground=foreground,background=background,ratio=round(ra
     // The existing matte checks require a tinted surface to distinguish
     // transparency from painted white; the Ceasefire header is pure white.
     if (theme === 'ceasefire') continue;
-    await page.evaluate(() => window.CeasefireHeaderTaglineMedia.stop());
     await expect(page.locator('.brand-logo')).toHaveAttribute('src','/classifire-logo.png');
-    await shot('.brand-logo', theme + '-logo', false, true);
-    await shot('#header-tagline-character', theme + '-still', theme === 'midnight');
-    await page.evaluate(() => window.CeasefireHeaderTaglineMedia.start());
-    await expect(page.locator('#header-tagline-character')).toHaveAttribute('data-tagline-motion', 'playing');
-    await page.waitForFunction(() => document.querySelector('#header-tagline-character').complete);
-    await shot('#header-tagline-character', theme + '-gif', theme === 'midnight');
+    await checkLogoArtwork(theme + '-logo');
   }
   assert.deepEqual(await page.evaluate(() => window.artworkCsp), []); assert.deepEqual(errors, []); assert.deepEqual(hashes(), before);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ passed: true, originals: before, evidence }, null, 2)); console.log('PASS header artwork: ' + output);

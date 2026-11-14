@@ -33,7 +33,6 @@
     white-space: pre;
     pointer-events: none;
   }
-  .app-header .brand-stack > .header-tagline-character { justify-self:center; }
   .app-header .header-status-row {
     grid-column:1/-1; display:flex; align-items:center; gap:12px; min-width:0;
     padding-inline-start:clamp(0px, 3vw, 56px);
@@ -203,7 +202,6 @@
     /* Reserve room for the full credit beside the smaller wordmark. */
     .app-header .brand-stack { column-gap: 36px; }
     .app-header .brand-logo { width: 100px; }
-    .app-header .header-tagline-character { width: 26px; height: 39px; }
     .app-header .header-status-row .status-label { font-size: 10px; }
   }
 }

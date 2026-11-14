@@ -212,17 +212,24 @@
   }
   function renderSummary(pane) {
     const info = libraryInfo(pane), counts = pane.data?.counts;
-    const table = node("table", "library-summary-table"), head = node("thead"), row = node("tr"), body = node("tbody");
+    const table = node("table", "library-summary-table"), body = node("tbody");
     table.append(uiNode("caption", "", "{0} summary", [uiTerm(titles[pane.kind])]));
-    for (const label of ["Breakdown", "Records"]) { const cell = uiNode("th", "", label); cell.setAttribute("scope", "col"); row.append(cell); }
+    if (pane.kind !== "technical") {
+      const head = node("thead"), row = node("tr");
+      for (const label of ["Breakdown", "Records"]) {
+        const cell = uiNode("th", "", label);
+        cell.setAttribute("scope", "col"); row.append(cell);
+      }
+      head.append(row); table.append(head);
+    }
     const addRow = (label, value, className = "", owned = false) => {
       const line = node("tr", className), heading = (owned ? uiNode : node)("th", "", label); heading.setAttribute("scope", "row");
       line.append(heading, node("td", "", Number.isSafeInteger(value) && value >= 0 ? value : "—")); body.append(line);
     };
     addRow("Total records", counts?.total ?? info?.count, "library-summary-total", true);
     for (const entry of Array.isArray(counts?.manufacturers) ? counts.manufacturers : []) addRow(entry.name, entry.count, "library-summary-manufacturer");
-    addRow(pane.kind === "technical" ? "No related firestopping records" : "No related technical references", counts?.unlinked ?? info?.unlinked_count, "library-summary-related", true);
-    head.append(row); table.append(head, body); pane.summary.replaceChildren(table); pane.summary.hidden = false;
+    if (pane.kind !== "technical") addRow("No related technical references", counts?.unlinked ?? info?.unlinked_count, "library-summary-related", true);
+    table.append(body); pane.summary.replaceChildren(table); pane.summary.hidden = false;
   }
   function actionContext(pane) { return JSON.stringify([state.current, pane.openRevision, pane.selected, pane.search, pane.filters, pane.offset]); }
   function updateQuantity(badge, id) {

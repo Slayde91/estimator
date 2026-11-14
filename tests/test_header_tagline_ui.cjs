@@ -66,11 +66,10 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
   let current = '', last = previous, nextTimer = 0, preference, pagehide, languagechange, visibilitychange, now = 0, audioChange;
   const audio = {plays:0,pauses:0,loads:0,currentTime:0,src:'',preload:'',load(){this.loads++;},pause(){this.pauses++;},play(){this.plays++;return {catch(callback){if(rejectSound)callback(Error('Autoplay blocked'));}};}};
   const classes = new Set();
-  const typed = { classList:{add:name=>classes.add(name),remove:name=>classes.delete(name),contains:name=>classes.has(name)},
+  const typed = { classList:{add:name=>classes.add(name),remove:name=>classes.delete(name),contains:name=>classes.has(name),toggle:(name,on)=>on?classes.add(name):classes.delete(name)},
     get textContent() { return current; }, set textContent(value) { current = value; frames.push(value); } };
   const elements = { 'header-tagline-label': label, 'header-tagline': strip, 'header-tagline-typed': typed };
   const motion = { matches: reduced, addEventListener(name, callback) { assert.equal(name, 'change'); preference = callback; } };
-  let mediaTimer = null; const media = { playing: false, starts: 0, closed: false, start() { context.clearTimeout(mediaTimer); this.starts++; this.playing = !this.closed && !motion.matches; }, finish() { context.clearTimeout(mediaTimer); mediaTimer = context.setTimeout(() => this.stop(), 2000); }, stop() { context.clearTimeout(mediaTimer); this.playing = false; }, close() { this.closed = true; this.stop(); } };
   const context = {
     document: {
       hidden:false, addEventListener(name,callback){assert.equal(name,'visibilitychange');visibilitychange=callback;},
@@ -81,7 +80,6 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
     window: {
       Audio:function(){return audio;},
       CeasefireAudioSettings:{isEnabled:()=>audioEnabled,subscribe(callback){audioChange=callback;return()=>{audioChange=null;};}},
-      CeasefireHeaderTaglineMedia: media,
       CeasefireI18n: require('./english_i18n_fixture.cjs')(),
       localStorage: {
         getItem(key) { assert.equal(key, 'ceasefire.headerTagline.last'); if (blocked) throw Error('Storage denied'); return last; },
@@ -118,7 +116,7 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
   };
   const finish = () => { finishTyping(); advance(2000); };
   run();
-  return { label, strip, typed, cursor, media, audio, frames, timers, writes, run, tick, finishTyping, finish, advance, nextPhrase() { context.window.CeasefireHeaderTagline.next(); },
+  return { label, strip, typed, cursor, audio, frames, timers, writes, run, tick, finishTyping, finish, advance, nextPhrase() { context.window.CeasefireHeaderTagline.next(); },
     mute(){audioEnabled=false;audioChange?.(false);},unmute(){audioEnabled=true;audioChange?.(true);},
     hide(){context.document.hidden=true;visibilitychange();},show(){context.document.hidden=false;visibilitychange();},
     changeLanguage(translation) { context.window.CeasefireI18n = { translate: value => translation[value] || value }; languagechange(); },
@@ -129,21 +127,22 @@ for (let index = 0; index < phrases.length-1; index++) {
   const h = harness({ random: (index + .01) / phrases.length }), phrase = phrases[index];
   assert.equal(h.label.textContent, phrase); assert.equal(h.strip.title,h.label.textContent);
   assert.equal(h.typed.textContent, Array.from(phrase)[0]); assert.deepEqual(h.writes, [phrase]);
-  assert.equal(h.media.playing, true, 'The supplied character starts with phrase typing');
+
+  assert.equal(h.typed.classList.contains('tagline-brand'),false);
   assert.equal(h.audio.plays,0,'Ordinary phrases do not play the brand sound');
   assert.equal(h.typed.classList.contains('tagline-complete'), false);
   h.finishTyping();
   assert.equal(h.typed.classList.contains('tagline-complete'), false, 'Ordinary completed phrases have no underline');
   assert.equal(h.now(), (Array.from(phrase).length - 1) * 35);
   assert.equal(h.cursor.hidden, true, 'Cursor stops as soon as the final character prints');
-  assert.equal(h.media.playing, true, 'The supplied character continues after the final character');
+
   assert.equal(h.typed.textContent, phrase); assert.equal(h.label.textContent, phrase);
   assert.deepEqual(h.frames, ['', ...Array.from(phrase, (_, i) => Array.from(phrase).slice(0, i + 1).join(''))]);
-  assert.equal(h.timers.size, 1);
+  assert.equal(h.timers.size, 0);
   const finishedFrames = h.frames.slice();
   h.advance(999); assert.equal(h.cursor.hidden, true); assert.equal(h.typed.textContent, phrase);
-  h.advance(1); assert.equal(h.cursor.hidden, true); assert.equal(h.media.playing, true);
-  h.advance(999); assert.equal(h.media.playing, true); h.advance(1); assert.equal(h.media.playing, false); assert.equal(h.timers.size, 0);
+  h.advance(1); assert.equal(h.cursor.hidden, true);
+  h.advance(999); h.advance(1); assert.equal(h.timers.size, 0);
   h.advance(10000); assert.deepEqual(h.frames, finishedFrames); assert.equal(h.strip.title,h.label.textContent);
   passed++;
 }
@@ -155,7 +154,7 @@ for (let index = 0; index < phrases.length-1; index++) {
   const h = harness({ previous: 'Unrecognized old value', reduced: true });
   assert.equal(h.label.textContent, phrases[0]); assert.equal(h.typed.textContent, phrases[0]);
   assert.deepEqual(h.frames, ['', phrases[0]]); assert.equal(h.cursor.hidden, true);
-  assert.equal(h.media.playing, false, 'Reduced-motion presentation never starts character playback');
+
   assert.deepEqual([...h.timers.values()].map(timer => timer.delay), []);
   h.advance(999); assert.equal(h.cursor.hidden, true);
   h.advance(1); assert.equal(h.cursor.hidden, true); assert.equal(h.typed.textContent, phrases[0]); assert.equal(h.timers.size, 0); passed++;
@@ -175,7 +174,7 @@ for (let index = 0; index < phrases.length-1; index++) {
   const second = h.label.textContent; h.nextPhrase(); assert.notEqual(h.label.textContent, second);
   h.finishTyping(); const current = h.label.textContent;
   h.advance(999); assert.equal(h.typed.textContent, current); assert.equal(h.cursor.hidden, true);
-  h.advance(1); assert.equal(h.cursor.hidden, true); assert.equal(h.media.playing, true); h.advance(4000); assert.equal(h.timers.size, 0); assert.equal(h.writes.length, 0); passed++;
+  h.advance(1); assert.equal(h.cursor.hidden, true); h.advance(4000); assert.equal(h.timers.size, 0); assert.equal(h.writes.length, 0); passed++;
 }
 {
   const h = harness(); h.finish(); const first = h.label.textContent;
@@ -205,7 +204,7 @@ for (let index = 0; index < phrases.length-1; index++) {
 {
   const h = harness(); h.tick(); h.pagehide(); const frames = h.frames.slice();
   assert.equal(h.typed.textContent, h.label.textContent); assert.equal(h.cursor.hidden, true); assert.equal(h.timers.size, 0);
-  assert.equal(h.media.playing, false); assert.equal(h.media.closed, true);
+
   h.changeMotion(); h.nextPhrase(); h.advance(10000); assert.deepEqual(h.frames, frames); assert.equal(h.timers.size, 0); passed++;
 }
 {
@@ -261,6 +260,7 @@ const html = fs.readFileSync('static/index.html', 'utf8');
 }
 {
   const h=harness({random:.999});const phrase=phrases.at(-1);
+  assert.equal(h.typed.classList.contains('tagline-brand'),true);
   assert.equal(h.label.textContent,phrase);assert.equal(h.typed.textContent.length,phrase.length);
   assert.notEqual(h.typed.textContent,phrase);for(let i=0;i<phrase.length;i++)if(phrase[i]===' ')assert.equal(h.typed.textContent[i],' ');
   assert.equal(h.audio.src,'/sounds/classifire.mp3');assert.equal(h.audio.plays,1);
@@ -282,7 +282,7 @@ const html = fs.readFileSync('static/index.html', 'utf8');
 }
 {
   const h=harness({random:.999});h.advance(110);h.hide();const frames=h.frames.slice();
-  assert.equal(h.typed.textContent,phrases.at(-1));assert.equal(h.timers.size,0);assert.equal(h.media.playing,false);
+  assert.equal(h.typed.textContent,phrases.at(-1));assert.equal(h.timers.size,0);
   assert.ok(h.audio.pauses>0);h.show();h.advance(10000);assert.equal(h.audio.plays,1);assert.deepEqual(h.frames,frames);passed++;
 }
 {
@@ -292,13 +292,13 @@ const html = fs.readFileSync('static/index.html', 'utf8');
 }
 {
   const h=harness({random:.999,reduced:true});assert.equal(h.typed.textContent,phrases.at(-1));
-  assert.equal(h.audio.plays,1);assert.equal(h.timers.size,0);assert.equal(h.media.playing,false);passed++;
+  assert.equal(h.audio.plays,1);assert.equal(h.timers.size,0);passed++;
 }
 {
   const h=harness({random:.999});h.advance(110);h.pagehide();const frames=h.frames.slice();
-  h.advance(10000);h.nextPhrase();assert.deepEqual(h.frames,frames);assert.equal(h.timers.size,0);assert.equal(h.media.playing,false);assert.equal(h.audio.plays,1);passed++;
+  h.advance(10000);h.nextPhrase();assert.deepEqual(h.frames,frames);assert.equal(h.timers.size,0);assert.equal(h.audio.plays,1);passed++;
 }
-assert.match(html, /id="header-tagline-character"[^>]*alt=""[^>]*aria-hidden="true"/, 'The decorative supplied character stays out of the accessibility tree');
+assert.doesNotMatch(html, /id="header-tagline-character"|src="\/header-tagline-media\.js"/);
 assert.match(html, /id="header-tagline-label" class="sr-only"/);
 assert.match(html, /class="header-tagline-visual" aria-hidden="true"/);
 assert.doesNotMatch(html, /id="header-tagline-sizer"/);

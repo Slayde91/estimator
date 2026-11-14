@@ -921,8 +921,8 @@
       if (linkedContact) {workspaceLeft.append(linkedContact);showLinkedContact();}
       const toolbar=el("div","commercial-editor-actions contacts-record-toolbar");toolbar.append(close);
       sidebarLinks=el("div","contacts-links");
-      if (kind === "leads") workspaceLeft.append(sidebarLinks);
-      workspaceLeft.append(leadHistory);
+      if (kind === 'leads') workspaceLeft.append(sidebarLinks,leadHistory);
+      else workspaceLeft.append(leadHistory,sidebarLinks);
       if(!readOnly)toolbar.append(save);
       const refreshRecords = button("Refresh Records", async () => {
         if (refreshRecords.disabled || submitting || resources?.pending() || timeline?.pending()) return;
@@ -947,8 +947,7 @@
       toolbar.append(refreshRecords);
       const originalChildren=[...form.children];
       for(const child of originalChildren) {
-        if (kind === "leads" && child.matches(".crm-timeline")) workspaceRight.append(child);
-        else if(child.matches(".crm-merge-records,.crm-timeline"))workspaceLeft.append(child);
+        if (child.matches(".crm-merge-records,.crm-timeline")) workspaceRight.append(child);
         else details.append(child);
       }
       main.append(toolbar,details);columns.append(workspaceLeft,main,workspaceRight);form.append(columns);
@@ -956,7 +955,6 @@
       form.addEventListener("input",showAssociation);
       const resourceHost=el("div","contacts-record-resources");
       workspaceRight.prepend(resourceHost);
-      if (kind !== "leads") workspaceRight.append(sidebarLinks);
       for(const groups of details.querySelectorAll(".contacts-links"))arrangeLinkedGroups(groups);
       accountEditor = {element:dialog, kind, close:closeEditor, pending:()=>submitting || timeline?.pending?.() || resources?.pending?.(),
         pendingMessage:()=>({contacts:"Finish the current Contact action first.",accounts:"Finish the current Company action first.",leads:"Finish the current Lead action first."}[kind]),

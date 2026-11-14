@@ -1,4 +1,7 @@
 {
+  "Assign": "Attribuer",
+  "No eligible team members.": "Aucun membre de l’équipe ne remplit les conditions.",
+  "Assigned to {0}.": "Attribué à {0}.",
   "Drag the pin to move it. Right-click or tap it to delete.": "Faites glisser le repère pour le déplacer. Pour le supprimer, faites un clic droit ou touchez-le.",
   "Resize register": "Modifier la largeur du registre",
   "Plan location": "Emplacement sur le plan",

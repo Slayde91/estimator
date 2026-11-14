@@ -90,6 +90,9 @@ async function importWorkbook(file,accept){
   await expect(page.locator('#pricing-head th')).toHaveText(['Product/Service','Manufacturer','Supplier price','Markup %','Sell price','Main Estimator groups','Firestopping Estimator groups','Yield','Actions']);
   await page.locator('#pricing-search').fill(owner.manufacturer);await expect(row()).toBeVisible();await expect(field()).toHaveValue(owner.manufacturer);
   await findOwner();await expect(field()).toHaveAttribute('maxlength','200');await expect(field()).toHaveAccessibleName(owner.name+': Manufacturer');await field().scrollIntoViewIfNeeded();
+  const sellPrice = row().locator('.pricing-sell-price');
+  await expect(sellPrice).toHaveCSS('vertical-align','middle');
+  await expect(sellPrice).toHaveCSS('text-align','center');
   await page.screenshot({path:path.join(output,'manufacturer-desktop.png')});evidence.layouts.push({width:1146,visible:true,editable:true});
   await editManufacturer('QA desktop manufacturer');await page.locator('#pricing-search').fill('QA desktop manufacturer');await expect(row()).toHaveCount(1);await expect(page.locator('#pricing-body tr')).toHaveCount(1);
   // Cancelling the native Save confirmation keeps the edited field and all shared data.

@@ -84,7 +84,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
         raise ValidationError(PROJECT_REQUIRED)
     certifications = CertificationService(store, numbering=document_numbers, creation_guard=require_project_for_legacy_creation)
     forms_http = FormsHTTP(Forms(store.path.with_name(store.path.stem + '-forms.sqlite3'),
-                                access.staff, store.company_settings, certifications.get_defaults))
+                                lambda: access.staff(include_roles=True), store.company_settings, certifications.get_defaults))
     certification_projects = CertificationProjects(certifications)
     projects.certifications = certification_projects
     from .documentation_catalog import document_catalog, export_identity, PDF, XLSX

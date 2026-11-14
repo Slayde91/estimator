@@ -122,6 +122,10 @@ async function controls() {
   }));
   assert.ok(controls.previous.includes('takeoff-register-table')); assert.ok(controls.next.includes('takeoff-register-controls'));
   assert.deepEqual(controls.names, ['Add substrate']);
+  const add = page.getByRole('button', {name:'Add substrate',exact:true});
+  await expect(add).toHaveCSS('background-color','rgb(208, 0, 27)');
+  await expect(add).toHaveCSS('width','42px');
+  await expect(add).toHaveCSS('height','42px');
   assert.equal(await page.getByRole('button', { name: 'Delete selected records', exact: true }).evaluate(el => el.previousElementSibling.textContent), 'Unconfirm');
   const trash = page.getByRole('button', { name: 'Delete selected records', exact: true }), discard = details().getByRole('button', { name: 'Discard unfinished physical edits', exact: true });
   await expect(discard).toHaveCount(1); await expect(page.getByRole('button', { name: 'Discard unfinished physical edits', exact: true })).toHaveCount(1);

@@ -201,6 +201,91 @@ def _draw_pins(page, info, marks):
     page.merge_transformed_page(PdfReader(stream).pages[0], transforms[rotation], expand=False)
 
 
+def _fit_plan_annotations(writer, page, transform, rotation, scale, view):
+    """Rotate saved appearances and move markup coordinates with the drawing."""
+    from copy import copy
+    from pypdf import Transformation
+    from pypdf.generic import ArrayObject, DictionaryObject, FloatObject, NameObject, NumberObject, StreamObject
+    def numbers(values):
+        return ArrayObject([FloatObject(value) for value in values])
+
+    def points(values):
+        return numbers(coordinate for x, y in zip(values[::2], values[1::2], strict=True)
+                       for coordinate in transform.apply_on((float(x), float(y))))
+
+    def turned_appearance(obj):
+        obj = obj.get_object()
+        if isinstance(obj, StreamObject):
+            turned = copy(obj)
+            turned.indirect_reference = None
+            matrix = Transformation(tuple(map(float, obj.get('/Matrix', (1, 0, 0, 1, 0, 0)))))
+            turned[NameObject('/Matrix')] = numbers(matrix.transform(rotation).ctm)
+            return writer._add_object(turned)
+        return DictionaryObject({key: turned_appearance(value) for key, value in obj.items()})
+
+    for reference in page.get('/Annots', []):
+        mark = reference.get_object()
+        x0, y0, x1, y1 = map(float, mark['/Rect'])
+        if x1 < view[0] or y1 < view[1] or x0 > view[2] or y0 > view[3]:
+            mark[NameObject('/F')] = NumberObject(int(mark.get('/F', 0)) | 2)
+        left, bottom, right, top = points((x0, y0, x1, y1))
+        mark[NameObject('/Rect')] = numbers((min(left, right), min(bottom, top), max(left, right), max(bottom, top)))
+        for key in ('/QuadPoints', '/Vertices', '/L', '/CL'):
+            if key in mark:
+                mark[NameObject(key)] = points(mark[key])
+        if '/InkList' in mark:
+            mark[NameObject('/InkList')] = ArrayObject([points(stroke) for stroke in mark['/InkList']])
+        if '/AP' in mark and rotation.ctm != (1, 0, 0, 1, 0, 0):
+            mark[NameObject('/AP')] = turned_appearance(mark['/AP'])
+        if '/BS' in mark:
+            border = DictionaryObject(mark['/BS'])
+            border[NameObject('/W')] = FloatObject(float(border.get('/W', 1)) * scale)
+            mark[NameObject('/BS')] = border
+        if '/Border' in mark:
+            border = mark['/Border']
+            mark[NameObject('/Border')] = ArrayObject([*numbers(float(value) * scale for value in border[:3]), *border[3:]])
+
+
+def _fit_register_plan(writer, page, info, paper, pins):
+    """Clip to the visible source sheet and centre its upright portrait view on the register's paper."""
+    from pypdf import Transformation
+    from pypdf.generic import FloatObject, NameObject, NumberObject, RectangleObject
+    x0, y0, x1, y1 = info['view']
+    rotation = limits.portrait_plan_rotation(info)
+    quarter_turns = {0: (1, 0, 0, 1, -x0, -y0), 90: (0, -1, 1, 0, -y0, x1),
+                     180: (-1, 0, 0, -1, x1, y1), 270: (0, 1, -1, 0, y1, -x0)}
+    turn = quarter_turns[rotation]
+    width, height = x1 - x0, y1 - y0
+    if rotation in (90, 270):
+        width, height = height, width
+    l, b, r, t = paper['view']
+    paper_w, paper_h = r - l, t - b
+    scale = min(paper_w / width, paper_h / height)
+    fitted_w, fitted_h = width * scale, height * scale
+    dx, dy = (paper_w - fitted_w) / 2, (paper_h - fitted_h) / 2
+    transform = Transformation(turn).scale(scale).translate(l + dx, b + dy)
+    contents = page.get_contents()
+    if contents is not None:
+        contents.operations[0:0] = [([FloatObject(v) for v in (x0, y0, x1 - x0, y1 - y0)], b're'),
+                                    ([], b'W'), ([], b'n')]
+        page.replace_contents(contents)
+        page.add_transformation(transform)
+    _fit_plan_annotations(writer, page, transform, Transformation((*turn[:4], 0, 0)), scale, info['view'])
+    for box in ('/TrimBox', '/ArtBox', '/BleedBox'):
+        page.pop(box, None)
+    page[NameObject('/MediaBox')] = RectangleObject(paper['media_box'])
+    page[NameObject('/CropBox')] = RectangleObject(paper['crop_box'])
+    page[NameObject('/UserUnit')] = FloatObject(paper['user_unit'])
+    page[NameObject('/Rotate')] = NumberObject(paper['rotation'])
+    fitted_pins = []
+    for pin in pins:
+        x, y = pin['x'], pin['y']
+        if rotation != info['rotation']:
+            x, y = 1 - y, x
+        fitted_pins.append({**pin, 'x': (dx + x * fitted_w) / paper_w, 'y': (dy + y * fitted_h) / paper_h})
+    _draw_pins(page, paper, fitted_pins)
+
+
 def compose(spec, output):
     from pypdf import PdfReader, PdfWriter
     from pypdf.generic import NameObject, NumberObject, FloatObject, RectangleObject
@@ -261,16 +346,9 @@ def compose(spec, output):
                 page[NameObject('/CropBox')] = RectangleObject(info['crop_box'])
                 page[NameObject('/UserUnit')] = FloatObject(info['user_unit'])
                 annotation_count += _copy_annotations(writer, original, page, static_plan=bool(prefix))
-                rotation = info['rotation']
+                page[NameObject('/Rotate')] = NumberObject(info['rotation'])
                 if (index, number) in marks:
-                    rotation = limits.portrait_plan_rotation(info)
-                    pins = marks[index, number]
-                    if rotation != info['rotation']:
-                        # Coordinates were captured in the original top-left viewport.
-                        # Turn anchors with the drawing and print callouts upright.
-                        pins = [{**pin, 'x': 1 - pin['y'], 'y': pin['x']} for pin in pins]
-                    _draw_pins(page, {**info, 'rotation': rotation}, pins)
-                page[NameObject('/Rotate')] = NumberObject(rotation)
+                    _fit_register_plan(writer, page, info, prefix[0], marks[index, number])
                 if annotation_count > MAX_ANNOTATIONS:
                     raise ValueError('The selected PDF annotations exceed their bounded copy limit.')
                 cloned[(index, number)] = page

@@ -57,7 +57,6 @@
   <link rel="stylesheet" href="/passive-fire-register.css">
   <link rel="stylesheet" href="/documentation.css">
   <script src="/main-layout.js" defer></script>
-  <script src="/header-tagline-media.js" defer></script>
   <script src="/header-menu-sounds.js" defer></script>
   <script src="/penetration-presentation.js" defer></script>
   <script src="/travel.js" defer></script>
@@ -128,29 +127,10 @@
     <img src="/classifire-logo.png" width="2172" height="724" alt="CLASSIFIRE">
     <span class="sr-only" data-i18n="Loading the estimator and pricing library…">Loading the estimator and pricing library…</span>
   </div>
-  <!-- Derive the supplied grayscale character's alpha at render time. The
-       original GIF frames, timing and stopped frame remain unchanged. -->
-  <svg class="header-artwork-filters" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-    <defs>
-      <filter id="header-character-ink" color-interpolation-filters="sRGB">
-        <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -1 0 0 0 1" result="ink-alpha"/>
-        <feComposite in="ink-alpha" in2="SourceAlpha" operator="in" result="ink-alpha"/>
-        <feFlood flood-color="#000"/>
-        <feComposite in2="ink-alpha" operator="in"/>
-      </filter>
-      <filter id="header-character-white" color-interpolation-filters="sRGB">
-        <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -1 0 0 0 1" result="ink-alpha"/>
-        <feComposite in="ink-alpha" in2="SourceAlpha" operator="in" result="ink-alpha"/>
-        <feFlood flood-color="#fff"/>
-        <feComposite in2="ink-alpha" operator="in"/>
-      </filter>
-    </defs>
-  </svg>
   <a class="skip-link" href="#main" data-i18n="Skip to content">Skip to content</a>
   <header class="app-header">
     <div class="brand-stack"><a class="brand" href="/" aria-label="CLASSIFIRE home" aria-describedby="brand-credit-description"><img class="brand-logo" src="/classifire-logo.png" alt="CLASSIFIRE" width="2172" height="724"><span id="brand-credit" aria-hidden="true" lang="en" dir="ltr" translate="no"></span></a>
       <span id="brand-credit-description" lang="en" translate="no" hidden>Powered by CEASEFIRE PFP</span>
-      <img id="header-tagline-character" class="header-tagline-character" src="/header-tagline-character-still.png" width="32" height="48" alt="" aria-hidden="true">
     </div>
     <div class="header-navigation-stack">
     <div class="header-navigation">

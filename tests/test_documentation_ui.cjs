@@ -168,12 +168,13 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.deepEqual(copy(await reading),[statement]);
   });
   await check('Only actual supported export paths acquire project recording headers',async h=>{
+    h.window.CeasefireTheme={downloadHeaders:()=>({'X-Estimator-Document-Theme':'forest'})};
     for(const path of ['/api/calculars/invalid','/api/quote-report?foreign=1','https://foreign.invalid/api/quote-report','/api/documentation/catalog','/api/calculators/unknown/report.pdf','/api/takeoffs/sessions/a/export/csv']){
       assert.deepEqual(copy(await h.api.downloadHeaders(path)),{});assert.equal(h.api.hasPendingOperation(),false);
     }
     assert.equal(h.calls.length,0);
     for(const path of ['/api/quote-report','/api/pricing/export','/api/calculators/ductwork/register.xlsx','/api/penetration/report.pdf','/api/technical/item.pdf','/api/takeoffs/sessions/a/pdf-tools']){
-      const headers=await h.api.downloadHeaders(path);assert.equal(headers['X-Estimator-Documentation-Workspace'],token(1));assert.match(headers['X-Estimator-Documentation-Request'],/^30000000-/);
+      const headers=await h.api.downloadHeaders(path);assert.equal(headers['X-Estimator-Document-Theme'],'forest');assert.equal(headers['X-Estimator-Documentation-Workspace'],token(1));assert.match(headers['X-Estimator-Documentation-Request'],/^30000000-/);
       assert.equal(h.api.hasPendingOperation(),true);await h.api.downloadCompleted(headers,{saved:true});assert.equal(h.api.hasPendingOperation(),false);
     }
   });

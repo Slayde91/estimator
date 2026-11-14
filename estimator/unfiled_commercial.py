@@ -40,6 +40,8 @@ class UnfiledCommercial:
             CREATE TABLE IF NOT EXISTS local_commercial_owners (
                 workspace TEXT PRIMARY KEY, token TEXT NOT NULL UNIQUE, generation INTEGER NOT NULL DEFAULT 1,
                 filed INTEGER NOT NULL DEFAULT 0);
+            CREATE TABLE IF NOT EXISTS commercial_first_filing (
+                local_token TEXT PRIMARY KEY, source TEXT NOT NULL, project_id TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS local_commercial_documents (
                 workspace TEXT NOT NULL, id TEXT NOT NULL, estimates BLOB,
                 PRIMARY KEY(workspace,id));
@@ -75,6 +77,10 @@ class UnfiledCommercial:
     def bind_file(db, workspace, path=None):
         if path is not None:
             source = source_id(str(path))
+            # Retain the first file's provenance for time clocked before this project was filed.
+            db.execute('''INSERT OR IGNORE INTO commercial_first_filing(local_token,source,project_id)
+                SELECT o.token,?,w.project_id FROM local_commercial_owners o JOIN commercial_workspaces w USING(workspace)
+                WHERE o.workspace=? AND o.filed=0''', (source, workspace))
             # Only the first filing adopts previously workspace-owned entries.
             # A later Save As binds future writes to its own source.
             db.execute('UPDATE record_activity SET source=? WHERE source=?', (source, 'workspace:'+workspace))

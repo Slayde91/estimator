@@ -291,11 +291,13 @@
   async function downloadHeaders(path) {
     // Standalone tools can export without adding a revision to an unsaved
     // project. Documentation and its history require an actual saved owner.
-    if(!supported(path)||!projectAvailable())return {};
+    if(!supported(path))return {};
+    const theme = window.CeasefireTheme?.downloadHeaders() || {};
+    if(!projectAvailable())return theme;
     const epoch=state.epoch,scope=await ensureWorkspace();
     if(!current(scope,epoch))throw new Error("The project changed while preparing the document.");
     const id=crypto.randomUUID();state.pending.set(id,{scope,epoch});
-    return {'X-Estimator-Documentation-Workspace':scope.workspace_id,'X-Estimator-Documentation-Request':id};
+    return {...theme,'X-Estimator-Documentation-Workspace':scope.workspace_id,'X-Estimator-Documentation-Request':id};
   }
   async function downloadCompleted(headers,result) {
     const id=headers?.['X-Estimator-Documentation-Request'],pending=state.pending.get(id);

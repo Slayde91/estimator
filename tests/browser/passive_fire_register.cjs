@@ -28,7 +28,7 @@ async function register() {
   const button = page.locator('button[data-document-kind="passive_fire_register.pdf"]');
   await button.waitFor({state:'attached'});
   if (!await button.isVisible()) await page.locator('#documentation-pdf-rows').getByRole('button',{name:'Schedules',exact:true}).click();
-  await expect(button).toHaveAccessibleName('Download Passive Fire Register');
+  await expect(button).toHaveAccessibleName('Download Passive Fire Inspections');
   await expect(page.locator('tr[data-document-kind="passive_fire_register.pdf"] #cover-sheet-passive_fire_register')).toHaveCount(1);
   assert.equal(await button.locator('xpath=ancestor::tr/preceding-sibling::tr[1]').getAttribute('data-document-kind'),'firestopping.schedule.pdf');
   await button.click();
@@ -67,6 +67,7 @@ async function run() {
   await expect(picker.getByRole('img')).toHaveJSProperty('naturalWidth', 240);
   await chosen.uncheck();
   await expect(picker.getByRole('checkbox')).toHaveCount(2);
+  await picker.locator('[data-library-filter="manufacturer"]').selectOption('Synthetic manufacturer');
   await chosen.check();
   await expect(form.getByLabel('ID Number')).toHaveValue('001');
   await expect(form.getByLabel('ID Number')).toHaveJSProperty('readOnly', true);
@@ -74,7 +75,9 @@ async function run() {
   await page.locator('#save-current-project').click();
   assert.equal((await savedDraft).status(),200);
   await idle();
-  assert.equal(JSON.parse(fs.readFileSync(info.project)).passive_fire_register.entries[0].location,'North wall, Level 2');
+  const entry = JSON.parse(fs.readFileSync(info.project)).passive_fire_register.entries[0];
+  assert.equal(entry.location,'North wall, Level 2');
+  assert.deepEqual(entry.technical_filters,{manufacturer:'Synthetic manufacturer'});
   await require('./register_plan_location.cjs').pinDrawing(page, register, info.directory);
   const access = form.getByLabel('Is the other side accessible?');
   await access.selectOption('No');

@@ -9,6 +9,7 @@ from copy import deepcopy
 from hashlib import sha256
 from html import escape
 from io import BytesIO
+from .document_theme import accent_hex
 from .company_settings import company_logo
 import json
 import re
@@ -58,7 +59,7 @@ def _hidden_field(record, field):
                 and _SELECTOR_ID.fullmatch(_text(field.get('value')).strip())))
 
 
-def prepare_technical_item(body, *, library, include_diagrams=True):
+def prepare_technical_item(body, *, library, include_diagrams=True, inspection_filters=None):
     if not isinstance(body, dict) or set(body) - {'id', 'download'} or 'id' not in body:
         raise ValidationError('Include only one Technical Library item ID and an optional download destination.')
     key = identifier(body['id'])
@@ -78,6 +79,28 @@ def prepare_technical_item(body, *, library, include_diagrams=True):
         if name in record:
             metadata[name] = _text(record[name])
     account(list(metadata.values()))
+    inspection_rows = set()
+    if inspection_filters is not None:
+        for facet in ('substrate', 'orientation', 'manufacturer'):
+            label = facet.capitalize()
+            choices = record['inspection_options'][facet]
+            selected = inspection_filters.get(facet)
+            if selected and selected not in choices:
+                raise ValidationError(f'The selected {label} no longer matches this Technical Library item. Select the item again before downloading.')
+            source_values = [f['value'] for f in record.get('fields', []) if f['label'].casefold() == facet and f.get('value')]
+            if selected:
+                value = selected
+            elif len(choices) == 1:
+                value = choices[0]
+            elif choices:
+                value = 'Not selected (library options: ' + ', '.join(choices) + ')'
+            elif source_values:
+                continue  # The source field will be included below.
+            else:
+                value = 'Not recorded'
+            fields.append({'label': label, 'value': value, 'report_links': []})
+            inspection_rows.add((label, value))
+            account([label, value])
     for field in record.get('fields', []):
         label = field['label']
         if _hidden_field(record, field) or (not include_diagrams and label.strip().casefold() == 'diagrams & figures'):
@@ -90,7 +113,8 @@ def prepare_technical_item(body, *, library, include_diagrams=True):
         except (ValueError, TypeError, KeyError) as exc:
             raise ValidationError('The technical item contains an invalid report reference.') from exc
         captured = {'label': label, 'value': _text(field.get('value')), 'report_links': deepcopy(field.get('report_links', []))}
-        fields.append(captured)
+        if captured['report_links'] or (label, captured['value']) not in inspection_rows:
+            fields.append(captured)
         account([label, captured['value']])
         for ordinal, table in enumerate(([field['table']] if field.get('table') else []) + field.get('tables', [])):
             visible = [i for i, name in enumerate(table['columns']) if ' '.join(name.strip().casefold().split()) not in _HIDDEN_COLUMNS]
@@ -258,7 +282,7 @@ def append_technical_item_fields(report, snapshot, content):
         report.story.append(report.p(record['configuration']))
     rows = []
     for label, value, url in _field_rows(snapshot):
-        cell = report.rich(f'<link href="{escape(url, quote=True)}" color="#BD0018"><u>{_escaped(value)}</u></link>') if url else report.p(value, 'cell')
+        cell = report.rich(f'<link href="{escape(url, quote=True)}" color="#{accent_hex()}"><u>{_escaped(value)}</u></link>') if url else report.p(value, 'cell')
         rows.append([report.p(label, 'cell'), cell])
     if rows:
         report.story.append(report.table(['Field', 'Value'], rows, [content * .3, content * .7]))

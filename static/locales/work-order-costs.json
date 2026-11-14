@@ -1,0 +1,93 @@
+{
+  "Work Order costs": [
+    "工单成本",
+    "कार्य आदेश की लागत",
+    "Costes de la orden de trabajo",
+    "تكاليف أمر العمل",
+    "ต้นทุนใบสั่งงาน"
+  ],
+  "Work Order cost breakdown": [
+    "工单成本明细",
+    "कार्य आदेश की लागत का विवरण",
+    "Desglose de costes de la orden de trabajo",
+    "تفصيل تكاليف أمر العمل",
+    "รายละเอียดต้นทุนใบสั่งงาน"
+  ],
+  "Estimated cost {0}": [
+    "估算成本 {0}",
+    "अनुमानित लागत {0}",
+    "Coste estimado {0}",
+    "التكلفة المقدّرة {0}",
+    "ต้นทุนโดยประมาณ {0}"
+  ],
+  "Remaining estimate": [
+    "剩余预算",
+    "शेष अनुमानित राशि",
+    "Presupuesto restante",
+    "المبلغ المقدّر المتبقي",
+    "งบประมาณคงเหลือ"
+  ],
+  "Purchase orders": [
+    "采购订单",
+    "खरीद आदेश",
+    "Órdenes de compra",
+    "أوامر الشراء",
+    "ใบสั่งซื้อ"
+  ],
+  "Time entries": [
+    "工时记录",
+    "कार्य समय की प्रविष्टियाँ",
+    "Registros de horas",
+    "سجلات ساعات العمل",
+    "รายการบันทึกเวลาทำงาน"
+  ],
+  "Loss {0}": [
+    "亏损 {0}",
+    "हानि {0}",
+    "Pérdida {0}",
+    "الخسارة {0}",
+    "ขาดทุน {0}"
+  ],
+  "Enter an estimated cost to see the breakdown.": [
+    "输入估算成本以查看明细。",
+    "विवरण देखने के लिए अनुमानित लागत दर्ज करें।",
+    "Introduzca el coste estimado para ver el desglose.",
+    "أدخل التكلفة المقدّرة لعرض التفاصيل.",
+    "ป้อนต้นทุนโดยประมาณเพื่อดูรายละเอียด"
+  ],
+  "Loading time entry costs…": [
+    "正在加载工时成本…",
+    "कार्य समय की लागत लोड हो रही है…",
+    "Cargando el coste de las horas…",
+    "جارٍ تحميل تكلفة ساعات العمل…",
+    "กำลังโหลดต้นทุนชั่วโมงทำงาน…"
+  ],
+  "Time entry costs could not be loaded.": [
+    "无法加载工时成本。",
+    "कार्य समय की लागत लोड नहीं हो सकी।",
+    "No se pudo cargar el coste de las horas.",
+    "تعذّر تحميل تكلفة ساعات العمل.",
+    "โหลดต้นทุนชั่วโมงทำงานไม่ได้"
+  ],
+  "A linked time entry has no recorded hourly rate.": [
+    "一条关联工时记录没有小时费率。",
+    "एक संबद्ध कार्य समय प्रविष्टि में प्रति घंटा दर दर्ज नहीं है।",
+    "Un registro de horas vinculado carece de tarifa horaria.",
+    "يوجد سجل ساعات مرتبط لم يُسجّل فيه أجر الساعة.",
+    "บันทึกเวลาที่เชื่อมโยงรายการหนึ่งไม่มีอัตราค่าจ้างรายชั่วโมง"
+  ],
+  "Confirm Scheduler pay rules to calculate time entry costs.": [
+    "请确认排班器的薪酬规则以计算工时成本。",
+    "कार्य समय की लागत निकालने के लिए शेड्यूलर के वेतन नियमों की पुष्टि करें।",
+    "Confirme las reglas salariales del planificador para calcular el coste de las horas.",
+    "أكّد قواعد الأجر في المجدول لحساب تكلفة ساعات العمل.",
+    "ยืนยันกฎการจ่ายค่าจ้างในตัวจัดตารางเพื่อคำนวณต้นทุนชั่วโมงทำงาน"
+  ],
+  "Some linked time entries have a recorded hourly rate of $0.00.": [
+    "部分关联工时记录的小时费率为 $0.00。",
+    "कुछ संबद्ध समय प्रविष्टियों में प्रति घंटा दर $0.00 दर्ज है।",
+    "Algunos registros de horas vinculados tienen una tarifa de $0.00 por hora.",
+    "أجر الساعة المسجّل لبعض سجلات الساعات المرتبطة هو $0.00.",
+    "บันทึกเวลาที่เชื่อมโยงบางรายการมีอัตราค่าจ้าง $0.00 ต่อชั่วโมง"
+  ]
+}

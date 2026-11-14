@@ -27,7 +27,7 @@ READ_POSTS = frozenset(('/api/calculate', '/api/calculators/calculate',
     '/api/project/open', '/api/project/library-drafts/prepare', '/api/certifications/workspaces'))
 EDIT_GETS = frozenset(('/api/libraries/technical/new',))
 ADMIN_READS = frozenset(('/api/certifications/defaults/legacy',))
-IDENTITY_READS = frozenset(('/api/record-resources','/api/record-resources/file','/api/certifications/defaults','/api/certifications/defaults/legacy','/api/scheduler/bootstrap'))
+IDENTITY_READS = frozenset(('/api/commercial/work-order-labour','/api/record-resources','/api/record-resources/file','/api/certifications/defaults','/api/certifications/defaults/legacy','/api/scheduler/bootstrap'))
 PERSONAL_NUMBERING = frozenset(('/api/numbering-settings', '/api/document-numbering', '/api/project-details'))
 AUDIT_SEGMENTS = frozenset(('record-resources','upload','remove-file','file','api','contacts','accounts','leads','activity','identity','merge','undo','preview','suggestions','sync-project-details',
     'crm','project-participants','sites','commercial','follow-up','saved-save','saved-status','saved-issue','saved-delete',

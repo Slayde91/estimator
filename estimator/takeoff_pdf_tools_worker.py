@@ -128,8 +128,8 @@ def _combine_layers(configurations):
     return DictionaryObject({NameObject('/OCGs'): ArrayObject(groups), NameObject('/D'): default})
 
 
-def _draw_pins(page, info, marks):
-    """Draw in the same upright, cropped coordinate system as the PDF.js viewport."""
+def _draw_pins(page, info, marks, *, turn_clockwise=False):
+    """Lay out labels in the source viewer's orientation, then turn the whole overlay with the plan."""
     from pypdf import PdfReader
     from reportlab.pdfgen.canvas import Canvas
     x0, y0, x1, y1 = info['view']
@@ -142,6 +142,10 @@ def _draw_pins(page, info, marks):
                   180: (-1, 0, 0, -1, x1, y1), 270: (0, -1, 1, 0, x0, y1)}
     stream = BytesIO()
     canvas = Canvas(stream, pagesize=(width, height), invariant=True)
+    if turn_clockwise:
+        canvas.translate(0, height)
+        canvas.rotate(-90)
+        width, height = height, width
     # Each label reserves one slot. For crowded sheets size the grid for all
     # pins first, then look up an unused slot without scanning prior labels.
     longest = max(canvas.stringWidth(mark['label'], 'Helvetica-Bold', 9) for mark in marks)
@@ -277,13 +281,15 @@ def _fit_register_plan(writer, page, info, paper, pins):
     page[NameObject('/CropBox')] = RectangleObject(paper['crop_box'])
     page[NameObject('/UserUnit')] = FloatObject(paper['user_unit'])
     page[NameObject('/Rotate')] = NumberObject(paper['rotation'])
-    fitted_pins = []
-    for pin in pins:
-        x, y = pin['x'], pin['y']
-        if rotation != info['rotation']:
-            x, y = 1 - y, x
-        fitted_pins.append({**pin, 'x': (dx + x * fitted_w) / paper_w, 'y': (dy + y * fitted_h) / paper_h})
-    _draw_pins(page, paper, fitted_pins)
+    turn_clockwise = rotation != info['rotation']
+    if turn_clockwise:
+        # Use the landscape drawing frame for both the anchor and the text.
+        paper_w, paper_h = paper_h, paper_w
+        fitted_w, fitted_h = fitted_h, fitted_w
+        dx, dy = dy, dx
+    fitted_pins = [{**pin, 'x': (dx + pin['x'] * fitted_w) / paper_w,
+                          'y': (dy + pin['y'] * fitted_h) / paper_h} for pin in pins]
+    _draw_pins(page, paper, fitted_pins, turn_clockwise=turn_clockwise)
 
 
 def compose(spec, output):
@@ -362,7 +368,7 @@ def compose(spec, output):
     pages_root[NameObject('/Count')] = NumberObject(len(prefix) + len(order))
     layers = _combine_layers(configurations)
     if layers: writer._root_object[NameObject('/OCProperties')] = layers
-    writer.add_metadata({'/Title': 'Passive Fire Register' if prefix else 'CEASEFIRE PDF page tools',
+    writer.add_metadata({'/Title': 'Passive Fire Inspections' if prefix else 'CEASEFIRE PDF page tools',
                          '/Creator': 'CLASSIFIRE' if prefix else 'CEASEFIRE ESTIMATOR',
                          '/Subject': 'New PDF derivative; original source documents and Takeoff records retained unchanged'})
     class BoundedOutput:

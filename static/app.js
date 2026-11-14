@@ -6,8 +6,10 @@
   const label = document.getElementById("header-tagline-label");
   const strip = document.getElementById("header-tagline");
   const typed = document.getElementById("header-tagline-typed");
+  const prefix = document.getElementById("header-tagline-prefix");
+  const content = document.getElementById("header-tagline-content");
   const cursor = document.querySelector("#header-tagline .header-tagline-cursor");
-  if (!label || !strip || !typed || !cursor) return;
+  if (!label || !strip || !typed || !prefix || !content || !cursor) return;
   const phrases = [
     "Built on caffeine and the audacity of 'Do your best, mastic the rest.'",
     "Made for deadlines and the belief that 'There’s a tested system for that… probably.'",
@@ -106,10 +108,16 @@
     cursorTimer = null;
     cursor.hidden = true;
   }
+  function renderText(text) {
+    const prefixLength = phrase === intelligencePhrase ? "CLASSIFIRE:".length : 0;
+    const brand = text.slice(0, prefixLength);
+    if (prefix.textContent !== brand) prefix.textContent = brand;
+    content.textContent = text.slice(prefixLength);
+  }
   function finish() {
     clearTimeout(typingTimer);
     typingTimer = null;
-    if (typed.textContent !== displayedPhrase) typed.textContent = displayedPhrase;
+    if (typed.textContent !== displayedPhrase) renderText(displayedPhrase);
     if (complete || closed) return;
     complete = true;
     stopCursor();
@@ -117,7 +125,7 @@
   }
   function typeNext() {
     if (closed) return;
-    typed.textContent = characters.slice(0, ++count).join("");
+    renderText(characters.slice(0, ++count).join(""));
     followTyping();
     if (count < characters.length) typingTimer = setTimeout(typeNext, 35);
     else finish();
@@ -130,8 +138,8 @@
     // Match the website: all words scramble for three seconds, then resolve
     // left to right over two seconds. Keep word spaces and character count.
     const resolved = Math.max(0, (elapsed - 3000) / 2000) * characters.length;
-    typed.textContent = characters.map((character, index) => character === " " || index < resolved
-      ? character : scrambleAlphabet[Math.floor(Math.random() * scrambleAlphabet.length)]).join("");
+    renderText(characters.map((character, index) => character === " " || index < resolved
+      ? character : scrambleAlphabet[Math.floor(Math.random() * scrambleAlphabet.length)]).join(""));
     typingTimer = setTimeout(scrambleNext, 55);
   }
   function close() {
@@ -159,7 +167,7 @@
     characters = Array.from(displayedPhrase); count = 0; complete = false;
     typed.classList.remove("tagline-complete");
     typed.classList.toggle("tagline-brand", phrase === intelligencePhrase);
-    typed.textContent = ""; cursor.hidden = false;
+    renderText(""); cursor.hidden = false;
     if (phrase === intelligencePhrase) {
       if (newAppearance) playIntelligenceSound();
       if (motion?.matches || document.hidden) finish();

@@ -1,5 +1,6 @@
 """Company-branded installation certificates from explicit user-entered text."""
 from datetime import datetime, timezone
+from .document_theme import accent_hex, pdf_accent
 from .date_display import display_date
 from io import BytesIO
 from xml.sax.saxutils import escape
@@ -20,7 +21,6 @@ ATTESTATION = ('{company} are approved by the manufacturers listed above to supp
                'and have a good working knowledge of the relevant codes and standards referenced above. '
                'The information contained in this statement is true and accurate to the best of my knowledge.')
 EXCLUSIONS_INTRO = 'Certification is strictly limited to works completed by {company}, as per:'
-_RED = colors.HexColor('#BD0018')
 _LINE = colors.HexColor('#D7D7D7')
 _MARGIN = 36
 # SimpleDocTemplate's frame has six-point padding on both sides.
@@ -45,9 +45,9 @@ def render_certificate_pdf(fields, *, company, certificate_id, revision, created
     company_name = company.get('name', '')
     styles = {
         'title': ParagraphStyle('CertificateTitle', fontName=FONT_BOLD, fontSize=15,
-                                leading=19, alignment=TA_CENTER, textColor=_RED, spaceAfter=9, keepWithNext=True),
+                                leading=19, alignment=TA_CENTER, textColor=pdf_accent(), spaceAfter=9, keepWithNext=True),
         'heading': ParagraphStyle('CertificateHeading', fontName=FONT_REGULAR, fontSize=10.5,
-                                  leading=14, textColor=_RED, spaceBefore=8, spaceAfter=5, keepWithNext=True),
+                                  leading=14, textColor=pdf_accent(), spaceBefore=8, spaceAfter=5, keepWithNext=True),
         'body': ParagraphStyle('CertificateBody', fontName=FONT_REGULAR, fontSize=8.5,
                                leading=11.5, spaceAfter=5, splitLongWords=True),
         'statement': ParagraphStyle('CertificateStatement', fontName=FONT_REGULAR, fontSize=8.5,
@@ -55,10 +55,10 @@ def render_certificate_pdf(fields, *, company, certificate_id, revision, created
         'attestation': ParagraphStyle('CertificateAttestation', fontName=FONT_REGULAR, fontSize=8.5,
                                       leading=11.5, spaceAfter=5, splitLongWords=True),
         'label': ParagraphStyle('CertificateLabel', fontName=FONT_REGULAR, fontSize=8.5,
-                                leading=11.5, textColor=_RED, spaceBefore=6, spaceAfter=2,
+                                leading=11.5, textColor=pdf_accent(), spaceBefore=6, spaceAfter=2,
                                 keepWithNext=True, splitLongWords=True),
         'cell_label': ParagraphStyle('CertificateCellLabel', fontName=FONT_REGULAR, fontSize=8,
-                                    leading=11, textColor=_RED, spaceAfter=5, splitLongWords=True),
+                                    leading=11, textColor=pdf_accent(), spaceAfter=5, splitLongWords=True),
         'cell': ParagraphStyle('CertificateCell', fontName=FONT_REGULAR, fontSize=8.2,
                               leading=11.5, splitLongWords=True),
         'head': ParagraphStyle('CertificateHead', fontName=FONT_REGULAR, fontSize=8,
@@ -127,11 +127,11 @@ def render_certificate_pdf(fields, *, company, certificate_id, revision, created
         signer_values[0] = [signer_values[0], Spacer(1, 5), _SignerImage(signature_reader(signature))]
     signatories = LongTable([[p(label, 'head') for label in ('Name', 'Position', 'Qualification', 'Accreditation')],
                             signer_values,
-                            [Paragraph('<font color="#BD0018">Date:</font> ' + escape(issue_date), styles['cell']), '', '', '']],
+                            [Paragraph(f'<font color="#{accent_hex()}">Date:</font> ' + escape(issue_date), styles['cell']), '', '', '']],
                            colWidths=[_WIDTH * .2, _WIDTH * .2, _WIDTH * .3, _WIDTH * .3],
                            repeatRows=1, hAlign='LEFT', splitByRow=1, splitInRow=1)
     signatories.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), _RED), ('GRID', (0, 0), (-1, -1), .4, _RED),
+        ('BACKGROUND', (0, 0), (-1, 0), pdf_accent()), ('GRID', (0, 0), (-1, -1), .4, pdf_accent()),
         ('SPAN', (0, -1), (-1, -1)),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'), ('LEFTPADDING', (0, 0), (-1, -1), 6),
         ('RIGHTPADDING', (0, 0), (-1, -1), 6), ('TOPPADDING', (0, 0), (-1, -1), 6),

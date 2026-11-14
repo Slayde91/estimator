@@ -205,7 +205,7 @@ const {chromium, expect} = require('@playwright/test');
     await page.getByLabel('Workflow stage').selectOption({label:'Sign-off'});
     await btn('Preview').click();
     assert.equal(await page.evaluate(()=>window.previewed.fields.at(-1).stage_id),(await snap()).settings.stages[1].id);
-    await btn('Field JSON').click();
+    await btn('Raw code').click();
     const raw = page.getByLabel('Field definitions (JSON)');
     const good = await raw.inputValue();
     await raw.fill('[{}]');

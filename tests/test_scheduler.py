@@ -43,6 +43,36 @@ class SchedulerTests(unittest.TestCase):
             call()
         self.assertEqual(caught.exception.status_code, status)
 
+    def test_work_order_cost_uses_recorded_rates_and_other_jobs_towards_overtime(self):
+        person = self.member()
+        target, other = 'file-a:owner:work', 'file-b:owner:work'
+        self.store.work_order_lookup = lambda identity, revision: {
+            'id': identity, 'revision': revision, 'reference': 'WO-01', 'status': 'In progress'}
+        def record(identity, start, end, **extra):
+            return self.write('entries/save', {
+                'member_id': person['id'], 'start': start, 'end': end,
+                'work_order': {'id': identity, 'revision': 'saved'}, **extra})
+        record(other, '2020-11-02T06:00', '2020-11-02T14:00')
+        record(target, '2020-11-02T14:00', '2020-11-02T17:00', breaks=[
+            {'start':'2020-11-02T14:10', 'end':'2020-11-02T14:40', 'paid':False},
+            {'start':'2020-11-02T15:00', 'end':'2020-11-02T15:15', 'paid':True}])
+        # Earlier jobs establish daily overtime: 2h at 1.5x, then 30 min at 2x.
+        self.assertEqual(self.store.work_order_labour([target]), {'amount':'160.00'})
+        self.assertEqual(self.store.work_order_labour([other]), {'amount':'320.00'})
+        self.assertEqual(self.store.work_order_labour(['missing']), {'amount':'0.00'})
+        self.write('members/save', {**{key:person[key] for key in ('id','version','name','email','role','active')},
+                                    'base_rate':'88'})
+        self.assertEqual(self.store.work_order_labour([target]), {'amount':'160.00'})
+        # An unfinished clock and a scheduled shift do not have recorded paid hours.
+        self.write('shifts/save', {'member_ids':[person['id']], 'title':'Planned work', 'start':'2026-11-02T10:00',
+                  'end':'2026-11-02T11:00','work_order':{'id':target,'revision':'saved'}})
+        self.write('clock/in', {'work_order':{'id':target,'revision':'saved'}})
+        self.assertEqual(self.store.work_order_labour([target]), {'amount':'160.00'})
+        with self.store.connect() as db:
+            db.execute("UPDATE scheduler_settings SET data=json_set(data,'$.pay_rules_confirmed',json('false'))")
+        self.assertIsNone(self.store.work_order_labour([target])['amount'])
+        self.assertEqual(self.store.work_order_labour([other+':unknown']), {'amount':'0.00'})
+
     def test_organization_zone_reassigns_members_and_recalculates_recorded_work(self):
         worker = self.member()
         original = self.store.read('organization',token=self.token)

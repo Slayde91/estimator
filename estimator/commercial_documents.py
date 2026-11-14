@@ -1001,6 +1001,29 @@ class CommercialDocuments:
                 raise ValidationError('This commercial document is unavailable in the current project.')
             return self.follow_up_details(self._record(db, workspace, identity))
 
+    def work_order_cost_sources(self, source, project, identity, catalog=None):
+        if catalog and project in catalog.ignored_owners():
+            raise ValidationError('This Work Order is unavailable. Refresh the list.')
+        sources = catalog.scheduler_sources(source, project) if catalog else [source]
+        with self._connect() as db:
+            aliases = db.execute('SELECT local_token FROM commercial_first_filing WHERE source=? AND project_id=?',
+                                 (sources[0], project)).fetchall()
+        return [':'.join((item, project, identity)) for item in dict.fromkeys([*sources, *(r[0] for r in aliases)])]
+
+    def workspace_work_order_cost_sources(self, workspace, identity, catalog=None):
+        with self._connect() as db:
+            db.execute('BEGIN')
+            project = self._workspace(db, workspace)
+            if not self.unfiled.permits_document(db, workspace, identity):
+                raise ValidationError('This commercial document is unavailable in the current project.')
+            if self._record(db, workspace, identity)['kind'] != 'work_order':
+                raise ValidationError('Choose a Work Order to review costs.')
+            source = db.execute('SELECT source FROM commercial_activity_sources WHERE workspace=?', (workspace,)).fetchone()
+            if not source:
+                source = db.execute("""SELECT o.token FROM local_commercial_owners o JOIN local_commercial_documents d USING(workspace)
+                    WHERE o.workspace=? AND o.filed=0 AND d.id=?""", (workspace, identity)).fetchone()
+        return self.work_order_cost_sources(source[0], project, identity, catalog) if source else []
+
     def activity(self, workspace, identity, *, entry=None, actor=None, staff=None, version=None):
         with self._connect() as db:
             db.execute('BEGIN IMMEDIATE' if entry is not None else 'BEGIN')

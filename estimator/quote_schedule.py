@@ -7,6 +7,9 @@ from reportlab.lib import colors
 from reportlab.platypus import HRFlowable, Image, LongTable, Paragraph, TableStyle
 
 
+from .document_theme import pdf_accent
+
+
 SCOPE_SCHEDULE_TITLES = {
     'steel_vermiculite': 'STEEL | SPRAY',
     'steel_board': 'STEEL | BOARD',
@@ -27,7 +30,7 @@ def append_project_report_title(report, title):
     """Brand the full schedule title without changing other report headings."""
     if title.upper() == 'FIRE PROTECTION SCHEDULE':
         report.styles['project_schedule_title'] = report.styles['title'].clone(
-            'ProjectScheduleTitle', textColor=colors.HexColor('#bd0018'))
+            'ProjectScheduleTitle', textColor=pdf_accent())
         report.story.append(report.p(title.upper(), 'project_schedule_title'))
     else:
         report.story.append(report.p(title, 'title'))
@@ -37,9 +40,9 @@ def append_scope_intro(report, intro):
     """Keep the quotation's scope heading in the schedule's own text flow."""
     if intro.get('heading'):
         style = report.styles['section'].clone('CommercialScopeHeading', fontSize=11, leading=15,
-                                               textColor=colors.HexColor('#bd0018'), keepWithNext=True)
+                                               textColor=pdf_accent(), keepWithNext=True)
         report.story.append(Paragraph('SCOPE OF WORKS', style))
-        rule = HRFlowable(width='100%', thickness=1, color=colors.HexColor('#bd0018'), spaceAfter=8)
+        rule = HRFlowable(width='100%', thickness=1, color=pdf_accent(), spaceAfter=8)
         rule.keepWithNext = True
         report.story.append(rule)
     if intro.get('preamble'):
@@ -120,9 +123,9 @@ def quote_schedule_table(report, headings, rows, widths, page_height):
     # the repeated header twice there.
     table = LongTable(data, colWidths=widths, repeatRows=1, hAlign='LEFT', splitByRow=0, splitInRow=20)
     table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#bd0018')),
+        ('BACKGROUND', (0, 0), (-1, 0), pdf_accent()),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('GRID', (0, 0), (-1, -1), .4, colors.HexColor('#bd0018')),
+        ('GRID', (0, 0), (-1, -1), .4, pdf_accent()),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('LEFTPADDING', (0, 0), (-1, -1), padding),

@@ -93,7 +93,7 @@
     }
     return result;
   }
-  const post = (path, body) => request(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  const post = (path, body, headers = {}) => request(path, {method:'POST', headers:{'Content-Type':'application/json', ...headers}, body:JSON.stringify(body)});
   const scoped = (path,workspace=state.workspaceId) => {
     if(!workspace)throw new Error('The current project certificate workspace is unavailable.');
     return path+'?workspace='+encodeURIComponent(workspace);
@@ -378,7 +378,7 @@
         const saved=await post(scoped('/api/certifications/'+encodeURIComponent(action.id),action.workspaceId),{fields:action.fields,options:action.options,expected_version:action.version});
         state.pending=null;applyDocument(saved,{preserveManaged:acknowledgesAction(saved,action,action.version+1)});message('Certification details saved.');
       }else{
-        const saved=await post(scoped('/api/certifications/'+encodeURIComponent(action.id)+'/revisions',action.workspaceId),{fields:action.fields,options:action.options,expected_version:action.version,request_id:action.generationRequestId});
+        const saved=await post(scoped('/api/certifications/'+encodeURIComponent(action.id)+'/revisions',action.workspaceId),{fields:action.fields,options:action.options,expected_version:action.version,request_id:action.generationRequestId},window.CeasefireTheme?.downloadHeaders());
         state.pending=null;applyDocument(saved.document,{preserveManaged:acknowledgesAction(saved.document,action,action.version+1)});text($('certification-status'),'Revision {0} saved. Open it in Certificate revisions.',[saved.revision.revision]);
         $('certification-status').className='helper certification-save-status';
         window.CeasefireNotifications?.show($('certification-status'));

@@ -56,7 +56,7 @@ async function idle() {
   const projectRow = rows.filter({hasText:'Project 1'});
   await expect(projectRow.getByRole('button', {name:/Load Project 1/})).toBeVisible();
   await projectRow.locator('.project-title-button').click();
-  await expect(page.locator('#project-details-target')).toContainText('Project 1');
+  await expect(page.locator('#project-details-load')).toHaveAttribute('data-project-title','Project 1');
   await page.getByRole('button',{name:'Back to Projects',exact:true}).click();
   await picker.locator('summary').click(); await picker.getByRole('button',{name:'Kanban',exact:true}).click();
   const first = board.locator('.project-kanban-card').filter({hasText:'Project 1'});
@@ -81,7 +81,7 @@ async function idle() {
   await first.locator('.project-title-button').click();
   await expect(page.locator('#project-details-pane')).toBeVisible();
   await expect(page.locator('#project-list-card')).toBeHidden();
-  await expect(page.locator('#project-details-target')).toContainText('Project 1');
+  await expect(page.locator('#project-details-load')).toHaveAttribute('data-project-title','Project 1');
   await page.getByRole('button',{name:'Back to Projects',exact:true}).click();
   await expect(page.locator('#project-list-card')).toBeVisible();
   await expect(page.locator('#project-details-pane')).toBeHidden();

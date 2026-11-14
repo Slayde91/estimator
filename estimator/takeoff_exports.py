@@ -9,6 +9,7 @@ import math
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
+from .document_theme import accent_hex
 from .catalog import ValidationError
 from .takeoff_area import measured_area
 from .takeoff_model import (area_layers, base_length, has_explicit_area_layers, item_digest, length_additions, measured_length, is_area_item, is_standalone_count,
@@ -118,7 +119,7 @@ def export_register(snapshot, items, format):
             cell.alignment = Alignment(vertical='top', wrap_text=True)
             if row_number == 1:
                 cell.font = Font(bold=True, color='FFFFFF')
-                cell.fill = PatternFill('solid', fgColor='1F2937')
+                cell.fill = PatternFill('solid', fgColor=accent_hex('1F2937'))
     sheet.freeze_panes = 'D2'
     sheet.auto_filter.ref = sheet.dimensions
     for column in sheet.columns:
@@ -417,7 +418,7 @@ def _schedule_xlsx(snapshot, selected, results, confirmations, linked, *, mode, 
                 if isinstance(cell.value, str): cell.data_type = 's'
                 cell.alignment = Alignment(wrap_text=True, vertical='top')
                 if cell.row == 1:
-                    cell.font = Font(bold=True, color='FFFFFF'); cell.fill = PatternFill('solid', fgColor='1F2937')
+                    cell.font = Font(bold=True, color='FFFFFF'); cell.fill = PatternFill('solid', fgColor=accent_hex('1F2937'))
                 elif isinstance(cell.value, (float, int)):
                     measurement_headers = {'Width mm', 'Height mm', 'Diameter mm', 'Length per item m', 'Total length m', 'Gross area m2', 'Excluded area m2', 'Net area m2', 'Total area m2'}
                     cell.number_format = '0.00' if table.title == 'Current Takeoffs' and public_headers[cell.column-1] in measurement_headers else '0'

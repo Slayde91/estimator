@@ -657,7 +657,10 @@ class ReferenceLibrary:
                 display = variant_display(data, key)
                 item.update(display)
                 item['thumbnail_url'] = self._technical_thumbnail(item)
-                item['manufacturers'] = list(data['_technical_discovery'][key].get('manufacturer', []))
+                discovery = data['_technical_discovery'][key]
+                item['inspection_options'] = {facet: list(discovery.get(facet, []))
+                                              for facet in ('substrate', 'orientation', 'manufacturer')}
+                item['manufacturers'] = item['inspection_options']['manufacturer']
                 if display:
                     for field in item.get('fields', []):
                         if field['label'] == 'ID':

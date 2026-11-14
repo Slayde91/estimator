@@ -19,6 +19,7 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
+from .document_theme import accent_hex
 from .catalog import ValidationError
 from .pricing_workbook import _serialize_exact
 from .takeoff_physical import (confirmation_owner, effective_confirmation, entity_references,
@@ -181,7 +182,7 @@ def _sheet(workbook, title, headers, rows, details, *, record_key='entity_id'):
         cell = sheet.cell(1, column)
         _put(cell, label)
         cell.font = Font(bold=True, color='FFFFFF')
-        cell.fill = PatternFill('solid', fgColor='8B2F13')
+        cell.fill = PatternFill('solid', fgColor=accent_hex('8B2F13'))
         sheet.column_dimensions[cell.column_letter].width = 25
     for row_number, row in enumerate(rows, 2):
         for column, label in enumerate(headers, 1):

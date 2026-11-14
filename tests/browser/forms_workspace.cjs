@@ -131,10 +131,15 @@ const ready=new Promise((resolve,reject)=>{
   await viewRoot.getByRole('button',{name:'Form records'}).click();
   await viewRoot.getByRole('button',{name:'Site QA inspection',exact:true}).click();await expect(viewRoot).toContainText('QA site, bay B');
   await b('Back to forms').click();await b('Templates').click();await b('Create template').click();
-  await page.getByRole('button',{name:/Build from an outline/}).click();
-  const choice=page.getByRole('dialog',{name:'Build from an outline'});await choice.getByLabel('Template name').fill('Daily handover');
+  const createDialog=page.getByRole('dialog',{name:'Create template'});
+  await expect(createDialog.locator('.forms-start-option')).toHaveCount(2);
+  await expect(createDialog.getByRole('button',{name:/^Workflow/})).toBeVisible();
+  await createDialog.getByRole('button',{name:/^Timeline/}).click();
+  await forms.getByLabel('Template name',{exact:true}).fill('Daily handover');
+  await b('Add from outline').click();
+  const choice=page.getByRole('dialog',{name:'Add fields from an outline'});
   await choice.getByLabel('Field outline').fill('Site\nInspection date\nTable: Tasks | Activity, Hours\nSignature');
-  await choice.getByRole('button',{name:'Create editable draft'}).click();
+  await choice.getByRole('button',{name:'Add fields',exact:true}).click();
   await expect(forms.locator('[data-field-id]')).toHaveCount(4);
   await forms.locator('.form-builder-field-select').nth(2).click();
   await forms.locator('.form-builder-tabs').scrollIntoViewIfNeeded();

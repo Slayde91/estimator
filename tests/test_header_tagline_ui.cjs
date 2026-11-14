@@ -66,9 +66,11 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
   let current = '', last = previous, nextTimer = 0, preference, pagehide, languagechange, visibilitychange, now = 0, audioChange;
   const audio = {plays:0,pauses:0,loads:0,currentTime:0,src:'',preload:'',load(){this.loads++;},pause(){this.pauses++;},play(){this.plays++;return {catch(callback){if(rejectSound)callback(Error('Autoplay blocked'));}};}};
   const classes = new Set();
+  const prefix = { textContent: '' };
+  const content = { set textContent(value) { current = value; frames.push(prefix.textContent + value); } };
   const typed = { classList:{add:name=>classes.add(name),remove:name=>classes.delete(name),contains:name=>classes.has(name),toggle:(name,on)=>on?classes.add(name):classes.delete(name)},
-    get textContent() { return current; }, set textContent(value) { current = value; frames.push(value); } };
-  const elements = { 'header-tagline-label': label, 'header-tagline': strip, 'header-tagline-typed': typed };
+    get textContent() { return prefix.textContent + current; } };
+  const elements = { 'header-tagline-label': label, 'header-tagline': strip, 'header-tagline-typed': typed, 'header-tagline-prefix': prefix, 'header-tagline-content': content };
   const motion = { matches: reduced, addEventListener(name, callback) { assert.equal(name, 'change'); preference = callback; } };
   const context = {
     document: {

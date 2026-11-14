@@ -15,6 +15,7 @@ from pypdf import PdfReader
 from reportlab.pdfgen.canvas import Canvas
 
 from estimator.catalog import ValidationError
+from estimator.document_theme import document_theme
 from estimator.commercial_documents import CommercialConflict, CommercialDocuments, default_fields, validate_fields
 from estimator.commercial_http import CommercialHTTP
 from tests.test_commercial_documents import Projects
@@ -37,6 +38,23 @@ class CommercialPaneSignerTests(unittest.TestCase):
         fields['details']['project_no'] = 'PN-01'
         return self.store.save(self.workspace, {'id':prior['id'] if prior else str(uuid4()),
             'version':prior['version'] if prior else 0,'kind':kind,'status':'Draft','fields':fields})
+
+    def test_reissued_quote_uses_new_theme_and_retains_original_download(self):
+        document = self.save('quote', complete_quote(default_fields('quote')))
+        revisions = []
+        for theme, rgb in [('midnight', (36, 74, 117)), ('forest', (22, 101, 52))]:
+            with document_theme(theme):
+                result = self.store.issue(self.workspace, document['id'], document['version'], str(uuid4()))
+            document = result['document']
+            pages = PdfReader(BytesIO(result['pdf'])).pages
+            colours = {tuple(round(float(channel) * 255) for channel in values)
+                       for page in pages for values, operator in page.get_contents().operations
+                       if operator in (b'rg', b'RG')}
+            self.assertIn(rgb, colours)
+            revisions.append(result)
+        self.assertNotEqual(revisions[0]['id'], revisions[1]['id'])
+        for result in revisions:
+            self.assertEqual(self.store.read_pdf(self.workspace, result['id'])[1], result['pdf'])
 
     def test_old_signer_fields_gain_only_empty_optional_date_without_mutating_input(self):
         fields = default_fields('work_order')

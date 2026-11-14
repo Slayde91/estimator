@@ -15,7 +15,7 @@ from .unfiled_commercial import quote_context
 
 
 class CommercialHTTP:
-    def __init__(self, service, derive=None, company=None, saved=None, pricing=None, rate_defaults=None, billing=None, staff=None):
+    def __init__(self, service, derive=None, company=None, saved=None, pricing=None, rate_defaults=None, billing=None, staff=None, scheduler=None):
         self.service = service
         self.saved = saved
         self.derive = derive
@@ -23,6 +23,7 @@ class CommercialHTTP:
         self.pricing = pricing
         self.rate_defaults = rate_defaults
         self.billing = billing
+        self.scheduler = scheduler
         self.staff = staff or (lambda: [])
 
     def _company(self):
@@ -69,6 +70,18 @@ class CommercialHTTP:
                 handler.send_payload(200, result)
                 return True
             if handler.command == 'GET':
+                if action == 'work-order-labour' and self.scheduler:
+                    catalog = self.saved.projects._commercial_sources if self.saved else None
+                    if set(query) == {'workspace', 'document'}:
+                        identities = self.service.workspace_work_order_cost_sources(query['workspace'][0], query['document'][0], catalog)
+                    elif self.saved and set(query) == {'file', 'project', 'revision', 'document'}:
+                        source, project, identity, revision = (query[key][0] for key in ('file','project','document','revision'))
+                        self.saved.projects.scheduler_work_order(':'.join((source,project,identity)), revision)
+                        identities = self.service.work_order_cost_sources(source, project, identity, catalog)
+                    else:
+                        raise ValidationError('Choose the saved Work Order to review costs.')
+                    handler.send_payload(200, self.scheduler.work_order_labour(identities))
+                    return True
                 if action in {'activity','follow-up'}:
                     if set(query) == {'workspace', 'document'}:
                         read = self.service.follow_up if action == 'follow-up' else self.service.activity

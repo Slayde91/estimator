@@ -6,6 +6,7 @@ the report uses business labels and formatting never changes saved results.
 """
 
 from datetime import datetime, timezone
+from .document_theme import pdf_accent
 from .date_display import display_date
 from decimal import Decimal, ROUND_HALF_UP, localcontext
 from io import BytesIO
@@ -31,7 +32,6 @@ from .company_settings import company_logo, contact_lines, DEFAULTS as COMPANY_D
 
 
 ROOT = Path(__file__).resolve().parent.parent
-_RED = colors.HexColor("#BD0018")
 _INK = colors.black
 _MUTED = colors.HexColor("#555555")
 _LINE = colors.HexColor("#DDDDDD")
@@ -60,7 +60,7 @@ def _company_header(canvas, logo, page_width, page_height, margin, report_label,
         size = min(7.5, (page_width * .5 - margin) / max(1, pdfmetrics.stringWidth(text, FONT_REGULAR, 1)))
         canvas.setFont(FONT_REGULAR, size)
         canvas.drawRightString(page_width - margin, page_height - offset, text)
-    canvas.setStrokeColor(_RED)
+    canvas.setStrokeColor(pdf_accent())
     canvas.setLineWidth(1.1)
     canvas.line(margin, page_height - 78, page_width - margin, page_height - 78)
 
@@ -147,9 +147,9 @@ def _date(value):
 
 
 def _table_branding():
-    """Fixed Ceasefire colours for generated PDF tables, independent of UI theme."""
+    """Keep the selected heading accent and high-contrast document rows."""
     return [
-        ("BACKGROUND", (0, 0), (-1, 0), _RED),
+        ("BACKGROUND", (0, 0), (-1, 0), pdf_accent()),
         ("BACKGROUND", (0, 1), (-1, -1), colors.white),
         ("LINEBELOW", (0, 0), (-1, 0), .5, _INK),
         ("LINEBELOW", (0, 1), (-1, -1), .35, _INK),
@@ -177,7 +177,7 @@ def _styles():
         "head": ParagraphStyle("QuoteHead", fontName=FONT_BOLD, fontSize=7.5,
                                 leading=10, textColor=colors.white, splitLongWords=1, alignment=TA_CENTER),
         "alert": ParagraphStyle("QuoteAlert", fontName=FONT_BOLD, fontSize=10,
-                                 leading=14, textColor=_RED, splitLongWords=1),
+                                 leading=14, textColor=pdf_accent(), splitLongWords=1),
     }
 
 
@@ -257,7 +257,7 @@ class _Report:
         if total_rows:
             styles.extend([
                 ("BACKGROUND", (0, -total_rows), (-1, -1), colors.white),
-                ("LINEABOVE", (0, -total_rows), (-1, -total_rows), 0.8, _RED),
+                ("LINEABOVE", (0, -total_rows), (-1, -total_rows), 0.8, pdf_accent()),
             ])
         table.setStyle(TableStyle(styles))
         return table
@@ -335,7 +335,7 @@ class _Report:
                 colWidths=[_WIDTH])
             alert.setStyle(TableStyle([
                 ("BACKGROUND", (0, 0), (-1, -1), colors.white),
-                ("BOX", (0, 0), (-1, -1), .6, _RED),
+                ("BOX", (0, 0), (-1, -1), .6, pdf_accent()),
                 ("LEFTPADDING", (0, 0), (-1, -1), 10),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 10),
                 ("TOPPADDING", (0, 0), (-1, -1), 7),
@@ -363,7 +363,7 @@ class _Report:
         grand_row = len(rows)
         total_table.setStyle(TableStyle([
             ("BACKGROUND", (0, grand_row), (-1, grand_row), colors.white),
-            ("LINEABOVE", (0, grand_row), (-1, grand_row), 1, _RED),
+            ("LINEABOVE", (0, grand_row), (-1, grand_row), 1, pdf_accent()),
         ]))
         # This is a fixed-size financial summary, so its grand total stays on
         # the same page as its component amounts even with long quote details.

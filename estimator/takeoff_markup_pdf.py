@@ -9,6 +9,7 @@ import sys
 import tempfile
 from threading import BoundedSemaphore
 
+from .document_theme import accent_hex
 from .catalog import ROOT, ValidationError
 from .takeoff_documents import _open_regular
 from .takeoff_model import markup_appearance, polyline_length, validate_measurement_scope
@@ -97,7 +98,7 @@ def export_marked_pdf(document, items, results, confirmations, linked, documents
         if vertices > 200000:
             raise ValidationError('The visible markup geometry exceeds the PDF export limit. Export a smaller visible selection.')
         spec = {'document': document, 'items': rows, 'project_id': project_id, 'revision': revision, 'mode': mode,
-                'logo': str(ROOT / 'static' / 'classifire-logo.png'), 'company': company}
+                'logo': str(ROOT / 'static' / 'classifire-logo.png'), 'company': company, 'print_accent': '#' + accent_hex()}
         from .takeoff_annotations import annotation_appearance, validate_annotation
         spec['annotations'] = []
         for annotation in annotations:

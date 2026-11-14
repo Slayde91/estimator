@@ -32,7 +32,8 @@ a{color:inherit}
 .brand-logo{display:block;width:190px;max-width:100%;height:auto}
 .header-navigation{min-width:0;max-width:100%;width:fit-content;justify-self:center}
 .header-tagline{min-width:0;margin:0;font-family:inherit;font-style:italic;font-size:12px;line-height:1.5;color:var(--muted);text-align:start;white-space:nowrap;overflow-x:auto;scrollbar-width:none}
-#header-tagline-typed.tagline-brand{font-style:normal;font-weight:700}
+#header-tagline-typed.tagline-brand{font-style:normal;font-weight:400}
+#header-tagline-prefix{font-weight:700}
 #header-tagline-typed.tagline-complete{
   background:linear-gradient(currentColor,currentColor) left bottom / 100% 1px no-repeat;
   animation:header-tagline-underline 650ms linear;
@@ -680,7 +681,6 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .project-details-pane .section-heading{align-items:center;gap:12px}
 .project-details-pane .section-heading h2{margin:0}
 .project-details-pane .section-heading .button{min-height:32px;width:32px;height:32px;padding:0;font-size:22px}
-.project-details-pane #project-details-target{overflow-wrap:anywhere}
 .project-pane-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 12px}
 .project-pane-fields .field{min-width:0;margin:0}
 .project-pane-fields input,.project-pane-fields textarea{width:100%;min-width:0}

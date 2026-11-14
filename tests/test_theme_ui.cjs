@@ -17,7 +17,7 @@ function harness({ stored = null, getDenied = false, setDenied = false, absent =
   vm.createContext(context);
   const run = () => vm.runInContext(source, context);
   run();
-  return { attrs, buttonAttrs, writes, notices, status, run, click: () => listeners.click() };
+  return { attrs, buttonAttrs, writes, notices, status, run, theme: context.window.CeasefireTheme, click: () => listeners.click() };
 }
 test('five distinct themes cycle once per activation, wrap, announce and store only their own preference', () => {
   const h = harness();
@@ -26,6 +26,7 @@ test('five distinct themes cycle once per activation, wrap, announce and store o
   assert.equal(h.buttonAttrs['aria-label'], 'Theme: CLASSIFIRE. Next theme: Midnight.');
   for (const [id, name, next] of [['midnight','Midnight','Ocean'], ['ocean','Ocean','Forest'], ['forest','Forest','Slate'], ['slate','Slate','CLASSIFIRE'], ['ceasefire','CLASSIFIRE','Midnight']]) {
     h.click(); assert.equal(h.attrs['data-theme'], id);
+    assert.equal(h.theme.downloadHeaders()['X-Estimator-Document-Theme'], id);
     assert.equal(h.buttonAttrs['aria-label'], `Theme: ${name}. Next theme: ${next}.`);
     assert.equal(h.buttonAttrs.title, h.buttonAttrs['aria-label']); assert.equal(h.status.textContent, `${name} theme selected.`);
     assert.deepEqual(h.writes.at(-1), [key, id]);

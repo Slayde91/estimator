@@ -5,6 +5,7 @@ import base64
 import binascii
 from hashlib import sha256
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from .document_theme import document_theme
 from .calculation_work import CalculationBusy
 import json
 import logging
@@ -311,7 +312,11 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     raise ValidationError('This action does not generate a supported project document.')
                 self._documentation_identity = identity
                 semantic_body = {key:item for key,item in value.items() if key != 'download'}
-                self._documentation_fingerprint = sha256(json.dumps({'route':route,'body':semantic_body}, ensure_ascii=True,
+                generation = {'route': route, 'body': semantic_body}
+                theme = self.headers.get('X-Estimator-Document-Theme', 'ceasefire')
+                if theme != 'ceasefire':
+                    generation['theme'] = theme
+                self._documentation_fingerprint = sha256(json.dumps(generation, ensure_ascii=True,
                     sort_keys=True, separators=(',', ':'), allow_nan=False).encode('utf-8')).hexdigest()
                 workspace, request_id = self._documentation_context
                 retained = documentation.replay(workspace, request_id, self._documentation_fingerprint)
@@ -413,7 +418,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 derive=lambda body, include_pdfs=False: derive_estimates(store, body, edition=edition,
                     company=self.company_details(), library=libraries, include_pdfs=include_pdfs),
                 company=self.company_details, saved=saved_commercial, pricing=store.configuration,
-                rate_defaults=commercial_rate_defaults,billing=billing_contacts,staff=access.staff)
+                rate_defaults=commercial_rate_defaults,billing=billing_contacts,staff=access.staff,scheduler=scheduler_http.store)
             if commercial_http.dispatch(self, route):
                 return
             if SwmsHTTP(swms, company=self.company_details).dispatch(self, route):
@@ -542,7 +547,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 elif route.startswith("/api/quotes/"):
                     self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
                 elif route in {'/register-plans.js', '/passive-register-library.js', '/passive-fire-register.js', '/passive-fire-register.css',
-                               '/settings-layout.css', '/contacts.js', '/follow-up-actions.js', '/crm-activity.js', '/contacts.css', '/personal-signature.js', '/personal-details.js', '/document-workflow-board.js', '/swms.js', '/swms.css', '/scheduler.js', '/scheduler-reports.js', '/scheduler.css', '/commercial-panels.js', '/commercial-documents.js', '/commercial-documents.css', '/commercial-pricing-picker.js', '/commercial-pricing-picker.css', '/certification.js', '/certification.css', '/cover-sheets.js', '/documentation.js', '/documentation.css', '/notifications.js', '/notifications.css'}:
+                               '/settings-layout.css', '/contacts.js', '/follow-up-actions.js', '/crm-activity.js', '/contacts.css', '/personal-signature.js', '/personal-details.js', '/document-workflow-board.js', '/swms.js', '/swms.css', '/scheduler.js', '/scheduler-reports.js', '/scheduler.css', '/work-order-costs.js', '/commercial-panels.js', '/commercial-documents.js', '/commercial-documents.css', '/commercial-pricing-picker.js', '/commercial-pricing-picker.css', '/certification.js', '/certification.css', '/cover-sheets.js', '/documentation.js', '/documentation.css', '/notifications.js', '/notifications.css'}:
                     kind = 'text/javascript; charset=utf-8' if route.endswith('.js') else 'text/css; charset=utf-8'
                     self.send_payload(200, (ROOT / 'static' / route[1:]).read_bytes(), kind)
                 elif route in {'/sounds/classifire.mp3', '/sounds/glitch.mp3', '/sounds/page.mp3', '/sounds/radiobleep.mp3', '/project-popup.css', '/project-pane.js', '/project-details.js', '/games/play.js', '/games/play.css', '/games/fireline-art.js', '/games/fireline.js', '/penetration-references.js', '/sounds/type.mp3', '/sounds/gameover.mp3', '/sounds/money.mp3', '/sounds/flame-whoosh.wav', '/takeoff-visual-search-icon.png', '/takeoff-ocr-icon.png', '/header-steel-intumescent.png', '/sounds/checkpoint.ogg', '/sounds/loading.mp3', '/sounds/new-explosion.mp3', '/sounds/hover.mp3', '/sounds/select.mp3', '/sounds/select-2.mp3', '/sounds/mixkit-vintage-dot-printing-1371.wav', '/takeoff-visual-search.js', '/takeoff-visual-search.css', '/takeoff-ocr-layer.js', '/takeoff-ocr-layer.css', '/header-menu-sounds.js', '/audio-settings.js', '/sounds/mgs1-menu-move.mp3', '/sounds/mgs-confirm2.mp3', '/brand-boot.js', '/brand-boot.css', '/classifire-app.ico', '/register-references.js', '/travel.js', '/travel.css', '/maps-setup.html', '/pdf-cursors.css', '/cursors/pointer.png', '/cursors/precision.png', '/cursors/move.png', '/cursors/text.png', '/cursors/handwriting.png', '/cursors/link.png', '/cursors/resize-nwse.png', '/cursors/resize-nesw.png', '/cursors/resize-horizontal.png', '/cursors/resize-vertical.png', '/cursors/unavailable.png', '/cursors/busy.png', "/", "/index.html", "/company-settings.js", "/classifire-logo.png", "/main-layout.js", "/downloads.css", "/activity.js", "/calculation-queue.js", "/searchable-choice.js", "/penetration-presentation.js", "/icons/navigation-takeoffs.svg", "/icons/navigation-takeoffs.jpg", "/icons/navigation-help.jpg", "/theme.js", "/language.js", "/language-catalog.js", "/language.css", "/theme.css", "/laser.css", "/laser-steel.svg", "/home-steel-frame.png", "/header-layout.css", "/workspace-art.css", "/pointer-effects.css", "/pointer-effects.js", "/laser-reticle.svg", "/takeoff-header-steel.png", "/takeoff-header-ductwork.png", "/takeoff-header-physical.png", "/takeoff-header-service-plans.png", "/header-steel-spray.png", "/header-steel-board.png", "/header-ductwork.png", "/header-firestopping.png", "/header-estimate.png", "/header-projects.png", "/projects-evidence-banner.png", "/header-firestopping-library.png", "/header-technical-library.png", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/library-detail-text.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/icons/navigation-home.png", "/icons/document.png", "/icons/schedule-add.png", "/icons/navigation-help.png", "/icons/navigation-takeoffs.png", "/icons/takeoff-visibility.jpg", "/icons/takeoff-colour-wheel.png", "/icons/takeoff-legend.png", "/ceasefire-logo.png", "/ceasefire-app.ico", "/fonts/Montserrat-Variable.ttf", "/fonts/Vera.ttf", "/fonts/VeraBd.ttf", "/fonts/Montserrat-Regular.ttf", "/fonts/Montserrat-Bold.ttf", "/fonts/Montserrat-Italic.ttf", "/fonts/Montserrat-BoldItalic.ttf", "/fonts/Montserrat-Italic-Variable.ttf", "/takeoffs.js", "/takeoffs.css", "/takeoff-geometry.js", "/takeoff-physical.js", "/takeoff-annotations.js", "/takeoff-signatures.js", "/takeoff-graphics.js", "/takeoff-graphics-ui.js", "/takeoff-pane-resize.js", "/takeoff-initial-pages.js", "/takeoff-pdf-tools.js", "/takeoff-pdf-tools.css", "/icons/default-memory.svg", "/icons/takeoff-set-default.png", "/icons/signature.svg", "/icons/trash.svg", "/help-glossary.js", "/help-glossary.css", "/takeoff-search.js", "/takeoff-shortcuts.js", "/icons/takeoff-callout.png", "/takeoff-pdf-worker.mjs", "/takeoff-library-links.js", "/icons/takeoff-visibility.png", "/icons/takeoff-bullet-list.png", "/icons/takeoff-numbered-list.png", "/icons/takeoff-add-service.png", "/icons/takeoff-add-barrier.png", "/icons/takeoff-transfer.png", "/icons/takeoff-measure.png", "/header-tagline-media.js", "/header-tagline-character.gif", "/header-tagline-character-still.png"}:
@@ -572,7 +577,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     payload = render_register_pdf(body.get('register'), project_details(body.get('project_details')), library=libraries,
                                                   company=self.pdf_company_details('passive_fire_register'),
                                                   plan_append=lambda pdf, rows: append_plan_pages(pdf, rows, body.get('plan_sessions'), takeoffs))
-                    self.send_download(payload, PDF, 'CLASSIFIRE-Passive-Fire-Register.pdf', destination,
+                    self.send_download(payload, PDF, 'CLASSIFIRE-Passive-Fire-Inspections.pdf', destination,
                                        pdf_kind='passive_fire_register')
                 elif route in {'/api/project/full-schedule.pdf', '/api/project/full-product-summary.pdf'} and self.command == 'POST':
                     from .project_file import CALCULATOR_IDS, project_details
@@ -983,7 +988,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             self._documentation_receipt = None
             self.connection.settimeout(15)
             try:
-                self.dispatch()
+                with document_theme(self.headers.get('X-Estimator-Document-Theme', 'ceasefire')):
+                    self.dispatch()
             except DocumentationReplay as replay:
                 try:
                     self._documentation_receipt = replay.receipt

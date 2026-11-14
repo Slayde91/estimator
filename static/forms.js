@@ -101,51 +101,29 @@
     const options = el('div', null, 'forms-start-options');
     const choices = [
       ['Timeline','Fill out a form and submit it as a single record.', 'timeline'],
-      ['Workflow','Collect information and approvals in stages.', 'workflow'],
-      ['Site inspection','Start with a site, inspection date, findings and photos.', 'inspection'],
-      ['Daily site log','Start with a dated work log and a table of activities.', 'daily']
+      ['Workflow','Collect information and approvals in stages.', 'workflow']
     ];
     for (const [name,detail,kind] of choices) {
       const choose = button(name, () => {
-        const template = blank(kind === 'workflow' ? kind : 'timeline');
-        if (kind === 'inspection' || kind === 'daily') {
-          const field = (type,label,extra={}) => ({id:uid(),type,label,required:false,...extra});
-          template.name = name;
-          template.fields = [field('text','Site',{required:true}),field('date','Date',{required:true}), ...(kind === 'inspection'
-            ? [field('textarea','Findings'),field('photo','Photos')]
-            : [field('table','Activities',{columns:[field('text','Activity'),field('number','Hours')]})])];
-        }
-        dialog.close(); edit(template);
+        dialog.close(); edit(blank(kind));
       });
       choose.classList.add('forms-start-option'); choose.append(el('small',detail)); options.append(choose);
     }
-    const outlineButton = button('Build from an outline', async() => {
-      dialog.close();
-      const result = await outlineDialog(true);
-      if(result) edit({...blank(),name:result.name,fields:result.fields});
-    });
-    outlineButton.classList.add('forms-start-option');
-    outlineButton.append(el('small','Turn a list of fields into an editable template on this computer.')); options.append(outlineButton);
     dialog.append(options); dialog.showModal();
   }
-  function outlineDialog(needsName) {
-    const dialog=modal(needsName?'Build from an outline':'Add fields from an outline');
+  function outlineDialog() {
+    const dialog=modal('Add fields from an outline');
     const form=el('form',null,'forms-outline');
-    const name=el('input');
-    if(needsName) {
-      name.required=true;name.maxLength=200;
-      const label=el('label',null,'field');label.append(el('span','Template name'),name);form.append(label);
-    }
     const label=el('label',null,'field'), outline=el('textarea');
     outline.rows=8;outline.maxLength=12000;outline.required=true;
     outline.placeholder='Site address\nInspection date\nTable: Activities | Task, Hours\nPhotos\nSignature';
     label.append(el('span','Field outline'),outline);
     const status=el('p','','helper');status.setAttribute('role','status');
-    const create=el('button',needsName?'Create editable draft':'Add fields','button primary');create.type='submit';
+    const create=el('button','Add fields','button primary');create.type='submit';
     const actions=el('div',null,'actions');actions.append(create);
     form.append(label,el('p','Enter one field per line. For a table, separate the title and column names with a vertical bar.','helper'),status,actions);
     dialog.append(form);dialog.showModal();
-    let result=null;
+    let result=[];
     const controller = new AbortController();
     if(window.LanguageModel) {
       const language={expectedInputs:[{type:'text',languages:['en']}],expectedOutputs:[{type:'text',languages:['en']}]};
@@ -175,7 +153,7 @@
       event.preventDefault();
       const lines=outline.value.split(/\r?\n/).map(s=>s.replace(/^\s*[-*•]\s*/, '').trim()).filter(Boolean);
       if(!lines.length || lines.length>500) {outline.setCustomValidity('Enter between 1 and 500 fields.');outline.reportValidity();return;}
-      result={name:name.value.trim(),fields:lines.map(outlineField)};dialog.close();
+      result=lines.map(outlineField);dialog.close();
     });
     outline.addEventListener('input',()=>outline.setCustomValidity(''));
     return new Promise(resolve=>dialog.addEventListener('close',()=>{controller.abort();resolve(result);},{once:true}));
@@ -402,7 +380,7 @@
   function edit(template) {
     const host = frame();
     editor = window.ClassifireFormsBuilder.mount(host,template,{
-      roles,templates,staff, onPreview:preview, onOutline:async()=>(await outlineDialog(false))?.fields || [],
+      roles,templates,staff, onPreview:preview, onOutline:outlineDialog,
       onSave:async value=>{
         const {id,version,name,description,mode,status,roles,settings,fields} = value;
         const saved = await api('template/save',{id,version,name,description,mode,status,roles,settings,fields});

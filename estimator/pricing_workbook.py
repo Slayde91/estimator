@@ -23,6 +23,7 @@ from openpyxl.utils import column_index_from_string, coordinate_to_tuple, get_co
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.views import Selection
 
+from .document_theme import accent_hex
 from .catalog import (FIRESTOPPING_GROUPS, ValidationError, canonical_firestopping_group, effective_catalog,
                       validate_catalog, validate_configuration, yield_unit,
                       product_service_name)
@@ -220,7 +221,7 @@ def _format_sheet(sheet, headers, widths, numeric_columns=(), percent_columns=()
     sheet.row_dimensions[1].height = 36
     # Styles are immutable once assigned. Reuse them across cells instead of
     # constructing tens of thousands of identical validated style objects.
-    header_fill = PatternFill("solid", fgColor="8D1726")
+    header_fill = PatternFill("solid", fgColor=accent_hex('8D1726'))
     header_font = Font(name="Calibri", bold=True, color="FFFFFF")
     body_font = Font(name="Calibri", size=11, color="174D8D")
     centred = Alignment(horizontal="center", vertical="center", wrap_text=True)

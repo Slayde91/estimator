@@ -24,7 +24,7 @@
     pager.className = 'library-pagination';
     section.append(element('h2', 'Technical Library'), filters, status, results, pager);
     const limit = 20;
-    const values = {};
+    const values = {...entry.technical_filters};
     let offset = 0, controller, definitions, selectedItem;
 
     function clear() {
@@ -43,6 +43,12 @@
       check.addEventListener('change', () => {
         selectedItem = check.checked ? item : null;
         entry.technical_item_id = check.checked ? item.id : '';
+        entry.technical_filters = {};
+        if (check.checked) {
+          for (const key of ['substrate', 'orientation', 'manufacturer']) {
+            if (values[key]) entry.technical_filters[key] = values[key];
+          }
+        }
         onSelect();
         load().then(() => (results.querySelector('input') || filters.querySelector('select'))?.focus({preventScroll:true}));
       });

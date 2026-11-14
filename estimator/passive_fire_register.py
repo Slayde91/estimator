@@ -57,12 +57,17 @@ def _entry(raw, position, numbered):
     other = {'side1', 'side2', 'access', 'photos', 'comments', 'solution', 'signature', 'technical_item_id', 'plan_pins'}
     if numbered:
         other.update(('entry_id','number'))
+    if isinstance(raw, dict) and 'technical_item_id' in raw:
+        other.add('technical_filters')
     _fields(raw, set(FIELDS) | other, 'Register entry')
     identity,number = _entry_number(raw,position,numbered)
     entry = {'entry_id':identity,'number':number}
     if 'technical_item_id' in raw:
         key = raw['technical_item_id']
         entry['technical_item_id'] = '' if key == '' else identifier(key)
+        if 'technical_filters' in raw:
+            selected = _fields(raw['technical_filters'], {'substrate', 'orientation', 'manufacturer'}, 'Technical Library filters')
+            entry['technical_filters'] = {facet: _text(value, FIELDS[facet], 1000).strip() for facet, value in selected.items()}
     for key, label in FIELDS.items():
         if key in ('service_types', 'products'):
             entry[key] = _selection(raw.get(key, []), label)
@@ -154,10 +159,10 @@ def _check_photos(entries):
 
 def normalize_register(value, *, _validate_photos=True):
     """Project files may contain blank or partly completed entries."""
-    _fields(value, {'entries','next_number'}, 'Passive Fire Register')
+    _fields(value, {'entries','next_number'}, 'Passive Fire Inspections')
     source = value.get('entries')
     if not isinstance(source, list) or len(source) > 200:
-        raise ValidationError('The Passive Fire Register accepts up to 200 entries.')
+        raise ValidationError('The Passive Fire Inspections accepts up to 200 entries.')
     numbered = 'next_number' in value
     entries = [_entry(row,index,numbered) for index,row in enumerate(source,1)]
     next_number = value.get('next_number',len(entries)+1)
@@ -266,13 +271,13 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
     width, height = A4
     content = width - 2 * margin - 12
     document = SimpleDocTemplate(output, pagesize=A4, leftMargin=margin, rightMargin=margin,
-                                 topMargin=90, bottomMargin=43, title='Passive Fire Register',
+                                 topMargin=90, bottomMargin=43, title='Passive Fire Inspections',
                                  author=company.get('name') or 'CLASSIFIRE')
 
     for number, entry in enumerate(entries, 1):
         if number > 1:
             report.story.append(PageBreak())
-        report.story.extend([report.p('Passive Fire Register', 'title'),
+        report.story.extend([report.p('Passive Fire Inspections', 'title'),
                              report.p(f'Entry {number} of {len(entries)}', 'small')])
         rows = []
         for label, value in [('Project number', details.get('project_no')), ('Client', details.get('client')),
@@ -296,7 +301,8 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
             try:
                 if library is None:
                     raise ReferenceNotFound()
-                item = prepare_technical_item({'id': key}, library=library, include_diagrams=False)
+                item = prepare_technical_item({'id': key}, library=library, include_diagrams=False,
+                                              inspection_filters=entry.get('technical_filters', {}))
             except ReferenceNotFound as err:
                 raise ValidationError(f'The Technical Library item for entry {number} is unavailable. Select a replacement before downloading.') from err
             append_technical_item_fields(report, item, content)
@@ -314,12 +320,12 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
 
     def decorate(canvas, doc):
         canvas.saveState()
-        _company_header(canvas, logo, width, height, margin, 'Passive Fire Register', company=company)
+        _company_header(canvas, logo, width, height, margin, 'Passive Fire Inspections', company=company)
         canvas.setStrokeColor(_LINE)
         canvas.line(margin, 32, width - margin, 32)
         canvas.setFillColor(_MUTED)
         canvas.setFont(FONT_REGULAR, 7.5)
-        canvas.drawString(margin, 20, 'Passive Fire Register')
+        canvas.drawString(margin, 20, 'Passive Fire Inspections')
         canvas.drawRightString(width - margin, 20, f'Page {doc.page}')
         canvas.restoreState()
 

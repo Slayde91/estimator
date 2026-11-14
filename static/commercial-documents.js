@@ -330,12 +330,13 @@
     window.CeasefireProject?.changed?.();
   }
   async function request(action, body) {
+    const issueHeaders = ['issue', 'saved-issue'].includes(action) ? window.CeasefireTheme?.downloadHeaders() : {};
     const response = await fetch(`/api/commercial/${action}`, body === undefined ? {
       cache: "no-store"
     } : {
       method: "POST",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json", ...issueHeaders
       },
       body: JSON.stringify(body)
     });
@@ -1889,6 +1890,22 @@
       canEdit:()=>current() && !state.busy && (!window.ClassifireAccess || window.ClassifireAccess.can('edit')),
       changeDetails:values=>{if(current() && !state.busy)editDocumentDetails(fields,values);}, projectDetails:projectDetailsSnapshot(editor.source), isSaved:()=>Boolean(doc.version),
       readProjectDetails:()=>projectDetailsSnapshot(editor.source),
+      purchaseOrderCost() {
+        return readRelated().filter(row => row.kind === 'purchase_order' && row.status !== 'Cancelled'
+            && row.fields.order.work_order_id === doc.id)
+          .reduce((total, row) => total + (row.grand_total != null
+            ? roundFraction(scaledDecimal(row.grand_total), 10000n) : summary(row.fields).total), 0n);
+      },
+      readLabour() {
+        if (!doc.version) return {amount: '0.00'};
+        const query = new URLSearchParams({document:doc.id});
+        if (editor.source) {
+          query.set('file', editor.source.file_id);
+          query.set('project', editor.source.projectId);
+          query.set('revision', readSource().revision);
+        } else query.set('workspace', panelWorkspace);
+        return request('work-order-labour?' + query);
+      },
       readActivity() {
         if (!doc.version) return {events:[]};
         const query = new URLSearchParams({document:doc.id});
@@ -3046,6 +3063,7 @@
     if (reference) reference.value = saved.reference || "";
     const cost = root()?.querySelector("[data-order-cost]");
     if (cost) cost.value = fields.order.estimated_cost;
+    void state.editor.panels?.refreshCosts?.();
     root()?.querySelectorAll('[data-project-detail]').forEach(control=>{control.value=fields.details[control.dataset.projectDetail] || '';});
     refreshQuoteIdentifiers();
     state.editor.panels?.refreshProjectDetails(projectDetailsSnapshot(state.editor.source));

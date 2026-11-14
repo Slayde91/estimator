@@ -198,7 +198,6 @@
       idPrefix:"project-pane", dateLabel:"Follow-up due", pendingOnly:true, onChange:applyCurrentDraft});
     accountId = values.account_id || ""; accountName = values.client || "";
     contactId = values.contact_id || ""; contactName = values.contact_name || ""; contactLoading = false;
-    $("project-details-target").textContent = target;
     $("project-details-save").hidden = selected.kind === "current";
     text($("project-details-save"),selected.kind === "new" ? "Save project" : "Save project details");
     $("project-new-cancel").hidden = selected.kind !== "new";

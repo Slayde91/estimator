@@ -15,6 +15,7 @@ from reportlab.pdfgen import canvas
 from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Frame, HRFlowable, KeepTogether, LongTable,
                                PageBreak, PageTemplate, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle)
 
+from .document_theme import accent_hex, pdf_accent
 from .commercial_documents import KINDS, format_terms, totals, validate_fields
 from .date_display import display_date
 from .company_settings import company_logo, contact_lines
@@ -22,7 +23,6 @@ from .report import _company_header
 from .pdf_fonts import FONT_BOLD, FONT_REGULAR, register_pdf_fonts
 from .swms_pdf import Signature
 
-RED = colors.HexColor('#bd0018')
 WIDTH = A4[0] - 72
 
 
@@ -81,8 +81,8 @@ def _styles(*, quote=False, work_order=False, purchase_order=False):
         'red_tables': branded_tables,
         'body': ParagraphStyle('CommercialBody', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=8.5, leading=12, spaceAfter=6),
         'small': ParagraphStyle('CommercialSmall', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=7, leading=10, spaceAfter=3),
-        'title': ParagraphStyle('CommercialTitle', fontName=FONT_BOLD, bulletFontName=FONT_BOLD, fontSize=18, leading=22, textColor=RED, spaceAfter=14),
-        'section': ParagraphStyle('CommercialSection', fontName=FONT_BOLD, bulletFontName=FONT_BOLD, fontSize=11, leading=15, textColor=RED, spaceBefore=14, spaceAfter=8, keepWithNext=True),
+        'title': ParagraphStyle('CommercialTitle', fontName=FONT_BOLD, bulletFontName=FONT_BOLD, fontSize=18, leading=22, textColor=pdf_accent(), spaceAfter=14),
+        'section': ParagraphStyle('CommercialSection', fontName=FONT_BOLD, bulletFontName=FONT_BOLD, fontSize=11, leading=15, textColor=pdf_accent(), spaceBefore=14, spaceAfter=8, keepWithNext=True),
         'terms': ParagraphStyle('CommercialTerms', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=8, leading=11.5, spaceAfter=5),
         'head': ParagraphStyle('CommercialHead', fontName=FONT_BOLD, bulletFontName=FONT_BOLD, fontSize=8, leading=11,
                                textColor=colors.white if branded_tables else colors.black),
@@ -115,15 +115,15 @@ def _table(headers, rows, styles, widths=None):
     count = len(headers) if headers else len(rows[0])
     result = LongTable(data, colWidths=widths or [WIDTH / count] * count, repeatRows=1 if headers else 0, hAlign='LEFT')
     commands = [
-        ('GRID', (0, 0), (-1, -1), .4, RED if styles['red_tables'] else colors.HexColor('#cccccc')),
+        ('GRID', (0, 0), (-1, -1), .4, pdf_accent() if styles['red_tables'] else colors.HexColor('#cccccc')),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('LEFTPADDING', (0, 0), (-1, -1), 7), ('RIGHTPADDING', (0, 0), (-1, -1), 7),
         ('TOPPADDING', (0, 0), (-1, -1), 6), ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
     ]
     if headers:
-        commands.append(('BACKGROUND', (0, 0), (-1, 0), RED if styles['red_tables'] else colors.HexColor('#eeeeee')))
+        commands.append(('BACKGROUND', (0, 0), (-1, 0), pdf_accent() if styles['red_tables'] else colors.HexColor('#eeeeee')))
     elif styles['red_tables']:
-        commands.append(('BACKGROUND', (0, 0), (0, -1), RED))
+        commands.append(('BACKGROUND', (0, 0), (0, -1), pdf_accent()))
     result.setStyle(TableStyle(commands))
     return result
 
@@ -137,7 +137,7 @@ def _section(story, title, styles, *, splittable=False):
         style = style.clone('CommercialTrackingSection', keepWithNext=False)
     story.append(_paragraph(title, style))
     if styles['quote'] and title in {'QUOTE SUMMARY', 'SCHEDULE OF RATES', 'SCOPE OF WORKS', 'ALLOWANCES'}:
-        rule = HRFlowable(width=WIDTH, thickness=1, color=RED, spaceAfter=8)
+        rule = HRFlowable(width=WIDTH, thickness=1, color=pdf_accent(), spaceAfter=8)
         rule.keepWithNext = True
         story.append(rule)
 
@@ -217,10 +217,10 @@ def _rates(document_story, schedule, styles):
     for labels in [(('accepted_by', 'Accepted by'), ('title', 'Title')), (('signature', 'Signature'), ('date', 'Date'))]:
         cells.append([[Paragraph('<b>' + label + '</b>', styles['small']),
                        _paragraph(acceptance[key], styles['body']), Spacer(1, 13),
-                       HRFlowable(width=WIDTH / 2 - 18, thickness=.5, color=RED)]
+                       HRFlowable(width=WIDTH / 2 - 18, thickness=.5, color=pdf_accent())]
                       for key, label in labels])
     table = Table(cells, colWidths=[WIDTH / 2] * 2)
-    table.setStyle(TableStyle([('GRID', (0, 0), (-1, -1), .4, RED),
+    table.setStyle(TableStyle([('GRID', (0, 0), (-1, -1), .4, pdf_accent()),
                               ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                               ('TOPPADDING', (0, 0), (-1, -1), 8),
                               ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
@@ -273,7 +273,7 @@ def _terms_pdf(text, document, number, company):
                 style.bulletFontName, style.bulletFontSize = FONT_BOLD, base.fontSize
                 bullet = label
                 if heading:
-                    style.textColor = RED
+                    style.textColor = pdf_accent()
                     style.fontName = FONT_BOLD
                     style.keepWithNext = True
                     style.spaceBefore = 4
@@ -282,11 +282,11 @@ def _terms_pdf(text, document, number, company):
                 style.bulletFontName, style.bulletFontSize = FONT_REGULAR, base.fontSize
                 bullet = '\u2022'
         if disclosure_heading:
-            markup = '<font color="#bd0018"><b>Our Disclosures:</b></font> ' + markup
+            markup = f'<font color="#{accent_hex()}"><b>Our Disclosures:</b></font> ' + markup
             disclosure_heading = False
         story.append(Paragraph(markup, style, bulletText=bullet))
     if disclosure_heading:
-        story.append(Paragraph('<font color="#bd0018"><b>Our Disclosures:</b></font>', base))
+        story.append(Paragraph(f'<font color="#{accent_hex()}"><b>Our Disclosures:</b></font>', base))
     if not story:
         return None
     output = BytesIO()
@@ -318,9 +318,9 @@ def _quotation_header(page, logo, company, title='QUOTATION'):
         page.setFont(FONT_REGULAR, size)
         page.drawRightString(width - margin, height - offset, value)
     page.setFont(FONT_BOLD, 16)
-    page.setFillColor(RED)
+    page.setFillColor(pdf_accent())
     page.drawCentredString(width / 2, height - 43, title)
-    page.setStrokeColor(RED)
+    page.setStrokeColor(pdf_accent())
     page.setLineWidth(1.1)
     page.line(margin, height - 78, width - margin, height - 78)
 

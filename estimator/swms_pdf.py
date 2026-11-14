@@ -1,6 +1,7 @@
 """Editable SWMS content rendered in the supplied landscape template's layout."""
 import base64
 from datetime import datetime
+from .document_theme import pdf_accent
 from .date_display import display_date
 from html import escape
 from io import BytesIO
@@ -76,9 +77,9 @@ def _emergency_table(fields, styles):
     table = _table(None, [[_p('EMERGENCY RESPONSE - CALL 000 IMMEDIATELY.', head), ''],
                          [_emergency_paragraphs(fields[key], body, bullets_after_first=True)
                           for key in ('emergency_requirements', 'emergency_access')]], [WIDTH / 2] * 2, styles)
-    table.setStyle(TableStyle([('SPAN', (0, 0), (1, 0)), ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e52000')),
+    table.setStyle(TableStyle([('SPAN', (0, 0), (1, 0)), ('BACKGROUND', (0, 0), (-1, 0), pdf_accent('E52000')),
                                ('TOPPADDING', (0, 0), (-1, -1), 1), ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
-                               ('LINEBEFORE', (1, 1), (1, 1), .45, RED)]))
+                               ('LINEBEFORE', (1, 1), (1, 1), .45, pdf_accent('D40000'))]))
     return table
 
 
@@ -139,16 +140,16 @@ def _table(headers, rows, widths, styles, *, repeated=True, grid=True, row_heigh
                 ('RIGHTPADDING', (0, 0), (-1, -1), 4), ('TOPPADDING', (0, 0), (-1, -1), 4),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 4)]
     if headers:
-        commands.append(('BACKGROUND', (0, 0), (-1, 0), RED))
+        commands.append(('BACKGROUND', (0, 0), (-1, 0), pdf_accent('D40000')))
     if grid:
-        commands.append(('GRID', (0, 0), (-1, -1), .45, RED))
+        commands.append(('GRID', (0, 0), (-1, -1), .45, pdf_accent('D40000')))
     table.setStyle(TableStyle(commands))
     return table
 
 
 def _pair(label, text, styles, *, bullets=False):
     table = _table(None, [[_p(label, styles['bold']), _p(text, styles['body'], bullets=bullets)]], [WIDTH * .27, WIDTH * .73], styles, grid=False)
-    table.setStyle(TableStyle([('LINEABOVE', (0, 0), (-1, 0), .35, RED),
+    table.setStyle(TableStyle([('LINEABOVE', (0, 0), (-1, 0), .35, pdf_accent('D40000')),
                                ('TOPPADDING', (0, 0), (-1, -1), 7), ('BOTTOMPADDING', (0, 0), (-1, -1), 7)]))
     return table
 
@@ -176,7 +177,7 @@ def _matrix(styles):
     table = _table(['Level', 'Description of Consequence or Impact', 'Consequence', 'Likely', 'Moderate', 'Unlikely'], rows,
                    [WIDTH * fraction for fraction in (.13, .52, .12, .077, .077, .076)], styles)
     colours = {'1': '#ff2600', '2': '#ffd43b', '3': '#a3ce36'}
-    commands = [('BACKGROUND', (0, 0), (-1, 0), RED), ('TEXTCOLOR', (0, 0), (-1, 0), colors.white), ('GRID', (0, 0), (-1, -1), .6, RED)]
+    commands = [('BACKGROUND', (0, 0), (-1, 0), pdf_accent('D40000')), ('TEXTCOLOR', (0, 0), (-1, 0), colors.white), ('GRID', (0, 0), (-1, -1), .6, pdf_accent('D40000'))]
     for row, values in enumerate(rows, 1):
         for column in range(3, 6):
             commands.extend([('BACKGROUND', (column, row), (column, row), colors.HexColor(colours[values[column]])), ('ALIGN', (column, row), (column, row), 'CENTER')])
@@ -363,11 +364,11 @@ def render_swms_pdf(document, *, company):
         c.drawImage(logo, MARGIN, PAGE[1] - 47, width=98, height=32, preserveAspectRatio=True, anchor='sw', mask='auto')
         if document.page == 1:
             c.setFont(FONT_BOLD, 11.5)
-            c.setFillColor(RED)
+            c.setFillColor(pdf_accent('D40000'))
             c.drawCentredString(PAGE[0] / 2, PAGE[1] - 34, 'SAFE WORK METHOD STATEMENT')
         paragraph, company_width, company_height = company_layout(document.page == 1)
         paragraph.drawOn(c, PAGE[0] - MARGIN - company_width, PAGE[1] - 12 - company_height)
-        c.setStrokeColor(RED); c.setLineWidth(.6)
+        c.setStrokeColor(pdf_accent('D40000')); c.setLineWidth(.6)
         c.line(MARGIN, PAGE[1] - (first_header_depth if document.page == 1 else 60), PAGE[0] - MARGIN,
                PAGE[1] - (first_header_depth if document.page == 1 else 60))
         c.line(MARGIN, 39, PAGE[0] - MARGIN, 39)

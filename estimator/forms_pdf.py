@@ -13,6 +13,7 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
 from reportlab.platypus import Image, LongTable, PageBreak, Paragraph, SimpleDocTemplate, Spacer, TableStyle
 
+from .document_theme import THEMES
 from .catalog import ROOT
 from .date_display import display_date
 from .pdf_fonts import FONT_BOLD, PdfParagraphStyle, register_pdf_fonts
@@ -20,7 +21,6 @@ from .forms_pdf_fonts import font_text
 from .forms_pdf_browser import render_shaped_pdf
 
 
-THEMES = {'ceasefire':'#bd0018','midnight':'#244a75','ocean':'#155e75','forest':'#166534','slate':'#334155'}
 IMAGES = {'image/png','image/jpeg','image/webp','image/gif'}
 
 

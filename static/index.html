@@ -73,6 +73,7 @@
   <link rel="stylesheet" href="/commercial-documents.css">
   <link rel="stylesheet" href="/commercial-pricing-picker.css">
   <script src="/commercial-pricing-picker.js" defer></script>
+  <script src="/work-order-costs.js" defer></script>
   <script src="/commercial-panels.js" defer></script>
   <script src="/commercial-documents.js" defer></script>
   <link rel="stylesheet" href="/swms.css">
@@ -250,7 +251,7 @@ SOFTWARE. -->
     <div class="header-project-identity"><button id="header-project-name" type="button" class="header-project-name header-projects-link" data-i18n="Projects">Projects</button></div>
     </div>
     <div class="header-status-row">
-      <p id="header-tagline" class="header-tagline"><span id="header-tagline-label" class="sr-only" data-i18n="Built on caffeine and the audacity of &#x27;Do your best, mastic the rest.&#x27;">Built on caffeine and the audacity of 'Do your best, mastic the rest.'</span><span class="header-tagline-visual" aria-hidden="true"><span id="header-tagline-typed">Built on caffeine and the audacity of 'Do your best, mastic the rest.'</span><span class="header-tagline-cursor">_</span></span></p>
+      <p id="header-tagline" class="header-tagline"><span id="header-tagline-label" class="sr-only" data-i18n="Built on caffeine and the audacity of &#x27;Do your best, mastic the rest.&#x27;">Built on caffeine and the audacity of 'Do your best, mastic the rest.'</span><span class="header-tagline-visual" aria-hidden="true"><span id="header-tagline-typed"><strong id="header-tagline-prefix"></strong><span id="header-tagline-content">Built on caffeine and the audacity of 'Do your best, mastic the rest.'</span></span><span class="header-tagline-cursor">_</span></span></p>
       <span id="project-save-state" class="status-label unsaved" role="status" data-i18n="Not saved to a file">Not saved to a file</span>
     </div>
   </header>
@@ -541,7 +542,6 @@ SOFTWARE. -->
       <div id="project-details-actions" class="project-details-actions"><button id="project-details-close" type="button" class="button secondary icon-only" aria-label="Back to Projects" title="Back to Projects" data-i18n-aria-label="Back to Projects" data-i18n-title="Back to Projects"><span class="button-symbol" aria-hidden="true">←</span></button><button id="project-details-toolbar-save" type="button" class="button primary" data-i18n="Save">Save</button><button id="project-details-load" type="button" class="button primary" data-i18n="Load">Load</button><button id="project-refresh-records" type="button" class="button secondary" data-i18n="Refresh Records">Refresh Records</button></div>
       <aside id="project-details-pane" class="card project-details-pane" aria-labelledby="projects-details-heading" hidden>
         <div class="section-heading"><h2 id="projects-details-heading" data-i18n="Project Details">Project Details</h2></div>
-        <p id="project-details-target" class="helper"></p>
         <form id="project-details-form">
           <div class="project-pane-fields project-location-fields">
             <label class="field"><span data-i18n="Project No.">Project No.</span><input id="project-pane-number" type="text" readonly maxlength="100" placeholder="Assigned when saved" data-i18n-placeholder="Assigned when saved"></label>
@@ -604,7 +604,7 @@ SOFTWARE. -->
       </div>
     </section>
     <section id="view-passive-fire-register" class="view workspace-view" aria-labelledby="passive-register-heading" hidden>
-      <div class="page-heading"><div><h1 id="passive-register-heading" data-i18n="Passive Fire Register">Passive Fire Register</h1></div></div>
+      <div class="page-heading"><div><h1 id="passive-register-heading" data-i18n="Passive Fire Inspections">Passive Fire Inspections</h1></div></div>
       <div id="passive-register-root"></div>
     </section>
     <section id="view-forms" class="view workspace-view" aria-labelledby="forms-heading" hidden>

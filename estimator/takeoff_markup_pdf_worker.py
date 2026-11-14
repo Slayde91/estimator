@@ -169,7 +169,7 @@ def _paint_legend(pdf, rows, width, height, spec, page_number, *, continuation=F
     filename, heading_height = _filename_heading(spec, width)
     filename.drawOn(pdf, 18, height-45-heading_height)
     separator = height-53-heading_height
-    pdf.setStrokeColor(HexColor('#BD0018')); pdf.setLineWidth(1); pdf.line(18, separator, width-18, separator)
+    pdf.setStrokeColor(HexColor(spec.get('print_accent', '#BD0018'))); pdf.setLineWidth(1); pdf.line(18, separator, width-18, separator)
     y = separator-10
     annotation_count = sum(annotation['page'] == page_number for annotation in spec.get('annotations', []))
     signature_count = sum(signature['page'] == page_number for signature in spec.get('signatures', []))

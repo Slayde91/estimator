@@ -7,6 +7,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.page import PageMargins
 
+from .document_theme import accent_hex
 from .calculator_report import (project_calculator_report, _source_text,
                                 summary_display_columns, summary_display_value)
 from .pricing_workbook import _serialize_exact
@@ -14,7 +15,6 @@ from .assessment_references import UNAVAILABLE_RESULT, report_reference_text
 from .download_disclosure import calculator_download_data, duct_schedule_outputs
 
 
-_RED = '941321'
 _PALE = 'FFF1CE'
 _INK = '332B30'
 _NUMBER = '#,##0.00'
@@ -32,7 +32,7 @@ def _cell(sheet, row, column, value, *, heading=False, number_format=_NUMBER):
                                vertical='center', wrap_text=True)
     cell.number_format = number_format
     if heading:
-        cell.fill = PatternFill('solid', fgColor=_RED)
+        cell.fill = PatternFill('solid', fgColor=accent_hex('941321'))
     return cell
 
 

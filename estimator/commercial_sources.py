@@ -85,6 +85,17 @@ class CommercialSources:
             else:
                 db.execute('DELETE FROM commercial_ignored_owners WHERE project=?', (project,))
 
+    def scheduler_sources(self, identifier, project):
+        """Linked-folder and native-file keys can identify the same physical source."""
+        with self.connect() as db:
+            row = db.execute("""SELECT id FROM commercial_source_files WHERE project=? AND deleted=0 AND
+                (id=? OR id=(SELECT source_id FROM commercial_source_aliases WHERE alias=?))""",
+                (project,identifier,identifier)).fetchone()
+            if not row:
+                return [identifier]
+            return [row[0], *(item[0] for item in db.execute(
+                'SELECT alias FROM commercial_source_aliases WHERE source_id=? ORDER BY alias', row))]
+
     def resolve(self, identifier):
         with self.connect() as db:
             return db.execute('''SELECT path,project FROM commercial_source_files WHERE deleted=0 AND

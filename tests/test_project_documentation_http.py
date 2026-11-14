@@ -3,6 +3,7 @@ from test_pdf_download_covers import signed_options
 from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor
 from hashlib import sha256
+import base64
 import json
 from pathlib import Path
 import unittest
@@ -11,6 +12,7 @@ import uuid
 from unittest.mock import patch
 
 from openpyxl import load_workbook
+from pypdf import PdfReader
 
 from estimator.company_settings import DEFAULTS
 from estimator.documentation_catalog import document_catalog, export_identity
@@ -116,6 +118,43 @@ class DocumentationHTTPTests(unittest.TestCase):
         self.assertEqual(self.retained(workspace)['workspace_revision'],1)
         self.assertEqual(self.request('GET',first['url'])[2],payload)
         self.assertEqual(self.request('POST','/api/quote-report',{'inputs':{'B8':2}},self.headers(workspace,operation))[0],409)
+
+    def test_themed_generations_keep_exact_history_and_do_not_share_colours(self):
+        workspace = self.workspace()
+        uploaded_cover = cover('Uploaded cover artwork')
+        source_page = PdfReader(BytesIO(base64.b64decode(uploaded_cover.split(',', 1)[1]))).pages[0]
+        self.json('POST', '/api/company-settings', {**DEFAULTS, 'cover_pdf': uploaded_cover,
+                                                   'cover_pdf_name': 'Source.pdf'})
+        operations = [self.headers(workspace) | {'X-Estimator-Document-Theme': theme}
+                      for theme in ('ocean', 'forest')]
+        route, body = '/api/quote-report', {'inputs': {}}
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            replies = list(pool.map(lambda headers: self.request('POST', route, body, headers), operations))
+        for headers, (status, _, payload), hex_colour in zip(operations, replies, ('155e75', '166534')):
+            self.assertEqual(status, 200, payload[:150])
+            pages = PdfReader(BytesIO(payload)).pages
+            self.assertEqual(pages[0].get_contents().get_data(), source_page.get_contents().get_data())
+            colours = {tuple(round(float(channel) * 255) for channel in values)
+                       for page in pages[1:]
+                       for values, operator in page.get_contents().operations if operator in (b'rg', b'RG')}
+            self.assertIn(tuple(bytes.fromhex(hex_colour)), colours)
+            self.assertNotIn((189, 0, 24), colours)
+            self.assertEqual(self.request('POST', route, body, headers)[2], payload)
+            other_theme = headers | {'X-Estimator-Document-Theme': 'midnight'}
+            self.assertEqual(self.request('POST', route, body, other_theme)[0], 409)
+        items = self.retained(workspace)['items']
+        self.assertEqual(len(items), 2)
+        self.assertEqual({self.request('GET', item['url'])[2] for item in items},
+                         {reply[2] for reply in replies})
+        headers = self.headers(workspace) | {'X-Estimator-Document-Theme': 'slate'}
+        status, _, workbook_bytes = self.request('POST', '/api/pricing/export', {}, headers)
+        self.assertEqual(status, 200, workbook_bytes[:150])
+        workbook = load_workbook(BytesIO(workbook_bytes), read_only=True)
+        try:
+            self.assertEqual(workbook[COMBINED_SHEET]['A1'].fill.fgColor.rgb[-6:], '334155')
+        finally:
+            workbook.close()
+        self.assertEqual(self.request('POST', route, body, {'X-Estimator-Document-Theme': 'unknown'})[0], 400)
 
     def test_certificate_revisions_are_derived_from_the_same_project_scope(self):
         a,b=self.created_workspace()['workspace_id'],self.workspace();scope='?workspace='+a

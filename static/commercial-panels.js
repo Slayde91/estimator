@@ -403,6 +403,14 @@
     }
     const notes = panel("Notes",0), files = panel("Files",0);
     right.append(notes, files, history.element);
+    const costs = options.kind === 'work_order' ? window.ClassifireWorkOrderCosts.attach(right, {
+      estimate: () => options.fields.order.estimated_cost,
+      purchases: options.purchaseOrderCost, labour: options.readLabour, current: panelCurrent
+    }) : null;
+    if (costs) {
+      form.querySelector('[data-order-cost]')?.addEventListener('input', costs.paint);
+      form.querySelector('[data-order-link]')?.addEventListener('change', costs.paint);
+    }
     let showAllNotes=false;
     function repaintNotes() {
       const all=[...(options.fields.notes || [])].sort((a,b)=>b.updated_at.localeCompare(a.updated_at));
@@ -460,8 +468,8 @@
     }
     relatedPanels.forEach(([,block])=>left.append(block));showRelated();
     form.querySelector("[data-order-link]")?.addEventListener("change",showRelated);
-    return {repaintFiles,refreshDirectory,refreshHistory:history.refresh,updateActivity:history.update,activityDirty:history.dirty,
-      refreshRecords(){showRelated();repaintFiles();return Promise.all([reloadParties(),history.refresh()]);},
+    return {refreshCosts:costs?.refresh, repaintFiles,refreshDirectory,refreshHistory:history.refresh,updateActivity:history.update,activityDirty:history.dirty,
+      refreshRecords(){showRelated();repaintFiles();return Promise.all([reloadParties(),history.refresh(),costs?.refresh()]);},
       closeSearches(){controls.forEach(control=>control.close());},refreshProjectDetails(value){options.projectDetails=value;refreshDetails();}};
   }
   window.ClassifireWorkOrderPanels = {attach,noteDialog,plain};

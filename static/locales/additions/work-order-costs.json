@@ -1,0 +1,67 @@
+{
+  "Work Order costs": [
+    "작업 지시서 비용",
+    "Mga gastos sa utos ng trabaho",
+    "Chi phí lệnh công việc"
+  ],
+  "Work Order cost breakdown": [
+    "작업 지시서 비용 내역",
+    "Detalye ng mga gastos sa utos ng trabaho",
+    "Chi tiết chi phí lệnh công việc"
+  ],
+  "Estimated cost {0}": [
+    "예상 비용 {0}",
+    "Tinatayang gastos {0}",
+    "Chi phí ước tính {0}"
+  ],
+  "Remaining estimate": [
+    "남은 예산",
+    "Natitirang badyet",
+    "Ngân sách còn lại"
+  ],
+  "Purchase orders": [
+    "구매 주문",
+    "Mga order ng pagbili",
+    "Đơn đặt hàng"
+  ],
+  "Time entries": [
+    "근무 시간 기록",
+    "Mga tala ng oras ng trabaho",
+    "Bản ghi giờ làm"
+  ],
+  "Loss {0}": [
+    "손실 {0}",
+    "Pagkalugi {0}",
+    "Lỗ {0}"
+  ],
+  "Enter an estimated cost to see the breakdown.": [
+    "내역을 보려면 예상 비용을 입력하세요.",
+    "Ilagay ang tinatayang gastos para makita ang detalye.",
+    "Nhập chi phí ước tính để xem chi tiết."
+  ],
+  "Loading time entry costs…": [
+    "근무 시간 비용을 불러오는 중…",
+    "Kinukuha ang gastos sa mga oras ng trabaho…",
+    "Đang tải chi phí giờ làm…"
+  ],
+  "Time entry costs could not be loaded.": [
+    "근무 시간 비용을 불러올 수 없습니다.",
+    "Hindi makuha ang gastos sa mga oras ng trabaho.",
+    "Không tải được chi phí giờ làm."
+  ],
+  "A linked time entry has no recorded hourly rate.": [
+    "연결된 근무 기록에 시간당 요율이 없습니다.",
+    "Walang nakatalang orasang bayad sa isang kaugnay na tala ng oras.",
+    "Một bản ghi giờ làm liên kết chưa có đơn giá theo giờ."
+  ],
+  "Confirm Scheduler pay rules to calculate time entry costs.": [
+    "근무 시간 비용을 계산하려면 스케줄러의 급여 규칙을 확인하세요.",
+    "Kumpirmahin ang mga tuntunin sa sahod sa Scheduler upang makalkula ang gastos sa oras ng trabaho.",
+    "Xác nhận quy tắc tính lương trong lịch làm việc để tính chi phí giờ làm."
+  ],
+  "Some linked time entries have a recorded hourly rate of $0.00.": [
+    "연결된 근무 기록 중 일부의 시간당 요율이 $0.00입니다.",
+    "May ilang kaugnay na tala ng oras na may orasang bayad na $0.00.",
+    "Một số bản ghi giờ làm liên kết có đơn giá $0.00 mỗi giờ."
+  ]
+}

@@ -20,6 +20,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.workbook.defined_name import DefinedName
 from openpyxl.worksheet.datavalidation import DataValidation
 
+from .document_theme import accent_hex
 from .catalog import ValidationError
 from .pricing_workbook import _preflight, _serialize_exact
 from .workbook_catalog import column_name, load_workbook_catalog, range_addresses
@@ -184,7 +185,7 @@ def export_schedule_template(calculator_id):
     for target in (sheet, instructions):
         target.sheet_view.showGridLines = False
         for cell in target[1]:
-            cell.fill = PatternFill("solid", fgColor="8D1726")
+            cell.fill = PatternFill("solid", fgColor=accent_hex('8D1726'))
             cell.font = Font(name="Calibri", bold=True, color="FFFFFF")
             cell.alignment = Alignment(vertical="center", wrap_text=True)
         for row in target:

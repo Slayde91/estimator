@@ -41,7 +41,7 @@
   const thumbnailTypes = new Set(['text', 'choice', 'date', 'datetime', 'expiry_date', 'counter']);
   const registerCellTypes = new Set(['text','textarea','number','date','datetime','time','choice','multichoice','yes_no','list_property','formula']);
   const roleNames = {viewer: 'Viewer', editor: 'Editor', admin: 'Administrator'};
-  const tabNames = {fields: 'Fields', defaults: 'Default values', settings: 'Settings', raw: 'Field JSON'};
+  const tabNames = {fields: 'Fields', defaults: 'Default values', settings: 'Settings', raw: 'Raw code'};
   const fieldIconPaths = {
     text: 'M3 5h14M10 5v14M7 19h6',
     textarea: 'M3 5h18M3 10h14M3 15h18M3 20h11',

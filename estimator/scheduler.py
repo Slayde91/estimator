@@ -288,6 +288,8 @@ class SchedulerStore:
                     start TEXT NOT NULL, end TEXT, version INTEGER NOT NULL, data TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS scheduler_record_dates ON scheduler_records(kind,start,end);
+                CREATE INDEX IF NOT EXISTS scheduler_completed_work_order ON scheduler_records(json_extract(data,'$.work_order.id'))
+                    WHERE kind='entry' AND end IS NOT NULL;
                 CREATE UNIQUE INDEX IF NOT EXISTS scheduler_one_clock ON scheduler_records(member_id)
                     WHERE kind='entry' AND end IS NULL;
                 CREATE TABLE IF NOT EXISTS scheduler_locations (
@@ -465,6 +467,45 @@ class SchedulerStore:
     @staticmethod
     def _read_settings(db):
         return normalize_settings(json.loads(db.execute('SELECT data FROM scheduler_settings WHERE id=1').fetchone()[0]))
+
+    def work_order_labour(self, identities):
+        """Cost completed entries using their saved rates, with other work counting towards thresholds."""
+        if not identities:
+            return {'amount': '0.00'}
+        placeholders = ','.join('?' for _ in identities)
+        with self.connect() as db:
+            db.execute('BEGIN')
+            settings = self._read_settings(db)
+            matched = db.execute(f"""SELECT id,member_id,start,end,json_extract(data,'$.base_rate') AS rate FROM scheduler_records
+                WHERE kind='entry' AND end IS NOT NULL AND json_extract(data,'$.work_order.id') IN ({placeholders})""", identities)
+            by_member = defaultdict(list)
+            zero_rates = False
+            for row in matched:
+                if row['rate'] in (None, ''):
+                    return {'amount': None, 'message': 'A linked time entry has no recorded hourly rate.'}
+                zero_rates |= Decimal(row['rate']) == 0
+                by_member[row['member_id']].append(row)
+            if by_member and not settings['pay_rules_confirmed']:
+                return {'amount': None, 'message': 'Confirm Scheduler pay rules to calculate time entry costs.'}
+            zone = ZoneInfo(settings['timezone'])
+            margin = timedelta(minutes=settings['rounding_minutes'])
+            total = Decimal('0.00')
+            for member, rows in by_member.items():
+                # Include earlier jobs in the first applicable payroll week, even if rounding
+                # moves the first paid second back across a Monday midnight.
+                first = (_timestamp(min(row['start'] for row in rows)) - margin).astimezone(zone)
+                monday = first.date()-timedelta(days=first.weekday())
+                start = datetime.combine(monday, datetime.min.time(), zone).astimezone(UTC) - margin
+                end = _timestamp(max(row['end'] for row in rows)) + margin
+                context = db.execute("""SELECT data FROM scheduler_records WHERE kind='entry' AND member_id=?
+                    AND end IS NOT NULL AND end>? AND start<? ORDER BY start,id""", (member, _iso(start), _iso(end)))
+                payroll = calculate_payroll([json.loads(row[0]) for row in context], settings,
+                                            entry_ids={row['id'] for row in rows})
+                total += sum((Decimal(row['gross']) for row in payroll['rows']), Decimal(0))
+        result = {'amount': str(total)}
+        if zero_rates:
+            result['message'] = 'Some linked time entries have a recorded hourly rate of $0.00.'
+        return result
 
     @staticmethod
     def _entry_view(entry, settings):
@@ -1117,7 +1158,7 @@ def _day_transition(date, zone):
     return datetime.fromtimestamp(high, UTC)
 
 
-def calculate_payroll(entries, settings, visible_start=None, visible_end=None):
+def calculate_payroll(entries, settings, visible_start=None, visible_end=None, *, entry_ids=None):
     """Calculate one highest rate per paid second using the current rule version."""
     settings = normalize_settings(settings)
     if not settings['pay_rules_confirmed']:
@@ -1168,7 +1209,8 @@ def calculate_payroll(entries, settings, visible_start=None, visible_end=None):
                 seconds = int((boundary-cursor).total_seconds())
                 daily[day_key] += seconds
                 weekly[week_key] += seconds
-                if (visible_start is None or cursor >= visible_start) and (visible_end is None or cursor < visible_end):
+                if ((entry_ids is None or entry['id'] in entry_ids) and (visible_start is None or cursor >= visible_start)
+                        and (visible_end is None or cursor < visible_end)):
                     row = rows.setdefault(member_id, {'member_id': member_id, 'seconds': 0, 'gross': Decimal(0), 'segments': []})
                     amount = Decimal(seconds)/Decimal(3600)*Decimal(entry['base_rate'])*multiplier
                     # For reporting, attribute each paid second once to the first highest-rate

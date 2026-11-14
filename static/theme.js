@@ -40,6 +40,7 @@
       window.CeasefireNotifications?.show(status);
     }
   }
+  window.CeasefireTheme = {downloadHeaders: () => ({'X-Estimator-Document-Theme': themes[current].id})};
   apply(false);
   button.dataset.themeReady = 'true';
   button.addEventListener('click', () => {

@@ -5,6 +5,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+from .document_theme import accent_hex
 from .catalog import ValidationError
 from .pricing_workbook import _serialize_exact
 
@@ -42,7 +43,7 @@ def register_workbook(tables, title='Current Takeoffs', *, subject='Current regi
     workbook.properties.subject = subject
     sheet.sheet_view.showGridLines = False
     sheet.sheet_properties.pageSetUpPr.fitToPage = True
-    sheet.sheet_properties.tabColor = 'B90A15'
+    sheet.sheet_properties.tabColor = accent_hex('B90A15')
     sheet.page_setup.orientation = 'landscape'
     sheet.page_setup.paperSize = sheet.PAPERSIZE_A3
     sheet.page_setup.fitToWidth = 1
@@ -74,7 +75,7 @@ def register_workbook(tables, title='Current Takeoffs', *, subject='Current regi
                             raise ValidationError('Register text exceeds an Excel cell limit. Shorten the affected displayed field before downloading.')
                         cell.data_type = 's'
                     cell.font = Font(name='Arial', size=10, bold=is_header, color='FFFFFF' if is_header else '2B252A')
-                    cell.fill = PatternFill('solid', fgColor='B90A15' if is_header else ('F8F3F3' if (cell.row-start) % 2 == 0 else 'FFFFFF'))
+                    cell.fill = PatternFill('solid', fgColor=accent_hex('B90A15') if is_header else ('F8F3F3' if (cell.row-start) % 2 == 0 else 'FFFFFF'))
                     cell.alignment = Alignment(horizontal='center' if is_header else ('right' if isinstance(value, (int, float)) else 'left'),
                                                vertical='center' if is_header else 'top', wrap_text=True)
                     cell.border = Border(bottom=Side(style='thin', color='E8E2E3'),

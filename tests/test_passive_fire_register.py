@@ -111,16 +111,33 @@ class PassiveFireRegisterTests(unittest.TestCase):
         from technical_item_fixture_data import technical_library, REPORT_URL
         with TemporaryDirectory() as folder:
             root = Path(folder) / 'technical'
-            technical_library(root)
+            data = technical_library(root)
+            record = data['libraries']['technical']['items'][0]
+            record['fields'].append({'label': 'Barrier Construction', 'value': 'Concrete wall or plasterboard wall'})
+            data['libraries']['technical']['filters'].append({'key': 'orientation', 'label': 'Orientation'})
+            record['filter_values']['orientation'] = ['Vertical']
+            (root / 'library.json').write_text(json.dumps(data), encoding='utf-8')
             library = ReferenceLibrary(root)
             entry = {**completed_entry(), 'technical_item_id': 'report-a-v1'}
             for key in ('seal_type','frl','products','report','service_types','manufacturer','orientation','substrate','installation_type'):
                 entry.pop(key)
+            entry['technical_filters'] = {'substrate': 'Concrete/masonry wall', 'orientation': 'Vertical',
+                                          'manufacturer': 'Synthetic manufacturer'}
             draft = normalize_register({'entries': [entry]})
             self.assertEqual(draft['entries'][0]['technical_item_id'], 'report-a-v1')
             with patch.object(library, 'asset', side_effect=AssertionError('Technical images are never read for the register')):
                 pdf = PdfReader(BytesIO(render_register_pdf(draft, {}, library=library, company=DEFAULTS)))
             text = ' '.join(' '.join(page.extract_text().split()) for page in pdf.pages)
+            self.assertIn('Substrate Concrete/masonry wall Orientation Vertical Manufacturer Synthetic manufacturer', text)
+            self.assertEqual(pdf.metadata.title, 'Passive Fire Inspections')
+            stale = {**entry, 'technical_filters': {'orientation': 'Horizontal'}}
+            with self.assertRaisesRegex(ValidationError, 'no longer matches'):
+                render_register_pdf({'entries': [stale]}, {}, library=library, company=DEFAULTS)
+            older = {k: value for k, value in entry.items() if k != 'technical_filters'}
+            old_pdf = PdfReader(BytesIO(render_register_pdf({'entries': [older]}, {}, library=library, company=DEFAULTS)))
+            old_text = ' '.join(' '.join(page.extract_text().split()) for page in old_pdf.pages)
+            self.assertIn('Substrate Not selected (library options:', old_text)
+            self.assertIn('Orientation Vertical Manufacturer Synthetic manufacturer', old_text)
             for value in ('Synthetic manufacturer', 'Literal source text', 'SYN-123', 'Copper pipe', 'Steel pipe',
                           'Side 1 - 001 - Before', 'Side 2 - 001-2 - After'):
                 self.assertIn(value, text)
@@ -232,6 +249,7 @@ class PassiveFireRegisterHTTPTests(unittest.TestCase):
             ids = [row['id'] for row in catalog]
             row = catalog[ids.index('firestopping.schedule.pdf') + 1]
             self.assertEqual(row['id'], 'passive_fire_register.pdf')
+            self.assertEqual(row['label'], 'Passive Fire Inspections')
             self.assertEqual(row['spec']['options'], register_options())
 
     def test_native_save_and_reopen_preserve_incomplete_evidence_and_older_client_cannot_erase_it(self):

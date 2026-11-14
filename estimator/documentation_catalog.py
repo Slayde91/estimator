@@ -47,7 +47,7 @@ def document_catalog(edition='full'):
             label = 'Firestopping | Full Schedule' if scope == 'schedule' and format == 'pdf' else title
             add(f'firestopping.{scope}.{format}',label,format,'firestopping',scope=scope,format=format)
             if scope == 'schedule' and format == 'pdf':
-                add('passive_fire_register.pdf', 'Passive Fire Register', 'pdf', 'passive_fire_register',
+                add('passive_fire_register.pdf', 'Passive Fire Inspections', 'pdf', 'passive_fire_register',
                     options=register_options())
     add('pricing.library.xlsx','Pricing Library','xlsx','pricing')
     add('certification','Installation Certificate','pdf','certification')

@@ -63,7 +63,7 @@ async function layout() {
     const tag = document.querySelector('#header-tagline'), cursor = tag.querySelector('.header-tagline-cursor');
     const typed = tag.querySelector('#header-tagline-typed'), stroke = getComputedStyle(typed);
     return { brand: rectangle('.brand-stack'), logo: rectangle('.brand-logo'), header: rectangle('.app-header'), nav: rectangle('.app-header nav'), tagline: rectangle('#header-tagline'),
-      visual: rectangle('.header-tagline-visual'), typedStyle: stroke.fontStyle, typedWeight: stroke.fontWeight,
+      visual: rectangle('.header-tagline-visual'), typedStyle: stroke.fontStyle, prefixWeight: getComputedStyle(typed.firstElementChild).fontWeight, prefixText: typed.firstElementChild.textContent, suffixWeight: getComputedStyle(typed.lastElementChild).fontWeight,
       cursorAnimation: getComputedStyle(cursor).animationName, cursorOpacity: getComputedStyle(cursor).opacity,
       cursorHidden: cursor.hidden, cursorDisplay: getComputedStyle(cursor).display, cursorAnimationCount: cursor.getAnimations().length,
       italic: getComputedStyle(tag).fontStyle, alignment: getComputedStyle(tag).textAlign, overflow: document.documentElement.scrollWidth - innerWidth,
@@ -336,7 +336,7 @@ async function presentationNavigation(initial) {
     const audio=await page.request.get(`http://127.0.0.1:${info.port}/sounds/classifire.mp3`);assert.equal(audio.status(),200);
     assert.equal(crypto.createHash('sha256').update(await audio.body()).digest('hex'),assetHashes['static/sounds/classifire.mp3']);
     assert.match(audio.headers()['content-type'],/audio\/mpeg/);
-    assert.equal(first.typedStyle,'normal');assert.equal(settled.typedWeight,'700');
+    assert.equal(first.typedStyle,'normal');assert.equal(settled.prefixText,'CLASSIFIRE:');assert.equal(settled.prefixWeight,'700');assert.equal(settled.suffixWeight,'400');
     evidence.intelligence={first,resolving,settled,brandSoundPlays:1,literalInFrench:true,audioBytesVerified:true};csp.push(...await page.evaluate(()=>window.qaCsp));await context.close();
   }
   {

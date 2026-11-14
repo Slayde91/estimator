@@ -180,3 +180,17 @@
 .commercial-details>.commercial-follow-ups{grid-column:1/-1;min-width:0}
 .commercial-card .project-card-heading>.board-follow-up-due{position:static;flex:none;align-self:flex-start}
 .commercial-card .project-title-button{margin-inline-end:auto}
+
+.work-order-costs { margin: 0; padding: 14px; align-self: start; }
+.work-order-costs h3, .work-cost-estimate { margin: 0 0 .65rem; }
+.work-cost-graphic { position: relative; max-width: 11rem; margin: .75rem auto; }
+.work-cost-graphic svg { display: block; width: 100%; }
+.work-cost-graphic :focus-visible { stroke: var(--text); stroke-width: 3; outline: none; }
+.work-cost-remaining { fill: #318451; background: #318451; }
+.work-cost-orders { fill: #b52b44; background: #b52b44; }
+.work-cost-time { fill: #e75d61; background: #e75d61; }
+.work-cost-tooltip { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); pointer-events: none; border-radius: 4px; padding: .3rem .45rem; white-space: nowrap; color: white; background: #222; font-size: .78rem; }
+.work-cost-legend { display: grid; gap: .35rem; margin: 0; padding: 0; list-style: none; }
+.work-cost-legend li { display: grid; grid-template-columns: .65rem 1fr auto; gap: .45rem; align-items: center; }
+.work-cost-legend li > span:first-child { width: .65rem; height: .65rem; border-radius: 50%; }
+.work-cost-loss { display: block; margin-top: .7rem; color: #ee5262; font-weight: 800; }

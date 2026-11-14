@@ -161,6 +161,7 @@ jobs:
       - run: node tests/browser/record_resource_guards.cjs
       - run: node tests/browser/saved_download_links.cjs
       - run: node tests/browser/commercial_panes_signatures.cjs
+      - run: node tests/browser/work_order_costs.cjs
       - run: node tests/browser/commercial_status_project_scope.cjs
       - run: node tests/browser/commercial_required_fields.cjs
       - run: node tests/browser/commercial_board_fields.cjs

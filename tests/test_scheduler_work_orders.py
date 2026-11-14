@@ -86,6 +86,9 @@ class SchedulerOrderSourceTests(unittest.TestCase):
                 self.assertTrue(only['source_id'].startswith('local-'))
                 self.assertEqual(only['document_id'],order['id'])
                 self.assertEqual(service.scheduler_work_order(only['id'],only['revision']),only)
+                self.assertEqual(commercial.workspace_work_order_cost_sources(workspace, order['id']), [only['id']])
+                with self.assertRaises(ValidationError):
+                    commercial.workspace_work_order_cost_sources(workspace, quote['id'])
                 interrupted = Path(folder)/'interrupted.cf.json'
                 interrupted.write_bytes(b'Unexpected content after interrupted file publication')
                 digest = '1'*64
@@ -94,7 +97,15 @@ class SchedulerOrderSourceTests(unittest.TestCase):
                     service.scheduler_work_order(only['id'],only['revision'])
                 commercial.unfiled.cancel_publication(workspace,interrupted,digest)
                 with commercial._connect() as db:
-                    commercial.unfiled.bind_file(db,workspace)
+                    commercial.unfiled.bind_file(db,workspace,Path(folder)/'first.cf.json')
+                bound = commercial.workspace_work_order_cost_sources(workspace, order['id'])
+                self.assertEqual(bound[1:], [only['id']])
+                self.assertNotEqual(bound[0], only['id'])
+                with commercial._connect() as db:
+                    commercial.unfiled.bind_file(db,workspace,Path(folder)/'copy.cf.json')
+                copied = commercial.workspace_work_order_cost_sources(workspace, order['id'])
+                self.assertEqual(len(copied), 1)
+                self.assertNotIn(copied[0], bound)
                 with self.assertRaises(ValidationError):
                     service.scheduler_work_order(only['id'],only['revision'])
             finally:

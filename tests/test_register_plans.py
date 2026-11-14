@@ -109,6 +109,7 @@ class RegisterPlansTests(unittest.TestCase):
         self.register['entries'][1]['plan_pins'] = []
         pdf = PdfReader(BytesIO(self.export()))
         paper = pdf.pages[0]
+        sources = PdfReader(BytesIO(source)).pages
         for number, page in enumerate(pdf.pages[-8:], 1):
             with self.subTest(sheet=number):
                 self.assertEqual(page.cropbox, paper.cropbox)
@@ -122,7 +123,16 @@ class RegisterPlansTests(unittest.TestCase):
                         source_marker.extend(transform.apply_on((float(operands[0]) + 2, float(operands[1]) + 2)))
                     if operator == b'm' and not exported_pin:
                         exported_pin.extend(transform.apply_on(tuple(map(float, operands))))
-                page.extract_text(visitor_operand_before=capture_point)
+                label_axis = []
+                def capture_label(text, matrix, text_matrix, _font, _size):
+                    if text.strip() == '001 / 001-2':
+                        label_axis.extend(Transformation(tuple(text_matrix)).transform(Transformation(tuple(matrix))).ctm[:2])
+                page.extract_text(visitor_operand_before=capture_point, visitor_text=capture_label)
+                source_page = sources[number - 1]
+                width, height = source_page.cropbox.width, source_page.cropbox.height
+                if source_page.rotation in (90, 270):
+                    width, height = height, width
+                self.assertEqual(label_axis, [0, -1] if width > height else [1, 0])
                 self.assertEqual(len(exported_pin), 2)
                 self.assertEqual(len(source_marker), 2)
                 for actual, expected in zip(exported_pin, source_marker):

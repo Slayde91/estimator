@@ -9,6 +9,15 @@
 .forms-dialog:not([open]) { display:none; }
 .forms-dialog { width:min(58rem, calc(100% - 2rem)); max-height:85dvh; overflow:auto; padding:1.25rem; color:var(--ink); background:var(--paper); border:1px solid var(--line); border-top:3px solid var(--accent,#d6002a); border-radius:.8rem; }
 .forms-dialog::backdrop { background:rgb(0 0 0 / .58); }
+.forms-dialog.forms-preview {
+  box-sizing:border-box;
+  width:calc(100% - clamp(1rem, 4vw, 4rem)); max-width:none;
+  max-height:calc(100dvh - clamp(1rem, 4vh, 3rem)); margin:auto;
+  grid-template-columns:minmax(0,1fr); padding:clamp(.7rem,2vw,1.5rem);
+}
+.forms-preview :is(.forms-paper,.form-fields) { grid-template-columns:minmax(0,1fr); }
+.forms-preview .forms-paper { padding:clamp(.65rem,2vw,1.5rem); }
+.forms-pdf-theme { max-width:18rem; }
 .forms-start-options { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(15rem,100%),1fr)); gap:.7rem; }
 .forms-start-option { display:grid; gap:.4rem; padding:1rem; text-align:start; white-space:normal; }
 .forms-start-option small { font-weight:400; }
@@ -30,6 +39,17 @@
   .forms-print:has(.forms-portrait) { page:form-portrait; }
   .forms-print .forms-photo-appendix { break-before:page; }
   .forms-print .table-scroll { overflow:visible; }
+  .forms-print { --form-print-accent:#bd0018; --ink:#181818; --muted:#515151; --paper:white; --line:#ddd; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+  .forms-print[data-pdf-theme=midnight] { --form-print-accent:#244a75; }
+  .forms-print[data-pdf-theme=ocean] { --form-print-accent:#155e75; }
+  .forms-print[data-pdf-theme=forest] { --form-print-accent:#166534; }
+  .forms-print[data-pdf-theme=slate] { --form-print-accent:#334155; }
+  .forms-print .forms-paper>h2 { border-bottom:2pt solid var(--form-print-accent); padding-bottom:.35em; color:var(--form-print-accent); }
+  .forms-print .forms-print-revision { margin:.25em 0 1em; color:#555; }
+  .forms-print .forms-paper :is(h3, .form-field-label) { color:var(--form-print-accent); }
+  .forms-print .forms-paper th { background:var(--form-print-accent); color:white; }
+  .forms-print .forms-paper td { background:white; color:#181818; }
+  .forms-print .forms-paper :is(th,td) { border-bottom:1px solid #bdbdbd; }
 }
 
 .forms-stage-board { display:flex; gap:.75rem; overflow:auto; }

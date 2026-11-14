@@ -1,5 +1,6 @@
 """Compact Technical Library display text without changing retained evidence."""
 import re
+from .date_display import display_date, display_source_dates
 
 _PROTECTED = re.compile(
     r'https?://[^\s<>]+|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}'
@@ -304,6 +305,8 @@ def readable_technical_text(value):
 
 def technical_field_text(label, value):
     """Prefer full instructions for seal/installation fields and damaged prose."""
+    if isinstance(label,str) and isinstance(value,str) and re.search(r'\bdate\b',label,re.I):
+        value = display_source_dates(display_date(value))
     components = (label == 'Service Size / Configuration' and isinstance(value, str)
                   and (re.search(r'^• \d+[ \t]*[×xX][ \t]', value, re.M)
                        or value.startswith('Fix a single layer of waterproofing panel')))

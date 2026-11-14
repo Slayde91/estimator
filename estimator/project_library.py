@@ -631,6 +631,9 @@ class ProjectLibrary:
                     raise ValidationError('Reload this project before saving so every named estimate is retained.')
             if 'passive_fire_register' in snapshot and 'passive_fire_register' not in request:
                 raise ValidationError('Reload this project before saving so its passive fire register is retained.')
+            if 'passive_fire_register' in snapshot:
+                from .passive_fire_register import preserve_register_numbers
+                preserve_register_numbers(snapshot['passive_fire_register'],request['passive_fire_register'])
             if 'swms' in snapshot and 'swms' not in request:
                 raise ValidationError('Reload this project before saving so its SWMS are retained.')
             if 'commercial_documents' in snapshot and 'commercial_documents' not in request:
@@ -847,7 +850,7 @@ class ProjectLibrary:
         project = self._restore_takeoffs(project, path)
         return {**project, "file": self._authorize_save(path, info, payload, _metadata(path, info, project, folder, payload))}
 
-    def load_converted_lead(self, receipt):
+    def _converted_file(self, receipt):
         """The directory owns the original saved path and number for each converted Lead."""
         path = Path(receipt['path'])
         if not path.is_absolute() or '..' in path.parts or not is_project_filename(path.name):
@@ -857,8 +860,21 @@ class ProjectLibrary:
         if (receipt['project_no'] not in summary['project_numbers']
                 or summary['source_project_id'] in self._commercial_sources.ignored_owners()):
             raise ValidationError('Saved project unavailable')
+        return path, payload, info, summary
+
+    def load_converted_lead(self, receipt):
+        path, payload, info, _ = self._converted_file(receipt)
         folder = self.store.project_folder()
         return self._load_saved_project(path, Path(folder) if folder else None, payload, info)
+
+    def _details_source(self, request, conversion):
+        if conversion is not None:
+            path, payload, info, summary = self._converted_file(conversion)
+            selected = self.store.project_folder()
+            return path, payload, info, summary, Path(selected) if selected else None
+        _, path = self._project_path(request["id"])
+        payload, info = _read_file(path)
+        return path, payload, info, project_summary(payload, edition=self.edition), self._scan["folder"]
 
     def load_linked(self, target):
         """Open the verified file behind a saved site relationship."""
@@ -1035,26 +1051,27 @@ class ProjectLibrary:
                 verified[source,owner,number]=state
         return verified
 
-    def read_details(self, request):
+    def read_details(self, request, *, conversion=None):
         """Read only selected project identity; never open or apply its workspace."""
-        if not isinstance(request, dict) or set(request) != {"id"}:
+        if not isinstance(request, dict) or set(request) != ({"converted_lead"} if conversion else {"id"}):
             raise ValidationError("Choose a project from the linked folder.")
         with self._lock:
-            _, path = self._project_path(request["id"])
-            payload, info = _read_file(path)
-            summary = project_summary(payload, edition=self.edition)
-            metadata = _metadata(path, info, summary, self._scan["folder"], payload)
+            path, payload, info, summary, folder = self._details_source(request, conversion)
+            metadata = _metadata(path, info, summary, folder, payload)
+            if conversion:
+                # A receipt can refer to a project outside the currently linked folder.
+                metadata = self._authorize_save(path, info, payload, metadata)
             return {"id": metadata["id"], "revision": metadata["revision"],
                     "project_id": summary.get("source_project_id"),
                     "project_follow_up": summary["project_follow_up"],
                     "details": {**validate_quote_details(summary["estimate"]), **summary_fields(summary["project_follow_up"]["actions"]),
                                 "follow_up_actions": summary["project_follow_up"]["actions"]}, "file": metadata}
 
-    def save_details(self, request, *, accounts):
+    def save_details(self, request, *, accounts, conversion=None):
         """Conditionally update shared identity only, preserving all workspace data."""
         from .contacts import company_key
         from .project_details import request_id
-        if not isinstance(request, dict) or set(request) != {"id", "revision", "details", "request_id"}:
+        if not isinstance(request, dict) or set(request) != {"converted_lead" if conversion else "id", "revision", "details", "request_id"}:
             raise ValidationError("Include the selected project, revision, complete details and request ID only.")
         identifier = request_id(request["request_id"])
         if not isinstance(request["revision"], str) or not re.fullmatch(r"[0-9a-f]{64}", request["revision"]):
@@ -1077,10 +1094,8 @@ class ProjectLibrary:
             contact_valid = contact is not None and contact["name"] == details["contact_name"]
         digest = hashlib.sha256(json.dumps(request, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
         with self._lock:
-            _, path = self._project_path(request["id"])
-            payload, info = _read_file(path)
+            path, payload, info, summary, folder = self._details_source(request, conversion)
             revision = hashlib.sha256(payload).hexdigest()
-            summary = project_summary(payload, edition=self.edition)
             receipts = getattr(self, "_details_receipts", {})
             receipt = receipts.get(identifier)
             if receipt is not None and receipt != (digest, str(path), revision):
@@ -1125,10 +1140,10 @@ class ProjectLibrary:
                 while len(receipts) > 256:
                     receipts.pop(next(iter(receipts)))
                 self._details_receipts = receipts
-            folder = self._scan["folder"]
             metadata = _metadata(path, info, summary, folder, payload)
-            self._scan["files"][metadata["id"]] = metadata
-            self._cache.pop((str(folder), str(path)), None)
+            if metadata["id"] and self._scan and self._scan["folder"] == folder:
+                self._scan["files"][metadata["id"]] = metadata
+                self._cache.pop((str(folder), str(path)), None)
             return {"id": metadata["id"], "revision": revision,
                     "project_id": summary.get("source_project_id"), "project_follow_up": follow_up,
                     "details": {**details, **summary_fields(follow_up["actions"]), "follow_up_actions":follow_up["actions"]},

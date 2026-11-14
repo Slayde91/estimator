@@ -4,6 +4,7 @@
   const root = document.getElementById('forms-root');
   if (!root) return;
   const roles = ['viewer', 'editor', 'admin'];
+  const pdfThemes = [['ceasefire','CLASSIFIRE'],['midnight','Midnight'],['ocean','Ocean'],['forest','Forest'],['slate','Slate']];
   let generation = 0, pending = false, editor = null, fields = null, dirty = false, changeCount = 0;
   let staff = [], records = [], templates = [], panel = 'templates', query = '';
   const el = (tag, value, cls) => {
@@ -52,9 +53,7 @@
     return true;
   }
   function date(value) {
-    if (!value) return '—';
-    const instant = new Date(value);
-    return Number.isNaN(instant.getTime()) ? String(value) : instant.toLocaleString('en-AU');
+    return value ? window.ClassifireDates.dateTime(value) : '—';
   }
   function heading(title, actions = []) {
     const bar = el('div', null, 'forms-heading');
@@ -249,7 +248,7 @@
       const due = el('details',null,'forms-expiries'); due.open=true;
       due.append(el('summary','Expiry reminders ('+reminders.length+')'));
       due.append(table(['Form','Field','Expiry date'],reminders.map(({entry,reminder})=>[
-        link(entry.name,()=>openRecord(entry.id)),reminder.label,reminder.date
+        link(entry.name,()=>openRecord(entry.id)),reminder.label,window.ClassifireDates.date(reminder.date)
       ]),''));
       box.append(due);
     }
@@ -295,8 +294,10 @@
     }
     return due.sort((a,b)=>a.reminder.date.localeCompare(b.reminder.date));
   }
-  function describe(value) {
+  function describe(value,type) {
     if (value === undefined || value === null || value === '') return '—';
+    if (type === 'date' || type === 'expiry_date') return window.ClassifireDates.date(value);
+    if (type === 'datetime') return window.ClassifireDates.wallTime(value);
     if (typeof value !== 'object') return String(value);
     if (Array.isArray(value)) return value.map(item=>typeof item === 'object' ? item.name || item.label || 'Item' : item).join(', ');
     return value.member_name || value.description || value.answer || [value.start,value.end].filter(Boolean).join(' – ') || 'Recorded';
@@ -327,7 +328,7 @@
     for(const cell of t.settings?.summary_cells || []) {
       const field=t.fields.find(f=>f.id===cell.field_id);
       const column=field?.columns?.find(c=>c.id===cell.column_id);
-      if(column) columns.push({id:[field.id,cell.row,column.id].join(':'),label:field.label+' · '+column.label+' (row '+(cell.row+1)+')'});
+      if(column) columns.push({id:[field.id,cell.row,column.id].join(':'),type:column.type,label:field.label+' · '+column.label+' (row '+(cell.row+1)+')'});
     }
     const subset = records.filter(row=>row.template_id===t.id);
     const sort = t.settings?.sort_field;
@@ -345,7 +346,7 @@
       box.append(board);
     }
     box.append(el('h3','Form records'),table(['Created by','Status',...columns.map(f=>f.label),'Updated'], subset.map(row=>[
-      link(row.created_by_name || 'Open record',()=>openRecord(row.id)),badge(row.status),...columns.map(f=>describe(row.summary_values?.[f.id])),date(row.updated_at)
+      link(row.created_by_name || 'Open record',()=>openRecord(row.id)),badge(row.status),...columns.map(f=>describe(row.summary_values?.[f.id],f.type)),date(row.updated_at)
     ]),'No form records yet.'));
     host.append(box);
   }
@@ -478,6 +479,7 @@
   }
   function preview(t) {
     const dialog = modal('Template preview');
+    dialog.classList.add('forms-preview');
     const host = el('div'); dialog.append(host);
     mountForm(host,t,null,{preview:true,onChange:()=>{}});
     dialog.showModal();
@@ -504,17 +506,21 @@
       try {const reopened=await api('entry/reopen',{id:entry.id,version:entry.version});entryView(reopened.template,reopened);}
       finally {pending=false;}
     }));
-    if (entry) controls.push(button('Print / Save PDF',()=>printForm(t,entry)));
+    if (entry) controls.push(button('Print / Save PDF',()=>printForm(t,{...entry,pdf_theme:theme.value})));
     bar.append(heading(isNew ? 'New form' : 'Form record',controls));
+    const themeLabel = el('label',null,'field forms-pdf-theme'), theme = el('select');
+    theme.append(...pdfThemes.map(([id,name])=>new Option(name,id)));
+    theme.value = entry?.pdf_theme || 'ceasefire';
+    theme.addEventListener('change',()=>{ if(editable) {dirty=true; ++changeCount;} });
+    themeLabel.append(el('span','PDF colour theme'),theme); bar.append(themeLabel);
     const status = ['Template version '+t.version,entry?.status,currentStage?.name].filter(Boolean);
     bar.append(el('p',status.join(' · '),'helper')); host.append(bar);
     fields = mountForm(host,t,entry,{readOnly:!editable,onChange:()=>{dirty=true;++changeCount;}});
-    if(entry?.approvals?.length) host.append(table(['Approved stage','Approved by','Date'],entry.approvals.map(a=>[stage(t,a.stage_id)?.name || a.stage_id,a.member_name,date(a.at)]),''));
-    if(entry?.reversals?.length) host.append(table(['Reopened stage','Reopened by','Date'],entry.reversals.map(a=>[stage(t,a.stage_id)?.name || a.stage_id,a.member_name,date(a.at)]),''));
+    workflowHistory(host,t,entry);
     async function persist(action) {
       if (busy() || (action !== 'draft' && !fields.validate())) return;
       pending = true;
-      const data = {id:recordId, version:entry?.version || 0, template_id:t.id, template_version:t.version,values:fields.getValues(),status:action==='submitted' ? 'submitted' : 'draft'};
+      const data = {id:recordId, version:entry?.version || 0, template_id:t.id, template_version:t.version,values:fields.getValues(),pdf_theme:theme.value,status:action==='submitted' ? 'submitted' : 'draft'};
       host.inert=true; host.setAttribute('aria-busy','true');
       try {
         let saved = entry;
@@ -533,10 +539,18 @@
       } finally {host.inert=false;host.removeAttribute('aria-busy');pending=false;}
     }
   }
+  function workflowHistory(host,t,entry) {
+    if(entry?.approvals?.length) host.append(table(['Approved stage','Approved by','Date'],entry.approvals.map(a=>[stage(t,a.stage_id)?.name || a.stage_id,a.member_name,date(a.at)]),''));
+    if(entry?.reversals?.length) host.append(table(['Reopened stage','Reopened by','Date'],entry.reversals.map(a=>[stage(t,a.stage_id)?.name || a.stage_id,a.member_name,date(a.at)]),''));
+  }
   function printForm(t,entry) {
     const printable = el('div',null,'forms-print');
-    mountForm(printable,t,entry,{readOnly:true,printedAt:date(new Date())});
-    if(entry.approvals?.length) printable.append(table(['Stage','Signed by','Date'],entry.approvals.map(a=>[stage(t,a.stage_id)?.name,a.member_name,date(a.at)]),''));
+    printable.dataset.pdfTheme = entry.pdf_theme || 'ceasefire';
+    const printedAt = new Date();
+    mountForm(printable,t,entry,{readOnly:true,printedAt});
+    const paper=printable.querySelector('.forms-paper'), revision=el('p','Template version '+t.version+' · Form version '+entry.version,'forms-print-revision');
+    paper.querySelector('h2').after(revision);
+    workflowHistory(paper,t,entry);
     const cleanup = ()=>{document.body.classList.remove('forms-printing');printable.remove();};
     document.body.append(printable);document.body.classList.add('forms-printing');
     window.addEventListener('afterprint',cleanup,{once:true});

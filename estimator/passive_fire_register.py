@@ -2,6 +2,7 @@
 import base64
 import binascii
 from io import BytesIO
+from uuid import UUID
 
 from PIL import Image as PillowImage, UnidentifiedImageError
 from reportlab.lib.pagesizes import A4
@@ -26,6 +27,7 @@ PHASES = {'before': 'Before', 'during': 'During', 'after': 'After', 'label': 'La
 JPEG_PREFIX = 'data:image/jpeg;base64,'
 MAX_PHOTO_BYTES = 1_048_576
 MAX_ENCODED_PHOTOS = 10 * 1_048_576
+MAX_NUMBER = 999_999_999
 
 
 def _fields(value, keys, label):
@@ -49,18 +51,24 @@ def _photos(value):
     return list(value)
 
 
-def _entry(raw):
+def _entry(raw, position, numbered):
     other = {'side1', 'side2', 'access', 'photos', 'comments', 'solution', 'signature'}
+    if numbered:
+        other.update(('entry_id','number'))
     _fields(raw, set(FIELDS) | other, 'Register entry')
-    entry = {}
+    identity,number = _entry_number(raw,position,numbered)
+    entry = {'entry_id':identity,'number':number}
     for key, label in FIELDS.items():
         if key in ('service_types', 'products'):
             entry[key] = _selection(raw.get(key, []), label)
         else:
             entry[key] = _text(raw.get(key, ''), label, 1000).strip()
     for side in ('side1', 'side2'):
-        values = _fields(raw.get(side, {}), {'id_number', *PHASES}, 'Register side')
-        entry[side] = {'id_number': _text(values.get('id_number', ''), 'Side ID number', 200).strip(),
+        keys = {'id_number', *PHASES}
+        if numbered:
+            keys.add('previous_id')
+        values = _fields(raw.get(side, {}),keys,'Register side')
+        entry[side] = {**_side_number(values,side,number,numbered),
                        **{key: _photos(values.get(key, [])) for key in PHASES}}
     entry['access'] = _text(raw.get('access', ''), 'Access', 3)
     entry['solution'] = _text(raw.get('solution', ''), 'Solution', 100)
@@ -68,6 +76,37 @@ def _entry(raw):
     entry['comments'] = _text(raw.get('comments', ''), 'Comments', 4000).strip()
     entry['signature'] = validate_signature(raw.get('signature'))
     return entry
+
+
+def _entry_number(raw, position, numbered):
+    number = raw.get('number') if numbered else position
+    if type(number) is not int or not 1<=number<=MAX_NUMBER:
+        raise ValidationError('The register entry number is invalid.')
+    if numbered:
+        identity = raw.get('entry_id')
+        try:
+            valid = isinstance(identity,str) and str(UUID(identity))==identity
+        except ValueError:
+            valid = False
+        if not valid:
+            raise ValidationError('The register entry identity is invalid.')
+    else:
+        # The register is local to one project. Reopening the same old file in a
+        # second window must migrate its entries to the same stable identities.
+        identity = f'00000000-0000-5000-8000-{position:012x}'
+    return identity,number
+
+
+def _side_number(values,side,number,numbered):
+    side_number = f'{number:03d}' + ('-2' if side=='side2' else '')
+    supplied = _text(values.get('id_number', ''), 'Side ID number', 200).strip()
+    if numbered and supplied != side_number:
+        raise ValidationError('Automatic register side IDs cannot be changed.')
+    previous = _text(values.get('previous_id',''), 'Previous side ID',200).strip() if numbered else supplied
+    result = {'id_number':side_number}
+    if previous and previous!=side_number:
+        result['previous_id'] = previous
+    return result
 
 
 def _photo_groups(entry):
@@ -105,15 +144,51 @@ def _check_photos(entries):
                     raise ValidationError('A register photo contains invalid JPEG data.') from error
 
 
-def normalize_register(value):
+def normalize_register(value, *, _validate_photos=True):
     """Project files may contain blank or partly completed entries."""
-    _fields(value, {'entries'}, 'Passive Fire Register')
+    _fields(value, {'entries','next_number'}, 'Passive Fire Register')
     source = value.get('entries')
     if not isinstance(source, list) or len(source) > 200:
         raise ValidationError('The Passive Fire Register accepts up to 200 entries.')
-    entries = [_entry(row) for row in source]
-    _check_photos(entries)
-    return {'entries': entries}
+    numbered = 'next_number' in value
+    entries = [_entry(row,index,numbered) for index,row in enumerate(source,1)]
+    next_number = value.get('next_number',len(entries)+1)
+    if type(next_number) is not int or not 1<=next_number<=MAX_NUMBER+1:
+        raise ValidationError('The next register entry number is invalid.')
+    if (any(row['number']>=next_number for row in entries) or len({row['number'] for row in entries})!=len(entries)
+            or len({row['entry_id'] for row in entries})!=len(entries)):
+        raise ValidationError('Register entries must have distinct IDs and numbers below the next available number.')
+    if _validate_photos:
+        _check_photos(entries)
+    return {'entries':entries, 'next_number':next_number}
+
+
+def preserve_register_numbers(previous, incoming):
+    """The native project save token binds these checks to the exact file being replaced."""
+    if isinstance(previous,dict) and 'next_number' in previous and (not isinstance(incoming,dict) or 'next_number' not in incoming):
+        raise ValidationError('Reload this project before saving its numbered register.')
+    def identities(register):
+        # Recognise both raw and existing portable project shapes. Do not decode
+        # every JPEG again inside the save lock that protects the identifier check.
+        converted = normalize_register(register,_validate_photos=False)
+        return converted['next_number'], {r['entry_id']:r for r in converted['entries']}
+    prior_next, saved = identities(previous)
+    new_next, rows = identities(incoming)
+    if new_next < prior_next:
+        raise ValidationError('The register number sequence cannot be reset.')
+    # Imported files may already have high numbers. Only constrain the change
+    # to a previously saved sequence. Ordinary add/remove gaps remain valid.
+    if new_next-prior_next>1_000_000:
+        raise ValidationError('The register number sequence advanced too far in one save.')
+    for identity,row in rows.items():
+        prior = saved.get(identity)
+        if prior is None:
+            valid = row['number']>=prior_next and not any(row[side].get('previous_id') for side in ('side1','side2'))
+        else:
+            valid = (row['number']==prior['number'] and
+                     all(row[side].get('previous_id')==prior[side].get('previous_id') for side in ('side1','side2')))
+        if not valid:
+            raise ValidationError('Existing register side IDs cannot be reassigned or edited.')
 
 
 def _ready(entry, number, options):
@@ -208,6 +283,8 @@ def render_register_pdf(register, details, *, company):
         for side in (('side1', 'side2') if entry['access'] == 'Yes' else ('side1',)):
             values = entry[side]
             report.story.append(Spacer(1, 6))
+            if values.get('previous_id'):
+                report.story.append(report.p(f'Side {side[-1]} previous ID: {values["previous_id"]}', 'small'))
             _append_evidence(report, f'Side {side[-1]} - {values["id_number"]}',
                              ((label, values[key]) for key, label in PHASES.items()), content)
         if entry['access'] == 'No':

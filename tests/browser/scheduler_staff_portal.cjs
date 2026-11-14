@@ -72,11 +72,11 @@ const ready=new Promise((resolve,reject)=>{let buffer='';server.on('exit',()=>re
   await expect(projectsChart.getByRole('listitem')).toContainText(order.project_no+': '+order.client+' - '+order.site_address);
   await reports.getByLabel('Reporting period',{exact:true}).selectOption('custom');
   const startDate=reports.getByLabel('Start date',{exact:true});
-  await startDate.fill('31:02:00');
+  await startDate.fill('31/02/2000');
   assert.equal(await startDate.evaluate(input=>input.checkValidity()),false);
-  await startDate.fill('01:01:00');
+  await startDate.fill('01/01/2000');
   await reports.getByLabel('Choose End date',{exact:true}).fill('2000-01-02');
-  await expect(reports.getByLabel('End date',{exact:true})).toHaveValue('02:01:00');
+  await expect(reports.getByLabel('End date',{exact:true})).toHaveValue('02/01/2000');
   await reports.getByRole('button',{name:'Run report',exact:true}).click();
   await expect(reports.getByText('No completed time entries match these filters.')).toBeVisible();
   // Use a fixed weekday and two separate starts so each shift rule wins its own time.

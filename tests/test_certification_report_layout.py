@@ -74,9 +74,9 @@ class CertificateLayoutTests(unittest.TestCase):
             self.assertIn('Exclusions - Certification is strictly limited to works completed by Layout Company, as per:', text)
 
     def test_signer_date_is_frozen_in_sydney_and_footer_remains_utc(self):
-        cases = [('2026-10-29T13:30:00Z', '30 October 2026', '29 Oct 2026, 13:30 UTC'),
-                 ('2026-06-29T14:30:00Z', '30 June 2026', '29 Jun 2026, 14:30 UTC'),
-                 ('2026-10-30T01:00:00+11:00', '30 October 2026', '29 Oct 2026, 14:00 UTC')]
+        cases = [('2026-10-29T13:30:00Z', '30/10/2026', '29/10/2026, 13:30 UTC'),
+                 ('2026-06-29T14:30:00Z', '30/06/2026', '29/06/2026, 14:30 UTC'),
+                 ('2026-10-30T01:00:00+11:00', '30/10/2026', '29/10/2026, 14:00 UTC')]
         for created_at, expected_date, expected_utc in cases:
             with self.subTest(created_at=created_at):
                 payload = self.render(name='FROZENSIGNER', created_at=created_at)

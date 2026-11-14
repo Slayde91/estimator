@@ -155,7 +155,7 @@ const ready = new Promise((resolve,reject)=>{
   await expect(companyPanel.locator(':scope > summary')).toHaveText('Companies');
   await expect(contactPanel.locator(':scope > summary')).toHaveText('Contacts');
   const metadataOrder=await pane.locator('#project-details-form > :is(.project-pane-fields,.project-follow-up-fields)').evaluateAll(groups=>
-    groups.flatMap(group=>[...group.querySelectorAll('input[id],textarea[id]')].map(control=>control.id)));
+    groups.flatMap(group=>[...group.querySelectorAll('input[id^="project-pane-"],textarea[id^="project-pane-"]')].map(control=>control.id)));
   assert.deepEqual(metadataOrder,['project-pane-number','project-pane-client','project-pane-address','project-pane-billing-address',
     'project-pane-abn-acn','project-pane-contact-name','project-pane-contact-email','project-pane-contact-phone','project-pane-next-action','project-pane-follow-up-date']);
   for(const panel of [companyPanel,contactPanel]){
@@ -167,11 +167,11 @@ const ready = new Promise((resolve,reject)=>{
   }
   await page.locator('#project-pane-address').fill('20 Other Project Road');
   await page.locator('#project-pane-contact-name').fill('Other Project Person');
-  await expect(action).toHaveValue('Selected file correction');await expect(dueDate).toHaveValue('2001-01-01');
+  await expect(action).toHaveValue('Selected file correction');await expect(form.locator('#project-pane-follow-up-date')).toHaveValue('2001-01-01');
   await action.fill('Await delivery');await dueDate.fill('2099-12-31');
   const refreshPanel=page.waitForResponse(response=>response.url().includes('/api/commercial/register?refresh=1'));
   await page.getByRole('button',{name:'Refresh Records',exact:true}).click();await refreshPanel;
-  await expect(action).toHaveValue('Await delivery');await expect(dueDate).toHaveValue('2099-12-31');
+  await expect(action).toHaveValue('Await delivery');await expect(form.locator('#project-pane-follow-up-date')).toHaveValue('2099-12-31');
   await form.getByRole('button',{name:'Add follow-up'}).click();
   const rows=form.locator('.follow-up-action-row');
   await rows.nth(1).getByLabel('Next action',{exact:true}).fill('Phone the site supervisor');

@@ -646,6 +646,7 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .record-list-table table{width:100%;border-collapse:collapse}
 .record-list-table :is(td,th){text-align:start;vertical-align:middle;padding:10px 12px}
 .record-list-table td{overflow-wrap:anywhere}
+.record-list-table .project-stage-name{white-space:nowrap}
 .record-list-table td:first-child{min-width:10rem}
 .record-list-table .project-row-actions{min-width:13rem}
 .record-list-table .project-card-heading,.record-list-table .project-row-heading{align-items:center}

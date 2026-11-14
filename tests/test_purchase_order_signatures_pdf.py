@@ -78,7 +78,7 @@ class PurchaseOrderSignaturesPdfTests(unittest.TestCase):
                 self.assertIn(heading, page.extract_text())
                 signature_label = page.search(label, regex=False)[0]
                 name_position = page.search(name, regex=False)[0]
-                date_position = page.search(date, regex=False)[0]
+                date_position = page.search('/'.join(reversed(date.split('-'))), regex=False)[0]
                 date_heading = page.search(date_label, regex=False)[0]
                 self.assertAlmostEqual(signature_label['top'], date_heading['top'], delta=.1)
                 self.assertAlmostEqual(name_position['top'], date_position['top'], delta=.1)
@@ -114,10 +114,10 @@ class PurchaseOrderSignaturesPdfTests(unittest.TestCase):
         self.assertEqual(fields, before)
         for _, _, key, _, date_key, _, _ in SIGNERS:
             self.assertIn(fields['order'][key], output)
-            self.assertIn(fields['order'][date_key], output)
+            self.assertIn('/'.join(reversed(fields['order'][date_key].split('-'))), output)
         self.assertIn(fields['order']['approval'], output)
         self.assertIn(fields['order']['verification'], output)
-        self.assertIn('Delivery date and time 2026-11-14 Type of expense', output)
+        self.assertIn('Delivery date and time 14/11/2026 Type of expense', output)
         self.assertNotIn('00:00', output)
         self.assertNotIn('14:35', output)
         self.assertEqual(output.count('Not signed'), 4)
@@ -130,7 +130,7 @@ class PurchaseOrderSignaturesPdfTests(unittest.TestCase):
         self.assertNotIn('Project contact fixture', output)
         self.assertIn('Site address Project site fixture', output)
         self.assertIn('Delivery address Delivery site fixture', output)
-        self.assertIn('Delivery date and time 2026-11-14 14:35', output)
+        self.assertIn('Delivery date and time 14/11/2026 14:35', output)
         self.assertNotIn('T14:35', output)
         self.assertLess(purchase_details.index('Supplier Supplier fixture'), purchase_details.index('Payment terms Thirty days fixture'))
         self.assertLess(output.index('Payment terms Thirty days fixture'), output.index('Supplier contact Supplier contact fixture'))
@@ -151,7 +151,7 @@ class PurchaseOrderSignaturesPdfTests(unittest.TestCase):
                 page = next(page for page in pdf.pages if name in page.extract_text())
                 self.assertIn(label, page.extract_text())
                 self.assertIn(date_label, page.extract_text())
-                self.assertIn(date, page.extract_text())
+                self.assertIn('/'.join(reversed(date.split('-'))), page.extract_text())
             for page in pdf.pages:
                 for char in page.chars:
                     if 90 < char['top'] < 800:

@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const term = value => window.CeasefireI18n?.translate(value) || value;
-  const stamp = value => value ? new Date(value).toLocaleString(document.documentElement.lang || undefined) : term('Unknown');
+  const stamp = value => value ? window.ClassifireDates.dateTime(value) : term('Unknown');
   function el(tag, text) {const item=document.createElement(tag); if(text!=null)item.textContent=text; return item;}
   function label(text, control) {
     const field=el('label');field.className='field';
@@ -110,14 +110,14 @@
       const li=el('li'),head=el('strong',term(item.event_type)),meta=el('p');
       const named=[stamp(item.recorded_at),term('Logged by')+': '+(item.actor_name || term('Unknown'))];
       if(item.owner_name)named.push(term('Owner')+': '+item.owner_name);
-      if(item.due_date)named.push(term('Due date')+': '+item.due_date);
+      if(item.due_date)named.push(term('Due date')+': '+window.ClassifireDates.date(item.due_date));
       if(item.occurred_at)named.push(term('Interaction time')+': '+stamp(item.occurred_at));
       if(item.completed_at)named.push(term('Task completed')+': '+stamp(item.completed_at));
       meta.className='helper';meta.textContent=named.join(' · ');li.append(head,meta);
       const detail=item.detail;
       if(detail.subject)li.append(el('p',detail.subject));
       if(item.event_type==='Follow-up corrected' && detail.previous && detail.current) {
-        const summary=action=>[action.next_action,action.follow_up_date,term(action.status || 'Pending')].filter(Boolean).join(' · ');
+        const summary=action=>[action.next_action,window.ClassifireDates.date(action.follow_up_date),term(action.status || 'Pending')].filter(Boolean).join(' · ');
         li.append(el('p',summary(detail.previous)+' → '+summary(detail.current)));
       } else if(detail.text)li.append(el('p',detail.text));
       if(item.event_type==='Updated' && detail.fields?.length) {
@@ -200,7 +200,7 @@
         const row = el('li'), time = el('time', stamp(event.at)), meta = el('p');
         time.dateTime = event.at; meta.className = 'helper'; meta.append(time);
         if (event.actor) meta.append(' · ', event.actor);
-        for (const [title,value] of [['Owner',event.owner_name],['Due date',event.due_date],
+        for (const [title,value] of [['Owner',event.owner_name],['Due date',window.ClassifireDates.date(event.due_date)],
           ['Interaction time',event.occurred_at && stamp(event.occurred_at)],['Task completed',event.completed_at && stamp(event.completed_at)]]) {
           if (value) meta.append(' \u00b7 ',term(title)+': '+value);
         }

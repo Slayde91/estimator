@@ -5,9 +5,12 @@
   const fields = {location:'Level/Location', seal_type:'Seal Type', frl:'FRL', substrate:'Substrate',
     orientation:'Orientation', installation_type:'Installation Type', service_types:'Service Type',
     manufacturer:'Manufacturer', report:'Report/Assessment', products:'Products'};
-  const newSide = () => ({id_number:'', before:[], during:[], after:[], label:[]});
-  const newEntry = () => ({location:'', seal_type:'', frl:'', substrate:'', orientation:'', installation_type:'',
-    service_types:[], manufacturer:'', report:'', products:[], side1:newSide(), side2:newSide(),
+  let nextNumber = 1;
+  const sideId = (number, side) => String(number).padStart(3,'0') + (side === 2 ? '-2' : '');
+  const newSide = (id) => ({id_number:id, before:[], during:[], after:[], label:[]});
+  const newEntry = () => ({entry_id:crypto.randomUUID(),number:nextNumber,
+    location:'', seal_type:'', frl:'', substrate:'', orientation:'', installation_type:'',
+    service_types:[], manufacturer:'', report:'', products:[], side1:newSide(sideId(nextNumber,1)), side2:newSide(sideId(nextNumber,2)),
     access:'', photos:[], comments:'', solution:'', signature:null});
   let entries = [], current = 0, placeholder = newEntry(), revision = 0, saved = 0;
   let options, pending = false, exporting = false, hasRegister = false, message = '', entrySelect, removeEntry, exportButton;
@@ -15,7 +18,7 @@
   let fieldIndex = 0;
   const editedEntry = () => entries[current] || placeholder;
   function changed() {
-    if (!entries.length) entries.push(placeholder);
+    if (!entries.length) { entries.push(placeholder); nextNumber++; }
     hasRegister = true;
     revision++;
     window.CeasefireProject.changed();
@@ -190,7 +193,14 @@
   }
   function sideSection(record, title) {
     const card = el('section','card');
-    card.append(el('h2','',title),editor(record,'id_number','ID Number'));
+    const number = el('input');
+    number.name = 'id_number'; number.readOnly = true; number.value = record.id_number;
+    card.append(el('h2','',title),field('ID Number',number));
+    if (record.previous_id) {
+      const previous = el('p','helper');
+      previous.textContent = window.CeasefireI18n.translate('Previous ID') + ' · ' + record.previous_id;
+      card.append(previous);
+    }
     const grid = el('div','register-grid');
     for (const [key,label] of Object.entries(phases)) grid.append(photoList(record,key,label));
     card.append(grid);
@@ -219,7 +229,7 @@
     entrySelect.addEventListener('change', () => { current = Number(entrySelect.value); message = ''; render(); });
     refreshEntryList();
     const add = action('Add entry', () => {
-      entries.push(newEntry()); current = entries.length - 1; changed(); message = ''; render();
+      entries.push(newEntry()); nextNumber++; current = entries.length - 1; changed(); message = ''; render();
     });
     add.disabled = entries.length >= 200;
     const remove = action('Remove entry', async () => {
@@ -269,7 +279,7 @@
   }
   function capture() {
     if (pending) throw new Error('Finish adding photos before continuing.');
-    return {revision, value:hasRegister ? {entries:structuredClone(entries)} : null};
+    return {revision, value:hasRegister ? {entries:structuredClone(entries),next_number:nextNumber} : null};
   }
   window.ClassifirePassiveRegister = {
     setOptions(value) { options = value; },
@@ -279,6 +289,16 @@
     applyProject(snapshot) {
       photoPixels.clear();
       entries = structuredClone(snapshot?.entries || []);
+      nextNumber = snapshot?.next_number ?? entries.length+1;
+      if (snapshot && snapshot.next_number == null) entries.forEach((entry,i) => {
+        entry.number = i+1;
+        entry.entry_id = '00000000-0000-5000-8000-'+entry.number.toString(16).padStart(12,'0');
+        for (const side of [1,2]) {
+          const record = entry['side'+side], id = sideId(entry.number,side);
+          if (record.id_number && record.id_number !== id) record.previous_id = record.id_number;
+          record.id_number = id;
+        }
+      });
       current = 0; placeholder = newEntry(); message = ''; hasRegister = Boolean(snapshot);
       saved = ++revision;
       if (root?.closest('.view')?.hidden === false) render();

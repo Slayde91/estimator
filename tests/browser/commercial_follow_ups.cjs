@@ -58,7 +58,7 @@ async function test() {
     await expect(pane.locator('.commercial-message')).toContainText(kind==='quote'?'PDF saved':'Document saved.');
     await button(pane,'Back to '+name+'s').click();
     const card=pane.locator('article.commercial-card').first();
-    await expect(card.locator('dl')).toContainText(name+' next visit'); await expect(card.locator('dl')).toContainText('2099-01-04');
+    await expect(card.locator('dl')).toContainText(name+' next visit'); await expect(card.locator('dl')).toContainText('04/01/2099');
     const warning=card.getByRole('button',{name:'Follow-up due',exact:true});
     await expect(warning).toBeVisible();
     const marker=await warning.boundingBox(),menu=await card.locator('.commercial-card-menu summary').boundingBox();

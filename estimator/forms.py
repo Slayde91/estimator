@@ -9,6 +9,8 @@ from uuid import UUID
 from .catalog import ValidationError
 from .form_fields import validate_template, validate_values
 
+FORM_PDF_THEMES = ('ceasefire', 'midnight', 'ocean', 'forest', 'slate')
+
 
 class FormError(ValidationError):
     def __init__(self, message, status):
@@ -74,10 +76,13 @@ class Forms:
                     FOREIGN KEY(template_id,template_version) REFERENCES form_versions(template_id,version));
                 CREATE INDEX IF NOT EXISTS form_entry_template ON form_entries(template_id,updated_at);
             """)
+            db.execute('BEGIN IMMEDIATE')
             if 'reminders' not in {row['name'] for row in db.execute('PRAGMA table_info(form_entries)')}:
                 db.execute("ALTER TABLE form_entries ADD COLUMN reminders TEXT NOT NULL DEFAULT '[]'")
             if 'reversals' not in {row['name'] for row in db.execute('PRAGMA table_info(form_entries)')}:
                 db.execute("ALTER TABLE form_entries ADD COLUMN reversals TEXT NOT NULL DEFAULT '[]'")
+            if 'pdf_theme' not in {row['name'] for row in db.execute('PRAGMA table_info(form_entries)')}:
+                db.execute("ALTER TABLE form_entries ADD COLUMN pdf_theme TEXT NOT NULL DEFAULT 'ceasefire'")
 
     @contextmanager
     def connect(self, write=False):
@@ -215,7 +220,7 @@ class Forms:
         reopen = bool(approvals and latest['status']=='published' and (role=='admin' or allowed and role=='editor'
                       and approvals[-1]['member_id']==user['id']))
         result = {'id': row['id'], 'version': row['version'], 'template_id': row['template_id'],
-                  'name':template['name'], 'summary_values':json.loads(row['summary_values']),
+                  'name':template['name'], 'summary_values':json.loads(row['summary_values']), 'pdf_theme':row['pdf_theme'],
                   'reminders':json.loads(row['reminders']),
                   'template_version': row['template_version'], 'created_by': row['owner'],
                   'created_by_name': row['owner_name'], 'created_at': row['created_at'],
@@ -232,7 +237,7 @@ class Forms:
             if template_id is not None:
                 self._template(db, user, _identity(template_id))
             rows = db.execute('SELECT id,template_id,template_version,version,owner,owner_name,status,stage_id,'
-                              'approvals,reversals,created_at,updated_at,summary_values,reminders FROM form_entries '
+                              'approvals,reversals,created_at,updated_at,summary_values,reminders,pdf_theme FROM form_entries '
                               + ('WHERE template_id=? ' if template_id is not None else '')
                               + 'ORDER BY updated_at DESC,id', (template_id,) if template_id is not None else ())
             result = []
@@ -259,8 +264,10 @@ class Forms:
 
     def save_entry(self, user, body):
         self._user(user, True)
-        if set(body) != {'id','version','template_id','template_version','status','values'}:
-            raise ValidationError('Include only the entry, template revision, status and field values.')
+        if set(body)-{'pdf_theme'} != {'id','version','template_id','template_version','status','values'}:
+            raise ValidationError('Include only the entry, template revision, status, PDF colour theme and field values.')
+        if 'pdf_theme' in body and body['pdf_theme'] not in FORM_PDF_THEMES:
+            raise ValidationError('Choose a supported PDF colour theme.')
         key, expected = _identity(body['id']), _version(body['version'])
         template_id, revision = _identity(body['template_id']), _version(body['template_version'])
         status = body['status']
@@ -344,12 +351,14 @@ class Forms:
                 else:
                     reminders.extend(self._reminders([field],values))
             if row:
-                db.execute('UPDATE form_entries SET version=?,status=?,answers=?,updated_at=?,request_key=?,summary_values=?,reminders=? WHERE id=?',
-                           (expected+1,status,_json(values),now,request_key,_json(summary),_json(reminders),key))
+                db.execute('UPDATE form_entries SET version=?,status=?,answers=?,updated_at=?,request_key=?,summary_values=?,reminders=?,pdf_theme=? WHERE id=?',
+                           (expected+1,status,_json(values),now,request_key,_json(summary),_json(reminders),body.get('pdf_theme',row['pdf_theme']),key))
             else:
-                db.execute('INSERT INTO form_entries VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                db.execute('INSERT INTO form_entries '
+                           '(id,template_id,template_version,version,owner,owner_name,status,stage_id,approvals,answers,'
+                           'created_at,updated_at,request_key,summary_values,reminders,reversals,pdf_theme) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
                            (key,template_id,revision,1,user['id'],user['name'],status,stage_id,'[]',_json(values),
-                            now,now,request_key,_json(summary),_json(reminders),'[]'))
+                            now,now,request_key,_json(summary),_json(reminders),'[]',body.get('pdf_theme','ceasefire')))
             return self._entry(db, user, self._entry_row(db,key), answers=True)
 
     @staticmethod

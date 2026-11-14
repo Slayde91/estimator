@@ -124,7 +124,7 @@
       const date=new Date(item.created_at);
       if(!Number.isNaN(date.getTime())) {
         const time=node('time');time.dateTime=date.toISOString();
-        time.textContent=date.toLocaleString('en-AU',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});line.append(time);
+        time.textContent=window.ClassifireDates.dateTime(date,{seconds:false});line.append(time);
       }
       list.append(line);
     }

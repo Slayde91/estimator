@@ -1,5 +1,6 @@
 """Company-branded installation certificates from explicit user-entered text."""
 from datetime import datetime, timezone
+from .date_display import display_date
 from io import BytesIO
 from xml.sax.saxutils import escape
 from zoneinfo import ZoneInfo
@@ -83,8 +84,9 @@ def render_certificate_pdf(fields, *, company, certificate_id, revision, created
     # keeps Sydney daylight saving correct on Windows and during later reads.
     if issued.tzinfo is None:
         issued = issued.replace(tzinfo=timezone.utc)
-    timestamp = issued.astimezone(timezone.utc).strftime('%d %b %Y, %H:%M UTC')
-    issue_date = issued.astimezone(ZoneInfo('Australia/Sydney')).strftime('%d %B %Y')
+    utc = issued.astimezone(timezone.utc)
+    timestamp = f'{display_date(utc)}, {utc:%H:%M} UTC'
+    issue_date = display_date(issued.astimezone(ZoneInfo('Australia/Sydney')))
     short_id = reference or certificate_id[:8].upper()
     logo = company_logo(company)
     def page(canvas, doc):

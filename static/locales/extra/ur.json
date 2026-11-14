@@ -1,11 +1,12 @@
 {
+  "Previous ID": "پچھلا شناختی نمبر",
   "Forms": "فارمز",
   "Form templates": "فارم ٹیمپلیٹس",
   "Form records": "فارم ریکارڈز",
   "Create template": "ٹیمپلیٹ بنائیں",
   "Fill out": "پُر کریں",
   "Template editor": "ٹیمپلیٹ ایڈیٹر",
-  "Enter a date as DD:MM:YY.": "تاریخ DD:MM:YY کی شکل میں درج کریں۔",
+  "Enter a date as DD/MM/YYYY.": "تاریخ DD/MM/YYYY کی شکل میں درج کریں۔",
   "Choose {0}": "{0} منتخب کریں",
   "Payroll hours": "تنخواہ کے اوقات",
   "Total paid hours": "کل قابلِ ادائیگی گھنٹے",

@@ -130,6 +130,7 @@ jobs:
       - run: node tests/browser/form_fields.cjs
       - run: node tests/browser/forms_workspace.cjs
       - run: node tests/browser/projects_navigation.cjs
+      - run: node tests/browser/workspace_dates.cjs
       - run: node tests/browser/contacts.cjs
       - run: node tests/browser/contact_shortcuts.cjs
       - run: node tests/browser/contact_certificate_readiness.cjs

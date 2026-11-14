@@ -51,7 +51,7 @@
     const box=el('div');box.className='forms-layout-output';
     const values={workspace:document.getElementById('company-name')?.value || 'CLASSIFIRE',template_id:t.settings?.display_id || t.id,
       template_version:t.version || 'Draft',form_version:entry?.version || 'Draft',author:entry?.created_by_name || '—',record_id:entry?.id || '—',
-      generated_at:printedAt || '—',disclaimer:'Printed version is uncontrolled'};
+      generated_at:printedAt ? window.ClassifireDates.dateTime(printedAt) : '—',disclaimer:'Printed version is uncontrolled'};
     for(const item of items) {
       const row=el('div');row.className='forms-align-'+(['left','right','center'].includes(item.align)?item.align:'left');
       if(item.kind==='logo' || item.kind==='image') {

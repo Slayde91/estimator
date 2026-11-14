@@ -1,0 +1,10 @@
+/* Native day-first controls retain their original segment order and keyboard navigation. */
+.classifire-date-control{display:inline-grid;position:relative;min-width:0;max-width:100%;align-items:center}
+.classifire-date-control input.date-text{width:100%;min-width:0;box-sizing:border-box;padding-inline-end:2.5rem}
+.classifire-date-control input.native-calendar{position:absolute;inset-inline-end:0;top:0;width:2.5rem;height:100%;opacity:0;cursor:pointer}
+.classifire-date-control input.native-calendar::-webkit-calendar-picker-indicator{width:100%;height:100%;margin:0;padding:0}
+.classifire-date-control svg{position:absolute;inset-inline-end:.7rem;pointer-events:none;width:1rem;height:1rem}
+.classifire-date-control:has(.native-calendar:focus-visible) svg{outline:2px solid currentColor;outline-offset:3px}
+.scheduler-toolbar .classifire-date-control{width:155px;height:42px}
+.scheduler-toolbar .classifire-date-control input.date-text{height:42px}
+.scheduler-toolbar .classifire-date-control input.native-calendar{width:2.5rem}

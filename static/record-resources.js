@@ -118,7 +118,7 @@
         const body=node('p','record-resource-note-body');
         const preview=item.format==='rich'?window.ClassifireWorkOrderPanels.plain(item.body):item.body;
         body.textContent=editable()?preview.slice(0,180):preview;
-        const meta=node('small');meta.textContent=[item.author,item.updated_at ? new Date(item.updated_at).toLocaleString() : ''].filter(Boolean).join(' · ');
+        const meta=node('small');meta.textContent=[item.author,item.updated_at ? window.ClassifireDates.dateTime(item.updated_at) : ''].filter(Boolean).join(' · ');
         row.classList.add('commercial-note-card');row.append(title,meta,body);
         notes.append(row);
       }

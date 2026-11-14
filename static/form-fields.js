@@ -77,7 +77,7 @@
     const root = el('div','form-fields');
     host.replaceChildren(root);
     const personName = id => staff.find(person=>person.id === id)?.name || (member.id === id && member.name) || id;
-    const refLabel = entry => [entry.name || entry.title, entry.created_by_name, entry.created_at, entry.id].filter(Boolean).join(' · ');
+    const refLabel = entry => [entry.name || entry.title, entry.created_by_name, entry.created_at && window.ClassifireDates.dateTime(entry.created_at), entry.id].filter(Boolean).join(' · ');
     function scheduleCalculation() {
       const current = ++calculationVersion;
       clearTimeout(calculationTimer);
@@ -464,15 +464,17 @@
       if(field.type==='signature'&&/^data:image\/(png|jpeg);base64,/.test(answer.signature_image)){const image=el('img','form-field-image');image.src=answer.signature_image;image.alt=field.label;body.append(image);}
       let shown;
       switch(field.type){
-        case 'date_range':case 'datetime_range':shown=[answer.start,answer.end].filter(Boolean).join(' – ');break;
+        case 'date':case 'expiry_date':shown=window.ClassifireDates.date(answer);break;
+        case 'datetime':shown=window.ClassifireDates.wallTime(answer);break;
+        case 'date_range':case 'datetime_range':shown=[answer.start,answer.end].filter(Boolean).map(value=>field.type==='date_range'?window.ClassifireDates.date(value):window.ClassifireDates.wallTime(value)).join(' – ');break;
         case 'location':shown=[answer.latitude,answer.longitude].join(', ');break;
         case 'person':shown=[].concat(answer).map(personName).join(', ');break;
         case 'lookup':case 'relationship':shown=refLabel(entries.find(entry=>entry.id===answer.entry_id) || {id:answer.entry_id});break;
         case 'yes_no':shown=typeof answer==='object'?[answer.answer,answer.explanation].filter(Boolean).join(' · '):answer;break;
-        case 'action':shown=[answer.description,personName(answer.assignee),answer.due_date,answer.status].filter(Boolean).join(' · ');break;
-        case 'signature':shown=answer===true?member.name:[answer.member_name,answer.at].filter(Boolean).join(' · ');break;
-        case 'manual_signature':shown=[answer.name,answer.company,answer.at].filter(Boolean).join(' · ');break;
-        case 'staff_wallet':shown=answer===true?member.name:[answer.member_name,answer.role,answer.member_id,answer.at].filter(Boolean).join(' · ');break;
+        case 'action':shown=[answer.description,personName(answer.assignee),answer.due_date && window.ClassifireDates.date(answer.due_date),answer.status].filter(Boolean).join(' · ');break;
+        case 'signature':shown=answer===true?member.name:[answer.member_name,answer.at && window.ClassifireDates.dateTime(answer.at)].filter(Boolean).join(' · ');break;
+        case 'manual_signature':shown=[answer.name,answer.company,answer.at && window.ClassifireDates.dateTime(answer.at)].filter(Boolean).join(' · ');break;
+        case 'staff_wallet':shown=answer===true?member.name:[answer.member_name,answer.role,answer.member_id,answer.at && window.ClassifireDates.dateTime(answer.at)].filter(Boolean).join(' · ');break;
         case 'scan_id':shown=[personName(answer),answer].filter((v,i,a)=>v&&a.indexOf(v)===i).join(' · ');break;
         case 'profile':shown=answer===true?member.name:typeof answer==='object'?[answer.name,answer.email,answer.role].filter(Boolean).join(' · '):answer;break;
         case 'approval':shown=translate(answer?'Approved':'Not approved');break;

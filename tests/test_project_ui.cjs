@@ -65,6 +65,7 @@ function harness({ penetration = false } = {}) {
   context.window.CeasefireI18n = require('./english_i18n_fixture.cjs')();
   context.window.CeasefireProjectDetails = {prepareSave: async () => '10000000-0000-0000-0000-000000000001', saved() {}};
 vm.createContext(context);
+  vm.runInContext(fs.readFileSync('static/dates.js','utf8'),context);
   vm.runInContext(fs.readFileSync('static/calculation-queue.js','utf8'),context);
   vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
   vm.runInContext(fs.readFileSync('static/document-workflow-board.js','utf8'),context);

@@ -196,7 +196,7 @@ function element(parent, { control = false, zone = "", brand = false } = {}) {
           || (selector === "#view-home" && node.zone === "home")
           || (selector === "#view-takeoffs" && node.zone === "takeoff")
           || (selector === "#takeoff-pages" && node.zone === "takeoff-pages")
-          || (selector === "#project-pages, .contacts-tabs" && ["project-pages","contacts-tabs"].includes(node.zone))
+          || (selector.includes("#project-pages") && (selector.split(", ").includes("#" + node.zone) || selector.split(", ").includes("." + node.zone)))
           || (selector === "#takeoff-viewport" && node.zone === "drawing")
           || (selector === ".takeoff-control-menu" && node.zone === "drawing-menu")
           || (selector === 'dialog, [role="dialog"]' && node.zone === "dialog")
@@ -268,13 +268,14 @@ test("main pages including Home are silent; header logo and Takeoff actions reta
   h.document.emit("click", { target: element(element(null, { zone: "dialog" }), { control: true }) });
   assert.equal(h.plays().at(-1)[1], feedbackSources.select);
 });
-test("Project and Contacts workspace tabs play the supplied page clip for pointer and keyboard activation", () => {
+test("Workspace tabs play the page clip for a switch and stay silent on reselection", () => {
   const h = audioHarness(); h.document.takeoffsActive = false; createFeedback(h.document,h.host,h.menu);
-  for (const zone of ["project-pages","contacts-tabs"]) {
+  for (const zone of ["project-pages","contacts-tabs","document-pages","calculator-kind-pages","library-pages","scheduler-tabs"]) {
     const button = element(element(null,{zone}),{control:true});
     for (const detail of [0,1]) h.document.emit("click",{target:element(button),detail});
+    button.attributes["aria-pressed"] = "true"; h.document.emit("click",{target:element(button),detail:1});
   }
-  assert.deepEqual(h.plays().map(row => row[1]), Array(4).fill("/sounds/page.mp3"));
+  assert.deepEqual(h.plays().map(row => row[1]), Array(12).fill("/sounds/page.mp3"));
 });
 
 test("PDF drawing hits and handles are silent while pane and explicit context-menu buttons keep Takeoff feedback", () => {

@@ -248,7 +248,7 @@ class WorkOrderTrackingTests(unittest.TestCase):
         request=str(uuid4());issued=target.issue(workspace,updated['id'],updated['version'],request,company=DEFAULTS)
         text='\n'.join(page.extract_text() for page in PdfReader(BytesIO(issued['pdf'])).pages)
         normalized=' '.join(text.split())
-        for value in ('Free item','Credit item','40','80','100','Progress Signer','Claim Signer','Closed Signer','2026-11-10','2026-11-11','Certification issued','Completed','Legacy progress stays stored','Portable paid progress note','Portable free progress note','Portable credit progress note'):self.assertIn(value,normalized)
+        for value in ('Free item','Credit item','40','80','100','Progress Signer','Claim Signer','Closed Signer','10/11/2026','11/11/2026','Certification issued','Completed','Legacy progress stays stored','Portable paid progress note','Portable free progress note','Portable credit progress note'):self.assertIn(value,normalized)
         self.assertEqual(target.issue(workspace,updated['id'],updated['version'],request,company=DEFAULTS)['pdf'],issued['pdf'])
         self.assertEqual(self.store.read_pdf(self.workspace,historic['id'])[1],historic['pdf'])
         import os

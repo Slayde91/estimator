@@ -116,7 +116,7 @@
     if (complete || closed) return;
     complete = true;
     stopCursor();
-    typed.classList.add("tagline-complete");
+    if (phrase === intelligencePhrase) typed.classList.add("tagline-complete");
   }
   function typeNext() {
     if (closed) return;
@@ -568,7 +568,7 @@
     if (file?.path || file?.relative_path) $("project-file-location").textContent = file.path || file.relative_path;
     else window.CeasefireI18n.text($("project-file-location"), file ? "Imported file · choose a folder with Save" : "Choose a folder with Save");
     const savedAt = file?.modified_at ? new Date(file.modified_at) : null;
-    if (savedAt && !Number.isNaN(savedAt.getTime())) window.CeasefireI18n.text($("project-last-saved"), "File saved {0}", [savedAt.toLocaleString("en-AU")]);
+    if (savedAt && !Number.isNaN(savedAt.getTime())) window.CeasefireI18n.text($("project-last-saved"), "File saved {0}", [window.ClassifireDates.dateTime(savedAt)]);
     else window.CeasefireI18n.text($("project-last-saved"), "File save time unavailable");
     $("project-last-saved").hidden = !file;
     window.CeasefireI18n.text($("project-pricing-source"), state.quoteConfiguration ? "Pricing: project snapshot" : "Pricing: current saved library");
@@ -1111,7 +1111,7 @@
         const description = node("div");
         description.append(node("h3", "", quote.title || "Untitled quote"));
         const date = new Date(quote.updated_at);
-        description.append(Number.isNaN(date.getTime()) ? uiNode("p", "", "Saved locally") : uiNode("p", "", "Updated {0}", [date.toLocaleString("en-AU")]));
+        description.append(Number.isNaN(date.getTime()) ? uiNode("p", "", "Saved locally") : uiNode("p", "", "Updated {0}", [window.ClassifireDates.dateTime(date)]));
         const button = uiNode("button", "button secondary", "Open older estimate");
         button.type = "button";
         button.addEventListener("click", () => openQuote(quote.id, button));
@@ -2824,8 +2824,8 @@
         }));
       const fields = [
         ["Project No.", file.project_no], ["Client", file.client], ["Site address", file.site_address],
-        ["Next action", file.next_action], ["Follow-up due", file.follow_up_date && new Date(file.follow_up_date+"T00:00:00Z").toLocaleDateString("en-AU",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric"})],
-        ["Updated", new Date(file.modified_at).toLocaleString("en-AU", {year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false})]
+        ["Next action", file.next_action], ["Follow-up due", file.follow_up_date && window.ClassifireDates.date(file.follow_up_date)],
+        ["Updated", window.ClassifireDates.dateTime(file.modified_at,{seconds:false})]
       ];
       const estimateLabel = uiNode("label", "field project-card-estimate", "Estimate"), estimateSelect = node("select");
       estimateSelect.setAttribute("aria-label", `Estimate for ${file.title || file.name}`);
@@ -2876,7 +2876,7 @@
       menu.addEventListener("focusout", event => { if (!menu.contains(event.relatedTarget)) menu.open = false; });
       actions.append(statusField); menu.append(toggle, actions);
       heading.append(menu); controls.append(estimateLabel, load);
-      if (tableRow) return [heading, uiNode("span", "", stageOf(file)), ...fields.map(([,value]) => value), controls];
+      if (tableRow) return [heading, uiNode("span", "project-stage-name", stageOf(file)), ...fields.map(([,value]) => value), controls];
       const details = node("div", "project-row-details"), information = node("dl", "kanban-card-details");
       for (const [label, value] of fields) information.append(uiNode("dt", "", label), node("dd", "", value || "—"));
       details.append(heading, information);
@@ -3130,7 +3130,7 @@
         const button = node("button", "project-browser-entry"); button.type = "button";
         const symbol = projectFileIcon(entry);
         const name = node("span", "project-browser-entry-name", entry.name);
-        const meta = entry.type === "folder" ? uiNode("span", "project-browser-entry-meta", "Folder") : node("span", "project-browser-entry-meta", [projectFileSize(entry.size), entry.modified_at ? new Date(entry.modified_at).toLocaleString("en-AU") : ""].filter(Boolean).join(" · "));
+        const meta = entry.type === "folder" ? uiNode("span", "project-browser-entry-meta", "Folder") : node("span", "project-browser-entry-meta", [projectFileSize(entry.size), entry.modified_at ? window.ClassifireDates.dateTime(entry.modified_at) : ""].filter(Boolean).join(" · "));
         button.append(symbol, name, meta);
         window.CeasefireI18n.attr(button, "aria-label", entry.type === "folder" ? "Open folder {0}" : "Open {0} in its default application", [entry.name]);
         button.addEventListener("click", () => entry.type === "folder" ? loadProjectFiles(data.project, entry.relative_path) : openProjectFolderFile(data.project, entry, button));
@@ -3380,12 +3380,11 @@
     return !!target && target.project_context === state.quoteContext &&
       typeof target.project_path === "string" && target.project_path === state.projectFile?.path;
   }
-  async function openConvertedLead(leadId, button) {
+  async function openConvertedLead(leadId) {
     if (!leadId) throw new Error("The converted project could not be identified. Open it from Projects.");
     if (state.projectBusy) throw new Error("The project was saved. Finish the current project action and open it from Projects.");
     const target = {converted_lead:leadId};
-    return button ? openReferencedProject(target, button)
-      : openProjectFile(null, node("button"), null, {convertedLead:true, loadTarget:target});
+    return openProjectFile(null, node("button"), null, {convertedLead:true, loadTarget:target});
   }
   window.CeasefireProject = { details: quoteDetails, changed: updateProjectStatus, scheduleChanged, hasCreatedProject, requireCreatedProject, createProject, discardNewProject, refreshPages: refreshProjectPages,
     projectPaneSnapshot: () => ({details:{...quoteDetails(),follow_up_actions:clone(projectFollowUp.actions)}, context:state.quoteContext, file:state.projectFile ? clone(state.projectFile) : null, busy:state.projectBusy}),
@@ -3453,6 +3452,11 @@
     },
     refreshProjectCards: () => loadProjects(),
     openConvertedLead,openLinkedProject,
+    async showConvertedDetails(receipt) {
+      if (await requestViewNavigation("quotes")) {
+        await window.CeasefireProjectPane.open({title:receipt.project_no}, {converted_lead:receipt.lead_id});
+      }
+    },
     openCurrentDetails: async context => {
       if (await requestViewNavigation("quotes") && context === state.quoteContext) await window.CeasefireProjectPane.openCurrent();
     },

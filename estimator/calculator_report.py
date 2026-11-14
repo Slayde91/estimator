@@ -23,6 +23,7 @@ from .excel_engine import column_name
 from .pdf_fonts import FONT_REGULAR
 from .report import _Report, _company_header, _register_fonts, _number, _numeric, _text, _LINE, _MUTED
 from .workbook_calculators import FYREWRAP_DIRECTION_NOTE, calculator_session, source_model
+from .date_display import display_source_dates
 from .board_steel_area import board_net_steel_areas, steel_area_display
 from .download_disclosure import calculator_download_data, duct_schedule_outputs
 
@@ -398,6 +399,11 @@ def _project_calculator_report(calculator_id, normalized, engine):
                     'values': {column_name(column): engine.value('EXTRA BOARDS', column_name(column) + str(row)) for column in range(1, 15)},
                     'labels': {column_name(column): extras['cells'][column_name(column) + '5']['value'] for column in range(1, 15)}})
 
+    for key in ('assessment_receipt','assessment_scope'):
+        if data.get(key):
+            data[key] = display_source_dates(data[key])
+    if data.get('assessment_notes'):
+        data['assessment_notes'] = [display_source_dates(note) for note in data['assessment_notes']]
     return data
 
 

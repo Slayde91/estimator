@@ -9,15 +9,15 @@
     entriesSearch:"", entriesMine:false, collapsedDays:new Set(), locationPlayback:null, authGeneration:0, mapRequest:0};
   const accountChannel = "BroadcastChannel" in window ? new BroadcastChannel("classifire-scheduler-account") : null;
   const colours = [["#2196f3","Blue"],["#b12030","Red"],["#177349","Green"],["#7544a8","Purple"],["#505966","Grey"]];
-  let dayFormatter, dateFormatter, timeFormatter, clockFormatter;
-  const calendarDay = new Intl.DateTimeFormat("en-AU", {timeZone:"UTC",weekday:"short",day:"numeric",month:"short"});
+  let timeFormatter, clockFormatter;
+  const calendarWeekday = new Intl.DateTimeFormat("en-AU", {timeZone:"UTC",weekday:"short"});
+  function calendarDay(iso) {return calendarWeekday.format(new Date(iso+"T12:00Z"))+" "+window.ClassifireDates.date(iso);}
+  function shiftMoment(value) {return window.ClassifireDates.dateTime(value,{timeZone:zone,seconds:false});}
   function setZone(value) {
     if (!value || (zone === value && clockFormatter)) return;
     const currentWeek = weekStart(today());
     const changed = zone !== value;
     zone = value;
-    dayFormatter = new Intl.DateTimeFormat("en-AU", {timeZone:zone,weekday:"short",day:"numeric",month:"short"});
-    dateFormatter = new Intl.DateTimeFormat("en-AU", {timeZone:zone,day:"numeric",month:"short",hour:"numeric",minute:"2-digit"});
     timeFormatter = new Intl.DateTimeFormat("en-AU", {timeZone:zone,hour:"numeric",minute:"2-digit"});
     clockFormatter = new Intl.DateTimeFormat("en-AU", {timeZone:zone,hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"});
     if (state.week === currentWeek) state.week = weekStart(today());
@@ -496,7 +496,7 @@
   function renderClock() {
     const active = state.data.active_entry, bar = el("section", "scheduler-clock card"); bar.setAttribute("aria-label","Your time clock"); bar.tabIndex = -1;
     const summary = el("div"); summary.append(el("strong","",active ? "You are clocked in" : "Your time clock"));
-    if (active) summary.append(el("p","helper",`Started ${dateFormatter.format(new Date(active.start))} · ${hours(duration(active.start))}`));
+    if (active) summary.append(el("p","helper",`Started ${shiftMoment(active.start)} · ${hours(duration(active.start))}`));
     else summary.append(el("p","helper",`Record your working time in ${zone}.`));
     bar.append(summary);
     if (active) {
@@ -570,7 +570,7 @@
       icon.append(path); control.append(icon); return control;
     }
     controls.append(button("Today",() => {state.week = weekStart(today()); refresh();}),weekArrow("Previous week",-7),date,weekArrow("Next week",7));
-    controls.append(el("strong", "scheduler-week",`${calendarDay.format(new Date(`${state.week}T12:00:00Z`))} – ${calendarDay.format(new Date(`${addDays(state.week,6)}T12:00:00Z`))}`));
+    controls.append(el("strong", "scheduler-week",`${calendarDay(state.week)} – ${calendarDay(addDays(state.week,6))}`));
     return controls;
   }
   function renderSchedule() {
@@ -582,7 +582,7 @@
     state.root.append(controls,el("p","helper",`Week view · ${zone} · Select a shift for details.`));
     const scroll = el("div", "scheduler-grid-scroll"), table = el("table", "scheduler-grid"); table.append(el("caption", "sr-only","Weekly schedule by team member"));
     const head = el("thead"), row = el("tr"); row.append(el("th","scheduler-person","Team member"));
-    for(let day=0;day<7;day++) { const date = addDays(state.week,day), cell = el("th",date === today() ? "scheduler-today" : "",calendarDay.format(new Date(`${date}T12:00:00Z`))); cell.scope = "col"; row.append(cell); }
+    for(let day=0;day<7;day++) { const date = addDays(state.week,day), cell = el("th",date === today() ? "scheduler-today" : "",calendarDay(date)); cell.scope = "col"; row.append(cell); }
     head.append(row); table.append(head); const body = el("tbody");
     let members = [{id:"",name:"Unassigned",active:true},...state.data.members.filter(item => item.active)];
     if (state.mine) members = members.filter(item => item.id === state.data.user.id);
@@ -661,7 +661,7 @@
     const inputZone = zone, requestId = shift ? null : crypto.randomUUID();
     void loadOrders();
     if (!admin()) {
-      const modal = el("dialog","scheduler-dialog"); modal.append(el("h2","",shift.title),el("p","",`${dateFormatter.format(new Date(shift.start))} – ${dateFormatter.format(new Date(shift.end))}`),el("p","",shift.location || ""),el("p","",shift.notes || ""),button("Close",() => modal.close())); state.root.append(modal); modal.addEventListener("close",() => modal.remove()); modal.showModal(); return;
+      const modal = el("dialog","scheduler-dialog"); modal.append(el("h2","",shift.title),el("p","",`${shiftMoment(shift.start)} – ${shiftMoment(shift.end)}`),el("p","",shift.location || ""),el("p","",shift.notes || ""),button("Close",() => modal.close())); state.root.append(modal); modal.addEventListener("close",() => modal.remove()); modal.showModal(); return;
     }
     const editor = dialog(shift ? "Edit shift" : "Add shift",host => {
       const title = input("text",shift?.title || orderShiftTitle(shift?.work_order),{required:true,maxlength:200});
@@ -742,12 +742,12 @@
         const entry = segment.entry, date = localParts(segment.start).slice(0,10);
         if (date !== day) {
           day = date; const group = el("tr","scheduler-entry-day"), cell = el("th"); cell.colSpan = 7;
-          const toggle = button(calendarDay.format(new Date(`${date}T12:00:00Z`)),() => {state.collapsedDays.has(date) ? state.collapsedDays.delete(date) : state.collapsedDays.add(date); drawRows();},"scheduler-day-toggle");
+          const toggle = button(calendarDay(date),() => {state.collapsedDays.has(date) ? state.collapsedDays.delete(date) : state.collapsedDays.add(date); drawRows();},"scheduler-day-toggle");
           toggle.setAttribute("aria-expanded",String(!state.collapsedDays.has(date))); cell.append(toggle); group.append(cell); body.append(group);
         }
         const row = el("tr",segment.break ? "scheduler-entry-break" : "scheduler-entry-work"); row.hidden = state.collapsedDays.has(date); row.dataset.entryId = entry.id;
         const interval = el("td","scheduler-entry-time",`${timeFormatter.format(new Date(segment.start))} – ${segment.end ? timeFormatter.format(new Date(segment.end)) : "Clocked in"}`);
-        if (segment.end && localParts(segment.end).slice(0,10) !== date) interval.append(el("small","helper",dayFormatter.format(new Date(segment.end))));
+        if (segment.end && localParts(segment.end).slice(0,10) !== date) interval.append(el("small","helper",calendarDay(localParts(segment.end).slice(0,10))));
         const job = el("td");
         if (segment.break) {
           job.append(el("span","scheduler-break-badge",segment.break.name || "Break"),el("small","helper",`${segment.break.paid ? "Paid" : "Unpaid"}${segment.break.automatic ? " · automatic" : ""}`));
@@ -756,7 +756,7 @@
         const location = el("td");
         if (!segment.break && (admin() || entry.member_id === state.data.user.id)) {
           const count = entry.location_summary?.count || 0, action = button(count ? `⌖ Web app · ${count} pins` : "⌖ No locations",() => showLocations(entry),"text-button scheduler-location-link");
-          action.setAttribute("aria-label",`Locations for ${memberName(entry.member_id)}, ${dateFormatter.format(new Date(entry.start))}`); location.append(action);
+          action.setAttribute("aria-label",`Locations for ${memberName(entry.member_id)}, ${shiftMoment(entry.start)}`); location.append(action);
         } else location.textContent = "—";
         const actions = el("td","scheduler-row-actions"); if(admin() && entry.end && !segment.break) actions.append(button("Edit",() => editEntry(entry)));
         row.append(el("td","",memberName(entry.member_id)),interval,el("td","",hours(duration(segment.start,segment.end))),job,location,el("td","scheduler-entry-notes",segment.break ? "" : entry.notes || "—"),actions); body.append(row);
@@ -781,7 +781,7 @@
         const detail = el("details"), summary = el("summary","scheduler-pay-row");
         summary.append(el("strong","",memberName(item.member_id)),el("span","",`${item.hours} hours`),el("span","",money(item.gross))); detail.append(summary);
         for (const segment of item.segments || []) {
-          const line = el("p","scheduler-pay-row"); line.append(el("span","",`${dateFormatter.format(new Date(segment.start))} – ${timeFormatter.format(new Date(segment.end))}`),el("span","",`${segment.multiplier}× · ${(segment.rules || []).join(", ") || "Ordinary"}${segment.pay_items?.length ? ` · ${segment.pay_items.join(", ")}` : ""}`),el("span","",money(segment.amount))); detail.append(line);
+          const line = el("p","scheduler-pay-row"); line.append(el("span","",`${shiftMoment(segment.start)} – ${timeFormatter.format(new Date(segment.end))}`),el("span","",`${segment.multiplier}× · ${(segment.rules || []).join(", ") || "Ordinary"}${segment.pay_items?.length ? ` · ${segment.pay_items.join(", ")}` : ""}`),el("span","",money(segment.amount))); detail.append(line);
         }
         card.append(detail);
       }
@@ -1099,14 +1099,14 @@
       const shifts = state.data.entries.filter(item => item.member_id === entry.member_id && localParts(item.start).slice(0,10) === localParts(entry.start).slice(0,10));
       const chooser = select(shifts.map(item => [item.id,`${timeFormatter.format(new Date(item.start))} – ${item.end ? timeFormatter.format(new Date(item.end)) : "Clocked in"}`]),entry.id);
       chooser.setAttribute("aria-label","Time entry for location history"); chooser.addEventListener("change",() => {const selected = shifts.find(item => item.id === chooser.value); if(selected) void showLocations(selected);});
-      side.append(el("strong","",memberName(entry.member_id)),chooser,el("p","",dayFormatter.format(new Date(entry.start))),el("p","",hours(duration(entry.start,entry.end))),el("p","",assignmentLabel(entry) || translated("No Work Order assigned")),el("h3","","Timesheet timeline"));
+      side.append(el("strong","",memberName(entry.member_id)),chooser,el("p","",calendarDay(localParts(entry.start).slice(0,10))),el("p","",hours(duration(entry.start,entry.end))),el("p","",assignmentLabel(entry) || translated("No Work Order assigned")),el("h3","","Timesheet timeline"));
       const list = el("ol","scheduler-location-list"), selectedText = el("p","scheduler-selected-location"); selectedText.setAttribute("aria-live","polite");
       let map, selectedIndex = 0;
       const selectPoint = index => {
         selectedIndex = index; const point = locations[index]; if(!point)return;
         map?.select(index);
         [...list.children].forEach((row,number) => row.querySelector("button")?.setAttribute("aria-current",number === index ? "true" : "false"));
-        selectedText.textContent = `${dateFormatter.format(new Date(point.captured_at))} · ${Number(point.latitude).toFixed(5)}, ${Number(point.longitude).toFixed(5)} · accuracy ±${Math.round(point.accuracy)} m`;
+        selectedText.textContent = `${shiftMoment(point.captured_at)} · ${Number(point.latitude).toFixed(5)}, ${Number(point.longitude).toFixed(5)} · accuracy ±${Math.round(point.accuracy)} m`;
       };
       if (!locations.length) mapColumn.append(el("p","empty-state","No locations were recorded for this time entry. Past movements cannot be reconstructed."));
       else {
@@ -1124,7 +1124,7 @@
       }
       side.append(list);
       const gaps = data.coverage?.gaps || [];
-      if(gaps.length) {const warning = el("section","scheduler-location-gaps"); warning.append(el("strong","","Missing location intervals")); for(const gap of gaps) warning.append(el("p","helper",`${dateFormatter.format(new Date(gap.start))} – ${dateFormatter.format(new Date(gap.end))} · ${hours(gap.minutes)}`)); side.append(warning);}
+      if(gaps.length) {const warning = el("section","scheduler-location-gaps"); warning.append(el("strong","","Missing location intervals")); for(const gap of gaps) warning.append(el("p","helper",`${shiftMoment(gap.start)} – ${shiftMoment(gap.end)} · ${hours(gap.minutes)}`)); side.append(warning);}
       layout.append(mapColumn,side); modal.append(layout);
       modal.addEventListener("close",() => {clearInterval(state.locationPlayback); state.locationPlayback = null; map?.dispose(); modal.remove(); if(state.dialog === modal)state.dialog = null;}); state.root.append(modal); state.dialog = modal; modal.showModal(); selectPoint(0);
     } catch(error) {if(generation === state.authGeneration && revision === state.mapRequest) {notice(error.message,true); if([401,409].includes(error.status)) void refresh();}}

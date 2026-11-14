@@ -59,12 +59,18 @@
   }
   const silent = Object.freeze({ play() {}, start() {}, stop() {}, close() {} });
 
+  function alreadySelected(button) {
+    return button?.getAttribute?.("aria-current") === "page" ||
+      button?.getAttribute?.("aria-selected") === "true" ||
+      button?.getAttribute?.("aria-pressed") === "true";
+  }
+
   function create(navigation, host = root) {
     if (!navigation || typeof host?.Audio !== "function") return silent;
     const players = createPlayers(sources, host);
     const bindings = [...navigation.querySelectorAll("button")].map(button => {
       const enter = event => { if (event.pointerType !== "touch" && !button.disabled) players.play("move"); };
-      const click = () => { if (!button.disabled) players.play("confirm"); };
+      const click = () => { if (!button.disabled && !alreadySelected(button)) players.play("confirm"); };
       // Direct pointerenter listeners avoid sounds for nested icons or bubbling choices.
       button.addEventListener("pointerenter", enter);
       button.addEventListener("click", click);
@@ -106,7 +112,10 @@
       if (closed || document.hidden || !enabled(button)) return;
       // Header navigation owns its own hover and click sounds.
       if (button.closest(".app-header")) { players.stop(); return; }
-      if (button.closest("#project-pages, .contacts-tabs")) {
+      const workspaceTabs = button.closest("#project-pages, .contacts-tabs, #document-pages, #calculator-kind-pages, #library-pages, .scheduler-tabs");
+      const takeoffTabs = button.closest("#takeoff-pages");
+      if (alreadySelected(button)) return;
+      if (workspaceTabs) {
         menu.stop?.(); players.play("page"); return;
       }
       // Takeoff dialogs and global actions are outside the workspace node.
@@ -114,7 +123,7 @@
       const takeoff = button.closest("#view-takeoffs") || document.body?.classList?.contains("takeoffs-active");
       if (!takeoff) { players.stop(); return; }
       menu.stop?.();
-      if (button.closest("#takeoff-pages")) players.play("takeoffTab");
+      if (takeoffTabs) players.play("takeoffTab");
       else players.play(button.id === "save-current-project" ? "checkpoint" : "select");
     }
     function click(event) {

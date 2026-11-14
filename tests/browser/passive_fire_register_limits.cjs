@@ -6,7 +6,9 @@ const {expect} = require('@playwright/test');
 async function checkRegisterLimits(browser) {
   const page = await browser.newPage();
   try {
-    await page.setContent('<section class="view"><div id="passive-register-root"></div></section>');
+    await page.route('http://localhost/register-test', route=>route.fulfill({contentType:'text/html',
+      body:'<section class="view"><div id="passive-register-root"></div></section>'}));
+    await page.goto('http://localhost/register-test');
     await page.evaluate(() => {
       window.CeasefireI18n = {text(element, value) { element.textContent = value; }};
       window.CeasefireProject = {changed() {}};

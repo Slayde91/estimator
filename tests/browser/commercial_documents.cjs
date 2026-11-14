@@ -266,7 +266,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   const workCard=work.locator('.commercial-card');
   await workCard.dragTo(column(work,'In progress'));
   await expect(signDialog.getByLabel('Name',{exact:true})).toHaveValue('Commercial fixture signer');
-  await expect(signDialog.getByLabel('Date',{exact:true})).toHaveValue(/^\d{4}-\d{2}-\d{2}$/);
+  await expect(signDialog.locator('input[type=date]')).toHaveValue(/^\d{4}-\d{2}-\d{2}$/);
   await signDialog.getByRole('button',{name:'Cancel',exact:true}).click();
   await expect(column(work,'Client Approval').locator('.commercial-card')).toHaveCount(1);
   assert.deepEqual(currentWork(),beforeApproval,'Cancelling a board move preserves the entire saved order');
@@ -296,7 +296,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await work.getByLabel('Attach files',{exact:true}).setInputFiles({name:'qa-field-record.bin',mimeType:'application/octet-stream',buffer:Buffer.from('QA portable original')});
   await expect(work.locator('.commercial-attached-file')).toContainText('qa-field-record.bin');
   await checkTrashAlignment(work.getByRole('button',{name:'Remove qa-field-record.bin',exact:true}));
-  await expect(work.getByLabel('Proposed start date',{exact:true})).toHaveAttribute('type','date');
+  await expect(work.locator('[data-order-field=start_date]')).toHaveAttribute('type','date');
   await expect(work.getByLabel('Status',{exact:true})).toHaveCount(0);
   await save(work);
   const assignedReference=await work.getByLabel('Work order reference',{exact:true}).inputValue();

@@ -353,6 +353,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 self.send_payload(200, (ROOT / 'static' / page).read_bytes(), 'text/html; charset=utf-8')
                 return
             if self.command == 'GET' and route in {'/record-resources.js', '/record-resources.css', '/project-record-panels.js', '/crm-access.js', '/crm-access.css', '/crm-identity.js', '/project-participants.js', '/scheduler-only.js',
+                    '/dates.js','/date-controls.js','/date-controls.css',
                     '/forms.js','/forms.css','/forms-builder.js','/forms-builder.css','/form-fields.js','/form-fields.css','/forms-layout.js'}:
                 path = ROOT / 'static' / route[1:]
                 if not path.is_file():
@@ -818,9 +819,11 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     else:
                         raise ValidationError('Choose a project file from the linked folder.')
                 elif route == '/api/projects/details' and self.command == 'POST':
-                    self.send_payload(200, project_response(projects.read_details(body)))
+                    receipt = contacts_http.store.conversion_receipt(body['converted_lead']) if 'converted_lead' in body else None
+                    self.send_payload(200, project_response(projects.read_details(body, conversion=receipt)))
                 elif route == '/api/projects/details/save' and self.command == 'POST':
-                    self.send_payload(200, project_response(projects.save_details(body, accounts=contacts_http.store)))
+                    receipt = contacts_http.store.conversion_receipt(body['converted_lead']) if 'converted_lead' in body else None
+                    self.send_payload(200, project_response(projects.save_details(body, accounts=contacts_http.store, conversion=receipt)))
                 elif route == '/api/projects/follow-up' and self.command == 'POST':
                     self.send_payload(200, project_response(projects.save_follow_up(body, self.crm_actor)))
                 elif route == '/api/projects/status' and self.command == 'POST':

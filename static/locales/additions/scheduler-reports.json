@@ -1,5 +1,5 @@
 {
-  "Enter a date as DD:MM:YY.": ["날짜를 DD:MM:YY 형식으로 입력하세요.","Ilagay ang petsa sa format na DD:MM:YY.","Nhập ngày theo định dạng DD:MM:YY."],
+  "Enter a date as DD/MM/YYYY.": ["날짜를 DD/MM/YYYY 형식으로 입력하세요.","Ilagay ang petsa sa format na DD/MM/YYYY.","Nhập ngày theo định dạng DD/MM/YYYY."],
   "Choose {0}": ["{0} 선택","Piliin ang {0}","Chọn {0}"],
   "Payroll hours": ["급여 산정 시간","Mga oras para sa pasahod","Số giờ tính lương"],
   "Total paid hours": ["총 유급 시간","Kabuuang bayad na oras","Tổng số giờ được trả lương"],

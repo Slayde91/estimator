@@ -9,6 +9,7 @@ const assert=require('node:assert/strict'), path=require('node:path');
     await page.route('https://forms.test/**',route=>route.fulfill(route.request().url().includes('/api/')?
       {json:{user:{id:'s1'}}}:{contentType:'text/html',body:'<main></main>'}));
     await page.goto('https://forms.test/');
+    await page.addScriptTag({path:path.resolve(__dirname,'../../static/dates.js')});
     await page.addScriptTag({path:path.resolve(__dirname,'../../static/form-fields.js')});
     await page.addScriptTag({path:path.resolve(__dirname,'../../static/personal-signature.js')});
     await page.addStyleTag({path:path.resolve(__dirname,'../../static/form-fields.css')});
@@ -157,6 +158,8 @@ const assert=require('node:assert/strict'), path=require('node:path');
     assert.equal(saved.file[0].data,Buffer.from('report').toString('base64'));assert.equal(saved.priority,'Urgent');
     await mount({...options,readOnly:true,values:{...saved,n:14,fixed:[{...saved.fixed[0],price:'70',desc:'Banana'}],sign:{member_name:'Harper',at:'2026-11-15T06:00Z',signature_image:saved.hand.image},
       wallet:{member_name:'Harper',member_id:'s1',role:'editor',at:'2026-11-15T06:00Z'}}});
+    await expect(field('range')).toContainText('15/11/2026');
+    await expect(field('range')).not.toContainText('2026-11-15');
     await expect(page.locator('main :is(input,select,textarea,button)')).toHaveCount(0);
     await expect(field('wallet')).toContainText('Harper · editor · s1');
     await expect(field('hand')).toContainText('Sid Mills · Mills & Co');await expect(field('sign').locator('img')).toBeVisible();

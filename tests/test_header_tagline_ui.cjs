@@ -133,7 +133,7 @@ for (let index = 0; index < phrases.length-1; index++) {
   assert.equal(h.audio.plays,0,'Ordinary phrases do not play the brand sound');
   assert.equal(h.typed.classList.contains('tagline-complete'), false);
   h.finishTyping();
-  assert.equal(h.typed.classList.contains('tagline-complete'), true, 'Underline starts with the fully revealed phrase');
+  assert.equal(h.typed.classList.contains('tagline-complete'), false, 'Ordinary completed phrases have no underline');
   assert.equal(h.now(), (Array.from(phrase).length - 1) * 35);
   assert.equal(h.cursor.hidden, true, 'Cursor stops as soon as the final character prints');
   assert.equal(h.media.playing, true, 'The supplied character continues after the final character');

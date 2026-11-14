@@ -12,10 +12,16 @@ class Element {
   addEventListener(name, callback) { this.listeners[name] = callback; }
 }
 const document = { body: new Element('body'), hidden: false,
-  querySelectorAll: selector => selector === '.message' ? elements.filter(element => element.matches(selector)) : [],
+  querySelectorAll: selector => elements.filter(element => selector.includes('.message') && (element.matches('.message') || element.className === 'notice' || element.getAttribute('data-notification')==='true')),
   createElement: tag => new Element(tag), addEventListener: (name, callback) => { events[name] = callback; } };
 let observer;
 const window = { MutationObserver: class { constructor(callback) { observer = callback; } observe() {} } };
+const sounds = [];
+window.Audio = class {
+  load() {}
+  pause() {}
+  play() { sounds.push(this.src); return Promise.resolve(); }
+};
 const context = { window, document, MutationObserver: window.MutationObserver, queueMicrotask: callback => microtasks.push(callback), Map };
 vm.createContext(context); vm.runInContext(fs.readFileSync('static/notifications.js', 'utf8'), context);
 const api = window.CeasefireNotifications;
@@ -25,6 +31,7 @@ assert.equal(first.hidden, false); assert.equal(first.children.length, 1);
 assert.equal(first.textContent, 'Saved successfully', 'The decorative close glyph does not become notification text or status data');
 assert.equal(first.children[0].type, 'button'); assert.equal(first.children[0].getAttribute('aria-label'), 'Close');
 observer(); observer(); assert.equal(first.children.length, 1, 'Observer does not duplicate dismiss controls');
+assert.deepEqual(sounds, ['/sounds/radiobleep.mp3'], 'A shown message plays once through DOM decoration');
 assert.equal(first.hidden, false, 'No elapsed-time timer retires notices');
 first.children[0].listeners.click(); assert.equal(first.hidden, true, 'Dismiss works with an ordinary native button');
 api.navigate('estimate'); api.show(first); api.navigate('pricing'); assert.equal(first.hidden, true);
@@ -73,3 +80,21 @@ const external=notice('Error created outside the notification API');external.cla
 external.getClientRects=()=>[{}];external.getBoundingClientRect=()=>({top:950,bottom:990});
 observer();assert.equal(scrolls.length,count+1,'Fresh application errors discovered by the observer are revealed too');
 console.log('Error reveal, sticky header clearance, Tab scrolling, dismissal and success isolation passed.');
+
+document.hidden = false;
+const passive = notice('Contact saved'); passive.className = 'notice';
+const beforeSound = sounds.length;
+observer(); observer();
+assert.equal(sounds.length, beforeSound + 1, 'Contacts and other observer-discovered notices play once');
+assert.equal(passive.children.length, 0, 'Audio preserves the original controls on inline notices');
+passive.textContent = 'Contact archived'; observer();
+assert.equal(sounds.length, beforeSound + 2, 'A new message in the same element plays again');
+passive.hidden = true; observer(); passive.hidden = false; observer();
+assert.equal(sounds.length, beforeSound + 3, 'Reopening the same notification plays again');
+window.CeasefireAudioSettings = { isEnabled: () => false };
+api.show(passive); observer(); assert.equal(sounds.length, beforeSound + 3, 'Muted notifications stay silent');
+window.CeasefireAudioSettings = { isEnabled: () => true };
+const inline = new Element('p'); inline.textContent='Enter activity details.'; api.sound(inline);
+assert.equal(sounds.length,beforeSound + 4); assert.equal(inline.children.length,0);
+document.querySelectorAll = () => { throw Error('Document-wide notification rescan'); };
+observer([{type:'characterData',target:new Element('span'),addedNodes:[]}]);

@@ -440,7 +440,10 @@ class ReferenceLibrary:
             # durable manual-link identities.
             for key, item in public_technical.items():
                 if key not in records['technical']:
-                    records['technical'][key] = deepcopy(item)
+                    # Reviewed synthetic records are immutable. A later alias
+                    # receives its own public dictionary, and API responses
+                    # copy any fields that callers can edit.
+                    records['technical'][key] = item
                 if key not in searches['technical'] or key in variant_projection.lineage:
                     searches['technical'][key] = ('\n'.join(str(item.get(name, '')) for name in ('id', 'title', 'subtitle', 'summary')) + '\n' + '\n'.join(
                         field.get('value', '') + '\n' + json.dumps([field.get('table'), field.get('tables')], ensure_ascii=False)
@@ -581,7 +584,9 @@ class ReferenceLibrary:
             if kind == 'technical' and chosen.get('services') == 'Junction Box':
                 chosen['services'] = 'Conduits'
             browse_service = chosen.pop('services', None) if kind == 'technical' else None
-            items = []
+            tokens = search.split()
+            shown = []
+            total = 0
             if data:
                 for key in data['_visible'][kind]:
                     item = data['_technical_public_records'][key] if kind == 'technical' else data['_records'][kind][key]
@@ -591,13 +596,19 @@ class ReferenceLibrary:
                     values = data['_technical_discovery'][key] if kind == 'technical' else item.get('filter_values', {})
                     if browse_service and not matches_browse_service(item, values, browse_service):
                         continue
-                    search_text = data['_searches'][kind][key]
-                    if kind == 'technical':
-                        search_text += '\n' + '\n'.join(values.get('frl', []))
-                    if all(token in search_text for token in search.split()) and all(value in values.get(name, []) for name, value in chosen.items()):
-                        items.append({**{name: item.get(name, '') for name in ('id', 'title', 'subtitle', 'summary', 'source_label')},
+                    if any(value not in values.get(name, []) for name, value in chosen.items()):
+                        continue
+                    if tokens:
+                        search_text = data['_searches'][kind][key]
+                        if kind == 'technical':
+                            search_text += '\n' + '\n'.join(values.get('frl', []))
+                        if any(token not in search_text for token in tokens):
+                            continue
+                    if offset <= total < offset + limit:
+                        shown.append({**{name: item.get(name, '') for name in ('id', 'title', 'subtitle', 'summary', 'source_label')},
                                       **{name: deepcopy(item[name]) for name in ('library_id', 'price', 'editable') if name in item},
                                       'related_count': len(data['_links'][kind][key])})
+                    total += 1
             counts = {'total': len(data['_visible'][kind]) if data else 0,
                       'linked': sum(bool(data['_links'][kind][key]) for key in data['_visible'][kind]) if data else 0,
                       'unlinked': sum(not data['_links'][kind][key] for key in data['_visible'][kind]) if data else 0}
@@ -612,12 +623,11 @@ class ReferenceLibrary:
             if kind == 'penetration':
                 filters.append({'key': 'technical_reference', 'label': 'Technical reference', 'options': [
                     {'value': 'any', 'label': 'Any'}, {'value': 'linked', 'label': 'Linked'}, {'value': 'unlinked', 'label': 'No linked reference'}]})
-            shown = items[offset:offset + limit]
             if kind == 'technical':
                 shown = [present_technical({**item, **variant_display(data, item['id'])},
                                            source_ratings=data['_records'][kind][item['id']]
                                            .get('filter_values', {}).get('frl', [])) for item in shown]
-            return {'items': shown, 'total': len(items), 'offset': offset, 'limit': limit,
+            return {'items': shown, 'total': total, 'offset': offset, 'limit': limit,
                     'counts': counts, 'filters': filters,
                     'notice': data['libraries'][kind].get('notice', '') if data else 'No local reference library has been installed.'}
 

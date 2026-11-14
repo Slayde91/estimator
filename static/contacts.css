@@ -64,10 +64,10 @@
 .contacts-form h2 { margin:0; }
 .contacts-group { min-width:0; margin:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; padding:14px; border:1px solid var(--line); border-radius:8px; }
 .contacts-group legend { font-weight:700; padding:0 5px; }
-.contacts-group[data-enquiry-compare],.contacts-group.crm-identity-section { display:block; }
-.contacts-group[data-enquiry-compare][hidden],.contacts-group.crm-identity-section[hidden] { display:none; }
-[data-enquiry-compare] table,.crm-identity-section table { table-layout:fixed; overflow-wrap:anywhere; }
-[data-enquiry-compare] .button,.crm-identity-section .button { margin-block-start:8px; }
+.contacts-group.crm-identity-section { display:block; }
+.contacts-group.crm-identity-section[hidden] { display:none; }
+.crm-identity-section table { table-layout:fixed; overflow-wrap:anywhere; }
+.crm-identity-section .button { margin-block-start:8px; }
 .crm-identity-section summary { cursor:pointer; font-weight:700; }
 .crm-merge-records select[size]:not([size="1"]) { height:auto; padding-block:4px; }
 .contacts-group label:only-of-type { grid-column:1/-1; }
@@ -155,7 +155,13 @@
 .contacts-board .project-card-heading:has(.board-follow-up-due:not([hidden])),#project-list .project-row-heading:has(.board-follow-up-due:not([hidden])){align-items:center;gap:4px}
 .contacts-board .project-card-heading>.project-title-button{flex:1;min-width:0}
 #project-list .project-row-heading>.board-follow-up-due:not([hidden])+.project-card-menu{margin-inline-start:0}
-.follow-up-dialog{width:min(760px,94vw);padding:clamp(14px,3vw,24px)}
+.follow-up-dialog{width:min(760px,94vw);max-width:none;padding:clamp(14px,3vw,24px)}
+.follow-up-dialog .follow-up-action-row{grid-template-columns:minmax(0,1fr) min(35%,10.5rem) min(28%,9rem);gap:6px 8px}
+.follow-up-dialog .follow-up-action-row>.field{grid-column:auto;grid-row:span 2;grid-template-rows:subgrid;max-width:none}
+@container (max-width:540px){
+  .follow-up-dialog .follow-up-action-row{grid-template-columns:minmax(0,1fr) min(40%,8.3rem) min(34%,7.2rem)}
+  .follow-up-dialog .follow-up-action-row :is(input,select){padding-inline:5px}
+}
 .follow-up-dialog form{display:grid;gap:16px}
 .follow-up-dialog h2,.follow-up-dialog p{margin:0;overflow-wrap:anywhere}
 .follow-up-dialog fieldset{border:0;padding:0;margin:0;min-inline-size:0}

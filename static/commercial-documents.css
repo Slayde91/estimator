@@ -22,7 +22,7 @@
 .commercial-check input { width:17px; height:17px; flex:0 0 17px; }
 .commercial-editor { display:grid; gap:20px; }
 .commercial-editor,.commercial-editor>* { min-width:0; }
-.commercial-editor-actions { position:sticky; top:10px; z-index:2; background:var(--paper); padding:12px; border:1px solid var(--line); border-radius:10px; }
+.commercial-editor-actions { position:sticky; top:10px; z-index:2; }
 .commercial-delivery-field[hidden] { display:none; }
 .commercial-editor>.field { max-width:none; }
 .commercial-required-label::after{content:' *';color:var(--accent,#d0001b);font-weight:700}

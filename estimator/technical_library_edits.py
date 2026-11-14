@@ -237,13 +237,14 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
         return data
 
     def overview(self):
-        result = super().overview()
-        data = self._load()
-        for library in result['libraries']:
-            library['filters'] = deepcopy(data['_filters'][library['id']]) if data else []
-            if data and not data.get('_index_sha256'):
-                library['source_count'] = 0
-        return result
+        with self._lock:
+            result = super().overview()
+            data = self._load()
+            for library in result['libraries']:
+                library['filters'] = deepcopy(data['_filters'][library['id']]) if data else []
+                if data and not data.get('_index_sha256'):
+                    library['source_count'] = 0
+            return result
 
     def listing(self, kind, **query):
         with self._lock:

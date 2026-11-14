@@ -248,13 +248,15 @@ def normalize_technical_item(item, *, selector_capture=None):
     existing_basis = projected.get('technical_basis', {})
     if existing_basis.get('projection_version') == PROJECTION_VERSION:
         return present_manufacturer_fields(projected)
-    original_fields = deepcopy(projected.get('fields', []))
-    technical_basis = deepcopy(existing_basis)
+    # projected already owns these copies. The public fields are built
+    # separately below while the original fields stay in the retained basis.
+    original_fields = projected.get('fields', [])
+    technical_basis = existing_basis
     technical_basis.update(projection_version=PROJECTION_VERSION,
                            source_fields=original_fields)
     review = projected.pop('technical_field_review', None)
     if review is not None:
-        technical_basis['review'] = deepcopy(review)
+        technical_basis['review'] = review
     projected['technical_basis'] = technical_basis
     fields, ratings = [], []
     explicit_instructions = any(field['label'] in {

@@ -180,7 +180,7 @@ const ready = new Promise((resolve,reject)=>{
   await expect(secondCard.locator('dl')).toContainText('Phone the site supervisor');
   await openDetails(second);
   await rows.nth(1).getByLabel('Follow-up status').selectOption('Completed');
-  await expect(rows.nth(1).locator('textarea')).toHaveJSProperty('readOnly',true);
+  await expect(rows).toHaveCount(1);
   response=saved();await page.locator('#project-details-save').click();assert.equal((await response).status(),200);await idle();
   const history=page.locator('#project-workspace-side details').filter({has:page.locator('#project-activity-heading')});
   await history.locator('summary').click();await expect(history).toContainText('Follow-up completed');
@@ -188,7 +188,8 @@ const ready = new Promise((resolve,reject)=>{
   await back();await expect(reminder(first)).toBeVisible();await expect(reminder(second)).toBeHidden();
   await expect(secondCard.locator('dl')).toContainText('Await delivery');
   await openDetails(second);await expect(rows.first().locator('textarea')).toHaveValue('Await delivery');
-  await expect(rows.nth(1).getByLabel('Follow-up status')).toBeDisabled();
+  await expect(rows).toHaveCount(1);
+  assert.deepEqual(JSON.parse(fs.readFileSync(second.path,'utf8')).project_follow_up.actions.map(row=>row.status),['','Completed']);
   await expect(page.locator('#project-pricing-context')).toHaveText(active.file.title);
   assert.deepEqual(fs.readFileSync(info.project),original);
   assert.deepEqual(await page.evaluate(()=>window.CeasefireProject.projectPaneSnapshot().details),active.details);

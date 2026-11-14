@@ -1,9 +1,43 @@
 (() => {
   "use strict";
   const records = new Map();
+  const observedSounds = new WeakMap();
   const downloads = new Map();
   let navigationKey = null;
-  const candidate = element => element?.matches?.('.message') && element.id !== 'project-folder' && !element.closest?.('noscript');
+  const noticeSelector = '.message, .notice, [role="alert"], #staff-login-message, #project-details-status, .record-resource-status:not([data-notification-mirror]), .project-link-status, [data-notification="true"]';
+  const candidate = element => element.id !== 'project-folder' && !element.closest?.('noscript');
+  let bleep;
+  try {
+    bleep = new window.Audio();
+    bleep.preload = 'auto';
+    bleep.src = '/sounds/radiobleep.mp3';
+    bleep.load();
+  } catch { /* Notifications still work without audio support. */ }
+  function stopBleep() {
+    try { bleep?.pause(); if (bleep) bleep.currentTime = 0; } catch { /* Media may be unavailable. */ }
+  }
+  window.CeasefireAudioSettings?.subscribe(enabled => { if (!enabled) stopBleep(); });
+  window.addEventListener?.('pagehide', stopBleep);
+  function soundNotice(element, record, fresh) {
+    const source = window.CeasefireI18n?.source(element) || element.textContent;
+    if (!fresh && record.soundText === source) return;
+    record.soundText = source;
+    if (!bleep || document.hidden || window.CeasefireAudioSettings?.isEnabled() === false) return;
+    if (element.getClientRects && !element.getClientRects().length) { record.soundText = null; return; }
+    try {
+      bleep.currentTime = 0;
+      bleep.play()?.catch(() => {});
+    } catch { /* A blocked sound must never delay or hide the notice. */ }
+  }
+  function sound(element, fresh = true) {
+    if (!element || element.hidden || !element.textContent?.trim()) {
+      if (element) observedSounds.delete(element);
+      return;
+    }
+    let record = observedSounds.get(element);
+    if (!record) { record = {}; observedSounds.set(element, record); }
+    soundNotice(element, record, fresh);
+  }
   function rememberDownload(receipt) {
     if (!receipt || typeof receipt.filename !== 'string' || !/\.(pdf|xlsx)$/i.test(receipt.filename) ||
         !/^\/api\/download-files\/[A-Za-z0-9_-]{32}$/.test(receipt.download_url || '') ||
@@ -98,10 +132,15 @@
     // more after that action, without stealing keyboard focus or polling.
     window.requestAnimationFrame?.(() => window.requestAnimationFrame(reveal));
   }
-  function decorate(element) {
-    if (!element || element.hidden || !element.textContent?.trim()) return;
+  function decorate(element, fresh = false) {
+    if (!element || element.hidden || !element.textContent?.trim()) {
+      const record = records.get(element);
+      if (record) record.soundText = null;
+      return;
+    }
     let record = records.get(element);
     if (!record) { record = { version: 0, persistent: false, button: null }; records.set(element, record); }
+    soundNotice(element, record, fresh);
     linkDownloads(element, record);
     if (element.getAttribute('data-notification') !== 'true') element.setAttribute('data-notification', 'true');
     if (record.button?.parentNode === element) return;
@@ -122,7 +161,7 @@
     record.version++; record.persistent = persistent;
     linkDownloads(element, record, true);
     element.hidden = !element.textContent?.trim();
-    decorate(element);
+    decorate(element, true);
     revealError(element, record, true);
   }
   function clear(captured = [...records].map(([element, record]) => [element, record.version])) {
@@ -136,16 +175,35 @@
     if (navigationKey !== null && key !== navigationKey) clear();
     navigationKey = key;
   }
-  function scan() {
-    for (const element of document.querySelectorAll('.message')) if (candidate(element)) decorate(element);
-    for (const [element] of records) {
-      if (element.isConnected === false) records.delete(element);
-      // Helper/status notices can replace their text without using .message.
-      // Restore their control after refreshes while respecting a prior dismissal.
-      else { decorate(element); revealError(element, records.get(element)); }
-    }
+  function refreshNotice(element) {
+    if (!candidate(element) || element.isConnected === false) return;
+    if (records.has(element) || element.matches('.message')) {
+      decorate(element);
+      const record = records.get(element);
+      if (record) revealError(element, record);
+    } else sound(element, false);
   }
-  window.CeasefireNotifications = { show, navigate, clear, rememberDownload };
+  function scan(mutations) {
+    if (!mutations) {
+      for (const element of document.querySelectorAll(noticeSelector)) refreshNotice(element);
+      return;
+    }
+    const changed = new Set();
+    function collect(node) {
+      if (node.matches?.(noticeSelector)) changed.add(node);
+      for (const match of node.querySelectorAll?.(noticeSelector) || []) changed.add(match);
+    }
+    for (const mutation of mutations) {
+      const target = mutation.target.nodeType === 3 ? mutation.target.parentElement : mutation.target;
+      const notice = target?.closest?.(noticeSelector);
+      if (notice) changed.add(notice);
+      if (mutation.type === 'attributes' && mutation.attributeName === 'hidden' && !target.hidden) collect(target);
+      for (const node of mutation.addedNodes) collect(node);
+    }
+    for (const element of records.keys()) if (element.isConnected === false) records.delete(element);
+    for (const element of changed) refreshNotice(element);
+  }
+  window.CeasefireNotifications = { show, sound, navigate, clear, rememberDownload };
   // Only selection tabs participate. Action buttons and download progress keep
   // their normal lifecycle, including long preparation and retry operations.
   document.addEventListener('click', event => {
@@ -154,9 +212,9 @@
     const captured = [...records].map(([element, record]) => [element, record.version]);
     queueMicrotask(() => { if (tab.getAttribute('aria-selected') === 'true') clear(captured); });
   }, true);
-  document.addEventListener('visibilitychange', () => { if (document.hidden) clear(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { stopBleep(); clear(); } });
   if (window.MutationObserver && document.body) {
-    new MutationObserver(scan).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'hidden'] });
+    new MutationObserver(scan).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'hidden', 'role'] });
   }
   scan();
 })();

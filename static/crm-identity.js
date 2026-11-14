@@ -20,52 +20,6 @@
     item.addEventListener('click', click);
     return item;
   }
-  function compare(form, inputs, current, onRefresh, readOnly) {
-    const box = node('fieldset', null, 'contacts-group');
-    box.dataset.enquiryCompare = '';
-    form.append(box);
-    function paint() {
-      const person = current();
-      box.hidden = !person;
-      if (!person) return;
-      box.replaceChildren(label('legend', 'Contact details'));
-      const table = node('table'), head = table.createTHead().insertRow(), body = table.createTBody();
-      for (const title of ['Field','This enquiry','Current Contact']) head.append(label('th', title));
-      const selected = new Map();
-      for (const key of contactFields) {
-        const row = body.insertRow(), old = inputs[key].value, next = person[key] || '';
-        row.append(label('th',fields[key]), node('td', old || '—'));
-        const directory = row.insertCell();
-        if (old !== next && !readOnly) {
-          const choice = node('label',null,'contacts-link-option'), check = node('input');
-          check.type = 'checkbox';
-          check.setAttribute('aria-label', 'Select '+fields[key]);
-          const i18n = window.CeasefireI18n;
-          i18n?.attr(check,'aria-label','Select {0}',[i18n.term(fields[key])]);
-          choice.append(check, document.createTextNode(next || '—'));
-          directory.append(choice); selected.set(key, check);
-        } else directory.textContent = next || '—';
-      }
-      const company = body.insertRow();
-      company.append(label('th','Company'), node('td',inputs.company.value || '—'),node('td',person.company || '—'));
-      box.append(table);
-      if (selected.size) {
-        const apply = button('Refresh from contact', () => {
-          for (const [key, check] of selected) if (check.checked) inputs[key].value = person[key] || '';
-          onRefresh(); paint();
-        });
-        apply.disabled = true;
-        for (const check of selected.values()) check.addEventListener('change', () => {
-          apply.disabled = ![...selected.values()].some(item => item.checked);
-        });
-        box.append(apply);
-      }
-    }
-    for (const key of [...contactFields,'company']) inputs[key].addEventListener('input', paint);
-    paint();
-    return paint;
-  }
-
   function format(person) {
     return [person.name, person.company, person.email, person.abn_acn].filter(Boolean).join(' · ');
   }
@@ -254,5 +208,5 @@
       if (current) void loadSuggestions();
     };
   }
-  window.ClassifireIdentity = {compare,management,suggestions};
+  window.ClassifireIdentity = {management,suggestions};
 })();

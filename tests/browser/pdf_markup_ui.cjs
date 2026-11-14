@@ -11,7 +11,7 @@ const fs = require("node:fs"), path = require("node:path"), crypto = require("no
 const { sources, feedbackSources } = require("../../static/header-menu-sounds.js");
 const { verifiedNativeMediaCancellation } = require("../helpers/media_preload_guard.cjs");
 // app.js also creates the native intelligence-phrase player at startup.
-const preloadPaths = [...Object.values(sources), ...Object.values(feedbackSources), "/sounds/gameover.mp3"];
+const preloadPaths = [...Object.values(sources), ...Object.values(feedbackSources), "/sounds/classifire.mp3", "/sounds/radiobleep.mp3"];
 // Native media can be cancelled during preload or later playback/seek. Every
 // allowed asset still requires exact delivery and fresh trusted decoding proof.
 const cancellableMediaPaths = preloadPaths;

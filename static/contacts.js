@@ -392,7 +392,6 @@
       fields.company.addEventListener('input',()=>{const account=directory.accounts.find(item=>item.id===accountId);if(!account || fields.company.value.trim()!==account.company){accountId='';for(const key of ['abn_acn','billing_address'])if(fields[key] && fields[key].value===accountDefaults[key])fields[key].value='';accountDefaults={};}});
       lookup(fields.company,()=>directory.accounts,item=>[item.company,item.abn_acn].join(' '),item=>item.company,account=>accountSelection(account),'No matching Companies. You can enter a company name.');
     }
-    let refreshComparison;
     if(!readOnly && kind==='leads') {
       let automaticStage = !record.id || record.status === 'New', pickedContact = false;
       function qualify() {
@@ -407,14 +406,7 @@
         for(const key of ['name','phone','email','title'])fields[key].value=contact[key]||'';
         qualify();
         if(!fields.company.value.trim()){const account=directory.accounts.find(item=>item.id===contact.account_id);if(account)accountSelection(account);}
-        refreshComparison?.();
       },'No matching Contacts. You can enter a name.', contact => [contact.company, contact.title, contact.email, contact.phone].filter(Boolean).join(' · '));
-    }
-    if (kind === 'leads' && record.id) {
-      refreshComparison = window.ClassifireIdentity?.compare(form, fields, () => {
-        const current = directory.identity_aliases?.contacts?.[contactId] || contactId;
-        return directory.contacts.find(person=>person.id===current);
-      }, () => {contactName=fields.name.value.trim();}, readOnly);
     }
     if (!readOnly) window.ClassifireIdentity?.suggestions(form,kind,fields,record,request,()=>contactId);
     const actions = el("div", "actions contacts-dialog-actions");

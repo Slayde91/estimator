@@ -27,7 +27,8 @@
 #scheduler-root .button.scheduler-primary-action { background:#d0001b; border-color:#a80016; color:#fff; }
 #scheduler-root .button.scheduler-primary-action:hover:not(:disabled) { background:#a80016; border-color:#8d0012; }
 #scheduler-root .scheduler-toolbar-add { display:inline-grid; place-items:center; flex:0 0 48px; width:48px; min-width:48px; height:48px; padding:0; border-radius:10px; font-size:28px; line-height:1; }
-.scheduler-top,.scheduler-account,.scheduler-toolbar,.scheduler-clock,.scheduler-dialog-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+.scheduler-top,.scheduler-toolbar,.scheduler-clock,.scheduler-dialog-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+.staff-portal-account { display:flex; justify-content:flex-end; padding:8px 16px 0; }
 .scheduler-top { justify-content:space-between; margin-bottom:18px; }
 #scheduler-root .scheduler-tabs { display:flex; align-items:center; gap:5px; min-width:0; width:fit-content; max-width:100%; padding:0; flex:0 1 auto; background:#090b0e; color:#f3f4f6; }
 @media screen {
@@ -41,7 +42,6 @@
 .scheduler-local-time { font-size:clamp(13px,1.4vw,18px); font-variant-numeric:tabular-nums; font-weight:600; }
 .settings-preferences-grid .field { min-width:0; }
 #organization-timezone-form select { max-width:100%; }
-.scheduler-account { color:var(--muted); font-size:12px; }
 .scheduler-notice { margin-bottom:16px; }
 .scheduler-projects-info { display:flex; align-items:center; flex-wrap:wrap; gap:6px 12px; margin:0 0 16px; }
 .scheduler-clock { padding:16px 20px; }
@@ -52,8 +52,7 @@
 #scheduler-root>.workspace-title-row:not(.scheduler-clock-heading){flex-flow:row wrap;gap:4px 16px}
 #scheduler-root>.workspace-title-row>.scheduler-local-time{align-self:center}
 .scheduler-clock-heading .scheduler-clock { margin:0; align-content:center; }
-.scheduler-clock-heading .scheduler-account { flex-basis:100%; justify-content:flex-end; }
-.scheduler-account .scheduler-local-time { color:var(--ink); }
+.scheduler-clock-heading .scheduler-local-time { flex-basis:100%; text-align:end; }
 .scheduler-location-status { flex-basis:100%; }
 .scheduler-location-error { color:var(--error); }
 #scheduler-root .scheduler-clock-out,#scheduler-root .scheduler-settings-actions button[type="submit"] { box-sizing:border-box; height:42px; min-height:42px; padding-block:0; }
@@ -95,6 +94,7 @@
 .scheduler-add:hover { color:var(--accent); border-color:var(--accent); }
 .scheduler-dialog { width:min(680px,calc(100vw - 32px)); max-width:680px; max-height:90vh; overflow:auto; background:var(--paper); color:var(--ink); }
 .scheduler-dialog::backdrop { background:#070b13a6; }
+.staff-sign-out-dialog { max-width:400px; }
 .scheduler-shift-editor { margin:0 0 0 auto; width:min(460px,100vw); max-width:100vw; height:100dvh; max-height:100dvh; border-radius:12px 0 0 12px; }
 .scheduler-shift-editor .scheduler-form-fields { grid-template-columns:1fr; }
 .scheduler-colours { margin:0; padding:0; min-width:0; border:0; }
@@ -209,9 +209,7 @@
   .scheduler-location-sidebar { border-left:0; border-top:1px solid var(--line); padding:16px 0 0; }
   .scheduler-rule-fields,.scheduler-rule-section,.scheduler-rule-window,.scheduler-rule-editors,.scheduler-rounding-fields { grid-template-columns:1fr; }
   .scheduler-top,.scheduler-clock { align-items:stretch; }
-  .scheduler-account { width:100%; justify-content:space-between; }
-  .scheduler-clock-heading .scheduler-account { justify-content:flex-start; }
-  .scheduler-clock-heading .scheduler-local-time { flex-basis:100%; }
+  .scheduler-clock-heading .scheduler-local-time { text-align:start; }
   .scheduler-form-fields { grid-template-columns:1fr; }
   .scheduler-dialog { padding:18px; }
   .scheduler-week { order:-1; width:100%; }

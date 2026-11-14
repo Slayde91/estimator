@@ -1,4 +1,5 @@
 {
+  "Signing out will discard unsaved changes.": "سائن آؤٹ کرنے پر غیر محفوظ شدہ تبدیلیاں ضائع ہو جائیں گی۔",
   "Clock in": "کام شروع کرنے کا وقت",
   "Clock out": "کام ختم کرنے کا وقت",
   "Follow-up actions": "فالو اپ کے اقدامات",
@@ -54,7 +55,7 @@
   "Location recorded at {0}.": "مقام {0} پر درج ہو گیا۔",
   "Previous week": "پچھلا ہفتہ",
   "Next week": "اگلا ہفتہ",
-  "Location access is blocked. Enable location for CLASSIFIRE in your browser, then check location again.": "مقام تک رسائی مسدود ہے۔ اپنے براؤزر میں CLASSIFIRE کو مقام کی اجازت دیں اور پھر دوبارہ جانچیں۔",
+  "Location access is blocked. Enable location for CLASSIFIRE in your browser.": "مقام تک رسائی مسدود ہے۔ اپنے براؤزر میں CLASSIFIRE کو مقام کی اجازت دیں۔",
   "The location request timed out. Check this computer's location services and try again.": "مقام کی درخواست کا وقت ختم ہو گیا۔ اس کمپیوٹر کی مقام کی خدمات جانچ کر دوبارہ کوشش کریں۔",
   "A location could not be obtained. Enable location services and try again.": "مقام معلوم نہیں ہو سکا۔ مقام کی خدمات فعال کر کے دوبارہ کوشش کریں۔",
   "Location is unavailable in this browser. Use a browser with location services enabled.": "اس براؤزر میں مقام دستیاب نہیں۔ ایسا براؤزر استعمال کریں جس میں مقام کی خدمات فعال ہوں۔",

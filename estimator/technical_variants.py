@@ -381,6 +381,12 @@ def _bound_table(record, label, index):
     return tables[index] if index < len(tables) else None
 
 
+def _row_ids(field, tables):
+    if 'table_row_ids' in field:
+        return field['table_row_ids']
+    return [[source_fingerprint([index, row]) for index, row in enumerate(table['rows'])] for table in tables]
+
+
 def _scope(record, selections):
     by_field = {}
     for selection in selections:
@@ -390,7 +396,7 @@ def _scope(record, selections):
         field = _field(record, label); tables = field_tables(field)
         if any(index >= len(tables) for index in selected):
             raise ValueError('Variant table index is unavailable')
-        original_ids = field.get('table_row_ids', [[source_fingerprint([index, row]) for index, row in enumerate(table['rows'])] for table in tables])
+        original_ids = _row_ids(field, tables)
         kept, row_ids, captions, remap = [], [], [], {}
         for index, table in enumerate(tables):
             selection = selected.get(index)
@@ -498,7 +504,7 @@ def project(public_records, discovery, review, *, source_records, assets):
             index = replacement['table_index']
             if source_fingerprint(_bound_table(base, replacement['field'], index)) != replacement['source_table_sha256']:
                 raise ValueError('Reviewed replacement has another source table')
-            inventories = field.get('table_row_ids', [[source_fingerprint([index, row]) for index, row in enumerate(table['rows'])] for table in tables])
+            inventories = _row_ids(field, tables)
             if index == len(tables):
                 tables.append(deepcopy(replacement['table'])); inventories.append(list(replacement['row_ids']))
                 if 'table_captions' in field:
@@ -517,7 +523,10 @@ def project(public_records, discovery, review, *, source_records, assets):
             if key in assigned or (key in public_records and key not in binding_ids):
                 raise ValueError('Variant ID collision or unbound existing target')
             assigned.add(key)
-            item = deepcopy(base); remaps = _scope(item, variant['selections'])
+            # Only fields are edited in place. Source evidence and other
+            # parent metadata are immutable and shared by sibling variants.
+            item = {**base, 'fields': deepcopy(base.get('fields', []))}
+            remaps = _scope(item, variant['selections'])
             selected_ratings = set()
             for selection in variant['selections']:
                 table = field_tables(_field(base, selection['field']))[selection['table_index']]

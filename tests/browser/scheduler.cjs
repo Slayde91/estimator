@@ -323,10 +323,19 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   checks.push('Global header navigation shares the settings discard dialog; Cancel stays on Scheduler and Discard opens the requested page');
 
   await page.getByLabel('Timesheet rounding',{exact:true}).selectOption('10');
-  await page.getByRole('button',{name:'Sign out',exact:true}).click();
+  const settingsToggle=page.locator('#settings-navigation-toggle');
+  const signOutChoice=page.locator('#settings-navigation-menu').getByRole('button',{name:'Sign out',exact:true});
+  const signOutDialog=page.getByRole('dialog',{name:'Sign out',exact:true});
+  await settingsToggle.hover();await signOutChoice.click();
+  await expect(signOutDialog).toContainText('Scheduler Admin');
+  await signOutDialog.getByRole('button',{name:'Close',exact:true}).click();await expect(settingsToggle).toBeFocused();
+  await settingsToggle.press('ArrowUp');await expect(signOutChoice).toBeFocused();await signOutChoice.press('Enter');
+  await signOutDialog.getByRole('button',{name:'Sign out',exact:true}).click();
   await expect(settingsReview).toBeVisible();
   await settingsReview.getByRole('button',{name:'Cancel',exact:true}).click();
-  await expect(page.locator('.scheduler-account')).toContainText('Scheduler Admin');
+  await expect(signOutDialog).toContainText('Scheduler Admin');
+  await expect(signOutDialog.getByRole('button',{name:'Close',exact:true})).toBeFocused();
+  await page.keyboard.press('Escape');await expect(signOutDialog).toHaveCount(0);
   await expect(page.getByLabel('Timesheet rounding',{exact:true})).toHaveValue('10');
   await page.getByRole('button',{name:'Discard settings changes',exact:true}).click();
   await expect(page.getByLabel('Timesheet rounding',{exact:true})).toHaveValue(String(originalSettings.rounding_minutes));
@@ -347,8 +356,7 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await expect.poll(async () => (await api('/locations?entry_id='+activeId)).locations.length).toBeGreaterThan(0);
   assert.deepEqual(await page.evaluate(async()=>({secure:isSecureContext,allowed:document.featurePolicy.allowsFeature('geolocation'),permission:(await navigator.permissions.query({name:'geolocation'})).state})),{secure:true,allowed:true,permission:'granted'});
   const shiftPins=(await api('/locations?entry_id='+activeId)).locations.length;
-  await page.getByRole('button',{name:'Check location now'}).click();
-  await expect(page.locator('.scheduler-location-status')).toContainText('The next history point is due at');
+  await expect(page.getByRole('button',{name:'Check location now'})).toHaveCount(0);
   assert.equal((await api('/locations?entry_id='+activeId)).locations.length,shiftPins);
   await page.reload();
   await page.waitForFunction(() => window.CeasefireDesktop?.status()?.ready);
@@ -356,16 +364,15 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   const clock=page.locator('.scheduler-clock');
   await expect(clock).toContainText('You are clocked in');
   await expect(clock).not.toContainText(/Location recording is (on|required)/);
-  await expect(clock.locator('.scheduler-account')).toContainText('Scheduler Admin');
+  await expect(page.locator('#scheduler-root .scheduler-account')).toHaveCount(0);
   await expect(clock.locator('time')).toBeVisible();
-  await expect(clock.getByRole('button',{name:'Sign out'})).toBeVisible();
+  await expect(page.locator('#scheduler-root').getByRole('button',{name:'Sign out'})).toHaveCount(0);
   const controlGeometry=[];
   for (const width of [1915,943,390]) {
     await page.setViewportSize({width,height:884});
     const bounds = await clock.boundingBox();
     const navigation = await page.locator('.scheduler-tabs').boundingBox();
-    const signOut = await clock.getByRole('button',{name:'Sign out'}).boundingBox();
-    const checkLocation = await clock.getByRole('button',{name:'Check location now'}).boundingBox();
+    const clockOutBox = await clock.getByRole('button',{name:'Clock out'}).boundingBox();
     const shownTime = await clock.locator('time').boundingBox();
     const tabs = await page.locator('.scheduler-tabs button').evaluateAll(buttons=>buttons.map(button=>button.getBoundingClientRect().height));
     const clockOut=(await clock.getByRole('button',{name:'Clock out',exact:true}).boundingBox()).height;
@@ -378,7 +385,7 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
     assert.deepEqual(arrows,[{size:22,x:0,y:0},{size:22,x:0,y:0}]);
     controlGeometry.push({width,tabs,clockOut,date,arrows});
     assert.ok(bounds.x>=0 && bounds.x+bounds.width<=width);
-    assert.ok(signOut.y>=checkLocation.y+checkLocation.height && shownTime.y>=checkLocation.y+checkLocation.height);
+    assert.ok(shownTime.y>=clockOutBox.y+clockOutBox.height);
     if (width===1915) {
       assert.ok(bounds.x>=navigation.x+navigation.width && bounds.x<width*0.4);
       assert.ok(bounds.y<=navigation.y && bounds.height<=172);
@@ -446,9 +453,20 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await page.screenshot({path:path.join(output,'location-history.png'),fullPage:true});
   await page.locator('dialog[open]').getByRole('button',{name:'Close',exact:true}).click();
   checks.push('clock in, consented GPS pin, reload recovery, unpaid break, clock out and personal location history');
-  await page.locator('nav [data-view="settings"]').click();
+  await settingsToggle.hover();await page.locator('#settings-navigation-menu').getByRole('button',{name:'Settings',exact:true}).click();
   const zoneForm = page.locator('#organization-timezone-form');
   await expect(zoneForm.getByLabel('Organization time zone')).toHaveValue('Australia/Sydney');
+  const touchContext=await browser.newContext({hasTouch:true,isMobile:true,viewport:{width:390,height:844},storageState:await context.storageState()});
+  const touchPage=await touchContext.newPage();await touchPage.goto(`http://127.0.0.1:${info.port}/`);
+  await touchPage.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready);
+  const touchToggle=touchPage.locator('#settings-navigation-toggle'),touchMenu=touchPage.locator('#settings-navigation-menu');
+  await touchToggle.tap();await expect(touchMenu).toBeVisible();await expect(touchPage.locator('#view-home')).toBeVisible();
+  await touchMenu.getByRole('button',{name:'Sign out',exact:true}).tap();
+  const touchDialog=touchPage.getByRole('dialog',{name:'Sign out',exact:true});await expect(touchDialog).toContainText('Scheduler Admin');
+  await touchDialog.getByRole('button',{name:'Close',exact:true}).tap();
+  await touchToggle.tap();await touchMenu.getByRole('button',{name:'Settings',exact:true}).tap();
+  await expect(touchPage.locator('#view-settings')).toBeVisible();await touchContext.close();
+  checks.push('Touch Settings opens the menu from Home, allows closing the account dialog, and navigates to the existing Settings page');
   await zoneForm.getByLabel('Organization time zone').selectOption('Asia/Kathmandu');
   await page.route('**/api/scheduler/state*', route => route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Synthetic Scheduler refresh failure'})}));
   await zoneForm.getByRole('button',{name:'Save'}).click();
@@ -469,11 +487,13 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   assert.equal(localized.settings.timezone,'Asia/Kathmandu');
   assert.ok(localized.members.every(member=>member.timezone==='Asia/Kathmandu'));
   checks.push('Application Settings zone changes every team member and the live local clock with seconds');
-  await page.getByRole('button',{name:'Sign out',exact:true}).click();
+  await settingsToggle.hover();await signOutChoice.click();
+  await signOutDialog.getByRole('button',{name:'Sign out',exact:true}).click();
   await page.locator('#staff-login').getByLabel('Email',{exact:true}).fill('jordan@example.test');
   await page.getByLabel('Password',{exact:true}).fill(password);
   await page.getByRole('button',{name:'Sign in',exact:true}).click();
-  await expect(page.locator('.scheduler-account')).toContainText('Jordan QA');
+  await page.locator('#staff-portal-sign-out').click();await expect(signOutDialog).toContainText('Jordan QA');
+  await signOutDialog.getByRole('button',{name:'Close',exact:true}).click();
   await expect(page.locator('.scheduler-tabs').getByRole('button',{name:'Settings',exact:true})).toHaveCount(0);
   const denied = await page.evaluate(async id => (await fetch('/api/scheduler/locations?entry_id='+id)).status,activeId);
   assert.equal(denied,403);

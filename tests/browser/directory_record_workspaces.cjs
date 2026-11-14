@@ -22,6 +22,31 @@ const checks=[],errors=[];
   let pane=await open(kind,label);const before=await api('/api/contacts/directory');
   await checkRecordTrim(page,pane,kind,output);
   const rail=pane.locator('.contacts-record-right'), refresh=pane.locator('.contacts-record-toolbar').getByRole('button',{name:'Refresh Records',exact:true});
+  if(kind==='accounts'){
+    await page.evaluate(()=>{
+      const original=HTMLMediaElement.prototype.play;
+      window.notificationSounds=0;
+      HTMLMediaElement.prototype.play=function(){
+        if(this.src.endsWith('/sounds/radiobleep.mp3')){window.notificationSounds++;return Promise.resolve();}
+        return original.call(this);
+      };
+    });
+    const activity=pane.locator('.crm-timeline');
+    if(!await activity.evaluate(element=>element.open))await activity.locator('summary').click();
+    const soundCount=()=>page.evaluate(()=>window.notificationSounds);
+    const before=await soundCount();
+    await activity.getByRole('button',{name:'Log activity',exact:true}).click();
+    await expect(activity).toContainText('Enter activity details.');
+    await expect.poll(soundCount).toBe(before+1);
+    await page.route('**/api/record-resources/upload',route=>route.fulfill({
+      status:503,contentType:'application/json',body:JSON.stringify({error:'Synthetic attachment failure'})
+    }),{times:1});
+    const beforeFile=await soundCount();
+    await rail.locator('input[type=file]').setInputFiles({name:'retry.txt',mimeType:'text/plain',buffer:Buffer.from('fixture')});
+    await expect(rail.locator('.record-resource-status')).toHaveText('Synthetic attachment failure');
+    await expect(pane.locator('[data-contacts-notice]')).toHaveText('Synthetic attachment failure');
+    await expect.poll(soundCount).toBe(beforeFile+1);
+  }
   await expect(rail.locator('details > summary')).toHaveText(['Notes (0)','Files (0)','Linked Quotes (0)','Linked Work Orders (0)','Linked Purchase Orders (0)','Linked Projects (0)']);
   const titleField=pane.getByLabel(kind==='accounts'?'Billing address':'Title',{exact:true});
   const original=await titleField.inputValue();

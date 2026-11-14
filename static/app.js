@@ -85,7 +85,7 @@
   try {
     if (typeof window.Audio === "function") {
       intelligenceAudio = new window.Audio(); intelligenceAudio.preload = "auto";
-      intelligenceAudio.src = "/sounds/gameover.mp3"; intelligenceAudio.load();
+      intelligenceAudio.src = "/sounds/classifire.mp3"; intelligenceAudio.load();
     }
   } catch { /* Optional sound never affects the header. */ }
   function stopIntelligenceSound() {
@@ -1193,7 +1193,7 @@
     for (const child of ["pricing", "penetration", "technical"]) $("library-" + child).hidden = child !== kind;
     for (const button of document.querySelectorAll("[data-library-kind]")) button.setAttribute("aria-pressed", String(button.dataset.libraryKind === kind));
     window.CeasefireNotifications?.navigate(`pricing:${kind}`);
-    if (kind === "pricing") { if (!pricingViewCurrent()) renderPricing(); }
+    if (kind === "pricing") { window.CeasefireLibraries?.leave?.(); if (!pricingViewCurrent()) renderPricing(); }
     else window.CeasefireLibraries?.open(kind, selection);
   }
 
@@ -1216,6 +1216,7 @@
     if (view !== state.currentView && window.CeasefireSWMS?.hasPendingOperation?.() && !await window.CeasefireSWMS.leaveEditor()) return;
     window.CeasefireNotifications?.navigate(view === "pricing" ? `pricing:${state.libraryKind}` : view === "calculators" ? `calculators:${calculatorId || state.calculatorKind}` : view === "estimate" ? `estimate:${state.estimateKind || "estimate"}` : view);
     if (view !== state.currentView && $("app-message").hidden) releaseMessageSpace();
+    if (previousView === "pricing" && view !== previousView) window.CeasefireLibraries?.leave?.();
     state.currentView = view;
     refreshProjectPages();
     refreshDocumentPages();
@@ -1407,16 +1408,17 @@
     if (open) positionNavigationMenu(menu);
   }
   function closeNavigationMenus(except) {
-    for (const id of ["estimate-navigation", "calculator-navigation", "library-navigation", "takeoff-navigation", "projects-navigation", "documents-navigation", "contacts-navigation"]) {
+    for (const id of sectionNavigationIds) {
       if (id === except) continue;
       if (id === "calculator-navigation") { setCalculatorMenuOpen(false); continue; }
       const menu = $(id + "-menu"), toggle = $(id + "-toggle");
       if (menu && toggle) { menu.hidden = true; toggle.setAttribute("aria-expanded", "false"); }
     }
   }
+  const sectionNavigationIds = ["estimate-navigation", "calculator-navigation", "library-navigation", "takeoff-navigation", "projects-navigation", "documents-navigation", "contacts-navigation", "settings-navigation"];
   function setupCalculatorNavigation() {
     window.addEventListener("resize", () => {
-      for (const id of ["estimate-navigation", "calculator-navigation", "library-navigation", "takeoff-navigation", "projects-navigation", "documents-navigation", "contacts-navigation"]) {
+      for (const id of sectionNavigationIds) {
         const menu = $(id + "-menu");
         if (menu && !menu.hidden) positionNavigationMenu(menu);
       }
@@ -1441,6 +1443,8 @@
     setupSectionNavigation("takeoff-navigation", "[data-mode]", open => setSectionMenuOpen("takeoff-navigation", open), choice => requestTakeoffNavigation(choice.dataset.mode, choice.dataset.physicalScope));
     setupSectionNavigation("projects-navigation", "[data-project-section]", open => setSectionMenuOpen("projects-navigation", open), choice => requestViewNavigation(choice.dataset.projectSection));
     setupSectionNavigation("documents-navigation", "[data-document-section]", open => setSectionMenuOpen("documents-navigation", open), choice => requestViewNavigation(choice.dataset.documentSection));
+    setupSectionNavigation("settings-navigation", "[data-settings-action]", open => setSectionMenuOpen("settings-navigation", open), choice =>
+      choice.dataset.settingsAction === "sign-out" ? window.CeasefireScheduler.openSignOut($("settings-navigation-toggle")) : requestViewNavigation("settings"));
     setupSectionNavigation("contacts-navigation", "[data-contacts-section]", open => setSectionMenuOpen("contacts-navigation", open), async choice => {
       if (await requestViewNavigation("contacts")) await window.ClassifireContacts?.activate(choice.dataset.contactsSection);
     });
@@ -3182,7 +3186,8 @@
     }
   }
 
-  for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", () => {
+  for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", event => {
+    if (button.id === "settings-navigation-toggle" && event.pointerType === "touch") return;
     if (button.id === "calculator-navigation-toggle") return requestCalculatorNavigation();
     if (button.id === "documents-navigation-toggle") return requestDocumentsNavigation();
     return requestViewNavigation(button.dataset.view);
@@ -3316,6 +3321,7 @@
     if ($("app-message").hidden && !document.querySelector(".takeoff-viewport:active")) releaseMessageSpace();
   });
   window.addEventListener("beforeunload", (event) => {
+    if (window.ClassifireAccess?.signedOut) return;
     const pricingChanged = sharedPricingChanged();
     if (projectHasChanges() || pricingChanged || window.CeasefireScheduler?.hasPendingOperation?.() || window.CeasefireLibraryEditor?.hasUnsavedChanges() || window.CeasefireCertification?.hasUnsavedChanges?.() || window.CeasefireCoverSheets?.hasUnsavedChanges?.() || window.CeasefirePersonalDetails?.hasUnsavedChanges?.() || window.CeasefireProjectPane?.hasUnsavedChanges?.() || window.ClassifireContacts?.hasUnsavedChanges?.() || window.ClassifireContacts?.hasPendingOperation?.()) {
       event.preventDefault(); event.returnValue = pricingChanged ? pricingUnsavedPrompt : "";

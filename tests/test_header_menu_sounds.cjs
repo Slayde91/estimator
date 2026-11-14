@@ -195,6 +195,7 @@ function element(parent, { control = false, zone = "", brand = false } = {}) {
           || (selector === ".app-header" && node.zone === "header")
           || (selector === "#view-home" && node.zone === "home")
           || (selector === "#view-takeoffs" && node.zone === "takeoff")
+          || (selector === "#takeoff-pages" && node.zone === "takeoff-pages")
           || (selector === "#takeoff-viewport" && node.zone === "drawing")
           || (selector === ".takeoff-control-menu" && node.zone === "drawing-menu")
           || (selector === 'dialog, [role="dialog"]' && node.zone === "dialog")
@@ -239,6 +240,14 @@ test("Takeoff hovers stay silent; pointer and keyboard activation play once on r
   assert.deepEqual(h.plays().map(row => row[1]), [feedbackSources.select, feedbackSources.select]);
   controller.close(); h.document.emit("click", {target: first});
   assert.equal(h.plays().length, 2); assert.ok(h.players.every(player => player.paused));
+});
+
+test("Takeoff workspace tabs use glitch for pointer and keyboard activation", () => {
+  const h = audioHarness(); createFeedback(h.document, h.host, h.menu);
+  const tabs = element(element(null, {zone: "takeoff"}), {zone: "takeoff-pages"});
+  const button = element(tabs, {control: true});
+  for (const detail of [0, 1]) h.document.emit("click", {target: element(button), detail});
+  assert.deepEqual(h.plays().map(row => row[1]), ["/sounds/glitch.mp3", "/sounds/glitch.mp3"]);
 });
 
 test("main pages including Home are silent; header logo and Takeoff actions retain feedback", () => {

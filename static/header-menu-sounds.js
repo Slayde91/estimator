@@ -8,6 +8,7 @@
   });
   const feedbackSources = Object.freeze({
     select: "/sounds/select.mp3",
+    takeoffTab: "/sounds/glitch.mp3",
     selectOther: "/sounds/select-2.mp3",
     checkpoint: "/sounds/checkpoint.ogg",
     // The supplied whoosh has its silent lead trimmed and uses PCM to avoid
@@ -109,7 +110,8 @@
       const takeoff = button.closest("#view-takeoffs") || document.body?.classList?.contains("takeoffs-active");
       if (!takeoff) { players.stop(); return; }
       menu.stop?.();
-      players.play(button.id === "save-current-project" ? "checkpoint" : "select");
+      if (button.closest("#takeoff-pages")) players.play("takeoffTab");
+      else players.play(button.id === "save-current-project" ? "checkpoint" : "select");
     }
     function over(event) {
       if (drawingTarget(element(event.target))) stop();

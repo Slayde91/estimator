@@ -327,7 +327,8 @@ def run(*, data_directory=None, seed_directory=None, project_dialogs=None, hidde
             safe_file_if_present(logs / ('desktop.log' + suffix))
         log = RotatingFileHandler(logs / 'desktop.log', maxBytes=2 * 1024 * 1024, backupCount=3, encoding='utf-8')
         logging.basicConfig(level=logging.INFO, handlers=[log], format='%(asctime)s %(levelname)s %(name)s: %(message)s')
-        server = create_server(0, directory / 'estimator.sqlite3', project_dialogs=project_dialogs, library_directory=directory / 'reference-library', edition='standard')
+        server = create_server(0, directory / 'estimator.sqlite3', project_dialogs=project_dialogs,
+                               library_directory=directory / 'reference-library', edition='standard', warm_libraries=True)
         origin = f'http://127.0.0.1:{server.server_port}'
         thread = threading.Thread(target=server.serve_forever, name='EstimatorLoopback', daemon=True)
         thread.start()

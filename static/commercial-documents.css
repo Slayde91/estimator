@@ -5,14 +5,14 @@
 .commercial-list { margin:0; }
 .commercial-board { padding-bottom:20px; }
 .commercial-card { overflow-wrap:anywhere; }
-.commercial-columns-menu,.commercial-card-menu { position:relative; }
-.commercial-columns-menu summary,.commercial-card-menu summary { cursor:pointer; list-style:none; }
-.commercial-columns-menu summary::-webkit-details-marker,.commercial-card-menu summary::-webkit-details-marker { display:none; }
+:is(.commercial-columns-menu,.record-view-menu,.commercial-card-menu) { position:relative; }
+:is(.commercial-columns-menu,.record-view-menu,.commercial-card-menu) summary { cursor:pointer; list-style:none; }
+:is(.commercial-columns-menu,.record-view-menu,.commercial-card-menu) summary::-webkit-details-marker { display:none; }
 .commercial-card-menu summary { padding:0 5px; font-size:20px; }
 .commercial-menu-options { position:absolute; right:0; top:calc(100% + 6px); z-index:25; display:grid; gap:10px; min-width:190px; padding:14px; border:1px solid var(--line); border-radius:10px; background:var(--theme-surface,var(--paper)); box-shadow:0 10px 30px #0004; }
 .commercial-menu-options .text-button { text-align:left; }
 .commercial-card-menu .commercial-menu-options { position:fixed; right:auto; z-index:40; }
-.commercial-columns-menu { z-index:3; }
+.commercial-columns-menu,.record-view-menu { z-index:3; }
 .commercial-list { position:relative; z-index:0; }
 .commercial-column[data-status="Requested"] .project-column-heading,.commercial-column[data-status="OHS Docs"] .project-column-heading { border-color:#e9b541; }
 .commercial-column[data-status="Reviewed"] .project-column-heading,.commercial-column[data-status="Client Approval"] .project-column-heading,.commercial-column[data-status="Sent"] .project-column-heading,.commercial-column[data-status="In progress"] .project-column-heading { border-color:#5a9ce8; }

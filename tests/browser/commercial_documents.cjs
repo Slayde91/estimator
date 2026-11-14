@@ -226,6 +226,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await page.keyboard.press('Escape');
   await work.getByRole('button',{name:'New Work Order',exact:true}).click();
   await expect(work.getByLabel('Document title',{exact:true})).toHaveCount(0);
+  await work.getByLabel('Subject',{exact:true}).fill('Scheduled installation');
   await work.getByLabel('Linked Quote',{exact:true}).selectOption({label:await work.getByLabel('Linked Quote',{exact:true}).locator('option').nth(1).textContent()});
   const cost = work.getByLabel('Estimated cost (AUD)',{exact:true});
   await expect(cost).toHaveValue(originalTotal);
@@ -312,7 +313,8 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await expect(column(work,'In progress').locator('.commercial-card')).toHaveCount(1);
   assert.equal(currentWork().status,'In progress');
   assert.deepEqual(await work.locator('.commercial-card').first().locator('.commercial-card-info dt').allTextContents(),
-    ['Client','Contact','Address','WO No.','Total','Updated']);
+    ['Client','Subject','Contact','Address','WO No.','Total','Updated']);
+  await expect(work.locator('.commercial-card').first().getByText('Scheduled installation',{exact:true})).toBeVisible();
   await page.screenshot({path:path.join(output,'work-order-board.png'),fullPage:true});
   checks.push('work order edits, PDF and persisted Kanban status');
   await open('purchase-orders');

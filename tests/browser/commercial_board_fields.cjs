@@ -27,6 +27,11 @@ const dialog = () => page.getByRole('dialog', { name: 'Sign and move', exact: tr
 const order = kind => JSON.parse(fs.readFileSync(info.project, 'utf8')).commercial_documents?.documents.find(row => row.kind === kind);
 async function checkTable(pane, boardName, subject) {
   const view = pane.locator('.record-view-picker');
+  const toggle = view.locator('summary');
+  await toggle.click(); await toggle.press('Escape');
+  await expect(button(view,'Table')).toBeHidden(); await expect(toggle).toBeFocused();
+  await toggle.click(); await pane.getByRole('searchbox').click();
+  await expect(button(view,'Table')).toBeHidden();
   await view.locator('summary').click(); await button(view,'Table').click();
   await expect(view.locator('summary')).toBeFocused();
   const row = pane.locator('tbody tr.commercial-card').first();

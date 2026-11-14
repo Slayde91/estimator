@@ -397,6 +397,14 @@ class ContactsStore:
             return [dict(row) for row in db.execute(
                 "SELECT kind,target_id,label FROM account_links WHERE account_id=? ORDER BY kind,label,target_id", (account_id,))]
 
+    def conversion_receipt(self, lead_id):
+        if isinstance(lead_id, str):
+            with self.connection() as db:
+                row = db.execute('SELECT project_no,path FROM converted_leads WHERE lead_id=?', (lead_id,)).fetchone()
+                if row:
+                    return dict(row)
+        raise ValidationError('Saved project unavailable')
+
     @staticmethod
     def _converted_lead_history(db, contact_id, account_id):
         # Read history and active leads from the same directory revision.

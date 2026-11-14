@@ -3765,5 +3765,8 @@
   "Entry {0} is incomplete.": "L’entrée {0} est incomplète.",
   "NA": "Sans objet",
   "Open time clock": "Ouvrir la pointeuse",
-  "Location update overdue.": "La mise à jour de la position est en retard."
+  "Location update overdue.": "La mise à jour de la position est en retard.",
+  "Kanban": "Kanban",
+  "Table": "Tableau",
+  "Subject": "Objet"
 }

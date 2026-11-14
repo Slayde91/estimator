@@ -625,6 +625,26 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 #project-list-card .project-list-controls{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,auto);gap:var(--project-row-gap)}
 #project-list-card .project-list-controls>.field{min-width:0}
 .project-list-options{display:flex;align-items:flex-end;flex-wrap:wrap;gap:12px;min-width:0}
+.record-view-picker{position:relative;margin:0}
+.contacts-controls>.field.record-view-picker,.commercial-controls>.field.record-view-picker{flex:0 0 auto;min-width:0}
+.record-view-picker summary.button{display:flex;align-items:center;gap:8px;min-height:42px;margin:0}
+.record-view-picker .commercial-menu-options{inset-inline-start:0;inset-inline-end:auto;min-width:max(100%,125px);padding:4px;gap:0}
+.record-view-picker .text-button{display:grid;grid-template-columns:1em 1fr auto;align-items:center;gap:8px;padding:8px;color:var(--ink);text-decoration:none}
+.record-view-picker .text-button::before{content:''}
+.record-view-picker .text-button[aria-pressed="true"]::before{content:'✓';color:var(--accent)}
+.record-view-picker [data-view-icon]{display:inline-block;flex:none;width:14px;height:12px;border:1px solid currentColor;border-radius:1px}
+.record-view-picker [data-view-icon="kanban"]{background:repeating-linear-gradient(to right,currentColor 0 3px,transparent 3px 5px)}
+.record-view-picker [data-view-icon="table"]{background:repeating-linear-gradient(to bottom,currentColor 0 2px,transparent 2px 4px)}
+.record-list-table{max-width:100%;overflow-x:auto}
+.record-list-table table{width:100%;border-collapse:collapse}
+.record-list-table :is(td,th){text-align:start;vertical-align:middle;padding:10px 12px}
+.record-list-table td{overflow-wrap:anywhere}
+.record-list-table td:first-child{min-width:10rem}
+.record-list-table .project-row-actions{min-width:13rem}
+.record-list-table .project-card-heading,.record-list-table .project-row-heading{align-items:center}
+.record-list-table .contacts-conversion time{display:block;font-size:.85em;color:var(--muted)}
+.record-list-table .contacts-conversion .text-button{padding:0}
+.record-list-table .project-title-button{text-align:start}
 .project-list-options>.project-sort-field{flex:1 1 180px;min-width:0;margin:0}
 .project-list-actions{display:flex;align-items:center;flex-wrap:wrap;gap:9px;min-width:0;margin-inline-start:auto}
 .project-list-actions>.button{min-height:48px}
@@ -648,6 +668,7 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .project-details-actions,.commercial-editor-actions,.certification-editor-toolbar,.swms-editor-toolbar{background:var(--paper);padding:12px;border:1px solid var(--red);border-radius:10px}
 .project-details-actions{display:flex;align-items:center;flex-wrap:wrap;gap:12px}
 .project-details-actions>.button{height:42px;min-height:42px}
+:root #project-details-load{background:#d0001b;color:#fff;border-color:#a80016}
 .project-details-actions>.icon-only{width:42px;min-width:42px;padding:0}
 #view-quotes .project-workspace-links #snapshot-message{margin:0;align-items:flex-start;flex-direction:column}
 .project-details-pane{margin:0}

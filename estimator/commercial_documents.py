@@ -45,7 +45,7 @@ ORDER_FIELDS = ('start_date', 'end_date', 'urgency', 'quote_id', 'work_order_id'
                 'requested_date', 'sent_by', 'sent_date', 'verified_by', 'verified_date', 'verification', 'prepared_date')
 FIELD_KEYS = {'title', 'details', 'introduction', 'lines', 'scope', 'scope_tables', 'sources', 'allowances', 'terms', 'order', 'company_reference'}
 QUOTE_OPTIONAL_FIELDS = ('quoted_by', 'quoted_date')
-WORK_ORDER_OPTIONAL_FIELDS = ('progress_by', 'progress_date', 'closed_date', 'claimed_by', 'claim_date', 'details_by', 'details_date')
+WORK_ORDER_OPTIONAL_FIELDS = ('progress_by', 'progress_date', 'closed_date', 'claimed_by', 'claim_date', 'details_by', 'details_date', 'subject')
 PURCHASE_PARTY_LABELS = {'supplier_account_id':'supplier', 'supplier_contact_id':'supplier_contact', 'site_contact_id':'ship_to_name'}
 PURCHASE_ORDER_OPTIONAL_DEFAULTS = ('site_contact_number', 'delivery_time', 'rejection_reason')
 PURCHASE_ORDER_OPTIONAL_FIELDS = (*PURCHASE_ORDER_OPTIONAL_DEFAULTS, *PURCHASE_PARTY_LABELS)
@@ -603,6 +603,8 @@ def commercial_cards(snapshot, *, include_quote_files=False):
                      ('work_order_reference', 'quote_id', 'quote_reference', 'work_order_id', 'estimated_cost', 'supplier', 'supplier_contact')}
             if kind == 'purchase_order':
                 order.update({key: _identity(fields['order'][key]) for key in PURCHASE_PARTY_LABELS if fields['order'].get(key)})
+            if kind == 'work_order':
+                order['subject'] = _text(fields['order'].get('subject', ''), 'Subject', 1000)
             if kind == 'work_order' and fields.get('billing'):
                 from .work_order_billing import normalized, contact_id
                 billing = normalized(fields['billing'])
@@ -1330,6 +1332,8 @@ class CommercialDocuments:
                     for key in PURCHASE_ORDER_OPTIONAL_DEFAULTS:
                         if key not in fields['order'] and key in previous['fields']['order']:
                             fields['order'][key]=previous['fields']['order'][key]
+                if kind == 'work_order' and 'subject' not in fields['order'] and 'subject' in previous['fields']['order']:
+                    fields['order']['subject'] = previous['fields']['order']['subject']
                 if kind=='work_order' and not any(key in payload['fields']['order'] for key in ('claimed_by','claim_date')):
                     for key in ('claimed_by','claim_date'):
                         if key in previous['fields']['order']:

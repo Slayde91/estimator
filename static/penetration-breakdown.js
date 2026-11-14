@@ -75,9 +75,10 @@
     }
   }
   const zeroCurrency = currency.format(0);
-  const displaysZeroCost = value => Number.isFinite(value) && currency.format(Math.abs(value)) === zeroCurrency;
+  const displaysZeroCost = value => value == null || value === "" ||
+    (Number.isFinite(value) && currency.format(Math.abs(value)) === zeroCurrency);
   const bothCostsZero = item => displaysZeroCost(item?.material_costs) && displaysZeroCost(item?.labour_costs);
-  function render(definition, row, { schedule = false, hideZeroCosts = false } = {}) {
+  function render(definition, row, { schedule = false, hideZeroSubtotal = false } = {}) {
     const container = node("div", "penetration-breakdown-content");
     if (!row) { container.append(uiNode("p", "helper", schedule ? "Recalculate to see the schedule output." : "Recalculate to see this item's output.")); return container; }
     if (row.errors?.length) {
@@ -103,13 +104,13 @@
     for (const label of ["Item", "Unit Prices", "Material Quantities", "Material Costs", "Labour Costs", "Task Hours"]) { const cell = uiNode("th", "", label); cell.setAttribute("scope", "col"); headings.append(cell); }
     head.append(headings);
     for (const item of breakdown.rows) {
-      if (hideZeroCosts && bothCostsZero(item)) continue;
+      if (bothCostsZero(item)) continue;
       const line = node("tr"), label = taskLabels.has(item.label) ? uiNode("th", "", item.label) : node("th", "", item.label); label.setAttribute("scope", "row");
       line.append(label, details(item.unit_prices, "currency"), details(item.material_quantities, "number"));
       for (const [key, format] of [["material_costs", "currency"], ["labour_costs", "currency"], ["task_hours", "number"]]) line.append(displayNode("td", item[key], format));
       body.append(line);
     }
-    if (!hideZeroCosts || !bothCostsZero(breakdown.totals)) {
+    if (!hideZeroSubtotal || !bothCostsZero(breakdown.totals)) {
       const label = uiNode("th", "", "Subtotal"); label.setAttribute("scope", "row"); label.colSpan = 3; subtotal.append(label);
       for (const [key, format] of [["material_costs", "currency"], ["labour_costs", "currency"], ["task_hours", "number"]]) subtotal.append(displayNode("td", breakdown.totals?.[key], format));
       foot.append(subtotal);
@@ -120,8 +121,8 @@
     sourceGroups(container, definition, row);
     return container;
   }
-  function renderSchedule(definition, result, { hideZeroCosts = false } = {}) {
-    return render(definition, result ? { breakdown: result.schedule_breakdown, errors: result.errors, outputs: {} } : null, { schedule: true, hideZeroCosts });
+  function renderSchedule(definition, result, { hideZeroSubtotal = false } = {}) {
+    return render(definition, result ? { breakdown: result.schedule_breakdown, errors: result.errors, outputs: {} } : null, { schedule: true, hideZeroSubtotal });
   }
   window.CeasefirePenetrationBreakdown = { render, renderSchedule };
 })();

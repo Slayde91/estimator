@@ -3,7 +3,7 @@ const { chromium, expect } = require("@playwright/test");
 const { spawn } = require("node:child_process"), fs = require("node:fs"), path = require("node:path"), assert = require("node:assert/strict"), { createHash } = require("node:crypto");
 const root = path.resolve(__dirname, "../.."), output = process.env.CEASEFIRE_BROWSER_OUTPUT || path.join(root, ".runtime/browser-qa", `header-menu-sounds-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
-const sourceFiles = ["static/header-menu-sounds.js", "static/downloads.js", "static/calculators.js", "static/penetration.js", "static/app.js", "estimator/server.py", "static/sounds/mgs1-menu-move.mp3", "static/sounds/mgs-confirm2.mp3", "static/sounds/flame-whoosh.wav", "static/sounds/select.mp3", "static/sounds/select-2.mp3", "static/sounds/type.mp3", "static/sounds/checkpoint.ogg", "static/sounds/classifire.mp3", "static/sounds/glitch.mp3", "static/sounds/radiobleep.mp3", "static/notifications.js", "static/sounds/loading.mp3", "tests/browser/header_menu_sounds.cjs", "tests/browser/header_menu_sounds_fixture.py"];
+const sourceFiles = ["static/header-menu-sounds.js", "static/downloads.js", "static/calculators.js", "static/penetration.js", "static/app.js", "estimator/server.py", "static/sounds/mgs1-menu-move.mp3", "static/sounds/mgs-confirm2.mp3", "static/sounds/flame-whoosh.wav", "static/sounds/select.mp3", "static/sounds/select-2.mp3", "static/sounds/type.mp3", "static/sounds/checkpoint.ogg", "static/sounds/classifire.mp3", "static/sounds/glitch.mp3", "static/sounds/page.mp3", "static/sounds/radiobleep.mp3", "static/notifications.js", "static/sounds/loading.mp3", "tests/browser/header_menu_sounds.cjs", "tests/browser/header_menu_sounds_fixture.py"];
 const expectedSounds = [
   ["mgs1-menu-move.mp3", "ac2d686c78fa5dabc2415a0f3b39f4ced124f5fc1613ba3918e06daa7b47f8d0"],
   ["mgs-confirm2.mp3", "e9e7e156e24a4fde706f922ee135e88df51dc5ba94eed6344e66bbd6298e3e86"],
@@ -13,6 +13,7 @@ const expectedSounds = [
   ["checkpoint.ogg", "60acfb941abf427378e87e7ae6660ae29491f8d5efaae2681d7eb9a52af3c935"],
   ["classifire.mp3", "d22af363104610a379cb3aa3403b94006cadca24c2a5945e8917b023460bca4e"],
   ["glitch.mp3", "45e0abf3cabe3dca39741e3e68e0fe59169df57b9ff8a425848878a1477a7135"],
+  ["page.mp3", "170023a6ce7840b7b8ab96576201c6170be7bfabc870a8502f805f09f4ac1024"],
   ["radiobleep.mp3", "8e7b045e7146ea12e21a9d6f9dbdd48e84285598e5936180c64c851d1660d686"],
 ];
 const digest = value => createHash("sha256").update(value).digest("hex");
@@ -331,6 +332,19 @@ async function noDownloadAudio() {
   await page.screenshot({ path: path.join(output, "header-menu-audio.png") });
   assert.deepEqual(await snapshot(), before, "Menu audio preserves the entire initialized calculator, pricing and project draft");
   evidence.checks.draftsPreserved = true;
+  for (const [header, strip, labels] of [
+    ['#projects-navigation-toggle','#project-pages',['Projects','Quotes','Work Orders','Purchase Orders']],
+    ['#contacts-navigation-toggle','.contacts-tabs',['Leads','Contacts','Companies']],
+  ]) {
+    await page.locator(header).click(); await idle();
+    for (const label of labels) {
+      const prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source === '/sounds/page.mp3').length);
+      const tab = page.locator(strip).getByRole('button',{name:label,exact:true});
+      await tab.click(); await played('/sounds/page.mp3',prior); await idle();
+      await expect(tab).toHaveAttribute('aria-pressed','true');
+    }
+  }
+  evidence.checks.projectAndContactsTabSound = true;
   await require('./section_navigation.cjs').chooseTakeoff(page, 'Steel');
   const tabs = page.locator('#takeoff-pages button');
   assert.deepEqual(await tabs.allTextContents(), ['Steel', 'Duct', 'Walls/Floors', 'Defect Reports', 'Service Plans']);

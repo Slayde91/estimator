@@ -52,7 +52,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     const names=['Board','Primer','Home'],field={column:'X',label:'Board/Batt Type',type:'select',group:'Products and labour',format:'text',options:names,default:null};
     const control=h.audit.makeControl(field,h.audit.state.selected).children[1];
     assert.deepEqual(control.children.slice(1).map(option=>option.textContent),names);assert.deepEqual(control.children.slice(1).map(option=>option.value),names);
-    const row={errors:[],inputs:{O:1},breakdown:{rows:[{label:'Board',unit_prices:names.map(label=>({label,value:12.3456789})),material_quantities:[],material_costs:0,labour_costs:0,task_hours:0}],totals:{material_costs:0,labour_costs:0,task_hours:0}}};
+    const row={errors:[],inputs:{O:1},breakdown:{rows:[{label:'Board',unit_prices:names.map(label=>({label,value:12.3456789})),material_quantities:[],material_costs:1,labour_costs:0,task_hours:0}],totals:{material_costs:1,labour_costs:0,task_hours:0}}};
     const before=copy(row),rendered=h.context.window.CeasefirePenetrationBreakdown.render(definition(),row);
     const walk=node=>[node,...node.children.flatMap(walk)],source=walk(rendered).filter(node=>node.className==='penetration-breakdown-context');
     assert.deepEqual(source.map(node=>node.textContent),names);assert.deepEqual(row,before);assert.match(text(rendered),/translated:Subtotal/);
@@ -345,7 +345,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
   });
   await check('The shared breakdown preserves eight server rows, separate register and additional labour, and server subtotals without deriving amounts',async h=>{
     const labels=['Additional Labour','Register allowance','Board','Collars','Mastic','Framing','Wrap','Other'];
-    const rows=labels.map((label,index)=>({label,unit_prices:[{value:10+index,format:'currency'}],material_quantities:[],material_costs:index,labour_costs:index*2,task_hours:index/10}));
+    const rows=labels.map((label,index)=>({label,unit_prices:[{value:10+index,format:'currency'}],material_quantities:[],material_costs:index+1,labour_costs:index*2,task_hours:index/10}));
     rows[2].material_quantities=[{label:'Substrate',value:1.23456789,units:'m²'},{label:'Bulkhead',value:2.3456789,units:'m²'}];
     rows[5].material_quantities=[{label:'Bulkhead',value:3.456789,units:'m'}];rows[6].material_quantities=[{label:'Pipes',value:4.56789,units:'m²'},{label:'Cabletrays',value:5.6789,units:'m²'}];
     const row={inputs:{AC:989898,AN:878787,AF:767676},outputs:{BQ:656565},errors:[],breakdown:{rows,totals:{material_costs:999.12,labour_costs:888.23,task_hours:777.34},note:'Server calculation basis'}};
@@ -358,10 +358,10 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     assert.equal(rendered.children[0].tabIndex,0);assert.equal(rendered.children[0].getAttribute('aria-label'),'Item cost breakdown');
   });
   await check('The shared breakdown exposes source errors, distinguishes zero and blank, and retains literal labels',async h=>{
-    const row={errors:[{cell:'F4',message:'#VALUE!'}],breakdown:{rows:[{label:'<img src=x>',unit_prices:[{value:0}],material_quantities:[],material_costs:0,labour_costs:null,task_hours:'#DIV/0!'}],totals:{material_costs:0,labour_costs:'#VALUE!',task_hours:null}}};
+    const row={errors:[{cell:'F4',message:'#VALUE!'}],breakdown:{rows:[{label:'<img src=x>',unit_prices:[{value:0}],material_quantities:[],material_costs:1,labour_costs:null,task_hours:'#DIV/0!'}],totals:{material_costs:0,labour_costs:'#VALUE!',task_hours:null}}};
     const rendered=h.context.window.CeasefirePenetrationBreakdown.render(definition(),row),content=text(rendered);
     assert.doesNotMatch(content,/F4|#VALUE!/);assert.match(content,/Enter Item QTY, Teams\/Crews/);assert.match(content,/<img src=x>/);assert.match(content,/\$0\.00/);assert.doesNotMatch(content,/#DIV\/0!/);assert.match(content,/Check inputs/);assert.match(content,/—/);
-    const table=rendered.children[1].children[0],line=table.children[2].children[0];assert.equal(line.children[0].children.length,0);assert.equal(line.children[3].textContent,'$0.00');assert.equal(line.children[4].textContent,'—');
+    const table=rendered.children[1].children[0],line=table.children[2].children[0];assert.equal(line.children[0].children.length,0);assert.equal(line.children[3].textContent,'$1.00');assert.equal(line.children[4].textContent,'—');
     assert.match(text(h.context.window.CeasefirePenetrationBreakdown.render(definition(),{outputs:{},errors:[]})),/unavailable/);
   });
   await check('The item breakdown omits the redundant Summary and Multipliers groups without changing source values',async h=>{
@@ -435,6 +435,7 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     h.api.applyProject(await h.api.prepareProject(snapshot));
     h.audit.setRequest(async (path,payload) => {
       const response = result(payload.draft);
+      response.rows[0].breakdown.rows[0].material_costs = 65.4321;
       return {...response,schedule_breakdown:response.rows[0].breakdown};
     });
     await h.audit.calculateSchedule();
@@ -795,15 +796,16 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     const projection={rows:[{label:'<Wrap>',unit_prices:[{label:'Line 1 Product A',value:12.3,format:'currency'},{label:'Line 2 Product B',value:99,format:'currency'}],material_quantities:[{label:'Line 1 Pipes',value:0,units:'m²'}],material_costs:888.12,labour_costs:'#VALUE!',task_hours:0}],totals:{material_costs:777.65,labour_costs:'#VALUE!',task_hours:0},source_groups:[{label:'Summary',rows:[{row_id:'line-1',label:'Line 1',values:[{column:'B',label:'Substrate cost',value:41.23,format:'currency'},{column:'H',label:'Item total',value:123.456789,format:'currency'}]}]},{label:'Multipliers',rows:[{row_id:'line-2',label:'Line 2',values:[{column:'BJ',label:'Access',value:.125,format:'percent'}]}]}]};
     const output={schedule_breakdown:projection,errors:[]},original=copy(output);const rendered=h.context.window.CeasefirePenetrationBreakdown.renderSchedule(definition(),output),content=text(rendered);assert.match(content,/<Wrap>/);assert.match(content,/777\.65/);assert.doesNotMatch(content,/#VALUE!/);assert.match(content,/Check inputs/);assert.doesNotMatch(content,/Summary|Item total|123\.46|Multipliers|Access|12\.50%|Substrate cost|41\.23/);assert.deepEqual(copy(output),original);
   });
-  await check('Only Estimate hides schedule rows and subtotals when both displayed costs are zero',async h=>{
+  await check('Item and schedule breakdowns hide blank or zero cost lines and retain their supplied totals',async h=>{
     const costRow=(label,material_costs,labour_costs)=>({label,material_costs,labour_costs,task_hours:2});
-    const rows=[costRow('Zero costs',0,0),costRow('Below precision',-0.0049,0.0049),costRow('Material credit',-0.005,0),costRow('Labour only',0,0.005),costRow('Unknown material',null,0),costRow('Invalid labour',0,'#VALUE!')];
+    const rows=[costRow('Zero costs',0,0),costRow('Below precision',-0.0049,0.0049),costRow('Blank material',null,0),costRow('Both blank',undefined,''),costRow('Material credit',-0.005,null),costRow('Labour only',null,0.005),costRow('Invalid labour',0,'#VALUE!')];
     const result={schedule_breakdown:{rows,totals:costRow('Total',0,0)},errors:[]};
-    const render=(hideZeroCosts)=>h.context.window.CeasefirePenetrationBreakdown.renderSchedule(definition(),result,{hideZeroCosts}).children[0].children[0];
+    const render=(hideZeroSubtotal)=>h.context.window.CeasefirePenetrationBreakdown.renderSchedule(definition(),result,{hideZeroSubtotal}).children[0].children[0];
     const labels=table=>table.children[2].children.map(row=>row.children[0].textContent);
     const original=copy(result),estimate=render(true),specialist=render(false);
-    assert.deepEqual(labels(estimate),rows.slice(2).map(row=>row.label));assert.equal(estimate.children[3].children.length,0);
-    assert.deepEqual(labels(specialist),rows.map(row=>row.label));assert.match(text(specialist.children[3]),/Subtotal/);
+    const item=h.context.window.CeasefirePenetrationBreakdown.render(definition(),{breakdown:result.schedule_breakdown}).children[0].children[0];
+    for(const table of [estimate,specialist,item])assert.deepEqual(labels(table),rows.slice(4).map(row=>row.label));
+    assert.equal(estimate.children[3].children.length,0);assert.match(text(specialist.children[3]),/Subtotal/);assert.match(text(item.children[3]),/Subtotal/);
     assert.deepEqual(copy(result),original);
     result.schedule_breakdown.rows=rows.slice(0,2);assert.deepEqual(labels(render(true)),['No material or labour costs.']);
     result.schedule_breakdown.totals.material_costs=0.008;const accumulated=render(true);assert.deepEqual(labels(accumulated),[]);assert.match(text(accumulated.children[3]),/\$0\.01/);

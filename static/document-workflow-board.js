@@ -1,5 +1,82 @@
 (() => {
   'use strict';
+  const views = new Map();
+  function viewFor(workspace) {
+    if (!views.has(workspace)) {
+      let saved;
+      try { saved = localStorage.getItem('classifire.register-view.' + workspace); } catch {}
+      views.set(workspace, saved === 'table' ? 'table' : 'kanban');
+    }
+    return views.get(workspace);
+  }
+  function label(tag, source) {
+    const element = document.createElement(tag);
+    element.textContent = source;
+    window.CeasefireI18n?.text(element, source);
+    return element;
+  }
+  function viewPicker(workspace, onChange) {
+    const field = document.createElement('div'), caption = label('span', 'View');
+    field.className = 'field record-view-picker';
+    caption.id = 'register-view-label-' + workspace;
+    const menu = document.createElement('details'), toggle = document.createElement('summary');
+    menu.className = 'commercial-columns-menu';
+    toggle.className = 'button secondary';
+    const icon = document.createElement('i'), current = document.createElement('span'), arrow = document.createElement('span');
+    icon.setAttribute('aria-hidden', 'true');
+    current.id = 'register-view-value-' + workspace;
+    toggle.setAttribute('aria-labelledby', caption.id + ' ' + current.id);
+    arrow.textContent = '▾'; arrow.setAttribute('aria-hidden', 'true');
+    toggle.append(icon, current, arrow);
+    const options = document.createElement('div');
+    options.className = 'commercial-menu-options';
+    for (const [value, name] of [['table', 'Table'], ['kanban', 'Kanban']]) {
+      const option = document.createElement('button'), symbol = document.createElement('i');
+      option.type = 'button'; option.className = 'text-button'; option.value = value;
+      symbol.dataset.viewIcon = value; symbol.setAttribute('aria-hidden', 'true');
+      option.append(label('span', name), symbol);
+      option.addEventListener('click', () => {
+        menu.open = false;
+        if (value !== viewFor(workspace)) {
+          views.set(workspace, value);
+          try { localStorage.setItem('classifire.register-view.' + workspace, value); } catch {}
+          refresh();
+          onChange();
+        }
+        toggle.focus();
+      });
+      options.append(option);
+    }
+    function refresh() {
+      const value = viewFor(workspace), source = value === 'table' ? 'Table' : 'Kanban';
+      icon.dataset.viewIcon = value;
+      current.textContent = source; window.CeasefireI18n?.text(current, source);
+      for (const option of options.children) option.setAttribute('aria-pressed', String(option.value === value));
+    }
+    refresh();
+    menu.append(toggle, options); field.append(caption, menu);
+    return field;
+  }
+  function recordTable(headers, items, fillRow) {
+    const wrapper = document.createElement('div'), table = document.createElement('table');
+    wrapper.className = 'table-scroll record-list-table';
+    const header = table.createTHead().insertRow();
+    for (const title of headers) {
+      const cell = label('th', title);
+      cell.scope = 'col'; header.append(cell);
+    }
+    const body = table.createTBody();
+    for (const item of items) {
+      const row = body.insertRow();
+      for (const value of fillRow(item, row)) row.insertCell().append(value || '—');
+    }
+    if (!items.length) {
+      const empty = body.insertRow().insertCell();
+      empty.colSpan = headers.length; empty.append(label('span', 'No matching records.'));
+    }
+    wrapper.append(table);
+    return wrapper;
+  }
   function render(host, {items, stages, stageOf, cardFor, move, locked, onError, emptyLabel}) {
     let dragging = null;
     host.replaceChildren();
@@ -67,5 +144,5 @@
   document.addEventListener('visibilitychange', refreshFollowUps);
   window.addEventListener('pageshow', refreshFollowUps);
   window.addEventListener('ceasefire:organization-timezone-changed', refreshFollowUps);
-  window.ClassifireDocumentBoard = {render, addFollowUpMarker, refreshFollowUps};
+  window.ClassifireDocumentBoard = {render, viewFor, viewPicker, recordTable, addFollowUpMarker, refreshFollowUps};
 })();

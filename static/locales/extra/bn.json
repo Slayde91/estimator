@@ -3765,5 +3765,8 @@
   "Entry {0} is incomplete.": "এন্ট্রি {0} অসম্পূর্ণ।",
   "NA": "প্রযোজ্য নয়",
   "Open time clock": "সময় নথিভুক্তির ঘড়ি খুলুন",
-  "Location update overdue.": "অবস্থান হালনাগাদের সময় পেরিয়ে গেছে।"
+  "Location update overdue.": "অবস্থান হালনাগাদের সময় পেরিয়ে গেছে।",
+  "Kanban": "কানবান",
+  "Table": "সারণি",
+  "Subject": "বিষয়"
 }

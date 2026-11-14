@@ -1322,7 +1322,7 @@
     if (scope === state.schedule) {
       const { renderSchedule } = window.CeasefirePenetrationBreakdown;
       $("penetration-schedule-breakdown").replaceChildren(renderSchedule(state.definition, scope.result));
-      $("penetration-main-schedule-breakdown").replaceChildren(renderSchedule(state.definition, scope.result, { hideZeroCosts: true }));
+      $("penetration-main-schedule-breakdown").replaceChildren(renderSchedule(state.definition, scope.result, { hideZeroSubtotal: true }));
     }
     else $("penetration-breakdown").replaceChildren(window.CeasefirePenetrationBreakdown.render(state.definition, state.result?.rows.find(row => row.id === state.selected)));
   }

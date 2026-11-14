@@ -125,7 +125,9 @@ async function groupSign(host,key,label,name,dateLabel){await personal(name);con
  await expect(work.getByLabel('Approval',{exact:true})).toBeHidden();
  await expect(work.locator('[data-signing-section]:visible')).toHaveCount(1);
  await work.getByLabel('Description of works',{exact:true}).fill('Unsaved details to clear');
+ await work.getByLabel('Subject',{exact:true}).fill('Unsaved subject');
  await clearWork('Work order details reviewed by');
+ await expect(work.getByLabel('Subject',{exact:true})).toHaveValue('');
  await expect(work.getByLabel('Description of works',{exact:true})).toHaveValue('');
  assert.equal((await current()).documents.some(document=>document.kind==='work_order'),false);
  await work.getByLabel('Proposed start date',{exact:true}).fill('2026-11-10');

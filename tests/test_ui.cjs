@@ -25,7 +25,7 @@ function element(tag='div') {
 }
 function byId(id){if(!elements.has(id))elements.set(id,element());return elements.get(id);}
 const context = {
-  document:{getElementById:id=>['workflow','work-summary'].includes(id)?null:byId(id),querySelector:selector=>byId(`selector:${selector}`),querySelectorAll:()=>[],createElement:element,createTextNode:text=>text,body:element()},
+  document:{addEventListener(){},getElementById:id=>['workflow','work-summary'].includes(id)?null:byId(id),querySelector:selector=>byId(`selector:${selector}`),querySelectorAll:()=>[],createElement:element,createTextNode:text=>text,body:element()},
   window:{addEventListener(){},scrollTo(options){scrollCalls.push(options);},CeasefireCalculators:{projectFingerprint:()=>'',hasUnsavedChanges:()=>false,prepareDefaults:async()=>({}),applyProject(){}}}, Intl, Number, JSON, Object, Set, Array, String, Promise, Error,
   setTimeout:()=>0,clearTimeout(){},requestAnimationFrame:callback=>callback(),AbortController, console,
   FileReader:class { readAsDataURL(){this.result='data:application/octet-stream;base64,AAAA';queueMicrotask(()=>this.onload());} },
@@ -34,6 +34,7 @@ context.window.CeasefireI18n = require('./english_i18n_fixture.cjs')();
 vm.createContext(context);
 vm.runInContext(fs.readFileSync('static/calculation-queue.js','utf8'),context);
 vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
+vm.runInContext(fs.readFileSync('static/document-workflow-board.js','utf8'),context);
 let source=fs.readFileSync('static/app.js','utf8');
 source=source.replace(/  bootstrap\(\);\s*\}\)\(\);\s*$/, `
   globalThis.audit={state,savePricing,requestSavePricing,saveQuote,openQuote,newQuote,confirmReplace,confirmLeavePricingLibrary,requestViewNavigation,requestLibraryNavigation,requestPricingScopeSwitch,importPricing,exportPricing,makeControl,priceInput,

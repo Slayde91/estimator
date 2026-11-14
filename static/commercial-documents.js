@@ -626,7 +626,7 @@
       renderCards();
     });
     search.placeholder = "Document, client, project or reference…";
-    controls.append(field("Search documents", search));
+    controls.append(field("Search documents", search), window.ClassifireDocumentBoard.viewPicker(state.kind, renderCards));
     const sort = select(["Most recently saved", "Oldest saved first", "Document name A–Z"], state.sort, value => {
       state.sort = value;
       state.dirty = false;
@@ -842,6 +842,7 @@
         : cost && Number.isFinite(Number(cost)) ? new Intl.NumberFormat("en-AU", {style:"currency",currency:"AUD"}).format(Number(cost)) : cost;
       return [
         [po ? "Supplier" : "Client", po ? order.supplier : details.client],
+        ...(wo ? [["Subject", order.subject]] : []),
         ["Contact", po ? order.supplier_contact : details.contact],
         ["Address", details.site_address],
         [po ? "PO No." : wo ? "WO No." : "Quote No.", number], ["Total", grand],
@@ -854,6 +855,20 @@
       ? documentTitle(a).localeCompare(documentTitle(b), "en", {numeric:true}) || a.id.localeCompare(b.id)
       : (state.sort === "Oldest saved first" ? 1 : -1) * a.updated_at.localeCompare(b.updated_at) || a.id.localeCompare(b.id));
     root().querySelector(".commercial-match-count").textContent = `${documents.length} matching documents · ${all.length} found`;
+    const layouts = window.ClassifireDocumentBoard, table = layouts.viewFor(state.kind) === 'table';
+    board.classList.toggle('project-kanban', !table);
+    if (table) {
+      const visible = documents.filter(doc => !state.hidden.has(doc.status));
+      const headings = [names[state.kind], 'Status', ...(state.kind === 'work_order' ? ['Subject'] : []),
+        state.kind === 'purchase_order' ? 'Supplier' : 'Client', 'Address', 'Total', 'Next action', 'Follow-up date', 'Updated'];
+      board.append(layouts.recordTable(headings, visible, (doc, row) => {
+        row.className = 'commercial-card';
+        const info = new Map(cardInfo(doc)), heading = documentHeading(doc, row);
+        return [heading, statusLabel('span',doc.status), ...headings.slice(2).map(key => info.get(key))];
+      }));
+      layouts.refreshFollowUps();
+      return;
+    }
     for (const status of state.model.statuses[state.kind]) {
       if (state.hidden.has(status)) continue;
       const column = node("section", "commercial-column project-kanban-column");
@@ -875,51 +890,18 @@
       });
       for (const document of matches) {
         const card = node("article", "commercial-card project-kanban-card");
-        card.dataset.documentId = document.id;
-        card.dataset.cardKey = cardKey(document);
         card.draggable = true;
         card.addEventListener("dragstart", event => {
           if (state.busy || event.target.closest("button,select,summary,input")) { event.preventDefault(); return; }
           event.dataTransfer.setData("text/plain", cardKey(document));
           event.dataTransfer.effectAllowed = "move";
         });
-        const menu = node("details", "commercial-card-menu");
-        const toggle = node("summary", "", "▾");
-        toggle.setAttribute("aria-label", `Actions for ${documentTitle(document)}`);
-        const actions = node("div", "commercial-menu-options");
-        const options = [["Open", () => openCard(document)], ["Edit", () => openCard(document)], ["Delete", () => remove(document)]];
-        if (state.kind === "quote") options.splice(2, 0, ["Create WO", () => openCard(document, true)]);
-        for (const [label, action] of options) {
-          const control = button(label, () => { menu.open = false; if (!state.busy) action(); });
-          control.className = "text-button";
-          actions.append(control);
-        }
-        const step = signingStep(document);
-        const destinations = signingSteps[document.kind]
-          ? [...purchaseRollbackSteps(document.kind,document.status).map(item=>item.from), document.status, ...signingDestinations(step)]
-          : state.model.statuses[state.kind];
-        const statusSelect = select(destinations, document.status, value => void move(document, value), false);
-        bindStatusOptions(statusSelect);
-        statusSelect.addEventListener("change", () => {
-          statusSelect.value = document.status;
-          menu.open = false;
-        });
-        actions.append(field("Move to", statusSelect));
-        menu.append(toggle, actions);
-        menu.addEventListener("toggle", () => positionCardMenu(menu));
-        const title = button(documentTitle(document), () => { if (!state.busy) void openCard(document); });
-        title.className = "project-title-button";
-        const heading = node("div", "project-card-heading");
-        heading.append(title);
-        const earliest = document.pending_follow_up_date || document.follow_up?.actions?.reduce((date,row)=>
-          !row.status && row.follow_up_date && (!date || row.follow_up_date<date) ? row.follow_up_date : date,'');
-        if (earliest) window.ClassifireDocumentBoard.addFollowUpMarker(heading,earliest,event=>openFollowUp(document,event.currentTarget));
-        heading.append(menu);
+        const heading = documentHeading(document, card);
         const information = node("dl", "commercial-card-info");
         for (const [label, value] of cardInfo(document)) {
-          const heading = node("dt", "", label);
-          window.CeasefireI18n?.text(heading, label);
-          information.append(heading, node("dd", "", value || "—"));
+          const term = node("dt", "", label);
+          window.CeasefireI18n?.text(term, label);
+          information.append(term, node("dd", "", value || "—"));
         }
         card.append(heading, information);
         column.append(card);
@@ -927,8 +909,45 @@
       if (!matches.length) column.append(node("p", "project-column-empty", "No documents"));
       board.append(column);
     }
-    window.ClassifireDocumentBoard.refreshFollowUps();
+    layouts.refreshFollowUps();
     if (!board.children.length) board.append(node("p", "empty-state", "Choose a column from Columns to show documents."));
+    function documentHeading(document, card) {
+      card.dataset.documentId = document.id;
+      card.dataset.cardKey = cardKey(document);
+      const menu = node("details", "commercial-card-menu");
+      const toggle = node("summary", "", "▾");
+      toggle.setAttribute("aria-label", `Actions for ${documentTitle(document)}`);
+      const actions = node("div", "commercial-menu-options");
+      const options = [["Open", () => openCard(document)], ["Edit", () => openCard(document)], ["Delete", () => remove(document)]];
+      if (state.kind === "quote") options.splice(2, 0, ["Create WO", () => openCard(document, true)]);
+      for (const [label, action] of options) {
+        const control = button(label, () => { menu.open = false; if (!state.busy) action(); });
+        control.className = "text-button";
+        actions.append(control);
+      }
+      const step = signingStep(document);
+      const destinations = signingSteps[document.kind]
+        ? [...purchaseRollbackSteps(document.kind,document.status).map(item=>item.from), document.status, ...signingDestinations(step)]
+        : state.model.statuses[state.kind];
+      const statusSelect = select(destinations, document.status, value => void move(document, value), false);
+      bindStatusOptions(statusSelect);
+      statusSelect.addEventListener("change", () => {
+        statusSelect.value = document.status;
+        menu.open = false;
+      });
+      actions.append(field("Move to", statusSelect));
+      menu.append(toggle, actions);
+      menu.addEventListener("toggle", () => positionCardMenu(menu));
+      const title = button(documentTitle(document), () => { if (!state.busy) void openCard(document); });
+      title.className = "project-title-button";
+      const heading = node("div", "project-card-heading");
+      heading.append(title);
+      const earliest = document.pending_follow_up_date || document.follow_up?.actions?.reduce((date,row)=>
+        !row.status && row.follow_up_date && (!date || row.follow_up_date<date) ? row.follow_up_date : date,'');
+      if (earliest) window.ClassifireDocumentBoard.addFollowUpMarker(heading,earliest,event=>openFollowUp(document,event.currentTarget));
+      heading.append(menu);
+      return heading;
+    }
   }
   async function openCard(card, createWorkOrder = false, signingTarget = null) {
     if (state.busy || state.cardIntent) return;
@@ -2269,7 +2288,7 @@
       markDirty();
     });
     const groups = isWorkOrder ? [
-      ["Work order details", [["start_date","Proposed start date"],["end_date","Proposed end date"],["urgency","Category / urgency"],["description","Description of works"],["estimated_cost","Estimated cost (AUD)"],["details_by","Work order details reviewed by"],["details_date","Details review date"]]],
+      ["Work order details", [["start_date","Proposed start date"],["end_date","Proposed end date"],["urgency","Category / urgency"],["subject","Subject"],["description","Description of works"],["estimated_cost","Estimated cost (AUD)"],["details_by","Work order details reviewed by"],["details_date","Details review date"]]],
       ["Work order review", [["approval","Approval"],["justification","Justification"],["reviewed_by","Reviewed by"],["review_date","Review date"]]],
       ["OHS documentation", [["prepared_by","Prepared by"],["prepared_date","Date"]]],
       ["Client approval", [["client_approved_by","Approved by"],["client_approval_date","Approval date"]]],
@@ -2283,8 +2302,18 @@
       if(isWorkOrder && title==='Work order details')section.classList.add('commercial-work-details');
       section.append(node("h2", "", title));
       if(isWorkOrder && title==='Work Order Claim')claimBilling(section,fields);
-      let dates,personPair,personDate,rejectionField;
+      let dates,personPair,personDate,rejectionField,workScope;
       for (const [key, label] of items) {
+        if (key === 'subject') {
+          workScope = node('div','commercial-work-scope');
+          const control = input(fields.order.subject, value => fields.order.subject = value);
+          control.maxLength = 1000; control.dataset.orderField = key;
+          const subject = field(label, control);
+          window.CeasefireI18n?.text(subject.firstChild, label);
+          window.CeasefireI18n?.attr(control, 'aria-label', label);
+          workScope.append(subject); section.append(workScope);
+          continue;
+        }
         if(['completed_percent','claimed_percent'].includes(key)) {
           const tracking=node('div','commercial-work-tracking');tracking.dataset.trackingField=key;
           trackingHosts.push([tracking,key,label]);renderTracking(tracking,fields,key,label);section.append(tracking);
@@ -2396,7 +2425,8 @@
         if (isWorkOrder && ["start_date","end_date"].includes(key)) {
           if (!dates) { dates = node("div", "commercial-field-pair commercial-proposed-dates"); section.append(dates); }
           dates.append(item);
-        } else if(key===personDate && personPair)personPair.append(item);
+        } else if(isWorkOrder && key==='description')workScope.append(item);
+        else if(key===personDate && personPair)personPair.append(item);
         else section.append(item);
       }
       if (!isWorkOrder && title === "Request") {

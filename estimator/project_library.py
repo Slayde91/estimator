@@ -847,6 +847,19 @@ class ProjectLibrary:
         project = self._restore_takeoffs(project, path)
         return {**project, "file": self._authorize_save(path, info, payload, _metadata(path, info, project, folder, payload))}
 
+    def load_converted_lead(self, receipt):
+        """The directory owns the original saved path and number for each converted Lead."""
+        path = Path(receipt['path'])
+        if not path.is_absolute() or '..' in path.parts or not is_project_filename(path.name):
+            raise ValidationError('Saved project unavailable')
+        payload, info = _read_file(path)
+        summary = project_summary(payload, edition=self.edition)
+        if (receipt['project_no'] not in summary['project_numbers']
+                or summary['source_project_id'] in self._commercial_sources.ignored_owners()):
+            raise ValidationError('Saved project unavailable')
+        folder = self.store.project_folder()
+        return self._load_saved_project(path, Path(folder) if folder else None, payload, info)
+
     def load_linked(self, target):
         """Open the verified file behind a saved site relationship."""
         if (not isinstance(target, dict) or set(target) != {'source', 'owner', 'project_no'}

@@ -45,6 +45,8 @@ const {chromium, expect} = require('@playwright/test');
     const fieldLabel = await page.getByLabel('Field label').boundingBox();
     for (const option of ['Required','Hide in printed forms']) {
       const checkbox = page.getByRole('checkbox',{name:option,exact:true});
+      const caption = checkbox.locator('xpath=parent::label/span');
+      assert.ok(await caption.evaluate(span => parseFloat(getComputedStyle(span).fontSize) < parseFloat(getComputedStyle(document.body).fontSize)));
       const box = await checkbox.boundingBox();
       assert.ok(box.x > fieldLabel.x + fieldLabel.width && box.y < fieldLabel.y + fieldLabel.height && box.y + box.height > fieldLabel.y);
       await checkbox.check();

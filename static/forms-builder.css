@@ -108,7 +108,7 @@
   grid-column: 1 / -1; min-width: 0;
 }
 .form-builder-field-heading .form-builder-control { flex: 1 1 12rem; }
-.form-builder-field-heading .form-builder-check { min-height: 2.6rem; }
+.form-builder-field-heading .form-builder-check { min-height: 2.6rem; font-size: .75rem; }
 .form-builder-checks { gap: .8rem; }
 .form-builder-nested-row, .form-builder-stage {
   display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem;
